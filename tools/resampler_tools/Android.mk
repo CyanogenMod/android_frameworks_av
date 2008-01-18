@@ -1,6 +1,6 @@
 # Copyright 2005 Google Inc. All Rights Reserved.
 #
-# Makefile for resampler_tools 
+# Android.mk for resampler_tools 
 #
 
 
