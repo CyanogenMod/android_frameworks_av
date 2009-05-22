@@ -18,18 +18,22 @@
 // destruction order in the library.
 
 #include <utils/threads.h>
-#include <utils/KeyedVector.h>
+
+#include <binder/IBinder.h>
+#include <binder/IMemory.h>
+#include <binder/ProcessState.h>
+#include <binder/IPermissionController.h>
+#include <binder/IServiceManager.h>
 
 namespace android {
-// For TextStream.cpp
-extern Vector<int32_t> gTextBuffers;
 
-// For String8.cpp
-extern void initialize_string8();
-extern void terminate_string8();
+// For ProcessState.cpp
+extern Mutex gProcessMutex;
+extern sp<ProcessState> gProcess;
 
-// For String16.cpp
-extern void initialize_string16();
-extern void terminate_string16();
+// For ServiceManager.cpp
+extern Mutex gDefaultServiceManagerLock;
+extern sp<IServiceManager> gDefaultServiceManager;
+extern sp<IPermissionController> gPermissionController;
 
 }   // namespace android
