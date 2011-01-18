@@ -45,6 +45,7 @@
 #include "M4OSA_Memory.h"
 #include "M4OSA_CharStar.h"
 
+#define FILE_LOWER_CASE //defined to support limitaion of lower case file system in sdcard.
 /**
  ************************************************************************
  * @brief      This function opens the provided URL and returns its context.
@@ -84,6 +85,10 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
 
     FILE* pFileHandler = M4OSA_NULL;
     M4OSA_FileContext *pFileContext    = M4OSA_NULL;
+
+#ifdef FILE_LOWER_CASE
+    M4OSA_Char *tmpLowerCaseUrl = M4OSA_NULL;
+#endif
 
 #ifdef UTF_CONVERSION
     /*FB: to test the UTF16->UTF8 conversion into Video Artist*/
@@ -134,6 +139,15 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     M4OSA_DEBUG_IF1((M4OSA_FILE_WRITER == core_id) && !(fileModeAccess & M4OSA_kFileWrite),
         M4ERR_FILE_BAD_MODE_ACCESS, "M4OSA_fileCommonOpen: M4OSA_kFileWrite");
 
+#ifdef FILE_LOWER_CASE
+    tmpLowerCaseUrl = (M4OSA_Char*)M4OSA_malloc(strlen(pUrl) +1, 0, "conversion buf");
+    for(i=0; i<strlen(pUrl); i++)
+    {
+        tmpLowerCaseUrl[i] = M4OSA_chrToLower(pUrl[i]);
+    }
+    tmpLowerCaseUrl[i] = '\0'; //null terminate
+#endif
+
     /* Create flag necessary for opening file */
     if ((fileModeAccess & M4OSA_kFileRead) &&
         (fileModeAccess & M4OSA_kFileWrite)&&(fileModeAccess & M4OSA_kFileCreate))
@@ -174,8 +188,9 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     pFileHandler = fopen((const char *)tempConversionBuf, (const char *)mode);
     /*Free the temporary decoded buffer*/
     M4OSA_free((M4OSA_MemAddr32)tempConversionBuf);
-#else
-    pFileHandler = fopen((const char *)pUrl, (const char *)mode);
+#else if FILE_LOWER_CASE
+    pFileHandler = fopen((const char *)tmpLowerCaseUrl, (const char *)mode);
+    M4OSA_free((M4OSA_MemAddr32)tmpLowerCaseUrl);
 #endif /* UTF_CONVERSION */
 
     if (M4OSA_NULL == pFileHandler)
