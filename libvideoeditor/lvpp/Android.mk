@@ -37,7 +37,7 @@ LOCAL_SRC_FILES:=          \
     VideoEditorBGAudioProcessing.cpp \
     PreviewRenderer.cpp
 
-LOCAL_MODULE_TAGS := development
+LOCAL_MODULE_TAGS := eng development
 
 LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal \
@@ -68,9 +68,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/base/media/libstagefright/rtsp \
     $(JNI_H_INCLUDE) \
     $(call include-path-for, corecg graphics) \
-    $(TOP)/external/opencore/extern_libs_v2/khronos/openmax/include \
-    $(TOP)/external/opencore/android \
-    $(TOP)/vendor/qcom/proprietary/qdsp6/mm-core/omxcore/inc \
+    $(TOP)/frameworks/base/include/media/stagefright/openmax \
     $(TOP)/frameworks/media/libvideoeditor/osal/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
