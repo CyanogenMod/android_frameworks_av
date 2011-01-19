@@ -33,7 +33,7 @@ LOCAL_SRC_FILES:=          \
       M4MCS_MediaAndCodecSubscription.c \
       M4MCS_VideoPreProcessing.c
 
-LOCAL_MODULE_TAGS := development
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_SHARED_LIBRARIES := libcutils libutils
 

@@ -30,7 +30,7 @@ LOCAL_SRC_FILES:=          \
       M4MP4W_Utils.c \
       M4MP4W_Writer.c
 
-LOCAL_MODULE_TAGS := development
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_SHARED_LIBRARIES := libcutils libutils
 
