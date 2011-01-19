@@ -37,7 +37,7 @@ LOCAL_SRC_FILES:=          \
     VideoEditorBGAudioProcessing.cpp \
     PreviewRenderer.cpp
 
-LOCAL_MODULE_TAGS := eng development
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal \

@@ -72,6 +72,6 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_MODULE:= libvideoeditor_stagefrightshells
 
-LOCAL_MODULE_TAGS := eng development
+LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)

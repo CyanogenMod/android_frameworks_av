@@ -46,7 +46,7 @@ LOCAL_SRC_FILES:=          \
     M4PSW_Trace.c \
     LVOSA_FileReader_optim.c
 
-LOCAL_MODULE_TAGS := development
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_SHARED_LIBRARIES := libcutils libutils
 
