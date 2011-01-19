@@ -861,8 +861,8 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
     LOGV("VideoEditor3gpReader_jump begin");
 
     if (*pTime == (pStreamHandler->m_duration)) {
-		*pTime -= 1;
-	}
+        *pTime -= 1;
+    }
     M4OSA_INT64_FROM_INT32(time64, *pTime);
 
     LOGV("VideoEditor3gpReader_jump time us %ld ", time64);
@@ -970,6 +970,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
     MediaSource::ReadOptions options;
     M4OSA_Bool flag = M4OSA_FALSE;
     status_t error;
+    int32_t i32Tmp = 0;
 
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid context");
@@ -1021,6 +1022,11 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                     mMediaBuffer, error);
                 if (mMediaBuffer != NULL)
                 {
+                    if (mMediaBuffer->meta_data()->findInt32(kKeyIsSyncFrame,
+                        &i32Tmp) && i32Tmp) {
+                            LOGV("SYNC FRAME FOUND--%d", i32Tmp);
+                        pAu->attribute = AU_RAP;
+                    }
                     mMediaBuffer->meta_data()->findInt64(kKeyTime,
                         (int64_t*)&tempTime64);
                 } else {
@@ -1037,6 +1043,11 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
             pC->mVideoSource->read(&mMediaBuffer, &options);
 
             if(mMediaBuffer != NULL) {
+                if (mMediaBuffer->meta_data()->findInt32(kKeyIsSyncFrame,
+                    &i32Tmp) && i32Tmp) {
+                    LOGV("SYNC FRAME FOUND--%d", i32Tmp);
+                    pAu->attribute = AU_RAP;
+                }
                 mMediaBuffer->meta_data()->findInt64(kKeyTime,
                     (int64_t*)&tempTime64);
                 LOGV("VE3gpReader_getNextAu: video no seek time = %lld:",
@@ -1094,7 +1105,9 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
         LOGV("VideoEditor3gpReader_getNextAu CTS = %ld",pAu->CTS);
 
         pAu->DTS  = pAu->CTS;
-        pAu->attribute = M4SYS_kFragAttrOk;
+        if (pStreamHandler == (M4_StreamHandler*)pC->mAudioStreamHandler) {
+            pAu->attribute = M4SYS_kFragAttrOk;
+        }
         mMediaBuffer->release();
 
         pAccessUnit->m_dataAddress = (M4OSA_Int8*) pAu->dataAddress;
