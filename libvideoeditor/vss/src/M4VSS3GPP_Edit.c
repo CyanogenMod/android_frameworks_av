@@ -1161,6 +1161,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     {
         /* Compute an average bitrate from mixed bitrates of the input clips */
         M4VSS3GPP_intComputeOutputAverageVideoBitrate(pC);
+        pC->ewc.uiVideoBitrate = pSettings->xVSS.outputVideoBitrate;
 
         /**
         * 11/12/2008 CR3283 MMS use case in VideoArtist: Set max output file size if needed */
