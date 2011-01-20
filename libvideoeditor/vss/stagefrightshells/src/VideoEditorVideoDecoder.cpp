@@ -721,6 +721,8 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
     int32_t width = 0;
     int32_t height = 0;
     int32_t frameSize = 0;
+    int32_t vWidth, vHeight;
+    int32_t cropLeft, cropTop, cropRight, cropBottom;
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != meta,     M4ERR_PARAMETER);
@@ -729,10 +731,29 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
 
     pDecShellContext = (VideoEditorVideoDecoder_Context*)pContext;
 
-    // Get the parameters
-    success  = meta->findInt32(kKeyWidth,  &width);
-    success &= meta->findInt32(kKeyHeight, &height);
+    success = meta->findInt32(kKeyWidth, &vWidth);
     VIDEOEDITOR_CHECK(TRUE == success, M4ERR_PARAMETER);
+    success = meta->findInt32(kKeyHeight, &vHeight);
+    VIDEOEDITOR_CHECK(TRUE == success, M4ERR_PARAMETER);
+
+    pDecShellContext->mGivenWidth = vWidth;
+    pDecShellContext->mGivenHeight = vHeight;
+
+    if (!meta->findRect(
+                kKeyCropRect, &cropLeft, &cropTop, &cropRight, &cropBottom)) {
+
+        cropLeft = cropTop = 0;
+        cropRight = vWidth - 1;
+        cropBottom = vHeight - 1;
+
+        LOGI("got dimensions only %d x %d", width, height);
+    } else {
+        LOGI("got crop rect %d, %d, %d, %d",
+             cropLeft, cropTop, cropRight, cropBottom);
+    }
+
+    width = cropRight - cropLeft + 1;
+    height = cropBottom - cropTop + 1;
 
     LOGV("VideoDecoder_configureFromMetadata : W=%d H=%d", width, height);
     VIDEOEDITOR_CHECK((0 != width) && (0 != height), M4ERR_PARAMETER);
@@ -763,7 +784,8 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
         MAX_DEC_BUFFERS, (M4OSA_Char*)"VIDEOEDITOR_DecodedBufferPool");
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
     err = VIDEOEDITOR_BUFFER_initPoolBuffers(pDecShellContext->m_pDecBufferPool,
-        frameSize + width * 2);
+                frameSize + pDecShellContext->mGivenWidth * 2);
+
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
 
 cleanUp:
@@ -876,6 +898,7 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
     pDecShellContext->mNbOutputFrames    = 0;
     pDecShellContext->mFirstOutputCts    = -1;
     pDecShellContext->mLastOutputCts     = -1;
+    pDecShellContext->m_pDecBufferPool   = M4OSA_NULL;
 
     /**
      * StageFright graph building
@@ -1197,11 +1220,27 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                 break;
             }
             case OMX_COLOR_FormatYUV420Planar:
-                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData,
-                    (M4OSA_MemAddr8) pDecoderBuffer->data() +
-                    pDecoderBuffer->range_offset(),
-                    (M4OSA_UInt32)pDecoderBuffer->range_length());
+            {
+                int32_t width = pDecShellContext->m_pVideoStreamhandler->m_videoWidth;
+                int32_t height = pDecShellContext->m_pVideoStreamhandler->m_videoHeight;
+                int32_t yPlaneSize = width * height;
+                int32_t uvPlaneSize = width * height / 4;
+                int32_t offsetSrc = 0;
+
+                M4OSA_MemAddr8 pTmpBuff = (M4OSA_MemAddr8)pDecoderBuffer->data() + pDecoderBuffer->range_offset();
+
+                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData, pTmpBuff, yPlaneSize);
+
+                offsetSrc += pDecShellContext->mGivenWidth * pDecShellContext->mGivenHeight;
+                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize,
+                    pTmpBuff + offsetSrc, uvPlaneSize);
+
+                offsetSrc += (pDecShellContext->mGivenWidth >> 1) * (pDecShellContext->mGivenHeight >> 1);
+                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize + uvPlaneSize,
+                                pTmpBuff + offsetSrc, uvPlaneSize);
+
                 break;
+            }
             default:
                 LOGV("VideoDecoder_decode: unexpected color format 0x%X",
                     pDecShellContext->decOuputColorFormat);
