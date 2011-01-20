@@ -107,7 +107,8 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
                                                                 M4VIFI_ImagePlane *pPlaneOut);
 
 M4OSA_Void prepareYUV420ImagePlane(M4VIFI_ImagePlane *plane,
-    M4OSA_UInt32 width, M4OSA_UInt32 height, M4VIFI_UInt8 *buffer);
+    M4OSA_UInt32 width, M4OSA_UInt32 height, M4VIFI_UInt8 *buffer,
+    M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight);
 
 M4OSA_Void prepareYV12ImagePlane(M4VIFI_ImagePlane *plane,
     M4OSA_UInt32 width, M4OSA_UInt32 height, M4OSA_UInt32 stride, M4VIFI_UInt8 *buffer);
@@ -141,5 +142,7 @@ M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
     M4VIFI_ImagePlane *planeIn, M4VIFI_ImagePlane *planeOut,
     M4VIFI_UInt8 *buffer1, M4VIFI_UInt8 *buffer2, M4VFL_CurtainParam* curtainParams);
 
-M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams*        params);
+M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
+    M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight);
+
 #endif // ANDROID_VE_TOOLS_H

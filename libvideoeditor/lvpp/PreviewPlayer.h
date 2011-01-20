@@ -74,7 +74,7 @@ struct PreviewPlayer : public AwesomePlayer {
         const char *uri, const KeyedVector<String8, String8> *headers);
 
     //Added methods
-    status_t loadEffectsSettings(M4VSS3GPP_EffectSettings* pEffectSettings, 
+    status_t loadEffectsSettings(M4VSS3GPP_EffectSettings* pEffectSettings,
                                  int nEffects);
     status_t loadAudioMixSettings(M4xVSS_AudioMixingSettings* pAudioMixSettings);
     status_t setAudioMixPCMFileHandle(M4OSA_Context pAudioMixPCMFileHandle);
@@ -184,6 +184,9 @@ private:
     M4xVSS_MediaRendering mRenderingMode;
     uint32_t mOutputVideoWidth;
     uint32_t mOutputVideoHeight;
+
+    int32_t mReportedWidth;  //docoder reported width
+    int32_t mReportedHeight; //docoder reported height
 
     uint32_t mStoryboardStartTimeMsec;
 
