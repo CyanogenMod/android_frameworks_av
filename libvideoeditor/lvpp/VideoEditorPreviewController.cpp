@@ -1174,7 +1174,7 @@ M4OSA_ERR VideoEditorPreviewController::applyVideoEffect(
 
     mTarget->getBufferYV12(&(postProcessParams.pOutBuffer), &(postProcessParams.outBufferStride));
 
-    err = applyEffectsAndRenderingMode(&postProcessParams);
+    err = applyEffectsAndRenderingMode(&postProcessParams, mOutputVideoWidth, mOutputVideoHeight);
     return err;
 }
 
@@ -1273,7 +1273,7 @@ M4OSA_ERR VideoEditorPreviewController::doImageRenderingMode(
 
     // In plane
     prepareYUV420ImagePlane(planeIn, videoWidth,
-      videoHeight, (M4VIFI_UInt8 *)inBuffer);
+      videoHeight, (M4VIFI_UInt8 *)inBuffer, videoWidth, videoHeight);
 
     outputBufferWidth = mOutputVideoWidth;
     outputBufferHeight = mOutputVideoHeight;

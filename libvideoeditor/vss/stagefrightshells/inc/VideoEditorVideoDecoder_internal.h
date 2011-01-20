@@ -108,6 +108,8 @@ typedef struct {
     M4OSA_UInt32            mNbOutputFrames;
     M4OSA_Double            mFirstOutputCts;
     M4OSA_Double            mLastOutputCts;
+    M4OSA_Int32             mGivenWidth, mGivenHeight; //Used in case of
+                                                       //INFO_FORMAT_CHANGED
 
 } VideoEditorVideoDecoder_Context;
 

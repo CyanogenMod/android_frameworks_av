@@ -2161,7 +2161,7 @@ M4AIR_create_cleanup:
     }
 
     *pContext = M4OSA_NULL ;
-    
+
     return err ;
 }
 
@@ -2222,7 +2222,7 @@ M4OSA_ERR M4AIR_configure(M4OSA_Context pContext, M4AIR_Params* pParams)
     M4OSA_UInt32    nb_planes;
 
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_PARAMETER, pContext) ;
-    
+
     if(M4AIR_kYUV420AP == pC->m_inputFormat)
     {
         nb_planes = 4;
@@ -2395,7 +2395,7 @@ M4OSA_ERR M4AIR_configure(M4OSA_Context pContext, M4AIR_Params* pParams)
     }
     /**< Update state */
     pC->m_state = M4AIR_kConfigured;
-    
+
     return M4NO_ERROR ;
 }
 
@@ -3065,8 +3065,9 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
 
 }
 M4OSA_Void prepareYUV420ImagePlane(M4VIFI_ImagePlane *plane,
-    M4OSA_UInt32 width, M4OSA_UInt32 height, M4VIFI_UInt8 *buffer) {
-    
+    M4OSA_UInt32 width, M4OSA_UInt32 height, M4VIFI_UInt8 *buffer,
+    M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight) {
+
     //Y plane
     plane[0].u_width = width;
     plane[0].u_height = height;
@@ -3079,21 +3080,20 @@ M4OSA_Void prepareYUV420ImagePlane(M4VIFI_ImagePlane *plane,
     plane[1].u_height = height/2;
     plane[1].u_stride = plane[1].u_width;
     plane[1].u_topleft = 0;
-    plane[1].pac_data = buffer+(width*height);
+    plane[1].pac_data = buffer+(reportedWidth*reportedHeight);
 
     // V Plane
     plane[2].u_width = width/2;
     plane[2].u_height = height/2;
     plane[2].u_stride = plane[2].u_width;
     plane[2].u_topleft = 0;
-    plane[2].pac_data = buffer+(width*height+(width/2)*(height/2));
-    
+    plane[2].pac_data = plane[1].pac_data + ((reportedWidth/2)*(reportedHeight/2));
 }
 
 M4OSA_Void prepareYV12ImagePlane(M4VIFI_ImagePlane *plane,
     M4OSA_UInt32 width, M4OSA_UInt32 height, M4OSA_UInt32 stride,
     M4VIFI_UInt8 *buffer) {
-    
+
     //Y plane
     plane[0].u_width = width;
     plane[0].u_height = height;
@@ -3119,13 +3119,13 @@ M4OSA_Void prepareYV12ImagePlane(M4VIFI_ImagePlane *plane,
     plane[2].pac_data = (buffer +
      plane[0].u_height * android::PreviewRenderer::ALIGN(plane[0].u_stride, 16));
 
-     
+
 }
 
 M4OSA_Void swapImagePlanes(
     M4VIFI_ImagePlane *planeIn, M4VIFI_ImagePlane *planeOut,
     M4VIFI_UInt8 *buffer1, M4VIFI_UInt8 *buffer2) {
-    
+
     planeIn[0].u_height = planeOut[0].u_height;
     planeIn[0].u_width = planeOut[0].u_width;
     planeIn[0].u_stride = planeOut[0].u_stride;
@@ -3167,7 +3167,7 @@ M4OSA_Void swapImagePlanes(
          planeOut[0].u_width*planeOut[0].u_height +
          planeOut[1].u_width*planeOut[1].u_height);
     }
-    
+
 }
 
 M4OSA_Void computePercentageDone(
@@ -3405,7 +3405,8 @@ M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
     return err;
 }
 
-M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams    *params) {
+M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
+    M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight) {
 
     M4OSA_ERR err = M4NO_ERROR;
     M4VIFI_ImagePlane planeIn[3], planeOut[3];
@@ -3441,12 +3442,12 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams    *params) {
     }
 
     // Initialize the In plane
-    prepareYUV420ImagePlane(planeIn, params->videoWidth,
-      params->videoHeight, params->vidBuffer);
+    prepareYUV420ImagePlane(planeIn, params->videoWidth, params->videoHeight,
+       params->vidBuffer, reportedWidth, reportedHeight);
 
     // Initialize the Out plane
-    prepareYUV420ImagePlane(planeOut, params->videoWidth,
-      params->videoHeight, (M4VIFI_UInt8 *)tempOutputBuffer);
+    prepareYUV420ImagePlane(planeOut, params->videoWidth, params->videoHeight,
+       (M4VIFI_UInt8 *)tempOutputBuffer, params->videoWidth, params->videoHeight);
 
     // The planeIn contains the YUV420 input data to postprocessing node
     // and planeOut will contain the YUV420 data with effect

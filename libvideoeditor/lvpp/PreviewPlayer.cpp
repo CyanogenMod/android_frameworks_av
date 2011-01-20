@@ -141,7 +141,9 @@ void PreviewLocalRenderer::init(
 PreviewPlayer::PreviewPlayer()
     : AwesomePlayer(),
       mFrameRGBBuffer(NULL),
-      mFrameYUVBuffer(NULL) {
+      mFrameYUVBuffer(NULL),
+      mReportedWidth(0),
+      mReportedHeight(0) {
 
     mVideoRenderer = NULL;
     mLastVideoBuffer = NULL;
@@ -308,6 +310,9 @@ status_t PreviewPlayer::setDataSource_l_jpg() {
 
     mVideoSource = DummyVideoSource::Create(mVideoWidth, mVideoHeight,
                                             mDurationUs, mUri);
+    mReportedWidth = mVideoWidth;
+    mReportedHeight = mVideoHeight;
+
     setVideoSource(mVideoSource);
     status_t err1 = mVideoSource->start();
     if (err1 != OK) {
@@ -648,6 +653,9 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
         CHECK(mVideoTrack->getFormat()->findInt32(kKeyWidth, &mVideoWidth));
         CHECK(mVideoTrack->getFormat()->findInt32(kKeyHeight, &mVideoHeight));
 
+        mReportedWidth = mVideoWidth;
+        mReportedHeight = mVideoHeight;
+
         status_t err = mVideoSource->start();
 
         if (err != OK) {
@@ -720,7 +728,10 @@ void PreviewPlayer::onVideoEvent() {
                 if (err == INFO_FORMAT_CHANGED) {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
+                    sp<MetaData> meta = mVideoSource->getFormat();
 
+                    CHECK(meta->findInt32(kKeyWidth, &mReportedWidth));
+                    CHECK(meta->findInt32(kKeyHeight, &mReportedHeight));
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
                         initRenderer_l();
@@ -1397,7 +1408,7 @@ M4OSA_ERR PreviewPlayer::doMediaRendering() {
 
     /* In plane*/
     prepareYUV420ImagePlane(planeIn, mVideoWidth,
-      mVideoHeight, (M4VIFI_UInt8 *)inBuffer);
+      mVideoHeight, (M4VIFI_UInt8 *)inBuffer, mReportedWidth, mReportedHeight);
 
     // Set the output YUV420 plane to be compatible with YV12 format
     // W & H even
@@ -1588,7 +1599,7 @@ M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
     postProcessParams.overlayFrameRGBBuffer = mFrameRGBBuffer;
     postProcessParams.overlayFrameYUVBuffer = mFrameYUVBuffer;
     mVideoRenderer->getBuffer(&(postProcessParams.pOutBuffer), &(postProcessParams.outBufferStride));
-    err = applyEffectsAndRenderingMode(&postProcessParams);
+    err = applyEffectsAndRenderingMode(&postProcessParams, mReportedWidth, mReportedHeight);
 
     return err;
 }
@@ -1615,6 +1626,10 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                 if (err == INFO_FORMAT_CHANGED) {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
+                    sp<MetaData> meta = mVideoSource->getFormat();
+
+                    CHECK(meta->findInt32(kKeyWidth, &mReportedWidth));
+                    CHECK(meta->findInt32(kKeyHeight, &mReportedHeight));
 
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
