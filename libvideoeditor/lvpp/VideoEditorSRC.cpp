@@ -103,10 +103,6 @@ void VideoEditorSRC::setResampling(int32_t sampleRate) {
     return;
 }
 
-// debug
-FILE *fp;
-
-
 status_t  VideoEditorSRC::start (MetaData *params) {
     Mutex::Autolock autoLock(mLock);
 
@@ -155,9 +151,6 @@ status_t  VideoEditorSRC::start (MetaData *params) {
     mStarted = true;
     mSource->start();
 
-    //+ debug
-    fp = fopen("/sdcard/output.pcm", "wb");
-
     return OK;
 }
 
@@ -176,8 +169,6 @@ status_t VideoEditorSRC::stop() {
     mLeftover = 0;
     mLastReadSize = 0;
 
-    //+ debug
-    fclose(fp);
     return OK;
 }
 
@@ -370,10 +361,6 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
     LOGV("mLeftover         %d", mLeftover);
 
     mLastReadSize = actualReadSize;
-
-    //+ debug
-    //pBuffer->frameCount = 1024;
-    fwrite(pBuffer->raw, 1, pBuffer->frameCount * mChannelCnt * sizeof(int16_t), fp);
 
     LOGV("inFrameCount     %d", pBuffer->frameCount);
 

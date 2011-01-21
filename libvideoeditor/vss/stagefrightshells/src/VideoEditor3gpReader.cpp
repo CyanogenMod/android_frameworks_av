@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2011 NXP Software
  * Copyright (C) 2011 The Android Open Source Project
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -483,7 +483,8 @@ M4OSA_ERR VideoEditor3gpReader_open(M4OSA_Context pContext,
 
     LOGV("VideoEditor3gpReader_open Datasource start %s",
         (char*)pFileDescriptor);
-    pC->mDataSource = DataSource::CreateFromURI((char*)pFileDescriptor);
+    //pC->mDataSource = DataSource::CreateFromURI((char*)pFileDescriptor);
+    pC->mDataSource = new FileSource ((char*)pFileDescriptor);
 
     if (pC->mDataSource == NULL) {
         LOGV("VideoEditor3gpReader_open Datasource error");
@@ -593,6 +594,7 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
         pC->mVideoSource->stop();
         pC->mVideoSource.clear();
     }
+    pC->mExtractor.clear();
     pC->mDataSource.clear();
 
     LOGV("VideoEditor3gpReader_close end");
@@ -1880,8 +1882,8 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pTime == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getPrevRapTime: invalid time pointer");
     if (*pTime == (pStreamHandler->m_duration)) {
-		*pTime -= 1;
-	}
+        *pTime -= 1;
+    }
     M4OSA_INT64_FROM_INT32(time64, *pTime);
     time64 = time64 * 1000;
 
@@ -1891,7 +1893,7 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     if (error != OK) {
         //Can not get the previous Sync.
         //Must be end of stream.
-		return M4WAR_NO_MORE_AU;
+        return M4WAR_NO_MORE_AU;
     }
 
     mMediaBuffer->meta_data()->findInt64(kKeyTime, (int64_t*)&tempTime64);
