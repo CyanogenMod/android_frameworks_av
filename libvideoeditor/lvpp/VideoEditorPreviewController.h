@@ -53,7 +53,8 @@ typedef enum {
 
 
 // Callback mechanism from PreviewController to Jni  */
-typedef void (*jni_progress_callback_fct)(void* cookie, M4OSA_UInt32 msgType, M4OSA_UInt32 argc);
+typedef void (*jni_progress_callback_fct)(void* cookie, M4OSA_UInt32 msgType, void *argc);
+
 
 class VideoEditorPreviewController {
 
@@ -62,26 +63,27 @@ public:
     virtual ~VideoEditorPreviewController();
 
     M4OSA_ERR loadEditSettings(M4VSS3GPP_EditSettings* pSettings,
-     M4xVSS_AudioMixingSettings* bgmSettings);
+        M4xVSS_AudioMixingSettings* bgmSettings);
 
     M4OSA_ERR setSurface(const sp<Surface> &surface);
 
     M4OSA_ERR startPreview(M4OSA_UInt32 fromMS, M4OSA_Int32 toMs,
-     M4OSA_UInt16 callBackAfterFrameCount, M4OSA_Bool loop) ;
+        M4OSA_UInt16 callBackAfterFrameCount, M4OSA_Bool loop) ;
 
     M4OSA_ERR stopPreview();
 
     M4OSA_ERR renderPreviewFrame(const sp<Surface> &surface,
-     VideoEditor_renderPreviewFrameStr* pFrameInfo);
+        VideoEditor_renderPreviewFrameStr* pFrameInfo,
+        VideoEditorCurretEditInfo *pCurrEditInfo);
 
     M4OSA_ERR clearSurface(const sp<Surface> &surface,
      VideoEditor_renderPreviewFrameStr* pFrameInfo);
 
     M4OSA_Void setJniCallback(void* cookie,
-     jni_progress_callback_fct callbackFct);
+        jni_progress_callback_fct callbackFct);
 
     M4OSA_ERR setPreviewFrameRenderingMode(M4xVSS_MediaRendering mode,
-     M4VIDEOEDITING_VideoFrameSize outputVideoSize);
+        M4VIDEOEDITING_VideoFrameSize outputVideoSize);
 
 private:
     sp<VideoEditorPlayer> mVePlayer[NBPLAYER_INSTANCES];

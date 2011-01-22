@@ -20,7 +20,7 @@
 #include "VideoEditorPreviewController.h"
 
 namespace android {
-
+ 
 #define PREVIEW_THREAD_STACK_SIZE                           (65536)
 
 VideoEditorPreviewController::VideoEditorPreviewController()
@@ -738,7 +738,9 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
 }
 
 M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
-    const sp<Surface> &surface, VideoEditor_renderPreviewFrameStr* pFrameInfo) {
+            const sp<Surface> &surface,
+            VideoEditor_renderPreviewFrameStr* pFrameInfo,
+            VideoEditorCurretEditInfo *pCurrEditInfo) {
 
     M4OSA_ERR err = M4NO_ERROR;
     M4OSA_UInt32 i = 0, iIncrementedDuration = 0, tnTimeMs=0, framesize =0;
@@ -749,7 +751,9 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
 
     // Get the Isurface to be passed to renderer
     mISurface = surface->getISurface();
-
+    if (pCurrEditInfo != NULL) {
+        pCurrEditInfo->overlaySettingsIndex = -1;
+    }
     // Delete previous renderer instance
     if(mTarget != NULL) {
         delete mTarget;
@@ -793,6 +797,32 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
             }
             else {
                 setVideoEffectType(mEffectsSettings[i].VideoEffectType, FALSE);
+            }
+        }
+
+        //Provide the overlay Update indication when there is an overlay effect
+        if (mCurrentVideoEffect == VIDEO_EFFECT_FRAMING) {
+            int index;
+            mCurrentVideoEffect = VIDEO_EFFECT_NONE; //never apply framing here.
+
+            // Find the effect in effectSettings array
+            for (index = 0; index < mNumberEffects; index++) {
+                if(mEffectsSettings[index].VideoEffectType ==
+                    M4xVSS_kVideoEffectType_Framing) {
+
+                    if((mEffectsSettings[index].uiStartTime <= pFrameInfo->timeMs) &&
+                        ((mEffectsSettings[index].uiStartTime+
+                        mEffectsSettings[index].uiDuration) >= pFrameInfo->timeMs))
+                    {
+                        break;
+                    }
+                }
+            }
+            if ((index < mNumberEffects) && (pCurrEditInfo != NULL)) {
+                pCurrEditInfo->overlaySettingsIndex = index;
+                LOGV("Framing index = %d", index);
+            } else {
+                LOGV("No framing effects found");
             }
         }
 
@@ -958,9 +988,10 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
                 }
             }
             else {
+                M4OSA_UInt32 endArgs = 0;
                 if(pController->mJniCallback != NULL) {
                     pController->mJniCallback(
-                     pController->mJniCookie, MSG_TYPE_PREVIEW_END, 0);
+                     pController->mJniCookie, MSG_TYPE_PREVIEW_END, &endArgs);
                 }
                 pController->mPlayerState = VePlayerAutoStop;
 
@@ -1054,6 +1085,7 @@ void VideoEditorPreviewController::notify(
             LOGV("MEDIA_PREPARED");
             break;
         case MEDIA_PLAYBACK_COMPLETE:
+        {
             LOGV("notify:MEDIA_PLAYBACK_COMPLETE");
             pController->mPlayerState = VePlayerIdle;
 
@@ -1069,31 +1101,40 @@ void VideoEditorPreviewController::notify(
                  pController->mClipList[pController->mCurrentClipNumber]->uiEndCutTime
                   - pController->mClipList[pController->mCurrentClipNumber]->uiBeginCutTime;
             }
+
+            M4OSA_UInt32 playedDuration = clipDuration+pController->mCurrentPlayedDuration;
             pController->mJniCallback(
-             pController->mJniCookie, MSG_TYPE_PROGRESS_INDICATION,
-             (clipDuration+pController->mCurrentPlayedDuration));
+                 pController->mJniCookie, MSG_TYPE_PROGRESS_INDICATION,
+                 &playedDuration);
 
             M4OSA_semaphorePost(pController->mSemThreadWait);
             break;
-         case MEDIA_ERROR:
+        }
+        case MEDIA_ERROR:
+        {
+            int err_val = ext1;
           // Always log errors.
           // ext1: Media framework error code.
           // ext2: Implementation dependant error code.
             LOGE("MEDIA_ERROR; error (%d, %d)", ext1, ext2);
             if(pController->mJniCallback != NULL) {
                 pController->mJniCallback(pController->mJniCookie,
-                 MSG_TYPE_PLAYER_ERROR, ext1);
+                 MSG_TYPE_PLAYER_ERROR, &err_val);
             }
             break;
+        }
         case MEDIA_INFO:
+        {
+            int info_val = ext2;
             // ext1: Media framework error code.
             // ext2: Implementation dependant error code.
             //LOGW("MEDIA_INFO; info/warning (%d, %d)", ext1, ext2);
             if(pController->mJniCallback != NULL) {
                 pController->mJniCallback(pController->mJniCookie,
-                 MSG_TYPE_PROGRESS_INDICATION, ext2);
+                 MSG_TYPE_PROGRESS_INDICATION, &info_val);
             }
             break;
+        }
         case MEDIA_SEEK_COMPLETE:
             LOGV("MEDIA_SEEK_COMPLETE; Received seek complete");
             break;
@@ -1120,6 +1161,30 @@ void VideoEditorPreviewController::notify(
                     pController->mCurrentClipNumber+1);
             }
             break;
+        case 0xBBBBBBBB:
+        {
+            LOGV("VIDEO PLAYBACK, Update Overlay");
+            int overlayIndex = ext2;
+            VideoEditorCurretEditInfo *pEditInfo =
+                    (VideoEditorCurretEditInfo*)M4OSA_malloc(sizeof(VideoEditorCurretEditInfo),
+                    M4VS, (M4OSA_Char*)"Current Edit info");
+            //ext1 = 1; start the overlay display
+            //     = 2; Clear the overlay.
+            pEditInfo->overlaySettingsIndex = ext2;
+            pEditInfo->clipIndex = pController->mCurrentClipNumber;
+            LOGV("pController->mCurrentClipNumber = %d",pController->mCurrentClipNumber);
+            if (pController->mJniCallback != NULL) {
+                if (ext1 == 1) {
+                    pController->mJniCallback(pController->mJniCookie,
+                        MSG_TYPE_OVERLAY_UPDATE, pEditInfo);
+                } else {
+                    pController->mJniCallback(pController->mJniCookie,
+                        MSG_TYPE_OVERLAY_CLEAR, pEditInfo);
+                }
+            }
+            M4OSA_free((M4OSA_MemAddr32)pEditInfo);
+            break;
+        }
         default:
             LOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);
             break;
