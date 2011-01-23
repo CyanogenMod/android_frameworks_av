@@ -1416,6 +1416,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
     const void *codec_specific_data;
     size_t codec_specific_data_size;
     M4OSA_Int32  ptempTime;
+    M4OSA_Int32  avgFPS=0;
 
     LOGV("VideoEditor3gpReader_getNextStreamHandler begin");
 
@@ -1493,13 +1494,21 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 LOGV("<<<<<<<<<<   video: mMaxAUSize from MP4 extractor: %d",
                     (*pStreamHandler)->m_maxAUSize);
 
-                //check this
-                pVideoStreamHandler->m_averageFrameRate = 15;
                 if( (M4DA_StreamTypeVideoH263       == streamType) ||
                     (M4DA_StreamTypeVideoMpeg4Avc   == streamType)){
                     ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate =
                         384000;
                 }
+
+                meta->findInt32(kKeyFrameRate,
+                    (int32_t*)&(avgFPS));
+                LOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor: %d",
+                    avgFPS);
+
+                pVideoStreamHandler->m_averageFrameRate =(M4OSA_Float) avgFPS;
+                LOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor in FLOAT: %f",
+                    pVideoStreamHandler->m_averageFrameRate);
+
                 pC->mVideoStreamHandler =
                     (M4_StreamHandler*)(pVideoStreamHandler);
 
