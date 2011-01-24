@@ -74,6 +74,9 @@ public:
     M4OSA_ERR renderPreviewFrame(const sp<Surface> &surface,
      VideoEditor_renderPreviewFrameStr* pFrameInfo);
 
+    M4OSA_ERR clearSurface(const sp<Surface> &surface,
+     VideoEditor_renderPreviewFrameStr* pFrameInfo);
+
     M4OSA_Void setJniCallback(void* cookie,
      jni_progress_callback_fct callbackFct);
 
