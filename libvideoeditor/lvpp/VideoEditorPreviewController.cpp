@@ -672,6 +672,71 @@ M4OSA_ERR VideoEditorPreviewController::stopPreview() {
     return M4NO_ERROR;
 }
 
+M4OSA_ERR VideoEditorPreviewController::clearSurface(
+    const sp<Surface> &surface, VideoEditor_renderPreviewFrameStr* pFrameInfo) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    VideoEditor_renderPreviewFrameStr* pFrameStr = pFrameInfo;
+    M4OSA_UInt32 outputBufferWidth =0, outputBufferHeight=0;
+    M4VIFI_ImagePlane planeOut[3];
+    LOGV("Inside preview clear frame");
+
+    Mutex::Autolock autoLock(mLock);
+
+    // Get the Isurface to be passed to renderer
+    mISurface = surface->getISurface();
+
+    // Delete previous renderer instance
+    if(mTarget != NULL) {
+        delete mTarget;
+        mTarget = NULL;
+    }
+
+    if(mOutputVideoWidth == 0) {
+        mOutputVideoWidth = pFrameStr->uiFrameWidth;
+    }
+    if(mOutputVideoHeight == 0) {
+        mOutputVideoHeight = pFrameStr->uiFrameHeight;
+    }
+
+    // Initialize the renderer
+    if(mTarget == NULL) {
+        mTarget = new PreviewRenderer(
+            OMX_COLOR_FormatYUV420Planar, surface, mOutputVideoWidth, mOutputVideoHeight,
+            mOutputVideoWidth, mOutputVideoHeight, 0);
+        if(mTarget == NULL) {
+            LOGE("renderPreviewFrame: cannot create PreviewRenderer");
+            return M4ERR_ALLOC;
+        }
+    }
+
+    // Out plane
+    uint8_t* outBuffer;
+    size_t outBufferStride = 0;
+
+    LOGV("doMediaRendering CALL getBuffer()");
+    mTarget->getBufferYV12(&outBuffer, &outBufferStride);
+
+    // Set the output YUV420 plane to be compatible with YV12 format
+    //In YV12 format, sizes must be even
+    M4OSA_UInt32 yv12PlaneWidth = ((mOutputVideoWidth +1)>>1)<<1;
+    M4OSA_UInt32 yv12PlaneHeight = ((mOutputVideoHeight+1)>>1)<<1;
+
+    prepareYV12ImagePlane(planeOut, yv12PlaneWidth, yv12PlaneHeight,
+     (M4OSA_UInt32)outBufferStride, (M4VIFI_UInt8 *)outBuffer);
+
+    /* Fill the surface with black frame */
+    M4OSA_memset((M4OSA_MemAddr8)planeOut[0].pac_data,planeOut[0].u_width *
+                            planeOut[0].u_height * 1.5,0x00);
+    M4OSA_memset((M4OSA_MemAddr8)planeOut[1].pac_data,planeOut[1].u_width *
+                            planeOut[1].u_height,128);
+    M4OSA_memset((M4OSA_MemAddr8)planeOut[2].pac_data,planeOut[2].u_width *
+                             planeOut[2].u_height,128);
+
+    mTarget->renderYV12();
+    return err;
+}
+
 M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
     const sp<Surface> &surface, VideoEditor_renderPreviewFrameStr* pFrameInfo) {
 
