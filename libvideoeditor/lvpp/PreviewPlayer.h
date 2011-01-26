@@ -168,6 +168,7 @@ private:
     M4OSA_UInt32 mAudioMixStoryBoardTS;
     M4OSA_UInt32 mCurrentMediaBeginCutTime;
     M4OSA_UInt32 mCurrentMediaVolumeValue;
+    M4OSA_UInt32 mCurrFramingEffectIndex;
 
     uint32_t mNumberEffects;
     uint32_t mPlayBeginTimeMsec;
@@ -179,6 +180,10 @@ private:
     uint32_t mNumberDecVideoFrames; // Counter of number of video frames decoded
     sp<TimedEventQueue::Event> mProgressCbEvent;
     bool mProgressCbEventPending;
+    sp<TimedEventQueue::Event> mOverlayUpdateEvent;
+    bool mOverlayUpdateEventPending;
+    bool mOverlayUpdateEventPosted;
+
     MediaBuffer *mResizedVideoBuffer;
     bool mVideoResizedOrCropped;
     M4xVSS_MediaRendering mRenderingMode;
@@ -204,6 +209,9 @@ private:
     M4OSA_ERR doMediaRendering();
     void postProgressCallbackEvent_l();
     void onProgressCbEvent();
+
+    void postOverlayUpdateEvent_l();
+    void onUpdateOverlayEvent();
 
     status_t setDataSource_l_jpg();
 

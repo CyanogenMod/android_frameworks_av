@@ -143,7 +143,8 @@ PreviewPlayer::PreviewPlayer()
       mFrameRGBBuffer(NULL),
       mFrameYUVBuffer(NULL),
       mReportedWidth(0),
-      mReportedHeight(0) {
+      mReportedHeight(0),
+      mCurrFramingEffectIndex(0) {
 
     mVideoRenderer = NULL;
     mLastVideoBuffer = NULL;
@@ -158,23 +159,28 @@ PreviewPlayer::PreviewPlayer()
     mCurrentVideoEffect = VIDEO_EFFECT_NONE;
     mProgressCbInterval = 0;
     mNumberDecVideoFrames = 0;
+    mOverlayUpdateEventPosted = false;
 
     mVideoEvent = new PreviewPlayerEvent(this, &PreviewPlayer::onVideoEvent);
     mVideoEventPending = false;
     mStreamDoneEvent = new PreviewPlayerEvent(this,
-     &AwesomePlayer::onStreamDone);
+         &AwesomePlayer::onStreamDone);
 
     mStreamDoneEventPending = false;
 
     mCheckAudioStatusEvent = new PreviewPlayerEvent(
-            this, &AwesomePlayer::onCheckAudioStatus);
+        this, &AwesomePlayer::onCheckAudioStatus);
 
     mAudioStatusEventPending = false;
 
     mProgressCbEvent = new PreviewPlayerEvent(this,
-     &PreviewPlayer::onProgressCbEvent);
+         &PreviewPlayer::onProgressCbEvent);
 
+    mOverlayUpdateEvent = new PreviewPlayerEvent(this,
+        &PreviewPlayer::onUpdateOverlayEvent);
     mProgressCbEventPending = false;
+
+    mOverlayUpdateEventPending = false;
     mResizedVideoBuffer = NULL;
     mVideoResizedOrCropped = false;
     mRenderingMode = (M4xVSS_MediaRendering)MEDIA_RENDERING_INVALID;
@@ -864,6 +870,10 @@ void PreviewPlayer::onVideoEvent() {
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
         LOGI("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
+        if (mOverlayUpdateEventPosted) {
+            mOverlayUpdateEventPosted = false;
+            postOverlayUpdateEvent_l();
+        }
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
         return;
     }
@@ -892,10 +902,47 @@ void PreviewPlayer::onVideoEvent() {
             setVideoPostProcessingNode(
              mEffectsSettings[i].VideoEffectType, FALSE);
         }
-
     }
 
-    if(mCurrentVideoEffect != VIDEO_EFFECT_NONE) {
+    //Provide the overlay Update indication when there is an overlay effect
+    if (mCurrentVideoEffect == VIDEO_EFFECT_FRAMING) {
+        mCurrentVideoEffect = VIDEO_EFFECT_NONE; //never apply framing here.
+        if (!mOverlayUpdateEventPosted) {
+
+            // Find the effect in effectSettings array
+            int index;
+            for (index = 0; index < mNumberEffects; index++) {
+                M4OSA_UInt32 timeMs = mDecodedVideoTs/1000;
+                M4OSA_UInt32 timeOffset = mDecVideoTsStoryBoard/1000;
+                if(mEffectsSettings[index].VideoEffectType ==
+                    M4xVSS_kVideoEffectType_Framing) {
+                    if (((mEffectsSettings[index].uiStartTime + 1) <= timeMs + timeOffset) &&
+                        ((mEffectsSettings[index].uiStartTime - 1 +
+                        mEffectsSettings[index].uiDuration) >= timeMs + timeOffset))
+                    {
+                        break;
+                    }
+                }
+            }
+            if (index < mNumberEffects) {
+                mCurrFramingEffectIndex = index;
+                mOverlayUpdateEventPosted = true;
+                postOverlayUpdateEvent_l();
+                LOGV("Framing index = %d", mCurrFramingEffectIndex);
+            } else {
+                LOGV("No framing effects found");
+            }
+        }
+
+    } else if (mOverlayUpdateEventPosted) {
+        //Post the event when the overlay is no more valid
+        LOGV("Overlay is Done");
+        mOverlayUpdateEventPosted = false;
+        postOverlayUpdateEvent_l();
+    }
+
+
+    if (mCurrentVideoEffect != VIDEO_EFFECT_NONE) {
         err1 = doVideoPostProcessing();
         if(err1 != M4NO_ERROR) {
             LOGE("doVideoPostProcessing returned err");
@@ -1450,6 +1497,7 @@ void PreviewPlayer::postProgressCallbackEvent_l() {
     mQueue.postEvent(mProgressCbEvent);
 }
 
+
 void PreviewPlayer::onProgressCbEvent() {
     Mutex::Autolock autoLock(mLock);
     if (!mProgressCbEventPending) {
@@ -1466,6 +1514,32 @@ void PreviewPlayer::onProgressCbEvent() {
         (((mDecodedVideoTs+mDecVideoTsStoryBoard)/1000)-mPlayBeginTimeMsec));
     }
 }
+
+void PreviewPlayer::postOverlayUpdateEvent_l() {
+    if (mOverlayUpdateEventPending) {
+        return;
+    }
+    mOverlayUpdateEventPending = true;
+    mQueue.postEvent(mOverlayUpdateEvent);
+}
+
+void PreviewPlayer::onUpdateOverlayEvent() {
+    Mutex::Autolock autoLock(mLock);
+
+    if (!mOverlayUpdateEventPending) {
+        return;
+    }
+    mOverlayUpdateEventPending = false;
+
+    int updateState;
+    if (mOverlayUpdateEventPosted) {
+        updateState = 1;
+    } else {
+        updateState = 0;
+    }
+    notifyListener_l(0xBBBBBBBB, updateState, mCurrFramingEffectIndex);
+}
+
 
 void PreviewPlayer::setVideoPostProcessingNode(
                     M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable) {
