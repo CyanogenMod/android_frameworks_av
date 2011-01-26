@@ -34,7 +34,7 @@
 #include "M4OSA_Debug.h"  /**< OSAL debug management */
 
 /* PCM samples */
-#include "gLVAudioResampler.h"
+#include "VideoEditorResampler.h"
 /**
  * Decoder interface */
 #include "M4DECODER_Common.h"
