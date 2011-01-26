@@ -907,7 +907,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
         if ( buffer->meta_data()->findInt32(kKeyIsSyncFrame,&i32Tmp) && i32Tmp){
             pEncoderContext->mAccessUnit->attribute = AU_RAP;
         } else {
-            pEncoderContext->mAccessUnit->attribute = AU_B_Frame;
+            pEncoderContext->mAccessUnit->attribute = AU_P_Frame;
         }
         pEncoderContext->mLastCTS = Cts;
         pEncoderContext->mAccessUnit->CTS = Cts;
