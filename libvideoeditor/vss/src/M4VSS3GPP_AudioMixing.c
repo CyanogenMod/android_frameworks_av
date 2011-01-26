@@ -44,7 +44,7 @@
 #include "M4OSA_Debug.h"  /**< OSAL debug management */
 
 
-#include "gLVAudioResampler.h"
+#include "VideoEditorResampler.h"
 /**
  ******************************************************************************
  * @brief    Static functions

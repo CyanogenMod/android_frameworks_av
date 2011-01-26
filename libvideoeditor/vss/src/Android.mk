@@ -38,7 +38,6 @@ LOCAL_SRC_FILES:=          \
       M4VSS3GPP_EditAudio.c \
       M4VSS3GPP_EditVideo.c \
       M4VSS3GPP_MediaAndCodecSubscription.c \
-      glvaudioresampler.c \
       M4ChannelCoverter.c \
       M4VD_EXTERNAL_BitstreamParser.c \
       M4VD_EXTERNAL_Interface.c \
@@ -48,7 +47,8 @@ LOCAL_SRC_FILES:=          \
       M4AD_Null.c \
       M4AMRR_CoreReader.c \
       M4READER_Amr.c \
-      M4VD_Tools.c
+      M4VD_Tools.c \
+      VideoEditorResampler.cpp
 
 
 LOCAL_MODULE_TAGS := optional
@@ -63,11 +63,14 @@ LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_stagefrightshells
 
 LOCAL_C_INCLUDES += \
+    $(TOP)/frameworks/base/include \
     $(TOP)/frameworks/media/libvideoeditor/osal/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc
+    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
+    $(TOP)/frameworks/base/services/audioflinger \
+
 
 ifeq ($(TARGET_SIMULATOR),true)
 else
