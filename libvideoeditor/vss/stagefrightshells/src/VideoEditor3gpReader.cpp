@@ -1029,6 +1029,9 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                             LOGV("SYNC FRAME FOUND--%d", i32Tmp);
                         pAu->attribute = AU_RAP;
                     }
+                    else {
+                        pAu->attribute = AU_P_Frame;
+                    }
                     mMediaBuffer->meta_data()->findInt64(kKeyTime,
                         (int64_t*)&tempTime64);
                 } else {
@@ -1049,6 +1052,9 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                     &i32Tmp) && i32Tmp) {
                     LOGV("SYNC FRAME FOUND--%d", i32Tmp);
                     pAu->attribute = AU_RAP;
+                }
+                else {
+                    pAu->attribute = AU_P_Frame;
                 }
                 mMediaBuffer->meta_data()->findInt64(kKeyTime,
                     (int64_t*)&tempTime64);
