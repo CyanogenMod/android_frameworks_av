@@ -55,7 +55,7 @@ typedef struct {
 typedef M4OSA_UInt8 M4SYS_AU_Attr;
 
 #define AU_Corrupted   0x01 /**< At least one fragment of the access unit is flagged corrupted.*/
-#define AU_B_Frame     0x02 /**< The access unit is a B_frame*/
+#define AU_P_Frame     0x02 /**< The access unit is a P_frame*/
 #define AU_RAP         0x04 /**< The access unit is a random access point.*/
 
 
