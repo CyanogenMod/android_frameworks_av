@@ -2212,7 +2212,7 @@ M4OSA_ERR M4MCS_init( M4MCS_Context *pContext,
     pC->iSsrcNbSamplIn = 0;
     pC->iSsrcNbSamplOut = 0;
     pC->SsrcScratch = M4OSA_NULL;
-
+    pC->pLVAudioResampler = M4OSA_NULL;
     /**
     * Audio encoder */
     pC->pAudioEncCtxt = M4OSA_NULL;
@@ -3376,6 +3376,12 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
     {
         M4OSA_free((M4OSA_MemAddr32)pC->pSsrcBufferOut);
         pC->pSsrcBufferOut = M4OSA_NULL;
+    }
+
+    if (pC->pLVAudioResampler != M4OSA_NULL)
+    {
+        LVDestroy((M4OSA_Int32)pC->pLVAudioResampler);
+        pC->pLVAudioResampler = M4OSA_NULL;
     }
 
     /* ----- Free the audio encoder stuff ----- */

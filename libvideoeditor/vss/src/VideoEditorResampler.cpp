@@ -45,19 +45,27 @@ struct VideoEditorResampler : public AudioBufferProvider {
     int16_t* mInput;
     int nbChannels;
     int nbSamples;
+    M4OSA_Int32 outSamplingRate;
+    M4OSA_Int32 inSamplingRate;
 
 };
 
+#define MAX_SAMPLEDURATION_FOR_CONVERTION 40 //ms
 
 status_t VideoEditorResampler::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
-    pBuffer->raw = (void*)(this->mInput);
+    uint32_t dataSize = pBuffer->frameCount * this->nbChannels * sizeof(int16_t);
+    int16_t *pTmpInBuffer = (int16_t*)malloc(dataSize);
+    memcpy(pTmpInBuffer, this->mInput, dataSize);
+    pBuffer->raw = (void*)pTmpInBuffer;
+
     return OK;
 }
 
 void VideoEditorResampler::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
     if(pBuffer->raw != NULL) {
+        free(pBuffer->raw);
         pBuffer->raw = NULL;
     }
     pBuffer->frameCount = 0;
@@ -74,9 +82,11 @@ M4OSA_Int32 LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCo
     if (context->mResampler == NULL) {
         return NO_MEMORY;
     }
-    context->mResampler->setSampleRate(32000);
+    context->mResampler->setSampleRate(android::VideoEditorResampler::kFreq32000Hz);
     context->mResampler->setVolume(0x1000, 0x1000);
     context->nbChannels = inChannelCount;
+    context->outSamplingRate = sampleRate;
+    context->mInput = NULL;
 
     return ((M4OSA_Int32)context);
 }
@@ -91,9 +101,10 @@ void LVAudiosetSampleRate(M4OSA_Int32 resamplerContext, M4OSA_Int32 inSampleRate
      * nbSamples is calculated for 40ms worth of data;hence sample rate
      * is used to calculate the nbSamples
      */
-    context->nbSamples = inSampleRate / 25;
-    context->mInput = (int16_t*)malloc(context->nbSamples *
-                                   context->nbChannels * sizeof(int16_t));
+    context->inSamplingRate = inSampleRate;
+    // Allocate buffer for maximum allowed number of samples.
+    context->mInput = (int16_t*)malloc( (inSampleRate * MAX_SAMPLEDURATION_FOR_CONVERTION *
+                                   context->nbChannels * sizeof(int16_t)) / 1000);
 }
 
 void LVAudiosetVolume(M4OSA_Int32 resamplerContext, M4OSA_Int16 left, M4OSA_Int16 right) {
@@ -103,6 +114,26 @@ void LVAudiosetVolume(M4OSA_Int32 resamplerContext, M4OSA_Int16 left, M4OSA_Int1
     context->mResampler->setVolume(left,right);
 }
 
+void LVDestroy(M4OSA_Int32 resamplerContext) {
+
+    VideoEditorResampler *context =
+       (VideoEditorResampler *)resamplerContext;
+
+    if (context->mInput != NULL) {
+        free(context->mInput);
+        context->mInput = NULL;
+    }
+
+    if (context->mResampler != NULL) {
+        delete context->mResampler;
+        context->mResampler = NULL;
+    }
+
+    if (context != NULL) {
+        delete context;
+        context = NULL;
+    }
+}
 
 void LVAudioresample_LowQuality(M4OSA_Int16* out, M4OSA_Int16* input,
                                      M4OSA_Int32 outFrameCount, M4OSA_Int32 resamplerContext) {
@@ -110,7 +141,10 @@ void LVAudioresample_LowQuality(M4OSA_Int16* out, M4OSA_Int16* input,
     VideoEditorResampler *context =
       (VideoEditorResampler *)resamplerContext;
     int32_t *pTmpBuffer = NULL;
+
+    context->nbSamples = (context->inSamplingRate * outFrameCount) / context->outSamplingRate;
     memcpy(context->mInput,input,(context->nbSamples * context->nbChannels * sizeof(int16_t)));
+
     /*
      SRC module always gives stereo output, hence 2 for stereo audio
     */
