@@ -20,7 +20,7 @@
 #include "VideoEditorPreviewController.h"
 
 namespace android {
- 
+
 #define PREVIEW_THREAD_STACK_SIZE                           (65536)
 
 VideoEditorPreviewController::VideoEditorPreviewController()
@@ -763,6 +763,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
     if(mOutputVideoWidth == 0) {
         mOutputVideoWidth = pFrameStr->uiFrameWidth;
     }
+
     if(mOutputVideoHeight == 0) {
         mOutputVideoHeight = pFrameStr->uiFrameHeight;
     }
@@ -801,9 +802,9 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
         }
 
         //Provide the overlay Update indication when there is an overlay effect
-        if (mCurrentVideoEffect == VIDEO_EFFECT_FRAMING) {
+        if (mCurrentVideoEffect & VIDEO_EFFECT_FRAMING) {
             int index;
-            mCurrentVideoEffect = VIDEO_EFFECT_NONE; //never apply framing here.
+            mCurrentVideoEffect &= ~VIDEO_EFFECT_FRAMING; //never apply framing here.
 
             // Find the effect in effectSettings array
             for (index = 0; index < mNumberEffects; index++) {
@@ -1304,14 +1305,14 @@ M4OSA_ERR VideoEditorPreviewController::applyVideoEffect(
 
     mTarget->getBufferYV12(&(postProcessParams.pOutBuffer), &(postProcessParams.outBufferStride));
 
-    err = applyEffectsAndRenderingMode(&postProcessParams, mOutputVideoWidth, mOutputVideoHeight);
+    err = applyEffectsAndRenderingMode(&postProcessParams, videoWidth, videoHeight);
     return err;
 }
 
 M4OSA_ERR VideoEditorPreviewController::setPreviewFrameRenderingMode(
     M4xVSS_MediaRendering mode, M4VIDEOEDITING_VideoFrameSize outputVideoSize) {
 
-    //LOGV("setMediaRenderingMode: outputVideoSize = %d", outputVideoSize);
+    LOGV("setMediaRenderingMode: outputVideoSize = %d", outputVideoSize);
     mRenderingMode = mode;
 
     switch(outputVideoSize) {

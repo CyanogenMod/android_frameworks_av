@@ -905,8 +905,8 @@ void PreviewPlayer::onVideoEvent() {
     }
 
     //Provide the overlay Update indication when there is an overlay effect
-    if (mCurrentVideoEffect == VIDEO_EFFECT_FRAMING) {
-        mCurrentVideoEffect = VIDEO_EFFECT_NONE; //never apply framing here.
+    if (mCurrentVideoEffect & VIDEO_EFFECT_FRAMING) {
+        mCurrentVideoEffect &= ~VIDEO_EFFECT_FRAMING; //never apply framing here.
         if (!mOverlayUpdateEventPosted) {
 
             // Find the effect in effectSettings array
