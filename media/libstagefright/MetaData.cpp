@@ -221,6 +221,16 @@ bool MetaData::findData(uint32_t key, uint32_t *type,
     return true;
 }
 
+bool MetaData::hasData(uint32_t key) const {
+    ssize_t i = mItems.indexOfKey(key);
+
+    if (i < 0) {
+        return false;
+    }
+
+    return true;
+}
+
 MetaData::typed_data::typed_data()
     : mType(0),
       mSize(0) {
