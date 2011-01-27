@@ -189,6 +189,7 @@ M4OSA_ERR M4VSS3GPP_audioMixingInit( M4VSS3GPP_AudioMixingContext *pContext,
     pC->ewc.pEncContext = M4OSA_NULL;
     pC->ewc.pDummyAuBuffer = M4OSA_NULL;
     pC->ewc.p3gpWriterContext = M4OSA_NULL;
+    pC->pLVAudioResampler = M4OSA_NULL;
     /**
     * Set the OSAL filesystem function set */
     pC->pOsaFileReadPtr = pFileReadPtrFct;
@@ -590,6 +591,12 @@ M4OSA_ERR M4VSS3GPP_audioMixingCleanUp( M4VSS3GPP_AudioMixingContext pContext )
     {
         M4OSA_free((M4OSA_MemAddr32)pC->pTempBuffer);
         pC->pTempBuffer = M4OSA_NULL;
+    }
+
+    if (pC->pLVAudioResampler != M4OSA_NULL)
+    {
+        LVDestroy(pC->pLVAudioResampler);
+        pC->pLVAudioResampler = M4OSA_NULL;
     }
 
     /**
