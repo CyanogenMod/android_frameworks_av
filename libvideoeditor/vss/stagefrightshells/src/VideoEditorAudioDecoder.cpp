@@ -438,7 +438,8 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
             mime = MEDIA_MIMETYPE_AUDIO_AMR_NB;
             // Engine parameters
             pDecoderContext->mAudioStreamHandler->m_byteFrameLength = 160;
-            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 16;
+            // Number of bytes per sample
+            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 2;
             pDecoderContext->mAudioStreamHandler->m_samplingFrequency = 8000;
             pDecoderContext->mAudioStreamHandler->m_nbChannels = 1;
             break;
@@ -448,7 +449,8 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
             mime = MEDIA_MIMETYPE_AUDIO_AMR_WB;
 
             pDecoderContext->mAudioStreamHandler->m_byteFrameLength = 160;
-            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 16;
+            // Number of bytes per sample
+            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 2;
             pDecoderContext->mAudioStreamHandler->m_samplingFrequency = 16000;
             pDecoderContext->mAudioStreamHandler->m_nbChannels = 1;
             break;
@@ -476,7 +478,8 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
 
             VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
             pDecoderContext->mAudioStreamHandler->m_byteFrameLength = 1024;
-            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 16;
+            // Number of bytes per sample
+            pDecoderContext->mAudioStreamHandler->m_byteSampleSize = 2;
             pDecoderContext->mAudioStreamHandler->m_samplingFrequency =
                 aacProperties.aSampFreq;
             pDecoderContext->mAudioStreamHandler->m_nbChannels =
