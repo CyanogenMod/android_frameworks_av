@@ -1970,6 +1970,11 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     M4VIFI_ImagePlane rgbPlane;
     M4OSA_UInt32 frameSize_argb=(framingCtx->width * framingCtx->height * 4);
     M4OSA_UInt32 frameSize = (framingCtx->width * framingCtx->height * 3); //Size of RGB888 data
+    M4OSA_UInt32 tempAlphaPercent = 0;
+    M4VIFI_UInt8* TempPacData = M4OSA_NULL;
+    M4OSA_UInt16 *ptr = M4OSA_NULL;
+    M4OSA_UInt32 z = 0;
+
     M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_malloc(frameSize_argb, M4VS, (M4OSA_Char*)\
         "Image argb data");
     M4OSA_TRACE1_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect: Entering ");
@@ -2049,24 +2054,76 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
     M4OSA_TRACE1_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:\
           Remove the alpha channel  ");
-      /** Remove the alpha channel */
+#if 0
+      /** Remove the alpha channel*/
     for (i=0, j = 0; i < frameSize_argb; i++) {
         if ((i % 4) == 0) continue;
         rgbPlane.pac_data[j] = pTmpData[i];
         j++;
     }
+#endif
+
+    /* premultiplied alpha % on RGB */
+    for (i=0, j = 0; i < frameSize_argb; i += 4) {
+        /* this is alpha value */
+        if ((i % 4) == 0)
+        {
+            tempAlphaPercent = pTmpData[i];
+        }
+
+        /* R */
+        rgbPlane.pac_data[j] = pTmpData[i+1];
+        j++;
+
+        /* G */
+        if (tempAlphaPercent > 0) {
+            rgbPlane.pac_data[j] = pTmpData[i+2];
+            j++;
+        } else {/* In case of alpha value 0, make GREEN to 255 */
+            rgbPlane.pac_data[j] = 255; //pTmpData[i+2];
+            j++;
+        }
+
+        /* B */
+        rgbPlane.pac_data[j] = pTmpData[i+3];
+        j++;
+    }
+
+    /* convert RGB888 to RGB565 */
+
+    /* allocate temp RGB 565 buffer */
+    TempPacData = (M4VIFI_UInt8*)M4OSA_malloc(((frameSize)+ (2 * framingCtx->width)),
+                        M4VS, (M4OSA_Char*)"Image clip RGB565 data");
+
+    ptr = (M4OSA_UInt16 *)TempPacData;
+    z = 0;
+
+    for (i = 0; i < j ; i += 3)
+    {
+        ptr[z++] = PACK_RGB565(0,   rgbPlane.pac_data[i],
+                                    rgbPlane.pac_data[i+1],
+                                    rgbPlane.pac_data[i+2]);
+    }
+
+    /* reset stride */
+    rgbPlane.u_stride = rgbPlane.u_width*2;
+
+    /* free the RBG888 and assign RGB565 */
+    M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+    rgbPlane.pac_data = TempPacData;
+
 
     M4OSA_free((M4OSA_MemAddr32)pTmpData);
     /**
      * Check if output sizes are odd */
     if(rgbPlane.u_height % 2 != 0)
     {
-
         M4VIFI_UInt8* output_pac_data = rgbPlane.pac_data;
         M4OSA_UInt32 i;
         M4OSA_TRACE1_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:\
              output height is odd  ");
-        output_pac_data +=rgbPlane.u_width * rgbPlane.u_height*3;
+        output_pac_data +=rgbPlane.u_width * rgbPlane.u_height*2;
+
         for(i=0;i<rgbPlane.u_width;i++)
         {
             *output_pac_data++ = transparent1;
@@ -2079,7 +2136,6 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     }
     if(rgbPlane.u_width % 2 != 0)
     {
-
         /**
          * We add a new column of white (=transparent), but we need to parse all RGB lines ... */
         M4OSA_UInt32 i;
@@ -2092,8 +2148,9 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         /**
          * We need to allocate a new RGB output buffer in which all decoded data
           + white line will be copied */
-        newRGBpac_data = (M4VIFI_UInt8*)M4OSA_malloc(rgbPlane.u_height*rgbPlane.u_width*3\
+        newRGBpac_data = (M4VIFI_UInt8*)M4OSA_malloc(rgbPlane.u_height*rgbPlane.u_width*2\
             *sizeof(M4VIFI_UInt8), M4VS, (M4OSA_Char *)"New Framing GIF Output pac_data RGB");
+
         if(newRGBpac_data == M4OSA_NULL)
         {
             M4OSA_TRACE1_0("Allocation error in \
@@ -2110,12 +2167,14 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         for(i=0;i<rgbPlane.u_height;i++)
         {
             M4OSA_memcpy((M4OSA_MemAddr8)output_pac_data, (M4OSA_MemAddr8)input_pac_data,
-                 (rgbPlane.u_width-1)*3);
-            output_pac_data += ((rgbPlane.u_width-1)*3);
+                 (rgbPlane.u_width-1)*2);
+
+            output_pac_data += ((rgbPlane.u_width-1)*2);
             /* Put the pixel to transparency color */
             *output_pac_data++ = transparent1;
             *output_pac_data++ = transparent2;
-            input_pac_data += ((rgbPlane.u_width-1)*3);
+
+            input_pac_data += ((rgbPlane.u_width-1)*2);
         }
 
         rgbPlane.pac_data = newRGBpac_data;
@@ -2201,8 +2260,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         break;
     }
 
-
-        /**
+    /**
      * Allocate output planes structures */
     framingCtx->FramingRgb = (M4VIFI_ImagePlane*)M4OSA_malloc(sizeof(M4VIFI_ImagePlane), M4VS,
          (M4OSA_Char *)"Framing Output plane RGB");
@@ -2226,13 +2284,14 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
         framingCtx->FramingRgb->u_height = height_out;
         framingCtx->FramingRgb->u_width = width_out;
-        framingCtx->FramingRgb->u_stride = framingCtx->FramingRgb->u_width*3;
+        framingCtx->FramingRgb->u_stride = framingCtx->FramingRgb->u_width*2;
         framingCtx->FramingRgb->u_topleft = 0;
 
         framingCtx->FramingRgb->pac_data =
              (M4VIFI_UInt8*)M4OSA_malloc(framingCtx->FramingRgb->u_height*framingCtx->\
-                FramingRgb->u_width*3*sizeof(M4VIFI_UInt8), M4VS,
+                FramingRgb->u_width*2*sizeof(M4VIFI_UInt8), M4VS,
                   (M4OSA_Char *)"Framing Output pac_data RGB");
+
         if(framingCtx->FramingRgb->pac_data == M4OSA_NULL)
         {
             M4OSA_TRACE1_0("Allocation error in \
@@ -2245,7 +2304,10 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         M4OSA_TRACE1_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:  Resizing Needed ");
         M4OSA_TRACE1_2("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:\
               rgbPlane.u_height & rgbPlane.u_width %d %d",rgbPlane.u_height,rgbPlane.u_width);
-        err = M4VIFI_ResizeBilinearRGB888toRGB888(M4OSA_NULL, &rgbPlane,framingCtx->FramingRgb);
+
+        //err = M4VIFI_ResizeBilinearRGB888toRGB888(M4OSA_NULL, &rgbPlane,framingCtx->FramingRgb);
+        err = M4VIFI_ResizeBilinearRGB565toRGB565(M4OSA_NULL, &rgbPlane,framingCtx->FramingRgb);
+
         if(err != M4NO_ERROR)
         {
             M4OSA_TRACE1_1("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect :\
@@ -2270,7 +2332,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         height =    framingCtx->height;
         framingCtx->FramingRgb->u_height = height;
         framingCtx->FramingRgb->u_width = width;
-        framingCtx->FramingRgb->u_stride = framingCtx->FramingRgb->u_width*3;
+        framingCtx->FramingRgb->u_stride = framingCtx->FramingRgb->u_width*2;
         framingCtx->FramingRgb->u_topleft = 0;
         framingCtx->FramingRgb->pac_data = rgbPlane.pac_data;
     }
@@ -2300,7 +2362,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     framingCtx->FramingYuv[0].u_height = ((height+1)>>1)<<1;
     framingCtx->FramingYuv[0].u_topleft = 0;
     framingCtx->FramingYuv[0].u_stride = ((width+1)>>1)<<1;
-     framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc
+    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc
         ((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height*3)>>1, M4VS,
             (M4OSA_Char *)"Alloc for the output YUV");;
     if(framingCtx->FramingYuv[0].pac_data == M4OSA_NULL)
@@ -2331,7 +2393,9 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         M4OSA_TRACE1_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:\
               convert RGB to YUV ");
 
-    err = M4VIFI_RGB888toYUV420(M4OSA_NULL, framingCtx->FramingRgb,  framingCtx->FramingYuv);
+    //err = M4VIFI_RGB888toYUV420(M4OSA_NULL, framingCtx->FramingRgb,  framingCtx->FramingYuv);
+    err = M4VIFI_RGB565toYUV420(M4OSA_NULL, framingCtx->FramingRgb,  framingCtx->FramingYuv);
+
     if(err != M4NO_ERROR)
     {
         M4OSA_TRACE1_1("SPS png: error when converting from RGB to YUV: 0x%x\n", err);
