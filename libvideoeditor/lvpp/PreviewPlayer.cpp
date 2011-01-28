@@ -745,9 +745,17 @@ void PreviewPlayer::onVideoEvent() {
                     continue;
                 }
                 // So video playback is complete, but we may still have
-                // a seek request pending that needs to be applied                // to the audio track.                if (mSeeking) {                    LOGV("video stream ended while seeking!");                }                finishSeekIfNecessary(-1);
+                // a seek request pending that needs to be applied to the audio track
+                if (mSeeking) {
+                    LOGV("video stream ended while seeking!");
+                }
+                finishSeekIfNecessary(-1);
                 LOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
+                if (mOverlayUpdateEventPosted) {
+                    mOverlayUpdateEventPosted = false;
+                    postOverlayUpdateEvent_l();
+                }
                 postStreamDoneEvent_l(err);
                 return;
             }
@@ -828,7 +836,9 @@ void PreviewPlayer::onVideoEvent() {
         int64_t latenessUs = nowUs - timeUs;
 
         if (wasSeeking) {
-            // Let's display the first frame after seeking right away.            latenessUs = 0;        }
+            // Let's display the first frame after seeking right away.
+            latenessUs = 0;
+        }
         LOGV("Audio time stamp = %lld and video time stamp = %lld",
                                             ts->getRealTimeUs(),timeUs);
         if (latenessUs > 40000) {
@@ -989,6 +999,10 @@ void PreviewPlayer::onVideoEvent() {
         LOGV("PreviewPlayer: onVideoEvent EOS.");
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
+        if (mOverlayUpdateEventPosted) {
+            mOverlayUpdateEventPosted = false;
+            postOverlayUpdateEvent_l();
+        }
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
     }
     else {
