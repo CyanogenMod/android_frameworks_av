@@ -28,9 +28,11 @@ LOCAL_MODULE:= libvideoeditor_videofilters
 LOCAL_SRC_FILES:=          \
       M4VIFI_BGR565toYUV420.c \
       M4VIFI_ResizeRGB888toRGB888.c \
+      M4VIFI_ResizeRGB565toRGB565.c \
       M4VIFI_Clip.c \
       M4VIFI_ResizeYUVtoBGR565.c \
       M4VIFI_RGB888toYUV420.c \
+      M4VIFI_RGB565toYUV420.c \
       M4VFL_transition.c
 
 LOCAL_MODULE_TAGS := optional
