@@ -93,6 +93,7 @@ private:
     mutable Mutex mLock;
     M4OSA_Context mThreadContext;
     VePlayerState mPlayerState;
+    M4OSA_Bool    mPrepareReqest;
     M4VSS3GPP_ClipSettings **mClipList; //Pointer to an array of clip settings
     M4OSA_UInt32 mNumberClipsInStoryBoard;
     M4OSA_UInt32 mNumberClipsToPreview;

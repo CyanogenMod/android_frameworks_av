@@ -27,6 +27,7 @@ VideoEditorPreviewController::VideoEditorPreviewController()
     : mCurrentPlayer(0),
       mThreadContext(NULL),
       mPlayerState(VePlayerIdle),
+      mPrepareReqest(M4OSA_FALSE),
       mClipList(NULL),
       mNumberClipsInStoryBoard(0),
       mNumberClipsToPreview(0),
@@ -479,6 +480,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     }
 
     mPlayerState = VePlayerIdle;
+    mPrepareReqest = M4OSA_FALSE;
 
     if(fromMS == 0) {
         mCurrentClipNumber = -1;
@@ -662,6 +664,7 @@ M4OSA_ERR VideoEditorPreviewController::stopPreview() {
     mClipList[mNumberClipsToPreview-1]->uiEndCutTime = mLastPreviewClipEndTime;
 
     mPlayerState = VePlayerIdle;
+    mPrepareReqest = M4OSA_FALSE;
 
     mCurrentPlayedDuration = 0;
     mCurrentClipDuration = 0;
@@ -1053,12 +1056,15 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
 
         pController->mPlayerState = VePlayerBusy;
 
-    }
-    else if(pController->mPlayerState == VePlayerAutoStop) {
+    } else if(pController->mPlayerState == VePlayerAutoStop) {
         LOGV("Preview completed..auto stop the player");
-    }
-    else {
-        if(!pController->bStopThreadInProgress) {
+    } else if ((pController->mPlayerState == VePlayerBusy) && (pController->mPrepareReqest)) {
+        // Prepare the player here
+        pController->mPrepareReqest = M4OSA_FALSE;
+        preparePlayer((void*)pController, pController->mCurrentPlayer,
+            pController->mCurrentClipNumber+1);
+    } else {
+        if (!pController->bStopThreadInProgress) {
             LOGV("threadProc: state busy...wait for sem");
             err = M4OSA_semaphoreWait(pController->mSemThreadWait,
              M4OSA_WAIT_FOREVER);
@@ -1147,7 +1153,7 @@ void VideoEditorPreviewController::notify(
             break;
         case 0xAAAAAAAA:
             LOGV("VIDEO PLAYBACK ALMOST over, prepare next player");
-
+            pController->mPrepareReqest = M4OSA_TRUE;
             // Select next player and prepare it
             // If there is a clip after this one
             if ((pController->mCurrentClipNumber+1) <
@@ -1158,8 +1164,7 @@ void VideoEditorPreviewController::notify(
                     pController->mCurrentPlayer = 0;
                 }
                 // Prepare the first clip to be played
-                preparePlayer((void*)pController, pController->mCurrentPlayer,
-                    pController->mCurrentClipNumber+1);
+                M4OSA_semaphorePost(pController->mSemThreadWait);
             }
             break;
         case 0xBBBBBBBB:
