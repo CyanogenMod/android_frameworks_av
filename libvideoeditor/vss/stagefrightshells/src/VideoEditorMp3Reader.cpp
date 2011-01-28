@@ -165,8 +165,7 @@ M4OSA_ERR VideoEditorMp3Reader_open(M4OSA_Context context,
 
     LOGV("VideoEditorMp3Reader_open Datasource start %s",
         (char*)pFileDescriptor);
-    pReaderContext->mDataSource = DataSource::CreateFromURI(
-        (char*)pFileDescriptor);
+    pReaderContext->mDataSource = new FileSource ((char*)pFileDescriptor);
     LOGV("VideoEditorMp3Reader_open Datasource end");
 
     if (pReaderContext->mDataSource == NULL) {
@@ -230,6 +229,7 @@ M4OSA_ERR VideoEditorMp3Reader_close(M4OSA_Context context) {
 
     pReaderContext->mMediaSource->stop();
     pReaderContext->mMediaSource.clear();
+    pReaderContext->mExtractor.clear();
     pReaderContext->mDataSource.clear();
 
     LOGV("VideoEditorMp3Reader_close end ");
