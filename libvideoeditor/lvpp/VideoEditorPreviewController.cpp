@@ -123,6 +123,11 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
         mEffectsSettings = NULL;
     }
 
+    if (mAudioMixPCMFileHandle) {
+        err = M4OSA_fileReadClose (mAudioMixPCMFileHandle);
+        mAudioMixPCMFileHandle = M4OSA_NULL;
+    }
+
     if(mTarget != NULL) {
         delete mTarget;
         mTarget = NULL;
