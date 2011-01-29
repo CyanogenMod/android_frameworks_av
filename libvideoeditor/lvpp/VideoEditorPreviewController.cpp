@@ -1068,6 +1068,8 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
         pController->mPrepareReqest = M4OSA_FALSE;
         preparePlayer((void*)pController, pController->mCurrentPlayer,
             pController->mCurrentClipNumber+1);
+        err = M4OSA_semaphoreWait(pController->mSemThreadWait,
+            M4OSA_WAIT_FOREVER);
     } else {
         if (!pController->bStopThreadInProgress) {
             LOGV("threadProc: state busy...wait for sem");
