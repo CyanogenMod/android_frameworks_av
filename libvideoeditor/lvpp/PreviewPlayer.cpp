@@ -926,9 +926,11 @@ void PreviewPlayer::onVideoEvent() {
                 M4OSA_UInt32 timeOffset = mDecVideoTsStoryBoard/1000;
                 if(mEffectsSettings[index].VideoEffectType ==
                     M4xVSS_kVideoEffectType_Framing) {
-                    if (((mEffectsSettings[index].uiStartTime + 1) <= timeMs + timeOffset) &&
+                    if (((mEffectsSettings[index].uiStartTime + 1) <=
+                        timeMs + timeOffset - mPlayBeginTimeMsec) &&
                         ((mEffectsSettings[index].uiStartTime - 1 +
-                        mEffectsSettings[index].uiDuration) >= timeMs + timeOffset))
+                        mEffectsSettings[index].uiDuration) >=
+                        timeMs + timeOffset - mPlayBeginTimeMsec))
                     {
                         break;
                     }
