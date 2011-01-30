@@ -508,6 +508,15 @@ VideoEditorAudioPlayer  *mVePlayer;
         mTimeSource = &mSystemTimeSource;
     }
 
+    // Set the seek option for Image source files and read.
+    // This resets the timestamping for image play
+    if (mIsVideoSourceJpg) {
+        MediaSource::ReadOptions options;
+        MediaBuffer *aLocalBuffer;
+        options.setSeekTo(mSeekTimeUs);
+        mVideoSource->read(&aLocalBuffer, &options);
+    }
+
     if (mVideoSource != NULL) {
         // Kick off video playback
         postVideoEvent_l();
