@@ -45,7 +45,7 @@
 #include "M4OSA_Memory.h"
 #include "M4OSA_CharStar.h"
 
-#define FILE_LOWER_CASE //defined to support limitaion of lower case file system in sdcard.
+//#define FILE_LOWER_CASE //defined to support limitaion of lower case file system in sdcard.
 /**
  ************************************************************************
  * @brief      This function opens the provided URL and returns its context.
@@ -188,9 +188,13 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     pFileHandler = fopen((const char *)tempConversionBuf, (const char *)mode);
     /*Free the temporary decoded buffer*/
     M4OSA_free((M4OSA_MemAddr32)tempConversionBuf);
-#else if FILE_LOWER_CASE
+#else /* UTF_CONVERSION */
+#ifdef FILE_LOWER_CASE
     pFileHandler = fopen((const char *)tmpLowerCaseUrl, (const char *)mode);
     M4OSA_free((M4OSA_MemAddr32)tmpLowerCaseUrl);
+#else
+    pFileHandler = fopen((const char *)pUrl, (const char *)mode);
+#endif
 #endif /* UTF_CONVERSION */
 
     if (M4OSA_NULL == pFileHandler)

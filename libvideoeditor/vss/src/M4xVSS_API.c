@@ -2145,8 +2145,8 @@ replaceJPG_3GP:
         if( xVSS_context->pSettings->pClipList[i]->FileType
             == M4VIDEOEDITING_kFileType_ARGB8888 )
         {
-            M4OSA_Char out_img[64];
-            M4OSA_Char out_img_tmp[64];
+            M4OSA_Char out_img[M4XVSS_MAX_PATH_LEN];
+            M4OSA_Char out_img_tmp[M4XVSS_MAX_PATH_LEN];
             M4xVSS_Pto3GPP_params *pParams = M4OSA_NULL;
             M4OSA_Context pARGBFileIn;
             /*UTF conversion support*/
@@ -2188,7 +2188,7 @@ replaceJPG_3GP:
             }
 
             /* Construct output temporary 3GP filename */
-            err = M4OSA_chrSPrintf(out_img, 63, (M4OSA_Char *)"%simg%d.3gp",
+            err = M4OSA_chrSPrintf(out_img, M4XVSS_MAX_PATH_LEN - 1, (M4OSA_Char *)"%simg%d.3gp",
                 xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
             if( err != M4NO_ERROR )
@@ -2203,7 +2203,7 @@ replaceJPG_3GP:
 
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
-            err = M4OSA_chrSPrintf(out_img_tmp, 63, "%simg%d.tmp",
+            err = M4OSA_chrSPrintf(out_img_tmp, M4XVSS_MAX_PATH_LEN - 1, "%simg%d.tmp",
                 xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
             if( err != M4NO_ERROR )
@@ -2964,11 +2964,11 @@ replaceARGB_3GP:
 
                 )
             {
-                M4OSA_Char out_3gp[64];
-                M4OSA_Char out_3gp_tmp[64];
+                M4OSA_Char out_3gp[M4XVSS_MAX_PATH_LEN];
+                M4OSA_Char out_3gp_tmp[M4XVSS_MAX_PATH_LEN];
 
                 /* Construct output temporary 3GP filename */
-                err = M4OSA_chrSPrintf(out_3gp, 63, (M4OSA_Char *)"%svid%d.3gp",
+                err = M4OSA_chrSPrintf(out_3gp, M4XVSS_MAX_PATH_LEN - 1, (M4OSA_Char *)"%svid%d.3gp",
                     xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
                 if( err != M4NO_ERROR )
@@ -2979,7 +2979,7 @@ replaceARGB_3GP:
 
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
-                err = M4OSA_chrSPrintf(out_3gp_tmp, 63, "%svid%d.tmp",
+                err = M4OSA_chrSPrintf(out_3gp_tmp, M4XVSS_MAX_PATH_LEN - 1, "%svid%d.tmp",
                     xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
                 if( err != M4NO_ERROR )
@@ -5706,8 +5706,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     if( xVSS_context->pSettings->xVSS.pBGMtrack != M4OSA_NULL )
     {
 
-        M4OSA_Char out_3gp[64];
-        M4OSA_Char out_3gp_tmp[64];
+        M4OSA_Char out_3gp[M4XVSS_MAX_PATH_LEN];
+        M4OSA_Char out_3gp_tmp[M4XVSS_MAX_PATH_LEN];
 
         /**/
         pEditSavingSettings->xVSS.pBGMtrack =
@@ -5808,8 +5808,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         /**/
 
-        M4OSA_chrNCopy(out_3gp, xVSS_context->pTempPath, 64);
-        M4OSA_chrNCopy(out_3gp_tmp, xVSS_context->pTempPath, 64);
+        M4OSA_chrNCopy(out_3gp, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
+        M4OSA_chrNCopy(out_3gp_tmp, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
 
         /* Construct output temporary 3GP filename */
         M4OSA_chrNCat(out_3gp, (M4OSA_Char *)"savetemp.3gp\0", 13);

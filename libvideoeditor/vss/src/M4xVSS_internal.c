@@ -1581,7 +1581,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
      M4xVSS_PictureCallbackCtxt*    pCallBackCtxt;
     M4OSA_Bool cmpResult=M4OSA_FALSE;
     M4OSA_Context pDummyAMRFile;
-    M4OSA_Char out_amr[64];
+    M4OSA_Char out_amr[M4XVSS_MAX_PATH_LEN];
     /*UTF conversion support*/
     M4OSA_Char* pDecodedPath = M4OSA_NULL;
     M4OSA_UInt32 i;
@@ -1592,7 +1592,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
          xVSS_context->pFileWritePtr);
     if (err != M4NO_ERROR)
     {
-        M4OSA_TRACE1_1("M4PTO3GPP_Init returned %ld\n",err);
+        M4OSA_TRACE1_1("M4xVSS_internalStartConvertPictureTo3gp returned %ld\n",err);
         return err;
     }
 
@@ -1627,7 +1627,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
 
     /**
      * Generate "dummy" amr file containing silence in temporary folder */
-    M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, 64);
+    M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
     M4OSA_chrNCat(out_amr, (M4OSA_Char *)"dummy.amr\0", 10);
 
     /**
@@ -1769,7 +1769,7 @@ M4OSA_ERR M4xVSS_internalStopConvertPictureTo3gp(M4OSA_Context pContext)
 {
     M4xVSS_Context* xVSS_context = (M4xVSS_Context*)pContext;
     M4OSA_ERR err;
-    M4OSA_Char out_amr[64];
+    M4OSA_Char out_amr[M4XVSS_MAX_PATH_LEN];
     /*UTF conversion support*/
     M4OSA_Char* pDecodedPath = M4OSA_NULL;
 
@@ -1802,7 +1802,7 @@ M4OSA_ERR M4xVSS_internalStopConvertPictureTo3gp(M4OSA_Context pContext)
 
     /**
      * Remove dummy.amr file */
-    M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, 64);
+    M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
     M4OSA_chrNCat(out_amr, (M4OSA_Char *)"dummy.amr\0", 10);
 
     /**
