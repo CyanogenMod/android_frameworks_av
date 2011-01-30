@@ -621,6 +621,7 @@ M4OSA_ERR   M4MCS_setCurrentWriter( M4MCS_Context pContext,
     {
         case M4VIDEOEDITING_kFileType_3GPP:
         case M4VIDEOEDITING_kFileType_MP4:
+        case M4VIDEOEDITING_kFileType_M4V:
             writerType = M4WRITER_k3GPP;
             break;
         case M4VIDEOEDITING_kFileType_AMR:
@@ -784,6 +785,7 @@ M4OSA_ERR   M4MCS_setCurrentReader( M4MCS_Context pContext,
     {
         case M4VIDEOEDITING_kFileType_3GPP:
         case M4VIDEOEDITING_kFileType_MP4:
+        case M4VIDEOEDITING_kFileType_M4V:
             readerType = M4READER_kMediaType3GPP;
             break;
         case M4VIDEOEDITING_kFileType_AMR:
