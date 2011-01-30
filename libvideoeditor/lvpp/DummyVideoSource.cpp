@@ -42,7 +42,7 @@ namespace android {
 
 
 sp<DummyVideoSource> DummyVideoSource::Create (
-            uint32_t width, uint32_t height, 
+            uint32_t width, uint32_t height,
             uint64_t clipDuration, const char *imageUri) {
     LOG2("DummyVideoSource::Create ");
     sp<DummyVideoSource> vSource = new DummyVideoSource (
@@ -52,7 +52,7 @@ sp<DummyVideoSource> DummyVideoSource::Create (
 
 
 DummyVideoSource::DummyVideoSource (
-            uint32_t width, uint32_t height, 
+            uint32_t width, uint32_t height,
             uint64_t clipDuration, const char *imageUri) {
 
     LOG2("DummyVideoSource::DummyVideoSource constructor START");
@@ -119,8 +119,8 @@ sp<MetaData> DummyVideoSource::getFormat() {
     return meta;
 }
 
-status_t DummyVideoSource::read( 
-                        MediaBuffer **out, 
+status_t DummyVideoSource::read(
+                        MediaBuffer **out,
                         const MediaSource::ReadOptions *options) {
     status_t err = OK;
     MediaBuffer *buffer;
@@ -133,6 +133,7 @@ status_t DummyVideoSource::read(
     if (options && options->getSeekTo(&seekTimeUs, &seekMode)) {
         seeking = true;
         mImageSeekTime = seekTimeUs;
+        M4OSA_clockGetTime(&mImagePlayStartTime, 1000); //1000 time scale for time in ms
     }
 
     if ((mImageSeekTime == mImageClipDuration) || (mFrameTimeUs == mImageClipDuration)) {

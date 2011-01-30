@@ -1160,12 +1160,11 @@ void VideoEditorPreviewController::notify(
             break;
         case 0xAAAAAAAA:
             LOGV("VIDEO PLAYBACK ALMOST over, prepare next player");
-            pController->mPrepareReqest = M4OSA_TRUE;
             // Select next player and prepare it
             // If there is a clip after this one
             if ((pController->mCurrentClipNumber+1) <
              pController->mNumberClipsToPreview) {
-
+                pController->mPrepareReqest = M4OSA_TRUE;
                 pController->mCurrentPlayer++;
                 if (pController->mCurrentPlayer >= NBPLAYER_INSTANCES) {
                     pController->mCurrentPlayer = 0;
