@@ -682,20 +682,20 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
                 {
                     /*The ratio is 0, that means the area of the picture defined with (a)
                     parameters is bigger than the image size*/
-                    if(pC->m_pPto3GPPparams->PanZoomTopleftXa + tempPanzoomXa > 100)
+                    if(pC->m_pPto3GPPparams->PanZoomTopleftXa + tempPanzoomXa > 1000)
                     {
                         /*The oversize is maxRatio*/
-                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftXa + tempPanzoomXa - 100;
+                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftXa + tempPanzoomXa - 1000;
                     }
                 }
                 else
                 {
                     /*The ratio is 0, that means the area of the picture defined with (a)
                      parameters is bigger than the image size*/
-                    if(pC->m_pPto3GPPparams->PanZoomTopleftYa + tempPanzoomXa > 100)
+                    if(pC->m_pPto3GPPparams->PanZoomTopleftYa + tempPanzoomXa > 1000)
                     {
                         /*The oversize is maxRatio*/
-                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftYa + tempPanzoomXa - 100;
+                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftYa + tempPanzoomXa - 1000;
                     }
                 }
                 /*Modify the (a) parameters:*/
@@ -723,17 +723,17 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
                 }
                 /*The new ratio is the original one*/
                 pC->m_pPto3GPPparams->PanZoomXa = tempPanzoomXa;
-                if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftXa > 100)
+                if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftXa > 1000)
                 {
                     /*Change the ratio if the area of the picture defined with (a) parameters is
                     bigger than the image size*/
-                    pC->m_pPto3GPPparams->PanZoomXa = 100 - pC->m_pPto3GPPparams->PanZoomTopleftXa;
+                    pC->m_pPto3GPPparams->PanZoomXa = 1000 - pC->m_pPto3GPPparams->PanZoomTopleftXa;
                 }
-                if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftYa > 100)
+                if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftYa > 1000)
                 {
                     /*Change the ratio if the area of the picture defined with (a) parameters is
                     bigger than the image size*/
-                    pC->m_pPto3GPPparams->PanZoomXa = 100 - pC->m_pPto3GPPparams->PanZoomTopleftYa;
+                    pC->m_pPto3GPPparams->PanZoomXa = 1000 - pC->m_pPto3GPPparams->PanZoomTopleftYa;
                 }
             }
             /*Check (b) parameters*/
@@ -745,20 +745,20 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
                 {
                     /*The ratio is 0, that means the area of the picture defined with (b)
                      parameters is bigger than the image size*/
-                    if(pC->m_pPto3GPPparams->PanZoomTopleftXb + tempPanzoomXb > 100)
+                    if(pC->m_pPto3GPPparams->PanZoomTopleftXb + tempPanzoomXb > 1000)
                     {
                         /*The oversize is maxRatio*/
-                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftXb + tempPanzoomXb - 100;
+                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftXb + tempPanzoomXb - 1000;
                     }
                 }
                 else
                 {
                     /*The ratio is 0, that means the area of the picture defined with (b)
                      parameters is bigger than the image size*/
-                    if(pC->m_pPto3GPPparams->PanZoomTopleftYb + tempPanzoomXb > 100)
+                    if(pC->m_pPto3GPPparams->PanZoomTopleftYb + tempPanzoomXb > 1000)
                     {
                         /*The oversize is maxRatio*/
-                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftYb + tempPanzoomXb - 100;
+                        maxRatio = pC->m_pPto3GPPparams->PanZoomTopleftYb + tempPanzoomXb - 1000;
                     }
                 }
                 /*Modify the (b) parameters:*/
@@ -786,17 +786,17 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
                 }
                 /*The new ratio is the original one*/
                 pC->m_pPto3GPPparams->PanZoomXb = tempPanzoomXb;
-                if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftXb > 100)
+                if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftXb > 1000)
                 {
                     /*Change the ratio if the area of the picture defined with (b) parameters is
                     bigger than the image size*/
-                    pC->m_pPto3GPPparams->PanZoomXb = 100 - pC->m_pPto3GPPparams->PanZoomTopleftXb;
+                    pC->m_pPto3GPPparams->PanZoomXb = 1000 - pC->m_pPto3GPPparams->PanZoomTopleftXb;
                 }
-                if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftYb > 100)
+                if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftYb > 1000)
                 {
                     /*Change the ratio if the area of the picture defined with (b) parameters is
                     bigger than the image size*/
-                    pC->m_pPto3GPPparams->PanZoomXb = 100 - pC->m_pPto3GPPparams->PanZoomTopleftYb;
+                    pC->m_pPto3GPPparams->PanZoomXb = 1000 - pC->m_pPto3GPPparams->PanZoomTopleftYb;
                 }
             }
 
@@ -823,32 +823,33 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
             (M4OSA_Int16)((pC->m_pPto3GPPparams->PanZoomXb - pC->m_pPto3GPPparams->PanZoomXa) *
             pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage)) / 100;
  */
+            // Instead of using pC->m_NbImage we have to use (pC->m_NbImage-1) as pC->m_ImageCounter
+            // will be x-1 max for x no. of frames
             Params.m_inputCoord.m_x = (M4OSA_UInt32)((((M4OSA_Double)pC->m_pDecodedPlane->u_width *
                 (pC->m_pPto3GPPparams->PanZoomTopleftXa +
                 (M4OSA_Double)((M4OSA_Double)(pC->m_pPto3GPPparams->PanZoomTopleftXb\
                      - pC->m_pPto3GPPparams->PanZoomTopleftXa) *
-                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage)) / 100) + 0.5);
+                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage-1)) / 1000));
             Params.m_inputCoord.m_y =
                  (M4OSA_UInt32)((((M4OSA_Double)pC->m_pDecodedPlane->u_height *
                 (pC->m_pPto3GPPparams->PanZoomTopleftYa +
                 (M4OSA_Double)((M4OSA_Double)(pC->m_pPto3GPPparams->PanZoomTopleftYb\
                      - pC->m_pPto3GPPparams->PanZoomTopleftYa) *
-                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage)) / 100) + 0.5);
+                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage-1)) / 1000));
 
             Params.m_inputSize.m_width =
                  (M4OSA_UInt32)((((M4OSA_Double)pC->m_pDecodedPlane->u_width *
                 (pC->m_pPto3GPPparams->PanZoomXa +
                 (M4OSA_Double)((M4OSA_Double)(pC->m_pPto3GPPparams->PanZoomXb\
                      - pC->m_pPto3GPPparams->PanZoomXa) *
-                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage)) / 100) + 0.5);
+                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage-1)) / 1000));
 
             Params.m_inputSize.m_height =
                  (M4OSA_UInt32)((((M4OSA_Double)pC->m_pDecodedPlane->u_height *
                 (pC->m_pPto3GPPparams->PanZoomXa +
                 (M4OSA_Double)((M4OSA_Double)(pC->m_pPto3GPPparams->PanZoomXb \
                     - pC->m_pPto3GPPparams->PanZoomXa) *
-                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage)) / 100) + 0.5);
-
+                pC->m_ImageCounter) / (M4OSA_Double)pC->m_NbImage-1)) / 1000));
 
             if((Params.m_inputSize.m_width + Params.m_inputCoord.m_x)\
                  > pC->m_pDecodedPlane->u_width)

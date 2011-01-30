@@ -1970,25 +1970,25 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 pParams->isPanZoom =
                     xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom;
                 /* Check that Pan & Zoom parameters are corrects */
-                if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 100
+                if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa
                     <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                    PanZoomTopleftXa > 100
+                    PanZoomTopleftXa > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
                     PanZoomTopleftXa < 0
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
-                    PanZoomTopleftYa > 100
+                    PanZoomTopleftYa > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
                     PanZoomTopleftYa < 0
                     || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
-                    > 100
+                    > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
                     <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                    PanZoomTopleftXb > 100
+                    PanZoomTopleftXb > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
                     PanZoomTopleftXb < 0
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
-                    PanZoomTopleftYb > 100
+                    PanZoomTopleftYb > 1000
                     || xVSS_context->pSettings->pClipList[i]->xVSS.
                     PanZoomTopleftYb < 0 )
                 {
@@ -2454,25 +2454,25 @@ replaceJPG_3GP:
                         pParams->isPanZoom =
                             xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom;
                         /* Check that Pan & Zoom parameters are corrects */
-                        if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 100
+                        if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa
                             <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXa > 100
+                            PanZoomTopleftXa > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftXa < 0
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYa > 100
+                            PanZoomTopleftYa > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftYa < 0
                             || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
-                            > 100
+                            > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
                             <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXb > 100
+                            PanZoomTopleftXb > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftXb < 0
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYb > 100
+                            PanZoomTopleftYb > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftYb < 0 )
                         {
