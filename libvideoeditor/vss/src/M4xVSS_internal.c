@@ -3711,7 +3711,8 @@ M4OSA_ERR M4xVSS_internalGetTargetedTimeScale(M4OSA_Context pContext,
     {
         /*search timescale only in mpeg4 case*/
         if(pSettings->pClipList[i]->FileType == M4VIDEOEDITING_kFileType_3GPP
-            || pSettings->pClipList[i]->FileType == M4VIDEOEDITING_kFileType_MP4)
+            || pSettings->pClipList[i]->FileType == M4VIDEOEDITING_kFileType_MP4
+            || pSettings->pClipList[i]->FileType == M4VIDEOEDITING_kFileType_M4V)
         {
             M4VIDEOEDITING_ClipProperties fileProperties;
 

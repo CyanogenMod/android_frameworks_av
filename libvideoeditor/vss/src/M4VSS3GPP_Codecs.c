@@ -893,8 +893,8 @@ M4OSA_ERR M4VSS3GPP_setCurrentReader( M4VSS3GPP_MediaAndCodecCtxt *pC,
     switch( mediaType )
     {
         case M4VIDEOEDITING_kFileType_3GPP:
-
         case M4VIDEOEDITING_kFileType_MP4:
+        case M4VIDEOEDITING_kFileType_M4V:
             readerType = M4READER_kMediaType3GPP;
             break;
 

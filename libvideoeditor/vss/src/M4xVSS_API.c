@@ -2630,7 +2630,9 @@ replaceARGB_3GP:
         else if( xVSS_context->pSettings->pClipList[i]->FileType
             == M4VIDEOEDITING_kFileType_3GPP
             || xVSS_context->pSettings->pClipList[i]->FileType
-            == M4VIDEOEDITING_kFileType_MP4 )
+            == M4VIDEOEDITING_kFileType_MP4
+            || xVSS_context->pSettings->pClipList[i]->FileType
+            == M4VIDEOEDITING_kFileType_M4V )
         {
             /*UTF conversion support*/
             M4OSA_Void *pDecodedPath = M4OSA_NULL;
@@ -5551,7 +5553,9 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         if( ( xVSS_context->pSettings->pClipList[i]->FileType
             == M4VIDEOEDITING_kFileType_3GPP)
             || (xVSS_context->pSettings->pClipList[i]->FileType
-            == M4VIDEOEDITING_kFileType_MP4) )
+            == M4VIDEOEDITING_kFileType_MP4)
+            || (xVSS_context->pSettings->pClipList[i]->FileType
+            == M4VIDEOEDITING_kFileType_M4V) )
 
         {
             /* Copy data from given structure to our saving structure */

@@ -44,8 +44,8 @@ extern "C" {
  ******************************************************************************
 */
 typedef enum {
-    M4VIDEOEDITING_kFileType_3GPP        = 0,    /**< 3GPP file media type : input & output */
-    M4VIDEOEDITING_kFileType_MP4         = 1,    /**< MP4  file media type : input          */
+    M4VIDEOEDITING_kFileType_3GPP        = 0,      /**< 3GPP file media type : input & output */
+    M4VIDEOEDITING_kFileType_MP4         = 1,      /**< MP4  file media type : input          */
     M4VIDEOEDITING_kFileType_AMR         = 2,      /**< AMR  file media type : input & output */
     M4VIDEOEDITING_kFileType_MP3         = 3,      /**< MP3  file media type : input          */
     M4VIDEOEDITING_kFileType_PCM         = 4,      /**< PCM RAW file media type : input    RC */
@@ -57,10 +57,10 @@ typedef enum {
                                                         type : input only */
     M4VIDEOEDITING_kFileType_PNG         = 8,      /**< STILL PICTURE FEATURE: PNG file media
                                                         type : input only */
-    M4VIDEOEDITING_kFileType_ARGB8888       = 9,      /**< STILL PICTURE FEATURE: ARGB8888 file
-                                                            media type : input only */
-
-    M4VIDEOEDITING_kFileType_Unsupported = 255   /**< Unsupported file media type */
+    M4VIDEOEDITING_kFileType_ARGB8888    = 9,      /**< STILL PICTURE FEATURE: ARGB8888 file
+                                                        media type : input only */
+    M4VIDEOEDITING_kFileType_M4V         = 10,     /**< M4V  file media type : input only     */
+    M4VIDEOEDITING_kFileType_Unsupported = 255     /**< Unsupported file media type           */
 } M4VIDEOEDITING_FileType;
 
 
