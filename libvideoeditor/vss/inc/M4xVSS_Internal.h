@@ -51,6 +51,9 @@ extern "C" {
 allocate at the initialization*/
 #define UTF_CONVERSION_BUFFER_SIZE            2048
 
+/* Max path length size */
+#define  M4XVSS_MAX_PATH_LEN 256
+
 /** Determine absolute value of a. */
 #define M4xVSS_ABS(a)               ( ( (a) < (0) ) ? (-(a)) : (a) )
 
