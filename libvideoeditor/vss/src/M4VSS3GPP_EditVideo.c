@@ -770,8 +770,15 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
                     pC->Vstate = M4VSS3GPP_kEditVideoState_READ_WRITE;
                 }
             }
-            else
+            else if(!((pC->m_bClipExternalHasStarted == M4OSA_TRUE) &&
+                    (pC->Vstate == M4VSS3GPP_kEditVideoState_DECODE_ENCODE)))
             {
+                /**
+                 * Test if we go into copy/paste mode or into decode/encode mode
+                 * If an external effect has been applied on the current clip
+                 * then continue to be in decode/encode mode till end of
+                 * clip to avoid H.264 distortion.
+                 */
                 pC->Vstate = M4VSS3GPP_kEditVideoState_READ_WRITE;
             }
         }
@@ -1969,18 +1976,25 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
              {
                 if ((t >= (M4OSA_Int32)(pFx->uiStartTime)) &&                  /**< Are we after the start time of the effect? */
                     (t <  (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) /**< Are we into the effect duration? */
-                    {
-                /**
-                 * Set the active effect(s) */
+                {
+                    /**
+                     * Set the active effect(s) */
                     pC->pActiveEffectsList[i] = pC->nbEffects-1-uiFxIndex;
 
-                /**
-                 * Update counter of active effects */
+                    /**
+                     * Update counter of active effects */
                     i++;
 
-                /**
-                 * The third effect has the highest priority, then the second one, then the first one.
-                 * Hence, as soon as we found an active effect, we can get out of this loop */
+                    /**
+                     * For all external effects set this flag to true. */
+                    if(pFx->VideoEffectType > M4VSS3GPP_kVideoEffectType_External)
+                    {
+                        pC->m_bClipExternalHasStarted = M4OSA_TRUE;
+                    }
+
+                    /**
+                     * The third effect has the highest priority, then the second one, then the first one.
+                     * Hence, as soon as we found an active effect, we can get out of this loop */
 
                 }
             }
@@ -1990,22 +2004,26 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
                    (M4OSA_Int32)(pFx->uiStartTime)) && (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
                     <  (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) /**< Are we into the effect duration? */
                  {
-                /**
-                 * Set the active effect(s) */
+                    /**
+                     * Set the active effect(s) */
                     pC->pActiveEffectsList1[i] = pC->nbEffects-1-uiFxIndex;
 
-                /**
-                 * Update counter of active effects */
+                    /**
+                     * Update counter of active effects */
                     i++;
 
-                /**
-                 * The third effect has the highest priority, then the second one, then the first one.
-                 * Hence, as soon as we found an active effect, we can get out of this loop */
+                    /**
+                     * For all external effects set this flag to true. */
+                    if(pFx->VideoEffectType > M4VSS3GPP_kVideoEffectType_External)
+                    {
+                        pC->m_bClipExternalHasStarted = M4OSA_TRUE;
+                    }
+
+                    /**
+                     * The third effect has the highest priority, then the second one, then the first one.
+                     * Hence, as soon as we found an active effect, we can get out of this loop */
                 }
-
-
             }
-
         }
     }
 
