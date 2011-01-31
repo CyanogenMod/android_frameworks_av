@@ -224,6 +224,8 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     pC->State = M4VSS3GPP_kEditState_CREATED;
     pC->Vstate = M4VSS3GPP_kEditVideoState_READ_WRITE;
     pC->Astate = M4VSS3GPP_kEditAudioState_READ_WRITE;
+    /* The flag is set to false at the beginning of every clip */
+    pC->m_bClipExternalHasStarted = M4OSA_FALSE;
 
     pC->bIsMMS = M4OSA_FALSE;
 
@@ -3287,6 +3289,8 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
             }
         }
     }
+    /* The flag is set to false at the beginning of every clip */
+    pC->m_bClipExternalHasStarted = M4OSA_FALSE;
 
     /**
     * Return with no error */

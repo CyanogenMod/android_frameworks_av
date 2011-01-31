@@ -2248,8 +2248,8 @@ replaceJPG_3GP:
                 i]->ClipProperties.uiStillPicHeight; //ARGB_Height;
                 pParams->width = pSettings->pClipList[
                     i]->ClipProperties.uiStillPicWidth; //ARGB_Width;
-                    M4OSA_TRACE1_1("CLIP M4xVSS_SendCommand  is %d", pParams->height);
-                    M4OSA_TRACE1_1("CLIP M4xVSS_SendCommand  is %d", pParams->height);
+                    M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 H = %d", pParams->height);
+                    M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 W = %d", pParams->width);
 
                     if( xVSS_context->pPTo3GPPparamsList
                         == M4OSA_NULL ) /* Means it is the first element of the list */
@@ -3892,9 +3892,9 @@ replace3GP_3GP:
                         xVSS_context,
                         &(xVSS_context->pSettings->Effects[j]),
                         framingCtx->aFramingCtx,xVSS_context->pSettings->xVSS.outputVideoSize);
-                    M4OSA_TRACE1_1("FRAMMING AFTER M4xVSS_SendCommand  %d",
+                    M4OSA_TRACE3_1("FRAMING WIDTH BEFORE M4xVSS_SendCommand  %d",
                         framingCtx->aFramingCtx->width);
-                    M4OSA_TRACE1_1("FRAMMING AFTER M4xVSS_SendCommand  %d",
+                    M4OSA_TRACE3_1("FRAMING HEIGHT BEFORE M4xVSS_SendCommand  %d",
                         framingCtx->aFramingCtx->height);
 
                     if( err != M4NO_ERROR )
