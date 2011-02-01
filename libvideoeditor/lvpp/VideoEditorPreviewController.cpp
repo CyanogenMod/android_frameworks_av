@@ -700,18 +700,14 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
         mTarget = NULL;
     }
 
-    if(mOutputVideoWidth == 0) {
-        mOutputVideoWidth = pFrameStr->uiFrameWidth;
-    }
-    if(mOutputVideoHeight == 0) {
-        mOutputVideoHeight = pFrameStr->uiFrameHeight;
-    }
+    outputBufferWidth = pFrameStr->uiFrameWidth;
+    outputBufferHeight = pFrameStr->uiFrameHeight;
 
     // Initialize the renderer
     if(mTarget == NULL) {
         mTarget = new PreviewRenderer(
-            OMX_COLOR_FormatYUV420Planar, surface, mOutputVideoWidth, mOutputVideoHeight,
-            mOutputVideoWidth, mOutputVideoHeight, 0);
+            OMX_COLOR_FormatYUV420Planar, surface, outputBufferWidth, outputBufferHeight,
+            outputBufferWidth, outputBufferHeight, 0);
         if(mTarget == NULL) {
             LOGE("renderPreviewFrame: cannot create PreviewRenderer");
             return M4ERR_ALLOC;
@@ -727,8 +723,8 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
 
     // Set the output YUV420 plane to be compatible with YV12 format
     //In YV12 format, sizes must be even
-    M4OSA_UInt32 yv12PlaneWidth = ((mOutputVideoWidth +1)>>1)<<1;
-    M4OSA_UInt32 yv12PlaneHeight = ((mOutputVideoHeight+1)>>1)<<1;
+    M4OSA_UInt32 yv12PlaneWidth = ((outputBufferWidth +1)>>1)<<1;
+    M4OSA_UInt32 yv12PlaneHeight = ((outputBufferHeight+1)>>1)<<1;
 
     prepareYV12ImagePlane(planeOut, yv12PlaneWidth, yv12PlaneHeight,
      (M4OSA_UInt32)outBufferStride, (M4VIFI_UInt8 *)outBuffer);
