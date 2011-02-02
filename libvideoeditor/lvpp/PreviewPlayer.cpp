@@ -858,16 +858,15 @@ void PreviewPlayer::onVideoEvent() {
 
             mVideoBuffer->release();
             mVideoBuffer = NULL;
-
-            postVideoEvent_l();
+            postVideoEvent_l(0);
             return;
         }
 
-        if (latenessUs < -10000) {
-            // We're more than 10ms early.
-            LOGV("We're more than 10ms early, lateness %lld", latenessUs);
+        if (latenessUs < -25000) {
+            // We're more than 25ms early.
+            LOGV("We're more than 25ms early, lateness %lld", latenessUs);
 
-            postVideoEvent_l(10000);
+            postVideoEvent_l(25000);
             return;
         }
     }
@@ -1018,7 +1017,7 @@ void PreviewPlayer::onVideoEvent() {
     }
     else {
         if(!mIsVideoSourceJpg) {
-            postVideoEvent_l();
+            postVideoEvent_l(0);
         }
         else {
             postVideoEvent_l(33000);
