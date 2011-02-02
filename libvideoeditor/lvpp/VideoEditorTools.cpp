@@ -1948,7 +1948,7 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             pPlaneTemp = pPlaneOut;
         }
 
-                 /**
+        /**
          * Call AIR functions */
         err = M4AIR_create(&m_air_context, M4AIR_kYUV420P);
         if(err != M4NO_ERROR)
@@ -2511,21 +2511,24 @@ M4OSA_ERR M4AIR_get(M4OSA_Context pContext, M4VIFI_ImagePlane* pIn, M4VIFI_Image
                 /**< No flip on X abscissa */
                 if(M4OSA_FALSE == pC->m_bFlipX)
                 {
+                     M4OSA_UInt32 loc_height = pOut[i].u_height;
+                     M4OSA_UInt32 loc_width = pOut[i].u_width;
+                     M4OSA_UInt32 loc_stride = pIn[i].u_stride;
                     /**< Loop on each row */
-                    for(j=0;j<pOut[i].u_height;j++)
+                    for (j=0; j<loc_height; j++)
                     {
                         /**< Copy one whole line */
-                        M4OSA_memcpy((M4OSA_MemAddr8)pu8_data_out, (M4OSA_MemAddr8)pu8_data_in, pOut[i].u_width);
+                        memcpy((M4OSA_MemAddr8)pu8_data_out, (M4OSA_MemAddr8)pu8_data_in, loc_width);
 
                         /**< Update pointers */
                         pu8_data_out += pOut[i].u_stride;
                         if(M4OSA_FALSE == pC->m_bFlipY)
                         {
-                            pu8_data_in += pIn[i].u_stride;
+                            pu8_data_in += loc_stride;
                         }
                         else
                         {
-                            pu8_data_in -= pIn[i].u_stride;
+                            pu8_data_in -= loc_stride;
                         }
                     }
                 }
