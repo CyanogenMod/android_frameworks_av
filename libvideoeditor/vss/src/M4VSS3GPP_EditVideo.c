@@ -2218,9 +2218,7 @@ M4OSA_ERR M4VSS3GPP_intCreateVideoEncoder( M4VSS3GPP_InternalEditContext *pC )
         }
         else
         {
-            /* Same as input file */
-            EncParams.Bitrate =
-                pC->pC1->pSettings->ClipProperties.uiVideoBitrate;
+            EncParams.Bitrate = pC->ewc.uiVideoBitrate;
         }
     }
     else
