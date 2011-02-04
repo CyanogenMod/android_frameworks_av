@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+
 #define LOG_NDEBUG 1
 #define LOG_TAG "PreviewPlayer"
 #include <utils/Log.h>
@@ -75,19 +76,34 @@ private:
 
 
 struct PreviewLocalRenderer : public PreviewPlayerRenderer {
-    PreviewLocalRenderer(
+
+    static PreviewLocalRenderer* initPreviewLocalRenderer (
             bool previewOnly,
             OMX_COLOR_FORMATTYPE colorFormat,
             const sp<Surface> &surface,
             size_t displayWidth, size_t displayHeight,
             size_t decodedWidth, size_t decodedHeight,
             int32_t rotationDegrees = 0)
-        : mTarget(NULL) {
-            init(previewOnly,
+    {
+        PreviewLocalRenderer* mLocalRenderer = new
+            PreviewLocalRenderer(
+                previewOnly,
+                colorFormat,
+                surface,
+                displayWidth, displayHeight,
+                decodedWidth, decodedHeight,
+                rotationDegrees);
+
+        if ( mLocalRenderer->init(previewOnly,
                  colorFormat, surface,
                  displayWidth, displayHeight,
                  decodedWidth, decodedHeight,
-                 rotationDegrees);
+                 rotationDegrees) != OK )
+        {
+            delete mLocalRenderer;
+            return NULL;
+        }
+        return mLocalRenderer;
     }
 
     virtual void render(MediaBuffer *buffer) {
@@ -114,7 +130,18 @@ protected:
 private:
     PreviewRenderer *mTarget;
 
-    void init(
+    PreviewLocalRenderer(
+            bool previewOnly,
+            OMX_COLOR_FORMATTYPE colorFormat,
+            const sp<Surface> &surface,
+            size_t displayWidth, size_t displayHeight,
+            size_t decodedWidth, size_t decodedHeight,
+            int32_t rotationDegrees = 0)
+        : mTarget(NULL) {
+    }
+
+
+    int init(
             bool previewOnly,
             OMX_COLOR_FORMATTYPE colorFormat,
             const sp<Surface> &surface,
@@ -126,16 +153,21 @@ private:
     PreviewLocalRenderer &operator=(const PreviewLocalRenderer &);;
 };
 
-void PreviewLocalRenderer::init(
+int PreviewLocalRenderer::init(
         bool previewOnly,
         OMX_COLOR_FORMATTYPE colorFormat,
         const sp<Surface> &surface,
         size_t displayWidth, size_t displayHeight,
         size_t decodedWidth, size_t decodedHeight,
         int32_t rotationDegrees) {
-    mTarget = new PreviewRenderer(
+
+    mTarget = PreviewRenderer::CreatePreviewRenderer (
             colorFormat, surface, displayWidth, displayHeight,
             decodedWidth, decodedHeight, rotationDegrees);
+    if (mTarget == M4OSA_NULL) {
+        return UNKNOWN_ERROR;
+    }
+    return OK;
 }
 
 PreviewPlayer::PreviewPlayer()
@@ -538,7 +570,7 @@ VideoEditorAudioPlayer  *mVePlayer;
 }
 
 
-void PreviewPlayer::initRenderer_l() {
+status_t PreviewPlayer::initRenderer_l() {
     if (mSurface != NULL || mISurface != NULL) {
         sp<MetaData> meta = mVideoSource->getFormat();
 
@@ -560,14 +592,21 @@ void PreviewPlayer::initRenderer_l() {
         // allocate their buffers in local address space.
         if(mVideoRenderer == NULL) {
 
-            mVideoRenderer = new PreviewLocalRenderer(
+            mVideoRenderer = PreviewLocalRenderer:: initPreviewLocalRenderer (
                 false,  // previewOnly
                 (OMX_COLOR_FORMATTYPE)format,
                 mSurface,
                 mOutputVideoWidth, mOutputVideoHeight,
                 mOutputVideoWidth, mOutputVideoHeight);
+
+            if ( mVideoRenderer == NULL )
+            {
+                return UNKNOWN_ERROR;
+            }
+            return OK;
         }
     }
+    return OK;
 }
 
 
@@ -749,7 +788,10 @@ void PreviewPlayer::onVideoEvent() {
                     CHECK(meta->findInt32(kKeyHeight, &mReportedHeight));
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
-                        initRenderer_l();
+                        err = initRenderer_l();
+                           if ( err != OK )
+                        postStreamDoneEvent_l(err); // santosh
+
                     }
                     continue;
                 }
@@ -874,7 +916,9 @@ void PreviewPlayer::onVideoEvent() {
     if (mVideoRendererIsPreview || mVideoRenderer == NULL) {
         mVideoRendererIsPreview = false;
 
-        initRenderer_l();
+        status_t err = initRenderer_l();
+        if ( err != OK )
+        postStreamDoneEvent_l(err); // santosh
     }
 
     // If timestamp exceeds endCutTime of clip, donot render
@@ -887,7 +931,7 @@ void PreviewPlayer::onVideoEvent() {
         mVideoBuffer = NULL;
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
-        LOGI("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
+        LOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
         if (mOverlayUpdateEventPosted) {
             mOverlayUpdateEventPosted = false;
             postOverlayUpdateEvent_l();
@@ -1114,7 +1158,7 @@ void PreviewPlayer::onPrepareAsyncEvent() {
     LOGV("onPrepareAsyncEvent");
 
     if (mFlags & PREPARE_CANCELLED) {
-        LOGI("LV PLAYER prepare was cancelled before doing anything");
+        LOGV("LV PLAYER prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
         return;
     }
@@ -1275,7 +1319,7 @@ status_t PreviewPlayer::resume() {
 
     if (state->mLastVideoFrame && (mSurface != NULL || mISurface != NULL)) {
         mVideoRenderer =
-            new PreviewLocalRenderer(
+            PreviewLocalRenderer::initPreviewLocalRenderer(
                     true,  // previewOnly
                     (OMX_COLOR_FORMATTYPE)state->mColorFormat,
                     mSurface,
@@ -1731,7 +1775,9 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
-                        initRenderer_l();
+                        err = initRenderer_l();
+                        if ( err != OK )
+                                postStreamDoneEvent_l(err); // santosh
                     }
                     continue;
                 }
@@ -1756,7 +1802,6 @@ status_t PreviewPlayer::readFirstVideoFrame() {
             if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
                 // buffers are before begin cut time
                 // ignore them
-                //LOGI("PreviewPlayer: Ignoring buffers before begin cut time");
                 mVideoBuffer->release();
                 mVideoBuffer = NULL;
                 continue;

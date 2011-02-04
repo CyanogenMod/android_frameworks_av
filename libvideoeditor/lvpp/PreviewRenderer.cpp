@@ -29,6 +29,83 @@
 
 namespace android {
 
+PreviewRenderer* PreviewRenderer::CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
+        const sp<Surface> &surface,
+        size_t displayWidth, size_t displayHeight,
+        size_t decodedWidth, size_t decodedHeight,
+        int32_t rotationDegrees) {
+
+        PreviewRenderer* returnCtx =
+            new PreviewRenderer(colorFormat,
+            surface,
+            displayWidth, displayHeight,
+            decodedWidth, decodedHeight,
+            rotationDegrees);
+
+        int result = 0;
+
+        int halFormat;
+        switch (returnCtx->mColorFormat) {
+            case OMX_COLOR_FormatYUV420Planar:
+            {
+                halFormat = HAL_PIXEL_FORMAT_YV12;
+                returnCtx->mYUVMode = None;
+                break;
+            }
+            default:
+                halFormat = HAL_PIXEL_FORMAT_RGB_565;
+
+                returnCtx->mConverter = new ColorConverter(
+                        returnCtx->mColorFormat, OMX_COLOR_Format16bitRGB565);
+                CHECK(returnCtx->mConverter->isValid());
+                break;
+        }
+
+        CHECK(returnCtx->mSurface.get() != NULL);
+        CHECK(returnCtx->mDecodedWidth > 0);
+        CHECK(returnCtx->mDecodedHeight > 0);
+        CHECK(returnCtx->mConverter == NULL || returnCtx->mConverter->isValid());
+
+        result = native_window_set_usage(
+                    returnCtx->mSurface.get(),
+                    GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
+                    | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
+
+        if ( result == 0 ) {
+            result = native_window_set_buffer_count(returnCtx->mSurface.get(), 3);
+
+            if (result == 0) {
+                result = native_window_set_buffers_geometry(
+                    returnCtx->mSurface.get(), returnCtx->mDecodedWidth, returnCtx->mDecodedHeight,
+                    halFormat);
+                if ( result == 0) {
+                    uint32_t transform;
+                    switch (rotationDegrees) {
+                        case 0: transform = 0; break;
+                        case 90: transform = HAL_TRANSFORM_ROT_90; break;
+                        case 180: transform = HAL_TRANSFORM_ROT_180; break;
+                        case 270: transform = HAL_TRANSFORM_ROT_270; break;
+                        default: transform = 0; break;
+                    }
+                    if (transform) {
+                        result = native_window_set_buffers_transform(
+                                    returnCtx->mSurface.get(), transform);
+
+                    }
+                }
+            }
+        }
+
+        if ( result != 0 )
+        {
+            /* free the ctx */
+            returnCtx->~PreviewRenderer();
+            return NULL;
+        }
+
+        return returnCtx;
+}
+
 PreviewRenderer::PreviewRenderer(
         OMX_COLOR_FORMATTYPE colorFormat,
         const sp<Surface> &surface,
@@ -43,61 +120,13 @@ PreviewRenderer::PreviewRenderer(
       mDisplayHeight(displayHeight),
       mDecodedWidth(decodedWidth),
       mDecodedHeight(decodedHeight) {
+
     LOGV("input format = %d", mColorFormat);
     LOGV("display = %d x %d, decoded = %d x %d",
             mDisplayWidth, mDisplayHeight, mDecodedWidth, mDecodedHeight);
 
     mDecodedWidth = mDisplayWidth;
     mDecodedHeight = mDisplayHeight;
-
-    int halFormat;
-    switch (mColorFormat) {
-        case OMX_COLOR_FormatYUV420Planar:
-        {
-            halFormat = HAL_PIXEL_FORMAT_YV12;
-            mYUVMode = None;
-            break;
-        }
-        default:
-            halFormat = HAL_PIXEL_FORMAT_RGB_565;
-
-            mConverter = new ColorConverter(
-                    mColorFormat, OMX_COLOR_Format16bitRGB565);
-            CHECK(mConverter->isValid());
-            break;
-    }
-
-    CHECK(mSurface.get() != NULL);
-    CHECK(mDecodedWidth > 0);
-    CHECK(mDecodedHeight > 0);
-    CHECK(mConverter == NULL || mConverter->isValid());
-
-    CHECK_EQ(0,
-            native_window_set_usage(
-            mSurface.get(),
-            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
-            | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP));
-
-    CHECK_EQ(0, native_window_set_buffer_count(mSurface.get(), 3));
-
-    // Width must be multiple of 32???
-    CHECK_EQ(0, native_window_set_buffers_geometry(
-                mSurface.get(), mDecodedWidth, mDecodedHeight,
-                halFormat));
-
-    uint32_t transform;
-    switch (rotationDegrees) {
-        case 0: transform = 0; break;
-        case 90: transform = HAL_TRANSFORM_ROT_90; break;
-        case 180: transform = HAL_TRANSFORM_ROT_180; break;
-        case 270: transform = HAL_TRANSFORM_ROT_270; break;
-        default: transform = 0; break;
-    }
-
-    if (transform) {
-        CHECK_EQ(0, native_window_set_buffers_transform(
-                    mSurface.get(), transform));
-    }
 }
 
 PreviewRenderer::~PreviewRenderer() {

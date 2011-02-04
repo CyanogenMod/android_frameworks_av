@@ -120,7 +120,7 @@ private:
     void reset_l();
     void partial_reset_l();
     status_t play_l();
-    void initRenderer_l();
+    status_t initRenderer_l();
     status_t initAudioDecoder();
     status_t initVideoDecoder(uint32_t flags = 0);
     void onVideoEvent();

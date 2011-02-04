@@ -25,18 +25,19 @@
 #include <ui/GraphicBufferMapper.h>
 #include "SoftwareRenderer.h"
 
+
 namespace android {
 
 class Surface;
 
 class PreviewRenderer {
 public:
-    PreviewRenderer(
-            OMX_COLOR_FORMATTYPE colorFormat,
-            const sp<Surface> &surface,
-            size_t displayWidth, size_t displayHeight,
-            size_t decodedWidth, size_t decodedHeight,
-            int32_t rotationDegrees);
+
+static PreviewRenderer* CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
+        const sp<Surface> &surface,
+        size_t displayWidth, size_t displayHeight,
+        size_t decodedWidth, size_t decodedHeight,
+        int32_t rotationDegrees);
 
     ~PreviewRenderer();
 
@@ -52,6 +53,12 @@ public:
     }
 
 private:
+    PreviewRenderer(
+            OMX_COLOR_FORMATTYPE colorFormat,
+            const sp<Surface> &surface,
+            size_t displayWidth, size_t displayHeight,
+            size_t decodedWidth, size_t decodedHeight,
+            int32_t rotationDegrees);
     enum YUVMode {
         None,
         YUV420ToYUV420sp,
