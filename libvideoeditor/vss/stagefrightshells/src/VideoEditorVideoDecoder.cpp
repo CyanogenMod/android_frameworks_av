@@ -1374,17 +1374,50 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                 int32_t uvPlaneSize = width * height / 4;
                 int32_t offsetSrc = 0;
 
-                M4OSA_MemAddr8 pTmpBuff = (M4OSA_MemAddr8)pDecoderBuffer->data() + pDecoderBuffer->range_offset();
+                if (( width == pDecShellContext->mGivenWidth )  &&
+                    ( height == pDecShellContext->mGivenHeight ))
+                {
+                    M4OSA_MemAddr8 pTmpBuff = (M4OSA_MemAddr8)pDecoderBuffer->data() + pDecoderBuffer->range_offset();
 
-                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData, pTmpBuff, yPlaneSize);
+                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData, pTmpBuff, yPlaneSize);
 
-                offsetSrc += pDecShellContext->mGivenWidth * pDecShellContext->mGivenHeight;
-                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize,
-                    pTmpBuff + offsetSrc, uvPlaneSize);
+                    offsetSrc += pDecShellContext->mGivenWidth * pDecShellContext->mGivenHeight;
+                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize,
+                        pTmpBuff + offsetSrc, uvPlaneSize);
 
-                offsetSrc += (pDecShellContext->mGivenWidth >> 1) * (pDecShellContext->mGivenHeight >> 1);
-                M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize + uvPlaneSize,
-                                pTmpBuff + offsetSrc, uvPlaneSize);
+                    offsetSrc += (pDecShellContext->mGivenWidth >> 1) * (pDecShellContext->mGivenHeight >> 1);
+                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize + uvPlaneSize,
+                        pTmpBuff + offsetSrc, uvPlaneSize);
+                }
+                else
+                {
+                    M4OSA_MemAddr8 pTmpBuff = (M4OSA_MemAddr8)pDecoderBuffer->data() + pDecoderBuffer->range_offset();
+                    M4OSA_MemAddr8 pTmpBuffDst = (M4OSA_MemAddr8)tmpDecBuffer->pData;
+                    int32_t index;
+
+                    for ( index = 0; index < height; index++)
+                    {
+                        memcpy(pTmpBuffDst, pTmpBuff, width);
+                        pTmpBuffDst += width;
+                        pTmpBuff += pDecShellContext->mGivenWidth;
+                    }
+
+                    pTmpBuff += (pDecShellContext->mGivenWidth * ( pDecShellContext->mGivenHeight - height));
+                    for ( index = 0; index < height >> 1; index++)
+                    {
+                        memcpy(pTmpBuffDst, pTmpBuff, width >> 1);
+                        pTmpBuffDst += width >> 1;
+                        pTmpBuff += pDecShellContext->mGivenWidth >> 1;
+                    }
+
+                    pTmpBuff += ((pDecShellContext->mGivenWidth * (pDecShellContext->mGivenHeight - height)) / 4);
+                    for ( index = 0; index < height >> 1; index++)
+                    {
+                        memcpy(pTmpBuffDst, pTmpBuff, width >> 1);
+                        pTmpBuffDst += width >> 1;
+                        pTmpBuff += pDecShellContext->mGivenWidth >> 1;
+                    }
+                }
 
                 break;
             }
