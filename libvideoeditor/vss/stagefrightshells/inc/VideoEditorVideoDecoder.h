@@ -33,4 +33,12 @@ M4OSA_ERR VideoEditorVideoDecoder_getInterface_H264(
         M4DECODER_VideoType *pDecoderType,
         M4OSA_Context *pDecoderInterface);
 
+M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface_MPEG4(
+        M4DECODER_VideoType *pDecoderType,
+        M4OSA_Context *pDecInterface);
+
+M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface_H264(
+        M4DECODER_VideoType *pDecoderType,
+        M4OSA_Context *pDecInterface);
+
 #endif // VIDEOEDITOR_VIDEODECODER_H
