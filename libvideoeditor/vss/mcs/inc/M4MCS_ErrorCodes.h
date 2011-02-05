@@ -59,6 +59,10 @@
 #define M4MCS_ERR_INPUT_FILE_CONTAINS_NO_SUPPORTED_STREAM   M4OSA_ERR_CREATE( M4_ERR, M4MCS, 0x01)
 /* The input file is invalid/corrupted */
 #define M4MCS_ERR_INVALID_INPUT_FILE                        M4OSA_ERR_CREATE( M4_ERR, M4MCS, 0x02)
+/* The input video frame size parameter is undefined */
+#define M4MCS_ERR_INVALID_INPUT_VIDEO_FRAME_SIZE            M4OSA_ERR_CREATE( M4_ERR, M4MCS, 0x03)
+/* The input video frame size is non multiple of 16 */
+#define M4MCS_ERR_INPUT_VIDEO_SIZE_NON_X16                  M4OSA_ERR_CREATE( M4_ERR, M4MCS, 0x04)
 
 
 /* ----- SET OUTPUT PARAMS ERRORS ----- */
