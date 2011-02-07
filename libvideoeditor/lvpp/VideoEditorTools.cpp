@@ -3074,21 +3074,21 @@ M4OSA_Void prepareYUV420ImagePlane(M4VIFI_ImagePlane *plane,
     //Y plane
     plane[0].u_width = width;
     plane[0].u_height = height;
-    plane[0].u_stride = plane[0].u_width;
+    plane[0].u_stride = reportedWidth;
     plane[0].u_topleft = 0;
     plane[0].pac_data = buffer;
 
     // U plane
     plane[1].u_width = width/2;
     plane[1].u_height = height/2;
-    plane[1].u_stride = plane[1].u_width;
+    plane[1].u_stride = reportedWidth >> 1;
     plane[1].u_topleft = 0;
     plane[1].pac_data = buffer+(reportedWidth*reportedHeight);
 
     // V Plane
     plane[2].u_width = width/2;
     plane[2].u_height = height/2;
-    plane[2].u_stride = plane[2].u_width;
+    plane[2].u_stride = reportedWidth >> 1;
     plane[2].u_topleft = 0;
     plane[2].pac_data = plane[1].pac_data + ((reportedWidth/2)*(reportedHeight/2));
 }
