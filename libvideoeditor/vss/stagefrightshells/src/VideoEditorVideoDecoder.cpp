@@ -22,7 +22,6 @@
 */
 #define LOG_NDEBUG 1
 #define LOG_TAG "VIDEOEDITOR_VIDEODECODER"
-
 /*******************
  *     HEADERS     *
  *******************/
@@ -985,6 +984,154 @@ cleanUp:
     return err;
 }
 
+M4OSA_ERR VideoEditorVideoSoftwareDecoder_create(M4OSA_Context *pContext,
+        M4_StreamHandler *pStreamHandler,
+        M4READER_DataInterface *pReaderDataInterface,
+        M4_AccessUnit *pAccessUnit, M4OSA_Void *pUserData) {
+    M4OSA_ERR err = M4NO_ERROR;
+    VideoEditorVideoDecoder_Context* pDecShellContext = M4OSA_NULL;
+    status_t status = OK;
+    bool success = TRUE;
+    int32_t colorFormat = 0;
+    M4OSA_UInt32 size = 0;
+    sp<MetaData> decoderMetadata = NULL;
+
+    LOGV("VideoEditorVideoDecoder_create begin");
+    // Input parameters check
+    VIDEOEDITOR_CHECK(M4OSA_NULL != pContext,             M4ERR_PARAMETER);
+    VIDEOEDITOR_CHECK(M4OSA_NULL != pStreamHandler,       M4ERR_PARAMETER);
+    VIDEOEDITOR_CHECK(M4OSA_NULL != pReaderDataInterface, M4ERR_PARAMETER);
+
+    // Context allocation & initialization
+    SAFE_MALLOC(pDecShellContext, VideoEditorVideoDecoder_Context, 1,
+        "VideoEditorVideoDecoder");
+    pDecShellContext->m_pVideoStreamhandler =
+        (M4_VideoStreamHandler*)pStreamHandler;
+    pDecShellContext->m_pNextAccessUnitToDecode = pAccessUnit;
+    pDecShellContext->m_pReader = pReaderDataInterface;
+    pDecShellContext->m_lastDecodedCTS = -1;
+    pDecShellContext->m_lastRenderCts = -1;
+    switch( pStreamHandler->m_streamType ) {
+        case M4DA_StreamTypeVideoH263:
+            pDecShellContext->mDecoderType = VIDEOEDITOR_kH263VideoDec;
+            break;
+        case M4DA_StreamTypeVideoMpeg4:
+            pDecShellContext->mDecoderType = VIDEOEDITOR_kMpeg4VideoDec;
+            // Parse the VOL header
+            err = VideoEditorVideoDecoder_internalParseVideoDSI(
+                (M4OSA_UInt8*)pDecShellContext->m_pVideoStreamhandler->\
+                    m_basicProperties.m_pDecoderSpecificInfo,
+                pDecShellContext->m_pVideoStreamhandler->\
+                    m_basicProperties.m_decoderSpecificInfoSize,
+                &pDecShellContext->m_Dci, &pDecShellContext->m_VideoSize);
+            VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+            break;
+        case M4DA_StreamTypeVideoMpeg4Avc:
+            pDecShellContext->mDecoderType = VIDEOEDITOR_kH264VideoDec;
+            break;
+        default:
+            VIDEOEDITOR_CHECK(!"VideoDecoder_create : incorrect stream type",
+                M4ERR_PARAMETER);
+            break;
+    }
+
+    pDecShellContext->mNbInputFrames     = 0;
+    pDecShellContext->mFirstInputCts     = -1.0;
+    pDecShellContext->mLastInputCts      = -1.0;
+    pDecShellContext->mNbRenderedFrames  = 0;
+    pDecShellContext->mFirstRenderedCts  = -1.0;
+    pDecShellContext->mLastRenderedCts   = -1.0;
+    pDecShellContext->mNbOutputFrames    = 0;
+    pDecShellContext->mFirstOutputCts    = -1;
+    pDecShellContext->mLastOutputCts     = -1;
+    pDecShellContext->m_pDecBufferPool   = M4OSA_NULL;
+
+    /**
+     * StageFright graph building
+     */
+    decoderMetadata = new MetaData;
+    switch( pDecShellContext->mDecoderType ) {
+        case VIDEOEDITOR_kH263VideoDec:
+            decoderMetadata->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_H263);
+            break;
+        case VIDEOEDITOR_kMpeg4VideoDec:
+            decoderMetadata->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_MPEG4);
+            decoderMetadata->setData(kKeyESDS, kTypeESDS,
+                pStreamHandler->m_pESDSInfo,
+                pStreamHandler->m_ESDSInfoSize);
+            break;
+        case VIDEOEDITOR_kH264VideoDec:
+            decoderMetadata->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
+            decoderMetadata->setData(kKeyAVCC, kTypeAVCC,
+                pStreamHandler->m_pH264DecoderSpecificInfo,
+                pStreamHandler->m_H264decoderSpecificInfoSize);
+            break;
+        default:
+            VIDEOEDITOR_CHECK(!"VideoDecoder_create : incorrect stream type",
+                M4ERR_PARAMETER);
+            break;
+    }
+
+    decoderMetadata->setInt32(kKeyMaxInputSize, pStreamHandler->m_maxAUSize);
+    decoderMetadata->setInt32(kKeyWidth,
+        pDecShellContext->m_pVideoStreamhandler->m_videoWidth);
+    decoderMetadata->setInt32(kKeyHeight,
+        pDecShellContext->m_pVideoStreamhandler->m_videoHeight);
+
+    // Create the decoder source
+    pDecShellContext->mReaderSource = new VideoEditorVideoDecoderSource(
+        decoderMetadata, pDecShellContext->mDecoderType,
+        (void *)pDecShellContext);
+    VIDEOEDITOR_CHECK(NULL != pDecShellContext->mReaderSource.get(),
+        M4ERR_SF_DECODER_RSRC_FAIL);
+
+    // Connect to the OMX client
+    status = pDecShellContext->mClient.connect();
+    VIDEOEDITOR_CHECK(OK == status, M4ERR_SF_DECODER_RSRC_FAIL);
+
+     LOGI("Using software codecs only");
+    // Create the decoder
+    pDecShellContext->mVideoDecoder = OMXCodec::Create(
+        pDecShellContext->mClient.interface(),
+        decoderMetadata, false, pDecShellContext->mReaderSource,NULL,OMXCodec::kSoftwareCodecsOnly);
+    VIDEOEDITOR_CHECK(NULL != pDecShellContext->mVideoDecoder.get(),
+        M4ERR_SF_DECODER_RSRC_FAIL);
+
+    // Get the output color format
+    success = pDecShellContext->mVideoDecoder->getFormat()->findInt32(
+        kKeyColorFormat, &colorFormat);
+    VIDEOEDITOR_CHECK(TRUE == success, M4ERR_PARAMETER);
+    pDecShellContext->decOuputColorFormat = (OMX_COLOR_FORMATTYPE)colorFormat;
+
+    pDecShellContext->mVideoDecoder->getFormat()->setInt32(kKeyWidth,
+        pDecShellContext->m_pVideoStreamhandler->m_videoWidth);
+    pDecShellContext->mVideoDecoder->getFormat()->setInt32(kKeyHeight,
+        pDecShellContext->m_pVideoStreamhandler->m_videoHeight);
+
+    // Configure the buffer pool from the metadata
+    err = VideoEditorVideoDecoder_configureFromMetadata(pDecShellContext,
+        pDecShellContext->mVideoDecoder->getFormat().get());
+    VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+
+    // Start the graph
+    status = pDecShellContext->mVideoDecoder->start();
+    VIDEOEDITOR_CHECK(OK == status, M4ERR_SF_DECODER_RSRC_FAIL);
+
+    *pContext = (M4OSA_Context)pDecShellContext;
+
+cleanUp:
+    if( M4NO_ERROR == err ) {
+        LOGV("VideoEditorVideoDecoder_create no error");
+    } else {
+        VideoEditorVideoDecoder_destroy(pDecShellContext);
+        *pContext = M4OSA_NULL;
+        LOGV("VideoEditorVideoDecoder_create ERROR 0x%X", err);
+    }
+    LOGV("VideoEditorVideoDecoder_create : DONE");
+    return err;
+}
+
+
 M4OSA_ERR VideoEditorVideoDecoder_getOption(M4OSA_Context context,
         M4OSA_OptionID optionId, M4OSA_DataOption pValue) {
     M4OSA_ERR lerr = M4NO_ERROR;
@@ -1425,6 +1572,29 @@ M4OSA_ERR VideoEditorVideoDecoder_getInterface(M4DECODER_VideoType decoderType,
     return M4NO_ERROR;
 }
 
+M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface(M4DECODER_VideoType decoderType,
+        M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
+    M4DECODER_VideoInterface* pDecoderInterface = M4OSA_NULL;
+
+    pDecoderInterface = (M4DECODER_VideoInterface*)M4OSA_malloc(
+        sizeof(M4DECODER_VideoInterface), M4DECODER_EXTERNAL,
+        (M4OSA_Char*)"VideoEditorVideoDecoder_getInterface" );
+    if (M4OSA_NULL == pDecoderInterface) {
+        return M4ERR_ALLOC;
+    }
+
+    *pDecoderType = decoderType;
+
+    pDecoderInterface->m_pFctCreate    = VideoEditorVideoSoftwareDecoder_create;
+    pDecoderInterface->m_pFctDestroy   = VideoEditorVideoDecoder_destroy;
+    pDecoderInterface->m_pFctGetOption = VideoEditorVideoDecoder_getOption;
+    pDecoderInterface->m_pFctSetOption = VideoEditorVideoDecoder_setOption;
+    pDecoderInterface->m_pFctDecode    = VideoEditorVideoDecoder_decode;
+    pDecoderInterface->m_pFctRender    = VideoEditorVideoDecoder_render;
+
+    *pDecInterface = (M4OSA_Context)pDecoderInterface;
+    return M4NO_ERROR;
+}
 extern "C" {
 
 M4OSA_ERR VideoEditorVideoDecoder_getInterface_MPEG4(
@@ -1436,6 +1606,19 @@ M4OSA_ERR VideoEditorVideoDecoder_getInterface_MPEG4(
 M4OSA_ERR VideoEditorVideoDecoder_getInterface_H264(
         M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
     return VideoEditorVideoDecoder_getInterface(M4DECODER_kVideoTypeAVC,
+        pDecoderType, pDecInterface);
+
+}
+
+M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface_MPEG4(
+        M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
+    return VideoEditorVideoDecoder_getSoftwareInterface(M4DECODER_kVideoTypeMPEG4,
+        pDecoderType, pDecInterface);
+}
+
+M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface_H264(
+        M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
+    return VideoEditorVideoDecoder_getSoftwareInterface(M4DECODER_kVideoTypeAVC,
         pDecoderType, pDecInterface);
 
 }
