@@ -6333,6 +6333,11 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                     == M4xVSS_kMicroStateConvertPto3GPP ) /* Pto3GPP, converting */
                 {
                     err = M4PTO3GPP_Step(xVSS_context->pM4PTO3GPP_Ctxt);
+                    /* update progress bar */
+                    if(xVSS_context->pCallBackCtxt->m_NbImage > 1)
+                    {
+                        uiProgress = (xVSS_context->pCallBackCtxt->m_ImageCounter * 100) / (xVSS_context->pCallBackCtxt->m_NbImage -1);
+                    }
 
                     if( ( err != M4NO_ERROR) && (err
                         != ((M4OSA_UInt32)M4PTO3GPP_WAR_END_OF_PROCESSING)) )
