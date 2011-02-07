@@ -1075,6 +1075,15 @@ M4OSA_ERR M4VSS3GPP_intCheckClipCompatibleWithVssEditing(
                 break;
 
             case M4VIDEOEDITING_kH264:
+                if( M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range
+                    == pClipProperties->ProfileAndLevel )
+                {
+                    M4OSA_TRACE1_0(
+                        "M4VSS3GPP_intCheckClipCompatibleWithVssEditing():\
+                        unsupported H264 profile");
+                    video_err = M4VSS3GPP_ERR_EDITING_UNSUPPORTED_H264_PROFILE;
+                    break;
+                }
 
                 uiNbOfValidStreams++;
                 pClipProperties->bVideoIsEditable = M4OSA_TRUE;
