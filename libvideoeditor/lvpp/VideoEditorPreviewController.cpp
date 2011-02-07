@@ -705,9 +705,11 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
 
     // Initialize the renderer
     if(mTarget == NULL) {
-        mTarget = new PreviewRenderer(
+
+        mTarget = PreviewRenderer::CreatePreviewRenderer(
             OMX_COLOR_FormatYUV420Planar, surface, outputBufferWidth, outputBufferHeight,
             outputBufferWidth, outputBufferHeight, 0);
+
         if(mTarget == NULL) {
             LOGE("renderPreviewFrame: cannot create PreviewRenderer");
             return M4ERR_ALLOC;
@@ -750,7 +752,6 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
     M4OSA_UInt32 i = 0, iIncrementedDuration = 0, tnTimeMs=0, framesize =0;
     VideoEditor_renderPreviewFrameStr* pFrameStr = pFrameInfo;
     M4VIFI_UInt8 *pixelArray = NULL;
-
     Mutex::Autolock autoLock(mLock);
 
     // Get the Isurface to be passed to renderer
@@ -774,9 +775,14 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
 
     // Initialize the renderer
     if(mTarget == NULL) {
-        mTarget = new PreviewRenderer(
+        /*mTarget = new PreviewRenderer(
+            OMX_COLOR_FormatYUV420Planar, surface, mOutputVideoWidth, mOutputVideoHeight,
+            mOutputVideoWidth, mOutputVideoHeight, 0);*/
+
+         mTarget = PreviewRenderer::CreatePreviewRenderer(
             OMX_COLOR_FormatYUV420Planar, surface, mOutputVideoWidth, mOutputVideoHeight,
             mOutputVideoWidth, mOutputVideoHeight, 0);
+
         if(mTarget == NULL) {
             LOGE("renderPreviewFrame: cannot create PreviewRenderer");
             return M4ERR_ALLOC;
