@@ -736,6 +736,11 @@ void PreviewPlayer::onVideoEvent() {
     }
     mVideoEventPending = false;
 
+    if (mFlags & SEEK_PREVIEW) {
+        mFlags &= ~SEEK_PREVIEW;
+        return;
+    }
+
     TimeSource *ts_st =  &mSystemTimeSource;
     int64_t timeStartUs = ts_st->getRealTimeUs();
 
