@@ -403,8 +403,8 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                         M4OSA_Context fp = M4OSA_NULL;
 
                         uiPCMsize = (mInputBuffer->range_length())/2;
-                        pPTMdata = (M4OSA_Int16*)(mInputBuffer->data() +
-                        mInputBuffer->range_offset());
+                        pPTMdata = (M4OSA_Int16*) ((uint8_t*) mInputBuffer->data()
+                                + mInputBuffer->range_offset());
 
                         LOGV("mix with background malloc to do len %d", len);
 

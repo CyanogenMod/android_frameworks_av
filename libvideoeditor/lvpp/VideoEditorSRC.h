@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+#include <stdint.h>
+
 #include <utils/RefBase.h>
 #include <media/stagefright/MediaErrors.h>
 
