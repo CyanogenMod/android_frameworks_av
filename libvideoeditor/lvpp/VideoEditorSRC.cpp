@@ -325,7 +325,9 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
         }
         else {
             //copy the buffer
-            memcpy((uint8_t*) (pInterframeBuffer + mInterframeBufferPosition), (uint8_t*) (aBuffer->data() + aBuffer->range_offset()), aBuffer->range_length());
+            memcpy(((uint8_t*) pInterframeBuffer) + mInterframeBufferPosition,
+                    ((uint8_t*) aBuffer->data()) + aBuffer->range_offset(),
+                    aBuffer->range_length());
             LOGV("Read from buffer  %d", aBuffer->range_length());
 
             mInterframeBufferPosition += aBuffer->range_length();
