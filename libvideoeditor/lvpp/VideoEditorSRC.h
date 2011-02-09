@@ -100,6 +100,7 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
 
         int64_t mSeekTimeUs;
         ReadOptions::SeekMode mSeekMode;
+        int16_t *mReSampledBuffer;
 
 };
 

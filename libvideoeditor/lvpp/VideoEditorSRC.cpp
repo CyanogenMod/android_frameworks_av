@@ -46,6 +46,7 @@ VideoEditorSRC::VideoEditorSRC(
     mSeekTimeUs = -1;
     mLeftover = 0;
     mLastReadSize = 0;
+    mReSampledBuffer = NULL;
 #ifndef FROYO
     mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
 #endif
@@ -168,6 +169,10 @@ status_t VideoEditorSRC::stop() {
     mAccuOutBufferSize  = 0;
     mLeftover = 0;
     mLastReadSize = 0;
+    if (mReSampledBuffer != NULL) {
+        free(mReSampledBuffer);
+        mReSampledBuffer = NULL;
+    }
 
     return OK;
 }
@@ -223,15 +228,21 @@ status_t VideoEditorSRC::read (
         memset(pTmpBuffer, 0x00, outFrameCnt * 2 * sizeof(int32_t));
         // Resample to target quality
         mResampler->resample(pTmpBuffer, outFrameCnt, this);
-        int16_t *reSampledBuffer = (int16_t*)malloc(outBufferSize);
-        memset(reSampledBuffer, 0x00, outBufferSize);
+
+        // Free previous allocation
+        if (mReSampledBuffer != NULL) {
+            free(mReSampledBuffer);
+            mReSampledBuffer = NULL;
+        }
+        mReSampledBuffer = (int16_t*)malloc(outBufferSize);
+        memset(mReSampledBuffer, 0x00, outBufferSize);
 
         // Convert back to 16 bits
-        AudioMixer::ditherAndClamp((int32_t*)reSampledBuffer, pTmpBuffer, outFrameCnt);
+        AudioMixer::ditherAndClamp((int32_t*)mReSampledBuffer, pTmpBuffer, outFrameCnt);
         LOGV("Resampled buffer size %d", outFrameCnt* 2 * sizeof(int16_t));
 
         // Create new MediaBuffer
-        mCopyBuffer = new MediaBuffer((void*)reSampledBuffer, outBufferSize);
+        mCopyBuffer = new MediaBuffer((void*)mReSampledBuffer, outBufferSize);
 
         // Compute and set the new timestamp
         sp<MetaData> to = mCopyBuffer->meta_data();

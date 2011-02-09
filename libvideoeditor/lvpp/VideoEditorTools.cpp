@@ -2085,6 +2085,11 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
                 }
             }
         }
+
+        if (m_air_context != M4OSA_NULL) {
+            M4AIR_cleanUp(m_air_context);
+            m_air_context = M4OSA_NULL;
+        }
     }
 
     return err;
