@@ -78,13 +78,13 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearRGB888toRGB888(void *pUserData,
     M4VIFI_UInt32    i32_b03, i32_g03, i32_r03;
 
     /* Check for the YUV width and height are even */
-    if( (IS_EVEN(pPlaneIn->u_height) == FALSE)    ||
+    if ((IS_EVEN(pPlaneIn->u_height) == FALSE)    ||
         (IS_EVEN(pPlaneOut->u_height) == FALSE))
     {
         return M4VIFI_ILLEGAL_FRAME_HEIGHT;
     }
 
-    if( (IS_EVEN(pPlaneIn->u_width) == FALSE) ||
+    if ((IS_EVEN(pPlaneIn->u_width) == FALSE) ||
         (IS_EVEN(pPlaneOut->u_width) == FALSE))
     {
         return M4VIFI_ILLEGAL_FRAME_WIDTH;
@@ -197,12 +197,47 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearRGB888toRGB888(void *pUserData,
                 pu8_src_bottom = pu8_src_top + (u32_stride_in);
                 u32_x_frac = (u32_x_accum >> 12)&15; /* Horizontal weight factor */
 
-                /* Weighted combination */
-                GET_RGB24(i32_b00,i32_g00,i32_r00,pu8_src_top,0);
-                GET_RGB24(i32_b01,i32_g01,i32_r01,pu8_src_top,3);
-                GET_RGB24(i32_b02,i32_g02,i32_r02,pu8_src_bottom,0);
-                GET_RGB24(i32_b03,i32_g03,i32_r03,pu8_src_bottom,3);
-
+                if ((u32_width == 1) && (u32_width_in == u32_width_out)) {
+                    /*
+                       When input height is equal to output height and input width
+                       equal to output width, replicate the corner pixels for
+                       interpolation
+                    */
+                    if ((u32_height == 1) && (u32_height_in == u32_height_out)) {
+                        GET_RGB24(i32_b00,i32_g00,i32_r00,pu8_src_top,0);
+                        GET_RGB24(i32_b01,i32_g01,i32_r01,pu8_src_top,0);
+                        GET_RGB24(i32_b02,i32_g02,i32_r02,pu8_src_top,0);
+                        GET_RGB24(i32_b03,i32_g03,i32_r03,pu8_src_top,0);
+                    }
+                    /*
+                       When input height is not equal to output height and
+                       input width equal to output width, replicate the
+                       column for interpolation
+                    */
+                    else {
+                        GET_RGB24(i32_b00,i32_g00,i32_r00,pu8_src_top,0);
+                        GET_RGB24(i32_b01,i32_g01,i32_r01,pu8_src_top,0);
+                        GET_RGB24(i32_b02,i32_g02,i32_r02,pu8_src_bottom,0);
+                        GET_RGB24(i32_b03,i32_g03,i32_r03,pu8_src_bottom,0);
+                    }
+                } else {
+                    /*
+                       When input height is equal to output height and
+                       input width not equal to output width, replicate the
+                       row for interpolation
+                    */
+                    if ((u32_height == 1) && (u32_height_in == u32_height_out)) {
+                        GET_RGB24(i32_b00,i32_g00,i32_r00,pu8_src_top,0);
+                        GET_RGB24(i32_b01,i32_g01,i32_r01,pu8_src_top,3);
+                        GET_RGB24(i32_b02,i32_g02,i32_r02,pu8_src_top,0);
+                        GET_RGB24(i32_b03,i32_g03,i32_r03,pu8_src_top,3);
+                    } else {
+                        GET_RGB24(i32_b00,i32_g00,i32_r00,pu8_src_top,0);
+                        GET_RGB24(i32_b01,i32_g01,i32_r01,pu8_src_top,3);
+                        GET_RGB24(i32_b02,i32_g02,i32_r02,pu8_src_bottom,0);
+                        GET_RGB24(i32_b03,i32_g03,i32_r03,pu8_src_bottom,3);
+                    }
+                }
                 u32_Rtemp_value = (M4VIFI_UInt8)(((i32_r00*(16-u32_x_frac) +
                                  i32_r01*u32_x_frac)*(16-u32_y_frac) +
                                 (i32_r02*(16-u32_x_frac) +

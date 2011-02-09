@@ -1610,7 +1610,7 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
                                                                 M4VIFI_ImagePlane *pPlaneIn,
                                                                 M4VIFI_ImagePlane *pPlaneOut)
 {
-    M4VIFI_UInt8    *pu8_data_in, *pu8_data_out;
+    M4VIFI_UInt8    *pu8_data_in, *pu8_data_out, *pu8dum;
     M4VIFI_UInt32   u32_plane;
     M4VIFI_UInt32   u32_width_in, u32_width_out, u32_height_in, u32_height_out;
     M4VIFI_UInt32   u32_stride_in, u32_stride_out;
@@ -1623,19 +1623,29 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
     M4VIFI_UInt8    *pu8_src_top;
     M4VIFI_UInt8    *pu8_src_bottom;
 
-    if ( (pPlaneIn[0].u_height == pPlaneOut[0].u_height) && (pPlaneIn[0].u_width == pPlaneOut[0].u_width))
+    M4VIFI_UInt8    u8Wflag = 0;
+    M4VIFI_UInt8    u8Hflag = 0;
+    M4VIFI_UInt32   loop = 0;
+
+
+    /*
+     If input width is equal to output width and input height equal to
+     output height then M4VIFI_YUV420toYUV420 is called.
+    */
+    if ((pPlaneIn[0].u_height == pPlaneOut[0].u_height) &&
+              (pPlaneIn[0].u_width == pPlaneOut[0].u_width))
     {
         return M4VIFI_YUV420toYUV420(pUserData, pPlaneIn, pPlaneOut);
     }
 
     /* Check for the YUV width and height are even */
-    if( (IS_EVEN(pPlaneIn[0].u_height) == FALSE)    ||
+    if ((IS_EVEN(pPlaneIn[0].u_height) == FALSE)    ||
         (IS_EVEN(pPlaneOut[0].u_height) == FALSE))
     {
         return M4VIFI_ILLEGAL_FRAME_HEIGHT;
     }
 
-    if( (IS_EVEN(pPlaneIn[0].u_width) == FALSE) ||
+    if ((IS_EVEN(pPlaneIn[0].u_width) == FALSE) ||
         (IS_EVEN(pPlaneOut[0].u_width) == FALSE))
     {
         return M4VIFI_ILLEGAL_FRAME_WIDTH;
@@ -1659,6 +1669,16 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
         u32_width_out   = pPlaneOut[u32_plane].u_width;
         u32_height_out  = pPlaneOut[u32_plane].u_height;
 
+        /*
+        For the case , width_out = width_in , set the flag to avoid
+        accessing one column beyond the input width.In this case the last
+        column is replicated for processing
+        */
+        if (u32_width_out == u32_width_in) {
+            u32_width_out = u32_width_out-1;
+            u8Wflag = 1;
+        }
+
         /* Compute horizontal ratio between src and destination width.*/
         if (u32_width_out >= u32_width_in)
         {
@@ -1667,6 +1687,16 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
         else
         {
             u32_x_inc   = (u32_width_in * MAX_SHORT) / (u32_width_out);
+        }
+
+        /*
+        For the case , height_out = height_in , set the flag to avoid
+        accessing one row beyond the input height.In this case the last
+        row is replicated for processing
+        */
+        if (u32_height_out == u32_height_in) {
+            u32_height_out = u32_height_out-1;
+            u8Hflag = 1;
         }
 
         /* Compute vertical ratio between src and destination height.*/
@@ -1681,14 +1711,15 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
 
         /*
         Calculate initial accumulator value : u32_y_accum_start.
-        u32_y_accum_start is coded on 15 bits, and represents a value between 0 and 0.5
+        u32_y_accum_start is coded on 15 bits, and represents a value
+        between 0 and 0.5
         */
         if (u32_y_inc >= MAX_SHORT)
         {
-            /*
-                Keep the fractionnal part, assimung that integer  part is coded
-                on the 16 high bits and the fractionnal on the 15 low bits
-            */
+        /*
+        Keep the fractionnal part, assimung that integer  part is coded
+        on the 16 high bits and the fractional on the 15 low bits
+        */
             u32_y_accum = u32_y_inc & 0xffff;
 
             if (!u32_y_accum)
@@ -1705,8 +1736,9 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
 
 
         /*
-            Calculate initial accumulator value : u32_x_accum_start.
-            u32_x_accum_start is coded on 15 bits, and represents a value between 0 and 0.5
+        Calculate initial accumulator value : u32_x_accum_start.
+        u32_x_accum_start is coded on 15 bits, and represents a value
+        between 0 and 0.5
         */
         if (u32_x_inc >= MAX_SHORT)
         {
@@ -1727,12 +1759,14 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
         u32_height = u32_height_out;
 
         /*
-        Bilinear interpolation linearly interpolates along each row, and then uses that
-        result in a linear interpolation donw each column. Each estimated pixel in the
-        output image is a weighted combination of its four neighbours according to the formula:
-        F(p',q')=f(p,q)R(-a)R(b)+f(p,q-1)R(-a)R(b-1)+f(p+1,q)R(1-a)R(b)+f(p+&,q+1)R(1-a)R(b-1)
-        with  R(x) = / x+1  -1 =< x =< 0 \ 1-x  0 =< x =< 1 and a (resp. b)weighting coefficient
-        is the distance from the nearest neighbor in the p (resp. q) direction
+        Bilinear interpolation linearly interpolates along each row, and
+        then uses that result in a linear interpolation donw each column.
+        Each estimated pixel in the output image is a weighted combination
+        of its four neighbours according to the formula:
+        F(p',q')=f(p,q)R(-a)R(b)+f(p,q-1)R(-a)R(b-1)+f(p+1,q)R(1-a)R(b)+
+        f(p+&,q+1)R(1-a)R(b-1) with  R(x) = / x+1  -1 =< x =< 0 \ 1-x
+        0 =< x =< 1 and a (resp. b)weighting coefficient is the distance
+        from the nearest neighbor in the p (resp. q) direction
         */
 
         do { /* Scan all the row */
@@ -1762,6 +1796,16 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
                 u32_x_accum += u32_x_inc;
             } while(--u32_width);
 
+            /*
+               This u8Wflag flag gets in to effect if input and output
+               width is same, and height may be different. So previous
+               pixel is replicated here
+            */
+            if (u8Wflag) {
+                *pu8_data_out = (M4VIFI_UInt8)u32_temp_value;
+            }
+
+            pu8dum = (pu8_data_out-u32_width_out);
             pu8_data_out = pu8_data_out + u32_stride_out - u32_width_out;
 
             /* Update vertical accumulator */
@@ -1771,6 +1815,17 @@ M4VIFI_UInt8    M4VIFI_ResizeBilinearYUV420toYUV420(void *pUserData,
                 u32_y_accum &= 0xffff;
             }
         } while(--u32_height);
+
+        /*
+        This u8Hflag flag gets in to effect if input and output height
+        is same, and width may be different. So previous pixel row is
+        replicated here
+        */
+        if (u8Hflag) {
+            for(loop =0; loop < (u32_width_out+u8Wflag); loop++) {
+                *pu8_data_out++ = (M4VIFI_UInt8)*pu8dum++;
+            }
+        }
     }
 
     return M4VIFI_OK;
