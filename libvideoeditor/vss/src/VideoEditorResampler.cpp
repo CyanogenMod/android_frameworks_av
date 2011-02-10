@@ -48,6 +48,7 @@ struct VideoEditorResampler : public AudioBufferProvider {
     M4OSA_Int32 outSamplingRate;
     M4OSA_Int32 inSamplingRate;
 
+    int16_t *mTmpInBuffer;
 };
 
 #define MAX_SAMPLEDURATION_FOR_CONVERTION 40 //ms
@@ -55,9 +56,9 @@ struct VideoEditorResampler : public AudioBufferProvider {
 status_t VideoEditorResampler::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
     uint32_t dataSize = pBuffer->frameCount * this->nbChannels * sizeof(int16_t);
-    int16_t *pTmpInBuffer = (int16_t*)malloc(dataSize);
-    memcpy(pTmpInBuffer, this->mInput, dataSize);
-    pBuffer->raw = (void*)pTmpInBuffer;
+    mTmpInBuffer = (int16_t*)malloc(dataSize);
+    memcpy(mTmpInBuffer, this->mInput, dataSize);
+    pBuffer->raw = (void*)mTmpInBuffer;
 
     return OK;
 }
@@ -118,6 +119,11 @@ void LVDestroy(M4OSA_Int32 resamplerContext) {
 
     VideoEditorResampler *context =
        (VideoEditorResampler *)resamplerContext;
+
+    if (context->mTmpInBuffer != NULL) {
+        free(context->mTmpInBuffer);
+        context->mTmpInBuffer = NULL;
+    }
 
     if (context->mInput != NULL) {
         free(context->mInput);

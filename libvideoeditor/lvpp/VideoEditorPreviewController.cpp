@@ -128,6 +128,11 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
         mAudioMixPCMFileHandle = M4OSA_NULL;
     }
 
+    if (mBackgroundAudioSetting != NULL) {
+        M4OSA_free((M4OSA_MemAddr32)mBackgroundAudioSetting);
+        mBackgroundAudioSetting = NULL;
+    }
+
     if(mTarget != NULL) {
         delete mTarget;
         mTarget = NULL;
