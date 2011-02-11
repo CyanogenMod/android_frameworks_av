@@ -55,6 +55,10 @@ VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
     if (mStarted) {
         reset();
     }
+    if (mAudioProcess != NULL) {
+        delete mAudioProcess;
+        mAudioProcess = NULL;
+    }
 }
 
 status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {

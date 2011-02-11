@@ -56,7 +56,6 @@ public:
     void veSetAudioProcessingParams(veAudMixSettings mixParams);
     M4OSA_Int32 veProcessAudioMixNDuck(void* , void *, void *);
 
-protected:
     ~VideoEditorBGAudioProcessing();
 
 private:
