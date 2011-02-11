@@ -51,6 +51,10 @@ typedef enum {
     VePlayerAutoStop
 } VePlayerState;
 
+typedef enum {
+    OVERLAY_UPDATE = 0,
+    OVERLAY_CLEAR
+} OverlayState;
 
 // Callback mechanism from PreviewController to Jni  */
 typedef void (*jni_progress_callback_fct)(void* cookie, M4OSA_UInt32 msgType, void *argc);
@@ -117,6 +121,7 @@ private:
     M4OSA_UInt32 mFirstPreviewClipBeginTime;
     M4OSA_UInt32 mLastPreviewClipEndTime;
     M4OSA_UInt32 mVideoStoryBoardTimeMsUptoFirstPreviewClip;
+    OverlayState mOverlayState;
 
     M4xVSS_MediaRendering mRenderingMode;
     uint32_t mOutputVideoWidth;

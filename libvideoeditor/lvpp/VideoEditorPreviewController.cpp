@@ -50,6 +50,7 @@ VideoEditorPreviewController::VideoEditorPreviewController()
       mOutputVideoWidth(0),
       mOutputVideoHeight(0),
       bStopThreadInProgress(false),
+      mOverlayState(OVERLAY_CLEAR),
       mSemThreadWait(NULL) {
     LOGV("VideoEditorPreviewController");
     mRenderingMode = M4xVSS_kBlackBorders;
@@ -137,6 +138,8 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
         delete mTarget;
         mTarget = NULL;
     }
+
+    mOverlayState = OVERLAY_CLEAR;
 
     LOGV("~VideoEditorPreviewController returns");
 }
@@ -1128,6 +1131,21 @@ void VideoEditorPreviewController::notify(
                  pController->mJniCookie, MSG_TYPE_PROGRESS_INDICATION,
                  &playedDuration);
 
+            if ((pController->mOverlayState == OVERLAY_UPDATE) &&
+                (pController->mCurrentClipNumber !=
+                (pController->mNumberClipsToPreview-1))) {
+                VideoEditorCurretEditInfo *pEditInfo =
+                    (VideoEditorCurretEditInfo*)M4OSA_malloc(sizeof(VideoEditorCurretEditInfo),
+                    M4VS, (M4OSA_Char*)"Current Edit info");
+                pEditInfo->overlaySettingsIndex = ext2;
+                pEditInfo->clipIndex = pController->mCurrentClipNumber;
+                pController->mOverlayState == OVERLAY_CLEAR;
+                if (pController->mJniCallback != NULL) {
+                        pController->mJniCallback(pController->mJniCookie,
+                            MSG_TYPE_OVERLAY_CLEAR, pEditInfo);
+                }
+                M4OSA_free((M4OSA_MemAddr32)pEditInfo);
+            }
             M4OSA_semaphorePost(pController->mSemThreadWait);
             break;
         }
@@ -1194,9 +1212,11 @@ void VideoEditorPreviewController::notify(
             LOGV("pController->mCurrentClipNumber = %d",pController->mCurrentClipNumber);
             if (pController->mJniCallback != NULL) {
                 if (ext1 == 1) {
+                    pController->mOverlayState = OVERLAY_UPDATE;
                     pController->mJniCallback(pController->mJniCookie,
                         MSG_TYPE_OVERLAY_UPDATE, pEditInfo);
                 } else {
+                    pController->mOverlayState = OVERLAY_CLEAR;
                     pController->mJniCallback(pController->mJniCookie,
                         MSG_TYPE_OVERLAY_CLEAR, pEditInfo);
                 }

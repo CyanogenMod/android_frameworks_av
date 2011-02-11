@@ -808,10 +808,7 @@ void PreviewPlayer::onVideoEvent() {
                 finishSeekIfNecessary(-1);
                 LOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
-                if (mOverlayUpdateEventPosted) {
-                    mOverlayUpdateEventPosted = false;
-                    postOverlayUpdateEvent_l();
-                }
+                mOverlayUpdateEventPosted = false;
                 postStreamDoneEvent_l(err);
                 return;
             }
@@ -937,10 +934,7 @@ void PreviewPlayer::onVideoEvent() {
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
         LOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
-        if (mOverlayUpdateEventPosted) {
-            mOverlayUpdateEventPosted = false;
-            postOverlayUpdateEvent_l();
-        }
+        mOverlayUpdateEventPosted = false;
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
         return;
     }
@@ -961,7 +955,6 @@ void PreviewPlayer::onVideoEvent() {
             ((mEffectsSettings[i].uiStartTime+mEffectsSettings[i].uiDuration) >=
              (((timeUs+mDecVideoTsStoryBoard)/1000)-mPlayBeginTimeMsec))
               && (mEffectsSettings[i].uiDuration != 0)) {
-
             setVideoPostProcessingNode(
              mEffectsSettings[i].VideoEffectType, TRUE);
         }
@@ -975,7 +968,6 @@ void PreviewPlayer::onVideoEvent() {
     if (mCurrentVideoEffect & VIDEO_EFFECT_FRAMING) {
         mCurrentVideoEffect &= ~VIDEO_EFFECT_FRAMING; //never apply framing here.
         if (!mOverlayUpdateEventPosted) {
-
             // Find the effect in effectSettings array
             int index;
             for (index = 0; index < mNumberEffects; index++) {
@@ -1058,10 +1050,7 @@ void PreviewPlayer::onVideoEvent() {
         LOGV("PreviewPlayer: onVideoEvent EOS.");
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
-        if (mOverlayUpdateEventPosted) {
-            mOverlayUpdateEventPosted = false;
-            postOverlayUpdateEvent_l();
-        }
+        mOverlayUpdateEventPosted = false;
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
     }
     else {
