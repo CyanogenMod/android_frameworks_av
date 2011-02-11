@@ -68,6 +68,7 @@ void VideoEditorResampler::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
     if(pBuffer->raw != NULL) {
         free(pBuffer->raw);
         pBuffer->raw = NULL;
+        mTmpInBuffer = NULL;
     }
     pBuffer->frameCount = 0;
 }
@@ -88,6 +89,7 @@ M4OSA_Int32 LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCo
     context->nbChannels = inChannelCount;
     context->outSamplingRate = sampleRate;
     context->mInput = NULL;
+    context->mTmpInBuffer = NULL;
 
     return ((M4OSA_Int32)context);
 }
