@@ -575,6 +575,7 @@ status_t PreviewPlayer::play_l() {
         MediaBuffer *aLocalBuffer;
         options.setSeekTo(mSeekTimeUs);
         mVideoSource->read(&aLocalBuffer, &options);
+        aLocalBuffer->release();
     }
 
     if (mVideoSource != NULL) {
@@ -823,8 +824,9 @@ void PreviewPlayer::onVideoEvent() {
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
                         err = initRenderer_l();
-                           if ( err != OK )
-                        postStreamDoneEvent_l(err); // santosh
+                        if (err != OK) {
+                            postStreamDoneEvent_l(err);
+                        }
 
                     }
                     continue;
@@ -955,8 +957,9 @@ void PreviewPlayer::onVideoEvent() {
         mVideoRendererIsPreview = false;
 
         status_t err = initRenderer_l();
-        if ( err != OK )
-        postStreamDoneEvent_l(err); // santosh
+        if (err != OK) {
+            postStreamDoneEvent_l(err);
+        }
     }
 
     // If timestamp exceeds endCutTime of clip, donot render
@@ -1811,8 +1814,9 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
                         err = initRenderer_l();
-                        if ( err != OK )
-                                postStreamDoneEvent_l(err); // santosh
+                        if (err != OK) {
+                            postStreamDoneEvent_l(err);
+                        }
                     }
                     continue;
                 }
