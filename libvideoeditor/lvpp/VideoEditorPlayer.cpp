@@ -304,7 +304,7 @@ VideoEditorPlayer::VeAudioOutput::~VeAudioOutput() {
 void VideoEditorPlayer::VeAudioOutput::setMinBufferCount() {
 
     mIsOnEmulator = false;
-    mMinBufferCount =12;
+    mMinBufferCount = 4;
 }
 
 bool VideoEditorPlayer::VeAudioOutput::isOnEmulator() {
@@ -368,8 +368,8 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
     // Check argument "bufferCount" against the mininum buffer count
     if (bufferCount < mMinBufferCount) {
-        LOGD("bufferCount (%d) is too small and increased to %d",
-         bufferCount, mMinBufferCount);
+        LOGV("bufferCount (%d) is too small and increased to %d",
+            bufferCount, mMinBufferCount);
         bufferCount = mMinBufferCount;
 
     }
