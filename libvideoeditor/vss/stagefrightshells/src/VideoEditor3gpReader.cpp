@@ -670,7 +670,6 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
     break;
     case M4READER_3GP_kOptionID_H263Properties:
         {
-#if 0
             if(M4OSA_NULL == pC->mVideoStreamHandler) {
                 LOGV("VideoEditor3gpReader_getOption no videoStream retrieved");
 
@@ -678,7 +677,7 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
                 break;
             }
             if((M4DA_StreamTypeVideoH263 != pC->mVideoStreamHandler->\
-                mStreamType) || (pC->mVideoStreamHandler->\
+                m_streamType) || (pC->mVideoStreamHandler->\
                 m_decoderSpecificInfoSize < 7)) {
                 LOGV("VideoEditor3gpReader_getOption DSI Size %d",
                     pC->mVideoStreamHandler->m_decoderSpecificInfoSize);
@@ -693,7 +692,6 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
                 pC->mVideoStreamHandler->m_pDecoderSpecificInfo[6];
             ((M4READER_3GP_H263Properties *)pValue)->uiLevel =
                 pC->mVideoStreamHandler->m_pDecoderSpecificInfo[5];
-#endif
             LOGV("VideoEditor3gpReader_getOption M4READER_3GP_kOptionID_\
             H263Properties end");
         }
@@ -1520,14 +1518,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
                 /* Get the DSI info */
                 if(M4DA_StreamTypeVideoH263 == streamType) {
-                    if (meta->findData(kKeyESDS, &type, &data, &size)) {
-                        ESDS esds((const char *)data, size);
-                        CHECK_EQ(esds.InitCheck(), OK);
-
-                        esds.getCodecSpecificInfo(
-                            &codec_specific_data, &codec_specific_data_size);
-                        (*pStreamHandler)->m_decoderSpecificInfoSize =
-                            codec_specific_data_size;
+                    if (meta->findData(kKeyD263, &type, &data, &size)) {
+                        (*pStreamHandler)->m_decoderSpecificInfoSize = size;
                         if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
                             DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
                                 (*pStreamHandler)->m_decoderSpecificInfoSize,
@@ -1536,15 +1528,19 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                                 return M4ERR_ALLOC;
                             }
                             M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecific,
-                                (M4OSA_MemAddr8)codec_specific_data,
-                                codec_specific_data_size);
+                                (M4OSA_MemAddr8)data, size);
                             (*pStreamHandler)->m_pDecoderSpecificInfo =
                                 DecoderSpecific;
                         }
                         else {
                             (*pStreamHandler)->m_pDecoderSpecificInfo =
                                 M4OSA_NULL;
+                            (*pStreamHandler)->m_decoderSpecificInfoSize = 0;
                         }
+                        (*pStreamHandler)->m_pESDSInfo = M4OSA_NULL;
+                        (*pStreamHandler)->m_ESDSInfoSize = 0;
+                        (*pStreamHandler)->m_pH264DecoderSpecificInfo = M4OSA_NULL;
+                        (*pStreamHandler)->m_H264decoderSpecificInfoSize = 0;
                     } else {
                         LOGV("VE_getNextStreamHandler: H263 dsi not found");
                         (*pStreamHandler)->m_pDecoderSpecificInfo = M4OSA_NULL;
