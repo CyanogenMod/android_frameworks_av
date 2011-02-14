@@ -128,6 +128,7 @@ private:
     static bool ContinuePreparation(void *cookie);
     void onPrepareAsyncEvent();
     void finishAsyncPrepare_l();
+    status_t startAudioPlayer_l();
 
     sp<PreviewPlayerRenderer> mVideoRenderer;
 
@@ -217,6 +218,8 @@ private:
 
     status_t prepare_l();
     status_t prepareAsync_l();
+
+    VideoEditorAudioPlayer  *mVeAudioPlayer;
 
     PreviewPlayer(const PreviewPlayer &);
     PreviewPlayer &operator=(const PreviewPlayer &);

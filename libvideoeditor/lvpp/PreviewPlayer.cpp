@@ -182,6 +182,7 @@ PreviewPlayer::PreviewPlayer()
     mLastVideoBuffer = NULL;
     mSuspensionState = NULL;
     mEffectsSettings = NULL;
+    mVeAudioPlayer = NULL;
     mAudioMixStoryBoardTS = 0;
     mCurrentMediaBeginCutTime = 0;
     mCurrentMediaVolumeValue = 0;
@@ -471,8 +472,38 @@ status_t PreviewPlayer::play() {
     return play_l();
 }
 
+status_t PreviewPlayer::startAudioPlayer_l() {
+    CHECK(!(mFlags & AUDIO_RUNNING));
+
+    if (mAudioSource == NULL || mAudioPlayer == NULL) {
+        return OK;
+    }
+
+    if (!(mFlags & AUDIOPLAYER_STARTED)) {
+        mFlags |= AUDIOPLAYER_STARTED;
+
+        // We've already started the MediaSource in order to enable
+        // the prefetcher to read its data.
+        status_t err = mVeAudioPlayer->start(
+                true /* sourceAlreadyStarted */);
+
+        if (err != OK) {
+            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+            return err;
+        }
+    } else {
+        mVeAudioPlayer->resume();
+    }
+
+    mFlags |= AUDIO_RUNNING;
+
+    mWatchForAudioEOS = true;
+
+    return OK;
+}
+
 status_t PreviewPlayer::play_l() {
-VideoEditorAudioPlayer  *mVePlayer;
+
     if (mFlags & PLAYING) {
         return OK;
     }
@@ -496,44 +527,41 @@ VideoEditorAudioPlayer  *mVePlayer;
             if (mAudioSink != NULL) {
 
                 mAudioPlayer = new VideoEditorAudioPlayer(mAudioSink, this);
-                mVePlayer =
+                mVeAudioPlayer =
                           (VideoEditorAudioPlayer*)mAudioPlayer;
 
                 mAudioPlayer->setSource(mAudioSource);
 
-                mVePlayer->setAudioMixSettings(
+                mVeAudioPlayer->setAudioMixSettings(
                  mPreviewPlayerAudioMixSettings);
 
-                mVePlayer->setAudioMixPCMFileHandle(
+                mVeAudioPlayer->setAudioMixPCMFileHandle(
                  mAudioMixPCMFileHandle);
 
-                mVePlayer->setAudioMixStoryBoardSkimTimeStamp(
+                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                  mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                  mCurrentMediaVolumeValue);
 
-                // We've already started the MediaSource in order to enable
-                // the prefetcher to read its data.
-                status_t err = mVePlayer->start(
-                        true /* sourceAlreadyStarted */);
-
-                if (err != OK) {
-                    delete mAudioPlayer;
-                    mAudioPlayer = NULL;
-
-                    mFlags &= ~(PLAYING | FIRST_FRAME);
-                    return err;
-                }
-
-                mTimeSource = mVePlayer; //mAudioPlayer;
+                mTimeSource = mVeAudioPlayer; //mAudioPlayer;
 
                 deferredAudioSeek = true;
                 mWatchForAudioSeekComplete = false;
                 mWatchForAudioEOS = true;
             }
-        } else {
-            mVePlayer->resume();
-        }
+         }
 
+        CHECK(!(mFlags & AUDIO_RUNNING));
+
+        if (mVideoSource == NULL) {
+            status_t err = startAudioPlayer_l();
+
+            if (err != OK) {
+                delete mAudioPlayer;
+                mAudioPlayer = NULL;
+                mFlags &= ~(PLAYING | FIRST_FRAME);
+                return err;
+            }
+        }
     }
 
     if (mTimeSource == NULL && mAudioPlayer == NULL) {
@@ -761,8 +789,9 @@ void PreviewPlayer::onVideoEvent() {
             // locations, we'll "pause" the audio source, causing it to
             // stop reading input data until a subsequent seek.
 
-            if (mAudioPlayer != NULL) {
+            if (mAudioPlayer != NULL && (mFlags & AUDIO_RUNNING)) {
                 mAudioPlayer->pause();
+                mFlags &= ~AUDIO_RUNNING;
             }
             mAudioSource->pause();
         }
@@ -862,6 +891,13 @@ void PreviewPlayer::onVideoEvent() {
 
     bool wasSeeking = mSeeking;
     finishSeekIfNecessary(timeUs);
+    if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING))) {
+        status_t err = startAudioPlayer_l();
+        if (err != OK) {
+            LOGE("Starting the audio player failed w/ err %d", err);
+            return;
+        }
+    }
 
     TimeSource *ts = (mFlags & AUDIO_AT_EOS) ? &mSystemTimeSource : mTimeSource;
 
@@ -1742,6 +1778,11 @@ M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
 
 status_t PreviewPlayer::readFirstVideoFrame() {
     LOGV("PreviewPlayer::readFirstVideoFrame");
+
+    if (mFlags & SEEK_PREVIEW) {
+        mFlags &= ~SEEK_PREVIEW;
+        return OK;
+    }
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;

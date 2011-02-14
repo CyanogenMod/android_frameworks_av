@@ -38,6 +38,7 @@ VideoEditorAudioPlayer::VideoEditorAudioPlayer(
 
     LOGV("VideoEditorAudioPlayer");
     mBGAudioPCMFileHandle = NULL;
+    mAudioProcess = NULL;
     mBGAudioPCMFileLength = 0;
     mBGAudioPCMFileTrimmedLength = 0;
     mBGAudioPCMFileDuration = 0;
