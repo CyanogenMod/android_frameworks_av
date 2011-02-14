@@ -686,7 +686,7 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
         pClipCtxt->pSettings->uiEndCutTime = (M4OSA_UInt32)iDuration;
     }
 
-    pClipCtxt->iEndTime = pClipCtxt->pSettings->uiEndCutTime;
+    pClipCtxt->iEndTime = (M4OSA_Int32)pClipCtxt->pSettings->uiEndCutTime;
 
     /**
     * Return with no error */
