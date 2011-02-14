@@ -69,6 +69,7 @@ status_t VideoEditorPlayer::setDataSource(int fd, int64_t offset,
     return (!OK);
 }
 
+// needed?
 status_t VideoEditorPlayer::setVideoISurface(const sp<ISurface> &surface) {
     LOGV("setVideoISurface");
 
@@ -80,6 +81,13 @@ status_t VideoEditorPlayer::setVideoSurface(const sp<Surface> &surface) {
     LOGV("setVideoSurface");
 
     mPlayer->setSurface(surface);
+    return OK;
+}
+
+status_t VideoEditorPlayer::setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+    LOGV("setVideoSurfaceTexture");
+
+    mPlayer->setSurfaceTexture(surfaceTexture);
     return OK;
 }
 
