@@ -208,7 +208,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_initPoolBuffers(VIDEOEDITOR_BUFFER_Pool* pool,
 
     /**
      * Initialize all the buffers in the pool */
-    for(index = 0; index< pool->NB; index++)
+    for(index = 0; index < pool->NB; index++)
     {
         pool->pNXPBuffer[index].pData = M4OSA_NULL;
         pool->pNXPBuffer[index].pData = (M4OSA_Void*)M4OSA_malloc(
@@ -218,10 +218,10 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_initPoolBuffers(VIDEOEDITOR_BUFFER_Pool* pool,
         {
             for (j = 0; j < index; j++)
             {
-                if(M4OSA_NULL != pool->pNXPBuffer[index].pData)
+                if(M4OSA_NULL != pool->pNXPBuffer[j].pData)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pool->pNXPBuffer[index].pData);
-                    pool->pNXPBuffer[index].pData = M4OSA_NULL;
+                    M4OSA_free((M4OSA_MemAddr32)pool->pNXPBuffer[j].pData);
+                    pool->pNXPBuffer[j].pData = M4OSA_NULL;
                 }
             }
             err = M4ERR_ALLOC;
