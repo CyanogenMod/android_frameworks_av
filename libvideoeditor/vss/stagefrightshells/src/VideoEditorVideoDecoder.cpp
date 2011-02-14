@@ -745,9 +745,9 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
         cropRight = vWidth - 1;
         cropBottom = vHeight - 1;
 
-        LOGI("got dimensions only %d x %d", width, height);
+        LOGV("got dimensions only %d x %d", width, height);
     } else {
-        LOGI("got crop rect %d, %d, %d, %d",
+        LOGV("got crop rect %d, %d, %d, %d",
              cropLeft, cropTop, cropRight, cropBottom);
     }
 
