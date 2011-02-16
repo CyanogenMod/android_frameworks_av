@@ -118,7 +118,6 @@ private:
     status_t setDataSource_l(
         const char *uri, const KeyedVector<String8, String8> *headers);
     void reset_l();
-    void partial_reset_l();
     status_t play_l();
     status_t initRenderer_l();
     status_t initAudioDecoder();

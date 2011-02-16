@@ -27,7 +27,6 @@
 #include "DummyAudioSource.h"
 #include "DummyVideoSource.h"
 #include "VideoEditorSRC.h"
-#include "include/LiveSession.h"
 #include "include/NuCachedSource2.h"
 #include "include/ThrottledSource.h"
 
@@ -450,18 +449,6 @@ void PreviewPlayer::reset_l() {
         M4OSA_free((M4OSA_MemAddr32)mFrameYUVBuffer);
         mFrameYUVBuffer = NULL;
     }
-}
-
-void PreviewPlayer::partial_reset_l() {
-
-    if (mLastVideoBuffer) {
-        mLastVideoBuffer->release();
-        mLastVideoBuffer = NULL;
-    }
-
-    /* call base struct */
-    AwesomePlayer::partial_reset_l();
-
 }
 
 status_t PreviewPlayer::play() {
