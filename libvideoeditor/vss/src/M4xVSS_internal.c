@@ -4135,11 +4135,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
                     if(pProgress->uiProgress >= 0 && pProgress->uiProgress \
                     < (M4OSA_UInt32)(alphaBlendingStruct->m_fadeInTime*10))
                     {
-                        alphaBlending = ((M4OSA_Float)(alphaBlendingStruct->m_middle\
-                         - alphaBlendingStruct->m_start)\
-                            *pProgress->uiProgress/(alphaBlendingStruct->m_fadeInTime*10));
-                        alphaBlending += alphaBlendingStruct->m_start;
-                        alphaBlending /= 100;
+                        if(alphaBlendingStruct->m_fadeInTime == 0) {
+                            alphaBlending = alphaBlendingStruct->m_start / 100;
+                        } else {
+                            alphaBlending = ((M4OSA_Float)(alphaBlendingStruct->m_middle\
+                             - alphaBlendingStruct->m_start)\
+                                *pProgress->uiProgress/(alphaBlendingStruct->m_fadeInTime*10));
+                            alphaBlending += alphaBlendingStruct->m_start;
+                            alphaBlending /= 100;
+                        }
                     }
                     else if(pProgress->uiProgress >= (M4OSA_UInt32)(alphaBlendingStruct->\
                     m_fadeInTime*10) && pProgress->uiProgress < 1000\
@@ -4151,11 +4155,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
                     else if(pProgress->uiProgress >= 1000 - (M4OSA_UInt32)\
                     (alphaBlendingStruct->m_fadeOutTime*10))
                     {
-                        alphaBlending = ((M4OSA_Float)(alphaBlendingStruct->m_middle \
-                        - alphaBlendingStruct->m_end))*(1000 - pProgress->uiProgress)\
-                        /(alphaBlendingStruct->m_fadeOutTime*10);
-                        alphaBlending += alphaBlendingStruct->m_end;
-                        alphaBlending /= 100;
+                        if(alphaBlendingStruct->m_fadeOutTime == 0) {
+                            alphaBlending = alphaBlendingStruct->m_end / 100;
+                        } else {
+                            alphaBlending = ((M4OSA_Float)(alphaBlendingStruct->m_middle \
+                            - alphaBlendingStruct->m_end))*(1000 - pProgress->uiProgress)\
+                            /(alphaBlendingStruct->m_fadeOutTime*10);
+                            alphaBlending += alphaBlendingStruct->m_end;
+                            alphaBlending /= 100;
+                        }
                     }
                 }
                 /**/

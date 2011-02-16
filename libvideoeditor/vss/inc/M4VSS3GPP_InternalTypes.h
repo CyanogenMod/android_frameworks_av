@@ -610,6 +610,7 @@ typedef struct
     M4OSA_UInt8              nbActiveEffects1;  /**< Numbers of active effects RC */
     M4OSA_Bool               m_bClipExternalHasStarted;  /**< Flag to indicate that an
                                                               external effect is active */
+    M4OSA_Int32              iInOutTimeOffset;
 } M4VSS3GPP_InternalEditContext;
 
 

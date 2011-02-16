@@ -93,12 +93,18 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
     M4OSA_UInt16 offset;
 
     /**
-    * Check if we reached end cut */
-    // Decorrelate input and output encoding timestamp to handle encoder prefetch
-    if ( ((M4OSA_Int32)(pC->ewc.dInputVidCts) - pC->pC1->iVoffset) >= pC->pC1->iEndTime )
+     * Check if we reached end cut. Decorrelate input and output encoding
+     * timestamp to handle encoder prefetch
+     */
+    if ( ((M4OSA_Int32)(pC->ewc.dInputVidCts) - pC->pC1->iVoffset
+        + pC->iInOutTimeOffset) >= pC->pC1->iEndTime )
     {
         /* Re-adjust video to precise cut time */
-        // Decorrelate input and output encoding timestamp to handle encoder prefetch
+        pC->iInOutTimeOffset = ((M4OSA_Int32)(pC->ewc.dInputVidCts))
+            - pC->pC1->iVoffset + pC->iInOutTimeOffset - pC->pC1->iEndTime;
+        if ( pC->iInOutTimeOffset < 0 ) {
+            pC->iInOutTimeOffset = 0;
+        }
 
         /**
         * Video is done for this clip */
@@ -1974,9 +1980,11 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
 
              if(uiClipNumber ==1)
              {
-                if ((t >= (M4OSA_Int32)(pFx->uiStartTime)) &&                  /**< Are we after the start time of the effect? */
-                    (t <  (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) /**< Are we into the effect duration? */
-                {
+                /**< Are we after the start time of the effect?
+                 * or Are we into the effect duration?
+                 */
+                if ( (t >= (M4OSA_Int32)(pFx->uiStartTime)) &&
+                    (t <= (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) {
                     /**
                      * Set the active effect(s) */
                     pC->pActiveEffectsList[i] = pC->nbEffects-1-uiFxIndex;
@@ -1993,17 +2001,19 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
                     }
 
                     /**
-                     * The third effect has the highest priority, then the second one, then the first one.
-                     * Hence, as soon as we found an active effect, we can get out of this loop */
-
+                     * The third effect has the highest priority, then the
+                     * second one, then the first one. Hence, as soon as we
+                     * found an active effect, we can get out of this loop.
+                     */
                 }
             }
             else
             {
-                if ((t + pC->pTransitionList[uiClipIndex].uiTransitionDuration >=
-                   (M4OSA_Int32)(pFx->uiStartTime)) && (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
-                    <  (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) /**< Are we into the effect duration? */
-                 {
+                /**< Are we into the effect duration? */
+                if ( (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
+                    >= (M4OSA_Int32)(pFx->uiStartTime))
+                    && (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
+                    <= (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) {
                     /**
                      * Set the active effect(s) */
                     pC->pActiveEffectsList1[i] = pC->nbEffects-1-uiFxIndex;
