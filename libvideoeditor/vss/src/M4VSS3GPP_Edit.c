@@ -229,6 +229,8 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
 
     pC->bIsMMS = M4OSA_FALSE;
 
+    pC->iInOutTimeOffset = 0;
+
     /**
     * Return with no error */
     M4OSA_TRACE3_0("M4VSS3GPP_editInit(): returning M4NO_ERROR");
