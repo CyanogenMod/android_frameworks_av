@@ -503,18 +503,21 @@ M4OSA_ERR M4DECODER_EXTERNAL_ParseAVCDSI(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
 {
     M4OSA_ERR err = M4NO_ERROR;
     M4OSA_Bool NALSPS_and_Profile0Found = M4OSA_FALSE;
-    M4OSA_UInt16 index;
-    M4OSA_Bool    constraintSet3;
+    M4OSA_UInt16 index = 28; /* the 29th byte is SPS start */
+    M4OSA_Bool constraintSet3;
+
+    if (DSISize <= index) {
+        M4OSA_TRACE1_0("M4DECODER_EXTERNAL_ParseAVCDSI: DSI is invalid");
+        *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
+        return M4ERR_PARAMETER;
+    }
 
     /* check for baseline profile */
-    for(index = 0; index < (DSISize-1); index++)
+    if(((pDSI[index] & 0x1f) == 0x07) && (pDSI[index+1] == 0x42))
     {
-        if(((pDSI[index] & 0x1f) == 0x07) && (pDSI[index+1] == 0x42))
-        {
-            NALSPS_and_Profile0Found = M4OSA_TRUE;
-            break;
-        }
+        NALSPS_and_Profile0Found = M4OSA_TRUE;
     }
+
     if(M4OSA_FALSE == NALSPS_and_Profile0Found)
     {
         M4OSA_TRACE1_1("M4DECODER_EXTERNAL_ParseAVCDSI: index bad = %d", index);
