@@ -9410,7 +9410,7 @@ static M4OSA_ERR M4MCS_intVideoTranscoding( M4MCS_InternalContext *pC )
     * Check for end cut.
     * We must check here if the end cut is reached, because in that case we must
     * call the last encode step (-> bLastFrame set to true) */
-    if( ( pC->dViDecCurrentCts + pC->dCtsIncrement + 0.5) >= (pC->uiEndCutTime
+    if( ( pC->dViDecCurrentCts + pC->dCtsIncrement ) >= (pC->uiEndCutTime
         + M4MCS_ABS(pC->dViDecStartingCts - pC->uiBeginCutTime)) )
     {
         FrameMode =
