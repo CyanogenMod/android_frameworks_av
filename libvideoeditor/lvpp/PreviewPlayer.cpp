@@ -491,6 +491,8 @@ status_t PreviewPlayer::startAudioPlayer_l() {
 
 status_t PreviewPlayer::play_l() {
 
+    mFlags &= ~SEEK_PREVIEW;
+
     if (mFlags & PLAYING) {
         return OK;
     }
@@ -1768,11 +1770,6 @@ M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
 
 status_t PreviewPlayer::readFirstVideoFrame() {
     LOGV("PreviewPlayer::readFirstVideoFrame");
-
-    if (mFlags & SEEK_PREVIEW) {
-        mFlags &= ~SEEK_PREVIEW;
-        return OK;
-    }
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
