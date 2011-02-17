@@ -830,6 +830,8 @@ void PreviewPlayer::onVideoEvent() {
                 mFlags |= VIDEO_AT_EOS;
                 mOverlayUpdateEventPosted = false;
                 postStreamDoneEvent_l(err);
+                // Set the last decoded timestamp to duration
+                mDecodedVideoTs = (mPlayEndTimeMsec*1000);
                 return;
             }
 
@@ -845,14 +847,23 @@ void PreviewPlayer::onVideoEvent() {
             int64_t videoTimeUs;
             CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &videoTimeUs));
 
-            if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
-                // Frames are before begin cut time
-                // Donot render
-                mVideoBuffer->release();
-                mVideoBuffer = NULL;
-                continue;
+            if (mSeeking) {
+                if (videoTimeUs < mSeekTimeUs) {
+                    // buffers are before seek time
+                    // ignore them
+                    mVideoBuffer->release();
+                    mVideoBuffer = NULL;
+                    continue;
+                }
+            } else {
+                if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
+                    // Frames are before begin cut time
+                    // Donot render
+                    mVideoBuffer->release();
+                    mVideoBuffer = NULL;
+                    continue;
+                }
             }
-
             break;
         }
     }
@@ -867,7 +878,6 @@ void PreviewPlayer::onVideoEvent() {
         mVideoTimeUs = timeUs;
     }
 
-    mDecodedVideoTs = timeUs;
 
     if(!mStartNextPlayer) {
         int64_t playbackTimeRemaining = (mPlayEndTimeMsec*1000) - timeUs;
@@ -966,6 +976,8 @@ void PreviewPlayer::onVideoEvent() {
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
         return;
     }
+    // Capture the frame timestamp to be rendered
+    mDecodedVideoTs = timeUs;
 
     // Post processing to apply video effects
     for(i=0;i<mNumberEffects;i++) {
@@ -1821,15 +1833,23 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 
             int64_t videoTimeUs;
             CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &videoTimeUs));
-
-            if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
-                // buffers are before begin cut time
-                // ignore them
-                mVideoBuffer->release();
-                mVideoBuffer = NULL;
-                continue;
+            if (mSeeking) {
+                if (videoTimeUs < mSeekTimeUs) {
+                    // buffers are before seek time
+                    // ignore them
+                    mVideoBuffer->release();
+                    mVideoBuffer = NULL;
+                    continue;
+                }
+            } else {
+                if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
+                    // buffers are before begin cut time
+                    // ignore them
+                    mVideoBuffer->release();
+                    mVideoBuffer = NULL;
+                    continue;
+                }
             }
-
             break;
         }
     }
@@ -1846,6 +1866,11 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 
     return OK;
 
+}
+
+status_t PreviewPlayer::getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs) {
+    *lastRenderedTimeMs = (((mDecodedVideoTs+mDecVideoTsStoryBoard)/1000)-mPlayBeginTimeMsec);
+    return OK;
 }
 
 }  // namespace android
