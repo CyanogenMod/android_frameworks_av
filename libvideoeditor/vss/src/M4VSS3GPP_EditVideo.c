@@ -729,11 +729,15 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
         to catch all P-frames after the cut) */
         else if( M4OSA_TRUE == pC->bClip1AtBeginCut )
         {
-            if( ( M4VSS3GPP_kEditVideoState_BEGIN_CUT == previousVstate)
-                || (M4VSS3GPP_kEditVideoState_AFTER_CUT == previousVstate) )
+            if(pC->pC1->pSettings->ClipProperties.VideoStreamType == M4VIDEOEDITING_kH264) {
+                pC->Vstate = M4VSS3GPP_kEditVideoState_DECODE_ENCODE;
+                pC->bEncodeTillEoF = M4OSA_TRUE;
+            } else if( ( M4VSS3GPP_kEditVideoState_BEGIN_CUT == previousVstate)
+                || (M4VSS3GPP_kEditVideoState_AFTER_CUT == previousVstate) ) {
                 pC->Vstate = M4VSS3GPP_kEditVideoState_AFTER_CUT;
-            else
+            } else {
                 pC->Vstate = M4VSS3GPP_kEditVideoState_BEGIN_CUT;
+            }
         }
         /* Else we are in default copy/paste mode */
         else
@@ -777,7 +781,8 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
                 }
             }
             else if(!((pC->m_bClipExternalHasStarted == M4OSA_TRUE) &&
-                    (pC->Vstate == M4VSS3GPP_kEditVideoState_DECODE_ENCODE)))
+                    (pC->Vstate == M4VSS3GPP_kEditVideoState_DECODE_ENCODE)) &&
+                    pC->bEncodeTillEoF == M4OSA_FALSE)
             {
                 /**
                  * Test if we go into copy/paste mode or into decode/encode mode
@@ -835,7 +840,7 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
         || (M4VSS3GPP_kEditVideoState_TRANSITION
         == previousVstate)) /**< encode mode */
         && (M4VSS3GPP_kEditVideoState_READ_WRITE == pC->Vstate) /**< read mode */
-        )
+        && (pC->bEncodeTillEoF == M4OSA_FALSE) )
     {
         pC->Vstate = M4VSS3GPP_kEditVideoState_BEGIN_CUT;
     }

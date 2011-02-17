@@ -230,6 +230,7 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     pC->bIsMMS = M4OSA_FALSE;
 
     pC->iInOutTimeOffset = 0;
+    pC->bEncodeTillEoF = M4OSA_FALSE;
 
     /**
     * Return with no error */
@@ -3291,8 +3292,9 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
             }
         }
     }
-    /* The flag is set to false at the beginning of every clip */
+    /* The flags are set to false at the beginning of every clip */
     pC->m_bClipExternalHasStarted = M4OSA_FALSE;
+    pC->bEncodeTillEoF = M4OSA_FALSE;
 
     /**
     * Return with no error */

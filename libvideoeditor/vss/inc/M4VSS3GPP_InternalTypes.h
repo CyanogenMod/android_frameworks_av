@@ -84,14 +84,21 @@ M4VSS3GPP_EditState;
 
 typedef enum
 {
-    M4VSS3GPP_kEditVideoState_READ_WRITE    = 10,    /**< Doing Read/Write operation
-                                                        (no decoding/encoding) */
-    M4VSS3GPP_kEditVideoState_BEGIN_CUT     = 11,    /**< Decode encode to create an I frame */
-    M4VSS3GPP_kEditVideoState_DECODE_ENCODE = 12,    /**< Doing Read-Decode/Filter/
-                                                        Encode-Write operation */
-    M4VSS3GPP_kEditVideoState_TRANSITION    = 13,    /**< Transition; blending of two videos */
-    M4VSS3GPP_kEditVideoState_AFTER_CUT     = 14    /**< Special Read/Write mode after a
-                                                            begin cut (time frozen) */
+    /**< Doing Read/Write operation. This operation will have no processing
+     * on input frames. Only time stamp manipulations in output file. */
+    M4VSS3GPP_kEditVideoState_READ_WRITE    = 10,
+    /**< Decode encode to create an I frame. This is done for a single frame
+     * to create a new reference frame. */
+    M4VSS3GPP_kEditVideoState_BEGIN_CUT     = 11,
+    /**< Doing Read->Decode->Filter->Encode->Write operation on the input file
+     * to create the output file. */
+    M4VSS3GPP_kEditVideoState_DECODE_ENCODE = 12,
+    /**< Applied when Transition is active and blending of two videos is
+     * required. */
+    M4VSS3GPP_kEditVideoState_TRANSITION    = 13,
+    /**< Special Read/Write mode used after BEGIN_CUT state. The frame
+     * is already coded as I frame in BEGIN_CUT state; so skip it. */
+    M4VSS3GPP_kEditVideoState_AFTER_CUT     = 14
 }
 M4VSS3GPP_EditVideoState;
 
@@ -611,6 +618,7 @@ typedef struct
     M4OSA_Bool               m_bClipExternalHasStarted;  /**< Flag to indicate that an
                                                               external effect is active */
     M4OSA_Int32              iInOutTimeOffset;
+    M4OSA_Bool               bEncodeTillEoF;
 } M4VSS3GPP_InternalEditContext;
 
 
