@@ -3237,12 +3237,6 @@ M4OSA_ERR M4MCS_close( M4MCS_Context pContext )
         M4OSA_free((M4OSA_MemAddr32)pC->H264MCSTempBuffer);
     }
 
-    if( M4OSA_NULL != pC->m_pInstance )
-    {
-        err = H264MCS_Freeinstance(pC->m_pInstance);
-        pC->m_pInstance = M4OSA_NULL;
-    }
-
     M4OSA_TRACE3_0("M4MCS_close(): returning M4NO_ERROR");
     return err;
 }
@@ -3305,6 +3299,12 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
             "M4MCS_cleanUp(): Wrong State (%d), returning M4ERR_STATE",
             pC->State);
         return M4ERR_STATE;
+    }
+
+    if( M4OSA_NULL != pC->m_pInstance )
+    {
+        err = H264MCS_Freeinstance(pC->m_pInstance);
+        pC->m_pInstance = M4OSA_NULL;
     }
 
     /* ----- Free video encoder stuff, if needed ----- */
