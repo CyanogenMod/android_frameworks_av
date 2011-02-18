@@ -142,7 +142,7 @@ public:
     virtual status_t resetJniCallbackTimeStamp();
     virtual status_t setImageClipProperties(uint32_t width, uint32_t height);
     virtual status_t readFirstVideoFrame();
-
+    virtual status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
 
 private:
     PreviewPlayer       *mPlayer;

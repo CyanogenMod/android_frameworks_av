@@ -74,7 +74,7 @@ public:
     M4OSA_ERR startPreview(M4OSA_UInt32 fromMS, M4OSA_Int32 toMs,
         M4OSA_UInt16 callBackAfterFrameCount, M4OSA_Bool loop) ;
 
-    M4OSA_ERR stopPreview();
+    M4OSA_UInt32 stopPreview();
 
     M4OSA_ERR renderPreviewFrame(const sp<Surface> &surface,
         VideoEditor_renderPreviewFrameStr* pFrameInfo,
@@ -122,6 +122,7 @@ private:
     M4OSA_UInt32 mLastPreviewClipEndTime;
     M4OSA_UInt32 mVideoStoryBoardTimeMsUptoFirstPreviewClip;
     OverlayState mOverlayState;
+    int mActivePlayerIndex;
 
     M4xVSS_MediaRendering mRenderingMode;
     uint32_t mOutputVideoWidth;

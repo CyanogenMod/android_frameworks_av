@@ -92,7 +92,7 @@ struct PreviewPlayer : public AwesomePlayer {
     status_t resetJniCallbackTimeStamp();
     status_t setImageClipProperties(uint32_t width, uint32_t height);
     status_t readFirstVideoFrame();
-
+    status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
 
 private:
     friend struct PreviewPlayerEvent;

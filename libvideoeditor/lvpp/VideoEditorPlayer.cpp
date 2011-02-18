@@ -277,6 +277,11 @@ status_t VideoEditorPlayer::readFirstVideoFrame() {
     return mPlayer->readFirstVideoFrame();
 }
 
+status_t VideoEditorPlayer::getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs) {
+    mPlayer->getLastRenderedTimeMs(lastRenderedTimeMs);
+    return NO_ERROR;
+}
+
 /* Implementation of AudioSink interface */
 #undef LOG_TAG
 #define LOG_TAG "VeAudioSink"

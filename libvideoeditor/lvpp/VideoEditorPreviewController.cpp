@@ -25,6 +25,7 @@ namespace android {
 
 VideoEditorPreviewController::VideoEditorPreviewController()
     : mCurrentPlayer(0),
+      mActivePlayerIndex(0),
       mThreadContext(NULL),
       mPlayerState(VePlayerIdle),
       mPrepareReqest(M4OSA_FALSE),
@@ -550,6 +551,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
 
     // Start playing with player instance 0
     mCurrentPlayer = 0;
+    mActivePlayerIndex = 0;
 
     if(toMs == -1) {
         LOGV("startPreview: Preview till end of storyboard");
@@ -622,8 +624,9 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     return M4NO_ERROR;
 }
 
-M4OSA_ERR VideoEditorPreviewController::stopPreview() {
+M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     M4OSA_ERR err = M4NO_ERROR;
+    uint32_t lastRenderedFrameTimeMs = 0;
     LOGV("stopPreview");
 
     // Stop the thread
@@ -658,6 +661,10 @@ M4OSA_ERR VideoEditorPreviewController::stopPreview() {
                 LOGV("stop the player first");
                 mVePlayer[playerInst]->stop();
             }
+            if (playerInst == mActivePlayerIndex) {
+                // Return the last rendered frame time stamp
+                mVePlayer[mActivePlayerIndex]->getLastRenderedTimeMs(&lastRenderedFrameTimeMs);
+            }
 
             LOGV("stopPreview: clearing mVePlayer");
             mVePlayer[playerInst].clear();
@@ -685,7 +692,8 @@ M4OSA_ERR VideoEditorPreviewController::stopPreview() {
     mOutputVideoWidth = 0;
     mOutputVideoHeight = 0;
 
-    return M4NO_ERROR;
+    LOGV("stopPreview() lastRenderedFrameTimeMs %ld", lastRenderedFrameTimeMs);
+    return lastRenderedFrameTimeMs;
 }
 
 M4OSA_ERR VideoEditorPreviewController::clearSurface(
@@ -1065,6 +1073,8 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
              pController->mClipList[index]->uiBeginCutTime,
              pController->mClipList[index]->ClipProperties.uiClipAudioVolumePercentage);
         }
+        // Capture the active player being used
+        pController->mActivePlayerIndex = pController->mCurrentPlayer;
 
         pController->mVePlayer[pController->mCurrentPlayer]->start();
         LOGV("threadProc: started");
