@@ -23,14 +23,14 @@
 #include "M4xVSS_API.h"
 #include "VideoEditorMain.h"
 #include "VideoEditorTools.h"
-
+#include "VideoEditorAudioPlayer.h"
 
 namespace android {
 
 struct PreviewPlayer;
 
 class VideoEditorPlayer : public MediaPlayerInterface {
-
+    public:
     class VeAudioOutput: public MediaPlayerBase::AudioSink
     {
     public:
@@ -144,6 +144,7 @@ public:
     virtual status_t readFirstVideoFrame();
     virtual status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
 
+    status_t setAudioPlayer(VideoEditorAudioPlayer *audioPlayer);
 private:
     PreviewPlayer       *mPlayer;
     sp<VeAudioOutput>    mVeAudioSink;

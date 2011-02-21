@@ -48,6 +48,7 @@ VideoEditorAudioPlayer::VideoEditorAudioPlayer(
     mBGAudioStoryBoardCurrentMediaBeginCutTS = 0;
     mBGAudioStoryBoardCurrentMediaVolumeVal = 0;
     mSeekTimeUs = 0;
+    mSource = NULL;
 }
 
 VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
@@ -61,9 +62,30 @@ VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
         mAudioProcess = NULL;
     }
 }
+void VideoEditorAudioPlayer::setSource(const sp<MediaSource> &source) {
+    Mutex::Autolock autoLock(mLock);
+    mSource = source;
+    mReachedEOS = false;
+}
+
+sp<MediaSource> VideoEditorAudioPlayer::getSource() {
+    Mutex::Autolock autoLock(mLock);
+    return mSource;
+}
+
+void VideoEditorAudioPlayer::setObserver(AwesomePlayer *observer) {
+    LOGV("setObserver");
+    //CHECK(!mStarted);
+    mObserver = observer;
+}
+
+
+bool VideoEditorAudioPlayer::isStarted() {
+    return mStarted;
+}
 
 status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
-
+    Mutex::Autolock autoLock(mLock);
     CHECK(!mStarted);
     CHECK(mSource != NULL);
     LOGV("Start");
@@ -85,11 +107,16 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
     veAudMixSettings audioMixSettings;
 
     // Pass on the audio ducking parameters
-    audioMixSettings.lvInDucking_threshold = mAudioMixSettings->uiInDucking_threshold;
-    audioMixSettings.lvInDucking_lowVolume = ((M4OSA_Float)mAudioMixSettings->uiInDucking_lowVolume) / 100.0;
-    audioMixSettings.lvInDucking_enable = mAudioMixSettings->bInDucking_enable;
-    audioMixSettings.lvPTVolLevel = ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal) / 100.0;
-    audioMixSettings.lvBTVolLevel = ((M4OSA_Float)mAudioMixSettings->uiAddVolume) /100.0;
+    audioMixSettings.lvInDucking_threshold =
+        mAudioMixSettings->uiInDucking_threshold;
+    audioMixSettings.lvInDucking_lowVolume =
+        ((M4OSA_Float)mAudioMixSettings->uiInDucking_lowVolume) / 100.0;
+    audioMixSettings.lvInDucking_enable =
+        mAudioMixSettings->bInDucking_enable;
+    audioMixSettings.lvPTVolLevel =
+        ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal) / 100.0;
+    audioMixSettings.lvBTVolLevel =
+        ((M4OSA_Float)mAudioMixSettings->uiAddVolume) / 100.0;
     audioMixSettings.lvBTChannelCount = mAudioMixSettings->uiBTChannelCount;
     audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
 
@@ -306,6 +333,33 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
     return OK;
 }
 
+void VideoEditorAudioPlayer::resume() {
+
+    veAudMixSettings audioMixSettings;
+
+    // Single audio player is used;
+    // Pass on the audio ducking parameters
+    // which might have changed with new audio source
+    audioMixSettings.lvInDucking_threshold =
+        mAudioMixSettings->uiInDucking_threshold;
+    audioMixSettings.lvInDucking_lowVolume =
+        ((M4OSA_Float)mAudioMixSettings->uiInDucking_lowVolume) / 100.0;
+    audioMixSettings.lvInDucking_enable =
+        mAudioMixSettings->bInDucking_enable;
+    audioMixSettings.lvPTVolLevel =
+        ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal) / 100.0;
+    audioMixSettings.lvBTVolLevel =
+        ((M4OSA_Float)mAudioMixSettings->uiAddVolume) / 100.0;
+    audioMixSettings.lvBTChannelCount = mAudioMixSettings->uiBTChannelCount;
+    audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
+
+    // Call to Audio mix param setting
+    mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
+
+    //Call the base class
+    AudioPlayer::resume();
+}
+
 void VideoEditorAudioPlayer::reset() {
 
     LOGV("reset");
@@ -336,9 +390,9 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
     size_t size_remaining = size;
 
     M4OSA_ERR err = M4NO_ERROR;
-    M4AM_Buffer bgFrame = {NULL, 0};
-    M4AM_Buffer mixFrame = {NULL, 0};
-    M4AM_Buffer ptFrame = {NULL, 0};
+    M4AM_Buffer16 bgFrame = {NULL, 0};
+    M4AM_Buffer16 mixFrame = {NULL, 0};
+    M4AM_Buffer16 ptFrame = {NULL, 0};
     int64_t currentSteamTS = 0;
     int64_t startTimeForBT = 0;
     M4OSA_Float fPTVolLevel =
@@ -384,7 +438,11 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
 
                 mIsFirstBuffer = false;
             } else {
-                status = mSource->read(&mInputBuffer, &options);
+
+                {
+                    Mutex::Autolock autoLock(mLock);
+                    status = mSource->read(&mInputBuffer, &options);
+                }
                 // Data is Primary Track, mix with background track
                 // after reading same size from Background track PCM file
                 if (status == OK)
@@ -395,9 +453,9 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                           (int64_t)(mAudioMixSettings->uiAddCts * 1000)) {
 
                         LOGV("VideoEditorAudioPlayer::INSIDE MIXING");
-                        LOGV("Checking %lld <= %lld - %d",
+                        LOGV("Checking %lld <= %lld",
                             mBGAudioPCMFileSeekPoint-mBGAudioPCMFileOriginalSeekPoint,
-                            mBGAudioPCMFileTrimmedLength, len);
+                            mBGAudioPCMFileTrimmedLength);
 
 
                         M4OSA_Void* ptr;

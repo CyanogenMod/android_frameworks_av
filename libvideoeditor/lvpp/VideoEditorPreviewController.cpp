@@ -461,6 +461,13 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
         mTarget = NULL;
     }
 
+    // Create Audio player to be used for entire
+    // storyboard duration
+    mVEAudioSink = new VideoEditorPlayer::VeAudioOutput();
+    mVEAudioPlayer = new VideoEditorAudioPlayer(mVEAudioSink);
+    mVEAudioPlayer->setAudioMixSettings(mBackgroundAudioSetting);
+    mVEAudioPlayer->setAudioMixPCMFileHandle(mAudioMixPCMFileHandle);
+
     LOGV("startPreview: loop = %d", loop);
     mPreviewLooping = loop;
 
@@ -670,6 +677,12 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
             mVePlayer[playerInst].clear();
             mVePlayer[playerInst] = NULL;
         }
+    }
+    LOGV("stopPreview: clear audioSink and audioPlayer");
+    mVEAudioSink.clear();
+    if (mVEAudioPlayer) {
+        delete mVEAudioPlayer;
+        mVEAudioPlayer = NULL;
     }
 
     // If image file playing, then free the buffer pointer
@@ -972,6 +985,7 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
         LOGV("preparePlayer: seekTo(%d)",
          pController->mClipList[index]->uiBeginCutTime);
     }
+    pController->mVePlayer[pController->mCurrentPlayer]->setAudioPlayer(pController->mVEAudioPlayer);
 
     pController->mVePlayer[playerInstance]->readFirstVideoFrame();
     LOGV("preparePlayer: readFirstVideoFrame of clip");

@@ -49,12 +49,15 @@ status_t VideoEditorPlayer::initCheck() {
     return OK;
 }
 
+
+status_t VideoEditorPlayer::setAudioPlayer(VideoEditorAudioPlayer *audioPlayer) {
+    return mPlayer->setAudioPlayer(audioPlayer);
+}
+
+
 status_t VideoEditorPlayer::setDataSource(
         const char *url, const KeyedVector<String8, String8> *headers) {
     LOGI("setDataSource('%s')", url);
-
-    mVeAudioSink = new VeAudioOutput();
-    mPlayer->setAudioSink(mVeAudioSink);
 
     return mPlayer->setDataSource(url, headers);
 }

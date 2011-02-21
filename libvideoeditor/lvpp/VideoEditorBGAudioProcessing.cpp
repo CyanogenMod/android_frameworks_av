@@ -50,9 +50,9 @@ VideoEditorBGAudioProcessing ::VideoEditorBGAudioProcessing() {
 M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
         void *pPTBuffer, void *pBTBuffer, void *pOutBuffer) {
 
-    M4AM_Buffer* pPrimaryTrack   = (M4AM_Buffer*)pPTBuffer;
-    M4AM_Buffer* pBackgroundTrack = (M4AM_Buffer*)pBTBuffer;
-    M4AM_Buffer* pMixedOutBuffer  = (M4AM_Buffer*)pOutBuffer;
+    M4AM_Buffer16* pPrimaryTrack   = (M4AM_Buffer16*)pPTBuffer;
+    M4AM_Buffer16* pBackgroundTrack = (M4AM_Buffer16*)pBTBuffer;
+    M4AM_Buffer16* pMixedOutBuffer  = (M4AM_Buffer16*)pOutBuffer;
 
     LOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck \
      pPTBuffer 0x%x pBTBuffer 0x%x pOutBuffer 0x%x", pPTBuffer,

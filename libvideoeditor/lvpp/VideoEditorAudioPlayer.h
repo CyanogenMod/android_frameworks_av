@@ -49,6 +49,7 @@ public:
     virtual ~VideoEditorAudioPlayer();
 
     status_t start(bool sourceAlreadyStarted = false);
+    void resume();
 
     void setAudioMixSettings(M4xVSS_AudioMixingSettings* pAudioMixSettings);
     void setAudioMixPCMFileHandle(M4OSA_Context pBGAudioPCMFileHandle);
@@ -57,6 +58,11 @@ public:
         M4OSA_UInt32 pBGAudioCurrentMediaBeginCutTS,
         M4OSA_UInt32 pBGAudioCurrentMediaVolumeVal);
 
+    void setObserver(AwesomePlayer *observer);
+    void setSource(const sp<MediaSource> &source);
+    sp<MediaSource> getSource();
+
+    bool isStarted();
 private:
 
     M4xVSS_AudioMixingSettings *mAudioMixSettings;
