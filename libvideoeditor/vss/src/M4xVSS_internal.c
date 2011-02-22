@@ -2417,7 +2417,6 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     {
         M4OSA_TRACE1_1("SPS png: error when converting from RGB to YUV: 0x%x\n", err);
     }
-
     M4OSA_TRACE3_0("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect:  Leaving ");
     return err;
 }
@@ -3271,7 +3270,6 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                 {
                     if(framingCtx->aFramingCtx != M4OSA_NULL)
                     {
-                        if(pSettings->Effects[i].xVSS.pFramingBuffer == M4OSA_NULL)
                         {
                             if(framingCtx->aFramingCtx->FramingRgb != M4OSA_NULL)
                             {
@@ -3301,17 +3299,14 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                     }
                     if(framingCtx->aFramingCtx_last != M4OSA_NULL)
                     {
-                        if(pSettings->Effects[i].xVSS.pFramingBuffer == M4OSA_NULL)
+                        if(framingCtx->aFramingCtx_last->FramingRgb != M4OSA_NULL)
                         {
-                            if(framingCtx->aFramingCtx_last->FramingRgb != M4OSA_NULL)
-                            {
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
-                                    FramingRgb->pac_data);
-                                framingCtx->aFramingCtx_last->FramingRgb->pac_data = M4OSA_NULL;
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
-                                    FramingRgb);
-                                framingCtx->aFramingCtx_last->FramingRgb = M4OSA_NULL;
-                            }
+                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
+                                FramingRgb->pac_data);
+                            framingCtx->aFramingCtx_last->FramingRgb->pac_data = M4OSA_NULL;
+                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
+                                FramingRgb);
+                            framingCtx->aFramingCtx_last->FramingRgb = M4OSA_NULL;
                         }
                         if(framingCtx->aFramingCtx_last->FramingYuv != M4OSA_NULL)
                         {
@@ -3358,15 +3353,12 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                     if(framingCtx != M4OSA_NULL) /* Bugfix 1.2.0: crash, trying to free non
                     existant pointer */
                     {
-                        if(pSettings->Effects[i].xVSS.pFramingBuffer == M4OSA_NULL)
+                        if(framingCtx->FramingRgb != M4OSA_NULL)
                         {
-                            if(framingCtx->FramingRgb != M4OSA_NULL)
-                            {
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
-                                framingCtx->FramingRgb->pac_data = M4OSA_NULL;
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb);
-                                framingCtx->FramingRgb = M4OSA_NULL;
-                            }
+                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+                            framingCtx->FramingRgb->pac_data = M4OSA_NULL;
+                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb);
+                            framingCtx->FramingRgb = M4OSA_NULL;
                         }
                         if(framingCtx->FramingYuv != M4OSA_NULL)
                         {
