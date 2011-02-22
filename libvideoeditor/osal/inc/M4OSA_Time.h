@@ -33,7 +33,7 @@
 #include "M4OSA_Types.h"
 
 
-typedef M4OSA_Int64   M4OSA_Time;
+typedef signed long long  M4OSA_Time;
 
 
 /** This macro sets the unknown time value */
