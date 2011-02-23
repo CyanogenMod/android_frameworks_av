@@ -20,6 +20,7 @@
 
 #include <utils/Log.h>
 #include "VideoEditorPlayer.h"
+#include "VideoEditorAudioPlayer.h"
 #include "M4OSA_Semaphore.h"
 #include "M4OSA_Thread.h"
 #include "M4OSA_Clock.h"
@@ -130,6 +131,9 @@ private:
     bool bStopThreadInProgress;
     M4OSA_Context mSemThreadWait;
     bool mIsFiftiesEffectStarted;
+
+    sp<VideoEditorPlayer::VeAudioOutput> mVEAudioSink;
+    VideoEditorAudioPlayer *mVEAudioPlayer;
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;

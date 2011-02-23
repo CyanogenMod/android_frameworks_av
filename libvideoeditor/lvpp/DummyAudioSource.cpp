@@ -97,7 +97,12 @@ DummyAudioSource::~DummyAudioSource () {
     LOG2("DummyAudioSource::~DummyAudioSource");
 }
 
-
+void DummyAudioSource::setDuration (int64_t audioDurationUs) {
+    Mutex::Autolock autoLock(mLock);
+    LOG2("SetDuration %lld", mAudioDurationUs);
+    mAudioDurationUs += audioDurationUs;
+    LOG2("SetDuration %lld", mAudioDurationUs);
+}
 
 status_t DummyAudioSource::start(MetaData *params) {
     status_t err = OK;
@@ -143,7 +148,7 @@ sp<MetaData> DummyAudioSource::getFormat() {
     meta->setInt32(kKeySampleRate, mSamplingRate);
     meta->setInt64(kKeyDuration, mFrameDurationUs);
 
-     meta->setCString(kKeyDecoderComponent, "DummyAudioSource");
+    meta->setCString(kKeyDecoderComponent, "DummyAudioSource");
 
     return meta;
 }
@@ -159,11 +164,14 @@ status_t DummyAudioSource::read( MediaBuffer **out, const MediaSource::ReadOptio
     if (options && options->getSeekTo(&seekTimeUs, &mode)) {
         CHECK(seekTimeUs >= 0);
         mTimeStampUs = seekTimeUs;
-     }
-
-    if (mTimeStampUs >= mAudioDurationUs) {
-        *out = NULL;
-        return ERROR_END_OF_STREAM;
+    }
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mTimeStampUs >= mAudioDurationUs) {
+            *out = NULL;
+            LOGI("EOS reached");
+            return ERROR_END_OF_STREAM;
+        }
     }
 
     err = mBufferGroup->acquire_buffer(&buffer);

@@ -93,6 +93,7 @@ struct PreviewPlayer : public AwesomePlayer {
     status_t setImageClipProperties(uint32_t width, uint32_t height);
     status_t readFirstVideoFrame();
     status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
+    status_t setAudioPlayer(AudioPlayer *audioPlayer);
 
 private:
     friend struct PreviewPlayerEvent;
@@ -123,11 +124,13 @@ private:
     status_t initAudioDecoder();
     status_t initVideoDecoder(uint32_t flags = 0);
     void onVideoEvent();
+    void onStreamDone();
     status_t finishSetDataSource_l();
     static bool ContinuePreparation(void *cookie);
     void onPrepareAsyncEvent();
     void finishAsyncPrepare_l();
     status_t startAudioPlayer_l();
+    bool mIsChangeSourceRequired;
 
     sp<PreviewPlayerRenderer> mVideoRenderer;
 

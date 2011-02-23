@@ -45,8 +45,9 @@ public:
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
     virtual sp<MetaData> getFormat();
-    virtual status_t read (MediaBuffer **buffer, 
+    virtual status_t read (MediaBuffer **buffer,
                             const MediaSource::ReadOptions *options = NULL);
+    void setDuration (int64_t audioDurationUs);
 
 protected:
     DummyAudioSource (int32_t samplingRate,
@@ -63,6 +64,8 @@ private:
     int64_t mAudioDurationUs;
     int64_t mTimeStampUs;
     int32_t mNbBuffer;
+    Mutex mLock;
+
     MediaBufferGroup *mBufferGroup;
 
     DummyAudioSource(const DummyAudioSource &);

@@ -31,7 +31,7 @@ enum veAudioFormat {MONO_16_BIT, STEREO_16_BIT};
 typedef struct {
     M4OSA_UInt16*   m_dataAddress; // Android SRC needs a Int16 pointer
     M4OSA_UInt32    m_bufferSize;
-} M4AM_Buffer;
+} M4AM_Buffer16;    // Structure contains Int16_t pointer
 
 // Following struct will be used by app to supply the PT and BT properties
 // along with ducking values
@@ -78,9 +78,9 @@ private:
     M4OSA_Float mPTVolLevel;
     M4OSA_Float mBTVolLevel;
 
-    M4AM_Buffer mPTBuffer;
-    M4AM_Buffer mBTBuffer;
-    M4AM_Buffer mOutMixBuffer;
+    M4AM_Buffer16 mPTBuffer;
+    M4AM_Buffer16 mBTBuffer;
+    M4AM_Buffer16 mOutMixBuffer;
     M4OSA_Int16 *mTempBuffer;
     M4OSA_Int32 mTempFrameCount;
 

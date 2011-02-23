@@ -192,11 +192,12 @@ PreviewPlayer::PreviewPlayer()
     mProgressCbInterval = 0;
     mNumberDecVideoFrames = 0;
     mOverlayUpdateEventPosted = false;
+    mIsChangeSourceRequired = true;
 
     mVideoEvent = new PreviewPlayerEvent(this, &PreviewPlayer::onVideoEvent);
     mVideoEventPending = false;
     mStreamDoneEvent = new PreviewPlayerEvent(this,
-         &AwesomePlayer::onStreamDone);
+         &PreviewPlayer::onStreamDone);
 
     mStreamDoneEventPending = false;
 
@@ -396,7 +397,10 @@ void PreviewPlayer::reset_l() {
 
     mTimeSource = NULL;
 
-    delete mAudioPlayer;
+    //Single audio player instance used
+    //So donot delete it here
+    //It is deleted from PreviewController class
+    //delete mAudioPlayer;
     mAudioPlayer = NULL;
 
     if (mLastVideoBuffer) {
@@ -489,6 +493,93 @@ status_t PreviewPlayer::startAudioPlayer_l() {
     return OK;
 }
 
+status_t PreviewPlayer::setAudioPlayer(AudioPlayer *audioPlayer) {
+    Mutex::Autolock autoLock(mLock);
+    CHECK(!(mFlags & PLAYING));
+    mAudioPlayer = audioPlayer;
+
+    LOGV("SetAudioPlayer");
+    mIsChangeSourceRequired = true;
+    mVeAudioPlayer =
+            (VideoEditorAudioPlayer*)mAudioPlayer;
+
+    // check if the new and old source are dummy
+    sp<MediaSource> anAudioSource = mVeAudioPlayer->getSource();
+    if (anAudioSource == NULL) {
+        // Audio player does not have any source set.
+        LOGV("setAudioPlayer: Audio player does not have any source set");
+        return OK;
+    }
+
+    const char *pSrcType1;
+    const char *pSrcType2;
+    sp<MetaData> meta = anAudioSource->getFormat();
+
+    if (meta->findCString(kKeyDecoderComponent, &pSrcType1)) {
+        if (strcmp(pSrcType1, "DummyAudioSource") == 0) {
+            meta = mAudioSource->getFormat();
+            if (meta->findCString(kKeyDecoderComponent, &pSrcType2)) {
+                if (strcmp(pSrcType2, "DummyAudioSource") == 0) {
+                    mIsChangeSourceRequired = false;
+                    // Just set the new play duration for the existing source
+                    MediaSource *pMediaSrc = anAudioSource.get();
+                    DummyAudioSource *pDummyAudioSource = (DummyAudioSource*)pMediaSrc;
+                    //Increment the duration of audio source
+                    pDummyAudioSource->setDuration((int64_t)((mPlayEndTimeMsec)*1000));
+                }
+            }
+        }
+    }
+
+    return OK;
+}
+
+void PreviewPlayer::onStreamDone() {
+    // Posted whenever any stream finishes playing.
+
+    Mutex::Autolock autoLock(mLock);
+    if (!mStreamDoneEventPending) {
+        return;
+    }
+    mStreamDoneEventPending = false;
+
+    if (mStreamDoneStatus != ERROR_END_OF_STREAM) {
+        LOGV("MEDIA_ERROR %d", mStreamDoneStatus);
+
+        notifyListener_l(
+                MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, mStreamDoneStatus);
+
+        pause_l(true /* at eos */);
+
+        mFlags |= AT_EOS;
+        return;
+    }
+
+    const bool allDone =
+        (mVideoSource == NULL || (mFlags & VIDEO_AT_EOS))
+            && (mAudioSource == NULL || (mFlags & AUDIO_AT_EOS));
+
+    if (!allDone) {
+        return;
+    }
+
+    if (mFlags & (LOOPING | AUTO_LOOPING)) {
+        seekTo_l(0);
+
+        if (mVideoSource != NULL) {
+            postVideoEvent_l();
+        }
+    } else {
+        LOGV("MEDIA_PLAYBACK_COMPLETE");
+        //pause before sending event
+        pause_l(true /* at eos */);
+        notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+
+        mFlags |= AT_EOS;
+    }
+}
+
+
 status_t PreviewPlayer::play_l() {
 
     mFlags &= ~SEEK_PREVIEW;
@@ -531,25 +622,75 @@ status_t PreviewPlayer::play_l() {
                  mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                  mCurrentMediaVolumeValue);
 
-                mTimeSource = mVeAudioPlayer; //mAudioPlayer;
+                 mFlags |= AUDIOPLAYER_STARTED;
+                // We've already started the MediaSource in order to enable
+                // the prefetcher to read its data.
+                status_t err = mVeAudioPlayer->start(
+                        true /* sourceAlreadyStarted */);
 
+                if (err != OK) {
+                    //delete mAudioPlayer;
+                    mAudioPlayer = NULL;
+
+                    mFlags &= ~(PLAYING | FIRST_FRAME);
+                    return err;
+                }
+
+                mTimeSource = mVeAudioPlayer;
+                mFlags |= AUDIO_RUNNING;
                 deferredAudioSeek = true;
                 mWatchForAudioSeekComplete = false;
                 mWatchForAudioEOS = true;
             }
-         }
+        } else {
+            mVeAudioPlayer = (VideoEditorAudioPlayer*)mAudioPlayer;
+            bool isAudioPlayerStarted = mVeAudioPlayer->isStarted();
 
-        CHECK(!(mFlags & AUDIO_RUNNING));
+            if (mIsChangeSourceRequired == true) {
+                LOGV("play_l: Change audio source required");
 
-        if (mVideoSource == NULL) {
-            status_t err = startAudioPlayer_l();
+                if (isAudioPlayerStarted == true) {
+                    mVeAudioPlayer->pause();
+                }
 
-            if (err != OK) {
-                delete mAudioPlayer;
-                mAudioPlayer = NULL;
-                mFlags &= ~(PLAYING | FIRST_FRAME);
-                return err;
+                mVeAudioPlayer->setSource(mAudioSource);
+                mVeAudioPlayer->setObserver(this);
+
+                mVeAudioPlayer->setAudioMixSettings(
+                 mPreviewPlayerAudioMixSettings);
+
+                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
+                    mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
+                    mCurrentMediaVolumeValue);
+
+                if (isAudioPlayerStarted == true) {
+                    mVeAudioPlayer->resume();
+                } else {
+                    status_t err = OK;
+                    err = mVeAudioPlayer->start(true);
+                    if (err != OK) {
+                        mAudioPlayer = NULL;
+                        mVeAudioPlayer = NULL;
+
+                        mFlags &= ~(PLAYING | FIRST_FRAME);
+                        return err;
+                    }
+                }
+            } else {
+                LOGV("play_l: No Source change required");
+                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
+                    mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
+                    mCurrentMediaVolumeValue);
+
+                mVeAudioPlayer->resume();
             }
+
+            mFlags |= AUDIOPLAYER_STARTED;
+            mFlags |= AUDIO_RUNNING;
+            mTimeSource = mVeAudioPlayer;
+            deferredAudioSeek = true;
+            mWatchForAudioSeekComplete = false;
+            mWatchForAudioEOS = true;
         }
     }
 
@@ -828,6 +969,7 @@ void PreviewPlayer::onVideoEvent() {
                 finishSeekIfNecessary(-1);
                 LOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
+                mFlags |= AUDIO_AT_EOS;
                 mOverlayUpdateEventPosted = false;
                 postStreamDoneEvent_l(err);
                 // Set the last decoded timestamp to duration
@@ -1094,6 +1236,11 @@ void PreviewPlayer::onVideoEvent() {
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
     }
     else {
+        if (wasSeeking && (mFlags & SEEK_PREVIEW)) {
+            mFlags &= ~SEEK_PREVIEW;
+            return;
+        }
+
         if(!mIsVideoSourceJpg) {
             postVideoEvent_l(0);
         }
@@ -1818,6 +1965,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                 }
                 LOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
+                mFlags |= AUDIO_AT_EOS;
                 postStreamDoneEvent_l(err);
                 return OK;
             }
