@@ -2015,9 +2015,9 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
             else
             {
                 /**< Are we into the effect duration? */
-                if ( (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
+                if ( ((M4OSA_Int32)(t + pC->pTransitionList[uiClipIndex].uiTransitionDuration)
                     >= (M4OSA_Int32)(pFx->uiStartTime))
-                    && (t + pC->pTransitionList[uiClipIndex].uiTransitionDuration
+                    && ( (M4OSA_Int32)(t + pC->pTransitionList[uiClipIndex].uiTransitionDuration)
                     <= (M4OSA_Int32)(pFx->uiStartTime + pFx->uiDuration)) ) {
                     /**
                      * Set the active effect(s) */

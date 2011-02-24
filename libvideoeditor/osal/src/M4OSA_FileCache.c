@@ -431,7 +431,7 @@ M4OSA_Void M4OSA_FileCache_QS_quickSort64 (M4OSA_Time array[], M4OSA_UInt32 size
         return;
     }
 
-    M4OSA_FileCache_internalQuicksort64(array,0,size-1);
+    M4OSA_FileCache_internalQuicksort64((M4OSA_Int64 * const)array, 0, size-1);
 }
 
 /* __________________________________________________________ */

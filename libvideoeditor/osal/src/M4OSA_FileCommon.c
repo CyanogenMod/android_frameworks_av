@@ -25,7 +25,7 @@
 
 #ifndef USE_STAGEFRIGHT_CODECS
 #error "USE_STAGEFRIGHT_CODECS is not defined"
-#endif USE_STAGEFRIGHT_CODECS
+#endif /*USE_STAGEFRIGHT_CODECS*/
 
 #ifdef UTF_CONVERSION
 #include <string.h>

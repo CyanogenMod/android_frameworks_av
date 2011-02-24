@@ -2157,7 +2157,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         {
             M4OSA_TRACE1_0("Allocation error in \
                 M4xVSS_internalConvertARGB888toYUV420_FrammingEffect");
-            M4OSA_free((M4OSA_MemAddr8)rgbPlane.pac_data);
+            M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
             return M4ERR_ALLOC;
         }
 
@@ -2176,7 +2176,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
             input_pac_data += ((rgbPlane.u_width-1)*2);
         }
-        M4OSA_free((M4OSA_MemAddr8)rgbPlane.pac_data);
+        M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
         rgbPlane.pac_data = newRGBpac_data;
     }
 
@@ -4124,7 +4124,7 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
 
                 if(alphaBlendingStruct != M4OSA_NULL)
                 {
-                    if(pProgress->uiProgress >= 0 && pProgress->uiProgress \
+                    if(pProgress->uiProgress \
                     < (M4OSA_UInt32)(alphaBlendingStruct->m_fadeInTime*10))
                     {
                         if(alphaBlendingStruct->m_fadeInTime == 0) {

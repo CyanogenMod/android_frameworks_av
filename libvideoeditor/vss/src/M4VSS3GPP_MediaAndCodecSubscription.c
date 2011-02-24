@@ -305,7 +305,7 @@ M4OSA_ERR M4VSS3GPP_subscribeMediaAndCodec(M4VSS3GPP_MediaAndCodecCtxt *pContext
     err = M4VSS3GPP_registerAudioDecoder( pContext, audioDecoderType, pAudioDecoderInterface);
     M4OSA_DEBUG_IF1((err != M4NO_ERROR), err,
         "M4VSS3GPP_subscribeMediaAndCodec: can't register MP3 decoder");
-#endif  /* M4VSS_SUPPORT_AUDEC_MP3 */`
+#endif  /* M4VSS_SUPPORT_AUDEC_MP3 */
 
 
     /* --- NULL --- */

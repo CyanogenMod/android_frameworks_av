@@ -167,7 +167,7 @@ M4OSA_ERR M4OSA_FileReader_BufferInit(M4OSA_FileReader_Context_optim* apContext)
 
     for(i=0; i<M4OSA_READBUFFER_NB; i++)
     {
-        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_malloc(M4OSA_READBUFFER_SIZE, M4OSA_FILE_READER, "M4OSA_FileReader_BufferInit");
+        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_malloc(M4OSA_READBUFFER_SIZE, M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReader_BufferInit");
         M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext->buffer[i].data);
     }
 
@@ -545,7 +545,7 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
 
     /*      Allocate memory for the File reader context. */
     apContext = (M4OSA_FileReader_Context_optim *)M4OSA_malloc(sizeof(M4OSA_FileReader_Context_optim),
-                                      M4OSA_FILE_READER, "M4OSA_FileReader_Context_optim");
+                                      M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReader_Context_optim");
 
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext);
 
@@ -555,10 +555,10 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
     /*Set the optimized functions, to be called by the user*/
 
     apContext->FS = (M4OSA_FileReadPointer*) M4OSA_malloc(sizeof(M4OSA_FileReadPointer),
-                                       M4OSA_FILE_READER, "NXPSW_FileReaderOptim_init");
+                                       M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReaderOptim_init");
     if (M4OSA_NULL==apContext->FS)
     {
-        M4OSA_TRACE1_0("NXPSW_FileReaderOptim_init - ERROR : allocation failed");
+        M4OSA_TRACE1_0("M4OSA_FileReaderOptim_init - ERROR : allocation failed");
         return M4ERR_ALLOC;
     }
     apContext->FS->openRead  = M4OSA_fileReadOpen;
@@ -567,7 +567,7 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
     apContext->FS->closeRead = M4OSA_fileReadClose;
     apContext->FS->setOption = M4OSA_fileReadSetOption;
     apContext->FS->getOption = M4OSA_fileReadGetOption;
-   #else
+#else
     apContext->FS = FS;
 #endif
 

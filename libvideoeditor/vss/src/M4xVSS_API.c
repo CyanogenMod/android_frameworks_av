@@ -2459,22 +2459,14 @@ replaceJPG_3GP:
                             <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftXa > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXa < 0
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftYa > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYa < 0
                             || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
                             > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
                             <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
                             PanZoomTopleftXb > 1000
                             || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXb < 0
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYb > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYb < 0 )
+                            PanZoomTopleftYb > 1000)
                         {
                             M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
                             M4xVSS_freeCommand(xVSS_context);
@@ -3689,32 +3681,27 @@ replace3GP_3GP:
 
             /*Alpha blending*/
             /*Check if the alpha blending parameters are corrects*/
-            if( pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime < 0
-                || pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime > 100 )
+            if( pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime > 100 )
             {
                 pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime = 0;
             }
 
-            if( pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime < 0
-                || pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime > 100 )
+            if( pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime > 100 )
             {
                 pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime = 0;
             }
 
-            if( pSettings->Effects[j].xVSS.uialphaBlendingEnd < 0
-                || pSettings->Effects[j].xVSS.uialphaBlendingEnd > 100 )
+            if( pSettings->Effects[j].xVSS.uialphaBlendingEnd > 100 )
             {
                 pSettings->Effects[j].xVSS.uialphaBlendingEnd = 100;
             }
 
-            if( pSettings->Effects[j].xVSS.uialphaBlendingMiddle < 0
-                || pSettings->Effects[j].xVSS.uialphaBlendingMiddle > 100 )
+            if( pSettings->Effects[j].xVSS.uialphaBlendingMiddle > 100 )
             {
                 pSettings->Effects[j].xVSS.uialphaBlendingMiddle = 100;
             }
 
-            if( pSettings->Effects[j].xVSS.uialphaBlendingStart < 0
-                || pSettings->Effects[j].xVSS.uialphaBlendingStart > 100 )
+            if( pSettings->Effects[j].xVSS.uialphaBlendingStart > 100 )
             {
                 pSettings->Effects[j].xVSS.uialphaBlendingStart = 100;
             }
@@ -4088,34 +4075,27 @@ replace3GP_3GP:
 
                 /*Alpha blending*/
                 /*Check if the alpha blending parameters are corrects*/
-                if( pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime < 0
-                    || pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime
-                > 100 )
+                if( pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime > 100 )
                 {
                     pSettings->Effects[j].xVSS.uialphaBlendingFadeInTime = 0;
                 }
 
-                if( pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime < 0
-                    || pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime
-                > 100 )
+                if( pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime > 100 )
                 {
                     pSettings->Effects[j].xVSS.uialphaBlendingFadeOutTime = 0;
                 }
 
-                if( pSettings->Effects[j].xVSS.uialphaBlendingEnd < 0
-                    || pSettings->Effects[j].xVSS.uialphaBlendingEnd > 100 )
+                if( pSettings->Effects[j].xVSS.uialphaBlendingEnd > 100 )
                 {
                     pSettings->Effects[j].xVSS.uialphaBlendingEnd = 100;
                 }
 
-                if( pSettings->Effects[j].xVSS.uialphaBlendingMiddle < 0
-                    || pSettings->Effects[j].xVSS.uialphaBlendingMiddle > 100 )
+                if( pSettings->Effects[j].xVSS.uialphaBlendingMiddle > 100 )
                 {
                     pSettings->Effects[j].xVSS.uialphaBlendingMiddle = 100;
                 }
 
-                if( pSettings->Effects[j].xVSS.uialphaBlendingStart < 0
-                    || pSettings->Effects[j].xVSS.uialphaBlendingStart > 100 )
+                if( pSettings->Effects[j].xVSS.uialphaBlendingStart > 100 )
                 {
                     pSettings->Effects[j].xVSS.uialphaBlendingStart = 100;
                 }
