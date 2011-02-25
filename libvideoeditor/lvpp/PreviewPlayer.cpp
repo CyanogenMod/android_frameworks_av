@@ -430,7 +430,7 @@ void PreviewPlayer::reset_l() {
     mTimeSourceDeltaUs = 0;
     mVideoTimeUs = 0;
 
-    mSeeking = false;
+    mSeeking = NO_SEEK;
     mSeekNotificationSent = false;
     mSeekTimeUs = 0;
 
@@ -739,7 +739,7 @@ void PreviewPlayer::onVideoEvent() {
     TimeSource *ts_st =  &mSystemTimeSource;
     int64_t timeStartUs = ts_st->getRealTimeUs();
 
-    if (mSeeking) {
+    if (mSeeking != NO_SEEK) {
         if (mLastVideoBuffer) {
             mLastVideoBuffer->release();
             mLastVideoBuffer = NULL;
@@ -765,7 +765,7 @@ void PreviewPlayer::onVideoEvent() {
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
-        if (mSeeking) {
+        if (mSeeking != NO_SEEK) {
             LOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
                                                       mSeekTimeUs / 1E6);
 
@@ -797,7 +797,7 @@ void PreviewPlayer::onVideoEvent() {
                 }
                 // So video playback is complete, but we may still have
                 // a seek request pending that needs to be applied to the audio track
-                if (mSeeking) {
+                if (mSeeking != NO_SEEK) {
                     LOGV("video stream ended while seeking!");
                 }
                 finishSeekIfNecessary(-1);
@@ -858,7 +858,7 @@ void PreviewPlayer::onVideoEvent() {
         }
     }
 
-    bool wasSeeking = mSeeking;
+    SeekType wasSeeking = mSeeking;
     finishSeekIfNecessary(timeUs);
 
     TimeSource *ts = (mFlags & AUDIO_AT_EOS) ? &mSystemTimeSource : mTimeSource;
@@ -886,7 +886,7 @@ void PreviewPlayer::onVideoEvent() {
 
         int64_t latenessUs = nowUs - timeUs;
 
-        if (wasSeeking) {
+        if (wasSeeking != NO_SEEK) {
             // Let's display the first frame after seeking right away.
             latenessUs = 0;
         }
@@ -1751,7 +1751,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
-        if (mSeeking) {
+        if (mSeeking != NO_SEEK) {
             LOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
                     mSeekTimeUs / 1E6);
 
