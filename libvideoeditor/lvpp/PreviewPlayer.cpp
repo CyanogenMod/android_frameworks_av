@@ -526,6 +526,11 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayer *audioPlayer) {
                     DummyAudioSource *pDummyAudioSource = (DummyAudioSource*)pMediaSrc;
                     //Increment the duration of audio source
                     pDummyAudioSource->setDuration((int64_t)((mPlayEndTimeMsec)*1000));
+
+                    // Stop the new audio source
+                    // since we continue using old source
+                    LOGV("setAudioPlayer: stop new audio source");
+                    mAudioSource->stop();
                 }
             }
         }
