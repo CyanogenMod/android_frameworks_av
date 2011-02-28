@@ -128,6 +128,7 @@ private:
     static bool ContinuePreparation(void *cookie);
     void onPrepareAsyncEvent();
     void finishAsyncPrepare_l();
+    status_t startAudioPlayer_l();
 
     sp<PreviewPlayerRenderer> mVideoRenderer;
 
@@ -202,6 +203,7 @@ private:
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;
+    VideoEditorAudioPlayer *mVeAudioPlayer;
 
     void setVideoPostProcessingNode(
                     M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable);
