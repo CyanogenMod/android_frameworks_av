@@ -64,6 +64,28 @@ VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
 }
 void VideoEditorAudioPlayer::setSource(const sp<MediaSource> &source) {
     Mutex::Autolock autoLock(mLock);
+
+    // Before setting source, stop any existing source.
+    // Make sure to release any buffer we hold onto so that the
+    // source is able to stop().
+
+    if (mFirstBuffer != NULL) {
+        mFirstBuffer->release();
+        mFirstBuffer = NULL;
+    }
+
+    if (mInputBuffer != NULL) {
+        LOGV("VideoEditorAudioPlayer releasing input buffer.");
+
+        mInputBuffer->release();
+        mInputBuffer = NULL;
+    }
+
+    if (mSource != NULL) {
+        mSource->stop();
+        mSource.clear();
+    }
+
     mSource = source;
     mReachedEOS = false;
 }
@@ -78,7 +100,6 @@ void VideoEditorAudioPlayer::setObserver(AwesomePlayer *observer) {
     //CHECK(!mStarted);
     mObserver = observer;
 }
-
 
 bool VideoEditorAudioPlayer::isStarted() {
     return mStarted;
