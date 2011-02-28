@@ -460,6 +460,8 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                         }
                     }
                     break;
+                default:
+                    return M4VIFI_INVALID_PARAM;
                 }
             }
             /**
@@ -646,7 +648,7 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming(
 
                 if(alphaBlendingStruct != M4OSA_NULL)
                 {
-                    if(pProgress->uiProgress >= 0 && pProgress->uiProgress < (M4OSA_UInt32)(alphaBlendingStruct->m_fadeInTime*10))
+                    if(pProgress->uiProgress < (M4OSA_UInt32)(alphaBlendingStruct->m_fadeInTime*10))
                     {
                         alphaBlending = ((M4OSA_Float)(alphaBlendingStruct->m_middle - alphaBlendingStruct->m_start)*pProgress->uiProgress/(alphaBlendingStruct->m_fadeInTime*10));
                         alphaBlending += alphaBlendingStruct->m_start;
@@ -1855,9 +1857,9 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
         M4OSA_UInt8* pOutPlaneY = pPlaneOut[0].pac_data + pPlaneOut[0].u_topleft;
         M4OSA_UInt8* pOutPlaneU = pPlaneOut[1].pac_data + pPlaneOut[1].u_topleft;
         M4OSA_UInt8* pOutPlaneV = pPlaneOut[2].pac_data + pPlaneOut[2].u_topleft;
-        M4OSA_UInt8* pInPlaneY;
-        M4OSA_UInt8* pInPlaneU;
-        M4OSA_UInt8* pInPlaneV;
+        M4OSA_UInt8* pInPlaneY = NULL;
+        M4OSA_UInt8* pInPlaneU = NULL;
+        M4OSA_UInt8* pInPlaneV = NULL;
         M4OSA_UInt32 i;
 
         /*to keep media aspect ratio*/
@@ -3062,7 +3064,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     }
 
     /** Remove the alpha channel */
-    for (int i=0, j = 0; i < frameSize_argb; i++) {
+    for (M4OSA_UInt32 i=0, j = 0; i < frameSize_argb; i++) {
         if ((i % 4) == 0) continue;
         rgbPlane.pac_data[j] = pTmpData[i];
         j++;
@@ -3108,7 +3110,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         //err = M4VIFI_BGR888toYUV420(M4OSA_NULL, &rgbPlane, yuvPlane);
         if(err != M4NO_ERROR)
         {
-            LOGE("error when converting from RGB to YUV: 0x%x\n", err);
+            LOGE("error when converting from RGB to YUV: 0x%x\n", (unsigned int)err);
         }
         M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
 
@@ -3417,7 +3419,7 @@ M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
          lum_factor, NULL);
 
     if(err != M4NO_ERROR) {
-        LOGE("M4VFL_modifyLumaWithScale(%d) error %d", videoEffect, err);
+        LOGE("M4VFL_modifyLumaWithScale(%d) error %d", videoEffect, (int)err);
 
         if(NULL != buffer1) {
             M4OSA_free((M4OSA_MemAddr32)buffer1);
@@ -3448,7 +3450,7 @@ M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
     err = M4VFL_applyCurtain( (M4ViComImagePlane*)planeIn,
           (M4ViComImagePlane*)planeOut, curtainParams, NULL);
     if(err != M4NO_ERROR) {
-        LOGE("M4VFL_applyCurtain(%d) error %d", videoEffect, err);
+        LOGE("M4VFL_applyCurtain(%d) error %d", videoEffect, (int)err);
 
         if(NULL != buffer1) {
             M4OSA_free((M4OSA_MemAddr32)buffer1);
@@ -3566,7 +3568,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         // find the effect in effectSettings array
         for(i=0;i<params->numberEffects;i++) {
             if(params->effectsSettings[i].VideoEffectType ==
-             M4xVSS_kVideoEffectType_Gradient)
+             (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_Gradient)
                 break;
         }
         err = applyColorEffect(M4xVSS_kVideoEffectType_Gradient,
@@ -3582,7 +3584,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         // Find the effect in effectSettings array
         for(i=0;i<params->numberEffects;i++) {
             if(params->effectsSettings[i].VideoEffectType ==
-             M4xVSS_kVideoEffectType_ColorRGB16)
+             (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_ColorRGB16)
                 break;
         }
         err = applyColorEffect(M4xVSS_kVideoEffectType_ColorRGB16,
@@ -3598,7 +3600,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         // Find the effect in effectSettings array
         for(i=0;i<params->numberEffects;i++) {
             if(params->effectsSettings[i].VideoEffectType ==
-             M4xVSS_kVideoEffectType_Fifties)
+             (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_Fifties)
                 break;
         }
         if(i < params->numberEffects) {
@@ -3620,7 +3622,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
              M4xVSS_kVideoEffectType_Fifties);
 
             if(err != M4NO_ERROR) {
-                LOGE("M4VSS3GPP_externalVideoEffectFifties error 0x%x", err);
+                LOGE("M4VSS3GPP_externalVideoEffectFifties error 0x%x", (unsigned int)err);
 
                 if(NULL != finalOutputBuffer) {
                     M4OSA_free((M4OSA_MemAddr32)finalOutputBuffer);
@@ -3645,7 +3647,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         // Find the effect in effectSettings array
         for(i=0;i<params->numberEffects;i++) {
             if(params->effectsSettings[i].VideoEffectType ==
-             M4xVSS_kVideoEffectType_Framing) {
+             (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_Framing) {
                 if((params->effectsSettings[i].uiStartTime <= params->timeMs + params->timeOffset) &&
                    ((params->effectsSettings[i].uiStartTime+
                      params->effectsSettings[i].uiDuration) >= params->timeMs + params->timeOffset))
