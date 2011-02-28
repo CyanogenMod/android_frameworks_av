@@ -192,6 +192,7 @@ PreviewPlayer::PreviewPlayer()
     mProgressCbInterval = 0;
     mNumberDecVideoFrames = 0;
     mOverlayUpdateEventPosted = false;
+    mVeAudioPlayer = NULL;
 
     mVideoEvent = new PreviewPlayerEvent(this, &PreviewPlayer::onVideoEvent);
     mVideoEventPending = false;
@@ -472,7 +473,7 @@ status_t PreviewPlayer::play() {
 }
 
 status_t PreviewPlayer::play_l() {
-VideoEditorAudioPlayer  *mVePlayer;
+
     if (mFlags & PLAYING) {
         return OK;
     }
@@ -496,44 +497,42 @@ VideoEditorAudioPlayer  *mVePlayer;
             if (mAudioSink != NULL) {
 
                 mAudioPlayer = new VideoEditorAudioPlayer(mAudioSink, this);
-                mVePlayer =
+                mVeAudioPlayer =
                           (VideoEditorAudioPlayer*)mAudioPlayer;
 
                 mAudioPlayer->setSource(mAudioSource);
 
-                mVePlayer->setAudioMixSettings(
+                mVeAudioPlayer->setAudioMixSettings(
                  mPreviewPlayerAudioMixSettings);
 
-                mVePlayer->setAudioMixPCMFileHandle(
+                mVeAudioPlayer->setAudioMixPCMFileHandle(
                  mAudioMixPCMFileHandle);
 
-                mVePlayer->setAudioMixStoryBoardSkimTimeStamp(
+                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                  mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                  mCurrentMediaVolumeValue);
 
-                // We've already started the MediaSource in order to enable
-                // the prefetcher to read its data.
-                status_t err = mVePlayer->start(
-                        true /* sourceAlreadyStarted */);
-
-                if (err != OK) {
-                    delete mAudioPlayer;
-                    mAudioPlayer = NULL;
-
-                    mFlags &= ~(PLAYING | FIRST_FRAME);
-                    return err;
-                }
-
-                mTimeSource = mVePlayer; //mAudioPlayer;
+                mTimeSource = mVeAudioPlayer;
 
                 deferredAudioSeek = true;
                 mWatchForAudioSeekComplete = false;
                 mWatchForAudioEOS = true;
             }
-        } else {
-            mVePlayer->resume();
         }
 
+        CHECK(!(mFlags & AUDIO_RUNNING));
+
+        if (mVideoSource == NULL) {
+            status_t err = startAudioPlayer_l();
+
+            if (err != OK) {
+                delete mAudioPlayer;
+                mAudioPlayer = NULL;
+                mVeAudioPlayer = NULL;
+                mFlags &= ~(PLAYING | FIRST_FRAME);
+                return err;
+            }
+        }
     }
 
     if (mTimeSource == NULL && mAudioPlayer == NULL) {
@@ -569,6 +568,35 @@ VideoEditorAudioPlayer  *mVePlayer;
     return OK;
 }
 
+status_t PreviewPlayer::startAudioPlayer_l() {
+    CHECK(!(mFlags & AUDIO_RUNNING));
+
+    if (mAudioSource == NULL || mAudioPlayer == NULL) {
+        return OK;
+    }
+
+    if (!(mFlags & AUDIOPLAYER_STARTED)) {
+        mFlags |= AUDIOPLAYER_STARTED;
+
+        // We've already started the MediaSource in order to enable
+        // the prefetcher to read its data.
+        status_t err = mVeAudioPlayer->start(
+                true /* sourceAlreadyStarted */);
+
+        if (err != OK) {
+            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+            return err;
+        }
+    } else {
+        mVeAudioPlayer->resume();
+    }
+
+    mFlags |= AUDIO_RUNNING;
+
+    mWatchForAudioEOS = true;
+
+    return OK;
+}
 
 status_t PreviewPlayer::initRenderer_l() {
     if (mSurface != NULL || mISurface != NULL) {
@@ -746,7 +774,7 @@ void PreviewPlayer::onVideoEvent() {
         }
 
 
-        if(mAudioSource != NULL) {
+        if(mSeeking == SEEK && mAudioSource != NULL) {
 
             // We're going to seek the video source first, followed by
             // the audio source.
@@ -756,8 +784,9 @@ void PreviewPlayer::onVideoEvent() {
             // locations, we'll "pause" the audio source, causing it to
             // stop reading input data until a subsequent seek.
 
-            if (mAudioPlayer != NULL) {
+            if (mAudioPlayer != NULL && (mFlags & AUDIO_RUNNING)) {
                 mAudioPlayer->pause();
+                mFlags &= ~AUDIO_RUNNING;
             }
             mAudioSource->pause();
         }
@@ -770,7 +799,10 @@ void PreviewPlayer::onVideoEvent() {
                                                       mSeekTimeUs / 1E6);
 
             options.setSeekTo(
-                    mSeekTimeUs, MediaSource::ReadOptions::SEEK_CLOSEST);
+                    mSeekTimeUs,
+                    mSeeking == SEEK_VIDEO_ONLY
+                        ? MediaSource::ReadOptions::SEEK_NEXT_SYNC
+                        : MediaSource::ReadOptions::SEEK_CLOSEST);
         }
         for (;;) {
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
@@ -861,6 +893,14 @@ void PreviewPlayer::onVideoEvent() {
     SeekType wasSeeking = mSeeking;
     finishSeekIfNecessary(timeUs);
 
+    if (mAudioPlayer != NULL && !(mFlags & AUDIO_RUNNING)) {
+        status_t err = startAudioPlayer_l();
+        if (err != OK) {
+            LOGE("Startung the audio player failed w/ err %d", err);
+            return;
+        }
+    }
+
     TimeSource *ts = (mFlags & AUDIO_AT_EOS) ? &mSystemTimeSource : mTimeSource;
 
     if(ts == NULL) {
@@ -886,31 +926,55 @@ void PreviewPlayer::onVideoEvent() {
 
         int64_t latenessUs = nowUs - timeUs;
 
-        if (wasSeeking != NO_SEEK) {
-            // Let's display the first frame after seeking right away.
-            latenessUs = 0;
-        }
         LOGV("Audio time stamp = %lld and video time stamp = %lld",
                                             ts->getRealTimeUs(),timeUs);
-        if (latenessUs > 40000) {
-            // We're more than 40ms late.
 
-            LOGV("LV PLAYER we're late by %lld us (%.2f secs)",
+        if (wasSeeking == SEEK_VIDEO_ONLY) {
+            if (latenessUs > 0) {
+                LOGV("after SEEK_VIDEO_ONLY we're late by %.2f secs", latenessUs / 1E6);
+            }
+        }
+        if (wasSeeking == NO_SEEK) {
+
+            if (latenessUs > 500000ll
+                && mRTSPController == NULL
+                && mAudioPlayer != NULL
+                && mAudioPlayer->getMediaTimeMapping(
+                    &realTimeUs, &mediaTimeUs)) {
+                LOGV("we're much too late (%.2f secs), video skipping ahead",
+                 latenessUs / 1E6);
+
+                mVideoBuffer->release();
+                mVideoBuffer = NULL;
+
+                mSeeking = SEEK_VIDEO_ONLY;
+                mSeekTimeUs = mediaTimeUs;
+
+                postVideoEvent_l();
+                return;
+            }
+
+            if (latenessUs > 40000) {
+                // We're more than 40ms late.
+
+                LOGV("LV PLAYER we're late by %lld us (%.2f secs)",
                                            latenessUs, latenessUs / 1E6);
 
-            mVideoBuffer->release();
-            mVideoBuffer = NULL;
-            postVideoEvent_l(0);
-            return;
+                mVideoBuffer->release();
+                mVideoBuffer = NULL;
+                postVideoEvent_l(0);
+                return;
+            }
+
+            if (latenessUs < -25000) {
+                // We're more than 25ms early.
+                LOGV("We're more than 25ms early, lateness %lld", latenessUs);
+
+                postVideoEvent_l(25000);
+                return;
+            }
         }
 
-        if (latenessUs < -25000) {
-            // We're more than 25ms early.
-            LOGV("We're more than 25ms early, lateness %lld", latenessUs);
-
-            postVideoEvent_l(25000);
-            return;
-        }
     }
 
     if (mVideoRendererIsPreview || mVideoRenderer == NULL) {
