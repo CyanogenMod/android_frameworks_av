@@ -171,11 +171,11 @@ int PreviewLocalRenderer::init(
 
 PreviewPlayer::PreviewPlayer()
     : AwesomePlayer(),
-      mFrameRGBBuffer(NULL),
-      mFrameYUVBuffer(NULL),
+      mCurrFramingEffectIndex(0)   ,
       mReportedWidth(0),
       mReportedHeight(0),
-      mCurrFramingEffectIndex(0) {
+      mFrameRGBBuffer(NULL),
+      mFrameYUVBuffer(NULL){
 
     mVideoRenderer = NULL;
     mLastVideoBuffer = NULL;
@@ -1156,12 +1156,12 @@ void PreviewPlayer::onVideoEvent() {
         mCurrentVideoEffect &= ~VIDEO_EFFECT_FRAMING; //never apply framing here.
         if (!mOverlayUpdateEventPosted) {
             // Find the effect in effectSettings array
-            int index;
+            M4OSA_UInt32 index;
             for (index = 0; index < mNumberEffects; index++) {
                 M4OSA_UInt32 timeMs = mDecodedVideoTs/1000;
                 M4OSA_UInt32 timeOffset = mDecVideoTsStoryBoard/1000;
                 if(mEffectsSettings[index].VideoEffectType ==
-                    M4xVSS_kVideoEffectType_Framing) {
+                    (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_Framing) {
                     if (((mEffectsSettings[index].uiStartTime + 1) <=
                         timeMs + timeOffset - mPlayBeginTimeMsec) &&
                         ((mEffectsSettings[index].uiStartTime - 1 +
@@ -1728,7 +1728,7 @@ M4OSA_ERR PreviewPlayer::doMediaRendering() {
 
     if(err != M4NO_ERROR)
     {
-        LOGE("doMediaRendering: applyRenderingMode returned err=0x%x", err);
+        LOGE("doMediaRendering: applyRenderingMode returned err=0x%x", (int)err);
         return err;
     }
     mVideoResizedOrCropped = true;
