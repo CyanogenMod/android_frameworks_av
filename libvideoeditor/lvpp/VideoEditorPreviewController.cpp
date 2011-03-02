@@ -639,7 +639,12 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     // Stop the thread
     if(mThreadContext != NULL) {
         bStopThreadInProgress = true;
-        err = M4OSA_semaphorePost(mSemThreadWait);
+        {
+            Mutex::Autolock autoLock(mLockSem);
+            if (mSemThreadWait != NULL) {
+                err = M4OSA_semaphorePost(mSemThreadWait);
+            }
+        }
 
         err = M4OSA_threadSyncStop(mThreadContext);
         if(err != M4NO_ERROR) {
@@ -657,9 +662,13 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     }
 
     // Close the semaphore first
-    if(mSemThreadWait != NULL) {
-        err = M4OSA_semaphoreClose(mSemThreadWait);
-        LOGV("stopPreview: close semaphore returns 0x%x", err);
+    {
+        Mutex::Autolock autoLock(mLockSem);
+        if(mSemThreadWait != NULL) {
+            err = M4OSA_semaphoreClose(mSemThreadWait);
+            LOGV("stopPreview: close semaphore returns 0x%x", err);
+            mSemThreadWait = NULL;
+        }
     }
 
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
@@ -1102,13 +1111,17 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
         pController->mPrepareReqest = M4OSA_FALSE;
         preparePlayer((void*)pController, pController->mCurrentPlayer,
             pController->mCurrentClipNumber+1);
-        err = M4OSA_semaphoreWait(pController->mSemThreadWait,
-            M4OSA_WAIT_FOREVER);
+        if (pController->mSemThreadWait != NULL) {
+            err = M4OSA_semaphoreWait(pController->mSemThreadWait,
+                M4OSA_WAIT_FOREVER);
+        }
     } else {
         if (!pController->bStopThreadInProgress) {
             LOGV("threadProc: state busy...wait for sem");
-            err = M4OSA_semaphoreWait(pController->mSemThreadWait,
-             M4OSA_WAIT_FOREVER);
+            if (pController->mSemThreadWait != NULL) {
+                err = M4OSA_semaphoreWait(pController->mSemThreadWait,
+                 M4OSA_WAIT_FOREVER);
+             }
         }
         LOGV("threadProc: sem wait returned err = 0x%x", err);
     }
@@ -1170,7 +1183,13 @@ void VideoEditorPreviewController::notify(
                 }
                 M4OSA_free((M4OSA_MemAddr32)pEditInfo);
             }
-            M4OSA_semaphorePost(pController->mSemThreadWait);
+            {
+                Mutex::Autolock autoLock(pController->mLockSem);
+                if (pController->mSemThreadWait != NULL) {
+                    M4OSA_semaphorePost(pController->mSemThreadWait);
+                }
+            }
+
             break;
         }
         case MEDIA_ERROR:
@@ -1219,7 +1238,12 @@ void VideoEditorPreviewController::notify(
                     pController->mCurrentPlayer = 0;
                 }
                 // Prepare the first clip to be played
-                M4OSA_semaphorePost(pController->mSemThreadWait);
+                {
+                    Mutex::Autolock autoLock(pController->mLockSem);
+                    if (pController->mSemThreadWait != NULL) {
+                        M4OSA_semaphorePost(pController->mSemThreadWait);
+                    }
+                }
             }
             break;
         case 0xBBBBBBBB:

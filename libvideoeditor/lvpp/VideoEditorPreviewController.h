@@ -137,6 +137,7 @@ private:
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;
+    mutable Mutex mLockSem;
     static M4OSA_ERR preparePlayer(void* param, int playerInstance, int index);
     static M4OSA_ERR threadProc(M4OSA_Void* param);
     static void notify(void* cookie, int msg, int ext1, int ext2);
