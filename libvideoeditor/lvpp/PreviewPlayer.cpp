@@ -1120,6 +1120,8 @@ void PreviewPlayer::onVideoEvent() {
         mFlags |= AUDIO_AT_EOS;
         LOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
         mOverlayUpdateEventPosted = false;
+        // Set the last decoded timestamp to duration
+        mDecodedVideoTs = (mPlayEndTimeMsec*1000);
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
         return;
     }
@@ -1238,6 +1240,8 @@ void PreviewPlayer::onVideoEvent() {
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
         mOverlayUpdateEventPosted = false;
+        // Set the last decoded timestamp to duration
+        mDecodedVideoTs = (mPlayEndTimeMsec*1000);
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
     }
     else {
