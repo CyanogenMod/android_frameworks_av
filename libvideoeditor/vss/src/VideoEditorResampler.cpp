@@ -75,14 +75,14 @@ void VideoEditorResampler::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
 extern "C" {
 
-M4OSA_Int32 LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCount,
+M4OSA_Context  LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCount,
                                      M4OSA_Int32 sampleRate, M4OSA_Int32 quality) {
 
     VideoEditorResampler *context = new VideoEditorResampler();
     context->mResampler = AudioResampler::create(
         bitDepth, inChannelCount, sampleRate, AudioResampler::DEFAULT);
     if (context->mResampler == NULL) {
-        return NO_MEMORY;
+        return NULL;
     }
     context->mResampler->setSampleRate(android::VideoEditorResampler::kFreq32000Hz);
     context->mResampler->setVolume(0x1000, 0x1000);
@@ -91,11 +91,11 @@ M4OSA_Int32 LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCo
     context->mInput = NULL;
     context->mTmpInBuffer = NULL;
 
-    return ((M4OSA_Int32)context);
+    return ((M4OSA_Context )context);
 }
 
 
-void LVAudiosetSampleRate(M4OSA_Int32 resamplerContext, M4OSA_Int32 inSampleRate) {
+void LVAudiosetSampleRate(M4OSA_Context resamplerContext, M4OSA_Int32 inSampleRate) {
 
     VideoEditorResampler *context =
       (VideoEditorResampler *)resamplerContext;
@@ -110,14 +110,14 @@ void LVAudiosetSampleRate(M4OSA_Int32 resamplerContext, M4OSA_Int32 inSampleRate
                                    context->nbChannels * sizeof(int16_t)) / 1000);
 }
 
-void LVAudiosetVolume(M4OSA_Int32 resamplerContext, M4OSA_Int16 left, M4OSA_Int16 right) {
+void LVAudiosetVolume(M4OSA_Context resamplerContext, M4OSA_Int16 left, M4OSA_Int16 right) {
 
     VideoEditorResampler *context =
        (VideoEditorResampler *)resamplerContext;
     context->mResampler->setVolume(left,right);
 }
 
-void LVDestroy(M4OSA_Int32 resamplerContext) {
+void LVDestroy(M4OSA_Context resamplerContext) {
 
     VideoEditorResampler *context =
        (VideoEditorResampler *)resamplerContext;
@@ -144,7 +144,7 @@ void LVDestroy(M4OSA_Int32 resamplerContext) {
 }
 
 void LVAudioresample_LowQuality(M4OSA_Int16* out, M4OSA_Int16* input,
-                                     M4OSA_Int32 outFrameCount, M4OSA_Int32 resamplerContext) {
+                                     M4OSA_Int32 outFrameCount, M4OSA_Context resamplerContext) {
 
     VideoEditorResampler *context =
       (VideoEditorResampler *)resamplerContext;

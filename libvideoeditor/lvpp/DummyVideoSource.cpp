@@ -136,7 +136,7 @@ status_t DummyVideoSource::read(
         M4OSA_clockGetTime(&mImagePlayStartTime, 1000); //1000 time scale for time in ms
     }
 
-    if ((mImageSeekTime == mImageClipDuration) || (mFrameTimeUs == mImageClipDuration)) {
+    if ((mImageSeekTime == mImageClipDuration) || (mFrameTimeUs == (int64_t)mImageClipDuration)) {
         LOG2("DummyVideoSource::read() End of stream reached; return NULL buffer");
         *out = NULL;
         return ERROR_END_OF_STREAM;

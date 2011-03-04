@@ -23,13 +23,13 @@ extern "C" {
 
 #include "M4OSA_Types.h"
 
-M4OSA_Int32 LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCount,
+M4OSA_Context LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChannelCount,
                                      M4OSA_Int32 sampleRate, M4OSA_Int32 quality);
-void LVAudiosetSampleRate(M4OSA_Int32 resamplerContext,M4OSA_Int32 inSampleRate);
-void LVAudiosetVolume(M4OSA_Int32 resamplerContext, M4OSA_Int16 left, M4OSA_Int16 right) ;
+void LVAudiosetSampleRate(M4OSA_Context resamplerContext,M4OSA_Int32 inSampleRate);
+void LVAudiosetVolume(M4OSA_Context resamplerContext, M4OSA_Int16 left, M4OSA_Int16 right) ;
 void LVAudioresample_LowQuality(M4OSA_Int16* out, M4OSA_Int16* input,
-                                     M4OSA_Int32 outFrameCount, M4OSA_Int32 resamplerContext);
-void LVDestroy(M4OSA_Int32 resamplerContext);
+                                     M4OSA_Int32 outFrameCount, M4OSA_Context resamplerContext);
+void LVDestroy(M4OSA_Context resamplerContext);
 
 void MonoTo2I_16( const M4OSA_Int16 *src,
                         M4OSA_Int16 *dst,

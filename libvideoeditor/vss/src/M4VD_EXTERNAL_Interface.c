@@ -122,7 +122,7 @@ M4OSA_ERR M4DECODER_EXTERNAL_getInterface(M4DECODER_VideoInterface **pDecoderInt
 
     (*pDecoderInterface)->m_pFctCreate    = M4DECODER_EXTERNAL_create;
     (*pDecoderInterface)->m_pFctDestroy   = M4DECODER_EXTERNAL_destroy;
-    (*pDecoderInterface)->m_pFctGetOption = M4DECODER_EXTERNAL_getOption;
+    (*pDecoderInterface)->m_pFctGetOption = (M4DECODER_getOption_fct*)M4DECODER_EXTERNAL_getOption;
     (*pDecoderInterface)->m_pFctSetOption = M4DECODER_EXTERNAL_setOption;
     (*pDecoderInterface)->m_pFctDecode    = M4DECODER_EXTERNAL_decode;
     (*pDecoderInterface)->m_pFctRender    = M4DECODER_EXTERNAL_render;

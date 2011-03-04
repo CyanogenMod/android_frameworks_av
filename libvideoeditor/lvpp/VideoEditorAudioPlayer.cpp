@@ -418,7 +418,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
     int64_t startTimeForBT = 0;
     M4OSA_Float fPTVolLevel =
      ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal)/100;
-    M4OSA_Int16     *pPTMdata;
+    M4OSA_Int16     *pPTMdata=NULL;
     M4OSA_UInt32     uiPCMsize = 0;
 
     while ((size_remaining > 0)&&(err==M4NO_ERROR)) {
@@ -534,7 +534,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                                 mBGAudioPCMFileSeekPoint = tmp32;
 
                                 if (err != M4NO_ERROR){
-                                    LOGE("M4OSA_fileReadSeek err %d", err);
+                                    LOGE("M4OSA_fileReadSeek err %d",(int)err);
                                 }
 
                                 err = M4OSA_fileReadData(mBGAudioPCMFileHandle,

@@ -725,7 +725,7 @@ typedef struct
     M4OSA_Bool                  bDoDucking;
     M4OSA_Bool                  bLoop;
     M4OSA_Bool                  bNoLooping;
-    M4OSA_Int32                 pLVAudioResampler;
+    M4OSA_Context              pLVAudioResampler;
     M4OSA_Bool                  bjumpflag;
 
 } M4VSS3GPP_InternalAudioMixingContext;

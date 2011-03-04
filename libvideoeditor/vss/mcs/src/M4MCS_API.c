@@ -3380,7 +3380,7 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
 
     if (pC->pLVAudioResampler != M4OSA_NULL)
     {
-        LVDestroy((M4OSA_Int32)pC->pLVAudioResampler);
+        LVDestroy(pC->pLVAudioResampler);
         pC->pLVAudioResampler = M4OSA_NULL;
     }
 
@@ -6413,18 +6413,22 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
     }
 
 
-    pC->pLVAudioResampler = (M4OSA_Int32)LVAudioResamplerCreate(
+    pC->pLVAudioResampler = LVAudioResamplerCreate(
         16, /*gInputParams.lvBTChannelCount*/
-        /*pC->pAddedClipCtxt->pSettings->ClipProperties.uiNbChannels*/
         (M4OSA_Int16)pC->InputFileProperties.uiNbChannels/*ssrcParams.SSRC_NrOfChannels*/,
-        /* gInputParams.lvOutSampleRate*//*pSettings->outputASF*/
-        pC->AudioEncParams.Frequency/*ssrcParams.SSRC_Fs_Out*/, 1);
-    LVAudiosetSampleRate((M4OSA_Int32)pC->pLVAudioResampler,
+        (M4OSA_Int32)(pC->AudioEncParams.Frequency)/*ssrcParams.SSRC_Fs_Out*/, 1);
+
+     if( M4OSA_NULL == pC->pLVAudioResampler)
+     {
+         return M4ERR_ALLOC;
+     }
+
+    LVAudiosetSampleRate(pC->pLVAudioResampler,
         /*gInputParams.lvInSampleRate*/
         /*pC->pAddedClipCtxt->pSettings->ClipProperties.uiSamplingFrequency*/
         pC->InputFileProperties.uiSamplingFrequency/*ssrcParams.SSRC_Fs_In*/);
 
-    LVAudiosetVolume((M4OSA_Int32)pC->pLVAudioResampler, (M4OSA_Int16)(0x1000 /* 0x7fff */),
+    LVAudiosetVolume(pC->pLVAudioResampler, (M4OSA_Int16)(0x1000 /* 0x7fff */),
         (M4OSA_Int16)(0x1000/*0x7fff*/));
 
 
@@ -8471,7 +8475,7 @@ m4mcs_intaudiotranscoding_do_resampling:
             * ((*pC).InputFileProperties).uiNbChannels), 0);
 
         LVAudioresample_LowQuality((short *)tempBuffOut, (short *)pSsrcInput,
-            pC->iSsrcNbSamplOut, (M4OSA_Int32)pC->pLVAudioResampler);
+            pC->iSsrcNbSamplOut, pC->pLVAudioResampler);
     }
     else
     {
@@ -8479,7 +8483,7 @@ m4mcs_intaudiotranscoding_do_resampling:
             * ((*pC).InputFileProperties).uiNbChannels), 0);
 
         LVAudioresample_LowQuality((short *)pC->pSsrcBufferOut,
-            (short *)pSsrcInput, pC->iSsrcNbSamplOut, (M4OSA_Int32)pC->pLVAudioResampler);
+            (short *)pSsrcInput, pC->iSsrcNbSamplOut, pC->pLVAudioResampler);
     }
 
     if( pC->pReaderAudioStream->m_nbChannels == 1 )

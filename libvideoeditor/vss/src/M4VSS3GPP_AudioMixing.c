@@ -232,9 +232,13 @@ M4OSA_ERR M4VSS3GPP_audioMixingInit( M4VSS3GPP_AudioMixingContext *pContext,
     pC->ewc.iOutputDuration = (M4OSA_Int32)pC->pInputClipCtxt->pSettings->
         ClipProperties.uiClipDuration;
     /*gInputParams.lvBTChannelCount*/
-    pC->pLVAudioResampler = (M4OSA_Int32)LVAudioResamplerCreate(16,
+    pC->pLVAudioResampler = LVAudioResamplerCreate(16,
         pC->pAddedClipCtxt->pSettings->ClipProperties.uiNbChannels,
-        /* gInputParams.lvOutSampleRate*/pSettings->outputASF, 1);
+        /* gInputParams.lvOutSampleRate*/(M4OSA_Int32)pSettings->outputASF, 1);
+     if( M4OSA_NULL == pC->pLVAudioResampler )
+     {
+         return M4ERR_ALLOC;
+     }
         LVAudiosetSampleRate(pC->pLVAudioResampler,
         /*gInputParams.lvInSampleRate*/
         pC->pAddedClipCtxt->pSettings->ClipProperties.uiSamplingFrequency);

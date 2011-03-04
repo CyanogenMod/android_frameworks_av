@@ -511,7 +511,7 @@ typedef struct
     M4OSA_MemAddr8         pPosInSsrcBufferIn; /**< Position into the SSRC in buffer */
     M4OSA_MemAddr8         pPosInSsrcBufferOut;/**< Position into the SSRC out buffer */
 
-    M4OSA_Int32            *pLVAudioResampler;
+    M4OSA_Context          pLVAudioResampler;
 
 
     /**

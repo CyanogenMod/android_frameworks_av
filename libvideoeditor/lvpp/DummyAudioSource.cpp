@@ -76,9 +76,10 @@ DummyAudioSource::DummyAudioSource (int32_t samplingRate,
     mSamplingRate(samplingRate),
     mChannelCount(channelCount),
     mFrameDurationUs(frameDurationUs),
+    mNumberOfSamplePerFrame(0),
     mAudioDurationUs(audioDurationUs),
     mTimeStampUs(0) ,
-    mNumberOfSamplePerFrame(0),
+
     mBufferGroup(NULL){
     LOG2("DummyAudioSource::DummyAudioSource constructor START");
     /* Do nothing here? */
