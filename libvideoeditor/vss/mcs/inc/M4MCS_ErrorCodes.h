@@ -119,6 +119,6 @@
 /* ----- OTHERS ERRORS ----- */
 #define M4MCS_ERR_OUTPUT_FILE_SIZE_TOO_SMALL                M4OSA_ERR_CREATE( M4_ERR, M4MCS, 0x50)
 #define M4MCS_ERR_NOMORE_SPACE                              M4OSA_ERR_CREATE(M4_ERR, M4MCS, 0x51)
-
+#define M4MCS_ERR_FILE_DRM_PROTECTED                        M4OSA_ERR_CREATE(M4_ERR, M4MCS, 0x52)
 #endif /* __M4MCS_ErrorCodes_H__ */
 

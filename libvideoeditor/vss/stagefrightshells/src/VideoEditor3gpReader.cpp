@@ -467,6 +467,8 @@ cleanUp:
 *                                       the media to open
 * @return   M4NO_ERROR                  there is no error
 * @return   M4ERR_PARAMETER             the context is NULL
+* @return   M4ERR_UNSUPPORTED_MEDIA_TYPE
+*                                       the media is DRM protected
 ************************************************************************
 */
 
@@ -497,6 +499,14 @@ M4OSA_ERR VideoEditor3gpReader_open(M4OSA_Context pContext,
     if (pC->mExtractor == NULL) {
         LOGV("VideoEditor3gpReader_open extractor error");
         return M4ERR_PARAMETER;
+    }
+
+    int32_t isDRMProtected = 0;
+    sp<MetaData> meta = pC->mExtractor->getMetaData();
+    meta->findInt32(kKeyIsDRM, &isDRMProtected);
+    if (isDRMProtected) {
+        LOGV("VideoEditorMp3Reader_open error - DRM Protected");
+        return M4ERR_UNSUPPORTED_MEDIA_TYPE;
     }
 
     LOGV("VideoEditor3gpReader_open end ");

@@ -10690,13 +10690,18 @@ M4OSA_ERR M4MCS_open_normalMode(M4MCS_Context pContext, M4OSA_Void* pFileIn,
         M4OSA_UInt32 uiDummy, uiCoreId;
         M4OSA_TRACE1_1("M4MCS_open_normalMode(): m_pReader->m_pFctOpen returns 0x%x", err);
 
-        /**
-        * If the error is from the core reader, we change it to a public VXS error */
-        M4OSA_ERR_SPLIT(err, uiDummy, uiCoreId, uiDummy);
-        if (M4MP4_READER == uiCoreId)
-        {
-            M4OSA_TRACE1_0("M4MCS_open_normalMode(): returning M4MCS_ERR_INVALID_INPUT_FILE");
-            return M4MCS_ERR_INVALID_INPUT_FILE;
+        if (err == ((M4OSA_UInt32)M4ERR_UNSUPPORTED_MEDIA_TYPE)) {
+            M4OSA_TRACE1_0("M4MCS_open_normalMode(): returning M4MCS_ERR_FILE_DRM_PROTECTED");
+            return M4MCS_ERR_FILE_DRM_PROTECTED;
+        } else {
+            /**
+            * If the error is from the core reader, we change it to a public VXS error */
+            M4OSA_ERR_SPLIT(err, uiDummy, uiCoreId, uiDummy);
+            if (M4MP4_READER == uiCoreId)
+            {
+                M4OSA_TRACE1_0("M4MCS_open_normalMode(): returning M4MCS_ERR_INVALID_INPUT_FILE");
+                return M4MCS_ERR_INVALID_INPUT_FILE;
+            }
         }
         return err;
     }
