@@ -64,9 +64,9 @@ M4OSAL_TRACE_EXPORT_TYPE void M4OSA_Trace(M4OSA_Int32 line, M4OSA_Char* file ,
 
     /* do the actual print */
 #ifdef NO_FILE
-    __android_log_print(ANDROID_LOG_INFO, "LifeVibesTrace", "%s", (char*)message);
+    __android_log_print(ANDROID_LOG_INFO, "M4OSA_Trace", "%s", (char*)message);
 #else /* NO_FILE     */
-    __android_log_print(ANDROID_LOG_INFO, "LifeVibesTrace", "%s", "%s at %lu in %s",
+    __android_log_print(ANDROID_LOG_INFO, "M4OSA_Trace", "%s", "%s at %lu in %s",
                                                    (char *)message, line, file);
 #endif /* NO_FILE     */
 
@@ -89,9 +89,9 @@ M4OSAL_TRACE_EXPORT_TYPE M4OSA_Void M4OSA_TRACE_traceFunction(M4OSA_UInt32 line,
 
     /* do the actual print */
 #ifdef NO_FILE
-    __android_log_print(ANDROID_LOG_INFO, "LifeVibesTrace", "%s", (char*)message);
+    __android_log_print(ANDROID_LOG_INFO, "M4OSA_TRACE_traceFunction", "%s", (char*)message);
 #else /* NO_FILE     */
-    __android_log_print(ANDROID_LOG_INFO, "LifeVibesTrace", "%s", "%s at %lu in %s",
+    __android_log_print(ANDROID_LOG_INFO, "M4OSA_TRACE_traceFunction", "%s", "%s at %lu in %s",
                                             (char *)message, line, (char*)file);
 #endif /* NO_FILE     */
 
