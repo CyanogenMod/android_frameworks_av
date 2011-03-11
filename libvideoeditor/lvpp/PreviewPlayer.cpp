@@ -511,9 +511,24 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayer *audioPlayer) {
         return OK;
     }
 
+    // If new video source is not dummy, then always change source
+    // Else audio player continues using old audio source and there are
+    // frame drops to maintain AV sync
+    sp<MetaData> meta;
+    if (mVideoSource != NULL) {
+        meta = mVideoSource->getFormat();
+        const char *pVidSrcType;
+        if (meta->findCString(kKeyDecoderComponent, &pVidSrcType)) {
+            if (strcmp(pVidSrcType, "DummyVideoSource") != 0) {
+                LOGV(" Video clip with silent audio; need to change source");
+                return OK;
+            }
+        }
+    }
+
     const char *pSrcType1;
     const char *pSrcType2;
-    sp<MetaData> meta = anAudioSource->getFormat();
+    meta = anAudioSource->getFormat();
 
     if (meta->findCString(kKeyDecoderComponent, &pSrcType1)) {
         if (strcmp(pSrcType1, "DummyAudioSource") == 0) {
