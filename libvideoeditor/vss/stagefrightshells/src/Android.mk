@@ -63,8 +63,6 @@ LOCAL_CFLAGS += \
 
 
 
-LOCAL_LDFLAGS += -fuse-ld=bfd
-
 LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal \
     libstagefright_color_conversion
