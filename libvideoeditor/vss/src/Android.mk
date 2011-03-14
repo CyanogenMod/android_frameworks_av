@@ -85,11 +85,5 @@ LOCAL_CFLAGS += -Wno-multichar \
     -DM4xVSS_RESERVED_MOOV_DISK_SPACEno \
     -DDECODE_GIF_ON_SAVING
 
-# Don't prelink this library.  For more efficient code, you may want
-# to add this library to the prelink map and set this to true.
-LOCAL_PRELINK_MODULE := false
-
-
-
 include $(BUILD_STATIC_LIBRARY)
 

@@ -58,10 +58,5 @@ LOCAL_LDLIBS := \
 LOCAL_CFLAGS += -Wno-multichar \
     -DM4MCS_WITH_FAST_OPEN
 
-
-# Don't prelink this library.  For more efficient code, you may want
-# to add this library to the prelink map and set this to true.
-LOCAL_PRELINK_MODULE := false
-
 include $(BUILD_STATIC_LIBRARY)
 
