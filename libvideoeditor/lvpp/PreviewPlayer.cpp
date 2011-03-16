@@ -313,7 +313,7 @@ status_t PreviewPlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
         LOGV("PreviewPlayer: setDataSource_l Dummyaudiocreation started");
 
         mAudioTrack = DummyAudioSource::Create(32000, 2, 20000,
-                                              ((mPlayEndTimeMsec)*1000));
+                                              ((mPlayEndTimeMsec)*1000LL));
         LOGV("PreviewPlayer: setDataSource_l Dummyauiosource created");
         if(mAudioTrack != NULL) {
             haveAudio = true;
@@ -333,7 +333,7 @@ status_t PreviewPlayer::setDataSource_l_jpg() {
     LOGV("PreviewPlayer: setDataSource_l_jpg started");
 
     mAudioSource = DummyAudioSource::Create(32000, 2, 20000,
-                                          ((mPlayEndTimeMsec)*1000));
+                                          ((mPlayEndTimeMsec)*1000LL));
     LOGV("PreviewPlayer: setDataSource_l_jpg Dummyaudiosource created");
     if(mAudioSource != NULL) {
         setAudioSource(mAudioSource);
@@ -345,7 +345,7 @@ status_t PreviewPlayer::setDataSource_l_jpg() {
         return err;
     }
 
-    mDurationUs = (mPlayEndTimeMsec - mPlayBeginTimeMsec)*1000;
+    mDurationUs = (mPlayEndTimeMsec - mPlayBeginTimeMsec)*1000LL;
 
     mVideoSource = DummyVideoSource::Create(mVideoWidth, mVideoHeight,
                                             mDurationUs, mUri);
@@ -540,7 +540,8 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayer *audioPlayer) {
                     MediaSource *pMediaSrc = anAudioSource.get();
                     DummyAudioSource *pDummyAudioSource = (DummyAudioSource*)pMediaSrc;
                     //Increment the duration of audio source
-                    pDummyAudioSource->setDuration((int64_t)((mPlayEndTimeMsec)*1000));
+                    pDummyAudioSource->setDuration(
+                        (int64_t)((mPlayEndTimeMsec)*1000LL));
 
                     // Stop the new audio source
                     // since we continue using old source
@@ -993,7 +994,7 @@ void PreviewPlayer::onVideoEvent() {
                 mOverlayUpdateEventPosted = false;
                 postStreamDoneEvent_l(err);
                 // Set the last decoded timestamp to duration
-                mDecodedVideoTs = (mPlayEndTimeMsec*1000);
+                mDecodedVideoTs = (mPlayEndTimeMsec*1000LL);
                 return;
             }
 
@@ -1042,7 +1043,7 @@ void PreviewPlayer::onVideoEvent() {
 
 
     if(!mStartNextPlayer) {
-        int64_t playbackTimeRemaining = (mPlayEndTimeMsec*1000) - timeUs;
+        int64_t playbackTimeRemaining = (mPlayEndTimeMsec*1000LL) - timeUs;
         if(playbackTimeRemaining <= 1500000) {
             //When less than 1.5 sec of playback left
             // send notification to start next player
@@ -1136,7 +1137,7 @@ void PreviewPlayer::onVideoEvent() {
         LOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
         mOverlayUpdateEventPosted = false;
         // Set the last decoded timestamp to duration
-        mDecodedVideoTs = (mPlayEndTimeMsec*1000);
+        mDecodedVideoTs = (mPlayEndTimeMsec*1000LL);
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
         return;
     }
@@ -1256,7 +1257,7 @@ void PreviewPlayer::onVideoEvent() {
         mFlags |= AUDIO_AT_EOS;
         mOverlayUpdateEventPosted = false;
         // Set the last decoded timestamp to duration
-        mDecodedVideoTs = (mPlayEndTimeMsec*1000);
+        mDecodedVideoTs = (mPlayEndTimeMsec*1000LL);
         postStreamDoneEvent_l(ERROR_END_OF_STREAM);
     }
     else {
@@ -1602,7 +1603,7 @@ status_t PreviewPlayer::setPlaybackEndTime(uint32_t msec) {
 status_t PreviewPlayer::setStoryboardStartTime(uint32_t msec) {
 
     mStoryboardStartTimeMsec = msec;
-    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000;
+    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000LL;
     return OK;
 }
 
@@ -1757,7 +1758,7 @@ M4OSA_ERR PreviewPlayer::doMediaRendering() {
 
 status_t PreviewPlayer::resetJniCallbackTimeStamp() {
 
-    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000;
+    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000LL;
     return OK;
 }
 
