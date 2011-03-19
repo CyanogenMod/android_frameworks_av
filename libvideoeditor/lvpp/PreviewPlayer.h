@@ -68,6 +68,8 @@ struct PreviewPlayer : public AwesomePlayer {
 
     status_t suspend();
     status_t resume();
+    void acquireLock();
+    void releaseLock();
 
     status_t prepare();
     status_t setDataSource(
@@ -202,6 +204,7 @@ private:
     bool mIsFiftiesEffectStarted;
     int64_t mImageFrameTimeUs;
     bool mStartNextPlayer;
+    mutable Mutex mLockControl;
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;

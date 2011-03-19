@@ -180,6 +180,16 @@ status_t VideoEditorPlayer::resume() {
     return mPlayer->resume();
 }
 
+void VideoEditorPlayer::acquireLock() {
+    LOGV("acquireLock");
+    mPlayer->acquireLock();
+}
+
+void VideoEditorPlayer::releaseLock() {
+    LOGV("releaseLock");
+    mPlayer->releaseLock();
+}
+
 status_t VideoEditorPlayer::invoke(const Parcel &request, Parcel *reply) {
     return INVALID_OPERATION;
 }

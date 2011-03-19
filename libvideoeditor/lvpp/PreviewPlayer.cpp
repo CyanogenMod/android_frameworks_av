@@ -594,9 +594,15 @@ void PreviewPlayer::onStreamDone() {
         LOGV("MEDIA_PLAYBACK_COMPLETE");
         //pause before sending event
         pause_l(true /* at eos */);
+
+        //This lock is used to syncronize onStreamDone() in PreviewPlayer and
+        //stopPreview() in PreviewController
+        Mutex::Autolock autoLock(mLockControl);
         notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
 
         mFlags |= AT_EOS;
+        LOGV("onStreamDone end");
+        return;
     }
 }
 
@@ -1488,6 +1494,16 @@ status_t PreviewPlayer::suspend() {
     mSuspensionState = state;
 
     return OK;
+}
+
+void PreviewPlayer::acquireLock() {
+    LOGV("acquireLock");
+    mLockControl.lock();
+}
+
+void PreviewPlayer::releaseLock() {
+    LOGV("releaseLock");
+    mLockControl.unlock();
 }
 
 status_t PreviewPlayer::resume() {
