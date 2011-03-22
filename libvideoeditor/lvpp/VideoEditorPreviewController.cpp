@@ -682,9 +682,14 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
                 mVePlayer[mActivePlayerIndex]->getLastRenderedTimeMs(&lastRenderedFrameTimeMs);
             }
 
+            //This is used to syncronize onStreamDone() in PreviewPlayer and
+            //stopPreview() in PreviewController
+            sp<VideoEditorPlayer> temp = mVePlayer[playerInst];
+            temp->acquireLock();
             LOGV("stopPreview: clearing mVePlayer");
             mVePlayer[playerInst].clear();
             mVePlayer[playerInst] = NULL;
+            temp->releaseLock();
         }
     }
     LOGV("stopPreview: clear audioSink and audioPlayer");
@@ -1187,6 +1192,7 @@ void VideoEditorPreviewController::notify(
                 Mutex::Autolock autoLock(pController->mLockSem);
                 if (pController->mSemThreadWait != NULL) {
                     M4OSA_semaphorePost(pController->mSemThreadWait);
+                    return;
                 }
             }
 
