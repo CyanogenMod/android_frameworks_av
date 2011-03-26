@@ -53,7 +53,7 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright  \
     libstagefright_omx  \
     libstagefright_foundation \
-    libsurfaceflinger_client \
+    libgui \
     libaudioflinger \
     libui
 
