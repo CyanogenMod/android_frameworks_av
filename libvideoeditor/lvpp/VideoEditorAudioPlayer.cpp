@@ -421,6 +421,9 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
     M4OSA_Int16     *pPTMdata=NULL;
     M4OSA_UInt32     uiPCMsize = 0;
 
+    bool postSeekComplete = false;
+    bool postEOS = false;
+
     while ((size_remaining > 0)&&(err==M4NO_ERROR)) {
         MediaSource::ReadOptions options;
 
@@ -443,8 +446,9 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                 }
 
                 mSeeking = false;
+
                 if (mObserver) {
-                    mObserver->postAudioSeekComplete();
+                    postSeekComplete = true;
                 }
             }
         }
@@ -622,7 +626,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
             if (status != OK) {
                 LOGV("fillBuffer: mSource->read returned err %d", status);
                 if (mObserver && !mReachedEOS) {
-                    mObserver->postAudioEOS();
+                    postEOS = true;
                 }
 
                 mReachedEOS = true;
@@ -666,8 +670,18 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
         size_remaining -= copy;
     }
 
-    Mutex::Autolock autoLock(mLock);
-    mNumFramesPlayed += size_done / mFrameSize;
+    {
+        Mutex::Autolock autoLock(mLock);
+        mNumFramesPlayed += size_done / mFrameSize;
+    }
+
+    if (postEOS) {
+        mObserver->postAudioEOS();
+    }
+
+    if (postSeekComplete) {
+        mObserver->postAudioSeekComplete();
+    }
 
     return size_done;
 }
