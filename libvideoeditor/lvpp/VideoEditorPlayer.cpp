@@ -25,6 +25,8 @@
 #include <media/Metadata.h>
 #include <media/stagefright/MediaExtractor.h>
 
+#include <hardware/audio.h>
+
 namespace android {
 
 VideoEditorPlayer::VideoEditorPlayer()
@@ -306,7 +308,7 @@ VideoEditorPlayer::VeAudioOutput::VeAudioOutput()
     : mCallback(NULL),
       mCallbackCookie(NULL) {
     mTrack = 0;
-    mStreamType = AudioSystem::MUSIC;
+    mStreamType = AUDIO_STREAM_MUSIC;
     mLeftVolume = 1.0;
     mRightVolume = 1.0;
     mLatency = 0;
@@ -415,7 +417,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 sampleRate,
                 format,
                 (channelCount == 2) ?
-                 AudioSystem::CHANNEL_OUT_STEREO : AudioSystem::CHANNEL_OUT_MONO,
+                 AUDIO_CHANNEL_OUT_STEREO : AUDIO_CHANNEL_OUT_MONO,
                 frameCount,
                 0 /* flags */,
                 CallbackWrapper,
@@ -426,7 +428,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 sampleRate,
                 format,
                 (channelCount == 2) ?
-                 AudioSystem::CHANNEL_OUT_STEREO : AudioSystem::CHANNEL_OUT_MONO,
+                 AUDIO_CHANNEL_OUT_STEREO : AUDIO_CHANNEL_OUT_MONO,
                 frameCount);
     }
 
