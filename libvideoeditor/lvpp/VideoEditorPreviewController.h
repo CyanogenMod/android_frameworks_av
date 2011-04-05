@@ -93,7 +93,6 @@ public:
 private:
     sp<VideoEditorPlayer> mVePlayer[NBPLAYER_INSTANCES];
     int mCurrentPlayer; //Instance of the player currently being used
-    sp<ISurface> mISurface;
     sp<Surface>  mSurface;
     mutable Mutex mLock;
     M4OSA_Context mThreadContext;

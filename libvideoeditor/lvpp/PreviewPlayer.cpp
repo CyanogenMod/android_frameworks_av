@@ -757,7 +757,7 @@ status_t PreviewPlayer::play_l() {
 
 
 status_t PreviewPlayer::initRenderer_l() {
-    if (mSurface != NULL || mISurface != NULL) {
+    if (mSurface != NULL) {
         sp<MetaData> meta = mVideoSource->getFormat();
 
         int32_t format;
@@ -793,12 +793,6 @@ status_t PreviewPlayer::initRenderer_l() {
         }
     }
     return OK;
-}
-
-
-void PreviewPlayer::setISurface(const sp<ISurface> &isurface) {
-    Mutex::Autolock autoLock(mLock);
-    mISurface = isurface;
 }
 
 
@@ -1539,7 +1533,7 @@ status_t PreviewPlayer::resume() {
 
     mFlags = state->mFlags & (AUTO_LOOPING | LOOPING | AT_EOS);
 
-    if (state->mLastVideoFrame && (mSurface != NULL || mISurface != NULL)) {
+    if (state->mLastVideoFrame && (mSurface != NULL)) {
         mVideoRenderer =
             PreviewLocalRenderer::initPreviewLocalRenderer(
                     true,  // previewOnly
