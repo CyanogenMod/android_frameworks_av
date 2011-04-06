@@ -422,8 +422,6 @@ M4OSA_ERR VideoEditorPreviewController::setSurface(const sp<Surface> &surface) {
     Mutex::Autolock autoLock(mLock);
 
     mSurface = surface;
-    mISurface = surface->getISurface();
-    LOGV("setSurface: mISurface = %p", mISurface.get());
     return M4NO_ERROR;
 }
 
@@ -734,9 +732,6 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
 
     Mutex::Autolock autoLock(mLock);
 
-    // Get the Isurface to be passed to renderer
-    mISurface = surface->getISurface();
-
     // Delete previous renderer instance
     if(mTarget != NULL) {
         delete mTarget;
@@ -797,8 +792,6 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
     M4VIFI_UInt8 *pixelArray = NULL;
     Mutex::Autolock autoLock(mLock);
 
-    // Get the Isurface to be passed to renderer
-    mISurface = surface->getISurface();
     if (pCurrEditInfo != NULL) {
         pCurrEditInfo->overlaySettingsIndex = -1;
     }
@@ -952,10 +945,6 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
     (const char *)pController->mClipList[index]->pFile, NULL);
     LOGV("preparePlayer: setDataSource instance %s",
      (const char *)pController->mClipList[index]->pFile);
-
-    pController->mVePlayer[playerInstance]->setVideoISurface(
-     pController->mISurface);
-    LOGV("preparePlayer: setVideoISurface");
 
     pController->mVePlayer[playerInstance]->setVideoSurface(
      pController->mSurface);

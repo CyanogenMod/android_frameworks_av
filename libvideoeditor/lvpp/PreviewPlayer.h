@@ -60,8 +60,6 @@ struct PreviewPlayer : public AwesomePlayer {
 
     status_t play();
 
-    void setISurface(const sp<ISurface> &isurface);
-
     status_t seekTo(int64_t timeUs);
 
     status_t getVideoDimensions(int32_t *width, int32_t *height) const;
@@ -113,8 +111,6 @@ private:
         VIDEO_AT_EOS        = 512,
         AUTO_LOOPING        = 1024,
     };
-
-    sp<ISurface> mISurface;
 
     void cancelPlayerEvents(bool keepBufferingGoing = false);
     status_t setDataSource_l(const sp<MediaExtractor> &extractor);
