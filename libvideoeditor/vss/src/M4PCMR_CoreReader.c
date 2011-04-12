@@ -95,7 +95,7 @@ M4OSA_ERR M4PCMR_openRead(M4OSA_Context* pContext, M4OSA_Void* pUrl,
     context->m_pDecoderSpecInfo = M4OSA_NULL;
 
     /* Set sample frequency */
-    pTempURL = (M4OSA_Char*)pUrl + (M4OSA_chrLength((M4OSA_Char*)pUrl)-11);
+    pTempURL = (M4OSA_Char*)pUrl + (strlen((const char *)pUrl)-11);
     M4OSA_chrNCopy(value, pTempURL, 5);
     M4OSA_chrGetUInt32(pTempURL, &(context->m_decoderConfig.SampleFrequency),
          M4OSA_NULL, M4OSA_kchrDec);
@@ -106,7 +106,7 @@ M4OSA_ERR M4PCMR_openRead(M4OSA_Context* pContext, M4OSA_Void* pUrl,
     M4OSA_chrGetUInt16(pTempURL, &(context->m_decoderConfig.nbChannels),
          M4OSA_NULL, M4OSA_kchrDec);
 
-    M4OSA_chrNCopy(pUrl,pUrl, (M4OSA_chrLength((M4OSA_Char*)pUrl)-12));
+    M4OSA_chrNCopy(pUrl,pUrl, (strlen((const char *)pUrl)-12));
     /* Open the file */
     context->m_fileContext = M4OSA_NULL;
     err = pFileFunction->openRead(&(context->m_fileContext), pUrl, M4OSA_kFileRead);

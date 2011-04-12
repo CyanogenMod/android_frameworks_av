@@ -266,37 +266,37 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
 
 
 
-        M4OSA_chrNCopy(pTempFile,pClipSettings->pFile,M4OSA_chrLength(pClipSettings->pFile));
+        M4OSA_chrNCopy(pTempFile,pClipSettings->pFile,strlen(pClipSettings->pFile));
 
 
     switch (pClipCtxt->pSettings->ClipProperties.uiSamplingFrequency)
     {
         case 8000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_8000",6);
+        strncat((char *)pTempFile,(const char *)"_8000",6);
         break;
         case 11025:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_11025",6);
+        strncat((char *)pTempFile,(const char *)"_11025",6);
         break;
         case 12000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_12000",6);
+        strncat((char *)pTempFile,(const char *)"_12000",6);
         break;
         case 16000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_16000",6);
+        strncat((char *)pTempFile,(const char *)"_16000",6);
         break;
         case 22050:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_22050",6);
+        strncat((char *)pTempFile,(const char *)"_22050",6);
         break;
         case 24000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_24000",6);
+        strncat((char *)pTempFile,(const char *)"_24000",6);
         break;
         case 32000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_32000",6);
+        strncat((char *)pTempFile,(const char *)"_32000",6);
         break;
         case 44100:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_44100",6);
+        strncat((char *)pTempFile,(const char *)"_44100",6);
         break;
         case 48000:
-        M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_48000",6);
+        strncat((char *)pTempFile,(const char *)"_48000",6);
         break;
         default:
             M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen: invalid input for BG tracksampling \
@@ -312,10 +312,10 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
         switch(pClipCtxt->pSettings->ClipProperties.uiNbChannels)
         {
             case 1:
-                M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_1.pcm",6);
+                strncat((char *)pTempFile,(const char *)"_1.pcm",6);
             break;
             case 2:
-                M4OSA_chrNCat(pTempFile,(M4OSA_Char *)"_2.pcm",6);
+                strncat((char *)pTempFile,(const char *)"_2.pcm",6);
             break;
             default:
             M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen: invalid input for BG track no.\

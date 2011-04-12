@@ -28,18 +28,12 @@ LOCAL_MODULE:= libvideoeditor_osal
 LOCAL_SRC_FILES:=          \
     M4OSA_CharStar.c \
     M4OSA_Clock.c \
-    M4OSA_FileCache.c \
     M4OSA_FileCommon.c \
-    M4OSA_FileExtra.c \
     M4OSA_FileReader.c \
-    M4OSA_FileReader_RAM.c \
     M4OSA_FileWriter.c \
-    M4OSA_FileWriter_RAM.c \
     M4OSA_Mutex.c \
     M4OSA_Random.c \
     M4OSA_Semaphore.c \
-    M4OSA_String.c \
-    M4OSA_String_priv.c \
     M4OSA_Thread.c \
     M4PSW_DebugTrace.c \
     M4PSW_MemoryInterface.c \

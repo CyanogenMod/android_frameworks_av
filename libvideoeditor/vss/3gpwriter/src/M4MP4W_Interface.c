@@ -32,7 +32,6 @@
 #include "M4OSA_FileWriter.h"        /**< Include for OSAL file accesses implementation */
 #include "M4OSA_Memory.h"            /**< Include for OSAL memory accesses implementation */
 #include "M4OSA_Debug.h"            /**< OSAL debug tools */
-#include "M4OSA_CharStar.h"            /**< For M4OSA_chrLength() */
 
 /**
  * Writer includes */
@@ -462,7 +461,7 @@ M4OSA_ERR M4WRITER_3GP_setOption(
                be a text string */
             memval.addr = (M4OSA_MemAddr32)optionValue;
             /**< this is max string size copied by the core */
-            memval.size = M4OSA_chrLength(optionValue);
+            memval.size = strlen((const char *)optionValue);
             err = M4MP4W_setOption(
                 apContext->pMP4Context,M4MP4W_integrationTag, &memval);
             if (M4OSA_ERR_IS_ERROR(err))

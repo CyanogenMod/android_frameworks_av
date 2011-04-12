@@ -29,6 +29,8 @@
 #define M4OSA_TYPES_H
 
 #include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 #include "M4OSA_Export.h"
 #ifdef __cplusplus
 extern "C" {

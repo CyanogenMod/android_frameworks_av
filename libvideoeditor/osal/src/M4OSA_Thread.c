@@ -635,7 +635,7 @@ M4OSA_ERR M4OSA_SetThreadSyncName(M4OSA_Context context,
 
    if(optionValue != M4OSA_NULL)
    {
-      nameSize = M4OSA_chrLength(name)+1;
+      nameSize = strlen((const char *)name)+1;
 
       threadContext->name =
          (M4OSA_Char*)M4OSA_malloc(nameSize, M4OSA_THREAD,

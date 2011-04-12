@@ -152,33 +152,33 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     if ((fileModeAccess & M4OSA_kFileRead) &&
         (fileModeAccess & M4OSA_kFileWrite)&&(fileModeAccess & M4OSA_kFileCreate))
     {
-        M4OSA_chrNCat(mode, pWriteString, 1);
-        M4OSA_chrNCat(mode, pPlusString, 1);
+        strncat((char *)mode, (const char *)pWriteString, (size_t)1);
+        strncat((char *)mode, (const char *)pPlusString, (size_t)1);
     }
     else
     {
         if(fileModeAccess & M4OSA_kFileAppend)
         {
-            M4OSA_chrNCat(mode, pAppendString, 1);
+            strncat((char *)mode, (const char *)pAppendString, (size_t)1);
         }
         else if(fileModeAccess & M4OSA_kFileRead)
         {
-            M4OSA_chrNCat(mode, pReadString, 1);
+            strncat((char *)mode, (const char *)pReadString, (size_t)1);
         }
         else if(fileModeAccess & M4OSA_kFileWrite)
         {
-            M4OSA_chrNCat(mode, pWriteString, 1);
+            strncat((char *)mode, (const char *)pWriteString, (size_t)1);
         }
 
         if((fileModeAccess & M4OSA_kFileRead)&&(fileModeAccess & M4OSA_kFileWrite))
         {
-            M4OSA_chrNCat(mode,pPlusString, 1);
+            strncat((char *)mode,(const char *)pPlusString, (size_t)1);
         }
     }
 
     if(!(fileModeAccess & M4OSA_kFileIsTextMode))
     {
-        M4OSA_chrNCat(mode, pBinaryString, 1);
+        strncat((char *)mode, (const char *)pBinaryString,(size_t)1);
     }
 
     /*Open the file*/
@@ -272,7 +272,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     M4OSA_INT_TO_FILE_POSITION(0, pFileContext->write_position);
 
     /* Allocate the memory to store the URL string */
-    pFileContext->url_name = (M4OSA_Char*) M4OSA_malloc(M4OSA_chrLength(pUrl)+1,
+    pFileContext->url_name = (M4OSA_Char*) M4OSA_malloc(strlen((const char *)pUrl)+1,
                         core_id, (M4OSA_Char*)"M4OSA_fileCommonOpen: URL name");
     if (M4OSA_NULL == pFileContext->url_name)
     {
@@ -281,7 +281,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
         M4OSA_DEBUG(M4ERR_ALLOC, "M4OSA_fileCommonOpen");
         return M4ERR_ALLOC;
     }
-    M4OSA_chrNCopy(pFileContext->url_name, pUrl, M4OSA_chrLength(pUrl)+1);
+    M4OSA_chrNCopy(pFileContext->url_name, pUrl, strlen((const char *)pUrl)+1);
 
     /* Get the file name */
     err = M4OSA_fileCommonGetFilename(pUrl, &pFileContext->file_name);
@@ -608,7 +608,7 @@ M4OSA_ERR M4OSA_fileCommonGetURL(M4OSA_Context pContext, M4OSA_Char** pUrl)
     M4OSA_DEBUG_IF2(M4OSA_NULL == pUrl,    M4ERR_PARAMETER,
                                   "M4OSA_fileCommonGetURL: pUrl is M4OSA_NULL");
 
-    uiLength = M4OSA_chrLength(pFileContext->url_name)+1;
+    uiLength = strlen((const char *)pFileContext->url_name)+1;
 
     /* Allocate the memory to store the url_name */
     *pUrl = (M4OSA_Char*)M4OSA_malloc(uiLength, M4OSA_FILE_COMMON,
@@ -660,7 +660,7 @@ M4OSA_ERR M4OSA_fileCommonGetFilename(M4OSA_Char* pUrl, M4OSA_Char** pFileName)
     *pFileName = M4OSA_NULL;
 
     /*Parse URL*/
-    iUrlLen = M4OSA_chrLength(pUrl);
+    iUrlLen = strlen((const char *)pUrl);
     for(i=iUrlLen-1; i>=0; i--)
     {
         if (pUrl[i] != '\\' && pUrl[i] != '/')

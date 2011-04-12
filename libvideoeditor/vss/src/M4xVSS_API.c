@@ -151,7 +151,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
         (the conversion customer format into UTF8
         is done in VA/VAL)*/
         xVSS_context->pTempPath =
-            (M4OSA_Void *)M4OSA_malloc(M4OSA_chrLength(pParams->pTempPath) + 1,
+            (M4OSA_Void *)M4OSA_malloc(strlen(pParams->pTempPath) + 1,
             M4VS, (M4OSA_Char *)"xVSS Path for temporary files");
 
         if( xVSS_context->pTempPath == M4OSA_NULL )
@@ -160,7 +160,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
             return M4ERR_ALLOC;
         }
         M4OSA_memcpy(xVSS_context->pTempPath, pParams->pTempPath,
-            M4OSA_chrLength(pParams->pTempPath) + 1);
+            strlen(pParams->pTempPath) + 1);
         /* TODO: Check that no previous xVSS temporary files are present ? */
     }
     else
@@ -641,8 +641,8 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
         if( xVSS_context->pSettings->xVSS.pBGMtrack != M4OSA_NULL \
             && pSettings->xVSS.pBGMtrack != M4OSA_NULL )
         {
-            M4OSA_chrCompare(xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
-                pSettings->xVSS.pBGMtrack->pFile, (M4OSA_Int32 *) &pCmpResult);
+            pCmpResult = strcmp((const char *)xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
+                (const char *)pSettings->xVSS.pBGMtrack->pFile);
 
             if( pCmpResult == 0 )
             {
@@ -710,7 +710,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     if( pParams->pFileOut != M4OSA_NULL )
                     {
                         /* Delete temporary file */
-                        M4OSA_fileExtraDelete(pParams->pFileOut);
+                        remove((const char *)pParams->pFileOut);
                         M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
                         pParams->pFileOut = M4OSA_NULL;
                     }
@@ -720,7 +720,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
-                        M4OSA_fileExtraDelete(pParams->pFileTemp);
+                        remove((const char *)pParams->pFileTemp);
                         M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
 
 #endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
@@ -755,7 +755,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         if( pParams->pFileOut != M4OSA_NULL )
                         {
                             /* Delete temporary file */
-                            M4OSA_fileExtraDelete(pParams->pFileOut);
+                            remove((const char *)pParams->pFileOut);
                             M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
                             pParams->pFileOut = M4OSA_NULL;
                         }
@@ -765,7 +765,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                             /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
-                            M4OSA_fileExtraDelete(pParams->pFileTemp);
+                            remove((const char *)pParams->pFileTemp);
                             M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
 
 #endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
@@ -1278,7 +1278,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     xVSS_context->pSettings->pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings->
                         pAlphaFilePath = M4OSA_malloc(
-                        (M4OSA_chrLength(pSettings->pTransitionList[i]-> \
+                        (strlen(pSettings->pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings->pAlphaFilePath)
                         + 1), M4VS, (M4OSA_Char *)"Alpha magic file path");
 
@@ -1301,7 +1301,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         pAlphaFilePath,
                         pSettings->pTransitionList[i]->xVSS.
                         transitionSpecific.pAlphaMagicSettings->
-                        pAlphaFilePath, M4OSA_chrLength(
+                        pAlphaFilePath, strlen(
                         pSettings->pTransitionList[i]->xVSS.
                         transitionSpecific.pAlphaMagicSettings->
                         pAlphaFilePath) + 1);
@@ -1314,14 +1314,13 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                             == M4xVSS_kVideoTransitionType_AlphaMagic )
                         {
                             M4OSA_UInt32 pCmpResult = 0;
-                            M4OSA_chrCompare(xVSS_context->pSettings->
+                            pCmpResult = strcmp((const char *)xVSS_context->pSettings->
                                 pTransitionList[i]->xVSS.
                                 transitionSpecific.pAlphaMagicSettings->
-                                pAlphaFilePath, xVSS_context->pSettings->
+                                pAlphaFilePath, (const char *)xVSS_context->pSettings->
                                 pTransitionList[j]->xVSS.
                                 transitionSpecific.
-                                pAlphaMagicSettings->pAlphaFilePath,
-                                (M4OSA_Int32 *) &pCmpResult);
+                                pAlphaMagicSettings->pAlphaFilePath);
 
                             if( pCmpResult == 0 )
                             {
@@ -1689,8 +1688,8 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 /* We parse all Pto3gpp Param chained list */
                 while( pParams != M4OSA_NULL )
                 {
-                    M4OSA_chrCompare(pSettings->pClipList[i]->pFile,
-                        pParams->pFileIn, (M4OSA_Int32 *) &pCmpResult);
+                    pCmpResult = strcmp((const char *)pSettings->pClipList[i]->pFile,
+                        (const char *)pParams->pFileIn);
 
                     if( pCmpResult == 0
                         && (pSettings->pClipList[i]->uiEndCutTime
@@ -1800,7 +1799,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             /**
             * UTF conversion: convert into the customer format, before being used*/
             pDecodedPath = xVSS_context->pSettings->pClipList[i]->pFile;
-            length = M4OSA_chrLength(pDecodedPath);
+            length = strlen(pDecodedPath);
 
             /**
             * UTF conversion: convert into the customer format, before being used*/
@@ -1873,7 +1872,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             /**
             * UTF conversion: convert into the customer format, before being used*/
             pDecodedPath = out_img;
-            length = M4OSA_chrLength(pDecodedPath);
+            length = strlen(pDecodedPath);
 
             if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                 != M4OSA_NULL && xVSS_context->
@@ -1919,7 +1918,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             * UTF conversion: convert into the customer format, before being used*/
 
             pDecodedPath = out_img_tmp;
-            length = M4OSA_chrLength(pDecodedPath);
+            length = strlen(pDecodedPath);
 
             if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                 != M4OSA_NULL && xVSS_context->
@@ -2119,7 +2118,7 @@ replaceJPG_3GP:
             }
             else
             {
-                length = M4OSA_chrLength(pDecodedPath);
+                length = strlen(pDecodedPath);
             }
             /**
             * End of the UTF conversion, use the converted file path*/
@@ -2162,8 +2161,8 @@ replaceJPG_3GP:
                 /* We parse all Pto3gpp Param chained list */
                 while( pParams != M4OSA_NULL )
                 {
-                    M4OSA_chrCompare(pSettings->pClipList[i]->pFile,
-                        pParams->pFileIn, (M4OSA_Int32 *)&pCmpResult);
+                    pCmpResult = strcmp((const char *)pSettings->pClipList[i]->pFile,
+                        (const char *)pParams->pFileIn);
 
                     if( pCmpResult == 0
                         && (pSettings->pClipList[i]->uiEndCutTime
@@ -2284,7 +2283,7 @@ replaceJPG_3GP:
                     /**
                     * UTF conversion: convert into the customer format, before being used*/
                     pDecodedPath = xVSS_context->pSettings->pClipList[i]->pFile;
-                    length = M4OSA_chrLength(pDecodedPath);
+                    length = strlen(pDecodedPath);
 
                     /**
                     * UTF conversion: convert into the customer format, before being used*/
@@ -2357,7 +2356,7 @@ replaceJPG_3GP:
                     /**
                     * UTF conversion: convert into the customer format, before being used*/
                     pDecodedPath = out_img;
-                    length = M4OSA_chrLength(pDecodedPath);
+                    length = strlen(pDecodedPath);
 
                     if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                         != M4OSA_NULL && xVSS_context->
@@ -2403,7 +2402,7 @@ replaceJPG_3GP:
                     * UTF conversion: convert into the customer format, before being used*/
 
                     pDecodedPath = out_img_tmp;
-                    length = M4OSA_chrLength(pDecodedPath);
+                    length = strlen(pDecodedPath);
 
                     if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                         != M4OSA_NULL && xVSS_context->
@@ -2595,7 +2594,7 @@ replaceARGB_3GP:
                     }
                     else
                     {
-                        length = M4OSA_chrLength(pDecodedPath);
+                        length = strlen(pDecodedPath);
                     }
                     /**
                     * End of the UTF conversion, use the converted file path*/
@@ -2746,8 +2745,8 @@ replaceARGB_3GP:
 
                     /**
                     * End of the UTF conversion, use the converted file path*/
-                    M4OSA_chrCompare(pSettings->pClipList[i]->pFile,
-                        pDecodedPath, (M4OSA_Int32 *) &pCmpResult);
+                    pCmpResult = strcmp((const char *)pSettings->pClipList[i]->pFile,
+                        (const char *)pDecodedPath);
 
                     /* If input filenames are the same, and if this is not a BGM, we can reuse
                     the transcoded file */
@@ -3254,7 +3253,7 @@ replaceARGB_3GP:
                 /**
                 * UTF conversion: convert into the customer format, before being used*/
                 pDecodedPath = xVSS_context->pSettings->pClipList[i]->pFile;
-                length = M4OSA_chrLength(pDecodedPath);
+                length = strlen(pDecodedPath);
 
                 if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                     != M4OSA_NULL && xVSS_context->
@@ -3302,7 +3301,7 @@ replaceARGB_3GP:
                 /**
                 * UTF conversion: convert into the customer format, before being used*/
                 pDecodedPath = out_3gp;
-                length = M4OSA_chrLength(pDecodedPath);
+                length = strlen(pDecodedPath);
 
                 if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                     != M4OSA_NULL && xVSS_context->
@@ -3350,7 +3349,7 @@ replaceARGB_3GP:
                 * UTF conversion: convert into the customer format, before being used*/
 
                 pDecodedPath = out_3gp_tmp;
-                length = M4OSA_chrLength(pDecodedPath);
+                length = strlen(pDecodedPath);
 
                 if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                     != M4OSA_NULL && xVSS_context->
@@ -3476,7 +3475,7 @@ replace3GP_3GP:
                 }
                 else
                 {
-                    length = M4OSA_chrLength(pDecodedPath);
+                    length = strlen(pDecodedPath);
                 }
                 /**
                 * End of the UTF conversion, use the converted file path*/
@@ -3606,7 +3605,7 @@ replace3GP_3GP:
             {
                 xVSS_context->pSettings->
                     Effects[j].xVSS.pFramingFilePath = M4OSA_malloc(
-                    M4OSA_chrLength(pSettings->Effects[j].xVSS.pFramingFilePath)
+                    strlen(pSettings->Effects[j].xVSS.pFramingFilePath)
                     + 1, M4VS, (M4OSA_Char *)"Local Framing file path");
 
                 if( xVSS_context->pSettings->Effects[j].xVSS.pFramingFilePath
@@ -3622,7 +3621,7 @@ replace3GP_3GP:
                 M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->
                     Effects[j].xVSS.pFramingFilePath,
                     (M4OSA_MemAddr8)pSettings->
-                    Effects[j].xVSS.pFramingFilePath, M4OSA_chrLength(
+                    Effects[j].xVSS.pFramingFilePath, strlen(
                     pSettings->Effects[j].xVSS.pFramingFilePath) + 1);
 
                 pExt2 =
@@ -3746,7 +3745,7 @@ replace3GP_3GP:
             * UTF conversion: convert into the customer format, before being used*/
             pDecodedPath =
                 xVSS_context->pSettings->Effects[j].xVSS.pFramingFilePath;
-            length = M4OSA_chrLength(pDecodedPath);
+            length = strlen(pDecodedPath);
 
             if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                 != M4OSA_NULL && xVSS_context->
@@ -3828,10 +3827,10 @@ replace3GP_3GP:
             if( pExt2 != M4OSA_NULL )
             {
                 /* Decode the image associated to the effect, and fill framing structure */
-                pExt2 += (M4OSA_chrLength(pExt2) - 4);
+                pExt2 += (strlen((const char *)pExt2) - 4);
 
-                M4OSA_chrCompare(pExt2,(M4OSA_Char *)".rgb", &result1);
-                M4OSA_chrCompare(pExt2,(M4OSA_Char *)".RGB", &result2);
+                result1 = strcmp((const char *)pExt2,(const char *)".rgb");
+                result2 = strcmp((const char *)pExt2,(const char *)".RGB");
 
                 if( 0 == result1 || 0 == result2 )
                 {
@@ -4543,7 +4542,7 @@ replace3GP_3GP:
             sizeof(M4xVSS_BGMSettings));
         /* Allocate file name, and copy file name buffer to our structure */
         xVSS_context->pSettings->xVSS.pBGMtrack->pFile =
-            M4OSA_malloc((M4OSA_chrLength(pSettings->xVSS.pBGMtrack->pFile)
+            M4OSA_malloc((strlen(pSettings->xVSS.pBGMtrack->pFile)
             + 1), M4VS, (M4OSA_Char *)"xVSS BGM file path");
 
         if( xVSS_context->pSettings->xVSS.pBGMtrack->pFile == M4OSA_NULL )
@@ -4553,8 +4552,8 @@ replace3GP_3GP:
             return M4ERR_ALLOC;
         }
         M4OSA_memcpy(xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
-            pSettings->xVSS.pBGMtrack->pFile,
-            M4OSA_chrLength(pSettings->xVSS.pBGMtrack->pFile) + 1);
+            (void *)pSettings->xVSS.pBGMtrack->pFile,
+            strlen(pSettings->xVSS.pBGMtrack->pFile) + 1);
 
 #ifdef PREVIEW_ENABLED
         /* Decode BGM track to pcm output file */
@@ -4613,7 +4612,7 @@ replace3GP_3GP:
                     if( pParams_temp->pFileOut != M4OSA_NULL )
                     {
                         /* Remove PCM temporary file */
-                        M4OSA_fileExtraDelete(pParams_temp->pFileOut);
+                        remove((const char *)pParams_temp->pFileOut);
                         M4OSA_free((M4OSA_MemAddr32)pParams_temp->pFileOut);
                         pParams_temp->pFileOut = M4OSA_NULL;
                     }
@@ -4743,7 +4742,7 @@ replace3GP_3GP:
         /* Prepare output filename */
         /* 21 is the size of "preview_16000_2.pcm" + \0 */
         out_pcm =
-            (M4OSA_Char *)M4OSA_malloc(M4OSA_chrLength(xVSS_context->pTempPath)
+            (M4OSA_Char *)M4OSA_malloc(strlen(xVSS_context->pTempPath)
             + 21, M4VS, (M4OSA_Char *)"Temp char* for pcmPreviewFile");
 
         if( out_pcm == M4OSA_NULL )
@@ -4755,7 +4754,7 @@ replace3GP_3GP:
 
         /* Copy temporary path to final preview path string */
         M4OSA_chrNCopy(out_pcm, xVSS_context->pTempPath,
-            M4OSA_chrLength(xVSS_context->pTempPath) + 1);
+            strlen(xVSS_context->pTempPath) + 1);
 
         /* Depending of the output sample frequency and nb of channels, we construct preview
         output filename */
@@ -4765,12 +4764,12 @@ replace3GP_3GP:
             /* Construct output temporary PCM filename */
             if( xVSS_context->pSettings->xVSS.bAudioMono == M4OSA_TRUE )
             {
-                M4OSA_chrNCat(out_pcm, (M4OSA_Char *)"preview_16000_1.pcm\0",
+                strncat((char *)out_pcm, (const char *)"preview_16000_1.pcm\0",
                     20);
             }
             else
             {
-                M4OSA_chrNCat(out_pcm, (M4OSA_Char *)"preview_16000_2.pcm\0",
+                strncat((char *)out_pcm, (const char *)"preview_16000_2.pcm\0",
                     20);
             }
         }
@@ -4778,7 +4777,7 @@ replace3GP_3GP:
             == M4VIDEOEDITING_kAMR_NB )
         {
             /* Construct output temporary PCM filename */
-            M4OSA_chrNCat(out_pcm, (M4OSA_Char *)"preview_08000_1.pcm\0", 20);
+            strncat((char *)out_pcm, (const char *)"preview_08000_1.pcm\0", 20);
         }
         else
         {
@@ -4797,7 +4796,7 @@ replace3GP_3GP:
         /**
         * UTF conversion: convert into the customer format, before being used*/
         pDecodedPath = out_pcm;
-        length = M4OSA_chrLength(pDecodedPath);
+        length = strlen(pDecodedPath);
 
         if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct != M4OSA_NULL
             && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
@@ -4863,7 +4862,7 @@ replace3GP_3GP:
 #if 0
 
         xVSS_context->pcmPreviewFile =
-            (M4OSA_Char *)M4OSA_malloc(M4OSA_chrLength(out_pcm) + 1, M4VS,
+            (M4OSA_Char *)M4OSA_malloc(strlen(out_pcm) + 1, M4VS,
             "pcmPreviewFile");
 
         if( xVSS_context->pcmPreviewFile == M4OSA_NULL )
@@ -4878,7 +4877,7 @@ replace3GP_3GP:
             return M4ERR_ALLOC;
         }
         M4OSA_chrNCopy(xVSS_context->pcmPreviewFile, out_pcm,
-            M4OSA_chrLength(out_pcm) + 1);
+            strlen(out_pcm) + 1);
 
         /* Free temporary output filename */
         if( out_pcm != M4OSA_NULL )
@@ -4893,7 +4892,7 @@ replace3GP_3GP:
         * UTF conversion: convert into the customer format, before being used*/
 
         pDecodedPath = xVSS_context->pSettings->xVSS.pBGMtrack->pFile;
-        length = M4OSA_chrLength(pDecodedPath);
+        length = strlen(pDecodedPath);
 
         if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct != M4OSA_NULL
             && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
@@ -5125,7 +5124,7 @@ replace3GP_3GP:
                     * UTF conversion: convert into the customer format, before being used*/
                     pDecodedPath =
                         xVSS_context->pSettings->xVSS.pBGMtrack->pFile;
-                    length = M4OSA_chrLength(pDecodedPath);
+                    length = strlen(pDecodedPath);
 
                     if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                         != M4OSA_NULL && xVSS_context->
@@ -5546,7 +5545,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             /**
             * UTF conversion: convert into the customer format, before being used*/
             pDecodedPath = pEditSavingSettings->pClipList[i]->pFile;
-            length = M4OSA_chrLength(pDecodedPath);
+            length = strlen(pDecodedPath);
 
             if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
                 != M4OSA_NULL && xVSS_context->
@@ -5715,7 +5714,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         /* Allocate file name, and copy file name buffer to our structure */
         pEditSavingSettings->xVSS.pBGMtrack->pFile = M4OSA_malloc(
-            (M4OSA_chrLength(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
+            (strlen(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
             + 1),
             M4VS, (M4OSA_Char *)"Saving struct xVSS BGM file path");
 
@@ -5733,7 +5732,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         }
         M4OSA_memcpy(pEditSavingSettings->xVSS.pBGMtrack->pFile,
             xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
-            M4OSA_chrLength(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
+            strlen(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
             + 1);
 
         /*Copy BGM track file path*/
@@ -5792,13 +5791,13 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         M4OSA_chrNCopy(out_3gp_tmp, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
 
         /* Construct output temporary 3GP filename */
-        M4OSA_chrNCat(out_3gp, (M4OSA_Char *)"savetemp.3gp\0", 13);
-        M4OSA_chrNCat(out_3gp_tmp, (M4OSA_Char *)"savetemp.tmp\0", 13);
+        strncat((char *)out_3gp, (const char *)"savetemp.3gp\0", 13);
+        strncat((char *)out_3gp_tmp, (const char *)"savetemp.tmp\0", 13);
 
         /**
         * UTF conversion: convert into the customer format, before being used*/
         pDecodedPath = out_3gp;
-        length = M4OSA_chrLength(pDecodedPath);
+        length = strlen(pDecodedPath);
 
         if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct != M4OSA_NULL
             && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
@@ -5849,7 +5848,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         /**
         * UTF conversion: convert into the customer format, before being used*/
         pDecodedPath = out_3gp_tmp;
-        length = M4OSA_chrLength(pDecodedPath);
+        length = strlen(pDecodedPath);
 
         if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct != M4OSA_NULL
             && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
@@ -6105,45 +6104,45 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                                     - 1].pFile, (M4OSA_Void *)xVSS_context->
                                     UTFConversionContext.
                                     pTempOutConversionBuffer, &ConvertedSize);
-                                err = M4OSA_chrFindPattern(xVSS_context->
+                                toto = (M4OSA_Char *)strstr((const char *)xVSS_context->
                                     UTFConversionContext.
                                     pTempOutConversionBuffer,
-                                    xVSS_context->pTempPath, &toto);
+                                    (const char *)xVSS_context->pTempPath);
                                 pTmpStr =
                                     xVSS_context->UTFConversionContext.
                                     pTempOutConversionBuffer;
                             }
                             else
                             {
-                                err = M4OSA_chrFindPattern(pVSSContext->
+                                toto = (M4OSA_Char *)strstr((const char *)pVSSContext->
                                     pClipList[pVSSContext->uiCurrentClip
-                                    - 1].pFile, xVSS_context->pTempPath, &toto);
+                                    - 1].pFile, (const char *)xVSS_context->pTempPath);
                                 pTmpStr = pVSSContext->
                                     pClipList[pVSSContext->uiCurrentClip
                                     - 1].pFile;
                             }
 
-                            if( err == M4NO_ERROR )
+                            if( toto != M4OSA_NULL )
                             {
                                 /* As temporary files can be imgXXX.3gp or vidXXX.3gp */
                                 pTmpStr +=
-                                    (M4OSA_chrLength(pTmpStr)
+                                    (strlen((const char *)pTmpStr)
                                     - 10); /* Because temporary files have a length at most of
                                     10 bytes */
-                                err = M4OSA_chrFindPattern(pTmpStr,
-                                    (M4OSA_Char *)"img", &toto);
+                                toto = (M4OSA_Char *)strstr((const char *)pTmpStr,
+                                    (const char *)"img");
 
-                                if( err != M4NO_ERROR )
+                                if( toto != M4OSA_NULL )
                                 {
-                                    err = M4OSA_chrFindPattern(pTmpStr,
-                                        (M4OSA_Char *)"vid", &toto);
+                                    toto = (M4OSA_Char *)strstr((const char *)pTmpStr,
+                                        (const char *)"vid");
                                 }
 
                                 if( err
                                     == M4NO_ERROR ) /* It means the file is a temporary file, we
                                     can delete it */
                                 {
-                                    M4OSA_fileExtraDelete(pVSSContext->
+                                    remove((const char *)pVSSContext->
                                         pClipList[pVSSContext->uiCurrentClip
                                         - 1].pFile);
                                 }

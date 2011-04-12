@@ -1628,7 +1628,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
     /**
      * Generate "dummy" amr file containing silence in temporary folder */
     M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
-    M4OSA_chrNCat(out_amr, (M4OSA_Char *)"dummy.amr\0", 10);
+    strncat((char *)out_amr, (const char *)"dummy.amr\0", 10);
 
     /**
      * UTF conversion: convert the temporary path into the customer format*/
@@ -1803,7 +1803,7 @@ M4OSA_ERR M4xVSS_internalStopConvertPictureTo3gp(M4OSA_Context pContext)
     /**
      * Remove dummy.amr file */
     M4OSA_chrNCopy(out_amr, xVSS_context->pTempPath, M4XVSS_MAX_PATH_LEN - 1);
-    M4OSA_chrNCat(out_amr, (M4OSA_Char *)"dummy.amr\0", 10);
+    strncat((char *)out_amr, (const char *)"dummy.amr\0", 10);
 
     /**
      * UTF conversion: convert the temporary path into the customer format*/
@@ -1825,10 +1825,10 @@ M4OSA_ERR M4xVSS_internalStopConvertPictureTo3gp(M4OSA_Context pContext)
     }
     /**
     * End of the conversion, now use the decoded path*/
-    M4OSA_fileExtraDelete(pDecodedPath);
+    remove((const char *)pDecodedPath);
 
     /*Commented because of the use of the UTF conversion*/
-/*    M4OSA_fileExtraDelete(out_amr);
+/*    remove(out_amr);
  */
 
     xVSS_context->pM4PTO3GPP_Ctxt = M4OSA_NULL;
@@ -2938,7 +2938,7 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
      * Free temporary preview file path */
     if(xVSS_context->pCurrentEditSettings->pTemporaryFile != M4OSA_NULL)
     {
-        M4OSA_fileExtraDelete(xVSS_context->pCurrentEditSettings->pTemporaryFile);
+        remove((const char *)xVSS_context->pCurrentEditSettings->pTemporaryFile);
         M4OSA_free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
         xVSS_context->pCurrentEditSettings->pTemporaryFile = M4OSA_NULL;
     }
@@ -3042,7 +3042,7 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
         {
             if(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack != M4OSA_NULL)
             {
-                M4OSA_fileExtraDelete(xVSS_context->pCurrentEditSettings->pOutputFile);
+                remove((const char *)xVSS_context->pCurrentEditSettings->pOutputFile);
                 M4OSA_free(xVSS_context->pCurrentEditSettings->pOutputFile);
             }
             if(xVSS_context->pOutputFile != M4OSA_NULL)
@@ -3058,7 +3058,7 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
          * Free temporary saving file path */
         if(xVSS_context->pCurrentEditSettings->pTemporaryFile != M4OSA_NULL)
         {
-            M4OSA_fileExtraDelete(xVSS_context->pCurrentEditSettings->pTemporaryFile);
+            remove((const char *)xVSS_context->pCurrentEditSettings->pTemporaryFile);
             M4OSA_free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
             xVSS_context->pCurrentEditSettings->pTemporaryFile = M4OSA_NULL;
         }
@@ -3156,12 +3156,12 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                                      M4xVSS_kVideoTransitionType_AlphaMagic)
                                     {
                                         M4OSA_UInt32 pCmpResult=0;
-                                        M4OSA_chrCompare(pSettings->pTransitionList[i]->\
+                                        pCmpResult = strcmp((const char *)pSettings->pTransitionList[i]->\
                                             xVSS.transitionSpecific.pAlphaMagicSettings->\
                                                 pAlphaFilePath,
-                                                pSettings->pTransitionList[j]->\
+                                                (const char *)pSettings->pTransitionList[j]->\
                                                 xVSS.transitionSpecific.pAlphaMagicSettings->\
-                                                pAlphaFilePath, (M4OSA_Int32 *)&pCmpResult);
+                                                pAlphaFilePath);
                                         if(pCmpResult == 0)
                                         {
                                             /* Free extra internal alpha magic structure and put
@@ -3496,12 +3496,12 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                                     VideoTransitionType == M4xVSS_kVideoTransitionType_AlphaMagic)
                                 {
                                     M4OSA_UInt32 pCmpResult=0;
-                                    M4OSA_chrCompare(xVSS_context->pSettings->pTransitionList[i]->\
+                                    pCmpResult = strcmp((const char *)xVSS_context->pSettings->pTransitionList[i]->\
                                         xVSS.transitionSpecific.pAlphaMagicSettings->\
                                             pAlphaFilePath,
-                                        xVSS_context->pSettings->pTransitionList[j]->\
+                                        (const char *)xVSS_context->pSettings->pTransitionList[j]->\
                                             xVSS.transitionSpecific.pAlphaMagicSettings->\
-                                                pAlphaFilePath, &pCmpResult);
+                                                pAlphaFilePath);
                                     if(pCmpResult == 0)
                                         {
                                         /* Free extra internal alpha magic structure and put it
@@ -3549,7 +3549,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
             if(pParams->pFileOut != M4OSA_NULL)
             {
                 /* Delete temporary file */
-                M4OSA_fileExtraDelete(pParams->pFileOut);
+                remove((const char *)pParams->pFileOut);
                 M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
                 pParams->pFileOut = M4OSA_NULL;
             }
@@ -3557,7 +3557,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
             {
                 /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
-                M4OSA_fileExtraDelete(pParams->pFileTemp);
+                remove((const char *)pParams->pFileTemp);
                 M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
 #endif/*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
                 pParams->pFileTemp = M4OSA_NULL;
@@ -3584,7 +3584,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
             if(pParams->pFileOut != M4OSA_NULL)
             {
                 /* Delete temporary file */
-                M4OSA_fileExtraDelete(pParams->pFileOut);
+                remove((const char *)pParams->pFileOut);
                 M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
                 pParams->pFileOut = M4OSA_NULL;
             }
@@ -3592,7 +3592,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
             {
                 /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
-                M4OSA_fileExtraDelete(pParams->pFileTemp);
+                remove((const char *)pParams->pFileTemp);
                 M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
 #endif/*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
                 pParams->pFileTemp = M4OSA_NULL;

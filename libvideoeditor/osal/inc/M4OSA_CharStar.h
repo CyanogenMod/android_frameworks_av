@@ -55,83 +55,15 @@ extern "C"
 M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrNCopy          (M4OSA_Char   *strOut,
                                    M4OSA_Char   *strIn,
                                    M4OSA_UInt32 len2Copy);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrNCat           (M4OSA_Char   *strOut,
-                                   M4OSA_Char   *strIn,
-                                   M4OSA_UInt32 len2Append);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrCompare        (M4OSA_Char   *strIn1,
-                                   M4OSA_Char   *strIn2,
-                                   M4OSA_Int32  *cmpResult);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrNCompare       (M4OSA_Char   *strIn1,
-                                   M4OSA_Char   *strIn2,
-                                   M4OSA_UInt32 len2Comp,
-                                   M4OSA_Int32  *cmpResult);
 M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrAreIdentical   (M4OSA_Char   *strIn1,
                                    M4OSA_Char   *strIn2,
                                    M4OSA_Bool  *result);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrFindChar       (M4OSA_Char   *strIn,
-                                   M4OSA_Char   c,
-                                   M4OSA_Char   **pointerInStr);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrReverseFindChar(M4OSA_Char   *strIn,
-                                   M4OSA_Char   c,
-                                   M4OSA_Char   **pointerInStr);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrSpan           (M4OSA_Char   *strIn,
-                                   M4OSA_Char   *delimiters,
-                                   M4OSA_UInt32 *posInStr);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrSpanComplement (M4OSA_Char   *strIn,
-                                   M4OSA_Char   *delimiters,
-                                   M4OSA_UInt32 *posInStr);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrPbrk           (M4OSA_Char   *strIn,
-                                   M4OSA_Char   *delimiters,
-                                   M4OSA_Char   **pointerInStr);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrFindPattern    (M4OSA_Char   *strIn1,
-                                   M4OSA_Char   *strIn2,
-                                   M4OSA_Char   **pointerInStr1);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_UInt32 M4OSA_chrLength      (M4OSA_Char   *strIn);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_Char   M4OSA_chrToLower     (M4OSA_Char   cIn);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_Char   M4OSA_chrToUpper     (M4OSA_Char   cIn);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR    M4OSA_chrGetWord     (M4OSA_Char   *strIn,
-                                   M4OSA_Char   *beginDelimiters,
-                                   M4OSA_Char   *endDelimiters,
-                                   M4OSA_Char   *strOut,
-                                   M4OSA_UInt32 *strOutMaxLen,
-                                   M4OSA_Char   **outputPointer);
 M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetUInt32      (M4OSA_Char   *strIn,
                                    M4OSA_UInt32 *val,
                                    M4OSA_Char   **strOut,
                                    M4OSA_chrNumBase base);
 M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetUInt16      (M4OSA_Char   *strIn,
                                    M4OSA_UInt16 *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetUInt8       (M4OSA_Char   *strIn,
-                                   M4OSA_UInt8  *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetInt64       (M4OSA_Char   *strIn,
-                                   M4OSA_Int64  *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetInt32       (M4OSA_Char   *strIn,
-                                   M4OSA_Int32  *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetInt16       (M4OSA_Char   *strIn,
-                                   M4OSA_Int16  *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetInt8        (M4OSA_Char   *strIn,
-                                   M4OSA_Int8   *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetDouble      (M4OSA_Char   *strIn,
-                                   M4OSA_Double *val,
-                                   M4OSA_Char   **strOut);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetTime        (M4OSA_Char   *strIn,
-                                   M4OSA_Time   *val,
-                                   M4OSA_Char   **strOut,
-                                   M4OSA_chrNumBase base);
-M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrGetFilePosition(M4OSA_Char   *strIn,
-                                   M4OSA_FilePosition *val,
                                    M4OSA_Char   **strOut,
                                    M4OSA_chrNumBase base);
 M4OSAL_CHARSTAR_EXPORT_TYPE M4OSA_ERR M4OSA_chrSPrintf         (M4OSA_Char  *strOut,
