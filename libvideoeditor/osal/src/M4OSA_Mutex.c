@@ -67,7 +67,7 @@ M4OSA_ERR M4OSA_mutexOpen(M4OSA_Context* pContext)
 
     *pContext = M4OSA_NULL;
 
-    pMutexContext = (M4OSA_MutexContext*)M4OSA_malloc(sizeof(M4OSA_MutexContext),
+    pMutexContext = (M4OSA_MutexContext*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_MutexContext),
                     M4OSA_MUTEX, (M4OSA_Char*)"M4OSA_mutexOpen: mutex context");
 
     if(M4OSA_NULL == pMutexContext)
@@ -96,7 +96,7 @@ M4OSA_ERR M4OSA_mutexOpen(M4OSA_Context* pContext)
     if(!opened)
     {
         M4OSA_DEBUG(M4ERR_CONTEXT_FAILED, "M4OSA_mutexOpen: OS mutex creation failed");
-        M4OSA_free((M4OSA_MemAddr32)pMutexContext);
+        free(pMutexContext);
         return M4ERR_CONTEXT_FAILED ;
     }
 
@@ -269,7 +269,7 @@ M4OSA_ERR M4OSA_mutexClose(M4OSA_Context context)
 
     pthread_mutex_destroy(&pMutexContext->mutex);
 
-    M4OSA_free((M4OSA_MemAddr32) pMutexContext);
+    free( pMutexContext);
 
     return M4NO_ERROR;
 }

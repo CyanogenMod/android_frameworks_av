@@ -133,7 +133,7 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     /**
     * Allocate the VSS context and return it to the user */
     pC = (M4VSS3GPP_InternalEditContext
-        *)M4OSA_malloc(sizeof(M4VSS3GPP_InternalEditContext),
+        *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_InternalEditContext),
         M4VSS3GPP, (M4OSA_Char *)"M4VSS3GPP_InternalContext");
     *pContext = pC;
         /* Inialization of context Variables */
@@ -278,11 +278,11 @@ M4VSS3GPP_editCreateClipSettings( M4VSS3GPP_ClipSettings *pClipSettings,
 
     if( M4OSA_NULL != pFile )
     {
-        //pClipSettings->pFile = (M4OSA_Char*) M4OSA_malloc(strlen(pFile)+1, M4VSS3GPP,
+        //pClipSettings->pFile = (M4OSA_Char*) M4OSA_32bitAlignedMalloc(strlen(pFile)+1, M4VSS3GPP,
         // "pClipSettings->pFile");
         /*FB: add clip path size because of utf 16 conversion*/
         pClipSettings->pFile =
-            (M4OSA_Void *)M4OSA_malloc(filePathSize + 1, M4VSS3GPP,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(filePathSize + 1, M4VSS3GPP,
             (M4OSA_Char *)"pClipSettings->pFile");
 
         if( M4OSA_NULL == pClipSettings->pFile )
@@ -382,12 +382,12 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
     if( M4OSA_NULL != pClipSettingsOrig->pFile )
     {
         //pClipSettingsDest->pFile =
-        // (M4OSA_Char*) M4OSA_malloc(strlen(pClipSettingsOrig->pFile)+1, M4VSS3GPP,
+        // (M4OSA_Char*) M4OSA_32bitAlignedMalloc(strlen(pClipSettingsOrig->pFile)+1, M4VSS3GPP,
         // "pClipSettingsDest->pFile");
         /*FB: clip path size is needed for utf 16 conversion*/
         /*FB 2008/10/16: bad allocation size which raises a crash*/
         pClipSettingsDest->pFile =
-            (M4OSA_Char *)M4OSA_malloc(pClipSettingsOrig->filePathSize + 1,
+            (M4OSA_Char *)M4OSA_32bitAlignedMalloc(pClipSettingsOrig->filePathSize + 1,
             M4VSS3GPP, (M4OSA_Char *)"pClipSettingsDest->pFile");
 
         if( M4OSA_NULL == pClipSettingsDest->pFile )
@@ -414,7 +414,7 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
         if( pClipSettingsOrig->nbEffects > 0 )
         {
             pClipSettingsDest->Effects = (M4VSS3GPP_EffectSettings
-                *)M4OSA_malloc(sizeof(M4VSS3GPP_EffectSettings)
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_EffectSettings)
                 * pClipSettingsOrig->nbEffects,
                 M4VSS3GPP, "pClipSettingsDest->Effects");
 
@@ -473,14 +473,14 @@ M4OSA_ERR M4VSS3GPP_editFreeClipSettings(
     /* free filename */
     if( M4OSA_NULL != pClipSettings->pFile )
     {
-        M4OSA_free((M4OSA_MemAddr32)pClipSettings->pFile);
+        free(pClipSettings->pFile);
         pClipSettings->pFile = M4OSA_NULL;
     }
 
     /* free effects settings */
     /*    if(M4OSA_NULL != pClipSettings->Effects)
     {
-    M4OSA_free((M4OSA_MemAddr32)pClipSettings->Effects);
+    free(pClipSettings->Effects);
     pClipSettings->Effects = M4OSA_NULL;
     pClipSettings->nbEffects = 0;
     } RC */
@@ -551,7 +551,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     /**
     * Copy the clip list */
     pC->pClipList =
-        (M4VSS3GPP_ClipSettings *)M4OSA_malloc(sizeof(M4VSS3GPP_ClipSettings)
+        (M4VSS3GPP_ClipSettings *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_ClipSettings)
         * pC->uiClipNumber, M4VSS3GPP, (M4OSA_Char *)"pC->pClipList");
 
     if( M4OSA_NULL == pC->pClipList )
@@ -576,7 +576,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     {
         pC->nbEffects = pSettings->nbEffects;
         pC->pEffectsList = (M4VSS3GPP_EffectSettings
-            *)M4OSA_malloc(sizeof(M4VSS3GPP_EffectSettings) * pC->nbEffects,
+            *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_EffectSettings) * pC->nbEffects,
             M4VSS3GPP, (M4OSA_Char *)"pC->pEffectsList");
 
         if( M4OSA_NULL == pC->pEffectsList )
@@ -596,7 +596,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
         /**
         * Allocate active effects list RC */
         pC->pActiveEffectsList =
-            (M4OSA_UInt8 *)M4OSA_malloc(sizeof(M4OSA_UInt8) * pC->nbEffects,
+            (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_UInt8) * pC->nbEffects,
             M4VSS3GPP, (M4OSA_Char *)"pC->pActiveEffectsList");
 
         if( M4OSA_NULL == pC->pActiveEffectsList )
@@ -609,7 +609,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
         /**
          * Allocate active effects list */
         pC->pActiveEffectsList1 =
-            (M4OSA_UInt8 *)M4OSA_malloc(sizeof(M4OSA_UInt8) * pC->nbEffects,
+            (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_UInt8) * pC->nbEffects,
             M4VSS3GPP, (M4OSA_Char *)"pC->pActiveEffectsList");
         if (M4OSA_NULL == pC->pActiveEffectsList1)
         {
@@ -717,7 +717,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     * We add a transition of duration 0 at the end of the last clip.
     * It will suppress a whole bunch a test latter in the processing... */
     pC->pTransitionList = (M4VSS3GPP_TransitionSettings
-        *)M4OSA_malloc(sizeof(M4VSS3GPP_TransitionSettings)
+        *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_TransitionSettings)
         * (pC->uiClipNumber), M4VSS3GPP, (M4OSA_Char *)"pC->pTransitionList");
 
     if( M4OSA_NULL == pC->pTransitionList )
@@ -1144,7 +1144,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
 
             /**
             * Free before the error checking anyway */
-            M4OSA_free((M4OSA_MemAddr32)mp3tagBuffer.m_pData);
+            free(mp3tagBuffer.m_pData);
 
             /**
             * Error checking */
@@ -1430,7 +1430,7 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     * Free the output video DSI, if it has been created */
     if( M4OSA_NULL != pC->ewc.pVideoOutputDsi )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->ewc.pVideoOutputDsi);
+        free(pC->ewc.pVideoOutputDsi);
         pC->ewc.pVideoOutputDsi = M4OSA_NULL;
     }
 
@@ -1438,7 +1438,7 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     * Free the output audio DSI, if it has been created */
     if( M4OSA_NULL != pC->ewc.pAudioOutputDsi )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->ewc.pAudioOutputDsi);
+        free(pC->ewc.pAudioOutputDsi);
         pC->ewc.pAudioOutputDsi = M4OSA_NULL;
     }
 
@@ -1488,75 +1488,75 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     * Free the temporary YUV planes */
     if( M4OSA_NULL != pC->yuv1[0].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv1[0].pac_data);
+        free(pC->yuv1[0].pac_data);
         pC->yuv1[0].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv1[1].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv1[1].pac_data);
+        free(pC->yuv1[1].pac_data);
         pC->yuv1[1].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv1[2].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv1[2].pac_data);
+        free(pC->yuv1[2].pac_data);
         pC->yuv1[2].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv2[0].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv2[0].pac_data);
+        free(pC->yuv2[0].pac_data);
         pC->yuv2[0].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv2[1].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv2[1].pac_data);
+        free(pC->yuv2[1].pac_data);
         pC->yuv2[1].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv2[2].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv2[2].pac_data);
+        free(pC->yuv2[2].pac_data);
         pC->yuv2[2].pac_data = M4OSA_NULL;
     }
 
     /* RC */
     if( M4OSA_NULL != pC->yuv3[0].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv3[0].pac_data);
+        free(pC->yuv3[0].pac_data);
         pC->yuv3[0].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv3[1].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv3[1].pac_data);
+        free(pC->yuv3[1].pac_data);
         pC->yuv3[1].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv3[2].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv3[2].pac_data);
+        free(pC->yuv3[2].pac_data);
         pC->yuv3[2].pac_data = M4OSA_NULL;
     }
 
     /* RC */
     if( M4OSA_NULL != pC->yuv4[0].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv4[0].pac_data);
+        free(pC->yuv4[0].pac_data);
         pC->yuv4[0].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv4[1].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv4[1].pac_data);
+        free(pC->yuv4[1].pac_data);
         pC->yuv4[1].pac_data = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->yuv4[2].pac_data )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->yuv4[2].pac_data);
+        free(pC->yuv4[2].pac_data);
         pC->yuv4[2].pac_data = M4OSA_NULL;
     }
 
@@ -1564,7 +1564,7 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     * RC Free effects list */
     if( pC->pEffectsList != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pEffectsList);
+        free(pC->pEffectsList);
         pC->pEffectsList = M4OSA_NULL;
     }
 
@@ -1572,14 +1572,14 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     * RC Free active effects list */
     if( pC->pActiveEffectsList != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pActiveEffectsList);
+        free(pC->pActiveEffectsList);
         pC->pActiveEffectsList = M4OSA_NULL;
     }
     /**
      *  Free active effects list */
     if(pC->pActiveEffectsList1 != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pActiveEffectsList1);
+        free(pC->pActiveEffectsList1);
         pC->pActiveEffectsList1 = M4OSA_NULL;
     }
     /**
@@ -1641,7 +1641,7 @@ M4OSA_ERR M4VSS3GPP_editCleanUp( M4VSS3GPP_EditContext pContext )
     * Free the video encoder dummy AU */
     if( M4OSA_NULL != pC->ewc.pDummyAuBuffer )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->ewc.pDummyAuBuffer);
+        free(pC->ewc.pDummyAuBuffer);
         pC->ewc.pDummyAuBuffer = M4OSA_NULL;
     }
 
@@ -1687,7 +1687,7 @@ M4OSA_ERR M4VSS3GPP_editCleanUp( M4VSS3GPP_EditContext pContext )
 
     /**
     * Finally, Free context */
-    M4OSA_free((M4OSA_MemAddr32)pC);
+    free(pC);
     pC = M4OSA_NULL;
 
     /**
@@ -1792,7 +1792,7 @@ M4VSS3GPP_editRegisterExternalVideoEncoder( M4VSS3GPP_EditContext pContext,
             "M4VSS3GPP_editRegisterExternalVideoEncoder:\
             M4VSS3GPP_registerVideoEncoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellInterface);
+        free(shellInterface);
         return err;
     }
 
@@ -2263,7 +2263,7 @@ static M4OSA_Void M4VSS3GPP_intFreeSettingsList(
             M4VSS3GPP_editFreeClipSettings(&(pC->pClipList[i]));
         }
 
-        M4OSA_free((M4OSA_MemAddr32)pC->pClipList);
+        free(pC->pClipList);
         pC->pClipList = M4OSA_NULL;
     }
 
@@ -2271,7 +2271,7 @@ static M4OSA_Void M4VSS3GPP_intFreeSettingsList(
     * Free the transition list */
     if( M4OSA_NULL != pC->pTransitionList )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pTransitionList);
+        free(pC->pTransitionList);
         pC->pTransitionList = M4OSA_NULL;
     }
 }
@@ -2735,7 +2735,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
         * H263 output DSI is always 7 bytes */
         pC->ewc.uiVideoOutputDsiSize = 7;
         pC->ewc.pVideoOutputDsi =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->ewc.uiVideoOutputDsiSize,
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ewc.uiVideoOutputDsiSize,
             M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (H263)");
 
         if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
@@ -2935,7 +2935,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
 
         /**
         * Allocate and copy the new DSI */
-        pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_malloc(
+        pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
             pStreamForDsi->m_decoderSpecificInfoSize,
             M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (MPEG4)");
 
@@ -3023,7 +3023,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
                 /**
                 * Allocate and copy the new DSI */
                 pC->ewc.pVideoOutputDsi =
-                    (M4OSA_MemAddr8)M4OSA_malloc(encHeader->Size, M4VSS3GPP,
+                    (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(encHeader->Size, M4VSS3GPP,
                     (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (H264)");
 
                 if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
@@ -3105,7 +3105,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
 
         /**
         * Allocate and copy the new DSI */
-        pC->ewc.pAudioOutputDsi = (M4OSA_MemAddr8)M4OSA_malloc(
+        pC->ewc.pAudioOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
             pStreamForDsi->m_decoderSpecificInfoSize,
             M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pAudioOutputDsi");
 

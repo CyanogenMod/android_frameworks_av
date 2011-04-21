@@ -93,7 +93,7 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
     /**
     * Allocate the clip context */
     *hClipCtxt =
-        (M4VSS3GPP_ClipContext *)M4OSA_malloc(sizeof(M4VSS3GPP_ClipContext),
+        (M4VSS3GPP_ClipContext *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_ClipContext),
         M4VSS3GPP, (M4OSA_Char *)"M4VSS3GPP_ClipContext");
 
     if( M4OSA_NULL == *hClipCtxt )
@@ -719,7 +719,7 @@ M4OSA_Void M4VSS3GPP_intClipDeleteAudioTrack( M4VSS3GPP_ClipContext *pClipCtxt )
       frame eventually)*/
     if( M4OSA_NULL != pClipCtxt->AudioDecBufferOut.m_dataAddress )
     {
-        M4OSA_free((M4OSA_MemAddr32)pClipCtxt->AudioDecBufferOut.m_dataAddress);
+        free(pClipCtxt->AudioDecBufferOut.m_dataAddress);
         pClipCtxt->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
     }
 
@@ -1334,7 +1334,7 @@ static M4OSA_ERR M4VSS3GPP_intClipPrepareAudioDecoder(
         * pClipCtxt->pAudioStream->m_byteSampleSize
         * pClipCtxt->pAudioStream->m_nbChannels;
     pClipCtxt->AudioDecBufferOut.m_dataAddress =
-        (M4OSA_MemAddr8)M4OSA_malloc(pClipCtxt->AudioDecBufferOut.m_bufferSize
+        (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pClipCtxt->AudioDecBufferOut.m_bufferSize
         * sizeof(M4OSA_Int16),
         M4VSS3GPP, (M4OSA_Char *)"AudioDecBufferOut.m_bufferSize");
 
@@ -1375,7 +1375,7 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeCurrentAudioFrame(
             pClipCtxt->AudioDecBufferOut.m_bufferSize =
                 pClipCtxt->uiSilencePcmSize;
             pClipCtxt->AudioDecBufferOut.m_dataAddress =
-                (M4OSA_MemAddr8)M4OSA_malloc(
+                (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
                 pClipCtxt->AudioDecBufferOut.m_bufferSize
                 * sizeof(M4OSA_Int16),
                 M4VSS3GPP,(M4OSA_Char *) "AudioDecBufferOut.m_bufferSize");
@@ -1655,7 +1655,7 @@ M4OSA_ERR M4VSS3GPP_intClipClose( M4VSS3GPP_ClipContext *pClipCtxt )
     * Free the decoded audio buffer */
     if( M4OSA_NULL != pClipCtxt->AudioDecBufferOut.m_dataAddress )
     {
-        M4OSA_free((M4OSA_MemAddr32)pClipCtxt->AudioDecBufferOut.m_dataAddress);
+        free(pClipCtxt->AudioDecBufferOut.m_dataAddress);
         pClipCtxt->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
     }
 
@@ -1750,7 +1750,7 @@ M4OSA_ERR M4VSS3GPP_intClipCleanUp( M4VSS3GPP_ClipContext *pClipCtxt )
     * Free the decoded audio buffer */
     if( M4OSA_NULL != pClipCtxt->AudioDecBufferOut.m_dataAddress )
     {
-        M4OSA_free((M4OSA_MemAddr32)pClipCtxt->AudioDecBufferOut.m_dataAddress);
+        free(pClipCtxt->AudioDecBufferOut.m_dataAddress);
         pClipCtxt->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
     }
 
@@ -1812,7 +1812,7 @@ M4OSA_ERR M4VSS3GPP_intClipCleanUp( M4VSS3GPP_ClipContext *pClipCtxt )
     M4OSA_TRACE3_1("M4VSS3GPP_intClipCleanUp: pClipCtxt=0x%x", pClipCtxt);
     /**
     * Free the clip context */
-    M4OSA_free((M4OSA_MemAddr32)pClipCtxt);
+    free(pClipCtxt);
 
     return err;
 }
@@ -1850,7 +1850,7 @@ M4VSS3GPP_intClipRegisterExternalVideoDecoder( M4VSS3GPP_ClipContext *pClipCtxt,
     }
 
     shellUserData =
-        (M4DECODER_EXTERNAL_UserDataType)M4OSA_malloc(sizeof(*shellUserData),
+        (M4DECODER_EXTERNAL_UserDataType)M4OSA_32bitAlignedMalloc(sizeof(*shellUserData),
         M4VSS3GPP, (M4OSA_Char *)"userData structure for the external shell decoder");
 
     if( M4OSA_NULL == shellUserData )
@@ -1872,7 +1872,7 @@ M4VSS3GPP_intClipRegisterExternalVideoDecoder( M4VSS3GPP_ClipContext *pClipCtxt,
             "M4VSS3GPP_intClipRegisterExternalVideoDecoder:\
             M4DECODER_EXTERNAL_getInterface failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellUserData);
+        free(shellUserData);
         return err;
     }
 
@@ -1885,8 +1885,8 @@ M4VSS3GPP_intClipRegisterExternalVideoDecoder( M4VSS3GPP_ClipContext *pClipCtxt,
             "M4VSS3GPP_intClipRegisterExternalVideoDecoder:\
             M4VSS3GPP_registerVideoDecoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellInterface);
-        M4OSA_free((M4OSA_MemAddr32)shellUserData);
+        free(shellInterface);
+        free(shellUserData);
         return err;
     }
 

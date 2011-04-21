@@ -86,7 +86,7 @@ M4OSA_ERR M4OSA_fileReadRamOpen( M4OSA_Context* context,
     }
 
     /* Allocates memory for the context */
-    pContext = (M4OSA_FileReaderRam_Context*)M4OSA_malloc(sizeof(M4OSA_FileReaderRam_Context),
+    pContext = (M4OSA_FileReaderRam_Context*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileReaderRam_Context),
                           M4OSA_FILE_READER, (M4OSA_Char*)"Context allocation");
     if(pContext == M4OSA_NULL)
     {
@@ -126,7 +126,7 @@ cleanup:
     {
         if(pContext != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pContext);
+            free(pContext);
             *context = M4OSA_NULL;
         }
     }
@@ -310,7 +310,7 @@ M4OSA_ERR M4OSA_fileReadRamClose(M4OSA_Context context)
 
     pContext->IsOpened = M4OSA_FALSE;
 
-    M4OSA_free((M4OSA_MemAddr32)pContext);
+    free(pContext);
 
     return M4NO_ERROR;
 }

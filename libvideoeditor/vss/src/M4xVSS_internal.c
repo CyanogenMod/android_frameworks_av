@@ -306,7 +306,7 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
     M4OSA_ERR err=M4NO_ERROR;
 
 
-    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_malloc(frameSize_argb,
+    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_32bitAlignedMalloc(frameSize_argb,
          M4VS, (M4OSA_Char*)"Image argb data");
         M4OSA_TRACE1_0("M4xVSS_internalConvertAndResizeARGB8888toYUV420 Entering :");
     if(pTmpData == M4OSA_NULL) {
@@ -323,7 +323,7 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
     {
         M4OSA_TRACE1_2("M4xVSS_internalConvertAndResizeARGB8888toYUV420 :\
             Can't open input ARGB8888 file %s, error: 0x%x\n",pFileIn, err);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         goto cleanup;
     }
@@ -334,7 +334,7 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
         M4OSA_TRACE1_2("M4xVSS_internalConvertAndResizeARGB8888toYUV420 Can't close ARGB8888\
              file %s, error: 0x%x\n",pFileIn, err);
         pFileReadPtr->closeRead(pARGBIn);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         goto cleanup;
     }
@@ -344,18 +344,18 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
     {
         M4OSA_TRACE1_2("M4xVSS_internalConvertAndResizeARGB8888toYUV420 Can't close ARGB8888 \
              file %s, error: 0x%x\n",pFileIn, err);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         goto cleanup;
     }
 
-    rgbPlane1.pac_data = (M4VIFI_UInt8*)M4OSA_malloc(frameSize, M4VS,
+    rgbPlane1.pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize, M4VS,
          (M4OSA_Char*)"Image clip RGB888 data");
     if(rgbPlane1.pac_data == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("M4xVSS_internalConvertAndResizeARGB8888toYUV420 \
             Failed to allocate memory for Image clip");
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         return M4ERR_ALLOC;
     }
 
@@ -371,19 +371,19 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
         rgbPlane1.pac_data[j] = pTmpData[i];
         j++;
     }
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
 
     /* To Check if resizing is required with color conversion */
     if(width != pImagePlanes->u_width || height != pImagePlanes->u_height)
     {
         M4OSA_TRACE1_0("M4xVSS_internalConvertAndResizeARGB8888toYUV420 Resizing :");
         frameSize =  ( pImagePlanes->u_width * pImagePlanes->u_height * 3);
-        rgbPlane2.pac_data = (M4VIFI_UInt8*)M4OSA_malloc(frameSize, M4VS,
+        rgbPlane2.pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize, M4VS,
              (M4OSA_Char*)"Image clip RGB888 data");
         if(rgbPlane2.pac_data == M4OSA_NULL)
         {
             M4OSA_TRACE1_0("Failed to allocate memory for Image clip");
-            M4OSA_free((M4OSA_MemAddr32)pTmpData);
+            free(pTmpData);
             return M4ERR_ALLOC;
         }
             rgbPlane2.u_height =  pImagePlanes->u_height;
@@ -396,8 +396,8 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
         if(err != M4NO_ERROR)
         {
             M4OSA_TRACE1_1("error when converting from Resize RGB888 to RGB888: 0x%x\n", err);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane2.pac_data);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane1.pac_data);
+            free(rgbPlane2.pac_data);
+            free(rgbPlane1.pac_data);
             return err;
         }
         /*Converting Resized RGB888 to YUV420 */
@@ -405,12 +405,12 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
         if(err != M4NO_ERROR)
         {
             M4OSA_TRACE1_1("error when converting from RGB888 to YUV: 0x%x\n", err);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane2.pac_data);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane1.pac_data);
+            free(rgbPlane2.pac_data);
+            free(rgbPlane1.pac_data);
             return err;
         }
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane2.pac_data);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane1.pac_data);
+            free(rgbPlane2.pac_data);
+            free(rgbPlane1.pac_data);
 
             M4OSA_TRACE1_0("RGB to YUV done");
 
@@ -424,7 +424,7 @@ M4OSA_ERR M4xVSS_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
         {
             M4OSA_TRACE1_1("error when converting from RGB to YUV: 0x%x\n", err);
         }
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane1.pac_data);
+            free(rgbPlane1.pac_data);
 
             M4OSA_TRACE1_0("RGB to YUV done");
     }
@@ -463,7 +463,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB8888toYUV420(M4OSA_Void* pFileIn,
     M4OSA_ERR err = M4NO_ERROR;
     M4VIFI_ImagePlane *yuvPlane = M4OSA_NULL;
 
-    yuvPlane = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane),
+    yuvPlane = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane),
                 M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
     if(yuvPlane == M4OSA_NULL) {
         M4OSA_TRACE1_0("M4xVSS_internalConvertAndResizeARGB8888toYUV420 :\
@@ -474,7 +474,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB8888toYUV420(M4OSA_Void* pFileIn,
     yuvPlane[0].u_width = width;
     yuvPlane[0].u_stride = width;
     yuvPlane[0].u_topleft = 0;
-    yuvPlane[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc(yuvPlane[0].u_height \
+    yuvPlane[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(yuvPlane[0].u_height \
         * yuvPlane[0].u_width * 1.5, M4VS, (M4OSA_Char*)"imageClip YUV data");
 
     yuvPlane[1].u_height = yuvPlane[0].u_height >>1;
@@ -495,7 +495,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB8888toYUV420(M4OSA_Void* pFileIn,
     if(err != M4NO_ERROR)
     {
         M4OSA_TRACE1_1("M4xVSS_internalConvertAndResizeARGB8888toYUV420 return error: 0x%x\n", err);
-        M4OSA_free((M4OSA_MemAddr32)yuvPlane);
+        free(yuvPlane);
         return err;
     }
 
@@ -600,9 +600,9 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
                         (contigous planes in memory) */
                     if(pC->m_pDecodedPlane->pac_data != M4OSA_NULL)
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane->pac_data);
+                        free(pC->m_pDecodedPlane->pac_data);
                     }
-                    M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane);
+                    free(pC->m_pDecodedPlane);
                     pC->m_pDecodedPlane = M4OSA_NULL;
                 }
                 return err;
@@ -1471,8 +1471,8 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
             err = M4AIR_create(&pC->m_air_context, M4AIR_kYUV420P);
             if(err != M4NO_ERROR)
             {
-                M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane[0].pac_data);
-                M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane);
+                free(pC->m_pDecodedPlane[0].pac_data);
+                free(pC->m_pDecodedPlane);
                 pC->m_pDecodedPlane = M4OSA_NULL;
                 M4OSA_TRACE1_1("M4xVSS_PictureCallbackFct:\
                      Error when initializing AIR: 0x%x", err);
@@ -1486,8 +1486,8 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
             M4OSA_TRACE1_1("M4xVSS_PictureCallbackFct:\
                  Error when configuring AIR: 0x%x", err);
             M4AIR_cleanUp(pC->m_air_context);
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane[0].pac_data);
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane);
+            free(pC->m_pDecodedPlane[0].pac_data);
+            free(pC->m_pDecodedPlane);
             pC->m_pDecodedPlane = M4OSA_NULL;
             return err;
         }
@@ -1497,8 +1497,8 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
         {
             M4OSA_TRACE1_1("M4xVSS_PictureCallbackFct: Error when getting AIR plane: 0x%x", err);
             M4AIR_cleanUp(pC->m_air_context);
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane[0].pac_data);
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane);
+            free(pC->m_pDecodedPlane[0].pac_data);
+            free(pC->m_pDecodedPlane);
             pC->m_pDecodedPlane = M4OSA_NULL;
             return err;
         }
@@ -1533,8 +1533,8 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
         }
         if(M4OSA_NULL != pC->m_pDecodedPlane)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane[0].pac_data);
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pDecodedPlane);
+            free(pC->m_pDecodedPlane[0].pac_data);
+            free(pC->m_pDecodedPlane);
             pC->m_pDecodedPlane = M4OSA_NULL;
         }
         return M4PTO3GPP_WAR_LAST_PICTURE;
@@ -1614,7 +1614,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
         }
     }
 
-    pCallBackCtxt = (M4xVSS_PictureCallbackCtxt*)M4OSA_malloc(sizeof(M4xVSS_PictureCallbackCtxt),
+    pCallBackCtxt = (M4xVSS_PictureCallbackCtxt*)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_PictureCallbackCtxt),
          M4VS,(M4OSA_Char *) "Pto3gpp callback struct");
     if(pCallBackCtxt == M4OSA_NULL)
     {
@@ -1739,7 +1739,7 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
         M4OSA_TRACE1_1("M4PTO3GPP_Open returned: 0x%x\n",err);
         if(pCallBackCtxt != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pCallBackCtxt);
+            free(pCallBackCtxt);
             pCallBackCtxt = M4OSA_NULL;
         }
         M4PTO3GPP_CleanUp(pM4PTO3GPP_Ctxt);
@@ -1777,7 +1777,7 @@ M4OSA_ERR M4xVSS_internalStopConvertPictureTo3gp(M4OSA_Context pContext)
     * Free the PTO3GPP callback context */
     if(M4OSA_NULL != xVSS_context->pCallBackCtxt)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCallBackCtxt);
+        free(xVSS_context->pCallBackCtxt);
         xVSS_context->pCallBackCtxt = M4OSA_NULL;
     }
 
@@ -1856,7 +1856,7 @@ M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx)
 
     /**
      * Allocate output YUV planes */
-    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane),
+    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane),
          M4VS, (M4OSA_Char *)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
     if(framingCtx->FramingYuv == M4OSA_NULL)
     {
@@ -1868,7 +1868,7 @@ M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx)
     framingCtx->FramingYuv[0].u_topleft = 0;
     framingCtx->FramingYuv[0].u_stride = framingCtx->FramingRgb->u_width;
     framingCtx->FramingYuv[0].pac_data =
-         (M4VIFI_UInt8*)M4OSA_malloc((framingCtx->FramingYuv[0].u_width\
+         (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc((framingCtx->FramingYuv[0].u_width\
             *framingCtx->FramingYuv[0].u_height*3)>>1, M4VS, (M4OSA_Char *)\
                 "Alloc for the Convertion output YUV");;
     if(framingCtx->FramingYuv[0].pac_data == M4OSA_NULL)
@@ -1982,7 +1982,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     M4OSA_TRACE1_2("M4xVSS_internalConvertARGB888toYUV420_FrammingEffect width and height %d %d ",
         framingCtx->width,framingCtx->height);
 
-    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_malloc(frameSize_argb, M4VS, (M4OSA_Char*)\
+    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_32bitAlignedMalloc(frameSize_argb, M4VS, (M4OSA_Char*)\
         "Image argb data");
     if(pTmpData == M4OSA_NULL) {
         M4OSA_TRACE1_0("Failed to allocate memory for Image clip");
@@ -2002,7 +2002,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         {
             M4OSA_TRACE1_1("M4xVSS_internalDecodePNG:\
                  M4xVSS_internalConvertFromUTF8 returns err: 0x%x",err);
-            M4OSA_free((M4OSA_MemAddr32)pTmpData);
+            free(pTmpData);
             pTmpData = M4OSA_NULL;
             return err;
         }
@@ -2018,7 +2018,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     if(err != M4NO_ERROR)
     {
         M4OSA_TRACE1_2("Can't open input ARGB8888 file %s, error: 0x%x\n",pFile, err);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         return err;
     }
@@ -2027,7 +2027,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     if(err != M4NO_ERROR)
     {
         xVSS_context->pFileReadPtr->closeRead(pARGBIn);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         return err;
     }
@@ -2037,7 +2037,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     if(err != M4NO_ERROR)
     {
         M4OSA_TRACE1_2("Can't close input png file %s, error: 0x%x\n",pFile, err);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         pTmpData = M4OSA_NULL;
         return err;
     }
@@ -2049,12 +2049,12 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     rgbPlane.u_topleft = 0;
 
     frameSize = (rgbPlane.u_width * rgbPlane.u_height * 3); //Size of RGB888 data
-    rgbPlane.pac_data = (M4VIFI_UInt8*)M4OSA_malloc(((frameSize)+ (2 * framingCtx->width)),
+    rgbPlane.pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(((frameSize)+ (2 * framingCtx->width)),
          M4VS, (M4OSA_Char*)"Image clip RGB888 data");
     if(rgbPlane.pac_data == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Failed to allocate memory for Image clip");
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         return M4ERR_ALLOC;
     }
 
@@ -2087,18 +2087,18 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         j++;
     }
 
-    M4OSA_free((M4OSA_MemAddr32)pTmpData);
+    free(pTmpData);
     pTmpData = M4OSA_NULL;
 
     /* convert RGB888 to RGB565 */
 
     /* allocate temp RGB 565 buffer */
-    TempPacData = (M4VIFI_UInt8*)M4OSA_malloc(frameSize +
+    TempPacData = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize +
                        (4 * (framingCtx->width + framingCtx->height + 1)),
                         M4VS, (M4OSA_Char*)"Image clip RGB565 data");
     if (TempPacData == M4OSA_NULL) {
         M4OSA_TRACE1_0("Failed to allocate memory for Image clip RGB565 data");
-        M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+        free(rgbPlane.pac_data);
         return M4ERR_ALLOC;
     }
 
@@ -2113,7 +2113,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     }
 
     /* free the RBG888 and assign RGB565 */
-    M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+    free(rgbPlane.pac_data);
     rgbPlane.pac_data = TempPacData;
 
     /**
@@ -2150,14 +2150,14 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         /**
          * We need to allocate a new RGB output buffer in which all decoded data
           + white line will be copied */
-        newRGBpac_data = (M4VIFI_UInt8*)M4OSA_malloc(rgbPlane.u_height*rgbPlane.u_width*2\
+        newRGBpac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(rgbPlane.u_height*rgbPlane.u_width*2\
             *sizeof(M4VIFI_UInt8), M4VS, (M4OSA_Char *)"New Framing GIF Output pac_data RGB");
 
         if(newRGBpac_data == M4OSA_NULL)
         {
             M4OSA_TRACE1_0("Allocation error in \
                 M4xVSS_internalConvertARGB888toYUV420_FrammingEffect");
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+            free(rgbPlane.pac_data);
             return M4ERR_ALLOC;
         }
 
@@ -2176,7 +2176,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
             input_pac_data += ((rgbPlane.u_width-1)*2);
         }
-        M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+        free(rgbPlane.pac_data);
         rgbPlane.pac_data = newRGBpac_data;
     }
 
@@ -2265,7 +2265,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
     /**
      * Allocate output planes structures */
-    framingCtx->FramingRgb = (M4VIFI_ImagePlane*)M4OSA_malloc(sizeof(M4VIFI_ImagePlane), M4VS,
+    framingCtx->FramingRgb = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(sizeof(M4VIFI_ImagePlane), M4VS,
          (M4OSA_Char *)"Framing Output plane RGB");
     if(framingCtx->FramingRgb == M4OSA_NULL)
     {
@@ -2289,7 +2289,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         framingCtx->FramingRgb->u_topleft = 0;
 
         framingCtx->FramingRgb->pac_data =
-             (M4VIFI_UInt8*)M4OSA_malloc(framingCtx->FramingRgb->u_height*framingCtx->\
+             (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(framingCtx->FramingRgb->u_height*framingCtx->\
                 FramingRgb->u_width*2*sizeof(M4VIFI_UInt8), M4VS,
                   (M4OSA_Char *)"Framing Output pac_data RGB");
 
@@ -2297,8 +2297,8 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         {
             M4OSA_TRACE1_0("Allocation error in \
                 M4xVSS_internalConvertARGB888toYUV420_FrammingEffect");
-            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb);
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+            free(framingCtx->FramingRgb);
+            free(rgbPlane.pac_data);
             return M4ERR_ALLOC;
         }
 
@@ -2318,7 +2318,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
         if(rgbPlane.pac_data != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+            free(rgbPlane.pac_data);
             rgbPlane.pac_data = M4OSA_NULL;
         }
     }
@@ -2350,12 +2350,12 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     /**
      * Convert  RGB output to YUV 420 to be able to merge it with output video in framing
      effect */
-    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane), M4VS,
+    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane), M4VS,
          (M4OSA_Char *)"Framing Output plane YUV");
     if(framingCtx->FramingYuv == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertARGB888toYUV420_FrammingEffect");
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+        free(framingCtx->FramingRgb->pac_data);
         return M4ERR_ALLOC;
     }
 
@@ -2364,14 +2364,14 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     framingCtx->FramingYuv[0].u_height = ((height+1)>>1)<<1;
     framingCtx->FramingYuv[0].u_topleft = 0;
     framingCtx->FramingYuv[0].u_stride = ((width+1)>>1)<<1;
-    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc
+    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc
         ((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height), M4VS,
             (M4OSA_Char *)"Alloc for the output Y");
     if(framingCtx->FramingYuv[0].pac_data == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertARGB888toYUV420_FrammingEffect");
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+        free(framingCtx->FramingYuv);
+        free(framingCtx->FramingRgb->pac_data);
         return M4ERR_ALLOC;
     }
     framingCtx->FramingYuv[1].u_width = (((width+1)>>1)<<1)>>1;
@@ -2380,13 +2380,13 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     framingCtx->FramingYuv[1].u_stride = (((width+1)>>1)<<1)>>1;
 
 
-    framingCtx->FramingYuv[1].pac_data = (M4VIFI_UInt8*)M4OSA_malloc(
+    framingCtx->FramingYuv[1].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(
         framingCtx->FramingYuv[1].u_width * framingCtx->FramingYuv[1].u_height, M4VS,
         (M4OSA_Char *)"Alloc for the output U");
     if (framingCtx->FramingYuv[1].pac_data == M4OSA_NULL) {
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv[0].pac_data);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+        free(framingCtx->FramingYuv[0].pac_data);
+        free(framingCtx->FramingYuv);
+        free(framingCtx->FramingRgb->pac_data);
         return M4ERR_ALLOC;
     }
 
@@ -2396,14 +2396,14 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
     framingCtx->FramingYuv[2].u_stride = (((width+1)>>1)<<1)>>1;
 
 
-    framingCtx->FramingYuv[2].pac_data = (M4VIFI_UInt8*)M4OSA_malloc(
+    framingCtx->FramingYuv[2].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(
         framingCtx->FramingYuv[2].u_width * framingCtx->FramingYuv[0].u_height, M4VS,
         (M4OSA_Char *)"Alloc for the  output V");
     if (framingCtx->FramingYuv[2].pac_data == M4OSA_NULL) {
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv[1].pac_data);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv[0].pac_data);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv);
-        M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+        free(framingCtx->FramingYuv[1].pac_data);
+        free(framingCtx->FramingYuv[0].pac_data);
+        free(framingCtx->FramingYuv);
+        free(framingCtx->FramingRgb->pac_data);
         return M4ERR_ALLOC;
     }
 
@@ -2731,7 +2731,7 @@ M4OSA_ERR M4xVSS_internalGenerateAudioMixFile(M4OSA_Context pContext)
 
     /**
      * Allocate audio mixing settings structure and fill it with BGM parameters */
-    pAudioMixSettings = (M4VSS3GPP_AudioMixingSettings*)M4OSA_malloc
+    pAudioMixSettings = (M4VSS3GPP_AudioMixingSettings*)M4OSA_32bitAlignedMalloc
         (sizeof(M4VSS3GPP_AudioMixingSettings), M4VS, (M4OSA_Char *)"pAudioMixSettings");
     if(pAudioMixSettings == M4OSA_NULL)
     {
@@ -2870,7 +2870,7 @@ M4OSA_ERR M4xVSS_internalCloseAudioMixedFile(M4OSA_Context pContext)
      * Free VSS audio mixing settings */
     if(xVSS_context->pAudioMixSettings != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pAudioMixSettings);
+        free(xVSS_context->pAudioMixSettings);
         xVSS_context->pAudioMixSettings = M4OSA_NULL;
     }
 
@@ -2901,14 +2901,14 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
     {
         M4xVSS_FreeClipSettings(xVSS_context->pCurrentEditSettings->pClipList[i]);
 
-        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pClipList[i]));
+        free((xVSS_context->pCurrentEditSettings->pClipList[i]));
         xVSS_context->pCurrentEditSettings->pClipList[i] = M4OSA_NULL;
 
         /**
          * Because there is 1 less transition than clip number */
         if(i != xVSS_context->pCurrentEditSettings->uiClipNumber-1)
         {
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pTransitionList[i]));
+            free((xVSS_context->pCurrentEditSettings->pTransitionList[i]));
             xVSS_context->pCurrentEditSettings->pTransitionList[i] = M4OSA_NULL;
         }
     }
@@ -2917,12 +2917,12 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
      * Free clip/transition list */
     if(xVSS_context->pCurrentEditSettings->pClipList != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pClipList));
+        free((xVSS_context->pCurrentEditSettings->pClipList));
         xVSS_context->pCurrentEditSettings->pClipList = M4OSA_NULL;
     }
     if(xVSS_context->pCurrentEditSettings->pTransitionList != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pTransitionList));
+        free((xVSS_context->pCurrentEditSettings->pTransitionList));
         xVSS_context->pCurrentEditSettings->pTransitionList = M4OSA_NULL;
     }
 
@@ -2930,7 +2930,7 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
      * Free output preview file path */
     if(xVSS_context->pCurrentEditSettings->pOutputFile != M4OSA_NULL)
     {
-        M4OSA_free(xVSS_context->pCurrentEditSettings->pOutputFile);
+        free(xVSS_context->pCurrentEditSettings->pOutputFile);
         xVSS_context->pCurrentEditSettings->pOutputFile = M4OSA_NULL;
     }
 
@@ -2939,7 +2939,7 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
     if(xVSS_context->pCurrentEditSettings->pTemporaryFile != M4OSA_NULL)
     {
         remove((const char *)xVSS_context->pCurrentEditSettings->pTemporaryFile);
-        M4OSA_free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
+        free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
         xVSS_context->pCurrentEditSettings->pTemporaryFile = M4OSA_NULL;
     }
 
@@ -2949,10 +2949,10 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
     {
         if(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile != M4OSA_NULL)
         {
-            M4OSA_free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile);
+            free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile);
             xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile = M4OSA_NULL;
         }
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack);
+        free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack);
         xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack = M4OSA_NULL;
     }
 
@@ -2960,7 +2960,7 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
      * Free current edit settings structure */
     if(xVSS_context->pCurrentEditSettings != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings);
+        free(xVSS_context->pCurrentEditSettings);
         xVSS_context->pCurrentEditSettings = M4OSA_NULL;
     }
 
@@ -2968,7 +2968,7 @@ M4OSA_ERR M4xVSS_internalFreePreview(M4OSA_Context pContext)
      * Free preview effects given to application */
     if(M4OSA_NULL != xVSS_context->pPreviewSettings->Effects)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pPreviewSettings->Effects);
+        free(xVSS_context->pPreviewSettings->Effects);
         xVSS_context->pPreviewSettings->Effects = M4OSA_NULL;
         xVSS_context->pPreviewSettings->nbEffects = 0;
     }
@@ -3003,14 +3003,14 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
         {
             M4xVSS_FreeClipSettings(xVSS_context->pCurrentEditSettings->pClipList[i]);
 
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pClipList[i]));
+            free((xVSS_context->pCurrentEditSettings->pClipList[i]));
             xVSS_context->pCurrentEditSettings->pClipList[i] = M4OSA_NULL;
 
             /**
              * Because there is 1 less transition than clip number */
             if(i != xVSS_context->pCurrentEditSettings->uiClipNumber-1)
             {
-                M4OSA_free((M4OSA_MemAddr32)\
+                free(\
                     (xVSS_context->pCurrentEditSettings->pTransitionList[i]));
                 xVSS_context->pCurrentEditSettings->pTransitionList[i] = M4OSA_NULL;
             }
@@ -3020,18 +3020,18 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
          * Free clip/transition list */
         if(xVSS_context->pCurrentEditSettings->pClipList != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pClipList));
+            free((xVSS_context->pCurrentEditSettings->pClipList));
             xVSS_context->pCurrentEditSettings->pClipList = M4OSA_NULL;
         }
         if(xVSS_context->pCurrentEditSettings->pTransitionList != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->pTransitionList));
+            free((xVSS_context->pCurrentEditSettings->pTransitionList));
             xVSS_context->pCurrentEditSettings->pTransitionList = M4OSA_NULL;
         }
 
         if(xVSS_context->pCurrentEditSettings->Effects != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pCurrentEditSettings->Effects));
+            free((xVSS_context->pCurrentEditSettings->Effects));
             xVSS_context->pCurrentEditSettings->Effects = M4OSA_NULL;
             xVSS_context->pCurrentEditSettings->nbEffects = 0;
         }
@@ -3043,11 +3043,11 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
             if(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack != M4OSA_NULL)
             {
                 remove((const char *)xVSS_context->pCurrentEditSettings->pOutputFile);
-                M4OSA_free(xVSS_context->pCurrentEditSettings->pOutputFile);
+                free(xVSS_context->pCurrentEditSettings->pOutputFile);
             }
             if(xVSS_context->pOutputFile != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             xVSS_context->pSettings->pOutputFile = M4OSA_NULL;
@@ -3059,7 +3059,7 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
         if(xVSS_context->pCurrentEditSettings->pTemporaryFile != M4OSA_NULL)
         {
             remove((const char *)xVSS_context->pCurrentEditSettings->pTemporaryFile);
-            M4OSA_free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
+            free(xVSS_context->pCurrentEditSettings->pTemporaryFile);
             xVSS_context->pCurrentEditSettings->pTemporaryFile = M4OSA_NULL;
         }
 
@@ -3069,16 +3069,16 @@ M4OSA_ERR M4xVSS_internalFreeSaving(M4OSA_Context pContext)
         {
             if(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile != M4OSA_NULL)
             {
-                M4OSA_free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile);
+                free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile);
                 xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack->pFile = M4OSA_NULL;
             }
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack);
+            free(xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack);
             xVSS_context->pCurrentEditSettings->xVSS.pBGMtrack = M4OSA_NULL;
         }
 
         /**
          * Free current edit settings structure */
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings);
+        free(xVSS_context->pCurrentEditSettings);
         xVSS_context->pCurrentEditSettings = M4OSA_NULL;
     }
 
@@ -3112,7 +3112,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
         {
             M4xVSS_FreeClipSettings(pSettings->pClipList[i]);
 
-            M4OSA_free((M4OSA_MemAddr32)(pSettings->pClipList[i]));
+            free((pSettings->pClipList[i]));
             pSettings->pClipList[i] = M4OSA_NULL;
         }
 
@@ -3132,19 +3132,19 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                         if(pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt\
                              != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)(((M4xVSS_internal_AlphaMagicSettings*)\
+                            free((((M4xVSS_internal_AlphaMagicSettings*)\
                                 pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt)->\
                                     pPlane->pac_data));
                             ((M4xVSS_internal_AlphaMagicSettings*)pSettings->pTransitionList[i\
                                 ]->pExtVideoTransitionFctCtxt)->pPlane->pac_data = M4OSA_NULL;
 
-                            M4OSA_free((M4OSA_MemAddr32)(((M4xVSS_internal_AlphaMagicSettings*)\
+                            free((((M4xVSS_internal_AlphaMagicSettings*)\
                                 pSettings->pTransitionList[i]->\
                                     pExtVideoTransitionFctCtxt)->pPlane));
                             ((M4xVSS_internal_AlphaMagicSettings*)pSettings->pTransitionList[i]\
                                 ->pExtVideoTransitionFctCtxt)->pPlane = M4OSA_NULL;
 
-                            M4OSA_free((M4OSA_MemAddr32)(pSettings->pTransitionList[i]->\
+                            free((pSettings->pTransitionList[i]->\
                                 pExtVideoTransitionFctCtxt));
                             pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt = M4OSA_NULL;
 
@@ -3166,7 +3166,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                                         {
                                             /* Free extra internal alpha magic structure and put
                                             it to NULL to avoid refreeing it */
-                                            M4OSA_free((M4OSA_MemAddr32)(pSettings->\
+                                            free((pSettings->\
                                                 pTransitionList[j]->pExtVideoTransitionFctCtxt));
                                             pSettings->pTransitionList[j]->\
                                                 pExtVideoTransitionFctCtxt = M4OSA_NULL;
@@ -3183,7 +3183,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                                 xVSS.transitionSpecific.pAlphaMagicSettings->\
                                     pAlphaFilePath != M4OSA_NULL)
                             {
-                                M4OSA_free((M4OSA_MemAddr32)pSettings->\
+                                free(pSettings->\
                                     pTransitionList[i]->\
                                         xVSS.transitionSpecific.pAlphaMagicSettings->\
                                             pAlphaFilePath);
@@ -3191,7 +3191,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                                     xVSS.transitionSpecific.pAlphaMagicSettings->\
                                         pAlphaFilePath = M4OSA_NULL;
                             }
-                            M4OSA_free((M4OSA_MemAddr32)pSettings->pTransitionList[i]->\
+                            free(pSettings->pTransitionList[i]->\
                                 xVSS.transitionSpecific.pAlphaMagicSettings);
                             pSettings->pTransitionList[i]->\
                                 xVSS.transitionSpecific.pAlphaMagicSettings = M4OSA_NULL;
@@ -3205,14 +3205,14 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                         if (M4OSA_NULL != pSettings->pTransitionList[i]->\
                             xVSS.transitionSpecific.pSlideTransitionSettings)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)pSettings->pTransitionList[i]->\
+                            free(pSettings->pTransitionList[i]->\
                                 xVSS.transitionSpecific.pSlideTransitionSettings);
                             pSettings->pTransitionList[i]->\
                                 xVSS.transitionSpecific.pSlideTransitionSettings = M4OSA_NULL;
                         }
                         if(pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)(pSettings->pTransitionList[i]->\
+                            free((pSettings->pTransitionList[i]->\
                                 pExtVideoTransitionFctCtxt));
                             pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt = M4OSA_NULL;
                         }
@@ -3223,7 +3223,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                 }
                 /**
                  * Free transition settings structure */
-                M4OSA_free((M4OSA_MemAddr32)(pSettings->pTransitionList[i]));
+                free((pSettings->pTransitionList[i]));
                 pSettings->pTransitionList[i] = M4OSA_NULL;
             }
         }
@@ -3233,7 +3233,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
      * Free clip list */
     if(pSettings->pClipList != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)(pSettings->pClipList));
+        free((pSettings->pClipList));
         pSettings->pClipList = M4OSA_NULL;
     }
 
@@ -3241,7 +3241,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
      * Free transition list */
     if(pSettings->pTransitionList != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)(pSettings->pTransitionList));
+        free((pSettings->pTransitionList));
         pSettings->pTransitionList = M4OSA_NULL;
     }
 
@@ -3273,55 +3273,55 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                         {
                             if(framingCtx->aFramingCtx->FramingRgb != M4OSA_NULL)
                             {
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->\
+                                free(framingCtx->aFramingCtx->\
                                     FramingRgb->pac_data);
                                 framingCtx->aFramingCtx->FramingRgb->pac_data = M4OSA_NULL;
-                                M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->FramingRgb);
+                                free(framingCtx->aFramingCtx->FramingRgb);
                                 framingCtx->aFramingCtx->FramingRgb = M4OSA_NULL;
                             }
                         }
                         if(framingCtx->aFramingCtx->FramingYuv != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->\
+                            free(framingCtx->aFramingCtx->\
                                 FramingYuv[0].pac_data);
                             framingCtx->aFramingCtx->FramingYuv[0].pac_data = M4OSA_NULL;
-                           M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->\
+                           free(framingCtx->aFramingCtx->\
                                 FramingYuv[1].pac_data);
                             framingCtx->aFramingCtx->FramingYuv[1].pac_data = M4OSA_NULL;
-                           M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->\
+                           free(framingCtx->aFramingCtx->\
                                 FramingYuv[2].pac_data);
                             framingCtx->aFramingCtx->FramingYuv[2].pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx->FramingYuv);
+                            free(framingCtx->aFramingCtx->FramingYuv);
                             framingCtx->aFramingCtx->FramingYuv = M4OSA_NULL;
                         }
-                        M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx);
+                        free(framingCtx->aFramingCtx);
                         framingCtx->aFramingCtx = M4OSA_NULL;
                     }
                     if(framingCtx->aFramingCtx_last != M4OSA_NULL)
                     {
                         if(framingCtx->aFramingCtx_last->FramingRgb != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
+                            free(framingCtx->aFramingCtx_last->\
                                 FramingRgb->pac_data);
                             framingCtx->aFramingCtx_last->FramingRgb->pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
+                            free(framingCtx->aFramingCtx_last->\
                                 FramingRgb);
                             framingCtx->aFramingCtx_last->FramingRgb = M4OSA_NULL;
                         }
                         if(framingCtx->aFramingCtx_last->FramingYuv != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->\
+                            free(framingCtx->aFramingCtx_last->\
                                 FramingYuv[0].pac_data);
                             framingCtx->aFramingCtx_last->FramingYuv[0].pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last->FramingYuv);
+                            free(framingCtx->aFramingCtx_last->FramingYuv);
                             framingCtx->aFramingCtx_last->FramingYuv = M4OSA_NULL;
                         }
-                        M4OSA_free((M4OSA_MemAddr32)framingCtx->aFramingCtx_last);
+                        free(framingCtx->aFramingCtx_last);
                         framingCtx->aFramingCtx_last = M4OSA_NULL;
                     }
                     if(framingCtx->pEffectFilePath != M4OSA_NULL)
                     {
-                        M4OSA_free((M4OSA_MemAddr32)framingCtx->pEffectFilePath);
+                        free(framingCtx->pEffectFilePath);
                         framingCtx->pEffectFilePath = M4OSA_NULL;
                     }
                     /*In case there are still allocated*/
@@ -3332,7 +3332,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
 #if 0
                         if(framingCtx->inputStream.data_buffer  != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->inputStream.data_buffer);
+                            free(framingCtx->inputStream.data_buffer);
                             framingCtx->inputStream.data_buffer = M4OSA_NULL;
                         }
 #endif
@@ -3340,11 +3340,11 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                     /*Alpha blending structure*/
                     if(framingCtx->alphaBlendingStruct  != M4OSA_NULL)
                     {
-                        M4OSA_free((M4OSA_MemAddr32)framingCtx->alphaBlendingStruct);
+                        free(framingCtx->alphaBlendingStruct);
                         framingCtx->alphaBlendingStruct = M4OSA_NULL;
                     }
 
-                    M4OSA_free((M4OSA_MemAddr32)framingCtx);
+                    free(framingCtx);
                     framingCtx = M4OSA_NULL;
                 }
 #else
@@ -3355,20 +3355,20 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                     {
                         if(framingCtx->FramingRgb != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb->pac_data);
+                            free(framingCtx->FramingRgb->pac_data);
                             framingCtx->FramingRgb->pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingRgb);
+                            free(framingCtx->FramingRgb);
                             framingCtx->FramingRgb = M4OSA_NULL;
                         }
                         if(framingCtx->FramingYuv != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv[0].pac_data);
+                            free(framingCtx->FramingYuv[0].pac_data);
                             framingCtx->FramingYuv[0].pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)framingCtx->FramingYuv);
+                            free(framingCtx->FramingYuv);
                             framingCtx->FramingYuv = M4OSA_NULL;
                         }
                         framingCtx_save = framingCtx->pNext;
-                        M4OSA_free((M4OSA_MemAddr32)framingCtx);
+                        free(framingCtx);
                         framingCtx = M4OSA_NULL;
                         framingCtx = framingCtx_save;
                     }
@@ -3387,7 +3387,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
 
                 if(FiftiesCtx != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)FiftiesCtx);
+                    free(FiftiesCtx);
                     FiftiesCtx = M4OSA_NULL;
                 }
 
@@ -3405,7 +3405,7 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
 
                 if(ColorCtx != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)ColorCtx);
+                    free(ColorCtx);
                     ColorCtx = M4OSA_NULL;
                 }
             }
@@ -3413,21 +3413,21 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
             /* Free simple fields */
             if(pSettings->Effects[i].xVSS.pFramingFilePath != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pSettings->Effects[i].xVSS.pFramingFilePath);
+                free(pSettings->Effects[i].xVSS.pFramingFilePath);
                 pSettings->Effects[i].xVSS.pFramingFilePath = M4OSA_NULL;
             }
             if(pSettings->Effects[i].xVSS.pFramingBuffer != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pSettings->Effects[i].xVSS.pFramingBuffer);
+                free(pSettings->Effects[i].xVSS.pFramingBuffer);
                 pSettings->Effects[i].xVSS.pFramingBuffer = M4OSA_NULL;
             }
             if(pSettings->Effects[i].xVSS.pTextBuffer != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pSettings->Effects[i].xVSS.pTextBuffer);
+                free(pSettings->Effects[i].xVSS.pTextBuffer);
                 pSettings->Effects[i].xVSS.pTextBuffer = M4OSA_NULL;
             }
         }
-        M4OSA_free((M4OSA_MemAddr32)pSettings->Effects);
+        free(pSettings->Effects);
         pSettings->Effects = M4OSA_NULL;
     }
 
@@ -3444,10 +3444,10 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
     {
         if(xVSS_context->pSettings->xVSS.pBGMtrack->pFile != M4OSA_NULL)
         {
-            M4OSA_free(xVSS_context->pSettings->xVSS.pBGMtrack->pFile);
+            free(xVSS_context->pSettings->xVSS.pBGMtrack->pFile);
             xVSS_context->pSettings->xVSS.pBGMtrack->pFile = M4OSA_NULL;
         }
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->xVSS.pBGMtrack);
+        free(xVSS_context->pSettings->xVSS.pBGMtrack);
         xVSS_context->pSettings->xVSS.pBGMtrack = M4OSA_NULL;
     }
 #if 0
@@ -3469,21 +3469,21 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                     if(xVSS_context->pSettings->pTransitionList[i]->\
                         pExtVideoTransitionFctCtxt != M4OSA_NULL)
                     {
-                        M4OSA_free((M4OSA_MemAddr32)(((M4xVSS_internal_AlphaMagicSettings*)\
+                        free((((M4xVSS_internal_AlphaMagicSettings*)\
                             xVSS_context->pSettings->pTransitionList[i]->\
                                 pExtVideoTransitionFctCtxt)->pPlane->pac_data));
                         ((M4xVSS_internal_AlphaMagicSettings*)xVSS_context->\
                             pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt)->\
                                 pPlane->pac_data = M4OSA_NULL;
 
-                        M4OSA_free((M4OSA_MemAddr32)(((M4xVSS_internal_AlphaMagicSettings*)\
+                        free((((M4xVSS_internal_AlphaMagicSettings*)\
                             xVSS_context->pSettings->pTransitionList[i]->\
                                 pExtVideoTransitionFctCtxt)->pPlane));
                         ((M4xVSS_internal_AlphaMagicSettings*)xVSS_context->\
                             pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt)->\
                                 pPlane = M4OSA_NULL;
 
-                        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pSettings->\
+                        free((xVSS_context->pSettings->\
                             pTransitionList[i]->pExtVideoTransitionFctCtxt));
                         xVSS_context->pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt
                              = M4OSA_NULL;
@@ -3506,7 +3506,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                                         {
                                         /* Free extra internal alpha magic structure and put it
                                          to NULL to avoid refreeing it */
-                                        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pSettings->\
+                                        free((xVSS_context->pSettings->\
                                             pTransitionList[j]->pExtVideoTransitionFctCtxt));
                                         xVSS_context->pSettings->pTransitionList[j]->\
                                             pExtVideoTransitionFctCtxt = M4OSA_NULL;
@@ -3521,7 +3521,7 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                     if(xVSS_context->pSettings->pTransitionList[i]->\
                         pExtVideoTransitionFctCtxt != M4OSA_NULL)
                     {
-                        M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pSettings->\
+                        free((xVSS_context->pSettings->\
                             pTransitionList[i]->pExtVideoTransitionFctCtxt));
                         xVSS_context->pSettings->pTransitionList[i]->\
                             pExtVideoTransitionFctCtxt = M4OSA_NULL;
@@ -3543,14 +3543,14 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
         {
             if(pParams->pFileIn != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileIn);
+                free(pParams->pFileIn);
                 pParams->pFileIn = M4OSA_NULL;
             }
             if(pParams->pFileOut != M4OSA_NULL)
             {
                 /* Delete temporary file */
                 remove((const char *)pParams->pFileOut);
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
+                free(pParams->pFileOut);
                 pParams->pFileOut = M4OSA_NULL;
             }
             if(pParams->pFileTemp != M4OSA_NULL)
@@ -3558,13 +3558,13 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                 /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
                 remove((const char *)pParams->pFileTemp);
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
+                free(pParams->pFileTemp);
 #endif/*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
                 pParams->pFileTemp = M4OSA_NULL;
             }
             pParams_sauv = pParams;
             pParams = pParams->pNext;
-            M4OSA_free((M4OSA_MemAddr32)pParams_sauv);
+            free(pParams_sauv);
             pParams_sauv = M4OSA_NULL;
         }
     }
@@ -3578,14 +3578,14 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
         {
             if(pParams->pFileIn != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileIn);
+                free(pParams->pFileIn);
                 pParams->pFileIn = M4OSA_NULL;
             }
             if(pParams->pFileOut != M4OSA_NULL)
             {
                 /* Delete temporary file */
                 remove((const char *)pParams->pFileOut);
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
+                free(pParams->pFileOut);
                 pParams->pFileOut = M4OSA_NULL;
             }
             if(pParams->pFileTemp != M4OSA_NULL)
@@ -3593,26 +3593,26 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
                 /* Delete temporary file */
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
                 remove((const char *)pParams->pFileTemp);
-                M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
+                free(pParams->pFileTemp);
 #endif/*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
                 pParams->pFileTemp = M4OSA_NULL;
             }
             pParams_sauv = pParams;
             pParams = pParams->pNext;
-            M4OSA_free((M4OSA_MemAddr32)pParams_sauv);
+            free(pParams_sauv);
             pParams_sauv = M4OSA_NULL;
         }
     }
 
     if(xVSS_context->pcmPreviewFile != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pcmPreviewFile);
+        free(xVSS_context->pcmPreviewFile);
         xVSS_context->pcmPreviewFile = M4OSA_NULL;
     }
     if(xVSS_context->pSettings->pOutputFile != M4OSA_NULL
         && xVSS_context->pOutputFile != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->pOutputFile);
+        free(xVSS_context->pSettings->pOutputFile);
         xVSS_context->pSettings->pOutputFile = M4OSA_NULL;
         xVSS_context->pOutputFile = M4OSA_NULL;
     }
@@ -5006,12 +5006,12 @@ M4OSA_ERR M4xVSS_internalConvertToUTF8(M4OSA_Context pContext, M4OSA_Void* pBuff
             M4OSA_TRACE2_1("M4xVSS_internalConvertToUTF8: pConvToUTF8Fct return 0x%x",err);
 
             /*free too small buffer*/
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->\
+            free(xVSS_context->\
                 UTFConversionContext.pTempOutConversionBuffer);
 
             /*re-allocate the buffer*/
             xVSS_context->UTFConversionContext.pTempOutConversionBuffer    =
-                 (M4OSA_Void*)M4OSA_malloc(ConvertedSize*sizeof(M4OSA_UInt8), M4VA,
+                 (M4OSA_Void*)M4OSA_32bitAlignedMalloc(ConvertedSize*sizeof(M4OSA_UInt8), M4VA,
                      (M4OSA_Char *)"M4xVSS_internalConvertToUTF8: UTF conversion buffer");
             if(M4OSA_NULL == xVSS_context->UTFConversionContext.pTempOutConversionBuffer)
             {
@@ -5085,12 +5085,12 @@ M4OSA_ERR M4xVSS_internalConvertFromUTF8(M4OSA_Context pContext, M4OSA_Void* pBu
             M4OSA_TRACE2_1("M4xVSS_internalConvertFromUTF8: pConvFromUTF8Fct return 0x%x",err);
 
             /*free too small buffer*/
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->\
+            free(xVSS_context->\
                 UTFConversionContext.pTempOutConversionBuffer);
 
             /*re-allocate the buffer*/
             xVSS_context->UTFConversionContext.pTempOutConversionBuffer    =
-                (M4OSA_Void*)M4OSA_malloc(ConvertedSize*sizeof(M4OSA_UInt8), M4VA,
+                (M4OSA_Void*)M4OSA_32bitAlignedMalloc(ConvertedSize*sizeof(M4OSA_UInt8), M4VA,
                      (M4OSA_Char *)"M4xVSS_internalConvertFromUTF8: UTF conversion buffer");
             if(M4OSA_NULL == xVSS_context->UTFConversionContext.pTempOutConversionBuffer)
             {

@@ -111,7 +111,7 @@ M4OSA_ERR M4DECODER_EXTERNAL_getInterface(M4DECODER_VideoInterface **pDecoderInt
 {
     /* Allocates memory for the decoder shell pointer to function */
     *pDecoderInterface =
-         (M4DECODER_VideoInterface*)M4OSA_malloc( sizeof(M4DECODER_VideoInterface),
+         (M4DECODER_VideoInterface*)M4OSA_32bitAlignedMalloc( sizeof(M4DECODER_VideoInterface),
              M4DECODER_EXTERNAL, (M4OSA_Char *)"M4DECODER_VideoInterface" );
     if (M4OSA_NULL == *pDecoderInterface)
     {
@@ -282,7 +282,7 @@ static M4OSA_ERR M4DECODER_EXTERNAL_destroy(M4OSA_Context pVS_Context)
 
         if(M4OSA_NULL != pStreamContext->m_pStreamInfo)
         {
-            M4OSA_free((M4OSA_MemAddr32)pStreamContext->m_pStreamInfo);
+            free(pStreamContext->m_pStreamInfo);
             pStreamContext->m_pStreamInfo = M4OSA_NULL;
         }
 
@@ -293,7 +293,7 @@ static M4OSA_ERR M4DECODER_EXTERNAL_destroy(M4OSA_Context pVS_Context)
         }
 #endif /* not M4DECODER_EXTERNAL_SYNC_EXT_DECODE */
 
-        M4OSA_free((M4OSA_MemAddr32)pStreamContext);
+        free(pStreamContext);
         pStreamContext = M4OSA_NULL;
     }
 
@@ -659,7 +659,7 @@ static M4OSA_ERR M4DECODER_EXTERNAL_Init(M4OSA_Context* pVS_Context,
     /* Allocate the internal context */
     *pVS_Context = M4OSA_NULL;
 
-    pStreamContext = (M4VS_VideoDecoder_Context*)M4OSA_malloc(sizeof(M4VS_VideoDecoder_Context),
+    pStreamContext = (M4VS_VideoDecoder_Context*)M4OSA_32bitAlignedMalloc(sizeof(M4VS_VideoDecoder_Context),
          M4DECODER_EXTERNAL,(M4OSA_Char *) "M4VS_VideoDecoder_Context");
     if (M4OSA_NULL == pStreamContext)
     {
@@ -746,7 +746,7 @@ static M4OSA_ERR M4DECODER_EXTERNAL_StreamDescriptionInit(M4VD_StreamInfo** ppSt
     pVideoStreamHandler = (M4_VideoStreamHandler*)pStreamHandler;
 
     /* M4VD_StreamInfo allocation */
-    *ppStreamInfo = (M4VD_StreamInfo*)M4OSA_malloc(sizeof(M4VD_StreamInfo),
+    *ppStreamInfo = (M4VD_StreamInfo*)M4OSA_32bitAlignedMalloc(sizeof(M4VD_StreamInfo),
          M4DECODER_EXTERNAL, (M4OSA_Char *)"M4VD_StreamInfo");
     if(M4OSA_NULL == *ppStreamInfo)
     {

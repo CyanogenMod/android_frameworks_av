@@ -151,7 +151,7 @@ M4OSA_ERR H264MCS_Getinstance( NSWAVC_MCS_t ** instance )
 {
     NSWAVC_MCS_t *p_bs = M4OSA_NULL;
     M4OSA_ERR err = M4NO_ERROR;
-    p_bs = (NSWAVC_MCS_t *)M4OSA_malloc(sizeof(NSWAVC_MCS_t), M4MCS,
+    p_bs = (NSWAVC_MCS_t *)M4OSA_32bitAlignedMalloc(sizeof(NSWAVC_MCS_t), M4MCS,
         (M4OSA_Char *)"NSWAVC_MCS_t");
 
     if( M4OSA_NULL == p_bs )
@@ -768,7 +768,7 @@ M4OSA_ERR H264MCS_ProcessEncodedNALU(   M4OSA_Void *ainstance,
     }
 
     // StageFright encoder does not provide the size in the first 4 bytes of the AU, add it
-    pTmpBuff1 = (M4OSA_Int8 *)M4OSA_malloc(inbuf_size + 4, M4MCS,
+    pTmpBuff1 = (M4OSA_Int8 *)M4OSA_32bitAlignedMalloc(inbuf_size + 4, M4MCS,
         (M4OSA_Char *)"tmpNALU");
     memcpy((void *)(pTmpBuff1 + 4), (void *)inbuff,
         inbuf_size);
@@ -1006,7 +1006,7 @@ M4OSA_ERR H264MCS_ProcessEncodedNALU(   M4OSA_Void *ainstance,
 
     // StageFright encoder does not provide the size in the first 4 bytes of the AU, add it
 
-    M4OSA_free((M4OSA_MemAddr32)pTmpBuff1);
+    free(pTmpBuff1);
     pTmpBuff1 = M4OSA_NULL;
     inbuff = (M4OSA_UInt8 *)pTmpBuff2;
 
@@ -1566,7 +1566,7 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
         instance->final_PPS_ID = Clip_PPSID[cnt];
 
         instance->m_pFinalDSI =
-            (M4OSA_UInt8 *)M4OSA_malloc(instance->m_decoderSpecificInfoSize,
+            (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(instance->m_decoderSpecificInfoSize,
             M4MCS, (M4OSA_Char *)"instance->m_pFinalDSI");
 
         if( instance->m_pFinalDSI == M4OSA_NULL )
@@ -1596,7 +1596,7 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
         size = instance->m_decoderSpecificInfoSize + instance->m_encoderPPSSize
             + 10;
 
-        instance->m_pFinalDSI = (M4OSA_UInt8 *)M4OSA_malloc(size, M4MCS,
+        instance->m_pFinalDSI = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(size, M4MCS,
             (M4OSA_Char *)"instance->m_pFinalDSI");
 
         if( instance->m_pFinalDSI == M4OSA_NULL )
@@ -2036,30 +2036,30 @@ M4OSA_ERR H264MCS_Freeinstance( NSWAVC_MCS_t *instance )
 
     if( M4OSA_NULL != instance->encoder_pps.slice_group_id )
     {
-        M4OSA_free((M4OSA_MemAddr32)instance->encoder_pps.slice_group_id);
+        free(instance->encoder_pps.slice_group_id);
     }
 
     if( M4OSA_NULL != instance->p_encoder_sps )
     {
-        M4OSA_free((M4OSA_MemAddr32)instance->p_encoder_sps);
+        free(instance->p_encoder_sps);
         instance->p_encoder_sps = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != instance->p_encoder_pps )
     {
-        M4OSA_free((M4OSA_MemAddr32)instance->p_encoder_pps);
+        free(instance->p_encoder_pps);
         instance->p_encoder_pps = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != instance->m_pFinalDSI )
     {
-        M4OSA_free((M4OSA_MemAddr32)instance->m_pFinalDSI);
+        free(instance->m_pFinalDSI);
         instance->m_pFinalDSI = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != instance )
     {
-        M4OSA_free((M4OSA_MemAddr32)instance);
+        free(instance);
         instance = M4OSA_NULL;
     }
 
@@ -2130,7 +2130,7 @@ M4OSA_ERR M4MCS_init( M4MCS_Context *pContext,
 
     /**
     * Allocate the MCS context and return it to the user */
-    pC = (M4MCS_InternalContext *)M4OSA_malloc(sizeof(M4MCS_InternalContext),
+    pC = (M4MCS_InternalContext *)M4OSA_32bitAlignedMalloc(sizeof(M4MCS_InternalContext),
         M4MCS, (M4OSA_Char *)"M4MCS_InternalContext");
     *pContext = pC;
 
@@ -3164,7 +3164,7 @@ M4OSA_ERR M4MCS_close( M4MCS_Context pContext )
                         (M4OSA_MemAddr8)pC->m_pInstance->m_pDecoderSpecificInfo);
 
                     pC->m_pInstance->m_pFinalDSI =
-                        (M4OSA_UInt8 *)M4OSA_malloc(pC->m_pInstance-> \
+                        (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(pC->m_pInstance-> \
                         m_decoderSpecificInfoSize, M4MCS,
                         (M4OSA_Char *)"instance->m_pFinalDSI");
 
@@ -3222,7 +3222,7 @@ M4OSA_ERR M4MCS_close( M4MCS_Context pContext )
     free effects list*/
     if( M4OSA_NULL != pC->pEffects )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pEffects);
+        free(pC->pEffects);
         pC->pEffects = M4OSA_NULL;
     }
     pC->nbEffects = 0;
@@ -3234,7 +3234,7 @@ M4OSA_ERR M4MCS_close( M4MCS_Context pContext )
 
     if( M4OSA_NULL != pC->H264MCSTempBuffer )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->H264MCSTempBuffer);
+        free(pC->H264MCSTempBuffer);
     }
 
     M4OSA_TRACE3_0("M4MCS_close(): returning M4NO_ERROR");
@@ -3331,7 +3331,7 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
     if( ( M4ENCODER_kH263 == pC->EncodingVideoFormat)
         && (M4OSA_NULL != pC->WriterVideoStreamInfo.Header.pBuf) )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->WriterVideoStreamInfo.Header.pBuf);
+        free(pC->WriterVideoStreamInfo.Header.pBuf);
         pC->WriterVideoStreamInfo.Header.pBuf = M4OSA_NULL;
     }
 
@@ -3339,22 +3339,22 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
     {
         if( M4OSA_NULL != pC->pPreResizeFrame[0].pac_data )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->pPreResizeFrame[0].pac_data);
+            free(pC->pPreResizeFrame[0].pac_data);
             pC->pPreResizeFrame[0].pac_data = M4OSA_NULL;
         }
 
         if( M4OSA_NULL != pC->pPreResizeFrame[1].pac_data )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->pPreResizeFrame[1].pac_data);
+            free(pC->pPreResizeFrame[1].pac_data);
             pC->pPreResizeFrame[1].pac_data = M4OSA_NULL;
         }
 
         if( M4OSA_NULL != pC->pPreResizeFrame[2].pac_data )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->pPreResizeFrame[2].pac_data);
+            free(pC->pPreResizeFrame[2].pac_data);
             pC->pPreResizeFrame[2].pac_data = M4OSA_NULL;
         }
-        M4OSA_free((M4OSA_MemAddr32)pC->pPreResizeFrame);
+        free(pC->pPreResizeFrame);
         pC->pPreResizeFrame = M4OSA_NULL;
     }
 
@@ -3362,19 +3362,19 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
 
     if( M4OSA_NULL != pC->SsrcScratch )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->SsrcScratch);
+        free(pC->SsrcScratch);
         pC->SsrcScratch = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->pSsrcBufferIn )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pSsrcBufferIn);
+        free(pC->pSsrcBufferIn);
         pC->pSsrcBufferIn = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->pSsrcBufferOut )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pSsrcBufferOut);
+        free(pC->pSsrcBufferOut);
         pC->pSsrcBufferOut = M4OSA_NULL;
     }
 
@@ -3413,7 +3413,7 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
 
     if( M4OSA_NULL != pC->pAudioEncoderBuffer )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderBuffer);
+        free(pC->pAudioEncoderBuffer);
         pC->pAudioEncoderBuffer = M4OSA_NULL;
     }
 
@@ -3441,7 +3441,7 @@ M4OSA_ERR M4MCS_cleanUp( M4MCS_Context pContext )
 
     /**
     * Free the context itself */
-    M4OSA_free((M4OSA_MemAddr32)pC);
+    free(pC);
     pC = M4OSA_NULL;
 
     M4OSA_TRACE3_0("M4MCS_cleanUp(): returning M4NO_ERROR");
@@ -4306,7 +4306,7 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
     {
         M4OSA_UInt32 j = 0;
         pC->nbEffects = pParams->nbEffects;
-        pC->pEffects = (M4MCS_EffectSettings *)M4OSA_malloc(pC->nbEffects \
+        pC->pEffects = (M4MCS_EffectSettings *)M4OSA_32bitAlignedMalloc(pC->nbEffects \
             *sizeof(M4MCS_EffectSettings), M4MCS,
             (M4OSA_Char *)"Allocation of effects list");
 
@@ -5907,7 +5907,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
         * Allocate the intermediate video plane that will receive the decoded image before
          resizing */
         pC->pPreResizeFrame =
-            (M4VIFI_ImagePlane *)M4OSA_malloc(3 * sizeof(M4VIFI_ImagePlane),
+            (M4VIFI_ImagePlane *)M4OSA_32bitAlignedMalloc(3 * sizeof(M4VIFI_ImagePlane),
             M4MCS, (M4OSA_Char *)"m_pPreResizeFrame");
 
         if( M4OSA_NULL == pC->pPreResizeFrame )
@@ -5932,7 +5932,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
             pPreResizeFrame[0].u_width; /**< simple case: stride equals width */
 
         pC->pPreResizeFrame[0].pac_data =
-            (M4VIFI_UInt8 *)M4OSA_malloc(pC->pPreResizeFrame[0].u_stride \
+            (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pC->pPreResizeFrame[0].u_stride \
             *pC->pPreResizeFrame[0].u_height, M4MCS,
             (M4OSA_Char *)"m_pPreResizeFrame[0].pac_data");
 
@@ -5955,7 +5955,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
             pPreResizeFrame[1].u_width; /**< simple case: stride equals width */
 
         pC->pPreResizeFrame[1].pac_data =
-            (M4VIFI_UInt8 *)M4OSA_malloc(pC->pPreResizeFrame[1].u_stride \
+            (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pC->pPreResizeFrame[1].u_stride \
             *pC->pPreResizeFrame[1].u_height, M4MCS,
             (M4OSA_Char *)"m_pPreResizeFrame[1].pac_data");
 
@@ -5978,7 +5978,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
             pPreResizeFrame[2].u_width; /**< simple case: stride equals width */
 
         pC->pPreResizeFrame[2].pac_data =
-            (M4VIFI_UInt8 *)M4OSA_malloc(pC->pPreResizeFrame[2].u_stride \
+            (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pC->pPreResizeFrame[2].u_stride \
             *pC->pPreResizeFrame[2].u_height, M4MCS,
             (M4OSA_Char *)"m_pPreResizeFrame[1].pac_data");
 
@@ -6135,7 +6135,7 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
         pC->AudioDecBufferOut.m_bufferSize =
             pC->InputFileProperties.uiDecodedPcmSize;
         pC->AudioDecBufferOut.m_dataAddress =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->AudioDecBufferOut.m_bufferSize \
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->AudioDecBufferOut.m_bufferSize \
             *sizeof(short), M4MCS, (M4OSA_Char *)"AudioDecBufferOut.m_bufferSize");
     }
 
@@ -6384,7 +6384,7 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
     /**
     * Allocate buffer for the input of the SSRC */
     pC->pSsrcBufferIn =
-        (M4OSA_MemAddr8)M4OSA_malloc(pC->iSsrcNbSamplIn * sizeof(short) \
+        (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->iSsrcNbSamplIn * sizeof(short) \
         *pC->pReaderAudioStream->m_nbChannels, M4MCS,
         (M4OSA_Char *)"pSsrcBufferIn");
 
@@ -6400,7 +6400,7 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
     /**
     * Allocate buffer for the output of the SSRC */
     pC->pSsrcBufferOut =
-        (M4OSA_MemAddr8)M4OSA_malloc(pC->iSsrcNbSamplOut * sizeof(short) \
+        (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->iSsrcNbSamplOut * sizeof(short) \
         *pC->pReaderAudioStream->m_nbChannels, M4MCS,
         (M4OSA_Char *)"pSsrcBufferOut");
 
@@ -6490,7 +6490,7 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
 
     pC->pPosInAudioEncoderBuffer = M4OSA_NULL;
     pC->pAudioEncoderBuffer =
-        (M4OSA_MemAddr8)M4OSA_malloc(pC->audioEncoderGranularity, M4MCS,
+        (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->audioEncoderGranularity, M4MCS,
         (M4OSA_Char *)"pC->pAudioEncoderBuffer");
 
     /**
@@ -6684,7 +6684,7 @@ static M4OSA_ERR M4MCS_intPrepareWriter( M4MCS_InternalContext *pC )
             * Creates the H263 DSI */
             pC->WriterVideoStreamInfo.Header.Size =
                 7; /**< H263 output DSI is always 7 bytes */
-            pDSI = (M4OSA_MemAddr8)M4OSA_malloc(7, M4MCS, (M4OSA_Char
+            pDSI = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(7, M4MCS, (M4OSA_Char
                 *)"pC->WriterVideoStreamInfo.Header.pBuf (DSI H263)");
 
             if( M4OSA_NULL == pDSI )
@@ -6790,7 +6790,7 @@ static M4OSA_ERR M4MCS_intPrepareWriter( M4MCS_InternalContext *pC )
                     m_basicProperties.m_decoderSpecificInfoSize;
                 pC->WriterVideoStreamInfo.Header.pBuf =
                     (M4OSA_Void
-                    *)M4OSA_malloc(pC->WriterVideoStreamInfo.Header.Size,
+                    *)M4OSA_32bitAlignedMalloc(pC->WriterVideoStreamInfo.Header.Size,
                     M4MCS,
                     (M4OSA_Char
                     *)
@@ -7932,7 +7932,7 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
             }
 
             pC->m_pDataAddress1 =
-                (M4OSA_MemAddr8)M4OSA_malloc(pC->ReaderAudioAU1.m_maxsize,
+                (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ReaderAudioAU1.m_maxsize,
                 M4MCS, (M4OSA_Char *)"Temporary AU1 buffer");
 
             if( pC->m_pDataAddress1 == M4OSA_NULL )
@@ -8007,7 +8007,7 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
                 return err;
             }
             pC->m_pDataAddress2 =
-                (M4OSA_MemAddr8)M4OSA_malloc(pC->ReaderAudioAU2.m_maxsize,
+                (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ReaderAudioAU2.m_maxsize,
                 M4MCS, (M4OSA_Char *)"Temporary AU buffer");
 
             if( pC->m_pDataAddress2 == M4OSA_NULL )
@@ -8468,7 +8468,7 @@ m4mcs_intaudiotranscoding_do_resampling:
     if( pC->pReaderAudioStream->m_nbChannels == 1 )
     {
         tempBuffOut =
-            (short *)M4OSA_malloc((pC->iSsrcNbSamplOut * sizeof(short) * 2
+            (short *)M4OSA_32bitAlignedMalloc((pC->iSsrcNbSamplOut * sizeof(short) * 2
             * ((*pC).InputFileProperties).uiNbChannels),
             M4VSS3GPP,(M4OSA_Char *) "tempBuffOut");
         memset((void *)tempBuffOut, 0,(pC->iSsrcNbSamplOut * sizeof(short) * 2
@@ -8490,7 +8490,7 @@ m4mcs_intaudiotranscoding_do_resampling:
     {
         From2iToMono_16((short *)tempBuffOut, (short *)pC->pSsrcBufferOut,
             (short)pC->iSsrcNbSamplOut);
-        M4OSA_free((M4OSA_MemAddr32)tempBuffOut);
+        free(tempBuffOut);
     }
 
 
@@ -8839,8 +8839,8 @@ static M4OSA_ERR M4MCS_intReallocTemporaryAU( M4OSA_MemAddr8 *addr,
 {
     if( *addr != M4OSA_NULL )
     {
-        M4OSA_free(( M4OSA_MemAddr32) * addr);
-        *addr = (M4OSA_MemAddr8)M4OSA_malloc(newSize, M4MCS,
+        free(*addr);
+        *addr = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(newSize, M4MCS,
             (M4OSA_Char *)"Reallocation of temporary AU buffer");
 
         if( *addr == M4OSA_NULL )
@@ -9031,7 +9031,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
         }
 
         pC->m_pDataVideoAddress1 =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->ReaderVideoAU1.m_maxsize, M4MCS,
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ReaderVideoAU1.m_maxsize, M4MCS,
             (M4OSA_Char *)"Temporary video AU1 buffer");
 
         if( pC->m_pDataVideoAddress1 == M4OSA_NULL )
@@ -9102,7 +9102,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             return err;
         }
         pC->m_pDataVideoAddress2 =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->ReaderVideoAU2.m_maxsize, M4MCS,
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ReaderVideoAU2.m_maxsize, M4MCS,
             (M4OSA_Char *)"Temporary video AU buffer");
 
         if( pC->m_pDataVideoAddress2 == M4OSA_NULL )
@@ -9255,10 +9255,10 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
 
                     if( pC->H264MCSTempBuffer != M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pC->H264MCSTempBuffer);
+                        free(pC->H264MCSTempBuffer);
                     }
                     pC->H264MCSTempBuffer =
-                        (M4OSA_UInt8 *)M4OSA_malloc(pC->H264MCSTempBufferSize,
+                        (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(pC->H264MCSTempBufferSize,
                         M4MCS, (M4OSA_Char *)"pC->H264MCSTempBuffer");
 
                     if( pC->H264MCSTempBuffer == M4OSA_NULL )
@@ -10507,25 +10507,25 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders( M4MCS_InternalContext *pC )
 
     if( pC->m_pDataAddress1 != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pDataAddress1);
+        free(pC->m_pDataAddress1);
         pC->m_pDataAddress1 = M4OSA_NULL;
     }
 
     if( pC->m_pDataAddress2 != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pDataAddress2);
+        free(pC->m_pDataAddress2);
         pC->m_pDataAddress2 = M4OSA_NULL;
     }
     /*Bug fix 11/12/2008 (to obtain more precise video end cut)*/
     if( pC->m_pDataVideoAddress1 != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pDataVideoAddress1);
+        free(pC->m_pDataVideoAddress1);
         pC->m_pDataVideoAddress1 = M4OSA_NULL;
     }
 
     if( pC->m_pDataVideoAddress2 != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pDataVideoAddress2);
+        free(pC->m_pDataVideoAddress2);
         pC->m_pDataVideoAddress2 = M4OSA_NULL;
     }
     /**/
@@ -10563,7 +10563,7 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders( M4MCS_InternalContext *pC )
 
     if( M4OSA_NULL != pC->AudioDecBufferOut.m_dataAddress )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->AudioDecBufferOut.m_dataAddress);
+        free(pC->AudioDecBufferOut.m_dataAddress);
         pC->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
     }
 
@@ -10942,7 +10942,7 @@ M4OSA_ERR M4MCS_registerExternalVideoDecoder( M4MCS_Context pContext,
     }
 
     shellUserData =
-        (M4DECODER_EXTERNAL_UserDataType)M4OSA_malloc(sizeof(*shellUserData),
+        (M4DECODER_EXTERNAL_UserDataType)M4OSA_32bitAlignedMalloc(sizeof(*shellUserData),
         M4MCS,
         (M4OSA_Char *)"userData structure for the external shell decoder");
 
@@ -10965,7 +10965,7 @@ M4OSA_ERR M4MCS_registerExternalVideoDecoder( M4MCS_Context pContext,
             "M4MCS_registerExternalVideoDecoder:\
                  M4DECODER_EXTERNAL_getInterface failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellUserData);
+        free(shellUserData);
         return err;
     }
 
@@ -10977,8 +10977,8 @@ M4OSA_ERR M4MCS_registerExternalVideoDecoder( M4MCS_Context pContext,
             "M4MCS_registerExternalVideoDecoder:\
                  M4MCS_registerVideoDecoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellInterface);
-        M4OSA_free((M4OSA_MemAddr32)shellUserData);
+        free(shellInterface);
+        free(shellUserData);
         return err;
     }
 
@@ -11048,7 +11048,7 @@ M4OSA_ERR M4MCS_registerExternalVideoEncoder( M4MCS_Context pContext,
             "M4MCS_registerExternalVideoEncoder:\
                  M4MCS_registerVideoEncoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)shellInterface);
+        free(shellInterface);
         return err;
     }
 
@@ -11122,7 +11122,7 @@ M4OSA_ERR M4MCS_registerExternalAudioDecoder( M4MCS_Context pContext,
 
     if( pC->m_pAudioDecoderItTable[decoderType] != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[decoderType]);
+        free(pC->m_pAudioDecoderItTable[decoderType]);
         pC->m_pAudioDecoderItTable[decoderType] = M4OSA_NULL;
     }
 
@@ -11193,7 +11193,7 @@ M4OSA_ERR M4MCS_registerExternalAudioEncoder( M4MCS_Context pContext,
 
     if( pC->pAudioEncoderInterface[MediaType] != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderInterface[MediaType]);
+        free(pC->pAudioEncoderInterface[MediaType]);
         pC->pAudioEncoderInterface[MediaType] = M4OSA_NULL;
     }
 
@@ -11492,7 +11492,7 @@ M4OSA_ERR M4MCS_registerAudioEncoderExtended( M4MCS_Context pContext,
             "M4MCS_registerAudioEncoderExtended: \
                 M4MCS_registerAudioEncoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)pEncoderInterface);
+        free(pEncoderInterface);
         return err;
     }
 
@@ -11597,7 +11597,7 @@ M4OSA_ERR M4MCS_registerAudioDecoderExtended( M4MCS_Context pContext,
             "M4MCS_registerAudioDecoderExtended:\
                  M4MCS_registerAudioDecoder failed with error 0x%08X",
             err);
-        M4OSA_free((M4OSA_MemAddr32)pDecoderInterface);
+        free(pDecoderInterface);
         return err;
     }
 

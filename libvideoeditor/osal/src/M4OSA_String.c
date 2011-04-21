@@ -49,7 +49,7 @@ M4OSA_ERR M4OSA_strCreate(M4OSA_String* pStrOut)
                                                              "M4OSA_strCreate");
 
     /* Allocate the output M4OSA_String */
-    pStr = (M4OSA_strStruct*)M4OSA_malloc(sizeof(M4OSA_strStruct), M4OSA_STRING,
+    pStr = (M4OSA_strStruct*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_strStruct), M4OSA_STRING,
         (M4OSA_Char*)"M4OSA_strPrivCreate: output string");
 
     /* Check memory allocation error */
@@ -98,7 +98,7 @@ M4OSA_ERR M4OSA_strReset(M4OSA_String str_in)
 
     if(M4OSA_NULL != pBuffer)
     {
-        M4OSA_free((M4OSA_MemAddr32)pBuffer);
+        free(pBuffer);
 
         pStr->pui8_buffer = M4OSA_NULL;
     }
@@ -133,10 +133,10 @@ M4OSA_ERR M4OSA_strDestroy(M4OSA_String str_in)
 
 
     /* Free M4OSA_String buffer */
-    M4OSA_free((M4OSA_MemAddr32)(pStr->pui8_buffer));
+    free((pStr->pui8_buffer));
 
     /* Free M4OSA_String structure memory */
-    M4OSA_free((M4OSA_MemAddr32)pStr);
+    free(pStr);
 
 
     return M4NO_ERROR;
@@ -1249,7 +1249,7 @@ M4OSA_ERR M4OSA_strCompare(M4OSA_String str_in1, M4OSA_String str_in2,
 
     length = (length1 < length2) ? length1 : length2;
 
-    pTmp1 = (M4OSA_Char*)M4OSA_malloc(2 * length * sizeof(M4OSA_Char),
+    pTmp1 = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(2 * length * sizeof(M4OSA_Char),
                 M4OSA_STRING, (M4OSA_Char*)"M4OSA_strCompare");
 
     M4OSA_CHECK_MALLOC(pTmp1, "M4OSA_strCompare");
@@ -1268,7 +1268,7 @@ M4OSA_ERR M4OSA_strCompare(M4OSA_String str_in1, M4OSA_String str_in2,
 
     M4OSA_chrNCompare(pTmp1, pTmp2, length, &result);
 
-    M4OSA_free((M4OSA_MemAddr32)pTmp1);
+    free(pTmp1);
 
     if(result != 0)
     {
@@ -1352,7 +1352,7 @@ M4OSA_ERR M4OSA_strCompareSubStr(M4OSA_String str_in1,
         return_code = M4WAR_STR_OVERFLOW;
     }
 
-    pTmp1 = (M4OSA_Char*)M4OSA_malloc(2 * (*pui32_num) * sizeof(M4OSA_Char),
+    pTmp1 = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(2 * (*pui32_num) * sizeof(M4OSA_Char),
             M4OSA_STRING, (M4OSA_Char*)"M4OSA_strCompareSubStr");
 
     M4OSA_CHECK_MALLOC(pTmp1, "M4OSA_strCompareSubStr");
@@ -1374,7 +1374,7 @@ M4OSA_ERR M4OSA_strCompareSubStr(M4OSA_String str_in1,
     M4OSA_DEBUG_IF2((M4OSA_ERR)M4ERR_PARAMETER == err_code, M4ERR_PARAMETER,
                                    "M4OSA_strCompareSubStr: M4OSA_chrNCompare");
 
-    M4OSA_free((M4OSA_MemAddr32)pTmp1);
+    free(pTmp1);
 
     return return_code;
 }
@@ -2124,14 +2124,14 @@ M4OSA_ERR M4OSA_strReplaceSubStr(M4OSA_String str_in, M4OSA_String str_old,
 
     if(ostr2free == M4OSA_TRUE)
     {
-        M4OSA_free((M4OSA_MemAddr32)pOstr->pui8_buffer);
-        M4OSA_free((M4OSA_MemAddr32)pOstr);
+        free(pOstr->pui8_buffer);
+        free(pOstr);
     }
 
     if(nstr2free == M4OSA_TRUE)
     {
-        M4OSA_free((M4OSA_MemAddr32)pNstr->pui8_buffer);
-        M4OSA_free((M4OSA_MemAddr32)pNstr);
+        free(pNstr->pui8_buffer);
+        free(pNstr);
     }
 
     return err_code;
@@ -2396,7 +2396,7 @@ M4OSA_ERR M4OSA_strSetMinAllocationSize(M4OSA_String str_in, M4OSA_UInt32 ui32_n
     }
 
     /* Allocate the actual M4OSA_String content */
-    pBuffer = (M4OSA_Char*)M4OSA_malloc(ui32_size * sizeof(M4OSA_Char),
+    pBuffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_size * sizeof(M4OSA_Char),
         M4OSA_STRING, (M4OSA_Char*)"M4OSA_strSetMinAllocationSize");
 
     M4OSA_CHECK_MALLOC(pBuffer, "M4OSA_strSetMinAllocationSize");
@@ -2405,7 +2405,7 @@ M4OSA_ERR M4OSA_strSetMinAllocationSize(M4OSA_String str_in, M4OSA_UInt32 ui32_n
     {
         M4OSA_memcpy(pBuffer, pIbuffer, pStr->ui32_length+1);
 
-        M4OSA_free((M4OSA_MemAddr32)pIbuffer);
+        free(pIbuffer);
     }
 
     pStr->pui8_buffer = pBuffer;

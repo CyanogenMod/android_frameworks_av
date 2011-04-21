@@ -1585,7 +1585,7 @@ M4OSA_ERR VideoEditorVideoDecoder_getInterface(M4DECODER_VideoType decoderType,
         M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
     M4DECODER_VideoInterface* pDecoderInterface = M4OSA_NULL;
 
-    pDecoderInterface = (M4DECODER_VideoInterface*)M4OSA_malloc(
+    pDecoderInterface = (M4DECODER_VideoInterface*)M4OSA_32bitAlignedMalloc(
         sizeof(M4DECODER_VideoInterface), M4DECODER_EXTERNAL,
         (M4OSA_Char*)"VideoEditorVideoDecoder_getInterface" );
     if (M4OSA_NULL == pDecoderInterface) {
@@ -1609,7 +1609,7 @@ M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface(M4DECODER_VideoType decod
         M4DECODER_VideoType *pDecoderType, M4OSA_Context *pDecInterface) {
     M4DECODER_VideoInterface* pDecoderInterface = M4OSA_NULL;
 
-    pDecoderInterface = (M4DECODER_VideoInterface*)M4OSA_malloc(
+    pDecoderInterface = (M4DECODER_VideoInterface*)M4OSA_32bitAlignedMalloc(
         sizeof(M4DECODER_VideoInterface), M4DECODER_EXTERNAL,
         (M4OSA_Char*)"VideoEditorVideoDecoder_getInterface" );
     if (M4OSA_NULL == pDecoderInterface) {

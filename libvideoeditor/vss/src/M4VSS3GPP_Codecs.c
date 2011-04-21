@@ -218,7 +218,7 @@ M4OSA_ERR M4VSS3GPP_registerVideoEncoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
 
 #endif
 
-            M4OSA_free((M4OSA_MemAddr32)pC->pVideoEncoderInterface[MediaType]);
+            free(pC->pVideoEncoderInterface[MediaType]);
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 
         }
@@ -277,7 +277,7 @@ M4OSA_ERR M4VSS3GPP_registerAudioEncoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
 
     if( pC->pAudioEncoderInterface[MediaType] != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderInterface[MediaType]);
+        free(pC->pAudioEncoderInterface[MediaType]);
         pC->pAudioEncoderInterface[MediaType] = M4OSA_NULL;
     }
     /*
@@ -385,8 +385,7 @@ M4OSA_ERR M4VSS3GPP_registerVideoDecoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
 
 #endif
 
-            M4OSA_free(
-                (M4OSA_MemAddr32)pC->m_pVideoDecoderItTable[decoderType]);
+            free(pC->m_pVideoDecoderItTable[decoderType]);
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 
         }
@@ -397,8 +396,7 @@ M4OSA_ERR M4VSS3GPP_registerVideoDecoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
         /* oh, and don't forget the user data, too. */
         if( pC->m_pVideoDecoderUserDataTable[decoderType] != M4OSA_NULL )
         {
-            M4OSA_free(
-                (M4OSA_MemAddr32)pC->m_pVideoDecoderUserDataTable[decoderType]);
+            free(pC->m_pVideoDecoderUserDataTable[decoderType]);
             pC->m_pVideoDecoderUserDataTable[decoderType] = M4OSA_NULL;
         }
 #endif /* are external decoders possible? */
@@ -447,12 +445,12 @@ M4OSA_ERR M4VSS3GPP_registerAudioDecoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
     }
     if(M4OSA_NULL != pC->m_pAudioDecoderItTable[decoderType])
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[decoderType]);
+        free(pC->m_pAudioDecoderItTable[decoderType]);
         pC->m_pAudioDecoderItTable[decoderType] = M4OSA_NULL;
 
         if(M4OSA_NULL != pC->m_pAudioDecoderItTable[decoderType])
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[decoderType]);
+            free(pC->m_pAudioDecoderItTable[decoderType]);
             pC->m_pAudioDecoderItTable[decoderType] = M4OSA_NULL;
         }
     }
@@ -487,13 +485,13 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllWriters( M4VSS3GPP_MediaAndCodecCtxt *pC )
     {
         if( pC->WriterInterface[i].pGlobalFcts != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->WriterInterface[i].pGlobalFcts);
+            free(pC->WriterInterface[i].pGlobalFcts);
             pC->WriterInterface[i].pGlobalFcts = M4OSA_NULL;
         }
 
         if( pC->WriterInterface[i].pDataFcts != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->WriterInterface[i].pDataFcts);
+            free(pC->WriterInterface[i].pDataFcts);
             pC->WriterInterface[i].pDataFcts = M4OSA_NULL;
         }
     }
@@ -532,7 +530,7 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllEncoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 
 #endif
 
-                M4OSA_free((M4OSA_MemAddr32)pC->pVideoEncoderInterface[i]);
+                free(pC->pVideoEncoderInterface[i]);
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 
             }
@@ -557,7 +555,7 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllEncoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 
                 if( M4OSA_FALSE == pC->pAudioEncoderFlag[i] )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderInterface[i]);
+                    free(pC->pAudioEncoderInterface[i]);
                 }
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 
@@ -595,13 +593,13 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllReaders( M4VSS3GPP_MediaAndCodecCtxt *pC )
     {
         if( pC->m_pReaderGlobalItTable[i] != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderGlobalItTable[i]);
+            free(pC->m_pReaderGlobalItTable[i]);
             pC->m_pReaderGlobalItTable[i] = M4OSA_NULL;
         }
 
         if( pC->m_pReaderDataItTable[i] != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderDataItTable[i]);
+            free(pC->m_pReaderDataItTable[i]);
             pC->m_pReaderDataItTable[i] = M4OSA_NULL;
         }
     }
@@ -641,7 +639,7 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllDecoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 
 #endif
 
-                M4OSA_free((M4OSA_MemAddr32)pC->m_pVideoDecoderItTable[i]);
+                free(pC->m_pVideoDecoderItTable[i]);
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 
             }
@@ -654,8 +652,7 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllDecoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 
             if( pC->m_pVideoDecoderUserDataTable[i] != M4OSA_NULL )
             {
-                M4OSA_free(
-                    (M4OSA_MemAddr32)pC->m_pVideoDecoderUserDataTable[i]);
+                free(pC->m_pVideoDecoderUserDataTable[i]);
                 /* there ought to be a better pattern... right? */
                 pC->m_pVideoDecoderUserDataTable[i] = M4OSA_NULL;
             }
@@ -681,7 +678,7 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllDecoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 
                 if( M4OSA_FALSE == pC->m_pAudioDecoderFlagTable[i] )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[i]);
+                    free(pC->m_pAudioDecoderItTable[i]);
                 }
 #ifdef M4VSS_SUPPORT_OMX_CODECS
 

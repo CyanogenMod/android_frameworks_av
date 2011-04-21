@@ -119,13 +119,13 @@ void M4MP4W_table32ToBE(M4OSA_UInt32* tab, M4OSA_UInt32 nb)
 void* M4MP4W_realloc(M4OSA_MemAddr32 ptr, M4OSA_UInt32 oldSize, M4OSA_UInt32 newSize)
 /*******************************************************************************/
 {
-    M4OSA_MemAddr32 ptr2 = (M4OSA_MemAddr32)M4OSA_malloc(newSize, M4MP4_WRITER,
+    M4OSA_MemAddr32 ptr2 = (M4OSA_MemAddr32)M4OSA_32bitAlignedMalloc(newSize, M4MP4_WRITER,
                                                           (M4OSA_Char *)"realloc");
     if (M4OSA_NULL != ptr2)
     {
         memcpy((void *)ptr2, (void *)ptr, oldSize);
     }
-    M4OSA_free(ptr);
+    free(ptr);
     return ptr2;
 }
 
@@ -151,55 +151,55 @@ M4OSA_ERR M4MP4W_freeContext(M4OSA_Context context)
 #ifdef _M4MP4W_MOOV_FIRST
         for (i=0; i<=mMp4FileDataPtr->audioTrackPtr->LastAllocatedChunk; i++)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->Chunk[i]);
+            free(mMp4FileDataPtr->audioTrackPtr->Chunk[i]);
         }
 #else
         if ((M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->Chunk) &&
              (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->Chunk[0]))
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->Chunk[0]);
+            free(mMp4FileDataPtr->audioTrackPtr->Chunk[0]);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->chunkOffsetTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->chunkOffsetTable);
+            free(mMp4FileDataPtr->audioTrackPtr->chunkOffsetTable);
         }
 #endif /*_M4MP4W_MOOV_FIRST*/
 
         /*now dynamic*/
         if (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->Chunk)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->Chunk);
+            free(mMp4FileDataPtr->audioTrackPtr->Chunk);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->chunkSizeTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->chunkSizeTable);
+            free(mMp4FileDataPtr->audioTrackPtr->chunkSizeTable);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->chunkSampleNbTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->chunkSampleNbTable);
+            free(mMp4FileDataPtr->audioTrackPtr->chunkSampleNbTable);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->audioTrackPtr->chunkTimeMsTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->chunkTimeMsTable);
+            free(mMp4FileDataPtr->audioTrackPtr->chunkTimeMsTable);
         }
 
         if (mMp4FileDataPtr->audioTrackPtr->TABLE_STTS != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->TABLE_STTS);
+            free(mMp4FileDataPtr->audioTrackPtr->TABLE_STTS);
         }
 
         if (mMp4FileDataPtr->audioTrackPtr->TABLE_STSZ != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->TABLE_STSZ);
+            free(mMp4FileDataPtr->audioTrackPtr->TABLE_STSZ);
         }
 
         if (mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr->DSI);
+            free(mMp4FileDataPtr->audioTrackPtr->DSI);
             mMp4FileDataPtr->audioTrackPtr->DSI = M4OSA_NULL;
         }
 
-        M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->audioTrackPtr);
+        free(mMp4FileDataPtr->audioTrackPtr);
         mMp4FileDataPtr->audioTrackPtr = M4OSA_NULL;
     }
     if (mMp4FileDataPtr->videoTrackPtr != M4OSA_NULL)
@@ -210,69 +210,69 @@ M4OSA_ERR M4MP4W_freeContext(M4OSA_Context context)
 #ifdef _M4MP4W_MOOV_FIRST
         for (i=0; i<=mMp4FileDataPtr->videoTrackPtr->LastAllocatedChunk; i++)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->Chunk[i]);
+            free(mMp4FileDataPtr->videoTrackPtr->Chunk[i]);
         }
 #else
         if ((M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->Chunk) &&
              (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->Chunk[0]))
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->Chunk[0]);
+            free(mMp4FileDataPtr->videoTrackPtr->Chunk[0]);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->chunkOffsetTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->chunkOffsetTable);
+            free(mMp4FileDataPtr->videoTrackPtr->chunkOffsetTable);
         }
 #endif /*_M4MP4W_MOOV_FIRST*/
 
         /*now dynamic*/
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->Chunk)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->Chunk);
+            free(mMp4FileDataPtr->videoTrackPtr->Chunk);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->chunkSizeTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->chunkSizeTable);
+            free(mMp4FileDataPtr->videoTrackPtr->chunkSizeTable);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->chunkSampleNbTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->chunkSampleNbTable);
+            free(mMp4FileDataPtr->videoTrackPtr->chunkSampleNbTable);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->chunkTimeMsTable)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->chunkTimeMsTable);
+            free(mMp4FileDataPtr->videoTrackPtr->chunkTimeMsTable);
         }
 
         if (mMp4FileDataPtr->videoTrackPtr->DSI != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->DSI);
+            free(mMp4FileDataPtr->videoTrackPtr->DSI);
             mMp4FileDataPtr->videoTrackPtr->DSI = M4OSA_NULL;
         }
 
         /*now dynamic*/
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->TABLE_STTS)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->TABLE_STTS);
+            free(mMp4FileDataPtr->videoTrackPtr->TABLE_STTS);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->TABLE_STSZ)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->TABLE_STSZ);
+            free(mMp4FileDataPtr->videoTrackPtr->TABLE_STSZ);
         }
         if (M4OSA_NULL != mMp4FileDataPtr->videoTrackPtr->TABLE_STSS)
         {
-            M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->TABLE_STSS);
+            free(mMp4FileDataPtr->videoTrackPtr->TABLE_STSS);
         }
 
-        M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr);
+        free(mMp4FileDataPtr->videoTrackPtr);
         mMp4FileDataPtr->videoTrackPtr = M4OSA_NULL;
     }
 
     if (mMp4FileDataPtr->embeddedString != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->embeddedString);
+        free(mMp4FileDataPtr->embeddedString);
         mMp4FileDataPtr->embeddedString = M4OSA_NULL;
     }
 
-    M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr);
+    free(mMp4FileDataPtr);
 
     return M4NO_ERROR;
 }

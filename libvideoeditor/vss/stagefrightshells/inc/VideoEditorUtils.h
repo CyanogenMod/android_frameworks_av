@@ -61,7 +61,7 @@
 #define SAFE_FREE(p) \
 { \
     if(M4OSA_NULL != (p)) { \
-        M4OSA_free((M4OSA_MemAddr32)(p)) ; \
+        free((p)) ; \
         (p) = M4OSA_NULL ; \
     } \
 }
@@ -75,7 +75,7 @@
  */
 #define SAFE_MALLOC(p, type, count, comment) \
 { \
-    (p) = (type*)M4OSA_malloc(sizeof(type)*(count), 0xFF,(M4OSA_Char*)comment);\
+    (p) = (type*)M4OSA_32bitAlignedMalloc(sizeof(type)*(count), 0xFF,(M4OSA_Char*)comment);\
     VIDEOEDITOR_CHECK(M4OSA_NULL != (p), M4ERR_ALLOC); \
     memset((void *)(p), 0,sizeof(type)*(count)); \
 }

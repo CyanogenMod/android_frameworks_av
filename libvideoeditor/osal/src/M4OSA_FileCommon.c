@@ -96,7 +96,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     M4OSA_Void* tempConversionBuf;
     M4OSA_UInt32 tempConversionSize = 1000;
 
-    tempConversionBuf = (M4OSA_Char*)M4OSA_malloc(tempConversionSize +1, 0, "conversion buf");
+    tempConversionBuf = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(tempConversionSize +1, 0, "conversion buf");
     if(tempConversionBuf == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Error when allocating conversion buffer\n");
@@ -140,7 +140,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
         M4ERR_FILE_BAD_MODE_ACCESS, "M4OSA_fileCommonOpen: M4OSA_kFileWrite");
 
 #ifdef FILE_LOWER_CASE
-    tmpLowerCaseUrl = (M4OSA_Char*)M4OSA_malloc(strlen(pUrl) +1, 0, "conversion buf");
+    tmpLowerCaseUrl = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(strlen(pUrl) +1, 0, "conversion buf");
     for(i=0; i<strlen(pUrl); i++)
     {
         tmpLowerCaseUrl[i] = M4OSA_chrToLower(pUrl[i]);
@@ -187,11 +187,11 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     /*Open the converted path*/
     pFileHandler = fopen((const char *)tempConversionBuf, (const char *)mode);
     /*Free the temporary decoded buffer*/
-    M4OSA_free((M4OSA_MemAddr32)tempConversionBuf);
+    free(tempConversionBuf);
 #else /* UTF_CONVERSION */
 #ifdef FILE_LOWER_CASE
     pFileHandler = fopen((const char *)tmpLowerCaseUrl, (const char *)mode);
-    M4OSA_free((M4OSA_MemAddr32)tmpLowerCaseUrl);
+    free(tmpLowerCaseUrl);
 #else
     pFileHandler = fopen((const char *)pUrl, (const char *)mode);
 #endif
@@ -233,7 +233,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     }
 
     /* Allocate the file context */
-    pFileContext = (M4OSA_FileContext*) M4OSA_malloc(sizeof(M4OSA_FileContext),
+    pFileContext = (M4OSA_FileContext*) M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileContext),
                     core_id, (M4OSA_Char*)"M4OSA_fileCommonOpen: file context");
     if (M4OSA_NULL == pFileContext)
     {
@@ -272,12 +272,12 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     M4OSA_INT_TO_FILE_POSITION(0, pFileContext->write_position);
 
     /* Allocate the memory to store the URL string */
-    pFileContext->url_name = (M4OSA_Char*) M4OSA_malloc(strlen((const char *)pUrl)+1,
+    pFileContext->url_name = (M4OSA_Char*) M4OSA_32bitAlignedMalloc(strlen((const char *)pUrl)+1,
                         core_id, (M4OSA_Char*)"M4OSA_fileCommonOpen: URL name");
     if (M4OSA_NULL == pFileContext->url_name)
     {
         fclose(pFileHandler);
-        M4OSA_free((M4OSA_MemAddr32)pFileContext);
+        free(pFileContext);
         M4OSA_DEBUG(M4ERR_ALLOC, "M4OSA_fileCommonOpen");
         return M4ERR_ALLOC;
     }
@@ -288,8 +288,8 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     if(M4NO_ERROR != err)
     {
         fclose(pFileHandler);
-        M4OSA_free((M4OSA_MemAddr32)pFileContext->url_name);
-        M4OSA_free((M4OSA_MemAddr32)pFileContext);
+        free(pFileContext->url_name);
+        free(pFileContext);
         M4OSA_DEBUG(err, "M4OSA_fileCommonOpen");
         return err;
     }
@@ -509,10 +509,10 @@ M4OSA_ERR M4OSA_fileCommonClose(M4OSA_UInt16 core_id, M4OSA_Context pContext)
                      "M4OSA_fileCommonClose: semaphore_context is M4OSA_NULL");
 #endif /* M4OSA_FILE_BLOCK_WITH_SEMAPHORE */
 
-    M4OSA_free((M4OSA_MemAddr32)pFileContext->url_name);
+    free(pFileContext->url_name);
     pFileContext->url_name = M4OSA_NULL;
 
-    M4OSA_free((M4OSA_MemAddr32)pFileContext->file_name);
+    free(pFileContext->file_name);
     pFileContext->file_name = M4OSA_NULL;
 
     i32_err_code = fclose(pFileContext->file_desc);
@@ -523,7 +523,7 @@ M4OSA_ERR M4OSA_fileCommonClose(M4OSA_UInt16 core_id, M4OSA_Context pContext)
     M4OSA_semaphoreClose(pFileContext->semaphore_context);/* free the semaphore */
 #endif /* M4OSA_FILE_BLOCK_WITH_SEMAPHORE */
 
-    M4OSA_free((M4OSA_MemAddr32)pFileContext);
+    free(pFileContext);
 
     if (i32_err_code != 0)
     {
@@ -611,7 +611,7 @@ M4OSA_ERR M4OSA_fileCommonGetURL(M4OSA_Context pContext, M4OSA_Char** pUrl)
     uiLength = strlen((const char *)pFileContext->url_name)+1;
 
     /* Allocate the memory to store the url_name */
-    *pUrl = (M4OSA_Char*)M4OSA_malloc(uiLength, M4OSA_FILE_COMMON,
+    *pUrl = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(uiLength, M4OSA_FILE_COMMON,
                                     (M4OSA_Char*)"M4OSA_fileCommonGetURL: url");
     if(M4OSA_NULL == *pUrl)
     {
@@ -673,7 +673,7 @@ M4OSA_ERR M4OSA_fileCommonGetFilename(M4OSA_Char* pUrl, M4OSA_Char** pFileName)
         }
     }
 
-    ptrFilename = (M4OSA_Char*) M4OSA_malloc(FileNameLen+1, M4OSA_FILE_COMMON,
+    ptrFilename = (M4OSA_Char*) M4OSA_32bitAlignedMalloc(FileNameLen+1, M4OSA_FILE_COMMON,
                     (M4OSA_Char*)"M4OSA_fileCommonGetFilename: Filename string");
     if (ptrFilename == M4OSA_NULL)
     {

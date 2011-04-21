@@ -169,7 +169,7 @@ M4OSA_ERR M4PTO3GPP_Init(   M4PTO3GPP_Context* pContext,
 
     /**
      *  Allocate the M4PTO3GPP context and return it to the user */
-    pC = (M4PTO3GPP_InternalContext*)M4OSA_malloc(sizeof(M4PTO3GPP_InternalContext), M4PTO3GPP,
+    pC = (M4PTO3GPP_InternalContext*)M4OSA_32bitAlignedMalloc(sizeof(M4PTO3GPP_InternalContext), M4PTO3GPP,
         (M4OSA_Char *)"M4PTO3GPP_InternalContext");
     *pContext = pC;
     if (M4OSA_NULL == pC)
@@ -527,7 +527,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
                     /**
                      *  Allocate audio AU used for read operations */
-                    pC->m_pReaderAudioAU = (M4_AccessUnit*)M4OSA_malloc(sizeof(M4_AccessUnit),
+                    pC->m_pReaderAudioAU = (M4_AccessUnit*)M4OSA_32bitAlignedMalloc(sizeof(M4_AccessUnit),
                         M4PTO3GPP,(M4OSA_Char *)"pReaderAudioAU");
                     if (M4OSA_NULL == pC->m_pReaderAudioAU)
                     {
@@ -1143,7 +1143,7 @@ M4OSA_ERR M4PTO3GPP_CleanUp(M4PTO3GPP_Context pContext)
 
     if (M4OSA_NULL != pC->m_pReaderAudioAU)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderAudioAU);
+        free(pC->m_pReaderAudioAU);
         pC->m_pReaderAudioAU = M4OSA_NULL;
     }
 
@@ -1162,22 +1162,22 @@ M4OSA_ERR M4PTO3GPP_CleanUp(M4PTO3GPP_Context pContext)
 
     if (M4OSA_NULL != pC->m_pWriterVideoStream)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterVideoStream);
+        free(pC->m_pWriterVideoStream);
         pC->m_pWriterVideoStream = M4OSA_NULL;
     }
     if (M4OSA_NULL != pC->m_pWriterAudioStream)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterAudioStream);
+        free(pC->m_pWriterAudioStream);
         pC->m_pWriterAudioStream = M4OSA_NULL;
     }
     if (M4OSA_NULL != pC->m_pWriterVideoStreamInfo)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterVideoStreamInfo);
+        free(pC->m_pWriterVideoStreamInfo);
         pC->m_pWriterVideoStreamInfo = M4OSA_NULL;
     }
     if (M4OSA_NULL != pC->m_pWriterAudioStreamInfo)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterAudioStreamInfo);
+        free(pC->m_pWriterAudioStreamInfo);
         pC->m_pWriterAudioStreamInfo = M4OSA_NULL;
     }
 
@@ -1186,28 +1186,28 @@ M4OSA_ERR M4PTO3GPP_CleanUp(M4PTO3GPP_Context pContext)
      *  Free the shells interfaces */
     if (M4OSA_NULL != pC->m_pReaderGlobInt)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderGlobInt);
+        free(pC->m_pReaderGlobInt);
         pC->m_pReaderGlobInt = M4OSA_NULL;
     }
     if (M4OSA_NULL != pC->m_pReaderDataInt)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderDataInt);
+        free(pC->m_pReaderDataInt);
         pC->m_pReaderDataInt = M4OSA_NULL;
     }
 
     if(M4OSA_NULL != pC->m_pEncoderInt)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pEncoderInt);
+        free(pC->m_pEncoderInt);
         pC->m_pEncoderInt = M4OSA_NULL;
     }
     if(M4OSA_NULL != pC->m_pWriterGlobInt)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterGlobInt);
+        free(pC->m_pWriterGlobInt);
         pC->m_pWriterGlobInt = M4OSA_NULL;
     }
     if(M4OSA_NULL != pC->m_pWriterDataInt)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pWriterDataInt);
+        free(pC->m_pWriterDataInt);
         pC->m_pWriterDataInt = M4OSA_NULL;
     }
     /**< Do not free pC->pOsaMemoryPtrFct and pC->pOsaMemoryPtrFct, because it's owned by the \
@@ -1215,7 +1215,7 @@ M4OSA_ERR M4PTO3GPP_CleanUp(M4PTO3GPP_Context pContext)
 
     /**
      *  Free the context itself */
-    M4OSA_free((M4OSA_MemAddr32)pC);
+    free(pC);
     pC = M4OSA_NULL;
 
     M4OSA_TRACE3_0("M4PTO3GPP_CleanUp(): returning M4NO_ERROR");
@@ -1564,7 +1564,7 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     /**
      *  Allocate and fill the video stream structures for the writer */
     pC->m_pWriterVideoStream =
-        (M4SYS_StreamDescription*)M4OSA_malloc(sizeof(M4SYS_StreamDescription), M4PTO3GPP,
+        (M4SYS_StreamDescription*)M4OSA_32bitAlignedMalloc(sizeof(M4SYS_StreamDescription), M4PTO3GPP,
         (M4OSA_Char *)"pWriterVideoStream");
     if (M4OSA_NULL == pC->m_pWriterVideoStream)
     {
@@ -1573,7 +1573,7 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
         return M4ERR_ALLOC;
     }
     pC->m_pWriterVideoStreamInfo =
-        (M4WRITER_StreamVideoInfos*)M4OSA_malloc(sizeof(M4WRITER_StreamVideoInfos), M4PTO3GPP,
+        (M4WRITER_StreamVideoInfos*)M4OSA_32bitAlignedMalloc(sizeof(M4WRITER_StreamVideoInfos), M4PTO3GPP,
         (M4OSA_Char *)"pWriterVideoStreamInfo");
     if (M4OSA_NULL == pC->m_pWriterVideoStreamInfo)
     {
@@ -1672,7 +1672,7 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     if(M4OSA_NULL != pC->m_pReaderAudioStream)
     {
         pC->m_pWriterAudioStream =
-            (M4SYS_StreamDescription*)M4OSA_malloc(sizeof(M4SYS_StreamDescription), M4PTO3GPP,
+            (M4SYS_StreamDescription*)M4OSA_32bitAlignedMalloc(sizeof(M4SYS_StreamDescription), M4PTO3GPP,
             (M4OSA_Char *)"pWriterAudioStream");
         if (M4OSA_NULL == pC->m_pWriterAudioStream)
         {
@@ -1681,7 +1681,7 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
             return M4ERR_ALLOC;
         }
         pC->m_pWriterAudioStreamInfo =
-            (M4WRITER_StreamAudioInfos*)M4OSA_malloc(sizeof(M4WRITER_StreamAudioInfos), M4PTO3GPP,
+            (M4WRITER_StreamAudioInfos*)M4OSA_32bitAlignedMalloc(sizeof(M4WRITER_StreamAudioInfos), M4PTO3GPP,
             (M4OSA_Char *)"pWriterAudioStreamInfo");
         if (M4OSA_NULL == pC->m_pWriterAudioStreamInfo)
         {

@@ -281,7 +281,7 @@ M4OSA_Void M4OSA_FileCache_internalQuicksort(M4OSA_Int32* const table,
     M4OSA_Int32* cursor;
     M4OSA_Int32* indexc;
 
-    queue = (M4OSA_Int32*)M4OSA_malloc(capacity*sizeof(M4OSA_Int32), 0,
+    queue = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(capacity*sizeof(M4OSA_Int32), 0,
                                    (M4OSA_Char*) "quicksort FIFO of FileCache");
 
     if(queue == M4OSA_NULL)
@@ -334,7 +334,7 @@ M4OSA_Void M4OSA_FileCache_internalQuicksort(M4OSA_Int32* const table,
     while(index<size);
     cursor = NULL;
     indexc = NULL;
-    M4OSA_free(queue);
+    free(queue);
 }
 
 M4OSA_Void M4OSA_FileCache_internalQuicksort64(M4OSA_Int64* const table,
@@ -354,7 +354,7 @@ M4OSA_Void M4OSA_FileCache_internalQuicksort64(M4OSA_Int64* const table,
     M4OSA_Int32* cursor;
     M4OSA_Int32* indexc;
 
-    queue = (M4OSA_Int32*)M4OSA_malloc(capacity*sizeof(M4OSA_Int32), 0,
+    queue = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(capacity*sizeof(M4OSA_Int32), 0,
                                    (M4OSA_Char*) "quicksort FIFO of FileCache");
 
     if(queue == M4OSA_NULL)
@@ -407,7 +407,7 @@ M4OSA_Void M4OSA_FileCache_internalQuicksort64(M4OSA_Int64* const table,
     while(index<size);
     cursor = NULL;
     indexc = NULL;
-    M4OSA_free(queue);
+    free(queue);
 }
 
 /* Sorts an array of size size */
@@ -454,7 +454,7 @@ M4OSA_ERR M4OSA_FileCache_BuffersInit(M4OSA_FileCache_Context* apContext)
 
     for(i=0; i<M4OSA_CACHEBUFFER_NB; i++)
     {
-        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_malloc(M4OSA_CACHEBUFFER_SIZE,
+        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_32bitAlignedMalloc(M4OSA_CACHEBUFFER_SIZE,
                   M4OSA_FILE_READER, (M4OSA_Char*)"M4OSA_FileCache_BufferInit");
         M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext->buffer[i].data);
         apContext->buffer[i].filepos = M4OSA_EOF;
@@ -474,7 +474,7 @@ M4OSA_Void M4OSA_FileCache_BuffersFree(M4OSA_FileCache_Context* apContext)
     {
         if(apContext->buffer[i].data != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)apContext->buffer[i].data);
+            free(apContext->buffer[i].data);
             apContext->buffer[i].data = M4OSA_NULL;
         }
     }
@@ -1563,7 +1563,7 @@ M4OSA_Void* M4OSA_FileSystem_FFS_Open_cache( M4OSA_Void* pFileDescriptor,
     fp = fopen((const char *) pFileDescriptor, (const char *)mode); /* Open in rb or in r+b*/
     if( fp != NULL )
     {
-        pC = (M4OSA_FileSystem_FFS_t_cache *) M4OSA_malloc(sizeof * pC, M4OSA_FILE_READER, (M4OSA_Char*)"M4OSA_FileSystem_FFS_Open_cache");
+        pC = (M4OSA_FileSystem_FFS_t_cache *) M4OSA_32bitAlignedMalloc(sizeof * pC, M4OSA_FILE_READER, (M4OSA_Char*)"M4OSA_FileSystem_FFS_Open_cache");
 
         if (pC == M4OSA_NULL) return M4OSA_NULL; /*error occured => return NULL pointer*/
 
@@ -1776,7 +1776,7 @@ M4OSA_ERR M4OSA_fileOpen_cache(M4OSA_Context* pContext,
     M4OSA_FileSystem_FctPtr_cache *FS;
 
     /* Allocate memory for the File System interface */
-    FS = (M4OSA_FileSystem_FctPtr_cache *)M4OSA_malloc(sizeof * FS,
+    FS = (M4OSA_FileSystem_FctPtr_cache *)M4OSA_32bitAlignedMalloc(sizeof * FS,
                 M4OSA_FILE_READER,(M4OSA_Char*)"M4OSA_FileSystem_FctPtr_cache");
 
     if(M4OSA_NULL == FS)
@@ -1836,7 +1836,7 @@ M4OSA_ERR M4OSA_fileOpen_cache_internal(M4OSA_Context* pContext,
     *pContext = M4OSA_NULL;
 
     /* Allocate memory for the File reader context. */
-    apContext = (M4OSA_FileCache_Context *)M4OSA_malloc(sizeof(M4OSA_FileCache_Context),
+    apContext = (M4OSA_FileCache_Context *)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileCache_Context),
                      M4OSA_FILE_READER, (M4OSA_Char*)"M4OSA_FileCache_Context");
 
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext);
@@ -1879,10 +1879,10 @@ M4OSA_ERR M4OSA_fileOpen_cache_internal(M4OSA_Context* pContext,
         {
             if (M4OSA_NULL != apContext->FS) /*should never be null*/
             {
-                M4OSA_free((M4OSA_MemAddr32)apContext->FS);
+                free(apContext->FS);
             }
 
-            M4OSA_free((M4OSA_MemAddr32)apContext);
+            free(apContext);
             apContext = M4OSA_NULL;
         }
 
@@ -1961,7 +1961,7 @@ cleanup:
 
         if (M4OSA_NULL != apContext)
         {
-            M4OSA_free((M4OSA_MemAddr32)apContext);
+            free(apContext);
             apContext = M4OSA_NULL;
         }
         *pContext = M4OSA_NULL;
@@ -2669,8 +2669,8 @@ LOCK
     apContext->IsOpened = M4OSA_FALSE;
 
     /* Free the context */
-    M4OSA_free((M4OSA_MemAddr32)apContext->FS);
-    M4OSA_free((M4OSA_MemAddr32)apContext->aFileDesc);
+    free(apContext->FS);
+    free(apContext->aFileDesc);
 
 #ifdef FILECACHE_STATS
 {
@@ -2719,7 +2719,7 @@ LOCK
 
     M4OSA_memset((M4OSA_MemAddr8)apContext, sizeof(M4OSA_FileCache_Context), 0);
 
-    M4OSA_free((M4OSA_MemAddr32)apContext);
+    free(apContext);
 
     M4OSA_TRACE2_1("M4OSA_fileClose_cache leaving with err = 0x%x", err);
 

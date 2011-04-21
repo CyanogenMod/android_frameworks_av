@@ -80,7 +80,7 @@ M4OSA_ERR M4OSA_fileWriteRamOpen(M4OSA_Context* context, M4OSA_Void* fileDescrip
     }
 
     /*    Allocate memory for the File writer context. */
-    pContext = (M4OSA_FileWriterRam_Context *)M4OSA_malloc(sizeof(M4OSA_FileWriterRam_Context),
+    pContext = (M4OSA_FileWriterRam_Context *)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileWriterRam_Context),
                           M4OSA_FILE_WRITER, (M4OSA_Char*)"Context allocation");
     if(pContext == M4OSA_NULL)
     {
@@ -103,7 +103,7 @@ M4OSA_ERR M4OSA_fileWriteRamOpen(M4OSA_Context* context, M4OSA_Void* fileDescrip
     {
           if (M4OSA_NULL != pContext)
         {
-            M4OSA_free((M4OSA_MemAddr32)pContext);
+            free(pContext);
         }
         *context=M4OSA_NULL;
     }
@@ -301,7 +301,7 @@ M4OSA_ERR M4OSA_fileWriteRamClose(M4OSA_Context context)
     pContext->IsOpened = M4OSA_FALSE;
 
     /* Free the context */
-    M4OSA_free((M4OSA_MemAddr32)pContext);
+    free(pContext);
 
     /*    Return error */
     return err;

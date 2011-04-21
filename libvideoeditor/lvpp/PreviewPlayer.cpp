@@ -230,7 +230,7 @@ PreviewPlayer::~PreviewPlayer() {
     reset();
 
     if(mResizedVideoBuffer != NULL) {
-        M4OSA_free((M4OSA_MemAddr32)(mResizedVideoBuffer->data()));
+        free((mResizedVideoBuffer->data()));
         mResizedVideoBuffer = NULL;
     }
 
@@ -450,7 +450,7 @@ void PreviewPlayer::reset_l() {
     mIsVideoSourceJpg = false;
     mFrameRGBBuffer = NULL;
     if(mFrameYUVBuffer != NULL) {
-        M4OSA_free((M4OSA_MemAddr32)mFrameYUVBuffer);
+        free(mFrameYUVBuffer);
         mFrameYUVBuffer = NULL;
     }
 }

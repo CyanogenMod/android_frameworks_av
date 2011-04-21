@@ -1248,14 +1248,14 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         {
             if (pTemp2[i].pac_data != M4OSA_NULL)
             {
-                M4OSA_free((M4OSA_MemAddr32)pTemp2[i].pac_data);
+                free(pTemp2[i].pac_data);
                 pTemp2[i].pac_data = M4OSA_NULL;
             }
 
 
             if (pTemp1[i].pac_data != M4OSA_NULL)
             {
-                    M4OSA_free((M4OSA_MemAddr32)pTemp1[i].pac_data);
+                    free(pTemp1[i].pac_data);
                     pTemp1[i].pac_data = M4OSA_NULL;
                 }
             }
@@ -2540,7 +2540,7 @@ static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
     pPlanes[0].u_height = uiHeight;
     pPlanes[0].u_stride = uiWidth;
     pPlanes[0].u_topleft = 0;
-    pPlanes[0].pac_data = (M4VIFI_UInt8 *)M4OSA_malloc(pPlanes[0].u_stride
+    pPlanes[0].pac_data = (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pPlanes[0].u_stride
         * pPlanes[0].u_height, M4VSS3GPP, (M4OSA_Char *)"pPlanes[0].pac_data");
 
     if( M4OSA_NULL == pPlanes[0].pac_data )
@@ -2555,7 +2555,7 @@ static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
     pPlanes[1].u_height = pPlanes[0].u_height >> 1;
     pPlanes[1].u_stride = pPlanes[1].u_width;
     pPlanes[1].u_topleft = 0;
-    pPlanes[1].pac_data = (M4VIFI_UInt8 *)M4OSA_malloc(pPlanes[1].u_stride
+    pPlanes[1].pac_data = (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pPlanes[1].u_stride
         * pPlanes[1].u_height, M4VSS3GPP,(M4OSA_Char *) "pPlanes[1].pac_data");
 
     if( M4OSA_NULL == pPlanes[1].pac_data )
@@ -2570,7 +2570,7 @@ static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
     pPlanes[2].u_height = pPlanes[1].u_height;
     pPlanes[2].u_stride = pPlanes[2].u_width;
     pPlanes[2].u_topleft = 0;
-    pPlanes[2].pac_data = (M4VIFI_UInt8 *)M4OSA_malloc(pPlanes[2].u_stride
+    pPlanes[2].pac_data = (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(pPlanes[2].u_stride
         * pPlanes[2].u_height, M4VSS3GPP, (M4OSA_Char *)"pPlanes[2].pac_data");
 
     if( M4OSA_NULL == pPlanes[2].pac_data )

@@ -84,7 +84,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
         return M4ERR_PARAMETER;
     }
 
-    xVSS_context = (M4xVSS_Context *)M4OSA_malloc(sizeof(M4xVSS_Context), M4VS,
+    xVSS_context = (M4xVSS_Context *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_Context), M4VS,
         (M4OSA_Char *)"Context of the xVSS layer");
 
     if( xVSS_context == M4OSA_NULL )
@@ -110,7 +110,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
             xVSS_context->UTFConversionContext.m_TempOutConversionSize =
                 UTF_CONVERSION_BUFFER_SIZE;
             xVSS_context->UTFConversionContext.pTempOutConversionBuffer =
-                (M4OSA_Void *)M4OSA_malloc(UTF_CONVERSION_BUFFER_SIZE
+                (M4OSA_Void *)M4OSA_32bitAlignedMalloc(UTF_CONVERSION_BUFFER_SIZE
                 * sizeof(M4OSA_UInt8),
                 M4VA, (M4OSA_Char *)"M4xVSS_Init: UTF conversion buffer");
 
@@ -118,9 +118,9 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
                 == xVSS_context->UTFConversionContext.pTempOutConversionBuffer )
             {
                 M4OSA_TRACE1_0("Allocation error in M4xVSS_Init");
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pTempPath);
+                free(xVSS_context->pTempPath);
                 xVSS_context->pTempPath = M4OSA_NULL;
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context);
+                free(xVSS_context);
                 xVSS_context = M4OSA_NULL;
                 return M4ERR_ALLOC;
             }
@@ -129,9 +129,9 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
         {
             M4OSA_TRACE1_0("M4xVSS_Init: one UTF conversion pointer is null and the other\
                            is not null");
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pTempPath);
+            free(xVSS_context->pTempPath);
             xVSS_context->pTempPath = M4OSA_NULL;
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context);
+            free(xVSS_context);
             xVSS_context = M4OSA_NULL;
             return M4ERR_PARAMETER;
         }
@@ -151,7 +151,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
         (the conversion customer format into UTF8
         is done in VA/VAL)*/
         xVSS_context->pTempPath =
-            (M4OSA_Void *)M4OSA_malloc(strlen(pParams->pTempPath) + 1,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(strlen(pParams->pTempPath) + 1,
             M4VS, (M4OSA_Char *)"xVSS Path for temporary files");
 
         if( xVSS_context->pTempPath == M4OSA_NULL )
@@ -166,21 +166,21 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
     else
     {
         M4OSA_TRACE1_0("Path for temporary files is NULL");
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context);
+        free(xVSS_context);
         xVSS_context = M4OSA_NULL;
         return M4ERR_PARAMETER;
     }
 
     xVSS_context->pSettings =
-        (M4VSS3GPP_EditSettings *)M4OSA_malloc(sizeof(M4VSS3GPP_EditSettings),
+        (M4VSS3GPP_EditSettings *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_EditSettings),
         M4VS, (M4OSA_Char *)"Copy of VSS structure");
 
     if( xVSS_context->pSettings == M4OSA_NULL )
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_Init");
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pTempPath);
+        free(xVSS_context->pTempPath);
         xVSS_context->pTempPath = M4OSA_NULL;
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context);
+        free(xVSS_context);
         xVSS_context = M4OSA_NULL;
         return M4ERR_ALLOC;
     }
@@ -662,8 +662,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     /* We need to unallocate PCM preview file path in internal context */
                     if( xVSS_context->pcmPreviewFile != M4OSA_NULL )
                     {
-                        M4OSA_free(
-                            (M4OSA_MemAddr32)xVSS_context->pcmPreviewFile);
+                        free(xVSS_context->pcmPreviewFile);
                         xVSS_context->pcmPreviewFile = M4OSA_NULL;
                     }
                 }
@@ -673,7 +672,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 /* We need to unallocate PCM preview file path in internal context */
                 if( xVSS_context->pcmPreviewFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pcmPreviewFile);
+                    free(xVSS_context->pcmPreviewFile);
                     xVSS_context->pcmPreviewFile = M4OSA_NULL;
                 }
             }
@@ -703,7 +702,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 {
                     if( pParams->pFileIn != M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams->pFileIn);
+                        free(pParams->pFileIn);
                         pParams->pFileIn = M4OSA_NULL;
                     }
 
@@ -711,7 +710,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     {
                         /* Delete temporary file */
                         remove((const char *)pParams->pFileOut);
-                        M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
+                        free(pParams->pFileOut);
                         pParams->pFileOut = M4OSA_NULL;
                     }
 
@@ -721,7 +720,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
                         remove((const char *)pParams->pFileTemp);
-                        M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
+                        free(pParams->pFileTemp);
 
 #endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
 
@@ -729,7 +728,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     }
                     pParams_sauv = pParams;
                     pParams = pParams->pNext;
-                    M4OSA_free((M4OSA_MemAddr32)pParams_sauv);
+                    free(pParams_sauv);
                     pParams_sauv = M4OSA_NULL;
                 }
                 xVSS_context->pPTo3GPPparamsList = M4OSA_NULL;
@@ -748,7 +747,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     {
                         if( pParams->pFileIn != M4OSA_NULL )
                         {
-                            M4OSA_free((M4OSA_MemAddr32)pParams->pFileIn);
+                            free(pParams->pFileIn);
                             pParams->pFileIn = M4OSA_NULL;
                         }
 
@@ -756,7 +755,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         {
                             /* Delete temporary file */
                             remove((const char *)pParams->pFileOut);
-                            M4OSA_free((M4OSA_MemAddr32)pParams->pFileOut);
+                            free(pParams->pFileOut);
                             pParams->pFileOut = M4OSA_NULL;
                         }
 
@@ -766,7 +765,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
                             remove((const char *)pParams->pFileTemp);
-                            M4OSA_free((M4OSA_MemAddr32)pParams->pFileTemp);
+                            free(pParams->pFileTemp);
 
 #endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
 
@@ -774,7 +773,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         }
                         pParams_sauv = pParams;
                         pParams = pParams->pNext;
-                        M4OSA_free((M4OSA_MemAddr32)pParams_sauv);
+                        free(pParams_sauv);
                         pParams_sauv = M4OSA_NULL;
                     }
                     else
@@ -802,7 +801,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
         /*Unallocate output file path*/
         if( xVSS_context->pSettings->pOutputFile != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->pOutputFile);
+            free(xVSS_context->pSettings->pOutputFile);
             xVSS_context->pSettings->pOutputFile = M4OSA_NULL;
         }
         xVSS_context->pSettings->uiOutputPathSize = 0;
@@ -860,7 +859,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             pSettings->uiOutputPathSize = length;
         }
 
-        xVSS_context->pSettings->pOutputFile = (M4OSA_Void *)M4OSA_malloc \
+        xVSS_context->pSettings->pOutputFile = (M4OSA_Void *)M4OSA_32bitAlignedMalloc \
             (pSettings->uiOutputPathSize + 1, M4VS,
             (M4OSA_Char *)"output file path");
 
@@ -1056,19 +1055,18 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
     {
         if( xVSS_context->pSettings->pClipList != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)(xVSS_context->pSettings->pClipList));
+            free((xVSS_context->pSettings->pClipList));
             xVSS_context->pSettings->pClipList = M4OSA_NULL;
         }
 
         if( xVSS_context->pSettings->pTransitionList != M4OSA_NULL )
         {
-            M4OSA_free(
-                (M4OSA_MemAddr32)(xVSS_context->pSettings->pTransitionList));
+            free(xVSS_context->pSettings->pTransitionList);
             xVSS_context->pSettings->pTransitionList = M4OSA_NULL;
         }
 
         xVSS_context->pSettings->pClipList =
-            (M4VSS3GPP_ClipSettings ** )M4OSA_malloc \
+            (M4VSS3GPP_ClipSettings ** )M4OSA_32bitAlignedMalloc \
             (sizeof(M4VSS3GPP_ClipSettings *)*xVSS_context->pSettings->uiClipNumber,
             M4VS, (M4OSA_Char *)"xVSS, copy of pClipList");
 
@@ -1090,7 +1088,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
         {
             xVSS_context->pSettings->pTransitionList =
                 (M4VSS3GPP_TransitionSettings ** ) \
-                M4OSA_malloc(sizeof(M4VSS3GPP_TransitionSettings *)                \
+                M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_TransitionSettings *)                \
                 *(xVSS_context->pSettings->uiClipNumber - 1), M4VS, (M4OSA_Char *) \
                 "xVSS, copy of pTransitionList");
 
@@ -1131,7 +1129,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
     if( 0 < xVSS_context->pSettings->nbEffects )
     {
         xVSS_context->pSettings->Effects =
-            (M4VSS3GPP_EffectSettings *)M4OSA_malloc \
+            (M4VSS3GPP_EffectSettings *)M4OSA_32bitAlignedMalloc \
             (xVSS_context->pSettings->nbEffects * sizeof(M4VSS3GPP_EffectSettings),
             M4VS, (M4OSA_Char *)"effects settings");
 
@@ -1184,7 +1182,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
     {
         /* Allocate current clip */
         xVSS_context->pSettings->pClipList[i] =
-            (M4VSS3GPP_ClipSettings *)M4OSA_malloc \
+            (M4VSS3GPP_ClipSettings *)M4OSA_32bitAlignedMalloc \
             (sizeof(M4VSS3GPP_ClipSettings), M4VS, (M4OSA_Char *)"clip settings");
 
         if( xVSS_context->pSettings->pClipList[i] == M4OSA_NULL )
@@ -1219,7 +1217,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
         {
             xVSS_context->pSettings->pTransitionList[i] =
                 (M4VSS3GPP_TransitionSettings
-                *)M4OSA_malloc(sizeof(M4VSS3GPP_TransitionSettings),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_TransitionSettings),
                 M4VS, (M4OSA_Char *)"transition settings");
 
             if( xVSS_context->pSettings->pTransitionList[i] == M4OSA_NULL )
@@ -1250,7 +1248,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     provided one */
                     xVSS_context->pSettings->pTransitionList[i]->      \
                      xVSS.transitionSpecific.pAlphaMagicSettings =
-                        (M4xVSS_AlphaMagicSettings *)M4OSA_malloc \
+                        (M4xVSS_AlphaMagicSettings *)M4OSA_32bitAlignedMalloc \
                         (sizeof(M4xVSS_AlphaMagicSettings), M4VS,
                         (M4OSA_Char *)"Input Alpha magic settings structure");
 
@@ -1277,7 +1275,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     /* Allocate our alpha magic input filename */
                     xVSS_context->pSettings->pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings->
-                        pAlphaFilePath = M4OSA_malloc(
+                        pAlphaFilePath = M4OSA_32bitAlignedMalloc(
                         (strlen(pSettings->pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings->pAlphaFilePath)
                         + 1), M4VS, (M4OSA_Char *)"Alpha magic file path");
@@ -1329,7 +1327,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
                                 alphaSettings =
                                     (M4xVSS_internal_AlphaMagicSettings
-                                    *)M4OSA_malloc(
+                                    *)M4OSA_32bitAlignedMalloc(
                                     sizeof(
                                     M4xVSS_internal_AlphaMagicSettings),
                                     M4VS,
@@ -1427,7 +1425,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                             " TransitionListM4xVSS_SendCommand height! State is %d",
                             height_ARGB888);
                         /* Allocate output plane */
-                        outputPlane = (M4VIFI_ImagePlane *)M4OSA_malloc(3
+                        outputPlane = (M4VIFI_ImagePlane *)M4OSA_32bitAlignedMalloc(3
                             * sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char
                             *)
                             "Output plane for Alpha magic transition");
@@ -1448,7 +1446,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         outputPlane[0].u_topleft = 0;
                         outputPlane[0].u_stride = width;
                         outputPlane[0].pac_data = (M4VIFI_UInt8
-                            *)M4OSA_malloc(( width * height * 3)
+                            *)M4OSA_32bitAlignedMalloc(( width * height * 3)
                             >> 1,
                             M4VS,
                             (M4OSA_Char
@@ -1458,7 +1456,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
                         if( outputPlane[0].pac_data == M4OSA_NULL )
                         {
-                            M4OSA_free((M4OSA_MemAddr32)outputPlane);
+                            free(outputPlane);
                             outputPlane = M4OSA_NULL;
                             M4OSA_TRACE1_0(
                                 "Allocation error in M4xVSS_SendCommand");
@@ -1525,10 +1523,9 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
                         if( err != M4NO_ERROR )
                         {
-                            M4OSA_free(
-                                (M4OSA_MemAddr32)outputPlane[0].pac_data);
+                            free(outputPlane[0].pac_data);
                             outputPlane[0].pac_data = M4OSA_NULL;
-                            M4OSA_free((M4OSA_MemAddr32)outputPlane);
+                            free(outputPlane);
                             outputPlane = M4OSA_NULL;
                             M4xVSS_freeCommand(xVSS_context);
                             M4OSA_TRACE1_1(
@@ -1539,7 +1536,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
                         /* Allocate alpha settings structure */
                         alphaSettings =
-                            (M4xVSS_internal_AlphaMagicSettings *)M4OSA_malloc(
+                            (M4xVSS_internal_AlphaMagicSettings *)M4OSA_32bitAlignedMalloc(
                             sizeof(M4xVSS_internal_AlphaMagicSettings),
                             M4VS, (M4OSA_Char
                             *)"Alpha magic settings structure 2");
@@ -1599,7 +1596,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     {
                         M4xVSS_internal_SlideTransitionSettings *slideSettings;
                         slideSettings =
-                            (M4xVSS_internal_SlideTransitionSettings *)M4OSA_malloc(
+                            (M4xVSS_internal_SlideTransitionSettings *)M4OSA_32bitAlignedMalloc(
                             sizeof(M4xVSS_internal_SlideTransitionSettings),
                             M4VS, (M4OSA_Char
                             *)"Internal slide transition settings");
@@ -1745,7 +1742,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
             /* Allocate last element Pto3GPP params structure */
             pParams = (M4xVSS_Pto3GPP_params
-                *)M4OSA_malloc(sizeof(M4xVSS_Pto3GPP_params),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_Pto3GPP_params),
                 M4VS, (M4OSA_Char *)"Element of Pto3GPP Params");
 
             if( pParams == M4OSA_NULL )
@@ -1829,7 +1826,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
             /**
             * End of the UTF conversion, use the converted file path*/
-            pParams->pFileIn = (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS,
+            pParams->pFileIn = (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
                 (M4OSA_Char *)"Pto3GPP Params: file in");
 
             if( pParams->pFileIn == M4OSA_NULL )
@@ -1898,7 +1895,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
             /**
             * End of the UTF conversion, use the converted file path*/
-            pParams->pFileOut = (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+            pParams->pFileOut = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                 (M4OSA_Char *)"Pto3GPP Params: file out");
 
             if( pParams->pFileOut == M4OSA_NULL )
@@ -1944,7 +1941,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
 
             /**
             * End of the UTF conversion, use the converted file path*/
-            pParams->pFileTemp = (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+            pParams->pFileTemp = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                 (M4OSA_Char *)"Pto3GPP Params: file temp");
 
             if( pParams->pFileTemp == M4OSA_NULL )
@@ -2086,7 +2083,7 @@ replaceJPG_3GP:
 
             if( xVSS_context->pSettings->pClipList[i]->pFile != M4OSA_NULL )
             {
-                M4OSA_free(xVSS_context->pSettings->pClipList[i]->pFile);
+                free(xVSS_context->pSettings->pClipList[i]->pFile);
                 xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_NULL;
             }
 
@@ -2122,7 +2119,7 @@ replaceJPG_3GP:
             }
             /**
             * End of the UTF conversion, use the converted file path*/
-            xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_malloc((length
+            xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_32bitAlignedMalloc((length
                 + 1), M4VS, (M4OSA_Char *)"xVSS file path of jpg to 3gp");
 
             if( xVSS_context->pSettings->pClipList[i]->pFile == M4OSA_NULL )
@@ -2221,7 +2218,7 @@ replaceJPG_3GP:
 
             /* Allocate last element Pto3GPP params structure */
             pParams = (M4xVSS_Pto3GPP_params
-                *)M4OSA_malloc(sizeof(M4xVSS_Pto3GPP_params),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_Pto3GPP_params),
                 M4VS, (M4OSA_Char *)"Element of Pto3GPP Params");
 
             if( pParams == M4OSA_NULL )
@@ -2313,7 +2310,7 @@ replaceJPG_3GP:
 
                     /**
                     * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileIn = (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS,
+                    pParams->pFileIn = (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
                         (M4OSA_Char *)"Pto3GPP Params: file in");
 
                     if( pParams->pFileIn == M4OSA_NULL )
@@ -2382,7 +2379,7 @@ replaceJPG_3GP:
 
                     /**
                     * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileOut = (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+                    pParams->pFileOut = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                         (M4OSA_Char *)"Pto3GPP Params: file out");
 
                     if( pParams->pFileOut == M4OSA_NULL )
@@ -2428,7 +2425,7 @@ replaceJPG_3GP:
 
                     /**
                     * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileTemp = (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+                    pParams->pFileTemp = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                         (M4OSA_Char *)"Pto3GPP Params: file temp");
 
                     if( pParams->pFileTemp == M4OSA_NULL )
@@ -2562,7 +2559,7 @@ replaceARGB_3GP:
 
                     if( xVSS_context->pSettings->pClipList[i]->pFile != M4OSA_NULL )
                     {
-                        M4OSA_free(xVSS_context->pSettings->pClipList[i]->pFile);
+                        free(xVSS_context->pSettings->pClipList[i]->pFile);
                         xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_NULL;
                     }
 
@@ -2598,7 +2595,7 @@ replaceARGB_3GP:
                     }
                     /**
                     * End of the UTF conversion, use the converted file path*/
-                    xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_malloc((length
+                    xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_32bitAlignedMalloc((length
                         + 1), M4VS, (M4OSA_Char *)"xVSS file path of ARGB to 3gp");
 
                     if( xVSS_context->pSettings->pClipList[i]->pFile == M4OSA_NULL )
@@ -2984,7 +2981,7 @@ replaceARGB_3GP:
                 xVSS_context->tempFileIndex++;
 
                 pParams =
-                    (M4xVSS_MCS_params *)M4OSA_malloc(sizeof(M4xVSS_MCS_params),
+                    (M4xVSS_MCS_params *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_MCS_params),
                     M4VS, (M4OSA_Char *)"Element of MCS Params (for 3GP)");
 
                 if( pParams == M4OSA_NULL )
@@ -3283,7 +3280,7 @@ replaceARGB_3GP:
                 /**
                 * End of the UTF conversion, use the converted file path*/
                 pParams->pFileIn =
-                    (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+                    (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                     (M4OSA_Char *)"MCS 3GP Params: file in");
 
                 if( pParams->pFileIn == M4OSA_NULL )
@@ -3329,7 +3326,7 @@ replaceARGB_3GP:
                 /**
                 * End of the UTF conversion, use the converted file path*/
                 pParams->pFileOut =
-                    (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+                    (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                     (M4OSA_Char *)"MCS 3GP Params: file out");
 
                 if( pParams->pFileOut == M4OSA_NULL )
@@ -3378,7 +3375,7 @@ replaceARGB_3GP:
                 /**
                 * End of the UTF conversion, use the converted file path*/
                 pParams->pFileTemp =
-                    (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+                    (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
                     (M4OSA_Char *)"MCS 3GP Params: file temp");
 
                 if( pParams->pFileTemp == M4OSA_NULL )
@@ -3442,7 +3439,7 @@ replace3GP_3GP:
 
                 if( xVSS_context->pSettings->pClipList[i]->pFile != M4OSA_NULL )
                 {
-                    M4OSA_free(xVSS_context->pSettings->pClipList[i]->pFile);
+                    free(xVSS_context->pSettings->pClipList[i]->pFile);
                     xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_NULL;
                 }
 
@@ -3479,7 +3476,7 @@ replace3GP_3GP:
                 }
                 /**
                 * End of the UTF conversion, use the converted file path*/
-                xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_malloc(
+                xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_32bitAlignedMalloc(
                     (length + 1),
                     M4VS, (M4OSA_Char *)"xVSS file path of 3gp to 3gp");
 
@@ -3604,7 +3601,7 @@ replace3GP_3GP:
             if( pSettings->Effects[j].xVSS.pFramingFilePath != M4OSA_NULL )
             {
                 xVSS_context->pSettings->
-                    Effects[j].xVSS.pFramingFilePath = M4OSA_malloc(
+                    Effects[j].xVSS.pFramingFilePath = M4OSA_32bitAlignedMalloc(
                     strlen(pSettings->Effects[j].xVSS.pFramingFilePath)
                     + 1, M4VS, (M4OSA_Char *)"Local Framing file path");
 
@@ -3631,7 +3628,7 @@ replace3GP_3GP:
 #ifdef DECODE_GIF_ON_SAVING
 
             framingCtx = (M4xVSS_FramingContext
-                *)M4OSA_malloc(sizeof(M4xVSS_FramingContext),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingContext),
                 M4VS, (M4OSA_Char *)"Context of the framing effect");
 
             if( framingCtx == M4OSA_NULL )
@@ -3710,7 +3707,7 @@ replace3GP_3GP:
             {
                 /*Allocate the alpha blending structure*/
                 framingCtx->alphaBlendingStruct =
-                    (M4xVSS_internalEffectsAlphaBlending *)M4OSA_malloc(
+                    (M4xVSS_internalEffectsAlphaBlending *)M4OSA_32bitAlignedMalloc(
                     sizeof(M4xVSS_internalEffectsAlphaBlending),
                     M4VS, (M4OSA_Char *)"alpha blending structure");
 
@@ -3774,7 +3771,7 @@ replace3GP_3GP:
 
             /**
             * End of the UTF conversion, use the converted file path*/
-            framingCtx->pEffectFilePath = M4OSA_malloc(length + 1, M4VS,
+            framingCtx->pEffectFilePath = M4OSA_32bitAlignedMalloc(length + 1, M4VS,
                 (M4OSA_Char *)"Local Framing file path");
 
             if( framingCtx->pEffectFilePath == M4OSA_NULL )
@@ -3796,7 +3793,7 @@ replace3GP_3GP:
 #else
 
             framingCtx = (M4xVSS_FramingStruct
-                *)M4OSA_malloc(sizeof(M4xVSS_FramingStruct),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingStruct),
                 M4VS, (M4OSA_Char *)"Context of the framing effect");
 
             if( framingCtx == M4OSA_NULL )
@@ -3838,7 +3835,7 @@ replace3GP_3GP:
 
                     framingCtx->aFramingCtx =
                         (M4xVSS_FramingStruct
-                        *)M4OSA_malloc(sizeof(M4xVSS_FramingStruct),
+                        *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingStruct),
                         M4VS,
                         (M4OSA_Char
                         *)
@@ -3910,7 +3907,7 @@ replace3GP_3GP:
 #ifdef DECODE_GIF_ON_SAVING
 
                 framingCtx->aFramingCtx = (M4xVSS_FramingStruct
-                    *)M4OSA_malloc(sizeof(M4xVSS_FramingStruct),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingStruct),
                     M4VS, (M4OSA_Char *)"Context of the framing effect");
 
                 if( framingCtx->aFramingCtx == M4OSA_NULL )
@@ -4008,7 +4005,7 @@ replace3GP_3GP:
 #ifdef DECODE_GIF_ON_SAVING
 
                 framingCtx = (M4xVSS_FramingContext
-                    *)M4OSA_malloc(sizeof(M4xVSS_FramingContext),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingContext),
                     M4VS, (M4OSA_Char *)"Context of the framing effect");
 
                 if( framingCtx == M4OSA_NULL )
@@ -4046,7 +4043,7 @@ replace3GP_3GP:
                     framingCtx;
 
                 framingCtx->aFramingCtx = (M4xVSS_FramingStruct
-                    *)M4OSA_malloc(sizeof(M4xVSS_FramingStruct),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingStruct),
                     M4VS, (M4OSA_Char *)"Context of the framing effect");
 
                 if( framingCtx->aFramingCtx == M4OSA_NULL )
@@ -4105,7 +4102,7 @@ replace3GP_3GP:
                 {
                     /*Allocate the alpha blending structure*/
                     framingCtx->alphaBlendingStruct =
-                        (M4xVSS_internalEffectsAlphaBlending *)M4OSA_malloc(
+                        (M4xVSS_internalEffectsAlphaBlending *)M4OSA_32bitAlignedMalloc(
                         sizeof(M4xVSS_internalEffectsAlphaBlending),
                         M4VS, (M4OSA_Char *)"alpha blending structure");
 
@@ -4139,7 +4136,7 @@ replace3GP_3GP:
 #else
 
                 framingCtx = (M4xVSS_FramingStruct
-                    *)M4OSA_malloc(sizeof(M4xVSS_FramingStruct),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FramingStruct),
                     M4VS, (M4OSA_Char
                     *)"Context of the framing effect (for text)");
 
@@ -4215,12 +4212,12 @@ replace3GP_3GP:
                 * End of the UTF conversion, use the converted file path*/
 
                 xVSS_context->pSettings->
-                    Effects[j].xVSS.pTextBuffer = M4OSA_malloc(
+                    Effects[j].xVSS.pTextBuffer = M4OSA_32bitAlignedMalloc(
                     xVSS_context->pSettings->Effects[j].xVSS.textBufferSize + 1,
                     M4VS, (M4OSA_Char *)"Local text buffer effect");
 
                 //xVSS_context->pSettings->Effects[j].xVSS.pTextBuffer =
-                // M4OSA_malloc(strlen(pSettings->Effects[j].xVSS.pTextBuffer)+1,
+                // M4OSA_32bitAlignedMalloc(strlen(pSettings->Effects[j].xVSS.pTextBuffer)+1,
                 // M4VS, "Local text buffer effect");
                 if( xVSS_context->pSettings->Effects[j].xVSS.pTextBuffer
                     == M4OSA_NULL )
@@ -4246,7 +4243,7 @@ replace3GP_3GP:
 
                 /*Allocate the text RGB buffer*/
                 framingCtx->aFramingCtx->FramingRgb =
-                    (M4VIFI_ImagePlane *)M4OSA_malloc(sizeof(M4VIFI_ImagePlane),
+                    (M4VIFI_ImagePlane *)M4OSA_32bitAlignedMalloc(sizeof(M4VIFI_ImagePlane),
                     M4VS,
                     (M4OSA_Char *)"RGB structure for the text effect");
 
@@ -4284,7 +4281,7 @@ replace3GP_3GP:
                     2 * framingCtx->aFramingCtx->FramingRgb->u_width;
                 framingCtx->aFramingCtx->FramingRgb->u_topleft = 0;
                 framingCtx->aFramingCtx->FramingRgb->pac_data =
-                    (M4VIFI_UInt8 *)M4OSA_malloc(
+                    (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(
                     framingCtx->aFramingCtx->FramingRgb->u_height
                     * framingCtx->aFramingCtx->FramingRgb->u_stride,
                     M4VS, (M4OSA_Char *)"Text RGB plane->pac_data");
@@ -4414,7 +4411,7 @@ replace3GP_3GP:
             }
 
             fiftiesCtx = (M4xVSS_FiftiesStruct
-                *)M4OSA_malloc(sizeof(M4xVSS_FiftiesStruct),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_FiftiesStruct),
                 M4VS, (M4OSA_Char *)"Context of the fifties effect");
 
             if( fiftiesCtx == M4OSA_NULL )
@@ -4455,7 +4452,7 @@ replace3GP_3GP:
             M4xVSS_ColorStruct *ColorCtx;
 
             ColorCtx =
-                (M4xVSS_ColorStruct *)M4OSA_malloc(sizeof(M4xVSS_ColorStruct),
+                (M4xVSS_ColorStruct *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_ColorStruct),
                 M4VS, (M4OSA_Char *)"Context of the color effect");
 
             if( ColorCtx == M4OSA_NULL )
@@ -4514,19 +4511,17 @@ replace3GP_3GP:
         {
             if( xVSS_context->pSettings->xVSS.pBGMtrack->pFile != M4OSA_NULL )
             {
-                M4OSA_free(
-                    (M4OSA_MemAddr32)xVSS_context->pSettings->xVSS.pBGMtrack->
+                free(xVSS_context->pSettings->xVSS.pBGMtrack->
                     pFile);
                 xVSS_context->pSettings->xVSS.pBGMtrack->pFile = M4OSA_NULL;
             }
-            M4OSA_free(
-                (M4OSA_MemAddr32)xVSS_context->pSettings->xVSS.pBGMtrack);
+            free(xVSS_context->pSettings->xVSS.pBGMtrack);
             xVSS_context->pSettings->xVSS.pBGMtrack = M4OSA_NULL;
         }
 
         /* Allocate BGM */
         xVSS_context->pSettings->xVSS.pBGMtrack =
-            (M4xVSS_BGMSettings *)M4OSA_malloc(sizeof(M4xVSS_BGMSettings), M4VS,
+            (M4xVSS_BGMSettings *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_BGMSettings), M4VS,
             (M4OSA_Char *)"xVSS_context->pSettings->xVSS.pBGMtrack");
 
         if( xVSS_context->pSettings->xVSS.pBGMtrack == M4OSA_NULL )
@@ -4542,7 +4537,7 @@ replace3GP_3GP:
             sizeof(M4xVSS_BGMSettings));
         /* Allocate file name, and copy file name buffer to our structure */
         xVSS_context->pSettings->xVSS.pBGMtrack->pFile =
-            M4OSA_malloc((strlen(pSettings->xVSS.pBGMtrack->pFile)
+            M4OSA_32bitAlignedMalloc((strlen(pSettings->xVSS.pBGMtrack->pFile)
             + 1), M4VS, (M4OSA_Char *)"xVSS BGM file path");
 
         if( xVSS_context->pSettings->xVSS.pBGMtrack->pFile == M4OSA_NULL )
@@ -4559,7 +4554,7 @@ replace3GP_3GP:
         /* Decode BGM track to pcm output file */
 
         pParams =
-            (M4xVSS_MCS_params *)M4OSA_malloc(sizeof(M4xVSS_MCS_params), M4VS,
+            (M4xVSS_MCS_params *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_MCS_params), M4VS,
             (M4OSA_Char *)"Element of MCS Params (for BGM)");
 
         if( pParams == M4OSA_NULL )
@@ -4605,7 +4600,7 @@ replace3GP_3GP:
                     /* Remove this element */
                     if( pParams_temp->pFileIn != M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp->pFileIn);
+                        free(pParams_temp->pFileIn);
                         pParams_temp->pFileIn = M4OSA_NULL;
                     }
 
@@ -4613,7 +4608,7 @@ replace3GP_3GP:
                     {
                         /* Remove PCM temporary file */
                         remove((const char *)pParams_temp->pFileOut);
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp->pFileOut);
+                        free(pParams_temp->pFileOut);
                         pParams_temp->pFileOut = M4OSA_NULL;
                     }
                     /* Chain previous element with next element = remove BGM chained
@@ -4644,13 +4639,13 @@ replace3GP_3GP:
                     if( pParams_temp->pNext != M4OSA_NULL )
                     {
                         pParams_prev = pParams_temp->pNext;
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp);
+                        free(pParams_temp);
                         pParams_temp = M4OSA_NULL;
                         pParams_temp = pParams_prev;
                     }
                     else
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp);
+                        free(pParams_temp);
                         pParams_temp = M4OSA_NULL;
                     }
                 }
@@ -4742,7 +4737,7 @@ replace3GP_3GP:
         /* Prepare output filename */
         /* 21 is the size of "preview_16000_2.pcm" + \0 */
         out_pcm =
-            (M4OSA_Char *)M4OSA_malloc(strlen(xVSS_context->pTempPath)
+            (M4OSA_Char *)M4OSA_32bitAlignedMalloc(strlen(xVSS_context->pTempPath)
             + 21, M4VS, (M4OSA_Char *)"Temp char* for pcmPreviewFile");
 
         if( out_pcm == M4OSA_NULL )
@@ -4783,7 +4778,7 @@ replace3GP_3GP:
         {
             if( out_pcm != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)out_pcm);
+                free(out_pcm);
                 out_pcm = M4OSA_NULL;
             }
             M4xVSS_freeCommand(xVSS_context);
@@ -4822,13 +4817,13 @@ replace3GP_3GP:
         /**
         * End of the UTF conversion, use the converted file path*/
         xVSS_context->pcmPreviewFile =
-            (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
             (M4OSA_Char *)"pcmPreviewFile");
 
         if( xVSS_context->pcmPreviewFile == M4OSA_NULL )
         {
             M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
-            M4OSA_free((M4OSA_MemAddr32)out_pcm);
+            free(out_pcm);
             out_pcm = M4OSA_NULL;
             /*FB: to avoid leaks when there is an error in the send command*/
             /* Free Send command */
@@ -4841,11 +4836,11 @@ replace3GP_3GP:
         /* Free temporary output filename */
         if( out_pcm != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)out_pcm);
+            free(out_pcm);
             out_pcm = M4OSA_NULL;
         }
 
-        pParams->pFileOut = M4OSA_malloc((length + 1), M4VS,
+        pParams->pFileOut = M4OSA_32bitAlignedMalloc((length + 1), M4VS,
             (M4OSA_Char *)"MCS BGM Params: file out");
 
         if( pParams->pFileOut == M4OSA_NULL )
@@ -4862,13 +4857,13 @@ replace3GP_3GP:
 #if 0
 
         xVSS_context->pcmPreviewFile =
-            (M4OSA_Char *)M4OSA_malloc(strlen(out_pcm) + 1, M4VS,
+            (M4OSA_Char *)M4OSA_32bitAlignedMalloc(strlen(out_pcm) + 1, M4VS,
             "pcmPreviewFile");
 
         if( xVSS_context->pcmPreviewFile == M4OSA_NULL )
         {
             M4OSA_TRACE1_0("Allocation error in M4xVSS_Init");
-            M4OSA_free((M4OSA_MemAddr32)out_pcm);
+            free(out_pcm);
             out_pcm = M4OSA_NULL;
             /*FB: to avoid leaks when there is an error in the send command*/
             /* Free Send command */
@@ -4882,7 +4877,7 @@ replace3GP_3GP:
         /* Free temporary output filename */
         if( out_pcm != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)out_pcm);
+            free(out_pcm);
             out_pcm = M4OSA_NULL;
         }
 
@@ -4918,7 +4913,7 @@ replace3GP_3GP:
 
         /**
         * End of the UTF conversion, use the converted file path*/
-        pParams->pFileIn = (M4OSA_Void *)M4OSA_malloc((length + 1), M4VS,
+        pParams->pFileIn = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
             (M4OSA_Char *)"MCS BGM Params: file in");
 
         if( pParams->pFileIn == M4OSA_NULL )
@@ -5003,13 +4998,13 @@ replace3GP_3GP:
                     /* Remove this element */
                     if( pParams_temp->pFileIn != M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp->pFileIn);
+                        free(pParams_temp->pFileIn);
                         pParams_temp->pFileIn = M4OSA_NULL;
                     }
 
                     if( pParams_temp->pFileOut != M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp->pFileOut);
+                        free(pParams_temp->pFileOut);
                         pParams_temp->pFileOut = M4OSA_NULL;
                     }
                     /* Chain previous element with next element */
@@ -5024,7 +5019,7 @@ replace3GP_3GP:
                     if( pParams_temp == xVSS_context->pMCSparamsList
                         && pParams_temp->pNext == M4OSA_NULL )
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp);
+                        free(pParams_temp);
                         xVSS_context->pMCSparamsList = M4OSA_NULL;
                     }
                     /* In that case, BGM pointer is the first one, but there are others
@@ -5033,14 +5028,14 @@ replace3GP_3GP:
                     else if( pParams_temp->pNext != M4OSA_NULL )
                     {
                         xVSS_context->pMCSparamsList = pParams_temp->pNext;
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp);
+                        free(pParams_temp);
                         pParams_temp = M4OSA_NULL;
                     }
                     /* In all other cases, nothing else to do except freeing the chained
                     list element */
                     else
                     {
-                        M4OSA_free((M4OSA_MemAddr32)pParams_temp);
+                        free(pParams_temp);
                         pParams_temp = M4OSA_NULL;
                     }
                     break;
@@ -5058,11 +5053,10 @@ replace3GP_3GP:
                 if( xVSS_context->pSettings->xVSS.pBGMtrack->pFile
                     != M4OSA_NULL )
                 {
-                    M4OSA_free(xVSS_context->pSettings->xVSS.pBGMtrack->pFile);
+                    free(xVSS_context->pSettings->xVSS.pBGMtrack->pFile);
                     xVSS_context->pSettings->xVSS.pBGMtrack->pFile = M4OSA_NULL;
                 }
-                M4OSA_free(
-                    (M4OSA_MemAddr32)xVSS_context->pSettings->xVSS.pBGMtrack);
+                free(xVSS_context->pSettings->xVSS.pBGMtrack);
                 xVSS_context->pSettings->xVSS.pBGMtrack = M4OSA_NULL;
             }
         }
@@ -5365,7 +5359,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         if( xVSS_context->pSettings->pOutputFile != M4OSA_NULL )
         {
             /*it means that pOutputFile has been allocated in M4xVSS_sendCommand()*/
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->pOutputFile);
+            free(xVSS_context->pSettings->pOutputFile);
             xVSS_context->pSettings->pOutputFile = M4OSA_NULL;
             xVSS_context->pSettings->uiOutputPathSize = 0;
         }
@@ -5394,7 +5388,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         }
 
         xVSS_context->pOutputFile =
-            (M4OSA_Void *)M4OSA_malloc(filePathSize + 1, M4VS,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(filePathSize + 1, M4VS,
             (M4OSA_Char *)"M4xVSS_SaveStart: output file");
 
         if( xVSS_context->pOutputFile == M4OSA_NULL )
@@ -5414,7 +5408,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     /*FB: Add for UTF conversion: copy the pSettings structure into a new pCurrentEditSettings*/
     /*It is the same principle as in the PreviewStart()*/
     pEditSavingSettings =
-        (M4VSS3GPP_EditSettings *)M4OSA_malloc(sizeof(M4VSS3GPP_EditSettings),
+        (M4VSS3GPP_EditSettings *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_EditSettings),
         M4VS, (M4OSA_Char *)"Saving, copy of VSS structure");
 
     if( pEditSavingSettings == M4OSA_NULL )
@@ -5423,7 +5417,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         if( xVSS_context->pOutputFile != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+            free(xVSS_context->pOutputFile);
             xVSS_context->pOutputFile = M4OSA_NULL;
         }
         return M4ERR_ALLOC;
@@ -5445,7 +5439,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
     /* Allocate savingSettings.pClipList/pTransitions structure */
     pEditSavingSettings->pClipList = (M4VSS3GPP_ClipSettings *
-        * )M4OSA_malloc(sizeof(M4VSS3GPP_ClipSettings *)
+        * )M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_ClipSettings *)
         *pEditSavingSettings->uiClipNumber,
         M4VS, (M4OSA_Char *)"xVSS, saving , copy of pClipList");
 
@@ -5455,7 +5449,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         if( xVSS_context->pOutputFile != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+            free(xVSS_context->pOutputFile);
             xVSS_context->pOutputFile = M4OSA_NULL;
         }
         return M4ERR_ALLOC;
@@ -5464,7 +5458,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     if( pEditSavingSettings->uiClipNumber > 1 )
     {
         pEditSavingSettings->pTransitionList = (M4VSS3GPP_TransitionSettings *
-            * )M4OSA_malloc(sizeof(M4VSS3GPP_TransitionSettings *)
+            * )M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_TransitionSettings *)
             *(pEditSavingSettings->uiClipNumber - 1),
             M4VS, (M4OSA_Char *)"xVSS, saving, copy of pTransitionList");
 
@@ -5474,7 +5468,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5488,7 +5482,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     for ( i = 0; i < pEditSavingSettings->uiClipNumber; i++ )
     {
         pEditSavingSettings->pClipList[i] = (M4VSS3GPP_ClipSettings
-            *)M4OSA_malloc(sizeof(M4VSS3GPP_ClipSettings),
+            *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_ClipSettings),
             M4VS, (M4OSA_Char *)"saving clip settings");
 
         if( pEditSavingSettings->pClipList[i] == M4OSA_NULL )
@@ -5497,7 +5491,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5508,7 +5502,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         {
             pEditSavingSettings->pTransitionList[i] =
                 (M4VSS3GPP_TransitionSettings
-                *)M4OSA_malloc(sizeof(M4VSS3GPP_TransitionSettings),
+                *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_TransitionSettings),
                 M4VS, (M4OSA_Char *)"saving transition settings");
 
             if( pEditSavingSettings->pTransitionList[i] == M4OSA_NULL )
@@ -5517,7 +5511,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 if( xVSS_context->pOutputFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                    free(xVSS_context->pOutputFile);
                     xVSS_context->pOutputFile = M4OSA_NULL;
                 }
                 return M4ERR_ALLOC;
@@ -5567,8 +5561,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                     if( xVSS_context->pOutputFile != M4OSA_NULL )
                     {
-                        M4OSA_free(
-                            (M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                        free(xVSS_context->pOutputFile);
                         xVSS_context->pOutputFile = M4OSA_NULL;
                     }
                     return err;
@@ -5578,10 +5571,10 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 /**
                 * End of the UTF conversion, use the converted file path*/
-                M4OSA_free((M4OSA_MemAddr32)
+                free(
                     pEditSavingSettings->pClipList[i]->pFile);
                 pEditSavingSettings->pClipList[i]->pFile = (M4OSA_Void
-                    *)M4OSA_malloc((length + 1),
+                    *)M4OSA_32bitAlignedMalloc((length + 1),
                     M4VS, (M4OSA_Char *)"saving transition settings");
 
                 if( pEditSavingSettings->pClipList[i]->pFile == M4OSA_NULL )
@@ -5590,8 +5583,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                     if( xVSS_context->pOutputFile != M4OSA_NULL )
                     {
-                        M4OSA_free(
-                            (M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                        free(xVSS_context->pOutputFile);
                         xVSS_context->pOutputFile = M4OSA_NULL;
                     }
                     return M4ERR_ALLOC;
@@ -5621,7 +5613,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_PARAMETER;
@@ -5643,7 +5635,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     if( nbEffects != 0 )
     {
         pEditSavingSettings->Effects =
-            (M4VSS3GPP_EffectSettings *)M4OSA_malloc(nbEffects
+            (M4VSS3GPP_EffectSettings *)M4OSA_32bitAlignedMalloc(nbEffects
             * sizeof(M4VSS3GPP_EffectSettings), M4VS, (M4OSA_Char
             *)"Saving settings, effects table of structure settings");
 
@@ -5653,7 +5645,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5690,7 +5682,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         /**/
         pEditSavingSettings->xVSS.pBGMtrack =
-            (M4xVSS_BGMSettings *)M4OSA_malloc(sizeof(M4xVSS_BGMSettings), M4VS,
+            (M4xVSS_BGMSettings *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_BGMSettings), M4VS,
             (M4OSA_Char
             *)"Saving settings, effects table of structure settings");
 
@@ -5700,7 +5692,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5713,7 +5705,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             sizeof(M4xVSS_BGMSettings));
 
         /* Allocate file name, and copy file name buffer to our structure */
-        pEditSavingSettings->xVSS.pBGMtrack->pFile = M4OSA_malloc(
+        pEditSavingSettings->xVSS.pBGMtrack->pFile = M4OSA_32bitAlignedMalloc(
             (strlen(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
             + 1),
             M4VS, (M4OSA_Char *)"Saving struct xVSS BGM file path");
@@ -5725,7 +5717,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5756,7 +5748,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 if( xVSS_context->pOutputFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                    free(xVSS_context->pOutputFile);
                     xVSS_context->pOutputFile = M4OSA_NULL;
                 }
                 return err;
@@ -5764,10 +5756,9 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             pDecodedPath =
                 xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
 
-            M4OSA_free(
-                (M4OSA_MemAddr32)pEditSavingSettings->xVSS.pBGMtrack->pFile);
+            free(pEditSavingSettings->xVSS.pBGMtrack->pFile);
             pEditSavingSettings->xVSS.pBGMtrack->pFile =
-                (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS, (M4OSA_Char
+                (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS, (M4OSA_Char
                 *)"M4xVSS_SaveStart: Temp filename in case of BGM");
 
             if( pEditSavingSettings->xVSS.pBGMtrack->pFile == M4OSA_NULL )
@@ -5776,7 +5767,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 if( xVSS_context->pOutputFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                    free(xVSS_context->pOutputFile);
                     xVSS_context->pOutputFile = M4OSA_NULL;
                 }
                 return M4ERR_ALLOC;
@@ -5815,7 +5806,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 if( xVSS_context->pOutputFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                    free(xVSS_context->pOutputFile);
                     xVSS_context->pOutputFile = M4OSA_NULL;
                 }
                 return err;
@@ -5827,7 +5818,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         /**
         * End of the UTF conversion, use the converted file path*/
         xVSS_context->pCurrentEditSettings->pOutputFile =
-            (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
             (M4OSA_Char *)"M4xVSS_SaveStart: Temp filename in case of BGM");
 
         if( xVSS_context->pCurrentEditSettings->pOutputFile == M4OSA_NULL )
@@ -5836,7 +5827,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5866,7 +5857,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
                 if( xVSS_context->pOutputFile != M4OSA_NULL )
                 {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                    free(xVSS_context->pOutputFile);
                     xVSS_context->pOutputFile = M4OSA_NULL;
                 }
                 return err;
@@ -5878,7 +5869,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         /**
         * End of the UTF conversion, use the converted file path*/
         xVSS_context->pCurrentEditSettings->pTemporaryFile =
-            (M4OSA_Void *)M4OSA_malloc(length + 1, M4VS,
+            (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
             (M4OSA_Char *)"M4xVSS_SaveStart: Temporary file");
 
         if( xVSS_context->pCurrentEditSettings->pTemporaryFile == M4OSA_NULL )
@@ -5887,7 +5878,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
             if( xVSS_context->pOutputFile != M4OSA_NULL )
             {
-                M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+                free(xVSS_context->pOutputFile);
                 xVSS_context->pOutputFile = M4OSA_NULL;
             }
             return M4ERR_ALLOC;
@@ -5923,7 +5914,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         if( xVSS_context->pCurrentEditSettings->pOutputFile != M4OSA_NULL
             && xVSS_context->pSettings->xVSS.pBGMtrack == M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings->
+            free(xVSS_context->pCurrentEditSettings->
                 pOutputFile);
             xVSS_context->pCurrentEditSettings->pOutputFile = M4OSA_NULL;
             xVSS_context->pOutputFile = M4OSA_NULL;
@@ -5932,14 +5923,14 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
         if( xVSS_context->pCurrentEditSettings->pTemporaryFile != M4OSA_NULL
             && xVSS_context->pSettings->xVSS.pBGMtrack != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pCurrentEditSettings->
+            free(xVSS_context->pCurrentEditSettings->
                 pTemporaryFile);
             xVSS_context->pCurrentEditSettings->pTemporaryFile = M4OSA_NULL;
         }
 
         if( xVSS_context->pOutputFile != M4OSA_NULL )
         {
-            M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+            free(xVSS_context->pOutputFile);
             xVSS_context->pOutputFile = M4OSA_NULL;
         }
         /* TODO: Translate error code of VSS to an xVSS error code */
@@ -5988,7 +5979,7 @@ M4OSA_ERR M4xVSS_SaveStop( M4OSA_Context pContext )
 
     if( xVSS_context->pOutputFile != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->pOutputFile);
+        free(xVSS_context->pOutputFile);
         xVSS_context->pOutputFile = M4OSA_NULL;
     }
 
@@ -6574,12 +6565,12 @@ M4OSA_ERR M4xVSS_CloseCommand( M4OSA_Context pContext )
                 if( xVSS_context->pSettings->xVSS.pBGMtrack != M4OSA_NULL ) {
                     /*if(M4OSA_NULL != xVSS_context->pSettings->pOutputFile)
                     {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->pOutputFile);
+                    free(xVSS_context->pSettings->pOutputFile);
                     xVSS_context->pSettings->pOutputFile = M4OSA_NULL;
                     }*/
                     /*if(M4OSA_NULL != xVSS_context->pSettings->pTemporaryFile)
                     {
-                    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings->pTemporaryFile);
+                    free(xVSS_context->pSettings->pTemporaryFile);
                     xVSS_context->pSettings->pTemporaryFile = M4OSA_NULL;
                     }*/
                 }
@@ -6679,19 +6670,19 @@ M4OSA_ERR M4xVSS_CleanUp( M4OSA_Context pContext )
     if( xVSS_context->UTFConversionContext.pTempOutConversionBuffer
         != M4OSA_NULL )
     {
-        M4OSA_free((M4OSA_MemAddr32)xVSS_context->
+        free(xVSS_context->
             UTFConversionContext.pTempOutConversionBuffer);
         xVSS_context->UTFConversionContext.pTempOutConversionBuffer =
             M4OSA_NULL;
     }
 
-    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pTempPath);
+    free(xVSS_context->pTempPath);
     xVSS_context->pTempPath = M4OSA_NULL;
 
-    M4OSA_free((M4OSA_MemAddr32)xVSS_context->pSettings);
+    free(xVSS_context->pSettings);
     xVSS_context->pSettings = M4OSA_NULL;
 
-    M4OSA_free((M4OSA_MemAddr32)xVSS_context);
+    free(xVSS_context);
     xVSS_context = M4OSA_NULL;
     M4OSA_TRACE3_0("M4xVSS_CleanUp:leaving ");
 

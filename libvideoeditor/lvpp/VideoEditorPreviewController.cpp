@@ -99,29 +99,27 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
         for(i=0;i<mNumberClipsInStoryBoard;i++)
         {
             if(mClipList[i]->pFile != NULL) {
-                M4OSA_free((M4OSA_MemAddr32)mClipList[i]->pFile);
+                free(mClipList[i]->pFile);
                 mClipList[i]->pFile = NULL;
             }
 
-            M4OSA_free((M4OSA_MemAddr32)mClipList[i]);
+            free(mClipList[i]);
         }
-        M4OSA_free((M4OSA_MemAddr32)mClipList);
+        free(mClipList);
         mClipList = NULL;
     }
 
     if(mEffectsSettings) {
         for(i=0;i<mNumberEffects;i++) {
             if(mEffectsSettings[i].xVSS.pFramingBuffer != NULL) {
-                M4OSA_free(
-                (M4OSA_MemAddr32)mEffectsSettings[i].xVSS.pFramingBuffer->pac_data);
+                free(mEffectsSettings[i].xVSS.pFramingBuffer->pac_data);
 
-                M4OSA_free(
-                (M4OSA_MemAddr32)mEffectsSettings[i].xVSS.pFramingBuffer);
+                free(mEffectsSettings[i].xVSS.pFramingBuffer);
 
                 mEffectsSettings[i].xVSS.pFramingBuffer = NULL;
             }
         }
-        M4OSA_free((M4OSA_MemAddr32)mEffectsSettings);
+        free(mEffectsSettings);
         mEffectsSettings = NULL;
     }
 
@@ -131,7 +129,7 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
     }
 
     if (mBackgroundAudioSetting != NULL) {
-        M4OSA_free((M4OSA_MemAddr32)mBackgroundAudioSetting);
+        free(mBackgroundAudioSetting);
         mBackgroundAudioSetting = NULL;
     }
 
@@ -170,7 +168,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
     }
 
     if(mBackgroundAudioSetting != NULL) {
-        M4OSA_free((M4OSA_MemAddr32)mBackgroundAudioSetting);
+        free(mBackgroundAudioSetting);
         mBackgroundAudioSetting = NULL;
     }
 
@@ -179,29 +177,27 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
         for(i=0;i<mNumberClipsInStoryBoard;i++)
         {
             if(mClipList[i]->pFile != NULL) {
-                M4OSA_free((M4OSA_MemAddr32)mClipList[i]->pFile);
+                free(mClipList[i]->pFile);
                 mClipList[i]->pFile = NULL;
             }
 
-            M4OSA_free((M4OSA_MemAddr32)mClipList[i]);
+            free(mClipList[i]);
         }
-        M4OSA_free((M4OSA_MemAddr32)mClipList);
+        free(mClipList);
         mClipList = NULL;
     }
 
     if(mEffectsSettings) {
         for(i=0;i<mNumberEffects;i++) {
             if(mEffectsSettings[i].xVSS.pFramingBuffer != NULL) {
-                M4OSA_free(
-                (M4OSA_MemAddr32)mEffectsSettings[i].xVSS.pFramingBuffer->pac_data);
+                free(mEffectsSettings[i].xVSS.pFramingBuffer->pac_data);
 
-                M4OSA_free(
-                (M4OSA_MemAddr32)mEffectsSettings[i].xVSS.pFramingBuffer);
+                free(mEffectsSettings[i].xVSS.pFramingBuffer);
 
                 mEffectsSettings[i].xVSS.pFramingBuffer = NULL;
             }
         }
-        M4OSA_free((M4OSA_MemAddr32)mEffectsSettings);
+        free(mEffectsSettings);
         mEffectsSettings = NULL;
     }
 
@@ -209,7 +205,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
         mNumberClipsInStoryBoard = pSettings->uiClipNumber;
         LOGV("loadEditSettings: # of Clips = %d", mNumberClipsInStoryBoard);
 
-        mClipList = (M4VSS3GPP_ClipSettings**)M4OSA_malloc(
+        mClipList = (M4VSS3GPP_ClipSettings**)M4OSA_32bitAlignedMalloc(
          sizeof(M4VSS3GPP_ClipSettings*)*pSettings->uiClipNumber, M4VS,
          (M4OSA_Char*)"LvPP, copy of pClipList");
 
@@ -224,7 +220,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
             // Allocate current clip
             mClipList[i] =
-             (M4VSS3GPP_ClipSettings*)M4OSA_malloc(
+             (M4VSS3GPP_ClipSettings*)M4OSA_32bitAlignedMalloc(
               sizeof(M4VSS3GPP_ClipSettings),M4VS,(M4OSA_Char*)"clip settings");
 
             if(mClipList[i] == NULL) {
@@ -238,7 +234,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
              sizeof(M4VSS3GPP_ClipSettings));
 
             if(NULL != pSettings->pClipList[i]->pFile) {
-                mClipList[i]->pFile = (M4OSA_Char*)M4OSA_malloc(
+                mClipList[i]->pFile = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(
                 pSettings->pClipList[i]->filePathSize, M4VS,
                 (M4OSA_Char*)"pClipSettingsDest->pFile");
 
@@ -270,7 +266,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
         LOGV("loadEditSettings: mNumberEffects = %d", mNumberEffects);
 
         if(mNumberEffects != 0) {
-            mEffectsSettings = (M4VSS3GPP_EffectSettings*)M4OSA_malloc(
+            mEffectsSettings = (M4VSS3GPP_EffectSettings*)M4OSA_32bitAlignedMalloc(
              mNumberEffects*sizeof(M4VSS3GPP_EffectSettings),
              M4VS, (M4OSA_Char*)"effects settings");
 
@@ -296,12 +292,12 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                  (M4VSS3GPP_VideoEffectType)M4xVSS_kVideoEffectType_Framing) {
                     // Allocate the pFraming RGB buffer
                     mEffectsSettings[i].xVSS.pFramingBuffer =
-                    (M4VIFI_ImagePlane *)M4OSA_malloc(sizeof(M4VIFI_ImagePlane),
+                    (M4VIFI_ImagePlane *)M4OSA_32bitAlignedMalloc(sizeof(M4VIFI_ImagePlane),
                      M4VS, (M4OSA_Char*)"lvpp framing buffer");
 
                     if(mEffectsSettings[i].xVSS.pFramingBuffer == NULL) {
                         LOGE("loadEffectsSettings:Alloc error for pFramingBuf");
-                        M4OSA_free((M4OSA_MemAddr32)mEffectsSettings);
+                        free(mEffectsSettings);
                         mEffectsSettings = NULL;
                         return M4ERR_ALLOC;
                     }
@@ -320,20 +316,19 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                     }
                     else {
                         LOGE("loadEffectsSettings: wrong RGB type");
-                        M4OSA_free((M4OSA_MemAddr32)mEffectsSettings);
+                        free(mEffectsSettings);
                         mEffectsSettings = NULL;
                         return M4ERR_PARAMETER;
                     }
 
-                    tmp = (M4VIFI_UInt8 *)M4OSA_malloc(rgbSize, M4VS,
+                    tmp = (M4VIFI_UInt8 *)M4OSA_32bitAlignedMalloc(rgbSize, M4VS,
                      (M4OSA_Char*)"framing buffer pac_data");
 
                     if(tmp == NULL) {
                         LOGE("loadEffectsSettings:Alloc error pFramingBuf pac");
-                        M4OSA_free((M4OSA_MemAddr32)mEffectsSettings);
+                        free(mEffectsSettings);
                         mEffectsSettings = NULL;
-                        M4OSA_free(
-                        (M4OSA_MemAddr32)mEffectsSettings[i].xVSS.pFramingBuffer);
+                        free(mEffectsSettings[i].xVSS.pFramingBuffer);
 
                         mEffectsSettings[i].xVSS.pFramingBuffer = NULL;
                         return M4ERR_ALLOC;
@@ -381,7 +376,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
     if (mBackgroundAudioSetting == NULL) {
 
-        mBackgroundAudioSetting = (M4xVSS_AudioMixingSettings*)M4OSA_malloc(
+        mBackgroundAudioSetting = (M4xVSS_AudioMixingSettings*)M4OSA_32bitAlignedMalloc(
         sizeof(M4xVSS_AudioMixingSettings), M4VS,
         (M4OSA_Char*)"LvPP, copy of bgmSettings");
 
@@ -699,7 +694,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
 
     // If image file playing, then free the buffer pointer
     if(mFrameStr.pBuffer != M4OSA_NULL) {
-        M4OSA_free((M4OSA_MemAddr32)mFrameStr.pBuffer);
+        free(mFrameStr.pBuffer);
         mFrameStr.pBuffer = M4OSA_NULL;
     }
 
@@ -883,7 +878,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
                 LOGE("renderPreviewFrame: applyVideoEffect error 0x%x", (unsigned int)err);
                 delete mTarget;
                 mTarget = NULL;
-                M4OSA_free((M4OSA_MemAddr32)pixelArray);
+                free(pixelArray);
                 pixelArray = NULL;
                 return err;
            }
@@ -899,7 +894,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
                 LOGE("renderPreviewFrame:doImageRenderingMode error 0x%x", (unsigned int)err);
                 delete mTarget;
                 mTarget = NULL;
-                M4OSA_free((M4OSA_MemAddr32)pixelArray);
+                free(pixelArray);
                 pixelArray = NULL;
                 return err;
             }
@@ -915,7 +910,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
             LOGE("renderPreviewFrame: doImageRenderingMode error 0x%x", (unsigned int)err);
             delete mTarget;
             mTarget = NULL;
-            M4OSA_free((M4OSA_MemAddr32)pixelArray);
+            free(pixelArray);
             pixelArray = NULL;
             return err;
         }
@@ -1166,7 +1161,7 @@ void VideoEditorPreviewController::notify(
                 ((M4OSA_UInt32)pController->mCurrentClipNumber !=
                 (pController->mNumberClipsToPreview-1))) {
                 VideoEditorCurretEditInfo *pEditInfo =
-                    (VideoEditorCurretEditInfo*)M4OSA_malloc(sizeof(VideoEditorCurretEditInfo),
+                    (VideoEditorCurretEditInfo*)M4OSA_32bitAlignedMalloc(sizeof(VideoEditorCurretEditInfo),
                     M4VS, (M4OSA_Char*)"Current Edit info");
                 pEditInfo->overlaySettingsIndex = ext2;
                 pEditInfo->clipIndex = pController->mCurrentClipNumber;
@@ -1175,7 +1170,7 @@ void VideoEditorPreviewController::notify(
                         pController->mJniCallback(pController->mJniCookie,
                             MSG_TYPE_OVERLAY_CLEAR, pEditInfo);
                 }
-                M4OSA_free((M4OSA_MemAddr32)pEditInfo);
+                free(pEditInfo);
             }
             {
                 Mutex::Autolock autoLock(pController->mLockSem);
@@ -1246,7 +1241,7 @@ void VideoEditorPreviewController::notify(
             LOGV("VIDEO PLAYBACK, Update Overlay");
             int overlayIndex = ext2;
             VideoEditorCurretEditInfo *pEditInfo =
-                    (VideoEditorCurretEditInfo*)M4OSA_malloc(sizeof(VideoEditorCurretEditInfo),
+                    (VideoEditorCurretEditInfo*)M4OSA_32bitAlignedMalloc(sizeof(VideoEditorCurretEditInfo),
                     M4VS, (M4OSA_Char*)"Current Edit info");
             //ext1 = 1; start the overlay display
             //     = 2; Clear the overlay.
@@ -1264,7 +1259,7 @@ void VideoEditorPreviewController::notify(
                         MSG_TYPE_OVERLAY_CLEAR, pEditInfo);
                 }
             }
-            M4OSA_free((M4OSA_MemAddr32)pEditInfo);
+            free(pEditInfo);
             break;
         }
         default:

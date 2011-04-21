@@ -65,11 +65,11 @@ M4OSA_ERR M4OSA_strPrivRealloc(M4OSA_strStruct* str,
 
       if(buffer != M4OSA_NULL)
       {
-         M4OSA_free((M4OSA_MemAddr32)buffer);
+         free(buffer);
       }
 
       /* Allocate the actual M4OSA_String content */
-      buffer = (M4OSA_Char*)M4OSA_malloc(ui32_size * sizeof(M4OSA_Char),
+      buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_size * sizeof(M4OSA_Char),
                             M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivRealloc");
 
       /* Check memory allocation error */
@@ -128,7 +128,7 @@ M4OSA_ERR M4OSA_strPrivReallocCopy(M4OSA_strStruct* str,
       }
 
       /* Allocate the actual M4OSA_String content */
-      buffer = (M4OSA_Char*)M4OSA_malloc(ui32_size * sizeof(M4OSA_Char),
+      buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_size * sizeof(M4OSA_Char),
                             M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivReallocCopy");
 
       /* Check memory allocation error */
@@ -149,7 +149,7 @@ M4OSA_ERR M4OSA_strPrivReallocCopy(M4OSA_strStruct* str,
       {
          M4OSA_memcpy(buffer, pui8_buffer, str->ui32_length + 1);
 
-         M4OSA_free((M4OSA_MemAddr32)pui8_buffer);
+         free(pui8_buffer);
       }
 
       str->pui8_buffer = buffer;
@@ -170,7 +170,7 @@ M4OSA_ERR M4OSA_strPrivDuplicate(M4OSA_strStruct** ostr,
                   "M4OSA_strStruct** 0x%x", ostr, istr);
 
    /* Allocate the output M4OSA_String */
-   str = (M4OSA_strStruct*)M4OSA_malloc(sizeof(M4OSA_strStruct), M4OSA_STRING,
+   str = (M4OSA_strStruct*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_strStruct), M4OSA_STRING,
                            (M4OSA_Char*)"M4OSA_strPrivDuplicate: output string");
 
    /* Check memory allocation error */
@@ -372,13 +372,13 @@ M4OSA_ERR M4OSA_strPrivSetAndRepleceStr(M4OSA_strStruct* istr,
          }
          else
          {
-            buffer = (M4OSA_Char*)M4OSA_malloc(ui32_lend * sizeof(M4OSA_Char),
+            buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_lend * sizeof(M4OSA_Char),
                                 M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivSetAndRepleceStr");
 
             M4OSA_CHECK_MALLOC(buffer, "M4OSA_strPrivSetAndRepleceStr");
             M4OSA_memcpy(buffer, ibuffer + ui32_poso, ui32_lend);
             M4OSA_memcpy(ibuffer + ui32_posn, buffer, ui32_lend);
-            M4OSA_free((M4OSA_MemAddr32)buffer);
+            free(buffer);
          }
       }
       /* string to replace is smaller that new string */
@@ -399,7 +399,7 @@ M4OSA_ERR M4OSA_strPrivSetAndRepleceStr(M4OSA_strStruct* istr,
                ui32_size <<= 1;
             }
 
-            buffer = (M4OSA_Char*)M4OSA_malloc(ui32_size * sizeof(M4OSA_Char),
+            buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_size * sizeof(M4OSA_Char),
                                 M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivSetAndRepleceStr");
 
             M4OSA_CHECK_MALLOC(buffer, "M4OSA_strPrivSetAndRepleceStr");
@@ -410,7 +410,7 @@ M4OSA_ERR M4OSA_strPrivSetAndRepleceStr(M4OSA_strStruct* istr,
 
             M4OSA_memcpy(buffer + ui32_posn, ibuffer + ui32_poso, ui32_lend);
 
-            M4OSA_free((M4OSA_MemAddr32)ibuffer);
+            free(ibuffer);
 
             istr->pui8_buffer = buffer;
 
@@ -418,7 +418,7 @@ M4OSA_ERR M4OSA_strPrivSetAndRepleceStr(M4OSA_strStruct* istr,
          }
          else
          {
-            buffer = (M4OSA_Char*)M4OSA_malloc(ui32_lend * sizeof(M4OSA_Char),
+            buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_lend * sizeof(M4OSA_Char),
                                 M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivSetAndRepleceStr");
 
             M4OSA_CHECK_MALLOC(buffer, "M4OSA_strPrivSetAndRepleceStr");
@@ -429,7 +429,7 @@ M4OSA_ERR M4OSA_strPrivSetAndRepleceStr(M4OSA_strStruct* istr,
 
             M4OSA_memcpy(ibuffer + ui32_posn, buffer, ui32_lend);
 
-            M4OSA_free((M4OSA_MemAddr32)buffer);
+            free(buffer);
          }
       }
    }
@@ -574,7 +574,7 @@ M4OSA_ERR M4OSA_strPrivReplaceSmallerStr(M4OSA_strStruct* istr,
       }
 
       /* Allocate the actual M4OSA_String content */
-      buffer = (M4OSA_Char*)M4OSA_malloc(istr->ui32_size * sizeof(M4OSA_Char),
+      buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(istr->ui32_size * sizeof(M4OSA_Char),
                             M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivReplaceSmallerStr");
 
       M4OSA_CHECK_MALLOC(buffer, "M4OSA_strPrivReplaceSmallerStr");
@@ -608,7 +608,7 @@ M4OSA_ERR M4OSA_strPrivReplaceSmallerStr(M4OSA_strStruct* istr,
 
       M4OSA_memcpy(ptr_dest, ibuffer, size);
 
-      M4OSA_free((M4OSA_MemAddr32)istr->pui8_buffer);
+      free(istr->pui8_buffer);
 
       istr->ui32_length = length ;
 
@@ -704,7 +704,7 @@ M4OSA_ERR M4OSA_strPrivReplaceBiggerStr(M4OSA_strStruct* istr,
       M4OSA_Char* dest;
 
       /* Allocate the actual M4OSA_String content */
-      patterns = (M4OSA_Int32*)M4OSA_malloc(max_pattern * sizeof(M4OSA_UInt32),
+      patterns = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(max_pattern * sizeof(M4OSA_UInt32),
                               M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivReplaceBiggerStr");
 
       M4OSA_CHECK_MALLOC(patterns, (M4OSA_Char*)"M4OSA_strPrivReplaceBiggerStr");
@@ -746,7 +746,7 @@ M4OSA_ERR M4OSA_strPrivReplaceBiggerStr(M4OSA_strStruct* istr,
       }
 
       /* Allocate the actual M4OSA_String content */
-      buffer = (M4OSA_Char*)M4OSA_malloc(ui32_size * sizeof(M4OSA_Char),
+      buffer = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(ui32_size * sizeof(M4OSA_Char),
                             M4OSA_STRING, (M4OSA_Char*)"M4OSA_strPrivReplaceBiggerStr");
 
       M4OSA_CHECK_MALLOC(buffer, "M4OSA_strPrivReplaceBiggerStr");
@@ -775,9 +775,9 @@ M4OSA_ERR M4OSA_strPrivReplaceBiggerStr(M4OSA_strStruct* istr,
 
       M4OSA_memcpy(dest, src, size);
 
-      M4OSA_free((M4OSA_MemAddr32)patterns);
+      free(patterns);
 
-      M4OSA_free((M4OSA_MemAddr32)ibuffer);
+      free(ibuffer);
 
       istr->ui32_length = length;
 
@@ -975,7 +975,7 @@ M4OSA_ERR M4OSA_strPrivSPrintf(M4OSA_strStruct* str,
     return M4ERR_NOT_IMPLEMENTED;
 #endif
 
-    newFormat =(M4OSA_Char*)M4OSA_malloc(newFormatLength,
+    newFormat =(M4OSA_Char*)M4OSA_32bitAlignedMalloc(newFormatLength,
         M4OSA_CHARSTAR, (M4OSA_Char*)"M4OSA_chrPrintf: newFormat");
     if(newFormat == M4OSA_NULL) return M4ERR_ALLOC;
     newFormat[newFormatLength-1] = '\0';
@@ -1122,7 +1122,7 @@ M4OSA_ERR M4OSA_strPrivSPrintf(M4OSA_strStruct* str,
 
     err = M4OSA_chrSPrintf(strOut,strOutMaxLen,newFormat,marker);
 
-   M4OSA_free((M4OSA_MemAddr32)newFormat);
+   free(newFormat);
 
    if (M4ERR_CHR_STR_OVERFLOW == err)
    {

@@ -218,7 +218,7 @@ M4OSA_ERR VideoEditorMp3Reader_close(M4OSA_Context context) {
     if (pReaderContext->mAudioStreamHandler != NULL) {
         if (M4OSA_NULL != pReaderContext->mAudioStreamHandler->\
         m_basicProperties.m_pDecoderSpecificInfo) {
-            M4OSA_free((M4OSA_MemAddr32)pReaderContext->mAudioStreamHandler->\
+            free(pReaderContext->mAudioStreamHandler->\
                 m_basicProperties.m_pDecoderSpecificInfo);
             pReaderContext->mAudioStreamHandler->m_basicProperties.\
                 m_decoderSpecificInfoSize = 0;
@@ -227,11 +227,11 @@ M4OSA_ERR VideoEditorMp3Reader_close(M4OSA_Context context) {
         }
 
         /* Finally destroy the stream handler */
-        M4OSA_free((M4OSA_MemAddr32)pReaderContext->mAudioStreamHandler);
+        free(pReaderContext->mAudioStreamHandler);
         pReaderContext->mAudioStreamHandler = M4OSA_NULL;
 
         if (pReaderContext->mAudioAu.dataAddress != NULL) {
-            M4OSA_free((M4OSA_MemAddr32)pReaderContext->mAudioAu.dataAddress);
+            free(pReaderContext->mAudioAu.dataAddress);
             pReaderContext->mAudioAu.dataAddress = NULL;
         }
     }
@@ -503,7 +503,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     streamDesc.maxBitrate = streamDesc.averageBitrate;
 
     /*    Allocate the audio stream handler and set its parameters    */
-    pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_malloc(
+    pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_32bitAlignedMalloc(
         sizeof(M4_AudioStreamHandler), M4READER_MP3,
         (M4OSA_Char*)"M4_AudioStreamHandler");
 
@@ -700,10 +700,10 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
         if ((pAu->dataAddress == NULL) ||
             (pAu->size < mAudioBuffer->range_length())) {
             if (pAu->dataAddress != NULL) {
-                M4OSA_free((M4OSA_Int32*)pAu->dataAddress);
+                free((M4OSA_Int32*)pAu->dataAddress);
                 pAu->dataAddress = NULL;
             }
-            pAu->dataAddress = (M4OSA_Int32*)M4OSA_malloc(
+            pAu->dataAddress = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(
                 (mAudioBuffer->range_length() + 3) & ~0x3,
                 M4READER_MP3, (M4OSA_Char*)"pAccessUnit->m_dataAddress" );
 

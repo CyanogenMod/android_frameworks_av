@@ -178,7 +178,7 @@ M4OSA_ERR M4AMRR_openRead(M4OSA_Context* pContext, M4OSA_Void* pFileDescriptor,
     M4OSA_DEBUG_IF2((M4OSA_NULL == pContext),M4ERR_PARAMETER,"Context M4OSA_NULL");
     M4OSA_DEBUG_IF2((M4OSA_NULL == pFileDescriptor),M4ERR_PARAMETER,"File Desc. M4OSA_NULL");
 
-    M4_Token = (M4OSA_Char*)M4OSA_malloc(sizeof(M4OSA_MemAddr32)*3, M4AMR_READER,
+    M4_Token = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_MemAddr32)*3, M4AMR_READER,
                  (M4OSA_Char *)("M4_Token"));
     if(M4OSA_NULL == M4_Token)
     {
@@ -186,11 +186,11 @@ M4OSA_ERR M4AMRR_openRead(M4OSA_Context* pContext, M4OSA_Void* pFileDescriptor,
         return M4ERR_ALLOC ;
     }
 
-    pStreamContext= (M4_AMRR_Context*)M4OSA_malloc(sizeof(M4_AMRR_Context), M4AMR_READER,
+    pStreamContext= (M4_AMRR_Context*)M4OSA_32bitAlignedMalloc(sizeof(M4_AMRR_Context), M4AMR_READER,
                      (M4OSA_Char *)("pStreamContext"));
     if(M4OSA_NULL == pStreamContext)
     {
-        M4OSA_free((M4OSA_MemAddr32)M4_Token);
+        free(M4_Token);
         *pContext = M4OSA_NULL ;
         return M4ERR_ALLOC ;
     }
@@ -211,8 +211,8 @@ M4OSA_ERR M4AMRR_openRead(M4OSA_Context* pContext, M4OSA_Void* pFileDescriptor,
     if ( err != M4NO_ERROR )
     {
         /* M4OSA_DEBUG_IF3((err != M4NO_ERROR),err,"File open failed"); */
-        M4OSA_free((M4OSA_MemAddr32)pStreamContext);
-        M4OSA_free((M4OSA_MemAddr32)M4_Token);
+        free(pStreamContext);
+        free(M4_Token);
         *pContext = M4OSA_NULL ;
         return err ;
     }
@@ -266,7 +266,7 @@ M4OSA_ERR M4AMRR_openRead(M4OSA_Context* pContext, M4OSA_Void* pFileDescriptor,
     /*  No Profile level defined */
     pStreamContext->m_status = M4AMRR_kOpened;
 
-    M4OSA_free((M4OSA_MemAddr32)M4_Token);
+    free(M4_Token);
     *pContext = pStreamContext ;
     return M4NO_ERROR;
 
@@ -277,8 +277,8 @@ cleanup:
         pStreamContext->m_pOsaFilePtrFct->closeRead(pStreamContext->m_pAMRFile);
     }
 
-    M4OSA_free((M4OSA_MemAddr32)M4_Token);
-    M4OSA_free((M4OSA_MemAddr32)pStreamContext);
+    free(M4_Token);
+    free(pStreamContext);
 
     *pContext = M4OSA_NULL ;
 
@@ -350,7 +350,7 @@ M4OSA_ERR M4AMRR_getNextStream(M4OSA_Context Context, M4SYS_StreamDescription* p
     M4OSA_TIME_SET_UNKNOWN(pStreamDesc->duration);
 
     pStreamContext->m_pStreamHandler =
-         (M4SYS_StreamDescription*)M4OSA_malloc(sizeof(M4SYS_StreamDescription),
+         (M4SYS_StreamDescription*)M4OSA_32bitAlignedMalloc(sizeof(M4SYS_StreamDescription),
              M4AMR_READER, (M4OSA_Char *)("pStreamContext->m_pStreamHandler"));
     if(M4OSA_NULL == pStreamContext->m_pStreamHandler)
     {
@@ -441,7 +441,7 @@ M4OSA_ERR M4AMRR_startReading(M4OSA_Context Context, M4SYS_StreamID* pStreamIDs 
     {
         size = pStreamContext->m_maxAuSize ;
         /* dataAddress is owned by Parser, application should not delete or free it */
-        pStreamContext->m_pdataAddress =(M4OSA_MemAddr32)M4OSA_malloc(size + (4 - size % 4),
+        pStreamContext->m_pdataAddress =(M4OSA_MemAddr32)M4OSA_32bitAlignedMalloc(size + (4 - size % 4),
             M4AMR_READER, (M4OSA_Char *)("pStreamContext->m_pdataAddress"));
         if(M4OSA_NULL == pStreamContext->m_pdataAddress)
         {
@@ -611,7 +611,7 @@ M4OSA_ERR M4AMRR_seek(M4OSA_Context Context, M4SYS_StreamID* pStreamID, M4OSA_Ti
 
         count = 0 ;
         pStreamContext->m_pSeekIndex =
-             (M4OSA_UInt32*)M4OSA_malloc(M4AMRR_NUM_SEEK_ENTRIES * sizeof(M4OSA_UInt32),
+             (M4OSA_UInt32*)M4OSA_32bitAlignedMalloc(M4AMRR_NUM_SEEK_ENTRIES * sizeof(M4OSA_UInt32),
                  M4AMR_READER, (M4OSA_Char *)("pStreamContext->m_pSeekIndex"));
 
         if(M4OSA_NULL == pStreamContext->m_pSeekIndex)
@@ -834,23 +834,23 @@ M4OSA_ERR M4AMRR_closeRead(M4OSA_Context Context)
     /* Check if AU data Address is allocated memory and free it */
     if(M4OSA_NULL != pStreamContext->m_pdataAddress)
     {
-        M4OSA_free((M4OSA_MemAddr32)pStreamContext->m_pdataAddress);
+        free(pStreamContext->m_pdataAddress);
     }
 
     /* Check if the stream handler is allocated memory */
     if(M4OSA_NULL != pStreamContext->m_pStreamHandler)
     {
-        M4OSA_free((M4OSA_MemAddr32)pStreamContext->m_pStreamHandler);
+        free(pStreamContext->m_pStreamHandler);
     }
 
     /* Seek table is created only when seek is used, so check if memory is allocated */
     if(M4OSA_NULL != pStreamContext->m_pSeekIndex)
     {
-        M4OSA_free((M4OSA_MemAddr32)pStreamContext->m_pSeekIndex);
+        free(pStreamContext->m_pSeekIndex);
     }
 
     /* Free the context */
-    M4OSA_free((M4OSA_MemAddr32)pStreamContext);
+    free(pStreamContext);
 
     return M4NO_ERROR ;
 }

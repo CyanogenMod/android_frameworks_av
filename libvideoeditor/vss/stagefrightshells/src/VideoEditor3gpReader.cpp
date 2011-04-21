@@ -134,7 +134,7 @@ static void VideoEditor3gpReader_BitStreamParserInit(void** pContext,
     VideoEditor3gpReader_BitStreamParserContext* pStreamContext;
 
     *pContext=M4OSA_NULL;
-    pStreamContext = (VideoEditor3gpReader_BitStreamParserContext*)M4OSA_malloc(
+    pStreamContext = (VideoEditor3gpReader_BitStreamParserContext*)M4OSA_32bitAlignedMalloc(
         sizeof(VideoEditor3gpReader_BitStreamParserContext), M4READER_3GP,
             (M4OSA_Char*)"3GP BitStreamParser Context");
     if (M4OSA_NULL == pStreamContext) {
@@ -156,7 +156,7 @@ static void VideoEditor3gpReader_BitStreamParserInit(void** pContext,
  **********************************************************************
 */
 static void VideoEditor3gpReader_BitStreamParserCleanUp(void* pContext) {
-    M4OSA_free((M4OSA_Int32*)pContext);
+    free((M4OSA_Int32*)pContext);
 }
 /**
  *****************************************************************************
@@ -538,7 +538,7 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
         LOGV("VideoEditor3gpReader_close Audio");
 
         if (M4OSA_NULL != pC->mAudioStreamHandler->m_pDecoderSpecificInfo) {
-            M4OSA_free((M4OSA_MemAddr32)pC->mAudioStreamHandler->\
+            free(pC->mAudioStreamHandler->\
                 m_pDecoderSpecificInfo);
             pC->mAudioStreamHandler->m_decoderSpecificInfoSize = 0;
             pC->mAudioStreamHandler->m_pDecoderSpecificInfo = M4OSA_NULL;
@@ -551,24 +551,24 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
 
             pAU = (M4_AccessUnit*)pAudioSbrUserData->m_pFirstAU;
             if (M4OSA_NULL != pAU) {
-                M4OSA_free((M4OSA_MemAddr32)pAU);
+                free(pAU);
             }
 
             if (M4OSA_NULL != pAudioSbrUserData->m_pAacDecoderUserConfig) {
-                M4OSA_free((M4OSA_MemAddr32)pAudioSbrUserData->\
+                free(pAudioSbrUserData->\
                     m_pAacDecoderUserConfig);
             }
-            M4OSA_free((M4OSA_MemAddr32)pAudioSbrUserData);
+            free(pAudioSbrUserData);
             pC->mAudioStreamHandler->m_pUserData = M4OSA_NULL;
         }
 
         if (pC->mAudioStreamHandler->m_pESDSInfo != M4OSA_NULL) {
-            M4OSA_free((M4OSA_MemAddr32)pC->mAudioStreamHandler->m_pESDSInfo);
+            free(pC->mAudioStreamHandler->m_pESDSInfo);
             pC->mAudioStreamHandler->m_pESDSInfo = M4OSA_NULL;
             pC->mAudioStreamHandler->m_ESDSInfoSize = 0;
         }
         /* Finally destroy the stream handler */
-        M4OSA_free((M4OSA_MemAddr32)pC->mAudioStreamHandler);
+        free(pC->mAudioStreamHandler);
         pC->mAudioStreamHandler = M4OSA_NULL;
 
         pC->mAudioSource->stop();
@@ -578,27 +578,27 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
         LOGV("VideoEditor3gpReader_close Video ");
 
         if(M4OSA_NULL != pC->mVideoStreamHandler->m_pDecoderSpecificInfo) {
-            M4OSA_free((M4OSA_MemAddr32)pC->mVideoStreamHandler->\
+            free(pC->mVideoStreamHandler->\
                 m_pDecoderSpecificInfo);
             pC->mVideoStreamHandler->m_decoderSpecificInfoSize = 0;
             pC->mVideoStreamHandler->m_pDecoderSpecificInfo = M4OSA_NULL;
         }
 
         if(M4OSA_NULL != pC->mVideoStreamHandler->m_pH264DecoderSpecificInfo) {
-            M4OSA_free((M4OSA_MemAddr32)pC->mVideoStreamHandler->\
+            free(pC->mVideoStreamHandler->\
                 m_pH264DecoderSpecificInfo);
             pC->mVideoStreamHandler->m_H264decoderSpecificInfoSize = 0;
             pC->mVideoStreamHandler->m_pH264DecoderSpecificInfo = M4OSA_NULL;
         }
 
         if(pC->mVideoStreamHandler->m_pESDSInfo != M4OSA_NULL) {
-            M4OSA_free((M4OSA_MemAddr32)pC->mVideoStreamHandler->m_pESDSInfo);
+            free(pC->mVideoStreamHandler->m_pESDSInfo);
             pC->mVideoStreamHandler->m_pESDSInfo = M4OSA_NULL;
             pC->mVideoStreamHandler->m_ESDSInfoSize = 0;
         }
 
         /* Finally destroy the stream handler */
-        M4OSA_free((M4OSA_MemAddr32)pC->mVideoStreamHandler);
+        free(pC->mVideoStreamHandler);
         pC->mVideoStreamHandler = M4OSA_NULL;
 
         pC->mVideoSource->stop();
@@ -1081,13 +1081,13 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
         if( (pAu->dataAddress == NULL) ||  (pAu->size < \
             mMediaBuffer->range_length())) {
             if(pAu->dataAddress != NULL) {
-                M4OSA_free((M4OSA_Int32*)pAu->dataAddress);
+                free((M4OSA_Int32*)pAu->dataAddress);
                 pAu->dataAddress = NULL;
             }
             LOGV("Buffer lenght = %d ,%d",(mMediaBuffer->range_length() +\
                 3) & ~0x3,(mMediaBuffer->range_length()));
 
-            pAu->dataAddress = (M4OSA_Int32*)M4OSA_malloc(
+            pAu->dataAddress = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(
                 (mMediaBuffer->range_length() + 3) & ~0x3,M4READER_3GP,
                     (M4OSA_Char*)"pAccessUnit->m_dataAddress" );
             if(pAu->dataAddress == NULL) {
@@ -1270,7 +1270,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
                      uiTotalSizeOfPPS;
             /**
              * Allocate the buffer */
-            pAvcSpecInfo =(struct _avcSpecificInfo*)M4OSA_malloc(uiSpecInfoSize,
+            pAvcSpecInfo =(struct _avcSpecificInfo*)M4OSA_32bitAlignedMalloc(uiSpecInfoSize,
                 M4READER_3GP, (M4OSA_Char*)"MPEG-4 AVC DecoderSpecific");
             if (M4OSA_NULL == pAvcSpecInfo) {
                 VideoEditor3gpReader_BitStreamParserCleanUp(pBitParserContext);
@@ -1312,7 +1312,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
             pDecoderConfigLocal, decoderConfigSizeLocal);
 
         if (M4OSA_NULL == pBitParserContext) {
-            M4OSA_free((M4OSA_MemAddr32)pAvcSpecInfo);
+            free(pAvcSpecInfo);
             return M4ERR_ALLOC;
         }
 
@@ -1374,7 +1374,7 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
         pStreamHandler->m_pDecoderSpecificInfo = (M4OSA_UInt8*)pAvcSpecInfo;
     }
     pStreamHandler->m_H264decoderSpecificInfoSize  =  decoderConfigSizeLocal;
-    pStreamHandler->m_pH264DecoderSpecificInfo  = (M4OSA_UInt8*)M4OSA_malloc(
+    pStreamHandler->m_pH264DecoderSpecificInfo  = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
         decoderConfigSizeLocal, M4READER_3GP,
         (M4OSA_Char*)"MPEG-4 AVC DecoderSpecific");
     if (M4OSA_NULL == pStreamHandler->m_pH264DecoderSpecificInfo) {
@@ -1476,7 +1476,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 pC->mStreamType = streamType;
                 pC->mStreamId = pC->mCurrTrack;
 
-                pVideoStreamHandler = (M4_VideoStreamHandler*)M4OSA_malloc
+                pVideoStreamHandler = (M4_VideoStreamHandler*)M4OSA_32bitAlignedMalloc
                     (sizeof(M4_VideoStreamHandler), M4READER_3GP,
                     (M4OSA_Char*)"M4_VideoStreamHandler");
                 if (M4OSA_NULL == pVideoStreamHandler) {
@@ -1531,7 +1531,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if (meta->findData(kKeyD263, &type, &data, &size)) {
                         (*pStreamHandler)->m_decoderSpecificInfoSize = size;
                         if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
-                            DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
+                            DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                                 (*pStreamHandler)->m_decoderSpecificInfoSize,
                                 M4READER_3GP,(M4OSA_Char*)"H263 DSI");
                             if (M4OSA_NULL == DecoderSpecific) {
@@ -1566,7 +1566,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if(meta->findData(kKeyAVCC, &type, &data, &size)) {
                         decoderSpecificInfoSize = size;
                         if (decoderSpecificInfoSize != 0) {
-                            DecoderSpecificInfo = (M4OSA_Int8*)M4OSA_malloc(
+                            DecoderSpecificInfo = (M4OSA_Int8*)M4OSA_32bitAlignedMalloc(
                                 decoderSpecificInfoSize, M4READER_3GP,
                                 (M4OSA_Char*)"H264 DecoderSpecific" );
                             if (M4OSA_NULL == DecoderSpecificInfo) {
@@ -1594,7 +1594,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         m_H264decoderSpecificInfoSize);
 
                     if(M4OSA_NULL != DecoderSpecificInfo) {
-                        M4OSA_free((M4OSA_MemAddr32)DecoderSpecificInfo);
+                        free(DecoderSpecificInfo);
                         DecoderSpecificInfo = M4OSA_NULL;
                     }
                 } else if( (M4DA_StreamTypeVideoMpeg4 == streamType) ) {
@@ -1604,7 +1604,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
                         (*pStreamHandler)->m_ESDSInfoSize = size;
                         (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)\
-                        M4OSA_malloc((*pStreamHandler)->m_ESDSInfoSize,
+                        M4OSA_32bitAlignedMalloc((*pStreamHandler)->m_ESDSInfoSize,
                         M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
                         if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
                             return M4ERR_ALLOC;
@@ -1620,7 +1620,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         (*pStreamHandler)->m_decoderSpecificInfoSize =
                             codec_specific_data_size;
                         if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
-                            DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
+                            DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                                 (*pStreamHandler)->m_decoderSpecificInfoSize,
                                 M4READER_3GP, (M4OSA_Char*)" DecoderSpecific" );
                             if (M4OSA_NULL == DecoderSpecific) {
@@ -1672,7 +1672,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
                 LOGV("VE streamtype %d ,id %d",  streamType, pC->mCurrTrack);
 
-                pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_malloc
+                pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_32bitAlignedMalloc
                     (sizeof(M4_AudioStreamHandler), M4READER_3GP,
                     (M4OSA_Char*)"M4_AudioStreamHandler");
                 if (M4OSA_NULL == pAudioStreamHandler) {
@@ -1721,7 +1721,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         codec_specific_data_size;
 
                     if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
-                        DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
+                        DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                             (*pStreamHandler)->m_decoderSpecificInfoSize,
                             M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
                         if (M4OSA_NULL == DecoderSpecific) {
@@ -1739,7 +1739,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     M4OSA_UChar AmrDsi[] =
                         {'P','H','L','P',0x00, 0x00, 0x80, 0x00, 0x01,};
                     (*pStreamHandler)->m_decoderSpecificInfoSize = 9;
-                    DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
+                    DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                         (*pStreamHandler)->m_decoderSpecificInfoSize,
                         M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
                     if (M4OSA_NULL == DecoderSpecific) {
@@ -1763,7 +1763,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     CHECK_EQ(esds.InitCheck(), OK);
 
                     (*pStreamHandler)->m_ESDSInfoSize = size;
-                    (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)M4OSA_malloc(
+                    (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                         (*pStreamHandler)->m_ESDSInfoSize, M4READER_3GP,
                         (M4OSA_Char*)"H263 DecoderSpecific" );
                     if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
@@ -1780,7 +1780,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     (*pStreamHandler)->m_decoderSpecificInfoSize =
                         codec_specific_data_size;
                     if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
-                        DecoderSpecific = (M4OSA_UInt8*)M4OSA_malloc(
+                        DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                             (*pStreamHandler)->m_decoderSpecificInfoSize,
                             M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
                         if (M4OSA_NULL == DecoderSpecific) {
@@ -1824,7 +1824,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
         if(M4DA_StreamTypeAudioAac == (*pStreamHandler)->m_streamType) {
             M4READER_AudioSbrUserdata*  pAudioSbrUserdata;
 
-            pAudioSbrUserdata = (M4READER_AudioSbrUserdata*)M4OSA_malloc(
+            pAudioSbrUserdata = (M4READER_AudioSbrUserdata*)M4OSA_32bitAlignedMalloc(
                 sizeof(M4READER_AudioSbrUserdata),M4READER_3GP,
                 (M4OSA_Char*)"M4READER_AudioSbrUserdata");
             if (M4OSA_NULL == pAudioSbrUserdata) {
@@ -1834,7 +1834,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             (*pStreamHandler)->m_pUserData = pAudioSbrUserdata;
             pAudioSbrUserdata->m_bIsSbrEnabled = M4OSA_FALSE;
 
-            pAudioSbrUserdata->m_pFirstAU = (M4_AccessUnit*)M4OSA_malloc(
+            pAudioSbrUserdata->m_pFirstAU = (M4_AccessUnit*)M4OSA_32bitAlignedMalloc(
                 sizeof(M4_AccessUnit),M4READER_3GP, (M4OSA_Char*)"1st AAC AU");
             if (M4OSA_NULL == pAudioSbrUserdata->m_pFirstAU) {
                 pAudioSbrUserdata->m_pAacDecoderUserConfig = M4OSA_NULL;
@@ -1842,7 +1842,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 goto Error;
             }
             pAudioSbrUserdata->m_pAacDecoderUserConfig = (M4_AacDecoderConfig*)\
-                M4OSA_malloc(sizeof(M4_AacDecoderConfig),M4READER_3GP,
+                M4OSA_32bitAlignedMalloc(sizeof(M4_AacDecoderConfig),M4READER_3GP,
                 (M4OSA_Char*)"m_pAacDecoderUserConfig");
             if (M4OSA_NULL == pAudioSbrUserdata->m_pAacDecoderUserConfig) {
                 err = M4ERR_ALLOC;

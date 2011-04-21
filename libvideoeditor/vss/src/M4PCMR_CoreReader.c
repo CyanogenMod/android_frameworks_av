@@ -76,7 +76,7 @@ M4OSA_ERR M4PCMR_openRead(M4OSA_Context* pContext, M4OSA_Void* pUrl,
 
     /* Allocates the context */
     context = M4OSA_NULL;
-    context = (M4PCMR_Context *)M4OSA_malloc(sizeof(M4PCMR_Context), M4WAV_READER,
+    context = (M4PCMR_Context *)M4OSA_32bitAlignedMalloc(sizeof(M4PCMR_Context), M4WAV_READER,
          (M4OSA_Char *)"M4PCMR_openRead");
     if (M4OSA_NULL == context)
     {
@@ -141,7 +141,7 @@ M4OSA_ERR M4PCMR_openRead(M4OSA_Context* pContext, M4OSA_Void* pUrl,
     context->m_dataStartOffset = 0;
     context->m_pFileReadFunc = pFileFunction;
 
-    context->m_pAuBuffer = (M4OSA_MemAddr32)M4OSA_malloc(context->m_blockSize, M4WAV_READER,
+    context->m_pAuBuffer = (M4OSA_MemAddr32)M4OSA_32bitAlignedMalloc(context->m_blockSize, M4WAV_READER,
          (M4OSA_Char *)"Core PCM reader Access Unit");
     if (M4OSA_NULL == context->m_pAuBuffer)
     {
@@ -161,7 +161,7 @@ cleanup:
         context->m_pFileReadFunc->closeRead(context->m_fileContext);
 
     /* Free internal context */
-    M4OSA_free((M4OSA_MemAddr32)context);
+    free(context);
     *pContext = M4OSA_NULL;
 
     return err;
@@ -213,7 +213,7 @@ M4OSA_ERR M4PCMR_getNextStream(M4OSA_Context context, M4SYS_StreamDescription* p
     /* Allocates decoder specific info structure */
     pStreamDesc->decoderSpecificInfo = M4OSA_NULL;
     pStreamDesc->decoderSpecificInfo =
-        (M4OSA_MemAddr32)M4OSA_malloc( sizeof(M4PCMC_DecoderSpecificInfo), M4WAV_READER,
+        (M4OSA_MemAddr32)M4OSA_32bitAlignedMalloc( sizeof(M4PCMC_DecoderSpecificInfo), M4WAV_READER,
              (M4OSA_Char *)"M4PCMR_getNextStream");
     if(pStreamDesc->decoderSpecificInfo == M4OSA_NULL)
     {
@@ -569,7 +569,7 @@ M4OSA_ERR M4PCMR_closeRead(M4OSA_Context context)
 
     if(c->m_pDecoderSpecInfo != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32)c->m_pDecoderSpecInfo);
+        free(c->m_pDecoderSpecInfo);
     }
 
     /* Check Reader's state */
@@ -584,7 +584,7 @@ M4OSA_ERR M4PCMR_closeRead(M4OSA_Context context)
 
     if (M4OSA_NULL != c->m_pAuBuffer)
     {
-        M4OSA_free((M4OSA_MemAddr32)c->m_pAuBuffer);
+        free(c->m_pAuBuffer);
     }
 
     /* Close the file */
@@ -596,7 +596,7 @@ M4OSA_ERR M4PCMR_closeRead(M4OSA_Context context)
     /* Free internal context */
     if (M4OSA_NULL != c)
     {
-        M4OSA_free((M4OSA_MemAddr32)c);
+        free(c);
     }
 
     return err;

@@ -167,7 +167,8 @@ M4OSA_ERR M4OSA_FileReader_BufferInit(M4OSA_FileReader_Context_optim* apContext)
 
     for(i=0; i<M4OSA_READBUFFER_NB; i++)
     {
-        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_malloc(M4OSA_READBUFFER_SIZE, M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReader_BufferInit");
+        apContext->buffer[i].data = (M4OSA_MemAddr8) M4OSA_32bitAlignedMalloc(M4OSA_READBUFFER_SIZE, 
+            M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReader_BufferInit");
         M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext->buffer[i].data);
     }
 
@@ -182,7 +183,7 @@ M4OSA_Void M4OSA_FileReader_BufferFree(M4OSA_FileReader_Context_optim* apContext
 
     for(i=0; i<M4OSA_READBUFFER_NB; i++)
         if(apContext->buffer[i].data != M4OSA_NULL)
-            M4OSA_free((M4OSA_MemAddr32)apContext->buffer[i].data);
+            free(apContext->buffer[i].data);
 }
 
 /**************************************************************/
@@ -544,7 +545,7 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
     *pContext = M4OSA_NULL;
 
     /*      Allocate memory for the File reader context. */
-    apContext = (M4OSA_FileReader_Context_optim *)M4OSA_malloc(sizeof(M4OSA_FileReader_Context_optim),
+    apContext = (M4OSA_FileReader_Context_optim *)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileReader_Context_optim),
                                       M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReader_Context_optim");
 
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, apContext);
@@ -554,7 +555,7 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
 
     /*Set the optimized functions, to be called by the user*/
 
-    apContext->FS = (M4OSA_FileReadPointer*) M4OSA_malloc(sizeof(M4OSA_FileReadPointer),
+    apContext->FS = (M4OSA_FileReadPointer*) M4OSA_32bitAlignedMalloc(sizeof(M4OSA_FileReadPointer),
                                        M4OSA_FILE_READER, (M4OSA_Char *)"M4OSA_FileReaderOptim_init");
     if (M4OSA_NULL==apContext->FS)
     {
@@ -661,7 +662,7 @@ cleanup:
             M4OSA_FileReader_BufferFree(apContext);
         }
 
-        M4OSA_free((M4OSA_MemAddr32) apContext);
+        free( apContext);
         *pContext = M4OSA_NULL;
     }
 
@@ -976,12 +977,12 @@ M4OSA_ERR M4OSA_fileReadClose_optim(M4OSA_Context pContext)
     //>>>> GLM20090212 : set the low level function statically
     if (apContext->FS != M4OSA_NULL)
     {
-        M4OSA_free((M4OSA_MemAddr32) apContext->FS);
+        free( apContext->FS);
     }
     //<<<< GLM20090212 : set the low level function statically
 
     /* Free the context */
-    M4OSA_free((M4OSA_MemAddr32)apContext);
+    free(apContext);
 
     /* Return without error */
     return err;

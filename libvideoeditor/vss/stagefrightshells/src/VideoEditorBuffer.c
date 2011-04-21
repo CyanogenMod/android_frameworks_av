@@ -32,7 +32,7 @@
 { \
     if(M4OSA_NULL != p) \
     { \
-        M4OSA_free((M4OSA_MemAddr32)p); \
+        free(p); \
         p = M4OSA_NULL; \
     } \
 }
@@ -59,7 +59,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
         ppool, nbBuffers);
 
     pool = M4OSA_NULL;
-    pool = (VIDEOEDITOR_BUFFER_Pool*)M4OSA_malloc(
+    pool = (VIDEOEDITOR_BUFFER_Pool*)M4OSA_32bitAlignedMalloc(
             sizeof(VIDEOEDITOR_BUFFER_Pool), VIDEOEDITOR_BUFFER_EXTERNAL,
             (M4OSA_Char*)("VIDEOEDITOR_BUFFER_allocatePool: pool"));
     if (M4OSA_NULL == pool)
@@ -70,7 +70,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
 
     LOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool buffers");
     pool->pNXPBuffer = M4OSA_NULL;
-    pool->pNXPBuffer = (VIDEOEDITOR_BUFFER_Buffer*)M4OSA_malloc(
+    pool->pNXPBuffer = (VIDEOEDITOR_BUFFER_Buffer*)M4OSA_32bitAlignedMalloc(
                             sizeof(VIDEOEDITOR_BUFFER_Buffer)*nbBuffers,
                             VIDEOEDITOR_BUFFER_EXTERNAL,
                             (M4OSA_Char*)("BUFFER_allocatePool: pNXPBuffer"));
@@ -82,7 +82,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
 
     LOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool name buffer");
     pool->poolName = M4OSA_NULL;
-    pool->poolName = (M4OSA_Char*)M4OSA_malloc(
+    pool->poolName = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(
         VIDEOEDITOR_BUFFEPOOL_MAX_NAME_SIZE,VIDEOEDITOR_BUFFER_EXTERNAL,
         (M4OSA_Char*)("VIDEOEDITOR_BUFFER_allocatePool: poolname"));
     if(pool->poolName == M4OSA_NULL)
@@ -134,7 +134,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_freePool(VIDEOEDITOR_BUFFER_Pool* ppool)
     {
         if(M4OSA_NULL != ppool->pNXPBuffer[j].pData)
         {
-            M4OSA_free((M4OSA_MemAddr32)ppool->pNXPBuffer[j].pData);
+            free(ppool->pNXPBuffer[j].pData);
             ppool->pNXPBuffer[j].pData = M4OSA_NULL;
         }
     }
@@ -211,7 +211,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_initPoolBuffers(VIDEOEDITOR_BUFFER_Pool* pool,
     for(index = 0; index < pool->NB; index++)
     {
         pool->pNXPBuffer[index].pData = M4OSA_NULL;
-        pool->pNXPBuffer[index].pData = (M4OSA_Void*)M4OSA_malloc(
+        pool->pNXPBuffer[index].pData = (M4OSA_Void*)M4OSA_32bitAlignedMalloc(
             lSize, VIDEOEDITOR_BUFFER_EXTERNAL,
             (M4OSA_Char*)("BUFFER_initPoolBuffers: Buffer data"));
         if(M4OSA_NULL == pool->pNXPBuffer[index].pData)
@@ -220,7 +220,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_initPoolBuffers(VIDEOEDITOR_BUFFER_Pool* pool,
             {
                 if(M4OSA_NULL != pool->pNXPBuffer[j].pData)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pool->pNXPBuffer[j].pData);
+                    free(pool->pNXPBuffer[j].pData);
                     pool->pNXPBuffer[j].pData = M4OSA_NULL;
                 }
             }

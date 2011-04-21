@@ -39,12 +39,15 @@ extern "C"
 {
 #endif
 
+M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_MemAddr32 M4OSA_32bitAlignedMalloc (M4OSA_UInt32 size,
+                                                               M4OSA_CoreID coreID,
+                                                               M4OSA_Char* string);
+
 M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_MemAddr32 M4OSA_malloc (M4OSA_UInt32 size,
                                                                M4OSA_CoreID coreID,
                                                                M4OSA_Char* string);
 
 M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_Void  M4OSA_free   (M4OSA_MemAddr32 address);
-
 
 M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_ERR M4OSA_randInit(void);
 

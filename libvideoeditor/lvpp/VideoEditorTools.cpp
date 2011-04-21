@@ -1063,7 +1063,7 @@ M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx)
 
     /**
      * Allocate output YUV planes */
-    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
+    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
     if(framingCtx->FramingYuv == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertRGBtoYUV");
@@ -1073,7 +1073,7 @@ M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx)
     framingCtx->FramingYuv[0].u_height = framingCtx->FramingRgb->u_height;
     framingCtx->FramingYuv[0].u_topleft = 0;
     framingCtx->FramingYuv[0].u_stride = framingCtx->FramingRgb->u_width;
-    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height*3)>>1, M4VS, (M4OSA_Char*)"Alloc for the Convertion output YUV");;
+    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height*3)>>1, M4VS, (M4OSA_Char*)"Alloc for the Convertion output YUV");;
     if(framingCtx->FramingYuv[0].pac_data == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertRGBtoYUV");
@@ -1128,7 +1128,7 @@ M4OSA_ERR M4xVSS_internalConvertRGB888toYUV(M4xVSS_FramingStruct* framingCtx)
 
     /**
      * Allocate output YUV planes */
-    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
+    framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
     if(framingCtx->FramingYuv == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertRGBtoYUV");
@@ -1138,7 +1138,7 @@ M4OSA_ERR M4xVSS_internalConvertRGB888toYUV(M4xVSS_FramingStruct* framingCtx)
     framingCtx->FramingYuv[0].u_height = framingCtx->FramingRgb->u_height;
     framingCtx->FramingYuv[0].u_topleft = 0;
     framingCtx->FramingYuv[0].u_stride = framingCtx->FramingRgb->u_width;
-    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height*3)>>1, M4VS, (M4OSA_Char*)"Alloc for the Convertion output YUV");;
+    framingCtx->FramingYuv[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc((framingCtx->FramingYuv[0].u_width*framingCtx->FramingYuv[0].u_height*3)>>1, M4VS, (M4OSA_Char*)"Alloc for the Convertion output YUV");;
     if(framingCtx->FramingYuv[0].pac_data == M4OSA_NULL)
     {
         M4OSA_TRACE1_0("Allocation error in M4xVSS_internalConvertRGBtoYUV");
@@ -1900,20 +1900,20 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             pImagePlanesTemp[2].pac_data = M4OSA_NULL;
 
             /* Allocates plan in local image plane structure */
-            pImagePlanesTemp[0].pac_data = (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[0].u_width * pImagePlanesTemp[0].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferY") ;
+            pImagePlanesTemp[0].pac_data = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[0].u_width * pImagePlanesTemp[0].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferY") ;
             if(pImagePlanesTemp[0].pac_data == M4OSA_NULL)
             {
                 M4OSA_TRACE1_0("Error alloc in applyRenderingMode");
                 return M4ERR_ALLOC;
             }
-            pImagePlanesTemp[1].pac_data = (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[1].u_width * pImagePlanesTemp[1].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferU") ;
+            pImagePlanesTemp[1].pac_data = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[1].u_width * pImagePlanesTemp[1].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferU") ;
             if(pImagePlanesTemp[1].pac_data == M4OSA_NULL)
             {
 
                 M4OSA_TRACE1_0("Error alloc in applyRenderingMode");
                 return M4ERR_ALLOC;
             }
-            pImagePlanesTemp[2].pac_data = (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[2].u_width * pImagePlanesTemp[2].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferV") ;
+            pImagePlanesTemp[2].pac_data = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[2].u_width * pImagePlanesTemp[2].u_height, M4VS, (M4OSA_Char*)"applyRenderingMode: temporary plane bufferV") ;
             if(pImagePlanesTemp[2].pac_data == M4OSA_NULL)
             {
 
@@ -2016,7 +2016,7 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             {
                 if(pImagePlanesTemp[i].pac_data != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pImagePlanesTemp[i].pac_data);
+                    free(pImagePlanesTemp[i].pac_data);
                     pImagePlanesTemp[i].pac_data = M4OSA_NULL;
                 }
             }
@@ -2034,7 +2034,7 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             {
                 if(pImagePlanesTemp[i].pac_data != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pImagePlanesTemp[i].pac_data);
+                    free(pImagePlanesTemp[i].pac_data);
                     pImagePlanesTemp[i].pac_data = M4OSA_NULL;
                 }
             }
@@ -2050,7 +2050,7 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             {
                 if(pImagePlanesTemp[i].pac_data != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pImagePlanesTemp[i].pac_data);
+                    free(pImagePlanesTemp[i].pac_data);
                     pImagePlanesTemp[i].pac_data = M4OSA_NULL;
                 }
             }
@@ -2082,7 +2082,7 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             {
                 if(pImagePlanesTemp[i].pac_data != M4OSA_NULL)
                 {
-                    M4OSA_free((M4OSA_MemAddr32)pImagePlanesTemp[i].pac_data);
+                    free(pImagePlanesTemp[i].pac_data);
                     pImagePlanesTemp[i].pac_data = M4OSA_NULL;
                 }
             }
@@ -2186,7 +2186,7 @@ M4OSA_ERR M4AIR_create(M4OSA_Context* pContext,M4AIR_InputFormatType inputFormat
     *pContext = M4OSA_NULL ;
 
     /* Internal Context creation */
-    pC = (M4AIR_InternalContext*)M4OSA_malloc(sizeof(M4AIR_InternalContext), M4AIR, (M4OSA_Char*)"AIR internal context") ;
+    pC = (M4AIR_InternalContext*)M4OSA_32bitAlignedMalloc(sizeof(M4AIR_InternalContext), M4AIR, (M4OSA_Char*)"AIR internal context") ;
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, pC) ;
 
 
@@ -2219,7 +2219,7 @@ M4AIR_create_cleanup:
     /* Error management : we destroy the context if needed */
     if(M4OSA_NULL != pC)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC) ;
+        free(pC) ;
     }
 
     *pContext = M4OSA_NULL ;
@@ -2251,7 +2251,7 @@ M4OSA_ERR M4AIR_cleanUp(M4OSA_Context pContext)
     {
         return M4ERR_STATE;
     }
-    M4OSA_free((M4OSA_MemAddr32)pC) ;
+    free(pC) ;
 
     return M4NO_ERROR ;
 
@@ -3029,7 +3029,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     M4OSA_Context lImageFileFp  = M4OSA_NULL;
     M4OSA_ERR err = M4NO_ERROR;
 
-    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_malloc(frameSize_argb, M4VS, (M4OSA_Char*)"Image argb data");
+    M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_32bitAlignedMalloc(frameSize_argb, M4VS, (M4OSA_Char*)"Image argb data");
     if(pTmpData == M4OSA_NULL) {
         LOGE("Failed to allocate memory for Image clip");
         return M4ERR_ALLOC;
@@ -3041,7 +3041,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     if((lerr != M4NO_ERROR) || (lImageFileFp == M4OSA_NULL))
     {
         LOGE("LVPreviewController: Can not open the file ");
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         return M4ERR_FILE_NOT_FOUND;
     }
     lerr = M4OSA_fileReadData(lImageFileFp, (M4OSA_MemAddr8)pTmpData, &frameSize_argb);
@@ -3049,17 +3049,17 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     {
         LOGE("LVPreviewController: can not read the data ");
         M4OSA_fileReadClose(lImageFileFp);
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         return lerr;
     }
     M4OSA_fileReadClose(lImageFileFp);
 
     M4OSA_UInt32 frameSize = (width * height * 3); //Size of YUV420 data.
-    rgbPlane.pac_data = (M4VIFI_UInt8*)M4OSA_malloc(frameSize, M4VS, (M4OSA_Char*)"Image clip RGB888 data");
+    rgbPlane.pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize, M4VS, (M4OSA_Char*)"Image clip RGB888 data");
     if(rgbPlane.pac_data == M4OSA_NULL)
     {
         LOGE("Failed to allocate memory for Image clip");
-        M4OSA_free((M4OSA_MemAddr32)pTmpData);
+        free(pTmpData);
         return M4ERR_ALLOC;
     }
 
@@ -3069,7 +3069,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         rgbPlane.pac_data[j] = pTmpData[i];
         j++;
     }
-    M4OSA_free((M4OSA_MemAddr32)pTmpData);
+    free(pTmpData);
 
 #ifdef FILE_DUMP
     FILE *fp = fopen("/sdcard/Input/test_rgb.raw", "wb");
@@ -3085,13 +3085,13 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         rgbPlane.u_stride = width*3;
         rgbPlane.u_topleft = 0;
 
-        yuvPlane = (M4VIFI_ImagePlane*)M4OSA_malloc(3*sizeof(M4VIFI_ImagePlane),
+        yuvPlane = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(3*sizeof(M4VIFI_ImagePlane),
                 M4VS, (M4OSA_Char*)"M4xVSS_internalConvertRGBtoYUV: Output plane YUV");
         yuvPlane[0].u_height = height;
         yuvPlane[0].u_width = width;
         yuvPlane[0].u_stride = width;
         yuvPlane[0].u_topleft = 0;
-        yuvPlane[0].pac_data = (M4VIFI_UInt8*)M4OSA_malloc(yuvPlane[0].u_height * yuvPlane[0].u_width * 1.5, M4VS, (M4OSA_Char*)"imageClip YUV data");
+        yuvPlane[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(yuvPlane[0].u_height * yuvPlane[0].u_width * 1.5, M4VS, (M4OSA_Char*)"imageClip YUV data");
 
         yuvPlane[1].u_height = yuvPlane[0].u_height >>1;
         yuvPlane[1].u_width = yuvPlane[0].u_width >> 1;
@@ -3112,7 +3112,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         {
             LOGE("error when converting from RGB to YUV: 0x%x\n", (unsigned int)err);
         }
-        M4OSA_free((M4OSA_MemAddr32)rgbPlane.pac_data);
+        free(rgbPlane.pac_data);
 
         //LOGE("RGB to YUV done");
 #ifdef FILE_DUMP
@@ -3125,7 +3125,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         }
 #endif
         *pBuffer = yuvPlane[0].pac_data;
-        M4OSA_free((M4OSA_MemAddr32)yuvPlane);
+        free(yuvPlane);
         return M4NO_ERROR;
 
 }
@@ -3292,7 +3292,7 @@ M4OSA_ERR prepareFramingStructure(
     framingCtx->previousClipTime = -1;
 
     framingCtx->alphaBlendingStruct =
-     (M4xVSS_internalEffectsAlphaBlending*)M4OSA_malloc(
+     (M4xVSS_internalEffectsAlphaBlending*)M4OSA_32bitAlignedMalloc(
       sizeof(M4xVSS_internalEffectsAlphaBlending), M4VS,
       (M4OSA_Char*)"alpha blending struct");
 
@@ -3316,7 +3316,7 @@ M4OSA_ERR prepareFramingStructure(
 
         // If YUV buffer exists, delete it
         if(overlayYUV != NULL) {
-           M4OSA_free((M4OSA_MemAddr32)overlayYUV);
+           free(overlayYUV);
            overlayYUV = NULL;
         }
     if(effectsSettings[index].xVSS.rgbType == M4VSS3GPP_kRGB565) {
@@ -3338,7 +3338,7 @@ M4OSA_ERR prepareFramingStructure(
     }
     else {
         LOGV(" YUV buffer reuse");
-        framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_malloc(
+        framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(
             3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"YUV");
 
         if(framingCtx->FramingYuv == M4OSA_NULL) {
@@ -3392,11 +3392,11 @@ M4OSA_ERR applyColorEffect(M4xVSS_VideoEffectType colorEffect,
             colorEffect, err);
 
         if(NULL != buffer1) {
-            M4OSA_free((M4OSA_MemAddr32)buffer1);
+            free(buffer1);
             buffer1 = NULL;
         }
         if(NULL != buffer2) {
-            M4OSA_free((M4OSA_MemAddr32)buffer2);
+            free(buffer2);
             buffer2 = NULL;
         }
         return err;
@@ -3422,11 +3422,11 @@ M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
         LOGE("M4VFL_modifyLumaWithScale(%d) error %d", videoEffect, (int)err);
 
         if(NULL != buffer1) {
-            M4OSA_free((M4OSA_MemAddr32)buffer1);
+            free(buffer1);
             buffer1= NULL;
         }
         if(NULL != buffer2) {
-            M4OSA_free((M4OSA_MemAddr32)buffer2);
+            free(buffer2);
             buffer2= NULL;
         }
         return err;
@@ -3453,11 +3453,11 @@ M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
         LOGE("M4VFL_applyCurtain(%d) error %d", videoEffect, (int)err);
 
         if(NULL != buffer1) {
-            M4OSA_free((M4OSA_MemAddr32)buffer1);
+            free(buffer1);
             buffer1= NULL;
         }
         if(NULL != buffer2) {
-            M4OSA_free((M4OSA_MemAddr32)buffer2);
+            free(buffer2);
             buffer2 = NULL;
         }
         return err;
@@ -3485,7 +3485,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
 
     frameSize = (params->videoWidth*params->videoHeight*3) >> 1;
 
-    finalOutputBuffer = (M4VIFI_UInt8*)M4OSA_malloc(frameSize, M4VS,
+    finalOutputBuffer = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize, M4VS,
      (M4OSA_Char*)("lvpp finalOutputBuffer"));
 
     if(finalOutputBuffer == NULL) {
@@ -3494,13 +3494,13 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     }
 
     // allocate the tempOutputBuffer
-    tempOutputBuffer = (M4VIFI_UInt8*)M4OSA_malloc(
+    tempOutputBuffer = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(
      ((params->videoHeight*params->videoWidth*3)>>1), M4VS, (M4OSA_Char*)("lvpp colorBuffer"));
 
     if(tempOutputBuffer == NULL) {
         LOGE("applyEffectsAndRenderingMode: malloc error tempOutputBuffer");
         if(NULL != finalOutputBuffer) {
-            M4OSA_free((M4OSA_MemAddr32)finalOutputBuffer);
+            free(finalOutputBuffer);
             finalOutputBuffer = NULL;
         }
         return M4ERR_ALLOC;
@@ -3625,11 +3625,11 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
                 LOGE("M4VSS3GPP_externalVideoEffectFifties error 0x%x", (unsigned int)err);
 
                 if(NULL != finalOutputBuffer) {
-                    M4OSA_free((M4OSA_MemAddr32)finalOutputBuffer);
+                    free(finalOutputBuffer);
                     finalOutputBuffer = NULL;
                 }
                 if(NULL != tempOutputBuffer) {
-                    M4OSA_free((M4OSA_MemAddr32)tempOutputBuffer);
+                    free(tempOutputBuffer);
                     tempOutputBuffer = NULL;
                 }
                 return err;
@@ -3671,10 +3671,10 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
                       M4xVSS_kVideoEffectType_Framing);
             }
 
-            M4OSA_free((M4OSA_MemAddr32)framingCtx.alphaBlendingStruct);
+            free(framingCtx.alphaBlendingStruct);
 
             if(framingCtx.FramingYuv != NULL) {
-                M4OSA_free((M4OSA_MemAddr32)framingCtx.FramingYuv);
+                free(framingCtx.FramingYuv);
                 framingCtx.FramingYuv = NULL;
             }
             //If prepareFramingStructure / M4VSS3GPP_externalVideoEffectFraming
@@ -3682,11 +3682,11 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
             if(err != M4NO_ERROR) {
 
                 if(NULL != finalOutputBuffer) {
-                    M4OSA_free((M4OSA_MemAddr32)finalOutputBuffer);
+                    free(finalOutputBuffer);
                     finalOutputBuffer = NULL;
                 }
                 if(NULL != tempOutputBuffer) {
-                    M4OSA_free((M4OSA_MemAddr32)tempOutputBuffer);
+                    free(tempOutputBuffer);
                     tempOutputBuffer = NULL;
                 }
                 return err;
@@ -3825,11 +3825,11 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     err = applyRenderingMode(planeIn, planeOut, params->renderingMode);
 
     if(M4OSA_NULL != finalOutputBuffer) {
-        M4OSA_free((M4OSA_MemAddr32)finalOutputBuffer);
+        free(finalOutputBuffer);
         finalOutputBuffer= M4OSA_NULL;
     }
     if(M4OSA_NULL != tempOutputBuffer) {
-        M4OSA_free((M4OSA_MemAddr32)tempOutputBuffer);
+        free(tempOutputBuffer);
         tempOutputBuffer = M4OSA_NULL;
     }
     if(err != M4NO_ERROR) {

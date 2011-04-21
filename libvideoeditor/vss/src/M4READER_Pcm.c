@@ -66,7 +66,7 @@ M4OSA_ERR M4READER_PCM_create(M4OSA_Context* pContext)
     M4OSA_DEBUG_IF1((pContext == 0),       M4ERR_PARAMETER,
          "M4READER_PCM_create: invalid context pointer");
 
-    pReaderContext = (M4READER_PCM_Context*)M4OSA_malloc(sizeof(M4READER_PCM_Context),
+    pReaderContext = (M4READER_PCM_Context*)M4OSA_32bitAlignedMalloc(sizeof(M4READER_PCM_Context),
          M4READER_WAV, (M4OSA_Char *)"M4READER_PCM_Context");
     if (pReaderContext == M4OSA_NULL)
     {
@@ -100,7 +100,7 @@ M4OSA_ERR M4READER_PCM_destroy(M4OSA_Context context)
     M4OSA_DEBUG_IF1((M4OSA_NULL == pC), M4ERR_PARAMETER,
          "M4READER_PCM_destroy: invalid context pointer");
 
-    M4OSA_free((M4OSA_MemAddr32)pC);
+    free(pC);
 
     return M4NO_ERROR;
 }
@@ -163,7 +163,7 @@ M4OSA_ERR M4READER_PCM_close(M4OSA_Context context)
                 return err;
             }
         }
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioStream);
+        free(pC->m_pAudioStream);
         pC->m_pAudioStream = M4OSA_NULL;
     }
 
@@ -348,7 +348,7 @@ M4OSA_ERR M4READER_PCM_getNextStream(M4OSA_Context context, M4READER_MediaFamily
             return M4NO_ERROR;
     }
 
-    pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_malloc(sizeof(M4_AudioStreamHandler),
+    pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_32bitAlignedMalloc(sizeof(M4_AudioStreamHandler),
          M4READER_WAV, (M4OSA_Char *)"M4_AudioStreamHandler");
     if (pAudioStreamHandler == M4OSA_NULL)
     {
@@ -680,18 +680,18 @@ M4OSA_ERR   M4READER_PCM_getInterfaces(M4READER_MediaType *pMediaType,
          "M4READER_PCM_getInterfaces: invalid pointer to M4READER_DataInterface");
 
     *pRdrGlobalInterface =
-         (M4READER_GlobalInterface*)M4OSA_malloc( sizeof(M4READER_GlobalInterface), M4READER_WAV,
+         (M4READER_GlobalInterface*)M4OSA_32bitAlignedMalloc( sizeof(M4READER_GlobalInterface), M4READER_WAV,
              (M4OSA_Char *)"M4READER_PCM GlobalInterface");
     if (M4OSA_NULL == *pRdrGlobalInterface)
     {
         return M4ERR_ALLOC;
     }
     *pRdrDataInterface =
-         (M4READER_DataInterface*)M4OSA_malloc( sizeof(M4READER_DataInterface), M4READER_WAV,
+         (M4READER_DataInterface*)M4OSA_32bitAlignedMalloc( sizeof(M4READER_DataInterface), M4READER_WAV,
             (M4OSA_Char *) "M4READER_PCM DataInterface");
     if (M4OSA_NULL == *pRdrDataInterface)
     {
-        M4OSA_free((M4OSA_MemAddr32)*pRdrGlobalInterface);
+        free(*pRdrGlobalInterface);
         return M4ERR_ALLOC;
     }
 

@@ -560,7 +560,7 @@ M4OSA_ERR M4MP4W_openWrite(M4OSA_Context *contextPtr,
     /* The context reuse mode was suppressed*/
 
     mMp4FileDataPtr =
-        (M4MP4W_Mp4FileData *)M4OSA_malloc(sizeof(M4MP4W_Mp4FileData),
+        (M4MP4W_Mp4FileData *)M4OSA_32bitAlignedMalloc(sizeof(M4MP4W_Mp4FileData),
         M4MP4_WRITER, (M4OSA_Char *)"MP4 writer context");
     ERR_CHECK(mMp4FileDataPtr != M4OSA_NULL, M4ERR_ALLOC);
     mMp4FileDataPtr->url = outputFileDescriptor;
@@ -656,7 +656,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
             if (mMp4FileDataPtr->audioTrackPtr == M4OSA_NULL)
             {
                 mMp4FileDataPtr->audioTrackPtr = (M4MP4W_AudioTrackData
-                    *)M4OSA_malloc(sizeof(M4MP4W_AudioTrackData),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4MP4W_AudioTrackData),
                     M4MP4_WRITER, (M4OSA_Char *)"M4MP4W_AudioTrackData");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr != M4OSA_NULL,
                     M4ERR_ALLOC);
@@ -677,7 +677,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 #ifdef _M4MP4W_MOOV_FIRST
 
                 mMp4FileDataPtr->audioTrackPtr->Chunk =
-                    (M4OSA_UChar ** )M4OSA_malloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
+                    (M4OSA_UChar ** )M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
                     * sizeof(M4OSA_UChar *),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->Chunk");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->Chunk != M4OSA_NULL,
@@ -686,14 +686,14 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 #else
 
                 mMp4FileDataPtr->audioTrackPtr->Chunk =
-                    (M4OSA_UChar ** )M4OSA_malloc(sizeof(M4OSA_UChar *),
+                    (M4OSA_UChar ** )M4OSA_32bitAlignedMalloc(sizeof(M4OSA_UChar *),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->Chunk");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->Chunk != M4OSA_NULL,
                     M4ERR_ALLOC);
                 mMp4FileDataPtr->audioTrackPtr->Chunk[0] = M4OSA_NULL;
 
                 mMp4FileDataPtr->audioTrackPtr->chunkOffsetTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->chunkOffsetTable");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->chunkOffsetTable
@@ -702,26 +702,26 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 #endif /*_M4MP4W_MOOV_FIRST*/
 
                 mMp4FileDataPtr->audioTrackPtr->TABLE_STTS =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_STTS_AUDIO_ALLOC_SIZE,
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_STTS_AUDIO_ALLOC_SIZE,
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->TABLE_STTS");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->TABLE_STTS
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->audioTrackPtr->nbOfAllocatedSttsBlocks = 1;
 
                 mMp4FileDataPtr->audioTrackPtr->chunkSizeTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->chunkSizeTable");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->chunkSizeTable
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->audioTrackPtr->chunkSampleNbTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->chunkSampleNbTable");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->chunkSampleNbTable
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->audioTrackPtr->chunkTimeMsTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_AUDIO_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->chunkTimeMsTable");
                 ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->chunkTimeMsTable
@@ -780,7 +780,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                     ERR_CHECK(streamDescPtr->decoderSpecificInfoSize == 9,
                         M4ERR_PARAMETER);
                     mMp4FileDataPtr->audioTrackPtr->DSI =
-                        (M4OSA_UChar *)M4OSA_malloc(9, M4MP4_WRITER,
+                        (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(9, M4MP4_WRITER,
                         (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
@@ -815,7 +815,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                     ERR_CHECK(streamDescPtr->decoderSpecificInfoSize == 6,
                         M4ERR_PARAMETER);
                     mMp4FileDataPtr->audioTrackPtr->DSI =
-                        (M4OSA_UChar *)M4OSA_malloc(6, M4MP4_WRITER,
+                        (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(6, M4MP4_WRITER,
                         (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
@@ -849,7 +849,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                 if (mMp4FileDataPtr->audioTrackPtr->dsiSize != 0)
                 {
                     mMp4FileDataPtr->audioTrackPtr->DSI =
-                        (M4OSA_UChar *)M4OSA_malloc(
+                        (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(
                         streamDescPtr->decoderSpecificInfoSize,
                         M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
@@ -883,7 +883,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
             if (mMp4FileDataPtr->videoTrackPtr == M4OSA_NULL)
             {
                 mMp4FileDataPtr->videoTrackPtr = (M4MP4W_VideoTrackData
-                    *)M4OSA_malloc(sizeof(M4MP4W_VideoTrackData),
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4MP4W_VideoTrackData),
                     M4MP4_WRITER, (M4OSA_Char *)"M4MP4W_VideoTrackData");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr != M4OSA_NULL,
                     M4ERR_ALLOC);
@@ -905,7 +905,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 #ifdef _M4MP4W_MOOV_FIRST
 
                 mMp4FileDataPtr->videoTrackPtr->Chunk =
-                    (M4OSA_UChar ** )M4OSA_malloc(M4MP4W_CHUNK_ALLOC_NB
+                    (M4OSA_UChar ** )M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_ALLOC_NB
                     * sizeof(M4OSA_UChar *),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->Chunk");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->Chunk != M4OSA_NULL,
@@ -915,14 +915,14 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                 /*re-use the same chunk and flush it when full*/
 
                 mMp4FileDataPtr->videoTrackPtr->Chunk =
-                    (M4OSA_UChar ** )M4OSA_malloc(sizeof(M4OSA_UChar *),
+                    (M4OSA_UChar ** )M4OSA_32bitAlignedMalloc(sizeof(M4OSA_UChar *),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->Chunk");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->Chunk != M4OSA_NULL,
                     M4ERR_ALLOC);
                 mMp4FileDataPtr->videoTrackPtr->Chunk[0] = M4OSA_NULL;
 
                 mMp4FileDataPtr->videoTrackPtr->chunkOffsetTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->chunkOffsetTable");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->chunkOffsetTable
@@ -933,19 +933,19 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->Chunk != M4OSA_NULL,
                     M4ERR_ALLOC);
                 mMp4FileDataPtr->videoTrackPtr->chunkSizeTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->chunkSizeTable");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->chunkSizeTable
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->videoTrackPtr->chunkSampleNbTable =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_CHUNK_ALLOC_NB
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_ALLOC_NB
                     * sizeof(M4OSA_UInt32),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->chunkSampleNbTable");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->chunkSampleNbTable
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->videoTrackPtr->chunkTimeMsTable =
-                    (M4MP4W_Time32 *)M4OSA_malloc(M4MP4W_CHUNK_ALLOC_NB
+                    (M4MP4W_Time32 *)M4OSA_32bitAlignedMalloc(M4MP4W_CHUNK_ALLOC_NB
                     * sizeof(M4MP4W_Time32),
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->chunkTimeMsTable");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->chunkTimeMsTable
@@ -954,7 +954,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                 mMp4FileDataPtr->videoTrackPtr->LastAllocatedChunk = 0;
                 /*tables are now dynamic*/
                 mMp4FileDataPtr->videoTrackPtr->TABLE_STTS =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_STTS_ALLOC_SIZE,
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_STTS_ALLOC_SIZE,
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->TABLE_STTS");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->TABLE_STTS
                     != M4OSA_NULL, M4ERR_ALLOC);
@@ -962,13 +962,13 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 #ifdef _M4MP4W_OPTIMIZE_FOR_PHONE
 
                 mMp4FileDataPtr->videoTrackPtr->TABLE_STSZ =
-                    (M4OSA_UInt16 *)M4OSA_malloc(M4MP4W_STSZ_ALLOC_SIZE,
+                    (M4OSA_UInt16 *)M4OSA_32bitAlignedMalloc(M4MP4W_STSZ_ALLOC_SIZE,
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->TABLE_STSZ");
 
 #else
 
                 mMp4FileDataPtr->videoTrackPtr->TABLE_STSZ =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_STSZ_ALLOC_SIZE,
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_STSZ_ALLOC_SIZE,
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->TABLE_STSZ");
 
 #endif
@@ -977,7 +977,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                     != M4OSA_NULL, M4ERR_ALLOC);
                 mMp4FileDataPtr->videoTrackPtr->nbOfAllocatedStszBlocks = 1;
                 mMp4FileDataPtr->videoTrackPtr->TABLE_STSS =
-                    (M4OSA_UInt32 *)M4OSA_malloc(M4MP4W_STSS_ALLOC_SIZE,
+                    (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(M4MP4W_STSS_ALLOC_SIZE,
                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->TABLE_STSS");
                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->TABLE_STSS
                     != M4OSA_NULL, M4ERR_ALLOC);
@@ -1050,7 +1050,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                     mMp4FileDataPtr->videoTrackPtr->dsiSize =
                         (M4OSA_UInt8)streamDescPtr->decoderSpecificInfoSize;
                     mMp4FileDataPtr->videoTrackPtr->DSI =
-                        (M4OSA_UChar *)M4OSA_malloc(
+                        (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(
                         streamDescPtr->decoderSpecificInfoSize,
                         M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI != M4OSA_NULL,
@@ -1090,7 +1090,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                     mMp4FileDataPtr->videoTrackPtr->dsiSize =
                         (M4OSA_UInt8)streamDescPtr->decoderSpecificInfoSize;
                     mMp4FileDataPtr->videoTrackPtr->DSI =
-                        (M4OSA_UChar *)M4OSA_malloc(
+                        (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(
                         streamDescPtr->decoderSpecificInfoSize,
                         M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI != M4OSA_NULL,
@@ -1133,7 +1133,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 
                         /* Copy the DSI (SPS + PPS) */
                         mMp4FileDataPtr->videoTrackPtr->DSI =
-                            (M4OSA_UChar *)M4OSA_malloc(
+                            (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(
                             streamDescPtr->decoderSpecificInfoSize,
                             M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
@@ -1173,7 +1173,7 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
 
                         /* Copy the DSI (SPS + PPS) */
                         mMp4FileDataPtr->videoTrackPtr->DSI =
-                            (M4OSA_UChar *)M4OSA_malloc(
+                            (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(
                             streamDescPtr->decoderSpecificInfoSize,
                             M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
@@ -1224,7 +1224,7 @@ M4OSA_ERR M4MP4W_startWriting( M4OSA_Context context )
 
         /* First audio chunk allocation */
         mMp4FileDataPtr->audioTrackPtr->Chunk[0] = (M4OSA_UChar
-            *)M4OSA_malloc(mMp4FileDataPtr->audioTrackPtr->MaxChunkSize,
+            *)M4OSA_32bitAlignedMalloc(mMp4FileDataPtr->audioTrackPtr->MaxChunkSize,
             M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->Chunk[0]");
         ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->Chunk[0] != M4OSA_NULL,
             M4ERR_ALLOC);
@@ -1240,7 +1240,7 @@ M4OSA_ERR M4MP4W_startWriting( M4OSA_Context context )
 
         /* First video chunk allocation */
         mMp4FileDataPtr->videoTrackPtr->Chunk[0] = (M4OSA_UChar
-            *)M4OSA_malloc(mMp4FileDataPtr->videoTrackPtr->MaxChunkSize,
+            *)M4OSA_32bitAlignedMalloc(mMp4FileDataPtr->videoTrackPtr->MaxChunkSize,
             M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->Chunk[0]");
         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->Chunk[0] != M4OSA_NULL,
             M4ERR_ALLOC);
@@ -1573,7 +1573,7 @@ M4OSA_ERR M4MP4W_newAudioChunk( M4OSA_Context context,
 
         mMp4FileDataPtr->audioTrackPtr->
             Chunk[mMp4FileDataPtr->audioTrackPtr->currentChunk] = (M4OSA_UChar
-            *)M4OSA_malloc(mMp4FileDataPtr->audioTrackPtr->MaxChunkSize,
+            *)M4OSA_32bitAlignedMalloc(mMp4FileDataPtr->audioTrackPtr->MaxChunkSize,
             M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->currentChunk");
         ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->
             Chunk[mMp4FileDataPtr->audioTrackPtr->currentChunk]
@@ -1814,7 +1814,7 @@ M4OSA_ERR M4MP4W_newVideoChunk( M4OSA_Context context,
 
         mMp4FileDataPtr->videoTrackPtr->
             Chunk[mMp4FileDataPtr->videoTrackPtr->currentChunk] = (M4OSA_UChar
-            *)M4OSA_malloc(mMp4FileDataPtr->videoTrackPtr->MaxChunkSize,
+            *)M4OSA_32bitAlignedMalloc(mMp4FileDataPtr->videoTrackPtr->MaxChunkSize,
             M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->MaxChunkSize");
         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->
             Chunk[mMp4FileDataPtr->videoTrackPtr->currentChunk]
@@ -2236,7 +2236,7 @@ M4OSA_ERR M4MP4W_processAU( M4OSA_Context context, M4SYS_StreamID streamID,
                         CommonData.sampleNb
                         * 4 / M4MP4W_STSZ_AUDIO_ALLOC_SIZE;
                     mMp4FileDataPtr->audioTrackPtr->TABLE_STSZ =
-                        (M4OSA_UInt32 *)M4OSA_malloc(
+                        (M4OSA_UInt32 *)M4OSA_32bitAlignedMalloc(
                         mMp4FileDataPtr->audioTrackPtr->
                         nbOfAllocatedStszBlocks
                         * M4MP4W_STSZ_AUDIO_ALLOC_SIZE,
@@ -4578,14 +4578,14 @@ cleanup:
 
     if (M4OSA_NULL != mMp4FileDataPtr->embeddedString)
     {
-        M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->embeddedString);
+        free(mMp4FileDataPtr->embeddedString);
         mMp4FileDataPtr->embeddedString = M4OSA_NULL;
     }
 
     /* Delete integration tag */
     if (M4OSA_NULL != mMp4FileDataPtr->integrationTag)
     {
-        M4OSA_free((M4OSA_MemAddr32)mMp4FileDataPtr->integrationTag);
+        free(mMp4FileDataPtr->integrationTag);
         mMp4FileDataPtr->integrationTag = M4OSA_NULL;
     }
 
@@ -4955,7 +4955,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
             if (mMp4FileDataPtr->embeddedString == M4OSA_NULL)
             {
                 mMp4FileDataPtr->embeddedString =
-                    (M4OSA_UChar *)M4OSA_malloc(16, M4MP4_WRITER,
+                    (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(16, M4MP4_WRITER,
                     (M4OSA_Char *)"embeddedString");
                 ERR_CHECK(mMp4FileDataPtr->embeddedString != M4OSA_NULL,
                     M4ERR_ALLOC);
@@ -4974,7 +4974,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
             if (mMp4FileDataPtr->integrationTag == M4OSA_NULL)
             {
                 mMp4FileDataPtr->integrationTag =
-                    (M4OSA_UChar *)M4OSA_malloc(60, M4MP4_WRITER,
+                    (M4OSA_UChar *)M4OSA_32bitAlignedMalloc(60, M4MP4_WRITER,
                     (M4OSA_Char *)"integrationTag");
                 ERR_CHECK(mMp4FileDataPtr->integrationTag != M4OSA_NULL,
                     M4ERR_ALLOC);
@@ -5179,7 +5179,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                 mMp4FileDataPtr->videoTrackPtr->dsiSize =
                                     (M4OSA_UInt8)streamIDmemAddrPtr->size;
                                 mMp4FileDataPtr->videoTrackPtr->DSI = (M4OSA_UChar
-                                    *)M4OSA_malloc(streamIDmemAddrPtr->size,
+                                    *)M4OSA_32bitAlignedMalloc(streamIDmemAddrPtr->size,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);
@@ -5215,7 +5215,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                 mMp4FileDataPtr->videoTrackPtr->dsiSize =
                                     (M4OSA_UInt8)streamIDmemAddrPtr->size;
                                 mMp4FileDataPtr->videoTrackPtr->DSI = (M4OSA_UChar
-                                    *)M4OSA_malloc(streamIDmemAddrPtr->size,
+                                    *)M4OSA_32bitAlignedMalloc(streamIDmemAddrPtr->size,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);
@@ -5237,8 +5237,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                     /* + H.264 trimming */
                                     if (M4OSA_TRUE == mMp4FileDataPtr->bMULPPSSPS)
                                     {
-                                        M4OSA_free(
-                                            (M4OSA_MemAddr32)mMp4FileDataPtr->videoTrackPtr->DSI);
+                                        free(mMp4FileDataPtr->videoTrackPtr->DSI);
 
                                         // Do not strip the DSI
                                         /* Store the DSI size */
@@ -5248,7 +5247,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                             ,mMp4FileDataPtr->videoTrackPtr->dsiSize);
                                         /* Copy the DSI (SPS + PPS) */
                                         mMp4FileDataPtr->videoTrackPtr->DSI =
-                                            (M4OSA_UChar*)M4OSA_malloc(
+                                            (M4OSA_UChar*)M4OSA_32bitAlignedMalloc(
                                             streamIDmemAddrPtr->size, M4MP4_WRITER,
                                             (M4OSA_Char *)"videoTrackPtr->DSI");
                                         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI !=
@@ -5283,7 +5282,7 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
 
                                 /* Copy the DSI (SPS + PPS) */
                                 mMp4FileDataPtr->videoTrackPtr->DSI = (M4OSA_UChar
-                                    *)M4OSA_malloc(streamIDmemAddrPtr->size,
+                                    *)M4OSA_32bitAlignedMalloc(streamIDmemAddrPtr->size,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);

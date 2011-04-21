@@ -413,7 +413,7 @@ M4OSA_ERR M4OSA_chrSPrintf(M4OSA_Char  *pStrOut, M4OSA_UInt32 strOutMaxLen,
     return M4ERR_NOT_IMPLEMENTED;
 #endif
 
-    newFormat =(M4OSA_Char*)M4OSA_malloc(newFormatLength,
+    newFormat =(M4OSA_Char*)M4OSA_32bitAlignedMalloc(newFormatLength,
         M4OSA_CHARSTAR,(M4OSA_Char*)"M4OSA_chrPrintf: newFormat");
     if(M4OSA_NULL == newFormat)
         return M4ERR_ALLOC;
@@ -522,7 +522,7 @@ M4OSA_ERR M4OSA_chrSPrintf(M4OSA_Char  *pStrOut, M4OSA_UInt32 strOutMaxLen,
 
     err = vsnprintf((char *)pStrOut, (size_t)strOutMaxLen + 1, (const char *)newFormat, marker);
     va_end(marker);
-    M4OSA_free((M4OSA_MemAddr32)newFormat);
+    free(newFormat);
     if ((err<0) || ((M4OSA_UInt32)err>strOutMaxLen))
     {
         pStrOut[strOutMaxLen] = '\0';

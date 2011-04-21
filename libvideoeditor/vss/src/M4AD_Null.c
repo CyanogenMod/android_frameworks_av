@@ -86,7 +86,7 @@ M4OSA_ERR    M4AD_NULL_create(  M4AD_Context* pContext,
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
                 "M4AD_NULL_create: invalid pointer pStreamHandler");
 
-    pC = (M4AD_NullContext*)M4OSA_malloc(sizeof(M4AD_NullContext),
+    pC = (M4AD_NullContext*)M4OSA_32bitAlignedMalloc(sizeof(M4AD_NullContext),
                  M4DECODER_AUDIO, (M4OSA_Char *)"M4AD_NullContext");
     if (pC == (M4AD_NullContext*)0)
     {
@@ -118,7 +118,7 @@ M4OSA_ERR    M4AD_NULL_destroy(M4AD_Context context)
 
     M4OSA_DEBUG_IF1((context == M4OSA_NULL), M4ERR_PARAMETER, "M4AD_NULL_destroy: invalid context");
 
-    M4OSA_free((M4OSA_MemAddr32)pC);
+    free(pC);
 
     return M4NO_ERROR;
 }
@@ -234,7 +234,7 @@ M4OSA_ERR    M4AD_NULL_getVersion(M4_VersionInfo* pVersionInfo)
 */
 M4OSA_ERR M4AD_NULL_getInterface( M4AD_Type *pDecoderType, M4AD_Interface **pDecoderInterface)
 {
-    *pDecoderInterface = (  M4AD_Interface*)M4OSA_malloc( sizeof(M4AD_Interface),
+    *pDecoderInterface = (  M4AD_Interface*)M4OSA_32bitAlignedMalloc( sizeof(M4AD_Interface),
                             M4DECODER_AUDIO, (M4OSA_Char *)"M4AD_Interface" );
     if (M4OSA_NULL == *pDecoderInterface)
     {

@@ -67,7 +67,7 @@ M4OSA_ERR M4OSA_fileExtraDelete(const M4OSA_Char* pUrl)
 #ifdef UTF_CONVERSION
     /*FB: to test the UTF16->UTF8 conversion into Video Artist*/
     /*Convert the URL from UTF16 to UTF8*/
-    tempConversionBuf = (M4OSA_Char*)M4OSA_malloc(tempConversionSize +1, 0,
+    tempConversionBuf = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(tempConversionSize +1, 0,
                                                  (M4OSA_Char*)"conversion buf");
     if(tempConversionBuf == M4OSA_NULL)
     {
@@ -82,7 +82,7 @@ M4OSA_ERR M4OSA_fileExtraDelete(const M4OSA_Char* pUrl)
     /*Open the converted path*/
     err = remove (tempConversionBuf);
     /*Free the temporary decoded buffer*/
-    M4OSA_free((M4OSA_MemAddr32)tempConversionBuf);
+    free(tempConversionBuf);
 #else
     err = remove((const char *)pUrl);
 #endif /* UTF_CONVERSION */
@@ -144,7 +144,7 @@ M4OSA_ERR M4OSA_fileExtraCopy(M4OSA_Char* pSrcUrl, M4OSA_Char* pDstUrl)
     }
 
     /* Allocate buffer */
-    copy_buffer = M4OSA_malloc(BUFFER_COPY_SIZE, M4OSA_FILE_EXTRA,
+    copy_buffer = M4OSA_32bitAlignedMalloc(BUFFER_COPY_SIZE, M4OSA_FILE_EXTRA,
                                (M4OSA_Char*)"M4OSA_fileExtraCopy: copy buffer");
     if(M4OSA_NULL == copy_buffer)
     {
@@ -182,7 +182,7 @@ M4OSA_ERR M4OSA_fileExtraCopy(M4OSA_Char* pSrcUrl, M4OSA_Char* pDstUrl)
     }
 
     /* Free copy buffer */
-    M4OSA_free(copy_buffer);
+    free(copy_buffer);
 
     err = M4OSA_fileWriteClose(pOutputFileContext);
     if(M4NO_ERROR != err)
@@ -238,7 +238,7 @@ M4OSA_ERR M4OSA_fileExtraRename(M4OSA_Char* pSrcUrl, M4OSA_Char* pDstUrl)
     err = M4OSA_fileCommonGetFilename(pDstUrl, &pDstFilename);
     if(M4NO_ERROR != err)
     {
-        M4OSA_free((M4OSA_MemAddr32)pSrcFilename);
+        free(pSrcFilename);
         M4OSA_DEBUG(err, "M4OSA_fileExtraRename: M4OSA_fileCommonGetFilename");
         return err;
     }
@@ -263,8 +263,8 @@ M4OSA_ERR M4OSA_fileExtraRename(M4OSA_Char* pSrcUrl, M4OSA_Char* pDstUrl)
         return M4ERR_PARAMETER;
     }
 
-    M4OSA_free((M4OSA_MemAddr32)pDstFilename);
-    M4OSA_free((M4OSA_MemAddr32)pSrcFilename);
+    free(pDstFilename);
+    free(pSrcFilename);
 
     return M4NO_ERROR;
 }
@@ -317,7 +317,7 @@ M4OSA_ERR M4OSA_fileExtraChangeCurrentDir(const M4OSA_Char* pUrl)
         return(M4ERR_PARAMETER);
     }
 
-    M4OSA_free((M4OSA_MemAddr32)pFileName);
+    free(pFileName);
 
     return M4NO_ERROR;
 }

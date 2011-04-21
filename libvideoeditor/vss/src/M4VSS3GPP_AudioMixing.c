@@ -135,7 +135,7 @@ M4OSA_ERR M4VSS3GPP_audioMixingInit( M4VSS3GPP_AudioMixingContext *pContext,
     /**
     * Allocate the VSS audio mixing context and return it to the user */
     pC = (M4VSS3GPP_InternalAudioMixingContext
-        *)M4OSA_malloc(sizeof(M4VSS3GPP_InternalAudioMixingContext),
+        *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_InternalAudioMixingContext),
         M4VSS3GPP,(M4OSA_Char *)"M4VSS3GPP_InternalAudioMixingContext");
     *pContext = pC;
 
@@ -574,26 +574,26 @@ M4OSA_ERR M4VSS3GPP_audioMixingCleanUp( M4VSS3GPP_AudioMixingContext pContext )
 
     if( M4OSA_NULL != pC->SsrcScratch )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->SsrcScratch);
+        free(pC->SsrcScratch);
         pC->SsrcScratch = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->pSsrcBufferIn )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pSsrcBufferIn);
+        free(pC->pSsrcBufferIn);
         pC->pSsrcBufferIn = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->pSsrcBufferOut
         && (M4OSA_TRUE == pC->b_SSRCneeded || pC->ChannelConversion > 0) )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pSsrcBufferOut);
+        free(pC->pSsrcBufferOut);
         pC->pSsrcBufferOut = M4OSA_NULL;
     }
 
     if( M4OSA_NULL != pC->pTempBuffer )
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pTempBuffer);
+        free(pC->pTempBuffer);
         pC->pTempBuffer = M4OSA_NULL;
     }
 
@@ -612,7 +612,7 @@ M4OSA_ERR M4VSS3GPP_audioMixingCleanUp( M4VSS3GPP_AudioMixingContext pContext )
 
     /**
     * Free the context */
-    M4OSA_free((M4OSA_MemAddr32)pContext);
+    free(pContext);
     pContext = M4OSA_NULL;
 
     /**
@@ -996,7 +996,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
                 /**
                 * Allocate and copy the new DSI */
                 pC->ewc.pVideoOutputDsi =
-                    (M4OSA_MemAddr8)M4OSA_malloc(encHeader->Size, M4VSS3GPP,
+                    (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(encHeader->Size, M4VSS3GPP,
                     (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (H264)");
 
                 if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
@@ -1073,7 +1073,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
                 {
 
                     /*
-                     M4OSA_free((M4OSA_MemAddr32)pC->pAddedClipCtxt->pAudioStream->\
+                     free(pC->pAddedClipCtxt->pAudioStream->\
                        m_basicProperties.m_pDecoderSpecificInfo);
                        */
                     pC->pAddedClipCtxt->pAudioStream->
@@ -1708,7 +1708,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         /**
         * Allocate buffer for the input of the SSRC */
         pC->pSsrcBufferIn =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->minimumBufferIn
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->minimumBufferIn
             + pC->pAddedClipCtxt->
             AudioDecBufferOut.
             m_bufferSize,
@@ -1727,7 +1727,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         * Allocate buffer for the output of the SSRC */
         /* The "3" value below should be optimized ... one day ... */
         pC->pSsrcBufferOut =
-            (M4OSA_MemAddr8)M4OSA_malloc(3 * pC->iSsrcNbSamplOut * sizeof(short)
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(3 * pC->iSsrcNbSamplOut * sizeof(short)
             * pC->ewc.uiNbChannels, M4VSS3GPP, (M4OSA_Char *)"pSsrcBufferOut");
 
         if( M4OSA_NULL == pC->pSsrcBufferOut )
@@ -1745,7 +1745,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         {
             /* The "3" value below should be optimized ... one day ... */
             pC->pTempBuffer =
-                (M4OSA_MemAddr8)M4OSA_malloc(3 * pC->iSsrcNbSamplOut
+                (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(3 * pC->iSsrcNbSamplOut
                 * sizeof(short) * pC->pAddedClipCtxt->pSettings->
                 ClipProperties.uiNbChannels, M4VSS3GPP, (M4OSA_Char *)"pSsrcBufferOut");
 
@@ -1767,7 +1767,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         /**
         * Allocate buffer for the input of the SSRC */
         pC->pSsrcBufferIn =
-            (M4OSA_MemAddr8)M4OSA_malloc(pC->minimumBufferIn
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->minimumBufferIn
             + pC->pAddedClipCtxt->
             AudioDecBufferOut.
             m_bufferSize,
@@ -1785,7 +1785,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         /**
         * Allocate buffer for the output of the SSRC */
         /* The "3" value below should be optimized ... one day ... */
-        pC->pSsrcBufferOut = (M4OSA_MemAddr8)M4OSA_malloc(
+        pC->pSsrcBufferOut = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
             pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize,
             M4VSS3GPP, (M4OSA_Char *)"pSsrcBufferOut");
 
@@ -1830,7 +1830,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         /**
         * Allocate buffer for the input of the SSRC */
         pC->pSsrcBufferIn =
-            (M4OSA_MemAddr8)M4OSA_malloc(2 * minbuffer, M4VSS3GPP,
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(2 * minbuffer, M4VSS3GPP,
             (M4OSA_Char *)"pSsrcBufferIn");
 
         if( M4OSA_NULL == pC->pSsrcBufferIn )

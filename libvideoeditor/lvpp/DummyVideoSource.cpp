@@ -96,7 +96,7 @@ status_t DummyVideoSource::stop() {
 
     LOG2("DummyVideoSource::stop START");
     if (mImageBuffer != NULL) {
-        M4OSA_free((M4OSA_MemAddr32)mImageBuffer);
+        free(mImageBuffer);
         mImageBuffer = NULL;
     }
     LOG2("DummyVideoSource::stop END");

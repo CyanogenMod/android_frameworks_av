@@ -77,7 +77,7 @@ M4OSA_ERR M4OSA_semaphoreOpen(M4OSA_Context* context,
 
    *context = M4OSA_NULL;
 
-   semaphoreContext = (M4OSA_SemaphoreContext*) M4OSA_malloc(
+   semaphoreContext = (M4OSA_SemaphoreContext*) M4OSA_32bitAlignedMalloc(
                       sizeof(M4OSA_SemaphoreContext), M4OSA_SEMAPHORE,
                       (M4OSA_Char*)"M4OSA_semaphoreOpen: semaphore context");
 
@@ -90,7 +90,7 @@ M4OSA_ERR M4OSA_semaphoreOpen(M4OSA_Context* context,
 
    if (0 != sem_init(&semaphoreContext->semaphore, 0, initial_count))
    {
-      M4OSA_free((M4OSA_MemAddr32)semaphoreContext);
+      free(semaphoreContext);
 
       M4OSA_DEBUG(M4ERR_CONTEXT_FAILED,
          "M4OSA_semaphoreOpen: OS semaphore creation failed");
@@ -257,7 +257,7 @@ M4OSA_ERR M4OSA_semaphoreClose(M4OSA_Context context)
 
    sem_destroy(&semaphoreContext->semaphore);
 
-   M4OSA_free((M4OSA_MemAddr32)semaphoreContext);
+   free(semaphoreContext);
 
    return M4NO_ERROR;
 }

@@ -170,7 +170,7 @@ M4OSA_ERR M4VSS3GPP_intEditStepMP3( M4VSS3GPP_InternalEditContext *pC )
                     (M4OSA_MemAddr8)mp3tagBuffer.m_pData, mp3tagBuffer.m_uiBufferSize);
                 /**
                 * Free before the error checking anyway */
-                M4OSA_free((M4OSA_MemAddr32)mp3tagBuffer.m_pData);
+                free(mp3tagBuffer.m_pData);
 
                 /**
                 * Error checking */

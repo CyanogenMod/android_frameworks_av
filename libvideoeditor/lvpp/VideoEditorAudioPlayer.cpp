@@ -496,7 +496,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
 
                         LOGV("mix with background malloc to do len %d", len);
 
-                        bgFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_malloc( len, 1,
+                        bgFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_32bitAlignedMalloc( len, 1,
                                                        (M4OSA_Char*)"bgFrame");
                         if (NULL == bgFrame.m_dataAddress) {
                             LOGE("mBackgroundAudioSetting Malloc failed");
@@ -504,7 +504,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
 
                         bgFrame.m_bufferSize = len;
 
-                        mixFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_malloc(len, 1,
+                        mixFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_32bitAlignedMalloc(len, 1,
                                                     (M4OSA_Char*)"mixFrame");
                         if (NULL == mixFrame.m_dataAddress) {
                             LOGE("mBackgroundAudioSetting Malloc failed");
@@ -602,10 +602,10 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                             }
                         }
                         if (bgFrame.m_dataAddress) {
-                            M4OSA_free((M4OSA_MemAddr32)bgFrame.m_dataAddress);
+                            free(bgFrame.m_dataAddress);
                         }
                         if (mixFrame.m_dataAddress) {
-                            M4OSA_free((M4OSA_MemAddr32)mixFrame.m_dataAddress);
+                            free(mixFrame.m_dataAddress);
                         }
                     } else {
                         // No mixing;

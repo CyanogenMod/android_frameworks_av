@@ -141,7 +141,7 @@ M4OSA_ERR M4OSA_threadSyncOpen(M4OSA_Context* context,
    *context = M4OSA_NULL;
 
    threadContext =
-      (M4OSA_ThreadContext*)M4OSA_malloc(sizeof(M4OSA_ThreadContext),
+      (M4OSA_ThreadContext*)M4OSA_32bitAlignedMalloc(sizeof(M4OSA_ThreadContext),
       M4OSA_THREAD, (M4OSA_Char*)"M4OSA_threadSyncOpen: thread context");
 
    if(threadContext == M4OSA_NULL)
@@ -475,10 +475,10 @@ M4OSA_ERR M4OSA_threadSyncClose(M4OSA_Context context)
 
    if(threadContext->name != M4OSA_NULL)
    {
-      M4OSA_free((M4OSA_MemAddr32)threadContext->name);
+      free(threadContext->name);
    }
 
-   M4OSA_free((M4OSA_MemAddr32)threadContext);
+   free(threadContext);
 
    return M4NO_ERROR;
 }
@@ -629,7 +629,7 @@ M4OSA_ERR M4OSA_SetThreadSyncName(M4OSA_Context context,
 
    if(threadContext->name != NULL)
    {
-      M4OSA_free((M4OSA_MemAddr32)threadContext->name);
+      free(threadContext->name);
       threadContext->name = M4OSA_NULL;
    }
 
@@ -638,7 +638,7 @@ M4OSA_ERR M4OSA_SetThreadSyncName(M4OSA_Context context,
       nameSize = strlen((const char *)name)+1;
 
       threadContext->name =
-         (M4OSA_Char*)M4OSA_malloc(nameSize, M4OSA_THREAD,
+         (M4OSA_Char*)M4OSA_32bitAlignedMalloc(nameSize, M4OSA_THREAD,
          (M4OSA_Char*)"M4OSA_SetThreadSyncName: thread name");
 
       if(threadContext == M4OSA_NULL)

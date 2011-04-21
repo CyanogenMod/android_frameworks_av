@@ -43,7 +43,7 @@ extern "C"
 * @note        This function converts a string from UTF8 format which is the default
 *            encoding in the engines and application logics to the character encoding
 *            supported by the OS or platform. The memory will be allocated within this
-*            function and then, caller will have to free *targetStart thanks to M4OSA_free.
+*            function and then, caller will have to free *targetStart thanks to free.
 *            Both strings must be NULL-terminateed.
 * @param    pStart        (IN):    String to convert.
 * @param    pOut        (OUT):    This pointer will be filled by this function. It contains the
@@ -61,7 +61,7 @@ typedef M4OSA_UInt32 (*LV_fromUTF8ToNative_Fct)(const M4OSA_Char* pStart,
 * @note        This function converts a string in the character encoding supported by the
 *            OS or platform to from UTF8 format which is the default encoding in the
 *            engines and application logics. The memory will be allocated within this
-*            function and then, caller will have to free *targetStart thanks to M4OSA_free.
+*            function and then, caller will have to free *targetStart thanks to free.
 *            Both strings must be NULL-terminateed.
 * @param    pStart        (IN):    String to convert.
 * @param    pOut        (OUT):    This pointer will be filled by this function. It contains the

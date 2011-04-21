@@ -211,7 +211,7 @@ M4OSA_ERR   M4MCS_registerVideoEncoder (
         /* can be legitimate, in cases where we have one version that can use external encoders
         but which still has the built-in one to be able to work without an external encoder; in
         this case the new encoder simply replaces the old one (i.e. we unregister it first). */
-        M4OSA_free((M4OSA_MemAddr32)pC->pVideoEncoderInterface[MediaType]);
+        free(pC->pVideoEncoderInterface[MediaType]);
         pC->pVideoEncoderInterface[MediaType] = M4OSA_NULL;
     }
 
@@ -265,12 +265,12 @@ M4OSA_ERR   M4MCS_registerAudioEncoder(
 
     if(M4OSA_NULL != pC->pAudioEncoderInterface[MediaType])
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderInterface[MediaType]);
+        free(pC->pAudioEncoderInterface[MediaType]);
         pC->pAudioEncoderInterface[MediaType] = M4OSA_NULL;
 
         if(M4OSA_NULL != pC->pAudioEncoderUserDataTable[MediaType])
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->pAudioEncoderUserDataTable[MediaType]);
+            free(pC->pAudioEncoderUserDataTable[MediaType]);
             pC->pAudioEncoderUserDataTable[MediaType] = M4OSA_NULL;
         }
     }
@@ -366,12 +366,12 @@ M4OSA_ERR   M4MCS_registerVideoDecoder(
         /* can be legitimate, in cases where we have one version that can use external decoders
         but which still has the built-in one to be able to work without an external decoder; in
         this case the new decoder simply replaces the old one (i.e. we unregister it first). */
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pVideoDecoderItTable[decoderType]);
+        free(pC->m_pVideoDecoderItTable[decoderType]);
         pC->m_pVideoDecoderItTable[decoderType] = M4OSA_NULL;
         /* oh, and don't forget the user data, too. */
         if (pC->m_pVideoDecoderUserDataTable[decoderType] != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pVideoDecoderUserDataTable[decoderType]);
+            free(pC->m_pVideoDecoderUserDataTable[decoderType]);
             pC->m_pVideoDecoderUserDataTable[decoderType] = M4OSA_NULL;
         }
 #endif /* are external decoders possible? */
@@ -420,12 +420,12 @@ M4OSA_ERR   M4MCS_registerAudioDecoder(
 
     if(M4OSA_NULL != pC->m_pAudioDecoderItTable[decoderType])
     {
-        M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[decoderType]);
+        free(pC->m_pAudioDecoderItTable[decoderType]);
         pC->m_pAudioDecoderItTable[decoderType] = M4OSA_NULL;
 
         if(M4OSA_NULL != pC->m_pAudioDecoderUserDataTable[decoderType])
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pAudioDecoderUserDataTable[decoderType]);
+            free(pC->m_pAudioDecoderUserDataTable[decoderType]);
             pC->m_pAudioDecoderUserDataTable[decoderType] = M4OSA_NULL;
         }
     }
@@ -455,12 +455,12 @@ M4OSA_ERR   M4MCS_unRegisterAllWriters(M4MCS_Context pContext)
     {
         if (pC->WriterInterface[i].pGlobalFcts != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->WriterInterface[i].pGlobalFcts );
+            free(pC->WriterInterface[i].pGlobalFcts );
             pC->WriterInterface[i].pGlobalFcts = M4OSA_NULL;
         }
         if (pC->WriterInterface[i].pDataFcts != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->WriterInterface[i].pDataFcts );
+            free(pC->WriterInterface[i].pDataFcts );
             pC->WriterInterface[i].pDataFcts = M4OSA_NULL;
         }
     }
@@ -491,7 +491,7 @@ M4OSA_ERR   M4MCS_unRegisterAllEncoders(M4MCS_Context pContext)
     {
         if (pC->pVideoEncoderInterface[i] != M4OSA_NULL)
         {
-            M4OSA_free( (M4OSA_MemAddr32)pC->pVideoEncoderInterface[i] );
+            free(pC->pVideoEncoderInterface[i] );
             pC->pVideoEncoderInterface[i] = M4OSA_NULL;
         }
     }
@@ -503,7 +503,7 @@ M4OSA_ERR   M4MCS_unRegisterAllEncoders(M4MCS_Context pContext)
             /*Don't free external audio encoders interfaces*/
             if (M4OSA_FALSE == pC->pAudioEncoderFlag[i])
             {
-                M4OSA_free( (M4OSA_MemAddr32)pC->pAudioEncoderInterface[i] );
+                free(pC->pAudioEncoderInterface[i] );
             }
             pC->pAudioEncoderInterface[i] = M4OSA_NULL;
         }
@@ -535,12 +535,12 @@ M4OSA_ERR   M4MCS_unRegisterAllReaders(M4MCS_Context pContext)
     {
         if (pC->m_pReaderGlobalItTable[i] != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderGlobalItTable[i] );
+            free(pC->m_pReaderGlobalItTable[i] );
             pC->m_pReaderGlobalItTable[i] = M4OSA_NULL;
         }
         if (pC->m_pReaderDataItTable[i] != M4OSA_NULL)
         {
-            M4OSA_free((M4OSA_MemAddr32)pC->m_pReaderDataItTable[i] );
+            free(pC->m_pReaderDataItTable[i] );
             pC->m_pReaderDataItTable[i] = M4OSA_NULL;
         }
     }
@@ -572,7 +572,7 @@ M4OSA_ERR   M4MCS_unRegisterAllDecoders(M4MCS_Context pContext)
     {
         if (pC->m_pVideoDecoderItTable[i] != M4OSA_NULL)
         {
-            M4OSA_free( (M4OSA_MemAddr32)pC->m_pVideoDecoderItTable[i] );
+            free(pC->m_pVideoDecoderItTable[i] );
             pC->m_pVideoDecoderItTable[i] = M4OSA_NULL;
         }
     }
@@ -584,7 +584,7 @@ M4OSA_ERR   M4MCS_unRegisterAllDecoders(M4MCS_Context pContext)
             /*Don't free external audio decoders interfaces*/
             if (M4OSA_FALSE == pC->m_pAudioDecoderFlagTable[i])
             {
-                M4OSA_free( (M4OSA_MemAddr32)pC->m_pAudioDecoderItTable[i] );
+                free(pC->m_pAudioDecoderItTable[i] );
             }
             pC->m_pAudioDecoderItTable[i] = M4OSA_NULL;
         }

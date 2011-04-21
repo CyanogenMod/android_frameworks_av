@@ -197,7 +197,7 @@ M4OSA_ERR M4MCS_intApplyVPP(M4VPP_Context pContext, M4VIFI_ImagePlane* pPlaneIn,
 
                     /* Allocates plan in local image plane structure */
                     pImagePlanesTemp[0].pac_data =
-                        (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[0]\
+                        (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[0]\
                         .u_width * pImagePlanesTemp[0].u_height, M4VS,
                         (M4OSA_Char *)"M4xVSS_PictureCallbackFct: temporary plane bufferY") ;
                     if(pImagePlanesTemp[0].pac_data == M4OSA_NULL)
@@ -206,7 +206,7 @@ M4OSA_ERR M4MCS_intApplyVPP(M4VPP_Context pContext, M4VIFI_ImagePlane* pPlaneIn,
                         return M4ERR_ALLOC;
                     }
                     pImagePlanesTemp[1].pac_data =
-                        (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[1]\
+                        (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[1]\
                         .u_width * pImagePlanesTemp[1].u_height, M4VS,
                         (M4OSA_Char *)"M4xVSS_PictureCallbackFct: temporary plane bufferU") ;
                     if(pImagePlanesTemp[1].pac_data == M4OSA_NULL)
@@ -215,7 +215,7 @@ M4OSA_ERR M4MCS_intApplyVPP(M4VPP_Context pContext, M4VIFI_ImagePlane* pPlaneIn,
                         return M4ERR_ALLOC;
                     }
                     pImagePlanesTemp[2].pac_data =
-                        (M4OSA_UInt8*)M4OSA_malloc(pImagePlanesTemp[2]\
+                        (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(pImagePlanesTemp[2]\
                         .u_width * pImagePlanesTemp[2].u_height,
                         M4VS,(M4OSA_Char *)"M4xVSS_PictureCallbackFct: temporary plane bufferV") ;
                     if(pImagePlanesTemp[2].pac_data == M4OSA_NULL)
@@ -410,7 +410,7 @@ M4OSA_ERR M4MCS_intApplyVPP(M4VPP_Context pContext, M4VIFI_ImagePlane* pPlaneIn,
                     {
                         if(pImagePlanesTemp[i].pac_data != M4OSA_NULL)
                         {
-                            M4OSA_free((M4OSA_MemAddr32)
+                            free(
                                         pImagePlanesTemp[i].pac_data);
                             pImagePlanesTemp[i].pac_data = M4OSA_NULL;
                         }

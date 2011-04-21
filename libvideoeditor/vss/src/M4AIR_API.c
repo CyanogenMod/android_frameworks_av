@@ -128,7 +128,7 @@ M4OSA_ERR M4AIR_create(M4OSA_Context* pContext,M4AIR_InputFormatType inputFormat
     *pContext = M4OSA_NULL ;
 
     /* Internal Context creation */
-    pC = (M4AIR_InternalContext*)M4OSA_malloc(sizeof(M4AIR_InternalContext),
+    pC = (M4AIR_InternalContext*)M4OSA_32bitAlignedMalloc(sizeof(M4AIR_InternalContext),
          M4AIR,(M4OSA_Char *)"AIR internal context") ;
     M4ERR_CHECK_NULL_RETURN_VALUE(M4ERR_ALLOC, pC) ;
 
@@ -162,7 +162,7 @@ M4AIR_create_cleanup:
     /* Error management : we destroy the context if needed */
     if(M4OSA_NULL != pC)
     {
-        M4OSA_free((M4OSA_MemAddr32)pC) ;
+        free(pC) ;
     }
 
     *pContext = M4OSA_NULL ;
@@ -193,7 +193,7 @@ M4OSA_ERR M4AIR_cleanUp(M4OSA_Context pContext)
     {
         return M4ERR_STATE;
     }
-    M4OSA_free((M4OSA_MemAddr32)pC) ;
+    free(pC) ;
 
     return M4NO_ERROR ;
 

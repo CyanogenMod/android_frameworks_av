@@ -106,7 +106,7 @@ M4OSA_ERR M4WRITER_3GP_openWrite( M4WRITER_Context* pContext,
     /**
      *    Allocate memory for the context */
     *pContext=M4OSA_NULL;
-    apContext = (M4WRITER_3GP_InternalContext*)M4OSA_malloc(
+    apContext = (M4WRITER_3GP_InternalContext*)M4OSA_32bitAlignedMalloc(
                     sizeof(M4WRITER_3GP_InternalContext),
                     M4WRITER_3GP,
                     (M4OSA_Char *)"M4WRITER_3GP_InternalContext");
@@ -365,7 +365,7 @@ M4OSA_ERR M4WRITER_3GP_closeWrite(M4WRITER_Context pContext)
 
     /**
      *    Deallocate our own context */
-    M4OSA_free((M4OSA_MemAddr32)apContext);
+    free(apContext);
 
     M4OSA_TRACE2_1("M4WRITER_3GP_closeWrite: returning 0x%x", err);
     return err;
@@ -863,7 +863,7 @@ M4OSA_ERR M4WRITER_3GP_getInterfaces(
 
     /**
      *    Allocate the global interface structure */
-    pGlobal = (M4WRITER_GlobalInterface*)M4OSA_malloc(
+    pGlobal = (M4WRITER_GlobalInterface*)M4OSA_32bitAlignedMalloc(
                 sizeof(M4WRITER_GlobalInterface),
                 M4WRITER_3GP, (M4OSA_Char *)"M4WRITER_GlobalInterface");
     if (M4OSA_NULL == pGlobal)
@@ -878,13 +878,13 @@ M4OSA_ERR M4WRITER_3GP_getInterfaces(
     /**
      *    Allocate the data interface structure */
     pData =
-        (M4WRITER_DataInterface *)M4OSA_malloc(sizeof(M4WRITER_DataInterface),
+        (M4WRITER_DataInterface *)M4OSA_32bitAlignedMalloc(sizeof(M4WRITER_DataInterface),
         M4WRITER_3GP, (M4OSA_Char *)"M4WRITER_DataInterface");
     if (M4OSA_NULL == pData)
     {
         M4OSA_TRACE1_0("unable to allocate M4WRITER_DataInterface,\
              returning M4ERR_ALLOC");
-        M4OSA_free((M4OSA_MemAddr32)pGlobal);
+        free(pGlobal);
         *SrcGlobalInterface = M4OSA_NULL;
         *SrcDataInterface = M4OSA_NULL;
         return (M4OSA_ERR)M4ERR_ALLOC;
