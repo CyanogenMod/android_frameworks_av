@@ -360,8 +360,8 @@ M4OSA_ERR VideoEditorVideoEncoder_getDSI(M4ENCODER_Context pContext,
             (M4OSA_UInt32)outputBuffer->range_length();
         SAFE_MALLOC(pEncoderContext->mHeader.pBuf, M4OSA_Int8,
             pEncoderContext->mHeader.Size, "Encoder header");
-        M4OSA_memcpy(pEncoderContext->mHeader.pBuf,
-            (M4OSA_MemAddr8)(outputBuffer->data())+outputBuffer->range_offset(),
+        memcpy((void *)pEncoderContext->mHeader.pBuf,
+            (void *)((M4OSA_MemAddr8)(outputBuffer->data())+outputBuffer->range_offset()),
             pEncoderContext->mHeader.Size);
         outputBuffer->release();
     }
@@ -835,8 +835,8 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
                 (M4OSA_UInt32)buffer->range_length();
             SAFE_MALLOC(pEncoderContext->mHeader.pBuf, M4OSA_Int8,
                 pEncoderContext->mHeader.Size, "Encoder header");
-            M4OSA_memcpy(pEncoderContext->mHeader.pBuf,
-                (M4OSA_MemAddr8)(buffer->data())+buffer->range_offset(),
+            memcpy((void *)pEncoderContext->mHeader.pBuf,
+                (void *)((M4OSA_MemAddr8)(buffer->data())+buffer->range_offset()),
                 pEncoderContext->mHeader.Size);
         }
 #endif /* VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION */
@@ -897,9 +897,9 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
         pEncoderContext->mAccessUnit->size = (M4OSA_UInt32)outputSize;
         } else {
             // The AU can just be copied
-            M4OSA_memcpy((M4OSA_MemAddr8)pEncoderContext->mAccessUnit->\
-                dataAddress, (M4OSA_MemAddr8)(buffer->data())+buffer->\
-                range_offset(), buffer->range_length());
+            memcpy((void *)pEncoderContext->mAccessUnit->\
+                dataAddress, (void *)((M4OSA_MemAddr8)(buffer->data())+buffer->\
+                range_offset()), buffer->range_length());
             pEncoderContext->mAccessUnit->size =
                 (M4OSA_UInt32)buffer->range_length();
         }

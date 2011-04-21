@@ -120,8 +120,8 @@ M4OSA_ERR M4PTO3GPP_applyVPP(M4VPP_Context pContext, M4VIFI_ImagePlane* pPlaneIn
          * (the last pic is splited due to the callback extra-call... */
         for (i=0; i<3; i++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)pPlaneOut[i].pac_data,
-                 (M4OSA_MemAddr8)pC->pSavedPlane[i].pac_data,
+            memcpy((void *)pPlaneOut[i].pac_data,
+                 (void *)pC->pSavedPlane[i].pac_data,
                      pPlaneOut[i].u_stride * pPlaneOut[i].u_height);
         }
     }

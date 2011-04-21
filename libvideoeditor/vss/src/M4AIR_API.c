@@ -531,7 +531,7 @@ M4OSA_ERR M4AIR_get(M4OSA_Context pContext, M4VIFI_ImagePlane* pIn, M4VIFI_Image
                     for(j=0;j<pOut[i].u_height;j++)
                     {
                         /**< Copy one whole line */
-                        M4OSA_memcpy((M4OSA_MemAddr8)pu8_data_out, (M4OSA_MemAddr8)pu8_data_in,
+                        memcpy((void *)pu8_data_out, (void *)pu8_data_in,
                              pOut[i].u_width);
 
                         /**< Update pointers */

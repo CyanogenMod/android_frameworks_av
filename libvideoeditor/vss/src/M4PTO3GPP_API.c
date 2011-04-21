@@ -424,8 +424,8 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
     /**
      * Copy the M4PTO3GPP_Params structure */
-    M4OSA_memcpy((M4OSA_MemAddr8)(&pC->m_Params),
-                (M4OSA_MemAddr8)pParams, sizeof(M4PTO3GPP_Params));
+    memcpy((void *)(&pC->m_Params),
+                (void *)pParams, sizeof(M4PTO3GPP_Params));
     M4OSA_TRACE1_1("M4PTO3GPP_Open: outputVideoBitrate = %d", pC->m_Params.OutputVideoBitrate);
 
     /***********************************/
@@ -857,8 +857,8 @@ M4OSA_ERR M4PTO3GPP_Step(M4PTO3GPP_Context pContext)
                      *  Copy audio data from reader AU to writer AU */
                     M4OSA_TRACE2_1("M4PTO3GPP_Step(): Copying audio AU: size=%d",
                         pC->m_pReaderAudioAU->m_size);
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->m_WriterAudioAU.dataAddress,
-                        (M4OSA_MemAddr8)pC->m_pReaderAudioAU->m_dataAddress,
+                    memcpy((void *)pC->m_WriterAudioAU.dataAddress,
+                        (void *)pC->m_pReaderAudioAU->m_dataAddress,
                         pC->m_pReaderAudioAU->m_size);
                     pC->m_WriterAudioAU.size = pC->m_pReaderAudioAU->m_size;
 
@@ -1952,8 +1952,8 @@ static M4OSA_ERR M4PTO3GPP_writeAmrSilence122Frame(M4WRITER_DataInterface* pWrit
         return err;
     }
 
-    M4OSA_memcpy((M4OSA_MemAddr8)pWriterAudioAU->dataAddress,
-     (M4OSA_MemAddr8)M4PTO3GPP_AMR_AU_SILENCE_122_FRAME, M4PTO3GPP_AMR_AU_SILENCE_FRAME_122_SIZE);
+    memcpy((void *)pWriterAudioAU->dataAddress,
+     (void *)M4PTO3GPP_AMR_AU_SILENCE_122_FRAME, M4PTO3GPP_AMR_AU_SILENCE_FRAME_122_SIZE);
     pWriterAudioAU->size    = M4PTO3GPP_AMR_AU_SILENCE_FRAME_122_SIZE;
     pWriterAudioAU->CTS     = mtIncCts;
     pWriterAudioAU->nbFrag  = 0;
@@ -2000,8 +2000,8 @@ static M4OSA_ERR M4PTO3GPP_writeAmrSilence048Frame(M4WRITER_DataInterface* pWrit
         return err;
     }
 
-    M4OSA_memcpy((M4OSA_MemAddr8)pWriterAudioAU->dataAddress,
-                (M4OSA_MemAddr8)M4PTO3GPP_AMR_AU_SILENCE_048_FRAME,
+    memcpy((void *)pWriterAudioAU->dataAddress,
+                (void *)M4PTO3GPP_AMR_AU_SILENCE_048_FRAME,
                 M4PTO3GPP_AMR_AU_SILENCE_FRAME_048_SIZE);
     pWriterAudioAU->size    = M4PTO3GPP_AMR_AU_SILENCE_FRAME_048_SIZE;
     pWriterAudioAU->CTS     = mtIncCts;

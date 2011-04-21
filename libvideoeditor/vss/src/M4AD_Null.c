@@ -171,11 +171,11 @@ M4OSA_ERR    M4AD_NULL_step(M4AD_Context context, M4AD_Buffer *pInputBuffer,
     }
     else
     {
-        M4OSA_memcpy(pDecodedPCMBuffer->m_dataAddress, pInputBuffer->m_dataAddress,
+        memcpy((void *)pDecodedPCMBuffer->m_dataAddress, (void *)pInputBuffer->m_dataAddress,
                     pInputBuffer->m_bufferSize );
     }
 #else /*M4AD_FORCE_16BITS*/
-    M4OSA_memcpy(pDecodedPCMBuffer->m_dataAddress, pInputBuffer->m_dataAddress,
+    memcpy((void *)pDecodedPCMBuffer->m_dataAddress, (void *)pInputBuffer->m_dataAddress,
                     pInputBuffer->m_bufferSize );
 #endif /*M4AD_FORCE_16BITS*/
 

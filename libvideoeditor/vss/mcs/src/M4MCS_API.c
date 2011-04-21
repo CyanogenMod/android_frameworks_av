@@ -756,8 +756,8 @@ M4OSA_ERR H264MCS_ProcessEncodedNALU(   M4OSA_Void *ainstance,
 
     // StageFright codecs may add a start code, make sure it is not present
 
-    if( !M4OSA_memcmp((M4OSA_MemAddr8)inbuff,
-        (M4OSA_MemAddr8)"\x00\x00\x00\x01", 4) )
+    if( !memcmp((void *)inbuff,
+        "\x00\x00\x00\x01", 4) )
     {
         M4OSA_TRACE1_3(
             "H264MCS_ProcessNALU ERROR : NALU start code has not been removed %d "
@@ -770,7 +770,7 @@ M4OSA_ERR H264MCS_ProcessEncodedNALU(   M4OSA_Void *ainstance,
     // StageFright encoder does not provide the size in the first 4 bytes of the AU, add it
     pTmpBuff1 = (M4OSA_Int8 *)M4OSA_malloc(inbuf_size + 4, M4MCS,
         (M4OSA_Char *)"tmpNALU");
-    M4OSA_memcpy((M4OSA_MemAddr8)(pTmpBuff1 + 4), (M4OSA_MemAddr8)inbuff,
+    memcpy((void *)(pTmpBuff1 + 4), (void *)inbuff,
         inbuf_size);
     pTmpBuff1[3] = ( (M4OSA_UInt32)inbuf_size) & 0x000000FF;
     pTmpBuff1[2] = ( (M4OSA_UInt32)inbuf_size >> 8) & 0x000000FF;
@@ -1576,8 +1576,8 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
         }
 
         instance->m_pFinalDSISize = instance->m_decoderSpecificInfoSize;
-        M4OSA_memcpy((M4OSA_MemAddr8)instance->m_pFinalDSI,
-            (M4OSA_MemAddr8)instance->m_pDecoderSpecificInfo,
+        memcpy((void *)instance->m_pFinalDSI,
+            (void *)instance->m_pDecoderSpecificInfo,
             instance->m_decoderSpecificInfoSize);
     }
     else
@@ -1605,8 +1605,8 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
             return M4ERR_ALLOC;
         }
 
-        M4OSA_memcpy((M4OSA_MemAddr8)instance->m_pFinalDSI,
-            (M4OSA_MemAddr8)instance->m_pDecoderSpecificInfo,
+        memcpy((void *)instance->m_pFinalDSI,
+            (void *)instance->m_pDecoderSpecificInfo,
             instance->m_decoderSpecificInfoSize);
 
         temp = instance->m_pFinalDSI[lClipDSI_PPS_offset];
@@ -1955,8 +1955,8 @@ M4OSA_ERR H264MCS_ProcessNALU( NSWAVC_MCS_t *ainstance, M4OSA_UInt8 *inbuff,
         else
         {
             p_bs->Buffer = p_bs->Buffer - 5;
-            M4OSA_memcpy((M4OSA_MemAddr8) &outbuff[outbuffpos],
-                (M4OSA_MemAddr8)p_bs->Buffer, nal_size + 4);
+            memcpy((void *) &outbuff[outbuffpos],
+                (void *)p_bs->Buffer, nal_size + 4);
 
             outbuff[outbuffpos] = (M4OSA_UInt8)((nal_size >> 24)& 0xFF);
         outbuff[outbuffpos + 1] = (M4OSA_UInt8)((nal_size >> 16)& 0xFF);;
@@ -3173,8 +3173,8 @@ M4OSA_ERR M4MCS_close( M4MCS_Context pContext )
                         M4OSA_TRACE1_0("instance->m_pFinalDSI: allocation error");
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pInstance->m_pFinalDSI,
-                        (M4OSA_MemAddr8)pC-> \
+                    memcpy((void *)pC->m_pInstance->m_pFinalDSI,
+                        (void *)pC-> \
                         m_pInstance->m_pDecoderSpecificInfo,
                         pC->m_pInstance->m_decoderSpecificInfoSize);
                 }
@@ -3577,8 +3577,8 @@ M4OSA_ERR M4MCS_getInputFileProperties( M4MCS_Context pContext,
 
     /**
     * Copy previously computed properties into given structure */
-    M4OSA_memcpy((M4OSA_MemAddr8)pFileProperties,
-        (M4OSA_MemAddr8) &pC->InputFileProperties,
+    memcpy((void *)pFileProperties,
+        (void *) &pC->InputFileProperties,
         sizeof(M4VIDEOEDITING_ClipProperties));
 
     return M4NO_ERROR;
@@ -4319,8 +4319,8 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
         for ( j = 0; j < pC->nbEffects; j++ )
         {
             /* Copy effect to "local" structure */
-            M4OSA_memcpy((M4OSA_MemAddr8) &(pC->pEffects[j]),
-                (M4OSA_MemAddr8) &(pParams->pEffects[j]),
+            memcpy((void *) &(pC->pEffects[j]),
+                (void *) &(pParams->pEffects[j]),
                 sizeof(M4MCS_EffectSettings));
 
             switch( pC->pEffects[j].AudioEffectType )
@@ -6804,8 +6804,8 @@ static M4OSA_ERR M4MCS_intPrepareWriter( M4MCS_InternalContext *pC )
                 }
 
                 /* Copy Reading DSI to new DSI */
-                M4OSA_memcpy(pC->WriterVideoStreamInfo.Header.pBuf,
-                    pC->pReaderVideoStream->
+                memcpy((void *)pC->WriterVideoStreamInfo.Header.pBuf,
+                    (void *)pC->pReaderVideoStream->
                     m_basicProperties.m_pDecoderSpecificInfo,
                     pC->WriterVideoStreamInfo.Header.Size);
 
@@ -7986,8 +7986,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
                     pC->ReaderAudioAU1.m_maxsize;
             }
             /**/
-            M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataAddress1,
-                (M4OSA_MemAddr8)pC->ReaderAudioAU1.m_dataAddress,
+            memcpy((void *)pC->m_pDataAddress1,
+                (void *)pC->ReaderAudioAU1.m_dataAddress,
                 pC->ReaderAudioAU1.m_size);
         }
 
@@ -8021,8 +8021,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
         * Read the next audio AU in the input file */
         if( pC->ReaderAudioAU2.m_CTS > pC->ReaderAudioAU1.m_CTS )
         {
-            M4OSA_memcpy((M4OSA_MemAddr8) &pC->ReaderAudioAU,
-                (M4OSA_MemAddr8) &pC->ReaderAudioAU2, sizeof(M4_AccessUnit));
+            memcpy((void *) &pC->ReaderAudioAU,
+                (void *) &pC->ReaderAudioAU2, sizeof(M4_AccessUnit));
             err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
                 (M4_StreamHandler *)pC->pReaderAudioStream,
                 &pC->ReaderAudioAU1);
@@ -8050,8 +8050,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
                     pC->ReaderAudioAU1.m_maxsize;
             }
             /**/
-            M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataAddress1,
-                (M4OSA_MemAddr8)pC->ReaderAudioAU1.m_dataAddress,
+            memcpy((void *)pC->m_pDataAddress1,
+                (void *)pC->ReaderAudioAU1.m_dataAddress,
                 pC->ReaderAudioAU1.m_size);
             pC->m_audioAUDuration =
                 pC->ReaderAudioAU1.m_CTS - pC->ReaderAudioAU2.m_CTS;
@@ -8059,8 +8059,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
         }
         else
         {
-            M4OSA_memcpy((M4OSA_MemAddr8) &pC->ReaderAudioAU,
-                (M4OSA_MemAddr8) &pC->ReaderAudioAU1, sizeof(M4_AccessUnit));
+            memcpy((void *) &pC->ReaderAudioAU,
+                (void *) &pC->ReaderAudioAU1, sizeof(M4_AccessUnit));
             err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
                 (M4_StreamHandler *)pC->pReaderAudioStream,
                 &pC->ReaderAudioAU2);
@@ -8089,8 +8089,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
                     pC->ReaderAudioAU2.m_maxsize;
             }
             /**/
-            M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataAddress2,
-                (M4OSA_MemAddr8)pC->ReaderAudioAU2.m_dataAddress,
+            memcpy((void *)pC->m_pDataAddress2,
+                (void *)pC->ReaderAudioAU2.m_dataAddress,
                 pC->ReaderAudioAU2.m_size);
             pC->m_audioAUDuration =
                 pC->ReaderAudioAU2.m_CTS - pC->ReaderAudioAU1.m_CTS;
@@ -8142,15 +8142,15 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
             if( pC->InputFileProperties.uiNbChannels == 1 )
             {
                 pC->WriterAudioAU.size = M4VSS3GPP_AAC_AU_SILENCE_MONO_SIZE;
-                M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress,
-                    (M4OSA_MemAddr8)M4VSS3GPP_AAC_AU_SILENCE_MONO,
+                memcpy((void *)pC->WriterAudioAU.dataAddress,
+                    (void *)M4VSS3GPP_AAC_AU_SILENCE_MONO,
                     pC->WriterAudioAU.size);
             }
             else if( pC->InputFileProperties.uiNbChannels == 2 )
             {
                 pC->WriterAudioAU.size = M4VSS3GPP_AAC_AU_SILENCE_STEREO_SIZE;
-                M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress,
-                    (M4OSA_MemAddr8)M4VSS3GPP_AAC_AU_SILENCE_STEREO,
+                memcpy((void *)pC->WriterAudioAU.dataAddress,
+                    (void *)M4VSS3GPP_AAC_AU_SILENCE_STEREO,
                     pC->WriterAudioAU.size);
             }
             else
@@ -8165,17 +8165,17 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
             == M4VIDEOEDITING_kAMR_NB )
         {
             pC->WriterAudioAU.size = M4VSS3GPP_AMR_AU_SILENCE_FRAME_048_SIZE;
-            M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress,
-                (M4OSA_MemAddr8)M4VSS3GPP_AMR_AU_SILENCE_FRAME_048,
+            memcpy((void *)pC->WriterAudioAU.dataAddress,
+                (void *)M4VSS3GPP_AMR_AU_SILENCE_FRAME_048,
                 pC->WriterAudioAU.size);
             /* Some remaining AMR AU needs to be copied */
             if( pC->ReaderAudioAU.m_size != 0 )
             {
                 /* Update Writer AU */
                 pC->WriterAudioAU.size += pC->ReaderAudioAU.m_size;
-                M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress
-                    + M4VSS3GPP_AMR_AU_SILENCE_FRAME_048_SIZE,
-                    (M4OSA_MemAddr8)pC->ReaderAudioAU.m_dataAddress,
+                memcpy((void *)(pC->WriterAudioAU.dataAddress
+                    + M4VSS3GPP_AMR_AU_SILENCE_FRAME_048_SIZE),
+                    (void *)pC->ReaderAudioAU.m_dataAddress,
                     pC->ReaderAudioAU.m_size);
             }
         }
@@ -8185,8 +8185,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
             M4OSA_TRACE3_1(
                 "M4MCS_intAudioNullEncoding(): Copying audio AU: size=%d",
                 pC->ReaderAudioAU.m_size);
-            M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress,
-                (M4OSA_MemAddr8)pC->ReaderAudioAU.m_dataAddress,
+            memcpy((void *)pC->WriterAudioAU.dataAddress,
+                (void *)pC->ReaderAudioAU.m_dataAddress,
                 pC->ReaderAudioAU.m_size);
             pC->WriterAudioAU.size = pC->ReaderAudioAU.m_size;
         }
@@ -8198,8 +8198,8 @@ static M4OSA_ERR M4MCS_intAudioNullEncoding( M4MCS_InternalContext *pC )
         M4OSA_TRACE3_1(
             "M4MCS_intAudioNullEncoding(): Copying audio AU: size=%d",
             pC->ReaderAudioAU.m_size);
-        M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterAudioAU.dataAddress,
-            (M4OSA_MemAddr8)pC->ReaderAudioAU.m_dataAddress,
+        memcpy((void *)pC->WriterAudioAU.dataAddress,
+            (void *)pC->ReaderAudioAU.m_dataAddress,
             pC->ReaderAudioAU.m_size);
         pC->WriterAudioAU.size = pC->ReaderAudioAU.m_size;
     }
@@ -8421,7 +8421,7 @@ m4mcs_intaudiotranscoding_feed_resampler:
 
     /**
     * Copy from the decoder out buffer into the Ssrc in buffer */
-    M4OSA_memcpy(pC->pPosInSsrcBufferIn, pC->pPosInDecBufferOut,
+    memcpy((void *)pC->pPosInSsrcBufferIn, (void *)pC->pPosInDecBufferOut,
         uiDecoder2Ssrc_NbBytes);
 
     /**
@@ -8471,16 +8471,16 @@ m4mcs_intaudiotranscoding_do_resampling:
             (short *)M4OSA_malloc((pC->iSsrcNbSamplOut * sizeof(short) * 2
             * ((*pC).InputFileProperties).uiNbChannels),
             M4VSS3GPP,(M4OSA_Char *) "tempBuffOut");
-        M4OSA_memset((M4OSA_MemAddr8)tempBuffOut, (pC->iSsrcNbSamplOut * sizeof(short) * 2
-            * ((*pC).InputFileProperties).uiNbChannels), 0);
+        memset((void *)tempBuffOut, 0,(pC->iSsrcNbSamplOut * sizeof(short) * 2
+            * ((*pC).InputFileProperties).uiNbChannels));
 
         LVAudioresample_LowQuality((short *)tempBuffOut, (short *)pSsrcInput,
             pC->iSsrcNbSamplOut, pC->pLVAudioResampler);
     }
     else
     {
-        M4OSA_memset(pC->pSsrcBufferOut, (pC->iSsrcNbSamplOut * sizeof(short)
-            * ((*pC).InputFileProperties).uiNbChannels), 0);
+        memset((void *)pC->pSsrcBufferOut, 0, (pC->iSsrcNbSamplOut * sizeof(short)
+            * ((*pC).InputFileProperties).uiNbChannels));
 
         LVAudioresample_LowQuality((short *)pC->pSsrcBufferOut,
             (short *)pSsrcInput, pC->iSsrcNbSamplOut, pC->pLVAudioResampler);
@@ -8607,7 +8607,7 @@ m4mcs_intaudiotranscoding_prepare_input_buffer:
     else
     {
         /* copy from the ssrc out buffer into the encoder in buffer */
-        M4OSA_memcpy(pC->pPosInAudioEncoderBuffer, pC->pPosInSsrcBufferOut,
+        memcpy((void *)pC->pPosInAudioEncoderBuffer, (void *)pC->pPosInSsrcBufferOut,
             uiSsrc2Encoder_NbBytes);
     }
 
@@ -9081,8 +9081,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             pC->pReaderVideoStream->m_basicProperties.m_maxAUSize =
                 pC->ReaderVideoAU1.m_maxsize;
         }
-        M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataVideoAddress1,
-            (M4OSA_MemAddr8)pC->ReaderVideoAU1.m_dataAddress,
+        memcpy((void *)pC->m_pDataVideoAddress1,
+            (void *)pC->ReaderVideoAU1.m_dataAddress,
             pC->ReaderVideoAU1.m_size);
     }
 
@@ -9115,8 +9115,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
     * Read the next video AU in the input file */
     if( pC->ReaderVideoAU2.m_CTS > pC->ReaderVideoAU1.m_CTS )
     {
-        M4OSA_memcpy((M4OSA_MemAddr8) &pC->ReaderVideoAU,
-            (M4OSA_MemAddr8) &pC->ReaderVideoAU2, sizeof(M4_AccessUnit));
+        memcpy((void *) &pC->ReaderVideoAU,
+            (void *) &pC->ReaderVideoAU2, sizeof(M4_AccessUnit));
         err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream,
             &pC->ReaderVideoAU1);
@@ -9141,16 +9141,16 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             pC->pReaderVideoStream->m_basicProperties.m_maxAUSize =
                 pC->ReaderVideoAU1.m_maxsize;
         }
-        M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataVideoAddress1,
-            (M4OSA_MemAddr8)pC->ReaderVideoAU1.m_dataAddress,
+        memcpy((void *)pC->m_pDataVideoAddress1,
+            (void *)pC->ReaderVideoAU1.m_dataAddress,
             pC->ReaderVideoAU1.m_size);
         videoAUDuration = pC->ReaderVideoAU1.m_CTS - pC->ReaderVideoAU2.m_CTS;
         pC->ReaderVideoAU.m_dataAddress = pC->m_pDataVideoAddress2;
     }
     else
     {
-        M4OSA_memcpy((M4OSA_MemAddr8) &pC->ReaderVideoAU,
-            (M4OSA_MemAddr8) &pC->ReaderVideoAU1, sizeof(M4_AccessUnit));
+        memcpy((void *) &pC->ReaderVideoAU,
+            (void *) &pC->ReaderVideoAU1, sizeof(M4_AccessUnit));
         err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream,
             &pC->ReaderVideoAU2);
@@ -9175,8 +9175,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             pC->pReaderVideoStream->m_basicProperties.m_maxAUSize =
                 pC->ReaderVideoAU2.m_maxsize;
         }
-        M4OSA_memcpy((M4OSA_MemAddr8)pC->m_pDataVideoAddress2,
-            (M4OSA_MemAddr8)pC->ReaderVideoAU2.m_dataAddress,
+        memcpy((void *)pC->m_pDataVideoAddress2,
+            (void *)pC->ReaderVideoAU2.m_dataAddress,
             pC->ReaderVideoAU2.m_size);
         videoAUDuration = pC->ReaderVideoAU2.m_CTS - pC->ReaderVideoAU1.m_CTS;
         pC->ReaderVideoAU.m_dataAddress = pC->m_pDataVideoAddress1;
@@ -9219,7 +9219,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
         {
             /**
             * Copy video data from reader AU to writer AU */
-            //M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterVideoAU.dataAddress,
+            //memcpy((M4OSA_MemAddr8)pC->WriterVideoAU.dataAddress,
             //(M4OSA_MemAddr8)pC->ReaderVideoAU.m_dataAddress, pC->ReaderVideoAU.m_size);
             pC->WriterVideoAU.size = pC->ReaderVideoAU.m_size;
 
@@ -9282,8 +9282,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
                         (M4OSA_UInt8 *)pC->ReaderVideoAU.m_dataAddress ,
                         pC->ReaderVideoAU.m_size);
 
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterVideoAU.dataAddress,
-                        (M4OSA_MemAddr8)(pC->ReaderVideoAU.m_dataAddress + 4),
+                    memcpy((void *)pC->WriterVideoAU.dataAddress,
+                        (void *)(pC->ReaderVideoAU.m_dataAddress + 4),
                         pC->ReaderVideoAU.m_size - 4);
                     pC->WriterVideoAU.size = pC->ReaderVideoAU.m_size - 4;
                     WritebufferAdd =
@@ -9291,8 +9291,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
                 }
                 else
                 {
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterVideoAU.dataAddress,
-                        (M4OSA_MemAddr8)(pC->H264MCSTempBuffer + 4),
+                    memcpy((void *)pC->WriterVideoAU.dataAddress,
+                        (void *)(pC->H264MCSTempBuffer + 4),
                         pC->H264MCSTempBufferDataSize - 4);
                     pC->WriterVideoAU.size = pC->H264MCSTempBufferDataSize - 4;
                     WritebufferAdd =
@@ -9302,8 +9302,8 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             /* H.264 Trimming */
             else
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)pC->WriterVideoAU.dataAddress,
-                    (M4OSA_MemAddr8)pC->ReaderVideoAU.m_dataAddress,
+                memcpy((void *)pC->WriterVideoAU.dataAddress,
+                    (void *)pC->ReaderVideoAU.m_dataAddress,
                     pC->ReaderVideoAU.m_size);
                 pC->WriterVideoAU.size = pC->ReaderVideoAU.m_size;
             }
@@ -9337,13 +9337,13 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
         {
             if( pC->m_pInstance->is_done == 1 )
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)(WritebufferAdd - 4),
-                    (M4OSA_MemAddr8)(pC->ReaderVideoAU.m_dataAddress), 4);
+                memcpy((void *)(WritebufferAdd - 4),
+                    (void *)(pC->ReaderVideoAU.m_dataAddress), 4);
             }
             else
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)(WritebufferAdd - 4),
-                    (M4OSA_MemAddr8)(pC->H264MCSTempBuffer), 4);
+                memcpy((void *)(WritebufferAdd - 4),
+                    (void *)(pC->H264MCSTempBuffer), 4);
             }
         } /* H.264 Trimming */
     }
@@ -9487,8 +9487,8 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
     pC->InputFileProperties.Version[2] = M4VIDEOEDITING_VERSION_REVISION;
     pC->InputFileProperties.uiClipDuration = 0;
 
-    M4OSA_memset((M4OSA_MemAddr8) &pC->InputFileProperties.ftyp,
-        sizeof(M4VIDEOEDITING_FtypBox), 0);
+    memset((void *) &pC->InputFileProperties.ftyp,
+        0, sizeof(M4VIDEOEDITING_FtypBox));
 
     /**
     * Reset video characteristics */

@@ -111,7 +111,7 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
     pClipCtxt = *hClipCtxt;
 
     /* Inialization of context Variables */
-    M4OSA_memset((M4OSA_MemAddr8)pClipCtxt, sizeof(M4VSS3GPP_ClipContext), 0);
+    memset((void *)pClipCtxt, 0,sizeof(M4VSS3GPP_ClipContext));
 
     pClipCtxt->pSettings = M4OSA_NULL;
 
@@ -1390,16 +1390,16 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeCurrentAudioFrame(
         }
 
         /* Fill it with 0 (= pcm silence) */
-        M4OSA_memset(pClipCtxt->AudioDecBufferOut.m_dataAddress,
-             pClipCtxt->AudioDecBufferOut.m_bufferSize * sizeof(M4OSA_Int16), 0);
+        memset(pClipCtxt->AudioDecBufferOut.m_dataAddress,0,
+             pClipCtxt->AudioDecBufferOut.m_bufferSize * sizeof(M4OSA_Int16));
     }
     else if (pClipCtxt->pSettings->FileType == M4VIDEOEDITING_kFileType_PCM)
     {
         pClipCtxt->AudioDecBufferIn.m_dataAddress = (M4OSA_MemAddr8) pClipCtxt->pAudioFramePtr;
         pClipCtxt->AudioDecBufferIn.m_bufferSize  = pClipCtxt->uiAudioFrameSize;
 
-        M4OSA_memcpy(pClipCtxt->AudioDecBufferOut.m_dataAddress,
-            pClipCtxt->AudioDecBufferIn.m_dataAddress, pClipCtxt->AudioDecBufferIn.m_bufferSize);
+        memcpy((void *)pClipCtxt->AudioDecBufferOut.m_dataAddress,
+            (void *)pClipCtxt->AudioDecBufferIn.m_dataAddress, pClipCtxt->AudioDecBufferIn.m_bufferSize);
         pClipCtxt->AudioDecBufferOut.m_bufferSize = pClipCtxt->AudioDecBufferIn.m_bufferSize;
         /**
         * Return with no error */

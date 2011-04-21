@@ -42,7 +42,7 @@ M4OSA_UInt32 M4VD_EXTERNAL_GetBitsFromMemory(M4VS_Bitstream_ctxt* parsingCtxt,
     {
         if (parsingCtxt->stream_index == 8)
         {
-            M4OSA_memcpy( (M4OSA_MemAddr8)&(parsingCtxt->stream_byte), parsingCtxt->in,
+            memcpy( (void *)&(parsingCtxt->stream_byte), (void *)parsingCtxt->in,
                  sizeof(unsigned char));
             parsingCtxt->in++;
             //fread(&stream_byte, sizeof(unsigned char),1,in);

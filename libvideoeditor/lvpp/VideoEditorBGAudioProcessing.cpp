@@ -74,8 +74,8 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
     pMixedOutBuffer->m_bufferSize = pPrimaryTrack->m_bufferSize;
 
     // Before mixing, we need to have only PT as out buffer
-    M4OSA_memcpy((M4OSA_MemAddr8)pMixedOutBuffer->m_dataAddress,
-     (M4OSA_MemAddr8)pPrimaryTrack->m_dataAddress, pMixedOutBuffer->m_bufferSize);
+    memcpy((void *)pMixedOutBuffer->m_dataAddress,
+     (void *)pPrimaryTrack->m_dataAddress, pMixedOutBuffer->m_bufferSize);
 
     // Initially contains the input primary track
     pPTMdata2 = (M4OSA_Int16*)pMixedOutBuffer->m_dataAddress;
@@ -210,8 +210,8 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
         pPTMdata2++;
     }
     //LOGV("VideoEditorBGAudioProcessing:: Copy final out ");
-    M4OSA_memcpy((M4OSA_MemAddr8)pMixedOutBuffer->m_dataAddress,
-     (M4OSA_MemAddr8)pBackgroundTrack->m_dataAddress,
+    memcpy((void *)pMixedOutBuffer->m_dataAddress,
+     (void *)pBackgroundTrack->m_dataAddress,
       pBackgroundTrack->m_bufferSize);
 
     LOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck EXIT");

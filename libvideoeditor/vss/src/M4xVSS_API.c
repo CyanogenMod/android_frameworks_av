@@ -159,7 +159,7 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
             M4OSA_TRACE1_0("Allocation error in M4xVSS_Init");
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pTempPath, pParams->pTempPath,
+        memcpy((void *)xVSS_context->pTempPath, (void *)pParams->pTempPath,
             strlen(pParams->pTempPath) + 1);
         /* TODO: Check that no previous xVSS temporary files are present ? */
     }
@@ -873,8 +873,8 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             /**/
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->pOutputFile,
-            (M4OSA_MemAddr8)pDecodedPath, pSettings->uiOutputPathSize + 1);
+        memcpy((void *)xVSS_context->pSettings->pOutputFile,
+            (void *)pDecodedPath, pSettings->uiOutputPathSize + 1);
         xVSS_context->pSettings->uiOutputPathSize = pSettings->uiOutputPathSize;
         xVSS_context->pOutputFile = xVSS_context->pSettings->pOutputFile;
     }
@@ -1082,9 +1082,9 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             return M4ERR_ALLOC;
         }
         /* Set clip list to NULL */
-        M4OSA_memset((M4OSA_MemAddr8)xVSS_context->pSettings->pClipList,
+        memset((void *)xVSS_context->pSettings->pClipList,0,
             sizeof(M4VSS3GPP_ClipSettings *)
-            *xVSS_context->pSettings->uiClipNumber, 0);
+            *xVSS_context->pSettings->uiClipNumber);
 
         if( xVSS_context->pSettings->uiClipNumber > 1 )
         {
@@ -1104,10 +1104,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 return M4ERR_ALLOC;
             }
             /* Set transition list to NULL */
-            M4OSA_memset(
-                (M4OSA_MemAddr8)xVSS_context->pSettings->pTransitionList,
+            memset(
+                (void *)xVSS_context->pSettings->pTransitionList,0,
                 sizeof(M4VSS3GPP_TransitionSettings *)
-                *(xVSS_context->pSettings->uiClipNumber - 1), 0);
+                *(xVSS_context->pSettings->uiClipNumber - 1));
         }
         else
         {
@@ -1232,9 +1232,9 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 return M4ERR_ALLOC;
             }
 
-            M4OSA_memcpy(
-                (M4OSA_MemAddr8)xVSS_context->pSettings->pTransitionList[i],
-                (M4OSA_MemAddr8)pSettings->pTransitionList[i],
+            memcpy(
+                (void *)xVSS_context->pSettings->pTransitionList[i],
+                (void *)pSettings->pTransitionList[i],
                 sizeof(M4VSS3GPP_TransitionSettings));
             /* Initialize external effect context to NULL, to know if input jpg has already been
             decoded or not */
@@ -1267,10 +1267,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     }
                     /* Copy data from the provided alpha magic settings structure tou our
                     structure */
-                    M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->
+                    memcpy((void *)xVSS_context->pSettings->
                         pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings,
-                        (M4OSA_MemAddr8)pSettings->pTransitionList[i]-> \
+                        (void *)pSettings->pTransitionList[i]-> \
                         xVSS.transitionSpecific.pAlphaMagicSettings,
                         sizeof(M4xVSS_AlphaMagicSettings));
 
@@ -1841,7 +1841,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 /**/
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy(pParams->pFileIn, pDecodedPath,
+            memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
                 (length + 1)); /* Copy input file path */
 
             /* Check that JPG file is present on the FS (P4ME00002974) by just opening and
@@ -1910,7 +1910,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 /**/
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy(pParams->pFileOut, pDecodedPath,
+            memcpy((void *)pParams->pFileOut, (void *)pDecodedPath,
                 (length + 1)); /* Copy output file path */
 
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
@@ -1956,7 +1956,7 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 /**/
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy(pParams->pFileTemp, pDecodedPath,
+            memcpy((void *)pParams->pFileTemp, (void *)pDecodedPath,
                 (length + 1)); /* Copy temporary file path */
 
 #endif                         /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
@@ -2134,8 +2134,8 @@ replaceJPG_3GP:
                 /**/
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy(xVSS_context->pSettings->pClipList[i]->pFile,
-                pDecodedPath, (length + 1));
+            memcpy((void *)xVSS_context->pSettings->pClipList[i]->pFile,
+                (void *)pDecodedPath, (length + 1));
             /*FB: add file path size because of UTF16 conversion*/
             xVSS_context->pSettings->pClipList[i]->filePathSize = length+1;
         }
@@ -2325,7 +2325,7 @@ replaceJPG_3GP:
                         /**/
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy(pParams->pFileIn, pDecodedPath,
+                    memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
                         (length + 1)); /* Copy input file path */
 
                     /* Check that JPG file is present on the FS (P4ME00002974) by just opening
@@ -2394,7 +2394,7 @@ replaceJPG_3GP:
                         /**/
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy(pParams->pFileOut, pDecodedPath,
+                    memcpy((void *)pParams->pFileOut, (void *)pDecodedPath,
                         (length + 1)); /* Copy output file path */
 
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
@@ -2440,7 +2440,7 @@ replaceJPG_3GP:
                         /**/
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy(pParams->pFileTemp, pDecodedPath,
+                    memcpy((void *)pParams->pFileTemp, (void *)pDecodedPath,
                         (length + 1)); /* Copy temporary file path */
 
 #endif                         /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
@@ -2610,8 +2610,8 @@ replaceARGB_3GP:
                         /**/
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy(xVSS_context->pSettings->pClipList[i]->pFile,
-                        pDecodedPath, (length + 1));
+                    memcpy((void *)xVSS_context->pSettings->pClipList[i]->pFile,
+                        (void *)pDecodedPath, (length + 1));
                     /*FB: add file path size because of UTF16 conversion*/
                     xVSS_context->pSettings->pClipList[i]->filePathSize = length+1;
         }
@@ -2646,8 +2646,8 @@ replaceARGB_3GP:
 
             /* Initialize file properties structure */
 
-            M4OSA_memset((M4OSA_MemAddr8) &fileProperties,
-                sizeof(M4VIDEOEDITING_ClipProperties), 0);
+            memset((void *) &fileProperties,0,
+                sizeof(M4VIDEOEDITING_ClipProperties));
 
             //fileProperties.AudioStreamType = M4VIDEOEDITING_kNoneAudio;
 
@@ -3295,7 +3295,7 @@ replaceARGB_3GP:
                     /**/
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy(pParams->pFileIn, pDecodedPath,
+                memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
                     (length + 1)); /* Copy input file path */
 
                 /**
@@ -3341,7 +3341,7 @@ replaceARGB_3GP:
                     /**/
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy(pParams->pFileOut, pDecodedPath,
+                memcpy((void *)pParams->pFileOut, (void *)pDecodedPath,
                     (length + 1)); /* Copy output file path */
 
 #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
@@ -3390,7 +3390,7 @@ replaceARGB_3GP:
                     /**/
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy(pParams->pFileTemp, pDecodedPath,
+                memcpy((void *)pParams->pFileTemp, (void *)pDecodedPath,
                     (length + 1)); /* Copy temporary file path */
 
 #else
@@ -3492,8 +3492,8 @@ replace3GP_3GP:
                     /**/
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy(xVSS_context->pSettings->pClipList[i]->pFile,
-                    pDecodedPath, (length + 1));
+                memcpy((void *)xVSS_context->pSettings->pClipList[i]->pFile,
+                    (void *)pDecodedPath, (length + 1));
                 /*FB: add file path size because of UTF 16 conversion*/
                 xVSS_context->pSettings->pClipList[i]->filePathSize = length+1;
 
@@ -3550,8 +3550,8 @@ replace3GP_3GP:
     for ( j = 0; j < xVSS_context->pSettings->nbEffects; j++ )
     {
         /* Copy effect to "local" structure */
-        M4OSA_memcpy((M4OSA_MemAddr8) &(xVSS_context->pSettings->Effects[j]),
-            (M4OSA_MemAddr8) &(pSettings->Effects[j]),
+        memcpy((void *) &(xVSS_context->pSettings->Effects[j]),
+            (void *) &(pSettings->Effects[j]),
             sizeof(M4VSS3GPP_EffectSettings));
 
         /* Prevent from bad initializing of effect percentage time */
@@ -3618,9 +3618,9 @@ replace3GP_3GP:
                     /**/
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->
+                memcpy((void *)xVSS_context->pSettings->
                     Effects[j].xVSS.pFramingFilePath,
-                    (M4OSA_MemAddr8)pSettings->
+                    (void *)pSettings->
                     Effects[j].xVSS.pFramingFilePath, strlen(
                     pSettings->Effects[j].xVSS.pFramingFilePath) + 1);
 
@@ -3786,8 +3786,8 @@ replace3GP_3GP:
                 /**/
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy((M4OSA_MemAddr8)framingCtx->pEffectFilePath,
-                (M4OSA_MemAddr8)pDecodedPath, length + 1);
+            memcpy((void *)framingCtx->pEffectFilePath,
+                (void *)pDecodedPath, length + 1);
 
             /* Save framing structure associated with corresponding effect */
             xVSS_context->pSettings->Effects[j].pExtVideoEffectFctCtxt =
@@ -4220,7 +4220,7 @@ replace3GP_3GP:
                     M4VS, (M4OSA_Char *)"Local text buffer effect");
 
                 //xVSS_context->pSettings->Effects[j].xVSS.pTextBuffer =
-                // M4OSA_malloc(M4OSA_chrLength(pSettings->Effects[j].xVSS.pTextBuffer)+1,
+                // M4OSA_malloc(strlen(pSettings->Effects[j].xVSS.pTextBuffer)+1,
                 // M4VS, "Local text buffer effect");
                 if( xVSS_context->pSettings->Effects[j].xVSS.pTextBuffer
                     == M4OSA_NULL )
@@ -4235,12 +4235,12 @@ replace3GP_3GP:
 
                 if( pSettings->Effects[j].xVSS.pTextBuffer != M4OSA_NULL )
                 {
-                    //M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->Effects[j]
+                    //memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->Effects[j]
                     //.xVSS.pTextBuffer, (M4OSA_MemAddr8)pSettings->Effects[j].xVSS.pTextBuffer,
-                    // M4OSA_chrLength(pSettings->Effects[j].xVSS.pTextBuffer)+1);
-                    M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->
+                    // strlen(pSettings->Effects[j].xVSS.pTextBuffer)+1);
+                    memcpy((void *)xVSS_context->pSettings->
                         Effects[j].xVSS.pTextBuffer,
-                        (M4OSA_MemAddr8)pDecodedPath, xVSS_context->pSettings->
+                        (void *)pDecodedPath, xVSS_context->pSettings->
                         Effects[j].xVSS.textBufferSize + 1);
                 }
 
@@ -4537,8 +4537,8 @@ replace3GP_3GP:
         }
 
         /* Copy input structure to our structure */
-        M4OSA_memcpy((M4OSA_MemAddr8)xVSS_context->pSettings->xVSS.pBGMtrack,
-            (M4OSA_MemAddr8)pSettings->xVSS.pBGMtrack,
+        memcpy((void *)xVSS_context->pSettings->xVSS.pBGMtrack,
+            (void *)pSettings->xVSS.pBGMtrack,
             sizeof(M4xVSS_BGMSettings));
         /* Allocate file name, and copy file name buffer to our structure */
         xVSS_context->pSettings->xVSS.pBGMtrack->pFile =
@@ -4551,7 +4551,7 @@ replace3GP_3GP:
             M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
+        memcpy((void *)xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
             (void *)pSettings->xVSS.pBGMtrack->pFile,
             strlen(pSettings->xVSS.pBGMtrack->pFile) + 1);
 
@@ -4836,7 +4836,7 @@ replace3GP_3GP:
             /**/
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pcmPreviewFile, pDecodedPath, length + 1);
+        memcpy((void *)xVSS_context->pcmPreviewFile, (void *)pDecodedPath, length + 1);
 
         /* Free temporary output filename */
         if( out_pcm != M4OSA_NULL )
@@ -4856,7 +4856,7 @@ replace3GP_3GP:
         }
         pParams->pFileTemp = M4OSA_NULL;
 
-        M4OSA_memcpy(pParams->pFileOut, xVSS_context->pcmPreviewFile,
+        memcpy((void *)pParams->pFileOut,(void *) xVSS_context->pcmPreviewFile,
             (length + 1)); /* Copy output file path */
 
 #if 0
@@ -4927,7 +4927,7 @@ replace3GP_3GP:
             M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(pParams->pFileIn, pDecodedPath,
+        memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
             (length + 1)); /* Copy input file path */
 
         pParams->isBGM = M4OSA_TRUE;
@@ -5402,7 +5402,7 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             M4OSA_TRACE1_0("Allocation error in M4xVSS_SaveStart");
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pOutputFile, pDecodedPath, filePathSize + 1);
+        memcpy((void *)xVSS_context->pOutputFile, (void *)pDecodedPath, filePathSize + 1);
         xVSS_context->pOutputFile[filePathSize] = '\0';
         xVSS_context->pSettings->pOutputFile = xVSS_context->pOutputFile;
         xVSS_context->pSettings->uiOutputPathSize = filePathSize;
@@ -5430,8 +5430,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
     }
 
     /* Copy settings from input structure */
-    M4OSA_memcpy((M4OSA_MemAddr8) &(pEditSavingSettings->xVSS),
-        (M4OSA_MemAddr8) &(xVSS_context->pSettings->xVSS),
+    memcpy((void *) &(pEditSavingSettings->xVSS),
+        (void *) &(xVSS_context->pSettings->xVSS),
         sizeof(M4xVSS_EditSettings));
 
     /* Initialize pEditSavingSettings structure */
@@ -5596,8 +5596,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
                     }
                     return M4ERR_ALLOC;
                 }
-                M4OSA_memcpy(pEditSavingSettings->pClipList[i]->pFile,
-                    pDecodedPath, length + 1);
+                memcpy((void *)pEditSavingSettings->pClipList[i]->pFile,
+                    (void *)pDecodedPath, length + 1);
             }
             /*FB: add file path size because of UTF 16 conversion*/
             pEditSavingSettings->pClipList[i]->filePathSize = length+1;
@@ -5606,9 +5606,9 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
                 < xVSS_context->pSettings->uiClipNumber
                 - 1 ) /* Because there is 1 less transition than clip number */
             {
-                M4OSA_memcpy(
-                    (M4OSA_MemAddr8)pEditSavingSettings->pTransitionList[i],
-                    (M4OSA_MemAddr8)xVSS_context->pSettings->
+                memcpy(
+                    (void *)pEditSavingSettings->pTransitionList[i],
+                    (void *)xVSS_context->pSettings->
                     pTransitionList[i],
                     sizeof(M4VSS3GPP_TransitionSettings));
             }
@@ -5661,8 +5661,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         /* Just copy effect structure to saving structure, as effects time are now */
         /* relative to output clip time*/
-        M4OSA_memcpy((M4OSA_MemAddr8)pEditSavingSettings->Effects,
-            (M4OSA_MemAddr8)xVSS_context->pSettings->Effects,
+        memcpy((void *)pEditSavingSettings->Effects,
+            (void *)xVSS_context->pSettings->Effects,
             nbEffects * sizeof(M4VSS3GPP_EffectSettings));
     }
     else
@@ -5708,8 +5708,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
 
         /* Just copy effect structure to saving structure, as effects time are now */
         /* relative to output clip time*/
-        M4OSA_memcpy((M4OSA_MemAddr8)pEditSavingSettings->xVSS.pBGMtrack,
-            (M4OSA_MemAddr8)xVSS_context->pSettings->xVSS.pBGMtrack,
+        memcpy((void *)pEditSavingSettings->xVSS.pBGMtrack,
+            (void *)xVSS_context->pSettings->xVSS.pBGMtrack,
             sizeof(M4xVSS_BGMSettings));
 
         /* Allocate file name, and copy file name buffer to our structure */
@@ -5730,8 +5730,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             }
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(pEditSavingSettings->xVSS.pBGMtrack->pFile,
-            xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
+        memcpy((void *)pEditSavingSettings->xVSS.pBGMtrack->pFile,
+            (void *)xVSS_context->pSettings->xVSS.pBGMtrack->pFile,
             strlen(xVSS_context->pSettings->xVSS.pBGMtrack->pFile)
             + 1);
 
@@ -5781,8 +5781,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
                 }
                 return M4ERR_ALLOC;
             }
-            M4OSA_memcpy(pEditSavingSettings->xVSS.pBGMtrack->pFile,
-                pDecodedPath, length + 1);
+            memcpy((void *)pEditSavingSettings->xVSS.pBGMtrack->pFile,
+                (void *)pDecodedPath, length + 1);
         }
 
         /**/
@@ -5841,8 +5841,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             }
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pCurrentEditSettings->pOutputFile,
-            pDecodedPath, length + 1);
+        memcpy((void *)xVSS_context->pCurrentEditSettings->pOutputFile,
+            (void *)pDecodedPath, length + 1);
         xVSS_context->pCurrentEditSettings->uiOutputPathSize = length + 1;
 
         /**
@@ -5892,8 +5892,8 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             }
             return M4ERR_ALLOC;
         }
-        M4OSA_memcpy(xVSS_context->pCurrentEditSettings->pTemporaryFile,
-            pDecodedPath, length + 1);
+        memcpy((void *)xVSS_context->pCurrentEditSettings->pTemporaryFile,
+            (void *)pDecodedPath, length + 1);
 
         /* Put nb of step for progression monitoring to 2, because audio mixing is needed */
         xVSS_context->nbStepTotal = 2;
@@ -6070,9 +6070,9 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                                 - 1].filePathSize
                                 == pVSSContext->pClipList[i].filePathSize )
                             {
-                                cmpResult = M4OSA_memcmp(pVSSContext->
+                                cmpResult = memcmp((void *)pVSSContext->
                                     pClipList[pVSSContext->uiCurrentClip
-                                    - 1].pFile, pVSSContext->pClipList[i].pFile,
+                                    - 1].pFile, (void *)pVSSContext->pClipList[i].pFile,
                                     pVSSContext->
                                     pClipList[pVSSContext->uiCurrentClip
                                     - 1].filePathSize);

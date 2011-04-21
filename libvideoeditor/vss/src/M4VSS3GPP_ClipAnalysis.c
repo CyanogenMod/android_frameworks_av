@@ -487,8 +487,8 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
     pClipProperties->bMPEG4rvlc = M4OSA_FALSE;
     pClipProperties->bMPEG4resynchMarker = M4OSA_FALSE;
 
-    M4OSA_memset((M4OSA_MemAddr8) &pClipProperties->ftyp,
-        sizeof(pClipProperties->ftyp), 0);
+    memset((void *) &pClipProperties->ftyp,0,
+        sizeof(pClipProperties->ftyp));
 
     /**
     * Video Analysis */

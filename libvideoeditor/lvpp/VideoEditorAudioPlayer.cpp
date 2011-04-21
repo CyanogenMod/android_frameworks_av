@@ -585,8 +585,8 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                                          &ptFrame, &bgFrame, &mixFrame);
 
                                         // Overwrite the decoded buffer
-                                    M4OSA_memcpy((M4OSA_MemAddr8)ptr,
-                                         (M4OSA_MemAddr8)mixFrame.m_dataAddress, len);
+                                    memcpy((void *)ptr,
+                                         (void *)mixFrame.m_dataAddress, len);
                                 }
                             }
                         } else if (mAudioMixSettings->bLoop){

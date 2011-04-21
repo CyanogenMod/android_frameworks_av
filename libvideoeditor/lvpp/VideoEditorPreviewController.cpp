@@ -217,8 +217,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
             LOGE("loadEditSettings: Malloc error");
             return M4ERR_ALLOC;
         }
-        M4OSA_memset((M4OSA_MemAddr8)mClipList,
-         sizeof(M4VSS3GPP_ClipSettings*)*pSettings->uiClipNumber, 0);
+        memset((void *)mClipList,0,
+         sizeof(M4VSS3GPP_ClipSettings*)*pSettings->uiClipNumber);
 
         for(i=0;i<pSettings->uiClipNumber;i++) {
 
@@ -233,8 +233,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                 return M4ERR_ALLOC;
             }
             // Copy plain structure
-            M4OSA_memcpy((M4OSA_MemAddr8)mClipList[i],
-             (M4OSA_MemAddr8)pSettings->pClipList[i],
+            memcpy((void *)mClipList[i],
+             (void *)pSettings->pClipList[i],
              sizeof(M4VSS3GPP_ClipSettings));
 
             if(NULL != pSettings->pClipList[i]->pFile) {
@@ -248,8 +248,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                     return M4ERR_ALLOC;
                 }
 
-                M4OSA_memcpy((M4OSA_MemAddr8)mClipList[i]->pFile,
-                 (M4OSA_MemAddr8)pSettings->pClipList[i]->pFile,
+                memcpy((void *)mClipList[i]->pFile,
+                 (void *)pSettings->pClipList[i]->pFile,
                  pSettings->pClipList[i]->filePathSize);
             }
             else {
@@ -279,8 +279,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                 return M4ERR_ALLOC;
             }
 
-            M4OSA_memset((M4OSA_MemAddr8)mEffectsSettings,
-             mNumberEffects*sizeof(M4VSS3GPP_EffectSettings), 0);
+            memset((void *)mEffectsSettings,0,
+             mNumberEffects*sizeof(M4VSS3GPP_EffectSettings));
 
             for(i=0;i<mNumberEffects;i++) {
 
@@ -288,8 +288,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                 mEffectsSettings[i].xVSS.pFramingBuffer = NULL;
                 mEffectsSettings[i].xVSS.pTextBuffer = NULL;
 
-                M4OSA_memcpy((M4OSA_MemAddr8)&(mEffectsSettings[i]),
-                 (M4OSA_MemAddr8)&(pSettings->Effects[i]),
+                memcpy((void *)&(mEffectsSettings[i]),
+                 (void *)&(pSettings->Effects[i]),
                  sizeof(M4VSS3GPP_EffectSettings));
 
                 if(pSettings->Effects[i].VideoEffectType ==
@@ -367,9 +367,9 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                      pSettings->Effects[i].xVSS.uialphaBlendingFadeOutTime;
 
                     // Copy the pFraming data
-                    M4OSA_memcpy((M4OSA_MemAddr8)
+                    memcpy((void *)
                     mEffectsSettings[i].xVSS.pFramingBuffer->pac_data,
-                    (M4OSA_MemAddr8)pSettings->Effects[i].xVSS.pFramingBuffer->pac_data,
+                    (void *)pSettings->Effects[i].xVSS.pFramingBuffer->pac_data,
                     rgbSize);
 
                     mEffectsSettings[i].xVSS.rgbType =
@@ -390,8 +390,8 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
             return M4ERR_ALLOC;
         }
 
-        M4OSA_memset((M4OSA_MemAddr8)mBackgroundAudioSetting, sizeof(M4xVSS_AudioMixingSettings*), 0);
-        M4OSA_memcpy((M4OSA_MemAddr8)mBackgroundAudioSetting, (M4OSA_MemAddr8)bgmSettings, sizeof(M4xVSS_AudioMixingSettings));
+        memset((void *)mBackgroundAudioSetting, 0,sizeof(M4xVSS_AudioMixingSettings*));
+        memcpy((void *)mBackgroundAudioSetting, (void *)bgmSettings, sizeof(M4xVSS_AudioMixingSettings));
 
         if ( mBackgroundAudioSetting->pFile != M4OSA_NULL ) {
 
@@ -770,12 +770,12 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
      (M4OSA_UInt32)outBufferStride, (M4VIFI_UInt8 *)outBuffer);
 
     /* Fill the surface with black frame */
-    M4OSA_memset((M4OSA_MemAddr8)planeOut[0].pac_data,planeOut[0].u_width *
-                            planeOut[0].u_height * 1.5,0x00);
-    M4OSA_memset((M4OSA_MemAddr8)planeOut[1].pac_data,planeOut[1].u_width *
-                            planeOut[1].u_height,128);
-    M4OSA_memset((M4OSA_MemAddr8)planeOut[2].pac_data,planeOut[2].u_width *
-                             planeOut[2].u_height,128);
+    memset((void *)planeOut[0].pac_data,0x00,planeOut[0].u_width *
+                            planeOut[0].u_height * 1.5);
+    memset((void *)planeOut[1].pac_data,128,planeOut[1].u_width *
+                            planeOut[1].u_height);
+    memset((void *)planeOut[2].pac_data,128,planeOut[2].u_width *
+                             planeOut[2].u_height);
 
     mTarget->renderYV12();
     return err;

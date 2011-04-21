@@ -148,8 +148,8 @@ M4OSA_ERR M4VSS3GPP_audioMixingInit( M4VSS3GPP_AudioMixingContext *pContext,
     }
 
     /* Initialization of context Variables */
-    M4OSA_memset((M4OSA_MemAddr8)pC ,
-                 sizeof(M4VSS3GPP_InternalAudioMixingContext),0);
+    memset((void *)pC ,0,
+                 sizeof(M4VSS3GPP_InternalAudioMixingContext));
     /**
     * Copy this setting in context */
     pC->iAddCts = pSettings->uiAddCts;
@@ -1007,7 +1007,7 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
                     return M4ERR_ALLOC;
                 }
                 pC->ewc.uiVideoOutputDsiSize = (M4OSA_UInt16)encHeader->Size;
-                M4OSA_memcpy(pC->ewc.pVideoOutputDsi, encHeader->pBuf,
+                memcpy((void *)pC->ewc.pVideoOutputDsi, (void *)encHeader->pBuf,
                     encHeader->Size);
             }
 
@@ -1939,8 +1939,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingWriteSilence(
 
     M4OSA_TRACE2_0("A #### silence AU");
 
-    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-        (M4OSA_MemAddr8)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
+    memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+        (void *)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
 
     pC->ewc.WriterAudioAU.size = pC->ewc.uiSilenceFrameSize;
     pC->ewc.WriterAudioAU.CTS =
@@ -2039,8 +2039,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingStepVideo(
 
     /**
     * Copy the input AU payload to the output AU */
-    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterVideoAU.dataAddress,
-        (M4OSA_MemAddr8)(pC->pInputClipCtxt->VideoAU.m_dataAddress + offset),
+    memcpy((void *)pC->ewc.WriterVideoAU.dataAddress,
+        (void *)(pC->pInputClipCtxt->VideoAU.m_dataAddress + offset),
         (pC->pInputClipCtxt->VideoAU.m_size));
 
     /**
@@ -2679,8 +2679,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCopyOrig(
 
     /**
     * Copy the AU itself */
-    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-        pC->pInputClipCtxt->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
+    memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+        (void *)pC->pInputClipCtxt->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
 
     /**
     * Write the mixed AU */
@@ -2860,7 +2860,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCopyAdded(
         {
             tempPosBuffer = pC->pSsrcBufferOut
                 + pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;
-            M4OSA_memmove(pC->pSsrcBufferOut, tempPosBuffer,
+            memmove((void *)pC->pSsrcBufferOut, (void *)tempPosBuffer,
                 pC->pPosInSsrcBufferOut - tempPosBuffer);
             pC->pPosInSsrcBufferOut -=
                 pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;
@@ -2868,7 +2868,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCopyAdded(
         else
         {
             tempPosBuffer = pC->pSsrcBufferIn + pC->minimumBufferIn;
-            M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+            memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
                 pC->pPosInSsrcBufferIn - tempPosBuffer);
             pC->pPosInSsrcBufferIn -= pC->minimumBufferIn;
         }
@@ -2954,8 +2954,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCopyAdded(
 
         /**
         * Copy the AU itself */
-        M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-            pC->pAddedClipCtxt->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
+        memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+            (void *)pC->pAddedClipCtxt->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
 
         /**
         * Write the mixed AU */
@@ -3116,8 +3116,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
         }
 
         /* Copy decoded data into SSRC buffer in */
-        M4OSA_memcpy(pC->pPosInSsrcBufferIn,
-            pC->pAddedClipCtxt->AudioDecBufferOut.m_dataAddress,
+        memcpy((void *)pC->pPosInSsrcBufferIn,
+            (void *)pC->pAddedClipCtxt->AudioDecBufferOut.m_dataAddress,
             pC->pAddedClipCtxt->AudioDecBufferOut.m_bufferSize);
         /* Update position pointer into SSRC buffer In */
 
@@ -3138,8 +3138,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                 /* We use ChannelConversion variable because in case 2, we need twice less data */
             {
                 ssrcErr = 0;
-                M4OSA_memset(pC->pPosInTempBuffer,
-                    (pC->iSsrcNbSamplOut * sizeof(short) * pC->ewc.uiNbChannels),0);
+                memset((void *)pC->pPosInTempBuffer,0,
+                    (pC->iSsrcNbSamplOut * sizeof(short) * pC->ewc.uiNbChannels));
 
                 LVAudioresample_LowQuality((short*)pC->pPosInTempBuffer,
                     (short*)pC->pSsrcBufferIn,
@@ -3162,7 +3162,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                     pC->pSsrcBufferIn + (pC->iSsrcNbSamplIn * sizeof(short)
                     * pC->pAddedClipCtxt->pSettings->
                     ClipProperties.uiNbChannels);
-                M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+                memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
                     pC->pPosInSsrcBufferIn - tempPosBuffer);
                 pC->pPosInSsrcBufferIn -= pC->iSsrcNbSamplIn * sizeof(short)
                     * pC->pAddedClipCtxt->pSettings->
@@ -3175,8 +3175,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                 < (M4OSA_Int32)pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize )
             {
                 ssrcErr = 0;
-                M4OSA_memset(pC->pPosInSsrcBufferOut,
-                    (pC->iSsrcNbSamplOut * sizeof(short) * pC->ewc.uiNbChannels),0);
+                memset((void *)pC->pPosInSsrcBufferOut,0,
+                    (pC->iSsrcNbSamplOut * sizeof(short) * pC->ewc.uiNbChannels));
 
                 LVAudioresample_LowQuality((short*)pC->pPosInSsrcBufferOut,
                     (short*)pC->pSsrcBufferIn,
@@ -3197,7 +3197,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                     pC->pSsrcBufferIn + (pC->iSsrcNbSamplIn * sizeof(short)
                     * pC->pAddedClipCtxt->pSettings->
                     ClipProperties.uiNbChannels);
-                M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+                memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
                     pC->pPosInSsrcBufferIn - tempPosBuffer);
                 pC->pPosInSsrcBufferIn -= pC->iSsrcNbSamplIn * sizeof(short)
                     * pC->pAddedClipCtxt->pSettings->
@@ -3224,7 +3224,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                         * pC->pAddedClipCtxt->pSettings->
                         ClipProperties.
                         uiNbChannels); /* Buffer is in bytes */
-                    M4OSA_memmove(pC->pTempBuffer, tempPosBuffer,
+                    memmove((void *)pC->pTempBuffer, (void *)tempPosBuffer,
                         pC->pPosInTempBuffer - tempPosBuffer);
                     pC->pPosInTempBuffer -=
                         (uiChannelConvertorNbSamples * sizeof(short)
@@ -3246,7 +3246,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                         + (uiChannelConvertorNbSamples * sizeof(short)
                         * pC->pAddedClipCtxt->pSettings->
                         ClipProperties.uiNbChannels);
-                    M4OSA_memmove(pC->pTempBuffer, tempPosBuffer,
+                    memmove((void *)pC->pTempBuffer, (void *)tempPosBuffer,
                         pC->pPosInTempBuffer - tempPosBuffer);
                     pC->pPosInTempBuffer -=
                         (uiChannelConvertorNbSamples * sizeof(short)
@@ -3282,7 +3282,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                         * pC->pAddedClipCtxt->pSettings->
                         ClipProperties.
                         uiNbChannels); /* Buffer is in bytes */
-                    M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+                    memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
                         pC->pPosInSsrcBufferIn - tempPosBuffer);
                     pC->pPosInSsrcBufferIn -=
                         (uiChannelConvertorNbSamples * sizeof(short)
@@ -3304,7 +3304,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingConvert(
                         + (uiChannelConvertorNbSamples * sizeof(short)
                         * pC->pAddedClipCtxt->pSettings->
                         ClipProperties.uiNbChannels);
-                    M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+                    memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
                         pC->pPosInSsrcBufferIn - tempPosBuffer);
                     pC->pPosInSsrcBufferIn -=
                         (uiChannelConvertorNbSamples * sizeof(short)
@@ -3653,7 +3653,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingDoMixing(
     {
         tempPosBuffer = pC->pSsrcBufferOut
             + pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;
-        M4OSA_memmove(pC->pSsrcBufferOut, tempPosBuffer,
+        memmove((void *)pC->pSsrcBufferOut, (void *)tempPosBuffer,
             pC->pPosInSsrcBufferOut - tempPosBuffer);
         pC->pPosInSsrcBufferOut -=
             pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;
@@ -3663,7 +3663,7 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingDoMixing(
     {
         tempPosBuffer = pC->pSsrcBufferIn
             + pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;
-        M4OSA_memmove(pC->pSsrcBufferIn, tempPosBuffer,
+        memmove((void *)pC->pSsrcBufferIn, (void *)tempPosBuffer,
             pC->pPosInSsrcBufferIn - tempPosBuffer);
         pC->pPosInSsrcBufferIn -=
             pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize;

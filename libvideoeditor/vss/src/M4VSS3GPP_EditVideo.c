@@ -269,8 +269,8 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                         return M4VSS3GPP_ERR_INPUT_VIDEO_AU_TOO_LARGE;
                     }
 
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterVideoAU.dataAddress,
-                        (pC->pC1->VideoAU.m_dataAddress + offset),
+                    memcpy((void *)pC->ewc.WriterVideoAU.dataAddress,
+                        (void *)(pC->pC1->VideoAU.m_dataAddress + offset),
                         (pC->ewc.WriterVideoAU.size));
 
                     /**
@@ -999,12 +999,12 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         /**
         * We must fill the input of the encoder with a dummy image, because
         * encoding noise leads to a huge video AU, and thus a writer buffer overflow. */
-        M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[0].pac_data,
-            pPlaneOut[0].u_stride * pPlaneOut[0].u_height, 0);
-        M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[1].pac_data,
-            pPlaneOut[1].u_stride * pPlaneOut[1].u_height, 0);
-        M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[2].pac_data,
-            pPlaneOut[2].u_stride * pPlaneOut[2].u_height, 0);
+        memset((void *)pPlaneOut[0].pac_data,0,
+            pPlaneOut[0].u_stride * pPlaneOut[0].u_height);
+        memset((void *)pPlaneOut[1].pac_data,0,
+            pPlaneOut[1].u_stride * pPlaneOut[1].u_height);
+        memset((void *)pPlaneOut[2].pac_data,0,
+            pPlaneOut[2].u_stride * pPlaneOut[2].u_height);
 
         M4OSA_TRACE3_0("M4VSS3GPP_intVPP: returning M4NO_ERROR (abort)");
         return M4NO_ERROR;
@@ -1152,14 +1152,14 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         else
         {
             /* Copy last decoded plane to output plane */
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[0].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[0].pac_data,
+            memcpy((void *)pTmp[0].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[0].pac_data,
                 (pTmp[0].u_height * pTmp[0].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[1].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[1].pac_data,
+            memcpy((void *)pTmp[1].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[1].pac_data,
                 (pTmp[1].u_height * pTmp[1].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[2].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[2].pac_data,
+            memcpy((void *)pTmp[2].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[2].pac_data,
                 (pTmp[2].u_height * pTmp[2].u_width));
             pC->pC1->lastDecodedPlane = pTmp;
         }
@@ -1218,14 +1218,14 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         else
         {
             /* Copy last decoded plane to output plane */
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[0].pac_data,
-                (M4OSA_MemAddr8)pC->pC2->lastDecodedPlane[0].pac_data,
+            memcpy((void *)pTmp[0].pac_data,
+                (void *)pC->pC2->lastDecodedPlane[0].pac_data,
                 (pTmp[0].u_height * pTmp[0].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[1].pac_data,
-                (M4OSA_MemAddr8)pC->pC2->lastDecodedPlane[1].pac_data,
+            memcpy((void *)pTmp[1].pac_data,
+                (void *)pC->pC2->lastDecodedPlane[1].pac_data,
                 (pTmp[1].u_height * pTmp[1].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[2].pac_data,
-                (M4OSA_MemAddr8)pC->pC2->lastDecodedPlane[2].pac_data,
+            memcpy((void *)pTmp[2].pac_data,
+                (void *)pC->pC2->lastDecodedPlane[2].pac_data,
                 (pTmp[2].u_height * pTmp[2].u_width));
             pC->pC2->lastDecodedPlane = pTmp;
         }
@@ -1326,14 +1326,14 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         else
         {
             /* Copy last decoded plane to output plane */
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[0].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[0].pac_data,
+            memcpy((void *)pTmp[0].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[0].pac_data,
                 (pTmp[0].u_height * pTmp[0].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[1].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[1].pac_data,
+            memcpy((void *)pTmp[1].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[1].pac_data,
                 (pTmp[1].u_height * pTmp[1].u_width));
-            M4OSA_memcpy((M4OSA_MemAddr8)pTmp[2].pac_data,
-                (M4OSA_MemAddr8)pC->pC1->lastDecodedPlane[2].pac_data,
+            memcpy((void *)pTmp[2].pac_data,
+                (void *)pC->pC1->lastDecodedPlane[2].pac_data,
                 (pTmp[2].u_height * pTmp[2].u_width));
             pC->pC1->lastDecodedPlane = pTmp;
         }
@@ -1780,8 +1780,8 @@ M4VSS3GPP_intVideoTransition( M4VSS3GPP_InternalEditContext *pC,
 
             while( i-- > 0 )
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)pPlaneOut[i].pac_data,
-                 (M4OSA_MemAddr8)pPlane[i].pac_data,
+                memcpy((void *)pPlaneOut[i].pac_data,
+                 (void *)pPlane[i].pac_data,
                     pPlaneOut[i].u_stride * pPlaneOut[i].u_height);
             }
             break;

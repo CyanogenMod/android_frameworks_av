@@ -322,8 +322,8 @@ M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
                     /**
                     * Copy a silence AU to the output */
                     pC->ewc.WriterAudioAU.size = pC->ewc.uiSilenceFrameSize;
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-                        (M4OSA_MemAddr8)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
+                    memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+                        (void *)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
                     M4OSA_TRACE2_0("A #### silence AU");
                 }
                 else if( (M4OSA_UInt32)pC->pC1->uiAudioFrameSize
@@ -333,8 +333,8 @@ M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
                     * Copy the input AU to the output AU */
                     pC->ewc.WriterAudioAU.size =
                         (M4OSA_UInt32)pC->pC1->uiAudioFrameSize;
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-                        pC->pC1->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
+                    memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+                        (void *)pC->pC1->pAudioFramePtr, pC->ewc.WriterAudioAU.size);
                 }
                 else
                 {
@@ -650,8 +650,8 @@ M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
                     /**
                     * Copy a silence AMR AU to the output */
                     pC->ewc.WriterAudioAU.size = pC->ewc.uiSilenceFrameSize;
-                    M4OSA_memcpy((M4OSA_MemAddr8)pC->ewc.WriterAudioAU.dataAddress,
-                        (M4OSA_MemAddr8)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
+                    memcpy((void *)pC->ewc.WriterAudioAU.dataAddress,
+                        (void *)pC->ewc.pSilenceFrameData, pC->ewc.uiSilenceFrameSize);
                     M4OSA_TRACE2_0("G #### silence AU");
                 }
                 else
@@ -1786,8 +1786,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioTransition( M4VSS3GPP_InternalEditContext
             {
                 /**
                 * Copy the input PCM to the output buffer */
-                M4OSA_memcpy((M4OSA_MemAddr8)pPCMdata1,
-                    (M4OSA_MemAddr8)pPCMdata2, uiPCMsize);
+                memcpy((void *)pPCMdata1,
+                    (void *)pPCMdata2, uiPCMsize);
             }
             /**
             * the output must be put in the first buffer.

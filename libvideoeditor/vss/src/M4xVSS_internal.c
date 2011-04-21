@@ -878,12 +878,12 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
 
         if(pC->m_mediaRendering == M4xVSS_kBlackBorders)
         {
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanes[0].pac_data,
-                (pImagePlanes[0].u_height*pImagePlanes[0].u_stride),Y_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanes[1].pac_data,
-                (pImagePlanes[1].u_height*pImagePlanes[1].u_stride),U_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanes[2].pac_data,
-                (pImagePlanes[2].u_height*pImagePlanes[2].u_stride),V_PLANE_BORDER_VALUE);
+            memset((void *)pImagePlanes[0].pac_data,Y_PLANE_BORDER_VALUE,
+                (pImagePlanes[0].u_height*pImagePlanes[0].u_stride));
+            memset((void *)pImagePlanes[1].pac_data,U_PLANE_BORDER_VALUE,
+                (pImagePlanes[1].u_height*pImagePlanes[1].u_stride));
+            memset((void *)pImagePlanes[2].pac_data,V_PLANE_BORDER_VALUE,
+                (pImagePlanes[2].u_height*pImagePlanes[2].u_stride));
 
             /**
             First without pan&zoom*/
@@ -2166,7 +2166,7 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
 
         for(i=0;i<rgbPlane.u_height;i++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)output_pac_data, (M4OSA_MemAddr8)input_pac_data,
+            memcpy((void *)output_pac_data, (void *)input_pac_data,
                  (rgbPlane.u_width-1)*2);
 
             output_pac_data += ((rgbPlane.u_width-1)*2);
@@ -3852,32 +3852,32 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                 switch (ColorContext->colorEffectType)
                 {
                     case M4xVSS_kVideoEffectType_BlackAndWhite:
-                        M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                         PlaneIn[plane_number].u_width, 128);
+                        memset((void *)p_buf_dest,128,
+                         PlaneIn[plane_number].u_width);
                         break;
                     case M4xVSS_kVideoEffectType_Pink:
-                        M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                         PlaneIn[plane_number].u_width, 255);
+                        memset((void *)p_buf_dest,255,
+                         PlaneIn[plane_number].u_width);
                         break;
                     case M4xVSS_kVideoEffectType_Green:
-                        M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                         PlaneIn[plane_number].u_width, 0);
+                        memset((void *)p_buf_dest,0,
+                         PlaneIn[plane_number].u_width);
                         break;
                     case M4xVSS_kVideoEffectType_Sepia:
                         if(plane_number==1)
                         {
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, 117);
+                            memset((void *)p_buf_dest,117,
+                             PlaneIn[plane_number].u_width);
                         }
                         else
                         {
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, 139);
+                            memset((void *)p_buf_dest,139,
+                             PlaneIn[plane_number].u_width);
                         }
                         break;
                     case M4xVSS_kVideoEffectType_Negative:
-                        M4OSA_memcpy((M4OSA_MemAddr8)p_buf_dest,
-                         (M4OSA_MemAddr8)p_buf_src ,PlaneOut[plane_number].u_width);
+                        memcpy((void *)p_buf_dest,
+                         (void *)p_buf_src ,PlaneOut[plane_number].u_width);
                         break;
 
                     case M4xVSS_kVideoEffectType_ColorRGB16:
@@ -3894,15 +3894,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                             {
                                 /*then convert to u*/
                                 u = U16(r, g, b);
-                                M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                                 PlaneIn[plane_number].u_width, (M4OSA_UInt8)u);
+                                memset((void *)p_buf_dest,(M4OSA_UInt8)u,
+                                 PlaneIn[plane_number].u_width);
                             }
                             if(plane_number==2)
                             {
                                 /*then convert to v*/
                                 v = V16(r, g, b);
-                                M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                                 PlaneIn[plane_number].u_width, (M4OSA_UInt8)v);
+                                memset((void *)p_buf_dest, (M4OSA_UInt8)v,
+                                 PlaneIn[plane_number].u_width);
                             }
                         }
                         break;
@@ -3925,15 +3925,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                             {
                                 /*then convert to u*/
                                 u = U16(r, g, b);
-                                M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                                 PlaneIn[plane_number].u_width, (M4OSA_UInt8)u);
+                                memset((void *)p_buf_dest,(M4OSA_UInt8)u,
+                                 PlaneIn[plane_number].u_width);
                             }
                             if(plane_number==2)
                             {
                                 /*then convert to v*/
                                 v = V16(r, g, b);
-                                M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                                 PlaneIn[plane_number].u_width, (M4OSA_UInt8)v);
+                                memset((void *)p_buf_dest,(M4OSA_UInt8)v,
+                                 PlaneIn[plane_number].u_width);
                             }
                         }
                         break;
@@ -3956,8 +3956,8 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                     }
                     break;
                 default:
-                    M4OSA_memcpy((M4OSA_MemAddr8)p_buf_dest,
-                     (M4OSA_MemAddr8)p_buf_src ,PlaneOut[plane_number].u_width);
+                    memcpy((void *)p_buf_dest,
+                     (void *)p_buf_src ,PlaneOut[plane_number].u_width);
                     break;
                 }
             }
@@ -4302,11 +4302,9 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFifties( M4OSA_Void *pUserData,
         for (x = 0; x < pPlaneOut[plane_number].u_height; x++)
         {
             if (1 == plane_number)
-                M4OSA_memset((M4OSA_MemAddr8)pOutCr, pPlaneIn[plane_number].u_width,
-                     117); /* U value */
+                memset((void *)pOutCr, 117,pPlaneIn[plane_number].u_width); /* U value */
             else
-                M4OSA_memset((M4OSA_MemAddr8)pOutCr, pPlaneIn[plane_number].u_width,
-                     139); /* V value */
+                memset((void *)pOutCr, 139,pPlaneIn[plane_number].u_width); /* V value */
 
             pInCr  += pPlaneIn[plane_number].u_stride;
             pOutCr += pPlaneOut[plane_number].u_stride;
@@ -4700,7 +4698,7 @@ static void M4XXX_CopyPlane(M4VIFI_ImagePlane* dest, M4VIFI_ImagePlane* source)
 
     for (y=0; y<height; y++)
     {
-        M4OSA_memcpy((M4OSA_MemAddr8)destWalk, (M4OSA_MemAddr8)sourceWalk, width);
+        memcpy((void *)destWalk, (void *)sourceWalk, width);
         destWalk += destStride;
         sourceWalk += sourceStride;
     }
@@ -4742,7 +4740,7 @@ static M4OSA_ERR M4xVSS_VerticalSlideTransition(M4VIFI_ImagePlane* topPlane,
         /* First the part from the top source clip frame. */
         for (y=0; y<topPartHeight; y++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)destWalk, (M4OSA_MemAddr8)sourceWalk, width);
+            memcpy((void *)destWalk, (void *)sourceWalk, width);
             destWalk += destStride;
             sourceWalk += sourceStride;
         }
@@ -4755,7 +4753,7 @@ static M4OSA_ERR M4xVSS_VerticalSlideTransition(M4VIFI_ImagePlane* topPlane,
 
         for (y=0; y<bottomPartHeight; y++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)destWalk, (M4OSA_MemAddr8)sourceWalk, width);
+            memcpy((void *)destWalk, (void *)sourceWalk, width);
             destWalk += destStride;
             sourceWalk += sourceStride;
         }
@@ -4828,10 +4826,10 @@ static M4OSA_ERR M4xVSS_HorizontalSlideTransition(M4VIFI_ImagePlane* leftPlane,
 
         for (y=0; y<height; y++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)destWalkLeft, (M4OSA_MemAddr8)leftWalk, leftPartWidth);
+            memcpy((void *)destWalkLeft, (void *)leftWalk, leftPartWidth);
             leftWalk += leftStride;
 
-            M4OSA_memcpy((M4OSA_MemAddr8)destWalkRight, (M4OSA_MemAddr8)rightWalk, rightPartWidth);
+            memcpy((void *)destWalkRight, (void *)rightWalk, rightPartWidth);
             rightWalk += rightStride;
 
             destWalkLeft += destStride;
@@ -4997,8 +4995,8 @@ M4OSA_ERR M4xVSS_internalConvertToUTF8(M4OSA_Context pContext, M4OSA_Void* pBuff
     {
         M4OSA_UInt32 ConvertedSize = xVSS_context->UTFConversionContext.m_TempOutConversionSize;
 
-        M4OSA_memset((M4OSA_MemAddr8)xVSS_context->UTFConversionContext.pTempOutConversionBuffer
-            ,(M4OSA_UInt32)xVSS_context->UTFConversionContext.m_TempOutConversionSize,0);
+        memset((void *)xVSS_context->UTFConversionContext.pTempOutConversionBuffer,0
+            ,(M4OSA_UInt32)xVSS_context->UTFConversionContext.m_TempOutConversionSize);
 
         err = xVSS_context->UTFConversionContext.pConvToUTF8Fct((M4OSA_Void*)pBufferIn,
             (M4OSA_UInt8*)xVSS_context->UTFConversionContext.pTempOutConversionBuffer,
@@ -5022,9 +5020,9 @@ M4OSA_ERR M4xVSS_internalConvertToUTF8(M4OSA_Context pContext, M4OSA_Void* pBuff
             }
             xVSS_context->UTFConversionContext.m_TempOutConversionSize = ConvertedSize;
 
-            M4OSA_memset((M4OSA_MemAddr8)xVSS_context->\
-                UTFConversionContext.pTempOutConversionBuffer,(M4OSA_UInt32)xVSS_context->\
-                    UTFConversionContext.m_TempOutConversionSize,0);
+            memset((void *)xVSS_context->\
+                UTFConversionContext.pTempOutConversionBuffer,0,(M4OSA_UInt32)xVSS_context->\
+                    UTFConversionContext.m_TempOutConversionSize);
 
             err = xVSS_context->UTFConversionContext.pConvToUTF8Fct((M4OSA_Void*)pBufferIn,
                 (M4OSA_Void*)xVSS_context->UTFConversionContext.pTempOutConversionBuffer,
@@ -5075,9 +5073,9 @@ M4OSA_ERR M4xVSS_internalConvertFromUTF8(M4OSA_Context pContext, M4OSA_Void* pBu
     {
         M4OSA_UInt32 ConvertedSize = xVSS_context->UTFConversionContext.m_TempOutConversionSize;
 
-        M4OSA_memset((M4OSA_MemAddr8)xVSS_context->\
-            UTFConversionContext.pTempOutConversionBuffer,(M4OSA_UInt32)xVSS_context->\
-                UTFConversionContext.m_TempOutConversionSize,0);
+        memset((void *)xVSS_context->\
+            UTFConversionContext.pTempOutConversionBuffer,0,(M4OSA_UInt32)xVSS_context->\
+                UTFConversionContext.m_TempOutConversionSize);
 
         err = xVSS_context->UTFConversionContext.pConvFromUTF8Fct\
             ((M4OSA_Void*)pBufferIn,(M4OSA_UInt8*)xVSS_context->\
@@ -5101,9 +5099,9 @@ M4OSA_ERR M4xVSS_internalConvertFromUTF8(M4OSA_Context pContext, M4OSA_Void* pBu
             }
             xVSS_context->UTFConversionContext.m_TempOutConversionSize = ConvertedSize;
 
-            M4OSA_memset((M4OSA_MemAddr8)xVSS_context->\
-                UTFConversionContext.pTempOutConversionBuffer,(M4OSA_UInt32)xVSS_context->\
-                    UTFConversionContext.m_TempOutConversionSize,0);
+            memset((void *)xVSS_context->\
+                UTFConversionContext.pTempOutConversionBuffer,0,(M4OSA_UInt32)xVSS_context->\
+                    UTFConversionContext.m_TempOutConversionSize);
 
             err = xVSS_context->UTFConversionContext.pConvFromUTF8Fct((M4OSA_Void*)pBufferIn,
                 (M4OSA_Void*)xVSS_context->UTFConversionContext.pTempOutConversionBuffer,

@@ -282,7 +282,7 @@ M4VIFI_UInt8 M4VIFI_YUV420PlanarToYUV420Semiplanar(void *user_data,
     /* The input Y Plane is the same as the output Y Plane */
     p_buf_src = &(PlaneIn[0].pac_data[PlaneIn[0].u_topleft]);
     p_buf_dest = &(PlaneOut[0].pac_data[PlaneOut[0].u_topleft]);
-    M4OSA_memcpy((M4OSA_Int8*)p_buf_dest,(M4OSA_Int8*)p_buf_src ,
+    memcpy((void *)p_buf_dest,(void *)p_buf_src ,
         PlaneOut[0].u_width * PlaneOut[0].u_height);
 
     /* The U and V components are planar. The need to be made interleaved */
@@ -313,7 +313,7 @@ M4VIFI_UInt8 M4VIFI_SemiplanarYUV420toYUV420(void *user_data,
      /* The input Y Plane is the same as the output Y Plane */
      p_buf_src = &(PlaneIn[0].pac_data[PlaneIn[0].u_topleft]);
      p_buf_dest = &(PlaneOut[0].pac_data[PlaneOut[0].u_topleft]);
-     M4OSA_memcpy((M4OSA_Int8*)p_buf_dest,(M4OSA_Int8*)p_buf_src ,
+     memcpy((void *)p_buf_dest,(void *)p_buf_src ,
          PlaneOut[0].u_width * PlaneOut[0].u_height);
 
      /* The U and V components are planar. The need to be made interleaved */
@@ -375,32 +375,32 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                 switch (ColorContext->colorEffectType)
                 {
                 case M4xVSS_kVideoEffectType_BlackAndWhite:
-                    M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                     PlaneIn[plane_number].u_width, 128);
+                    memset((void *)p_buf_dest,128,
+                     PlaneIn[plane_number].u_width);
                     break;
                 case M4xVSS_kVideoEffectType_Pink:
-                    M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                     PlaneIn[plane_number].u_width, 255);
+                    memset((void *)p_buf_dest,255,
+                     PlaneIn[plane_number].u_width);
                     break;
                 case M4xVSS_kVideoEffectType_Green:
-                    M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                     PlaneIn[plane_number].u_width, 0);
+                    memset((void *)p_buf_dest,0,
+                     PlaneIn[plane_number].u_width);
                     break;
                 case M4xVSS_kVideoEffectType_Sepia:
                     if(plane_number==1)
                     {
-                        M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                         PlaneIn[plane_number].u_width, 117);
+                        memset((void *)p_buf_dest,117,
+                         PlaneIn[plane_number].u_width);
                     }
                     else
                     {
-                        M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                         PlaneIn[plane_number].u_width, 139);
+                        memset((void *)p_buf_dest,139,
+                         PlaneIn[plane_number].u_width);
                     }
                     break;
                 case M4xVSS_kVideoEffectType_Negative:
-                    M4OSA_memcpy((M4OSA_MemAddr8)p_buf_dest,
-                     (M4OSA_MemAddr8)p_buf_src ,PlaneOut[plane_number].u_width);
+                    memcpy((void *)p_buf_dest,
+                     (void *)p_buf_src ,PlaneOut[plane_number].u_width);
                     break;
 
                 case M4xVSS_kVideoEffectType_ColorRGB16:
@@ -417,15 +417,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                         {
                             /*then convert to u*/
                             u = U16(r, g, b);
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, (M4OSA_UInt8)u);
+                            memset((void *)p_buf_dest,(M4OSA_UInt8)u,
+                             PlaneIn[plane_number].u_width);
                         }
                         if(plane_number==2)
                         {
                             /*then convert to v*/
                             v = V16(r, g, b);
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, (M4OSA_UInt8)v);
+                            memset((void *)p_buf_dest,(M4OSA_UInt8)v,
+                             PlaneIn[plane_number].u_width);
                         }
                     }
                     break;
@@ -448,15 +448,15 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                         {
                             /*then convert to u*/
                             u = U16(r, g, b);
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, (M4OSA_UInt8)u);
+                            memset((void *)p_buf_dest,(M4OSA_UInt8)u,
+                             PlaneIn[plane_number].u_width);
                         }
                         if(plane_number==2)
                         {
                             /*then convert to v*/
                             v = V16(r, g, b);
-                            M4OSA_memset((M4OSA_MemAddr8)p_buf_dest,
-                             PlaneIn[plane_number].u_width, (M4OSA_UInt8)v);
+                            memset((void *)p_buf_dest,(M4OSA_UInt8)v,
+                             PlaneIn[plane_number].u_width);
                         }
                     }
                     break;
@@ -478,8 +478,8 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectColor(M4OSA_Void *pFunctionContext,
                     }
                     break;
                 default:
-                    M4OSA_memcpy((M4OSA_MemAddr8)p_buf_dest,
-                     (M4OSA_MemAddr8)p_buf_src ,PlaneOut[plane_number].u_width);
+                    memcpy((void *)p_buf_dest,
+                     (void *)p_buf_src ,PlaneOut[plane_number].u_width);
                     break;
                 }
             }
@@ -780,9 +780,9 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFifties(
         for (x = 0; x < pPlaneOut[plane_number].u_height; x++)
         {
             if (1 == plane_number)
-                M4OSA_memset((M4OSA_MemAddr8)pOutCr, pPlaneIn[plane_number].u_width, 117); /* U value */
+                memset((void *)pOutCr, 117,pPlaneIn[plane_number].u_width); /* U value */
             else
-                M4OSA_memset((M4OSA_MemAddr8)pOutCr, pPlaneIn[plane_number].u_width, 139); /* V value */
+                memset((void *)pOutCr, 139,pPlaneIn[plane_number].u_width); /* V value */
 
             pInCr  += pPlaneIn[plane_number].u_stride;
             pOutCr += pPlaneOut[plane_number].u_stride;
@@ -860,8 +860,8 @@ unsigned char M4VFL_modifyLumaWithScale(M4ViComImagePlane *plane_in,
         {
             for (i = u_width; i != 0; i--)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)p_cdest_line, (M4OSA_MemAddr8)p_csrc_line, u_width);
-                M4OSA_memcpy((M4OSA_MemAddr8)p_cdest, (M4OSA_MemAddr8)p_csrc, u_width);
+                memcpy((void *)p_cdest_line, (void *)p_csrc_line, u_width);
+                memcpy((void *)p_cdest, (void *)p_csrc, u_width);
             }
             p_cdest_line += u_stride_out;
             p_cdest += u_stride_out;
@@ -975,12 +975,12 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* write black lines */
         for (j = (nb_black_lines >> 1); j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-            M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+            memset((void *)p_destu, 128,u_widthuv);
+            memset((void *)p_destv, 128,u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
         }
@@ -988,14 +988,14 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* copy from source image */
         for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destu, (M4OSA_MemAddr8)p_srcu, u_widthuv);
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destv, (M4OSA_MemAddr8)p_srcv, u_widthuv);
+            memcpy((void *)p_destu, (void *)p_srcu, u_widthuv);
+            memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
             p_srcu += u_stride_uv;
@@ -1012,14 +1012,14 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* copy from source image image */
         for (j = (nb_black_lines >> 1); j != 0; j--)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destu, (M4OSA_MemAddr8)p_srcu, u_widthuv);
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destv, (M4OSA_MemAddr8)p_srcv, u_widthuv);
+            memcpy((void *)p_destu, (void *)p_srcu, u_widthuv);
+            memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
             p_srcu += u_stride_uv;
@@ -1030,12 +1030,12 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* the pointers to p_dest, p_destu and p_destv are used through the two loops "for" */
         for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-            M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+            memset((void *)p_destu, 128,u_widthuv);
+            memset((void *)p_destv, 128,u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
         }
@@ -1573,7 +1573,7 @@ M4VIFI_UInt8 M4VIFI_YUV420toYUV420(void *user_data, M4VIFI_ImagePlane PlaneIn[3]
         p_buf_dest = &(PlaneOut[plane_number].pac_data[PlaneOut[plane_number].u_topleft]);
         for (i = 0; i < PlaneOut[plane_number].u_height; i++)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)p_buf_dest, (M4OSA_MemAddr8)p_buf_src ,PlaneOut[plane_number].u_width);
+            memcpy((void *)p_buf_dest, (void *)p_buf_src ,PlaneOut[plane_number].u_width);
             p_buf_src += PlaneIn[plane_number].u_stride;
             p_buf_dest += PlaneOut[plane_number].u_stride;
         }
@@ -1877,9 +1877,9 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
         Media rendering: Black borders*/
         if(mediaRendering == M4xVSS_kBlackBorders)
         {
-            M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[0].pac_data,(pPlaneOut[0].u_height*pPlaneOut[0].u_stride),Y_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[1].pac_data,(pPlaneOut[1].u_height*pPlaneOut[1].u_stride),U_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pPlaneOut[2].pac_data,(pPlaneOut[2].u_height*pPlaneOut[2].u_stride),V_PLANE_BORDER_VALUE);
+            memset((void *)pPlaneOut[0].pac_data,Y_PLANE_BORDER_VALUE,(pPlaneOut[0].u_height*pPlaneOut[0].u_stride));
+            memset((void *)pPlaneOut[1].pac_data,U_PLANE_BORDER_VALUE,(pPlaneOut[1].u_height*pPlaneOut[1].u_stride));
+            memset((void *)pPlaneOut[2].pac_data,V_PLANE_BORDER_VALUE,(pPlaneOut[2].u_height*pPlaneOut[2].u_stride));
 
             pImagePlanesTemp[0].u_width = pPlaneOut[0].u_width;
             pImagePlanesTemp[0].u_height = pPlaneOut[0].u_height;
@@ -1925,9 +1925,9 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
             pInPlaneU = pImagePlanesTemp[1].pac_data ;
             pInPlaneV = pImagePlanesTemp[2].pac_data ;
 
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanesTemp[0].pac_data,(pImagePlanesTemp[0].u_height*pImagePlanesTemp[0].u_stride),Y_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanesTemp[1].pac_data,(pImagePlanesTemp[1].u_height*pImagePlanesTemp[1].u_stride),U_PLANE_BORDER_VALUE);
-            M4OSA_memset((M4OSA_MemAddr8)pImagePlanesTemp[2].pac_data,(pImagePlanesTemp[2].u_height*pImagePlanesTemp[2].u_stride),V_PLANE_BORDER_VALUE);
+            memset((void *)pImagePlanesTemp[0].pac_data,Y_PLANE_BORDER_VALUE,(pImagePlanesTemp[0].u_height*pImagePlanesTemp[0].u_stride));
+            memset((void *)pImagePlanesTemp[1].pac_data,U_PLANE_BORDER_VALUE,(pImagePlanesTemp[1].u_height*pImagePlanesTemp[1].u_stride));
+            memset((void *)pImagePlanesTemp[2].pac_data,V_PLANE_BORDER_VALUE,(pImagePlanesTemp[2].u_height*pImagePlanesTemp[2].u_stride));
 
             if((M4OSA_UInt32)((pPlaneIn->u_height * pPlaneOut->u_width) /pPlaneIn->u_width) <= pPlaneOut->u_height)//Params.m_inputSize.m_height < Params.m_inputSize.m_width)
             {
@@ -2061,19 +2061,19 @@ M4OSA_ERR applyRenderingMode(M4VIFI_ImagePlane* pPlaneIn, M4VIFI_ImagePlane* pPl
         {
             for(i=0; i<pPlaneOut[0].u_height; i++)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)pOutPlaneY, (M4OSA_MemAddr8)pInPlaneY, pPlaneOut[0].u_width);
+                memcpy((void *)pOutPlaneY, (void *)pInPlaneY, pPlaneOut[0].u_width);
                 pInPlaneY += pPlaneOut[0].u_width;
                 pOutPlaneY += pPlaneOut[0].u_stride;
             }
             for(i=0; i<pPlaneOut[1].u_height; i++)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)pOutPlaneU, (M4OSA_MemAddr8)pInPlaneU, pPlaneOut[1].u_width);
+                memcpy((void *)pOutPlaneU, (void *)pInPlaneU, pPlaneOut[1].u_width);
                 pInPlaneU += pPlaneOut[1].u_width;
                 pOutPlaneU += pPlaneOut[1].u_stride;
             }
             for(i=0; i<pPlaneOut[2].u_height; i++)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)pOutPlaneV, (M4OSA_MemAddr8)pInPlaneV, pPlaneOut[2].u_width);
+                memcpy((void *)pOutPlaneV, (void *)pInPlaneV, pPlaneOut[2].u_width);
                 pInPlaneV += pPlaneOut[2].u_width;
                 pOutPlaneV += pPlaneOut[2].u_stride;
             }
@@ -2580,7 +2580,7 @@ M4OSA_ERR M4AIR_get(M4OSA_Context pContext, M4VIFI_ImagePlane* pIn, M4VIFI_Image
                     for (j=0; j<loc_height; j++)
                     {
                         /**< Copy one whole line */
-                        memcpy((M4OSA_MemAddr8)pu8_data_out, (M4OSA_MemAddr8)pu8_data_in, loc_width);
+                        memcpy((void *)pu8_data_out, (void *)pu8_data_in, loc_width);
 
                         /**< Update pointers */
                         pu8_data_out += pOut[i].u_stride;

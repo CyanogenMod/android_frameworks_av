@@ -45,19 +45,6 @@ M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_MemAddr32 M4OSA_malloc (M4OSA_UInt32 size
 
 M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_Void  M4OSA_free   (M4OSA_MemAddr32 address);
 
-M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_Void M4OSA_memset (M4OSA_MemAddr8 address,
-                                                          M4OSA_UInt32 size,
-                                                          M4OSA_UInt8 value);
-
-M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_Void M4OSA_memcpy (M4OSA_MemAddr8 outputBlock,
-                                      M4OSA_MemAddr8 inputBlock, M4OSA_UInt32 size);
-
-M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_MemAddr8 M4OSA_memmove(M4OSA_MemAddr8 outputBlock,
-                                              M4OSA_MemAddr8 inputBlock,
-                                              M4OSA_UInt32 size);
-
-M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_Int32 M4OSA_memcmp (M4OSA_MemAddr8 address1,
-                                      M4OSA_MemAddr8 address2, M4OSA_UInt32 size);
 
 M4OSAL_MEMORY_EXPORT_TYPE extern M4OSA_ERR M4OSA_randInit(void);
 

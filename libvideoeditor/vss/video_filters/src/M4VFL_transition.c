@@ -71,7 +71,7 @@ unsigned char M4VFL_modifyLumaByStep(M4ViComImagePlane *plane_in, M4ViComImagePl
         /* very specific case : set luma plane to 16 */
         for (j = u_height; j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 16);
+            memset((void *)p_dest,16, u_width);
             p_dest += u_stride_out;
         }
         return 0;
@@ -142,7 +142,7 @@ unsigned char M4VFL_modifyLumaByStep(M4ViComImagePlane *plane_in, M4ViComImagePl
         /* very specific case : set luma plane to 16 */
         for (j = u_height; j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 16);
+            memset((void *)p_dest, 16,u_width);
             p_dest += u_stride_out;
         }
         return 0;
@@ -230,8 +230,8 @@ unsigned char M4VFL_modifyLumaWithScale(M4ViComImagePlane *plane_in,
         {
             for (i = u_width; i != 0; i--)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)p_cdest_line, (M4OSA_MemAddr8)p_csrc_line, u_width);
-                M4OSA_memcpy((M4OSA_MemAddr8)p_cdest,(M4OSA_MemAddr8) p_csrc, u_width);
+                memcpy((void *)p_cdest_line, (void *)p_csrc_line, u_width);
+                memcpy((void *)p_cdest,(void *) p_csrc, u_width);
             }
             p_cdest_line += u_stride_out;
             p_cdest += u_stride_out;
@@ -321,12 +321,12 @@ unsigned char M4VFL_applyClosingCurtain(M4ViComImagePlane *plane_in, M4ViComImag
 
     for (j = (nb_black_lines >> 1); j != 0; j--)
     { /* set black lines */
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest, 0,u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest, 0,u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-        M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+        memset((void *)p_destu, 128,u_widthuv);
+        memset((void *)p_destv, 128,u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
     }
@@ -343,14 +343,14 @@ unsigned char M4VFL_applyClosingCurtain(M4ViComImagePlane *plane_in, M4ViComImag
     /* copy other lines from source */
     for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
     {
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+        memcpy((void *)p_dest, (void *)p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+        memcpy((void *)p_dest,(void *) p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destu,(M4OSA_MemAddr8) p_srcu, u_widthuv);
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destv, (M4OSA_MemAddr8)p_srcv, u_widthuv);
+        memcpy((void *)p_destu,(void *) p_srcu, u_widthuv);
+        memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
         p_srcu += u_stride_uv;
@@ -393,42 +393,32 @@ unsigned char M4VFL_applyOpeningCurtain(M4ViComImagePlane *plane_in,
 
     for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
     {
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest, 0,u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest,0, u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-        M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+        memset((void *)p_destu, 128,u_widthuv);
+        memset((void *)p_destv, 128,u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
     }
 
     for (j = (nb_black_lines >> 1); j != 0; j--)
     {
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+        memcpy((void *)p_dest,(void *) p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+        memcpy((void *)p_dest,(void *) p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destu,(M4OSA_MemAddr8) p_srcu, u_widthuv);
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destv, (M4OSA_MemAddr8)p_srcv, u_widthuv);
+        memcpy((void *)p_destu,(void *) p_srcu, u_widthuv);
+        memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
         p_srcu += u_stride_uv;
         p_srcv += u_stride_uv;
     }
 
-/*    p_destu = (unsigned char *) &plane_out[1].pac_data[plane_out[1].u_topleft];
-    p_destv = (unsigned char *) &plane_out[2].pac_data[plane_out[2].u_topleft];
-    for (j = (u_height >> 1); j != 0; j--)
-    {
-        M4OSA_memset(p_destu, u_widthuv, 128);
-        M4OSA_memset(p_destv, u_widthuv, 128);
-        p_destu += u_stride_out_uv;
-        p_destv += u_stride_out_uv;
-    }
-*/
     return 0;
 }
 
@@ -461,14 +451,14 @@ unsigned char M4VFL_applyFallingCurtain(M4ViComImagePlane *plane_in,
 
     for (j = (nb_black_lines >> 1); j != 0; j--)
     {
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+        memcpy((void *)p_dest,(void *) p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+        memcpy((void *)p_dest,(void *) p_src, u_width);
         p_dest += u_stride_out;
         p_src += u_stride;
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destu,(M4OSA_MemAddr8) p_srcu, u_widthuv);
-        M4OSA_memcpy((M4OSA_MemAddr8)p_destv,(M4OSA_MemAddr8) p_srcv, u_widthuv);
+        memcpy((void *)p_destu,(void *) p_srcu, u_widthuv);
+        memcpy((void *)p_destv,(void *) p_srcv, u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
         p_srcu += u_stride_uv;
@@ -477,12 +467,12 @@ unsigned char M4VFL_applyFallingCurtain(M4ViComImagePlane *plane_in,
 
     for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
     {
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest, 0,u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+        memset((void *)p_dest, 0,u_width);
         p_dest += u_stride_out;
-        M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-        M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+        memset((void *)p_destu, 128,u_widthuv);
+        memset((void *)p_destv, 128,u_widthuv);
         p_destu += u_stride_out_uv;
         p_destv += u_stride_out_uv;
     }
@@ -541,12 +531,12 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* write black lines */
         for (j = (nb_black_lines >> 1); j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-            M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+            memset((void *)p_destu, 128,u_widthuv);
+            memset((void *)p_destv, 128,u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
         }
@@ -554,14 +544,14 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* copy from source image */
         for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+            memcpy((void *)p_dest,(void *) p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destu,(M4OSA_MemAddr8) p_srcu, u_widthuv);
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destv, (M4OSA_MemAddr8)p_srcv, u_widthuv);
+            memcpy((void *)p_destu,(void *) p_srcu, u_widthuv);
+            memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
             p_srcu += u_stride_uv;
@@ -578,14 +568,14 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* copy from source image image */
         for (j = (nb_black_lines >> 1); j != 0; j--)
         {
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest, (M4OSA_MemAddr8)p_src, u_width);
+            memcpy((void *)p_dest, (void *)p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_dest,(M4OSA_MemAddr8) p_src, u_width);
+            memcpy((void *)p_dest,(void *) p_src, u_width);
             p_dest += u_stride_out;
             p_src += u_stride;
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destu,(M4OSA_MemAddr8) p_srcu, u_widthuv);
-            M4OSA_memcpy((M4OSA_MemAddr8)p_destv,(M4OSA_MemAddr8) p_srcv, u_widthuv);
+            memcpy((void *)p_destu,(void *) p_srcu, u_widthuv);
+            memcpy((void *)p_destv,(void *) p_srcv, u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
             p_srcu += u_stride_uv;
@@ -596,12 +586,12 @@ unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane 
         /* the pointers to p_dest, p_destu and p_destv are used through the two loops "for" */
         for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
         {
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_dest, u_width, 0);
+            memset((void *)p_dest, 0,u_width);
             p_dest += u_stride_out;
-            M4OSA_memset((M4OSA_MemAddr8)p_destu, u_widthuv, 128);
-            M4OSA_memset((M4OSA_MemAddr8)p_destv, u_widthuv, 128);
+            memset((void *)p_destu, 128,u_widthuv);
+            memset((void *)p_destv, 128,u_widthuv);
             p_destu += u_stride_out_uv;
             p_destv += u_stride_out_uv;
         }

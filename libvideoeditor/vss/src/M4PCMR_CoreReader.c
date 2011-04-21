@@ -221,8 +221,8 @@ M4OSA_ERR M4PCMR_getNextStream(M4OSA_Context context, M4SYS_StreamDescription* p
     }
     /* Fill decoderSpecificInfo structure, with decoder config structure filled in 'openread'
          function */
-    M4OSA_memcpy((M4OSA_MemAddr8)pStreamDesc->decoderSpecificInfo,
-         (M4OSA_MemAddr8)&c->m_decoderConfig, sizeof(M4PCMC_DecoderSpecificInfo));
+    memcpy((void *)pStreamDesc->decoderSpecificInfo,
+         (void *)&c->m_decoderConfig, sizeof(M4PCMC_DecoderSpecificInfo));
 
     /* Fill other fields of pStreamDesc structure */
     pStreamDesc->timeScale = 1000;

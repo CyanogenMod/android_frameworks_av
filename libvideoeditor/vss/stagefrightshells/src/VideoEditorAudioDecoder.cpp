@@ -487,8 +487,8 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
 
             // Copy the stream properties into userdata
             if( M4OSA_NULL != pUserData ) {
-                M4OSA_memcpy((M4OSA_MemAddr8)pUserData,
-                    (M4OSA_MemAddr8)&aacProperties,
+                memcpy((void *)pUserData,
+                    (void *)&aacProperties,
                     sizeof(AAC_DEC_STREAM_PROPS));
             }
             break;
@@ -604,8 +604,8 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
 
     if( M4OSA_NULL != pInputBuffer ) {
         buffer = new MediaBuffer((size_t)pInputBuffer->m_bufferSize);
-        M4OSA_memcpy((M4OSA_Int8*)buffer->data() + buffer->range_offset(),
-            pInputBuffer->m_dataAddress, pInputBuffer->m_bufferSize);
+        memcpy((void *)((M4OSA_Int8*)buffer->data() + buffer->range_offset()),
+            (void *)pInputBuffer->m_dataAddress, pInputBuffer->m_bufferSize);
     }
     nbBuffer = pDecoderContext->mDecoderSource->storeBuffer(buffer);
 
@@ -647,8 +647,8 @@ M4OSA_ERR VideoEditorAudioDecoder_processOutputBuffer(M4AD_Context pContext,
         (M4OSA_UInt32)pDecoderContext->mNbOutputChannels ) {
         // Just copy the PCMs
         pOuputBuffer->m_bufferSize = (M4OSA_UInt32)buffer->range_length();
-        M4OSA_memcpy(pOuputBuffer->m_dataAddress,
-            ((M4OSA_MemAddr8)buffer->data())+buffer->range_offset(),
+        memcpy((void *)pOuputBuffer->m_dataAddress,
+            (void *)(((M4OSA_MemAddr8)buffer->data())+buffer->range_offset()),
             buffer->range_length());
     } else if( pDecoderContext->mAudioStreamHandler->m_nbChannels <
         (M4OSA_UInt32)pDecoderContext->mNbOutputChannels ) {

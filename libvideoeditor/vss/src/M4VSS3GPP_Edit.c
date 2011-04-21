@@ -137,7 +137,7 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
         M4VSS3GPP, (M4OSA_Char *)"M4VSS3GPP_InternalContext");
     *pContext = pC;
         /* Inialization of context Variables */
-    M4OSA_memset((M4OSA_MemAddr8)pC, sizeof(M4VSS3GPP_InternalEditContext), 0);
+    memset((void *)pC, 0,sizeof(M4VSS3GPP_InternalEditContext));
 
     if( M4OSA_NULL == pC )
     {
@@ -278,7 +278,7 @@ M4VSS3GPP_editCreateClipSettings( M4VSS3GPP_ClipSettings *pClipSettings,
 
     if( M4OSA_NULL != pFile )
     {
-        //pClipSettings->pFile = (M4OSA_Char*) M4OSA_malloc(M4OSA_chrLength(pFile)+1, M4VSS3GPP,
+        //pClipSettings->pFile = (M4OSA_Char*) M4OSA_malloc(strlen(pFile)+1, M4VSS3GPP,
         // "pClipSettings->pFile");
         /*FB: add clip path size because of utf 16 conversion*/
         pClipSettings->pFile =
@@ -291,9 +291,9 @@ M4VSS3GPP_editCreateClipSettings( M4VSS3GPP_ClipSettings *pClipSettings,
                 "M4VSS3GPP_editCreateClipSettings : ERROR allocating filename");
             return M4ERR_ALLOC;
         }
-        //M4OSA_memcpy(pClipSettings->pFile, pFile, M4OSA_chrLength(pFile)+1);
+        //memcpy(pClipSettings->pFile, pFile, strlen(pFile)+1);
         /*FB: add clip path size because of utf 16 conversion*/
-        M4OSA_memcpy(pClipSettings->pFile, pFile, filePathSize + 1);
+        memcpy((void *)pClipSettings->pFile, (void *)pFile, filePathSize + 1);
     }
 
     /*FB: add file path size to support UTF16 conversion*/
@@ -375,14 +375,14 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
         "M4VSS3GPP_editDuplicateClipSettings: pClipSettingsOrig is NULL");
 
     /* Copy plain structure */
-    M4OSA_memcpy((M4OSA_MemAddr8)pClipSettingsDest,
-        (M4OSA_MemAddr8)pClipSettingsOrig, sizeof(M4VSS3GPP_ClipSettings));
+    memcpy((void *)pClipSettingsDest,
+        (void *)pClipSettingsOrig, sizeof(M4VSS3GPP_ClipSettings));
 
     /* Duplicate filename */
     if( M4OSA_NULL != pClipSettingsOrig->pFile )
     {
         //pClipSettingsDest->pFile =
-        // (M4OSA_Char*) M4OSA_malloc(M4OSA_chrLength(pClipSettingsOrig->pFile)+1, M4VSS3GPP,
+        // (M4OSA_Char*) M4OSA_malloc(strlen(pClipSettingsOrig->pFile)+1, M4VSS3GPP,
         // "pClipSettingsDest->pFile");
         /*FB: clip path size is needed for utf 16 conversion*/
         /*FB 2008/10/16: bad allocation size which raises a crash*/
@@ -397,10 +397,10 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
             return M4ERR_ALLOC;
         }
         /*FB: clip path size is needed for utf 16 conversion*/
-        //M4OSA_memcpy(pClipSettingsDest->pFile, pClipSettingsOrig->pFile,
-        // M4OSA_chrLength(pClipSettingsOrig->pFile)+1);
+        //memcpy(pClipSettingsDest->pFile, pClipSettingsOrig->pFile,
+        // strlen(pClipSettingsOrig->pFile)+1);
         /*FB 2008/10/16: bad allocation size which raises a crash*/
-        M4OSA_memcpy(pClipSettingsDest->pFile, pClipSettingsOrig->pFile,
+        memcpy((void *)pClipSettingsDest->pFile, (void *)pClipSettingsOrig->pFile,
             pClipSettingsOrig->filePathSize/*+1*/);
         ( (M4OSA_Char
             *)pClipSettingsDest->pFile)[pClipSettingsOrig->filePathSize] = '\0';
@@ -430,9 +430,9 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
             for ( uiFx = 0; uiFx < pClipSettingsOrig->nbEffects; uiFx++ )
             {
                 /* Copy plain structure */
-                M4OSA_memcpy(
-                    (M4OSA_MemAddr8) &(pClipSettingsDest->Effects[uiFx]),
-                    (M4OSA_MemAddr8) &(pClipSettingsOrig->Effects[uiFx]),
+                memcpy(
+                    (void *) &(pClipSettingsDest->Effects[uiFx]),
+                    (void *) &(pClipSettingsOrig->Effects[uiFx]),
                     sizeof(M4VSS3GPP_EffectSettings));
             }
         }
@@ -588,8 +588,8 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
 
         for ( i = 0; i < pC->nbEffects; i++ )
         {
-            M4OSA_memcpy((M4OSA_MemAddr8) &(pC->pEffectsList[i]),
-                (M4OSA_MemAddr8) &(pSettings->Effects[i]),
+            memcpy((void *) &(pC->pEffectsList[i]),
+                (void *) &(pSettings->Effects[i]),
                 sizeof(M4VSS3GPP_EffectSettings));
         }
 
@@ -731,8 +731,8 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     /**< copy transition settings */
     for ( i = 0; i < (pSettings->uiClipNumber - 1); i++ )
     {
-        M4OSA_memcpy((M4OSA_MemAddr8) &(pC->pTransitionList[i]),
-            (M4OSA_MemAddr8)pSettings->pTransitionList[i],
+        memcpy((void *) &(pC->pTransitionList[i]),
+            (void *)pSettings->pTransitionList[i],
             sizeof(M4VSS3GPP_TransitionSettings));
     }
 
@@ -2948,8 +2948,8 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
         }
         pC->ewc.uiVideoOutputDsiSize =
             (M4OSA_UInt16)pStreamForDsi->m_decoderSpecificInfoSize;
-        M4OSA_memcpy(pC->ewc.pVideoOutputDsi,
-            (M4OSA_MemAddr8)pStreamForDsi->m_pDecoderSpecificInfo,
+        memcpy((void *)pC->ewc.pVideoOutputDsi,
+            (void *)pStreamForDsi->m_pDecoderSpecificInfo,
             pC->ewc.uiVideoOutputDsiSize);
 
         /**
@@ -3034,7 +3034,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
                     return M4ERR_ALLOC;
                 }
                 pC->ewc.uiVideoOutputDsiSize = (M4OSA_UInt16)encHeader->Size;
-                M4OSA_memcpy(pC->ewc.pVideoOutputDsi, encHeader->pBuf,
+                memcpy((void *)pC->ewc.pVideoOutputDsi, (void *)encHeader->pBuf,
                     encHeader->Size);
             }
 
@@ -3118,8 +3118,8 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
         }
         pC->ewc.uiAudioOutputDsiSize =
             (M4OSA_UInt16)pStreamForDsi->m_decoderSpecificInfoSize;
-        M4OSA_memcpy(pC->ewc.pAudioOutputDsi,
-            (M4OSA_MemAddr8)pStreamForDsi->m_pDecoderSpecificInfo,
+        memcpy((void *)pC->ewc.pAudioOutputDsi,
+            (void *)pStreamForDsi->m_pDecoderSpecificInfo,
             pC->ewc.uiAudioOutputDsiSize);
 
         /**

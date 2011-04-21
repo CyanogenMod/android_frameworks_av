@@ -1097,8 +1097,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
         }
         pAu->size = mMediaBuffer->range_length();
 
-        memcpy((M4OSA_MemAddr8)pAu->dataAddress,
-            (const char *)mMediaBuffer->data() + mMediaBuffer->range_offset(),
+        memcpy((void *)pAu->dataAddress,
+            (void *)((const char *)mMediaBuffer->data() + mMediaBuffer->range_offset()),
             mMediaBuffer->range_length());
 
         if( (pStreamHandler == (M4_StreamHandler*)pC->mVideoStreamHandler)  &&
@@ -1381,8 +1381,8 @@ static M4OSA_ERR VideoEditor3gpReader_AnalyseAvcDsi(
         goto cleanup;
     }
 
-    M4OSA_memcpy((M4OSA_MemAddr8 ) pStreamHandler->m_pH264DecoderSpecificInfo,
-        (M4OSA_MemAddr8 )pDecoderConfigLocal,
+    memcpy((void * ) pStreamHandler->m_pH264DecoderSpecificInfo,
+        (void * )pDecoderConfigLocal,
         pStreamHandler->m_H264decoderSpecificInfoSize);
     return M4NO_ERROR;
 cleanup:
@@ -1537,8 +1537,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                             if (M4OSA_NULL == DecoderSpecific) {
                                 return M4ERR_ALLOC;
                             }
-                            M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecific,
-                                (M4OSA_MemAddr8)data, size);
+                            memcpy((void *)DecoderSpecific,
+                                (void *)data, size);
                             (*pStreamHandler)->m_pDecoderSpecificInfo =
                                 DecoderSpecific;
                         }
@@ -1573,8 +1573,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                                 LOGV("VideoEditor3gp_getNextStream is NULL ");
                                 return M4ERR_ALLOC;
                             }
-                            M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecificInfo,
-                                (M4OSA_MemAddr8)data, decoderSpecificInfoSize);
+                            memcpy((void *)DecoderSpecificInfo,
+                                (void *)data, decoderSpecificInfoSize);
                         } else {
                             LOGV("DSI Size %d", decoderSpecificInfoSize);
                             DecoderSpecificInfo = M4OSA_NULL;
@@ -1609,8 +1609,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
                             return M4ERR_ALLOC;
                         }
-                        M4OSA_memcpy((M4OSA_MemAddr8)(*pStreamHandler)->\
-                            m_pESDSInfo, (M4OSA_MemAddr8)data, size);
+                        memcpy((void *)(*pStreamHandler)->\
+                            m_pESDSInfo, (void *)data, size);
 
                         esds.getCodecSpecificInfo(&codec_specific_data,
                             &codec_specific_data_size);
@@ -1626,8 +1626,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                             if (M4OSA_NULL == DecoderSpecific) {
                                 return M4ERR_ALLOC;
                             }
-                            M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecific,
-                                (M4OSA_MemAddr8)codec_specific_data,
+                            memcpy((void *)DecoderSpecific,
+                                (void *)codec_specific_data,
                                 codec_specific_data_size);
                             (*pStreamHandler)->m_pDecoderSpecificInfo =
                                 DecoderSpecific;
@@ -1727,8 +1727,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         if (M4OSA_NULL == DecoderSpecific) {
                             return M4ERR_ALLOC;
                         }
-                        M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecific,
-                            (M4OSA_MemAddr8)codec_specific_data,
+                        memcpy((void *)DecoderSpecific,
+                            (void *)codec_specific_data,
                             codec_specific_data_size);
                         (*pStreamHandler)->m_pDecoderSpecificInfo =
                             DecoderSpecific;
@@ -1769,8 +1769,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
                         return M4ERR_ALLOC;
                     }
-                    M4OSA_memcpy((M4OSA_MemAddr8)(*pStreamHandler)->m_pESDSInfo,
-                    (M4OSA_MemAddr8)data, size);
+                    memcpy((void *)(*pStreamHandler)->m_pESDSInfo,
+                    (void *)data, size);
                     esds.getCodecSpecificInfo(&codec_specific_data,
                         &codec_specific_data_size);
 
@@ -1786,8 +1786,8 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         if (M4OSA_NULL == DecoderSpecific) {
                             return M4ERR_ALLOC;
                         }
-                        M4OSA_memcpy((M4OSA_MemAddr8)DecoderSpecific,
-                            (M4OSA_MemAddr8)codec_specific_data,
+                        memcpy((void *)DecoderSpecific,
+                            (void *)codec_specific_data,
                             codec_specific_data_size);
                         (*pStreamHandler)->m_pDecoderSpecificInfo =
                             DecoderSpecific;

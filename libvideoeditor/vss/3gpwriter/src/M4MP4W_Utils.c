@@ -123,7 +123,7 @@ void* M4MP4W_realloc(M4OSA_MemAddr32 ptr, M4OSA_UInt32 oldSize, M4OSA_UInt32 new
                                                           (M4OSA_Char *)"realloc");
     if (M4OSA_NULL != ptr2)
     {
-        M4OSA_memcpy((M4OSA_MemAddr8)ptr2, (M4OSA_MemAddr8)ptr, oldSize);
+        memcpy((void *)ptr2, (void *)ptr, oldSize);
     }
     M4OSA_free(ptr);
     return ptr2;

@@ -200,7 +200,7 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
             ? (M4OSA_UInt32)mMaxAUSize : pAccessUnit->m_size;
         LOGV("VideoDecoderSource:Read() copying AU to i/p buffer of decoder,"
             "Bufer Add = 0x%x, size = %d", mBuffer->data(), lSize);
-        M4OSA_memcpy((M4OSA_MemAddr8)mBuffer->data(),pAccessUnit->m_dataAddress,
+        memcpy((void *)mBuffer->data(),(void *)pAccessUnit->m_dataAddress,
             lSize);
 
         mBuffer->set_range(0, lSize);
@@ -612,7 +612,7 @@ M4VIFI_UInt8 M4VIFI_SemiplanarYVU420toYUV420(void *user_data,
         (uint16_t *) &(PlaneOut[2].pac_data[PlaneOut[2].u_topleft]);
 
     /* Y copying */
-    memcpy(outy, inyuv, outYsize);
+    memcpy((void *)outy, (void *)inyuv, outYsize);
 
     /* U & V copying */
     uint32_t *inyuv_4 = (uint32_t *) (inyuv + outYsize);
@@ -1379,15 +1379,15 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                 {
                     M4OSA_MemAddr8 pTmpBuff = (M4OSA_MemAddr8)pDecoderBuffer->data() + pDecoderBuffer->range_offset();
 
-                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData, pTmpBuff, yPlaneSize);
+                    memcpy((void *)tmpDecBuffer->pData, (void *)pTmpBuff, yPlaneSize);
 
                     offsetSrc += pDecShellContext->mGivenWidth * pDecShellContext->mGivenHeight;
-                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize,
-                        pTmpBuff + offsetSrc, uvPlaneSize);
+                    memcpy((void *)((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize),
+                        (void *)(pTmpBuff + offsetSrc), uvPlaneSize);
 
                     offsetSrc += (pDecShellContext->mGivenWidth >> 1) * (pDecShellContext->mGivenHeight >> 1);
-                    M4OSA_memcpy((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize + uvPlaneSize,
-                        pTmpBuff + offsetSrc, uvPlaneSize);
+                    memcpy((void *)((M4OSA_MemAddr8)tmpDecBuffer->pData + yPlaneSize + uvPlaneSize),
+                        (void *)(pTmpBuff + offsetSrc), uvPlaneSize);
                 }
                 else
                 {
@@ -1397,7 +1397,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
 
                     for ( index = 0; index < height; index++)
                     {
-                        memcpy(pTmpBuffDst, pTmpBuff, width);
+                        memcpy((void *)pTmpBuffDst, (void *)pTmpBuff, width);
                         pTmpBuffDst += width;
                         pTmpBuff += pDecShellContext->mGivenWidth;
                     }
@@ -1405,7 +1405,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                     pTmpBuff += (pDecShellContext->mGivenWidth * ( pDecShellContext->mGivenHeight - height));
                     for ( index = 0; index < height >> 1; index++)
                     {
-                        memcpy(pTmpBuffDst, pTmpBuff, width >> 1);
+                        memcpy((void *)pTmpBuffDst, (void *)pTmpBuff, width >> 1);
                         pTmpBuffDst += width >> 1;
                         pTmpBuff += pDecShellContext->mGivenWidth >> 1;
                     }
@@ -1413,7 +1413,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                     pTmpBuff += ((pDecShellContext->mGivenWidth * (pDecShellContext->mGivenHeight - height)) / 4);
                     for ( index = 0; index < height >> 1; index++)
                     {
-                        memcpy(pTmpBuffDst, pTmpBuff, width >> 1);
+                        memcpy((void *)pTmpBuffDst, (void *)pTmpBuff, width >> 1);
                         pTmpBuffDst += width >> 1;
                         pTmpBuff += pDecShellContext->mGivenWidth >> 1;
                     }
@@ -1554,13 +1554,13 @@ M4OSA_ERR VideoEditorVideoDecoder_render(M4OSA_Context context,
         M4OSA_UInt32 tempHeight =
             pDecShellContext->m_pVideoStreamhandler->m_videoHeight;
 
-        M4OSA_memcpy((M4OSA_MemAddr8) pOutputPlane[0].pac_data, tempBuffPtr,
+        memcpy((void *) pOutputPlane[0].pac_data, (void *)tempBuffPtr,
             tempWidth * tempHeight);
         tempBuffPtr += (tempWidth * tempHeight);
-        M4OSA_memcpy((M4OSA_MemAddr8) pOutputPlane[1].pac_data, tempBuffPtr,
+        memcpy((void *) pOutputPlane[1].pac_data, (void *)tempBuffPtr,
             (tempWidth/2) * (tempHeight/2));
         tempBuffPtr += ((tempWidth/2) * (tempHeight/2));
-        M4OSA_memcpy((M4OSA_MemAddr8) pOutputPlane[2].pac_data, tempBuffPtr,
+        memcpy((void *) pOutputPlane[2].pac_data, (void *)tempBuffPtr,
             (tempWidth/2) * (tempHeight/2));
     }
 

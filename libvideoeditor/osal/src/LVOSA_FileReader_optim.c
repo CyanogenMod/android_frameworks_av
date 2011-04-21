@@ -207,7 +207,7 @@ M4OSA_FilePosition M4OSA_FileReader_BufferCopy(M4OSA_FileReader_Context_optim* a
     copysize = apContext->buffer[i].size - offset;
     copysize = (size < copysize) ? size : copysize;
 
-    M4OSA_memcpy(pData, apContext->buffer[i].data + offset, copysize);
+    memcpy((void *)pData, (void *)(apContext->buffer[i].data + offset), copysize);
 
     apContext->buffer[i].remain -= copysize;
     apContext->buffer[i].nbFillSinceLastAcess = 0;

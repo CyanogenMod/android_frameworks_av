@@ -459,8 +459,8 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
         SAFE_MALLOC(pEncoderContext->mDSI.pInfo, M4OSA_Int8,
             pEncoderContext->mDSI.infoSize, "Encoder header");
 
-        M4OSA_memcpy(pEncoderContext->mDSI.pInfo,
-            (M4OSA_MemAddr8)(buffer->data())+buffer->range_offset(),
+        memcpy((void *)pEncoderContext->mDSI.pInfo,
+            (void *)((M4OSA_MemAddr8)(buffer->data())+buffer->range_offset()),
             pEncoderContext->mDSI.infoSize);
 
         buffer->release();
@@ -499,7 +499,7 @@ M4OSA_ERR VideoEditorAudioEncoder_processInputBuffer(M4OSA_Context pContext,
             // Let the MediaBuffer own the data so we don't have to free it
             buffer = new MediaBuffer((size_t)pInBuffer->pTableBufferSize[0]);
             pData = (M4OSA_Int8*)buffer->data() + buffer->range_offset();
-            M4OSA_memcpy(pData, pInBuffer->pTableBuffer[0],
+            memcpy((void *)pData, (void *)pInBuffer->pTableBuffer[0],
                 pInBuffer->pTableBufferSize[0]);
             break;
         default:
@@ -568,8 +568,8 @@ M4OSA_ERR VideoEditorAudioEncoder_processOutputBuffer(M4OSA_Context pContext,
         pEncoderContext->mLastOutputCts = i64Tmp;
 
         // Format the AU
-        M4OSA_memcpy(pOutBuffer->pTableBuffer[0],
-            (M4OSA_MemAddr8)(buffer->data())+buffer->range_offset(),
+        memcpy((void *)pOutBuffer->pTableBuffer[0],
+            (void *)((M4OSA_MemAddr8)(buffer->data())+buffer->range_offset()),
             buffer->range_length());
         pOutBuffer->pTableBufferSize[0] = (M4OSA_UInt32)buffer->range_length();
     }

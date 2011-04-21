@@ -547,7 +547,7 @@ M4OSA_ERR M4MCS_intChangeAUVideoTimescale(M4MCS_InternalContext* pC)
     start = pC->ReaderVideoAU.m_dataAddress;
     in = pC->WriterVideoAU.dataAddress;
 
-    M4OSA_memset(in, pC->ReaderVideoAU.m_size , 0);
+    memset((void *)in, 0, pC->ReaderVideoAU.m_size);
     code = M4MCS_GetBitsFromMemory(&parsingCtxt, 8);
     M4MCS_WriteByteToMemory(code, (M4OSA_MemAddr32)in, 0, 8);
     in++;

@@ -646,7 +646,7 @@ M4OSA_ERR M4OSA_SetThreadSyncName(M4OSA_Context context,
          return M4ERR_ALLOC;
       }
 
-      M4OSA_memcpy((M4OSA_MemAddr8)threadContext->name, (M4OSA_MemAddr8)name,
+      memcpy((void *)threadContext->name, (void *)name,
                    nameSize);
    }
 

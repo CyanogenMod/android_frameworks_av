@@ -614,8 +614,8 @@ M4OSA_ERR M4MP4W_openWrite(M4OSA_Context *contextPtr,
 
     /* ftyp atom */
 
-    M4OSA_memset((M4OSA_MemAddr8) &mMp4FileDataPtr->ftyp,
-        sizeof(mMp4FileDataPtr->ftyp), 0);
+    memset((void *) &mMp4FileDataPtr->ftyp,0,
+        sizeof(mMp4FileDataPtr->ftyp));
 
     *contextPtr = mMp4FileDataPtr;
 
@@ -784,9 +784,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                         (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
-                    M4OSA_memcpy(
-                        (M4OSA_MemAddr8)mMp4FileDataPtr->audioTrackPtr->DSI,
-                        (M4OSA_MemAddr8)streamDescPtr->decoderSpecificInfo,
+                    memcpy(
+                        (void *)mMp4FileDataPtr->audioTrackPtr->DSI,
+                        (void *)streamDescPtr->decoderSpecificInfo,
                         9);
                 }
                 else
@@ -819,9 +819,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                         (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
-                    M4OSA_memcpy(
-                        (M4OSA_MemAddr8)mMp4FileDataPtr->audioTrackPtr->DSI,
-                        (M4OSA_MemAddr8)streamDescPtr->decoderSpecificInfo,
+                    memcpy(
+                        (void *)mMp4FileDataPtr->audioTrackPtr->DSI,
+                        (void *)streamDescPtr->decoderSpecificInfo,
                         6);
                 }
                 else
@@ -854,9 +854,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                         M4MP4_WRITER, (M4OSA_Char *)"audioTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->audioTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
-                    M4OSA_memcpy(
-                        (M4OSA_MemAddr8)mMp4FileDataPtr->audioTrackPtr->DSI,
-                        (M4OSA_MemAddr8)streamDescPtr->decoderSpecificInfo,
+                    memcpy(
+                        (void *)mMp4FileDataPtr->audioTrackPtr->DSI,
+                        (void *)streamDescPtr->decoderSpecificInfo,
                         streamDescPtr->decoderSpecificInfoSize);
                 }
                 else
@@ -1055,9 +1055,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                         M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
-                    M4OSA_memcpy(
-                        (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->DSI,
-                        (M4OSA_MemAddr8)streamDescPtr->decoderSpecificInfo,
+                    memcpy(
+                        (void *)mMp4FileDataPtr->videoTrackPtr->DSI,
+                        (void *)streamDescPtr->decoderSpecificInfo,
                         streamDescPtr->decoderSpecificInfoSize);
                 }
                 else
@@ -1095,9 +1095,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                         M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                     ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI != M4OSA_NULL,
                         M4ERR_ALLOC);
-                    M4OSA_memcpy(
-                        (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->DSI,
-                        (M4OSA_MemAddr8)streamDescPtr->decoderSpecificInfo,
+                    memcpy(
+                        (void *)mMp4FileDataPtr->videoTrackPtr->DSI,
+                        (void *)streamDescPtr->decoderSpecificInfo,
                         streamDescPtr->decoderSpecificInfoSize);
                     mMp4FileDataPtr->filesize +=
                         streamDescPtr->decoderSpecificInfoSize;
@@ -1143,25 +1143,25 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                             (M4OSA_UInt16 *)streamDescPtr->decoderSpecificInfo;
                         SPSLength = DSI[6];
                         PPSLength = DSI[10];
-                        M4OSA_memcpy(
-                            (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->DSI,
-                            (M4OSA_MemAddr8)(streamDescPtr->
-                            decoderSpecificInfo)+12, 2);
-                        M4OSA_memcpy(
-                            (M4OSA_MemAddr8)(mMp4FileDataPtr->videoTrackPtr->
-                            DSI)+2, (M4OSA_MemAddr8)(streamDescPtr->
-                            decoderSpecificInfo)+28, SPSLength);
+                        memcpy(
+                            (void *)mMp4FileDataPtr->videoTrackPtr->DSI,
+                            (void *)((streamDescPtr->
+                            decoderSpecificInfo)+12), 2);
+                        memcpy(
+                            (void *)((mMp4FileDataPtr->videoTrackPtr->
+                            DSI)+2), (void *)((streamDescPtr->
+                            decoderSpecificInfo)+28), SPSLength);
 
-                        M4OSA_memcpy(
-                            (M4OSA_MemAddr8)(mMp4FileDataPtr->videoTrackPtr->
-                            DSI)+2 + SPSLength,
-                            (M4OSA_MemAddr8)(streamDescPtr->
-                            decoderSpecificInfo)+20, 2);
-                        M4OSA_memcpy(
-                            (M4OSA_MemAddr8)(mMp4FileDataPtr->videoTrackPtr->
-                            DSI)+4 + SPSLength,
-                            (M4OSA_MemAddr8)(streamDescPtr->
-                            decoderSpecificInfo)+28 + SPSLength,
+                        memcpy(
+                            (void *)((mMp4FileDataPtr->videoTrackPtr->
+                            DSI)+2 + SPSLength),
+                            (void *)((streamDescPtr->
+                            decoderSpecificInfo)+20), 2);
+                        memcpy(
+                            (void *)((mMp4FileDataPtr->videoTrackPtr->
+                            DSI)+4 + SPSLength),
+                            (void *)((streamDescPtr->
+                            decoderSpecificInfo)+28 + SPSLength),
                             PPSLength);
                         /* - H.264 trimming */
                     }
@@ -1178,9 +1178,9 @@ M4OSA_ERR M4MP4W_addStream(M4OSA_Context context,
                             M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                             != M4OSA_NULL, M4ERR_ALLOC);
-                        M4OSA_memcpy(
-                            (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->DSI,
-                            (M4OSA_MemAddr8)streamDescPtr->
+                        memcpy(
+                            (void *)mMp4FileDataPtr->videoTrackPtr->DSI,
+                            (void *)streamDescPtr->
                             decoderSpecificInfo,
                             streamDescPtr->decoderSpecificInfoSize);
                     }
@@ -1363,8 +1363,7 @@ M4OSA_ERR M4MP4W_startWriting( M4OSA_Context context )
             safetyFileSize += mMp4FileDataPtr->audioTrackPtr->MaxChunkSize;
         }
 
-        M4OSA_memset(dummyData, sizeof(dummyData),
-            0xCA); /* For extra safety. */
+        memset((void *)dummyData, 0xCA,sizeof(dummyData)); /* For extra safety. */
 
         for ( i = 0;
             i < (safetyFileSize + sizeof(dummyData) - 1) / sizeof(dummyData);
@@ -4707,11 +4706,11 @@ M4OSA_ERR M4MP4W_getOption( M4OSA_Context context, M4OSA_OptionID option,
         memAddrPtr->size = 16;
         /*if no value was set, return the default string */
         if (mMp4FileDataPtr->embeddedString != M4OSA_NULL)
-            M4OSA_memcpy((M4OSA_MemAddr8)memAddrPtr->addr,
-            (M4OSA_MemAddr8)mMp4FileDataPtr->embeddedString, 16);
+            memcpy((void *)memAddrPtr->addr,
+            (void *)mMp4FileDataPtr->embeddedString, 16);
         else
-            M4OSA_memcpy((M4OSA_MemAddr8)memAddrPtr->addr,
-            (M4OSA_MemAddr8)BlockSignatureSkipDefaultEmbeddedString,
+            memcpy((void *)memAddrPtr->addr,
+            (void *)BlockSignatureSkipDefaultEmbeddedString,
             16);
         break;
 
@@ -4725,11 +4724,11 @@ M4OSA_ERR M4MP4W_getOption( M4OSA_Context context, M4OSA_OptionID option,
         memAddrPtr->size = 60;
         /*if no value was set, return the default string 0 */
         if (mMp4FileDataPtr->integrationTag != M4OSA_NULL)
-            M4OSA_memcpy((M4OSA_MemAddr8)memAddrPtr->addr,
-            (M4OSA_MemAddr8)mMp4FileDataPtr->integrationTag, 60);
+            memcpy((void *)memAddrPtr->addr,
+            (void *)mMp4FileDataPtr->integrationTag, 60);
         else
-            M4OSA_memcpy((M4OSA_MemAddr8)memAddrPtr->addr,
-            (M4OSA_MemAddr8)BlockSignatureSkipDefaultIntegrationTag,
+            memcpy((void *)memAddrPtr->addr,
+            (void *)BlockSignatureSkipDefaultIntegrationTag,
             60);
         break;
 
@@ -4962,8 +4961,8 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                     M4ERR_ALLOC);
             }
             /*else, just overwrite the previously set string*/
-            M4OSA_memcpy((M4OSA_MemAddr8)mMp4FileDataPtr->embeddedString,
-                (M4OSA_MemAddr8)memAddrPtr->addr, 16);
+            memcpy((void *)mMp4FileDataPtr->embeddedString,
+                (void *)memAddrPtr->addr, 16);
             break;
 
         case (M4MP4W_integrationTag):
@@ -4983,16 +4982,16 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
             /*else, just overwrite the previously set string*/
             if (memAddrPtr->size < 60)
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)mMp4FileDataPtr->integrationTag,
-                    (M4OSA_MemAddr8)BlockSignatureSkipDefaultIntegrationTag,
+                memcpy((void *)mMp4FileDataPtr->integrationTag,
+                    (void *)BlockSignatureSkipDefaultIntegrationTag,
                     60);
-                M4OSA_memcpy((M4OSA_MemAddr8)mMp4FileDataPtr->integrationTag,
-                    (M4OSA_MemAddr8)memAddrPtr->addr, memAddrPtr->size);
+                memcpy((void *)mMp4FileDataPtr->integrationTag,
+                    (void *)memAddrPtr->addr, memAddrPtr->size);
             }
             else
             {
-                M4OSA_memcpy((M4OSA_MemAddr8)mMp4FileDataPtr->integrationTag,
-                    (M4OSA_MemAddr8)memAddrPtr->addr, 60);
+                memcpy((void *)mMp4FileDataPtr->integrationTag,
+                    (void *)memAddrPtr->addr, 60);
             }
             break;
 
@@ -5184,10 +5183,10 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);
-                                M4OSA_memcpy(
-                                    (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->
+                                memcpy(
+                                    (void *)mMp4FileDataPtr->videoTrackPtr->
                                     DSI,
-                                    (M4OSA_MemAddr8)streamIDmemAddrPtr->addr,
+                                    (void *)streamIDmemAddrPtr->addr,
                                     streamIDmemAddrPtr->size);
 
                                 break;
@@ -5220,10 +5219,10 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);
-                                M4OSA_memcpy(
-                                    (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->
+                                memcpy(
+                                    (void *)mMp4FileDataPtr->videoTrackPtr->
                                     DSI,
-                                    (M4OSA_MemAddr8)streamIDmemAddrPtr->addr,
+                                    (void *)streamIDmemAddrPtr->addr,
                                     streamIDmemAddrPtr->size);
                                 mMp4FileDataPtr->filesize +=
                                     streamIDmemAddrPtr->size;
@@ -5254,9 +5253,9 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                             (M4OSA_Char *)"videoTrackPtr->DSI");
                                         ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI !=
                                              M4OSA_NULL, M4ERR_ALLOC);
-                                        M4OSA_memcpy(
-                                            (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->DSI,
-                                            (M4OSA_MemAddr8)streamIDmemAddrPtr->addr,
+                                        memcpy(
+                                            (void *)mMp4FileDataPtr->videoTrackPtr->DSI,
+                                            (void *)streamIDmemAddrPtr->addr,
                                             streamIDmemAddrPtr->size);
 
                                         break;
@@ -5288,10 +5287,10 @@ M4OSA_ERR M4MP4W_setOption( M4OSA_Context context, M4OSA_OptionID option,
                                     M4MP4_WRITER, (M4OSA_Char *)"videoTrackPtr->DSI");
                                 ERR_CHECK(mMp4FileDataPtr->videoTrackPtr->DSI
                                     != M4OSA_NULL, M4ERR_ALLOC);
-                                M4OSA_memcpy(
-                                    (M4OSA_MemAddr8)mMp4FileDataPtr->videoTrackPtr->
+                                memcpy(
+                                    (void *)mMp4FileDataPtr->videoTrackPtr->
                                     DSI,
-                                    (M4OSA_MemAddr8)streamIDmemAddrPtr->addr,
+                                    (void *)streamIDmemAddrPtr->addr,
                                     streamIDmemAddrPtr->size);
                                 break;
 

@@ -77,7 +77,7 @@
 { \
     (p) = (type*)M4OSA_malloc(sizeof(type)*(count), 0xFF,(M4OSA_Char*)comment);\
     VIDEOEDITOR_CHECK(M4OSA_NULL != (p), M4ERR_ALLOC); \
-    M4OSA_memset((M4OSA_MemAddr8)(p), sizeof(type)*(count), 0); \
+    memset((void *)(p), 0,sizeof(type)*(count)); \
 }
 
 
