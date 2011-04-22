@@ -53,10 +53,6 @@
 #include "From2iToMono_16.h"        /**< Stereo to Mono     */
 #include "MonoTo2I_16.h"            /**< Mono to Stereo     */
 
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-#include "M4VD_HW_API.h"
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -599,19 +595,6 @@ typedef struct
      * Interfaces of the used modules */
     M4VSS3GPP_MediaAndCodecCtxt         ShellAPI;           /**< Filesystem and shell reader,
                                                                  decoder functions */
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-    struct
-    {
-        M4VD_Interface*    pDecoderInterface;
-        M4OSA_Void*        pUserData;
-        M4OSA_Bool        registered;
-    } registeredExternalDecs[M4VD_kVideoType_NB];
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-#ifdef M4VSS_SUPPORT_OMX_CODECS
-    M4OSA_Context        m_codecInterface[M4VSS3GPP_kCodecType_NB];
-    M4OSA_Context        pOMXUserData;
-#endif
     M4OSA_Bool               bIssecondClip;
     M4OSA_UInt8              *pActiveEffectsList1;  /**< List of the active effects settings. Array of nbEffects RC */
     M4OSA_UInt8              nbActiveEffects1;  /**< Numbers of active effects RC */

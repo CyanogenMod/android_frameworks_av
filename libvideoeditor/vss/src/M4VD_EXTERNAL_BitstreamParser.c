@@ -19,7 +19,6 @@
 #include "M4OSA_Debug.h"
 
 #include "M4VD_EXTERNAL_Interface.h"
-#include "M4VD_EXTERNAL_Internal.h"
 #include "M4VD_Tools.h"
 
 /**

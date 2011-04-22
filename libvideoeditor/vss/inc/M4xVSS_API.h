@@ -374,50 +374,6 @@ M4OSA_ERR M4xVSS_CloseCommand(M4OSA_Context pContext);
 M4OSA_ERR M4xVSS_CleanUp(M4OSA_Context pContext);
 
 /**
-******************************************************************************
- * M4OSA_ERR M4xVSS_RegisterExternalVideoDecoder(M4OSA_Context pContext,
- *                                     M4VD_VideoType decoderType,
- *                                     M4VD_Interface*    pDecoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video decoder
- * @note
- * @param   pContext           (IN) xVSS context
- * @param   decoderType        (IN) Type of decoder (MPEG4 ...)
- * @param   pDecoderInterface  (IN) Decoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external decoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        xVSS is not in an appropriate state for this function to be called
-******************************************************************************
-*/
-M4OSA_ERR M4xVSS_RegisterExternalVideoDecoder(M4OSA_Context pContext,
-                                     M4VD_VideoType decoderType,
-                                     M4VD_Interface*    pDecoderInterface,
-                                     M4OSA_Void* pUserData);
-
-/**
-******************************************************************************
- * M4OSA_ERR M4xVSS_RegisterExternalVideoEncoder(M4OSA_Context pContext,
- *                                     M4VE_EncoderType encoderType,
- *                                     M4VE_Interface*    pEncoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video decoder
- * @note
- * @param   pContext           (IN) xVSS context
- * @param   encoderType        (IN) Type of encoder (MPEG4 ...)
- * @param   pEncoderInterface  (IN) Encoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external encoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        xVSS is not in an appropriate state for this function to be called
-******************************************************************************
-*/
-M4OSA_ERR M4xVSS_RegisterExternalVideoEncoder(M4OSA_Context pContext,
-                                     M4VE_EncoderType encoderType,
-                                     M4VE_Interface*    pEncoderInterface,
-                                     M4OSA_Void* pUserData);
-
-/**
  ******************************************************************************
  * prototype    M4xVSS_GetVersion(M4_VersionInfo *pVersion)
  * @brief        This function get the version of the Video Studio 2.1

@@ -20,21 +20,9 @@
 
 #include "M4DECODER_Common.h"
 
-#include "M4VD_HW_API.h"/* M4VD_Interface */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct
-{
-    M4VD_Interface*    externalFuncs;
-    M4OSA_Void*        externalUserData;
-}* M4DECODER_EXTERNAL_UserDataType;
-
-/* ----- Interface retrieval ----- */
-
-M4OSA_ERR M4DECODER_EXTERNAL_getInterface(M4DECODER_VideoInterface** pDecoderInterface);
 
 /* ----- DSI bitstream parser ----- */
 

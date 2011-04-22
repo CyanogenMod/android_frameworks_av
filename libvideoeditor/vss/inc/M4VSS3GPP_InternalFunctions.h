@@ -39,10 +39,6 @@
 
 #include "M4READER_Common.h" /**< for M4_AccessUnit definition */
 
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-#include "M4VD_HW_API.h"
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -606,13 +602,6 @@ M4OSA_ERR M4VSS3GPP_intAudioMixingCompatibility(M4VSS3GPP_InternalAudioMixingCon
  ******************************************************************************
 */
 M4OSA_Void M4VSS3GPP_intClipDeleteAudioTrack(M4VSS3GPP_ClipContext *pClipCtxt);
-
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-M4OSA_ERR M4VSS3GPP_intClipRegisterExternalVideoDecoder(M4VSS3GPP_ClipContext *pClipCtxt,
-                                     M4VD_VideoType decoderType,
-                                     M4VD_Interface*    pDecoderInterface,
-                                     M4OSA_Void* pUserData);
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
 
 /******************************************************************************
  * M4OSA_ERR M4VSS3GPP_intStartAU()

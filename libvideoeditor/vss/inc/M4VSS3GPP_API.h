@@ -48,11 +48,6 @@
 /**
  * Common definitions of video editing components */
 #include "M4_VideoEditingCommon.h"
-
-
-#include "M4VD_HW_API.h"
-#include "M4VE_API.h"
-
 #include "M4ENCODER_AudioCommon.h"
 #include "M4AD_Common.h"
 #include "M4DA_Types.h"
@@ -591,54 +586,6 @@ M4OSA_ERR M4VSS3GPP_editCleanUp(M4VSS3GPP_EditContext pContext);
 
 /**
  ******************************************************************************
- * M4OSA_ERR M4VSS3GPP_editRegisterExternalVideoDecoder(M4VSS3GPP_EditContext pContext,
- *                                     M4VD_VideoType decoderType,
- *                                     M4VD_Interface*    pDecoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video decoder
- * @note
- * @param   pContext           (IN) VSS3GPP context
- * @param   decoderType        (IN) Type of decoder (MPEG4 ...)
- * @param   pDecoderInterface  (IN) Decoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external decoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        VSS3GPP is not in an appropriate state for this function
- *                              to be called
- ******************************************************************************
- */
-M4OSA_ERR M4VSS3GPP_editRegisterExternalVideoDecoder(M4VSS3GPP_EditContext pContext,
-                                     M4VD_VideoType decoderType,
-                                     M4VD_Interface*    pDecoderInterface,
-                                     M4OSA_Void* pUserData);
-
-/**
- ******************************************************************************
- *M4OSA_ERR M4VSS3GPP_editRegisterExternalVideoEncoder(M4VSS3GPP_EditContext pContext,
- *                                     M4VE_EncoderType encoderType,
- *                                     M4VE_Interface*    pEncoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video encoder
- * @note
- * @param   pContext           (IN) VSS3GPP context
- * @param   encoderType        (IN) Type of encoder (MPEG4 ...)
- * @param   pEncoderInterface  (IN) Encoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external encoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        VSS3GPP is not in an appropriate state for this function
- *                              to be called
- ******************************************************************************
- */
-M4OSA_ERR M4VSS3GPP_editRegisterExternalVideoEncoder(M4VSS3GPP_EditContext pContext,
-                                     M4VE_EncoderType encoderType,
-                                     M4VE_Interface*    pEncoderInterface,
-                                     M4OSA_Void* pUserData);
-
-
-
-/**
- ******************************************************************************
  ******************************************************************************
  ******************************************************************************
  *
@@ -828,33 +775,6 @@ M4OSA_ERR M4VSS3GPP_extractPictureCleanUp(M4VSS3GPP_ExtractPictureContext pConte
 
 /**
  ******************************************************************************
- * M4OSA_ERR M4VSS3GPP_extractPictureRegisterExternalVideoDecoder(
- *                   M4VSS3GPP_ExtractPictureContext pContext,
- *                                     M4VD_VideoType decoderType,
- *                                     M4VD_Interface*    pDecoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video decoder
- * @note
- * @param   pContext           (IN) Extract picture context
- * @param   decoderType        (IN) Type of decoder (MPEG4 ...)
- * @param   pDecoderInterface  (IN) Decoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external decoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        Extract picture is not in an appropriate state for this
- *                              function to be called
- ******************************************************************************
- */
-M4OSA_ERR M4VSS3GPP_extractPictureRegisterExternalVideoDecoder(\
-                   M4VSS3GPP_ExtractPictureContext pContext,
-                                     M4VD_VideoType decoderType,
-                                     M4VD_Interface*    pDecoderInterface,
-                                     M4OSA_Void* pUserData);
-
-
-
-/**
- ******************************************************************************
  ******************************************************************************
  ******************************************************************************
  *
@@ -892,66 +812,6 @@ M4OSA_ERR M4VSS3GPP_GetVersion(M4_VersionInfo* pVersionInfo);
 M4OSA_ERR M4VSS3GPP_GetErrorMessage(M4OSA_ERR err, M4OSA_Char* sMessage);
 #endif /**< WIN32 */
 
-
-
-
-/**
- ******************************************************************************
- * M4OSA_ERR M4VSS3GPP_editRegisterExternalCodec(
- *                                                             M4VSS3GPP_EditContext    pContext,
- *                                     M4VSS3GPP_codecType        codecType,
- *                                     M4OSA_Context    pCodecInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video/Audio codec with VSS3GPP
- * @note This is much different from the other external codec registration API to
- *       cope up with specific requirement of OMX codec implementation.
- *
- * @param  pContext           (IN) VSS3GPP context
- * @param  codecType        (IN) Type of codec (MPEG4 ...)
- * @param  pCodecInterface  (IN) Codec interface
- * @param  pUserData          (IN) Pointer on a user data to give to external codec
- * @return  M4NO_ERROR:       No error
- * @return  M4ERR_PARAMETER:  At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:     VSS3GPP is not in an appropriate state for this function to be called
- ******************************************************************************
- */
- M4OSA_ERR M4VSS3GPP_editRegisterExternalCodec(M4VSS3GPP_EditContext pContext,
-                                     M4VSS3GPP_codecType codecType,
-                                     M4OSA_Context    pCodecInterface,
-                                     M4OSA_Void* pUserData);
-
-/**
- ******************************************************************************
- * M4OSA_ERR M4VSS3GPP_editSubscribeExternalCodecs(M4VSS3GPP_EditContext    pContext)
- * @brief    Subscribes to previously registered external Video/Audio codec
- * @note This is much different from the other external codec registration API to
- *       cope up with specific requirement of OMX codec implementation.
- *
- * @param  pContext           (IN) VSS3GPP context
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:     VSS3GPP is not in an appropriate state for this function to be called
- ******************************************************************************
- */
- M4OSA_ERR M4VSS3GPP_editSubscribeExternalCodecs(M4VSS3GPP_EditContext pContext);
-
-/**
- ******************************************************************************
- * M4OSA_ERR M4VSS3GPP_intSubscribeExternalCodecs(M4VSS3GPP_EditContext    pContext,
- *                                                M4OSA_Context pShellCtxt)
- * @brief    Subscribes to previously registered external Video/Audio codec
- * @note This is much different from the other external codec registration API to
- *       cope up with specific requirement of OMX codec implementation.
- *
- * @param  pContext           (IN) VSS3GPP context
- * @param pShellContext    (IN) Media Codec shell context
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:     VSS3GPP is not in an appropriate state for this function to be called
- ******************************************************************************
- */
- M4OSA_ERR M4VSS3GPP_intSubscribeExternalCodecs(M4VSS3GPP_EditContext pContext,
-                                                M4OSA_Context pShellCtxt);
 
 #ifdef __cplusplus
 }

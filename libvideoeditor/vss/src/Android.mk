@@ -40,7 +40,6 @@ LOCAL_SRC_FILES:=          \
       M4VSS3GPP_MediaAndCodecSubscription.c \
       M4ChannelCoverter.c \
       M4VD_EXTERNAL_BitstreamParser.c \
-      M4VD_EXTERNAL_Interface.c \
       M4AIR_API.c \
       M4READER_Pcm.c \
       M4PCMR_CoreReader.c \

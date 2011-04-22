@@ -23,7 +23,6 @@
  */
 #include "M4OSA_Debug.h"
 #include "M4OSA_CharStar.h"
-#include "M4OSA_FileExtra.h"
 
 #include "NXPSW_CompilerSwitches.h"
 
@@ -92,44 +91,6 @@ M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
     {
         M4OSA_TRACE1_1("Error in M4MCS_init: 0x%x", err);
         return err;
-    }
-
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-    /* replay recorded external decoder registrations on the MCS */
-    for (i=0; i<M4VD_kVideoType_NB; i++)
-    {
-        if (xVSS_context->registeredExternalDecs[i].registered)
-        {
-            err = M4MCS_registerExternalVideoDecoder(mcs_context, i,
-                    xVSS_context->registeredExternalDecs[i].pDecoderInterface,
-                    xVSS_context->registeredExternalDecs[i].pUserData);
-            if (M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4xVSS_internalStartTranscoding:\
-                     M4MCS_registerExternalVideoDecoder() returns 0x%x!", err);
-                M4MCS_abort(mcs_context);
-                return err;
-            }
-        }
-    }
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-    /* replay recorded external encoder registrations on the MCS */
-    for (i=0; i<M4VE_kEncoderType_NB; i++)
-    {
-        if (xVSS_context->registeredExternalEncs[i].registered)
-        {
-            err = M4MCS_registerExternalVideoEncoder(mcs_context, i,
-                    xVSS_context->registeredExternalEncs[i].pEncoderInterface,
-                    xVSS_context->registeredExternalEncs[i].pUserData);
-            if (M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4xVSS_internalStartTranscoding:\
-                     M4MCS_registerExternalVideoEncoder() returns 0x%x!", err);
-                M4MCS_abort(mcs_context);
-                return err;
-            }
-        }
     }
 
     err = M4MCS_open(mcs_context, xVSS_context->pMCScurrentParams->pFileIn,
@@ -1550,24 +1511,6 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
         return err;
     }
 
-    /* replay recorded external encoder registrations on the PTO3GPP */
-    for (i=0; i<M4VE_kEncoderType_NB; i++)
-    {
-        if (xVSS_context->registeredExternalEncs[i].registered)
-        {
-            err = M4PTO3GPP_RegisterExternalVideoEncoder(pM4PTO3GPP_Ctxt, i,
-                    xVSS_context->registeredExternalEncs[i].pEncoderInterface,
-                    xVSS_context->registeredExternalEncs[i].pUserData);
-            if (M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4xVSS_internalGenerateEditedFile:\
-                     M4PTO3GPP_registerExternalVideoEncoder() returns 0x%x!", err);
-                M4PTO3GPP_CleanUp(pM4PTO3GPP_Ctxt);
-                return err;
-            }
-        }
-    }
-
     pCallBackCtxt = (M4xVSS_PictureCallbackCtxt*)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_PictureCallbackCtxt),
          M4VS,(M4OSA_Char *) "Pto3gpp callback struct");
     if(pCallBackCtxt == M4OSA_NULL)
@@ -2404,44 +2347,6 @@ M4OSA_ERR M4xVSS_internalGenerateEditedFile(M4OSA_Context pContext)
             err);
         M4VSS3GPP_editCleanUp(pVssCtxt);
         return err;
-    }
-
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-    /* replay recorded external decoder registrations on the VSS3GPP */
-    for (i=0; i<M4VD_kVideoType_NB; i++)
-    {
-        if (xVSS_context->registeredExternalDecs[i].registered)
-        {
-            err = M4VSS3GPP_editRegisterExternalVideoDecoder(pVssCtxt, i,
-                    xVSS_context->registeredExternalDecs[i].pDecoderInterface,
-                    xVSS_context->registeredExternalDecs[i].pUserData);
-            if (M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4xVSS_internalGenerateEditedFile: \
-                    M4VSS3GPP_editRegisterExternalVideoDecoder() returns 0x%x!", err);
-                M4VSS3GPP_editCleanUp(pVssCtxt);
-                return err;
-            }
-        }
-    }
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-    /* replay recorded external encoder registrations on the VSS3GPP */
-    for (i=0; i<M4VE_kEncoderType_NB; i++)
-    {
-        if (xVSS_context->registeredExternalEncs[i].registered)
-        {
-            err = M4VSS3GPP_editRegisterExternalVideoEncoder(pVssCtxt, i,
-                    xVSS_context->registeredExternalEncs[i].pEncoderInterface,
-                    xVSS_context->registeredExternalEncs[i].pUserData);
-            if (M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4xVSS_internalGenerateEditedFile:\
-                     M4VSS3GPP_editRegisterExternalVideoEncoder() returns 0x%x!", err);
-                M4VSS3GPP_editCleanUp(pVssCtxt);
-                return err;
-            }
-        }
     }
 
     /* In case of MMS use case, we fill directly into the VSS context the targeted bitrate */

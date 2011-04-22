@@ -479,20 +479,6 @@ typedef struct {
     /*UTF Conversion support*/
     M4xVSS_UTFConversionContext    UTFConversionContext;    /*UTF conversion context structure*/
 
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-    struct
-    {
-        M4VD_Interface*    pDecoderInterface;
-        M4OSA_Void*        pUserData;
-        M4OSA_Bool        registered;
-    } registeredExternalDecs[M4VD_kVideoType_NB];
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-    struct
-    {
-        M4VE_Interface*    pEncoderInterface;
-        M4OSA_Void*        pUserData;
-        M4OSA_Bool        registered;
-    } registeredExternalEncs[M4VE_kEncoderType_NB];
 } M4xVSS_Context;
 
 /**

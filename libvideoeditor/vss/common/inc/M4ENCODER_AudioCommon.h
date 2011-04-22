@@ -29,6 +29,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include "M4OSA_OptionID.h"     /* for M4OSA_OPTION_ID_CREATE() */
+#include "M4OSA_CoreID.h"
 
 #define M4ENCODER_AUDIO_NB_CHANNELS_MAX 2
 /* WARNING: this value must be equal to the number of samples grabbed */
@@ -45,7 +46,7 @@ extern "C" {
 typedef enum
 {
  /* Maximum generated AU size */
-    M4ENCODER_Audio_maxAUsize     = M4OSA_OPTION_ID_CREATE(M4_READ,      M4ENCODER_AUDIO, 0x01)
+    M4ENCODER_Audio_maxAUsize     = M4OSA_OPTION_ID_CREATE(M4_READ,M4ENCODER_AUDIO, 0x01)
 
 } M4ENCODER_Audio_OptionID;
 

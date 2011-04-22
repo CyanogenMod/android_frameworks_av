@@ -44,8 +44,6 @@
  * Definitions of M4VIFI_ImagePlane */
 #include "M4VIFI_FiltersAPI.h"
 
-#include "M4VE_API.h"
-
 /**
  * Common definitions of video editing components */
 #include "M4_VideoEditingCommon.h"
@@ -247,12 +245,6 @@ M4OSA_ERR M4PTO3GPP_Close(M4PTO3GPP_Context pContext);
  ******************************************************************************
  */
 M4OSA_ERR M4PTO3GPP_CleanUp(M4PTO3GPP_Context pContext);
-
-
-M4OSA_ERR M4PTO3GPP_RegisterExternalVideoEncoder(M4PTO3GPP_Context pContext,
-                                                 M4VE_EncoderType encoderType,
-                                                 M4VE_Interface*    pEncoderInterface,
-                                                 M4OSA_Void* pUserData);
 
 
 #ifdef __cplusplus

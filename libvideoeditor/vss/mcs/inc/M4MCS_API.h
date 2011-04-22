@@ -46,9 +46,6 @@
  * Common definitions of video editing components */
 #include "M4_VideoEditingCommon.h"
 
-#include "M4VD_HW_API.h"
-#include "M4VE_API.h"
-
 /**
  * To enable external audio codecs registering*/
 #include "M4AD_Common.h"
@@ -259,27 +256,6 @@ typedef enum
     M4MCS_kCropBeforeResize      = 0x01  /*Input image is cropped (before changing resolution)*/
 } M4MCS_SPCrop ;
 
-/**
- ******************************************************************************
- * enum      M4MCS_ExifInfos
- * @brief    Still picture specific : The following structure contains all available exif field
- ******************************************************************************
- */
-typedef struct {
-    M4OSA_Char* ImageTitle;              /* Image title */
-    M4OSA_Char* EquipmentManufacturer;   /* Image input equipment manufacturer */
-    M4OSA_Char* EquipmentModel;          /* Image input equipment model */
-    M4OSA_Char* Software;                /* Software used */
-    M4OSA_Char* Artist;                  /* Artist */
-    M4OSA_Char* Copyright;               /* Copyright */
-    M4OSA_Char* CreationDateTime;        /* Creation date and time */
-    M4OSA_UInt32 Orientation;            /* Orientation of the picture */
-    M4OSA_Char* LastChangeDateTime;      /* Last Change date and time*/
-    M4OSA_UInt32 PixelXDimension;        /* Image width*/
-    M4OSA_UInt32 PixelYDimension;        /* Image Height*/
-} M4MCS_ExifInfos;
-
-/*--- STILL PICTURE ---*/
 
 /**
  ******************************************************************************
@@ -589,74 +565,6 @@ M4OSA_ERR M4MCS_getExtendedEncodingParams(M4MCS_Context pContext, M4MCS_Encoding
  ******************************************************************************
  */
 M4OSA_ERR M4MCS_checkParamsAndStart(M4MCS_Context pContext);
-
-/**
- ******************************************************************************
- * M4OSA_ERR M4MCS_registerExternalVideoDecoder(M4MCS_Context pContext,
- *                                     M4VD_VideoType decoderType,
- *                                     M4VD_Interface*    pDecoderInterface,
- *                                     M4OSA_Void* pUserData)
- * @brief    Registers an external Video decoder
- * @note
- * @param   pContext           (IN) MCS context
- * @param   decoderType        (IN) Type of decoder (MPEG4 ...)
- * @param   pDecoderInterface  (IN) Decoder interface
- * @param   pUserData          (IN) Pointer on a user data to give to external decoder
- * @return  M4NO_ERROR:         No error
- * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL (debug only)
- * @return  M4ERR_STATE:        MCS is not in an appropriate state for this function to be called
- ******************************************************************************
- */
-M4OSA_ERR M4MCS_registerExternalVideoDecoder(M4MCS_Context pContext,
-                                     M4VD_VideoType decoderType,
-                                     M4VD_Interface*    pDecoderInterface,
-                                     M4OSA_Void* pUserData);
-
-M4OSA_ERR M4MCS_registerExternalVideoEncoder(M4MCS_Context pContext,
-                                     M4VE_EncoderType encoderType,
-                                     M4VE_Interface*    pEncoderInterface,
-                                     M4OSA_Void* pUserData);
-
-
-/**
- ************************************************************************
- * M4OSA_ERR M4MCS_registerExternalAudioDecoder(M4MCS_Context pContext,
- *                                    M4AD_Type decoderType,
- *                                    M4AD_Interface *pDecoderInterface);
- * @brief    This function will register a specific external audio decoder.
- * @note    According to the decoderType, this function will store in the internal context
- *          the decoder interface.
- * @param    context            (IN/OUT) MCS context.
- * @param    decoderType        (IN) Audio decoder type
- * @param    pDecoderInterface  (IN) Audio decoder interface.
- * @return   M4NO_ERROR:        No error
- * @return   M4ERR_PARAMETER:   A parameter is null, or the decoder type is invalid(in DEBUG only)
- ************************************************************************
- */
-M4OSA_ERR M4MCS_registerExternalAudioDecoder(M4MCS_Context pContext,
-                                    M4AD_Type decoderType,
-                                    M4AD_Interface *pDecoderInterface);
-
-
-/**
- ******************************************************************************
- * M4OSA_ERR   M4MCS_registerExternalAudioEncoder(M4MCS_Context pContext,
- *                                    M4ENCODER_AudioFormat mediaType,
- *                                    M4ENCODER_AudioGlobalInterface *pEncGlobalInterface)
- * @brief    This function will register a specific external audio encoder.
- * @note    According to the Mediatype, this function will store in the internal context
- *          the encoder interface.
- * @param    pContext:                (IN) Execution context.
- * @param    mediaType:                (IN) The media type.
- * @param    pEncGlobalInterface:    (OUT) the encoder interface functions.
- * @return    M4NO_ERROR: there is no error
- * @return    M4ERR_PARAMETER: pContext or pEncGlobalInterface is M4OSA_NULL (debug only)
- ******************************************************************************
- */
-M4OSA_ERR M4MCS_registerExternalAudioEncoder(M4MCS_Context pContext,
-                                    M4ENCODER_AudioFormat MediaType,
-                                    M4ENCODER_AudioGlobalInterface *pEncGlobalInterface);
-
 
 #ifdef __cplusplus
 }

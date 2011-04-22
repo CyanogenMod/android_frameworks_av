@@ -242,13 +242,6 @@ M4OSA_ERR M4PTO3GPP_Init(   M4PTO3GPP_Context* pContext,
     pC->pSavedPlane = M4OSA_NULL;
     pC->uiSavedDuration = 0;
 
-    for (i=0; i<M4VE_kEncoderType_NB; i++)
-    {
-        pC->registeredExternalEncs[i].pEncoderInterface = M4OSA_NULL;
-        pC->registeredExternalEncs[i].pUserData = M4OSA_NULL;
-        pC->registeredExternalEncs[i].registered = M4OSA_FALSE;
-    }
-
     M4OSA_TRACE3_0("M4PTO3GPP_Init(): returning M4NO_ERROR");
     return M4NO_ERROR;
 }
@@ -265,7 +258,7 @@ M4OSA_ERR M4PTO3GPP_Init(   M4PTO3GPP_Context* pContext,
  * @return  M4NO_ERROR:         No error
  * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL
  * @return  M4ERR_STATE:        M4PTO3GPP is not in an appropriate state for this function to be
-                                  called
+                                 called
  * @return  M4ERR_ALLOC:        There is no more available memory
  * @return  ERR_PTO3GPP_INVALID_VIDEO_FRAME_SIZE_FOR_H263 The output video frame
  *                              size parameter is incompatible with H263 encoding
@@ -317,7 +310,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
     /**
      * Video Format */
-    if ((M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
+    if( (M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4_EMP != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kH264 != pParams->OutputVideoFormat))
@@ -328,7 +321,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
      /**
      * Video Bitrate */
-    if (!((M4VIDEOEDITING_k16_KBPS       == pParams->OutputVideoBitrate) ||
+    if(!((M4VIDEOEDITING_k16_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k24_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k32_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k48_KBPS       == pParams->OutputVideoBitrate) ||
@@ -1263,23 +1256,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     {
         case M4VIDEOEDITING_kMPEG4_EMP: bActivateEmp = M4OSA_TRUE; /* no break */
         case M4VIDEOEDITING_kMPEG4:
-            if (pC->registeredExternalEncs[M4VE_kMpeg4VideoEnc].registered)
-            {
-#ifdef M4VSS_ENABLE_EXTERNAL_ENCODERS
-                pC->m_pEncoderExternalAPI = pC->registeredExternalEncs[M4VE_kMpeg4VideoEnc]
-                .pEncoderInterface;
-                pC->m_pEncoderUserData = pC->registeredExternalEncs[M4VE_kMpeg4VideoEnc].pUserData;
-
-                err = M4EGE_MPEG4_getInterfaces(&encFormat, &pC->m_pEncoderInt,
-                    M4ENCODER_OPEN_ADVANCED);
-#else
-                M4OSA_TRACE1_0("No external MPEG4 encoder available!\
-                               Did you forget to register one?");
-                err = M4ERR_STATE;
-#endif
-            }
-            else
-            {
 #ifdef M4VSS_SUPPORT_ENCODER_MPEG4
                 err = VideoEditorVideoEncoder_getInterface_MPEG4(&encFormat, &pC->m_pEncoderInt,
                     M4ENCODER_OPEN_ADVANCED);
@@ -1287,26 +1263,8 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
                 M4OSA_TRACE1_0("No MPEG4 encoder available! Did you forget to register one?");
                 err = M4ERR_STATE;
 #endif /* software MPEG4 encoder available? */
-            }
             break;
         case M4VIDEOEDITING_kH263:
-            if (pC->registeredExternalEncs[M4VE_kH263VideoEnc].registered)
-            {
-#ifdef M4VSS_ENABLE_EXTERNAL_ENCODERS
-                pC->m_pEncoderExternalAPI = pC->registeredExternalEncs[M4VE_kH263VideoEnc]
-                .pEncoderInterface;
-                pC->m_pEncoderUserData = pC->registeredExternalEncs[M4VE_kH263VideoEnc].pUserData;
-
-                err = M4EGE_H263_getInterfaces(&encFormat, &pC->m_pEncoderInt,
-                    M4ENCODER_OPEN_ADVANCED);
-#else
-                M4OSA_TRACE1_0("No external H263 encoder available! Did you forget to register\
-                               one?");
-                err = M4ERR_STATE;
-#endif
-            }
-            else
-            {
 #ifdef M4VSS_SUPPORT_ENCODER_MPEG4
                 err = VideoEditorVideoEncoder_getInterface_H263(&encFormat, &pC->m_pEncoderInt,
                     M4ENCODER_OPEN_ADVANCED);
@@ -1314,17 +1272,8 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
                 M4OSA_TRACE1_0("No H263 encoder available! Did you forget to register one?");
                 err = M4ERR_STATE;
 #endif /* software H263 encoder available? */
-            }
             break;
         case M4VIDEOEDITING_kH264:
-            if (pC->registeredExternalEncs[M4VE_kH264VideoEnc].registered)
-            {
-                M4OSA_TRACE1_0("M4PTO3GPP_Ready4Processing: No external H264 encoder available! \
-                               Did you forget to register one?");
-                err = M4ERR_STATE;
-            }
-            else
-            {
 #ifdef M4VSS_SUPPORT_ENCODER_AVC
                 err = VideoEditorVideoEncoder_getInterface_H264(&encFormat, &pC->m_pEncoderInt,
                     M4ENCODER_OPEN_ADVANCED);
@@ -1333,7 +1282,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
                                Did you forget to register one?");
                 err = M4ERR_STATE;
 #endif /* software H264 encoder available? */
-            }
             break;
         default:
             M4OSA_TRACE1_1("M4PTO3GPP_Ready4Processing: unknown format 0x%x returning \
@@ -2019,42 +1967,4 @@ static M4OSA_ERR M4PTO3GPP_writeAmrSilence048Frame(M4WRITER_DataInterface* pWrit
     return M4NO_ERROR;
 }
 
-
-M4OSA_ERR M4PTO3GPP_RegisterExternalVideoEncoder(M4PTO3GPP_Context pContext,
-                                     M4VE_EncoderType encoderType,
-                                     M4VE_Interface*    pEncoderInterface,
-                                     M4OSA_Void* pUserData)
-{
-    M4OSA_ERR err = M4NO_ERROR;
-    M4PTO3GPP_InternalContext *pC = (M4PTO3GPP_InternalContext*)(pContext);
-
-    switch (encoderType)
-    {
-        case M4VE_kMpeg4VideoEnc:
-        case M4VE_kH263VideoEnc:
-            /* OK */
-        break;
-
-        case M4VE_kH264VideoEnc:
-            M4OSA_TRACE1_0("M4PTO3GPP_RegisterExternalVideoEncoder: \
-                           H264 encoder type not implemented yet");
-            return M4ERR_NOT_IMPLEMENTED;
-        break;
-
-        default:
-            M4OSA_TRACE1_1("M4PTO3GPP_RegisterExternalVideoEncoder:\
-                           unknown encoderType %d", encoderType);
-            return M4ERR_PARAMETER;
-        break;
-    }
-
-    pC->registeredExternalEncs[encoderType].pEncoderInterface = pEncoderInterface;
-    pC->registeredExternalEncs[encoderType].pUserData = pUserData;
-    pC->registeredExternalEncs[encoderType].registered = M4OSA_TRUE;
-
-    /* Notice it overwrites any HW encoder that may already have been registered for this type;
-    this is normal. */
-
-    return M4NO_ERROR;
-}
 

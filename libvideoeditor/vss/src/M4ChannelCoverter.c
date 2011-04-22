@@ -44,7 +44,7 @@ void From2iToMono_16( const short *src,
 {
     short ii;
     long Temp;
-    for (ii = n; ii != 0; ii--) {
+    for (ii = n; ii != 0; ii--){
         Temp = (long)*(src++);
         Temp += (long)*(src++);
         *(dst++) = (short)(Temp >>1);

@@ -193,13 +193,6 @@ typedef struct
      *    Audio padding mode */
     M4OSA_Bool                    m_bAudioPaddingSilence;  /**< A boolean that signals that audio
                                                                 AU will be padded by silence */
-
-    struct
-    {
-        M4VE_Interface*    pEncoderInterface;
-        M4OSA_Void*        pUserData;
-        M4OSA_Bool        registered;
-    } registeredExternalEncs[M4VE_kEncoderType_NB];
 } M4PTO3GPP_InternalContext;
 
 

@@ -30,7 +30,6 @@
 #include "M4OSA_Debug.h"
 #include "M4OSA_FileReader.h"
 #include "M4OSA_FileWriter.h"
-#include "M4OSA_FileExtra.h"
 #include "M4OSA_CoreID.h"
 #include "M4OSA_CharStar.h"
 // StageFright encoders require %16 resolution
@@ -217,23 +216,6 @@ M4OSA_ERR M4xVSS_Init( M4OSA_Context *pContext, M4xVSS_InitParams *pParams )
 
     /*FB: initialize to avoid crash when error during the editing*/
     xVSS_context->pCurrentEditSettings = M4OSA_NULL;
-
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-
-    for ( i = 0; i < M4VD_kVideoType_NB; i++ )
-    {
-        xVSS_context->registeredExternalDecs[i].pDecoderInterface = M4OSA_NULL;
-        xVSS_context->registeredExternalDecs[i].pUserData = M4OSA_NULL;
-        xVSS_context->registeredExternalDecs[i].registered = M4OSA_FALSE;
-    }
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-    for ( i = 0; i < M4VE_kEncoderType_NB; i++ )
-    {
-        xVSS_context->registeredExternalEncs[i].pEncoderInterface = M4OSA_NULL;
-        xVSS_context->registeredExternalEncs[i].pUserData = M4OSA_NULL;
-        xVSS_context->registeredExternalEncs[i].registered = M4OSA_FALSE;
-    }
 
     /* Initialize state if all initializations are corrects */
     xVSS_context->m_state = M4xVSS_kStateInitialized;
@@ -6097,65 +6079,6 @@ M4OSA_ERR M4xVSS_CleanUp( M4OSA_Context pContext )
     free(xVSS_context);
     xVSS_context = M4OSA_NULL;
     M4OSA_TRACE3_0("M4xVSS_CleanUp:leaving ");
-
-    return M4NO_ERROR;
-}
-
-M4OSA_ERR M4xVSS_RegisterExternalVideoDecoder( M4OSA_Context pContext,
-                                              M4VD_VideoType decoderType,
-                                              M4VD_Interface *pDecoderInterface,
-                                              M4OSA_Void *pUserData )
-{
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-
-    M4xVSS_Context *xVSS_context = (M4xVSS_Context *)pContext;
-    /* Here the situation is a bit special: we need to record the registrations that are made,
-    so that we can replay them for each clip we create. */
-
-    if( decoderType >= M4VD_kVideoType_NB )
-    {
-        return M4ERR_PARAMETER;
-    }
-
-    xVSS_context->registeredExternalDecs[decoderType].pDecoderInterface =
-        pDecoderInterface;
-    xVSS_context->registeredExternalDecs[decoderType].pUserData = pUserData;
-    xVSS_context->registeredExternalDecs[decoderType].registered = M4OSA_TRUE;
-
-    /* Notice it overwrites any HW decoder that may already have been registered for this type;
-    this is normal.*/
-
-    return M4NO_ERROR;
-
-#else
-
-    return M4ERR_NOT_IMPLEMENTED;
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-}
-
-M4OSA_ERR M4xVSS_RegisterExternalVideoEncoder( M4OSA_Context pContext,
-                                              M4VE_EncoderType encoderType,
-                                              M4VE_Interface *pEncoderInterface,
-                                              M4OSA_Void *pUserData )
-{
-    M4xVSS_Context *xVSS_context = (M4xVSS_Context *)pContext;
-    /* Here the situation is a bit special: we need to record the registrations that are made,
-    so that we can replay them for each clip we create. */
-
-    if( encoderType >= M4VE_kEncoderType_NB )
-    {
-        return M4ERR_PARAMETER;
-    }
-
-    xVSS_context->registeredExternalEncs[encoderType].pEncoderInterface =
-        pEncoderInterface;
-    xVSS_context->registeredExternalEncs[encoderType].pUserData = pUserData;
-    xVSS_context->registeredExternalEncs[encoderType].registered = M4OSA_TRUE;
-
-    /* Notice it overwrites any HW encoder that may already have been registered for this type;
-    this is normal.*/
 
     return M4NO_ERROR;
 }
