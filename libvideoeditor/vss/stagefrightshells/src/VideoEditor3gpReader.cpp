@@ -406,7 +406,8 @@ M4OSA_ERR VideoEditor3gpReader_create(M4OSA_Context *pContext) {
     pC->mVideoSeeking = M4OSA_FALSE;
     pC->mVideoSeekTime = 0;
 
-    M4OSA_INT64_FROM_INT32(pC->mMaxDuration, 0);
+    pC->mMaxDuration = 0;
+
     *pContext=pC;
 
 cleanUp:
@@ -646,7 +647,7 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
     case M4READER_kOptionID_Duration:
         {
             LOGV("VideoEditor3gpReader_getOption duration %d",pC->mMaxDuration);
-            M4OSA_TIME_SET(*(M4OSA_Time*)pValue, pC->mMaxDuration);
+            *(M4OSA_Time*)pValue = pC->mMaxDuration;
         }
         break;
     case M4READER_kOptionID_Version:
@@ -859,7 +860,6 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
     M4OSA_ERR err = M4NO_ERROR;
     M4SYS_AccessUnit* pAu;
     M4OSA_Time time64;
-    M4OSA_Double timeDouble;
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_jump: invalid context");
@@ -873,7 +873,7 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
     if (*pTime == (pStreamHandler->m_duration)) {
         *pTime -= 1;
     }
-    M4OSA_INT64_FROM_INT32(time64, *pTime);
+    time64 = (M4OSA_Time)*pTime;
 
     LOGV("VideoEditor3gpReader_jump time us %ld ", time64);
 
@@ -906,8 +906,7 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
     time64 = time64 / 1000; /* Convert the time into milli sec */
     LOGV("VideoEditor3gpReader_jump time ms before seekset %ld ", time64);
 
-    M4OSA_INT64_TO_DOUBLE(timeDouble, time64);
-    *pTime = (M4OSA_Int32)timeDouble;
+    *pTime = (M4OSA_Int32)time64;
 
     LOGV("VideoEditor3gpReader_jump end");
     err = M4NO_ERROR;
@@ -929,14 +928,12 @@ M4OSA_ERR VideoEditor3gpReader_reset(M4OSA_Context context,
     M4OSA_ERR err = M4NO_ERROR;
     M4SYS_StreamID streamIdArray[2];
     M4SYS_AccessUnit* pAu;
-    M4OSA_Time time64;
+    M4OSA_Time time64 = 0;
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_reset: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_reset: invalid pointer to M4_StreamHandler");
-
-    M4OSA_INT64_FROM_INT32(time64, 0);
 
     LOGV("VideoEditor3gpReader_reset begin");
 
@@ -1905,8 +1902,8 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     if (*pTime == (pStreamHandler->m_duration)) {
         *pTime -= 1;
     }
-    M4OSA_INT64_FROM_INT32(time64, *pTime);
-    time64 = time64 * 1000;
+
+    time64 = (M4OSA_Time)*pTime * 1000;
 
     LOGV("VideoEditor3gpReader_getPrevRapTime seek time: %ld",time64);
     options.setSeekTo(time64, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
@@ -1921,7 +1918,7 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     LOGV("VideoEditor3gpReader_getPrevRapTime read time %ld, %x", tempTime64,
         mMediaBuffer);
 
-    (*pTime) =  (tempTime64) / 1000;
+    *pTime = (M4OSA_Int32)(tempTime64 / 1000);
 
     if(mMediaBuffer != M4OSA_NULL) {
         LOGV(" mMediaBuffer size = %d length %d", mMediaBuffer->size(),

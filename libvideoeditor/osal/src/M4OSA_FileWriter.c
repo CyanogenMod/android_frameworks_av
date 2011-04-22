@@ -113,12 +113,12 @@ M4OSA_ERR M4OSA_fileWriteData(M4OSA_Context pContext, M4OSA_MemAddr8 data,
         }
         fflush(pFileContext->file_desc);
 
-        M4OSA_FPOS_ADD_CONST_UINT32(pFileContext->write_position, pFileContext->write_position, WriteSize);
+        pFileContext->write_position = pFileContext->write_position + WriteSize;
 
         /* Update the file size */
-        if(M4OSA_FPOS_COMPARE(pFileContext->write_position, pFileContext->file_size) > 0)
+        if(pFileContext->write_position > pFileContext->file_size)
         {
-            M4OSA_FPOS_SET(pFileContext->file_size, pFileContext->write_position);
+            pFileContext->file_size = pFileContext->write_position;
         }
         return err;
     }
@@ -160,14 +160,12 @@ M4OSA_ERR M4OSA_fileWriteData(M4OSA_Context pContext, M4OSA_MemAddr8 data,
         return M4ERR_BAD_CONTEXT;
     }
 
-    M4OSA_FPOS_ADD_CONST_UINT32(pFileContext->write_position,
-                                pFileContext->write_position,
-                                uiSizeWrite);
+    pFileContext->write_position = pFileContext->write_position + uiSizeWrite;
 
     /* Update the file size */
-    if(M4OSA_FPOS_COMPARE(pFileContext->write_position, pFileContext->file_size) > 0)
+    if(pFileContext->write_position > pFileContext->file_size)
     {
-        M4OSA_FPOS_SET(pFileContext->file_size, pFileContext->write_position);
+        pFileContext->file_size = pFileContext->write_position;
     }
 
     if((M4OSA_UInt32)uiSizeWrite < uiSize)
@@ -285,7 +283,7 @@ M4OSA_ERR M4OSA_fileWriteSeek(M4OSA_Context pContext, M4OSA_FileSeekAccessMode s
         return err;
     }
 
-    M4OSA_FPOS_SET(pFileContext->write_position, *pPosition);
+    pFileContext->write_position = *pPosition;
 
     pFileContext->current_seek = SeekWrite;
 

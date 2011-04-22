@@ -2879,7 +2879,6 @@ M4OSA_ERR M4MP4W_closeWrite( M4OSA_Context context )
 
 #ifndef _M4MP4W_MOOV_FIRST
 
-    M4OSA_UInt32 filePos;
     M4OSA_FilePosition moovPos, mdatPos;
 
 #endif /*_M4MP4W_MOOV_FIRST*/
@@ -3616,12 +3615,8 @@ M4OSA_ERR M4MP4W_closeWrite( M4OSA_Context context )
 
 #endif /*_M4MP4W_MOOV_FIRST*/
 
-    /* Pierre Lebeaupin 19/12/2007: changing the way the mdat size is computed. */
 #ifndef _M4MP4W_MOOV_FIRST
     /* seek is used to get the current position relative to the start of the file. */
-    /* M4OSA_INT_TO_FILE_POSITION(0, moovPos);
-    /CLEANUPonERR( mMp4FileDataPtr->fileWriterFunctions->seek(mMp4FileDataPtr->fileWriterContext,
-     M4OSA_kFileSeekCurrent, &moovPos) ); */
     /* ... or rather, seek used to be used for that, but it has been found this functionality
     is not reliably, or sometimes not at all, implemented in the various OSALs, so we now avoid
     using it. */
@@ -3634,9 +3629,6 @@ M4OSA_ERR M4MP4W_closeWrite( M4OSA_Context context )
     /* moovPos will be used after writing the moov. */
 
 #endif /*_M4MP4W_MOOV_FIRST*/
-    /* End of Pierre Lebeaupin 19/12/2007: changing the way the mdat size is computed. */
-
-    /*moov*/
 
     CLEANUPonERR(M4MP4W_putBE32(moovSize, mMp4FileDataPtr->fileWriterFunctions,
         fileWriterContext));
@@ -4511,13 +4503,12 @@ M4OSA_ERR M4MP4W_closeWrite( M4OSA_Context context )
     /*overwrite mdat size*/
 
     if (mMp4FileDataPtr->ftyp.major_brand != 0)
-        filePos = 16 + mMp4FileDataPtr->ftyp.nbCompatibleBrands * 4;
+        mdatPos= 16 + mMp4FileDataPtr->ftyp.nbCompatibleBrands * 4;
     else
-        filePos = 24;
+        mdatPos = 24;
 
-    M4OSA_INT_TO_FILE_POSITION(filePos, mdatPos);
-    M4OSA_FPOS_SUB(moovPos, moovPos, mdatPos);
-    M4OSA_FILE_POSITION_TO_INT(moovPos, mdatSize);
+    moovPos = moovPos - mdatPos;
+    mdatSize = moovPos;
 
     CLEANUPonERR(mMp4FileDataPtr->fileWriterFunctions->seek(fileWriterContext,
         M4OSA_kFileSeekBeginning, &mdatPos)); /*seek after ftyp...*/

@@ -80,7 +80,7 @@ M4OSA_ERR M4READER_AMR_create(M4OSA_Context *pContext)
 
     pReaderContext->m_pAudioStream  = M4OSA_NULL;
     pReaderContext->m_audioAu.dataAddress = M4OSA_NULL;
-    M4OSA_INT64_FROM_INT32(pReaderContext->m_maxDuration, 0);
+    pReaderContext->m_maxDuration = 0;
     pReaderContext->m_pCoreContext = M4OSA_NULL;
     pReaderContext->m_pOsaFileReaderFcts = M4OSA_NULL;
 
@@ -303,14 +303,12 @@ M4OSA_ERR M4READER_AMR_getNextStream(M4OSA_Context context, M4READER_MediaFamily
     pStreamHandler->m_pDecoderSpecificInfo    = (M4OSA_UInt8*)(streamDesc.decoderSpecificInfo);
     pStreamHandler->m_decoderSpecificInfoSize = streamDesc.decoderSpecificInfoSize;
     pStreamHandler->m_streamId                = streamDesc.streamID;
- // M4OSA_INT64_FROM_DOUBLE(pStreamHandler->m_duration,
- // (M4OSA_Double)(((M4OSA_Float)streamDesc.duration*1000/(M4OSA_Float)(streamDesc.timeScale))));
     pStreamHandler->m_duration                = streamDesc.duration;
     pStreamHandler->m_pUserData               = (void*)streamDesc.timeScale; /*trick to change*/
 
-    if (M4OSA_TIME_COMPARE(streamDesc.duration, pC->m_maxDuration) > 0)
+    if (streamDesc.duration > pC->m_maxDuration)
     {
-        M4OSA_TIME_SET(pC->m_maxDuration, streamDesc.duration);
+        pC->m_maxDuration = streamDesc.duration;
     }
     pStreamHandler->m_averageBitRate          = streamDesc.averageBitrate;
 
@@ -422,7 +420,7 @@ M4OSA_ERR M4READER_AMR_getOption(M4OSA_Context context, M4OSA_OptionID optionId,
     {
     case M4READER_kOptionID_Duration :
         {
-            M4OSA_TIME_SET(*(M4OSA_Time*)pValue, pC->m_maxDuration);
+            *(M4OSA_Time*)pValue = pC->m_maxDuration;
         }
         break;
 
@@ -523,14 +521,12 @@ M4OSA_ERR M4READER_AMR_reset(M4OSA_Context context, M4_StreamHandler *pStreamHan
     M4SYS_StreamID          streamIdArray[2];
     M4OSA_ERR               err;
     M4SYS_AccessUnit*       pAu;
-    M4OSA_Time                time64;
+    M4OSA_Time              time64 = 0;
     M4AMRR_State            State;
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER, "M4READER_AMR_reset: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
          "M4READER_AMR_reset: invalid pointer to M4_StreamHandler");
-
-    M4OSA_INT64_FROM_INT32(time64, 0);
 
     if (pStreamHandler == (M4_StreamHandler*)pC->m_pAudioStream)
     {
@@ -596,16 +592,13 @@ M4OSA_ERR M4READER_AMR_jump(M4OSA_Context context, M4_StreamHandler *pStreamHand
     M4SYS_StreamID          streamIdArray[2];
     M4OSA_ERR               err;
     M4SYS_AccessUnit*       pAu;
-    M4OSA_Time                time64;
-    M4OSA_Double            timeDouble; /*used for type conversion only*/
+    M4OSA_Time              time64 = (M4OSA_Time)*pTime;
     M4AMRR_State            State;
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER, "M4READER_AMR_reset: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
          "M4READER_AMR_reset: invalid pointer to M4_StreamHandler");
     M4OSA_DEBUG_IF1((pTime == 0), M4ERR_PARAMETER, "M4READER_3GP_jump: invalid time pointer");
-
-    M4OSA_INT64_FROM_INT32(time64, *pTime);
 
     if (pStreamHandler == (M4_StreamHandler*)pC->m_pAudioStream)
     {
@@ -641,8 +634,7 @@ M4OSA_ERR M4READER_AMR_jump(M4OSA_Context context, M4_StreamHandler *pStreamHand
         return err;
     }
 
-    M4OSA_INT64_TO_DOUBLE(timeDouble, time64);
-    *pTime = (M4OSA_Int32)timeDouble;
+    *pTime = (M4OSA_Int32)time64;
 
     return err;
 }

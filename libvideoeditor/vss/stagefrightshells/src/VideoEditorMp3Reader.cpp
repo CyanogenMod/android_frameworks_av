@@ -97,7 +97,7 @@ M4OSA_ERR VideoEditorMp3Reader_create(M4OSA_Context *pContext) {
 
     pReaderContext->mAudioStreamHandler  = M4OSA_NULL;
     pReaderContext->mAudioAu.dataAddress = M4OSA_NULL;
-    M4OSA_INT64_FROM_INT32(pReaderContext->mMaxDuration, 0);
+    pReaderContext->mMaxDuration = 0;
     *pContext = pReaderContext;
 
 cleanUp:
@@ -277,7 +277,7 @@ M4OSA_ERR VideoEditorMp3Reader_getOption(M4OSA_Context context,
     case M4READER_kOptionID_Duration:
         {
             LOGV("Mp3Reader duration=%ld",pReaderContext->mMaxDuration);
-            M4OSA_TIME_SET(*(M4OSA_Time*)pValue, pReaderContext->mMaxDuration);
+            *(M4OSA_Time*)pValue = pReaderContext->mMaxDuration;
         }
         break;
 
@@ -372,8 +372,7 @@ M4OSA_ERR VideoEditorMp3Reader_jump(M4OSA_Context context,
     M4SYS_StreamID streamIdArray[2];
     M4OSA_ERR err = M4NO_ERROR;
     M4SYS_AccessUnit* pAu;
-    M4OSA_Time time64;
-    M4OSA_Double timeDouble;
+    M4OSA_Time time64 = (M4OSA_Time)*pTime;
 
     LOGV("VideoEditorMp3Reader_jump begin");
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
@@ -382,8 +381,6 @@ M4OSA_ERR VideoEditorMp3Reader_jump(M4OSA_Context context,
         "VideoEditorMp3Reader_jump: invalid pointer to M4_StreamHandler");
     M4OSA_DEBUG_IF1((pTime == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_jump: invalid time pointer");
-
-    M4OSA_INT64_FROM_INT32(time64, *pTime);
 
     if(pStreamHandler == (M4_StreamHandler*)pReaderContext->\
         mAudioStreamHandler){
@@ -408,8 +405,7 @@ M4OSA_ERR VideoEditorMp3Reader_jump(M4OSA_Context context,
     pReaderContext->mSeekTime = time64;
 
     time64 = time64 / 1000; /* Convert the time into milli sec */
-    M4OSA_INT64_TO_DOUBLE(timeDouble, time64);
-    *pTime = (M4OSA_Int32)timeDouble;
+    *pTime = (M4OSA_Int32)time64;
     LOGV("VideoEditorMp3Reader_jump end ");
     return err;
 }
@@ -623,15 +619,13 @@ M4OSA_ERR VideoEditorMp3Reader_reset(M4OSA_Context context,
     M4OSA_ERR err = M4NO_ERROR;
     M4SYS_StreamID streamIdArray[2];
     M4SYS_AccessUnit* pAu;
-    M4OSA_Time time64;
+    M4OSA_Time time64 = 0;
 
     LOGV("VideoEditorMp3Reader_reset start");
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_reset: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_reset: invalid pointer to M4_StreamHandler");
-
-    M4OSA_INT64_FROM_INT32(time64, 0);
 
     if (pStreamHandler == (M4_StreamHandler*)pReaderContext->\
         mAudioStreamHandler) {

@@ -8626,16 +8626,16 @@ m4mcs_intaudiotranscoding_encode_and_write:
         if( pC->pEffects[*pActiveEffectNumber].ExtAudioEffectFct != M4OSA_NULL )
         {
             M4MCS_ExternalProgress pProgress;
-            M4OSA_UInt64 tempProgress = 0;
+            M4OSA_UInt32 tempProgress = 0;
             pProgress.uiClipTime = (M4OSA_UInt32)pC->ReaderAudioAU.m_CTS;
 
             pProgress.uiOutputTime = ( pC->WriterAudioAU.CTS * 1000)
                 / pC->WriterAudioStream.timeScale;
-            tempProgress = ( (M4OSA_UInt64)pC->ReaderAudioAU.m_CTS
+            tempProgress = ( (M4OSA_UInt32)pC->ReaderAudioAU.m_CTS
                 - pC->pEffects[*pActiveEffectNumber].uiStartTime
                 - pC->uiBeginCutTime) * 1000;
             pProgress.uiProgress =
-                (M4OSA_UInt32)(tempProgress / (M4OSA_UInt64)pC->pEffects[
+                (M4OSA_UInt32)(tempProgress / (M4OSA_UInt32)pC->pEffects[
                     *pActiveEffectNumber].uiDuration);
 
                     err = pC->pEffects[*pActiveEffectNumber].ExtAudioEffectFct(

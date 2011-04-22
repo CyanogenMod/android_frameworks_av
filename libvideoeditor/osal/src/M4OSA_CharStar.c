@@ -401,17 +401,7 @@ M4OSA_ERR M4OSA_chrSPrintf(M4OSA_Char  *pStrOut, M4OSA_UInt32 strOutMaxLen,
 
     newFormatLength = strlen((const char *)format) + 1;
 
-#ifdef M4OSA_64BITS_SUPPORTED
-#ifdef M4OSA_FILE_POS_64_BITS_SUPPORTED
-    newFormatLength += (count_ll+count_tm+count_aa);
-#else
-    newFormatLength += (count_ll+count_tm-count_aa);
-#endif
-#elif defined M4OSA_64BITS_NOT_SUPPORTED
     newFormatLength -= (count_ll+count_tm+count_aa);
-#else
-    return M4ERR_NOT_IMPLEMENTED;
-#endif
 
     newFormat =(M4OSA_Char*)M4OSA_32bitAlignedMalloc(newFormatLength,
         M4OSA_CHARSTAR,(M4OSA_Char*)"M4OSA_chrPrintf: newFormat");
@@ -466,36 +456,17 @@ M4OSA_ERR M4OSA_chrSPrintf(M4OSA_Char  *pStrOut, M4OSA_UInt32 strOutMaxLen,
         {
             if(!strncmp((const char *)format, "ll", 2))
             {
-#ifdef M4OSA_64BITS_SUPPORTED
-                *pTemp++ = 'l'; /* %ll */
-                *pTemp++ = 'l';
-#else
                 *pTemp++ = 'l'; /* %l */
-#endif
                 format +=2;                         /* span the "ll" prefix */
             }
             else if(!strncmp((const char *)format, "tm", 2))
             {
-#ifdef M4OSA_64BITS_SUPPORTED
-                *pTemp++ = 'l'; /* %ll */
-                *pTemp++ = 'l';
-#else
                 *pTemp++ = 'l'; /* %l */
-#endif
                 format +=2;                         /* span the "tm" prefix */
             }
             else if(!strncmp((const char *)format, "aa", 2))
             {
-#ifdef M4OSA_64BITS_SUPPORTED
-#ifdef M4OSA_FILE_POS_64_BITS_SUPPORTED
-                *pTemp++ = 'l'; /* %ll */
                 *pTemp++ = 'l';
-#else
-                *pTemp++ = 'l';
-#endif
-#else
-                *pTemp++ = 'l';
-#endif
                 format +=2;                         /* span the "aa" prefix */
             }
         }

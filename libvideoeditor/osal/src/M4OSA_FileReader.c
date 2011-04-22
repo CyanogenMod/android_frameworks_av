@@ -117,8 +117,7 @@ M4OSA_ERR M4OSA_fileReadData(M4OSA_Context pContext, M4OSA_MemAddr8 data,
         }
         else
         {
-            M4OSA_FPOS_ADD_CONST_UINT32(pFileContext->read_position,
-                                       pFileContext->read_position, uiSizeRead);
+            pFileContext->read_position = pFileContext->read_position + uiSizeRead;
             if ((M4OSA_UInt32)uiSizeRead < *pSize)
             {
                 *pSize = uiSizeRead;
@@ -170,8 +169,7 @@ M4OSA_ERR M4OSA_fileReadData(M4OSA_Context pContext, M4OSA_MemAddr8 data,
     }
     else
     {
-        M4OSA_FPOS_ADD_CONST_UINT32(pFileContext->read_position,
-                    pFileContext->read_position, uiSizeRead);
+        pFileContext->read_position = pFileContext->read_position + uiSizeRead;
         if ((M4OSA_UInt32)uiSizeRead < *pSize)
         {
             *pSize = uiSizeRead;
@@ -310,7 +308,7 @@ M4OSA_ERR M4OSA_fileReadSeek(M4OSA_Context pContext, M4OSA_FileSeekAccessMode se
     }
     else
     {
-        M4OSA_FPOS_SET(pFileContext->read_position, *pPosition);
+        pFileContext->read_position = *pPosition;
     }
 
 #ifdef M4OSA_FILE_BLOCK_WITH_SEMAPHORE
