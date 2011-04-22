@@ -1433,25 +1433,6 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
             }
         }
     }
-#if 0
-    /**
-    * Compute the volume factors */
-    if( (M4OSA_TRUE
-        == pC->bRemoveOriginal) )
-    {
-        /**
-        * In the remove original case, we keep only the added audio */
-        pC->fAddedFactor = 1.0F;
-        pC->fOrigFactor = 0.0F;
-    }
-    else
-    {
-        /**
-        * Compute the factor to apply to sample to do the mixing */
-        pC->fAddedFactor = pSettings->uiAddVolume / 100.0F;
-        pC->fOrigFactor = 1.0F - pC->fAddedFactor;
-    }
-#endif
     if( pC->b_DuckingNeedeed == M4OSA_FALSE)
     {
         /**
@@ -2782,57 +2763,6 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCopyAdded(
         pEncOutBuffer.pTableBufferSize[0] = 0;
 
         M4OSA_TRACE2_0("K **** blend AUs");
-#if 0
-
-        {
-            M4OSA_Char filename[13];
-            M4OSA_Context pGIFFileInDebug = M4OSA_NULL;
-            M4OSA_FilePosition pos = 0;
-
-            sprintf(filename, "toto.pcm");
-
-            err = pC->pOsaFileWritPtr->openWrite(&pGIFFileInDebug, filename,
-                M4OSA_kFileWrite | M4OSA_kFileAppend);
-
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_2("Can't open input gif file %s, error: 0x%x\n",
-                    pFile, err);
-                return err;
-            }
-
-            err = pC->pOsaFileWritPtr->seek(pGIFFileInDebug, M4OSA_kFileSeekEnd,
-                &pos);
-
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_2("Can't seek input gif file %s, error: 0x%x\n",
-                    pFile, err);
-                return err;
-            }
-
-            err = pC->pOsaFileWritPtr->writeData(pGIFFileInDebug,
-                pC->pSsrcBufferOut,
-                pC->pInputClipCtxt->AudioDecBufferOut.m_bufferSize);
-
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_2("Can't write input gif file %s, error: 0x%x\n",
-                    pFile, err);
-                return err;
-            }
-
-            err = pC->pOsaFileWritPtr->closeWrite(pGIFFileInDebug);
-
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_2("Can't close input gif file %s, error: 0x%x\n",
-                    pFile, err);
-                return err;
-            }
-        }
-
-#endif
         /**
         * Encode the PCM audio */
 

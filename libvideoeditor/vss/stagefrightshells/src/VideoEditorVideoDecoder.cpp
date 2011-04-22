@@ -1304,7 +1304,6 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
         } else if ( INFO_FORMAT_CHANGED == errStatus ) {
             LOGV("VideoDecoder_decode:source returns INFO_FORMAT_CHANGED:TODO");
 
-#if 1
             LOGV("VideoDecoder_decode : source returns INFO_FORMAT_CHANGED");
             lerr = VideoEditorVideoDecoder_configureFromMetadata(
                 pDecShellContext,
@@ -1314,7 +1313,6 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                     "VideoDecoder_configureFromMetadata returns 0x%X", lerr);
                 break;
             }
-#endif
             continue;
         }
 

@@ -335,9 +335,6 @@ typedef struct {
     M4OSA_Bool                                bAudioMono;
     M4VIDEOEDITING_Bitrate                    OutputVideoBitrate;
     M4VIDEOEDITING_Bitrate                    OutputAudioBitrate;
-#ifdef TIMESCALE_BUG
-    M4OSA_UInt32                            OutputVideoTimescale;
-#endif
     M4OSA_Bool                                isBGM;
     /**< This boolean is used to know if the output file is already created or not */
     M4OSA_Bool                                isCreated;
@@ -389,17 +386,6 @@ typedef M4xVSS_SlideTransitionSettings    M4xVSS_internal_SlideTransitionSetting
  *            a JPEG by chunk mode.
  ******************************************************************************
 */
-#if 0
-typedef struct {
-    M4OSA_FileReadPointer*    m_pFileReadPtr;
-    M4OSA_Context            m_pJPEGFileIn;
-    M4OSA_Void*                m_pFileIn;
-    M4SPS_Stream            m_inputStream;
-    M4OSA_UInt32            m_total_read;
-    M4OSA_UInt32            m_fileSize;
-
-} M4xVSS_internalJpegChunkMode;
-#endif
 
 /**
  ******************************************************************************

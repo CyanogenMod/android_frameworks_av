@@ -1072,35 +1072,6 @@ static M4OSA_ERR M4DECODER_EXTERNAL_AsynchronousRender(M4OSA_Context pVS_Context
 
     if(M4OSA_TRUE == pStreamContext->m_bDataRenderPending)
     {
-#if 0
-        if (!pStreamContext->m_bForceRender)
-        {
-            /* Targeted time is reached */
-            if(pStreamContext->m_TargetRenderCts - pStreamContext->m_CurrentRenderCts < 1.0)
-             /* some +0.5 issues */
-            {
-                M4OSA_TRACE2_0("M4DECODER_EXTERNAL_AsynchronousRender :\
-                     skip render because synchronisation");
-                pStreamContext->m_uiRenderError = M4WAR_RENDER_FINISHED;
-
-                M4ERR_EXIT(M4NO_ERROR);
-            }
-
-            if ( (M4WAR_NO_MORE_AU == pStreamContext->m_uiDecodeError)
-                && (pStreamContext->m_CurrentDecodeCts \
-                    - pStreamContext->m_CurrentRenderCts < 1.0) )
-            {
-                pStreamContext->m_uiRenderError = M4WAR_RENDER_FINISHED;
-                M4ERR_EXIT(M4NO_ERROR);
-            }
-
-            if(pStreamContext->m_NbDecodedFrames == 0)
-            {
-                pStreamContext->m_uiRenderError = M4WAR_VIDEORENDERER_NO_NEW_FRAME;
-                M4ERR_EXIT(M4NO_ERROR);
-            }
-        }
-#endif
         /* Render the frame */
         pStreamContext->m_CurrentRenderCts = pStreamContext->m_CurrentDecodeCts;
 

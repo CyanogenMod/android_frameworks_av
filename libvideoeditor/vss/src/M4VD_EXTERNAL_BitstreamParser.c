@@ -33,30 +33,6 @@
 M4OSA_UInt32 M4VD_EXTERNAL_GetBitsFromMemory(M4VS_Bitstream_ctxt* parsingCtxt,
      M4OSA_UInt32 nb_bits)
 {
-#if 0
-    M4OSA_UInt32    code;
-    M4OSA_UInt32    i;
-
-    code = 0;
-    for (i = 0; i < nb_bits; i++)
-    {
-        if (parsingCtxt->stream_index == 8)
-        {
-            memcpy( (void *)&(parsingCtxt->stream_byte), (void *)parsingCtxt->in,
-                 sizeof(unsigned char));
-            parsingCtxt->in++;
-            //fread(&stream_byte, sizeof(unsigned char),1,in);
-            parsingCtxt->stream_index = 0;
-        }
-        code = (code << 1);
-        code |= ((parsingCtxt->stream_byte & 0x80) >> 7);
-
-        parsingCtxt->stream_byte = (parsingCtxt->stream_byte << 1);
-        parsingCtxt->stream_index++;
-    }
-
-    return code;
-#endif
         return(M4VD_Tools_GetBitsFromMemory(parsingCtxt,nb_bits));
 }
 
@@ -64,44 +40,6 @@ M4OSA_ERR M4VD_EXTERNAL_WriteBitsToMemory(M4OSA_UInt32 bitsToWrite,
                                                  M4OSA_MemAddr32 dest_bits,
                                                  M4OSA_UInt8 offset, M4OSA_UInt8 nb_bits)
 {
-#if 0
-    M4OSA_UInt8 i,j;
-    M4OSA_UInt32 temp_dest = 0, mask = 0, temp = 1;
-    M4OSA_UInt32 input = bitsToWrite;
-
-    input = (input << (32 - nb_bits - offset));
-
-    /* Put destination buffer to 0 */
-    for(j=0;j<3;j++)
-    {
-        for(i=0;i<8;i++)
-        {
-            if((j*8)+i >= offset && (j*8)+i < nb_bits + offset)
-            {
-                mask |= (temp << ((7*(j+1))-i+j));
-            }
-        }
-    }
-    mask = ~mask;
-    *dest_bits &= mask;
-
-    /* Parse input bits, and fill output buffer */
-    for(j=0;j<3;j++)
-    {
-        for(i=0;i<8;i++)
-        {
-            if((j*8)+i >= offset && (j*8)+i < nb_bits + offset)
-            {
-                temp = ((input & (0x80000000 >> offset)) >> (31-offset));
-                //*dest_bits |= (temp << (31 - i));
-                *dest_bits |= (temp << ((7*(j+1))-i+j));
-                input = (input << 1);
-            }
-        }
-    }
-
-    return M4NO_ERROR;
-#endif
         return (M4VD_Tools_WriteBitsToMemory( bitsToWrite,dest_bits,
                                                 offset,  nb_bits));
 }

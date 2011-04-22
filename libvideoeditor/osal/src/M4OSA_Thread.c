@@ -56,10 +56,6 @@ void* M4OSA_threadSyncForEverDo(void *context)
 
    M4OSA_mutexLock(threadContext->stateMutex, M4OSA_WAIT_FOREVER);
 
-   /*if(threadContext->startCallBack != M4OSA_NULL)
-   {
-      threadContext->startCallBack(threadContext, userData);
-   }*/
 
    threadContext->state = M4OSA_kThreadRunning;
 
@@ -156,11 +152,6 @@ M4OSA_ERR M4OSA_threadSyncOpen(M4OSA_Context* context,
    threadContext->name = M4OSA_NULL;
    threadContext->threadID = 0;
    threadContext->coreID = M4OSA_THREAD;
-/*
-   threadContext->userData = M4OSA_NULL;
-   threadContext->stopCallBack = M4OSA_NULL;
-   threadContext->startCallBack = M4OSA_NULL;
-*/
    threadContext->state = M4OSA_kThreadOpened;
    threadContext->priority = M4OSA_kThreadNormalPriority ;
 
@@ -256,29 +247,6 @@ M4OSA_ERR M4OSA_threadSyncStart(M4OSA_Context context,
          {
             if ( 0 == pthread_attr_setschedpolicy( &attribute, SCHED_OTHER ) )
             {
-#if 0
-                min = sched_get_priority_min( SCHED_OTHER );
-                max = sched_get_priority_max( SCHED_OTHER );
-
-                switch(threadContext->priority)
-                {
-                case M4OSA_kThreadLowestPriority:
-                    priority = min;
-                    break;
-                case M4OSA_kThreadLowPriority:
-                    priority = min + ( max - min ) / 4;
-                    break;
-                case M4OSA_kThreadNormalPriority:
-                    priority = min + ( max - min ) / 2;
-                    break;
-                case M4OSA_kThreadHighPriority:
-                    priority = max - ( max - min ) / 4;
-                    break;
-                case M4OSA_kThreadHighestPriority:
-                    priority = max;
-                    break;
-                }
-#else
                 /* Tentative patches to handle priorities in a better way : */
                 /* Use Android's predefined priorities (range +19..-20)
                  *rather than Linux ones (0..99)*/
@@ -313,7 +281,6 @@ M4OSA_ERR M4OSA_threadSyncStart(M4OSA_Context context,
                     priority = ANDROID_PRIORITY_URGENT_AUDIO;
                     break;
                 }
-#endif
                 sched.sched_priority = priority;
 
                 if ( 0 == pthread_attr_setschedparam( &attribute, &sched ) )
@@ -546,48 +513,6 @@ M4OSA_ERR M4OSA_threadSleep(M4OSA_UInt32 time)
    return M4NO_ERROR;
 }
 
-
-
-
-#if(M4OSA_OPTIONID_THREAD_STARTED == M4OSA_TRUE)
-
-/*M4OSA_ERR M4OSA_SetThreadSyncStarted(M4OSA_Context context,
-                                 M4OSA_DataOption optionValue)
-{
-   M4OSA_ThreadContext* threadContext = (M4OSA_ThreadContext*)context ;
-
-   M4OSA_TRACE2_2("M4OSA_SetThreadSyncStarted\t\tM4OSA_Context 0x%x\t"
-                  "M4OSA_DataOption 0x%x", context, optionValue);
-
-   threadContext->startCallBack = (M4OSA_ThreadCallBack)optionValue;
-
-   return M4NO_ERROR;
-}*/
-
-#endif /*M4OSA_OPTIONID_THREAD_STARTED*/
-
-
-
-
-#if(M4OSA_OPTIONID_THREAD_STOPPED == M4OSA_TRUE)
-
-/*M4OSA_ERR M4OSA_SetThreadSyncStopped(M4OSA_Context context,
-                                 M4OSA_DataOption optionValue)
-{
-   M4OSA_ThreadContext* threadContext = (M4OSA_ThreadContext*)context;
-
-   M4OSA_TRACE2_2("M4OSA_SetThreadSyncStopped\t\tM4OSA_Context 0x%x\t"
-                  "M4OSA_DataOption 0x%x", context, optionValue);
-
-   threadContext->stopCallBack = (M4OSA_ThreadCallBack)optionValue;
-
-   return M4NO_ERROR;
-}*/
-
-#endif /*M4OSA_OPTIONID_THREAD_STOPPED*/
-
-
-
 #if(M4OSA_OPTIONID_THREAD_PRIORITY == M4OSA_TRUE)
 
 M4OSA_ERR M4OSA_SetThreadSyncPriority(M4OSA_Context context,
@@ -673,29 +598,6 @@ M4OSA_ERR M4OSA_SetThreadSyncStackSize(M4OSA_Context context,
 
 #endif /*M4OSA_OPTIONID_THREAD_STACK_SIZE*/
 
-
-
-#if(M4OSA_OPTIONID_THREAD_USER_DATA == M4OSA_TRUE)
-
-/*M4OSA_ERR M4OSA_SetThreadSyncUserData(M4OSA_Context context,
-                                  M4OSA_DataOption optionValue)
-{
-   M4OSA_ThreadContext* threadContext = (M4OSA_ThreadContext*)context;
-
-   M4OSA_TRACE2_2("M4OSA_SetThreadSyncUserData\t\tM4OSA_Context 0x%x\t"
-                  "M4OSA_DataOption 0x%x", context, optionValue);
-
-   threadContext->userData = (M4OSA_Void*)optionValue;
-
-   return M4NO_ERROR;
-}*/
-
-#endif /*M4OSA_OPTIONID_THREAD_USER_DATA*/
-
-
-
-
-
 /**
  ************************************************************************
  * @brief      This method asks the core OSAL-Thread component to set the value
@@ -756,32 +658,6 @@ M4OSA_ERR M4OSA_threadSyncSetOption(M4OSA_Context context,
 
    switch(optionID)
    {
-#if(M4OSA_OPTIONID_THREAD_STARTED == M4OSA_TRUE)
-      /*case M4OSA_ThreadStarted:
-      {
-         err_code = M4OSA_SetThreadSyncStarted(context, optionValue);
-
-         break;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_STARTED*/
-
-#if(M4OSA_OPTIONID_THREAD_STOPPED == M4OSA_TRUE)
-      /*case M4OSA_ThreadStopped:
-      {
-         err_code = M4OSA_SetThreadSyncStopped(context, optionValue);
-
-         break;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_STOPPED*/
-
-#if(M4OSA_OPTIONID_THREAD_USER_DATA == M4OSA_TRUE)
-      /*case M4OSA_ThreadUserData:
-      {
-         err_code = M4OSA_SetThreadSyncUserData(context, optionValue);
-
-         break;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_USER_DATA*/
 
 #if(M4OSA_OPTIONID_THREAD_PRIORITY == M4OSA_TRUE)
       case M4OSA_ThreadPriority:
@@ -876,38 +752,6 @@ M4OSA_ERR M4OSA_threadSyncGetOption(M4OSA_Context context,
 
    switch(optionID)
    {
-#if(M4OSA_OPTIONID_THREAD_STARTED == M4OSA_TRUE)
-      /*case M4OSA_ThreadStarted:
-      {
-         M4OSA_ThreadCallBack* startCallBack = (M4OSA_ThreadCallBack*)optionValue;
-
-         *startCallBack = threadContext->startCallBack;
-
-         return M4NO_ERROR;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_STARTED*/
-
-#if(M4OSA_OPTIONID_THREAD_STOPPED == M4OSA_TRUE)
-      /*case M4OSA_ThreadStopped:
-      {
-         M4OSA_ThreadCallBack* stopCallBack = (M4OSA_ThreadCallBack*)optionValue;
-
-         *stopCallBack = threadContext->stopCallBack;
-
-         return M4NO_ERROR;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_STOPPED*/
-
-#if(M4OSA_OPTIONID_THREAD_USER_DATA == M4OSA_TRUE)
-      /*case M4OSA_ThreadUserData:
-      {
-         M4OSA_Void** userData = (M4OSA_Void**)optionValue;
-
-         *userData = threadContext->userData;
-
-         return M4NO_ERROR;
-      }*/
-#endif /*M4OSA_OPTIONID_THREAD_USER_DATA*/
 
 #if(M4OSA_OPTIONID_THREAD_PRIORITY == M4OSA_TRUE)
       case M4OSA_ThreadPriority:

@@ -2219,16 +2219,6 @@ M4OSA_ERR M4VSS3GPP_intCreateVideoEncoder( M4VSS3GPP_InternalEditContext *pC )
         /* Compute max bitrate depending on input files bitrates and transitions */
         if( pC->Vstate == M4VSS3GPP_kEditVideoState_TRANSITION )
         {
-#if 0
-            /* Max of the two blended files */
-            if( pC->pC1->pSettings->ClipProperties.uiVideoBitrate
-                > pC->pC2->pSettings->ClipProperties.uiVideoBitrate )
-                EncParams.Bitrate =
-                pC->pC1->pSettings->ClipProperties.uiVideoBitrate;
-            else
-                EncParams.Bitrate =
-                pC->pC2->pSettings->ClipProperties.uiVideoBitrate;
-#endif
             EncParams.Bitrate = pC->ewc.uiVideoBitrate;
         }
         else

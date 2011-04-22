@@ -407,43 +407,6 @@ M4VSS3GPP_editDuplicateClipSettings( M4VSS3GPP_ClipSettings *pClipSettingsDest,
     }
 
     /* Duplicate effects */
-#if 0
-
-    if( M4OSA_TRUE == bCopyEffects )
-    {
-        if( pClipSettingsOrig->nbEffects > 0 )
-        {
-            pClipSettingsDest->Effects = (M4VSS3GPP_EffectSettings
-                *)M4OSA_32bitAlignedMalloc(sizeof(M4VSS3GPP_EffectSettings)
-                * pClipSettingsOrig->nbEffects,
-                M4VSS3GPP, "pClipSettingsDest->Effects");
-
-            if( M4OSA_NULL == pClipSettingsDest->Effects )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_editDuplicateClipSettings : ERROR allocating effects, nb=%lu",
-                    pClipSettingsOrig->nbEffects);
-                pClipSettingsDest->nbEffects = 0;
-                return M4ERR_ALLOC;
-            }
-
-            for ( uiFx = 0; uiFx < pClipSettingsOrig->nbEffects; uiFx++ )
-            {
-                /* Copy plain structure */
-                memcpy(
-                    (void *) &(pClipSettingsDest->Effects[uiFx]),
-                    (void *) &(pClipSettingsOrig->Effects[uiFx]),
-                    sizeof(M4VSS3GPP_EffectSettings));
-            }
-        }
-    }
-    else
-    {
-        pClipSettingsDest->nbEffects = 0;
-        pClipSettingsDest->Effects = M4OSA_NULL;
-    }
-
-#endif /* RC */
     /* Return with no error */
 
     M4OSA_TRACE3_0(
@@ -2111,83 +2074,6 @@ static M4OSA_ERR M4VSS3GPP_intClipSettingsSanityCheck(
             return M4VSS3GPP_ERR_BEGIN_CUT_LARGER_THAN_END_CUT;
         }
         uiClipActualDuration = pClip->uiEndCutTime - pClip->uiBeginCutTime;
-    }
-
-    if( M4VIDEOEDITING_kMP3 != pClip->ClipProperties.AudioStreamType )
-    {
-#if 0 /*RC*/
-        /**
-        * Check the three effects */
-
-        for ( uiFx = 0; uiFx < pClip->nbEffects; uiFx++ )
-        {
-            pFx = &(pClip->Effects[uiFx]); /**< shortcut */
-
-            /**
-            * No effect cases */
-            if( 0 == pFx->uiDuration )
-            {
-                pFx->VideoEffectType = M4VSS3GPP_kVideoEffectType_None;
-                pFx->AudioEffectType = M4VSS3GPP_kAudioEffectType_None;
-            }
-            else if( ( M4VSS3GPP_kVideoEffectType_None == pFx->VideoEffectType)
-                && (M4VSS3GPP_kAudioEffectType_None == pFx->AudioEffectType) )
-            {
-                pFx->uiStartTime = 0;
-                pFx->uiDuration = 0;
-            }
-
-            /**
-            * We convert all the effects into middle effects, computing the corresponding
-            * start time and duration */
-            if( M4VSS3GPP_kEffectKind_Begin == pFx->EffectKind )
-            {
-                pFx->uiStartTime = 0;
-            }
-            else if( M4VSS3GPP_kEffectKind_End == pFx->EffectKind )
-            {
-                /**
-                * Duration sanity check */
-                if( pFx->uiDuration > uiClipActualDuration )
-                {
-                    pFx->uiDuration = uiClipActualDuration;
-                }
-                /**
-                * Start time computing */
-                pFx->uiStartTime = uiClipActualDuration - pFx->uiDuration;
-            }
-            else if( M4VSS3GPP_kEffectKind_Middle == pFx->EffectKind )
-            {
-                /**
-                * Duration sanity check */
-                if( pFx->uiDuration + pFx->uiStartTime > uiClipActualDuration )
-                {
-                    pFx->uiDuration = uiClipActualDuration - pFx->uiStartTime;
-                }
-            }
-            else
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intClipSettingsSanityCheck: unknown effect kind (0x%x),\
-                    returning M4VSS3GPP_ERR_INVALID_EFFECT_KIND",
-                    pFx->EffectKind);
-                return M4VSS3GPP_ERR_INVALID_EFFECT_KIND;
-            }
-
-            /**
-            * Check external effect function is set */
-            if( ( pFx->VideoEffectType >= M4VSS3GPP_kVideoEffectType_External)
-                && (M4OSA_NULL == pFx->ExtVideoEffectFct) )
-            {
-                M4OSA_TRACE1_0(
-                    "M4VSS3GPP_intClipSettingsSanityCheck:\
-                    returning M4VSS3GPP_ERR_EXTERNAL_EFFECT_NULL");
-                return M4VSS3GPP_ERR_EXTERNAL_EFFECT_NULL;
-            }
-        }
-
-#endif
-
     }
 
     return M4NO_ERROR;

@@ -28,7 +28,6 @@ LOCAL_MODULE:= libvideoeditor_mcs
 LOCAL_SRC_FILES:=          \
       M4MCS_API.c \
       M4MCS_AudioEffects.c \
-      M4MCS_BitstreamParser.c \
       M4MCS_Codecs.c \
       M4MCS_MediaAndCodecSubscription.c \
       M4MCS_VideoPreProcessing.c

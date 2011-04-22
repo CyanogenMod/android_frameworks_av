@@ -136,16 +136,6 @@ M4VIFI_UInt8    M4VIFI_xVSS_RGB565toYUV420(void *pUserData, M4VIFI_ImagePlane *p
             u16_pix4 = *( (M4VIFI_UInt16 *) (pu8_rgbn + u32_stride_rgb + CST_RGB_16_SIZE));
 
             /* Unpack RGB565 to 8bit R, G, B */
-#if 0
-            /* (x,y) */
-            GET_RGB565(i32_r00,i32_g00,i32_b00,u16_pix1);
-            /* (x+1,y) */
-            GET_RGB565(i32_r10,i32_g10,i32_b10,u16_pix2);
-            /* (x,y+1) */
-            GET_RGB565(i32_r01,i32_g01,i32_b01,u16_pix3);
-            /* (x+1,y+1) */
-            GET_RGB565(i32_r11,i32_g11,i32_b11,u16_pix4);
-#else
             /* (x,y) */
             GET_RGB565(i32_b00,i32_g00,i32_r00,u16_pix1);
             /* (x+1,y) */
@@ -154,8 +144,6 @@ M4VIFI_UInt8    M4VIFI_xVSS_RGB565toYUV420(void *pUserData, M4VIFI_ImagePlane *p
             GET_RGB565(i32_b01,i32_g01,i32_r01,u16_pix3);
             /* (x+1,y+1) */
             GET_RGB565(i32_b11,i32_g11,i32_r11,u16_pix4);
-#endif
-#if 1 /* Solution to avoid green effects due to transparency */
             /* If RGB is transparent color (0, 63, 0), we transform it to white (31,63,31) */
             if(i32_b00 == 0 && i32_g00 == 63 && i32_r00 == 0)
             {
@@ -177,7 +165,6 @@ M4VIFI_UInt8    M4VIFI_xVSS_RGB565toYUV420(void *pUserData, M4VIFI_ImagePlane *p
                 i32_b11 = 31;
                 i32_r11 = 31;
             }
-#endif
             /* Convert RGB value to YUV */
             i32_u00 = U16(i32_r00, i32_g00, i32_b00);
             i32_v00 = V16(i32_r00, i32_g00, i32_b00);
@@ -204,47 +191,8 @@ M4VIFI_UInt8    M4VIFI_xVSS_RGB565toYUV420(void *pUserData, M4VIFI_ImagePlane *p
             pu8_yn[1] = (M4VIFI_UInt8)i32_y10;
             pu8_ys[0] = (M4VIFI_UInt8)i32_y01;
             pu8_ys[1] = (M4VIFI_UInt8)i32_y11;
-#if 0 /* Temporary solution to avoid green effects due to transparency -> To be removed */
-            count_null = 4;
-            /* Store chroma data */
-            if(i32_b00 == 0 && i32_g00 == 63 && i32_r00 == 0)
-            {
-                i32_u00 = 0;
-                i32_v00 = 0;
-                count_null --;
-            }
-            if(i32_b10 == 0 && i32_g10 == 63 && i32_r10 == 0)
-            {
-                i32_u10 = 0;
-                i32_v10 = 0;
-                count_null --;
-            }
-            if(i32_b01 == 0 && i32_g01 == 63 && i32_r01 == 0)
-            {
-                i32_u01 = 0;
-                i32_v01 = 0;
-                count_null --;
-            }
-            if(i32_b11 == 0 && i32_g11 == 63 && i32_r11 == 0)
-            {
-                i32_u11 = 0;
-                i32_v11 = 0;
-                count_null --;
-            }
-
-            if(count_null == 0)
-            {
-#endif
             *pu8_u = (M4VIFI_UInt8)((i32_u00 + i32_u01 + i32_u10 + i32_u11 + 2) >> 2);
             *pu8_v = (M4VIFI_UInt8)((i32_v00 + i32_v01 + i32_v10 + i32_v11 + 2) >> 2);
-#if 0 /* Temporary solution to avoid green effects due to transparency -> To be removed */
-            }
-            else
-            {
-                *pu8_u = (M4VIFI_UInt8)((i32_u00 + i32_u01 + i32_u10 + i32_u11 + 2) / count_null);
-                *pu8_v = (M4VIFI_UInt8)((i32_v00 + i32_v01 + i32_v10 + i32_v11 + 2) / count_null);
-            }
-#endif
             /* Prepare for next column */
             pu8_rgbn += (CST_RGB_16_SIZE<<1);
             /* Update current Y plane line pointer*/

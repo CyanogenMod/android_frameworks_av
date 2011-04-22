@@ -809,7 +809,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     VIDEOEDITOR_CHECK(0 == ((M4OSA_UInt32)buffer->data())%4, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(buffer->meta_data().get(), M4ERR_PARAMETER);
     if ( buffer->meta_data()->findInt32(kKeyIsCodecConfig, &i32Tmp) && i32Tmp ){
-#if 1
         {   // Display the DSI
             LOGV("VideoEditorVideoEncoder_processOutputBuffer DSI %d",
                 buffer->range_length());
@@ -818,7 +817,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
                 LOGV("DSI [%d] %.2X", i, tmp[i]);
             }
         }
-#endif
 
 #ifndef VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION
         VIDEOEDITOR_CHECK(M4OSA_NULL == pEncoderContext->mHeader.pBuf,

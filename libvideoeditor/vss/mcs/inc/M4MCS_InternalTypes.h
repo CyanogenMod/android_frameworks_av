@@ -127,28 +127,6 @@ typedef enum
     M4MCS_kStreamState_FINISHED  = 2    /**< The stream has finished encoding    */
 } M4MCS_StreamState;
 
-#ifdef TIMESCALE_BUG
-/**
- ******************************************************************************
- * enum            M4MCS_VolParse
- * @brief        VOL parsing results needed for VOP parsing
- ******************************************************************************
- */
-typedef struct
-{
-    M4OSA_UInt8 video_object_layer_shape;
-    M4OSA_UInt8 sprite_enable;
-    M4OSA_UInt8 reduced_resolution_vop_enable;
-    M4OSA_UInt8 scalability;
-    M4OSA_UInt8 enhancement_type;
-    M4OSA_UInt8 complexity_estimation_disable;
-    M4OSA_UInt8 interlaced;
-    M4OSA_UInt8 sprite_warping_points;
-    M4OSA_UInt8 sprite_brightness_change;
-    M4OSA_UInt8 quant_precision;
-
-} M4MCS_VolParse;
-#endif
 
 /**
  ******************************************************************************
@@ -437,13 +415,6 @@ typedef struct
     M4OSA_UInt32            uiAudioBitrate;     /**< Targeted audio bitrate in bps */
     M4OSA_UInt32            uiVideoBitrate;     /**< Targeted video bitrate in bps */
 
-#ifdef TIMESCALE_BUG
-    M4OSA_UInt32    uiVideoTimescale;     /**< Targeted timescale without decode/encode process */
-    M4OSA_UInt32    uiTimescaleLength;    /**< Length of the VOP time increment in bits */
-    M4OSA_UInt32    uiOrigVideoTimescale; /**< Original timescale */
-    M4OSA_UInt32    uiOrigTimescaleLength;/**< Original length of the VOP time increment in bits*/
-    M4MCS_VolParse  volParsing;           /**< VOL parsing results needed for VOP parsing */
-#endif
     M4OSA_UInt8     uiProgress;  /**< Progress information saved at each step to be able to
                                       return it in case of pause */
 

@@ -45,7 +45,6 @@
 #include "M4OSA_Memory.h"
 #include "M4OSA_CharStar.h"
 
-//#define FILE_LOWER_CASE //defined to support limitaion of lower case file system in sdcard.
 /**
  ************************************************************************
  * @brief      This function opens the provided URL and returns its context.
@@ -86,9 +85,6 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     FILE* pFileHandler = M4OSA_NULL;
     M4OSA_FileContext *pFileContext    = M4OSA_NULL;
 
-#ifdef FILE_LOWER_CASE
-    M4OSA_Char *tmpLowerCaseUrl = M4OSA_NULL;
-#endif
 
 #ifdef UTF_CONVERSION
     /*FB: to test the UTF16->UTF8 conversion into Video Artist*/
@@ -108,7 +104,6 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     printf("file open %s\n", tempConversionBuf);
 #endif /*UTF CONVERSION*/
 
-///*tmpLSA*/M4OSA_TRACE1_2("### M4OSA_fileCommonOpen %s 0x%X", pUrl, fileModeAccess);
     M4OSA_TRACE3_4("M4OSA_fileCommonOpen\t\tM4OSA_UInt16 %d\tM4OSA_Context* 0x%x\t"
         "M4OSA_Char* %s\tfileModeAccess %d", core_id, pContext, pUrl, fileModeAccess);
 
@@ -138,15 +133,6 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     /* Write mode not set for the writer */
     M4OSA_DEBUG_IF1((M4OSA_FILE_WRITER == core_id) && !(fileModeAccess & M4OSA_kFileWrite),
         M4ERR_FILE_BAD_MODE_ACCESS, "M4OSA_fileCommonOpen: M4OSA_kFileWrite");
-
-#ifdef FILE_LOWER_CASE
-    tmpLowerCaseUrl = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(strlen(pUrl) +1, 0, "conversion buf");
-    for(i=0; i<strlen(pUrl); i++)
-    {
-        tmpLowerCaseUrl[i] = M4OSA_chrToLower(pUrl[i]);
-    }
-    tmpLowerCaseUrl[i] = '\0'; //null terminate
-#endif
 
     /* Create flag necessary for opening file */
     if ((fileModeAccess & M4OSA_kFileRead) &&
@@ -189,12 +175,7 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     /*Free the temporary decoded buffer*/
     free(tempConversionBuf);
 #else /* UTF_CONVERSION */
-#ifdef FILE_LOWER_CASE
-    pFileHandler = fopen((const char *)tmpLowerCaseUrl, (const char *)mode);
-    free(tmpLowerCaseUrl);
-#else
     pFileHandler = fopen((const char *)pUrl, (const char *)mode);
-#endif
 #endif /* UTF_CONVERSION */
 
     if (M4OSA_NULL == pFileHandler)
@@ -326,7 +307,6 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
     pFileContext->file_size = iSize;
 
     *pContext = pFileContext;
-//    /*tmpLSA*/M4OSA_TRACE1_1("### M4OSA_fileCommonOpen pFileContext 0x%X", pFileContext);
 
     return M4NO_ERROR;
 }

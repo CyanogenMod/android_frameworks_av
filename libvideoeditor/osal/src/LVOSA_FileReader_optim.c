@@ -450,30 +450,6 @@ M4OSA_ERR M4OSA_FileReader_CalculateSize(M4OSA_FileReader_Context_optim* apConte
         err = errno;
         M4OSA_TRACE1_1("M4OSA_FileReader_CalculateSize ERR = 0x%x", err);
     }
-#if 0
-    fileSeekPosition = 0;
-    errno = apContext->FS->seek(apContext->aFileDesc, M4OSA_kFileSeekEnd, &fileSeekPosition);
-
-    if (M4NO_ERROR != errno)
-    {
-        apContext->readFilePos = M4OSA_EOF;
-        err = errno;
-        M4OSA_TRACE1_1("M4OSA_FileReader_CalculateSize ERR1 = 0x%x", err);
-    }
-    else
-    {
-        /* Retrieve size of the file */
-        errno = apContext->FS->getOption(apContext->aFileDesc,
-                                         M4OSA_kFileReadGetFilePosition,
-                                         (M4OSA_DataOption*) &apContext->fileSize);
-        if (M4NO_ERROR != errno)
-        {
-            err = errno;
-            M4OSA_TRACE1_1("M4OSA_FileReader_CalculateSize ERR2 = 0x%x", err);
-        }
-        apContext->readFilePos = apContext->fileSize;
-    }
-#endif
 #else
     ret_val = apContext->FS->pFctPtr_Seek(apContext->aFileDesc, 0, M4OSA_kFileSeekEnd, &errno);
 

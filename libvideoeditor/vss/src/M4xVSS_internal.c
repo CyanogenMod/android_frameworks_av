@@ -171,9 +171,6 @@ M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
         break;
     }
     /**/
-#ifdef TIMESCALE_BUG
-    Params.OutputVideoTimescale = xVSS_context->pMCScurrentParams->OutputVideoTimescale;
-#endif
     // new params after integrating MCS 2.0
     // Set the number of audio effects; 0 for now.
     Params.nbEffects = 0;
@@ -629,49 +626,6 @@ M4OSA_ERR M4xVSS_PictureCallbackFct(M4OSA_Void* pPictureCtxt, M4VIFI_ImagePlane*
             /*Save ratio values, they can be reused if the new ratios are 0*/
             tempPanzoomXa = (M4OSA_UInt8)pC->m_pPto3GPPparams->PanZoomXa;
             tempPanzoomXb = (M4OSA_UInt8)pC->m_pPto3GPPparams->PanZoomXb;
-#if 0
-            /**
-             * Check size of output JPEG is compatible with pan & zoom parameters
-               First, check final (b) parameters */
-            if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftXb > 100 )
-            {
-                M4OSA_TRACE1_1("WARNING : Bad final Pan & Zoom settings !!!\
-                    New final Zoom ratio is: %d", (100 - pC->m_pPto3GPPparams->PanZoomTopleftXb));
-                /* We do not change the topleft parameter as it may correspond to a precise area
-                of the picture -> only the zoom ratio is modified */
-                pC->m_pPto3GPPparams->PanZoomXb = 100 - pC->m_pPto3GPPparams->PanZoomTopleftXb;
-            }
-
-            if(pC->m_pPto3GPPparams->PanZoomXb + pC->m_pPto3GPPparams->PanZoomTopleftYb > 100 )
-            {
-                M4OSA_TRACE1_1("WARNING : Bad final Pan & Zoom settings \
-                    !!! New final Zoom ratio is: %d",
-                    (100 - pC->m_pPto3GPPparams->PanZoomTopleftYb));
-                /* We do not change the topleft parameter as it may correspond to a
-                precise area of the picture -> only the zoom ratio is modified */
-                pC->m_pPto3GPPparams->PanZoomXb = 100 - pC->m_pPto3GPPparams->PanZoomTopleftYb;
-            }
-
-            /**
-             * Then, check initial (a) parameters */
-            if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftXa > 100 )
-            {
-                M4OSA_TRACE1_1("WARNING : Bad initial Pan & Zoom settings !!! \
-                    New initial Zoom ratio is: %d",(100 - pC->m_pPto3GPPparams->PanZoomTopleftXa));
-                /* We do not change the topleft parameter as it may correspond to a precise
-                area of the picture-> only the zoom ratio is modified */
-                pC->m_pPto3GPPparams->PanZoomXa = 100 - pC->m_pPto3GPPparams->PanZoomTopleftXa;
-            }
-
-            if(pC->m_pPto3GPPparams->PanZoomXa + pC->m_pPto3GPPparams->PanZoomTopleftYa > 100 )
-            {
-                M4OSA_TRACE1_1("WARNING : Bad initial Pan & Zoom settings !!! New initial\
-                     Zoom ratio is: %d", (100 - pC->m_pPto3GPPparams->PanZoomTopleftYa));
-                /* We do not change the topleft parameter as it may correspond to a precise
-                area of the picture-> only the zoom ratio is modified */
-                pC->m_pPto3GPPparams->PanZoomXa = 100 - pC->m_pPto3GPPparams->PanZoomTopleftYa;
-            }
-#endif
             /*Check that the ratio is not 0*/
             /*Check (a) parameters*/
             if(pC->m_pPto3GPPparams->PanZoomXa == 0)
@@ -3329,13 +3283,6 @@ M4OSA_ERR M4xVSS_freeSettings(M4VSS3GPP_EditSettings* pSettings)
                     {
                     //    M4SPS_destroy(framingCtx->pSPSContext);
                         framingCtx->pSPSContext = M4OSA_NULL;
-#if 0
-                        if(framingCtx->inputStream.data_buffer  != M4OSA_NULL)
-                        {
-                            free(framingCtx->inputStream.data_buffer);
-                            framingCtx->inputStream.data_buffer = M4OSA_NULL;
-                        }
-#endif
                     }
                     /*Alpha blending structure*/
                     if(framingCtx->alphaBlendingStruct  != M4OSA_NULL)
@@ -3450,87 +3397,6 @@ M4OSA_ERR M4xVSS_freeCommand(M4OSA_Context pContext)
         free(xVSS_context->pSettings->xVSS.pBGMtrack);
         xVSS_context->pSettings->xVSS.pBGMtrack = M4OSA_NULL;
     }
-#if 0
-    /* Parse transitions to free internal "alpha magic" settings structure */
-    /**
-     * In case there is twice or more the same Alpha Magic effect, the effect context
-     * may be freed twice or more.
-     * So, we parse all remaining transition settings to know if the context can be
-     * "re-freed", and if yes, we put its context to NULL to avoid freeing it again */
-    for(i=0; i<xVSS_context->pSettings->uiClipNumber-1; i++)
-    {
-        if(xVSS_context->pSettings->pTransitionList[i] != M4OSA_NULL)
-        {
-            switch (xVSS_context->pSettings->pTransitionList[i]->VideoTransitionType)
-            {
-                case M4xVSS_kVideoTransitionType_AlphaMagic:
-                    /**
-                     * In case of Alpha Magic transition, some extra parameters need to be freed */
-                    if(xVSS_context->pSettings->pTransitionList[i]->\
-                        pExtVideoTransitionFctCtxt != M4OSA_NULL)
-                    {
-                        free((((M4xVSS_internal_AlphaMagicSettings*)\
-                            xVSS_context->pSettings->pTransitionList[i]->\
-                                pExtVideoTransitionFctCtxt)->pPlane->pac_data));
-                        ((M4xVSS_internal_AlphaMagicSettings*)xVSS_context->\
-                            pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt)->\
-                                pPlane->pac_data = M4OSA_NULL;
-
-                        free((((M4xVSS_internal_AlphaMagicSettings*)\
-                            xVSS_context->pSettings->pTransitionList[i]->\
-                                pExtVideoTransitionFctCtxt)->pPlane));
-                        ((M4xVSS_internal_AlphaMagicSettings*)xVSS_context->\
-                            pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt)->\
-                                pPlane = M4OSA_NULL;
-
-                        free((xVSS_context->pSettings->\
-                            pTransitionList[i]->pExtVideoTransitionFctCtxt));
-                        xVSS_context->pSettings->pTransitionList[i]->pExtVideoTransitionFctCtxt
-                             = M4OSA_NULL;
-
-                        for(j=i+1;j<xVSS_context->pSettings->uiClipNumber-1;j++)
-                        {
-                            if(xVSS_context->pSettings->pTransitionList[j] != M4OSA_NULL)
-                            {
-                                if(xVSS_context->pSettings->pTransitionList[j]->\
-                                    VideoTransitionType == M4xVSS_kVideoTransitionType_AlphaMagic)
-                                {
-                                    M4OSA_UInt32 pCmpResult=0;
-                                    pCmpResult = strcmp((const char *)xVSS_context->pSettings->pTransitionList[i]->\
-                                        xVSS.transitionSpecific.pAlphaMagicSettings->\
-                                            pAlphaFilePath,
-                                        (const char *)xVSS_context->pSettings->pTransitionList[j]->\
-                                            xVSS.transitionSpecific.pAlphaMagicSettings->\
-                                                pAlphaFilePath);
-                                    if(pCmpResult == 0)
-                                        {
-                                        /* Free extra internal alpha magic structure and put it
-                                         to NULL to avoid refreeing it */
-                                        free((xVSS_context->pSettings->\
-                                            pTransitionList[j]->pExtVideoTransitionFctCtxt));
-                                        xVSS_context->pSettings->pTransitionList[j]->\
-                                            pExtVideoTransitionFctCtxt = M4OSA_NULL;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                break;
-
-                case M4xVSS_kVideoTransitionType_SlideTransition:
-                    if(xVSS_context->pSettings->pTransitionList[i]->\
-                        pExtVideoTransitionFctCtxt != M4OSA_NULL)
-                    {
-                        free((xVSS_context->pSettings->\
-                            pTransitionList[i]->pExtVideoTransitionFctCtxt));
-                        xVSS_context->pSettings->pTransitionList[i]->\
-                            pExtVideoTransitionFctCtxt = M4OSA_NULL;
-                    }
-                break;
-            }
-        }
-    }
-#endif
 
     M4xVSS_freeSettings(xVSS_context->pSettings);
 
@@ -4023,22 +3889,6 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
 #ifdef DECODE_GIF_ON_SAVING
     M4OSA_ERR err;
     Framing = (M4xVSS_FramingStruct *)((M4xVSS_FramingContext*)userData)->aFramingCtx;
-#if 0
-    if(Framing == M4OSA_NULL)
-    {
-        ((M4xVSS_FramingContext*)userData)->clipTime = pProgress->uiOutputTime;
-        err = M4xVSS_internalDecodeGIF(userData);
-        if(M4NO_ERROR != err)
-        {
-            M4OSA_TRACE1_1("M4VSS3GPP_externalVideoEffectFraming:\
-             Error in M4xVSS_internalDecodeGIF: 0x%x", err);
-            return err;
-        }
-        Framing = (M4xVSS_FramingStruct *)((M4xVSS_FramingContext*)userData)->aFramingCtx;
-        /* Initializes first GIF time */
-        ((M4xVSS_FramingContext*)userData)->current_gif_time = pProgress->uiOutputTime;
-    }
-#endif
     currentFraming = (M4xVSS_FramingStruct *)Framing;
     FramingRGB = Framing->FramingRgb->pac_data;
 #endif /*DECODE_GIF_ON_SAVING*/
@@ -4064,40 +3914,6 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
     /**
      * If the current clip time has reach the duration of one frame of the framing picture
      * we need to step to next framing picture */
-#if 0
-    if(((M4xVSS_FramingContext*)userData)->b_animated == M4OSA_TRUE)
-    {
-        while((((M4xVSS_FramingContext*)userData)->current_gif_time + currentFraming->duration)\
-         < pProgress->uiOutputTime)
-        {
-#ifdef DECODE_GIF_ON_SAVING
-            ((M4xVSS_FramingContext*)userData)->clipTime = pProgress->uiOutputTime;
-            err = M4xVSS_internalDecodeGIF(userData);
-            if(M4NO_ERROR != err)
-            {
-                M4OSA_TRACE1_1("M4VSS3GPP_externalVideoEffectFraming:\
-                 Error in M4xVSS_internalDecodeGIF: 0x%x", err);
-                return err;
-            }
-            if(currentFraming->duration != 0)
-            {
-                ((M4xVSS_FramingContext*)userData)->current_gif_time += currentFraming->duration;
-            }
-            else
-            {
-                ((M4xVSS_FramingContext*)userData)->current_gif_time \
-                 += pProgress->uiOutputTime - Framing->previousClipTime;
-            }
-            Framing = (M4xVSS_FramingStruct *)((M4xVSS_FramingContext*)userData)->aFramingCtx;
-            currentFraming = (M4xVSS_FramingStruct *)Framing;
-            FramingRGB = Framing->FramingRgb->pac_data;
-#else
-            Framing->pCurrent = currentFraming->pNext;
-            currentFraming = Framing->pCurrent;
-#endif /*DECODE_GIF_ON_SAVING*/
-        }
-    }
-#endif
 
     Framing->previousClipTime = pProgress->uiOutputTime;
     FramingRGB = currentFraming->FramingRgb->pac_data;
@@ -4213,15 +4029,6 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData,
         }
     }
 
-#ifdef DECODE_GIF_ON_SAVING
-#if 0
-    if(pProgress->bIsLast == M4OSA_TRUE
-        && (M4OSA_Bool)((M4xVSS_FramingContext*)userData)->b_IsFileGif == M4OSA_TRUE)
-    {
-        M4xVSS_internalDecodeGIF_Cleaning((M4xVSS_FramingContext*)userData);
-    }
-#endif
-#endif /*DECODE_GIF_ON_SAVING*/
 
     return M4VIFI_OK;
 }

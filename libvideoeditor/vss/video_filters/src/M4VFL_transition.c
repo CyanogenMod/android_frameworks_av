@@ -41,7 +41,6 @@
 unsigned char M4VFL_modifyLumaByStep(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
                                      M4VFL_ModifLumParam *lum_param, void *user_data)
 {
-#if 1
     unsigned short *p_src, *p_dest, *p_src_line, *p_dest_line;
     unsigned long pix_src;
     unsigned long u_outpx, u_outpx2;
@@ -121,82 +120,6 @@ unsigned char M4VFL_modifyLumaByStep(M4ViComImagePlane *plane_in, M4ViComImagePl
         p_dest_line += u_stride_out;
         p_src_line += u_stride;
     }
-#else /* if 0 */
-    unsigned char *p_src, *p_dest, *p_src_line, *p_dest_line;
-    unsigned long u_width, u_stride, u_stride_out,u_height, pix;
-    unsigned long lf1, lf2, lf3;
-    long i, j;
-
-    u_width = plane_in[0].u_width;
-    u_height = plane_in[0].u_height;
-    u_stride = (plane_in[0].u_stride);
-    u_stride_out = (plane_out[0].u_stride);
-    p_dest = (unsigned char *) &plane_out[0].pac_data[plane_out[0].u_topleft];
-    p_src = (unsigned char *) &plane_in[0].pac_data[plane_in[0].u_topleft];
-    p_dest_line = p_dest;
-    p_src_line = p_src;
-
-    switch(lum_param->lum_factor)
-    {
-    case 0:
-        /* very specific case : set luma plane to 16 */
-        for (j = u_height; j != 0; j--)
-        {
-            memset((void *)p_dest, 16,u_width);
-            p_dest += u_stride_out;
-        }
-        return 0;
-
-    case 1:
-        /* 0.25 */
-        lf1 = 6; lf2 = 6; lf3 = 7;
-        break;
-    case 2:
-        /* 0.375 */
-        lf1 = 7; lf2 = 7; lf3 = 7;
-        break;
-    case 3:
-        /* 0.5 */
-        lf1 = 7; lf2 = 7; lf3 = 8;
-        break;
-    case 4:
-        /* 0.625 */
-        lf1 = 7; lf2 = 8; lf3 = 8;
-        break;
-    case 5:
-        /* 0.75 */
-        lf1 = 8; lf2 = 8; lf3 = 8;
-        break;
-    case 6:
-        /* 0.875 */
-        lf1 = 9; lf2 = 8; lf3 = 7;
-        break;
-    default:
-        lf1 = 8; lf2 = 8; lf3 = 9;
-        break;
-    }
-
-    if (lum_param->copy_chroma != 0)
-    {
-        /* copy chroma plane */
-
-    }
-
-
-    for (j = u_height; j != 0; j--)
-    {
-        p_dest = p_dest_line;
-        p_src = p_src_line;
-        for (i = (u_width); i != 0; i--)
-        {
-            pix = (unsigned long) *p_src++;
-            *p_dest++ = (unsigned char) (((pix << lf1) + (pix << lf2) + (pix << lf3) ) >>\
-                 LUM_FACTOR_MAX);
-        }
-        p_dest_line += u_stride_out;
-        p_src_line += u_stride;
-    }
-#endif /* if 0 */
     return 0;
 }
 

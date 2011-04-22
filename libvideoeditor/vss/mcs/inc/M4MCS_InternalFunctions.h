@@ -337,31 +337,6 @@ M4OSA_ERR M4MCS_editAudioEffectFct_FadeOut( M4OSA_Void *pFunctionContext,
                                             M4OSA_UInt32 uiPCMsize,
                                             M4MCS_ExternalProgress *pProgress);
 
-#ifdef TIMESCALE_BUG
-/**
- ************************************************************************
- * M4OSA_ERR M4MCS_intParseVideoDSI( )
- * @brief :  This function parses video DSI and changes writer vop time increment resolution
- * @note  :  It also calculates the number of bits on which the vop_time_increment is coded
- *           in the input stream
- * @param
- * @return
- ************************************************************************
- */
-M4OSA_ERR M4MCS_intParseVideoDSI(M4MCS_InternalContext* pC);
-
-/**
- ************************************************************************
- * M4OSA_ERR M4MCS_intChangeAUVideoTimescale( )
- * @brief
- * @note
- * @param    pC           (IN/OUT) Internal edit context
- * @return
- ************************************************************************
- */
-M4OSA_ERR M4MCS_intChangeAUVideoTimescale(M4MCS_InternalContext* pC);
-#endif /* TIMESCALE_BUG */
-
 #ifdef __cplusplus
 }
 #endif

@@ -1501,26 +1501,6 @@ static M4OSA_Void M4VSS3GPP_intCheckAudioEffects( M4VSS3GPP_InternalEditContext
             * If the announced duration is smaller than the real one, the end effect
                       won't be applied at
             * the very end of the clip. To solve this issue we force the end effect. */
-#if 0
-
-            else if( ( M4VSS3GPP_kEffectKind_End == pFx->EffectKind)
-                && (t >= (M4OSA_Int32)(BC + pFx->uiStartTime)) )
-            {
-                /**
-                * Set the active effect */
-                *piClipActiveEffect =
-                    pC->pClipList[uiClipIndex].nbEffects - 1 - uiFxIndex;
-
-                /**
-                * The third effect has the highest priority, then the second one,
-                   then the first one.
-                * Hence, as soon as we found an active effect, we can get out of this loop */
-                uiFxIndex = pC->
-                    pClipList[
-                        uiClipIndex].nbEffects; /** get out of the for loop */
-            }
-
-#endif                                                    /* RC */
 
         }
     }

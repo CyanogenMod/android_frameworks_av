@@ -647,19 +647,6 @@ M4OSA_ERR M4VSS3GPP_unRegisterAllDecoders( M4VSS3GPP_MediaAndCodecCtxt *pC )
 #endif
 
             pC->m_pVideoDecoderItTable[i] = M4OSA_NULL;
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-#if 0 /* This is to avoid freeing OMX core context, passed as user data */
-
-            if( pC->m_pVideoDecoderUserDataTable[i] != M4OSA_NULL )
-            {
-                free(pC->m_pVideoDecoderUserDataTable[i]);
-                /* there ought to be a better pattern... right? */
-                pC->m_pVideoDecoderUserDataTable[i] = M4OSA_NULL;
-            }
-
-#endif
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
 
         }
     }

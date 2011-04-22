@@ -265,7 +265,7 @@ M4OSA_ERR M4PTO3GPP_Init(   M4PTO3GPP_Context* pContext,
  * @return  M4NO_ERROR:         No error
  * @return  M4ERR_PARAMETER:    At least one parameter is M4OSA_NULL
  * @return  M4ERR_STATE:        M4PTO3GPP is not in an appropriate state for this function to be
-                                 called
+                                  called
  * @return  M4ERR_ALLOC:        There is no more available memory
  * @return  ERR_PTO3GPP_INVALID_VIDEO_FRAME_SIZE_FOR_H263 The output video frame
  *                              size parameter is incompatible with H263 encoding
@@ -317,7 +317,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
     /**
      * Video Format */
-    if( (M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
+    if ((M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4_EMP != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kH264 != pParams->OutputVideoFormat))
@@ -328,7 +328,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
      /**
      * Video Bitrate */
-    if(!((M4VIDEOEDITING_k16_KBPS       == pParams->OutputVideoBitrate) ||
+    if (!((M4VIDEOEDITING_k16_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k24_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k32_KBPS       == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k48_KBPS       == pParams->OutputVideoBitrate) ||
