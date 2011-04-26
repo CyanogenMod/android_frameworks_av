@@ -117,6 +117,8 @@ public:
     virtual status_t resume();
     virtual void acquireLock();
     virtual void releaseLock();
+    virtual status_t setParameter(int key, const Parcel &request);
+    virtual status_t getParameter(int key, Parcel *reply);
 
     virtual status_t getMetadata(
                         const media::Metadata::Filter& ids, Parcel *records);

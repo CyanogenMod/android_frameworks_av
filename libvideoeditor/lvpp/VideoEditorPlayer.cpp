@@ -159,6 +159,16 @@ status_t VideoEditorPlayer::setLooping(int loop) {
     return mPlayer->setLooping(loop);
 }
 
+status_t VideoEditorPlayer::setParameter(int key, const Parcel &request) {
+    LOGV("setParameter");
+    return mPlayer->setParameter(key, request);
+}
+
+status_t VideoEditorPlayer::getParameter(int key, Parcel *reply) {
+    LOGV("getParameter");
+    return mPlayer->getParameter(key, reply);
+}
+
 player_type VideoEditorPlayer::playerType() {
     LOGV("playerType");
     return STAGEFRIGHT_PLAYER;
