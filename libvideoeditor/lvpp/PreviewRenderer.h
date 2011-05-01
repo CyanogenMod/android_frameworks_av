@@ -72,7 +72,7 @@ private:
     size_t mDisplayWidth, mDisplayHeight;
     size_t mDecodedWidth, mDecodedHeight;
 
-    android_native_buffer_t *mBuf;
+    ANativeWindowBuffer *mBuf;
 
     PreviewRenderer(const PreviewRenderer &);
     PreviewRenderer &operator=(const PreviewRenderer &);
