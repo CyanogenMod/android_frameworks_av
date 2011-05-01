@@ -35,6 +35,8 @@ LOCAL_SRC_FILES:=          \
     DummyAudioSource.cpp \
     DummyVideoSource.cpp \
     VideoEditorBGAudioProcessing.cpp \
+    AudioPlayerBase.cpp \
+    PreviewPlayerBase.cpp \
     PreviewRenderer.cpp
 
 LOCAL_MODULE_TAGS := optional
@@ -50,6 +52,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils           \
     libcutils          \
     libmedia           \
+    libdrmframework    \
     libstagefright  \
     libstagefright_omx  \
     libstagefright_foundation \

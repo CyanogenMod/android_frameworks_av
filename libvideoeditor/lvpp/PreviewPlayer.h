@@ -28,12 +28,12 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
-#include <AwesomePlayer.h>
+#include "PreviewPlayerBase.h"
 #include "VideoEditorPreviewController.h"
 
 namespace android {
 
-struct AudioPlayer;
+struct AudioPlayerBase;
 struct DataSource;
 struct MediaBuffer;
 struct MediaExtractor;
@@ -51,7 +51,7 @@ private:
     PreviewPlayerRenderer &operator=(const PreviewPlayerRenderer &);
 };
 
-struct PreviewPlayer : public AwesomePlayer {
+struct PreviewPlayer : public PreviewPlayerBase {
     PreviewPlayer();
     ~PreviewPlayer();
 
@@ -93,7 +93,7 @@ struct PreviewPlayer : public AwesomePlayer {
     status_t setImageClipProperties(uint32_t width, uint32_t height);
     status_t readFirstVideoFrame();
     status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
-    status_t setAudioPlayer(AudioPlayer *audioPlayer);
+    status_t setAudioPlayer(AudioPlayerBase *audioPlayer);
 
 private:
     friend struct PreviewPlayerEvent;

@@ -35,8 +35,8 @@ namespace android {
 
 VideoEditorAudioPlayer::VideoEditorAudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
-        AwesomePlayer *observer)
-    : AudioPlayer(audioSink, observer) {
+        PreviewPlayerBase *observer)
+    : AudioPlayerBase(audioSink, observer) {
 
     LOGV("VideoEditorAudioPlayer");
     mBGAudioPCMFileHandle = NULL;
@@ -97,7 +97,7 @@ sp<MediaSource> VideoEditorAudioPlayer::getSource() {
     return mSource;
 }
 
-void VideoEditorAudioPlayer::setObserver(AwesomePlayer *observer) {
+void VideoEditorAudioPlayer::setObserver(PreviewPlayerBase *observer) {
     LOGV("setObserver");
     //CHECK(!mStarted);
     mObserver = observer;
@@ -380,13 +380,13 @@ void VideoEditorAudioPlayer::resume() {
     mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
 
     //Call the base class
-    AudioPlayer::resume();
+    AudioPlayerBase::resume();
 }
 
 void VideoEditorAudioPlayer::reset() {
 
     LOGV("reset");
-    AudioPlayer::reset();
+    AudioPlayerBase::reset();
 
     // Capture the current seek point
     mBGAudioPCMFileSeekPoint = 0;

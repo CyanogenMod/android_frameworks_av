@@ -170,7 +170,7 @@ int PreviewLocalRenderer::init(
 }
 
 PreviewPlayer::PreviewPlayer()
-    : AwesomePlayer(),
+    : PreviewPlayerBase(),
       mCurrFramingEffectIndex(0)   ,
       mReportedWidth(0),
       mReportedHeight(0),
@@ -202,7 +202,7 @@ PreviewPlayer::PreviewPlayer()
     mStreamDoneEventPending = false;
 
     mCheckAudioStatusEvent = new PreviewPlayerEvent(
-        this, &AwesomePlayer::onCheckAudioStatus);
+        this, &PreviewPlayerBase::onCheckAudioStatus);
 
     mAudioStatusEventPending = false;
 
@@ -493,7 +493,7 @@ status_t PreviewPlayer::startAudioPlayer_l() {
     return OK;
 }
 
-status_t PreviewPlayer::setAudioPlayer(AudioPlayer *audioPlayer) {
+status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
     Mutex::Autolock autoLock(mLock);
     CHECK(!(mFlags & PLAYING));
     mAudioPlayer = audioPlayer;
@@ -1513,13 +1513,13 @@ status_t PreviewPlayer::resume() {
 
     status_t err;
     if (state->mFileSource != NULL) {
-        err = AwesomePlayer::setDataSource_l(state->mFileSource);
+        err = PreviewPlayerBase::setDataSource_l(state->mFileSource);
 
         if (err == OK) {
             mFileSource = state->mFileSource;
         }
     } else {
-        err = AwesomePlayer::setDataSource_l(state->mUri, &state->mUriHeaders);
+        err = PreviewPlayerBase::setDataSource_l(state->mUri, &state->mUriHeaders);
     }
 
     if (err != OK) {

@@ -27,7 +27,8 @@
 #include "VideoEditorMain.h"
 #include "M4OSA_FileReader.h"
 #include "VideoEditorBGAudioProcessing.h"
-#include <media/stagefright/AudioPlayer.h>
+#include "AudioPlayerBase.h"
+#include "PreviewPlayerBase.h"
 
 namespace android {
 
@@ -36,7 +37,7 @@ class AudioTrack;
 class PreviewPlayer;
 
 
-class VideoEditorAudioPlayer : public AudioPlayer {
+class VideoEditorAudioPlayer : public AudioPlayerBase {
 public:
     enum {
         REACHED_EOS,
@@ -44,7 +45,7 @@ public:
     };
 
     VideoEditorAudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
-        AwesomePlayer *audioObserver = NULL);
+        PreviewPlayerBase *audioObserver = NULL);
 
     virtual ~VideoEditorAudioPlayer();
 
@@ -58,7 +59,7 @@ public:
         M4OSA_UInt32 pBGAudioCurrentMediaBeginCutTS,
         M4OSA_UInt32 pBGAudioCurrentMediaVolumeVal);
 
-    void setObserver(AwesomePlayer *observer);
+    void setObserver(PreviewPlayerBase *observer);
     void setSource(const sp<MediaSource> &source);
     sp<MediaSource> getSource();
 
