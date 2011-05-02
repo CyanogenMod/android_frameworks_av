@@ -38,7 +38,7 @@ LOCAL_SRC_FILES:=          \
       M4VSS3GPP_EditAudio.c \
       M4VSS3GPP_EditVideo.c \
       M4VSS3GPP_MediaAndCodecSubscription.c \
-      M4ChannelCoverter.c \
+      M4ChannelConverter.c \
       M4VD_EXTERNAL_BitstreamParser.c \
       M4AIR_API.c \
       M4READER_Pcm.c \
