@@ -63,7 +63,6 @@ private:
     int32_t mNumberOfSamplePerFrame;
     int64_t mAudioDurationUs;
     int64_t mTimeStampUs;
-    int32_t mNbBuffer;
     Mutex mLock;
 
     MediaBufferGroup *mBufferGroup;

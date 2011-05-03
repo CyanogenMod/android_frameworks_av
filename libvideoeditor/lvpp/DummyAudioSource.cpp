@@ -158,7 +158,6 @@ status_t DummyAudioSource::read( MediaBuffer **out, const MediaSource::ReadOptio
     status_t err            = OK;
     //LOG2("DummyAudioSource::read START");
     MediaBuffer *buffer;
-    int32_t byteCount;
     int64_t seekTimeUs;
     ReadOptions::SeekMode mode;
 
@@ -180,13 +179,8 @@ status_t DummyAudioSource::read( MediaBuffer **out, const MediaSource::ReadOptio
         return err;
     }
 
-    uint8_t *inputPtr =
-    ( uint8_t *)buffer->data() + buffer->range_offset();
-
-    //TODO: replace with memset
-    for (byteCount = 0; byteCount < (mNumberOfSamplePerFrame << 1); byteCount++) {
-        inputPtr[byteCount] = 0;
-    }
+    memset((uint8_t *) buffer->data() + buffer->range_offset(),
+            0, mNumberOfSamplePerFrame << 1);
 
     buffer->set_range(buffer->range_offset(), (mNumberOfSamplePerFrame << 1));
 

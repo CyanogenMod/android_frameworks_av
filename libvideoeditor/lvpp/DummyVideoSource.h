@@ -21,7 +21,6 @@
 
 #include <utils/RefBase.h>
 #include <utils/threads.h>
-#include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/DataSource.h>
 #include "OMX_IVCommon.h"
@@ -36,7 +35,6 @@ namespace android {
 
 class  MediaBuffer;
 class  MetaData;
-struct MediaBufferGroup;
 
 struct DummyVideoSource : public MediaSource {
 
@@ -63,7 +61,6 @@ private:
     uint64_t mImageClipDuration;
     const char *mUri;
     int64_t mFrameTimeUs;
-    MediaBufferGroup *mBufferGroup;
     bool mIsFirstImageFrame;
     void *mImageBuffer;
     M4OSA_Time mImagePlayStartTime;
