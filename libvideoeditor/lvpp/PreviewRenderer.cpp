@@ -207,7 +207,7 @@ void PreviewRenderer::renderYV12() {
 //
 void PreviewRenderer::render(
         const void *data, size_t size, void *platformPrivate) {
-    android_native_buffer_t *buf;
+    ANativeWindowBuffer *buf;
     int err;
 
     if ((err = mSurface->dequeueBuffer(mSurface.get(), &buf)) != 0) {
