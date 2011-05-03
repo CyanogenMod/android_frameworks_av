@@ -18,19 +18,16 @@
 #include <stdint.h>
 
 #include <utils/RefBase.h>
-#include <media/stagefright/MediaErrors.h>
+#include <utils/threads.h>
 
 #include <media/stagefright/MediaSource.h>
-#include <media/stagefright/MediaBuffer.h>
-#include <media/stagefright/MediaBufferGroup.h>
-#include <media/stagefright/MediaDefs.h>
 
 #include "AudioBufferProvider.h"
 #include "AudioResampler.h"
 
 namespace android {
-//struct MediaSource;
 
+struct MediaBuffer;
 
 class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
 
@@ -51,14 +48,14 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
 
     enum { //Sampling freq
         kFreq8000Hz = 8000,
-     kFreq11025Hz = 11025,
-     kFreq12000Hz = 12000,
-     kFreq16000Hz = 16000,
-     kFreq22050Hz = 22050,
-     kFreq240000Hz = 24000,
-     kFreq32000Hz = 32000,
-     kFreq44100 = 44100,
-     kFreq48000 = 48000,
+        kFreq11025Hz = 11025,
+        kFreq12000Hz = 12000,
+        kFreq16000Hz = 16000,
+        kFreq22050Hz = 22050,
+        kFreq240000Hz = 24000,
+        kFreq32000Hz = 32000,
+        kFreq44100 = 44100,
+        kFreq48000 = 48000,
     };
 
     static const uint16_t UNITY_GAIN = 0x1000;
@@ -72,13 +69,8 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         VideoEditorSRC &operator=(const VideoEditorSRC &);
 
         AudioResampler        *mResampler;
-        AudioBufferProvider  *mbufferProvider;
         sp<MediaSource>      mSource;
         MediaBuffer      *mCopyBuffer;
-        MediaBufferGroup *mGroup;
-        uint8_t *mInputByteBuffer;
-        int32_t mInputBufferLength;
-        int mInputFrameSize;
         int mBitDepth;
         int mChannelCnt;
         int mSampleRate;
@@ -88,9 +80,8 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         bool mIsChannelConvertionRequired; // for mono to stereo
         sp<MetaData> mOutputFormat;
         Mutex mLock;
-        int32_t *pTmpBuffer;
 
-        uint8_t* pInterframeBuffer;
+        uint8_t* mInterframeBuffer;
         int32_t mInterframeBufferPosition;
         int32_t mLeftover;
         int32_t mLastReadSize ;

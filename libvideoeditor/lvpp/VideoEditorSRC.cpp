@@ -23,6 +23,8 @@
 #include "VideoEditorSRC.h"
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDebug.h>
+#include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MediaDefs.h>
 #include "AudioMixer.h"
 
 
@@ -47,9 +49,7 @@ VideoEditorSRC::VideoEditorSRC(
     mLeftover = 0;
     mLastReadSize = 0;
     mReSampledBuffer = NULL;
-#ifndef FROYO
     mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
-#endif
 
     mOutputFormat = new MetaData;
 
@@ -73,7 +73,7 @@ VideoEditorSRC::VideoEditorSRC(
 
     // Allocate a  1 sec buffer (test only, to be refined)
     mInterframeBufferPosition = 0;
-    pInterframeBuffer = new uint8_t[DEFAULT_SAMPLING_FREQ * 2 * 2]; //stereo=2 * bytespersample=2
+    mInterframeBuffer = new uint8_t[DEFAULT_SAMPLING_FREQ * 2 * 2]; //stereo=2 * bytespersample=2
 
 
 }
@@ -87,9 +87,9 @@ VideoEditorSRC::~VideoEditorSRC(){
         mOutputFormat = NULL;
     }
 
-    if (pInterframeBuffer != NULL){
-        delete pInterframeBuffer;
-        pInterframeBuffer = NULL;
+    if (mInterframeBuffer != NULL){
+        delete mInterframeBuffer;
+        mInterframeBuffer = NULL;
     }
 }
 
@@ -123,7 +123,6 @@ status_t  VideoEditorSRC::start (MetaData *params) {
     success = format->findInt32(kKeyChannelCount, &mChannelCnt);
     CHECK(success);
 
-    mInputFrameSize = mChannelCnt * 2; //2 is the byte depth
     if(mSampleRate != mOutputSampleRate) {
         LOGV("Resampling required (%d != %d)", mSampleRate, mOutputSampleRate);
         mIsResamplingRequired = true;
@@ -146,9 +145,7 @@ status_t  VideoEditorSRC::start (MetaData *params) {
         }
     }
     mSeekTimeUs = -1;
-#ifndef FROYO
     mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
-#endif
     mStarted = true;
     mSource->start();
 
@@ -201,20 +198,12 @@ status_t VideoEditorSRC::read (
 
         // Store the seek parameters
         int64_t seekTimeUs;
-#ifndef FROYO
         ReadOptions::SeekMode mode = ReadOptions::SEEK_PREVIOUS_SYNC;
         if (options && options->getSeekTo(&seekTimeUs, &mode)) {
-#else
-        if (options && options->getSeekTo(&seekTimeUs)) {
-#endif
             LOGV("read Seek %lld", seekTimeUs);
             mInitialTimeStampUs = -1;
             mSeekTimeUs = seekTimeUs;
-#ifndef FROYO
             mSeekMode = mode;
-#else
-            mReadOptions = *options;
-#endif
         }
 
         // We ask for 1024 frames in output
@@ -224,7 +213,7 @@ status_t VideoEditorSRC::read (
         LOGV("outBufferSize            %d", outBufferSize);
         LOGV("outFrameCnt              %d", outFrameCnt);
 
-        pTmpBuffer = (int32_t*)malloc(outFrameCnt * 2 * sizeof(int32_t)); //out is always 2 channels and resampler out is 32 bits
+        int32_t *pTmpBuffer = (int32_t*)malloc(outFrameCnt * 2 * sizeof(int32_t)); //out is always 2 channels and resampler out is 32 bits
         memset(pTmpBuffer, 0x00, outFrameCnt * 2 * sizeof(int32_t));
         // Resample to target quality
         mResampler->resample(pTmpBuffer, outFrameCnt, this);
@@ -289,7 +278,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
     if (mLeftover > 0) {
         LOGV("Moving mLeftover =%d  from  %d", mLeftover, mLastReadSize);
         if (mLastReadSize > 0) {
-            memcpy(pInterframeBuffer, (uint8_t*) (pInterframeBuffer + mLastReadSize), mLeftover);
+            memcpy(mInterframeBuffer, (uint8_t*) (mInterframeBuffer + mLastReadSize), mLeftover);
         }
         mInterframeBufferPosition = mLeftover;
     }
@@ -301,7 +290,6 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
     while ((availableFrames < pBuffer->frameCount)&&(mStarted)) {
         // if we seek, reset the initial time stamp and accumulated time
-#ifndef FROYO
         ReadOptions options;
         if (mSeekTimeUs >= 0) {
             LOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
@@ -309,14 +297,6 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
             options.setSeekTo(mSeekTimeUs, mode);
             mSeekTimeUs = -1;
         }
-#else
-        ReadOptions options;
-        if (mSeekTimeUs >= 0) {
-            LOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
-            options = mReadOptions;
-            mSeekTimeUs = -1;
-        }
-#endif
         /* The first call to read() will require to buffer twice as much data */
         /* This will be needed by the resampler */
         status_t err = mSource->read(&aBuffer, &options);
@@ -328,15 +308,14 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
             //Empty the internal buffer if there is no more data left in the source
             else {
                 lastBuffer = true;
-                mInputByteBuffer = pInterframeBuffer;
                 //clear the end of the buffer, just in case
-                memset(pInterframeBuffer+mInterframeBufferPosition, 0x00, DEFAULT_SAMPLING_FREQ * 2 * 2 - mInterframeBufferPosition);
+                memset(mInterframeBuffer+mInterframeBufferPosition, 0x00, DEFAULT_SAMPLING_FREQ * 2 * 2 - mInterframeBufferPosition);
                 mStarted = false;
             }
         }
         else {
             //copy the buffer
-            memcpy(((uint8_t*) pInterframeBuffer) + mInterframeBufferPosition,
+            memcpy(((uint8_t*) mInterframeBuffer) + mInterframeBufferPosition,
                     ((uint8_t*) aBuffer->data()) + aBuffer->range_offset(),
                     aBuffer->range_length());
             LOGV("Read from buffer  %d", aBuffer->range_length());
@@ -365,7 +344,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
     }
 
     //update the input buffer
-    pBuffer->raw        = (void*)(pInterframeBuffer);
+    pBuffer->raw        = (void*)(mInterframeBuffer);
 
     // Update how many bytes are left
     // (actualReadSize is updated in getNextBuffer() called from resample())
