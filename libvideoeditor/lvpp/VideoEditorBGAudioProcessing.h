@@ -53,8 +53,12 @@ typedef struct {
 class VideoEditorBGAudioProcessing {
 public:
     VideoEditorBGAudioProcessing();
-    void veSetAudioProcessingParams(veAudMixSettings mixParams);
-    M4OSA_Int32 veProcessAudioMixNDuck(void* , void *, void *);
+    void veSetAudioProcessingParams(const veAudMixSettings& mixParams);
+
+    M4OSA_Int32 veProcessAudioMixNDuck(
+                    void* primaryTrackBuffer,
+                    void* backgroundTrackBuffer,
+                    void* mixedOutputBuffer);
 
     ~VideoEditorBGAudioProcessing();
 
@@ -78,15 +82,11 @@ private:
     M4OSA_Float mPTVolLevel;
     M4OSA_Float mBTVolLevel;
 
-    M4AM_Buffer16 mPTBuffer;
     M4AM_Buffer16 mBTBuffer;
-    M4AM_Buffer16 mOutMixBuffer;
-    M4OSA_Int16 *mTempBuffer;
-    M4OSA_Int32 mTempFrameCount;
 
     M4OSA_Int32 getDecibelSound(M4OSA_UInt32 value);
     M4OSA_Bool  isThresholdBreached(M4OSA_Int32* averageValue,
-     M4OSA_Int32 storeCount, M4OSA_Int32 thresholdValue);
+                    M4OSA_Int32 storeCount, M4OSA_Int32 thresholdValue);
 
     // This returns the size of buffer which needs to allocated
     // before resampling is called
