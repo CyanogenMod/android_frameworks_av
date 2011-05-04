@@ -243,7 +243,7 @@ void AudioPlayerBase::reset() {
 }
 
 // static
-void AudioPlayerBase::AudioCallback(int event, void *user, void *info) {
+void AudioPlayerBase::AudioCallback(AudioTrack::event_type event, void *user, void *info) {
     static_cast<AudioPlayerBase *>(user)->AudioCallback(event, info);
 }
 
@@ -269,7 +269,7 @@ size_t AudioPlayerBase::AudioSinkCallback(
     return me->fillBuffer(buffer, size);
 }
 
-void AudioPlayerBase::AudioCallback(int event, void *info) {
+void AudioPlayerBase::AudioCallback(AudioTrack::event_type event, void *info) {
     if (event != AudioTrack::EVENT_MORE_DATA) {
         return;
     }
