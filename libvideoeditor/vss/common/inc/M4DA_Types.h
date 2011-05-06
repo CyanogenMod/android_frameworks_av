@@ -83,7 +83,7 @@ typedef struct
     M4_StreamType    m_streamType;                /**< Stream type */
     M4OSA_UInt32    m_streamId;                    /**< Stream Id (unique number definning
                                                         the stream) */
-    M4OSA_Int64        m_duration;                    /**< Duration of the stream in milli
+    M4OSA_Int32        m_duration;                    /**< Duration of the stream in milli
                                                             seconds */
     M4OSA_UInt32    m_averageBitRate;            /**< Average bitrate in kb/s */
     M4OSA_UInt32    m_maxAUSize;                /**< Maximum size of an Access Unit */

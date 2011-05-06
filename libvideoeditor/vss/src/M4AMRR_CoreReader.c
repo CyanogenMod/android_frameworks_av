@@ -347,7 +347,7 @@ M4OSA_ERR M4AMRR_getNextStream(M4OSA_Context Context, M4SYS_StreamDescription* p
 
     /* Timescale equals Sampling Frequency: NB-8000 Hz, WB-16000 Hz */
     pStreamDesc->timeScale = (pStreamContext->m_streamType == M4SYS_kAMR )?8000:16000;
-    M4OSA_TIME_SET_UNKNOWN(pStreamDesc->duration);
+    pStreamDesc->duration = M4OSA_TIME_UNKNOWN;
 
     pStreamContext->m_pStreamHandler =
          (M4SYS_StreamDescription*)M4OSA_32bitAlignedMalloc(sizeof(M4SYS_StreamDescription),
@@ -361,7 +361,7 @@ M4OSA_ERR M4AMRR_getNextStream(M4OSA_Context Context, M4SYS_StreamDescription* p
     pStreamContext->m_pStreamHandler->averageBitrate = pStreamDesc->averageBitrate;
     pStreamContext->m_pStreamHandler->decoderSpecificInfo = M4OSA_NULL ;
     pStreamContext->m_pStreamHandler->decoderSpecificInfoSize = 0 ;
-    M4OSA_TIME_SET_UNKNOWN(pStreamContext->m_pStreamHandler->duration);
+    pStreamContext->m_pStreamHandler->duration = M4OSA_TIME_UNKNOWN;
     pStreamContext->m_pStreamHandler->profileLevel = 0xFF ;
     pStreamContext->m_pStreamHandler->streamID = 1;
     pStreamContext->m_pStreamHandler->streamType = pStreamDesc->streamType ;
@@ -595,7 +595,7 @@ M4OSA_ERR M4AMRR_seek(M4OSA_Context Context, M4SYS_StreamID* pStreamID, M4OSA_Ti
     /*Make explicit time cast, but take care that timescale is not used !!!*/
     M4OSA_TIME_TO_MS(time_double, time, 1000);
 
-    M4OSA_INT64_FROM_INT32(*pObtainCTS, 0);
+    *pObtainCTS = 0;
 
     M4OSA_DEBUG_IF2((M4OSA_NULL == Context),M4ERR_PARAMETER,"Context M4OSA_NULL");
     M4OSA_DEBUG_IF2((pStreamContext->m_contextId != M4AMRR_CONTEXTID),M4ERR_BAD_CONTEXT,
@@ -740,11 +740,11 @@ M4OSA_ERR M4AMRR_seek(M4OSA_Context Context, M4SYS_StreamID* pStreamID, M4OSA_Ti
 
     if ( partSeekTime == 0)
     {
-        M4OSA_TIME_SET(*pObtainCTS, time);
+        *pObtainCTS = time;
         return M4NO_ERROR;
     }
 
-    M4OSA_INT64_FROM_DOUBLE(*pObtainCTS, (time_double - (M4OSA_Double)partSeekTime)) ;
+    *pObtainCTS = (M4OSA_Time)(time_double - (M4OSA_Double)partSeekTime);
 
     switch(seekMode)
     {
@@ -793,7 +793,7 @@ M4OSA_ERR M4AMRR_seek(M4OSA_Context Context, M4SYS_StreamID* pStreamID, M4OSA_Ti
         if ( size == 0)
         {
             /* If the target time is invalid, point to begining and return */
-            M4OSA_INT64_FROM_INT32(*pObtainCTS, 0);
+            *pObtainCTS = 0;
             filePos = pStreamContext->m_pSeekIndex[0];
             pStreamContext->m_pOsaFilePtrFct->seek(pStreamContext->m_pAMRFile,
                  M4OSA_kFileSeekBeginning, &filePos);

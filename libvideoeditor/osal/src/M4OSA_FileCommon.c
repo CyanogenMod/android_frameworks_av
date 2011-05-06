@@ -249,8 +249,8 @@ M4OSA_ERR M4OSA_fileCommonOpen(M4OSA_UInt16 core_id, M4OSA_Context* pContext,
         pFileContext->m_DescrModeAccess = M4OSA_kDescWriteAccess;
     }
 
-    M4OSA_INT_TO_FILE_POSITION(0, pFileContext->read_position);
-    M4OSA_INT_TO_FILE_POSITION(0, pFileContext->write_position);
+    pFileContext->read_position = 0;
+    pFileContext->write_position = 0;
 
     /* Allocate the memory to store the URL string */
     pFileContext->url_name = (M4OSA_Char*) M4OSA_32bitAlignedMalloc(strlen((const char *)pUrl)+1,
@@ -379,8 +379,8 @@ M4OSA_ERR M4OSA_fileCommonSeek(M4OSA_Context pContext,
     M4OSA_FileContext* pFileContext = pContext;
     M4OSA_FilePosition fpos_current;
     M4OSA_FilePosition fpos_seek;
-    M4OSA_FilePosition fpos_null;
-    M4OSA_FilePosition fpos_neg_un;
+    M4OSA_FilePosition fpos_null = 0;
+    M4OSA_FilePosition fpos_neg_un = -1;
     M4OSA_FilePosition fpos_file_size;
     M4OSA_FilePosition fpos_seek_from_beginning;
 
@@ -391,39 +391,36 @@ M4OSA_ERR M4OSA_fileCommonSeek(M4OSA_Context pContext,
     M4OSA_DEBUG_IF2(0 == seekMode, M4ERR_PARAMETER, "M4OSA_fileCommonSeek");
     M4OSA_DEBUG_IF2(M4OSA_NULL == pFilePos, M4ERR_PARAMETER, "M4OSA_fileCommonSeek");
 
-    M4OSA_INT_TO_FILE_POSITION(0, fpos_null);
-    M4OSA_INT_TO_FILE_POSITION(-1, fpos_neg_un);
-    M4OSA_FPOS_SET(fpos_file_size, pFileContext->file_size);
+    fpos_file_size = pFileContext->file_size;
 
     if(SeekRead == pFileContext->current_seek)
     {
-        M4OSA_FPOS_SET(fpos_current, pFileContext->read_position);
+        fpos_current = pFileContext->read_position;
     }
     else if(SeekWrite == pFileContext->current_seek)
     {
-        M4OSA_FPOS_SET(fpos_current, pFileContext->write_position);
+        fpos_current = pFileContext->write_position;
     }
     else
     {
-        M4OSA_INT_TO_FILE_POSITION(0, fpos_current);
+        fpos_current = 0;
     }
 
     switch(seekMode)
     {
     case M4OSA_kFileSeekCurrent:
         {
-            M4OSA_FPOS_SET(fpos_seek, *pFilePos);
+            fpos_seek = *pFilePos;
             break;
         }
     case M4OSA_kFileSeekBeginning:
         {
-            M4OSA_FPOS_SUB(fpos_seek, *pFilePos, fpos_current)
-                break;
+            fpos_seek = *pFilePos - fpos_current;
+            break;
         }
     case M4OSA_kFileSeekEnd:
         {
-            M4OSA_FPOS_ADD(fpos_seek, fpos_file_size, *pFilePos);
-            M4OSA_FPOS_SUB(fpos_seek, fpos_seek, fpos_current);
+            fpos_seek = *pFilePos + fpos_file_size - fpos_current;
             break;
         }
     default:
@@ -432,7 +429,7 @@ M4OSA_ERR M4OSA_fileCommonSeek(M4OSA_Context pContext,
         }
     }
 
-    M4OSA_FPOS_ADD(fpos_seek_from_beginning, fpos_current, fpos_seek);
+    fpos_seek_from_beginning = fpos_current + fpos_seek;
 
     if(fseek(pFileContext->file_desc, fpos_seek, SEEK_CUR) != 0)
     {
@@ -454,7 +451,7 @@ M4OSA_ERR M4OSA_fileCommonSeek(M4OSA_Context pContext,
     }
 
     /* Set the returned position from the beginning of the file */
-    M4OSA_FPOS_SET(*pFilePos, fpos_seek_from_beginning);
+    *pFilePos = fpos_seek_from_beginning;
 
     /* SEEK done, reset end of file value */
     pFileContext->b_is_end_of_file = M4OSA_FALSE;
@@ -545,17 +542,17 @@ M4OSA_ERR M4OSA_fileCommonGetAttribute(M4OSA_Context pContext, M4OSA_FileAttribu
         return M4ERR_BAD_CONTEXT;
     }
 
-    M4OSA_INT64_FROM_INT32(pAttribute->creationDate.time, TheStat.st_ctime);
-    M4OSA_INT64_FROM_INT32(pAttribute->lastAccessDate.time, TheStat.st_atime);
-    M4OSA_INT64_FROM_INT32(pAttribute->modifiedDate.time, TheStat.st_mtime);
+    pAttribute->creationDate.time = (M4OSA_Time)TheStat.st_ctime;
+    pAttribute->lastAccessDate.time = (M4OSA_Time)TheStat.st_atime;
+    pAttribute->modifiedDate.time = (M4OSA_Time)TheStat.st_mtime;
 
-    pAttribute->creationDate.timeScale    = 1;
-    pAttribute->lastAccessDate.timeScale= 1;
-    pAttribute->modifiedDate.timeScale    = 1;
+    pAttribute->creationDate.timeScale = 1;
+    pAttribute->lastAccessDate.timeScale = 1;
+    pAttribute->modifiedDate.timeScale = 1;
 
-    pAttribute->creationDate.referenceYear    = 1970;
-    pAttribute->lastAccessDate.referenceYear= 1970;
-    pAttribute->modifiedDate.referenceYear    = 1970;
+    pAttribute->creationDate.referenceYear = 1970;
+    pAttribute->lastAccessDate.referenceYear = 1970;
+    pAttribute->modifiedDate.referenceYear = 1970;
 
     pAttribute->modeAccess = fileContext->access_mode;
 

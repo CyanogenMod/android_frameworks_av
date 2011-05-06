@@ -249,7 +249,7 @@ M4OSA_ERR M4READER_PCM_getOption(M4OSA_Context context, M4OSA_OptionID optionId,
     switch (optionId)
     {
     case M4READER_kOptionID_Duration:
-        *((M4OSA_UInt64*)pValue) = pContext->m_pAudioStream->m_duration;
+        *((M4OSA_UInt32*)pValue) = pContext->m_pAudioStream->m_duration;
         break;
 
     case M4READER_kOptionID_Version:
@@ -382,7 +382,7 @@ M4OSA_ERR M4READER_PCM_getNextStream(M4OSA_Context context, M4READER_MediaFamily
     pAudioStreamHandler->m_nbChannels        = pDsi->nbChannels;
 
     M4OSA_TIME_TO_MS( fDuration, streamDesc.duration, streamDesc.timeScale);
-    pC->m_pAudioStream->m_duration                = (M4OSA_Int64)fDuration;
+    pC->m_pAudioStream->m_duration                = (M4OSA_Int32)fDuration;
     pC->m_pAudioStream->m_pDecoderSpecificInfo    = (M4OSA_UInt8*)(streamDesc.decoderSpecificInfo);
     pC->m_pAudioStream->m_decoderSpecificInfoSize = streamDesc.decoderSpecificInfoSize;
     pC->m_pAudioStream->m_streamId                = streamDesc.streamID;

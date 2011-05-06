@@ -34,21 +34,7 @@
 #include "M4OSA_OptionID.h"
 
 
-
-/*#define M4OSA_FILE_POS_64_BITS_SUPPORTED*/ /*Means M4OSA_Int64 is used*/
-
-#ifndef M4OSA_FILE_POS_64_BITS_SUPPORTED
-#define M4OSA_FILE_POS_32_BITS_SUPPORTED     /*Means M4OSA_Int32 is used*/
-#endif /*M4OSA_FILE_POS_64_BITS_SUPPORTED*/
-
-
-
-#ifdef M4OSA_FILE_POS_64_BITS_SUPPORTED
-typedef M4OSA_Int64 M4OSA_FilePosition;
-#endif
-#ifdef M4OSA_FILE_POS_32_BITS_SUPPORTED
 typedef M4OSA_Int32 M4OSA_FilePosition;
-#endif
 
 /** This enum defines the application mode access.
  *  ie, the application uses a file descriptor to read or to write  or
@@ -127,110 +113,6 @@ typedef enum M4OSA_FileSeekAccessMode
 #define M4ERR_FILE_LOCKED            M4OSA_ERR_CREATE(M4_ERR, M4OSA_FILE_COMMON, 0x000002)
 #define M4ERR_FILE_BAD_MODE_ACCESS   M4OSA_ERR_CREATE(M4_ERR, M4OSA_FILE_COMMON, 0x000003)
 #define M4ERR_FILE_INVALID_POSITION  M4OSA_ERR_CREATE(M4_ERR, M4OSA_FILE_COMMON, 0x000004)
-
-
-#ifdef M4OSA_FILE_POS_64_BITS_SUPPORTED
-
-#define M4OSA_FPOS_SET(fpos_a, fpos_b)\
-        M4OSA_INT64_SET(fpos_a, fpos_b)
-
-#define M4OSA_FPOS_ADD(fpos_result, fpos_a, fpos_b)\
-        M4OSA_INT64_ADD(fpos_result, fpos_a, fpos_b)
-
-#define M4OSA_FPOS_SUB(fpos_result, fpos_a, fpos_b)\
-        M4OSA_INT64_SUB(fpos_result, fpos_a, fpos_b)
-
-#define M4OSA_FPOS_ADD_CONST_UINT32(fpos_out, fpos_in, i32_in)\
-      { M4OSA_Int64 i64_in;\
-        M4OSA_INT64_FROM_INT32(i64_in, i32_in);\
-        M4OSA_INT64_ADD(fpos_out, fpos_in, i64_in); }
-
-#define M4OSA_FPOS_SUB_CONST_UINT32(fpos_out, fpos_in, i32_in)\
-      { M4OSA_Int64 i64_in;\
-        M4OSA_INT64_FROM_INT32(i64_in, i32_in);\
-        M4OSA_INT64_SUB(fpos_out, fpos_in, i64_in); }
-
-#define M4OSA_FPOS_SCALAR_PRODUCT(fpos_result, fpos_a, i32_value)\
-        M4OSA_INT64_SCALAR_PRODUCT(fpos_result, fpos_a, i32_value)
-
-#define M4OSA_FPOS_SCALAR_DIVISION(fpos_result, fpos_a, i32_value)\
-        M4OSA_INT64_SCALAR_DIVISION(fpos_result, fpos_a, i32_value)
-
-#define M4OSA_FPOS_COMPARE(fpos_a, fpos_b)\
-        M4OSA_INT64_COMPARE(fpos_a, fpos_b)
-
-#define M4OSA_FILE_POSITION_TO_INT(fpos, ipos)\
-        M4OSA_INT64_SET(ipos, fpos)
-
-#define M4OSA_INT_TO_FILE_POSITION(ipos, fpos)\
-        M4OSA_FPOS_SET(fpos, ipos)
-
-#define M4OSA_FPOS_IS_POSITIVE(fpos_value)\
-        M4OSA_INT64_IS_POSITIVE(fpos_value)
-
-#define M4OSA_FPOS_NEG(fpos_result, fpos_value)\
-        M4OSA_INT64_NEG(fpos_result, fpos_value)
-
-#define M4OSA_FPOS_ABS(fpos_result, fpos_value)\
-        M4OSA_INT64_ABS(fpos_result, fpos_value)
-
-#define M4OSA_FPOS_LEFT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)\
-        M4OSA_INT64_LEFT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)
-
-#define M4OSA_FPOS_RIGHT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)\
-        M4OSA_INT64_RIGHT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)
-
-#endif
-
-#ifdef M4OSA_FILE_POS_32_BITS_SUPPORTED
-
-#define M4OSA_FPOS_SET(fpos_a, fpos_b)\
-        M4OSA_INT32_SET(fpos_a, fpos_b)
-
-#define M4OSA_FPOS_ADD(fpos_result, fpos_a, fpos_b)\
-        M4OSA_INT32_ADD(fpos_result, fpos_a, fpos_b)
-
-#define M4OSA_FPOS_SUB(fpos_result, fpos_a, fpos_b)\
-        M4OSA_INT32_SUB(fpos_result, fpos_a, fpos_b)
-
-#define M4OSA_FPOS_ADD_CONST_UINT32(fpos_out, fpos_in, i32_in)\
-        M4OSA_FPOS_ADD(fpos_out, fpos_in, i32_in)
-
-#define M4OSA_FPOS_SUB_CONST_UINT32(fpos_out, fpos_in, i32_in)\
-        M4OSA_FPOS_SUB(fpos_out, fpos_in, i32_in)
-
-#define M4OSA_FPOS_SCALAR_PRODUCT(fpos_result, fpos_a, i32_value)\
-        M4OSA_INT32_SCALAR_PRODUCT(fpos_result, fpos_a, i32_value)
-
-#define M4OSA_FPOS_SCALAR_DIVISION(fpos_result, fpos_a, i32_value)\
-        M4OSA_INT32_SCALAR_DIVISION(fpos_result, fpos_a, i32_value)
-
-#define M4OSA_FPOS_COMPARE(fpos_a, fpos_b)\
-        M4OSA_INT32_COMPARE(fpos_a, fpos_b)
-
-#define M4OSA_FILE_POSITION_TO_INT(fpos, ipos)\
-        M4OSA_INT32_SET(ipos, fpos)
-
-#define M4OSA_INT_TO_FILE_POSITION(ipos, fpos)\
-        M4OSA_FPOS_SET(fpos, ipos)
-
-#define M4OSA_FPOS_IS_POSITIVE(fpos_value)\
-        M4OSA_INT32_IS_POSITIVE(fpos_value)
-
-#define M4OSA_FPOS_NEG(fpos_result, fpos_value)\
-        M4OSA_INT32_NEG(fpos_result, fpos_value)
-
-#define M4OSA_FPOS_ABS(fpos_result, fpos_value)\
-        M4OSA_INT32_ABS(fpos_result, fpos_value)
-
-#define M4OSA_FPOS_LEFT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)\
-        M4OSA_INT32_LEFT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)
-
-#define M4OSA_FPOS_RIGHT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)\
-        M4OSA_INT32_RIGHT_SHIFT(fpos_result, fpos_value, ui32_nbPositions)
-
-#endif
-
 
 
 #endif /*M4OSA_FILECOMMON_H*/

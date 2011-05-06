@@ -46,12 +46,7 @@ typedef enum M4OSA_LastSeek
 typedef struct {
    M4OSA_UInt32         coreID_read;
    M4OSA_UInt32         coreID_write;
-#ifdef M4OSA_FILE_POS_64_BITS_SUPPORTED
-   /** The file handler */
-   M4OSA_Int32          file_desc;
-#else
    FILE*                file_desc;
-#endif /* M4OSA_FILE_POS_64_BITS_SUPPORTED */
    /** The name of the URL */
    M4OSA_Char*          url_name;
    /** The name of the file */

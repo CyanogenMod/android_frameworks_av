@@ -58,17 +58,10 @@ M4OSA_ERR M4OSA_clockGetTime(M4OSA_Time* pTime, M4OSA_UInt32 timescale)
 {
     struct timeval tv;
     struct timezone tz;
-#ifdef M4OSA_64BITS_NOT_SUPPORTED
     M4OSA_UInt32 u32_time = 0;
     M4OSA_UInt32 u32_time_hi;
     M4OSA_UInt32 u32_time_lo;
     M4OSA_UInt32 u32_time_lh;
-#else /* M4OSA_64BITS_SUPPORTED */
-    M4OSA_Int64 i64_time = 0;
-    M4OSA_Int64 i64_time_hi;
-    M4OSA_Int64 i64_time_lo;
-    M4OSA_Int64 i64_temp;
-#endif /* M4OSA_64BITS_SUPPORTED */
     M4OSA_UInt32 factor;
 
     M4OSA_TRACE1_2("M4OSA_clockGetTime\t\tM4OSA_Time* 0x%x\tM4OSA_UInt32 %d",
@@ -83,7 +76,6 @@ M4OSA_ERR M4OSA_clockGetTime(M4OSA_Time* pTime, M4OSA_UInt32 timescale)
 
     if(gettimeofday(&tv, &tz) == 0)
     {
-#ifdef M4OSA_64BITS_NOT_SUPPORTED
         u32_time_lo = (tv.tv_sec & 0xFFFF) * timescale;
         u32_time_hi = (((tv.tv_sec >> 16) & 0xFFFF) * timescale) + ((u32_time_lo >> 16) & 0xFFFF);
         u32_time_lo &= 0xFFFF;
@@ -91,16 +83,8 @@ M4OSA_ERR M4OSA_clockGetTime(M4OSA_Time* pTime, M4OSA_UInt32 timescale)
         u32_time_hi += ((u32_time_lo >> 16) & 0xFFFF);
         u32_time_lo &= 0xFFFF;
         u32_time = ((u32_time_hi & 0x7FFF) << 16) | u32_time_lo;
-#else /* M4OSA_64BITS_SUPPORTED */
-        tv.tv_usec /= factor;
-        M4OSA_INT64_FROM_INT32_UINT32(i64_time_hi, 0, tv.tv_sec);
-        M4OSA_INT64_FROM_INT32_UINT32(i64_time_lo, 0, tv.tv_usec);
-        M4OSA_INT64_SCALAR_PRODUCT(i64_temp, i64_time_hi, timescale);
-        M4OSA_INT64_ADD(i64_time, i64_temp, i64_time_lo);
-#endif /* M4OSA_64BITS_SUPPORTED */
     }
 
-#ifdef M4OSA_64BITS_NOT_SUPPORTED
     /* M4OSA_Time is signed, so we need to check the max value*/
     if (u32_time > M4OSA_INT32_MAX)
     {
@@ -113,14 +97,6 @@ M4OSA_ERR M4OSA_clockGetTime(M4OSA_Time* pTime, M4OSA_UInt32 timescale)
     {
         return M4WAR_TIMESCALE_TOO_BIG;
     }
-#else /* M4OSA_64BITS_SUPPORTED */
-    *pTime = (M4OSA_Time)i64_time;
-
-    if( timescale > 1000000 )
-    {
-        return M4WAR_TIMESCALE_TOO_BIG;
-    }
-#endif /* M4OSA_64BITS_SUPPORTED */
 
     return M4NO_ERROR;
 }
