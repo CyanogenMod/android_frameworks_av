@@ -28,7 +28,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 
-#include <hardware/audio.h>
+#include <system/audio.h>
 
 #include "PreviewPlayer.h"
 namespace android {
