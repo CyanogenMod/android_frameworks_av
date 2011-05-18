@@ -376,7 +376,7 @@ void Post_Process(
         L_tmp += ((Word32) st->x0) * c_b0;
         L_tmp += ((Word32) st->x1) * c_b1;
         L_tmp += ((Word32) x2) * c_b2;
-        L_tmp <<= 3;
+        L_tmp = L_shl(L_tmp, 3, pOverflow);
 
 
         /* Multiplication by two of output speech with saturation. */
