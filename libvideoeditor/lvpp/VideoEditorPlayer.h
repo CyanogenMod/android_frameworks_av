@@ -68,7 +68,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
     private:
         static void             setMinBufferCount();
         static void             CallbackWrapper(
-                AudioTrack::event_type event, void *me, void *info);
+                int event, void *me, void *info);
 
         AudioTrack*             mTrack;
         AudioCallback           mCallback;

@@ -525,7 +525,7 @@ void VideoEditorPlayer::VeAudioOutput::setVolume(float left, float right) {
 
 // static
 void VideoEditorPlayer::VeAudioOutput::CallbackWrapper(
-        AudioTrack::event_type event, void *cookie, void *info) {
+        int event, void *cookie, void *info) {
     //LOGV("VeAudioOutput::callbackwrapper");
     if (event != AudioTrack::EVENT_MORE_DATA) {
         return;
