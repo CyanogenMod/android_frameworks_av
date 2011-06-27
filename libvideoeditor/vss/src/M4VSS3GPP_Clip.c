@@ -1415,6 +1415,8 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeCurrentAudioFrame(
         pClipCtxt->AudioDecBufferIn.m_dataAddress =
             (M4OSA_MemAddr8)pClipCtxt->pAudioFramePtr;
         pClipCtxt->AudioDecBufferIn.m_bufferSize = pClipCtxt->uiAudioFrameSize;
+        pClipCtxt->AudioDecBufferIn.m_timeStampUs =
+            (int64_t) (pClipCtxt->iAudioFrameCts * 1000LL);
 
         err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStepAudioDec(
             pClipCtxt->pAudioDecCtxt,

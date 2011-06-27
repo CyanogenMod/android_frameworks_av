@@ -605,6 +605,7 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
         buffer = new MediaBuffer((size_t)pInputBuffer->m_bufferSize);
         memcpy((void *)((M4OSA_Int8*)buffer->data() + buffer->range_offset()),
             (void *)pInputBuffer->m_dataAddress, pInputBuffer->m_bufferSize);
+        buffer->meta_data()->setInt64(kKeyTime, pInputBuffer->m_timeStampUs);
     }
     nbBuffer = pDecoderContext->mDecoderSource->storeBuffer(buffer);
 
