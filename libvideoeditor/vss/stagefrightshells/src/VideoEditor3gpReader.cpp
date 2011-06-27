@@ -1601,7 +1601,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         (*pStreamHandler)->m_ESDSInfoSize = size;
                         (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)\
                         M4OSA_32bitAlignedMalloc((*pStreamHandler)->m_ESDSInfoSize,
-                        M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
+                        M4READER_3GP, (M4OSA_Char*)"M4V DecoderSpecific" );
                         if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
                             return M4ERR_ALLOC;
                         }
@@ -1719,7 +1719,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
                         DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                             (*pStreamHandler)->m_decoderSpecificInfoSize,
-                            M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
+                            M4READER_3GP, (M4OSA_Char*)"AMR DecoderSpecific" );
                         if (M4OSA_NULL == DecoderSpecific) {
                             return M4ERR_ALLOC;
                         }
@@ -1737,7 +1737,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     (*pStreamHandler)->m_decoderSpecificInfoSize = 9;
                     DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                         (*pStreamHandler)->m_decoderSpecificInfoSize,
-                        M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
+                        M4READER_3GP, (M4OSA_Char*)"PHLP DecoderSpecific" );
                     if (M4OSA_NULL == DecoderSpecific) {
                         return M4ERR_ALLOC;
                     }
@@ -1761,7 +1761,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     (*pStreamHandler)->m_ESDSInfoSize = size;
                     (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                         (*pStreamHandler)->m_ESDSInfoSize, M4READER_3GP,
-                        (M4OSA_Char*)"H263 DecoderSpecific" );
+                        (M4OSA_Char*)"AAC DecoderSpecific" );
                     if (M4OSA_NULL == (*pStreamHandler)->m_pESDSInfo) {
                         return M4ERR_ALLOC;
                     }
@@ -1778,7 +1778,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if ((*pStreamHandler)->m_decoderSpecificInfoSize != 0) {
                         DecoderSpecific = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
                             (*pStreamHandler)->m_decoderSpecificInfoSize,
-                            M4READER_3GP, (M4OSA_Char*)"H263 DecoderSpecific" );
+                            M4READER_3GP, (M4OSA_Char*)"AAC DecoderSpecific" );
                         if (M4OSA_NULL == DecoderSpecific) {
                             return M4ERR_ALLOC;
                         }
