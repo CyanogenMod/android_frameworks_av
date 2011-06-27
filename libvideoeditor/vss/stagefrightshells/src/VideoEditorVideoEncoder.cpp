@@ -71,7 +71,8 @@ namespace android {
 
 struct VideoEditorVideoEncoderSource : public MediaSource {
     public:
-        static sp<VideoEditorVideoEncoderSource> Create();
+        static sp<VideoEditorVideoEncoderSource> Create(
+            const sp<MetaData> &format);
         virtual status_t start(MetaData *params = NULL);
         virtual status_t stop();
         virtual sp<MetaData> getFormat();
@@ -92,27 +93,31 @@ struct VideoEditorVideoEncoderSource : public MediaSource {
             STARTED,
             ERROR
         };
-        VideoEditorVideoEncoderSource();
+        VideoEditorVideoEncoderSource(const sp<MetaData> &format);
         MediaBufferChain* mFirstBufferLink;
         MediaBufferChain* mLastBufferLink;
         int32_t           mNbBuffer;
         bool              mIsEOS;
         State             mState;
+        sp<MetaData>      mEncFormat;
 };
 
-sp<VideoEditorVideoEncoderSource> VideoEditorVideoEncoderSource::Create() {
+sp<VideoEditorVideoEncoderSource> VideoEditorVideoEncoderSource::Create(
+    const sp<MetaData> &format) {
 
     sp<VideoEditorVideoEncoderSource> aSource =
-        new VideoEditorVideoEncoderSource();
+        new VideoEditorVideoEncoderSource(format);
     return aSource;
 }
 
-VideoEditorVideoEncoderSource::VideoEditorVideoEncoderSource():
+VideoEditorVideoEncoderSource::VideoEditorVideoEncoderSource(
+    const sp<MetaData> &format):
         mFirstBufferLink(NULL),
         mLastBufferLink(NULL),
         mNbBuffer(0),
         mIsEOS(false),
-        mState(CREATED) {
+        mState(CREATED),
+        mEncFormat(format) {
     LOGV("VideoEditorVideoEncoderSource::VideoEditorVideoEncoderSource");
 }
 
@@ -170,8 +175,8 @@ status_t VideoEditorVideoEncoderSource::stop() {
 
 sp<MetaData> VideoEditorVideoEncoderSource::getFormat() {
 
-    LOGW("VideoEditorVideoEncoderSource::getFormat:THIS IS NOT IMPLEMENTED");
-    return NULL;
+    LOGV("VideoEditorVideoEncoderSource::getFormat");
+    return mEncFormat;
 }
 
 status_t VideoEditorVideoEncoderSource::read(MediaBuffer **buffer,
@@ -308,7 +313,7 @@ M4OSA_ERR VideoEditorVideoEncoder_getDSI(M4ENCODER_Context pContext,
     VIDEOEDITOR_CHECK(CREATED == pEncoderContext->mState, M4ERR_STATE);
 
     // Create the encoder source
-    encoderSource = VideoEditorVideoEncoderSource::Create();
+    encoderSource = VideoEditorVideoEncoderSource::Create(metaData);
     VIDEOEDITOR_CHECK(NULL != encoderSource.get(), M4ERR_STATE);
 
     // Connect to the OMX client
@@ -636,7 +641,8 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
 #endif /* VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION */
 
     // Create the encoder source
-    pEncoderContext->mEncoderSource = VideoEditorVideoEncoderSource::Create();
+    pEncoderContext->mEncoderSource = VideoEditorVideoEncoderSource::Create(
+        encoderMetadata);
     VIDEOEDITOR_CHECK(
         NULL != pEncoderContext->mEncoderSource.get(), M4ERR_STATE);
 
