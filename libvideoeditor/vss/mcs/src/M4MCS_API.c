@@ -8275,6 +8275,8 @@ static M4OSA_ERR M4MCS_intAudioTranscoding( M4MCS_InternalContext *pC )
     * Decode the AU */
     pC->AudioDecBufferIn.m_dataAddress = pC->ReaderAudioAU.m_dataAddress;
     pC->AudioDecBufferIn.m_bufferSize = pC->ReaderAudioAU.m_size;
+    pC->AudioDecBufferIn.m_timeStampUs =
+     (int64_t) (pC->ReaderAudioAU.m_CTS * 1000LL);
 
     err = pC->m_pAudioDecoder->m_pFctStepAudioDec(pC->pAudioDecCtxt,
         &pC->AudioDecBufferIn, &pC->AudioDecBufferOut, M4OSA_FALSE);

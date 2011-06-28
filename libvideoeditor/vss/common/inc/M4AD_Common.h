@@ -118,6 +118,7 @@ typedef struct
 {
     M4OSA_MemAddr8    m_dataAddress;
     M4OSA_UInt32    m_bufferSize;
+    int64_t         m_timeStampUs;
 } M4AD_Buffer;
 
 /**
