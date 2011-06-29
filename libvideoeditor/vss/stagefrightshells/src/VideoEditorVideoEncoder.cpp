@@ -1095,9 +1095,9 @@ M4OSA_ERR VideoEditorVideoEncoder_stop(M4ENCODER_Context pContext) {
         pEncoderContext->mState = OPENED;
     }
 
-    if ( pEncoderContext->mNbInputFrames != pEncoderContext->mNbInputFrames ) {
-        LOGV("VideoEditorVideoEncoder_stop: some frames were not encoded %d %d",
-            pEncoderContext->mNbInputFrames, pEncoderContext->mNbInputFrames);
+    if (pEncoderContext->mNbInputFrames != pEncoderContext->mNbOutputFrames) {
+        LOGW("Some frames were not encoded: input(%d) != output(%d)",
+            pEncoderContext->mNbInputFrames, pEncoderContext->mNbOutputFrames);
     }
 
 cleanUp:
@@ -1111,24 +1111,8 @@ cleanUp:
 }
 
 M4OSA_ERR VideoEditorVideoEncoder_regulBitRate(M4ENCODER_Context pContext) {
-    M4OSA_ERR err = M4NO_ERROR;
-    VideoEditorVideoEncoder_Context* pEncoderContext = M4OSA_NULL;
-
-    LOGV("VideoEditorVideoEncoder_regulBitRate begin");
-    // Input parameters check
-    VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
-    pEncoderContext = (VideoEditorVideoEncoder_Context*)pContext;
-
-    LOGV("VideoEditorVideoEncoder_regulBitRate : THIS IS NOT IMPLEMENTED");
-
-cleanUp:
-    if ( M4NO_ERROR == err ) {
-        LOGV("VideoEditorVideoEncoder_regulBitRate no error");
-    } else {
-        LOGV("VideoEditorVideoEncoder_regulBitRate ERROR 0x%X", err);
-    }
-    LOGV("VideoEditorVideoEncoder_regulBitRate end");
-    return err;
+    LOGW("regulBitRate is not implemented");
+    return M4NO_ERROR;
 }
 
 M4OSA_ERR VideoEditorVideoEncoder_setOption(M4ENCODER_Context pContext,
