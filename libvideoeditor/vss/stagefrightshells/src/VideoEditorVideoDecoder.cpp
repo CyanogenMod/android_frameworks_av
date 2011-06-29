@@ -45,8 +45,12 @@ using namespace android;
 
 class VideoEditorVideoDecoderSource : public MediaSource {
     public:
-        VideoEditorVideoDecoderSource(const sp<MetaData> &format,
-            VIDEOEDITOR_CodecType codecType, void *decoderShellContext);
+
+        VideoEditorVideoDecoderSource(
+            const sp<MetaData> &format,
+            VIDEOEDITOR_CodecType codecType,
+            void *decoderShellContext);
+
         virtual status_t start(MetaData *params = NULL);
         virtual status_t stop();
         virtual sp<MetaData> getFormat();
@@ -65,8 +69,11 @@ class VideoEditorVideoDecoderSource : public MediaSource {
         int32_t mMaxAUSize;
         bool mStarted;
         VIDEOEDITOR_CodecType mCodecType;
-        VideoEditorVideoDecoderSource(const MediaSource &);
-        VideoEditorVideoDecoderSource &operator=(const MediaSource &);
+
+        // Don't call me
+        VideoEditorVideoDecoderSource(const VideoEditorVideoDecoderSource &);
+        VideoEditorVideoDecoderSource &operator=(
+            const VideoEditorVideoDecoderSource &);
 };
 
 VideoEditorVideoDecoderSource::VideoEditorVideoDecoderSource(
@@ -89,38 +96,34 @@ VideoEditorVideoDecoderSource::~VideoEditorVideoDecoderSource() {
 status_t VideoEditorVideoDecoderSource::start(
         MetaData *params) {
 
-    LOGV("VideoEditorVideoDecoderSource::start() begin ");
     if (!mStarted) {
-        if(mFormat->findInt32(kKeyMaxInputSize, &mMaxAUSize) == false) {
-            LOGW("FATAL: Should never happen ");
-            mMaxAUSize = 10000;
+        if (mFormat->findInt32(kKeyMaxInputSize, &mMaxAUSize) == false) {
+            LOGE("Could not find kKeyMaxInputSize");
+            return ERROR_MALFORMED;
         }
 
         mGroup = new MediaBufferGroup;
-        if(mGroup == NULL) {
+        if (mGroup == NULL) {
             LOGE("FATAL: memory limitation ! ");
             return NO_MEMORY;
         }
-        LOGV("VideoEditorVideoDecoderSource:adding buffer to group MaxSize= %d",
-            mMaxAUSize);
+
         mGroup->add_buffer(new MediaBuffer(mMaxAUSize));
 
         mStarted = true;
     }
-    LOGV("VideoEditorVideoDecoderSource::start() end OK");
     return OK;
 }
 
 status_t VideoEditorVideoDecoderSource::stop() {
-    int ref_count = 0;
-    int i;
-
-    LOGV("VideoEditorVideoDecoderSource::stop() begin");
     if (mStarted) {
-        if(mBuffer != NULL) {
-            ref_count = mBuffer->refcount();
+        if (mBuffer != NULL) {
+
+            // FIXME:
+            // Why do we need to check on the ref count?
+            int ref_count = mBuffer->refcount();
             LOGV("MediaBuffer refcount is %d",ref_count);
-            for (i=0; i< ref_count; i++) {
+            for (int i = 0; i < ref_count; ++i) {
                 mBuffer->release();
             }
 
@@ -130,7 +133,6 @@ status_t VideoEditorVideoDecoderSource::stop() {
         mGroup = NULL;
         mStarted = false;
     }
-    LOGV("VideoEditorVideoDecoderSource::stop() end");
     return OK;
 }
 
@@ -144,68 +146,40 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
         const ReadOptions *options) {
 
     Mutex::Autolock autolock(mLock);
-    //We donot use read options on decoder hence dont impliment this option here
-    M4_AccessUnit* pAccessUnit = mpDecShellContext->m_pNextAccessUnitToDecode;
-    M4OSA_UInt32 lSize = 0;
-    M4OSA_ERR lerr = M4NO_ERROR;
-    int64_t frameTime;
+    if (options != NULL) {
+        LOGE("Unexpected read options");
+        return BAD_VALUE;
+    }
 
     *buffer_out = NULL;
 
-    LOGV("VideoEditorVideoDecoderSource::read begin");
-
-    if (options) {
-        int64_t time = 0;
-        ReadOptions::SeekMode mode = ReadOptions::SEEK_CLOSEST_SYNC;
-        bool hasOptions = FALSE;
-        hasOptions = options->getSeekTo(&time, &mode);
-        if (hasOptions) {
-            LOGV("VideoEditorVideoDecoderSource: Options is not NULL  %lld %d",
-                time, mode);
-        } else {
-            LOGV("VideoEditorVideoDecoderSource: Options is not NULL ****");
-        }
-    }
-    lerr = mGroup->acquire_buffer(&mBuffer);
+    M4OSA_ERR lerr = mGroup->acquire_buffer(&mBuffer);
     if (lerr != OK) {
         return lerr;
     }
-    LOGV("VideoEditorVideoDecoderSource: got a buffer from group");
+    mBuffer->meta_data()->clear();  // clear all the meta data
 
     if (mStarted) {
         //getNext AU from reader.
+        M4_AccessUnit* pAccessUnit = mpDecShellContext->m_pNextAccessUnitToDecode;
         lerr = mpDecShellContext->m_pReader->m_pFctGetNextAu(
                    mpDecShellContext->m_pReader->m_readerContext,
                    (M4_StreamHandler*)mpDecShellContext->m_pVideoStreamhandler,
                    pAccessUnit);
-        if (lerr == M4WAR_NO_DATA_YET) {
-            LOGV("VideoEditorVideoDecoderSource::read() M4WAR_NO_DATA_YET");
-            mBuffer->set_range(0, 0);
-            mBuffer->meta_data()->clear();
-
-            *buffer_out = mBuffer;
-        }
-        if (lerr == M4WAR_NO_MORE_AU) {
-            LOGV("VideoEditorVideoDecoderSource::read() returning err = "
-                "ERROR_END_OF_STREAM;");
+        if (lerr == M4WAR_NO_DATA_YET || lerr == M4WAR_NO_MORE_AU) {
             *buffer_out = NULL;
             return ERROR_END_OF_STREAM;
         }
-        LOGV("VideoEditorVideoDecoderSource: getNextAU  succesful ts = %lf",
-            pAccessUnit->m_CTS);
 
         //copy the reader AU buffer to mBuffer
-        lSize  = (pAccessUnit->m_size > (M4OSA_UInt32)mMaxAUSize)\
+        M4OSA_UInt32 lSize  = (pAccessUnit->m_size > (M4OSA_UInt32)mMaxAUSize)\
             ? (M4OSA_UInt32)mMaxAUSize : pAccessUnit->m_size;
-        LOGV("VideoDecoderSource:Read() copying AU to i/p buffer of decoder,"
-            "Bufer Add = 0x%x, size = %d", mBuffer->data(), lSize);
         memcpy((void *)mBuffer->data(),(void *)pAccessUnit->m_dataAddress,
             lSize);
 
         mBuffer->set_range(0, lSize);
-        mBuffer->meta_data()->clear();
-        frameTime = (int64_t)pAccessUnit->m_CTS;
-        mBuffer->meta_data()->setInt64(kKeyTime, (int64_t)frameTime*1000);
+        int64_t frameTimeUs = (int64_t) (pAccessUnit->m_CTS * 1000);
+        mBuffer->meta_data()->setInt64(kKeyTime, frameTimeUs);
 
         // Replace the AU start code for H264
         if (VIDEOEDITOR_kH264VideoDec == mCodecType) {
@@ -219,12 +193,8 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
             (pAccessUnit->m_attribute == 0x04)? 1 : 0);
         *buffer_out = mBuffer;
     }
-    LOGV("VideoEditorVideoDecoderSource::read end");
     return OK;
 }
-/********************
- *      TOOLS       *
- ********************/
 
 static M4OSA_UInt32 VideoEditorVideoDecoder_GetBitsFromMemory(
         VIDEOEDITOR_VIDEO_Bitstream_ctxt* parsingCtxt, M4OSA_UInt32 nb_bits) {
@@ -1240,7 +1210,6 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
         (VideoEditorVideoDecoder_Context*) context;
     int64_t lFrameTime;
     VIDEOEDITOR_BUFFER_Buffer* tmpDecBuffer;
-    MediaSource::ReadOptions decShellOptions;
     MediaBuffer* pDecoderBuffer = NULL;
     status_t errStatus;
 
@@ -1292,9 +1261,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             pDecoderBuffer = NULL;
         }
 
-        decShellOptions.reset();
-        errStatus = pDecShellContext->mVideoDecoder->read(&pDecoderBuffer,
-            &decShellOptions);
+        errStatus = pDecShellContext->mVideoDecoder->read(&pDecoderBuffer);
         if (errStatus == ERROR_END_OF_STREAM) {
             LOGV("End of stream reached, returning M4WAR_NO_MORE_AU ");
             pDecShellContext->mReachedEOS = M4OSA_TRUE;
