@@ -45,12 +45,6 @@ typedef struct S_M4VFL_modifLumParam
     unsigned short copy_chroma;
 } M4VFL_ModifLumParam;
 
-typedef struct S_M4VFL_CurtainParam
-{
-    unsigned short nb_black_lines;
-    unsigned char top_is_black;
-} M4VFL_CurtainParam;
-
 #define     M4VIFI_OK                       0
 #define     M4VIFI_ILLEGAL_FRAME_HEIGHT     8
 #define     M4VIFI_ILLEGAL_FRAME_WIDTH      9
@@ -60,36 +54,6 @@ unsigned char M4VFL_modifyLumaByStep(M4ViComImagePlane *plane_in, M4ViComImagePl
 
 unsigned char M4VFL_modifyLumaWithScale(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
                                          unsigned long lum_factor, void *user_data);
-
-unsigned char M4VFL_applyClosingCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
-                                         unsigned short curtain_factor, void *user_data);
-
-unsigned char M4VFL_applyOpeningCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
-                                         unsigned short curtain_factor, void *user_data);
-
-unsigned char M4VFL_applyFallingCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
-                                         unsigned short curtain_factor, void *user_data);
-
-
-/**
- ******************************************************************************
- * unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
- *                                   M4VFL_CurtainParam *curtain_factor, void *user_data)
- * @brief    This function applies a black curtain onto a YUV420 image.
- * @note    THis function writes black lines either at the top of the image or at
- *            the bottom of the image. The other lines are copied from the source image.
- *            First the number of black lines is compted and is rounded to an even integer.
- * @param    plane_in: (IN) pointer to the 3 image planes of the source image
- * @param    plane_out: (OUT) pointer to the 3 image planes of the destination image
- * @param    user_data: (IN) pointer to some user_data
- * @param    curtain_factor: (IN) structure with the parameters of the curtain (nb of black lines
- *                                and if at the top/bottom of the image)
- * @return    0: there is no error
- ******************************************************************************
-*/
-unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out,
-                                    M4VFL_CurtainParam *curtain_factor, void *user_data);
-
 
 /**
  *************************************************************************************************

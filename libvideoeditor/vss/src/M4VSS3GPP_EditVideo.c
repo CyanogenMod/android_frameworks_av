@@ -1386,7 +1386,6 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
 
     M4VSS3GPP_ClipContext *pClip;
     M4VSS3GPP_EffectSettings *pFx;
-    M4VFL_CurtainParam curtainParams;
     M4VSS3GPP_ExternalProgress extProgress;
 
     M4OSA_Double VideoEffectTime;
@@ -1498,34 +1497,6 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
                 }
                 break;
 
-            case M4VSS3GPP_kVideoEffectType_CurtainOpening:
-                /**
-                * Compute where we are in the effect (scale is 0->height).
-                * It is done with floats because tmp x height can be very large
-                (with long clips).*/
-                curtainParams.nb_black_lines =
-                    (M4OSA_UInt16)(( 1.0 - PercentageDone)
-                    * pPlaneTempIn[0].u_height);
-                /**
-                * The curtain is hanged on the ceiling */
-                curtainParams.top_is_black = 1;
-
-                /**
-                * Apply the curtain effect */
-                err = M4VFL_applyCurtain((M4ViComImagePlane *)pPlaneTempIn,
-                    (M4ViComImagePlane *)pPlaneTempOut, &curtainParams,
-                    M4OSA_NULL);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intApplyVideoEffect: M4VFL_applyCurtain returns error 0x%x,\
-                        returning M4VSS3GPP_ERR_CURTAIN_FILTER_ERROR",
-                        err);
-                    return M4VSS3GPP_ERR_CURTAIN_FILTER_ERROR;
-                }
-                break;
-
             case M4VSS3GPP_kVideoEffectType_FadeToBlack:
                 /**
                 * Compute where we are in the effect (scale is 0->1024) */
@@ -1545,32 +1516,6 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
                         returning M4VSS3GPP_ERR_LUMA_FILTER_ERROR",
                         err);
                     return M4VSS3GPP_ERR_LUMA_FILTER_ERROR;
-                }
-                break;
-
-            case M4VSS3GPP_kVideoEffectType_CurtainClosing:
-                /**
-                * Compute where we are in the effect (scale is 0->height) */
-                curtainParams.nb_black_lines =
-                    (M4OSA_UInt16)(PercentageDone * pPlaneTempIn[0].u_height);
-
-                /**
-                * The curtain is hanged on the ceiling */
-                curtainParams.top_is_black = 1;
-
-                /**
-                * Apply the curtain effect */
-                err = M4VFL_applyCurtain((M4ViComImagePlane *)pPlaneTempIn,
-                    (M4ViComImagePlane *)pPlaneTempOut, &curtainParams,
-                    M4OSA_NULL);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intApplyVideoEffect: M4VFL_applyCurtain returns error 0x%x,\
-                        returning M4VSS3GPP_ERR_CURTAIN_FILTER_ERROR",
-                        err);
-                    return M4VSS3GPP_ERR_CURTAIN_FILTER_ERROR;
                 }
                 break;
 

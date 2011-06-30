@@ -258,9 +258,6 @@
  * Luminance filter effect error */
 #define M4VSS3GPP_ERR_LUMA_FILTER_ERROR              M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0104)
 /**
- * Curtain filter effect error */
-#define M4VSS3GPP_ERR_CURTAIN_FILTER_ERROR           M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0105)
-/**
  * Transition filter effect error */
 #define M4VSS3GPP_ERR_TRANSITION_FILTER_ERROR        M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0106)
 /**

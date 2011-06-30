@@ -1282,14 +1282,6 @@ void VideoEditorPreviewController::setVideoEffectType(
             effect = VIDEO_EFFECT_FADETOBLACK;
             break;
 
-        case M4VSS3GPP_kVideoEffectType_CurtainOpening:
-            effect = VIDEO_EFFECT_CURTAINOPEN;
-            break;
-
-        case M4VSS3GPP_kVideoEffectType_CurtainClosing:
-            effect = VIDEO_EFFECT_CURTAINCLOSE;
-            break;
-
         case M4xVSS_kVideoEffectType_BlackAndWhite:
             effect = VIDEO_EFFECT_BLACKANDWHITE;
             break;

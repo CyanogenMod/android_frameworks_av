@@ -94,9 +94,7 @@ typedef enum
 {
     M4VSS3GPP_kVideoEffectType_None           = 0,  /**< No video effect */
     M4VSS3GPP_kVideoEffectType_FadeFromBlack  = 8,  /**< Intended for begin effect */
-    M4VSS3GPP_kVideoEffectType_CurtainOpening = 9,  /**< Intended for begin effect */
     M4VSS3GPP_kVideoEffectType_FadeToBlack    = 16, /**< Intended for end effect */
-    M4VSS3GPP_kVideoEffectType_CurtainClosing = 17, /**< Intended for end effect */
     M4VSS3GPP_kVideoEffectType_External       = 256 /**< External effect function is used */
     /* reserved 256 + n */                          /**< External effect number n */
 

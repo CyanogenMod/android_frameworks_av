@@ -927,123 +927,6 @@ unsigned char M4VFL_modifyLumaWithScale(M4ViComImagePlane *plane_in,
     return 0;
 }
 
-/**
- ******************************************************************************
- * unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out, M4VFL_CurtainParam *curtain_factor, void *user_data)
- * @author  Beatrice Nezot (PHILIPS Software Vision)
- * @brief   This function applies a black curtain onto a YUV420 image.
- * @note    THis function writes black lines either at the top of the image or at
- *          the bottom of the image. The other lines are copied from the source image.
- *          First the number of black lines is compted and is rounded to an even integer.
- * @param   plane_in: (IN) pointer to the 3 image planes of the source image
- * @param   plane_out: (OUT) pointer to the 3 image planes of the destination image
- * @param   user_data: (IN) pointer to some user_data
- * @param   curtain_factor: (IN) structure with the parameters of the curtain (nb of black lines and if at the top/bottom of the image)
- * @return  0: there is no error
- ******************************************************************************
-*/
-unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out, M4VFL_CurtainParam *curtain_factor, void *user_data)
-{
-    unsigned char *p_src, *p_srcu, *p_srcv,*p_dest, *p_destu, *p_destv;
-    unsigned long u_width, u_widthuv, u_stride_out, u_stride_out_uv,u_stride, u_stride_uv,u_height;
-    long j;
-    unsigned long nb_black_lines;
-
-    u_width = plane_in[0].u_width;
-    u_height = plane_in[0].u_height;
-    u_stride_out = plane_out[0].u_stride ;
-    u_stride_out_uv = plane_out[1].u_stride;
-    p_dest = (unsigned char *) &plane_out[0].pac_data[plane_out[0].u_topleft];
-    p_destu = (unsigned char *) &plane_out[1].pac_data[plane_out[1].u_topleft];
-    p_destv = (unsigned char *) &plane_out[2].pac_data[plane_out[2].u_topleft];
-    u_widthuv = u_width >> 1;
-    u_stride = plane_in[0].u_stride ;
-    u_stride_uv = plane_in[1].u_stride;
-
-    /* nb_black_lines is even */
-    nb_black_lines = (unsigned long) ((curtain_factor->nb_black_lines >> 1) << 1);
-
-    if (curtain_factor->top_is_black)
-    {
-        /* black lines first */
-        /* compute index of of first source pixels (Y, U and V) to copy after the black lines */
-        p_src = (unsigned char *) &plane_in[0].pac_data[plane_in[0].u_topleft + ((nb_black_lines) * plane_in[0].u_stride)];
-        p_srcu = (unsigned char *) &plane_in[1].pac_data[plane_in[1].u_topleft + (((nb_black_lines) * plane_in[1].u_stride) >> 1)];
-        p_srcv = (unsigned char *) &plane_in[2].pac_data[plane_in[2].u_topleft+ (((nb_black_lines) * plane_in[2].u_stride) >> 1)];
-
-        /* write black lines */
-        for (j = (nb_black_lines >> 1); j != 0; j--)
-        {
-            memset((void *)p_dest, 0,u_width);
-            p_dest += u_stride_out;
-            memset((void *)p_dest, 0,u_width);
-            p_dest += u_stride_out;
-            memset((void *)p_destu, 128,u_widthuv);
-            memset((void *)p_destv, 128,u_widthuv);
-            p_destu += u_stride_out_uv;
-            p_destv += u_stride_out_uv;
-        }
-
-        /* copy from source image */
-        for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
-        {
-            memcpy((void *)p_dest, (void *)p_src, u_width);
-            p_dest += u_stride_out;
-            p_src += u_stride;
-            memcpy((void *)p_dest, (void *)p_src, u_width);
-            p_dest += u_stride_out;
-            p_src += u_stride;
-            memcpy((void *)p_destu, (void *)p_srcu, u_widthuv);
-            memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
-            p_destu += u_stride_out_uv;
-            p_destv += u_stride_out_uv;
-            p_srcu += u_stride_uv;
-            p_srcv += u_stride_uv;
-        }
-    }
-    else
-    {
-        /* black lines at the bottom of the image */
-        p_src = (unsigned char *) &plane_in[0].pac_data[plane_in[0].u_topleft];
-        p_srcu = (unsigned char *) &plane_in[1].pac_data[plane_in[1].u_topleft];
-        p_srcv = (unsigned char *) &plane_in[2].pac_data[plane_in[2].u_topleft];
-
-        /* copy from source image image */
-        for (j = (nb_black_lines >> 1); j != 0; j--)
-        {
-            memcpy((void *)p_dest, (void *)p_src, u_width);
-            p_dest += u_stride_out;
-            p_src += u_stride;
-            memcpy((void *)p_dest, (void *)p_src, u_width);
-            p_dest += u_stride_out;
-            p_src += u_stride;
-            memcpy((void *)p_destu, (void *)p_srcu, u_widthuv);
-            memcpy((void *)p_destv, (void *)p_srcv, u_widthuv);
-            p_destu += u_stride_out_uv;
-            p_destv += u_stride_out_uv;
-            p_srcu += u_stride_uv;
-            p_srcv += u_stride_uv;
-        }
-
-        /* write black lines*/
-        /* the pointers to p_dest, p_destu and p_destv are used through the two loops "for" */
-        for (j = (u_height - nb_black_lines) >> 1; j != 0; j--)
-        {
-            memset((void *)p_dest, 0,u_width);
-            p_dest += u_stride_out;
-            memset((void *)p_dest, 0,u_width);
-            p_dest += u_stride_out;
-            memset((void *)p_destu, 128,u_widthuv);
-            memset((void *)p_destv, 128,u_widthuv);
-            p_destu += u_stride_out_uv;
-            p_destv += u_stride_out_uv;
-        }
-    }
-
-    return 0;
-}
-
-
 /******************************************************************************
  * prototype    M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx)
  * @brief   This function converts an RGB565 plane to YUV420 planar
@@ -3386,37 +3269,6 @@ M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
     return err;
 }
 
-M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
-    M4VIFI_ImagePlane *planeIn, M4VIFI_ImagePlane *planeOut,
-    M4VIFI_UInt8 *buffer1, M4VIFI_UInt8 *buffer2,
-    M4VFL_CurtainParam* curtainParams) {
-
-    M4OSA_ERR err = M4NO_ERROR;
-
-    // Apply the curtain effect
-    err = M4VFL_applyCurtain( (M4ViComImagePlane*)planeIn,
-          (M4ViComImagePlane*)planeOut, curtainParams, NULL);
-    if(err != M4NO_ERROR) {
-        LOGE("M4VFL_applyCurtain(%d) error %d", videoEffect, (int)err);
-
-        if(NULL != buffer1) {
-            free(buffer1);
-            buffer1= NULL;
-        }
-        if(NULL != buffer2) {
-            free(buffer2);
-            buffer2 = NULL;
-        }
-        return err;
-    }
-
-    // The out plane now becomes the in plane for adding other effects
-    swapImagePlanes(planeIn, planeOut,(M4VIFI_UInt8 *)buffer1,
-    (M4VIFI_UInt8 *)buffer2);
-
-    return err;
-}
-
 M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight) {
 
@@ -3425,7 +3277,6 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     M4VIFI_UInt8 *finalOutputBuffer = NULL, *tempOutputBuffer= NULL;
     M4OSA_Double percentageDone =0;
     M4OSA_Int32 lum_factor;
-    M4VFL_CurtainParam curtainParams;
     M4VSS3GPP_ExternalProgress extProgress;
     M4xVSS_FiftiesStruct fiftiesCtx;
     M4OSA_UInt32 frameSize = 0, i=0;
@@ -3688,67 +3539,6 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
             err = applyLumaEffect(M4VSS3GPP_kVideoEffectType_FadeToBlack,
                   planeIn, planeOut, (M4VIFI_UInt8 *)finalOutputBuffer,
                   (M4VIFI_UInt8 *)tempOutputBuffer, lum_factor);
-            if(err != M4NO_ERROR) {
-                return err;
-            }
-        }
-    }
-
-    if(params->currentVideoEffect & VIDEO_EFFECT_CURTAINOPEN) {
-        // Find the effect in effectSettings array
-        for(i=0;i<params->numberEffects;i++) {
-            if(params->effectsSettings[i].VideoEffectType ==
-             M4VSS3GPP_kVideoEffectType_CurtainOpening)
-                break;
-        }
-        if(i < params->numberEffects) {
-            computePercentageDone(params->timeMs,
-             params->effectsSettings[i].uiStartTime,
-             params->effectsSettings[i].uiDuration, &percentageDone);
-
-            // Compute where we are in the effect (scale is 0->height).
-            // It is done with floats because tmp x height
-            // can be very large (with long clips).
-            curtainParams.nb_black_lines =
-             (M4OSA_UInt16)((1.0 - percentageDone) * planeIn[0].u_height );
-            // The curtain is hanged on the ceiling
-            curtainParams.top_is_black = 1;
-
-            // Apply the curtain effect
-            err = applyCurtainEffect(M4VSS3GPP_kVideoEffectType_CurtainOpening,
-                  planeIn, planeOut, (M4VIFI_UInt8 *)finalOutputBuffer,
-                  (M4VIFI_UInt8 *)tempOutputBuffer, &curtainParams);
-            if(err != M4NO_ERROR) {
-                return err;
-            }
-        }
-    }
-
-    if(params->currentVideoEffect & VIDEO_EFFECT_CURTAINCLOSE) {
-        // Find the effect in effectSettings array
-        for(i=0;i<params->numberEffects;i++) {
-            if(params->effectsSettings[i].VideoEffectType ==
-             M4VSS3GPP_kVideoEffectType_CurtainClosing)
-                break;
-        }
-        if(i < params->numberEffects) {
-            computePercentageDone(params->timeMs,
-             params->effectsSettings[i].uiStartTime,
-             params->effectsSettings[i].uiDuration, &percentageDone);
-
-            // Compute where we are in the effect (scale is 0->height).
-            // It is done with floats because
-            // tmp x height can be very large (with long clips).
-            curtainParams.nb_black_lines =
-             (M4OSA_UInt16)(percentageDone * planeIn[0].u_height );
-
-            // The curtain is hanged on the ceiling
-            curtainParams.top_is_black = 1;
-
-            // Apply the curtain effect
-            err = applyCurtainEffect(M4VSS3GPP_kVideoEffectType_CurtainClosing,
-                  planeIn, planeOut, (M4VIFI_UInt8 *)finalOutputBuffer,
-                  (M4VIFI_UInt8 *)tempOutputBuffer, &curtainParams);
             if(err != M4NO_ERROR) {
                 return err;
             }

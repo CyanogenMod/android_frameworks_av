@@ -48,9 +48,7 @@ enum {
     VIDEO_EFFECT_COLOR_RGB16        = 128,
     VIDEO_EFFECT_GRADIENT           = 256,
     VIDEO_EFFECT_FADEFROMBLACK      = 512,
-    VIDEO_EFFECT_CURTAINOPEN        = 1024,
     VIDEO_EFFECT_FADETOBLACK        = 2048,
-    VIDEO_EFFECT_CURTAINCLOSE       = 4096,
 };
 
 typedef struct {
@@ -84,7 +82,6 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFraming( M4OSA_Void *userData, M4VIFI_Ima
 M4OSA_ERR M4VSS3GPP_externalVideoEffectFifties( M4OSA_Void *pUserData, M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut, M4VSS3GPP_ExternalProgress *pProgress, M4OSA_UInt32 uiEffectKind );
 
 unsigned char M4VFL_modifyLumaWithScale(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out, unsigned long lum_factor, void *user_data);
-unsigned char M4VFL_applyCurtain(M4ViComImagePlane *plane_in, M4ViComImagePlane *plane_out, M4VFL_CurtainParam *curtain_factor, void *user_data);
 
 M4OSA_ERR M4xVSS_internalConvertRGBtoYUV(M4xVSS_FramingStruct* framingCtx);
 M4VIFI_UInt8    M4VIFI_xVSS_RGB565toYUV420(void *pUserData, M4VIFI_ImagePlane *pPlaneIn,
@@ -136,10 +133,6 @@ M4OSA_ERR applyColorEffect(M4xVSS_VideoEffectType colorEffect,
 M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
     M4VIFI_ImagePlane *planeIn, M4VIFI_ImagePlane *planeOut,
     M4VIFI_UInt8 *buffer1, M4VIFI_UInt8 *buffer2, M4OSA_Int32 lum_factor);
-
-M4OSA_ERR applyCurtainEffect(M4VSS3GPP_VideoEffectType videoEffect,
-    M4VIFI_ImagePlane *planeIn, M4VIFI_ImagePlane *planeOut,
-    M4VIFI_UInt8 *buffer1, M4VIFI_UInt8 *buffer2, M4VFL_CurtainParam* curtainParams);
 
 M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight);
