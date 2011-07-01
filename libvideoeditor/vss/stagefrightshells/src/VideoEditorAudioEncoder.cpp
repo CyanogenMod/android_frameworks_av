@@ -63,11 +63,18 @@ struct VideoEditorAudioEncoderSource : public MediaSource {
             STARTED,
             ERROR
         };
-        VideoEditorAudioEncoderSource();
+
         MediaBufferChain* mFirstBufferLink;
         MediaBufferChain* mLastBufferLink;
         int32_t mNbBuffer;
         State mState;
+
+        VideoEditorAudioEncoderSource();
+
+        // Don't call me.
+        VideoEditorAudioEncoderSource(const VideoEditorAudioEncoderSource&);
+        VideoEditorAudioEncoderSource& operator=(
+            const VideoEditorAudioEncoderSource&);
 };
 
 sp<VideoEditorAudioEncoderSource> VideoEditorAudioEncoderSource::Create() {

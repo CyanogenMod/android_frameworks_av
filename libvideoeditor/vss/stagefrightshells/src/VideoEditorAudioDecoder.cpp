@@ -80,6 +80,11 @@ struct VideoEditorAudioDecoderSource : public MediaSource {
         int32_t mNbBuffer;
         bool mIsEOS;
         State mState;
+
+        // Don't call me.
+        VideoEditorAudioDecoderSource(const VideoEditorAudioDecoderSource&);
+        VideoEditorAudioDecoderSource& operator=(
+            const VideoEditorAudioDecoderSource &);
 };
 
 sp<VideoEditorAudioDecoderSource> VideoEditorAudioDecoderSource::Create(

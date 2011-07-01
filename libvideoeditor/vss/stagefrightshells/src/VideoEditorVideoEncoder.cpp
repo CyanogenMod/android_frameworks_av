@@ -94,6 +94,12 @@ struct VideoEditorVideoEncoderSource : public MediaSource {
             ERROR
         };
         VideoEditorVideoEncoderSource(const sp<MetaData> &format);
+
+        // Don't call me
+        VideoEditorVideoEncoderSource(const VideoEditorVideoEncoderSource &);
+        VideoEditorVideoEncoderSource &operator=(
+                const VideoEditorVideoEncoderSource &);
+
         MediaBufferChain* mFirstBufferLink;
         MediaBufferChain* mLastBufferLink;
         int32_t           mNbBuffer;
@@ -674,8 +680,6 @@ cleanUp:
     return err;
 }
 
-M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
-        M4ENCODER_Context pContext, MediaBuffer* buffer);
 M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
         M4ENCODER_Context pContext, M4OSA_Double Cts,
         M4OSA_Bool bReachedEOS) {
