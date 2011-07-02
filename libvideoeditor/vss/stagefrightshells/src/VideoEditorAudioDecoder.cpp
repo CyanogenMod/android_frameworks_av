@@ -52,7 +52,7 @@ namespace android {
 struct VideoEditorAudioDecoderSource : public MediaSource {
     public:
         static sp<VideoEditorAudioDecoderSource> Create(
-                const sp<MetaData>& format);
+                const sp<MetaData>& format, void *decoderShellContext);
         virtual status_t start(MetaData *params = NULL);
         virtual status_t stop();
         virtual sp<MetaData> getFormat();
@@ -73,37 +73,63 @@ struct VideoEditorAudioDecoderSource : public MediaSource {
             STARTED,
             ERROR
         };
-        VideoEditorAudioDecoderSource(const sp<MetaData>& format);
+        VideoEditorAudioDecoderSource(const sp<MetaData>& format,
+         void *decoderShellContext);
         sp<MetaData> mFormat;
         MediaBufferChain* mFirstBufferLink;
         MediaBufferChain* mLastBufferLink;
         int32_t mNbBuffer;
         bool mIsEOS;
         State mState;
-
+        void* mDecShellContext;
         // Don't call me.
         VideoEditorAudioDecoderSource(const VideoEditorAudioDecoderSource&);
         VideoEditorAudioDecoderSource& operator=(
             const VideoEditorAudioDecoderSource &);
 };
 
+/**
+ ******************************************************************************
+ * structure VideoEditorAudioDecoder_Context
+ * @brief    This structure defines the context of the StageFright audio decoder
+ *           shell
+ ******************************************************************************
+*/
+
+typedef struct {
+    M4AD_Type                          mDecoderType;
+    M4_AudioStreamHandler*             mAudioStreamHandler;
+    sp<VideoEditorAudioDecoderSource>  mDecoderSource;
+    OMXClient                          mClient;
+    sp<MediaSource>                    mDecoder;
+    int32_t                            mNbOutputChannels;
+    uint32_t                           mNbInputFrames;
+    uint32_t                           mNbOutputFrames;
+    M4READER_DataInterface  *m_pReader;
+    M4_AccessUnit* m_pNextAccessUnitToDecode;
+    M4OSA_ERR readerErrCode;
+    int32_t timeStampMs;
+
+} VideoEditorAudioDecoder_Context;
+
 sp<VideoEditorAudioDecoderSource> VideoEditorAudioDecoderSource::Create(
-        const sp<MetaData>& format) {
+        const sp<MetaData>& format, void *decoderShellContext) {
 
     sp<VideoEditorAudioDecoderSource> aSource =
-        new VideoEditorAudioDecoderSource(format);
+        new VideoEditorAudioDecoderSource(format, decoderShellContext);
 
     return aSource;
 }
 
 VideoEditorAudioDecoderSource::VideoEditorAudioDecoderSource(
-        const sp<MetaData>& format):
+        const sp<MetaData>& format, void* decoderShellContext):
         mFormat(format),
         mFirstBufferLink(NULL),
         mLastBufferLink(NULL),
         mNbBuffer(0),
         mIsEOS(false),
-        mState(CREATED) {
+        mState(CREATED),
+        mDecShellContext(decoderShellContext) {
 }
 
 VideoEditorAudioDecoderSource::~VideoEditorAudioDecoderSource() {
@@ -168,6 +194,10 @@ status_t VideoEditorAudioDecoderSource::read(MediaBuffer **buffer,
     MediaSource::ReadOptions readOptions;
     status_t err = OK;
     MediaBufferChain* tmpLink = NULL;
+    M4OSA_ERR lerr = M4NO_ERROR;
+
+    VideoEditorAudioDecoder_Context* pDecContext =
+     (VideoEditorAudioDecoder_Context *)mDecShellContext;
 
     LOGV("VideoEditorAudioDecoderSource::read begin");
 
@@ -178,14 +208,40 @@ status_t VideoEditorAudioDecoderSource::read(MediaBuffer **buffer,
 
     // Get a buffer from the chain
     if( NULL == mFirstBufferLink ) {
-        *buffer = NULL;
-        if( mIsEOS ) {
+        M4_AccessUnit* pAccessUnit = pDecContext->m_pNextAccessUnitToDecode;
+
+        // Get next AU from reader.
+        lerr = pDecContext->m_pReader->m_pFctGetNextAu(
+                   pDecContext->m_pReader->m_readerContext,
+                   (M4_StreamHandler*)pDecContext->mAudioStreamHandler,
+                   pAccessUnit);
+
+        if (lerr == M4WAR_NO_MORE_AU) {
+            LOGV("VideoEditorAudioDecoderSource::getNextAU() returning err = "
+                "ERROR_END_OF_STREAM;");
+            *buffer = NULL;
             LOGV("VideoEditorAudioDecoderSource::read : EOS");
+            pDecContext->readerErrCode = M4WAR_NO_MORE_AU;
             return ERROR_END_OF_STREAM;
-        } else {
-            LOGV("VideoEditorAudioDecoderSource::read : no buffer available");
-            return UNKNOWN_ERROR;
         }
+
+        MediaBufferChain* newLink = new MediaBufferChain;
+        MediaBuffer* newBuffer = new MediaBuffer((size_t)pAccessUnit->m_size);
+        memcpy((void *)((M4OSA_Int8*)newBuffer->data() + newBuffer->range_offset()),
+            (void *)pAccessUnit->m_dataAddress, pAccessUnit->m_size);
+        newBuffer->meta_data()->setInt64(kKeyTime, (pAccessUnit->m_CTS * 1000LL));
+
+        pDecContext->timeStampMs = pAccessUnit->m_CTS;
+        newLink->buffer = newBuffer;
+        newLink->nextLink = NULL;
+        if( NULL != mLastBufferLink ) {
+            mLastBufferLink->nextLink = newLink;
+        } else {
+            mFirstBufferLink = newLink;
+        }
+        mLastBufferLink = newLink;
+        mNbBuffer++;
+
     }
     *buffer = mFirstBufferLink->buffer;
 
@@ -203,24 +259,51 @@ status_t VideoEditorAudioDecoderSource::read(MediaBuffer **buffer,
 
 int32_t VideoEditorAudioDecoderSource::storeBuffer(MediaBuffer *buffer) {
     status_t err = OK;
+    M4OSA_ERR lerr = M4NO_ERROR;
+    MediaBufferChain* newLink = new MediaBufferChain;
+
+    VideoEditorAudioDecoder_Context* pDecContext =
+     (VideoEditorAudioDecoder_Context *)mDecShellContext;
 
     LOGV("VideoEditorAudioDecoderSource::storeBuffer begin");
 
-    // A NULL input buffer means that the end of stream was reached
     if( NULL == buffer ) {
-        mIsEOS = true;
-    } else {
-        MediaBufferChain* newLink = new MediaBufferChain;
-        newLink->buffer = buffer;
-        newLink->nextLink = NULL;
-        if( NULL != mLastBufferLink ) {
-            mLastBufferLink->nextLink = newLink;
-        } else {
-            mFirstBufferLink = newLink;
+        M4_AccessUnit* pAccessUnit = pDecContext->m_pNextAccessUnitToDecode;
+        // Get next AU from reader.
+        lerr = pDecContext->m_pReader->m_pFctGetNextAu(
+                   pDecContext->m_pReader->m_readerContext,
+                   (M4_StreamHandler*)pDecContext->mAudioStreamHandler,
+                   pAccessUnit);
+
+        if (lerr == M4WAR_NO_MORE_AU) {
+            LOGV("VideoEditorAudioDecoderSource::getNextAU() returning err = "
+                "ERROR_END_OF_STREAM;");
+            pDecContext->readerErrCode = M4WAR_NO_MORE_AU;
+            delete newLink;
+            return mNbBuffer;
         }
-        mLastBufferLink = newLink;
-        mNbBuffer++;
+
+        MediaBuffer* newBuffer = new MediaBuffer((size_t)pAccessUnit->m_size);
+        memcpy((void *)((M4OSA_Int8*)newBuffer->data() + newBuffer->range_offset()),
+            (void *)pAccessUnit->m_dataAddress, pAccessUnit->m_size);
+        newBuffer->meta_data()->setInt64(kKeyTime, (pAccessUnit->m_CTS * 1000LL));
+
+        pDecContext->timeStampMs = pAccessUnit->m_CTS;
+        newLink->buffer = newBuffer;
+
+    } else {
+        LOGV("VideoEditorAudioDecoderSource::storeBuffer else case");
+        newLink->buffer = buffer;
     }
+    newLink->nextLink = NULL;
+    if( NULL != mLastBufferLink ) {
+        mLastBufferLink->nextLink = newLink;
+    } else {
+        mFirstBufferLink = newLink;
+    }
+    mLastBufferLink = newLink;
+    mNbBuffer++;
+
     LOGV("VideoEditorAudioDecoderSource::storeBuffer END");
     return mNbBuffer;
 }
@@ -353,24 +436,6 @@ cleanUp:
  * ENGINE INTERFACE *
  ********************/
 
-/**
- ******************************************************************************
- * structure VideoEditorAudioDecoder_Context
- * @brief    This structure defines the context of the StageFright audio decoder
- *           shell
- ******************************************************************************
-*/
-typedef struct {
-    M4AD_Type                          mDecoderType;
-    M4_AudioStreamHandler*             mAudioStreamHandler;
-    sp<VideoEditorAudioDecoderSource>  mDecoderSource;
-    OMXClient                          mClient;
-    sp<MediaSource>                    mDecoder;
-    int32_t                            mNbOutputChannels;
-    uint32_t                           mNbInputFrames;
-    uint32_t                           mNbOutputFrames;
-} VideoEditorAudioDecoder_Context;
-
 M4OSA_ERR VideoEditorAudioDecoder_destroy(M4AD_Context pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
@@ -430,6 +495,8 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
 
     pDecoderContext->mNbInputFrames  = 0;
     pDecoderContext->mNbOutputFrames = 0;
+    pDecoderContext->readerErrCode = M4NO_ERROR;
+    pDecoderContext->timeStampMs = -1;
 
     LOGV("VideoEditorAudioDecoder_create : maxAUSize %d",
         pDecoderContext->mAudioStreamHandler->m_basicProperties.m_maxAUSize);
@@ -518,7 +585,7 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
 
     // Create the decoder source
     pDecoderContext->mDecoderSource = VideoEditorAudioDecoderSource::Create(
-        decoderMetaData);
+        decoderMetaData, (void *)pDecoderContext);
     VIDEOEDITOR_CHECK(NULL != pDecoderContext->mDecoderSource.get(),
         M4ERR_STATE);
 
@@ -709,11 +776,32 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
 
     // Read
     result = pDecoderContext->mDecoder->read(&outputBuffer, NULL);
-    if(OK != result) {
-        LOGE("VideoEditorAudioDecoder_step  result = %d",result);
+    if (INFO_FORMAT_CHANGED == result) {
+        LOGV("VideoEditorAudioDecoder_step: Audio decoder \
+         returned INFO_FORMAT_CHANGED");
+        CHECK(outputBuffer == NULL);
+        sp<MetaData> meta = pDecoderContext->mDecoder->getFormat();
+        int32_t sampleRate, channelCount;
 
+        CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+        CHECK(meta->findInt32(kKeyChannelCount, &channelCount));
+        LOGV("VideoEditorAudioDecoder_step: samplingFreq = %d", sampleRate);
+        LOGV("VideoEditorAudioDecoder_step: channelCnt = %d", channelCount);
+        pDecoderContext->mAudioStreamHandler->m_samplingFrequency =
+         (uint32_t)sampleRate;
+        pDecoderContext->mAudioStreamHandler->m_nbChannels =
+         (uint32_t)channelCount;
+        pDecoderContext->mNbOutputChannels = channelCount;
+
+        return M4WAR_INFO_FORMAT_CHANGE;
+    } else if (ERROR_END_OF_STREAM == result) {
+        LOGV("VideoEditorAudioDecoder_step: Audio decoder \
+         returned ERROR_END_OF_STREAM");
+        pDecoderContext->readerErrCode = M4WAR_NO_MORE_AU;
+        return M4WAR_NO_MORE_AU;
+    } else if (OK != result) {
+        return M4ERR_STATE;
     }
-    VIDEOEDITOR_CHECK(OK == result, M4ERR_STATE);
 
     // Convert the PCM buffer
     err = VideoEditorAudioDecoder_processOutputBuffer(pDecoderContext,
@@ -769,6 +857,19 @@ M4OSA_ERR VideoEditorAudioDecoder_setOption(M4AD_Context pContext,
             LOGV("VideoEditorAudioDecodersetOption UserParam is not supported");
             err = M4ERR_NOT_IMPLEMENTED;
             break;
+
+        case M4AD_kOptionID_3gpReaderInterface:
+            LOGV("VideoEditorAudioDecodersetOption 3gpReaderInterface");
+            pDecoderContext->m_pReader =
+             (M4READER_DataInterface *)optionValue;
+            break;
+
+        case M4AD_kOptionID_AudioAU:
+            LOGV("VideoEditorAudioDecodersetOption AudioAU");
+            pDecoderContext->m_pNextAccessUnitToDecode =
+             (M4_AccessUnit *)optionValue;
+            break;
+
         default:
             LOGV("VideoEditorAudioDecoder_setOption  unsupported optionId 0x%X",
                 optionID);
@@ -799,6 +900,25 @@ M4OSA_ERR VideoEditorAudioDecoder_getOption(M4AD_Context pContext,
     pDecoderContext = (VideoEditorAudioDecoder_Context*)pContext;
 
     switch( optionID ) {
+
+        case M4AD_kOptionID_GetAudioAUErrCode:
+            *(uint32_t *)optionValue = pDecoderContext->readerErrCode;
+            break;
+
+        case M4AD_kOptionID_AudioNbChannels:
+            *(uint32_t *)optionValue =
+             pDecoderContext->mAudioStreamHandler->m_nbChannels;
+            break;
+
+        case M4AD_kOptionID_AudioSampFrequency:
+            *(uint32_t *)optionValue =
+             pDecoderContext->mAudioStreamHandler->m_samplingFrequency;
+            break;
+
+        case M4AD_kOptionID_AuCTS:
+            *(uint32_t *)optionValue = pDecoderContext->timeStampMs;
+            break;
+
         default:
             LOGV("VideoEditorAudioDecoder_getOption unsupported optionId 0x%X",
                 optionID);

@@ -61,6 +61,9 @@
 static M4OSA_ERR M4VSS3GPP_intClipPrepareAudioDecoder(
     M4VSS3GPP_ClipContext *pClipCtxt );
 
+static M4OSA_ERR M4VSS3GPP_intCheckAndGetCodecAacProperties(
+        M4VSS3GPP_ClipContext *pClipCtxt);
+
 /**
  ******************************************************************************
  * M4OSA_ERR M4VSS3GPP_intClipOpen()
@@ -1140,16 +1143,16 @@ static M4OSA_ERR M4VSS3GPP_intClipPrepareAudioDecoder(
 
         if( M4OSA_TRUE == pClipCtxt->ShellAPI.bAllowFreeingOMXCodecInterface )
         {
-            /* NXP SW codec interface is used*/
-            if( M4DA_StreamTypeAudioAac == audiotype )
+            if( M4DA_StreamTypeAudioAac == audiotype ) {
+                err = M4VSS3GPP_intCheckAndGetCodecAacProperties(
+                       pClipCtxt);
+            } else if (M4DA_StreamTypeAudioPcm != audiotype) {
                 err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctCreateAudioDec(
                 &pClipCtxt->pAudioDecCtxt, pClipCtxt->pAudioStream,
-                &(pClipCtxt->AacProperties));
-            else
-                err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctCreateAudioDec(
-                &pClipCtxt->pAudioDecCtxt, pClipCtxt->pAudioStream,
-                M4OSA_NULL /* to be changed with HW interfaces */);
-
+                M4OSA_NULL);
+            } else {
+                err = M4NO_ERROR;
+            }
             if( M4NO_ERROR != err )
             {
                 M4OSA_TRACE1_1(
@@ -1310,6 +1313,16 @@ static M4OSA_ERR M4VSS3GPP_intClipPrepareAudioDecoder(
             M4AD_kOptionID_UserParam, (M4OSA_DataOption) &AacDecParam);
     }
 
+    if( M4OSA_NULL != pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctSetOptionAudioDec ) {
+        pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctSetOptionAudioDec(
+         pClipCtxt->pAudioDecCtxt, M4AD_kOptionID_3gpReaderInterface,
+         (M4OSA_DataOption) pClipCtxt->ShellAPI.m_pReaderDataIt);
+
+        pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctSetOptionAudioDec(
+         pClipCtxt->pAudioDecCtxt, M4AD_kOptionID_AudioAU,
+         (M4OSA_DataOption) &pClipCtxt->AudioAU);
+    }
+
     if( M4OSA_NULL != pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStartAudioDec )
     {
         /* Not implemented in all decoders */
@@ -1412,16 +1425,26 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeCurrentAudioFrame(
     {
         /**
         * Decode current AMR frame */
-        pClipCtxt->AudioDecBufferIn.m_dataAddress =
-            (M4OSA_MemAddr8)pClipCtxt->pAudioFramePtr;
-        pClipCtxt->AudioDecBufferIn.m_bufferSize = pClipCtxt->uiAudioFrameSize;
-        pClipCtxt->AudioDecBufferIn.m_timeStampUs =
-            (int64_t) (pClipCtxt->iAudioFrameCts * 1000LL);
+        if ( pClipCtxt->pAudioFramePtr != M4OSA_NULL ) {
+            pClipCtxt->AudioDecBufferIn.m_dataAddress =
+             (M4OSA_MemAddr8)pClipCtxt->pAudioFramePtr;
+            pClipCtxt->AudioDecBufferIn.m_bufferSize =
+             pClipCtxt->uiAudioFrameSize;
+            pClipCtxt->AudioDecBufferIn.m_timeStampUs =
+             (int64_t) (pClipCtxt->iAudioFrameCts * 1000LL);
 
-        err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStepAudioDec(
-            pClipCtxt->pAudioDecCtxt,
-            &pClipCtxt->AudioDecBufferIn, &pClipCtxt->AudioDecBufferOut,
-            M4OSA_FALSE);
+            err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStepAudioDec(
+             pClipCtxt->pAudioDecCtxt,
+             &pClipCtxt->AudioDecBufferIn, &pClipCtxt->AudioDecBufferOut,
+             M4OSA_FALSE);
+        } else {
+            // Pass Null input buffer
+            // Reader invoked from Audio decoder source
+            err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStepAudioDec(
+             pClipCtxt->pAudioDecCtxt,
+             M4OSA_NULL, &pClipCtxt->AudioDecBufferOut,
+             M4OSA_FALSE);
+        }
 
         if( M4NO_ERROR != err )
         {
@@ -1952,4 +1975,103 @@ M4OSA_UInt32 M4VSS3GPP_intGetFrameSize_EVRC( M4OSA_MemAddr8 pAudioFrame )
     }
 
     return (1 + (( frameSize + 7) / 8));
+}
+
+M4OSA_ERR M4VSS3GPP_intCheckAndGetCodecAacProperties(
+                                 M4VSS3GPP_ClipContext *pClipCtxt) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4AD_Buffer outputBuffer;
+    uint32_t optionValue =0;
+
+    // Decode first audio frame from clip to get properties from codec
+
+    err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctCreateAudioDec(
+                    &pClipCtxt->pAudioDecCtxt,
+                    pClipCtxt->pAudioStream, &(pClipCtxt->AacProperties));
+
+    pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctSetOptionAudioDec(
+     pClipCtxt->pAudioDecCtxt, M4AD_kOptionID_3gpReaderInterface,
+     (M4OSA_DataOption) pClipCtxt->ShellAPI.m_pReaderDataIt);
+
+    pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctSetOptionAudioDec(
+     pClipCtxt->pAudioDecCtxt, M4AD_kOptionID_AudioAU,
+     (M4OSA_DataOption) &pClipCtxt->AudioAU);
+
+    if( pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStartAudioDec != M4OSA_NULL ) {
+
+        err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStartAudioDec(
+         pClipCtxt->pAudioDecCtxt);
+        if( M4NO_ERROR != err ) {
+
+            M4OSA_TRACE1_1(
+                "M4VSS3GPP_intCheckAndGetCodecAacProperties: \
+                 m_pFctStartAudioDec returns 0x%x", err);
+            return err;
+        }
+    }
+
+    /**
+    * Allocate output buffer for the audio decoder */
+    outputBuffer.m_bufferSize =
+        pClipCtxt->pAudioStream->m_byteFrameLength
+        * pClipCtxt->pAudioStream->m_byteSampleSize
+        * pClipCtxt->pAudioStream->m_nbChannels;
+
+    if( outputBuffer.m_bufferSize > 0 ) {
+
+        outputBuffer.m_dataAddress =
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(outputBuffer.m_bufferSize \
+            *sizeof(short), M4VSS3GPP, (M4OSA_Char *)"outputBuffer.m_bufferSize");
+
+        if( M4OSA_NULL == outputBuffer.m_dataAddress ) {
+
+            M4OSA_TRACE1_0(
+                "M4VSS3GPP_intCheckAndGetCodecAacProperties():\
+                 unable to allocate outputBuffer.m_dataAddress");
+            return M4ERR_ALLOC;
+        }
+    }
+
+    err = pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctStepAudioDec(
+            pClipCtxt->pAudioDecCtxt, M4OSA_NULL, &outputBuffer, M4OSA_FALSE);
+
+    if ( err == M4WAR_INFO_FORMAT_CHANGE ) {
+
+        // Get the properties from codec node
+        pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctGetOptionAudioDec(
+         pClipCtxt->pAudioDecCtxt,
+           M4AD_kOptionID_AudioNbChannels, (M4OSA_DataOption) &optionValue);
+
+        pClipCtxt->AacProperties.aNumChan = optionValue;
+        // Reset Reader structure value also
+        pClipCtxt->pAudioStream->m_nbChannels = optionValue;
+
+        pClipCtxt->ShellAPI.m_pAudioDecoder->m_pFctGetOptionAudioDec(
+         pClipCtxt->pAudioDecCtxt,
+          M4AD_kOptionID_AudioSampFrequency, (M4OSA_DataOption) &optionValue);
+
+        pClipCtxt->AacProperties.aSampFreq = optionValue;
+        // Reset Reader structure value also
+        pClipCtxt->pAudioStream->m_samplingFrequency = optionValue;
+
+    } else if( err != M4NO_ERROR) {
+        M4OSA_TRACE1_1("M4VSS3GPP_intCheckAndGetCodecAacProperties:\
+            m_pFctStepAudioDec returns err = 0x%x", err);
+    }
+
+    free(outputBuffer.m_dataAddress);
+
+    // Reset the stream reader
+    err = pClipCtxt->ShellAPI.m_pReader->m_pFctReset(
+     pClipCtxt->pReaderContext,
+     (M4_StreamHandler *)pClipCtxt->pAudioStream);
+
+    if (M4NO_ERROR != err) {
+        M4OSA_TRACE1_1("M4VSS3GPP_intCheckAndGetCodecAacProperties\
+            Error in reseting reader: 0x%x", err);
+    }
+
+    return err;
+
 }

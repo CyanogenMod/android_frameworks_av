@@ -67,7 +67,25 @@ typedef enum
     /**
      * Get the number of used bytes in the latest decode
      (used only when decoding AAC from ADIF file) */
-    M4AD_kOptionID_UsedBytes        = M4OSA_OPTION_ID_CREATE(M4_READ , M4DECODER_AUDIO, 0x11)
+    M4AD_kOptionID_UsedBytes        = M4OSA_OPTION_ID_CREATE(M4_READ , M4DECODER_AUDIO, 0x11),
+
+    /* Reader Interface */
+    M4AD_kOptionID_3gpReaderInterface = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x012),
+
+    /* Audio Access Unit */
+    M4AD_kOptionID_AudioAU = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x13),
+
+    /* Reader error code */
+    M4AD_kOptionID_GetAudioAUErrCode = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x14),
+
+    /* Number of channels */
+    M4AD_kOptionID_AudioNbChannels = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x15),
+
+    /* Sampling frequency */
+    M4AD_kOptionID_AudioSampFrequency = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x16),
+
+    /* Audio AU CTS */
+    M4AD_kOptionID_AuCTS = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AUDIO, 0x17)
 
 } M4AD_OptionID;
 

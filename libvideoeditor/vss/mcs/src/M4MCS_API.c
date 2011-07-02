@@ -119,6 +119,8 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders(
 static M4OSA_ERR M4MCS_intReallocTemporaryAU(
                                     M4OSA_MemAddr8 *addr,
                                     M4OSA_UInt32 newSize );
+static M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
+                                 M4MCS_InternalContext *pC);
 
 /**
  **********************************************************************
@@ -6083,6 +6085,12 @@ static M4OSA_ERR M4MCS_intPrepareAudioProcessing( M4MCS_InternalContext *pC )
             M4AD_kOptionID_UserParam, (M4OSA_DataOption) &AacDecParam);
     }
 
+    pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_3gpReaderInterface, (M4OSA_DataOption) pC->m_pReaderDataIt);
+
+    pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_AudioAU, (M4OSA_DataOption) &pC->ReaderAudioAU);
+
     if( pC->m_pAudioDecoder->m_pFctStartAudioDec != M4OSA_NULL )
     {
         /* Not implemented in all decoders */
@@ -8223,6 +8231,8 @@ static M4OSA_ERR M4MCS_intAudioTranscoding( M4MCS_InternalContext *pC )
     /*FlB 2009.03.04: apply audio effects if an effect is active*/
     M4OSA_Int8 *pActiveEffectNumber = &(pC->pActiveEffectNumber);
 
+    uint32_t errCode = M4NO_ERROR;
+
     if( pC->noaudio )
         return M4NO_ERROR;
 
@@ -8237,49 +8247,9 @@ static M4OSA_ERR M4MCS_intAudioTranscoding( M4MCS_InternalContext *pC )
         goto m4mcs_intaudiotranscoding_feed_resampler;
     }
 
-    /* Check if all audio frame has been decoded */
-    if( pC->ReaderAudioAU.m_size == 0 )
-    {
-        /**
-        * Read the next audio AU in the input file */
-        err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
-            (M4_StreamHandler *)pC->pReaderAudioStream, &pC->ReaderAudioAU);
-
-#ifdef MCS_DUMP_PCM_TO_FILE
-
-        fwrite(pC->ReaderAudioAU.m_dataAddress, pC->ReaderAudioAU.m_size, 1,
-            file_au_reader);
-        fwrite("____", 4, 1, file_au_reader);
-
-#endif
-
-        if( M4WAR_NO_MORE_AU == err ) /**< The audio transcoding is finished */
-        {
-            pC->AudioState = M4MCS_kStreamState_FINISHED;
-            M4OSA_TRACE2_0(
-                "M4MCS_intAudioTranscoding():\
-                 m_pReaderDataIt->m_pFctGetNextAu(audio) returns M4WAR_NO_MORE_AU");
-            return err;
-        }
-        else if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4MCS_intAudioTranscoding():\
-                 m_pReaderDataIt->m_pFctGetNextAu(Audio) returns 0x%x",
-                err);
-            return err;
-        }
-    }
-
-    /**
-    * Decode the AU */
-    pC->AudioDecBufferIn.m_dataAddress = pC->ReaderAudioAU.m_dataAddress;
-    pC->AudioDecBufferIn.m_bufferSize = pC->ReaderAudioAU.m_size;
-    pC->AudioDecBufferIn.m_timeStampUs =
-     (int64_t) (pC->ReaderAudioAU.m_CTS * 1000LL);
-
     err = pC->m_pAudioDecoder->m_pFctStepAudioDec(pC->pAudioDecCtxt,
-        &pC->AudioDecBufferIn, &pC->AudioDecBufferOut, M4OSA_FALSE);
+        M4OSA_NULL, &pC->AudioDecBufferOut, M4OSA_FALSE);
+
 
     if( M4NO_ERROR != err )
     {
@@ -8296,10 +8266,16 @@ static M4OSA_ERR M4MCS_intAudioTranscoding( M4MCS_InternalContext *pC )
 
 #endif
 
-    /* update the part of audio that has been decoded into the frame */
+    pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_GetAudioAUErrCode, (M4OSA_DataOption) &errCode);
 
-    pC->ReaderAudioAU.m_dataAddress += pC->AudioDecBufferIn.m_bufferSize;
-    pC->ReaderAudioAU.m_size -= pC->AudioDecBufferIn.m_bufferSize;
+    if ( M4WAR_NO_MORE_AU == errCode ) {
+        pC->AudioState = M4MCS_kStreamState_FINISHED;
+            M4OSA_TRACE2_0(
+                "M4MCS_intAudioTranscoding():\
+                 m_pReaderDataIt->m_pFctGetNextAu(audio) returns M4WAR_NO_MORE_AU");
+            return errCode;
+   }
 
     /* Set the current position in the decoder out buffer */
     pC->pPosInDecBufferOut = pC->AudioDecBufferOut.m_dataAddress;
@@ -9839,10 +9815,9 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
             if( M4DA_StreamTypeAudioAac
                 == pC->pReaderAudioStream->m_basicProperties.m_streamType )
             {
-                if( M4OSA_FALSE == pC->bExtOMXAudDecoder )
-                    err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
-                    &pC->pAudioDecCtxt,
-                    pC->pReaderAudioStream, &(pC->AacProperties));
+                if( M4OSA_FALSE == pC->bExtOMXAudDecoder ) {
+                    err = M4MCS_intCheckAndGetCodecAacProperties(pC);
+                }
                 else
                 {
                     err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
@@ -10800,3 +10775,97 @@ M4OSA_ERR M4MCS_open_normalMode(M4MCS_Context pContext, M4OSA_Void* pFileIn,
     return M4NO_ERROR;
 }
 
+M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
+                                 M4MCS_InternalContext *pC) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4AD_Buffer outputBuffer;
+    uint32_t optionValue =0;
+
+    M4OSA_TRACE3_0("M4MCS_intCheckAndGetCodecAacProperties :start");
+
+    // Decode first audio frame from clip to get properties from codec
+
+    err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
+                    &pC->pAudioDecCtxt,
+                    pC->pReaderAudioStream, &(pC->AacProperties));
+
+    pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_3gpReaderInterface, (M4OSA_DataOption) pC->m_pReaderDataIt);
+
+    pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_AudioAU, (M4OSA_DataOption) &pC->ReaderAudioAU);
+
+    if( pC->m_pAudioDecoder->m_pFctStartAudioDec != M4OSA_NULL ) {
+
+        err = pC->m_pAudioDecoder->m_pFctStartAudioDec(pC->pAudioDecCtxt);
+        if( M4NO_ERROR != err ) {
+
+            M4OSA_TRACE1_1(
+                "M4MCS_intCheckAndGetCodecAACProperties: m_pFctStartAudioDec \
+                 returns 0x%x", err);
+            return err;
+        }
+    }
+
+    /**
+    * Allocate output buffer for the audio decoder */
+    outputBuffer.m_bufferSize =
+        pC->pReaderAudioStream->m_byteFrameLength
+        * pC->pReaderAudioStream->m_byteSampleSize
+        * pC->pReaderAudioStream->m_nbChannels;
+
+    if( outputBuffer.m_bufferSize > 0 ) {
+
+        outputBuffer.m_dataAddress =
+            (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(outputBuffer.m_bufferSize \
+            *sizeof(short), M4MCS, (M4OSA_Char *)"outputBuffer.m_bufferSize");
+
+        if( M4OSA_NULL == outputBuffer.m_dataAddress ) {
+
+            M4OSA_TRACE1_0(
+                "M4MCS_intCheckAndGetCodecAACProperties():\
+                 unable to allocate outputBuffer.m_dataAddress, returning M4ERR_ALLOC");
+            return M4ERR_ALLOC;
+        }
+    }
+
+    err = pC->m_pAudioDecoder->m_pFctStepAudioDec(pC->pAudioDecCtxt,
+        M4OSA_NULL, &outputBuffer, M4OSA_FALSE);
+
+    if ( err == M4WAR_INFO_FORMAT_CHANGE ) {
+
+        // Get the properties from codec node
+        pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(pC->pAudioDecCtxt,
+           M4AD_kOptionID_AudioNbChannels, (M4OSA_DataOption) &optionValue);
+
+        pC->AacProperties.aNumChan = optionValue;
+        // Reset Reader structure value also
+        pC->pReaderAudioStream->m_nbChannels = optionValue;
+
+        pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(pC->pAudioDecCtxt,
+         M4AD_kOptionID_AudioSampFrequency, (M4OSA_DataOption) &optionValue);
+
+        pC->AacProperties.aSampFreq = optionValue;
+        // Reset Reader structure value also
+        pC->pReaderAudioStream->m_samplingFrequency = optionValue;
+
+    } else if( err != M4NO_ERROR) {
+        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecAACProperties:\
+            m_pFctStepAudioDec returns err = 0x%x", err);
+    }
+
+    free(outputBuffer.m_dataAddress);
+
+    // Reset the stream reader
+    err = pC->m_pReader->m_pFctReset(pC->pReaderContext,
+                 (M4_StreamHandler *)pC->pReaderAudioStream);
+
+    if (M4NO_ERROR != err) {
+        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecAACProperties\
+            Error in reseting reader: 0x%x", err);
+    }
+
+    return err;
+
+}

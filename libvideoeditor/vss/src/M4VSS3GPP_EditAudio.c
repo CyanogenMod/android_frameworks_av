@@ -229,6 +229,7 @@ M4OSA_ERR M4VSS3GPP_intEditStepMP3( M4VSS3GPP_InternalEditContext *pC )
 M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
 {
     M4OSA_ERR err;
+    int32_t auTimeStamp = -1;
 
     M4ENCODER_AudioBuffer pEncInBuffer;  /**< Encoder input buffer for api */
     M4ENCODER_AudioBuffer pEncOutBuffer; /**< Encoder output buffer for api */
@@ -563,23 +564,21 @@ M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
                             } //if(0 != pEncInBuffer.pTableBufferSize[0])
 
 #endif
+                            pC->pC1->pAudioFramePtr = M4OSA_NULL;
 
-                            err = M4VSS3GPP_intClipReadNextAudioFrame(pC->pC1);
+                            // Get timestamp of last read AU
+                            pC->pC1->ShellAPI.m_pAudioDecoder->m_pFctGetOptionAudioDec(
+                             pC->pC1->pAudioDecCtxt, M4AD_kOptionID_AuCTS,
+                             (M4OSA_DataOption) &auTimeStamp);
 
-                            M4OSA_TRACE2_3(
-                                "F .... read  : cts  = %.0f + %.0f [ 0x%x ]",
-                                pC->pC1->iAudioFrameCts / pC->pC1->scale_audio,
-                                pC->pC1->iAoffset / pC->pC1->scale_audio,
-                                pC->pC1->uiAudioFrameSize);
-
-                            if( M4OSA_ERR_IS_ERROR(err) )
-                            {
-                                M4OSA_TRACE1_1(
-                                    "M4VSS3GPP_intEditStepAudio: DECODE_ENCODE-prefetch:\
-                                    M4VSS3GPP_intClipReadNextAudioFrame(b) returns 0x%x!",
-                                    err);
-                                return err;
+                            if (auTimeStamp == -1) {
+                                M4OSA_TRACE1_0("M4VSS3GPP_intEditStepAudio: \
+                                 invalid audio timestamp returned");
+                                return M4WAR_INVALID_TIME;
                             }
+
+                            pC->pC1->iAudioFrameCts = auTimeStamp;
+
                         }
                     }
 
@@ -600,6 +599,21 @@ M4OSA_ERR M4VSS3GPP_intEditStepAudio( M4VSS3GPP_InternalEditContext *pC )
                         err);
                     return err;
                 }
+
+                pC->pC1->pAudioFramePtr = M4OSA_NULL;
+
+                // Get timestamp of last read AU
+                pC->pC1->ShellAPI.m_pAudioDecoder->m_pFctGetOptionAudioDec(
+                 pC->pC1->pAudioDecCtxt, M4AD_kOptionID_AuCTS,
+                 (M4OSA_DataOption) &auTimeStamp);
+
+                if (auTimeStamp == -1) {
+                    M4OSA_TRACE1_0("M4VSS3GPP_intEditStepAudio: invalid audio \
+                     timestamp returned");
+                    return M4WAR_INVALID_TIME;
+                }
+
+                pC->pC1->iAudioFrameCts = auTimeStamp;
 
                 /**
                 * Apply the effect */

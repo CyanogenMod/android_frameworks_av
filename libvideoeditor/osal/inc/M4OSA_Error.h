@@ -167,6 +167,8 @@ introducing dependencies to common/inc. */
 /* The server asks for a redirection */
 #define M4WAR_REDIRECT               M4OSA_ERR_CREATE(M4_WAR,M4_COMMON,0x000007)
 #define M4WAR_TOO_MUCH_STREAMS     M4OSA_ERR_CREATE(M4_WAR,M4_COMMON,0x000008)
+/* SF Codec detected INFO_FORMAT_CHANGE during decode */
+#define M4WAR_INFO_FORMAT_CHANGE M4OSA_ERR_CREATE(M4_WAR, M4_COMMON, 0x000009)
 
 #endif /*M4OSA_ERROR_H*/
 
