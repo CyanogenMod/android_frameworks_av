@@ -155,24 +155,24 @@ typedef enum
 */
 typedef enum
 {
-    M4VIDEOEDITING_kSQCIF=0,        /**< SQCIF 128x96  */
-    M4VIDEOEDITING_kQQVGA,            /**< QQVGA 160x120 */
-    M4VIDEOEDITING_kQCIF,            /**< QCIF  176x144 */
-    M4VIDEOEDITING_kQVGA,            /**< QVGA  320x240 */
-    M4VIDEOEDITING_kCIF,            /**< CIF   352x288 */
-    M4VIDEOEDITING_kVGA,
-/* +PR LV5807 */                    /**< VGA   640x480 */
-    M4VIDEOEDITING_kWVGA,            /**< WVGA 800x480 */
-    M4VIDEOEDITING_kNTSC,
-/* -PR LV5807 */                    /**< NTSC 720x480 */
+    M4VIDEOEDITING_kSQCIF=0, /**< SQCIF 128x96  */
+    M4VIDEOEDITING_kQQVGA,   /**< QQVGA 160x120 */
+    M4VIDEOEDITING_kQCIF,    /**< QCIF  176x144 */
+    M4VIDEOEDITING_kQVGA,    /**< QVGA  320x240 */
+    M4VIDEOEDITING_kCIF,     /**< CIF   352x288 */
+    M4VIDEOEDITING_kVGA,     /**< VGA   640x480 */
+/* +PR LV5807 */
+    M4VIDEOEDITING_kWVGA,    /**< WVGA 800x480 */
+    M4VIDEOEDITING_kNTSC,    /**< NTSC 720x480 */
+/* -PR LV5807 */
 
 /* +CR Google */
-    M4VIDEOEDITING_k640_360,            /**< 640x360 */
-    M4VIDEOEDITING_k854_480,            /**< 854x480 */
-    M4VIDEOEDITING_kHD1280,                /**< 720p 1280x720 */
-    M4VIDEOEDITING_kHD1080,                /**< 720p 1080x720 */
-    M4VIDEOEDITING_kHD960                /**< 720p 960x720 */
-
+    M4VIDEOEDITING_k640_360,  /**< 640x360 */
+    M4VIDEOEDITING_k854_480,  /**< 854x480 */
+    M4VIDEOEDITING_k1280_720, /**< 720p 1280x720 */
+    M4VIDEOEDITING_k1080_720, /**< 720p 1080x720 */
+    M4VIDEOEDITING_k960_720,  /**< 720p 960x720 */
+    M4VIDEOEDITING_k1920_1080 /**<1080p 1920x1080*/
 /* -CR Google */
 
 } M4VIDEOEDITING_VideoFrameSize;

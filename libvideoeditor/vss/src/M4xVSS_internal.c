@@ -2136,20 +2136,23 @@ M4OSA_ERR M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(M4OSA_Context pCo
         width_out = M4ENCODER_854_480_Width;
         height_out = 480;
         break;
-    case M4VIDEOEDITING_kHD1280:
+    case M4VIDEOEDITING_k1280_720:
         width_out = 1280;
         height_out = 720;
         break;
-    case M4VIDEOEDITING_kHD1080:
+    case M4VIDEOEDITING_k1080_720:
         // StageFright encoders require %16 resolution
-        width_out = M4ENCODER_HD1080_Width;
+        width_out = M4ENCODER_1080_720_Width;
         height_out = 720;
         break;
-    case M4VIDEOEDITING_kHD960:
+    case M4VIDEOEDITING_k960_720:
         width_out = 960;
         height_out = 720;
         break;
-
+    case M4VIDEOEDITING_k1920_1080:
+        width_out = 1920;
+        height_out = M4ENCODER_1920_1080_Height;
+        break;
     /**
      * If output video size is not given, we take QCIF size,
      * should not happen, because already done in M4xVSS_sendCommand */

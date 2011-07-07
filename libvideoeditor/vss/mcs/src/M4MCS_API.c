@@ -3789,26 +3789,38 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
                     break;
 
                 case M4VIDEOEDITING_k854_480:
-                    uiFrameWidth = pC->EncodingWidth = M4ENCODER_854_480_Width;
+                    uiFrameWidth =
+                        pC->EncodingWidth = M4ENCODER_854_480_Width;
                     uiFrameHeight =
                         pC->EncodingHeight = M4ENCODER_854_480_Height;
                     break;
 
-                case M4VIDEOEDITING_kHD1280:
-                    uiFrameWidth = pC->EncodingWidth = M4ENCODER_HD1280_Width;
+                case M4VIDEOEDITING_k1280_720:
+                    uiFrameWidth =
+                        pC->EncodingWidth = M4ENCODER_1280_720_Width;
                     uiFrameHeight =
-                        pC->EncodingHeight = M4ENCODER_HD1280_Height;
+                        pC->EncodingHeight = M4ENCODER_1280_720_Height;
                     break;
 
-                case M4VIDEOEDITING_kHD1080:
-                    uiFrameWidth = pC->EncodingWidth = M4ENCODER_HD1080_Width;
+                case M4VIDEOEDITING_k1080_720:
+                    uiFrameWidth =
+                        pC->EncodingWidth = M4ENCODER_1080_720_Width;
                     uiFrameHeight =
-                        pC->EncodingHeight = M4ENCODER_HD1080_Height;
+                        pC->EncodingHeight = M4ENCODER_1080_720_Height;
                     break;
 
-                case M4VIDEOEDITING_kHD960:
-                    uiFrameWidth = pC->EncodingWidth = M4ENCODER_HD960_Width;
-                    uiFrameHeight = pC->EncodingHeight = M4ENCODER_HD960_Height;
+                case M4VIDEOEDITING_k960_720:
+                    uiFrameWidth =
+                        pC->EncodingWidth = M4ENCODER_960_720_Width;
+                    uiFrameHeight =
+                        pC->EncodingHeight = M4ENCODER_960_720_Height;
+                    break;
+
+                case M4VIDEOEDITING_k1920_1080:
+                    uiFrameWidth =
+                        pC->EncodingWidth = M4ENCODER_1920_1080_Width;
+                    uiFrameHeight =
+                        pC->EncodingHeight = M4ENCODER_1920_1080_Height;
                     break;
                     /* -CR Google */
                 default:

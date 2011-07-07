@@ -29,11 +29,10 @@
 #include "M4VSS3GPP_API.h"
 #include "M4xVSS_API.h"
 #include "M4xVSS_Internal.h"
-
 #include "M4AIR_API.h"
 #include "PreviewRenderer.h"
-#define MEDIA_RENDERING_INVALID 255
 
+#define MEDIA_RENDERING_INVALID 255
 #define TRANSPARENT_COLOR 0x7E0
 #define LUM_FACTOR_MAX 10
 enum {
@@ -136,5 +135,8 @@ M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
 
 M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     M4OSA_UInt32 reportedWidth, M4OSA_UInt32 reportedHeight);
+
+android::status_t getVideoSizeByResolution(M4VIDEOEDITING_VideoFrameSize resolution,
+    uint32_t *pWidth, uint32_t *pHeight);
 
 #endif // ANDROID_VE_TOOLS_H

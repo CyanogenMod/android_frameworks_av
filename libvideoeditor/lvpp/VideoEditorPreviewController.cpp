@@ -1376,85 +1376,18 @@ M4OSA_ERR VideoEditorPreviewController::applyVideoEffect(
     return err;
 }
 
-M4OSA_ERR VideoEditorPreviewController::setPreviewFrameRenderingMode(
+status_t VideoEditorPreviewController::setPreviewFrameRenderingMode(
     M4xVSS_MediaRendering mode, M4VIDEOEDITING_VideoFrameSize outputVideoSize) {
 
     LOGV("setMediaRenderingMode: outputVideoSize = %d", outputVideoSize);
     mRenderingMode = mode;
 
-    switch(outputVideoSize) {
-        case M4VIDEOEDITING_kSQCIF:
-            mOutputVideoWidth = 128;
-            mOutputVideoHeight = 96;
-            break;
+    status_t err = OK;
+    /* get the video width and height by resolution */
+    err = getVideoSizeByResolution(outputVideoSize,
+              &mOutputVideoWidth, &mOutputVideoHeight);
 
-        case M4VIDEOEDITING_kQQVGA:
-            mOutputVideoWidth = 160;
-            mOutputVideoHeight = 120;
-            break;
-
-        case M4VIDEOEDITING_kQCIF:
-            mOutputVideoWidth = 176;
-            mOutputVideoHeight = 144;
-            break;
-
-        case M4VIDEOEDITING_kQVGA:
-            mOutputVideoWidth = 320;
-            mOutputVideoHeight = 240;
-            break;
-
-        case M4VIDEOEDITING_kCIF:
-            mOutputVideoWidth = 352;
-            mOutputVideoHeight = 288;
-            break;
-
-        case M4VIDEOEDITING_kVGA:
-            mOutputVideoWidth = 640;
-            mOutputVideoHeight = 480;
-            break;
-
-        case M4VIDEOEDITING_kWVGA:
-            mOutputVideoWidth = 800;
-            mOutputVideoHeight = 480;
-            break;
-
-        case M4VIDEOEDITING_kNTSC:
-            mOutputVideoWidth = 720;
-            mOutputVideoHeight = 480;
-            break;
-
-        case M4VIDEOEDITING_k640_360:
-            mOutputVideoWidth = 640;
-            mOutputVideoHeight = 360;
-            break;
-
-        case M4VIDEOEDITING_k854_480:
-            mOutputVideoWidth = 854;
-            mOutputVideoHeight = 480;
-            break;
-
-        case M4VIDEOEDITING_kHD1280:
-            mOutputVideoWidth = 1280;
-            mOutputVideoHeight = 720;
-            break;
-
-        case M4VIDEOEDITING_kHD1080:
-            mOutputVideoWidth = 1080;
-            mOutputVideoHeight = 720;
-            break;
-
-        case M4VIDEOEDITING_kHD960:
-            mOutputVideoWidth = 960;
-            mOutputVideoHeight = 720;
-            break;
-
-        default:
-            mOutputVideoWidth = 0;
-            mOutputVideoHeight = 0;
-            break;
-    }
-
-    return OK;
+    return err;
 }
 
 M4OSA_ERR VideoEditorPreviewController::doImageRenderingMode(
