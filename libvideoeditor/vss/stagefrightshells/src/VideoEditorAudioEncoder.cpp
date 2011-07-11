@@ -42,7 +42,8 @@
 namespace android {
 struct VideoEditorAudioEncoderSource : public MediaSource {
     public:
-        static sp<VideoEditorAudioEncoderSource> Create();
+        static sp<VideoEditorAudioEncoderSource> Create(
+            const sp<MetaData> &format);
         virtual status_t start(MetaData *params = NULL);
         virtual status_t stop();
         virtual sp<MetaData> getFormat();
@@ -68,8 +69,9 @@ struct VideoEditorAudioEncoderSource : public MediaSource {
         MediaBufferChain* mLastBufferLink;
         int32_t mNbBuffer;
         State mState;
+        sp<MetaData> mEncFormat;
 
-        VideoEditorAudioEncoderSource();
+        VideoEditorAudioEncoderSource(const sp<MetaData> &format);
 
         // Don't call me.
         VideoEditorAudioEncoderSource(const VideoEditorAudioEncoderSource&);
@@ -77,20 +79,23 @@ struct VideoEditorAudioEncoderSource : public MediaSource {
             const VideoEditorAudioEncoderSource&);
 };
 
-sp<VideoEditorAudioEncoderSource> VideoEditorAudioEncoderSource::Create() {
+sp<VideoEditorAudioEncoderSource> VideoEditorAudioEncoderSource::Create(
+    const sp<MetaData> &format) {
 
     LOGV("VideoEditorAudioEncoderSource::Create");
     sp<VideoEditorAudioEncoderSource> aSource =
-        new VideoEditorAudioEncoderSource();
+        new VideoEditorAudioEncoderSource(format);
 
     return aSource;
 }
 
-VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource():
+VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource(
+    const sp<MetaData> &format):
         mFirstBufferLink(NULL),
         mLastBufferLink(NULL),
         mNbBuffer(0),
-        mState(CREATED) {
+        mState(CREATED),
+        mEncFormat(format) {
     LOGV("VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource");
 }
 
@@ -152,10 +157,7 @@ status_t VideoEditorAudioEncoderSource::stop() {
 
 sp<MetaData> VideoEditorAudioEncoderSource::getFormat() {
     LOGV("VideoEditorAudioEncoderSource::getFormat");
-
-   LOGV("VideoEditorAudioEncoderSource::getFormat :THIS IS NOT IMPLEMENTED");
-
-    return NULL;
+    return mEncFormat;
 }
 
 status_t VideoEditorAudioEncoderSource::read(MediaBuffer **buffer,
@@ -428,7 +430,8 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
     encoderMetadata->setInt32(kKeyChannelCount, iNbChannel);
 
     // Create the encoder source
-    pEncoderContext->mEncoderSource = VideoEditorAudioEncoderSource::Create();
+    pEncoderContext->mEncoderSource = VideoEditorAudioEncoderSource::Create(
+        encoderMetadata);
     VIDEOEDITOR_CHECK(NULL != pEncoderContext->mEncoderSource.get(),
         M4ERR_STATE);
 
