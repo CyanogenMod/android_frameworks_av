@@ -81,10 +81,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/base/services/audioflinger
 
 
-ifeq ($(TARGET_SIMULATOR),true)
-else
-    LOCAL_SHARED_LIBRARIES += libdl
-endif
+LOCAL_SHARED_LIBRARIES += libdl
 
 # All of the shared libraries we link against.
 LOCAL_LDLIBS := \
