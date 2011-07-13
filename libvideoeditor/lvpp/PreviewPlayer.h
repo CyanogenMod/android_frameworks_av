@@ -18,7 +18,6 @@
 
 #define PREVIEW_PLAYER_H_
 
-#include "NuHTTPDataSource.h"
 #include "TimedEventQueue.h"
 #include "VideoEditorAudioPlayer.h"
 
