@@ -151,12 +151,12 @@ void PreviewRenderer::getBufferYV12(uint8_t **data, size_t *stride) {
     int err = OK;
     LOGV("getBuffer START");
 
-    if ((err = mSurface->dequeueBuffer(mSurface.get(), &mBuf)) != 0) {
+    if ((err = mSurface->ANativeWindow::dequeueBuffer(mSurface.get(), &mBuf)) != 0) {
         LOGW("Surface::dequeueBuffer returned error %d", err);
         return;
     }
 
-    CHECK_EQ(0, mSurface->lockBuffer(mSurface.get(), mBuf));
+    CHECK_EQ(0, mSurface->ANativeWindow::lockBuffer(mSurface.get(), mBuf));
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 
@@ -188,7 +188,7 @@ void PreviewRenderer::renderYV12() {
     if (mBuf!= NULL) {
         CHECK_EQ(0, mapper.unlock(mBuf->handle));
 
-        if ((err = mSurface->queueBuffer(mSurface.get(), mBuf)) != 0) {
+        if ((err = mSurface->ANativeWindow::queueBuffer(mSurface.get(), mBuf)) != 0) {
             LOGW("Surface::queueBuffer returned error %d", err);
         }
     }
@@ -209,12 +209,12 @@ void PreviewRenderer::render(
     ANativeWindowBuffer *buf;
     int err;
 
-    if ((err = mSurface->dequeueBuffer(mSurface.get(), &buf)) != 0) {
+    if ((err = mSurface->ANativeWindow::dequeueBuffer(mSurface.get(), &buf)) != 0) {
         LOGW("Surface::dequeueBuffer returned error %d", err);
         return;
     }
 
-    CHECK_EQ(0, mSurface->lockBuffer(mSurface.get(), buf));
+    CHECK_EQ(0, mSurface->ANativeWindow::lockBuffer(mSurface.get(), buf));
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 
@@ -284,7 +284,7 @@ void PreviewRenderer::render(
 
     CHECK_EQ(0, mapper.unlock(buf->handle));
 
-    if ((err = mSurface->queueBuffer(mSurface.get(), buf)) != 0) {
+    if ((err = mSurface->ANativeWindow::queueBuffer(mSurface.get(), buf)) != 0) {
         LOGW("Surface::queueBuffer returned error %d", err);
     }
     buf = NULL;
