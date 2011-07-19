@@ -72,24 +72,28 @@ PreviewRenderer* PreviewRenderer::CreatePreviewRenderer (OMX_COLOR_FORMATTYPE co
 
         if ( result == 0 ) {
             result = native_window_set_buffer_count(returnCtx->mSurface.get(), 3);
-
-            if (result == 0) {
-                result = native_window_set_buffers_geometry(
-                    returnCtx->mSurface.get(), returnCtx->mDecodedWidth, returnCtx->mDecodedHeight,
-                    halFormat);
-                if ( result == 0) {
-                    uint32_t transform;
-                    switch (rotationDegrees) {
-                        case 0: transform = 0; break;
-                        case 90: transform = HAL_TRANSFORM_ROT_90; break;
-                        case 180: transform = HAL_TRANSFORM_ROT_180; break;
-                        case 270: transform = HAL_TRANSFORM_ROT_270; break;
-                        default: transform = 0; break;
-                    }
-                    if (transform) {
-                        result = native_window_set_buffers_transform(
+            if ( result == 0 ) {
+                result = native_window_set_scaling_mode(returnCtx->mSurface.get(),
+                        NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+                if ( result == 0 ) {
+                    result = native_window_set_buffers_geometry(
+                            returnCtx->mSurface.get(),
+                            returnCtx->mDecodedWidth, returnCtx->mDecodedHeight,
+                            halFormat);
+                    if ( result == 0) {
+                        uint32_t transform;
+                        switch (rotationDegrees) {
+                            case 0: transform = 0; break;
+                            case 90: transform = HAL_TRANSFORM_ROT_90; break;
+                            case 180: transform = HAL_TRANSFORM_ROT_180; break;
+                            case 270: transform = HAL_TRANSFORM_ROT_270; break;
+                            default: transform = 0; break;
+                        }
+                        if (transform) {
+                            result = native_window_set_buffers_transform(
                                     returnCtx->mSurface.get(), transform);
 
+                        }
                     }
                 }
             }
