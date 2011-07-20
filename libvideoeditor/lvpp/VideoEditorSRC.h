@@ -67,6 +67,8 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         VideoEditorSRC();
         VideoEditorSRC &operator=(const VideoEditorSRC &);
 
+        status_t checkAndSetResampler();
+
         AudioResampler        *mResampler;
         sp<MediaSource>      mSource;
         MediaBuffer      *mCopyBuffer;

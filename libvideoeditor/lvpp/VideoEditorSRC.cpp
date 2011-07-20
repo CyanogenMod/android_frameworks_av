@@ -109,40 +109,13 @@ status_t  VideoEditorSRC::start (MetaData *params) {
     CHECK(!mStarted);
     LOGV(" VideoEditorSRC:start() called");
 
-    sp<MetaData> format = mSource->getFormat();
-    const char *mime;
-    bool success = format->findCString(kKeyMIMEType, &mime);
-    CHECK(success);
-    CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW));
-
-    success = format->findInt32(kKeySampleRate, &mSampleRate);
-    CHECK(success);
-
-    int32_t numChannels;
-    success = format->findInt32(kKeyChannelCount, &mChannelCnt);
-    CHECK(success);
-
-    if(mSampleRate != mOutputSampleRate) {
-        LOGV("Resampling required (%d != %d)", mSampleRate, mOutputSampleRate);
-        mIsResamplingRequired = true;
-        LOGV("Create resampler %d %d %d", mBitDepth, mChannelCnt, mOutputSampleRate);
-
-        mResampler = AudioResampler::create(
-                        mBitDepth, mChannelCnt, mOutputSampleRate, AudioResampler::DEFAULT);
-
-        if(mResampler == NULL) {
-            return NO_MEMORY;
-        }
-        LOGV("Set input rate %d", mSampleRate);
-        mResampler->setSampleRate(mSampleRate);
-        mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
-
-    } else {
-        if(mChannelCnt != 2) { //we always make sure to provide stereo
-            LOGV("Only Channel convertion required");
-            mIsChannelConvertionRequired = true;
-        }
+    // Set resampler if required
+    status_t err = checkAndSetResampler();
+    if (err != OK) {
+        LOGE("checkAndSetResampler() returned error %d", err);
+        return err;
     }
+
     mSeekTimeUs = -1;
     mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
     mStarted = true;
@@ -271,7 +244,6 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
     bool lastBuffer = false;
     MediaBuffer *aBuffer;
 
-
     //update the internal buffer
     // Store the leftover at the beginning of the local buffer
     if (mLeftover > 0) {
@@ -300,7 +272,18 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
         /* This will be needed by the resampler */
         status_t err = mSource->read(&aBuffer, &options);
         LOGV("mSource->read returned %d", err);
-        if(err != OK) {
+        if (err == INFO_FORMAT_CHANGED) {
+            LOGV("getNextBuffer: source read returned INFO_FORMAT_CHANGED");
+            // Change resampler if required
+            status_t err1 = checkAndSetResampler();
+            if (err1 != OK) {
+                LOGE("checkAndSetResampler() returned error %d", err1);
+                return err1;
+            }
+            // Update availableFrames with new channel count
+            availableFrames = mInterframeBufferPosition / (mChannelCnt*2);
+            continue;
+        } else if (err != OK) {
             if (mInterframeBufferPosition == 0) {
                 mStarted = false;
             }
@@ -364,6 +347,58 @@ void VideoEditorSRC::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
         pBuffer->raw = NULL;
     }
     pBuffer->frameCount = 0;
+}
+
+status_t VideoEditorSRC::checkAndSetResampler() {
+
+    LOGV("checkAndSetResampler");
+
+    sp<MetaData> format = mSource->getFormat();
+    const char *mime;
+    bool success = format->findCString(kKeyMIMEType, &mime);
+    CHECK(success);
+    CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW));
+
+    success = format->findInt32(kKeySampleRate, &mSampleRate);
+    CHECK(success);
+
+    int32_t numChannels;
+    success = format->findInt32(kKeyChannelCount, &mChannelCnt);
+    CHECK(success);
+
+    // If Resampler exists, delete it first
+    if (mResampler != NULL) {
+        delete mResampler;
+        mResampler = NULL;
+    }
+
+    if (mSampleRate != mOutputSampleRate) {
+        LOGV("Resampling required (%d != %d)", mSampleRate, mOutputSampleRate);
+        mIsResamplingRequired = true;
+        LOGV("Create resampler %d %d %d", mBitDepth, mChannelCnt, mOutputSampleRate);
+
+        mResampler = AudioResampler::create(
+                        mBitDepth, mChannelCnt, mOutputSampleRate, AudioResampler::DEFAULT);
+
+        if (mResampler == NULL) {
+            return NO_MEMORY;
+        }
+        LOGV("Set input rate %d", mSampleRate);
+        mResampler->setSampleRate(mSampleRate);
+        mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
+
+    } else {
+        LOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
+        mIsResamplingRequired = false;
+        if (mChannelCnt != 2) {
+            // we always make sure to provide stereo
+            LOGV("Only Channel convertion required");
+            mIsChannelConvertionRequired = true;
+        }
+    }
+
+    return OK;
+
 }
 
 } //namespce android
