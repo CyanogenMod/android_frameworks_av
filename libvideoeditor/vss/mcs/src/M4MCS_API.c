@@ -119,7 +119,7 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders(
 static M4OSA_ERR M4MCS_intReallocTemporaryAU(
                                     M4OSA_MemAddr8 *addr,
                                     M4OSA_UInt32 newSize );
-static M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
+static M4OSA_ERR M4MCS_intCheckAndGetCodecProperties(
                                  M4MCS_InternalContext *pC);
 
 /**
@@ -9822,89 +9822,80 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
             M4OSA_TRACE3_1(
                 "M4MCS_intGetInputClipProperties: calling CreateAudioDecoder, userData= 0x%x",
                 pC->m_pCurrentAudioDecoderUserData);
-            /* Trick, I use pUserData to retrieve aac properties, waiting for some
-             better implementation... */
-            if( M4DA_StreamTypeAudioAac
-                == pC->pReaderAudioStream->m_basicProperties.m_streamType )
-            {
-                if( M4OSA_FALSE == pC->bExtOMXAudDecoder ) {
-                    err = M4MCS_intCheckAndGetCodecAacProperties(pC);
-                }
-                else
-                {
-                    err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
-                        &pC->pAudioDecCtxt, pC->pReaderAudioStream,
-                        pC->m_pCurrentAudioDecoderUserData);
 
-                    if( M4NO_ERROR == err )
-                    {
-                        /* AAC properties*/
-                        //get from Reader; temporary, till Audio decoder shell API available to
-                        //get the AAC properties
-                        pC->AacProperties.aNumChan =
-                            pC->pReaderAudioStream->m_nbChannels;
-                        pC->AacProperties.aSampFreq =
-                            pC->pReaderAudioStream->m_samplingFrequency;
-
-                        err = pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(
-                            pC->pAudioDecCtxt, M4AD_kOptionID_StreamType,
-                            (M4OSA_DataOption) &iAacType);
-
-                        if( M4NO_ERROR != err )
-                        {
-                            M4OSA_TRACE1_1(
-                                "M4MCS_intGetInputClipProperties:\
-                                 m_pAudioDecoder->m_pFctGetOptionAudioDec returns err 0x%x",
-                                err);
-                            iAacType = M4_kAAC; //set to default
-                            err = M4NO_ERROR;
-                        }
-                        else
-                        {
-                            M4OSA_TRACE3_1(
-                                "M4MCS_intGetInputClipProperties:\
-                                 m_pAudioDecoder->m_pFctGetOptionAudioDec returns streamType %d",
-                                iAacType);
-                        }
-
-                        switch( iAacType )
-                        {
-                            case M4_kAAC:
-                                pC->AacProperties.aSBRPresent = 0;
-                                pC->AacProperties.aPSPresent = 0;
-                                break;
-
-                            case M4_kAACplus:
-                                pC->AacProperties.aSBRPresent = 1;
-                                pC->AacProperties.aPSPresent = 0;
-                                pC->AacProperties.aExtensionSampFreq =
-                                    pC->pReaderAudioStream->
-                                    m_samplingFrequency; //TODO
-                                break;
-
-                            case M4_keAACplus:
-                                pC->AacProperties.aSBRPresent = 1;
-                                pC->AacProperties.aPSPresent = 1;
-                                pC->AacProperties.aExtensionSampFreq =
-                                    pC->pReaderAudioStream->
-                                    m_samplingFrequency; //TODO
-                                break;
-                              case M4_kUnknown:
-                              break;
-                              default:
-                              break;
-                            }
-                            M4OSA_TRACE3_2(
-                                "M4MCS_intGetInputClipProperties: AAC NBChans=%d, SamplFreq=%d",
-                                pC->AacProperties.aNumChan,
-                                pC->AacProperties.aSampFreq);
-                    }
-                }
+            if( M4OSA_FALSE == pC->bExtOMXAudDecoder ) {
+                err = M4MCS_intCheckAndGetCodecProperties(pC);
             }
             else
+            {
                 err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
-                &pC->pAudioDecCtxt, pC->pReaderAudioStream,
-                pC->m_pCurrentAudioDecoderUserData);
+                    &pC->pAudioDecCtxt, pC->pReaderAudioStream,
+                    pC->m_pCurrentAudioDecoderUserData);
+
+                if( M4NO_ERROR == err )
+                {
+                    /* AAC properties*/
+                    //get from Reader; temporary, till Audio decoder shell API available to
+                    //get the AAC properties
+                    pC->AacProperties.aNumChan =
+                        pC->pReaderAudioStream->m_nbChannels;
+                    pC->AacProperties.aSampFreq =
+                        pC->pReaderAudioStream->m_samplingFrequency;
+
+                    err = pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(
+                        pC->pAudioDecCtxt, M4AD_kOptionID_StreamType,
+                        (M4OSA_DataOption) &iAacType);
+
+                    if( M4NO_ERROR != err )
+                    {
+                        M4OSA_TRACE1_1(
+                            "M4MCS_intGetInputClipProperties:\
+                             m_pAudioDecoder->m_pFctGetOptionAudioDec returns err 0x%x",
+                            err);
+                        iAacType = M4_kAAC; //set to default
+                        err = M4NO_ERROR;
+                    }
+                    else
+                    {
+                        M4OSA_TRACE3_1(
+                            "M4MCS_intGetInputClipProperties:\
+                             m_pAudioDecoder->m_pFctGetOptionAudioDec returns streamType %d",
+                            iAacType);
+                    }
+
+                    switch( iAacType )
+                    {
+                        case M4_kAAC:
+                            pC->AacProperties.aSBRPresent = 0;
+                            pC->AacProperties.aPSPresent = 0;
+                            break;
+
+                        case M4_kAACplus:
+                            pC->AacProperties.aSBRPresent = 1;
+                            pC->AacProperties.aPSPresent = 0;
+                            pC->AacProperties.aExtensionSampFreq =
+                                pC->pReaderAudioStream->
+                                m_samplingFrequency; //TODO
+                            break;
+
+                        case M4_keAACplus:
+                            pC->AacProperties.aSBRPresent = 1;
+                            pC->AacProperties.aPSPresent = 1;
+                            pC->AacProperties.aExtensionSampFreq =
+                                pC->pReaderAudioStream->
+                                m_samplingFrequency; //TODO
+                            break;
+                          case M4_kUnknown:
+                          break;
+                          default:
+                          break;
+                        }
+                        M4OSA_TRACE3_2(
+                            "M4MCS_intGetInputClipProperties: AAC NBChans=%d, SamplFreq=%d",
+                            pC->AacProperties.aNumChan,
+                            pC->AacProperties.aSampFreq);
+                }
+            }
 
             if( M4NO_ERROR != err )
             {
@@ -10787,20 +10778,29 @@ M4OSA_ERR M4MCS_open_normalMode(M4MCS_Context pContext, M4OSA_Void* pFileIn,
     return M4NO_ERROR;
 }
 
-M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
+M4OSA_ERR M4MCS_intCheckAndGetCodecProperties(
                                  M4MCS_InternalContext *pC) {
 
     M4OSA_ERR err = M4NO_ERROR;
     M4AD_Buffer outputBuffer;
     uint32_t optionValue =0;
 
-    M4OSA_TRACE3_0("M4MCS_intCheckAndGetCodecAacProperties :start");
+    M4OSA_TRACE3_0("M4MCS_intCheckAndGetCodecProperties :start");
 
     // Decode first audio frame from clip to get properties from codec
 
-    err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
+    if (M4DA_StreamTypeAudioAac ==
+            pC->pReaderAudioStream->m_basicProperties.m_streamType) {
+
+        err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
                     &pC->pAudioDecCtxt,
                     pC->pReaderAudioStream, &(pC->AacProperties));
+    } else {
+        err = pC->m_pAudioDecoder->m_pFctCreateAudioDec(
+                    &pC->pAudioDecCtxt,
+                    pC->pReaderAudioStream,
+                    pC->m_pCurrentAudioDecoderUserData);
+    }
 
     pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
            M4AD_kOptionID_3gpReaderInterface, (M4OSA_DataOption) pC->m_pReaderDataIt);
@@ -10814,7 +10814,7 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
         if( M4NO_ERROR != err ) {
 
             M4OSA_TRACE1_1(
-                "M4MCS_intCheckAndGetCodecAACProperties: m_pFctStartAudioDec \
+                "M4MCS_intCheckAndGetCodecProperties: m_pFctStartAudioDec \
                  returns 0x%x", err);
             return err;
         }
@@ -10836,7 +10836,7 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
         if( M4OSA_NULL == outputBuffer.m_dataAddress ) {
 
             M4OSA_TRACE1_0(
-                "M4MCS_intCheckAndGetCodecAACProperties():\
+                "M4MCS_intCheckAndGetCodecProperties():\
                  unable to allocate outputBuffer.m_dataAddress, returning M4ERR_ALLOC");
             return M4ERR_ALLOC;
         }
@@ -10851,19 +10851,27 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
         pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(pC->pAudioDecCtxt,
            M4AD_kOptionID_AudioNbChannels, (M4OSA_DataOption) &optionValue);
 
-        pC->AacProperties.aNumChan = optionValue;
         // Reset Reader structure value also
         pC->pReaderAudioStream->m_nbChannels = optionValue;
 
         pC->m_pAudioDecoder->m_pFctGetOptionAudioDec(pC->pAudioDecCtxt,
          M4AD_kOptionID_AudioSampFrequency, (M4OSA_DataOption) &optionValue);
 
-        pC->AacProperties.aSampFreq = optionValue;
         // Reset Reader structure value also
         pC->pReaderAudioStream->m_samplingFrequency = optionValue;
 
+        if (M4DA_StreamTypeAudioAac ==
+            pC->pReaderAudioStream->m_basicProperties.m_streamType) {
+
+            pC->AacProperties.aNumChan =
+                pC->pReaderAudioStream->m_nbChannels;
+            pC->AacProperties.aSampFreq =
+                pC->pReaderAudioStream->m_samplingFrequency;
+
+        }
+
     } else if( err != M4NO_ERROR) {
-        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecAACProperties:\
+        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecProperties:\
             m_pFctStepAudioDec returns err = 0x%x", err);
     }
 
@@ -10874,7 +10882,7 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecAacProperties(
                  (M4_StreamHandler *)pC->pReaderAudioStream);
 
     if (M4NO_ERROR != err) {
-        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecAACProperties\
+        M4OSA_TRACE1_1("M4MCS_intCheckAndGetCodecProperties\
             Error in reseting reader: 0x%x", err);
     }
 
