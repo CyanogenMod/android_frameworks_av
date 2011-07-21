@@ -31,6 +31,7 @@
 #include "VideoEditorUtils.h"
 
 #include "utils/Log.h"
+#include "utils/Vector.h"
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaDefs.h>
@@ -43,23 +44,13 @@
  *   DEFINITIONS    *
  ********************/
 
-// Minimum number of buffer in the source in order to allow encoding
-#define VIDEOEDITOR_MIN_BUFFER_NB 15
-
-// Not enough source buffers available
-#define M4WAR_SF_LOW_BUFFER M4OSA_ERR_CREATE(M4_WAR, 0xFF, 0x00001)
-
 // Encoder color format
 #define VIDEOEDITOR_ENCODER_COLOR_FORMAT OMX_COLOR_FormatYUV420Planar
 
 // Force using hardware encoder
 #define VIDEOEDITOR_FORCECODEC kHardwareCodecsOnly
 
-// Force Encoder to produce a DSI by sending fake input frames upon creation
-#define VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION
-
-#if defined(VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION) && \
-    !defined(VIDEOEDITOR_FORCECODEC)
+#if !defined(VIDEOEDITOR_FORCECODEC)
     #error "Cannot force DSI retrieval if codec type is not fixed"
 #endif
 
@@ -106,6 +97,8 @@ struct VideoEditorVideoEncoderSource : public MediaSource {
         bool              mIsEOS;
         State             mState;
         sp<MetaData>      mEncFormat;
+        Mutex             mLock;
+        Condition         mBufferCond;
 };
 
 sp<VideoEditorVideoEncoderSource> VideoEditorVideoEncoderSource::Create(
@@ -187,6 +180,7 @@ sp<MetaData> VideoEditorVideoEncoderSource::getFormat() {
 
 status_t VideoEditorVideoEncoderSource::read(MediaBuffer **buffer,
         const ReadOptions *options) {
+    Mutex::Autolock autolock(mLock);
     MediaSource::ReadOptions readOptions;
     status_t err = OK;
     MediaBufferChain* tmpLink = NULL;
@@ -198,17 +192,18 @@ status_t VideoEditorVideoEncoderSource::read(MediaBuffer **buffer,
         return UNKNOWN_ERROR;
     }
 
-    // Get a buffer from the chain
-    if ( NULL == mFirstBufferLink ) {
-        *buffer = NULL;
-        if( mIsEOS ) {
-            LOGV("VideoEditorVideoEncoderSource::read : EOS");
-            return ERROR_END_OF_STREAM;
-        } else {
-            LOGV("VideoEditorVideoEncoderSource::read: no buffer available");
-            return ERROR_END_OF_STREAM;
-        }
+    while (mFirstBufferLink == NULL && !mIsEOS) {
+        mBufferCond.wait(mLock);
     }
+
+    // End of stream?
+    if (mFirstBufferLink == NULL) {
+        *buffer = NULL;
+        LOGV("VideoEditorVideoEncoderSource::read : EOS");
+        return ERROR_END_OF_STREAM;
+    }
+
+    // Get a buffer from the chain
     *buffer = mFirstBufferLink->buffer;
     tmpLink = mFirstBufferLink;
     mFirstBufferLink = mFirstBufferLink->nextLink;
@@ -224,6 +219,7 @@ status_t VideoEditorVideoEncoderSource::read(MediaBuffer **buffer,
 }
 
 int32_t VideoEditorVideoEncoderSource::storeBuffer(MediaBuffer *buffer) {
+    Mutex::Autolock autolock(mLock);
     status_t err = OK;
 
     LOGV("VideoEditorVideoEncoderSource::storeBuffer() begin");
@@ -243,8 +239,187 @@ int32_t VideoEditorVideoEncoderSource::storeBuffer(MediaBuffer *buffer) {
         mLastBufferLink = newLink;
         mNbBuffer++;
     }
+    mBufferCond.signal();
     LOGV("VideoEditorVideoEncoderSource::storeBuffer() end");
     return mNbBuffer;
+}
+
+/********************
+ *      PULLER      *
+ ********************/
+
+// Pulls media buffers from a MediaSource repeatedly.
+// The user can then get the buffers from that list.
+class VideoEditorVideoEncoderPuller {
+public:
+    VideoEditorVideoEncoderPuller(sp<MediaSource> source);
+    ~VideoEditorVideoEncoderPuller();
+    void start();
+    void stop();
+    MediaBuffer* getBufferBlocking();
+    MediaBuffer* getBufferNonBlocking();
+    void putBuffer(MediaBuffer* buffer);
+private:
+    static int acquireThreadStart(void* arg);
+    void acquireThreadFunc();
+
+    static int releaseThreadStart(void* arg);
+    void releaseThreadFunc();
+
+    sp<MediaSource> mSource;
+    Vector<MediaBuffer*> mBuffers;
+    Vector<MediaBuffer*> mReleaseBuffers;
+
+    Mutex mLock;
+    Condition mUserCond;     // for the user of this class
+    Condition mAcquireCond;  // for the acquire thread
+    Condition mReleaseCond;  // for the release thread
+
+    bool mAskToStart;      // Asks the threads to start
+    bool mAskToStop;       // Asks the threads to stop
+    bool mAcquireStopped;  // The acquire thread has stopped
+    bool mReleaseStopped;  // The release thread has stopped
+};
+
+VideoEditorVideoEncoderPuller::VideoEditorVideoEncoderPuller(
+    sp<MediaSource> source) {
+    mSource = source;
+    mAskToStart = false;
+    mAskToStop = false;
+    mAcquireStopped = false;
+    mReleaseStopped = false;
+    androidCreateThread(acquireThreadStart, this);
+    androidCreateThread(releaseThreadStart, this);
+}
+
+VideoEditorVideoEncoderPuller::~VideoEditorVideoEncoderPuller() {
+    stop();
+}
+
+void VideoEditorVideoEncoderPuller::start() {
+    Mutex::Autolock autolock(mLock);
+    mAskToStart = true;
+    mAcquireCond.signal();
+    mReleaseCond.signal();
+}
+
+void VideoEditorVideoEncoderPuller::stop() {
+    Mutex::Autolock autolock(mLock);
+    mAskToStop = true;
+    mAcquireCond.signal();
+    mReleaseCond.signal();
+    while (!mAcquireStopped || !mReleaseStopped) {
+        mUserCond.wait(mLock);
+    }
+
+    // Release remaining buffers
+    for (size_t i = 0; i < mBuffers.size(); i++) {
+        mBuffers.itemAt(i)->release();
+    }
+
+    for (size_t i = 0; i < mReleaseBuffers.size(); i++) {
+        mReleaseBuffers.itemAt(i)->release();
+    }
+}
+
+MediaBuffer* VideoEditorVideoEncoderPuller::getBufferNonBlocking() {
+    Mutex::Autolock autolock(mLock);
+    if (mBuffers.empty()) {
+        return NULL;
+    } else {
+        MediaBuffer* b = mBuffers.itemAt(0);
+        mBuffers.removeAt(0);
+        return b;
+    }
+}
+
+MediaBuffer* VideoEditorVideoEncoderPuller::getBufferBlocking() {
+    Mutex::Autolock autolock(mLock);
+    while (mBuffers.empty() && !mAcquireStopped) {
+        mUserCond.wait(mLock);
+    }
+
+    if (mBuffers.empty()) {
+        return NULL;
+    } else {
+        MediaBuffer* b = mBuffers.itemAt(0);
+        mBuffers.removeAt(0);
+        return b;
+    }
+}
+
+void VideoEditorVideoEncoderPuller::putBuffer(MediaBuffer* buffer) {
+    Mutex::Autolock autolock(mLock);
+    mReleaseBuffers.push(buffer);
+    mReleaseCond.signal();
+}
+
+int VideoEditorVideoEncoderPuller::acquireThreadStart(void* arg) {
+    VideoEditorVideoEncoderPuller* self = (VideoEditorVideoEncoderPuller*)arg;
+    self->acquireThreadFunc();
+    return 0;
+}
+
+int VideoEditorVideoEncoderPuller::releaseThreadStart(void* arg) {
+    VideoEditorVideoEncoderPuller* self = (VideoEditorVideoEncoderPuller*)arg;
+    self->releaseThreadFunc();
+    return 0;
+}
+
+void VideoEditorVideoEncoderPuller::acquireThreadFunc() {
+    mLock.lock();
+
+    // Wait for the start signal
+    while (!mAskToStart && !mAskToStop) {
+        mAcquireCond.wait(mLock);
+    }
+
+    // Loop until we are asked to stop, or there is nothing more to read
+    while (!mAskToStop) {
+        MediaBuffer* pBuffer;
+        mLock.unlock();
+        status_t result = mSource->read(&pBuffer, NULL);
+        mLock.lock();
+        if (result != OK) {
+            break;
+        }
+        mBuffers.push(pBuffer);
+        mUserCond.signal();
+    }
+
+    mAcquireStopped = true;
+    mUserCond.signal();
+    mLock.unlock();
+}
+
+void VideoEditorVideoEncoderPuller::releaseThreadFunc() {
+    mLock.lock();
+
+    // Wait for the start signal
+    while (!mAskToStart && !mAskToStop) {
+        mReleaseCond.wait(mLock);
+    }
+
+    // Loop until we are asked to stop
+    while (1) {
+        if (mReleaseBuffers.empty()) {
+            if (mAskToStop) {
+                break;
+            } else {
+                mReleaseCond.wait(mLock);
+                continue;
+            }
+        }
+        MediaBuffer* pBuffer = mReleaseBuffers.itemAt(0);
+        mReleaseBuffers.removeAt(0);
+        mLock.unlock();
+        pBuffer->release();
+        mLock.lock();
+    }
+
+    mReleaseStopped = true;
+    mUserCond.signal();
+    mLock.unlock();
 }
 
 /**
@@ -278,6 +453,7 @@ typedef struct {
     OMXClient                         mClient;
     sp<MediaSource>                   mEncoder;
     OMX_COLOR_FORMATTYPE              mEncoderColorFormat;
+    VideoEditorVideoEncoderPuller*    mPuller;
 
     uint32_t                          mNbInputFrames;
     double                            mFirstInputCts;
@@ -446,6 +622,7 @@ M4OSA_ERR VideoEditorVideoEncoder_init(M4ENCODER_Format format,
     pEncoderContext->mWriterDataInterface = pWriterDataInterface;
     pEncoderContext->mPreProcFunction = pVPPfct;
     pEncoderContext->mPreProcContext = pVPPctxt;
+    pEncoderContext->mPuller = NULL;
 
     *pContext = pEncoderContext;
 
@@ -508,6 +685,9 @@ M4OSA_ERR VideoEditorVideoEncoder_close(M4ENCODER_Context pContext) {
     pEncoderContext->mEncoder.clear();
     pEncoderContext->mClient.disconnect();
     pEncoderContext->mEncoderSource.clear();
+
+    delete pEncoderContext->mPuller;
+    pEncoderContext->mPuller = NULL;
 
     // Set the new state
     pEncoderContext->mState = CREATED;
@@ -640,11 +820,9 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
     encoderMetadata->setInt32(kKeyColorFormat,
         pEncoderContext->mEncoderColorFormat);
 
-#ifdef VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION
     // Get the encoder DSI
     err = VideoEditorVideoEncoder_getDSI(pEncoderContext, encoderMetadata);
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
-#endif /* VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION */
 
     // Create the encoder source
     pEncoderContext->mEncoderSource = VideoEditorVideoEncoderSource::Create(
@@ -665,6 +843,8 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
         pEncoderContext->mEncoderSource, NULL, codecFlags);
     VIDEOEDITOR_CHECK(NULL != pEncoderContext->mEncoder.get(), M4ERR_STATE);
     LOGV("VideoEditorVideoEncoder_open : DONE");
+    pEncoderContext->mPuller = new VideoEditorVideoEncoderPuller(
+        pEncoderContext->mEncoder);
 
     // Set the new state
     pEncoderContext->mState = OPENED;
@@ -764,11 +944,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
 
     // Push the buffer to the source, a NULL buffer, notifies the source of EOS
     nbBuffer = pEncoderContext->mEncoderSource->storeBuffer(buffer);
-    if ( VIDEOEDITOR_MIN_BUFFER_NB > nbBuffer ) {
-        LOGV("VideoEncoder_processInputBuffer not enough source buffer"
-        "%d", nbBuffer);
-        err = M4WAR_SF_LOW_BUFFER;
-    }
 
 cleanUp:
     if ( OMX_COLOR_FormatYUV420SemiPlanar == \
@@ -781,7 +956,7 @@ cleanUp:
             SAFE_FREE(pOutPlane[2].pac_data);
         }
     }
-    if ( (M4NO_ERROR == err) || (M4WAR_SF_LOW_BUFFER == err) ) {
+    if ( M4NO_ERROR == err ) {
         LOGV("VideoEditorVideoEncoder_processInputBuffer error 0x%X", err);
     } else {
         if( NULL != buffer ) {
@@ -826,27 +1001,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
                 LOGV("DSI [%d] %.2X", i, tmp[i]);
             }
         }
-
-#ifndef VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION
-        VIDEOEDITOR_CHECK(M4OSA_NULL == pEncoderContext->mHeader.pBuf,
-            M4ERR_STATE);
-        if ( M4ENCODER_kH264 == pEncoderContext->mFormat ) {
-            result = buildAVCCodecSpecificData(
-                (uint8_t**)(&(pEncoderContext->mHeader.pBuf)),
-                (size_t*)(&(pEncoderContext->mHeader.Size)),
-                (const uint8_t *)buffer->data() + buffer->range_offset(),
-                buffer->range_length(),
-                pEncoderContext->mEncoder->getFormat().get());
-        } else {
-            pEncoderContext->mHeader.Size =
-                (M4OSA_UInt32)buffer->range_length();
-            SAFE_MALLOC(pEncoderContext->mHeader.pBuf, M4OSA_Int8,
-                pEncoderContext->mHeader.Size, "Encoder header");
-            memcpy((void *)pEncoderContext->mHeader.pBuf,
-                (void *)((M4OSA_MemAddr8)(buffer->data())+buffer->range_offset()),
-                pEncoderContext->mHeader.Size);
-        }
-#endif /* VIDEOEDITOR_ENCODER_GET_DSI_AT_CREATION */
     } else {
         // Check the CTS
         VIDEOEDITOR_CHECK(buffer->meta_data()->findInt64(kKeyTime, &i64Tmp),
@@ -935,7 +1089,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
     }
 
 cleanUp:
-    buffer->release();
     if( M4NO_ERROR == err ) {
         LOGV("VideoEditorVideoEncoder_processOutputBuffer no error");
     } else {
@@ -977,47 +1130,33 @@ M4OSA_ERR VideoEditorVideoEncoder_encode(M4ENCODER_Context pContext,
     // Push the input buffer to the encoder source
     err = VideoEditorVideoEncoder_processInputBuffer(pEncoderContext, Cts,
         M4OSA_FALSE);
-    VIDEOEDITOR_CHECK((M4NO_ERROR == err) || (M4WAR_SF_LOW_BUFFER == err), err);
+    VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
 
     // Notify the source in case of EOS
     if ( M4ENCODER_kLastFrame == FrameMode ) {
         err = VideoEditorVideoEncoder_processInputBuffer(
             pEncoderContext, 0, M4OSA_TRUE);
-        VIDEOEDITOR_CHECK((M4NO_ERROR == err) || (M4WAR_SF_LOW_BUFFER == err),
-            err);
+        VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
     }
 
     if ( BUFFERING == pEncoderContext->mState ) {
-        if ( M4WAR_SF_LOW_BUFFER == err ) {
-            // Insufficient prefetch, do not encode
-            err = M4NO_ERROR;
-            goto cleanUp;
-        } else {
-            // Prefetch is complete, start reading
-            pEncoderContext->mState = READING;
-        }
+        // Prefetch is complete, start reading
+        pEncoderContext->mState = READING;
     }
     // Read
-    result = pEncoderContext->mEncoder->read(&outputBuffer, NULL);
-    if( OK != result ) {
-        LOGV("VideoEditorVideoEncoder_encode: encoder returns 0x%X", result);
-    }
+    while (1)  {
+        MediaBuffer *outputBuffer =
+                pEncoderContext->mPuller->getBufferNonBlocking();
 
-    if( ERROR_END_OF_STREAM == result ) {
-        if( outputBuffer != NULL ) {
-            LOGV("VideoEditorVideoEncoder_encode : EOS w/ buffer");
-        }
-        VIDEOEDITOR_CHECK(0 == VIDEOEDITOR_MIN_BUFFER_NB, M4ERR_STATE);
-        // No output provided here, just exit
-        goto cleanUp;
-    }
-    VIDEOEDITOR_CHECK((OK == result) || (ERROR_END_OF_STREAM == result),
-        M4ERR_STATE);
+        if (outputBuffer == NULL) break;
 
-    // Provide the encoded AU to the writer
-    err = VideoEditorVideoEncoder_processOutputBuffer(pEncoderContext,
-        outputBuffer);
-    VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+        // Provide the encoded AU to the writer
+        err = VideoEditorVideoEncoder_processOutputBuffer(pEncoderContext,
+            outputBuffer);
+        VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+
+        pEncoderContext->mPuller->putBuffer(outputBuffer);
+    }
 
 cleanUp:
     if( M4NO_ERROR == err ) {
@@ -1051,6 +1190,8 @@ M4OSA_ERR VideoEditorVideoEncoder_start(M4ENCODER_Context pContext) {
     result = pEncoderContext->mEncoder->start();
     VIDEOEDITOR_CHECK(OK == result, M4ERR_STATE);
 
+    pEncoderContext->mPuller->start();
+
     // Set the new state
     pEncoderContext->mState = STARTED;
 
@@ -1075,26 +1216,32 @@ M4OSA_ERR VideoEditorVideoEncoder_stop(M4ENCODER_Context pContext) {
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     pEncoderContext = (VideoEditorVideoEncoder_Context*)pContext;
 
+    // Send EOS again to make sure the source doesn't block.
+    err = VideoEditorVideoEncoder_processInputBuffer(pEncoderContext, 0,
+        M4OSA_TRUE);
+    VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+
     // Process the remaining buffers if necessary
     if ( (BUFFERING | READING) & pEncoderContext->mState ) {
-        // Send EOS again just in case
-        err = VideoEditorVideoEncoder_processInputBuffer(pEncoderContext, 0,
-            M4OSA_TRUE);
-        VIDEOEDITOR_CHECK((M4NO_ERROR == err) || (M4WAR_SF_LOW_BUFFER == err),
-            err);
-        while( OK == result ) {
-            result = pEncoderContext->mEncoder->read(&outputBuffer, NULL);
-            if ( OK == result ) {
-                err = VideoEditorVideoEncoder_processOutputBuffer(
-                    pEncoderContext, outputBuffer);
-                VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
-            }
+        while (1)  {
+            MediaBuffer *outputBuffer =
+                pEncoderContext->mPuller->getBufferBlocking();
+
+            if (outputBuffer == NULL) break;
+
+            err = VideoEditorVideoEncoder_processOutputBuffer(
+                pEncoderContext, outputBuffer);
+            VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+
+            pEncoderContext->mPuller->putBuffer(outputBuffer);
         }
+
         pEncoderContext->mState = STARTED;
     }
 
     // Stop the graph module if necessary
     if ( STARTED == pEncoderContext->mState ) {
+        pEncoderContext->mPuller->stop();
         pEncoderContext->mEncoder->stop();
         pEncoderContext->mState = OPENED;
     }
