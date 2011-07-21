@@ -86,7 +86,7 @@ public:
     M4OSA_Void setJniCallback(void* cookie,
         jni_progress_callback_fct callbackFct);
 
-    M4OSA_ERR setPreviewFrameRenderingMode(M4xVSS_MediaRendering mode,
+    status_t setPreviewFrameRenderingMode(M4xVSS_MediaRendering mode,
         M4VIDEOEDITING_VideoFrameSize outputVideoSize);
 
 private:

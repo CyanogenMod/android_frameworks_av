@@ -3575,3 +3575,100 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
     }
     return M4NO_ERROR;
 }
+
+android::status_t getVideoSizeByResolution(
+                      M4VIDEOEDITING_VideoFrameSize resolution,
+                      uint32_t *pWidth, uint32_t *pHeight) {
+
+    uint32_t frameWidth, frameHeight;
+
+    if (pWidth == NULL) {
+        LOGE("getVideoFrameSizeByResolution invalid pointer for pWidth");
+        return android::BAD_VALUE;
+    }
+    if (pHeight == NULL) {
+        LOGE("getVideoFrameSizeByResolution invalid pointer for pHeight");
+        return android::BAD_VALUE;
+    }
+
+    switch (resolution) {
+        case M4VIDEOEDITING_kSQCIF:
+            frameWidth = 128;
+            frameHeight = 96;
+            break;
+
+        case M4VIDEOEDITING_kQQVGA:
+            frameWidth = 160;
+            frameHeight = 120;
+            break;
+
+        case M4VIDEOEDITING_kQCIF:
+            frameWidth = 176;
+            frameHeight = 144;
+            break;
+
+        case M4VIDEOEDITING_kQVGA:
+            frameWidth = 320;
+            frameHeight = 240;
+            break;
+
+        case M4VIDEOEDITING_kCIF:
+            frameWidth = 352;
+            frameHeight = 288;
+            break;
+
+        case M4VIDEOEDITING_kVGA:
+            frameWidth = 640;
+            frameHeight = 480;
+            break;
+
+        case M4VIDEOEDITING_kWVGA:
+            frameWidth = 800;
+            frameHeight = 480;
+            break;
+
+        case M4VIDEOEDITING_kNTSC:
+            frameWidth = 720;
+            frameHeight = 480;
+            break;
+
+        case M4VIDEOEDITING_k640_360:
+            frameWidth = 640;
+            frameHeight = 360;
+            break;
+
+        case M4VIDEOEDITING_k854_480:
+            frameWidth = 854;
+            frameHeight = 480;
+            break;
+
+        case M4VIDEOEDITING_k1280_720:
+            frameWidth = 1280;
+            frameHeight = 720;
+            break;
+
+        case M4VIDEOEDITING_k1080_720:
+            frameWidth = 1080;
+            frameHeight = 720;
+            break;
+
+        case M4VIDEOEDITING_k960_720:
+            frameWidth = 960;
+            frameHeight = 720;
+            break;
+
+        case M4VIDEOEDITING_k1920_1080:
+            frameWidth = 1920;
+            frameHeight = 1080;
+            break;
+
+        default:
+            LOGE("Unsupported video resolution %d.", resolution);
+            return android::BAD_VALUE;
+    }
+
+    *pWidth = frameWidth;
+    *pHeight = frameHeight;
+
+    return android::OK;
+}

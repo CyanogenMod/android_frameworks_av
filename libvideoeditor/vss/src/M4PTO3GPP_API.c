@@ -312,8 +312,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
     if( (M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4_EMP != pParams->OutputVideoFormat) &&
-        (M4VIDEOEDITING_kH264 != pParams->OutputVideoFormat))
-    {
+        (M4VIDEOEDITING_kH264 != pParams->OutputVideoFormat)) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined output video format");
         return ERR_PTO3GPP_UNDEFINED_OUTPUT_VIDEO_FORMAT;
      }
@@ -337,8 +336,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
          (M4VIDEOEDITING_k2_MBPS        == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k5_MBPS        == pParams->OutputVideoBitrate) ||
          (M4VIDEOEDITING_k8_MBPS        == pParams->OutputVideoBitrate) ||
-         (M4VIDEOEDITING_kVARIABLE_KBPS == pParams->OutputVideoBitrate)))
-    {
+         (M4VIDEOEDITING_kVARIABLE_KBPS == pParams->OutputVideoBitrate))) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined output video bitrate");
         return ERR_PTO3GPP_UNDEFINED_OUTPUT_VIDEO_BITRATE;
     }
@@ -357,11 +355,10 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
           (M4VIDEOEDITING_k640_360 == pParams->OutputVideoFrameSize) ||
           (M4VIDEOEDITING_k854_480 == pParams->OutputVideoFrameSize) ||
-          (M4VIDEOEDITING_kHD1280  == pParams->OutputVideoFrameSize) ||
-          (M4VIDEOEDITING_kHD1080  == pParams->OutputVideoFrameSize) ||
-          (M4VIDEOEDITING_kHD960   == pParams->OutputVideoFrameSize)))
-
-    {
+          (M4VIDEOEDITING_k1280_720 == pParams->OutputVideoFrameSize) ||
+          (M4VIDEOEDITING_k1080_720 == pParams->OutputVideoFrameSize) ||
+          (M4VIDEOEDITING_k960_720 == pParams->OutputVideoFrameSize) ||
+          (M4VIDEOEDITING_k1920_1080 == pParams->OutputVideoFrameSize))) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined output video frame size");
         return ERR_PTO3GPP_UNDEFINED_OUTPUT_VIDEO_FRAME_SIZE;
     }
@@ -376,20 +373,16 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
           (M4PTO3GPP_k300_KB    == pParams->OutputFileMaxSize) ||
           (M4PTO3GPP_k400_KB    == pParams->OutputFileMaxSize) ||
           (M4PTO3GPP_k500_KB    == pParams->OutputFileMaxSize) ||
-          (M4PTO3GPP_kUNLIMITED == pParams->OutputFileMaxSize)))
-
-    {
+          (M4PTO3GPP_kUNLIMITED == pParams->OutputFileMaxSize))) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined output 3GPP file size");
         return ERR_PTO3GPP_UNDEFINED_OUTPUT_FILE_SIZE;
     }
 
     /* Audio padding */
-    if (M4OSA_NULL != pParams->pInputAudioTrackFile)
-    {
+    if (M4OSA_NULL != pParams->pInputAudioTrackFile) {
         if ((!( (M4PTO3GPP_kAudioPaddingMode_None   == pParams->AudioPaddingMode) ||
                 (M4PTO3GPP_kAudioPaddingMode_Silence== pParams->AudioPaddingMode) ||
-                (M4PTO3GPP_kAudioPaddingMode_Loop   == pParams->AudioPaddingMode))))
-        {
+                (M4PTO3GPP_kAudioPaddingMode_Loop   == pParams->AudioPaddingMode)))) {
             M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined audio padding");
             return ERR_PTO3GPP_UNDEFINED_AUDIO_PADDING;
         }
@@ -399,8 +392,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
     if ((M4VIDEOEDITING_kH263 == pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kSQCIF != pParams->OutputVideoFrameSize) &&
         (M4VIDEOEDITING_kQCIF != pParams->OutputVideoFrameSize) &&
-        (M4VIDEOEDITING_kCIF != pParams->OutputVideoFrameSize))
-    {
+        (M4VIDEOEDITING_kCIF != pParams->OutputVideoFrameSize)) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open():\
              returning ERR_PTO3GPP_INVALID_VIDEO_FRAME_SIZE_FOR_H263");
         return ERR_PTO3GPP_INVALID_VIDEO_FRAME_SIZE_FOR_H263;
@@ -408,8 +400,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
 
     /**
      *  Check state automaton */
-    if (M4PTO3GPP_kState_CREATED != pC->m_State)
-    {
+    if (M4PTO3GPP_kState_CREATED != pC->m_State) {
         M4OSA_TRACE1_1("M4PTO3GPP_Open(): Wrong State (%d), returning M4ERR_STATE", pC->m_State);
         return M4ERR_STATE;
     }
@@ -423,8 +414,7 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
     /***********************************/
     /* Open input file with the reader */
     /***********************************/
-    if (M4OSA_NULL != pC->m_Params.pInputAudioTrackFile)
-    {
+    if (M4OSA_NULL != pC->m_Params.pInputAudioTrackFile) {
         /**
          * Get the reader interface according to the input audio file type */
         switch(pC->m_Params.AudioFileFormat)
@@ -1346,19 +1336,24 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
             EncParams.FrameWidth  = M4ENCODER_854_480_Width;
             break;
 
-        case M4VIDEOEDITING_kHD1280:
-            EncParams.FrameHeight = M4ENCODER_HD1280_Height;
-            EncParams.FrameWidth  = M4ENCODER_HD1280_Width;
+        case M4VIDEOEDITING_k1280_720:
+            EncParams.FrameHeight = M4ENCODER_1280_720_Height;
+            EncParams.FrameWidth  = M4ENCODER_1280_720_Width;
             break;
 
-        case M4VIDEOEDITING_kHD1080:
-            EncParams.FrameHeight = M4ENCODER_HD1080_Height;
-            EncParams.FrameWidth  = M4ENCODER_HD1080_Width;
+        case M4VIDEOEDITING_k1080_720:
+            EncParams.FrameHeight = M4ENCODER_1080_720_Height;
+            EncParams.FrameWidth  = M4ENCODER_1080_720_Width;
             break;
 
-        case M4VIDEOEDITING_kHD960:
-            EncParams.FrameHeight = M4ENCODER_HD960_Height;
-            EncParams.FrameWidth  = M4ENCODER_HD960_Width;
+        case M4VIDEOEDITING_k960_720:
+            EncParams.FrameHeight = M4ENCODER_960_720_Height;
+            EncParams.FrameWidth  = M4ENCODER_960_720_Width;
+            break;
+
+        case M4VIDEOEDITING_k1920_1080:
+            EncParams.FrameHeight = M4ENCODER_1920_1080_Height;
+            EncParams.FrameWidth  = M4ENCODER_1920_1080_Width;
             break;
 /* -CR Google */
         default :

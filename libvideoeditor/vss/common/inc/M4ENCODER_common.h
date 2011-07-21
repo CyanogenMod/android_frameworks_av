@@ -85,21 +85,21 @@ typedef enum
 */
 typedef enum
 {
-    M4ENCODER_kIYUV420=0,   /**< YUV 4:2:0 planar (standard input for mpeg-4 video) */
-    M4ENCODER_kIYUV422,        /**< YUV422 planar */
-    M4ENCODER_kIYUYV,        /**< YUV422 interlaced, luma first */
-    M4ENCODER_kIUYVY,        /**< YUV422 interlaced, chroma first */
-    M4ENCODER_kIJPEG,        /**< JPEG compressed frames */
-    M4ENCODER_kIRGB444,        /**< RGB 12 bits 4:4:4 */
-    M4ENCODER_kIRGB555,        /**< RGB 15 bits 5:5:5 */
-    M4ENCODER_kIRGB565,        /**< RGB 16 bits 5:6:5 */
-    M4ENCODER_kIRGB24,        /**< RGB 24 bits 8:8:8 */
-    M4ENCODER_kIRGB32,        /**< RGB 32 bits  */
-    M4ENCODER_kIBGR444,        /**< BGR 12 bits 4:4:4 */
-    M4ENCODER_kIBGR555,        /**< BGR 15 bits 5:5:5 */
-    M4ENCODER_kIBGR565,        /**< BGR 16 bits 5:6:5 */
-    M4ENCODER_kIBGR24,        /**< BGR 24 bits 8:8:8 */
-    M4ENCODER_kIBGR32        /**< BGR 32 bits  */
+    M4ENCODER_kIYUV420=0, /**< YUV 4:2:0 planar (standard input for mpeg-4 video) */
+    M4ENCODER_kIYUV422,   /**< YUV422 planar */
+    M4ENCODER_kIYUYV,     /**< YUV422 interlaced, luma first */
+    M4ENCODER_kIUYVY,     /**< YUV422 interlaced, chroma first */
+    M4ENCODER_kIJPEG,     /**< JPEG compressed frames */
+    M4ENCODER_kIRGB444,   /**< RGB 12 bits 4:4:4 */
+    M4ENCODER_kIRGB555,   /**< RGB 15 bits 5:5:5 */
+    M4ENCODER_kIRGB565,   /**< RGB 16 bits 5:6:5 */
+    M4ENCODER_kIRGB24,    /**< RGB 24 bits 8:8:8 */
+    M4ENCODER_kIRGB32,    /**< RGB 32 bits  */
+    M4ENCODER_kIBGR444,   /**< BGR 12 bits 4:4:4 */
+    M4ENCODER_kIBGR555,   /**< BGR 15 bits 5:5:5 */
+    M4ENCODER_kIBGR565,   /**< BGR 16 bits 5:6:5 */
+    M4ENCODER_kIBGR24,    /**< BGR 24 bits 8:8:8 */
+    M4ENCODER_kIBGR32     /**< BGR 32 bits  */
 } M4ENCODER_InputFormat;
 
 /**
@@ -130,29 +130,29 @@ typedef enum
 */
 typedef enum
 {
-    M4ENCODER_SQCIF_Width = 128,    /**< SQCIF 128x96 */
-    M4ENCODER_QQVGA_Width = 160,    /**< QQVGA 160x120 */
-    M4ENCODER_QCIF_Width  = 176,    /**< QCIF 176x144 */
-    M4ENCODER_QVGA_Width  = 320,    /**< QVGA 320x240 */
-    M4ENCODER_CIF_Width   = 352,    /**< CIF 352x288 */
-    M4ENCODER_VGA_Width   = 640,    /**< VGA 640x480 */
-    M4ENCODER_SVGA_Width  = 800,    /**< SVGA 800x600 */
-    M4ENCODER_XGA_Width   = 1024,    /**< XGA 1024x768 */
-    M4ENCODER_XVGA_Width  = 1280,    /**< XVGA 1280x1024 */
+    M4ENCODER_SQCIF_Width = 128, /**< SQCIF 128x96 */
+    M4ENCODER_QQVGA_Width = 160, /**< QQVGA 160x120 */
+    M4ENCODER_QCIF_Width  = 176, /**< QCIF 176x144 */
+    M4ENCODER_QVGA_Width  = 320, /**< QVGA 320x240 */
+    M4ENCODER_CIF_Width   = 352, /**< CIF 352x288 */
+    M4ENCODER_VGA_Width   = 640, /**< VGA 640x480 */
+    M4ENCODER_SVGA_Width  = 800, /**< SVGA 800x600 */
+    M4ENCODER_XGA_Width   = 1024, /**< XGA 1024x768 */
+    M4ENCODER_XVGA_Width  = 1280, /**< XVGA 1280x1024 */
 /* +PR LV5807 */
-    M4ENCODER_WVGA_Width  = 800,    /**< WVGA 800 x 480 */
-    M4ENCODER_NTSC_Width  = 720,    /**< NTSC 720 x 480 */
+    M4ENCODER_WVGA_Width  = 800, /**< WVGA 800 x 480 */
+    M4ENCODER_NTSC_Width  = 720, /**< NTSC 720 x 480 */
 /* -PR LV5807 */
 
 /* +CR Google */
-    M4ENCODER_640_360_Width       = 640,        /**< 640x360 */
+    M4ENCODER_640_360_Width   = 640,  /**< 640x360 */
     // StageFright encoders require %16 resolution
-    M4ENCODER_854_480_Width     = 848, /**< 848x480 */
-    M4ENCODER_HD1280_Width         = 1280,            /**< 720p 1280x720 */
+    M4ENCODER_854_480_Width   = 848,  /**< 848x480 */
+    M4ENCODER_1280_720_Width  = 1280, /**< 720p 1280x720 */
     // StageFright encoders require %16 resolution
-    M4ENCODER_HD1080_Width      = 1088, /**< 720p 1088x720 */
-    M4ENCODER_HD960_Width          = 960            /**< 720p 960x720 */
-
+    M4ENCODER_1080_720_Width  = 1088, /**< 720p 1088x720 */
+    M4ENCODER_960_720_Width   = 960,  /**< 720p 960x720 */
+    M4ENCODER_1920_1080_Width = 1920  /**< 1080p 1920x1080 */
 /* -CR Google */
 
 } M4ENCODER_FrameWidth;
@@ -165,27 +165,28 @@ typedef enum
 */
 typedef enum
 {
-    M4ENCODER_SQCIF_Height = 96,    /**< SQCIF 128x96 */
-    M4ENCODER_QQVGA_Height = 120,    /**< QQVGA 160x120 */
-    M4ENCODER_QCIF_Height  = 144,    /**< QCIF 176x144 */
-    M4ENCODER_QVGA_Height  = 240,    /**< QVGA 320x240 */
-    M4ENCODER_CIF_Height   = 288,    /**< CIF 352x288 */
-    M4ENCODER_VGA_Height   = 480,    /**< VGA 340x480 */
-    M4ENCODER_SVGA_Height  = 600,    /**< SVGA 800x600 */
-    M4ENCODER_XGA_Height   = 768,    /**< XGA 1024x768 */
-    M4ENCODER_XVGA_Height  = 1024,    /**< XVGA 1280x1024 */
+    M4ENCODER_SQCIF_Height = 96,  /**< SQCIF 128x96 */
+    M4ENCODER_QQVGA_Height = 120, /**< QQVGA 160x120 */
+    M4ENCODER_QCIF_Height  = 144, /**< QCIF 176x144 */
+    M4ENCODER_QVGA_Height  = 240, /**< QVGA 320x240 */
+    M4ENCODER_CIF_Height   = 288, /**< CIF 352x288 */
+    M4ENCODER_VGA_Height   = 480, /**< VGA 340x480 */
+    M4ENCODER_SVGA_Height  = 600, /**< SVGA 800x600 */
+    M4ENCODER_XGA_Height   = 768, /**< XGA 1024x768 */
+    M4ENCODER_XVGA_Height  = 1024, /**< XVGA 1280x1024 */
 /* +PR LV5807 */
-    M4ENCODER_WVGA_Height  = 480,    /**< WVGA 800 x 480 */
-    M4ENCODER_NTSC_Height  = 480,    /**< NTSC 720 x 480 */
+    M4ENCODER_WVGA_Height  = 480, /**< WVGA 800 x 480 */
+    M4ENCODER_NTSC_Height  = 480, /**< NTSC 720 x 480 */
 /* -PR LV5807 */
 
 /* +CR Google */
-    M4ENCODER_640_360_Height       = 360,        /**< 640x360 */
-    M4ENCODER_854_480_Height       = 480,        /**< 854x480 */
-    M4ENCODER_HD1280_Height     = 720,        /**< 720p 1280x720 */
-    M4ENCODER_HD1080_Height     = 720,        /**< 720p 1080x720 */
-    M4ENCODER_HD960_Height      = 720        /**< 720p 960x720 */
-
+    M4ENCODER_640_360_Height  = 360, /**< 640x360 */
+    M4ENCODER_854_480_Height  = 480, /**< 854x480 */
+    M4ENCODER_1280_720_Height = 720, /**< 720p 1280x720 */
+    M4ENCODER_1080_720_Height = 720, /**< 720p 1080x720 */
+    M4ENCODER_960_720_Height  = 720, /**< 720p 960x720 */
+    // StageFright encoders require %16 resolution
+    M4ENCODER_1920_1080_Height = 1088 /**< 1080p 1920x1080 */
 /* -CR Google */
 } M4ENCODER_FrameHeight;
 
@@ -197,10 +198,10 @@ typedef enum
 */
 typedef enum
 {
-    M4ENCODER_k28_KBPS    = 28000,
-    M4ENCODER_k40_KBPS    = 40000,
-    M4ENCODER_k64_KBPS    = 64000,
-    M4ENCODER_k96_KBPS    = 96000,
+    M4ENCODER_k28_KBPS  = 28000,
+    M4ENCODER_k40_KBPS  = 40000,
+    M4ENCODER_k64_KBPS  = 64000,
+    M4ENCODER_k96_KBPS  = 96000,
     M4ENCODER_k128_KBPS = 128000,
     M4ENCODER_k192_KBPS = 192000,
     M4ENCODER_k256_KBPS = 256000,
