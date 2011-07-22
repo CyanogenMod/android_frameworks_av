@@ -704,6 +704,8 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
     success = meta->findInt32(kKeyHeight, &vHeight);
     VIDEOEDITOR_CHECK(TRUE == success, M4ERR_PARAMETER);
 
+    LOGD("vWidth = %d, vHeight = %d", vWidth, vHeight);
+
     pDecShellContext->mGivenWidth = vWidth;
     pDecShellContext->mGivenHeight = vHeight;
 
@@ -715,18 +717,24 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
         cropBottom = vHeight - 1;
 
         LOGV("got dimensions only %d x %d", width, height);
+        LOGD("got dimensions only %d x %d", width, height);
     } else {
         LOGV("got crop rect %d, %d, %d, %d",
              cropLeft, cropTop, cropRight, cropBottom);
+        LOGD("got crop rect %d, %d, %d, %d",
+             cropLeft, cropTop, cropRight, cropBottom);
     }
+
+    pDecShellContext->mCropRect.left = cropLeft;
+    pDecShellContext->mCropRect.right = cropRight;
+    pDecShellContext->mCropRect.top = cropTop;
+    pDecShellContext->mCropRect.bottom = cropBottom;
 
     width = cropRight - cropLeft + 1;
     height = cropBottom - cropTop + 1;
 
     LOGV("VideoDecoder_configureFromMetadata : W=%d H=%d", width, height);
     VIDEOEDITOR_CHECK((0 != width) && (0 != height), M4ERR_PARAMETER);
-
-    LOGV("VideoDecoder_configureFromMetadata : W=%d H=%d", width, height);
 
     if( (M4OSA_NULL != pDecShellContext->m_pDecBufferPool) &&
         (pDecShellContext->m_pVideoStreamhandler->m_videoWidth  == \
@@ -779,6 +787,9 @@ M4OSA_ERR VideoEditorVideoDecoder_destroy(M4OSA_Context pContext) {
     LOGV("VideoEditorVideoDecoder_destroy begin");
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
+    // Release the color converter
+    delete pDecShellContext->mYV12ColorConverter;
+
     // Destroy the graph
     if( pDecShellContext->mVideoDecoder != NULL ) {
         LOGV("### VideoEditorVideoDecoder_destroy : releasing decoder");
@@ -817,6 +828,7 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
     int32_t colorFormat = 0;
     M4OSA_UInt32 size = 0;
     sp<MetaData> decoderMetadata = NULL;
+    int decoderOutput = OMX_COLOR_FormatYUV420Planar;
 
     LOGV("VideoEditorVideoDecoder_create begin");
     // Input parameters check
@@ -929,6 +941,19 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
         pDecShellContext->m_pVideoStreamhandler->m_videoWidth);
     pDecShellContext->mVideoDecoder->getFormat()->setInt32(kKeyHeight,
         pDecShellContext->m_pVideoStreamhandler->m_videoHeight);
+
+    // Get the color converter
+    pDecShellContext->mYV12ColorConverter = new YV12ColorConverter;
+    if (pDecShellContext->mYV12ColorConverter->isLoaded()) {
+        decoderOutput = pDecShellContext->mYV12ColorConverter->getDecoderOutputFormat();
+    }
+
+    if (decoderOutput == OMX_COLOR_FormatYUV420Planar) {
+        delete pDecShellContext->mYV12ColorConverter;
+        pDecShellContext->mYV12ColorConverter = NULL;
+    }
+
+    LOGI("decoder output format = 0x%X\n", decoderOutput);
 
     // Configure the buffer pool from the metadata
     err = VideoEditorVideoDecoder_configureFromMetadata(pDecShellContext,
@@ -1283,7 +1308,8 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
         }
 
         if( 0 < pDecoderBuffer->range_length() ) {
-        LOGV("VIDEOEDITOR_VideoDecoder frame buffer size = %d",
+        LOGV("VIDEOEDITOR_VideoDecoder frame buffer offset = %d, size = %d",
+            pDecoderBuffer->range_offset(),
             pDecoderBuffer->range_length());
 
         pDecoderBuffer->meta_data()->findInt64(kKeyTime, &lFrameTime);
@@ -1386,9 +1412,21 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                 break;
             }
             default:
-                LOGV("VideoDecoder_decode: unexpected color format 0x%X",
-                    pDecShellContext->decOuputColorFormat);
-                return M4ERR_PARAMETER;
+                if (pDecShellContext->mYV12ColorConverter) {
+                    if (pDecShellContext->mYV12ColorConverter->convertDecoderOutputToYV12(
+                        (uint8_t *)pDecoderBuffer->data(),// ?? + pDecoderBuffer->range_offset(),   // decoderBits
+                        pDecShellContext->mGivenWidth,  // decoderWidth
+                        pDecShellContext->mGivenHeight,  // decoderHeight
+                        pDecShellContext->mCropRect,  // decoderRect
+                        tmpDecBuffer->pData /* dstBits */) < 0) {
+                        LOGE("convertDecoderOutputToYV12 failed");
+                    }
+                } else {
+                    LOGW("VideoDecoder_decode: unexpected color format 0x%X",
+                        pDecShellContext->decOuputColorFormat);
+                    lerr = M4ERR_PARAMETER;
+                    goto VIDEOEDITOR_VideoDecode_cleanUP;
+                }
         }
 
         tmpDecBuffer->buffCTS = pDecShellContext->m_lastDecodedCTS;

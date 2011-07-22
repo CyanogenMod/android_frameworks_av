@@ -62,8 +62,6 @@ struct PreviewPlayer : public PreviewPlayerBase {
 
     status_t getVideoDimensions(int32_t *width, int32_t *height) const;
 
-    status_t suspend();
-    status_t resume();
     void acquireLock();
     void releaseLock();
 
@@ -133,32 +131,6 @@ private:
     int32_t mVideoWidth, mVideoHeight;
 
     MediaBuffer *mLastVideoBuffer;
-
-    struct SuspensionState {
-        String8 mUri;
-        KeyedVector<String8, String8> mUriHeaders;
-        sp<DataSource> mFileSource;
-
-        uint32_t mFlags;
-        int64_t mPositionUs;
-
-        void *mLastVideoFrame;
-        size_t mLastVideoFrameSize;
-        int32_t mColorFormat;
-        int32_t mVideoWidth, mVideoHeight;
-        int32_t mDecodedWidth, mDecodedHeight;
-
-        SuspensionState()
-            : mLastVideoFrame(NULL) {
-        }
-
-        ~SuspensionState() {
-            if (mLastVideoFrame) {
-                free(mLastVideoFrame);
-                mLastVideoFrame = NULL;
-            }
-        }
-    } *mSuspensionState;
 
     //Data structures used for audio and video effects
     M4VSS3GPP_EffectSettings* mEffectsSettings;

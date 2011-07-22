@@ -173,16 +173,6 @@ player_type VideoEditorPlayer::playerType() {
     return STAGEFRIGHT_PLAYER;
 }
 
-status_t VideoEditorPlayer::suspend() {
-    LOGV("suspend");
-    return mPlayer->suspend();
-}
-
-status_t VideoEditorPlayer::resume() {
-    LOGV("resume");
-    return mPlayer->resume();
-}
-
 void VideoEditorPlayer::acquireLock() {
     LOGV("acquireLock");
     mPlayer->acquireLock();

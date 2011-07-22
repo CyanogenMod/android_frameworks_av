@@ -178,7 +178,6 @@ PreviewPlayer::PreviewPlayer()
 
     mVideoRenderer = NULL;
     mLastVideoBuffer = NULL;
-    mSuspensionState = NULL;
     mEffectsSettings = NULL;
     mVeAudioPlayer = NULL;
     mAudioMixStoryBoardTS = 0;
@@ -441,9 +440,6 @@ void PreviewPlayer::reset_l() {
     mUriHeaders.clear();
 
     mFileSource.clear();
-
-    delete mSuspensionState;
-    mSuspensionState = NULL;
 
     mCurrentVideoEffect = VIDEO_EFFECT_NONE;
     mIsVideoSourceJpg = false;
@@ -759,13 +755,8 @@ status_t PreviewPlayer::initRenderer_l() {
     if (mSurface != NULL) {
         sp<MetaData> meta = mVideoSource->getFormat();
 
-        int32_t format;
         const char *component;
-        int32_t decodedWidth, decodedHeight;
-        CHECK(meta->findInt32(kKeyColorFormat, &format));
         CHECK(meta->findCString(kKeyDecoderComponent, &component));
-        CHECK(meta->findInt32(kKeyWidth, &decodedWidth));
-        CHECK(meta->findInt32(kKeyHeight, &decodedHeight));
 
         // Must ensure that mVideoRenderer's destructor is actually executed
         // before creating a new one.
@@ -779,7 +770,7 @@ status_t PreviewPlayer::initRenderer_l() {
 
             mVideoRenderer = PreviewLocalRenderer:: initPreviewLocalRenderer (
                 false,  // previewOnly
-                (OMX_COLOR_FORMATTYPE)format,
+                OMX_COLOR_FormatYUV420Planar,
                 mSurface,
                 mOutputVideoWidth, mOutputVideoHeight,
                 mOutputVideoWidth, mOutputVideoHeight);
@@ -883,9 +874,7 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
             }
         }
 
-        CHECK(mVideoTrack->getFormat()->findInt32(kKeyWidth, &mVideoWidth));
-        CHECK(mVideoTrack->getFormat()->findInt32(kKeyHeight, &mVideoHeight));
-
+        getVideoBufferSize(mVideoTrack->getFormat(), &mVideoWidth, &mVideoHeight);
         mReportedWidth = mVideoWidth;
         mReportedHeight = mVideoHeight;
 
@@ -958,7 +947,7 @@ void PreviewPlayer::onVideoEvent() {
                     mSeekTimeUs, MediaSource::ReadOptions::SEEK_CLOSEST);
         }
         for (;;) {
-            status_t err = mVideoSource->read(&mVideoBuffer, &options);
+            status_t err = readYV12Buffer(mVideoSource, &mVideoBuffer, &options);
             options.clearSeekTo();
 
             if (err != OK) {
@@ -968,9 +957,8 @@ void PreviewPlayer::onVideoEvent() {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
                     sp<MetaData> meta = mVideoSource->getFormat();
+                    getVideoBufferSize(meta, &mReportedWidth, &mReportedHeight);
 
-                    CHECK(meta->findInt32(kKeyWidth, &mReportedWidth));
-                    CHECK(meta->findInt32(kKeyHeight, &mReportedHeight));
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
                         err = initRenderer_l();
@@ -1418,77 +1406,6 @@ void PreviewPlayer::finishAsyncPrepare_l() {
     mPreparedCondition.broadcast();
 }
 
-status_t PreviewPlayer::suspend() {
-    LOGV("suspend");
-    Mutex::Autolock autoLock(mLock);
-
-    if (mSuspensionState != NULL) {
-        if (mLastVideoBuffer == NULL) {
-            //go into here if video is suspended again
-            //after resuming without being played between
-            //them
-            SuspensionState *state = mSuspensionState;
-            mSuspensionState = NULL;
-            reset_l();
-            mSuspensionState = state;
-            return OK;
-        }
-
-        delete mSuspensionState;
-        mSuspensionState = NULL;
-    }
-
-    if (mFlags & PREPARING) {
-        mFlags |= PREPARE_CANCELLED;
-    }
-
-    while (mFlags & PREPARING) {
-        mPreparedCondition.wait(mLock);
-    }
-
-    SuspensionState *state = new SuspensionState;
-    state->mUri = mUri;
-    state->mUriHeaders = mUriHeaders;
-    state->mFileSource = mFileSource;
-
-    state->mFlags = mFlags & (PLAYING | AUTO_LOOPING | LOOPING | AT_EOS);
-    getPosition(&state->mPositionUs);
-
-    if (mLastVideoBuffer) {
-        size_t size = mLastVideoBuffer->range_length();
-        if (size) {
-            int32_t unreadable;
-            if (!mLastVideoBuffer->meta_data()->findInt32(
-                        kKeyIsUnreadable, &unreadable)
-                    || unreadable == 0) {
-                state->mLastVideoFrameSize = size;
-                state->mLastVideoFrame = malloc(size);
-                memcpy(state->mLastVideoFrame,
-                   (const uint8_t *)mLastVideoBuffer->data()
-                        + mLastVideoBuffer->range_offset(),
-                   size);
-
-                state->mVideoWidth = mVideoWidth;
-                state->mVideoHeight = mVideoHeight;
-
-                sp<MetaData> meta = mVideoSource->getFormat();
-                CHECK(meta->findInt32(kKeyColorFormat, &state->mColorFormat));
-                CHECK(meta->findInt32(kKeyWidth, &state->mDecodedWidth));
-                CHECK(meta->findInt32(kKeyHeight, &state->mDecodedHeight));
-            } else {
-                LOGV("Unable to save last video frame, we have no access to "
-                     "the decoded video data.");
-            }
-        }
-    }
-
-    reset_l();
-
-    mSuspensionState = state;
-
-    return OK;
-}
-
 void PreviewPlayer::acquireLock() {
     LOGV("acquireLock");
     mLockControl.lock();
@@ -1498,67 +1415,6 @@ void PreviewPlayer::releaseLock() {
     LOGV("releaseLock");
     mLockControl.unlock();
 }
-
-status_t PreviewPlayer::resume() {
-    LOGV("resume");
-    Mutex::Autolock autoLock(mLock);
-
-    if (mSuspensionState == NULL) {
-        return INVALID_OPERATION;
-    }
-
-    SuspensionState *state = mSuspensionState;
-    mSuspensionState = NULL;
-
-    status_t err;
-    if (state->mFileSource != NULL) {
-        err = PreviewPlayerBase::setDataSource_l(state->mFileSource);
-
-        if (err == OK) {
-            mFileSource = state->mFileSource;
-        }
-    } else {
-        err = PreviewPlayerBase::setDataSource_l(state->mUri, &state->mUriHeaders);
-    }
-
-    if (err != OK) {
-        delete state;
-        state = NULL;
-
-        return err;
-    }
-
-    seekTo_l(state->mPositionUs);
-
-    mFlags = state->mFlags & (AUTO_LOOPING | LOOPING | AT_EOS);
-
-    if (state->mLastVideoFrame && (mSurface != NULL)) {
-        mVideoRenderer =
-            PreviewLocalRenderer::initPreviewLocalRenderer(
-                    true,  // previewOnly
-                    (OMX_COLOR_FORMATTYPE)state->mColorFormat,
-                    mSurface,
-                    state->mVideoWidth,
-                    state->mVideoHeight,
-                    state->mDecodedWidth,
-                    state->mDecodedHeight);
-
-        mVideoRendererIsPreview = true;
-
-        ((PreviewLocalRenderer *)mVideoRenderer.get())->render(
-                state->mLastVideoFrame, state->mLastVideoFrameSize);
-    }
-
-    if (state->mFlags & PLAYING) {
-        play_l();
-    }
-
-    mSuspensionState = state;
-    state = NULL;
-
-    return OK;
-}
-
 
 status_t PreviewPlayer::loadEffectsSettings(
                     M4VSS3GPP_EffectSettings* pEffectSettings, int nEffects) {
@@ -1647,15 +1503,6 @@ M4OSA_ERR PreviewPlayer::doMediaRendering() {
     M4VIFI_UInt8 *tempOutputBuffer= M4OSA_NULL;
     size_t videoBufferSize = 0;
     M4OSA_UInt32 frameSize = 0, i=0, index =0, nFrameCount =0, bufferOffset =0;
-    int32_t colorFormat = 0;
-
-    if(!mIsVideoSourceJpg) {
-        sp<MetaData> meta = mVideoSource->getFormat();
-        CHECK(meta->findInt32(kKeyColorFormat, &colorFormat));
-    }
-    else {
-        colorFormat = OMX_COLOR_FormatYUV420Planar;
-    }
 
     videoBufferSize = mVideoBuffer->size();
     frameSize = (mVideoWidth*mVideoHeight*3) >> 1;
@@ -1841,22 +1688,6 @@ status_t PreviewPlayer::setImageClipProperties(uint32_t width,uint32_t height) {
 M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
     M4OSA_ERR err = M4NO_ERROR;
     vePostProcessParams postProcessParams;
-    int32_t colorFormat = 0;
-
-
-    if(!mIsVideoSourceJpg) {
-        sp<MetaData> meta = mVideoSource->getFormat();
-        CHECK(meta->findInt32(kKeyColorFormat, &colorFormat));
-    }
-    else {
-        colorFormat = OMX_COLOR_FormatYUV420Planar;
-    }
-
-    if((colorFormat == OMX_COLOR_FormatYUV420SemiPlanar) ||
-       (colorFormat == 0x7FA30C00)) {
-          LOGE("doVideoPostProcessing: colorFormat YUV420Sp not supported");
-          return M4ERR_UNSUPPORTED_MEDIA_TYPE;
-    }
 
     postProcessParams.vidBuffer = (M4VIFI_UInt8*)mVideoBuffer->data()
         + mVideoBuffer->range_offset();
@@ -1900,7 +1731,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     mSeekTimeUs, MediaSource::ReadOptions::SEEK_CLOSEST);
         }
         for (;;) {
-            status_t err = mVideoSource->read(&mVideoBuffer, &options);
+            status_t err = readYV12Buffer(mVideoSource, &mVideoBuffer, &options);
             options.clearSeekTo();
 
             if (err != OK) {
@@ -1910,9 +1741,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
                     sp<MetaData> meta = mVideoSource->getFormat();
-
-                    CHECK(meta->findInt32(kKeyWidth, &mReportedWidth));
-                    CHECK(meta->findInt32(kKeyHeight, &mReportedHeight));
+                    getVideoBufferSize(meta, &mReportedWidth, &mReportedHeight);
 
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;

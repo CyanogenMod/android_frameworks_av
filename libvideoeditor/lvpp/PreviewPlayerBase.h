@@ -23,10 +23,12 @@
 
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/MediaSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
+#include <YV12ColorConverter.h>
 
 namespace android {
 
@@ -98,6 +100,11 @@ struct PreviewPlayerBase {
 
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
+
+protected:
+    status_t readYV12Buffer(sp<MediaSource> source, MediaBuffer **buffer,
+        const MediaSource::ReadOptions *options);
+    void getVideoBufferSize(sp<MetaData> meta, int* width, int* height);
 
 private:
     friend struct AwesomeEvent;
@@ -222,6 +229,10 @@ private:
     sp<DecryptHandle> mDecryptHandle;
 
     int64_t mLastVideoTimeUs;
+
+    ARect mCropRect;
+    int32_t mGivenWidth, mGivenHeight;
+    YV12ColorConverter *mYV12ColorConverter;
 
     status_t setDataSource_l(
             const char *uri,

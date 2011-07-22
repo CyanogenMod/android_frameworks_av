@@ -112,8 +112,6 @@ public:
     virtual player_type playerType();
     virtual status_t invoke(const Parcel &request, Parcel *reply);
     virtual void setAudioSink(const sp<AudioSink> &audioSink);
-    virtual status_t suspend();
-    virtual status_t resume();
     virtual void acquireLock();
     virtual void releaseLock();
     virtual status_t setParameter(int key, const Parcel &request);

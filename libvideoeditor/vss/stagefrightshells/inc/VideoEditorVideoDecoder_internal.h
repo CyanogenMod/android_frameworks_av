@@ -35,8 +35,10 @@
 #include "M4OSA_Semaphore.h"
 #include "VideoEditorBuffer.h"
 #include "M4VD_Tools.h"
+#include "YV12ColorConverter.h"
 
 #include <utils/RefBase.h>
+#include <android/rect.h>
 #include <OMX_Video.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/OMXCodec.h>
@@ -109,6 +111,8 @@ typedef struct {
     M4OSA_Double            mLastOutputCts;
     M4OSA_Int32             mGivenWidth, mGivenHeight; //Used in case of
                                                        //INFO_FORMAT_CHANGED
+    ARect                   mCropRect;  // These are obtained from kKeyCropRect.
+    YV12ColorConverter*     mYV12ColorConverter;
 
 } VideoEditorVideoDecoder_Context;
 

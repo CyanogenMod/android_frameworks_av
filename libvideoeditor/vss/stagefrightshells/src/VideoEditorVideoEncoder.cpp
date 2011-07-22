@@ -29,6 +29,7 @@
 #include "M4SYS_AccessUnit.h"
 #include "VideoEditorVideoEncoder.h"
 #include "VideoEditorUtils.h"
+#include <YV12ColorConverter.h>
 
 #include "utils/Log.h"
 #include "utils/Vector.h"
@@ -43,9 +44,6 @@
 /********************
  *   DEFINITIONS    *
  ********************/
-
-// Encoder color format
-#define VIDEOEDITOR_ENCODER_COLOR_FORMAT OMX_COLOR_FormatYUV420Planar
 
 // Force using hardware encoder
 #define VIDEOEDITOR_FORCECODEC kHardwareCodecsOnly
@@ -457,6 +455,7 @@ typedef struct {
     sp<MediaSource>                   mEncoder;
     OMX_COLOR_FORMATTYPE              mEncoderColorFormat;
     VideoEditorVideoEncoderPuller*    mPuller;
+    YV12ColorConverter*               mYV12ColorConverter;
 
     uint32_t                          mNbInputFrames;
     double                            mFirstInputCts;
@@ -609,6 +608,7 @@ M4OSA_ERR VideoEditorVideoEncoder_init(M4ENCODER_Format format,
 
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorVideoEncoder_Context* pEncoderContext = M4OSA_NULL;
+    int encoderInput = OMX_COLOR_FormatYUV420Planar;
 
     LOGV("VideoEditorVideoEncoder_init begin: format  %d", format);
     // Input parameters check
@@ -626,6 +626,18 @@ M4OSA_ERR VideoEditorVideoEncoder_init(M4ENCODER_Format format,
     pEncoderContext->mPreProcFunction = pVPPfct;
     pEncoderContext->mPreProcContext = pVPPctxt;
     pEncoderContext->mPuller = NULL;
+
+    // Get color converter and determine encoder input format
+    pEncoderContext->mYV12ColorConverter = new YV12ColorConverter;
+    if (pEncoderContext->mYV12ColorConverter->isLoaded()) {
+        encoderInput = pEncoderContext->mYV12ColorConverter->getEncoderInputFormat();
+    }
+    if (encoderInput == OMX_COLOR_FormatYUV420Planar) {
+        delete pEncoderContext->mYV12ColorConverter;
+        pEncoderContext->mYV12ColorConverter = NULL;
+    }
+    pEncoderContext->mEncoderColorFormat = (OMX_COLOR_FORMATTYPE)encoderInput;
+    LOGI("encoder input format = 0x%X\n", encoderInput);
 
     *pContext = pEncoderContext;
 
@@ -691,6 +703,9 @@ M4OSA_ERR VideoEditorVideoEncoder_close(M4ENCODER_Context pContext) {
 
     delete pEncoderContext->mPuller;
     pEncoderContext->mPuller = NULL;
+
+    delete pEncoderContext->mYV12ColorConverter;
+    pEncoderContext->mYV12ColorConverter = NULL;
 
     // Set the new state
     pEncoderContext->mState = CREATED;
@@ -819,7 +834,6 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
         (int32_t)pEncoderContext->mCodecParams->Bitrate);
     encoderMetadata->setInt32(kKeyIFramesInterval, 1);
 
-    pEncoderContext->mEncoderColorFormat = VIDEOEDITOR_ENCODER_COLOR_FORMAT;
     encoderMetadata->setInt32(kKeyColorFormat,
         pEncoderContext->mEncoderColorFormat);
 
@@ -929,15 +943,35 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
             pEncoderContext->mPreProcContext, M4OSA_NULL, pOutPlane);
         VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
 
-        // Convert to MediaBuffer format if necessary
-        if( OMX_COLOR_FormatYUV420SemiPlanar == \
-                pEncoderContext->mEncoderColorFormat ) {
-            M4OSA_UInt8* pTmpData = M4OSA_NULL;
-            pTmpData = pData + sizeY;
-            // Highly unoptimized copy...
-            for( M4OSA_UInt32 i=0; i<sizeU; i++ ) {
-                *pTmpData = pOutPlane[2].pac_data[i]; pTmpData++;
-                *pTmpData = pOutPlane[1].pac_data[i]; pTmpData++;
+        // Convert MediaBuffer to the encoder input format if necessary
+        if (pEncoderContext->mYV12ColorConverter) {
+            YV12ColorConverter* converter = pEncoderContext->mYV12ColorConverter;
+            int actualWidth = pEncoderContext->mCodecParams->FrameWidth;
+            int actualHeight = pEncoderContext->mCodecParams->FrameHeight;
+
+            int encoderWidth, encoderHeight;
+            ARect encoderRect;
+            int encoderBufferSize;
+
+            if (converter->getEncoderInputBufferInfo(
+                actualWidth, actualHeight,
+                &encoderWidth, &encoderHeight,
+                &encoderRect, &encoderBufferSize) == 0) {
+
+                MediaBuffer* newBuffer = new MediaBuffer(encoderBufferSize);
+
+                if (converter->convertYV12ToEncoderInput(
+                    pData,  // srcBits
+                    actualWidth, actualHeight,
+                    encoderWidth, encoderHeight,
+                    encoderRect,
+                    (uint8_t*)newBuffer->data() + newBuffer->range_offset()) < 0) {
+                    LOGE("convertYV12ToEncoderInput failed");
+                }
+
+                // switch to new buffer
+                buffer->release();
+                buffer = newBuffer;
             }
         }
 

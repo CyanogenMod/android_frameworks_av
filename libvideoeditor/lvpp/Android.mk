@@ -36,7 +36,8 @@ LOCAL_SRC_FILES:=          \
     VideoEditorBGAudioProcessing.cpp \
     AudioPlayerBase.cpp \
     PreviewPlayerBase.cpp \
-    PreviewRenderer.cpp
+    PreviewRenderer.cpp \
+    YV12ColorConverter.cpp
 
 LOCAL_MODULE_TAGS := optional
 
@@ -77,6 +78,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/media/libvideoeditor/vss/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/media/libvideoeditor/lvpp \
+    $(TOP)/frameworks/media/libvideoeditor/include \
     $(TOP)/frameworks/base/media/jni/mediaeditor \
     $(TOP)/frameworks/base/services/audioflinger
 
