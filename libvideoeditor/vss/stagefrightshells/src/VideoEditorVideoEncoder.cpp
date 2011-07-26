@@ -320,6 +320,9 @@ void VideoEditorVideoEncoderPuller::stop() {
     for (size_t i = 0; i < mReleaseBuffers.size(); i++) {
         mReleaseBuffers.itemAt(i)->release();
     }
+
+    mBuffers.clear();
+    mReleaseBuffers.clear();
 }
 
 MediaBuffer* VideoEditorVideoEncoderPuller::getBufferNonBlocking() {
