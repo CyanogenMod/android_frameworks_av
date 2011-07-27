@@ -918,25 +918,9 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
         pOutPlane[2].u_topleft = 0;
         pOutPlane[2].u_stride  = pOutPlane[1].u_stride;
 
-        switch( pEncoderContext->mEncoderColorFormat ) {
-            case OMX_COLOR_FormatYUV420Planar:
-                pOutPlane[0].pac_data = pData;
-                pOutPlane[1].pac_data = pData + sizeY;
-                pOutPlane[2].pac_data = pData + sizeY + sizeU;
-            break;
-            case OMX_COLOR_FormatYUV420SemiPlanar:
-                pOutPlane[0].pac_data = pData;
-                SAFE_MALLOC(pOutPlane[1].pac_data, M4VIFI_UInt8,
-                    pOutPlane[1].u_height*pOutPlane[1].u_stride,"OutputPlaneU");
-                SAFE_MALLOC(pOutPlane[2].pac_data, M4VIFI_UInt8,
-                    pOutPlane[2].u_height*pOutPlane[2].u_stride,"OutputPlaneV");
-            break;
-            default:
-                LOGV("VideoEditorVideoEncoder_processInputBuffer : unsupported "
-                    "color format 0x%X", pEncoderContext->mEncoderColorFormat);
-                VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_PARAMETER);
-            break;
-        }
+        pOutPlane[0].pac_data = pData;
+        pOutPlane[1].pac_data = pData + sizeY;
+        pOutPlane[2].pac_data = pData + sizeY + sizeU;
 
         // Apply pre-processing
         err = pEncoderContext->mPreProcFunction(
@@ -983,16 +967,6 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
     nbBuffer = pEncoderContext->mEncoderSource->storeBuffer(buffer);
 
 cleanUp:
-    if ( OMX_COLOR_FormatYUV420SemiPlanar == \
-            pEncoderContext->mEncoderColorFormat ) {
-        // Y plane has not been allocated
-        if ( pOutPlane[1].pac_data ) {
-            SAFE_FREE(pOutPlane[1].pac_data);
-        }
-        if ( pOutPlane[2].pac_data ) {
-            SAFE_FREE(pOutPlane[2].pac_data);
-        }
-    }
     if ( M4NO_ERROR == err ) {
         LOGV("VideoEditorVideoEncoder_processInputBuffer error 0x%X", err);
     } else {
