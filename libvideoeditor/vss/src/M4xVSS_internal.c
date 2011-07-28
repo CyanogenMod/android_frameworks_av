@@ -2348,6 +2348,9 @@ M4OSA_ERR M4xVSS_internalGenerateEditedFile(M4OSA_Context pContext)
         M4OSA_TRACE1_1("M4xVSS_internalGenerateEditedFile: M4VSS3GPP_editInit returned 0x%x\n",
             err);
         M4VSS3GPP_editCleanUp(pVssCtxt);
+        /**
+         * Set the VSS context to NULL */
+        xVSS_context->pCurrentEditContext = M4OSA_NULL;
         return err;
     }
 
@@ -2508,6 +2511,9 @@ M4OSA_ERR M4xVSS_internalGenerateEditedFile(M4OSA_Context pContext)
         M4OSA_TRACE1_1("M4xVSS_internalGenerateEditedFile:\
              M4VSS3GPP_editOpen returned 0x%x\n",err);
         M4VSS3GPP_editCleanUp(pVssCtxt);
+        /**
+         * Set the VSS context to NULL */
+        xVSS_context->pCurrentEditContext = M4OSA_NULL;
         return err;
     }
 
@@ -2546,12 +2552,18 @@ M4OSA_ERR M4xVSS_internalCloseEditedFile(M4OSA_Context pContext)
             M4OSA_TRACE1_1("M4xVSS_internalCloseEditedFile:\
                  M4VSS3GPP_editClose returned 0x%x\n",err);
             M4VSS3GPP_editCleanUp(pVssCtxt);
+            /**
+             * Set the VSS context to NULL */
+            xVSS_context->pCurrentEditContext = M4OSA_NULL;
             return err;
         }
 
         /**
          * Free this VSS3GPP edition instance */
         err = M4VSS3GPP_editCleanUp(pVssCtxt);
+        /**
+         * Set the VSS context to NULL */
+        xVSS_context->pCurrentEditContext = M4OSA_NULL;
         if (err != M4NO_ERROR)
         {
             M4OSA_TRACE1_1("M4xVSS_internalCloseEditedFile: \
