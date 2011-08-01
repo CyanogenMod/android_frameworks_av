@@ -37,18 +37,6 @@ struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
 
-struct PreviewPlayerRenderer : public RefBase {
-    PreviewPlayerRenderer() {}
-
-    virtual void render(MediaBuffer *buffer) = 0;
-    virtual void render() = 0;
-    virtual void getBuffer(uint8_t **data, size_t *stride) = 0;
-
-private:
-    PreviewPlayerRenderer(const PreviewPlayerRenderer &);
-    PreviewPlayerRenderer &operator=(const PreviewPlayerRenderer &);
-};
-
 struct PreviewPlayer : public PreviewPlayerBase {
     PreviewPlayer();
     ~PreviewPlayer();
@@ -126,7 +114,7 @@ private:
     status_t startAudioPlayer_l();
     bool mIsChangeSourceRequired;
 
-    sp<PreviewPlayerRenderer> mVideoRenderer;
+    PreviewRenderer *mVideoRenderer;
 
     int32_t mVideoWidth, mVideoHeight;
 

@@ -72,102 +72,6 @@ private:
     PreviewPlayerEvent &operator=(const PreviewPlayerEvent &);
 };
 
-
-struct PreviewLocalRenderer : public PreviewPlayerRenderer {
-
-    static PreviewLocalRenderer* initPreviewLocalRenderer (
-            bool previewOnly,
-            OMX_COLOR_FORMATTYPE colorFormat,
-            const sp<Surface> &surface,
-            size_t displayWidth, size_t displayHeight,
-            size_t decodedWidth, size_t decodedHeight,
-            int32_t rotationDegrees = 0)
-    {
-        PreviewLocalRenderer* mLocalRenderer = new
-            PreviewLocalRenderer(
-                previewOnly,
-                colorFormat,
-                surface,
-                displayWidth, displayHeight,
-                decodedWidth, decodedHeight,
-                rotationDegrees);
-
-        if ( mLocalRenderer->init(previewOnly,
-                 colorFormat, surface,
-                 displayWidth, displayHeight,
-                 decodedWidth, decodedHeight,
-                 rotationDegrees) != OK )
-        {
-            delete mLocalRenderer;
-            return NULL;
-        }
-        return mLocalRenderer;
-    }
-
-    virtual void render(MediaBuffer *buffer) {
-        render((const uint8_t *)buffer->data() + buffer->range_offset(),
-               buffer->range_length());
-    }
-
-    void render(const void *data, size_t size) {
-        mTarget->render(data, size, NULL);
-    }
-    void render() {
-        mTarget->renderYV12();
-    }
-    void getBuffer(uint8_t **data, size_t *stride) {
-        mTarget->getBufferYV12(data, stride);
-    }
-
-protected:
-    virtual ~PreviewLocalRenderer() {
-        delete mTarget;
-        mTarget = NULL;
-    }
-
-private:
-    PreviewRenderer *mTarget;
-
-    PreviewLocalRenderer(
-            bool previewOnly,
-            OMX_COLOR_FORMATTYPE colorFormat,
-            const sp<Surface> &surface,
-            size_t displayWidth, size_t displayHeight,
-            size_t decodedWidth, size_t decodedHeight,
-            int32_t rotationDegrees = 0)
-        : mTarget(NULL) {
-    }
-
-
-    int init(
-            bool previewOnly,
-            OMX_COLOR_FORMATTYPE colorFormat,
-            const sp<Surface> &surface,
-            size_t displayWidth, size_t displayHeight,
-            size_t decodedWidth, size_t decodedHeight,
-            int32_t rotationDegrees = 0);
-
-    PreviewLocalRenderer(const PreviewLocalRenderer &);
-    PreviewLocalRenderer &operator=(const PreviewLocalRenderer &);;
-};
-
-int PreviewLocalRenderer::init(
-        bool previewOnly,
-        OMX_COLOR_FORMATTYPE colorFormat,
-        const sp<Surface> &surface,
-        size_t displayWidth, size_t displayHeight,
-        size_t decodedWidth, size_t decodedHeight,
-        int32_t rotationDegrees) {
-
-    mTarget = PreviewRenderer::CreatePreviewRenderer (
-            colorFormat, surface, displayWidth, displayHeight,
-            decodedWidth, decodedHeight, rotationDegrees);
-    if (mTarget == M4OSA_NULL) {
-        return UNKNOWN_ERROR;
-    }
-    return OK;
-}
-
 PreviewPlayer::PreviewPlayer()
     : PreviewPlayerBase(),
       mCurrFramingEffectIndex(0)   ,
@@ -232,8 +136,7 @@ PreviewPlayer::~PreviewPlayer() {
         mResizedVideoBuffer = NULL;
     }
 
-    mVideoRenderer.clear();
-    mVideoRenderer = NULL;
+    delete mVideoRenderer;
 }
 
 void PreviewPlayer::cancelPlayerEvents(bool keepBufferingGoing) {
@@ -768,12 +671,12 @@ status_t PreviewPlayer::initRenderer_l() {
         // allocate their buffers in local address space.
         if(mVideoRenderer == NULL) {
 
-            mVideoRenderer = PreviewLocalRenderer:: initPreviewLocalRenderer (
-                false,  // previewOnly
+            mVideoRenderer = PreviewRenderer::CreatePreviewRenderer(
                 OMX_COLOR_FormatYUV420Planar,
                 mSurface,
                 mOutputVideoWidth, mOutputVideoHeight,
-                mOutputVideoWidth, mOutputVideoHeight);
+                mOutputVideoWidth, mOutputVideoHeight,
+                0);
 
             if ( mVideoRenderer == NULL )
             {
@@ -1220,7 +1123,7 @@ void PreviewPlayer::onVideoEvent() {
 
     if (mVideoRenderer != NULL) {
         LOGV("mVideoRenderer CALL render()");
-        mVideoRenderer->render();
+        mVideoRenderer->renderYV12();
     }
 
     if (mLastVideoBuffer) {
@@ -1510,7 +1413,7 @@ M4OSA_ERR PreviewPlayer::doMediaRendering() {
     uint8_t* outBuffer;
     size_t outBufferStride = 0;
 
-    mVideoRenderer->getBuffer(&outBuffer, &outBufferStride);
+    mVideoRenderer->getBufferYV12(&outBuffer, &outBufferStride);
 
     bufferOffset = index*frameSize;
     inBuffer = (M4OSA_UInt8 *)mVideoBuffer->data()+
@@ -1712,7 +1615,8 @@ M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
 
     postProcessParams.overlayFrameRGBBuffer = mFrameRGBBuffer;
     postProcessParams.overlayFrameYUVBuffer = mFrameYUVBuffer;
-    mVideoRenderer->getBuffer(&(postProcessParams.pOutBuffer), &(postProcessParams.outBufferStride));
+    mVideoRenderer->getBufferYV12(&(postProcessParams.pOutBuffer),
+        &(postProcessParams.outBufferStride));
     err = applyEffectsAndRenderingMode(&postProcessParams, mReportedWidth, mReportedHeight);
 
     return err;
