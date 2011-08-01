@@ -118,8 +118,6 @@ private:
 
     int32_t mVideoWidth, mVideoHeight;
 
-    MediaBuffer *mLastVideoBuffer;
-
     //Data structures used for audio and video effects
     M4VSS3GPP_EffectSettings* mEffectsSettings;
     M4xVSS_AudioMixingSettings* mPreviewPlayerAudioMixSettings;

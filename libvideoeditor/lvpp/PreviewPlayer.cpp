@@ -81,7 +81,6 @@ PreviewPlayer::PreviewPlayer()
       mFrameYUVBuffer(NULL){
 
     mVideoRenderer = NULL;
-    mLastVideoBuffer = NULL;
     mEffectsSettings = NULL;
     mVeAudioPlayer = NULL;
     mAudioMixStoryBoardTS = 0;
@@ -303,11 +302,6 @@ void PreviewPlayer::reset_l() {
     //It is deleted from PreviewController class
     //delete mAudioPlayer;
     mAudioPlayer = NULL;
-
-    if (mLastVideoBuffer) {
-        mLastVideoBuffer->release();
-        mLastVideoBuffer = NULL;
-    }
 
     if (mVideoBuffer) {
         mVideoBuffer->release();
@@ -795,7 +789,6 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
 
 void PreviewPlayer::onVideoEvent() {
     uint32_t i=0;
-    bool bAppliedVideoEffect = false;
     M4OSA_ERR err1 = M4NO_ERROR;
     int64_t imageFrameTimeUs = 0;
 
@@ -816,11 +809,6 @@ void PreviewPlayer::onVideoEvent() {
     int64_t timeStartUs = ts_st->getRealTimeUs();
 
     if (mSeeking != NO_SEEK) {
-        if (mLastVideoBuffer) {
-            mLastVideoBuffer->release();
-            mLastVideoBuffer = NULL;
-        }
-
 
         if(mAudioSource != NULL) {
 
@@ -1016,11 +1004,7 @@ void PreviewPlayer::onVideoEvent() {
 
     // If timestamp exceeds endCutTime of clip, donot render
     if((timeUs/1000) > mPlayEndTimeMsec) {
-        if (mLastVideoBuffer) {
-            mLastVideoBuffer->release();
-            mLastVideoBuffer = NULL;
-        }
-        mLastVideoBuffer = mVideoBuffer;
+        mVideoBuffer->release();
         mVideoBuffer = NULL;
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
@@ -1102,14 +1086,9 @@ void PreviewPlayer::onVideoEvent() {
         err1 = doVideoPostProcessing();
         if(err1 != M4NO_ERROR) {
             LOGE("doVideoPostProcessing returned err");
-            bAppliedVideoEffect = false;
-        }
-        else {
-            bAppliedVideoEffect = true;
         }
     }
     else {
-        bAppliedVideoEffect = false;
         if(mRenderingMode != MEDIA_RENDERING_INVALID) {
             // No effects to be applied, but media rendering to be done
             err1 = doMediaRendering();
@@ -1126,12 +1105,7 @@ void PreviewPlayer::onVideoEvent() {
         mVideoRenderer->renderYV12();
     }
 
-    if (mLastVideoBuffer) {
-        mLastVideoBuffer->release();
-        mLastVideoBuffer = NULL;
-    }
-
-    mLastVideoBuffer = mVideoBuffer;
+    mVideoBuffer->release();
     mVideoBuffer = NULL;
 
     // Post progress callback based on callback interval set
