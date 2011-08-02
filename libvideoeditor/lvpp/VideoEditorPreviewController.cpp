@@ -460,6 +460,11 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     mVEAudioPlayer->setAudioMixSettings(mBackgroundAudioSetting);
     mVEAudioPlayer->setAudioMixPCMFileHandle(mAudioMixPCMFileHandle);
 
+    // Create Video Renderer to be used for the entire storyboard duration.
+    uint32_t width, height;
+    getVideoSizeByResolution(mOutputVideoSize, &width, &height);
+    mNativeWindowRenderer = new NativeWindowRenderer(mSurface, width, height);
+
     LOGV("startPreview: loop = %d", loop);
     mPreviewLooping = loop;
 
@@ -467,7 +472,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     mCallBackAfterFrameCnt = callBackAfterFrameCount;
 
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
-        mVePlayer[playerInst] = new VideoEditorPlayer();
+        mVePlayer[playerInst] = new VideoEditorPlayer(mNativeWindowRenderer);
         if(mVePlayer[playerInst] == NULL) {
             LOGE("startPreview:Error creating VideoEditorPlayer %d",playerInst);
             return M4ERR_ALLOC;
@@ -690,6 +695,9 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
         delete mVEAudioPlayer;
         mVEAudioPlayer = NULL;
     }
+
+    delete mNativeWindowRenderer;
+    mNativeWindowRenderer = NULL;
 
     // If image file playing, then free the buffer pointer
     if(mFrameStr.pBuffer != M4OSA_NULL) {

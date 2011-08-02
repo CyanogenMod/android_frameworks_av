@@ -30,8 +30,6 @@
 #include "include/ThrottledSource.h"
 
 
-#include "PreviewRenderer.h"
-
 #include <binder/IPCThreadState.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
@@ -72,13 +70,12 @@ private:
     PreviewPlayerEvent &operator=(const PreviewPlayerEvent &);
 };
 
-PreviewPlayer::PreviewPlayer()
+PreviewPlayer::PreviewPlayer(NativeWindowRenderer* renderer)
     : PreviewPlayerBase(),
-      mCurrFramingEffectIndex(0)   ,
-      mReportedWidth(0),
-      mReportedHeight(0),
+      mNativeWindowRenderer(renderer),
+      mCurrFramingEffectIndex(0),
       mFrameRGBBuffer(NULL),
-      mFrameYUVBuffer(NULL){
+      mFrameYUVBuffer(NULL) {
 
     mVideoRenderer = NULL;
     mEffectsSettings = NULL;
@@ -115,8 +112,6 @@ PreviewPlayer::PreviewPlayer()
     mProgressCbEventPending = false;
 
     mOverlayUpdateEventPending = false;
-    mResizedVideoBuffer = NULL;
-    mVideoResizedOrCropped = false;
     mRenderingMode = (M4xVSS_MediaRendering)MEDIA_RENDERING_INVALID;
     mIsFiftiesEffectStarted = false;
     reset();
@@ -130,12 +125,9 @@ PreviewPlayer::~PreviewPlayer() {
 
     reset();
 
-    if(mResizedVideoBuffer != NULL) {
-        free((mResizedVideoBuffer->data()));
-        mResizedVideoBuffer = NULL;
+    if (mVideoRenderer) {
+        mNativeWindowRenderer->destroyRenderInput(mVideoRenderer);
     }
-
-    delete mVideoRenderer;
 }
 
 void PreviewPlayer::cancelPlayerEvents(bool keepBufferingGoing) {
@@ -249,9 +241,8 @@ status_t PreviewPlayer::setDataSource_l_jpg() {
 
     mVideoSource = DummyVideoSource::Create(mVideoWidth, mVideoHeight,
                                             mDurationUs, mUri);
-    mReportedWidth = mVideoWidth;
-    mReportedHeight = mVideoHeight;
 
+    updateSizeToRender(mVideoSource->getFormat());
     setVideoSource(mVideoSource);
     status_t err1 = mVideoSource->start();
     if (err1 != OK) {
@@ -650,33 +641,11 @@ status_t PreviewPlayer::play_l() {
 
 status_t PreviewPlayer::initRenderer_l() {
     if (mSurface != NULL) {
-        sp<MetaData> meta = mVideoSource->getFormat();
-
-        const char *component;
-        CHECK(meta->findCString(kKeyDecoderComponent, &component));
-
-        // Must ensure that mVideoRenderer's destructor is actually executed
-        // before creating a new one.
-        IPCThreadState::self()->flushCommands();
-
-        // always use localrenderer since decoded buffers are modified
-        // by postprocessing module
-        // Other decoders are instantiated locally and as a consequence
-        // allocate their buffers in local address space.
         if(mVideoRenderer == NULL) {
-
-            mVideoRenderer = PreviewRenderer::CreatePreviewRenderer(
-                OMX_COLOR_FormatYUV420Planar,
-                mSurface,
-                mOutputVideoWidth, mOutputVideoHeight,
-                mOutputVideoWidth, mOutputVideoHeight,
-                0);
-
-            if ( mVideoRenderer == NULL )
-            {
-                return UNKNOWN_ERROR;
+            mVideoRenderer = mNativeWindowRenderer->createRenderInput();
+            if (mVideoSource != NULL) {
+                updateSizeToRender(mVideoSource->getFormat());
             }
-            return OK;
         }
     }
     return OK;
@@ -756,11 +725,18 @@ status_t PreviewPlayer::initAudioDecoder() {
 
 status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
 
+    initRenderer_l();
+
+    if (mVideoRenderer == NULL) {
+        LOGE("Cannot create renderer");
+        return UNKNOWN_ERROR;
+    }
+
     mVideoSource = OMXCodec::Create(
             mClient.interface(), mVideoTrack->getFormat(),
             false,
             mVideoTrack,
-            NULL, flags);
+            NULL, flags, mVideoRenderer->getTargetWindow());
 
     if (mVideoSource != NULL) {
         int64_t durationUs;
@@ -771,9 +747,7 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
             }
         }
 
-        getVideoBufferSize(mVideoTrack->getFormat(), &mVideoWidth, &mVideoHeight);
-        mReportedWidth = mVideoWidth;
-        mReportedHeight = mVideoHeight;
+        updateSizeToRender(mVideoTrack->getFormat());
 
         status_t err = mVideoSource->start();
 
@@ -838,7 +812,7 @@ void PreviewPlayer::onVideoEvent() {
                     mSeekTimeUs, MediaSource::ReadOptions::SEEK_CLOSEST);
         }
         for (;;) {
-            status_t err = readYV12Buffer(mVideoSource, &mVideoBuffer, &options);
+            status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
             if (err != OK) {
@@ -847,8 +821,6 @@ void PreviewPlayer::onVideoEvent() {
                 if (err == INFO_FORMAT_CHANGED) {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
-                    sp<MetaData> meta = mVideoSource->getFormat();
-                    getVideoBufferSize(meta, &mReportedWidth, &mReportedHeight);
 
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
@@ -858,6 +830,8 @@ void PreviewPlayer::onVideoEvent() {
                         }
 
                     }
+
+                    updateSizeToRender(mVideoSource->getFormat());
                     continue;
                 }
                 // So video playback is complete, but we may still have
@@ -1081,28 +1055,9 @@ void PreviewPlayer::onVideoEvent() {
         postOverlayUpdateEvent_l();
     }
 
-
-    if (mCurrentVideoEffect != VIDEO_EFFECT_NONE) {
-        err1 = doVideoPostProcessing();
-        if(err1 != M4NO_ERROR) {
-            LOGE("doVideoPostProcessing returned err");
-        }
-    }
-    else {
-        if(mRenderingMode != MEDIA_RENDERING_INVALID) {
-            // No effects to be applied, but media rendering to be done
-            err1 = doMediaRendering();
-            if(err1 != M4NO_ERROR) {
-                LOGE("doMediaRendering returned err");
-                //Use original mVideoBuffer for rendering
-                mVideoResizedOrCropped = false;
-            }
-        }
-    }
-
     if (mVideoRenderer != NULL) {
-        LOGV("mVideoRenderer CALL render()");
-        mVideoRenderer->renderYV12();
+        mVideoRenderer->render(mVideoBuffer, mCurrentVideoEffect,
+                mRenderingMode, mIsVideoSourceJpg);
     }
 
     mVideoBuffer->release();
@@ -1362,63 +1317,10 @@ status_t PreviewPlayer::setMediaRenderingMode(
 
     mRenderingMode = mode;
 
-    /* reset boolean for each clip*/
-    mVideoResizedOrCropped = false;
-
     status_t err = OK;
     /* get the video width and height by resolution */
     err = getVideoSizeByResolution(outputVideoSize,
               &mOutputVideoWidth, &mOutputVideoHeight);
-
-    return err;
-}
-
-M4OSA_ERR PreviewPlayer::doMediaRendering() {
-    M4OSA_ERR err = M4NO_ERROR;
-    M4VIFI_ImagePlane planeIn[3], planeOut[3];
-    M4VIFI_UInt8 *inBuffer = M4OSA_NULL, *finalOutputBuffer = M4OSA_NULL;
-    M4VIFI_UInt8 *tempOutputBuffer= M4OSA_NULL;
-    size_t videoBufferSize = 0;
-    M4OSA_UInt32 frameSize = 0, i=0, index =0, nFrameCount =0, bufferOffset =0;
-
-    videoBufferSize = mVideoBuffer->size();
-    frameSize = (mVideoWidth*mVideoHeight*3) >> 1;
-
-    uint8_t* outBuffer;
-    size_t outBufferStride = 0;
-
-    mVideoRenderer->getBufferYV12(&outBuffer, &outBufferStride);
-
-    bufferOffset = index*frameSize;
-    inBuffer = (M4OSA_UInt8 *)mVideoBuffer->data()+
-                mVideoBuffer->range_offset()+bufferOffset;
-
-
-    /* In plane*/
-    prepareYUV420ImagePlane(planeIn, mVideoWidth,
-      mVideoHeight, (M4VIFI_UInt8 *)inBuffer, mReportedWidth, mReportedHeight);
-
-    // Set the output YUV420 plane to be compatible with YV12 format
-    // W & H even
-    // YVU instead of YUV
-    // align buffers on 32 bits
-
-    //In YV12 format, sizes must be even
-    M4OSA_UInt32 yv12PlaneWidth = ((mOutputVideoWidth +1)>>1)<<1;
-    M4OSA_UInt32 yv12PlaneHeight = ((mOutputVideoHeight+1)>>1)<<1;
-
-    prepareYV12ImagePlane(planeOut, yv12PlaneWidth, yv12PlaneHeight,
-     (M4OSA_UInt32)outBufferStride, (M4VIFI_UInt8 *)outBuffer);
-
-
-    err = applyRenderingMode(planeIn, planeOut, mRenderingMode);
-
-    if(err != M4NO_ERROR)
-    {
-        LOGE("doMediaRendering: applyRenderingMode returned err=0x%x", (int)err);
-        return err;
-    }
-    mVideoResizedOrCropped = true;
 
     return err;
 }
@@ -1561,41 +1463,6 @@ status_t PreviewPlayer::setImageClipProperties(uint32_t width,uint32_t height) {
     return OK;
 }
 
-
-M4OSA_ERR PreviewPlayer::doVideoPostProcessing() {
-    M4OSA_ERR err = M4NO_ERROR;
-    vePostProcessParams postProcessParams;
-
-    postProcessParams.vidBuffer = (M4VIFI_UInt8*)mVideoBuffer->data()
-        + mVideoBuffer->range_offset();
-
-    postProcessParams.videoWidth = mVideoWidth;
-    postProcessParams.videoHeight = mVideoHeight;
-    postProcessParams.timeMs = mDecodedVideoTs/1000;
-    postProcessParams.timeOffset = mDecVideoTsStoryBoard/1000;
-    postProcessParams.effectsSettings = mEffectsSettings;
-    postProcessParams.numberEffects = mNumberEffects;
-    postProcessParams.outVideoWidth = mOutputVideoWidth;
-    postProcessParams.outVideoHeight = mOutputVideoHeight;
-    postProcessParams.currentVideoEffect = mCurrentVideoEffect;
-    postProcessParams.renderingMode = mRenderingMode;
-    if(mIsFiftiesEffectStarted == M4OSA_TRUE) {
-        postProcessParams.isFiftiesEffectStarted = M4OSA_TRUE;
-        mIsFiftiesEffectStarted = M4OSA_FALSE;
-    }
-    else {
-       postProcessParams.isFiftiesEffectStarted = M4OSA_FALSE;
-    }
-
-    postProcessParams.overlayFrameRGBBuffer = mFrameRGBBuffer;
-    postProcessParams.overlayFrameYUVBuffer = mFrameYUVBuffer;
-    mVideoRenderer->getBufferYV12(&(postProcessParams.pOutBuffer),
-        &(postProcessParams.outBufferStride));
-    err = applyEffectsAndRenderingMode(&postProcessParams, mReportedWidth, mReportedHeight);
-
-    return err;
-}
-
 status_t PreviewPlayer::readFirstVideoFrame() {
     LOGV("PreviewPlayer::readFirstVideoFrame");
 
@@ -1609,7 +1476,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     mSeekTimeUs, MediaSource::ReadOptions::SEEK_CLOSEST);
         }
         for (;;) {
-            status_t err = readYV12Buffer(mVideoSource, &mVideoBuffer, &options);
+            status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
             if (err != OK) {
@@ -1618,8 +1485,6 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                 if (err == INFO_FORMAT_CHANGED) {
                     LOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
-                    sp<MetaData> meta = mVideoSource->getFormat();
-                    getVideoBufferSize(meta, &mReportedWidth, &mReportedHeight);
 
                     if (mVideoRenderer != NULL) {
                         mVideoRendererIsPreview = false;
@@ -1628,6 +1493,8 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                             postStreamDoneEvent_l(err);
                         }
                     }
+
+                    updateSizeToRender(mVideoSource->getFormat());
                     continue;
                 }
                 LOGV("PreviewPlayer: onVideoEvent EOS reached.");
@@ -1686,6 +1553,12 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 status_t PreviewPlayer::getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs) {
     *lastRenderedTimeMs = (((mDecodedVideoTs+mDecVideoTsStoryBoard)/1000)-mPlayBeginTimeMsec);
     return OK;
+}
+
+void PreviewPlayer::updateSizeToRender(sp<MetaData> meta) {
+    if (mVideoRenderer) {
+        mVideoRenderer->updateVideoSize(meta);
+    }
 }
 
 }  // namespace android

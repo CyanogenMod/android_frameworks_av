@@ -40,9 +40,6 @@ static PreviewRenderer* CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
 
     ~PreviewRenderer();
 
-    void render(
-            const void *data, size_t size, void *platformPrivate);
-
     void getBufferYV12(uint8_t **data, size_t *stride);
 
     void renderYV12();

@@ -28,8 +28,8 @@
 
 namespace android {
 
-VideoEditorPlayer::VideoEditorPlayer()
-    : mPlayer(new PreviewPlayer) {
+VideoEditorPlayer::VideoEditorPlayer(NativeWindowRenderer* renderer)
+    : mPlayer(new PreviewPlayer(renderer)) {
 
     LOGV("VideoEditorPlayer");
     mPlayer->setListener(this);

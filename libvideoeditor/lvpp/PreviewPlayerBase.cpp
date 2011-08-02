@@ -204,13 +204,6 @@ PreviewPlayerBase::PreviewPlayerBase()
 
     mAudioStatusEventPending = false;
 
-    mYV12ColorConverter = new YV12ColorConverter();
-    if (!mYV12ColorConverter->isLoaded() ||
-        mYV12ColorConverter->getDecoderOutputFormat() == OMX_COLOR_FormatYUV420Planar) {
-        delete mYV12ColorConverter;
-        mYV12ColorConverter = NULL;
-    }
-
     reset();
 }
 
@@ -218,8 +211,6 @@ PreviewPlayerBase::~PreviewPlayerBase() {
     if (mQueueStarted) {
         mQueue.stop();
     }
-
-    delete mYV12ColorConverter;
 
     reset();
 
@@ -1411,7 +1402,7 @@ void PreviewPlayerBase::onVideoEvent() {
                         : MediaSource::ReadOptions::SEEK_CLOSEST_SYNC);
         }
         for (;;) {
-            status_t err = readYV12Buffer(mVideoSource, &mVideoBuffer, &options);
+            status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
             if (err != OK) {
@@ -1927,60 +1918,6 @@ status_t PreviewPlayerBase::setParameter(int key, const Parcel &request) {
 
 status_t PreviewPlayerBase::getParameter(int key, Parcel *reply) {
     return OK;
-}
-
-status_t PreviewPlayerBase::readYV12Buffer(sp<MediaSource> source, MediaBuffer **buffer,
-    const MediaSource::ReadOptions *options) {
-    status_t result = source->read(buffer, options);
-    if (mYV12ColorConverter == NULL || *buffer == NULL) {
-        return result;
-    }
-
-    int width = mCropRect.right - mCropRect.left + 1;
-    int height = mCropRect.bottom - mCropRect.top + 1;
-
-    MediaBuffer *origBuffer = *buffer;
-    MediaBuffer *newBuffer = new MediaBuffer(width * height * 3 / 2);
-
-    LOGV("convertDecoderOutputToYV12: mGivenWidth = %d, mGivenHeight = %d",
-        mGivenWidth, mGivenHeight);
-    LOGV("width = %d, height = %d", width, height);
-
-    if (mYV12ColorConverter->convertDecoderOutputToYV12(
-        (uint8_t *)origBuffer->data(), // ?? + origBuffer->range_offset(), // decoderBits
-        mGivenWidth,  // decoderWidth
-        mGivenHeight,  // decoderHeight
-        mCropRect, // decoderRect
-        (uint8_t *)newBuffer->data() + newBuffer->range_offset() /* dstBits */) < 0) {
-        LOGE("convertDecoderOutputToYV12 failed");
-    }
-
-    // Copy the timestamp
-    int64_t timeUs;
-    CHECK(origBuffer->meta_data()->findInt64(kKeyTime, &timeUs));
-    newBuffer->meta_data()->setInt64(kKeyTime, timeUs);
-
-    origBuffer->release();
-    *buffer = newBuffer;
-
-    return result;
-}
-
-void PreviewPlayerBase::getVideoBufferSize(sp<MetaData> meta, int* width, int* height) {
-    if (mYV12ColorConverter) {
-        int32_t cropLeft, cropTop, cropRight, cropBottom;
-        if (meta->findRect(
-                kKeyCropRect, &cropLeft, &cropTop, &cropRight, &cropBottom)) {
-            *width = cropRight - cropLeft + 1;
-            *height = cropBottom - cropTop + 1;
-        } else {
-            CHECK(meta->findInt32(kKeyWidth, width));
-            CHECK(meta->findInt32(kKeyHeight, height));
-        }
-    } else {
-        CHECK(meta->findInt32(kKeyWidth, width));
-        CHECK(meta->findInt32(kKeyHeight, height));
-    }
 }
 
 }  // namespace android

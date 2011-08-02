@@ -37,7 +37,8 @@ LOCAL_SRC_FILES:=          \
     AudioPlayerBase.cpp \
     PreviewPlayerBase.cpp \
     PreviewRenderer.cpp \
-    YV12ColorConverter.cpp
+    YV12ColorConverter.cpp \
+    NativeWindowRenderer.cpp
 
 LOCAL_MODULE_TAGS := optional
 
@@ -58,7 +59,9 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_foundation \
     libgui \
     libaudioflinger \
-    libui
+    libui \
+    libEGL \
+    libGLESv2
 
 
 LOCAL_C_INCLUDES += \

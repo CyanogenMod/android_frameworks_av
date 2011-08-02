@@ -23,6 +23,7 @@
 #include "VideoEditorMain.h"
 #include "VideoEditorTools.h"
 #include "VideoEditorAudioPlayer.h"
+#include "NativeWindowRenderer.h"
 
 namespace android {
 
@@ -87,7 +88,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
     };
 
 public:
-    VideoEditorPlayer();
+    VideoEditorPlayer(NativeWindowRenderer* renderer);
     virtual ~VideoEditorPlayer();
 
     virtual status_t initCheck();

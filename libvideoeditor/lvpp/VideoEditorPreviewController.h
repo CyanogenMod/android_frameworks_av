@@ -132,6 +132,7 @@ private:
 
     sp<VideoEditorPlayer::VeAudioOutput> mVEAudioSink;
     VideoEditorAudioPlayer *mVEAudioPlayer;
+    NativeWindowRenderer* mNativeWindowRenderer;
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;

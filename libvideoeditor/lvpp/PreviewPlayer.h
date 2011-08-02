@@ -28,6 +28,7 @@
 #include <utils/threads.h>
 #include "PreviewPlayerBase.h"
 #include "VideoEditorPreviewController.h"
+#include "NativeWindowRenderer.h"
 
 namespace android {
 
@@ -38,7 +39,7 @@ struct MediaExtractor;
 struct MediaSource;
 
 struct PreviewPlayer : public PreviewPlayerBase {
-    PreviewPlayer();
+    PreviewPlayer(NativeWindowRenderer* renderer);
     ~PreviewPlayer();
 
     //Override baseclass methods
@@ -114,7 +115,8 @@ private:
     status_t startAudioPlayer_l();
     bool mIsChangeSourceRequired;
 
-    PreviewRenderer *mVideoRenderer;
+    NativeWindowRenderer *mNativeWindowRenderer;
+    RenderInput *mVideoRenderer;
 
     int32_t mVideoWidth, mVideoHeight;
 
@@ -141,14 +143,9 @@ private:
     bool mOverlayUpdateEventPending;
     bool mOverlayUpdateEventPosted;
 
-    MediaBuffer *mResizedVideoBuffer;
-    bool mVideoResizedOrCropped;
     M4xVSS_MediaRendering mRenderingMode;
     uint32_t mOutputVideoWidth;
     uint32_t mOutputVideoHeight;
-
-    int32_t mReportedWidth;  //docoder reported width
-    int32_t mReportedHeight; //docoder reported height
 
     uint32_t mStoryboardStartTimeMsec;
 
@@ -163,8 +160,6 @@ private:
 
     void setVideoPostProcessingNode(
                     M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable);
-    M4OSA_ERR doVideoPostProcessing();
-    M4OSA_ERR doMediaRendering();
     void postProgressCallbackEvent_l();
     void onProgressCbEvent();
 
@@ -175,6 +170,8 @@ private:
 
     status_t prepare_l();
     status_t prepareAsync_l();
+
+    void updateSizeToRender(sp<MetaData> meta);
 
     VideoEditorAudioPlayer  *mVeAudioPlayer;
 
