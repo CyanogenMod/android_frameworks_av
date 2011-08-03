@@ -46,6 +46,9 @@
                                  with M4OSA_String...) */
 
 #endif                      /* WIN32 */
+#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
+#include "M4VD_EXTERNAL_Interface.h"
+#endif
 
 /************************************************************************/
 /* Static local functions                                               */
@@ -148,11 +151,13 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
 
 
     /* Init the context. */
+    pC->uiClipNumber = 0;
     pC->pClipList = M4OSA_NULL;
     pC->pTransitionList = M4OSA_NULL;
     pC->pEffectsList = M4OSA_NULL;
     pC->pActiveEffectsList = M4OSA_NULL;
     pC->pActiveEffectsList1 = M4OSA_NULL;
+    pC->uiCurrentClip = 0;
     pC->pC1 = M4OSA_NULL;
     pC->pC2 = M4OSA_NULL;
     pC->yuv1[0].pac_data = pC->yuv1[1].pac_data = pC->
@@ -164,26 +169,49 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     pC->yuv4[0].pac_data = pC->yuv4[1].pac_data = pC->
         yuv4[2].pac_data = M4OSA_NULL;
     pC->bClip1AtBeginCut = M4OSA_FALSE;
+    pC->iClip1ActiveEffect = 0;
+    pC->iClip2ActiveEffect = 0;
     pC->bTransitionEffect = M4OSA_FALSE;
     pC->bSupportSilence = M4OSA_FALSE;
 
     /**
     * Init PC->ewc members */
     // Decorrelate input and output encoding timestamp to handle encoder prefetch
+    pC->ewc.dInputVidCts  = 0.0;
+    pC->ewc.dOutputVidCts = 0.0;
+    pC->ewc.dATo = 0.0;
+    pC->ewc.iOutputDuration = 0;
     pC->ewc.VideoStreamType = M4SYS_kVideoUnknown;
+    pC->ewc.uiVideoBitrate = 0;
+    pC->ewc.uiVideoWidth = 0;
+    pC->ewc.uiVideoHeight = 0;
+    pC->ewc.uiVideoTimeScale = 0;
     pC->ewc.bVideoDataPartitioning = M4OSA_FALSE;
     pC->ewc.pVideoOutputDsi = M4OSA_NULL;
+    pC->ewc.uiVideoOutputDsiSize = 0;
     pC->ewc.bActivateEmp = M4OSA_FALSE;
     pC->ewc.AudioStreamType = M4SYS_kAudioUnknown;
     pC->ewc.uiNbChannels = 1;
+    pC->ewc.uiAudioBitrate = 0;
+    pC->ewc.uiSamplingFrequency = 0;
     pC->ewc.pAudioOutputDsi = M4OSA_NULL;
+    pC->ewc.uiAudioOutputDsiSize = 0;
     pC->ewc.pAudioEncCtxt = M4OSA_NULL;
+    pC->ewc.pAudioEncDSI.infoSize = 0;
     pC->ewc.pAudioEncDSI.pInfo = M4OSA_NULL;
+    pC->ewc.uiSilencePcmSize = 0;
     pC->ewc.pSilenceFrameData = M4OSA_NULL;
+    pC->ewc.uiSilenceFrameSize = 0;
+    pC->ewc.iSilenceFrameDuration = 0;
+    pC->ewc.scale_audio = 0.0;
     pC->ewc.pEncContext = M4OSA_NULL;
     pC->ewc.pDummyAuBuffer = M4OSA_NULL;
+    pC->ewc.iMpeg4GovOffset = 0;
+    pC->ewc.VppError = 0;
     pC->ewc.encoderState = M4VSS3GPP_kNoEncoder;
     pC->ewc.p3gpWriterContext = M4OSA_NULL;
+    pC->ewc.uiVideoMaxAuSize = 0;
+    pC->ewc.uiAudioMaxAuSize = 0;
     /**
     * Keep the OSAL file functions pointer set in our context */
     pC->pOsaFileReadPtr = pFileReadPtrFct;
@@ -212,7 +240,10 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
 
     pC->iInOutTimeOffset = 0;
     pC->bEncodeTillEoF = M4OSA_FALSE;
-
+    pC->nbActiveEffects = 0;
+    pC->nbActiveEffects1 = 0;
+    pC->bIssecondClip = M4OSA_FALSE;
+    pC->m_air_context = M4OSA_NULL;
     /**
     * Return with no error */
     M4OSA_TRACE3_0("M4VSS3GPP_editInit(): returning M4NO_ERROR");
@@ -289,6 +320,7 @@ M4VSS3GPP_editCreateClipSettings( M4VSS3GPP_ClipSettings *pClipSettings,
 
     pClipSettings->uiBeginCutTime = 0; /**< no begin cut */
     pClipSettings->uiEndCutTime = 0;   /**< no end cut */
+    pClipSettings->ClipProperties.bSetImageData = M4OSA_FALSE;
 
     /**
     * Reset video characteristics */
@@ -598,37 +630,45 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     * Check clip compatibility */
     for ( i = 0; i < pC->uiClipNumber; i++ )
     {
-        /**
-        * Check all the clips are compatible with VSS 3GPP */
-        err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(
-            &pC->pClipList[i].ClipProperties);
+        if (pC->pClipList[i].FileType !=M4VIDEOEDITING_kFileType_ARGB8888) {
+            /**
+            * Check all the clips are compatible with VSS 3GPP */
+            err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(
+                &pC->pClipList[i].ClipProperties);
 
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_2(
-                "M4VSS3GPP_editOpen:\
-                M4VSS3GPP_intCheckClipCompatibleWithVssEditing(%d) returns 0x%x!",
-                i, err);
-            return err;
+            if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_2(
+                    "M4VSS3GPP_editOpen:\
+                    M4VSS3GPP_intCheckClipCompatibleWithVssEditing(%d) returns 0x%x!",
+                    i, err);
+                return err;
+            }
         }
 
         /**
         * Check the master clip versus all the other ones.
         (including master clip with itself, else variables for master clip
         are not properly setted) */
-        err = M4VSS3GPP_editCheckClipCompatibility(
-            &pC->pClipList[pSettings->uiMasterClip].ClipProperties,
-            &pC->pClipList[i].ClipProperties);
-        /* in case of warning regarding audio incompatibility, editing continues */
-        if( M4OSA_ERR_IS_ERROR(err) )
-        {
-            M4OSA_TRACE1_2(
-                "M4VSS3GPP_editOpen: M4VSS3GPP_editCheckClipCompatibility(%d) returns 0x%x!",
-                i, err);
-            return err;
+        if(pC->pClipList[i].FileType != M4VIDEOEDITING_kFileType_ARGB8888) {
+
+            err = M4VSS3GPP_editCheckClipCompatibility(
+                &pC->pClipList[pSettings->uiMasterClip].ClipProperties,
+                &pC->pClipList[i].ClipProperties);
+            /* in case of warning regarding audio incompatibility,
+                editing continues */
+            if( M4OSA_ERR_IS_ERROR(err) )
+            {
+                M4OSA_TRACE1_2(
+                    "M4VSS3GPP_editOpen: M4VSS3GPP_editCheckClipCompatibility \
+                        (%d) returns 0x%x!", i, err);
+                return err;
+            }
+        } else {
+            pC->pClipList[i].ClipProperties.bAudioIsCompatibleWithMasterClip =
+             M4OSA_FALSE;
         }
     }
-
     /* Search audio tracks that cannot be edited :
     *   - delete all audio effects for the clip
     *   - if master clip is editable let the transition
@@ -691,19 +731,49 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     * Avoid weird clip settings */
     for ( i = 0; i < pSettings->uiClipNumber; i++ )
     {
-        err = M4VSS3GPP_intClipSettingsSanityCheck(&pC->pClipList[i]);
+        if (pC->pClipList[i].FileType !=M4VIDEOEDITING_kFileType_ARGB8888) {
+            err = M4VSS3GPP_intClipSettingsSanityCheck(&pC->pClipList[i]);
 
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_editOpen: M4VSS3GPP_intClipSettingsSanityCheck returns 0x%x!",
-                err);
-            return err;
+            if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_1(
+                    "M4VSS3GPP_editOpen: M4VSS3GPP_intClipSettingsSanityCheck returns 0x%x!",
+                    err);
+                return err;
+            }
         }
     }
 
     for ( i = 0; i < (pSettings->uiClipNumber - 1); i++ )
     {
+        if (pC->pTransitionList[i].uiTransitionDuration != 0) {
+             if (pC->pClipList[i].FileType == M4VIDEOEDITING_kFileType_ARGB8888) {
+                 pC->pClipList[i].uiBeginCutTime = 0;
+                 pC->pClipList[i].uiEndCutTime =
+                     pC->pTransitionList[i].uiTransitionDuration;
+             }
+
+             if (pC->pClipList[i+1].FileType == M4VIDEOEDITING_kFileType_ARGB8888) {
+                 pC->pClipList[i+1].uiBeginCutTime = 0;
+                 pC->pClipList[i+1].uiEndCutTime =
+                     pC->pTransitionList[i].uiTransitionDuration;
+             }
+        } else {
+
+             if (pC->pClipList[i].FileType == M4VIDEOEDITING_kFileType_ARGB8888) {
+                 pC->pClipList[i].uiEndCutTime =
+                     pC->pClipList[i].uiEndCutTime - pC->pClipList[i].uiBeginCutTime;
+                 pC->pClipList[i].uiBeginCutTime = 0;
+             }
+
+             if (pC->pClipList[i+1].FileType == M4VIDEOEDITING_kFileType_ARGB8888) {
+                 pC->pClipList[i+1].uiEndCutTime =
+                     pC->pClipList[i+1].uiEndCutTime - pC->pClipList[i+1].uiBeginCutTime;
+                 pC->pClipList[i+1].uiBeginCutTime = 0;
+             }
+
+        }
+
         /**
         * Maximum transition duration between clip n and clip n+1 is the duration
         * of the shortest clip */
@@ -809,34 +879,89 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
         pC->ewc.iOutputDuration -= pC->pTransitionList[i].uiTransitionDuration;
     }
 
-    /**
-    * Copy the video properties of the master clip to the output properties */
-    pC->ewc.uiVideoWidth =
-        pC->pClipList[pSettings->uiMasterClip].ClipProperties.uiVideoWidth;
-    pC->ewc.uiVideoHeight =
-        pC->pClipList[pSettings->uiMasterClip].ClipProperties.uiVideoHeight;
-    pC->ewc.uiVideoTimeScale =
-        pC->pClipList[pSettings->uiMasterClip].ClipProperties.uiVideoTimeScale;
-    pC->ewc.bVideoDataPartitioning = pC->pClipList[pSettings->
-        uiMasterClip].ClipProperties.bMPEG4dataPartition;
+    /* Get video properties from output properties */
 
-    switch( pC->pClipList[pSettings->uiMasterClip].ClipProperties.VideoStreamType )
-    {
+    /* Get output width and height */
+    switch(pC->xVSS.outputVideoSize) {
+        case M4VIDEOEDITING_kSQCIF:
+            pC->ewc.uiVideoWidth = 128;
+            pC->ewc.uiVideoHeight = 96;
+            break;
+        case M4VIDEOEDITING_kQQVGA:
+            pC->ewc.uiVideoWidth = 160;
+            pC->ewc.uiVideoHeight = 120;
+            break;
+        case M4VIDEOEDITING_kQCIF:
+            pC->ewc.uiVideoWidth = 176;
+            pC->ewc.uiVideoHeight = 144;
+            break;
+        case M4VIDEOEDITING_kQVGA:
+            pC->ewc.uiVideoWidth = 320;
+            pC->ewc.uiVideoHeight = 240;
+            break;
+        case M4VIDEOEDITING_kCIF:
+            pC->ewc.uiVideoWidth = 352;
+            pC->ewc.uiVideoHeight = 288;
+            break;
+        case M4VIDEOEDITING_kVGA:
+            pC->ewc.uiVideoWidth = 640;
+            pC->ewc.uiVideoHeight = 480;
+            break;
+            /* +PR LV5807 */
+        case M4VIDEOEDITING_kWVGA:
+            pC->ewc.uiVideoWidth = 800;
+            pC->ewc.uiVideoHeight = 480;
+            break;
+        case M4VIDEOEDITING_kNTSC:
+            pC->ewc.uiVideoWidth = 720;
+            pC->ewc.uiVideoHeight = 480;
+            break;
+            /* -PR LV5807 */
+            /* +CR Google */
+        case M4VIDEOEDITING_k640_360:
+            pC->ewc.uiVideoWidth = 640;
+            pC->ewc.uiVideoHeight = 360;
+            break;
+
+        case M4VIDEOEDITING_k854_480:
+            pC->ewc.uiVideoWidth = M4ENCODER_854_480_Width;
+            pC->ewc.uiVideoHeight = 480;
+            break;
+
+        case M4VIDEOEDITING_k1280_720:
+            pC->ewc.uiVideoWidth = 1280;
+            pC->ewc.uiVideoHeight = 720;
+            break;
+        case M4VIDEOEDITING_k1080_720:
+            pC->ewc.uiVideoWidth = M4ENCODER_1080_720_Width;
+
+            pC->ewc.uiVideoHeight = 720;
+            break;
+        case M4VIDEOEDITING_k960_720:
+            pC->ewc.uiVideoWidth = 960;
+            pC->ewc.uiVideoHeight = 720;
+            break;
+
+        default: /* If output video size is not given, we take QCIF size */
+            pC->ewc.uiVideoWidth = 176;
+            pC->ewc.uiVideoHeight = 144;
+            pC->xVSS.outputVideoSize = M4VIDEOEDITING_kQCIF;
+            break;
+    }
+
+    pC->ewc.uiVideoTimeScale        = 30;
+    pC->ewc.bVideoDataPartitioning  = 0;
+
+    switch(pC->xVSS.outputVideoFormat) {
         case M4VIDEOEDITING_kH263:
             pC->ewc.VideoStreamType = M4SYS_kH263;
             break;
-
-        case M4VIDEOEDITING_kMPEG4_EMP:
-            pC->ewc.bActivateEmp = M4OSA_TRUE; /* no break */
-
         case M4VIDEOEDITING_kMPEG4:
             pC->ewc.VideoStreamType = M4SYS_kMPEG_4;
             break;
-
         case M4VIDEOEDITING_kH264:
             pC->ewc.VideoStreamType = M4SYS_kH264;
             break;
-
         default:
             pC->ewc.VideoStreamType = M4SYS_kVideoUnknown;
             break;
@@ -913,6 +1038,22 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
             break;
     }
 
+    for (i=0; i<pC->uiClipNumber; i++) {
+        if ((pC->pClipList[i].ClipProperties.VideoStreamType !=
+              pC->xVSS.outputVideoFormat)||
+              (pC->pClipList[i].ClipProperties.uiVideoWidth !=
+               pC->ewc.uiVideoWidth) ||
+              (pC->pClipList[i].ClipProperties.uiVideoHeight !=
+               pC->ewc.uiVideoHeight) ||
+              (pC->pClipList[i].ClipProperties.VideoStreamType ==
+               M4VIDEOEDITING_kH264) ||
+              (pC->pClipList[i].ClipProperties.VideoStreamType ==
+               M4VIDEOEDITING_kMPEG4 &&
+               pC->pClipList[i].ClipProperties.uiVideoTimeScale !=
+                pC->ewc.uiVideoTimeScale)) {
+            pC->pClipList[i].bTranscodingRequired = M4OSA_TRUE;
+        }
+    }
     /**
     * We produce a 3gpp file, unless it is mp3 */
     if( M4VIDEOEDITING_kMP3 == pC->
@@ -1108,8 +1249,6 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     * Create the 3GPP output file */
     else if( M4VIDEOEDITING_kFileType_3GPP == outputFileType )
     {
-        /* Compute an average bitrate from mixed bitrates of the input clips */
-        M4VSS3GPP_intComputeOutputAverageVideoBitrate(pC);
         pC->ewc.uiVideoBitrate = pSettings->xVSS.outputVideoBitrate;
 
         /**
@@ -1525,6 +1664,10 @@ M4OSA_ERR M4VSS3GPP_editClose( M4VSS3GPP_EditContext pContext )
     {
         free(pC->pActiveEffectsList1);
         pC->pActiveEffectsList1 = M4OSA_NULL;
+    }
+    if(pC->m_air_context != M4OSA_NULL) {
+        free(pC->m_air_context);
+        pC->m_air_context = M4OSA_NULL;
     }
     /**
     * Update state automaton */
@@ -2474,6 +2617,9 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
     M4VSS3GPP_ClipContext *pClip;
     M4OSA_ERR err;
     M4OSA_UInt32 i;
+    M4DECODER_MPEG4_DecoderConfigInfo DecConfigInfo;
+    M4DECODER_VideoSize dummySize;
+    M4OSA_Bool bGetDSiFromEncoder = M4OSA_FALSE;
 
     M4ENCODER_Header *encHeader;
     M4SYS_StreamIDmemAddr streamHeader;
@@ -2519,11 +2665,11 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
 
         for ( i = 0; i < pC->uiClipNumber; i++ )
         {
-            uiNewLevel = pC->pClipList[i].ClipProperties.uiH263level;
-
-            if( uiNewLevel > uiCurrentLevel )
-            {
-                uiCurrentLevel = uiNewLevel;
+            if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
+                uiNewLevel = pC->pClipList[i].ClipProperties.uiH263level;
+                if (uiNewLevel > uiCurrentLevel) {
+                    uiCurrentLevel = uiNewLevel;
+                }
             }
         }
 
@@ -2560,68 +2706,100 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
 
         /**
         * Start with profile of the first clip */
-        uiCurrentProf = pC->pClipList[0].ClipProperties.uiVideoProfile;
+        M4OSA_TRACE1_0("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+            get DSI for Mpeg4 stream");
+        if(M4OSA_NULL == pC->ewc.pEncContext) {
+            M4OSA_TRACE1_0("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                pC->ewc.pEncContext is NULL");
+            err = M4VSS3GPP_intCreateVideoEncoder(pC);
+            if(M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                    M4VSS3GPP_intCreateVideoEncoder returned error 0x%x", err);
+            }
+        }
+        if(M4OSA_NULL != pC->ewc.pEncContext) {
+            err = pC->ShellAPI.pVideoEncoderGlobalFcts->pFctGetOption(
+                    pC->ewc.pEncContext, M4ENCODER_kOptionID_EncoderHeader,
+                    (M4OSA_DataOption)&encHeader);
+            if ( (M4NO_ERROR != err) || (M4OSA_NULL == encHeader->pBuf)) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                    failed to get the encoder header (err 0x%x)", err);
+                M4OSA_TRACE1_2("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                    encHeader->pBuf=0x%x, size=0x%x", encHeader->pBuf,
+                    encHeader->Size);
+            }
+        }
+        err = M4DECODER_EXTERNAL_ParseVideoDSI((M4OSA_UInt8 *)encHeader->pBuf,
+                  encHeader->Size, &DecConfigInfo, &dummySize);
+        if (M4NO_ERROR != err) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): \
+                M4DECODER_EXTERNAL_ParseVideoDSI returns 0x%08X", err);
+            return err;
+        }
+
+        uiCurrentProf = DecConfigInfo.uiProfile;
 
         /**
         * Combine current profile with the one of the next clip */
-        for ( i = 1; i < pC->uiClipNumber; i++ )
-        {
-            uiNewProf = pC->pClipList[i].ClipProperties.uiVideoProfile;
+        for (i=0; i<pC->uiClipNumber; i++) {
+            if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
+                uiNewProf = pC->pClipList[i].ClipProperties.uiVideoProfile;
 
-            switch( uiNewProf )
-            {
-                case 8:
-                    /**< 8 + x --> x */
-                    /**< uiCurrentProf is not updated */
-                    break;
+                switch( uiNewProf )
+                {
+                    case 8:
+                        /**< 8 + x --> x */
+                        /**< uiCurrentProf is not updated */
+                        break;
 
-                case 1:
-                case 2:
-                case 3:
-                    switch( uiCurrentProf )
-                    {
-                        case 1:
-                        case 2:
-                        case 3:
-                        case 4:
-                        case 5:
-                            /**< 1, 2, 3, 4 or 5 -> max */
-                            uiCurrentProf = (uiCurrentProf > uiNewProf)
-                                ? uiCurrentProf : uiNewProf;
-                            break;
+                    case 1:
+                    case 2:
+                    case 3:
+                        switch( uiCurrentProf )
+                        {
+                            case 1:
+                            case 2:
+                            case 3:
+                            case 4:
+                            case 5:
+                                /**< 1, 2, 3, 4 or 5 -> max */
+                                uiCurrentProf = (uiCurrentProf > uiNewProf)
+                                    ? uiCurrentProf : uiNewProf;
+                                break;
 
-                        case 8: /**< 8 + x -> x */
-                            uiCurrentProf = uiNewProf;
-                            break;
+                            case 8: /**< 8 + x -> x */
+                                uiCurrentProf = uiNewProf;
+                                break;
 
-                        case 9:
-                            /**< 9 and 1 -> 2 */
-                            /**< 9 and 2 -> 2 */
-                            /**< 9 and 3 -> 3 */
-                            /**< 9 and 4 -> 4 */
-                            /**< 9 and 5 -> 5 */
-                            uiCurrentProf = (uiNewProf > 2) ? uiNewProf : 2;
-                            break;
+                            case 9:
+                                /**< 9 and 1 -> 2 */
+                                /**< 9 and 2 -> 2 */
+                                /**< 9 and 3 -> 3 */
+                                /**< 9 and 4 -> 4 */
+                                /**< 9 and 5 -> 5 */
+                                uiCurrentProf = (uiNewProf > 2) ? uiNewProf : 2;
+                                break;
+                        }
+                        break;
+
+                    case 9:
+                        switch( uiCurrentProf )
+                        {
+                            case 1:
+                            case 2:
+                            case 3:
+                                /**< 9 and 1 -> 2 */
+                                /**< 9 and 2 -> 2 */
+                                /**< 9 and 3 -> 3 */
+                                uiCurrentProf =
+                                    (uiCurrentProf > 2) ? uiCurrentProf : 2;
+                                break;
+
+                            case 9: /**< 9 + x -> x */
+                            case 8: /**< 8 + x -> x */
+                                uiCurrentProf = uiNewProf;
+                                break;
                     }
-                    break;
-
-                case 9:
-                    switch( uiCurrentProf )
-                    {
-                        case 1:
-                        case 2:
-                        case 3:
-                            /**< 9 and 1 -> 2 */
-                            /**< 9 and 2 -> 2 */
-                            /**< 9 and 3 -> 3 */
-                            uiCurrentProf =
-                                (uiCurrentProf > 2) ? uiCurrentProf : 2;
-                            break;
-
-                        case 9: /**< 9 + x -> x */
-                        case 8: /**< 8 + x -> x */
-                            uiCurrentProf = uiNewProf;
-                            break;
                 }
             }
         }
@@ -2634,9 +2812,9 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
 
         while( i < pC->uiClipNumber )
         {
-            if( M4OSA_TRUE
-                == pC->pClipList[i].ClipProperties.bMPEG4resynchMarker )
-            {
+            if ((M4OSA_TRUE ==
+                    pC->pClipList[i].ClipProperties.bMPEG4resynchMarker) &&
+                 (pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE)) {
                 iResynchMarkerDsiIndex = i;
                 break; /**< we found it, get out the while loop */
             }
@@ -2648,7 +2826,62 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
         * Else we must open it (and later close it...) */
         if( 0 == iResynchMarkerDsiIndex )
         {
-            pStreamForDsi = &(pC->pC1->pVideoStream->m_basicProperties);
+            for (i=0; i<pC->uiClipNumber; i++) {
+                if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
+                    /**
+                    * We can use the fast open mode and the skip audio mode
+                      to get the DSI */
+                    err = M4VSS3GPP_intClipInit(&pClip, pC->pOsaFileReadPtr);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1(
+                            "M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                            M4VSS3GPP_intClipInit() returns 0x%x!", err);
+                        if (M4OSA_NULL != pClip) {
+                            M4VSS3GPP_intClipCleanUp(pClip);
+                        }
+                        return err;
+                    }
+                    err = M4VSS3GPP_intClipOpen(
+                              pClip, &pC->pClipList[i],
+                              M4OSA_TRUE, M4OSA_TRUE,
+                              M4OSA_TRUE);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1(
+                            "M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                            M4VSS3GPP_intClipOpen() returns 0x%x!", err);
+                        M4VSS3GPP_intClipCleanUp(pClip);
+                        return err;
+                    }
+                    pStreamForDsi = &(pClip->pVideoStream->m_basicProperties);
+                    /*got the DSI  */
+
+                    bGetDSiFromEncoder = M4OSA_TRUE;
+
+                    break;
+                }
+            }
+            if(bGetDSiFromEncoder == M4OSA_FALSE) {
+                /**
+                * Allocate and copy the new DSI */
+                pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
+                    encHeader->Size, M4VSS3GPP, (M4OSA_Char *)"ewc dsi (MPEG4)");
+                if (M4OSA_NULL == pC->ewc.pVideoOutputDsi) {
+                    M4OSA_TRACE1_0(
+                        "M4VSS3GPP_intComputeOutputVideoAndAudioDsi(): \
+                        unable to allocate pVideoOutputDsi (MPEG4)");
+                    return M4ERR_ALLOC;
+                }
+                pC->ewc.uiVideoOutputDsiSize = (M4OSA_UInt16)encHeader->Size;
+                memcpy((void *)pC->ewc.pVideoOutputDsi,
+                    (void *)encHeader->pBuf, pC->ewc.uiVideoOutputDsiSize);
+
+            }
+
+            err = M4VSS3GPP_intDestroyVideoEncoder(pC);
+            if(M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
+                    M4VSS3GPP_intDestroyVideoEncoder error 0x%x", err);
+            }
         }
         else
         {
@@ -2687,24 +2920,27 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
             pStreamForDsi = &(pClip->pVideoStream->m_basicProperties);
         }
 
-        /**
-        * Allocate and copy the new DSI */
-        pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
-            pStreamForDsi->m_decoderSpecificInfoSize,
-            M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (MPEG4)");
+        if(pC->ewc.pVideoOutputDsi == M4OSA_NULL) {
 
-        if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
-        {
-            M4OSA_TRACE1_0(
-                "M4VSS3GPP_intComputeOutputVideoAndAudioDsi():\
-                unable to allocate pVideoOutputDsi (MPEG4), returning M4ERR_ALLOC");
-            return M4ERR_ALLOC;
+            /**
+            * Allocate and copy the new DSI */
+            pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
+                pStreamForDsi->m_decoderSpecificInfoSize,
+                M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (MPEG4)");
+
+            if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
+            {
+                M4OSA_TRACE1_0(
+                    "M4VSS3GPP_intComputeOutputVideoAndAudioDsi():\
+                    unable to allocate pVideoOutputDsi (MPEG4), returning M4ERR_ALLOC");
+                return M4ERR_ALLOC;
+            }
+            pC->ewc.uiVideoOutputDsiSize =
+                (M4OSA_UInt16)pStreamForDsi->m_decoderSpecificInfoSize;
+            memcpy((void *)pC->ewc.pVideoOutputDsi,
+                (void *)pStreamForDsi->m_pDecoderSpecificInfo,
+                pC->ewc.uiVideoOutputDsiSize);
         }
-        pC->ewc.uiVideoOutputDsiSize =
-            (M4OSA_UInt16)pStreamForDsi->m_decoderSpecificInfoSize;
-        memcpy((void *)pC->ewc.pVideoOutputDsi,
-            (void *)pStreamForDsi->m_pDecoderSpecificInfo,
-            pC->ewc.uiVideoOutputDsiSize);
 
         /**
         * We rewrite the profile in the output DSI because it may not be the good one
@@ -2914,6 +3150,22 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
 
     if( M4OSA_NULL != pC->pC1 )
     {
+        if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame) {
+            if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame[0].pac_data) {
+                free(pC->pC1->m_pPreResizeFrame[0].pac_data);
+                pC->pC1->m_pPreResizeFrame[0].pac_data = M4OSA_NULL;
+            }
+            if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame[1].pac_data) {
+                free(pC->pC1->m_pPreResizeFrame[1].pac_data);
+                pC->pC1->m_pPreResizeFrame[1].pac_data = M4OSA_NULL;
+            }
+            if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame[2].pac_data) {
+                free(pC->pC1->m_pPreResizeFrame[2].pac_data);
+                pC->pC1->m_pPreResizeFrame[2].pac_data = M4OSA_NULL;
+            }
+            free(pC->pC1->m_pPreResizeFrame);
+            pC->pC1->m_pPreResizeFrame = M4OSA_NULL;
+        }
         /**
         * Close the current first clip */
         err = M4VSS3GPP_intClipCleanUp(pC->pC1);
@@ -2949,6 +3201,9 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
     if( M4OSA_NULL != pC->pC2 )
     {
         pC->pC1 = pC->pC2;
+        if(M4OSA_NULL != pC->pC2->m_pPreResizeFrame) {
+            pC->pC1->m_pPreResizeFrame = pC->pC2->m_pPreResizeFrame;
+        }
         pC->pC2 = M4OSA_NULL;
     }
     /**
@@ -3145,7 +3400,7 @@ M4OSA_ERR M4VSS3GPP_intOpenClip( M4VSS3GPP_InternalEditContext *pC,
 {
     M4OSA_ERR err;
     M4VSS3GPP_ClipContext *pClip; /**< shortcut */
-    M4VIDEOEDITING_ClipProperties *pClipProperties;
+    M4VIDEOEDITING_ClipProperties *pClipProperties = M4OSA_NULL;
     M4OSA_Int32 iCts;
     M4OSA_UInt32 i;
 
@@ -3171,20 +3426,25 @@ M4OSA_ERR M4VSS3GPP_intOpenClip( M4VSS3GPP_InternalEditContext *pC,
     * Set shortcut */
     pClip = *hClip;
 
-    err = M4VSS3GPP_intClipOpen(pClip, pClipSettings, M4OSA_FALSE, M4OSA_FALSE,
-        M4OSA_FALSE);
+    if (pClipSettings->FileType == M4VIDEOEDITING_kFileType_ARGB8888 ) {
+        pClipProperties = &pClipSettings->ClipProperties;
+        pClip->pSettings = pClipSettings;
+        pClip->iEndTime = pClipSettings->uiEndCutTime;
+    }
 
-    if( M4NO_ERROR != err )
-    {
-        M4OSA_TRACE1_1(
-            "M4VSS3GPP_intOpenClip: M4VSS3GPP_intClipOpen() returns 0x%x!",
-            err);
+    err = M4VSS3GPP_intClipOpen(pClip, pClipSettings,
+              M4OSA_FALSE, M4OSA_FALSE, M4OSA_FALSE);
+    if (M4NO_ERROR != err) {
+        M4OSA_TRACE1_1("M4VSS3GPP_intOpenClip: \
+            M4VSS3GPP_intClipOpen() returns 0x%x!", err);
         M4VSS3GPP_intClipCleanUp(pClip);
         *hClip = M4OSA_NULL;
         return err;
     }
 
-    pClipProperties = &pClip->pSettings->ClipProperties;
+    if (pClipSettings->FileType != M4VIDEOEDITING_kFileType_ARGB8888 ) {
+        pClipProperties = &pClip->pSettings->ClipProperties;
+    }
 
     /**
     * Copy common 'silence frame stuff' to ClipContext */
@@ -3213,8 +3473,7 @@ M4OSA_ERR M4VSS3GPP_intOpenClip( M4VSS3GPP_InternalEditContext *pC,
         pClip->iActualVideoBeginCut = 0;
         pClip->iActualAudioBeginCut = 0;
     }
-    else
-    {
+    else if(pClipSettings->FileType != M4VIDEOEDITING_kFileType_ARGB8888) {
         if( M4SYS_kVideoUnknown != pC->ewc.VideoStreamType )
         {
             /**
@@ -3274,25 +3533,128 @@ M4OSA_ERR M4VSS3GPP_intOpenClip( M4VSS3GPP_InternalEditContext *pC,
 
     if( M4SYS_kVideoUnknown != pC->ewc.VideoStreamType )
     {
-        /**
-        * Read the first Video AU of the clip */
-        err = pClip->ShellAPI.m_pReaderDataIt->m_pFctGetNextAu(
-            pClip->pReaderContext,
-            (M4_StreamHandler *)pClip->pVideoStream, &pClip->VideoAU);
+        if ((pClipSettings->FileType != M4VIDEOEDITING_kFileType_ARGB8888 )) {
 
-        if( M4WAR_NO_MORE_AU == err )
-        {
             /**
-            * If we (already!) reach the end of the clip, we filter the error.
-            * It will be correctly managed at the first step. */
-            err = M4NO_ERROR;
+            * Read the first Video AU of the clip */
+            err = pClip->ShellAPI.m_pReaderDataIt->m_pFctGetNextAu(
+                pClip->pReaderContext,
+                (M4_StreamHandler *)pClip->pVideoStream, &pClip->VideoAU);
+
+            if( M4WAR_NO_MORE_AU == err )
+            {
+                /**
+                * If we (already!) reach the end of the clip, we filter the error.
+                * It will be correctly managed at the first step. */
+                err = M4NO_ERROR;
+            }
+            else if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_1("M4VSS3GPP_intOpenClip: \
+                    m_pReaderDataIt->m_pFctGetNextAu() returns 0x%x!", err);
+                return err;
+            }
+        } else {
+            pClipProperties->uiVideoWidth  = pClipProperties->uiStillPicWidth;
+            pClipProperties->uiVideoHeight = pClipProperties->uiStillPicHeight;
         }
-        else if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_intOpenClip: m_pReaderDataIt->m_pFctGetNextAu() returns 0x%x!",
-                err);
-            return err;
+        /* state check not to allocate buffer during save start */
+
+
+        /******************************/
+        /* Video resize management   */
+        /******************************/
+        /**
+        * Compare input video size with output video size
+          to check if resize needed */
+        if (((M4OSA_UInt32)pC->ewc.uiVideoWidth !=
+                 pClipProperties->uiVideoWidth) ||
+            ((M4OSA_UInt32)pC->ewc.uiVideoHeight !=
+                 pClipProperties->uiVideoHeight)) {
+            if(pClip->m_pPreResizeFrame == M4OSA_NULL) {
+                /**
+                * Allocate the intermediate video plane that will
+                  receive the decoded image before resizing */
+                pClip->m_pPreResizeFrame =
+                 (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(
+                     3*sizeof(M4VIFI_ImagePlane), M4VSS3GPP,
+                     (M4OSA_Char *)"pPreResizeFrame");
+                if (M4OSA_NULL == pClip->m_pPreResizeFrame) {
+                    M4OSA_TRACE1_0("M4MCS_intPrepareVideoEncoder(): \
+                        unable to allocate m_pPreResizeFrame");
+                    return M4ERR_ALLOC;
+                }
+
+                pClip->m_pPreResizeFrame[0].pac_data = M4OSA_NULL;
+                pClip->m_pPreResizeFrame[1].pac_data = M4OSA_NULL;
+                pClip->m_pPreResizeFrame[2].pac_data = M4OSA_NULL;
+
+                /**
+                * Allocate the Y plane */
+                pClip->m_pPreResizeFrame[0].u_topleft = 0;
+                pClip->m_pPreResizeFrame[0].u_width  =
+                    pClipProperties->uiVideoWidth;
+                pClip->m_pPreResizeFrame[0].u_height =
+                    pClipProperties->uiVideoHeight;
+                pClip->m_pPreResizeFrame[0].u_stride =
+                    pClip->m_pPreResizeFrame[0].u_width;
+
+                pClip->m_pPreResizeFrame[0].pac_data =
+                 (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc (
+                   pClip->m_pPreResizeFrame[0].u_stride * pClip->m_pPreResizeFrame[0].u_height,
+                   M4MCS, (M4OSA_Char *)"m_pPreResizeFrame[0].pac_data");
+                if (M4OSA_NULL == pClip->m_pPreResizeFrame[0].pac_data) {
+                    M4OSA_TRACE1_0("M4MCS_intPrepareVideoEncoder(): \
+                        unable to allocate m_pPreResizeFrame[0].pac_data");
+                    free(pClip->m_pPreResizeFrame);
+                    return M4ERR_ALLOC;
+                }
+
+                /**
+                * Allocate the U plane */
+                pClip->m_pPreResizeFrame[1].u_topleft = 0;
+                pClip->m_pPreResizeFrame[1].u_width  =
+                    pClip->m_pPreResizeFrame[0].u_width >> 1;
+                pClip->m_pPreResizeFrame[1].u_height =
+                    pClip->m_pPreResizeFrame[0].u_height >> 1;
+                pClip->m_pPreResizeFrame[1].u_stride =
+                    pClip->m_pPreResizeFrame[1].u_width;
+
+                pClip->m_pPreResizeFrame[1].pac_data =
+                 (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc (
+                   pClip->m_pPreResizeFrame[1].u_stride * pClip->m_pPreResizeFrame[1].u_height,
+                   M4MCS, (M4OSA_Char *)"m_pPreResizeFrame[1].pac_data");
+                if (M4OSA_NULL == pClip->m_pPreResizeFrame[1].pac_data) {
+                    M4OSA_TRACE1_0("M4MCS_intPrepareVideoEncoder(): \
+                        unable to allocate m_pPreResizeFrame[1].pac_data");
+                    free(pClip->m_pPreResizeFrame[0].pac_data);
+                    free(pClip->m_pPreResizeFrame);
+                    return M4ERR_ALLOC;
+                }
+
+                /**
+                * Allocate the V plane */
+                pClip->m_pPreResizeFrame[2].u_topleft = 0;
+                pClip->m_pPreResizeFrame[2].u_width =
+                    pClip->m_pPreResizeFrame[1].u_width;
+                pClip->m_pPreResizeFrame[2].u_height =
+                    pClip->m_pPreResizeFrame[1].u_height;
+                pClip->m_pPreResizeFrame[2].u_stride =
+                    pClip->m_pPreResizeFrame[2].u_width;
+
+                pClip->m_pPreResizeFrame[2].pac_data =
+                 (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc (
+                   pClip->m_pPreResizeFrame[2].u_stride * pClip->m_pPreResizeFrame[2].u_height,
+                   M4MCS, (M4OSA_Char *)"m_pPreResizeFrame[2].pac_data");
+                if (M4OSA_NULL == pClip->m_pPreResizeFrame[2].pac_data) {
+                    M4OSA_TRACE1_0("M4MCS_intPrepareVideoEncoder(): \
+                        unable to allocate m_pPreResizeFrame[2].pac_data");
+                    free(pClip->m_pPreResizeFrame[0].pac_data);
+                    free(pClip->m_pPreResizeFrame[1].pac_data);
+                    free(pClip->m_pPreResizeFrame);
+                    return M4ERR_ALLOC;
+                }
+            }
         }
 
         /**

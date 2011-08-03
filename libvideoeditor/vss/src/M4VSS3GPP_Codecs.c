@@ -943,7 +943,9 @@ M4OSA_ERR M4VSS3GPP_setCurrentVideoDecoder( M4VSS3GPP_MediaAndCodecCtxt *pC,
         case M4DA_StreamTypeVideoMpeg4Avc:
             decoderType = M4DECODER_kVideoTypeAVC;
             break;
-
+        case M4DA_StreamTypeVideoARGB8888:
+            decoderType = M4DECODER_kVideoTypeYUV420P;
+            break;
         default:
             M4OSA_DEBUG_IF1(M4OSA_TRUE,
                 M4VSS3GPP_ERR_UNSUPPORTED_INPUT_VIDEO_FORMAT,

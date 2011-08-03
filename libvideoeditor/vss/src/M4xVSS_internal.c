@@ -2354,6 +2354,22 @@ M4OSA_ERR M4xVSS_internalGenerateEditedFile(M4OSA_Context pContext)
         return err;
     }
 
+        M4VSS3GPP_InternalEditContext* pVSSContext =
+            (M4VSS3GPP_InternalEditContext*)pVssCtxt;
+        pVSSContext->xVSS.outputVideoFormat =
+            xVSS_context->pSettings->xVSS.outputVideoFormat;
+        pVSSContext->xVSS.outputVideoSize =
+            xVSS_context->pSettings->xVSS.outputVideoSize ;
+        pVSSContext->xVSS.outputAudioFormat =
+            xVSS_context->pSettings->xVSS.outputAudioFormat;
+        pVSSContext->xVSS.outputAudioSamplFreq =
+            xVSS_context->pSettings->xVSS.outputAudioSamplFreq;
+        pVSSContext->xVSS.outputVideoBitrate =
+            xVSS_context->pSettings->xVSS.outputVideoBitrate ;
+        pVSSContext->xVSS.outputAudioBitrate =
+            xVSS_context->pSettings->xVSS.outputAudioBitrate ;
+        pVSSContext->xVSS.bAudioMono =
+            xVSS_context->pSettings->xVSS.bAudioMono;
     /* In case of MMS use case, we fill directly into the VSS context the targeted bitrate */
     if(xVSS_context->targetedBitrate != 0)
     {

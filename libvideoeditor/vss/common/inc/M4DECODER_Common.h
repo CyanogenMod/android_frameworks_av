@@ -113,6 +113,22 @@ typedef enum
     M4DECODER_kOptionID_NextRenderedFrameCTS = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON,\
                                                                          0x05),
 
+    /**
+    Set the YUV data to the dummy video decoder
+    */
+    M4DECODER_kOptionID_DecYuvData =
+        M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x06),
+    /**
+    Set the YUV data with color effect applied to the dummy video decoder
+    */
+    M4DECODER_kOptionID_YuvWithEffectNonContiguous =
+        M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x07),
+
+    M4DECODER_kOptionID_YuvWithEffectContiguous =
+        M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x08),
+
+    M4DECODER_kOptionID_EnableYuvWithEffect =
+        M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x09),
 
     /* common to MPEG4 decoders */
     /**
@@ -201,6 +217,7 @@ typedef enum
     M4DECODER_kVideoTypeAVC,
     M4DECODER_kVideoTypeWMV,
     M4DECODER_kVideoTypeREAL,
+    M4DECODER_kVideoTypeYUV420P,
 
     M4DECODER_kVideoType_NB  /* number of decoders, keep it as last enum entry */
 

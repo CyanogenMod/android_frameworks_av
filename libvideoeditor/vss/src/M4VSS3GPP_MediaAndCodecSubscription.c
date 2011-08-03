@@ -79,6 +79,7 @@ Seriously, I'd love to know." */
 
 #include "VideoEditorAudioDecoder.h"
 #include "VideoEditorVideoDecoder.h"
+#include "M4DECODER_Null.h"
 #ifdef M4VSS_SUPPORT_AUDEC_NULL
 #include "M4AD_Null.h"
 #endif
@@ -259,6 +260,18 @@ M4OSA_ERR M4VSS3GPP_subscribeMediaAndCodec(M4VSS3GPP_MediaAndCodecCtxt *pContext
         "M4VSS3GPP_subscribeMediaAndCodec: can't register H264 decoder");
 #endif /* M4VSS_SUPPORT_VIDEC_3GP */
 
+#ifdef M4VSS_SUPPORT_VIDEC_NULL
+    err = M4DECODER_NULL_getInterface(
+              &videoDecoderType, &pVideoDecoderInterface);
+    if (M4NO_ERROR != err) {
+        M4OSA_TRACE1_0("M4VD NULL Decoder interface allocation error");
+        return err;
+    }
+    err = M4VSS3GPP_registerVideoDecoder(
+              pContext, videoDecoderType, pVideoDecoderInterface);
+    M4OSA_DEBUG_IF1((err != M4NO_ERROR), err, "M4VSS3GPP_subscribeMediaAndCodec: \
+        can't register video NULL decoder");
+#endif
     /* ______________________________ */
     /*|                              |*/
     /*|  audio decoder subscription  |*/

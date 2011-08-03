@@ -119,6 +119,8 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
 
     /**
     * Init the clip context */
+    pClipCtxt->iVoffset = 0;
+    pClipCtxt->iAoffset = 0;
     pClipCtxt->Vstatus = M4VSS3GPP_kClipStatus_READ;
     pClipCtxt->Astatus = M4VSS3GPP_kClipStatus_READ;
 
@@ -129,6 +131,11 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
     pClipCtxt->AudioAU.m_dataAddress = M4OSA_NULL;
 
     pClipCtxt->pViDecCtxt = M4OSA_NULL;
+    pClipCtxt->iVideoDecCts = 0;
+    pClipCtxt->iVideoRenderCts = 0;
+    pClipCtxt->lastDecodedPlane = M4OSA_NULL;
+    pClipCtxt->iActualVideoBeginCut = 0;
+    pClipCtxt->iActualAudioBeginCut = 0;
     pClipCtxt->bVideoAuAvailable = M4OSA_FALSE;
     pClipCtxt->bFirstAuWritten = M4OSA_FALSE;
 
@@ -136,9 +143,16 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
 
     pClipCtxt->bAudioFrameAvailable = M4OSA_FALSE;
     pClipCtxt->pAudioFramePtr = M4OSA_NULL;
+    pClipCtxt->iAudioFrameCts = 0;
+    pClipCtxt->pAudioDecCtxt = 0;
+    pClipCtxt->AudioDecBufferOut.m_bufferSize = 0;
     pClipCtxt->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
 
     pClipCtxt->pFileReadPtrFct = pFileReadPtrFct;
+    pClipCtxt->pPlaneYuv   = M4OSA_NULL;
+    pClipCtxt->pPlaneYuvWithEffect = M4OSA_NULL;
+    pClipCtxt->m_pPreResizeFrame = M4OSA_NULL;
+    pClipCtxt->bGetYuvDataFromDecoder = M4OSA_TRUE;
 
     /*
     * Reset pointers for media and codecs interfaces */
@@ -161,6 +175,7 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
     M4OSA_ERR err;
     M4READER_MediaFamily mediaFamily;
     M4_StreamHandler *pStreamHandler;
+    M4_StreamHandler  dummyStreamHandler;
     M4OSA_Int32 iDuration;
     M4OSA_Void *decoderUserData;
 #ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
@@ -185,6 +200,29 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
     /**
     * Keep a pointer to the clip settings. Remember that we don't possess it! */
     pClipCtxt->pSettings = pClipSettings;
+    if(M4VIDEOEDITING_kFileType_ARGB8888 == pClipCtxt->pSettings->FileType) {
+        M4OSA_TRACE3_0("M4VSS3GPP_intClipOpen: Image stream; set current vid dec");
+        err = M4VSS3GPP_setCurrentVideoDecoder(
+                  &pClipCtxt->ShellAPI, M4DA_StreamTypeVideoARGB8888);
+        M4ERR_CHECK_RETURN(err);
+
+        decoderUserData = M4OSA_NULL;
+
+        err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctCreate(
+                  &pClipCtxt->pViDecCtxt, &dummyStreamHandler,
+                  pClipCtxt->ShellAPI.m_pReaderDataIt, &pClipCtxt->VideoAU,
+                  decoderUserData);
+
+        if (M4NO_ERROR != err) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen: \
+                m_pVideoDecoder->m_pFctCreate returns 0x%x", err);
+            return err;
+        }
+        M4OSA_TRACE3_1("M4VSS3GPP_intClipOpen: \
+            Vid dec started; pViDecCtxt=0x%x", pClipCtxt->pViDecCtxt);
+
+        return M4NO_ERROR;
+    }
 
     /**
     * Get the correct reader interface */
@@ -755,45 +793,46 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeVideoUpToCts( M4VSS3GPP_ClipContext *pClipCtxt,
     {
         /**
         * Jump to the previous RAP in the clip (first get the time, then jump) */
-        iRapCts = iClipCts;
+        if(M4VIDEOEDITING_kFileType_ARGB8888 != pClipCtxt->pSettings->FileType) {
+            iRapCts = iClipCts;
 
-        err = pClipCtxt->ShellAPI.m_pReader->m_pFctGetPrevRapTime(
-            pClipCtxt->pReaderContext,
-            (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
+            err = pClipCtxt->ShellAPI.m_pReader->m_pFctGetPrevRapTime(
+                pClipCtxt->pReaderContext,
+                (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
 
-        if( M4WAR_READER_INFORMATION_NOT_PRESENT == err )
-        {
-            /* No RAP table, jump backward and predecode */
-            iRapCts = iClipCts - M4VSS3GPP_NO_STSS_JUMP_POINT;
+            if( M4WAR_READER_INFORMATION_NOT_PRESENT == err )
+            {
+                /* No RAP table, jump backward and predecode */
+                iRapCts = iClipCts - M4VSS3GPP_NO_STSS_JUMP_POINT;
 
-            if( iRapCts < 0 )
-                iRapCts = 0;
+                if( iRapCts < 0 )
+                    iRapCts = 0;
+            }
+            else if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_1(
+                    "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctGetPrevRapTime returns 0x%x!",
+                    err);
+                return err;
+            }
+
+            err =
+                pClipCtxt->ShellAPI.m_pReader->m_pFctJump(pClipCtxt->pReaderContext,
+                (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
+
+            if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_1(
+                    "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctJump returns 0x%x!",
+                    err);
+                return err;
+            }
+
+            /**
+            * The decoder must be told that we jumped */
+            bClipJump = M4OSA_TRUE;
+            pClipCtxt->iVideoDecCts = iRapCts;
         }
-        else if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctGetPrevRapTime returns 0x%x!",
-                err);
-            return err;
-        }
-
-        err =
-            pClipCtxt->ShellAPI.m_pReader->m_pFctJump(pClipCtxt->pReaderContext,
-            (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
-
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctJump returns 0x%x!",
-                err);
-            return err;
-        }
-
-        /**
-        * The decoder must be told that we jumped */
-        bClipJump = M4OSA_TRUE;
-        pClipCtxt->iVideoDecCts = iRapCts;
-
         /**
         * Remember the clip reading state */
         pClipCtxt->Vstatus = M4VSS3GPP_kClipStatus_DECODE_UP_TO;
@@ -1826,6 +1865,23 @@ M4OSA_ERR M4VSS3GPP_intClipCleanUp( M4VSS3GPP_ClipContext *pClipCtxt )
         pClipCtxt->pReaderContext = M4OSA_NULL;
     }
 
+    if(pClipCtxt->pPlaneYuv != M4OSA_NULL) {
+        if(pClipCtxt->pPlaneYuv[0].pac_data != M4OSA_NULL) {
+            free(pClipCtxt->pPlaneYuv[0].pac_data);
+            pClipCtxt->pPlaneYuv[0].pac_data = M4OSA_NULL;
+        }
+        free(pClipCtxt->pPlaneYuv);
+        pClipCtxt->pPlaneYuv = M4OSA_NULL;
+    }
+
+    if(pClipCtxt->pPlaneYuvWithEffect != M4OSA_NULL) {
+        if(pClipCtxt->pPlaneYuvWithEffect[0].pac_data != M4OSA_NULL) {
+            free(pClipCtxt->pPlaneYuvWithEffect[0].pac_data);
+            pClipCtxt->pPlaneYuvWithEffect[0].pac_data = M4OSA_NULL;
+        }
+        free(pClipCtxt->pPlaneYuvWithEffect);
+        pClipCtxt->pPlaneYuvWithEffect = M4OSA_NULL;
+    }
     /**
     * Free the shells interfaces */
     M4VSS3GPP_unRegisterAllWriters(&pClipCtxt->ShellAPI);

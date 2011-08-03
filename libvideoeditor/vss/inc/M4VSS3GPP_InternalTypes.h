@@ -374,6 +374,11 @@ typedef struct
      * Interfaces of the used modules */
      /**< Filesystem and shell reader, decoder functions */
     M4VSS3GPP_MediaAndCodecCtxt ShellAPI;
+    M4VIFI_ImagePlane           *pPlaneYuv;  /* YUV420 image plane, converted from ARGB888 */
+    M4VIFI_ImagePlane*          m_pPreResizeFrame;  /* The decoded image before resize
+                                                   (allocated only if resize needed)*/
+    M4VIFI_ImagePlane           *pPlaneYuvWithEffect; /* YUV420 image plane, with color effect */
+    M4OSA_Bool                  bGetYuvDataFromDecoder;  /* Boolean used to get YUV data from dummy video decoder only for first time */
 } M4VSS3GPP_ClipContext;
 
 
@@ -601,6 +606,8 @@ typedef struct
                                                               external effect is active */
     M4OSA_Int32              iInOutTimeOffset;
     M4OSA_Bool               bEncodeTillEoF;
+    M4xVSS_EditSettings      xVSS;
+    M4OSA_Context            m_air_context;
 } M4VSS3GPP_InternalEditContext;
 
 

@@ -366,6 +366,7 @@ typedef struct
                                                        with M4VSS3GPP_editAnalyseClip */
     M4OSA_UInt32                    uiBeginCutTime;   /**< Begin cut time, in milliseconds */
     M4OSA_UInt32                    uiEndCutTime;     /**< End cut time, in milliseconds */
+    M4OSA_Bool                      bTranscodingRequired;
 
 #ifdef M4VSS_SUPPORT_EXTENDED_FEATURES
     M4xVSS_ClipSettings             xVSS;

@@ -47,6 +47,13 @@
 
 /*for transition behaviour*/
 #include <math.h>
+#include "M4AIR_API.h"
+#include "M4VSS3GPP_Extended_API.h"
+/** Determine absolute value of a. */
+#define M4xVSS_ABS(a) ( ( (a) < (0) ) ? (-(a)) : (a) )
+#define Y_PLANE_BORDER_VALUE    0x00
+#define U_PLANE_BORDER_VALUE    0x80
+#define V_PLANE_BORDER_VALUE    0x80
 
 /************************************************************************/
 /* Static local functions                                               */
@@ -75,6 +82,26 @@ static M4OSA_Void M4VSS3GPP_intGetMPEG4Gov( M4OSA_MemAddr8 pAuDataBuffer,
                                            M4OSA_UInt32 *pCtsSec );
 static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
                                              M4OSA_UInt32 uiWidth, M4OSA_UInt32 uiHeight );
+static M4OSA_ERR M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420(
+          M4OSA_Void* pFileIn, M4OSA_FileReadPointer* pFileReadPtr,
+          M4VIFI_ImagePlane* pImagePlanes,
+          M4OSA_UInt32 width,M4OSA_UInt32 height);
+static M4OSA_ERR M4VSS3GPP_intApplyRenderingMode(
+          M4VSS3GPP_InternalEditContext *pC,
+          M4xVSS_MediaRendering renderingMode,
+          M4VIFI_ImagePlane* pInplane,
+          M4VIFI_ImagePlane* pOutplane);
+
+static M4OSA_ERR M4VSS3GPP_intSetYuv420PlaneFromARGB888 (
+                                        M4VSS3GPP_InternalEditContext *pC,
+                                        M4VSS3GPP_ClipContext* pClipCtxt);
+static M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(
+                                             M4VSS3GPP_InternalEditContext *pC,
+                                             M4VSS3GPP_ClipContext* pClipCtxt,
+                                             M4OSA_Bool bIsClip1,
+                                             M4VIFI_ImagePlane *pResizePlane,
+                                             M4VIFI_ImagePlane *pPlaneNoResize,
+                                             M4VIFI_ImagePlane *pPlaneOut);
 
 /**
  ******************************************************************************
@@ -381,6 +408,19 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                 M4OSA_TRACE3_0(
                     "M4VSS3GPP_intEditStepVideo DECODE_ENCODE / BEGIN_CUT");
 
+            if ((pC->pC1->pSettings->FileType ==
+                     M4VIDEOEDITING_kFileType_ARGB8888) &&
+                (M4OSA_FALSE ==
+                    pC->pC1->pSettings->ClipProperties.bSetImageData)) {
+
+                err = M4VSS3GPP_intSetYuv420PlaneFromARGB888(pC, pC->pC1);
+                if( M4NO_ERROR != err ) {
+                    M4OSA_TRACE1_1(
+                        "M4VSS3GPP_intEditStepVideo: DECODE_ENCODE:\
+                        M4VSS3GPP_intSetYuv420PlaneFromARGB888 err=%x", err);
+                    return err;
+                }
+            }
                 /**
                 * Decode the video up to the target time
                 (will jump to the previous RAP if needed ) */
@@ -496,6 +536,19 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                     /**
                     * Decode the clip1 video up to the target time
                     (will jump to the previous RAP if needed */
+                    if ((pC->pC1->pSettings->FileType ==
+                          M4VIDEOEDITING_kFileType_ARGB8888) &&
+                        (M4OSA_FALSE ==
+                         pC->pC1->pSettings->ClipProperties.bSetImageData)) {
+
+                        err = M4VSS3GPP_intSetYuv420PlaneFromARGB888(pC, pC->pC1);
+                        if( M4NO_ERROR != err ) {
+                            M4OSA_TRACE1_1(
+                                "M4VSS3GPP_intEditStepVideo: TRANSITION:\
+                                M4VSS3GPP_intSetYuv420PlaneFromARGB888 err=%x", err);
+                            return err;
+                        }
+                    }
                     // Decorrelate input and output encoding timestamp to handle encoder prefetch
                     err = M4VSS3GPP_intClipDecodeVideoUpToCts(pC->pC1,
                          (M4OSA_Int32)pC->ewc.dInputVidCts);
@@ -522,6 +575,20 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                     /**
                     * Decode the clip2 video up to the target time
                         (will jump to the previous RAP if needed) */
+                    if ((pC->pC2->pSettings->FileType ==
+                          M4VIDEOEDITING_kFileType_ARGB8888) &&
+                        (M4OSA_FALSE ==
+                          pC->pC2->pSettings->ClipProperties.bSetImageData)) {
+
+                        err = M4VSS3GPP_intSetYuv420PlaneFromARGB888(pC, pC->pC2);
+                        if( M4NO_ERROR != err ) {
+                            M4OSA_TRACE1_1(
+                                "M4VSS3GPP_intEditStepVideo: TRANSITION:\
+                                M4VSS3GPP_intSetYuv420PlaneFromARGB888 err=%x", err);
+                            return err;
+                        }
+                    }
+
                     // Decorrelate input and output encoding timestamp to handle encoder prefetch
                     err = M4VSS3GPP_intClipDecodeVideoUpToCts(pC->pC2,
                          (M4OSA_Int32)pC->ewc.dInputVidCts);
@@ -670,6 +737,8 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
         * Open second clip for transition, if not yet opened */
         if( M4OSA_NULL == pC->pC2 )
         {
+            pC->pC1->bGetYuvDataFromDecoder = M4OSA_TRUE;
+
             err = M4VSS3GPP_intOpenClip(pC, &pC->pC2,
                 &pC->pClipList[pC->uiCurrentClip + 1]);
 
@@ -720,8 +789,10 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
         pC->bTransitionEffect = M4OSA_FALSE;
 
         /* If there is an effect we go to decode/encode mode */
-        if ((pC->nbActiveEffects > 0) ||(pC->nbActiveEffects1 > 0))
-        {
+        if((pC->nbActiveEffects > 0) || (pC->nbActiveEffects1 > 0) ||
+            (pC->pC1->pSettings->FileType ==
+             M4VIDEOEDITING_kFileType_ARGB8888) ||
+            (pC->pC1->pSettings->bTranscodingRequired == M4OSA_TRUE)) {
             pC->Vstate = M4VSS3GPP_kEditVideoState_DECODE_ENCODE;
         }
         /* We do a begin cut, except if already done (time is not progressing because we want
@@ -976,16 +1047,25 @@ M4OSA_ERR M4VSS3GPP_intProcessAU( M4WRITER_Context pContext,
 M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                            M4VIFI_ImagePlane *pPlaneOut )
 {
-    M4OSA_ERR err;
-    M4_MediaTime t;
+    M4OSA_ERR err = M4NO_ERROR;
+    M4_MediaTime ts;
     M4VIFI_ImagePlane *pTmp = M4OSA_NULL;
+    M4VIFI_ImagePlane *pLastDecodedFrame = M4OSA_NULL ;
+    M4VIFI_ImagePlane *pDecoderRenderFrame = M4OSA_NULL;
     M4VIFI_ImagePlane pTemp1[3],pTemp2[3];
-    M4OSA_UInt32  i =0;
+    M4VIFI_ImagePlane pTempPlaneClip1[3],pTempPlaneClip2[3];
+    M4OSA_UInt32  i = 0;
+
     /**
     * VPP context is actually the VSS3GPP context */
     M4VSS3GPP_InternalEditContext *pC =
         (M4VSS3GPP_InternalEditContext *)pContext;
-    pTemp1[0].pac_data = pTemp2[0].pac_data = M4OSA_NULL;
+
+    memset((void *)pTemp1, 0, 3*sizeof(M4VIFI_ImagePlane));
+    memset((void *)pTemp2, 0, 3*sizeof(M4VIFI_ImagePlane));
+    memset((void *)pTempPlaneClip1, 0, 3*sizeof(M4VIFI_ImagePlane));
+    memset((void *)pTempPlaneClip2, 0, 3*sizeof(M4VIFI_ImagePlane));
+
     /**
     * Reset VPP error remembered in context */
     pC->ewc.VppError = M4NO_ERROR;
@@ -1098,134 +1178,84 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         }
 
         /**
-        * Compute the time in the clip1 base: t = to - Offset */
+        * Compute the time in the clip1 base: ts = to - Offset */
         // Decorrelate input and output encoding timestamp to handle encoder prefetch
-        t = pC->ewc.dInputVidCts - pC->pC1->iVoffset;
+        ts = pC->ewc.dInputVidCts - pC->pC1->iVoffset;
 
         /**
         * Render Clip1 */
         if( pC->pC1->isRenderDup == M4OSA_FALSE )
         {
-            if(pC->nbActiveEffects > 0)
-            {
-                err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(pC->pC1->pViDecCtxt,
-                                                                      &t, pTemp1,
-                                                                      M4OSA_TRUE);
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: m_pVideoDecoder->m_pFctRender(C1) returns 0x%x, \
-                                    returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                       (else it may leak in some situations...) */
-                }
-                pC->bIssecondClip = M4OSA_FALSE;
-                err = M4VSS3GPP_intApplyVideoEffect(pC, pTemp1 ,pC->yuv1 );
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: M4VSS3GPP_intApplyVideoEffect(1) returns 0x%x, \
-                                    returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                       (else it may leak in some situations...) */
-                }
-                pC->pC1->lastDecodedPlane = pTemp1;
+            pC->bIssecondClip = M4OSA_FALSE;
+
+            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC1, M4OSA_TRUE,
+                                                pTempPlaneClip1, pTemp1,
+                                                pPlaneOut);
+            if ((M4NO_ERROR != err) &&
+                 (M4WAR_VIDEORENDERER_NO_NEW_FRAME != err)) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                    M4VSS3GPP_intRenderFrameWithEffect returns 0x%x", err);
+                pC->ewc.VppError = err;
+                /** Return no error to the encoder core
+                  * else it may leak in some situations.*/
+                return M4NO_ERROR;
             }
-            else
-            {
-                err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(pC->pC1->pViDecCtxt,
-                                                                      &t, pC->yuv1,
-                                                                      M4OSA_TRUE);
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: m_pVideoDecoder->m_pFctRender(C1) returns 0x%x, \
-                                    returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                      (else it may leak in some situations...) */
-                }
-                pC->pC1->lastDecodedPlane = pC->yuv1;
-            }
-            pC->pC1->iVideoRenderCts = (M4OSA_Int32)t;
         }
-        else
-        {
-            /* Copy last decoded plane to output plane */
-            memcpy((void *)pTmp[0].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[0].pac_data,
-                (pTmp[0].u_height * pTmp[0].u_width));
-            memcpy((void *)pTmp[1].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[1].pac_data,
-                (pTmp[1].u_height * pTmp[1].u_width));
-            memcpy((void *)pTmp[2].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[2].pac_data,
-                (pTmp[2].u_height * pTmp[2].u_width));
+        if ((pC->pC1->isRenderDup == M4OSA_TRUE) ||
+             (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)) {
+            pTmp = pC->yuv1;
+            if (pC->pC1->lastDecodedPlane != M4NO_ERROR) {
+                /* Copy last decoded plane to output plane */
+                memcpy((void *)pTmp[0].pac_data,
+                    (void *)pC->pC1->lastDecodedPlane[0].pac_data,
+                    (pTmp[0].u_height * pTmp[0].u_width));
+                memcpy((void *)pTmp[1].pac_data,
+                    (void *)pC->pC1->lastDecodedPlane[1].pac_data,
+                    (pTmp[1].u_height * pTmp[1].u_width));
+                memcpy((void *)pTmp[2].pac_data,
+                    (void *)pC->pC1->lastDecodedPlane[2].pac_data,
+                    (pTmp[2].u_height * pTmp[2].u_width));
+            }
             pC->pC1->lastDecodedPlane = pTmp;
         }
 
         /**
-        * Compute the time in the clip2 base: t = to - Offset */
+        * Compute the time in the clip2 base: ts = to - Offset */
         // Decorrelate input and output encoding timestamp to handle encoder prefetch
-        t = pC->ewc.dInputVidCts - pC->pC2->iVoffset;
+        ts = pC->ewc.dInputVidCts - pC->pC2->iVoffset;
         /**
         * Render Clip2 */
         if( pC->pC2->isRenderDup == M4OSA_FALSE )
         {
-            if(pC->nbActiveEffects1 > 0)
-            {
-                err = pC->pC2->ShellAPI.m_pVideoDecoder->m_pFctRender(pC->pC2->pViDecCtxt,
-                                                                      &t, pTemp2,
-                                                                      M4OSA_TRUE);
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: m_pVideoDecoder->m_pFctRender(C2) returns 0x%x, \
-                                   returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                       (else it may leak in some situations...) */
-                }
 
-                pC->bIssecondClip = M4OSA_TRUE;
-                err = M4VSS3GPP_intApplyVideoEffect(pC, pTemp2 ,pC->yuv2);
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: M4VSS3GPP_intApplyVideoEffect(1) returns 0x%x, \
-                                    returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                       (else it may leak in some situations...) */
-                }
-                pC->pC2->lastDecodedPlane = pTemp2;
+            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC2, M4OSA_FALSE,
+                                                pTempPlaneClip2, pTemp2,
+                                                pPlaneOut);
+            if ((M4NO_ERROR != err) &&
+                 (M4WAR_VIDEORENDERER_NO_NEW_FRAME != err)) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                    M4VSS3GPP_intRenderFrameWithEffect returns 0x%x", err);
+                pC->ewc.VppError = err;
+                /** Return no error to the encoder core
+                  * else it may leak in some situations.*/
+                return M4NO_ERROR;
             }
-            else
-            {
-                err = pC->pC2->ShellAPI.m_pVideoDecoder->m_pFctRender(pC->pC2->pViDecCtxt,
-                                                                      &t, pC->yuv2,
-                                                                      M4OSA_TRUE);
-                if (M4NO_ERROR != err)
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: m_pVideoDecoder->m_pFctRender(C2) returns 0x%x, \
-                                    returning M4NO_ERROR", err);
-                    pC->ewc.VppError = err;
-                    return M4NO_ERROR; /**< Return no error to the encoder core
-                                       (else it may leak in some situations...) */
-                }
-                pC->pC2->lastDecodedPlane = pC->yuv2;
-            }
-            pC->pC2->iVideoRenderCts = (M4OSA_Int32)t;
         }
-        else
-        {
-            /* Copy last decoded plane to output plane */
-            memcpy((void *)pTmp[0].pac_data,
-                (void *)pC->pC2->lastDecodedPlane[0].pac_data,
-                (pTmp[0].u_height * pTmp[0].u_width));
-            memcpy((void *)pTmp[1].pac_data,
-                (void *)pC->pC2->lastDecodedPlane[1].pac_data,
-                (pTmp[1].u_height * pTmp[1].u_width));
-            memcpy((void *)pTmp[2].pac_data,
-                (void *)pC->pC2->lastDecodedPlane[2].pac_data,
-                (pTmp[2].u_height * pTmp[2].u_width));
+        if ((pC->pC2->isRenderDup == M4OSA_TRUE) ||
+             (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)) {
+            pTmp = pC->yuv2;
+            if (pC->pC2->lastDecodedPlane != M4NO_ERROR) {
+                /* Copy last decoded plane to output plane */
+                memcpy((void *)pTmp[0].pac_data,
+                    (void *)pC->pC2->lastDecodedPlane[0].pac_data,
+                    (pTmp[0].u_height * pTmp[0].u_width));
+                memcpy((void *)pTmp[1].pac_data,
+                    (void *)pC->pC2->lastDecodedPlane[1].pac_data,
+                    (pTmp[1].u_height * pTmp[1].u_width));
+                memcpy((void *)pTmp[2].pac_data,
+                    (void *)pC->pC2->lastDecodedPlane[2].pac_data,
+                    (pTmp[2].u_height * pTmp[2].u_width));
+            }
             pC->pC2->lastDecodedPlane = pTmp;
         }
 
@@ -1245,117 +1275,278 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         }
         for (i=0; i < 3; i++)
         {
-            if (pTemp2[i].pac_data != M4OSA_NULL)
-            {
+            if(pTempPlaneClip2[i].pac_data != M4OSA_NULL) {
+                free(pTempPlaneClip2[i].pac_data);
+                pTempPlaneClip2[i].pac_data = M4OSA_NULL;
+            }
+
+            if(pTempPlaneClip1[i].pac_data != M4OSA_NULL) {
+                free(pTempPlaneClip1[i].pac_data);
+                pTempPlaneClip1[i].pac_data = M4OSA_NULL;
+            }
+
+            if (pTemp2[i].pac_data != M4OSA_NULL) {
                 free(pTemp2[i].pac_data);
                 pTemp2[i].pac_data = M4OSA_NULL;
             }
 
-
-            if (pTemp1[i].pac_data != M4OSA_NULL)
-            {
-                    free(pTemp1[i].pac_data);
-                    pTemp1[i].pac_data = M4OSA_NULL;
-                }
+            if (pTemp1[i].pac_data != M4OSA_NULL) {
+                free(pTemp1[i].pac_data);
+                pTemp1[i].pac_data = M4OSA_NULL;
             }
+        }
     }
     /**
     **************** No Transition case ****************/
     else
     {
+        M4OSA_TRACE3_0("M4VSS3GPP_intVPP: NO transition case");
         /**
-        * Check if there is a filter */
-        if( pC->nbActiveEffects > 0 )
-        {
+        * Compute the time in the clip base: ts = to - Offset */
+        ts = pC->ewc.dInputVidCts - pC->pC1->iVoffset;
+        /**
+        * Render */
+        if (pC->pC1->isRenderDup == M4OSA_FALSE) {
+            M4OSA_TRACE3_0("M4VSS3GPP_intVPP: renderdup false");
             /**
-            * If we do modify the image, we need an intermediate image plane */
-            if( M4OSA_NULL == pC->yuv1[0].pac_data )
-            {
-                err =
-                    M4VSS3GPP_intAllocateYUV420(pC->yuv1, pC->ewc.uiVideoWidth,
-                    pC->ewc.uiVideoHeight);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intVPP: M4VSS3GPP_intAllocateYUV420 returns 0x%x,\
-                        returning M4NO_ERROR",
-                        err);
+            *   Check if resizing is needed */
+            if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame) {
+                if ((pC->pC1->pSettings->FileType ==
+                            M4VIDEOEDITING_kFileType_ARGB8888) &&
+                        (pC->nbActiveEffects == 0) &&
+                        (pC->pC1->bGetYuvDataFromDecoder == M4OSA_FALSE)) {
+                    err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                              pC->pC1->pViDecCtxt,
+                              M4DECODER_kOptionID_EnableYuvWithEffect,
+                              (M4OSA_DataOption)M4OSA_TRUE);
+                    if (M4NO_ERROR == err ) {
+                        err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                                  pC->pC1->pViDecCtxt, &ts,
+                                  pPlaneOut, M4OSA_TRUE);
+                    }
+                } else {
+                    if (pC->pC1->pSettings->FileType ==
+                            M4VIDEOEDITING_kFileType_ARGB8888) {
+                        err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                                  pC->pC1->pViDecCtxt,
+                                  M4DECODER_kOptionID_EnableYuvWithEffect,
+                                  (M4OSA_DataOption)M4OSA_FALSE);
+                    }
+                    if (M4NO_ERROR == err) {
+                        err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                                  pC->pC1->pViDecCtxt, &ts,
+                                  pC->pC1->m_pPreResizeFrame, M4OSA_TRUE);
+                    }
+                }
+                if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                        m_pFctRender() returns error 0x%x", err);
                     pC->ewc.VppError = err;
-                    return
-                        M4NO_ERROR; /**< Return no error to the encoder core
-                                    (else it may leak in some situations...) */
+                    return M4NO_ERROR;
+                }
+
+                if (pC->nbActiveEffects > 0) {
+                    pC->pC1->bGetYuvDataFromDecoder = M4OSA_TRUE;
+                    /**
+                    * If we do modify the image, we need an intermediate
+                    * image plane */
+                    if (M4OSA_NULL == pTemp1[0].pac_data) {
+                        err = M4VSS3GPP_intAllocateYUV420(pTemp1,
+                                pC->pC1->m_pPreResizeFrame[0].u_width,
+                                pC->pC1->m_pPreResizeFrame[0].u_height);
+                        if (M4NO_ERROR != err) {
+                            M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                                M4VSS3GPP_intAllocateYUV420 error 0x%x", err);
+                            pC->ewc.VppError = err;
+                            return M4NO_ERROR;
+                        }
+                    }
+                    err = M4VSS3GPP_intApplyVideoEffect(pC,
+                            pC->pC1->m_pPreResizeFrame,pTemp1);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                            M4VSS3GPP_intApplyVideoEffect() error 0x%x", err);
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                    pDecoderRenderFrame= pTemp1;
+
+                } else {
+                    pDecoderRenderFrame = pC->pC1->m_pPreResizeFrame;
+                }
+
+                pTmp = pPlaneOut;
+                if ((pC->pC1->bGetYuvDataFromDecoder == M4OSA_TRUE) ||
+                    (pC->pC1->pSettings->FileType !=
+                        M4VIDEOEDITING_kFileType_ARGB8888)) {
+
+                    err = M4VSS3GPP_intApplyRenderingMode(pC,
+                              pC->pC1->pSettings->xVSS.MediaRendering,
+                              pDecoderRenderFrame, pTmp);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                            M4VSS3GPP_intApplyRenderingMode) error 0x%x ", err);
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                }
+
+                if ((pC->pC1->pSettings->FileType ==
+                        M4VIDEOEDITING_kFileType_ARGB8888) &&
+                    (pC->nbActiveEffects == 0) &&
+                    (pC->pC1->bGetYuvDataFromDecoder == M4OSA_TRUE)) {
+
+                    err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                              pC->pC1->pViDecCtxt,
+                              M4DECODER_kOptionID_YuvWithEffectNonContiguous,
+                              (M4OSA_DataOption)pTmp);
+                    if (M4NO_ERROR != err) {
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                    pC->pC1->bGetYuvDataFromDecoder = M4OSA_FALSE;
                 }
             }
-            /**
-            * The image is rendered in the intermediate image plane */
-            pTmp = pC->yuv1;
-        }
-        else
-        {
-            /**
-            * No filter, the image is directly rendered in pPlaneOut */
-            pTmp = pPlaneOut;
-        }
-
-        /**
-        * Compute the time in the clip base: t = to - Offset */
-        // Decorrelate input and output encoding timestamp to handle encoder prefetch
-        t = pC->ewc.dInputVidCts - pC->pC1->iVoffset;
-
-        if( pC->pC1->isRenderDup == M4OSA_FALSE )
-        {
-            err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(
-                pC->pC1->pViDecCtxt, &t, pTmp, M4OSA_TRUE);
-
-            if( M4NO_ERROR != err )
+            else
             {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intVPP: m_pVideoDecoder->m_pFctRender returns 0x%x,\
-                    returning M4NO_ERROR",
-                    err);
-                pC->ewc.VppError = err;
-                return
-                    M4NO_ERROR; /**< Return no error to the encoder core
-                                (else it may leak in some situations...) */
+                M4OSA_TRACE3_0("M4VSS3GPP_intVPP: NO resize required");
+                if (pC->nbActiveEffects > 0) {
+                    /** If we do modify the image, we need an
+                     * intermediate image plane */
+                    if (M4OSA_NULL == pTemp1[0].pac_data) {
+                        err = M4VSS3GPP_intAllocateYUV420(pTemp1,
+                                  pC->ewc.uiVideoWidth,
+                                  pC->ewc.uiVideoHeight);
+                        if (M4NO_ERROR != err) {
+                            pC->ewc.VppError = err;
+                            return M4NO_ERROR;
+                        }
+                    }
+                    pDecoderRenderFrame = pTemp1;
+                }
+                else {
+                    pDecoderRenderFrame = pPlaneOut;
+                }
+
+                pTmp = pPlaneOut;
+                err = pC->pC1->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                          pC->pC1->pViDecCtxt, &ts,
+                          pDecoderRenderFrame, M4OSA_TRUE);
+                if (M4NO_ERROR != err) {
+                    pC->ewc.VppError = err;
+                    return M4NO_ERROR;
+                }
+
+                if (pC->nbActiveEffects > 0) {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC,
+                              pDecoderRenderFrame,pPlaneOut);
+                    if (M4NO_ERROR != err) {
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                }
             }
             pC->pC1->lastDecodedPlane = pTmp;
-            pC->pC1->iVideoRenderCts = (M4OSA_Int32)t;
-        }
-        else
-        {
-            /* Copy last decoded plane to output plane */
-            memcpy((void *)pTmp[0].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[0].pac_data,
-                (pTmp[0].u_height * pTmp[0].u_width));
-            memcpy((void *)pTmp[1].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[1].pac_data,
-                (pTmp[1].u_height * pTmp[1].u_width));
-            memcpy((void *)pTmp[2].pac_data,
-                (void *)pC->pC1->lastDecodedPlane[2].pac_data,
-                (pTmp[2].u_height * pTmp[2].u_width));
+            pC->pC1->iVideoRenderCts = (M4OSA_Int32)ts;
+
+        } else {
+            M4OSA_TRACE3_0("M4VSS3GPP_intVPP: renderdup true");
+
+            if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame) {
+                /**
+                * Copy last decoded plane to output plane */
+                memcpy((void *)pC->pC1->m_pPreResizeFrame[0].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[0].pac_data,
+                 (pC->pC1->m_pPreResizeFrame[0].u_height * pC->pC1->m_pPreResizeFrame[0].u_width));
+
+                memcpy((void *)pC->pC1->m_pPreResizeFrame[1].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[1].pac_data,
+                 (pC->pC1->m_pPreResizeFrame[1].u_height * pC->pC1->m_pPreResizeFrame[1].u_width));
+
+                memcpy((void *)pC->pC1->m_pPreResizeFrame[2].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[2].pac_data,
+                 (pC->pC1->m_pPreResizeFrame[2].u_height * pC->pC1->m_pPreResizeFrame[2].u_width));
+
+                if(pC->nbActiveEffects > 0) {
+                    /**
+                    * If we do modify the image, we need an
+                    * intermediate image plane */
+                    if (M4OSA_NULL == pTemp1[0].pac_data) {
+                        err = M4VSS3GPP_intAllocateYUV420(pTemp1,
+                                  pC->pC1->m_pPreResizeFrame[0].u_width,
+                                  pC->pC1->m_pPreResizeFrame[0].u_height);
+                        if (M4NO_ERROR != err) {
+                            pC->ewc.VppError = err;
+                            return M4NO_ERROR;
+                        }
+                    }
+
+                    err = M4VSS3GPP_intApplyVideoEffect(pC,
+                              pC->pC1->m_pPreResizeFrame,pTemp1);
+                    if (M4NO_ERROR != err) {
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                    pDecoderRenderFrame= pTemp1;
+
+                } else {
+                    pDecoderRenderFrame = pC->pC1->m_pPreResizeFrame;
+                }
+
+                pTmp = pPlaneOut;
+                err = M4VSS3GPP_intApplyRenderingMode(pC,
+                          pC->pC1->pSettings->xVSS.MediaRendering,
+                          pDecoderRenderFrame, pTmp);
+                if (M4NO_ERROR != err) {
+                    pC->ewc.VppError = err;
+                    return M4NO_ERROR;
+                }
+            } else {
+
+                if (M4OSA_NULL == pTemp1[0].pac_data) {
+                    err = M4VSS3GPP_intAllocateYUV420(pTemp1,
+                              pC->ewc.uiVideoWidth,
+                              pC->ewc.uiVideoHeight);
+                    if (M4NO_ERROR != err) {
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                }
+                /**
+                 * Copy last decoded plane to output plane */
+                memcpy((void *)pLastDecodedFrame[0].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[0].pac_data,
+                 (pLastDecodedFrame[0].u_height * pLastDecodedFrame[0].u_width));
+
+                memcpy((void *)pLastDecodedFrame[1].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[1].pac_data,
+                 (pLastDecodedFrame[1].u_height * pLastDecodedFrame[1].u_width));
+
+                memcpy((void *)pLastDecodedFrame[2].pac_data,
+                 (void *)pC->pC1->lastDecodedPlane[2].pac_data,
+                 (pLastDecodedFrame[2].u_height * pLastDecodedFrame[2].u_width));
+
+                pTmp = pPlaneOut;
+                /**
+                * Check if there is a filter */
+                if(pC->nbActiveEffects > 0) {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC,
+                              pLastDecodedFrame, pTmp);
+                    if (M4NO_ERROR != err) {
+                        pC->ewc.VppError = err;
+                        return M4NO_ERROR;
+                    }
+                }
+            }
             pC->pC1->lastDecodedPlane = pTmp;
         }
 
-        M4OSA_TRACE3_1("M4VSS3GPP_intVPP: Rendered at CTS %.3f", t);
+        M4OSA_TRACE3_1("M4VSS3GPP_intVPP: Rendered at CTS %.3f", ts);
 
-        /**
-        * Apply the clip1 effect */
-        //        if (pC->iClip1ActiveEffect >= 0)
-        if( pC->nbActiveEffects > 0 )
-        {
-            err = M4VSS3GPP_intApplyVideoEffect(pC,/*1,*/ pC->yuv1, pPlaneOut);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intVPP: M4VSS3GPP_intApplyVideoEffect(1) returns 0x%x,\
-                    returning M4NO_ERROR",
-                    err);
-                pC->ewc.VppError = err;
-                return
-                    M4NO_ERROR; /**< Return no error to the encoder core
-                                (else it may leak in some situations...) */
+        for(i=0;i<3;i++) {
+            if(pTemp1[i].pac_data != M4OSA_NULL) {
+                free(pTemp1[i].pac_data);
+                pTemp1[i].pac_data = M4OSA_NULL;
             }
         }
     }
@@ -1394,6 +1585,7 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
 
     M4VIFI_ImagePlane *pPlaneTempIn;
     M4VIFI_ImagePlane *pPlaneTempOut;
+    M4VIFI_ImagePlane  pTempYuvPlane[3];
     M4OSA_UInt8 i;
     M4OSA_UInt8 NumActiveEffects =0;
 
@@ -1408,12 +1600,14 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
         NumActiveEffects = pC->nbActiveEffects;
     }
 
+    memset((void *)pTempYuvPlane, 0, 3*sizeof(M4VIFI_ImagePlane));
+
     /**
     * Allocate temporary plane if needed RC */
-    if (M4OSA_NULL == pC->yuv4[0].pac_data && NumActiveEffects  > 1)
+    if (M4OSA_NULL == pTempYuvPlane[0].pac_data && NumActiveEffects > 1)
     {
-        err = M4VSS3GPP_intAllocateYUV420(pC->yuv4, pC->ewc.uiVideoWidth,
-            pC->ewc.uiVideoHeight);
+        err = M4VSS3GPP_intAllocateYUV420(pTempYuvPlane, pPlaneOut->u_width,
+                  pPlaneOut->u_height);
 
         if( M4NO_ERROR != err )
         {
@@ -1431,7 +1625,7 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
     if (NumActiveEffects  % 2 == 0)
     {
         pPlaneTempIn = pPlaneIn;
-        pPlaneTempOut = pC->yuv4;
+        pPlaneTempOut = pTempYuvPlane;
     }
     else
     {
@@ -1574,13 +1768,20 @@ M4VSS3GPP_intApplyVideoEffect( M4VSS3GPP_InternalEditContext *pC,
         if (((i % 2 == 0) && (NumActiveEffects  % 2 == 0))
             || ((i % 2 != 0) && (NumActiveEffects % 2 != 0)))
         {
-            pPlaneTempIn = pC->yuv4;
+            pPlaneTempIn = pTempYuvPlane;
             pPlaneTempOut = pPlaneOut;
         }
         else
         {
             pPlaneTempIn = pPlaneOut;
-            pPlaneTempOut = pC->yuv4;
+            pPlaneTempOut = pTempYuvPlane;
+        }
+    }
+
+    for(i=0; i<3; i++) {
+        if(pTempYuvPlane[i].pac_data != M4OSA_NULL) {
+            free(pTempYuvPlane[i].pac_data);
+            pTempYuvPlane[i].pac_data = M4OSA_NULL;
         }
     }
 
@@ -1908,7 +2109,11 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
     M4OSA_Int32 t = (M4OSA_Int32)pC->ewc.dInputVidCts;
 
     uiClipIndex = pC->uiCurrentClip;
-    pClip = pC->pC1;
+    if (uiClipNumber == 1) {
+        pClip = pC->pC1;
+    } else {
+        pClip = pC->pC2;
+    }
     /**
     * Shortcuts for code readability */
     Off = pClip->iVoffset;
@@ -1948,13 +2153,8 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
                     {
                         pC->m_bClipExternalHasStarted = M4OSA_TRUE;
                     }
-
-                    /**
-                     * The third effect has the highest priority, then the
-                     * second one, then the first one. Hence, as soon as we
-                     * found an active effect, we can get out of this loop.
-                     */
                 }
+
             }
             else
             {
@@ -1983,9 +2183,14 @@ M4VSS3GPP_intCheckVideoEffects( M4VSS3GPP_InternalEditContext *pC,
                      * Hence, as soon as we found an active effect, we can get out of this loop */
                 }
             }
+            if (M4VIDEOEDITING_kH264 !=
+                    pC->pC1->pSettings->ClipProperties.VideoStreamType) {
+
+                    // For Mpeg4 and H263 clips, full decode encode not required
+                    pC->m_bClipExternalHasStarted = M4OSA_FALSE;
+            }
         }
     }
-
     if(1==uiClipNumber)
     {
     /**
@@ -2160,15 +2365,8 @@ M4OSA_ERR M4VSS3GPP_intCreateVideoEncoder( M4VSS3GPP_InternalEditContext *pC )
 
     if( pC->bIsMMS == M4OSA_FALSE )
     {
-        /* Compute max bitrate depending on input files bitrates and transitions */
-        if( pC->Vstate == M4VSS3GPP_kEditVideoState_TRANSITION )
-        {
-            EncParams.Bitrate = pC->ewc.uiVideoBitrate;
-        }
-        else
-        {
-            EncParams.Bitrate = pC->ewc.uiVideoBitrate;
-        }
+        EncParams.Bitrate = pC->xVSS.outputVideoBitrate;
+
     }
     else
     {
@@ -2497,6 +2695,8 @@ static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
         M4OSA_TRACE1_0(
             "M4VSS3GPP_intAllocateYUV420: unable to allocate pPlanes[1].pac_data,\
             returning M4ERR_ALLOC");
+        free((void *)pPlanes[0].pac_data);
+        pPlanes[0].pac_data = M4OSA_NULL;
         return M4ERR_ALLOC;
     }
 
@@ -2512,11 +2712,774 @@ static M4OSA_ERR M4VSS3GPP_intAllocateYUV420( M4VIFI_ImagePlane *pPlanes,
         M4OSA_TRACE1_0(
             "M4VSS3GPP_intAllocateYUV420: unable to allocate pPlanes[2].pac_data,\
             returning M4ERR_ALLOC");
+        free((void *)pPlanes[0].pac_data);
+        free((void *)pPlanes[1].pac_data);
+        pPlanes[0].pac_data = M4OSA_NULL;
+        pPlanes[1].pac_data = M4OSA_NULL;
         return M4ERR_ALLOC;
     }
 
+    memset((void *)pPlanes[0].pac_data, 0, pPlanes[0].u_stride*pPlanes[0].u_height);
+    memset((void *)pPlanes[1].pac_data, 0, pPlanes[1].u_stride*pPlanes[1].u_height);
+    memset((void *)pPlanes[2].pac_data, 0, pPlanes[2].u_stride*pPlanes[2].u_height);
     /**
     *    Return */
     M4OSA_TRACE3_0("M4VSS3GPP_intAllocateYUV420: returning M4NO_ERROR");
     return M4NO_ERROR;
+}
+
+/**
+******************************************************************************
+* M4OSA_ERR M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
+*                                            M4OSA_FileReadPointer* pFileReadPtr,
+*                                               M4VIFI_ImagePlane* pImagePlanes,
+*                                               M4OSA_UInt32 width,
+*                                               M4OSA_UInt32 height);
+* @brief    It Coverts and resizes a ARGB8888 image to YUV420
+* @note
+* @param    pFileIn         (IN) The ARGB888 input file
+* @param    pFileReadPtr    (IN) Pointer on filesystem functions
+* @param    pImagePlanes    (IN/OUT) Pointer on YUV420 output planes allocated by the user.
+*                           ARGB8888 image  will be converted and resized to output
+*                           YUV420 plane size
+* @param width       (IN) width of the ARGB8888
+* @param height      (IN) height of the ARGB8888
+* @return   M4NO_ERROR: No error
+* @return   M4ERR_ALLOC: memory error
+* @return   M4ERR_PARAMETER: At least one of the function parameters is null
+******************************************************************************
+*/
+
+M4OSA_ERR M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420(M4OSA_Void* pFileIn,
+                           M4OSA_FileReadPointer* pFileReadPtr,
+                           M4VIFI_ImagePlane* pImagePlanes,
+                           M4OSA_UInt32 width,M4OSA_UInt32 height) {
+    M4OSA_Context pARGBIn;
+    M4VIFI_ImagePlane rgbPlane1 ,rgbPlane2;
+    M4OSA_UInt32 frameSize_argb = width * height * 4;
+    M4OSA_UInt32 frameSize_rgb888 = width * height * 3;
+    M4OSA_UInt32 i = 0,j= 0;
+    M4OSA_ERR err = M4NO_ERROR;
+
+    M4OSA_UInt8 *pArgbPlane =
+        (M4OSA_UInt8*) M4OSA_32bitAlignedMalloc(frameSize_argb,
+                                                M4VS, (M4OSA_Char*)"argb data");
+    if (pArgbPlane == M4OSA_NULL) {
+        M4OSA_TRACE1_0("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420: \
+            Failed to allocate memory for ARGB plane");
+        return M4ERR_ALLOC;
+    }
+
+    /* Get file size */
+    err = pFileReadPtr->openRead(&pARGBIn, pFileIn, M4OSA_kFileRead);
+    if (err != M4NO_ERROR) {
+        M4OSA_TRACE1_2("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 : \
+            Can not open input ARGB8888 file %s, error: 0x%x\n",pFileIn, err);
+        free(pArgbPlane);
+        pArgbPlane = M4OSA_NULL;
+        goto cleanup;
+    }
+
+    err = pFileReadPtr->readData(pARGBIn,(M4OSA_MemAddr8)pArgbPlane,
+                                 &frameSize_argb);
+    if (err != M4NO_ERROR) {
+        M4OSA_TRACE1_2("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 \
+            Can not read ARGB8888 file %s, error: 0x%x\n",pFileIn, err);
+        pFileReadPtr->closeRead(pARGBIn);
+        free(pArgbPlane);
+        pArgbPlane = M4OSA_NULL;
+        goto cleanup;
+    }
+
+    err = pFileReadPtr->closeRead(pARGBIn);
+    if(err != M4NO_ERROR) {
+        M4OSA_TRACE1_2("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 \
+            Can not close ARGB8888  file %s, error: 0x%x\n",pFileIn, err);
+        free(pArgbPlane);
+        pArgbPlane = M4OSA_NULL;
+        goto cleanup;
+    }
+
+    rgbPlane1.pac_data =
+        (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize_rgb888,
+                                            M4VS, (M4OSA_Char*)"RGB888 plane1");
+    if(rgbPlane1.pac_data == M4OSA_NULL) {
+        M4OSA_TRACE1_0("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 \
+            Failed to allocate memory for rgb plane1");
+        free(pArgbPlane);
+        return M4ERR_ALLOC;
+    }
+
+    rgbPlane1.u_height = height;
+    rgbPlane1.u_width = width;
+    rgbPlane1.u_stride = width*3;
+    rgbPlane1.u_topleft = 0;
+
+
+    /** Remove the alpha channel */
+    for (i=0, j = 0; i < frameSize_argb; i++) {
+        if ((i % 4) == 0) continue;
+        rgbPlane1.pac_data[j] = pArgbPlane[i];
+        j++;
+    }
+    free(pArgbPlane);
+
+    /**
+     * Check if resizing is required with color conversion */
+    if(width != pImagePlanes->u_width || height != pImagePlanes->u_height) {
+
+        frameSize_rgb888 = pImagePlanes->u_width * pImagePlanes->u_height * 3;
+        rgbPlane2.pac_data =
+            (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize_rgb888, M4VS,
+                                                   (M4OSA_Char*)"rgb Plane2");
+        if(rgbPlane2.pac_data == M4OSA_NULL) {
+            M4OSA_TRACE1_0("Failed to allocate memory for rgb plane2");
+            free(rgbPlane1.pac_data);
+            return M4ERR_ALLOC;
+        }
+        rgbPlane2.u_height =  pImagePlanes->u_height;
+        rgbPlane2.u_width = pImagePlanes->u_width;
+        rgbPlane2.u_stride = pImagePlanes->u_width*3;
+        rgbPlane2.u_topleft = 0;
+
+        /* Resizing */
+        err = M4VIFI_ResizeBilinearRGB888toRGB888(M4OSA_NULL,
+                                                  &rgbPlane1, &rgbPlane2);
+        free(rgbPlane1.pac_data);
+        if(err != M4NO_ERROR) {
+            M4OSA_TRACE1_1("error resizing RGB888 to RGB888: 0x%x\n", err);
+            free(rgbPlane2.pac_data);
+            return err;
+        }
+
+        /*Converting Resized RGB888 to YUV420 */
+        err = M4VIFI_RGB888toYUV420(M4OSA_NULL, &rgbPlane2, pImagePlanes);
+        free(rgbPlane2.pac_data);
+        if(err != M4NO_ERROR) {
+            M4OSA_TRACE1_1("error converting from RGB888 to YUV: 0x%x\n", err);
+            return err;
+        }
+    } else {
+        err = M4VIFI_RGB888toYUV420(M4OSA_NULL, &rgbPlane1, pImagePlanes);
+        if(err != M4NO_ERROR) {
+            M4OSA_TRACE1_1("error when converting from RGB to YUV: 0x%x\n", err);
+        }
+        free(rgbPlane1.pac_data);
+    }
+cleanup:
+    M4OSA_TRACE3_0("M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 exit");
+    return err;
+}
+
+M4OSA_ERR M4VSS3GPP_intApplyRenderingMode(M4VSS3GPP_InternalEditContext *pC,
+                                          M4xVSS_MediaRendering renderingMode,
+                                          M4VIFI_ImagePlane* pInplane,
+                                          M4VIFI_ImagePlane* pOutplane) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4AIR_Params airParams;
+    M4VIFI_ImagePlane pImagePlanesTemp[3];
+    M4OSA_UInt32 i = 0;
+
+    if (renderingMode == M4xVSS_kBlackBorders) {
+        memset((void *)pOutplane[0].pac_data, Y_PLANE_BORDER_VALUE,
+               (pOutplane[0].u_height*pOutplane[0].u_stride));
+        memset((void *)pOutplane[1].pac_data, U_PLANE_BORDER_VALUE,
+               (pOutplane[1].u_height*pOutplane[1].u_stride));
+        memset((void *)pOutplane[2].pac_data, V_PLANE_BORDER_VALUE,
+               (pOutplane[2].u_height*pOutplane[2].u_stride));
+    }
+
+    if (renderingMode == M4xVSS_kResizing) {
+        /**
+        * Call the resize filter.
+        * From the intermediate frame to the encoder image plane */
+        err = M4VIFI_ResizeBilinearYUV420toYUV420(M4OSA_NULL,
+                                                  pInplane, pOutplane);
+        if (M4NO_ERROR != err) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intApplyRenderingMode: \
+                M4ViFilResizeBilinearYUV420toYUV420 returns 0x%x!", err);
+            return err;
+        }
+    } else {
+        M4VIFI_ImagePlane* pPlaneTemp = M4OSA_NULL;
+        M4OSA_UInt8* pOutPlaneY =
+            pOutplane[0].pac_data + pOutplane[0].u_topleft;
+        M4OSA_UInt8* pOutPlaneU =
+            pOutplane[1].pac_data + pOutplane[1].u_topleft;
+        M4OSA_UInt8* pOutPlaneV =
+            pOutplane[2].pac_data + pOutplane[2].u_topleft;
+        M4OSA_UInt8* pInPlaneY = M4OSA_NULL;
+        M4OSA_UInt8* pInPlaneU = M4OSA_NULL;
+        M4OSA_UInt8* pInPlaneV = M4OSA_NULL;
+
+        /* To keep media aspect ratio*/
+        /* Initialize AIR Params*/
+        airParams.m_inputCoord.m_x = 0;
+        airParams.m_inputCoord.m_y = 0;
+        airParams.m_inputSize.m_height = pInplane->u_height;
+        airParams.m_inputSize.m_width = pInplane->u_width;
+        airParams.m_outputSize.m_width = pOutplane->u_width;
+        airParams.m_outputSize.m_height = pOutplane->u_height;
+        airParams.m_bOutputStripe = M4OSA_FALSE;
+        airParams.m_outputOrientation = M4COMMON_kOrientationTopLeft;
+
+        /**
+        Media rendering: Black borders*/
+        if (renderingMode == M4xVSS_kBlackBorders) {
+            pImagePlanesTemp[0].u_width = pOutplane[0].u_width;
+            pImagePlanesTemp[0].u_height = pOutplane[0].u_height;
+            pImagePlanesTemp[0].u_stride = pOutplane[0].u_width;
+            pImagePlanesTemp[0].u_topleft = 0;
+
+            pImagePlanesTemp[1].u_width = pOutplane[1].u_width;
+            pImagePlanesTemp[1].u_height = pOutplane[1].u_height;
+            pImagePlanesTemp[1].u_stride = pOutplane[1].u_width;
+            pImagePlanesTemp[1].u_topleft = 0;
+
+            pImagePlanesTemp[2].u_width = pOutplane[2].u_width;
+            pImagePlanesTemp[2].u_height = pOutplane[2].u_height;
+            pImagePlanesTemp[2].u_stride = pOutplane[2].u_width;
+            pImagePlanesTemp[2].u_topleft = 0;
+
+            /**
+             * Allocates plan in local image plane structure */
+            pImagePlanesTemp[0].pac_data =
+                (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
+                    pImagePlanesTemp[0].u_width * pImagePlanesTemp[0].u_height,
+                    M4VS, (M4OSA_Char *)"pImagePlaneTemp Y") ;
+            if (pImagePlanesTemp[0].pac_data == M4OSA_NULL) {
+                M4OSA_TRACE1_0("M4VSS3GPP_intApplyRenderingMode: Alloc Error");
+                return M4ERR_ALLOC;
+            }
+            pImagePlanesTemp[1].pac_data =
+                (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
+                    pImagePlanesTemp[1].u_width * pImagePlanesTemp[1].u_height,
+                    M4VS, (M4OSA_Char *)"pImagePlaneTemp U") ;
+            if (pImagePlanesTemp[1].pac_data == M4OSA_NULL) {
+                M4OSA_TRACE1_0("M4VSS3GPP_intApplyRenderingMode: Alloc Error");
+                free(pImagePlanesTemp[0].pac_data);
+                return M4ERR_ALLOC;
+            }
+            pImagePlanesTemp[2].pac_data =
+                (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(
+                    pImagePlanesTemp[2].u_width * pImagePlanesTemp[2].u_height,
+                    M4VS, (M4OSA_Char *)"pImagePlaneTemp V") ;
+            if (pImagePlanesTemp[2].pac_data == M4OSA_NULL) {
+                M4OSA_TRACE1_0("M4VSS3GPP_intApplyRenderingMode: Alloc Error");
+                free(pImagePlanesTemp[0].pac_data);
+                free(pImagePlanesTemp[1].pac_data);
+                return M4ERR_ALLOC;
+            }
+
+            pInPlaneY = pImagePlanesTemp[0].pac_data ;
+            pInPlaneU = pImagePlanesTemp[1].pac_data ;
+            pInPlaneV = pImagePlanesTemp[2].pac_data ;
+
+            memset((void *)pImagePlanesTemp[0].pac_data, Y_PLANE_BORDER_VALUE,
+                (pImagePlanesTemp[0].u_height*pImagePlanesTemp[0].u_stride));
+            memset((void *)pImagePlanesTemp[1].pac_data, U_PLANE_BORDER_VALUE,
+                (pImagePlanesTemp[1].u_height*pImagePlanesTemp[1].u_stride));
+            memset((void *)pImagePlanesTemp[2].pac_data, V_PLANE_BORDER_VALUE,
+                (pImagePlanesTemp[2].u_height*pImagePlanesTemp[2].u_stride));
+
+            M4OSA_UInt32 height =
+                (pInplane->u_height * pOutplane->u_width) /pInplane->u_width;
+
+            if (height <= pOutplane->u_height) {
+                /**
+                 * Black borders will be on the top and the bottom side */
+                airParams.m_outputSize.m_width = pOutplane->u_width;
+                airParams.m_outputSize.m_height = height;
+                /**
+                 * Number of lines at the top */
+                pImagePlanesTemp[0].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[0].u_height -
+                      airParams.m_outputSize.m_height)>>1)) *
+                      pImagePlanesTemp[0].u_stride;
+                pImagePlanesTemp[0].u_height = airParams.m_outputSize.m_height;
+                pImagePlanesTemp[1].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[1].u_height -
+                     (airParams.m_outputSize.m_height>>1)))>>1) *
+                     pImagePlanesTemp[1].u_stride;
+                pImagePlanesTemp[1].u_height =
+                    airParams.m_outputSize.m_height>>1;
+                pImagePlanesTemp[2].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[2].u_height -
+                     (airParams.m_outputSize.m_height>>1)))>>1) *
+                     pImagePlanesTemp[2].u_stride;
+                pImagePlanesTemp[2].u_height =
+                    airParams.m_outputSize.m_height>>1;
+            } else {
+                /**
+                 * Black borders will be on the left and right side */
+                airParams.m_outputSize.m_height = pOutplane->u_height;
+                airParams.m_outputSize.m_width =
+                    (M4OSA_UInt32)((pInplane->u_width * pOutplane->u_height)/pInplane->u_height);
+
+                pImagePlanesTemp[0].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[0].u_width -
+                     airParams.m_outputSize.m_width)>>1));
+                pImagePlanesTemp[0].u_width = airParams.m_outputSize.m_width;
+                pImagePlanesTemp[1].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[1].u_width -
+                     (airParams.m_outputSize.m_width>>1)))>>1);
+                pImagePlanesTemp[1].u_width = airParams.m_outputSize.m_width>>1;
+                pImagePlanesTemp[2].u_topleft =
+                    (M4xVSS_ABS((M4OSA_Int32)(pImagePlanesTemp[2].u_width -
+                     (airParams.m_outputSize.m_width>>1)))>>1);
+                pImagePlanesTemp[2].u_width = airParams.m_outputSize.m_width>>1;
+            }
+
+            /**
+             * Width and height have to be even */
+            airParams.m_outputSize.m_width =
+                (airParams.m_outputSize.m_width>>1)<<1;
+            airParams.m_outputSize.m_height =
+                (airParams.m_outputSize.m_height>>1)<<1;
+            airParams.m_inputSize.m_width =
+                (airParams.m_inputSize.m_width>>1)<<1;
+            airParams.m_inputSize.m_height =
+                (airParams.m_inputSize.m_height>>1)<<1;
+            pImagePlanesTemp[0].u_width =
+                (pImagePlanesTemp[0].u_width>>1)<<1;
+            pImagePlanesTemp[1].u_width =
+                (pImagePlanesTemp[1].u_width>>1)<<1;
+            pImagePlanesTemp[2].u_width =
+                (pImagePlanesTemp[2].u_width>>1)<<1;
+            pImagePlanesTemp[0].u_height =
+                (pImagePlanesTemp[0].u_height>>1)<<1;
+            pImagePlanesTemp[1].u_height =
+                (pImagePlanesTemp[1].u_height>>1)<<1;
+            pImagePlanesTemp[2].u_height =
+                (pImagePlanesTemp[2].u_height>>1)<<1;
+
+            /**
+             * Check that values are coherent */
+            if (airParams.m_inputSize.m_height ==
+                   airParams.m_outputSize.m_height) {
+                airParams.m_inputSize.m_width =
+                    airParams.m_outputSize.m_width;
+            } else if (airParams.m_inputSize.m_width ==
+                          airParams.m_outputSize.m_width) {
+                airParams.m_inputSize.m_height =
+                    airParams.m_outputSize.m_height;
+            }
+            pPlaneTemp = pImagePlanesTemp;
+        }
+
+        /**
+         * Media rendering: Cropping*/
+        if (renderingMode == M4xVSS_kCropping) {
+            airParams.m_outputSize.m_height = pOutplane->u_height;
+            airParams.m_outputSize.m_width = pOutplane->u_width;
+            if ((airParams.m_outputSize.m_height *
+                 airParams.m_inputSize.m_width)/airParams.m_outputSize.m_width <
+                  airParams.m_inputSize.m_height) {
+                /* Height will be cropped */
+                airParams.m_inputSize.m_height =
+                    (M4OSA_UInt32)((airParams.m_outputSize.m_height *
+                     airParams.m_inputSize.m_width)/airParams.m_outputSize.m_width);
+                airParams.m_inputSize.m_height =
+                    (airParams.m_inputSize.m_height>>1)<<1;
+                airParams.m_inputCoord.m_y =
+                    (M4OSA_Int32)((M4OSA_Int32)((pInplane->u_height -
+                     airParams.m_inputSize.m_height))>>1);
+            } else {
+                /* Width will be cropped */
+                airParams.m_inputSize.m_width =
+                    (M4OSA_UInt32)((airParams.m_outputSize.m_width *
+                     airParams.m_inputSize.m_height)/airParams.m_outputSize.m_height);
+                airParams.m_inputSize.m_width =
+                    (airParams.m_inputSize.m_width>>1)<<1;
+                airParams.m_inputCoord.m_x =
+                    (M4OSA_Int32)((M4OSA_Int32)((pInplane->u_width -
+                     airParams.m_inputSize.m_width))>>1);
+            }
+            pPlaneTemp = pOutplane;
+        }
+        /**
+        * Call AIR functions */
+        if (M4OSA_NULL == pC->m_air_context) {
+            err = M4AIR_create(&pC->m_air_context, M4AIR_kYUV420P);
+            if(err != M4NO_ERROR) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intApplyRenderingMode: \
+                    M4AIR_create returned error 0x%x", err);
+                goto cleanUp;
+            }
+        }
+
+        err = M4AIR_configure(pC->m_air_context, &airParams);
+        if (err != M4NO_ERROR) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intApplyRenderingMode: \
+                Error when configuring AIR: 0x%x", err);
+            M4AIR_cleanUp(pC->m_air_context);
+            goto cleanUp;
+        }
+
+        err = M4AIR_get(pC->m_air_context, pInplane, pPlaneTemp);
+        if (err != M4NO_ERROR) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intApplyRenderingMode: \
+                Error when getting AIR plane: 0x%x", err);
+            M4AIR_cleanUp(pC->m_air_context);
+            goto cleanUp;
+        }
+
+        if (renderingMode == M4xVSS_kBlackBorders) {
+            for (i=0; i<pOutplane[0].u_height; i++) {
+                memcpy((void *)pOutPlaneY, (void *)pInPlaneY,
+                        pOutplane[0].u_width);
+                pInPlaneY += pOutplane[0].u_width;
+                pOutPlaneY += pOutplane[0].u_stride;
+            }
+            for (i=0; i<pOutplane[1].u_height; i++) {
+                memcpy((void *)pOutPlaneU, (void *)pInPlaneU,
+                        pOutplane[1].u_width);
+                pInPlaneU += pOutplane[1].u_width;
+                pOutPlaneU += pOutplane[1].u_stride;
+            }
+            for (i=0; i<pOutplane[2].u_height; i++) {
+                memcpy((void *)pOutPlaneV, (void *)pInPlaneV,
+                        pOutplane[2].u_width);
+                pInPlaneV += pOutplane[2].u_width;
+                pOutPlaneV += pOutplane[2].u_stride;
+            }
+        }
+    }
+cleanUp:
+    if (renderingMode == M4xVSS_kBlackBorders) {
+        for (i=0; i<3; i++) {
+            if (pImagePlanesTemp[i].pac_data != M4OSA_NULL) {
+                free(pImagePlanesTemp[i].pac_data);
+                pImagePlanesTemp[i].pac_data = M4OSA_NULL;
+            }
+        }
+    }
+    return err;
+}
+
+M4OSA_ERR M4VSS3GPP_intSetYuv420PlaneFromARGB888 (
+                                        M4VSS3GPP_InternalEditContext *pC,
+                                        M4VSS3GPP_ClipContext* pClipCtxt) {
+
+    M4OSA_ERR err= M4NO_ERROR;
+
+    // Allocate memory for YUV plane
+    pClipCtxt->pPlaneYuv =
+     (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(
+        3*sizeof(M4VIFI_ImagePlane), M4VS,
+        (M4OSA_Char*)"pPlaneYuv");
+
+    if (pClipCtxt->pPlaneYuv == M4OSA_NULL) {
+        return M4ERR_ALLOC;
+    }
+
+    pClipCtxt->pPlaneYuv[0].u_height =
+        pClipCtxt->pSettings->ClipProperties.uiStillPicHeight;
+    pClipCtxt->pPlaneYuv[0].u_width =
+        pClipCtxt->pSettings->ClipProperties.uiStillPicWidth;
+    pClipCtxt->pPlaneYuv[0].u_stride = pClipCtxt->pPlaneYuv[0].u_width;
+    pClipCtxt->pPlaneYuv[0].u_topleft = 0;
+
+    pClipCtxt->pPlaneYuv[0].pac_data =
+     (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(
+         pClipCtxt->pPlaneYuv[0].u_height * pClipCtxt->pPlaneYuv[0].u_width * 1.5,
+         M4VS, (M4OSA_Char*)"imageClip YUV data");
+    if (pClipCtxt->pPlaneYuv[0].pac_data == M4OSA_NULL) {
+        free(pClipCtxt->pPlaneYuv);
+        return M4ERR_ALLOC;
+    }
+
+    pClipCtxt->pPlaneYuv[1].u_height = pClipCtxt->pPlaneYuv[0].u_height >>1;
+    pClipCtxt->pPlaneYuv[1].u_width = pClipCtxt->pPlaneYuv[0].u_width >> 1;
+    pClipCtxt->pPlaneYuv[1].u_stride = pClipCtxt->pPlaneYuv[1].u_width;
+    pClipCtxt->pPlaneYuv[1].u_topleft = 0;
+    pClipCtxt->pPlaneYuv[1].pac_data = (M4VIFI_UInt8*)(
+     pClipCtxt->pPlaneYuv[0].pac_data +
+      pClipCtxt->pPlaneYuv[0].u_height * pClipCtxt->pPlaneYuv[0].u_width);
+
+    pClipCtxt->pPlaneYuv[2].u_height = pClipCtxt->pPlaneYuv[0].u_height >>1;
+    pClipCtxt->pPlaneYuv[2].u_width = pClipCtxt->pPlaneYuv[0].u_width >> 1;
+    pClipCtxt->pPlaneYuv[2].u_stride = pClipCtxt->pPlaneYuv[2].u_width;
+    pClipCtxt->pPlaneYuv[2].u_topleft = 0;
+    pClipCtxt->pPlaneYuv[2].pac_data = (M4VIFI_UInt8*)(
+     pClipCtxt->pPlaneYuv[1].pac_data +
+      pClipCtxt->pPlaneYuv[1].u_height * pClipCtxt->pPlaneYuv[1].u_width);
+
+    err = M4VSS3GPP_internalConvertAndResizeARGB8888toYUV420 (
+        pClipCtxt->pSettings->pFile,
+        pC->pOsaFileReadPtr,
+        pClipCtxt->pPlaneYuv,
+        pClipCtxt->pSettings->ClipProperties.uiStillPicWidth,
+        pClipCtxt->pSettings->ClipProperties.uiStillPicHeight);
+    if (M4NO_ERROR != err) {
+        free(pClipCtxt->pPlaneYuv[0].pac_data);
+        free(pClipCtxt->pPlaneYuv);
+        return err;
+    }
+
+    // Set the YUV data to the decoder using setoption
+    err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption (
+        pClipCtxt->pViDecCtxt,
+        M4DECODER_kOptionID_DecYuvData,
+        (M4OSA_DataOption)pClipCtxt->pPlaneYuv);
+    if (M4NO_ERROR != err) {
+        free(pClipCtxt->pPlaneYuv[0].pac_data);
+        free(pClipCtxt->pPlaneYuv);
+        return err;
+    }
+
+    pClipCtxt->pSettings->ClipProperties.bSetImageData = M4OSA_TRUE;
+
+    // Allocate Yuv plane with effect
+    pClipCtxt->pPlaneYuvWithEffect =
+     (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(
+         3*sizeof(M4VIFI_ImagePlane), M4VS,
+         (M4OSA_Char*)"pPlaneYuvWithEffect");
+    if (pClipCtxt->pPlaneYuvWithEffect == M4OSA_NULL) {
+        free(pClipCtxt->pPlaneYuv[0].pac_data);
+        free(pClipCtxt->pPlaneYuv);
+        return M4ERR_ALLOC;
+    }
+
+    pClipCtxt->pPlaneYuvWithEffect[0].u_height = pC->ewc.uiVideoHeight;
+    pClipCtxt->pPlaneYuvWithEffect[0].u_width = pC->ewc.uiVideoWidth;
+    pClipCtxt->pPlaneYuvWithEffect[0].u_stride = pC->ewc.uiVideoWidth;
+    pClipCtxt->pPlaneYuvWithEffect[0].u_topleft = 0;
+
+    pClipCtxt->pPlaneYuvWithEffect[0].pac_data =
+     (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(
+         pC->ewc.uiVideoHeight * pC->ewc.uiVideoWidth * 1.5,
+         M4VS, (M4OSA_Char*)"imageClip YUV data");
+    if (pClipCtxt->pPlaneYuvWithEffect[0].pac_data == M4OSA_NULL) {
+        free(pClipCtxt->pPlaneYuv[0].pac_data);
+        free(pClipCtxt->pPlaneYuv);
+        free(pClipCtxt->pPlaneYuvWithEffect);
+        return M4ERR_ALLOC;
+    }
+
+    pClipCtxt->pPlaneYuvWithEffect[1].u_height =
+        pClipCtxt->pPlaneYuvWithEffect[0].u_height >>1;
+    pClipCtxt->pPlaneYuvWithEffect[1].u_width =
+        pClipCtxt->pPlaneYuvWithEffect[0].u_width >> 1;
+    pClipCtxt->pPlaneYuvWithEffect[1].u_stride =
+        pClipCtxt->pPlaneYuvWithEffect[1].u_width;
+    pClipCtxt->pPlaneYuvWithEffect[1].u_topleft = 0;
+    pClipCtxt->pPlaneYuvWithEffect[1].pac_data = (M4VIFI_UInt8*)(
+        pClipCtxt->pPlaneYuvWithEffect[0].pac_data +
+         pClipCtxt->pPlaneYuvWithEffect[0].u_height * pClipCtxt->pPlaneYuvWithEffect[0].u_width);
+
+    pClipCtxt->pPlaneYuvWithEffect[2].u_height =
+        pClipCtxt->pPlaneYuvWithEffect[0].u_height >>1;
+    pClipCtxt->pPlaneYuvWithEffect[2].u_width =
+        pClipCtxt->pPlaneYuvWithEffect[0].u_width >> 1;
+    pClipCtxt->pPlaneYuvWithEffect[2].u_stride =
+        pClipCtxt->pPlaneYuvWithEffect[2].u_width;
+    pClipCtxt->pPlaneYuvWithEffect[2].u_topleft = 0;
+    pClipCtxt->pPlaneYuvWithEffect[2].pac_data = (M4VIFI_UInt8*)(
+        pClipCtxt->pPlaneYuvWithEffect[1].pac_data +
+         pClipCtxt->pPlaneYuvWithEffect[1].u_height * pClipCtxt->pPlaneYuvWithEffect[1].u_width);
+
+    err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+        pClipCtxt->pViDecCtxt, M4DECODER_kOptionID_YuvWithEffectContiguous,
+        (M4OSA_DataOption)pClipCtxt->pPlaneYuvWithEffect);
+    if (M4NO_ERROR != err) {
+        free(pClipCtxt->pPlaneYuv[0].pac_data);
+        free(pClipCtxt->pPlaneYuv);
+        free(pClipCtxt->pPlaneYuvWithEffect);
+        return err;
+    }
+
+    return M4NO_ERROR;
+}
+
+M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
+                                             M4VSS3GPP_ClipContext* pClipCtxt,
+                                             M4OSA_Bool bIsClip1,
+                                             M4VIFI_ImagePlane *pResizePlane,
+                                             M4VIFI_ImagePlane *pPlaneNoResize,
+                                             M4VIFI_ImagePlane *pPlaneOut) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4OSA_UInt8 numEffects = 0;
+    M4_MediaTime ts;
+    M4VIFI_ImagePlane *pDecoderRenderFrame = M4OSA_NULL;
+
+    /**
+    Check if resizing is needed */
+    if (M4OSA_NULL != pClipCtxt->m_pPreResizeFrame) {
+        /**
+        * If we do modify the image, we need an intermediate image plane */
+        if (M4OSA_NULL == pResizePlane[0].pac_data) {
+            err = M4VSS3GPP_intAllocateYUV420(pResizePlane,
+                pClipCtxt->m_pPreResizeFrame[0].u_width,
+                pClipCtxt->m_pPreResizeFrame[0].u_height);
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                 M4VSS3GPP_intAllocateYUV420 returns 0x%x", err);
+                return err;
+            }
+        }
+
+        if ((pClipCtxt->pSettings->FileType ==
+              M4VIDEOEDITING_kFileType_ARGB8888) &&
+            (pC->nbActiveEffects == 0) &&
+            (pClipCtxt->bGetYuvDataFromDecoder == M4OSA_FALSE)) {
+
+            err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                      pClipCtxt->pViDecCtxt,
+                      M4DECODER_kOptionID_EnableYuvWithEffect,
+                      (M4OSA_DataOption)M4OSA_TRUE);
+            if (M4NO_ERROR == err) {
+                pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                    pClipCtxt->pViDecCtxt, &ts,
+                    pClipCtxt->pPlaneYuvWithEffect, M4OSA_TRUE);
+            }
+
+        } else {
+            if (pClipCtxt->pSettings->FileType ==
+              M4VIDEOEDITING_kFileType_ARGB8888) {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                          pClipCtxt->pViDecCtxt,
+                          M4DECODER_kOptionID_EnableYuvWithEffect,
+                          (M4OSA_DataOption)M4OSA_FALSE);
+            }
+            if (M4NO_ERROR == err) {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                    pClipCtxt->pViDecCtxt, &ts,
+                    pClipCtxt->m_pPreResizeFrame, M4OSA_TRUE);
+                }
+
+        }
+        if (M4NO_ERROR != err) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                returns error 0x%x", err);
+            return err;
+        }
+
+        if (bIsClip1 == M4OSA_TRUE) {
+            numEffects = pC->nbActiveEffects;
+        } else {
+            numEffects = pC->nbActiveEffects1;
+        }
+
+        if ( numEffects > 0) {
+            pClipCtxt->bGetYuvDataFromDecoder = M4OSA_TRUE;
+            err = M4VSS3GPP_intApplyVideoEffect(pC,
+                     pClipCtxt->m_pPreResizeFrame, pResizePlane);
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    M4VSS3GPP_intApplyVideoEffect() err 0x%x", err);
+                return err;
+            }
+
+            pDecoderRenderFrame= pResizePlane;
+
+        } else {
+            pDecoderRenderFrame = pClipCtxt->m_pPreResizeFrame;
+        }
+
+        if ((pClipCtxt->bGetYuvDataFromDecoder == M4OSA_TRUE) ||
+            (pClipCtxt->pSettings->FileType !=
+             M4VIDEOEDITING_kFileType_ARGB8888)) {
+            if (bIsClip1 == M4OSA_TRUE) {
+                err = M4VSS3GPP_intApplyRenderingMode (pC,
+                        pClipCtxt->pSettings->xVSS.MediaRendering,
+                        pDecoderRenderFrame,pC->yuv1);
+            } else {
+                err = M4VSS3GPP_intApplyRenderingMode (pC,
+                        pClipCtxt->pSettings->xVSS.MediaRendering,
+                        pDecoderRenderFrame,pC->yuv2);
+            }
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    M4VSS3GPP_intApplyRenderingMode error 0x%x ", err);
+                return err;
+            }
+
+            if (bIsClip1 == M4OSA_TRUE) {
+                pClipCtxt->lastDecodedPlane = pC->yuv1;
+            } else {
+                pClipCtxt->lastDecodedPlane = pC->yuv2;
+            }
+
+        } else {
+            pClipCtxt->lastDecodedPlane = pClipCtxt->pPlaneYuvWithEffect;
+        }
+
+        if ((pClipCtxt->pSettings->FileType ==
+                 M4VIDEOEDITING_kFileType_ARGB8888) &&
+             (pC->nbActiveEffects == 0) &&
+             (pClipCtxt->bGetYuvDataFromDecoder == M4OSA_TRUE)) {
+            if (bIsClip1 == M4OSA_TRUE) {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                    pClipCtxt->pViDecCtxt,
+                    M4DECODER_kOptionID_YuvWithEffectNonContiguous,
+                    (M4OSA_DataOption)pC->yuv1);
+            } else {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
+                    pClipCtxt->pViDecCtxt,
+                    M4DECODER_kOptionID_YuvWithEffectNonContiguous,
+                    (M4OSA_DataOption)pPlaneOut);
+            }
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    null decoder setOption error 0x%x ", err);
+                return err;
+            }
+            pClipCtxt->bGetYuvDataFromDecoder = M4OSA_FALSE;
+        }
+
+    } else {
+        if (bIsClip1 == M4OSA_TRUE) {
+            numEffects = pC->nbActiveEffects;
+        } else {
+            numEffects = pC->nbActiveEffects1;
+        }
+
+        if(numEffects > 0) {
+            err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                      pClipCtxt->pViDecCtxt, &ts, pPlaneNoResize, M4OSA_TRUE);
+
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    Render returns error 0x%x", err);
+                return err;
+            }
+            if (bIsClip1 == M4OSA_TRUE) {
+                pC->bIssecondClip = M4OSA_FALSE;
+                err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv1);
+                pClipCtxt->lastDecodedPlane = pC->yuv1;
+            } else {
+                pC->bIssecondClip = M4OSA_TRUE;
+                err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv2);
+                pClipCtxt->lastDecodedPlane = pC->yuv2;
+            }
+
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    M4VSS3GPP_intApplyVideoEffect error 0x%x", err);
+                return err;
+            }
+
+        } else {
+            if (bIsClip1 == M4OSA_TRUE) {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                          pClipCtxt->pViDecCtxt, &ts, pC->yuv1, M4OSA_TRUE);
+                pClipCtxt->lastDecodedPlane = pC->yuv1;
+            } else {
+                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                      pClipCtxt->pViDecCtxt, &ts, pC->yuv2, M4OSA_TRUE);
+                pClipCtxt->lastDecodedPlane = pC->yuv2;
+            }
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                    Render returns error 0x%x,", err);
+                return err;
+            }
+        }
+        pClipCtxt->iVideoRenderCts = (M4OSA_Int32)ts;
+    }
+
+    return err;
 }
