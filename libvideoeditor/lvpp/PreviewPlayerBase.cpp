@@ -1942,9 +1942,9 @@ status_t PreviewPlayerBase::readYV12Buffer(sp<MediaSource> source, MediaBuffer *
     MediaBuffer *origBuffer = *buffer;
     MediaBuffer *newBuffer = new MediaBuffer(width * height * 3 / 2);
 
-    LOGD("convertDecoderOutputToYV12: mGivenWidth = %d, mGivenHeight = %d",
+    LOGV("convertDecoderOutputToYV12: mGivenWidth = %d, mGivenHeight = %d",
         mGivenWidth, mGivenHeight);
-    LOGD("width = %d, height = %d", width, height);
+    LOGV("width = %d, height = %d", width, height);
 
     if (mYV12ColorConverter->convertDecoderOutputToYV12(
         (uint8_t *)origBuffer->data(), // ?? + origBuffer->range_offset(), // decoderBits
