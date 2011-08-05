@@ -29,7 +29,7 @@
 #include "M4SYS_AccessUnit.h"
 #include "VideoEditorVideoEncoder.h"
 #include "VideoEditorUtils.h"
-#include <YV12ColorConverter.h>
+#include <I420ColorConverter.h>
 
 #include "utils/Log.h"
 #include "utils/Vector.h"
@@ -455,7 +455,7 @@ typedef struct {
     sp<MediaSource>                   mEncoder;
     OMX_COLOR_FORMATTYPE              mEncoderColorFormat;
     VideoEditorVideoEncoderPuller*    mPuller;
-    YV12ColorConverter*               mYV12ColorConverter;
+    I420ColorConverter*               mI420ColorConverter;
 
     uint32_t                          mNbInputFrames;
     double                            mFirstInputCts;
@@ -628,13 +628,13 @@ M4OSA_ERR VideoEditorVideoEncoder_init(M4ENCODER_Format format,
     pEncoderContext->mPuller = NULL;
 
     // Get color converter and determine encoder input format
-    pEncoderContext->mYV12ColorConverter = new YV12ColorConverter;
-    if (pEncoderContext->mYV12ColorConverter->isLoaded()) {
-        encoderInput = pEncoderContext->mYV12ColorConverter->getEncoderInputFormat();
+    pEncoderContext->mI420ColorConverter = new I420ColorConverter;
+    if (pEncoderContext->mI420ColorConverter->isLoaded()) {
+        encoderInput = pEncoderContext->mI420ColorConverter->getEncoderInputFormat();
     }
     if (encoderInput == OMX_COLOR_FormatYUV420Planar) {
-        delete pEncoderContext->mYV12ColorConverter;
-        pEncoderContext->mYV12ColorConverter = NULL;
+        delete pEncoderContext->mI420ColorConverter;
+        pEncoderContext->mI420ColorConverter = NULL;
     }
     pEncoderContext->mEncoderColorFormat = (OMX_COLOR_FORMATTYPE)encoderInput;
     LOGI("encoder input format = 0x%X\n", encoderInput);
@@ -704,8 +704,8 @@ M4OSA_ERR VideoEditorVideoEncoder_close(M4ENCODER_Context pContext) {
     delete pEncoderContext->mPuller;
     pEncoderContext->mPuller = NULL;
 
-    delete pEncoderContext->mYV12ColorConverter;
-    pEncoderContext->mYV12ColorConverter = NULL;
+    delete pEncoderContext->mI420ColorConverter;
+    pEncoderContext->mI420ColorConverter = NULL;
 
     // Set the new state
     pEncoderContext->mState = CREATED;
@@ -928,8 +928,8 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
         VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
 
         // Convert MediaBuffer to the encoder input format if necessary
-        if (pEncoderContext->mYV12ColorConverter) {
-            YV12ColorConverter* converter = pEncoderContext->mYV12ColorConverter;
+        if (pEncoderContext->mI420ColorConverter) {
+            I420ColorConverter* converter = pEncoderContext->mI420ColorConverter;
             int actualWidth = pEncoderContext->mCodecParams->FrameWidth;
             int actualHeight = pEncoderContext->mCodecParams->FrameHeight;
 
@@ -944,13 +944,13 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
 
                 MediaBuffer* newBuffer = new MediaBuffer(encoderBufferSize);
 
-                if (converter->convertYV12ToEncoderInput(
+                if (converter->convertI420ToEncoderInput(
                     pData,  // srcBits
                     actualWidth, actualHeight,
                     encoderWidth, encoderHeight,
                     encoderRect,
                     (uint8_t*)newBuffer->data() + newBuffer->range_offset()) < 0) {
-                    LOGE("convertYV12ToEncoderInput failed");
+                    LOGE("convertI420ToEncoderInput failed");
                 }
 
                 // switch to new buffer

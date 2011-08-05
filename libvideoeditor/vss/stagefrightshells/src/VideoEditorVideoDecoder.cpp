@@ -788,7 +788,7 @@ M4OSA_ERR VideoEditorVideoDecoder_destroy(M4OSA_Context pContext) {
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
     // Release the color converter
-    delete pDecShellContext->mYV12ColorConverter;
+    delete pDecShellContext->mI420ColorConverter;
 
     // Destroy the graph
     if( pDecShellContext->mVideoDecoder != NULL ) {
@@ -943,14 +943,14 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
         pDecShellContext->m_pVideoStreamhandler->m_videoHeight);
 
     // Get the color converter
-    pDecShellContext->mYV12ColorConverter = new YV12ColorConverter;
-    if (pDecShellContext->mYV12ColorConverter->isLoaded()) {
-        decoderOutput = pDecShellContext->mYV12ColorConverter->getDecoderOutputFormat();
+    pDecShellContext->mI420ColorConverter = new I420ColorConverter;
+    if (pDecShellContext->mI420ColorConverter->isLoaded()) {
+        decoderOutput = pDecShellContext->mI420ColorConverter->getDecoderOutputFormat();
     }
 
     if (decoderOutput == OMX_COLOR_FormatYUV420Planar) {
-        delete pDecShellContext->mYV12ColorConverter;
-        pDecShellContext->mYV12ColorConverter = NULL;
+        delete pDecShellContext->mI420ColorConverter;
+        pDecShellContext->mI420ColorConverter = NULL;
     }
 
     LOGI("decoder output format = 0x%X\n", decoderOutput);
@@ -1412,14 +1412,14 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
                 break;
             }
             default:
-                if (pDecShellContext->mYV12ColorConverter) {
-                    if (pDecShellContext->mYV12ColorConverter->convertDecoderOutputToYV12(
+                if (pDecShellContext->mI420ColorConverter) {
+                    if (pDecShellContext->mI420ColorConverter->convertDecoderOutputToI420(
                         (uint8_t *)pDecoderBuffer->data(),// ?? + pDecoderBuffer->range_offset(),   // decoderBits
                         pDecShellContext->mGivenWidth,  // decoderWidth
                         pDecShellContext->mGivenHeight,  // decoderHeight
                         pDecShellContext->mCropRect,  // decoderRect
                         tmpDecBuffer->pData /* dstBits */) < 0) {
-                        LOGE("convertDecoderOutputToYV12 failed");
+                        LOGE("convertDecoderOutputToI420 failed");
                     }
                 } else {
                     LOGW("VideoDecoder_decode: unexpected color format 0x%X",

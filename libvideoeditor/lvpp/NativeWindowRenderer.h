@@ -76,7 +76,7 @@ private:
     void queueInternalBuffer(ANativeWindow* anw, MediaBuffer* buffer);
     void queueExternalBuffer(ANativeWindow* anw, MediaBuffer* buffer,
             int width, int height);
-    void copyYV12Buffer(MediaBuffer* src, uint8_t* dst,
+    void copyI420Buffer(MediaBuffer* src, uint8_t* dst,
             int srcWidth, int srcHeight, int stride);
     void updateProgramAndHandle(uint32_t videoEffect);
     void calculatePositionCoordinates(M4xVSS_MediaRendering renderingMode,

@@ -14,41 +14,41 @@
  * limitations under the License.
  */
 
-#include <YV12ColorConverter.h>
+#include <I420ColorConverter.h>
 #include <cutils/log.h>
 #include <dlfcn.h>
 
-YV12ColorConverter::YV12ColorConverter() {
+I420ColorConverter::I420ColorConverter() {
     // Open the shared library
-    mHandle = dlopen("libyv12colorconvert.so", RTLD_NOW);
+    mHandle = dlopen("libI420colorconvert.so", RTLD_NOW);
 
     if (mHandle == NULL) {
-        LOGW("YV12ColorConverter: cannot load libyv12colorconvert.so");
+        LOGW("I420ColorConverter: cannot load libI420colorconvert.so");
         return;
     }
 
     // Find the entry point
-    void (*getYV12ColorConverter)(YV12ColorConverter *converter) =
-        (void (*)(YV12ColorConverter*)) dlsym(mHandle, "getYV12ColorConverter");
+    void (*getI420ColorConverter)(I420ColorConverter *converter) =
+        (void (*)(I420ColorConverter*)) dlsym(mHandle, "getI420ColorConverter");
 
-    if (getYV12ColorConverter == NULL) {
-        LOGW("YV12ColorConverter: cannot load getYV12ColorConverter");
+    if (getI420ColorConverter == NULL) {
+        LOGW("I420ColorConverter: cannot load getI420ColorConverter");
         dlclose(mHandle);
         mHandle = NULL;
         return;
     }
 
     // Fill the function pointers.
-    getYV12ColorConverter(this);
+    getI420ColorConverter(this);
 
-    LOGI("YV12ColorConverter: libyv12colorconvert.so loaded");
+    LOGI("I420ColorConverter: libI420colorconvert.so loaded");
 }
 
-bool YV12ColorConverter::isLoaded() {
+bool I420ColorConverter::isLoaded() {
     return mHandle != NULL;
 }
 
-YV12ColorConverter::~YV12ColorConverter() {
+I420ColorConverter::~I420ColorConverter() {
     if (mHandle) {
         dlclose(mHandle);
     }

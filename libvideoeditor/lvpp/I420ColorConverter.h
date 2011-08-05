@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef YV12_COLOR_CONVERTER_H
-#define YV12_COLOR_CONVERTER_H
+#ifndef I420_COLOR_CONVERTER_H
+#define I420_COLOR_CONVERTER_H
 
-#include <IYV12ColorConverter.h>
+#include <II420ColorConverter.h>
 
-// This is a wrapper around the YV12 color converter functions in
-// IYV12ColorConverter, which is loaded from a shared library.
-class YV12ColorConverter: public IYV12ColorConverter {
+// This is a wrapper around the I420 color converter functions in
+// II420ColorConverter, which is loaded from a shared library.
+class I420ColorConverter: public II420ColorConverter {
 public:
-    YV12ColorConverter();
-    ~YV12ColorConverter();
+    I420ColorConverter();
+    ~I420ColorConverter();
 
     // Returns true if the converter functions are successfully loaded.
     bool isLoaded();
@@ -32,4 +32,4 @@ private:
     void* mHandle;
 };
 
-#endif /* YV12_COLOR_CONVERTER_H */
+#endif /* I420_COLOR_CONVERTER_H */

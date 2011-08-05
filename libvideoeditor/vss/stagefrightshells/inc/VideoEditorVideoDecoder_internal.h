@@ -35,7 +35,7 @@
 #include "M4OSA_Semaphore.h"
 #include "VideoEditorBuffer.h"
 #include "M4VD_Tools.h"
-#include "YV12ColorConverter.h"
+#include "I420ColorConverter.h"
 
 #include <utils/RefBase.h>
 #include <android/rect.h>
@@ -112,7 +112,7 @@ typedef struct {
     M4OSA_Int32             mGivenWidth, mGivenHeight; //Used in case of
                                                        //INFO_FORMAT_CHANGED
     ARect                   mCropRect;  // These are obtained from kKeyCropRect.
-    YV12ColorConverter*     mYV12ColorConverter;
+    I420ColorConverter*     mI420ColorConverter;
 
 } VideoEditorVideoDecoder_Context;
 

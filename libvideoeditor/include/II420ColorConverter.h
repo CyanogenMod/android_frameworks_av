@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef IYV12_COLOR_CONVERTER_H
+#ifndef II420_COLOR_CONVERTER_H
 
-#define IYV12_COLOR_CONVERTER_H
+#define II420_COLOR_CONVERTER_H
 
 #include <stdint.h>
 #include <android/rect.h>
@@ -25,19 +25,19 @@
 extern "C" {
 #endif
 
-typedef struct IYV12ColorConverter {
+typedef struct II420ColorConverter {
 
     /*
      * getDecoderOutputFormat
      * Returns the color format (OMX_COLOR_FORMATTYPE) of the decoder output.
-     * If it is YV12 (OMX_COLOR_FormatYUV420Planar), no conversion is needed,
-     * and convertDecoderOutputToYV12() can be a no-op.
+     * If it is I420 (OMX_COLOR_FormatYUV420Planar), no conversion is needed,
+     * and convertDecoderOutputToI420() can be a no-op.
      */
     int (*getDecoderOutputFormat)();
 
     /*
-     * convertDecoderOutputToYV12
-     * @Desc     Converts from the decoder output format to YV12 format.
+     * convertDecoderOutputToI420
+     * @Desc     Converts from the decoder output format to I420 format.
      * @note     Caller (e.g. VideoEditor) owns the buffers
      * @param    decoderBits   (IN) Pointer to the buffer contains decoder output
      * @param    decoderWidth  (IN) Buffer width, as reported by the decoder
@@ -46,29 +46,29 @@ typedef struct IYV12ColorConverter {
      *                              metadata (kKeyHeight)
      * @param    decoderRect   (IN) The rectangle of the actual frame, as
      *                              reported by decoder metadata (kKeyCropRect)
-     * @param    dstBits      (OUT) Pointer to the output YV12 buffer
+     * @param    dstBits      (OUT) Pointer to the output I420 buffer
      * @return   -1 Any error
      * @return   0  No Error
      */
-    int (*convertDecoderOutputToYV12)(
+    int (*convertDecoderOutputToI420)(
         void* decoderBits, int decoderWidth, int decoderHeight,
         ARect decoderRect, void* dstBits);
 
     /*
      * getEncoderIntputFormat
      * Returns the color format (OMX_COLOR_FORMATTYPE) of the encoder input.
-     * If it is YV12 (OMX_COLOR_FormatYUV420Planar), no conversion is needed,
-     * and convertYV12ToEncoderInput() and getEncoderInputBufferInfo() can
+     * If it is I420 (OMX_COLOR_FormatYUV420Planar), no conversion is needed,
+     * and convertI420ToEncoderInput() and getEncoderInputBufferInfo() can
      * be no-ops.
      */
     int (*getEncoderInputFormat)();
 
-    /* convertYV12ToEncoderInput
-     * @Desc     This function converts from YV12 to the encoder input format
+    /* convertI420ToEncoderInput
+     * @Desc     This function converts from I420 to the encoder input format
      * @note     Caller (e.g. VideoEditor) owns the buffers
-     * @param    srcBits       (IN) Pointer to the input YV12 buffer
-     * @param    srcWidth      (IN) Width of the YV12 frame
-     * @param    srcHeight     (IN) Height of the YV12 frame
+     * @param    srcBits       (IN) Pointer to the input I420 buffer
+     * @param    srcWidth      (IN) Width of the I420 frame
+     * @param    srcHeight     (IN) Height of the I420 frame
      * @param    encoderWidth  (IN) Encoder buffer width, as calculated by
      *                              getEncoderBufferInfo()
      * @param    encoderHeight (IN) Encoder buffer height, as calculated by
@@ -82,29 +82,29 @@ typedef struct IYV12ColorConverter {
      * @return   -1 Any error
      * @return   0  No Error
      */
-    int (*convertYV12ToEncoderInput)(
+    int (*convertI420ToEncoderInput)(
         void* srcBits, int srcWidth, int srcHeight,
         int encoderWidth, int encoderHeight, ARect encoderRect,
         void* encoderBits);
 
     /* getEncoderInputBufferInfo
      * @Desc     This function returns metadata for the encoder input buffer
-     *           based on the actual YV12 frame width and height.
+     *           based on the actual I420 frame width and height.
      * @note     This API should be be used to obtain the necessary information
-     *           before calling convertYV12ToEncoderInput().
-     *           VideoEditor knows only the width and height of the YV12 buffer,
+     *           before calling convertI420ToEncoderInput().
+     *           VideoEditor knows only the width and height of the I420 buffer,
      *           but it also needs know the width, height, and size of the
      *           encoder input buffer. The encoder input buffer width and height
      *           are used to set the metadata for the encoder.
-     * @param    srcWidth      (IN) Width of the YV12 frame
-     * @param    srcHeight     (IN) Height of the YV12 frame
+     * @param    srcWidth      (IN) Width of the I420 frame
+     * @param    srcHeight     (IN) Height of the I420 frame
      * @param    encoderWidth  (OUT) Encoder buffer width needed
      * @param    encoderHeight (OUT) Encoder buffer height needed
      * @param    encoderRect   (OUT) Rect coordinates of the actual frame inside
      *                               the encoder buffer
      * @param    encoderBufferSize  (OUT) The size of the buffer that need to be
      *                              allocated by the caller before invoking
-     *                              convertYV12ToEncoderInput().
+     *                              convertI420ToEncoderInput().
      * @return   -1 Any error
      * @return   0  No Error
      */
@@ -113,14 +113,14 @@ typedef struct IYV12ColorConverter {
         int* encoderWidth, int* encoderHeight,
         ARect* encoderRect, int* encoderBufferSize);
 
-} IYV12ColorConverter;
+} II420ColorConverter;
 
 /* The only function that the shared library needs to expose: It fills the
-   function pointers in IYV12ColorConverter */
-void getYV12ColorConverter(IYV12ColorConverter *converter);
+   function pointers in II420ColorConverter */
+void getI420ColorConverter(II420ColorConverter *converter);
 
 #if defined(__cplusplus)
 }
 #endif
 
-#endif  // IYV12_COLOR_CONVERTER_H
+#endif  // II420_COLOR_CONVERTER_H

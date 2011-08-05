@@ -409,12 +409,12 @@ void NativeWindowRenderer::queueExternalBuffer(ANativeWindow* anw,
     // Copy the buffer
     uint8_t* img = NULL;
     buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
-    copyYV12Buffer(buffer, img, width, height, buf->getStride());
+    copyI420Buffer(buffer, img, width, height, buf->getStride());
     buf->unlock();
     CHECK(NO_ERROR == anw->queueBuffer(anw, buf->getNativeBuffer()));
 }
 
-void NativeWindowRenderer::copyYV12Buffer(MediaBuffer* src, uint8_t* dst,
+void NativeWindowRenderer::copyI420Buffer(MediaBuffer* src, uint8_t* dst,
         int srcWidth, int srcHeight, int stride) {
     int strideUV = (stride / 2 + 0xf) & ~0xf;
     uint8_t* p = (uint8_t*)src->data() + src->range_offset();

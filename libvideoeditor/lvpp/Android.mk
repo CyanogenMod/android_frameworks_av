@@ -37,7 +37,7 @@ LOCAL_SRC_FILES:=          \
     AudioPlayerBase.cpp \
     PreviewPlayerBase.cpp \
     PreviewRenderer.cpp \
-    YV12ColorConverter.cpp \
+    I420ColorConverter.cpp \
     NativeWindowRenderer.cpp
 
 LOCAL_MODULE_TAGS := optional
