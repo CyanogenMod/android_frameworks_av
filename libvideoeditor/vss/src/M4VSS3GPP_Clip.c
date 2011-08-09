@@ -209,8 +209,11 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
         decoderUserData = M4OSA_NULL;
 
         err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctCreate(
-                  &pClipCtxt->pViDecCtxt, &dummyStreamHandler,
-                  pClipCtxt->ShellAPI.m_pReaderDataIt, &pClipCtxt->VideoAU,
+                  &pClipCtxt->pViDecCtxt,
+                  &dummyStreamHandler,
+                  pClipCtxt->ShellAPI.m_pReader,
+                  pClipCtxt->ShellAPI.m_pReaderDataIt,
+                  &pClipCtxt->VideoAU,
                   decoderUserData);
 
         if (M4NO_ERROR != err) {
@@ -607,6 +610,7 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
             err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctCreate(
                 &pClipCtxt->pViDecCtxt,
                 &pClipCtxt->pVideoStream->m_basicProperties,
+                pClipCtxt->ShellAPI.m_pReader,
                 pClipCtxt->ShellAPI.m_pReaderDataIt,
                 &pClipCtxt->VideoAU, decoderUserData);
 
@@ -792,47 +796,10 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeVideoUpToCts( M4VSS3GPP_ClipContext *pClipCtxt,
     if( M4VSS3GPP_kClipStatus_READ == pClipCtxt->Vstatus )
     {
         /**
-        * Jump to the previous RAP in the clip (first get the time, then jump) */
-        if(M4VIDEOEDITING_kFileType_ARGB8888 != pClipCtxt->pSettings->FileType) {
-            iRapCts = iClipCts;
+        * The decoder must be told to jump */
+        bClipJump = M4OSA_TRUE;
+        pClipCtxt->iVideoDecCts = iClipCts;
 
-            err = pClipCtxt->ShellAPI.m_pReader->m_pFctGetPrevRapTime(
-                pClipCtxt->pReaderContext,
-                (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
-
-            if( M4WAR_READER_INFORMATION_NOT_PRESENT == err )
-            {
-                /* No RAP table, jump backward and predecode */
-                iRapCts = iClipCts - M4VSS3GPP_NO_STSS_JUMP_POINT;
-
-                if( iRapCts < 0 )
-                    iRapCts = 0;
-            }
-            else if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctGetPrevRapTime returns 0x%x!",
-                    err);
-                return err;
-            }
-
-            err =
-                pClipCtxt->ShellAPI.m_pReader->m_pFctJump(pClipCtxt->pReaderContext,
-                (M4_StreamHandler *)pClipCtxt->pVideoStream, &iRapCts);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intClipDecodeVideoUpToCts: m_pFctJump returns 0x%x!",
-                    err);
-                return err;
-            }
-
-            /**
-            * The decoder must be told that we jumped */
-            bClipJump = M4OSA_TRUE;
-            pClipCtxt->iVideoDecCts = iRapCts;
-        }
         /**
         * Remember the clip reading state */
         pClipCtxt->Vstatus = M4VSS3GPP_kClipStatus_DECODE_UP_TO;
@@ -873,7 +840,7 @@ M4OSA_ERR M4VSS3GPP_intClipDecodeVideoUpToCts( M4VSS3GPP_ClipContext *pClipCtxt,
     pClipCtxt->isRenderDup = M4OSA_FALSE;
     err =
         pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctDecode(pClipCtxt->pViDecCtxt,
-        &dDecodeTime, bClipJump);
+        &dDecodeTime, bClipJump, 0);
 
     if( ( M4NO_ERROR != err) && (M4WAR_NO_MORE_AU != err)
         && (err != M4WAR_VIDEORENDERER_NO_NEW_FRAME) )

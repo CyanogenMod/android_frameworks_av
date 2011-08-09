@@ -230,7 +230,9 @@ typedef enum
  *
  * @param    pContext:        (OUT)    Context of the decoder
  * @param    pStreamHandler:    (IN)    Pointer to a video stream description
- * @param    pSrcInterface:    (IN)    Pointer to the M4READER_DataInterface structure that must
+ * @param    pGlobalInterface:  (IN)    Pointer to the M4READER_GlobalInterface structure that must
+ *                                       be used by the decoder to read data from the stream
+ * @param    pDataInterface:    (IN)    Pointer to the M4READER_DataInterface structure that must
  *                                       be used by the decoder to read data from the stream
  * @param    pAccessUnit        (IN)    Pointer to an access unit (allocated by the caller)
  *                                      where the decoded data are stored
@@ -243,7 +245,8 @@ typedef enum
 */
 typedef M4OSA_ERR  (M4DECODER_create_fct)    (M4OSA_Context *pContext,
                                                  M4_StreamHandler *pStreamHandler,
-                                                 M4READER_DataInterface *pSrcInterface,
+                                                 M4READER_GlobalInterface *pGlobalInterface,
+                                                 M4READER_DataInterface *pDataInterface,
                                                  M4_AccessUnit *pAccessUnit,
                                                  M4OSA_Void* pUserData);
 
@@ -313,6 +316,8 @@ typedef M4OSA_ERR  (M4DECODER_setOption_fct)(M4OSA_Context context, M4OSA_Option
  *                                    OUT:Time of the last decoded frame (in ms)
  * @param   bJump:      (IN)        0 if no jump occured just before this call
  *                                  1 if a a jump has just been made
+ * @param   tolerance:      (IN)        We may decode an earlier frame within the tolerance.
+ *                                      The time difference is specified in milliseconds.
  *
  * @return    M4NO_ERROR                 there is no error
  * @return    M4ERR_PARAMETER            at least one parameter is not properly set
@@ -320,7 +325,7 @@ typedef M4OSA_ERR  (M4DECODER_setOption_fct)(M4OSA_Context context, M4OSA_Option
  ************************************************************************
 */
 typedef M4OSA_ERR  (M4DECODER_decode_fct)    (M4OSA_Context context, M4_MediaTime* pTime,
-                                                 M4OSA_Bool bJump);
+                                                 M4OSA_Bool bJump, M4OSA_UInt32 tolerance);
 
 /**
  ************************************************************************
@@ -363,4 +368,3 @@ typedef struct _M4DECODER_VideoInterface
 } M4DECODER_VideoInterface;
 
 #endif /*__M4DECODER_COMMON_H__*/
-

@@ -5583,8 +5583,8 @@ static M4OSA_ERR M4MCS_intPrepareVideoDecoder( M4MCS_InternalContext *pC )
 #endif /* M4VSS_ENABLE_EXTERNAL_DECODERS ? */
 
         err = pC->m_pVideoDecoder->m_pFctCreate(&pC->pViDecCtxt,
-            &pC->pReaderVideoStream->m_basicProperties, pC->m_pReaderDataIt,
-            &pC->ReaderVideoAU, decoderUserData);
+            &pC->pReaderVideoStream->m_basicProperties, pC->m_pReader,
+            pC->m_pReaderDataIt, &pC->ReaderVideoAU, decoderUserData);
 
         if( (M4OSA_UInt32)(M4ERR_DECODER_H263_PROFILE_NOT_SUPPORTED) == err )
         {
@@ -7660,15 +7660,6 @@ static M4OSA_ERR M4MCS_intStepBeginVideoJump( M4MCS_InternalContext *pC )
 
     }
     /* - CRLV6775 -H.264 Trimming */
-    err = pC->m_pReader->m_pFctJump(pC->pReaderContext,
-        (M4_StreamHandler *)pC->pReaderVideoStream, &iCts);
-
-    if( M4NO_ERROR != err )
-    {
-        M4OSA_TRACE1_1(
-            "M4MCS_intStepBeginVideoJump: m_pFctJump(V) returns 0x%x!", err);
-        return err;
-    }
 
     /**
     * Decode one step */
@@ -7689,7 +7680,7 @@ static M4OSA_ERR M4MCS_intStepBeginVideoJump( M4MCS_InternalContext *pC )
     pC->isRenderDup = M4OSA_FALSE;
     err =
         pC->m_pVideoDecoder->m_pFctDecode(pC->pViDecCtxt, &pC->dViDecCurrentCts,
-        M4OSA_TRUE);
+        M4OSA_TRUE, 0);
 
     if( ( M4NO_ERROR != err) && (M4WAR_NO_MORE_AU != err)
         && (err != M4WAR_VIDEORENDERER_NO_NEW_FRAME) )
@@ -7752,7 +7743,7 @@ static M4OSA_ERR M4MCS_intStepBeginVideoDecode( M4MCS_InternalContext *pC )
         pC->dViDecCurrentCts);
     pC->isRenderDup = M4OSA_FALSE;
     err = pC->m_pVideoDecoder->m_pFctDecode(pC->pViDecCtxt, &dDecTarget,
-        M4OSA_FALSE);
+        M4OSA_FALSE, 0);
 
     if( ( M4NO_ERROR != err) && (M4WAR_NO_MORE_AU != err)
         && (err != M4WAR_VIDEORENDERER_NO_NEW_FRAME) )
@@ -9273,7 +9264,7 @@ static M4OSA_ERR M4MCS_intVideoTranscoding( M4MCS_InternalContext *pC )
         mtTranscodedTime);
     pC->isRenderDup = M4OSA_FALSE;
     err = pC->m_pVideoDecoder->m_pFctDecode(pC->pViDecCtxt, &mtTranscodedTime,
-        M4OSA_FALSE);
+        M4OSA_FALSE, 0);
 
     if( M4WAR_NO_MORE_AU == err )
     {

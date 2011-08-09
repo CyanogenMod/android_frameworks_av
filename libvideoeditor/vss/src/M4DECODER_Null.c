@@ -92,6 +92,7 @@ typedef struct {
 */
 M4OSA_ERR M4DECODER_NULL_create(M4OSA_Context *pContext,
                                 M4_StreamHandler *pStreamHandler,
+                                M4READER_GlobalInterface *pReaderGlobalInterface,
                                 M4READER_DataInterface *pReaderDataInterface,
                                 M4_AccessUnit* pAccessUnit,
                                 M4OSA_Void* pUserData) {
@@ -293,7 +294,8 @@ M4OSA_ERR M4DECODER_NULL_setOption(M4OSA_Context context,
  ************************************************************************
 */
 M4OSA_ERR M4DECODER_NULL_decode(M4OSA_Context context,
-                                M4_MediaTime* pTime, M4OSA_Bool bJump) {
+                                M4_MediaTime* pTime, M4OSA_Bool bJump,
+                                M4OSA_UInt32 tolerance) {
 
     // Do nothing; input time stamp itself returned
     return M4NO_ERROR;

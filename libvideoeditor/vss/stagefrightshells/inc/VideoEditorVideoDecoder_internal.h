@@ -81,6 +81,7 @@ typedef struct {
     sp<MediaSource>         mReaderSource; /**< Reader access > */
 
     /* READER */
+    M4READER_GlobalInterface *m_pReaderGlobal;
     M4READER_DataInterface  *m_pReader;
     M4_AccessUnit           *m_pNextAccessUnitToDecode;
 
