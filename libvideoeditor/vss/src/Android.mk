@@ -46,7 +46,8 @@ LOCAL_SRC_FILES:=          \
       M4AMRR_CoreReader.c \
       M4READER_Amr.c \
       M4VD_Tools.c \
-      VideoEditorResampler.cpp
+      VideoEditorResampler.cpp \
+      M4DECODER_Null.c
 
 
 LOCAL_MODULE_TAGS := optional

@@ -347,6 +347,7 @@ typedef struct {
 
     M4MCS_MediaRendering                 MediaRendering;   /**< FB: to crop, resize, or render
                                                                 black borders*/
+    M4OSA_UInt32                         videoclipnumber;
 
 } M4xVSS_MCS_params;
 

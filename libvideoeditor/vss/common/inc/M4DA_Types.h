@@ -67,8 +67,9 @@ typedef enum
     M4DA_StreamTypeAudioBpc                = 25,    /**< BPC audio */
 
     /* ADPCM */
-    M4DA_StreamTypeAudioADPcm            = 26    /**< ADPCM */
+    M4DA_StreamTypeAudioADPcm            = 26,    /**< ADPCM */
 
+    M4DA_StreamTypeVideoARGB8888        = 27
 } M4_StreamType;
 
 /**

@@ -369,6 +369,7 @@ typedef struct {
     M4OSA_UInt32                        uiStillPicWidth;        /**< Image width */
     M4OSA_UInt32                        uiStillPicHeight;       /**< Image height */
     M4OSA_UInt32                        uiClipAudioVolumePercentage;
+    M4OSA_Bool                          bSetImageData;
 
 } M4VIDEOEDITING_ClipProperties;
 

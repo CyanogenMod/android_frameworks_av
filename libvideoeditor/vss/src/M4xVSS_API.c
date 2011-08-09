@@ -1196,6 +1196,9 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             return err;
         }
 
+        xVSS_context->pSettings->pClipList[i]->bTranscodingRequired =
+            M4OSA_FALSE;
+
         /* Because there is 1 less transition than clip number */
         if( i < xVSS_context->pSettings->uiClipNumber - 1 )
         {
@@ -1648,476 +1651,479 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
         if( xVSS_context->pSettings->pClipList[i]->FileType
             == M4VIDEOEDITING_kFileType_ARGB8888 )
         {
-            M4OSA_Char out_img[M4XVSS_MAX_PATH_LEN];
-            M4OSA_Char out_img_tmp[M4XVSS_MAX_PATH_LEN];
-            M4xVSS_Pto3GPP_params *pParams = M4OSA_NULL;
-            M4OSA_Context pARGBFileIn;
-            /*UTF conversion support*/
-            M4OSA_Void *pDecodedPath = pSettings->pClipList[i]->pFile;
+            if(M4OSA_TRUE ==
+                   xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom) {
+                M4OSA_Char out_img[M4XVSS_MAX_PATH_LEN];
+                M4OSA_Char out_img_tmp[M4XVSS_MAX_PATH_LEN];
+                M4xVSS_Pto3GPP_params *pParams = M4OSA_NULL;
+                M4OSA_Context pARGBFileIn;
+                /*UTF conversion support*/
+                M4OSA_Void *pDecodedPath = pSettings->pClipList[i]->pFile;
 
-            /* Parse Pto3GPP params chained list to know if input file has already been
-            converted */
-            if( xVSS_context->pPTo3GPPparamsList != M4OSA_NULL )
-            {
-                M4OSA_UInt32 pCmpResult = 0;
-
-                pParams = xVSS_context->pPTo3GPPparamsList;
-                /* We parse all Pto3gpp Param chained list */
-                while( pParams != M4OSA_NULL )
+                /* Parse Pto3GPP params chained list to know if input file has already been
+                converted */
+                if( xVSS_context->pPTo3GPPparamsList != M4OSA_NULL )
                 {
-                    pCmpResult = strcmp((const char *)pSettings->pClipList[i]->pFile,
-                        (const char *)pParams->pFileIn);
+                    M4OSA_UInt32 pCmpResult = 0;
 
-                    if( pCmpResult == 0
-                        && (pSettings->pClipList[i]->uiEndCutTime
-                        == pParams->duration
-                        || pSettings->pClipList[i]->xVSS.uiDuration
-                        == pParams->duration)
-                        && pSettings->pClipList[i]->xVSS.MediaRendering
-                        == pParams->MediaRendering )
-
-
-
+                    pParams = xVSS_context->pPTo3GPPparamsList;
+                    /* We parse all Pto3gpp Param chained list */
+                    while( pParams != M4OSA_NULL )
                     {
-                        /* Replace JPG filename with existing 3GP filename */
-                        goto replaceARGB_3GP;
+                        pCmpResult = strcmp((const char *)pSettings->pClipList[i]->pFile,
+                            (const char *)pParams->pFileIn);
+
+                        if( pCmpResult == 0
+                            && (pSettings->pClipList[i]->uiEndCutTime
+                            == pParams->duration
+                            || pSettings->pClipList[i]->xVSS.uiDuration
+                            == pParams->duration)
+                            && pSettings->pClipList[i]->xVSS.MediaRendering
+                            == pParams->MediaRendering )
+
+
+
+                        {
+                            /* Replace JPG filename with existing 3GP filename */
+                            goto replaceARGB_3GP;
+                        }
+                        /* We need to update this variable, in case some pictures have been
+                         added between two */
+                        /* calls to M4xVSS_sendCommand */
+                        pPto3GPP_last = pParams;
+                        pParams = pParams->pNext;
                     }
-                    /* We need to update this variable, in case some pictures have been
-                     added between two */
-                    /* calls to M4xVSS_sendCommand */
-                    pPto3GPP_last = pParams;
-                    pParams = pParams->pNext;
                 }
-            }
 
-            /* Construct output temporary 3GP filename */
-            err = M4OSA_chrSPrintf(out_img, M4XVSS_MAX_PATH_LEN - 1, (M4OSA_Char *)"%simg%d.3gp",
-                xVSS_context->pTempPath, xVSS_context->tempFileIndex);
+                /* Construct output temporary 3GP filename */
+                err = M4OSA_chrSPrintf(out_img, M4XVSS_MAX_PATH_LEN - 1, (M4OSA_Char *)"%simg%d.3gp",
+                    xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_1("Error in M4OSA_chrSPrintf: 0x%x", err);
-                /*FB: to avoid leaks when there is an error in the send command*/
-                /* Free Send command */
-                M4xVSS_freeCommand(xVSS_context);
-                /**/
-                return err;
-            }
+                if( err != M4NO_ERROR )
+                {
+                    M4OSA_TRACE1_1("Error in M4OSA_chrSPrintf: 0x%x", err);
+                    /*FB: to avoid leaks when there is an error in the send command*/
+                    /* Free Send command */
+                    M4xVSS_freeCommand(xVSS_context);
+                    /**/
+                    return err;
+                }
 
-#ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
+    #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
 
-            err = M4OSA_chrSPrintf(out_img_tmp, M4XVSS_MAX_PATH_LEN - 1, "%simg%d.tmp",
-                xVSS_context->pTempPath, xVSS_context->tempFileIndex);
+                err = M4OSA_chrSPrintf(out_img_tmp, M4XVSS_MAX_PATH_LEN - 1, "%simg%d.tmp",
+                    xVSS_context->pTempPath, xVSS_context->tempFileIndex);
 
-            if( err != M4NO_ERROR )
-            {
-                M4OSA_TRACE1_1("Error in M4OSA_chrSPrintf: 0x%x", err);
-                /*FB: to avoid leaks when there is an error in the send command*/
-                /* Free Send command */
-                M4xVSS_freeCommand(xVSS_context);
-                /**/
-                return err;
-            }
+                if( err != M4NO_ERROR )
+                {
+                    M4OSA_TRACE1_1("Error in M4OSA_chrSPrintf: 0x%x", err);
+                    /*FB: to avoid leaks when there is an error in the send command*/
+                    /* Free Send command */
+                    M4xVSS_freeCommand(xVSS_context);
+                    /**/
+                    return err;
+                }
 
-#endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
+    #endif /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
 
-            xVSS_context->tempFileIndex++;
+                xVSS_context->tempFileIndex++;
 
-            /* Allocate last element Pto3GPP params structure */
-            pParams = (M4xVSS_Pto3GPP_params
-                *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_Pto3GPP_params),
-                M4VS, (M4OSA_Char *)"Element of Pto3GPP Params");
+                /* Allocate last element Pto3GPP params structure */
+                pParams = (M4xVSS_Pto3GPP_params
+                    *)M4OSA_32bitAlignedMalloc(sizeof(M4xVSS_Pto3GPP_params),
+                    M4VS, (M4OSA_Char *)"Element of Pto3GPP Params");
 
-            if( pParams == M4OSA_NULL )
-            {
-                M4OSA_TRACE1_0(
-                    "M4xVSS_sendCommand: Problem when allocating one element Pto3GPP Params");
-                /*FB: to avoid leaks when there is an error in the send command*/
-                /* Free Send command */
-                M4xVSS_freeCommand(xVSS_context);
-                /**/
-                return M4ERR_ALLOC;
-            }
+                if( pParams == M4OSA_NULL )
+                {
+                    M4OSA_TRACE1_0(
+                        "M4xVSS_sendCommand: Problem when allocating one element Pto3GPP Params");
+                    /*FB: to avoid leaks when there is an error in the send command*/
+                    /* Free Send command */
+                    M4xVSS_freeCommand(xVSS_context);
+                    /**/
+                    return M4ERR_ALLOC;
+                }
 
-            /* Initializes pfilexxx members of pParams to be able to free them correctly */
-            pParams->pFileIn = M4OSA_NULL;
-            pParams->pFileOut = M4OSA_NULL;
-            pParams->pFileTemp = M4OSA_NULL;
-            pParams->pNext = M4OSA_NULL;
-            pParams->MediaRendering = M4xVSS_kResizing;
+                /* Initializes pfilexxx members of pParams to be able to free them correctly */
+                pParams->pFileIn = M4OSA_NULL;
+                pParams->pFileOut = M4OSA_NULL;
+                pParams->pFileTemp = M4OSA_NULL;
+                pParams->pNext = M4OSA_NULL;
+                pParams->MediaRendering = M4xVSS_kResizing;
 
-            /*To support ARGB8888 :get the width and height */
-            pParams->height = pSettings->pClipList[
-                i]->ClipProperties.uiStillPicHeight; //ARGB_Height;
-                pParams->width = pSettings->pClipList[
-                    i]->ClipProperties.uiStillPicWidth; //ARGB_Width;
-                    M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 H = %d", pParams->height);
-                    M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 W = %d", pParams->width);
+                /*To support ARGB8888 :get the width and height */
+                pParams->height = pSettings->pClipList[
+                    i]->ClipProperties.uiStillPicHeight; //ARGB_Height;
+                    pParams->width = pSettings->pClipList[
+                        i]->ClipProperties.uiStillPicWidth; //ARGB_Width;
+                        M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 H = %d", pParams->height);
+                        M4OSA_TRACE3_1("CLIP M4xVSS_SendCommand ARGB8888 W = %d", pParams->width);
 
-                    if( xVSS_context->pPTo3GPPparamsList
-                        == M4OSA_NULL ) /* Means it is the first element of the list */
-                    {
-                        /* Initialize the xVSS context with the first element of the list */
-                        xVSS_context->pPTo3GPPparamsList = pParams;
+                        if( xVSS_context->pPTo3GPPparamsList
+                            == M4OSA_NULL ) /* Means it is the first element of the list */
+                        {
+                            /* Initialize the xVSS context with the first element of the list */
+                            xVSS_context->pPTo3GPPparamsList = pParams;
 
-                        /* Save this element in case of other file to convert */
-                        pPto3GPP_last = pParams;
-                    }
-                    else
-                    {
-                        /* Update next pointer of the previous last element of the chain */
-                        pPto3GPP_last->pNext = pParams;
+                            /* Save this element in case of other file to convert */
+                            pPto3GPP_last = pParams;
+                        }
+                        else
+                        {
+                            /* Update next pointer of the previous last element of the chain */
+                            pPto3GPP_last->pNext = pParams;
 
-                        /* Update save of last element of the chain */
-                        pPto3GPP_last = pParams;
-                    }
+                            /* Update save of last element of the chain */
+                            pPto3GPP_last = pParams;
+                        }
 
-                    /* Fill the last M4xVSS_Pto3GPP_params element */
-                    pParams->duration =
-                        xVSS_context->pSettings->pClipList[i]->uiEndCutTime;
-                    /* If duration is filled, let's use it instead of EndCutTime */
-                    if( xVSS_context->pSettings->pClipList[i]->xVSS.uiDuration != 0 )
-                    {
+                        /* Fill the last M4xVSS_Pto3GPP_params element */
                         pParams->duration =
-                            xVSS_context->pSettings->pClipList[i]->xVSS.uiDuration;
-                    }
-
-                    pParams->InputFileType = M4VIDEOEDITING_kFileType_ARGB8888;
-
-                    /**
-                    * UTF conversion: convert into the customer format, before being used*/
-                    pDecodedPath = xVSS_context->pSettings->pClipList[i]->pFile;
-                    length = strlen(pDecodedPath);
-
-                    /**
-                    * UTF conversion: convert into the customer format, before being used*/
-                    if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
-                        != M4OSA_NULL && xVSS_context->
-                        UTFConversionContext.pTempOutConversionBuffer
-                        != M4OSA_NULL )
-                    {
-                        err = M4xVSS_internalConvertFromUTF8(xVSS_context, (M4OSA_Void
-                            *)xVSS_context->pSettings->pClipList[i]->pFile,
-                            (M4OSA_Void *)xVSS_context->
-                            UTFConversionContext.pTempOutConversionBuffer,
-                            &length);
-
-                        if( err != M4NO_ERROR )
+                            xVSS_context->pSettings->pClipList[i]->uiEndCutTime;
+                        /* If duration is filled, let's use it instead of EndCutTime */
+                        if( xVSS_context->pSettings->pClipList[i]->xVSS.uiDuration != 0 )
                         {
-                            M4OSA_TRACE1_1(
-                                "M4xVSS_SendCommand: pConvFromUTF8Fct returns err: 0x%x",
-                                err);
-                            /* Free Send command */
-                            M4xVSS_freeCommand(xVSS_context);
-                            return err;
+                            pParams->duration =
+                                xVSS_context->pSettings->pClipList[i]->xVSS.uiDuration;
                         }
-                        pDecodedPath =
-                            xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
-                    }
 
-                    /**
-                    * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileIn = (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
-                        (M4OSA_Char *)"Pto3GPP Params: file in");
+                        pParams->InputFileType = M4VIDEOEDITING_kFileType_ARGB8888;
 
-                    if( pParams->pFileIn == M4OSA_NULL )
-                    {
-                        M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
-                        /*FB: to avoid leaks when there is an error in the send command*/
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        /**/
-                        return M4ERR_ALLOC;
-                    }
-                    memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
-                        (length + 1)); /* Copy input file path */
+                        /**
+                        * UTF conversion: convert into the customer format, before being used*/
+                        pDecodedPath = xVSS_context->pSettings->pClipList[i]->pFile;
+                        length = strlen(pDecodedPath);
 
-                    /* Check that JPG file is present on the FS (P4ME00002974) by just opening
-                     and closing it */
-                    err =
-                        xVSS_context->pFileReadPtr->openRead(&pARGBFileIn, pDecodedPath,
-                        M4OSA_kFileRead);
-
-                    if( err != M4NO_ERROR )
-                    {
-                        M4OSA_TRACE1_2("Can't open input jpg file %s, error: 0x%x\n",
-                            pDecodedPath, err);
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        return err;
-                    }
-                    err = xVSS_context->pFileReadPtr->closeRead(pARGBFileIn);
-
-                    if( err != M4NO_ERROR )
-                    {
-                        M4OSA_TRACE1_2("Can't close input jpg file %s, error: 0x%x\n",
-                            pDecodedPath, err);
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        return err;
-                    }
-
-                    /**
-                    * UTF conversion: convert into the customer format, before being used*/
-                    pDecodedPath = out_img;
-                    length = strlen(pDecodedPath);
-
-                    if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
-                        != M4OSA_NULL && xVSS_context->
-                        UTFConversionContext.pTempOutConversionBuffer
-                        != M4OSA_NULL )
-                    {
-                        err = M4xVSS_internalConvertFromUTF8(xVSS_context,
-                            (M4OSA_Void *)out_img, (M4OSA_Void *)xVSS_context->
-                            UTFConversionContext.pTempOutConversionBuffer, &length);
-
-                        if( err != M4NO_ERROR )
+                        /**
+                        * UTF conversion: convert into the customer format, before being used*/
+                        if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
+                            != M4OSA_NULL && xVSS_context->
+                            UTFConversionContext.pTempOutConversionBuffer
+                            != M4OSA_NULL )
                         {
-                            M4OSA_TRACE1_1(
-                                "M4xVSS_SendCommand: pConvFromUTF8Fct returns err: 0x%x",
-                                err);
-                            /* Free Send command */
-                            M4xVSS_freeCommand(xVSS_context);
-                            return err;
+                            err = M4xVSS_internalConvertFromUTF8(xVSS_context, (M4OSA_Void
+                                *)xVSS_context->pSettings->pClipList[i]->pFile,
+                                (M4OSA_Void *)xVSS_context->
+                                UTFConversionContext.pTempOutConversionBuffer,
+                                &length);
+
+                            if( err != M4NO_ERROR )
+                            {
+                                M4OSA_TRACE1_1(
+                                    "M4xVSS_SendCommand: pConvFromUTF8Fct returns err: 0x%x",
+                                    err);
+                                /* Free Send command */
+                                M4xVSS_freeCommand(xVSS_context);
+                                return err;
+                            }
+                            pDecodedPath =
+                                xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
                         }
-                        pDecodedPath =
-                            xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
-                    }
 
-                    /**
-                    * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileOut = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
-                        (M4OSA_Char *)"Pto3GPP Params: file out");
+                        /**
+                        * End of the UTF conversion, use the converted file path*/
+                        pParams->pFileIn = (M4OSA_Void *)M4OSA_32bitAlignedMalloc(length + 1, M4VS,
+                            (M4OSA_Char *)"Pto3GPP Params: file in");
 
-                    if( pParams->pFileOut == M4OSA_NULL )
-                    {
-                        M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
-                        /*FB: to avoid leaks when there is an error in the send command*/
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        /**/
-                        return M4ERR_ALLOC;
-                    }
-                    memcpy((void *)pParams->pFileOut, (void *)pDecodedPath,
-                        (length + 1)); /* Copy output file path */
-
-#ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
-                    /**
-                    * UTF conversion: convert into the customer format, before being used*/
-
-                    pDecodedPath = out_img_tmp;
-                    length = strlen(pDecodedPath);
-
-                    if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
-                        != M4OSA_NULL && xVSS_context->
-                        UTFConversionContext.pTempOutConversionBuffer
-                        != M4OSA_NULL )
-                    {
-                        err = M4xVSS_internalConvertFromUTF8(xVSS_context,
-                            (M4OSA_Void *)out_img_tmp, (M4OSA_Void *)xVSS_context->
-                            UTFConversionContext.pTempOutConversionBuffer, &length);
-
-                        if( err != M4NO_ERROR )
-                        {
-                            M4OSA_TRACE1_1("M4xVSS_SendCommand: M4xVSS_internalConvertFromUTF8\
-                                 returns err: 0x%x",
-                                err);
-                            /* Free Send command */
-                            M4xVSS_freeCommand(xVSS_context);
-                            return err;
-                        }
-                        pDecodedPath =
-                            xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
-                    }
-
-                    /**
-                    * End of the UTF conversion, use the converted file path*/
-                    pParams->pFileTemp = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
-                        (M4OSA_Char *)"Pto3GPP Params: file temp");
-
-                    if( pParams->pFileTemp == M4OSA_NULL )
-                    {
-                        M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
-                        /*FB: to avoid leaks when there is an error in the send command*/
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        /**/
-                        return M4ERR_ALLOC;
-                    }
-                    memcpy((void *)pParams->pFileTemp, (void *)pDecodedPath,
-                        (length + 1)); /* Copy temporary file path */
-
-#endif                         /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
-
-                    /* Fill PanAndZoom settings if needed */
-
-                    if( M4OSA_TRUE
-                        == xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom )
-                    {
-                        pParams->isPanZoom =
-                            xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom;
-                        /* Check that Pan & Zoom parameters are corrects */
-                        if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa
-                            <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXa > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYa > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
-                            > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
-                            <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftXb > 1000
-                            || xVSS_context->pSettings->pClipList[i]->xVSS.
-                            PanZoomTopleftYb > 1000)
+                        if( pParams->pFileIn == M4OSA_NULL )
                         {
                             M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
+                            /*FB: to avoid leaks when there is an error in the send command*/
+                            /* Free Send command */
                             M4xVSS_freeCommand(xVSS_context);
-                            return M4ERR_PARAMETER;
+                            /**/
+                            return M4ERR_ALLOC;
                         }
+                        memcpy((void *)pParams->pFileIn, (void *)pDecodedPath,
+                            (length + 1)); /* Copy input file path */
 
-                        pParams->PanZoomXa =
-                            xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa;
-                        pParams->PanZoomTopleftXa =
-                            xVSS_context->pSettings->
-                            pClipList[i]->xVSS.PanZoomTopleftXa;
-                        pParams->PanZoomTopleftYa =
-                            xVSS_context->pSettings->
-                            pClipList[i]->xVSS.PanZoomTopleftYa;
-                        pParams->PanZoomXb =
-                            xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb;
-                        pParams->PanZoomTopleftXb =
-                            xVSS_context->pSettings->
-                            pClipList[i]->xVSS.PanZoomTopleftXb;
-                        pParams->PanZoomTopleftYb =
-                            xVSS_context->pSettings->
-                            pClipList[i]->xVSS.PanZoomTopleftYb;
-                    }
-                    else
-                    {
-                        pParams->isPanZoom = M4OSA_FALSE;
-                    }
-                    /*+ PR No: blrnxpsw#223*/
-                    /*Intializing the Video Frame Rate as it may not be intialized*/
-                    /*Other changes made is @ M4xVSS_Internal.c @ line 1518 in
-                    M4xVSS_internalStartConvertPictureTo3gp*/
-                    switch( xVSS_context->pSettings->videoFrameRate )
-                    {
-                        case M4VIDEOEDITING_k30_FPS:
-                            pParams->framerate = 33;
-                            break;
-
-                        case M4VIDEOEDITING_k25_FPS:
-                            pParams->framerate = 40;
-                            break;
-
-                        case M4VIDEOEDITING_k20_FPS:
-                            pParams->framerate = 50;
-                            break;
-
-                        case M4VIDEOEDITING_k15_FPS:
-                            pParams->framerate = 66;
-                            break;
-
-                        case M4VIDEOEDITING_k12_5_FPS:
-                            pParams->framerate = 80;
-                            break;
-
-                        case M4VIDEOEDITING_k10_FPS:
-                            pParams->framerate = 100;
-                            break;
-
-                        case M4VIDEOEDITING_k7_5_FPS:
-                            pParams->framerate = 133;
-                            break;
-
-                        case M4VIDEOEDITING_k5_FPS:
-                            pParams->framerate = 200;
-                            break;
-
-                        default:
-                            /*Making Default Frame Rate @ 15 FPS*/
-                            pParams->framerate = 66;
-                            break;
-                    }
-                    /*-PR No: blrnxpsw#223*/
-                    if( xVSS_context->pSettings->pClipList[i]->xVSS.MediaRendering
-                        == M4xVSS_kCropping
-                        || xVSS_context->pSettings->pClipList[i]->xVSS.
-                        MediaRendering == M4xVSS_kBlackBorders
-                        || xVSS_context->pSettings->pClipList[i]->xVSS.
-                        MediaRendering == M4xVSS_kResizing )
-                    {
-                        pParams->MediaRendering =
-                            xVSS_context->pSettings->pClipList[i]->xVSS.MediaRendering;
-                    }
-
-                    pParams->pNext = M4OSA_NULL;
-                    pParams->isCreated = M4OSA_FALSE;
-                    xVSS_context->nbStepTotal++;
-
-replaceARGB_3GP:
-                    /* Update total duration */
-                    totalDuration += pParams->duration;
-
-                    /* Replacing in VSS structure the JPG file by the 3gp file */
-                    xVSS_context->pSettings->pClipList[i]->FileType =
-                        M4VIDEOEDITING_kFileType_3GPP;
-
-                    if( xVSS_context->pSettings->pClipList[i]->pFile != M4OSA_NULL )
-                    {
-                        free(xVSS_context->pSettings->pClipList[i]->pFile);
-                        xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_NULL;
-                    }
-
-                    /**
-                    * UTF conversion: convert into UTF8, before being used*/
-                    pDecodedPath = pParams->pFileOut;
-
-                    if( xVSS_context->UTFConversionContext.pConvToUTF8Fct != M4OSA_NULL
-                        && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
-                        != M4OSA_NULL )
-                    {
-                        err = M4xVSS_internalConvertToUTF8(xVSS_context,
-                            (M4OSA_Void *)pParams->pFileOut,
-                            (M4OSA_Void *)xVSS_context->
-                            UTFConversionContext.pTempOutConversionBuffer,
-                            &length);
+                        /* Check that JPG file is present on the FS (P4ME00002974) by just opening
+                         and closing it */
+                        err =
+                            xVSS_context->pFileReadPtr->openRead(&pARGBFileIn, pDecodedPath,
+                            M4OSA_kFileRead);
 
                         if( err != M4NO_ERROR )
                         {
-                            M4OSA_TRACE1_1(
-                                "M4xVSS_SendCommand: M4xVSS_internalConvertToUTF8 returns err: \
-                                0x%x",err);
+                            M4OSA_TRACE1_2("Can't open input jpg file %s, error: 0x%x\n",
+                                pDecodedPath, err);
                             /* Free Send command */
                             M4xVSS_freeCommand(xVSS_context);
                             return err;
                         }
-                        pDecodedPath =
-                            xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
-                    }
-                    else
-                    {
-                        length = strlen(pDecodedPath);
-                    }
-                    /**
-                    * End of the UTF conversion, use the converted file path*/
-                    xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_32bitAlignedMalloc((length
-                        + 1), M4VS, (M4OSA_Char *)"xVSS file path of ARGB to 3gp");
+                        err = xVSS_context->pFileReadPtr->closeRead(pARGBFileIn);
 
-                    if( xVSS_context->pSettings->pClipList[i]->pFile == M4OSA_NULL )
-                    {
-                        M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
-                        /*FB: to avoid leaks when there is an error in the send command*/
-                        /* Free Send command */
-                        M4xVSS_freeCommand(xVSS_context);
-                        /**/
-                        return M4ERR_ALLOC;
-                    }
-                    memcpy((void *)xVSS_context->pSettings->pClipList[i]->pFile,
-                        (void *)pDecodedPath, (length + 1));
-                    /*FB: add file path size because of UTF16 conversion*/
-                    xVSS_context->pSettings->pClipList[i]->filePathSize = length+1;
+                        if( err != M4NO_ERROR )
+                        {
+                            M4OSA_TRACE1_2("Can't close input jpg file %s, error: 0x%x\n",
+                                pDecodedPath, err);
+                            /* Free Send command */
+                            M4xVSS_freeCommand(xVSS_context);
+                            return err;
+                        }
+
+                        /**
+                        * UTF conversion: convert into the customer format, before being used*/
+                        pDecodedPath = out_img;
+                        length = strlen(pDecodedPath);
+
+                        if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
+                            != M4OSA_NULL && xVSS_context->
+                            UTFConversionContext.pTempOutConversionBuffer
+                            != M4OSA_NULL )
+                        {
+                            err = M4xVSS_internalConvertFromUTF8(xVSS_context,
+                                (M4OSA_Void *)out_img, (M4OSA_Void *)xVSS_context->
+                                UTFConversionContext.pTempOutConversionBuffer, &length);
+
+                            if( err != M4NO_ERROR )
+                            {
+                                M4OSA_TRACE1_1(
+                                    "M4xVSS_SendCommand: pConvFromUTF8Fct returns err: 0x%x",
+                                    err);
+                                /* Free Send command */
+                                M4xVSS_freeCommand(xVSS_context);
+                                return err;
+                            }
+                            pDecodedPath =
+                                xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
+                        }
+
+                        /**
+                        * End of the UTF conversion, use the converted file path*/
+                        pParams->pFileOut = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
+                            (M4OSA_Char *)"Pto3GPP Params: file out");
+
+                        if( pParams->pFileOut == M4OSA_NULL )
+                        {
+                            M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
+                            /*FB: to avoid leaks when there is an error in the send command*/
+                            /* Free Send command */
+                            M4xVSS_freeCommand(xVSS_context);
+                            /**/
+                            return M4ERR_ALLOC;
+                        }
+                        memcpy((void *)pParams->pFileOut, (void *)pDecodedPath,
+                            (length + 1)); /* Copy output file path */
+
+    #ifdef M4xVSS_RESERVED_MOOV_DISK_SPACE
+                        /**
+                        * UTF conversion: convert into the customer format, before being used*/
+
+                        pDecodedPath = out_img_tmp;
+                        length = strlen(pDecodedPath);
+
+                        if( xVSS_context->UTFConversionContext.pConvFromUTF8Fct
+                            != M4OSA_NULL && xVSS_context->
+                            UTFConversionContext.pTempOutConversionBuffer
+                            != M4OSA_NULL )
+                        {
+                            err = M4xVSS_internalConvertFromUTF8(xVSS_context,
+                                (M4OSA_Void *)out_img_tmp, (M4OSA_Void *)xVSS_context->
+                                UTFConversionContext.pTempOutConversionBuffer, &length);
+
+                            if( err != M4NO_ERROR )
+                            {
+                                M4OSA_TRACE1_1("M4xVSS_SendCommand: M4xVSS_internalConvertFromUTF8\
+                                     returns err: 0x%x",
+                                    err);
+                                /* Free Send command */
+                                M4xVSS_freeCommand(xVSS_context);
+                                return err;
+                            }
+                            pDecodedPath =
+                                xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
+                        }
+
+                        /**
+                        * End of the UTF conversion, use the converted file path*/
+                        pParams->pFileTemp = (M4OSA_Void *)M4OSA_32bitAlignedMalloc((length + 1), M4VS,
+                            (M4OSA_Char *)"Pto3GPP Params: file temp");
+
+                        if( pParams->pFileTemp == M4OSA_NULL )
+                        {
+                            M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
+                            /*FB: to avoid leaks when there is an error in the send command*/
+                            /* Free Send command */
+                            M4xVSS_freeCommand(xVSS_context);
+                            /**/
+                            return M4ERR_ALLOC;
+                        }
+                        memcpy((void *)pParams->pFileTemp, (void *)pDecodedPath,
+                            (length + 1)); /* Copy temporary file path */
+
+    #endif                         /*M4xVSS_RESERVED_MOOV_DISK_SPACE*/
+
+                        /* Fill PanAndZoom settings if needed */
+
+                        if( M4OSA_TRUE
+                            == xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom )
+                        {
+                            pParams->isPanZoom =
+                                xVSS_context->pSettings->pClipList[i]->xVSS.isPanZoom;
+                            /* Check that Pan & Zoom parameters are corrects */
+                            if( xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa > 1000
+                                || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa
+                                <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
+                                PanZoomTopleftXa > 1000
+                                || xVSS_context->pSettings->pClipList[i]->xVSS.
+                                PanZoomTopleftYa > 1000
+                                || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
+                                > 1000
+                                || xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb
+                                <= 0 || xVSS_context->pSettings->pClipList[i]->xVSS.
+                                PanZoomTopleftXb > 1000
+                                || xVSS_context->pSettings->pClipList[i]->xVSS.
+                                PanZoomTopleftYb > 1000)
+                            {
+                                M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
+                                M4xVSS_freeCommand(xVSS_context);
+                                return M4ERR_PARAMETER;
+                            }
+
+                            pParams->PanZoomXa =
+                                xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXa;
+                            pParams->PanZoomTopleftXa =
+                                xVSS_context->pSettings->
+                                pClipList[i]->xVSS.PanZoomTopleftXa;
+                            pParams->PanZoomTopleftYa =
+                                xVSS_context->pSettings->
+                                pClipList[i]->xVSS.PanZoomTopleftYa;
+                            pParams->PanZoomXb =
+                                xVSS_context->pSettings->pClipList[i]->xVSS.PanZoomXb;
+                            pParams->PanZoomTopleftXb =
+                                xVSS_context->pSettings->
+                                pClipList[i]->xVSS.PanZoomTopleftXb;
+                            pParams->PanZoomTopleftYb =
+                                xVSS_context->pSettings->
+                                pClipList[i]->xVSS.PanZoomTopleftYb;
+                        }
+                        else
+                        {
+                            pParams->isPanZoom = M4OSA_FALSE;
+                        }
+                        /*+ PR No: blrnxpsw#223*/
+                        /*Intializing the Video Frame Rate as it may not be intialized*/
+                        /*Other changes made is @ M4xVSS_Internal.c @ line 1518 in
+                        M4xVSS_internalStartConvertPictureTo3gp*/
+                        switch( xVSS_context->pSettings->videoFrameRate )
+                        {
+                            case M4VIDEOEDITING_k30_FPS:
+                                pParams->framerate = 33;
+                                break;
+
+                            case M4VIDEOEDITING_k25_FPS:
+                                pParams->framerate = 40;
+                                break;
+
+                            case M4VIDEOEDITING_k20_FPS:
+                                pParams->framerate = 50;
+                                break;
+
+                            case M4VIDEOEDITING_k15_FPS:
+                                pParams->framerate = 66;
+                                break;
+
+                            case M4VIDEOEDITING_k12_5_FPS:
+                                pParams->framerate = 80;
+                                break;
+
+                            case M4VIDEOEDITING_k10_FPS:
+                                pParams->framerate = 100;
+                                break;
+
+                            case M4VIDEOEDITING_k7_5_FPS:
+                                pParams->framerate = 133;
+                                break;
+
+                            case M4VIDEOEDITING_k5_FPS:
+                                pParams->framerate = 200;
+                                break;
+
+                            default:
+                                /*Making Default Frame Rate @ 15 FPS*/
+                                pParams->framerate = 66;
+                                break;
+                        }
+                        /*-PR No: blrnxpsw#223*/
+                        if( xVSS_context->pSettings->pClipList[i]->xVSS.MediaRendering
+                            == M4xVSS_kCropping
+                            || xVSS_context->pSettings->pClipList[i]->xVSS.
+                            MediaRendering == M4xVSS_kBlackBorders
+                            || xVSS_context->pSettings->pClipList[i]->xVSS.
+                            MediaRendering == M4xVSS_kResizing )
+                        {
+                            pParams->MediaRendering =
+                                xVSS_context->pSettings->pClipList[i]->xVSS.MediaRendering;
+                        }
+
+                        pParams->pNext = M4OSA_NULL;
+                        pParams->isCreated = M4OSA_FALSE;
+                        xVSS_context->nbStepTotal++;
+
+    replaceARGB_3GP:
+                        /* Update total duration */
+                        totalDuration += pParams->duration;
+
+                        /* Replacing in VSS structure the JPG file by the 3gp file */
+                        xVSS_context->pSettings->pClipList[i]->FileType =
+                            M4VIDEOEDITING_kFileType_3GPP;
+
+                        if( xVSS_context->pSettings->pClipList[i]->pFile != M4OSA_NULL )
+                        {
+                            free(xVSS_context->pSettings->pClipList[i]->pFile);
+                            xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_NULL;
+                        }
+
+                        /**
+                        * UTF conversion: convert into UTF8, before being used*/
+                        pDecodedPath = pParams->pFileOut;
+
+                        if( xVSS_context->UTFConversionContext.pConvToUTF8Fct != M4OSA_NULL
+                            && xVSS_context->UTFConversionContext.pTempOutConversionBuffer
+                            != M4OSA_NULL )
+                        {
+                            err = M4xVSS_internalConvertToUTF8(xVSS_context,
+                                (M4OSA_Void *)pParams->pFileOut,
+                                (M4OSA_Void *)xVSS_context->
+                                UTFConversionContext.pTempOutConversionBuffer,
+                                &length);
+
+                            if( err != M4NO_ERROR )
+                            {
+                                M4OSA_TRACE1_1(
+                                    "M4xVSS_SendCommand: M4xVSS_internalConvertToUTF8 returns err: \
+                                    0x%x",err);
+                                /* Free Send command */
+                                M4xVSS_freeCommand(xVSS_context);
+                                return err;
+                            }
+                            pDecodedPath =
+                                xVSS_context->UTFConversionContext.pTempOutConversionBuffer;
+                        }
+                        else
+                        {
+                            length = strlen(pDecodedPath);
+                        }
+                        /**
+                        * End of the UTF conversion, use the converted file path*/
+                        xVSS_context->pSettings->pClipList[i]->pFile = M4OSA_32bitAlignedMalloc((length
+                            + 1), M4VS, (M4OSA_Char *)"xVSS file path of ARGB to 3gp");
+
+                        if( xVSS_context->pSettings->pClipList[i]->pFile == M4OSA_NULL )
+                        {
+                            M4OSA_TRACE1_0("Allocation error in M4xVSS_SendCommand");
+                            /*FB: to avoid leaks when there is an error in the send command*/
+                            /* Free Send command */
+                            M4xVSS_freeCommand(xVSS_context);
+                            /**/
+                            return M4ERR_ALLOC;
+                        }
+                        memcpy((void *)xVSS_context->pSettings->pClipList[i]->pFile,
+                            (void *)pDecodedPath, (length + 1));
+                        /*FB: add file path size because of UTF16 conversion*/
+                        xVSS_context->pSettings->pClipList[i]->filePathSize = length+1;
+            }
         }
         /************************
         3GP input file type case
@@ -2380,22 +2386,6 @@ replaceARGB_3GP:
                     i);
             }
 
-            /* If the output video format/size is not the same as provided video,
-            let's transcode it */
-
-            if( fileProperties.VideoStreamType
-                != xVSS_context->pSettings->xVSS.outputVideoFormat
-                || fileProperties.uiVideoWidth != width
-                || fileProperties.uiVideoHeight != height
-                || (fileProperties.VideoStreamType == M4VIDEOEDITING_kMPEG4
-                && fileProperties.uiVideoTimeScale
-                != xVSS_context->targetedTimescale) )
-            {
-                videoIsDifferent = M4OSA_TRUE;
-            }
-            /*temp solution for fixng issue for H.264 compressed domain  */
-            videoIsDifferent = M4OSA_TRUE;
-
             if( fileProperties.uiNbChannels == 1 )
             {
                 bAudioMono = M4OSA_TRUE;
@@ -2479,6 +2469,7 @@ replaceARGB_3GP:
                     return M4ERR_ALLOC;
                 }
                 pParams->MediaRendering = M4xVSS_kResizing;
+                pParams->videoclipnumber = i; // Indicates video clip index
 
                 if( xVSS_context->pMCSparamsList
                     == M4OSA_NULL ) /* Means it is the first element of the list */
@@ -2892,11 +2883,6 @@ replace3GP_3GP:
                 totalDuration +=
                     xVSS_context->pSettings->pClipList[i]->uiEndCutTime
                     - xVSS_context->pSettings->pClipList[i]->uiBeginCutTime;
-
-                /*the cuts are done in the MCS, so we need to replace the beginCutTime
-                and endCutTime to keep the entire video*/
-                xVSS_context->pSettings->pClipList[i]->uiBeginCutTime = 0;
-                xVSS_context->pSettings->pClipList[i]->uiEndCutTime = 0;
 
                 /* Replacing in VSS structure the original 3GP file by the transcoded 3GP file */
                 xVSS_context->pSettings->pClipList[i]->FileType =
@@ -4924,7 +4910,9 @@ M4OSA_ERR M4xVSS_SaveStart( M4OSA_Context pContext, M4OSA_Void *pFilePath,
             || (xVSS_context->pSettings->pClipList[i]->FileType
             == M4VIDEOEDITING_kFileType_MP4)
             || (xVSS_context->pSettings->pClipList[i]->FileType
-            == M4VIDEOEDITING_kFileType_M4V) )
+            == M4VIDEOEDITING_kFileType_M4V)
+            || (xVSS_context->pSettings->pClipList[i]->FileType
+            == M4VIDEOEDITING_kFileType_ARGB8888))
 
         {
             /* Copy data from given structure to our saving structure */
@@ -5800,10 +5788,21 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                                            code ? */
                                            return err;
                         }
-                        M4OSA_TRACE1_1("M4xVSS_Step: M4xVSS_internalStartTranscoding returned\
+                    int32_t index = xVSS_context->pMCScurrentParams->videoclipnumber;
+                    if(xVSS_context->pSettings->pClipList[index]->bTranscodingRequired
+                     == M4OSA_FALSE) {
+                        /*the cuts are done in the MCS, so we need to replace
+                           the beginCutTime and endCutTime to keep the entire video*/
+                        xVSS_context->pSettings->pClipList[index]->uiBeginCutTime = 0;
+                        xVSS_context->pSettings->pClipList[index]->uiEndCutTime = 0;
+                    }
+
+                        M4OSA_TRACE1_1("M4xVSS_Step: \
+                            M4xVSS_internalStartTranscoding returned \
                                 success; MCS context: 0x%x",
-                                 xVSS_context->pMCS_Ctxt)xVSS_context->analyseStep =
-                                       M4xVSS_kMicroStateTranscodeMCS;
+                                 xVSS_context->pMCS_Ctxt);
+                        xVSS_context->analyseStep =
+                            M4xVSS_kMicroStateTranscodeMCS;
                     }
                 }
                 else if( xVSS_context->analyseStep

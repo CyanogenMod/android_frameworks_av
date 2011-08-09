@@ -143,20 +143,21 @@ M4OSA_ERR M4VSS3GPP_editAnalyseClip( M4OSA_Void *pClip,
 
     /**
     * Analyse the clip */
-    err = M4VSS3GPP_intBuildAnalysis(pClipContext, pClipProperties);
+    if(M4VIDEOEDITING_kFileType_ARGB8888 != pClipContext->pSettings->FileType) {
+        err = M4VSS3GPP_intBuildAnalysis(pClipContext, pClipProperties);
 
-    if( M4NO_ERROR != err )
-    {
-        M4OSA_TRACE1_1(
-            "M4VSS3GPP_editAnalyseClip: M4VSS3GPP_intBuildAnalysis() returns 0x%x!",
-            err);
+        if( M4NO_ERROR != err )
+        {
+            M4OSA_TRACE1_1(
+                "M4VSS3GPP_editAnalyseClip: M4VSS3GPP_intBuildAnalysis() returns 0x%x!",
+                err);
 
-        /**
-        * Free the clip */
-        M4VSS3GPP_intClipCleanUp(pClipContext);
-        return err;
+            /**
+            * Free the clip */
+            M4VSS3GPP_intClipCleanUp(pClipContext);
+            return err;
+        }
     }
-
     /**
     * Free the clip */
     err = M4VSS3GPP_intClipClose(pClipContext);
@@ -174,17 +175,18 @@ M4OSA_ERR M4VSS3GPP_editAnalyseClip( M4OSA_Void *pClip,
 
     /**
     * Check the clip is compatible with VSS editing */
-    err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(pClipProperties);
+    if(M4VIDEOEDITING_kFileType_ARGB8888 != ClipSettings.FileType) {
+        err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(pClipProperties);
 
-    if( M4NO_ERROR != err )
-    {
-        M4OSA_TRACE1_1(
-            "M4VSS3GPP_editAnalyseClip:\
-            M4VSS3GPP_intCheckClipCompatibleWithVssEditing() returns 0x%x!",
-            err);
-        return err;
+        if( M4NO_ERROR != err )
+        {
+            M4OSA_TRACE1_1(
+                "M4VSS3GPP_editAnalyseClip:\
+                M4VSS3GPP_intCheckClipCompatibleWithVssEditing() returns 0x%x!",
+                err);
+            return err;
+        }
     }
-
     /**
     * Return with no error */
     M4OSA_TRACE3_0("M4VSS3GPP_editAnalyseClip(): returning M4NO_ERROR");
@@ -230,34 +232,6 @@ M4OSA_ERR M4VSS3GPP_editCheckClipCompatibility( M4VIDEOEDITING_ClipProperties *p
     M4OSA_DEBUG_IF2((M4OSA_NULL == pClip2Properties), M4ERR_PARAMETER,
         "M4VSS3GPP_editCheckClipCompatibility: pClip2Properties is M4OSA_NULL");
 
-    /**
-    * Check if the two clips are, alone, comptible with VSS 3GPP.
-    *
-    * Note: if a clip is not compatible with VSS3GPP, M4VSS3GPP_editAnalyseClip()
-    * did return an error to the integrator. So he should not call
-    * M4VSS3GPP_editCheckClipCompatibility
-    * with the ClipAnalysis...
-    * Still, I think it is good to redo the test here, to be sure.
-    * M4VSS3GPP_intCheckClipCompatibleWithVssEditing is not a long function to execute.*/
-    err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(pClip1Properties);
-
-    if( err != M4NO_ERROR )
-    {
-        M4OSA_TRACE1_1(
-            "M4VSS3GPP_editCheckClipCompatibility: Clip1 not compatible with VSS3GPP,\
-            returning 0x%x", err);
-        return err;
-    }
-    err = M4VSS3GPP_intCheckClipCompatibleWithVssEditing(pClip2Properties);
-
-    if( err != M4NO_ERROR )
-    {
-        M4OSA_TRACE1_1(
-            "M4VSS3GPP_editCheckClipCompatibility: Clip2 not compatible with VSS3GPP,\
-            returning 0x%x", err);
-        return err;
-    }
-
     if( ( M4VIDEOEDITING_kFileType_MP3 == pClip1Properties->FileType)
         || (M4VIDEOEDITING_kFileType_AMR == pClip1Properties->FileType) )
     {
@@ -274,81 +248,6 @@ M4OSA_ERR M4VSS3GPP_editCheckClipCompatibility( M4VIDEOEDITING_ClipProperties *p
             goto audio_analysis;
         }
     }
-
-    /********** Video ************/
-
-    /**
-    * Check both clips have same video stream type */
-    if( pClip1Properties->VideoStreamType != pClip2Properties->VideoStreamType )
-    {
-        M4OSA_TRACE1_0(
-            "M4VSS3GPP_editCheckClipCompatibility: Clips don't have the same video format");
-        video_err = M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_FORMAT;
-        goto audio_analysis;
-    }
-
-    /**
-    * Check both clips have the same video frame size */
-    if( ( pClip1Properties->uiVideoWidth != pClip2Properties->uiVideoWidth)
-        || (pClip1Properties->uiVideoHeight
-        != pClip2Properties->uiVideoHeight) )
-    {
-        M4OSA_TRACE1_0(
-            "M4VSS3GPP_editCheckClipCompatibility: Clips don't have the same video frame size");
-        video_err = M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_FRAME_SIZE;
-        goto audio_analysis;
-    }
-
-    switch( pClip1Properties->VideoStreamType )
-    {
-        case M4VIDEOEDITING_kH263:
-        case M4VIDEOEDITING_kH264:
-            /**< nothing to check here */
-            break;
-
-        case M4VIDEOEDITING_kMPEG4_EMP:
-        case M4VIDEOEDITING_kMPEG4:
-            /**
-            * Check both streams have the same time scale */
-            if( pClip1Properties->uiVideoTimeScale
-                != pClip2Properties->uiVideoTimeScale )
-            {
-                M4OSA_TRACE1_2(
-                    "M4VSS3GPP_editCheckClipCompatibility: Clips don't have the same video time\
-                    scale (%d != %d), returning M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_TIME_SCALE",
-                    pClip1Properties->uiVideoTimeScale,
-                    pClip2Properties->uiVideoTimeScale);
-                video_err = M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_TIME_SCALE;
-                goto audio_analysis;
-            }
-            /**
-            * Check both streams have the same use of data partitioning */
-            if( pClip1Properties->bMPEG4dataPartition
-                != pClip2Properties->bMPEG4dataPartition )
-            {
-                M4OSA_TRACE1_2(
-                    "M4VSS3GPP_editCheckClipCompatibility:\
-                    Clips don't have the same use of data partitioning (%d != %d),\
-                    returning M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_DATA_PARTITIONING",
-                    pClip1Properties->bMPEG4dataPartition,
-                    pClip2Properties->bMPEG4dataPartition);
-                video_err = M4VSS3GPP_ERR_INCOMPATIBLE_VIDEO_DATA_PARTITIONING;
-                goto audio_analysis;
-            }
-            break;
-
-        default:
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_editCheckClipCompatibility: unknown video stream type (0x%x),\
-                returning M4VSS3GPP_ERR_UNSUPPORTED_INPUT_VIDEO_FORMAT",
-                pClip1Properties->VideoStreamType);
-            video_err =
-                M4VSS3GPP_ERR_UNSUPPORTED_INPUT_VIDEO_FORMAT; /**< this error should never happen,
-                                                              it's here for code safety only... */
-            goto audio_analysis;
-    }
-
-    pClip2Properties->bVideoIsCompatibleWithMasterClip = M4OSA_TRUE;
 
     /********** Audio ************/
 
@@ -995,20 +894,6 @@ M4OSA_ERR M4VSS3GPP_intCheckClipCompatibleWithVssEditing(
     M4OSA_UInt32 uiNbOfValidStreams = 0;
     M4OSA_ERR video_err = M4NO_ERROR;
     M4OSA_ERR audio_err = M4NO_ERROR;
-
-    /**
-    * Check that analysis has been generated by this version of the VSS3GPP library */
-    if( ( pClipProperties->Version[0] != M4VIDEOEDITING_VERSION_MAJOR)
-        || (pClipProperties->Version[1] != M4VIDEOEDITING_VERSION_MINOR)
-        || (pClipProperties->Version[2]
-    != M4VIDEOEDITING_VERSION_REVISION) )
-    {
-        M4OSA_TRACE1_0(
-            "M4VSS3GPP_intCheckClipCompatibleWithVssEditing: The clip analysis has been generated\
-            by another version, returning M4VSS3GPP_ERR_INVALID_CLIP_ANALYSIS_VERSION");
-        return M4VSS3GPP_ERR_INVALID_CLIP_ANALYSIS_VERSION;
-    }
-
     /********* file type *********/
 
     if( M4VIDEOEDITING_kFileType_AMR == pClipProperties->FileType )

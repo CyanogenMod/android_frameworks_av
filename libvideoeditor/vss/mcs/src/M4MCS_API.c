@@ -1690,7 +1690,10 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
             p_bs->Buffer = (M4OSA_UInt8 *)(lClipDSI + 1);
             DecBitStreamReset_MCS(p_bs, lSize - 1);
 
-            DecSPSMCS(p_bs, &instance->clip_sps);
+            err = DecSPSMCS(p_bs, &instance->clip_sps);
+            if(err != M4NO_ERROR) {
+                return M4ERR_PARAMETER;
+            }
 
             //Clip_SPSID[cnt] = H264MCS_DecVLCReadExpGolombCode(p_bs);
             //Clip_UsedSPSID[Clip_SPSID[cnt]] = 1;
@@ -1703,7 +1706,10 @@ M4OSA_ERR H264MCS_ProcessSPS_PPS( NSWAVC_MCS_t *instance, M4OSA_UInt8 *inbuff,
     /* Decode encoder SPS */
     p_bs->Buffer = (M4OSA_UInt8 *)(instance->m_pEncoderSPS + 1);
     DecBitStreamReset_MCS(p_bs, instance->m_encoderSPSSize - 1);
-    DecSPSMCS(p_bs, &instance->encoder_sps);
+    err = DecSPSMCS(p_bs, &instance->encoder_sps);
+    if(err != M4NO_ERROR) {
+        return M4ERR_PARAMETER;
+    }
 
     if( instance->encoder_sps.num_ref_frames
     > instance->clip_sps.num_ref_frames )
@@ -8843,7 +8849,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
     }
 
 
-    if( ( pC->bH264Trim == M4OSA_TRUE)
+    if( (pC->EncodingVideoFormat = M4ENCODER_kNULL)
         && (pC->bLastDecodedFrameCTS == M4OSA_FALSE)
         && (pC->uiBeginCutTime > 0) )
     {

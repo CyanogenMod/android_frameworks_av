@@ -43,6 +43,7 @@
 
 /* ----- AAC decoder support ----- */
 #define M4VSS_SUPPORT_AUDEC_AAC            /**< [default] Support AAC, AAC+ and eAAC+ streams */
+#define M4VSS_SUPPORT_VIDEC_NULL
 
 /* ----- MP4/H263 video decoder support ----- */
 #define M4VSS_SUPPORT_VIDEC_3GP         /**< [default] Support mpeg4 and H263 decoders */
