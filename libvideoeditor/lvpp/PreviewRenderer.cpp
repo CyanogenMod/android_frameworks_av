@@ -21,120 +21,61 @@
 
 #include "PreviewRenderer.h"
 
-#include <binder/MemoryHeapBase.h>
-#include <binder/MemoryHeapPmem.h>
 #include <media/stagefright/MediaDebug.h>
 #include <surfaceflinger/Surface.h>
 
 namespace android {
 
-PreviewRenderer* PreviewRenderer::CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
-        const sp<Surface> &surface,
-        size_t displayWidth, size_t displayHeight,
-        size_t decodedWidth, size_t decodedHeight,
-        int32_t rotationDegrees) {
+PreviewRenderer* PreviewRenderer::CreatePreviewRenderer (
+        const sp<Surface> &surface, size_t width, size_t height) {
 
-        PreviewRenderer* returnCtx =
-            new PreviewRenderer(colorFormat,
-            surface,
-            displayWidth, displayHeight,
-            decodedWidth, decodedHeight,
-            rotationDegrees);
+    PreviewRenderer* renderer = new PreviewRenderer(surface, width, height);
 
-        int result = 0;
+    if (renderer->init() != 0) {
+        delete renderer;
+        return NULL;
+    }
 
-        int halFormat;
-        switch (returnCtx->mColorFormat) {
-            case OMX_COLOR_FormatYUV420Planar:
-            {
-                halFormat = HAL_PIXEL_FORMAT_YV12;
-                returnCtx->mYUVMode = None;
-                break;
-            }
-            default:
-                halFormat = HAL_PIXEL_FORMAT_RGB_565;
-
-                returnCtx->mConverter = new ColorConverter(
-                        returnCtx->mColorFormat, OMX_COLOR_Format16bitRGB565);
-                CHECK(returnCtx->mConverter->isValid());
-                break;
-        }
-
-        CHECK(returnCtx->mSurface.get() != NULL);
-        CHECK(returnCtx->mDecodedWidth > 0);
-        CHECK(returnCtx->mDecodedHeight > 0);
-        CHECK(returnCtx->mConverter == NULL || returnCtx->mConverter->isValid());
-
-        result = native_window_set_usage(
-                    returnCtx->mSurface.get(),
-                    GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
-                    | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
-
-        if ( result == 0 ) {
-            result = native_window_set_buffer_count(returnCtx->mSurface.get(), 3);
-            if ( result == 0 ) {
-                result = native_window_set_scaling_mode(returnCtx->mSurface.get(),
-                        NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-                if ( result == 0 ) {
-                    result = native_window_set_buffers_geometry(
-                            returnCtx->mSurface.get(),
-                            returnCtx->mDecodedWidth, returnCtx->mDecodedHeight,
-                            halFormat);
-                    if ( result == 0) {
-                        uint32_t transform;
-                        switch (rotationDegrees) {
-                            case 0: transform = 0; break;
-                            case 90: transform = HAL_TRANSFORM_ROT_90; break;
-                            case 180: transform = HAL_TRANSFORM_ROT_180; break;
-                            case 270: transform = HAL_TRANSFORM_ROT_270; break;
-                            default: transform = 0; break;
-                        }
-                        if (transform) {
-                            result = native_window_set_buffers_transform(
-                                    returnCtx->mSurface.get(), transform);
-
-                        }
-                    }
-                }
-            }
-        }
-
-        if ( result != 0 )
-        {
-            /* free the ctx */
-            returnCtx->~PreviewRenderer();
-            return NULL;
-        }
-
-        return returnCtx;
+    return renderer;
 }
 
 PreviewRenderer::PreviewRenderer(
-        OMX_COLOR_FORMATTYPE colorFormat,
         const sp<Surface> &surface,
-        size_t displayWidth, size_t displayHeight,
-        size_t decodedWidth, size_t decodedHeight,
-        int32_t rotationDegrees)
-    : mColorFormat(colorFormat),
-      mConverter(NULL),
-      mYUVMode(None),
-      mSurface(surface),
-      mDisplayWidth(displayWidth),
-      mDisplayHeight(displayHeight),
-      mDecodedWidth(decodedWidth),
-      mDecodedHeight(decodedHeight) {
+        size_t width, size_t height)
+    : mSurface(surface),
+      mWidth(width),
+      mHeight(height) {
+}
 
-    LOGV("input format = %d", mColorFormat);
-    LOGV("display = %d x %d, decoded = %d x %d",
-            mDisplayWidth, mDisplayHeight, mDecodedWidth, mDecodedHeight);
+int PreviewRenderer::init() {
+    int err = 0;
 
-    mDecodedWidth = mDisplayWidth;
-    mDecodedHeight = mDisplayHeight;
+    err = native_window_api_connect(mSurface.get(), NATIVE_WINDOW_API_CPU);
+    if (err) goto fail;
+
+    err = native_window_set_usage(mSurface.get(),
+            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN);
+    if (err) goto fail;
+
+    err = native_window_set_buffer_count(mSurface.get(), 3);
+    if (err) goto fail;
+
+    err = native_window_set_scaling_mode(
+            mSurface.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (err) goto fail;
+
+    err = native_window_set_buffers_geometry(
+            mSurface.get(),
+            mWidth, mHeight,
+            HAL_PIXEL_FORMAT_YV12);
+    if (err) goto fail;
+
+fail:
+    return err;
 }
 
 PreviewRenderer::~PreviewRenderer() {
-    delete mConverter;
-    mConverter = NULL;
+    native_window_api_disconnect(mSurface.get(), NATIVE_WINDOW_API_CPU);
 }
 
 
@@ -153,7 +94,6 @@ PreviewRenderer::~PreviewRenderer() {
 //
 void PreviewRenderer::getBufferYV12(uint8_t **data, size_t *stride) {
     int err = OK;
-    LOGV("getBuffer START");
 
     if ((err = mSurface->ANativeWindow::dequeueBuffer(mSurface.get(), &mBuf)) != 0) {
         LOGW("Surface::dequeueBuffer returned error %d", err);
@@ -164,17 +104,15 @@ void PreviewRenderer::getBufferYV12(uint8_t **data, size_t *stride) {
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 
-    Rect bounds(mDecodedWidth, mDecodedHeight);
+    Rect bounds(mWidth, mHeight);
 
     void *dst;
-    CHECK_EQ(0, mapper.lock(
-                mBuf->handle, GRALLOC_USAGE_SW_WRITE_OFTEN, bounds, &dst));
-    LOGV("Buffer locked");
+    CHECK_EQ(0, mapper.lock(mBuf->handle,
+            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN,
+            bounds, &dst));
 
     *data   = (uint8_t*)dst;
     *stride = mBuf->stride;
-
-    LOGV("getBuffer END %p %d", dst, mBuf->stride);
 }
 
 
@@ -184,7 +122,6 @@ void PreviewRenderer::getBufferYV12(uint8_t **data, size_t *stride) {
 // See getBufferYV12() for details.
 //
 void PreviewRenderer::renderYV12() {
-    LOGV("renderYV12() START");
     int err = OK;
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
@@ -197,7 +134,6 @@ void PreviewRenderer::renderYV12() {
         }
     }
     mBuf = NULL;
-    LOGV("renderYV12() END");
 }
 
 }  // namespace android

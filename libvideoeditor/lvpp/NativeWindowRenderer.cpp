@@ -572,6 +572,9 @@ RenderInput::RenderInput(NativeWindowRenderer* renderer, GLuint textureId)
     : mRenderer(renderer)
     , mTextureId(textureId) {
     mST = new SurfaceTexture(mTextureId);
+    uint32_t outWidth, outHeight, outTransform;
+    mST->connect(NATIVE_WINDOW_API_MEDIA, &outWidth, &outHeight, &outTransform);
+
     mSTC = new SurfaceTextureClient(mST);
 }
 

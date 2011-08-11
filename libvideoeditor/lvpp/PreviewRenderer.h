@@ -32,11 +32,9 @@ class Surface;
 class PreviewRenderer {
 public:
 
-static PreviewRenderer* CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
+static PreviewRenderer* CreatePreviewRenderer (
         const sp<Surface> &surface,
-        size_t displayWidth, size_t displayHeight,
-        size_t decodedWidth, size_t decodedHeight,
-        int32_t rotationDegrees);
+        size_t width, size_t height);
 
     ~PreviewRenderer();
 
@@ -50,23 +48,13 @@ static PreviewRenderer* CreatePreviewRenderer (OMX_COLOR_FORMATTYPE colorFormat,
 
 private:
     PreviewRenderer(
-            OMX_COLOR_FORMATTYPE colorFormat,
             const sp<Surface> &surface,
-            size_t displayWidth, size_t displayHeight,
-            size_t decodedWidth, size_t decodedHeight,
-            int32_t rotationDegrees);
-    enum YUVMode {
-        None,
-        YUV420ToYUV420sp,
-        YUV420spToYUV420sp,
-    };
+            size_t width, size_t height);
 
-    OMX_COLOR_FORMATTYPE mColorFormat;
-    ColorConverter *mConverter;
-    YUVMode mYUVMode;
+    int init();
+
     sp<Surface> mSurface;
-    size_t mDisplayWidth, mDisplayHeight;
-    size_t mDecodedWidth, mDecodedHeight;
+    size_t mWidth, mHeight;
 
     ANativeWindowBuffer *mBuf;
 
