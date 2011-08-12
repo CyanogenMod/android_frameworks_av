@@ -266,7 +266,8 @@ typedef struct
     M4ENCODER_FrameRate        FrameRate;            /**< Framerate, see enum  */
     M4ENCODER_Format        Format;                /**< Video compression format, H263, MPEG4,
                                                          MJPEG ...  */
-
+    M4OSA_Int32            videoProfile; /** video profile */
+    M4OSA_Int32            videoLevel;   /** video level */
 } M4ENCODER_Params;
 
 /**
@@ -292,6 +293,8 @@ typedef struct
     M4ENCODER_FrameRate        FrameRate;
     /**< Video compression format: H263 or MPEG4 */
     M4ENCODER_Format        Format;
+    M4OSA_Int32            videoProfile; /** output video profile */
+    M4OSA_Int32            videoLevel;   /** output video level */
     M4OSA_UInt32            uiHorizontalSearchRange; /**< Set to 0 will use default value (15) */
     M4OSA_UInt32            uiVerticalSearchRange;   /**< Set to 0 will use default value (15) */
     /**< Set to 0 will use default value (0x7FFF i.e. let engine decide when to put an I) */

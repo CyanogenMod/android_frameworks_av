@@ -130,21 +130,20 @@ typedef enum
     M4DECODER_kOptionID_EnableYuvWithEffect =
         M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x09),
 
+    /**
+     * Get the supported video decoders and capabilities */
+    M4DECODER_kOptionID_VideoDecodersAndCapabilities =
+        M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_COMMON, 0x10),
+
     /* common to MPEG4 decoders */
     /**
      * Get the DecoderConfigInfo */
     M4DECODER_MPEG4_kOptionID_DecoderConfigInfo = M4OSA_OPTION_ID_CREATE(M4_READ,\
                                                          M4DECODER_MPEG4, 0x01),
 
-    /* only for H.264 decoder. */
-    /**
-    Get AVC profile and level.
-    */
-    M4DECODER_kOptionID_AVCProfileAndLevel = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AVC, 0x01),
-
     /* last decoded cts */
     M4DECODER_kOptionID_AVCLastDecodedFrameCTS = M4OSA_OPTION_ID_CREATE(M4_READ, M4DECODER_AVC,\
-                                                                             0x02)
+                                                                             0x01)
 /* Last decoded cts */
 
 } M4DECODER_OptionID;
@@ -223,6 +222,26 @@ typedef enum
 
 } M4DECODER_VideoType ;
 
+typedef struct {
+    M4OSA_UInt32 mProfile;
+    M4OSA_UInt32 mLevel;
+} VideoProfileLevel;
+
+typedef struct {
+    VideoProfileLevel *profileLevel;
+    M4OSA_UInt32 profileNumber;
+} VideoComponentCapabilities;
+
+typedef struct {
+    M4_StreamType codec;
+    VideoComponentCapabilities *component;
+    M4OSA_UInt32 componentNumber;
+} VideoDecoder;
+
+typedef struct {
+    VideoDecoder *decoder;
+    M4OSA_UInt32 decoderNumber;
+} M4DECODER_VideoDecoders;
 /**
  ************************************************************************
  * @brief    creates an instance of the decoder

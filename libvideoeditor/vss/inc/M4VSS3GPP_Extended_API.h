@@ -292,6 +292,9 @@ typedef struct
     M4xVSS_BGMSettings                        *pBGMtrack;
     /**< Function pointer on text rendering engine, if not used, must be set to NULL !! */
     M4xVSS_getTextRgbBufferFct                pTextRenderingFct;
+    /** output video profile and level*/
+    M4OSA_Int32   outputVideoProfile;
+    M4OSA_Int32   outputVideoLevel;
 
 } M4xVSS_EditSettings;
 

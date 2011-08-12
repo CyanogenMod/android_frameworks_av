@@ -29,13 +29,19 @@ extern "C" {
 (useful for video editing) without having to instanciate a decoder, which can be useful precisely
 if HW decoders are a possibility. */
 
-M4OSA_ERR M4DECODER_EXTERNAL_ParseVideoDSI(M4OSA_UInt8* pVol, M4OSA_Int32 aVolSize,
-                                             M4DECODER_MPEG4_DecoderConfigInfo* pDci,
-                                             M4DECODER_VideoSize* pVideoSize);
+M4OSA_ERR M4DECODER_EXTERNAL_ParseVideoDSI(
+                      M4OSA_UInt8* pVol, M4OSA_Int32 aVolSize,
+                      M4DECODER_MPEG4_DecoderConfigInfo* pDci,
+                      M4DECODER_VideoSize* pVideoSize);
 
-M4OSA_ERR M4DECODER_EXTERNAL_ParseAVCDSI(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
-                                            M4DECODER_AVCProfileLevel *profile);
+M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel);
 
+M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel);
+
+M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel);
 
 #ifdef __cplusplus
 }

@@ -178,7 +178,6 @@ M4OSA_ERR M4VSS3GPP_audioMixingInit( M4VSS3GPP_AudioMixingContext *pContext,
     pC->ewc.VideoStreamType = M4SYS_kVideoUnknown;
     pC->ewc.bVideoDataPartitioning = M4OSA_FALSE;
     pC->ewc.pVideoOutputDsi = M4OSA_NULL;
-    pC->ewc.bActivateEmp = M4OSA_FALSE;
     pC->ewc.AudioStreamType = M4SYS_kAudioUnknown;
     pC->ewc.uiNbChannels = 1;
     pC->ewc.pAudioOutputDsi = M4OSA_NULL;
@@ -925,15 +924,15 @@ M4VSS3GPP_intAudioMixingOpen( M4VSS3GPP_InternalAudioMixingContext *pC,
         pC->pInputClipCtxt->pSettings->ClipProperties.uiVideoTimeScale;
     pC->ewc.bVideoDataPartitioning =
         pC->pInputClipCtxt->pSettings->ClipProperties.bMPEG4dataPartition;
-
+    pC->ewc.outputVideoProfile =
+        pC->pInputClipCtxt->pSettings->ClipProperties.uiVideoProfile;
+    pC->ewc.outputVideoLevel =
+        pC->pInputClipCtxt->pSettings->ClipProperties.uiVideoLevel;
     switch( pC->pInputClipCtxt->pSettings->ClipProperties.VideoStreamType )
     {
         case M4VIDEOEDITING_kH263:
             pC->ewc.VideoStreamType = M4SYS_kH263;
             break;
-
-        case M4VIDEOEDITING_kMPEG4_EMP:
-            pC->ewc.bActivateEmp = M4OSA_TRUE; /* no break */
 
         case M4VIDEOEDITING_kMPEG4:
             pC->ewc.VideoStreamType = M4SYS_kMPEG_4;
@@ -3906,6 +3905,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCreateVideoEncoder(
     EncParams.FrameWidth = pC->ewc.uiVideoWidth;
     EncParams.FrameHeight = pC->ewc.uiVideoHeight;
     EncParams.uiTimeScale = pC->ewc.uiVideoTimeScale;
+    EncParams.videoProfile = pC->ewc.outputVideoProfile;
+    EncParams.videoLevel = pC->ewc.outputVideoLevel;
 
     /* No strict regulation in video editor */
     /* Because of the effects and transitions we should allow more flexibility */
@@ -3977,19 +3978,6 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCreateVideoEncoder(
             return M4VSS3GPP_ERR_EDITING_UNSUPPORTED_VIDEO_FORMAT;
     }
 
-    /* In case of EMP we overwrite certain parameters */
-    if( M4OSA_TRUE == pC->ewc.bActivateEmp )
-    {
-        EncParams.uiHorizontalSearchRange = 15;    /* set value */
-        EncParams.uiVerticalSearchRange = 15;      /* set value */
-        EncParams.bErrorResilience = M4OSA_FALSE;  /* no error resilience */
-        EncParams.uiIVopPeriod = 15; /* one I frame every 15 frames */
-        EncParams.uiMotionEstimationTools = 1; /* M4V_MOTION_EST_TOOLS_NO_4MV */
-        EncParams.bAcPrediction = M4OSA_FALSE;     /* no AC prediction */
-        EncParams.uiStartingQuantizerValue = 10;   /* initial QP = 10 */
-        EncParams.bDataPartitioning = M4OSA_FALSE; /* no data partitioning */
-    }
-
     EncParams.Bitrate =
         pC->pInputClipCtxt->pSettings->ClipProperties.uiVideoBitrate;
 
@@ -4014,7 +4002,8 @@ static M4OSA_ERR M4VSS3GPP_intAudioMixingCreateVideoEncoder(
     pC->ewc.encoderState = M4VSS3GPP_kEncoderClosed;
     M4OSA_TRACE1_0(
         "M4VSS3GPP_intAudioMixingCreateVideoEncoder: calling encoder pFctOpen");
-
+    M4OSA_TRACE1_2("vss: audio mix encoder open profile :%d, level %d",
+        EncParams.videoProfile, EncParams.videoLevel);
     err = pC->ShellAPI.pVideoEncoderGlobalFcts->pFctOpen(pC->ewc.pEncContext,
         &pC->ewc.WriterVideoAU, &EncParams);
 

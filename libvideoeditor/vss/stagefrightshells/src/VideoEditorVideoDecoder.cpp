@@ -31,7 +31,7 @@
 
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDefs.h>
-
+#include <media/stagefright/MediaDebug.h>
 /********************
  *   DEFINITIONS    *
  ********************/
@@ -636,81 +636,135 @@ M4VIFI_UInt8 M4VIFI_SemiplanarYVU420toYUV420(void *user_data,
     }
     return return_code;
 }
-
-M4OSA_ERR VideoEditorVideoDecoder_ParseAVCDSI(M4OSA_UInt8* pDSI,
-        M4OSA_Int32 DSISize, M4DECODER_AVCProfileLevel *profile) {
+void logSupportDecodersAndCapabilities(M4DECODER_VideoDecoders* decoders) {
+    VideoDecoder *pDecoder;
+    VideoComponentCapabilities *pOmxComponents = NULL;
+    VideoProfileLevel *pProfileLevel = NULL;
+    pDecoder = decoders->decoder;
+    for (size_t i = 0; i< decoders->decoderNumber; i++) {
+        LOGV("Supported Codec[%d] :%d", i, pDecoder->codec);
+        pOmxComponents = pDecoder->component;
+        for(size_t j = 0; j <  pDecoder->componentNumber; j++) {
+           pProfileLevel = pOmxComponents->profileLevel;
+           LOGV("-->component %d", j);
+           for(size_t k = 0; k < pOmxComponents->profileNumber; k++) {
+               LOGV("-->profile:%ld maxLevel:%ld", pProfileLevel->mProfile,
+                   pProfileLevel->mLevel);
+               pProfileLevel++;
+           }
+           pOmxComponents++;
+        }
+        pDecoder++;
+    }
+}
+M4OSA_ERR queryVideoDecoderCapabilities
+    (M4DECODER_VideoDecoders** decoders) {
     M4OSA_ERR err = M4NO_ERROR;
-    M4OSA_Bool NALSPS_and_Profile0Found = M4OSA_FALSE;
-    M4OSA_UInt16 index;
-    M4OSA_Bool constraintSet3;
+    const char *kMimeTypes[] = {
+        MEDIA_MIMETYPE_VIDEO_AVC, MEDIA_MIMETYPE_VIDEO_MPEG4,
+        MEDIA_MIMETYPE_VIDEO_H263
+    };
 
-    for(index = 0; index < (DSISize-1); index++) {
-        if(((pDSI[index] & 0x1f) == 0x07) && (pDSI[index+1] == 0x42)) {
-            NALSPS_and_Profile0Found = M4OSA_TRUE;
-            break;
-        }
-    }
-    if(M4OSA_FALSE == NALSPS_and_Profile0Found) {
-        LOGV("VideoEditorVideoDecoder_ParseAVCDSI: index bad = %d", index);
-        *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
-    } else {
-        LOGV("VideoEditorVideoDecoder_ParseAVCDSI: index = %d", index);
-        constraintSet3 = (pDSI[index+2] & 0x10);
-        LOGV("VideoEditorVideoDecoder_ParseAVCDSI: level = %d", pDSI[index+3]);
-        switch(pDSI[index+3]) {
-            case 10:
-                *profile = M4DECODER_AVC_kProfile_0_Level_1;
-                break;
-            case 11:
-                if(constraintSet3) {
-                    *profile = M4DECODER_AVC_kProfile_0_Level_1b;
-                } else {
-                    *profile = M4DECODER_AVC_kProfile_0_Level_1_1;
+    int32_t supportFormats = sizeof(kMimeTypes) / sizeof(kMimeTypes[0]);
+    M4DECODER_VideoDecoders *pDecoders;
+    VideoDecoder *pDecoder;
+    VideoComponentCapabilities *pOmxComponents = NULL;
+    VideoProfileLevel *pProfileLevel = NULL;
+    OMXClient client;
+    status_t status = OK;
+    SAFE_MALLOC(pDecoders, M4DECODER_VideoDecoders, 1, "VideoDecoders");
+    SAFE_MALLOC(pDecoder, VideoDecoder, supportFormats,
+        "VideoDecoder");
+    pDecoders->decoder = pDecoder;
+
+    pDecoders->decoderNumber= supportFormats;
+    status = client.connect();
+    CHECK(status == OK);
+    for (size_t k = 0; k < sizeof(kMimeTypes) / sizeof(kMimeTypes[0]);
+             ++k) {
+            Vector<CodecCapabilities> results;
+            CHECK_EQ(QueryCodecs(client.interface(), kMimeTypes[k],
+                                 true, // queryDecoders
+                                 &results), (status_t)OK);
+
+            if (results.size()) {
+                SAFE_MALLOC(pOmxComponents, VideoComponentCapabilities,
+                    results.size(), "VideoComponentCapabilities");
+                LOGV("K=%d",k);
+                pDecoder->component = pOmxComponents;
+                pDecoder->componentNumber = results.size();
+            }
+
+            for (size_t i = 0; i < results.size(); ++i) {
+                LOGV("  decoder '%s' supports ",
+                       results[i].mComponentName.string());
+
+                if (results[i].mProfileLevels.size() == 0) {
+                    LOGV("NOTHING.\n");
+                    continue;
                 }
-                break;
-            case 12:
-                *profile = M4DECODER_AVC_kProfile_0_Level_1_2;
-                break;
-            case 13:
-                *profile = M4DECODER_AVC_kProfile_0_Level_1_3;
-                break;
-            case 20:
-                *profile = M4DECODER_AVC_kProfile_0_Level_2;
-                break;
-            case 21:
-                *profile = M4DECODER_AVC_kProfile_0_Level_2_1;
-                break;
-            case 22:
-                *profile = M4DECODER_AVC_kProfile_0_Level_2_2;
-                break;
-            case 30:
-                *profile = M4DECODER_AVC_kProfile_0_Level_3;
-                break;
-            case 31:
-                *profile = M4DECODER_AVC_kProfile_0_Level_3_1;
-                break;
-            case 32:
-                *profile = M4DECODER_AVC_kProfile_0_Level_3_2;
-                break;
-            case 40:
-                *profile = M4DECODER_AVC_kProfile_0_Level_4;
-                break;
-            case 41:
-                *profile = M4DECODER_AVC_kProfile_0_Level_4_1;
-                break;
-            case 42:
-                *profile = M4DECODER_AVC_kProfile_0_Level_4_2;
-                break;
-            case 50:
-                *profile = M4DECODER_AVC_kProfile_0_Level_5;
-                break;
-            case 51:
-                *profile = M4DECODER_AVC_kProfile_0_Level_5_1;
-                break;
-            default:
-                *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
-        }
+                // Count the supported profiles
+                int32_t profileNumber = 0;
+                int32_t profile = -1;
+                for (size_t j = 0; j < results[i].mProfileLevels.size(); ++j) {
+                    const CodecProfileLevel &profileLevel =
+                        results[i].mProfileLevels[j];
+                    if (profileLevel.mProfile != profile) {
+                        profile = profileLevel.mProfile;
+                        profileNumber++;
+                    }
+                }
+                SAFE_MALLOC(pProfileLevel, VideoProfileLevel,
+                    profileNumber, "VideoProfileLevel");
+
+
+
+                pOmxComponents->profileLevel = pProfileLevel;
+
+                pOmxComponents->profileNumber = profileNumber;
+
+                // Get the max Level for each profile.
+                int32_t maxLevel = -1;
+                profile = -1;
+                profileNumber = 0;
+                for (size_t j = 0; j < results[i].mProfileLevels.size(); ++j) {
+                    const CodecProfileLevel &profileLevel =
+                        results[i].mProfileLevels[j];
+                    if (profile == -1 && maxLevel == -1) {
+                        profile = profileLevel.mProfile;
+                        maxLevel = profileLevel.mLevel;
+                    }
+                    if (profileLevel.mProfile != profile) {
+                        // Save the current profile and the max level for this profile.
+                        LOGV("profile :%d maxLevel;%d", profile, maxLevel);
+                        pProfileLevel->mProfile = profile;
+                        pProfileLevel->mLevel = maxLevel;
+                        profileNumber++;
+                        pProfileLevel++;
+                        profile = profileLevel.mProfile;
+                        maxLevel = profileLevel.mLevel;
+                    } else {
+                        if (profileLevel.mLevel > maxLevel) {
+                            maxLevel = profileLevel.mLevel;
+                        }
+                    }
+
+                }
+                pOmxComponents++;
+            }
+            if (!strcmp(MEDIA_MIMETYPE_VIDEO_AVC, kMimeTypes[k]))
+                pDecoder->codec = M4DA_StreamTypeVideoMpeg4Avc;
+            if (!strcmp(MEDIA_MIMETYPE_VIDEO_MPEG4, kMimeTypes[k]))
+                pDecoder->codec = M4DA_StreamTypeVideoMpeg4;
+            if (!strcmp(MEDIA_MIMETYPE_VIDEO_H263, kMimeTypes[k]))
+                pDecoder->codec = M4DA_StreamTypeVideoH263;
+
+            pDecoder++;
     }
+
+    logSupportDecodersAndCapabilities(pDecoders);
+    *decoders = pDecoders;
+cleanUp:
     return err;
 }
 /********************
@@ -1209,15 +1263,6 @@ M4OSA_ERR VideoEditorVideoDecoder_getOption(M4OSA_Context context,
             pNextFrameCts = (M4OSA_UInt32 *)pValue;
             *pNextFrameCts = pDecShellContext->m_lastDecodedCTS;
             break;
-        case M4DECODER_kOptionID_AVCProfileAndLevel:
-            profile = (M4DECODER_AVCProfileLevel *) pValue;
-            VideoEditorVideoDecoder_ParseAVCDSI (
-                pDecShellContext->m_pVideoStreamhandler->\
-                    m_basicProperties.m_pDecoderSpecificInfo,
-                pDecShellContext->m_pVideoStreamhandler->\
-                    m_basicProperties.m_decoderSpecificInfoSize,
-                profile);
-            break;
         case M4DECODER_MPEG4_kOptionID_DecoderConfigInfo:
             if(pDecShellContext->mDecoderType == VIDEOEDITOR_kMpeg4VideoDec) {
                 (*(M4DECODER_MPEG4_DecoderConfigInfo*)pValue) =
@@ -1683,6 +1728,11 @@ M4OSA_ERR VideoEditorVideoDecoder_getSoftwareInterface_H264(
     return VideoEditorVideoDecoder_getSoftwareInterface(M4DECODER_kVideoTypeAVC,
         pDecoderType, pDecInterface);
 
+}
+
+M4OSA_ERR VideoEditorVideoDecoder_getVideoDecodersAndCapabilities(
+    M4DECODER_VideoDecoders** decoders) {
+    return queryVideoDecoderCapabilities(decoders);
 }
 
 }  // extern "C"

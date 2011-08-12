@@ -730,6 +730,8 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
     sp<MetaData> encoderMetadata = NULL;
     const char* mime = NULL;
     int32_t iProfile = 0;
+    int32_t iLevel = 0;
+
     int32_t iFrameRate = 0;
     uint32_t codecFlags = 0;
 
@@ -761,6 +763,8 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
     pEncoderContext->mCodecParams->Bitrate = pCodecParams->Bitrate;
     pEncoderContext->mCodecParams->FrameRate = pCodecParams->FrameRate;
     pEncoderContext->mCodecParams->Format = pCodecParams->Format;
+    pEncoderContext->mCodecParams->videoProfile = pCodecParams->videoProfile;
+    pEncoderContext->mCodecParams->videoLevel= pCodecParams->videoLevel;
 
     // Check output format consistency and resolution
     VIDEOEDITOR_CHECK(
@@ -780,23 +784,39 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
     switch( pEncoderContext->mCodecParams->Format ) {
         case M4ENCODER_kH263:
             mime     = MEDIA_MIMETYPE_VIDEO_H263;
-            iProfile = OMX_VIDEO_H263ProfileBaseline;
             break;
         case M4ENCODER_kMPEG4:
             mime     = MEDIA_MIMETYPE_VIDEO_MPEG4;
-            iProfile = OMX_VIDEO_MPEG4ProfileSimple;
             break;
         case M4ENCODER_kH264:
             mime     = MEDIA_MIMETYPE_VIDEO_AVC;
-            iProfile = OMX_VIDEO_AVCProfileBaseline;
             break;
         default:
             VIDEOEDITOR_CHECK(!"VideoEncoder_open : incorrect input format",
                 M4ERR_PARAMETER);
             break;
     }
+    iProfile = pEncoderContext->mCodecParams->videoProfile;
+    iLevel = pEncoderContext->mCodecParams->videoLevel;
+    LOGV("Encoder mime %s profile %d, level %d",
+        mime,iProfile, iLevel);
+    LOGV("Encoder w %d, h %d, bitrate %d, fps %d",
+        pEncoderContext->mCodecParams->FrameWidth,
+        pEncoderContext->mCodecParams->FrameHeight,
+        pEncoderContext->mCodecParams->Bitrate,
+        pEncoderContext->mCodecParams->FrameRate);
+    CHECK(iProfile != 0x7fffffff);
+    CHECK(iLevel != 0x7fffffff);
+
     encoderMetadata->setCString(kKeyMIMEType, mime);
     encoderMetadata->setInt32(kKeyVideoProfile, iProfile);
+    //FIXME:
+    // Temp: Do not set the level for Mpeg4 / H.263 Enc
+    // as OMX.Nvidia.mp4.encoder and OMX.Nvidia.h263.encoder
+    // return 0x80001019
+    if (pEncoderContext->mCodecParams->Format == M4ENCODER_kH264) {
+        encoderMetadata->setInt32(kKeyVideoLevel, iLevel);
+    }
     encoderMetadata->setInt32(kKeyWidth,
         (int32_t)pEncoderContext->mCodecParams->FrameWidth);
     encoderMetadata->setInt32(kKeyStride,
@@ -837,9 +857,11 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
     encoderMetadata->setInt32(kKeyColorFormat,
         pEncoderContext->mEncoderColorFormat);
 
-    // Get the encoder DSI
-    err = VideoEditorVideoEncoder_getDSI(pEncoderContext, encoderMetadata);
-    VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+    if (pEncoderContext->mCodecParams->Format != M4ENCODER_kH263) {
+        // Get the encoder DSI
+        err = VideoEditorVideoEncoder_getDSI(pEncoderContext, encoderMetadata);
+        VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
+    }
 
     // Create the encoder source
     pEncoderContext->mEncoderSource = VideoEditorVideoEncoderSource::Create(

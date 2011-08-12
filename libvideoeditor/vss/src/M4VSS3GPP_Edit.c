@@ -189,7 +189,6 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     pC->ewc.bVideoDataPartitioning = M4OSA_FALSE;
     pC->ewc.pVideoOutputDsi = M4OSA_NULL;
     pC->ewc.uiVideoOutputDsiSize = 0;
-    pC->ewc.bActivateEmp = M4OSA_FALSE;
     pC->ewc.AudioStreamType = M4SYS_kAudioUnknown;
     pC->ewc.uiNbChannels = 1;
     pC->ewc.uiAudioBitrate = 0;
@@ -332,10 +331,10 @@ M4VSS3GPP_editCreateClipSettings( M4VSS3GPP_ClipSettings *pClipSettings,
     pClipSettings->ClipProperties.uiVideoHeight = 0;
     pClipSettings->ClipProperties.uiVideoTimeScale = 0;
     pClipSettings->ClipProperties.fAverageFrameRate = 0.0;
-    pClipSettings->ClipProperties.ProfileAndLevel =
-        M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range;
-    pClipSettings->ClipProperties.uiH263level = 0;
-    pClipSettings->ClipProperties.uiVideoProfile = 0;
+    pClipSettings->ClipProperties.uiVideoProfile =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+    pClipSettings->ClipProperties.uiVideoLevel =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
     pClipSettings->ClipProperties.bMPEG4dataPartition = M4OSA_FALSE;
     pClipSettings->ClipProperties.bMPEG4rvlc = M4OSA_FALSE;
     pClipSettings->ClipProperties.bMPEG4resynchMarker = M4OSA_FALSE;
@@ -951,6 +950,9 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
 
     pC->ewc.uiVideoTimeScale        = 30;
     pC->ewc.bVideoDataPartitioning  = 0;
+    /* Set output video profile and level */
+    pC->ewc.outputVideoProfile = pC->xVSS.outputVideoProfile;
+    pC->ewc.outputVideoLevel = pC->xVSS.outputVideoLevel;
 
     switch(pC->xVSS.outputVideoFormat) {
         case M4VIDEOEDITING_kH263:
@@ -2303,32 +2305,6 @@ M4VSS3GPP_intCreate3GPPOutputFile( M4VSS3GPP_EncodeWriteContext *pC_ewc,
         return err;
     }
 
-    /**
-    * In case of EMP, we have to explicitely give an emp ftyp to the writer */
-    if( M4OSA_TRUE == pC_ewc->bActivateEmp )
-    {
-        M4VIDEOEDITING_FtypBox ftyp;
-
-        ftyp.major_brand = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.minor_version = M4VIDEOEDITING_BRAND_0000;
-        ftyp.nbCompatibleBrands = 2;
-        ftyp.compatible_brands[0] = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.compatible_brands[1] = M4VIDEOEDITING_BRAND_EMP;
-
-        err = pC_ShellAPI->pWriterGlobalFcts->pFctSetOption(
-            pC_ewc->p3gpWriterContext,
-            M4WRITER_kSetFtypBox, (M4OSA_DataOption) &ftyp);
-
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_intCreate3GPPOutputFile:\
-                pWriterGlobalFcts->pFctSetOption(M4WRITER_kSetFtypBox) returns 0x%x!",
-                err);
-            return err;
-        }
-    }
-
     if( M4SYS_kVideoUnknown != pC_ewc->VideoStreamType )
     {
         /**
@@ -2610,8 +2586,6 @@ static M4OSA_ERR
 M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
                                            M4OSA_UInt8 uiMasterClip )
 {
-    M4OSA_UInt8 uiCurrentLevel, uiNewLevel;
-    M4OSA_UInt8 uiCurrentProf, uiNewProf;
     M4OSA_Int32 iResynchMarkerDsiIndex;
     M4_StreamHandler *pStreamForDsi;
     M4VSS3GPP_ClipContext *pClip;
@@ -2660,313 +2634,20 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
         pC->ewc.pVideoOutputDsi[4] = 0;
 
         /**
-        * We take the max level of all input streams, but 10 is the minimum */
-        uiCurrentLevel = 10;
-
-        for ( i = 0; i < pC->uiClipNumber; i++ )
-        {
-            if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
-                uiNewLevel = pC->pClipList[i].ClipProperties.uiH263level;
-                if (uiNewLevel > uiCurrentLevel) {
-                    uiCurrentLevel = uiNewLevel;
-                }
-            }
-        }
+        * Level is the sixth byte in the DSI */
+        pC->ewc.pVideoOutputDsi[5] = pC->xVSS.outputVideoLevel;
 
         /**
-        * Level is the sixth byte i the DSI */
-        pC->ewc.pVideoOutputDsi[5] = uiCurrentLevel;
-
-        /**
-        * Profile is always 0, and it's the seventh byte in the DSI */
-        pC->ewc.pVideoOutputDsi[6] = 0;
+        * Profile is the seventh byte in the DSI*/
+        pC->ewc.pVideoOutputDsi[6] = pC->xVSS.outputVideoProfile;
     }
 
     /**
     * MPEG-4 case */
-    else if( M4SYS_kMPEG_4 == pC->ewc.VideoStreamType )
-    {
-        /**
-        * Profile combination rules:
-        *   8 and x -> x
-        *   1, 2 or 3 -> max
-        *   9 and 1 -> 2
-        *   9 and 2 -> 2
-        *   9 and 3 -> 3
-        */
+    else if( M4SYS_kMPEG_4 == pC->ewc.VideoStreamType ||
+        M4SYS_kH264 == pC->ewc.VideoStreamType) {
 
-        /**
-        * Note:
-        *   The part of the output video encoded by the VSS3GPP
-        *   have a profile of 8.
-        *   Since 8 is the less "strong" profile (8 and x --> x),
-        *   we can check only the input clips to compute the
-        *   profile of the output combined clip.
-        */
-
-        /**
-        * Start with profile of the first clip */
-        M4OSA_TRACE1_0("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-            get DSI for Mpeg4 stream");
-        if(M4OSA_NULL == pC->ewc.pEncContext) {
-            M4OSA_TRACE1_0("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                pC->ewc.pEncContext is NULL");
-            err = M4VSS3GPP_intCreateVideoEncoder(pC);
-            if(M4NO_ERROR != err) {
-                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                    M4VSS3GPP_intCreateVideoEncoder returned error 0x%x", err);
-            }
-        }
-        if(M4OSA_NULL != pC->ewc.pEncContext) {
-            err = pC->ShellAPI.pVideoEncoderGlobalFcts->pFctGetOption(
-                    pC->ewc.pEncContext, M4ENCODER_kOptionID_EncoderHeader,
-                    (M4OSA_DataOption)&encHeader);
-            if ( (M4NO_ERROR != err) || (M4OSA_NULL == encHeader->pBuf)) {
-                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                    failed to get the encoder header (err 0x%x)", err);
-                M4OSA_TRACE1_2("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                    encHeader->pBuf=0x%x, size=0x%x", encHeader->pBuf,
-                    encHeader->Size);
-            }
-        }
-        err = M4DECODER_EXTERNAL_ParseVideoDSI((M4OSA_UInt8 *)encHeader->pBuf,
-                  encHeader->Size, &DecConfigInfo, &dummySize);
-        if (M4NO_ERROR != err) {
-            M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): \
-                M4DECODER_EXTERNAL_ParseVideoDSI returns 0x%08X", err);
-            return err;
-        }
-
-        uiCurrentProf = DecConfigInfo.uiProfile;
-
-        /**
-        * Combine current profile with the one of the next clip */
-        for (i=0; i<pC->uiClipNumber; i++) {
-            if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
-                uiNewProf = pC->pClipList[i].ClipProperties.uiVideoProfile;
-
-                switch( uiNewProf )
-                {
-                    case 8:
-                        /**< 8 + x --> x */
-                        /**< uiCurrentProf is not updated */
-                        break;
-
-                    case 1:
-                    case 2:
-                    case 3:
-                        switch( uiCurrentProf )
-                        {
-                            case 1:
-                            case 2:
-                            case 3:
-                            case 4:
-                            case 5:
-                                /**< 1, 2, 3, 4 or 5 -> max */
-                                uiCurrentProf = (uiCurrentProf > uiNewProf)
-                                    ? uiCurrentProf : uiNewProf;
-                                break;
-
-                            case 8: /**< 8 + x -> x */
-                                uiCurrentProf = uiNewProf;
-                                break;
-
-                            case 9:
-                                /**< 9 and 1 -> 2 */
-                                /**< 9 and 2 -> 2 */
-                                /**< 9 and 3 -> 3 */
-                                /**< 9 and 4 -> 4 */
-                                /**< 9 and 5 -> 5 */
-                                uiCurrentProf = (uiNewProf > 2) ? uiNewProf : 2;
-                                break;
-                        }
-                        break;
-
-                    case 9:
-                        switch( uiCurrentProf )
-                        {
-                            case 1:
-                            case 2:
-                            case 3:
-                                /**< 9 and 1 -> 2 */
-                                /**< 9 and 2 -> 2 */
-                                /**< 9 and 3 -> 3 */
-                                uiCurrentProf =
-                                    (uiCurrentProf > 2) ? uiCurrentProf : 2;
-                                break;
-
-                            case 9: /**< 9 + x -> x */
-                            case 8: /**< 8 + x -> x */
-                                uiCurrentProf = uiNewProf;
-                                break;
-                    }
-                }
-            }
-        }
-
-        /**
-        * Look for the DSI of an input video stream which would use the Resynch. Marker tool */
-        i = 0;
-        iResynchMarkerDsiIndex =
-            0; /**< By default we take the first DSI (if we find no Resynch Marker DSI) */
-
-        while( i < pC->uiClipNumber )
-        {
-            if ((M4OSA_TRUE ==
-                    pC->pClipList[i].ClipProperties.bMPEG4resynchMarker) &&
-                 (pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE)) {
-                iResynchMarkerDsiIndex = i;
-                break; /**< we found it, get out the while loop */
-            }
-            i++;
-        }
-
-        /**
-        * Get the DSI of the clip found. If it is the first clip, it is already opened.
-        * Else we must open it (and later close it...) */
-        if( 0 == iResynchMarkerDsiIndex )
-        {
-            for (i=0; i<pC->uiClipNumber; i++) {
-                if(pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
-                    /**
-                    * We can use the fast open mode and the skip audio mode
-                      to get the DSI */
-                    err = M4VSS3GPP_intClipInit(&pClip, pC->pOsaFileReadPtr);
-                    if (M4NO_ERROR != err) {
-                        M4OSA_TRACE1_1(
-                            "M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                            M4VSS3GPP_intClipInit() returns 0x%x!", err);
-                        if (M4OSA_NULL != pClip) {
-                            M4VSS3GPP_intClipCleanUp(pClip);
-                        }
-                        return err;
-                    }
-                    err = M4VSS3GPP_intClipOpen(
-                              pClip, &pC->pClipList[i],
-                              M4OSA_TRUE, M4OSA_TRUE,
-                              M4OSA_TRUE);
-                    if (M4NO_ERROR != err) {
-                        M4OSA_TRACE1_1(
-                            "M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                            M4VSS3GPP_intClipOpen() returns 0x%x!", err);
-                        M4VSS3GPP_intClipCleanUp(pClip);
-                        return err;
-                    }
-                    pStreamForDsi = &(pClip->pVideoStream->m_basicProperties);
-                    /*got the DSI  */
-
-                    bGetDSiFromEncoder = M4OSA_TRUE;
-
-                    break;
-                }
-            }
-            if(bGetDSiFromEncoder == M4OSA_FALSE) {
-                /**
-                * Allocate and copy the new DSI */
-                pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
-                    encHeader->Size, M4VSS3GPP, (M4OSA_Char *)"ewc dsi (MPEG4)");
-                if (M4OSA_NULL == pC->ewc.pVideoOutputDsi) {
-                    M4OSA_TRACE1_0(
-                        "M4VSS3GPP_intComputeOutputVideoAndAudioDsi(): \
-                        unable to allocate pVideoOutputDsi (MPEG4)");
-                    return M4ERR_ALLOC;
-                }
-                pC->ewc.uiVideoOutputDsiSize = (M4OSA_UInt16)encHeader->Size;
-                memcpy((void *)pC->ewc.pVideoOutputDsi,
-                    (void *)encHeader->pBuf, pC->ewc.uiVideoOutputDsiSize);
-
-            }
-
-            err = M4VSS3GPP_intDestroyVideoEncoder(pC);
-            if(M4NO_ERROR != err) {
-                M4OSA_TRACE1_1("M4VSS3GPP_intComputeOutputVideoAndAudioDsi: \
-                    M4VSS3GPP_intDestroyVideoEncoder error 0x%x", err);
-            }
-        }
-        else
-        {
-            /**
-            * We can use the fast open mode and the skip audio mode to get the DSI */
-            err = M4VSS3GPP_intClipInit(&pClip, pC->pOsaFileReadPtr);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intComputeOutputVideoAndAudioDsi:\
-                    M4VSS3GPP_intClipInit() returns 0x%x!",
-                    err);
-
-                if( M4OSA_NULL != pClip )
-                {
-                    M4VSS3GPP_intClipCleanUp(pClip);
-                }
-                return err;
-            }
-
-            err = M4VSS3GPP_intClipOpen(pClip,
-                &pC->pClipList[iResynchMarkerDsiIndex], M4OSA_TRUE,
-                M4OSA_TRUE, M4OSA_TRUE);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intComputeOutputVideoAndAudioDsi:\
-                    M4VSS3GPP_intClipOpen() returns 0x%x!",
-                    err);
-                M4VSS3GPP_intClipCleanUp(pClip);
-                return err;
-            }
-
-            pStreamForDsi = &(pClip->pVideoStream->m_basicProperties);
-        }
-
-        if(pC->ewc.pVideoOutputDsi == M4OSA_NULL) {
-
-            /**
-            * Allocate and copy the new DSI */
-            pC->ewc.pVideoOutputDsi = (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(
-                pStreamForDsi->m_decoderSpecificInfoSize,
-                M4VSS3GPP, (M4OSA_Char *)"pC->ewc.pVideoOutputDsi (MPEG4)");
-
-            if( M4OSA_NULL == pC->ewc.pVideoOutputDsi )
-            {
-                M4OSA_TRACE1_0(
-                    "M4VSS3GPP_intComputeOutputVideoAndAudioDsi():\
-                    unable to allocate pVideoOutputDsi (MPEG4), returning M4ERR_ALLOC");
-                return M4ERR_ALLOC;
-            }
-            pC->ewc.uiVideoOutputDsiSize =
-                (M4OSA_UInt16)pStreamForDsi->m_decoderSpecificInfoSize;
-            memcpy((void *)pC->ewc.pVideoOutputDsi,
-                (void *)pStreamForDsi->m_pDecoderSpecificInfo,
-                pC->ewc.uiVideoOutputDsiSize);
-        }
-
-        /**
-        * We rewrite the profile in the output DSI because it may not be the good one
-        * The profile and level is always at byte number 4 */
-        (pC->ewc.pVideoOutputDsi)[4] = uiCurrentProf;
-
-        /**
-        * If a clip has been temporarily opened to get its DSI, close it */
-        if( M4OSA_NULL != pClip )
-        {
-            err = M4VSS3GPP_intClipCleanUp(pClip);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4VSS3GPP_intComputeOutputVideoAndAudioDsi:\
-                    M4VSS3GPP_intClipCleanUp() returns 0x%x!",
-                    err);
-                return err;
-            }
-        }
-    }
-    else if( M4SYS_kH264 == pC->ewc.VideoStreamType )
-    {
-
-        /* For H.264 encoder case
+        /* For MPEG4 and H.264 encoder case
         * Fetch the DSI from the shell video encoder, and feed it to the writer before
         closing it. */
 
@@ -3008,7 +2689,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
             {
                 M4OSA_TRACE1_0(
                     "M4VSS3GPP_intComputeOutputVideoAndAudioDsi:\
-                    send DSI for H264 stream to 3GP writer");
+                     send DSI for video stream to 3GP writer");
 
                 /**
                 * Allocate and copy the new DSI */
@@ -3020,7 +2701,7 @@ M4VSS3GPP_intComputeOutputVideoAndAudioDsi( M4VSS3GPP_InternalEditContext *pC,
                 {
                     M4OSA_TRACE1_0(
                         "M4VSS3GPP_intComputeOutputVideoAndAudioDsi():\
-                        unable to allocate pVideoOutputDsi (H264), returning M4ERR_ALLOC");
+                         unable to allocate pVideoOutputDsi, returning M4ERR_ALLOC");
                     return M4ERR_ALLOC;
                 }
                 pC->ewc.uiVideoOutputDsiSize = (M4OSA_UInt16)encHeader->Size;

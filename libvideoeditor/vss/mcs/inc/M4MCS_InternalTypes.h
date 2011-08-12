@@ -458,7 +458,6 @@ typedef struct
     M4VIFI_ImagePlane*    pPreResizeFrame;    /**< The decoded image before resize
                                                   (allocated if resize needed only)*/
     M4OSA_UInt32          uiEncVideoBitrate;  /**< Actual video bitrate for the video encoder */
-    M4OSA_Bool            bActivateEmp;    /**< Encode in Mpeg4 format with limitations for EMP */
     M4OSA_UInt32          outputVideoTimescale;
     M4OSA_UInt32          encoderState;
 
@@ -597,6 +596,8 @@ typedef struct
     M4OSA_Bool              bH264Trim;
     /* Flag when to get  lastdecodedframeCTS */
     M4OSA_Bool              bLastDecodedFrameCTS;
+    M4OSA_Int32             encodingVideoProfile;
+    M4OSA_Int32             encodingVideoLevel;
 
 } M4MCS_InternalContext;
 

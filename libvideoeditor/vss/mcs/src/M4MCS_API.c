@@ -2199,7 +2199,6 @@ M4OSA_ERR M4MCS_init( M4MCS_Context *pContext,
     pC->pViEncCtxt = M4OSA_NULL;
     pC->pPreResizeFrame = M4OSA_NULL;
     pC->uiEncVideoBitrate = 0;
-    pC->bActivateEmp = M4OSA_FALSE;
     pC->encoderState = M4MCS_kNoEncoder;
 
     /**
@@ -3688,9 +3687,6 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
                 M4ERR_CHECK_RETURN(err);
                 break;
 
-            case M4VIDEOEDITING_kMPEG4_EMP:
-                pC->bActivateEmp = M4OSA_TRUE;
-
             case M4VIDEOEDITING_kMPEG4:
 
                 pC->EncodingVideoFormat = M4ENCODER_kMPEG4;
@@ -3714,12 +3710,6 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
                     return M4MCS_ERR_H263_FORBIDDEN_IN_MP4_FILE;
 
 
-                /* If input file is EMP, output file will be too */
-
-                if( pC->InputFileProperties.VideoStreamType
-                    == M4VIDEOEDITING_kMPEG4_EMP )
-                    pC->bActivateEmp = M4OSA_TRUE;
-
                 /* Encoder needed for begin cut to generate an I-frame */
                 pC->EncodingVideoFormat = M4ENCODER_kNULL;
                 err = M4MCS_setCurrentVideoEncoder(pContext,
@@ -3742,9 +3732,18 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
                 pC->EncodingWidth = pC->InputFileProperties.uiVideoWidth;
             uiFrameHeight =
                 pC->EncodingHeight = pC->InputFileProperties.uiVideoHeight;
+            /**
+            * Set output video profile and level */
+            pC->encodingVideoProfile = pC->InputFileProperties.uiVideoProfile;
+            pC->encodingVideoLevel = pC->InputFileProperties.uiVideoLevel;
         }
         else
         {
+            /**
+            * Set output video profile and level */
+            pC->encodingVideoProfile = pParams->outputVideoProfile;
+            pC->encodingVideoLevel = pParams->outputVideoLevel;
+
             switch( pParams->OutputVideoFrameSize )
             {
                 case M4VIDEOEDITING_kSQCIF:
@@ -5664,6 +5663,8 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
 
             /* Set useful parameters to encode the first I-frame */
             EncParams.InputFormat = M4ENCODER_kIYUV420;
+            EncParams.videoProfile = pC->encodingVideoProfile;
+            EncParams.videoLevel= pC->encodingVideoLevel;
 
             switch( pC->InputFileProperties.VideoStreamType )
             {
@@ -5672,7 +5673,6 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
                     break;
 
                 case M4VIDEOEDITING_kMPEG4:
-                case M4VIDEOEDITING_kMPEG4_EMP:
                     EncParams.Format = M4ENCODER_kMPEG4;
                     break;
 
@@ -5720,6 +5720,8 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
         * Set encoder shell parameters according to MCS settings */
         EncParams.Format = pC->EncodingVideoFormat;
         EncParams.InputFormat = M4ENCODER_kIYUV420;
+        EncParams.videoProfile = pC->encodingVideoProfile;
+        EncParams.videoLevel= pC->encodingVideoLevel;
 
         /**
         * Video frame size */
@@ -5736,32 +5738,18 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
 
         /**
         * Other encoder settings */
-        if( M4OSA_TRUE == pC->bActivateEmp )
-        {
-            EncParams.uiHorizontalSearchRange = 15;   /* set value */
-            EncParams.uiVerticalSearchRange = 15;     /* set value */
-            EncParams.bErrorResilience = M4OSA_FALSE; /* no error resilience */
-            EncParams.uiIVopPeriod = 15; /* one I frame every 15 frames */
-            EncParams.uiMotionEstimationTools =
-                1; /* M4V_MOTION_EST_TOOLS_NO_4MV */
-            EncParams.bAcPrediction = M4OSA_FALSE;    /* no AC prediction */
-            EncParams.uiStartingQuantizerValue = 10;  /* initial QP = 10 */
-            EncParams.bDataPartitioning =
-                M4OSA_FALSE; /* no data partitioning */
-        }
-        else
-        {
-            EncParams.uiHorizontalSearchRange = 0;    /* use default */
-            EncParams.uiVerticalSearchRange = 0;      /* use default */
-            EncParams.bErrorResilience = M4OSA_FALSE; /* no error resilience */
-            EncParams.uiIVopPeriod = 0;               /* use default */
-            EncParams.uiMotionEstimationTools =
-                0; /* M4V_MOTION_EST_TOOLS_ALL */
-            EncParams.bAcPrediction = M4OSA_TRUE;     /* use AC prediction */
-            EncParams.uiStartingQuantizerValue = 10;  /* initial QP = 10 */
-            EncParams.bDataPartitioning =
-                M4OSA_FALSE; /* no data partitioning */
-        }
+
+        EncParams.uiHorizontalSearchRange = 0;    /* use default */
+        EncParams.uiVerticalSearchRange = 0;      /* use default */
+        EncParams.bErrorResilience = M4OSA_FALSE; /* no error resilience */
+        EncParams.uiIVopPeriod = 0;               /* use default */
+        EncParams.uiMotionEstimationTools =
+            0; /* M4V_MOTION_EST_TOOLS_ALL */
+        EncParams.bAcPrediction = M4OSA_TRUE;     /* use AC prediction */
+        EncParams.uiStartingQuantizerValue = 10;  /* initial QP = 10 */
+        EncParams.bDataPartitioning =
+            M4OSA_FALSE; /* no data partitioning */
+
 
         /**
         * Video encoder frame rate and rate factor */
@@ -5849,15 +5837,20 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
         //EncParams1.InputFrameHeight = EncParams.InputFrameHeight;
         EncParams1.FrameWidth = EncParams.FrameWidth;
         EncParams1.FrameHeight = EncParams.FrameHeight;
+        EncParams1.videoProfile= EncParams.videoProfile;
+        EncParams1.videoLevel= EncParams.videoLevel;
         EncParams1.Bitrate = EncParams.Bitrate;
         EncParams1.FrameRate = EncParams.FrameRate;
         EncParams1.Format = M4ENCODER_kH264; //EncParams.Format;
-
+        M4OSA_TRACE1_2("mcs encoder open profile :%d, level %d",
+            EncParams1.videoProfile, EncParams1.videoLevel);
         err = pC->pVideoEncoderGlobalFcts->pFctOpen(pC->pViEncCtxt,
             &pC->WriterVideoAU, &EncParams1);
     }
     else
     {
+        M4OSA_TRACE1_2("mcs encoder open Adv profile :%d, level %d",
+            EncParams.videoProfile, EncParams.videoLevel);
         err = pC->pVideoEncoderGlobalFcts->pFctOpen(pC->pViEncCtxt,
             &pC->WriterVideoAU, &EncParams);
     }
@@ -6568,31 +6561,6 @@ static M4OSA_ERR M4MCS_intPrepareWriter( M4MCS_InternalContext *pC )
     }
 
     /**
-    * In case of EMP, we have to explicitely give an emp ftyp to the writer */
-    if( M4OSA_TRUE == pC->bActivateEmp )
-    {
-        M4VIDEOEDITING_FtypBox ftyp;
-
-        ftyp.major_brand = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.minor_version = M4VIDEOEDITING_BRAND_0000;
-        ftyp.nbCompatibleBrands = 2;
-        ftyp.compatible_brands[0] = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.compatible_brands[1] = M4VIDEOEDITING_BRAND_EMP;
-
-        err = pC->pWriterGlobalFcts->pFctSetOption(pC->pWriterContext,
-            (M4OSA_UInt32)M4WRITER_kSetFtypBox, (M4OSA_DataOption) &ftyp);
-
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4MCS_intPrepareWriter:\
-                 pWriterGlobalFcts->pFctSetOption(M4WRITER_kSetFtypBox) returns 0x%x!",
-                err);
-            return err;
-        }
-    }
-
-    /**
     * If there is a video input, allocate and fill the video stream structures for the writer */
     if( pC->novideo == M4OSA_FALSE )
     {
@@ -6626,7 +6594,6 @@ static M4OSA_ERR M4MCS_intPrepareWriter( M4MCS_InternalContext *pC )
                 switch( pC->InputFileProperties.VideoStreamType )
                 {
                     case M4VIDEOEDITING_kMPEG4:
-                    case M4VIDEOEDITING_kMPEG4_EMP: /* RC */
                         pC->WriterVideoStream.streamType = M4SYS_kMPEG_4;
                         break;
 
@@ -9340,13 +9307,7 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
     M4READER_3GP_H263Properties H263prop;
     M4OSA_ERR err;
     M4OSA_UInt32 videoBitrate;
-    M4DECODER_AVCProfileLevel AVCProfle;
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-
     M4DECODER_VideoSize videoSize;
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
     M4_AACType iAacType = 0;
 
     /**
@@ -9376,10 +9337,10 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
     pC->InputFileProperties.uiVideoHeight = 0;
     pC->InputFileProperties.uiVideoTimeScale = 0;
     pC->InputFileProperties.fAverageFrameRate = 0.0;
-    pC->InputFileProperties.ProfileAndLevel =
-        M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range;
-    pC->InputFileProperties.uiH263level = 0;
-    pC->InputFileProperties.uiVideoProfile = 0;
+    pC->InputFileProperties.uiVideoLevel =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+    pC->InputFileProperties.uiVideoProfile =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     pC->InputFileProperties.bMPEG4dataPartition = M4OSA_FALSE;
     pC->InputFileProperties.bMPEG4rvlc = M4OSA_FALSE;
     pC->InputFileProperties.bMPEG4resynchMarker = M4OSA_FALSE;
@@ -9450,7 +9411,6 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
             && (M4VIDEOEDITING_kH264
             != pC->InputFileProperties.VideoStreamType) )
         {
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
             /* Use the DSI parsing function from the external video shell decoder.
             See the comments in M4VSS3GPP_ClipAnalysis.c, it's pretty much the
             same issue. */
@@ -9472,47 +9432,6 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
 
             pC->pReaderVideoStream->m_videoWidth = videoSize.m_uiWidth;
             pC->pReaderVideoStream->m_videoHeight = videoSize.m_uiHeight;
-
-#else
-            /*FB 2009-02-09: add a check on the video decoder context to
-            avoid crash when the MCS is used only with audio codecs compilated*/
-
-            if( pC->m_pVideoDecoder != M4OSA_NULL )
-            {
-                if( M4OSA_NULL == pC->pViDecCtxt )
-                {
-                    err = pC->m_pVideoDecoder->m_pFctCreate(&pC->pViDecCtxt,
-                        &pC->pReaderVideoStream->m_basicProperties,
-                        pC->m_pReaderDataIt, &pC->ReaderVideoAU,
-                        M4OSA_NULL);
-
-                    if( M4NO_ERROR != err )
-                    {
-                        M4OSA_TRACE1_1(
-                            "M4MCS_intGetInputClipProperties:\
-                             m_pVideoDecoder->m_pFctCreate returns 0x%x!",
-                            err);
-                        return err;
-                    }
-                }
-
-                err = pC->m_pVideoDecoder->m_pFctGetOption(pC->pViDecCtxt,
-                    M4DECODER_MPEG4_kOptionID_DecoderConfigInfo,
-                    &DecConfInfo);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4MCS_intGetInputClipProperties:\
-                         m_pVideoDecoder->m_pFctGetOption returns 0x%x!",
-                        err);
-                    return err;
-                }
-            }
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-            pC->InputFileProperties.uiVideoProfile = DecConfInfo.uiProfile;
             pC->InputFileProperties.uiVideoTimeScale = DecConfInfo.uiTimeScale;
             pC->InputFileProperties.bMPEG4dataPartition =
                 DecConfInfo.bDataPartition;
@@ -9520,240 +9439,44 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
             pC->InputFileProperties.bMPEG4resynchMarker =
                 DecConfInfo.uiUseOfResynchMarker;
 
-            /* Supported enum value for profile and level */
-            switch( pC->InputFileProperties.uiVideoProfile )
-            {
-                case 0x08:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_0;
-                    break;
-
-                case 0x09:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_0b;
-                    break;
-
-                case 0x01:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_1;
-                    break;
-
-                case 0x02:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_2;
-                    break;
-
-                case 0x03:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_3;
-                    break;
-
-                case 0x04:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_4a;
-                    break;
-
-                case 0x05:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kMPEG4_SP_Level_5;
-                    break;
-            }
-        }
-        else if( M4VIDEOEDITING_kH263
-            == pC->InputFileProperties.VideoStreamType )
-        {
-            err = pC->m_pReader->m_pFctGetOption(pC->pReaderContext,
-                M4READER_3GP_kOptionID_H263Properties, &H263prop);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4MCS_intGetInputClipProperties: m_pReader->m_pFctGetOption returns 0x%x!",
-                    err);
+            err = getMPEG4ProfileAndLevel(DecConfInfo.uiProfile,
+                        &(pC->InputFileProperties.uiVideoProfile),
+                        &(pC->InputFileProperties.uiVideoLevel));
+            if ( M4NO_ERROR != err ) {
+                M4OSA_TRACE1_1("M4MCS_intGetInputClipProperties():\
+                    getMPEG4ProfileAndLevel returns 0x%08X", err);
                 return err;
             }
+        }
+        else if( M4VIDEOEDITING_kH263 ==
+            pC->InputFileProperties.VideoStreamType ) {
 
-            pC->InputFileProperties.uiH263level = H263prop.uiLevel;
-            pC->InputFileProperties.uiVideoProfile = H263prop.uiProfile;
-
-            /* Supported enum value for profile and level */
-            if( pC->InputFileProperties.uiVideoProfile == 0 )
-            {
-                switch( pC->InputFileProperties.uiH263level )
-                {
-                    case 10:
-                        pC->InputFileProperties.ProfileAndLevel =
-                            M4VIDEOEDITING_kH263_Profile_0_Level_10;
-                        break;
-
-                    case 20:
-                        pC->InputFileProperties.ProfileAndLevel =
-                            M4VIDEOEDITING_kH263_Profile_0_Level_20;
-                        break;
-
-                    case 30:
-                        pC->InputFileProperties.ProfileAndLevel =
-                            M4VIDEOEDITING_kH263_Profile_0_Level_30;
-                        break;
-
-                    case 40:
-                        pC->InputFileProperties.ProfileAndLevel =
-                            M4VIDEOEDITING_kH263_Profile_0_Level_40;
-                        break;
-
-                    case 45:
-                        pC->InputFileProperties.ProfileAndLevel =
-                            M4VIDEOEDITING_kH263_Profile_0_Level_45;
-                        break;
-                }
+            err = getH263ProfileAndLevel(pC->pReaderVideoStream->
+                        m_basicProperties.m_pDecoderSpecificInfo,
+                        pC->pReaderVideoStream->m_basicProperties.m_decoderSpecificInfoSize,
+                        &(pC->InputFileProperties.uiVideoProfile),
+                        &(pC->InputFileProperties.uiVideoLevel));
+            if ( M4NO_ERROR != err ) {
+                M4OSA_TRACE1_1("M4MCS_intGetInputClipProperties():\
+                    getH263ProfileAndLevel returns 0x%08X", err);
+                return err;
             }
-
             /* For h263 set default timescale : 30000:1001 */
             pC->InputFileProperties.uiVideoTimeScale = 30000;
         }
-        else if( M4VIDEOEDITING_kH264
-            == pC->InputFileProperties.VideoStreamType )
-        {
-            AVCProfle = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
+        else if ( M4VIDEOEDITING_kH264 ==
+            pC->InputFileProperties.VideoStreamType ) {
+
             pC->InputFileProperties.uiVideoTimeScale = 30000;
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-
-            err = M4DECODER_EXTERNAL_ParseAVCDSI(pC->pReaderVideoStream->
-                m_basicProperties.m_pDecoderSpecificInfo,
-                pC->pReaderVideoStream->
-                m_basicProperties.m_decoderSpecificInfoSize,
-                &AVCProfle);
-
-            if( M4NO_ERROR != err )
-            {
-                M4OSA_TRACE1_1(
-                    "M4MCS_intGetInputClipProperties():\
-                     M4DECODER_EXTERNAL_ParseAVCDSI returns 0x%08X",
-                    err);
+            err = getAVCProfileAndLevel(pC->pReaderVideoStream->
+                        m_basicProperties.m_pDecoderSpecificInfo,
+                        pC->pReaderVideoStream->m_basicProperties.m_decoderSpecificInfoSize,
+                        &(pC->InputFileProperties.uiVideoProfile),
+                        &(pC->InputFileProperties.uiVideoLevel));
+            if ( M4NO_ERROR != err ) {
+                M4OSA_TRACE1_1("M4MCS_intGetInputClipProperties():\
+                    getAVCProfileAndLevel returns 0x%08X", err);
                 return err;
-            }
-
-#else
-
-            if( pC->m_pVideoDecoder != M4OSA_NULL )
-            {
-                if( M4OSA_NULL == pC->pViDecCtxt )
-                {
-                    err = pC->m_pVideoDecoder->m_pFctCreate(&pC->pViDecCtxt,
-                        &pC->pReaderVideoStream->m_basicProperties,
-                        pC->m_pReaderDataIt, &pC->ReaderVideoAU,
-                        M4OSA_NULL);
-
-                    if( M4NO_ERROR != err )
-                    {
-                        M4OSA_TRACE1_1(
-                            "M4MCS_intGetInputClipProperties:\
-                             m_pVideoDecoder->m_pFctCreate returns 0x%x!",
-                            err);
-                        return err;
-                    }
-                }
-                err = pC->m_pVideoDecoder->m_pFctGetOption(pC->pViDecCtxt,
-                    M4DECODER_kOptionID_AVCProfileAndLevel, &AVCProfle);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4MCS_intGetInputClipProperties:\
-                         m_pVideoDecoder->m_pFctGetOption returns 0x%x!",
-                        err);
-                    return err;
-                }
-            }
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-            switch( AVCProfle )
-            {
-                case M4DECODER_AVC_kProfile_0_Level_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_1b:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_1b;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_1_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_1_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_1_2:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_1_2;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_1_3:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_1_3;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_2:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_2;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_2_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_2_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_2_2:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_2_2;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_3:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_3;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_3_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_3_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_3_2:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_3_2;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_4:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_4;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_4_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_4_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_4_2:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_4_2;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_5:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_5;
-                    break;
-
-                case M4DECODER_AVC_kProfile_0_Level_5_1:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kH264_Profile_0_Level_5_1;
-                    break;
-
-                case M4DECODER_AVC_kProfile_and_Level_Out_Of_Range:
-                default:
-                    pC->InputFileProperties.ProfileAndLevel =
-                        M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range;
             }
         }
 
@@ -10020,17 +9743,6 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
     /* Get 'ftyp' atom */
     err = pC->m_pReader->m_pFctGetOption(pC->pReaderContext,
         M4READER_kOptionID_3gpFtypBox, &pC->InputFileProperties.ftyp);
-
-    if( M4NO_ERROR == err )
-    {
-        M4OSA_UInt8 i;
-
-        for ( i = 0; i < pC->InputFileProperties.ftyp.nbCompatibleBrands; i++ )
-            if( M4VIDEOEDITING_BRAND_EMP
-                == pC->InputFileProperties.ftyp.compatible_brands[i] )
-                pC->InputFileProperties.VideoStreamType =
-                M4VIDEOEDITING_kMPEG4_EMP;
-    }
 
     /* Analysis is successful */
     if( pC->InputFileProperties.uiClipVideoDuration

@@ -151,8 +151,12 @@
 #define M4VSS3GPP_ERR_EDITING_NO_SUPPORTED_VIDEO_STREAM_IN_FILE    M4OSA_ERR_CREATE( M4_ERR,\
                                                                                 M4VSS3GPP, 0x0026)
 /**
- * Unsupported H264 profile for Video Editing */
-#define M4VSS3GPP_ERR_EDITING_UNSUPPORTED_H264_PROFILE M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0027)
+ * Unsupported video profile for Video Editing */
+#define M4VSS3GPP_ERR_EDITING_UNSUPPORTED_VIDEO_PROFILE M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0027)
+
+/**
+ * Unsupported video profile for Video Editing */
+#define M4VSS3GPP_ERR_EDITING_UNSUPPORTED_VIDEO_LEVEL M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0028)
 
 /************************************************************************/
 /* Errors returned by M4VSS3GPP_editCheckClipCompatibility()            */

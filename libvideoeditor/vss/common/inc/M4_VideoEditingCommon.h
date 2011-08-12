@@ -35,6 +35,8 @@ extern "C" {
 #define M4VIDEOEDITING_VERSION_MINOR    1
 #define M4VIDEOEDITING_VERSION_REVISION    0
 
+#define M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE 0x7fffffff
+#define M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL 0x7fffffff
 
 /**
  ******************************************************************************
@@ -71,15 +73,12 @@ typedef enum {
 */
 typedef enum
 {
-    M4VIDEOEDITING_kNoneVideo            = 0,    /**< Video not present */
-    M4VIDEOEDITING_kH263                = 1,    /**< H263 video */
-    M4VIDEOEDITING_kMPEG4                = 2,    /**< MPEG-4 video */
-    M4VIDEOEDITING_kMPEG4_EMP            = 3,    /**< MPEG-4 video with support for EMP
-                                                    (hsr=15, vsr=15, err=0, Iperiod=15,
-                                                     NO_M4V, NO_AC_PRED) */
-    M4VIDEOEDITING_kH264                = 4,    /**< H264 video */
-    M4VIDEOEDITING_kNullVideo           = 254,  /**< Do not care video type, use NULL encoder */
-    M4VIDEOEDITING_kUnsupportedVideo    = 255    /**< Unsupported video stream type */
+    M4VIDEOEDITING_kNoneVideo = 0, /**< Video not present */
+    M4VIDEOEDITING_kH263 = 1, /**< H263 video */
+    M4VIDEOEDITING_kH264 = 2,    /**< H264 video */
+    M4VIDEOEDITING_kMPEG4 = 3, /**< MPEG-4 video */
+    M4VIDEOEDITING_kNullVideo = 254,  /**< Do not care video type, use NULL encoder */
+    M4VIDEOEDITING_kUnsupportedVideo = 255    /**< Unsupported video stream type */
 } M4VIDEOEDITING_VideoFormat;
 
 /**
@@ -101,51 +100,6 @@ typedef enum {
     M4VIDEOEDITING_kNullAudio           = 254,  /**< Do not care audio type, use NULL encoder */
     M4VIDEOEDITING_kUnsupportedAudio    = 255    /**< Unsupported audio stream type */
 } M4VIDEOEDITING_AudioFormat;
-
-
-/**
- ******************************************************************************
- * enum        M4VIDEOEDITING_VideoProfileAndLevel
- * @brief    This enum defines the video profile and level for MPEG-4 and H263 streams.
- ******************************************************************************
-*/
-typedef enum
-{
-    /* H.263 Profiles and levels */
-    M4VIDEOEDITING_kH263_Profile_0_Level_10        = 0,
-    M4VIDEOEDITING_kH263_Profile_0_Level_20        = 1,
-    M4VIDEOEDITING_kH263_Profile_0_Level_30        = 2,
-    M4VIDEOEDITING_kH263_Profile_0_Level_40        = 3,
-    M4VIDEOEDITING_kH263_Profile_0_Level_45        = 4,
-    /* MPEG-4 Profiles and levels */
-    M4VIDEOEDITING_kMPEG4_SP_Level_0               = 50,
-    M4VIDEOEDITING_kMPEG4_SP_Level_0b              = 51,
-    M4VIDEOEDITING_kMPEG4_SP_Level_1               = 52,
-    M4VIDEOEDITING_kMPEG4_SP_Level_2               = 53,
-    M4VIDEOEDITING_kMPEG4_SP_Level_3               = 54,
-    M4VIDEOEDITING_kMPEG4_SP_Level_4a              = 55,
-    M4VIDEOEDITING_kMPEG4_SP_Level_5               = 56,
-    /* AVC Profiles and levels */
-    M4VIDEOEDITING_kH264_Profile_0_Level_1         = 150,
-    M4VIDEOEDITING_kH264_Profile_0_Level_1b        = 151,
-    M4VIDEOEDITING_kH264_Profile_0_Level_1_1       = 152,
-    M4VIDEOEDITING_kH264_Profile_0_Level_1_2       = 153,
-    M4VIDEOEDITING_kH264_Profile_0_Level_1_3       = 154,
-    M4VIDEOEDITING_kH264_Profile_0_Level_2         = 155,
-    M4VIDEOEDITING_kH264_Profile_0_Level_2_1       = 156,
-    M4VIDEOEDITING_kH264_Profile_0_Level_2_2       = 157,
-    M4VIDEOEDITING_kH264_Profile_0_Level_3         = 158,
-    M4VIDEOEDITING_kH264_Profile_0_Level_3_1       = 159,
-    M4VIDEOEDITING_kH264_Profile_0_Level_3_2       = 160,
-    M4VIDEOEDITING_kH264_Profile_0_Level_4         = 161,
-    M4VIDEOEDITING_kH264_Profile_0_Level_4_1       = 162,
-    M4VIDEOEDITING_kH264_Profile_0_Level_4_2       = 163,
-    M4VIDEOEDITING_kH264_Profile_0_Level_5         = 164,
-    M4VIDEOEDITING_kH264_Profile_0_Level_5_1       = 165,
-    /* Unsupported profile and level */
-    M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range = 255
-} M4VIDEOEDITING_VideoProfileAndLevel;
-
 
 /**
  ******************************************************************************
@@ -328,11 +282,9 @@ typedef struct {
     M4OSA_UInt32                        uiVideoTimeScale;    /**< Video time scale */
     M4OSA_Float                         fAverageFrameRate;   /**< Average frame rate of the video
                                                                   stream */
-    M4VIDEOEDITING_VideoProfileAndLevel    ProfileAndLevel;     /**< Supported MPEG4 and H263
-                                                                     profiles and levels */
-    M4OSA_UInt8                         uiH263level;         /**< H263 level (from core decoder)*/
-    M4OSA_UInt8                         uiVideoProfile;      /**< H263 or MPEG-4 profile
-                                                                (from core decoder) */
+    M4OSA_Int32 uiVideoLevel;   /**< video level*/
+    M4OSA_Int32 uiVideoProfile; /**< video profile */
+
     M4OSA_Bool                          bMPEG4dataPartition; /**< MPEG-4 uses data partitioning */
     M4OSA_Bool                          bMPEG4rvlc;          /**< MPEG-4 uses RVLC tool */
     M4OSA_Bool                          bMPEG4resynchMarker; /**< MPEG-4 stream uses Resynch

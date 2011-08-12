@@ -680,7 +680,6 @@ M4OSA_ERR   M4MCS_setCurrentVideoEncoder(
             encoderType = M4ENCODER_kH263;
             break;
         case M4VIDEOEDITING_kMPEG4:
-        case M4VIDEOEDITING_kMPEG4_EMP:
             encoderType = M4ENCODER_kMPEG4;
             break;
         case M4VIDEOEDITING_kH264:

@@ -108,6 +108,8 @@ M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
        MCS parameters chained list */
     Params.OutputFileType = xVSS_context->pMCScurrentParams->OutputFileType;
     Params.OutputVideoFormat = xVSS_context->pMCScurrentParams->OutputVideoFormat;
+    Params.outputVideoProfile= xVSS_context->pMCScurrentParams->outputVideoProfile;
+    Params.outputVideoLevel = xVSS_context->pMCScurrentParams->outputVideoLevel;
     Params.OutputVideoFrameSize = xVSS_context->pMCScurrentParams->OutputVideoFrameSize;
     Params.OutputVideoFrameRate = xVSS_context->pMCScurrentParams->OutputVideoFrameRate;
     Params.OutputAudioFormat = xVSS_context->pMCScurrentParams->OutputAudioFormat;
@@ -1520,6 +1522,8 @@ M4OSA_ERR M4xVSS_internalStartConvertPictureTo3gp(M4OSA_Context pContext)
 
     Params.OutputVideoFrameSize = xVSS_context->pSettings->xVSS.outputVideoSize;
     Params.OutputVideoFormat = xVSS_context->pSettings->xVSS.outputVideoFormat;
+    Params.videoProfile = xVSS_context->pSettings->xVSS.outputVideoProfile;
+    Params.videoLevel = xVSS_context->pSettings->xVSS.outputVideoLevel;
 
     /**
      * Generate "dummy" amr file containing silence in temporary folder */
@@ -2370,6 +2374,10 @@ M4OSA_ERR M4xVSS_internalGenerateEditedFile(M4OSA_Context pContext)
             xVSS_context->pSettings->xVSS.outputAudioBitrate ;
         pVSSContext->xVSS.bAudioMono =
             xVSS_context->pSettings->xVSS.bAudioMono;
+        pVSSContext->xVSS.outputVideoProfile =
+            xVSS_context->pSettings->xVSS.outputVideoProfile;
+        pVSSContext->xVSS.outputVideoLevel =
+            xVSS_context->pSettings->xVSS.outputVideoLevel;
     /* In case of MMS use case, we fill directly into the VSS context the targeted bitrate */
     if(xVSS_context->targetedBitrate != 0)
     {

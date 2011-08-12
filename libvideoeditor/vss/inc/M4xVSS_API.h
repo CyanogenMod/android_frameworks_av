@@ -32,7 +32,7 @@ extern "C" {
 
 #include "M4VSS3GPP_API.h"
 #include "M4VSS3GPP_Extended_API.h"
-
+#include "M4DECODER_Common.h"
 /* Errors codes */
 
 /**
@@ -581,6 +581,8 @@ M4OSA_ERR M4xVSS_getMCSContext(M4OSA_Context pContext, M4OSA_Context* mcsContext
 */
 M4OSA_ERR M4xVSS_getVSS3GPPContext(M4OSA_Context pContext, M4OSA_Context* vss3gppContext);
 
+// Get supported video decoders and capabilities.
+M4OSA_ERR M4xVSS_getVideoDecoderCapabilities(M4DECODER_VideoDecoders **decoders);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

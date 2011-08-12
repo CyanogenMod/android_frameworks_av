@@ -145,6 +145,8 @@ typedef struct
     M4OSA_Void*                     pTemporaryFile;
     /**< Number of input YUV frames to encode */
     M4OSA_UInt32                    NbVideoFrames;
+    M4OSA_Int32   videoProfile;
+    M4OSA_Int32   videoLevel;
 } M4PTO3GPP_Params;
 
 /**

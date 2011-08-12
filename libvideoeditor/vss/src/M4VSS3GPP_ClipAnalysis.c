@@ -33,12 +33,8 @@
 #include "M4VSS3GPP_InternalTypes.h"
 #include "M4VSS3GPP_InternalFunctions.h"
 #include "M4VSS3GPP_InternalConfig.h"
-
-
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
 #include "M4VD_EXTERNAL_Interface.h"
 
-#endif
 
 /**
  *    OSAL headers */
@@ -377,10 +373,10 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
     pClipProperties->uiVideoHeight = 0;
     pClipProperties->uiVideoTimeScale = 0;
     pClipProperties->fAverageFrameRate = 0.0;
-    pClipProperties->ProfileAndLevel =
-        M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range;
-    pClipProperties->uiH263level = 0;
-    pClipProperties->uiVideoProfile = 0;
+    pClipProperties->uiVideoProfile =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+    pClipProperties->uiVideoLevel =
+        M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
     pClipProperties->bMPEG4dataPartition = M4OSA_FALSE;
     pClipProperties->bMPEG4rvlc = M4OSA_FALSE;
     pClipProperties->bMPEG4resynchMarker = M4OSA_FALSE;
@@ -403,7 +399,6 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
 
                 pClipProperties->VideoStreamType = M4VIDEOEDITING_kMPEG4;
 
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
    /* This issue is so incredibly stupid that it's depressing. Basically, a file can be analysed
    outside of any context (besides that of the clip itself), so that for instance two clips can
    be checked for compatibility before allocating an edit context for editing them. But this
@@ -422,10 +417,9 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
          whatsoever). */
 
                 err = M4DECODER_EXTERNAL_ParseVideoDSI(pClipCtxt->pVideoStream->
-                    m_basicProperties.m_pDecoderSpecificInfo,
-                    pClipCtxt->pVideoStream->
-                    m_basicProperties.m_decoderSpecificInfoSize,
-                    &DecConfigInfo, &dummySize);
+                            m_basicProperties.m_pDecoderSpecificInfo,
+                            pClipCtxt->pVideoStream->m_basicProperties.m_decoderSpecificInfoSize,
+                            &DecConfigInfo, &dummySize);
 
                 if( M4NO_ERROR != err )
                 {
@@ -435,252 +429,66 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
                     return err;
                 }
 
-    #else /* an external decoder cannot be present, so we can rely on the
-                software decoder to be installed already */
-                /* Get MPEG-4 decoder config. */
-
-                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctGetOption(
-                    pClipCtxt->pViDecCtxt,
-                    M4DECODER_MPEG4_kOptionID_DecoderConfigInfo,
-                    &DecConfigInfo);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): m_pFctGetOption(DecConfigInfo)\
-                        returns 0x%x", err);
-                    return err;
-                }
-
-    #endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-                pClipProperties->uiVideoProfile = DecConfigInfo.uiProfile;
-                pClipProperties->uiVideoTimeScale = DecConfigInfo.uiTimeScale;
+                pClipProperties->uiVideoTimeScale =
+                    DecConfigInfo.uiTimeScale;
                 pClipProperties->bMPEG4dataPartition =
                     DecConfigInfo.bDataPartition;
-                pClipProperties->bMPEG4rvlc = DecConfigInfo.bUseOfRVLC;
+                pClipProperties->bMPEG4rvlc =
+                    DecConfigInfo.bUseOfRVLC;
                 pClipProperties->bMPEG4resynchMarker =
                     DecConfigInfo.uiUseOfResynchMarker;
-
-                /* Supported enum value for profile and level */
-                switch( pClipProperties->uiVideoProfile )
-                {
-                    case 0x08:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_0;
-                        break;
-
-                    case 0x09:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_0b;
-                        break;
-
-                    case 0x01:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_1;
-                        break;
-
-                    case 0x02:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_2;
-                        break;
-
-                    case 0x03:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_3;
-                        break;
-
-                    case 0x04:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_4a;
-                        break;
-
-                    case 0x05:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kMPEG4_SP_Level_5;
-                        break;
+                err = getMPEG4ProfileAndLevel(DecConfigInfo.uiProfile,
+                            &(pClipProperties->uiVideoProfile),
+                            &(pClipProperties->uiVideoLevel));
+               if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): \
+                         getMPEG4ProfileAndLevel returns 0x%08X", err);
+                    return err;
                 }
                 break;
 
             case M4DA_StreamTypeVideoH263:
 
                 pClipProperties->VideoStreamType = M4VIDEOEDITING_kH263;
-
-                /* Get H263 level, which is sixth byte in the DSI */
-                pClipProperties->uiH263level = pClipCtxt->pVideoStream->
-                    m_basicProperties.m_pDecoderSpecificInfo[5];
-                /* Get H263 profile, which is fifth byte in the DSI */
-                pClipProperties->uiVideoProfile = pClipCtxt->pVideoStream->
-                    m_basicProperties.m_pDecoderSpecificInfo[6];
                 /* H263 time scale is always 30000 */
                 pClipProperties->uiVideoTimeScale = 30000;
 
-                /* Supported enum value for profile and level */
-                if( pClipProperties->uiVideoProfile == 0 )
-                {
-                    switch( pClipProperties->uiH263level )
-                    {
-                        case 10:
-                            pClipProperties->ProfileAndLevel =
-                                M4VIDEOEDITING_kH263_Profile_0_Level_10;
-                            break;
-
-                        case 20:
-                            pClipProperties->ProfileAndLevel =
-                                M4VIDEOEDITING_kH263_Profile_0_Level_20;
-                            break;
-
-                        case 30:
-                            pClipProperties->ProfileAndLevel =
-                                M4VIDEOEDITING_kH263_Profile_0_Level_30;
-                            break;
-
-                        case 40:
-                            pClipProperties->ProfileAndLevel =
-                                M4VIDEOEDITING_kH263_Profile_0_Level_40;
-                            break;
-
-                        case 45:
-                            pClipProperties->ProfileAndLevel =
-                                M4VIDEOEDITING_kH263_Profile_0_Level_45;
-                            break;
-                    }
+                err = getH263ProfileAndLevel(pClipCtxt->pVideoStream->
+                            m_basicProperties.m_pDecoderSpecificInfo,
+                            pClipCtxt->pVideoStream->m_basicProperties.m_decoderSpecificInfoSize,
+                            &pClipProperties->uiVideoProfile,
+                            &pClipProperties->uiVideoLevel);
+                if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): \
+                         getH263ProfileAndLevel returns 0x%08X", err);
+                    return err;
                 }
                 break;
 
             case M4DA_StreamTypeVideoMpeg4Avc:
 
                 pClipProperties->VideoStreamType = M4VIDEOEDITING_kH264;
-#ifdef M4VSS_ENABLE_EXTERNAL_DECODERS
-
-                err = M4DECODER_EXTERNAL_ParseAVCDSI(pClipCtxt->pVideoStream->
-                    m_basicProperties.m_pDecoderSpecificInfo,
-                    pClipCtxt->pVideoStream->
-                    m_basicProperties.m_decoderSpecificInfoSize,
-                    &AVCProfle);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intBuildAnalysis(): \
-                         M4DECODER_EXTERNAL_ParseAVCDSI returns 0x%08X",
-                         err);
+                err = getAVCProfileAndLevel(pClipCtxt->pVideoStream->
+                            m_basicProperties.m_pDecoderSpecificInfo,
+                            pClipCtxt->pVideoStream->m_basicProperties.m_decoderSpecificInfoSize,
+                            &pClipProperties->uiVideoProfile,
+                            &pClipProperties->uiVideoLevel);
+                if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intBuildAnalysis(): \
+                         getAVCProfileAndLevel returns 0x%08X", err);
                     return err;
                 }
-
-#else /* an external decoder cannot be present, so we can rely on the
-                software decoder to be installed already */
-
-                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctGetOption(
-                    pClipCtxt->pViDecCtxt,
-                    M4DECODER_kOptionID_AVCProfileAndLevel, &AVCProfle);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intBuildAnalysis(): m_pFctGetOption(AVCProfileInfo)\
-                            returns 0x%x", err);
-                    return err;
-                }
-
-#endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
-
-                switch( AVCProfle )
-                {
-                    case M4DECODER_AVC_kProfile_0_Level_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_1b:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_1b;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_1_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_1_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_1_2:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_1_2;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_1_3:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_1_3;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_2:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_2;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_2_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_2_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_2_2:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_2_2;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_3:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_3;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_3_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_3_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_3_2:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_3_2;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_4:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_4;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_4_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_4_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_4_2:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_4_2;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_5:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_5;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_0_Level_5_1:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kH264_Profile_0_Level_5_1;
-                        break;
-
-                    case M4DECODER_AVC_kProfile_and_Level_Out_Of_Range:
-                    default:
-                        pClipProperties->ProfileAndLevel =
-                            M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range;
-                }
-
                 break;
 
             default:
                 M4OSA_TRACE1_1(
                     "M4VSS3GPP_intBuildAnalysis: unknown input video format (0x%x),\
-                    returning M4NO_ERROR",pClipCtxt->pVideoStream->m_basicProperties.m_streamType);
-                return
-                    M4NO_ERROR; /**< We do not return error here.
-                                The video format compatibility check will be done latter */
+                     returning M4NO_ERROR",
+                    pClipCtxt->pVideoStream->m_basicProperties.m_streamType);
+
+                 /** We do not return error here.
+                   *  The video format compatibility check will be done latter */
+                return M4NO_ERROR;
         }
 
         pClipProperties->uiClipVideoDuration =
@@ -838,16 +646,6 @@ M4OSA_ERR M4VSS3GPP_intBuildAnalysis( M4VSS3GPP_ClipContext *pClipCtxt,
         pClipCtxt->pReaderContext,
         M4READER_kOptionID_3gpFtypBox, &pClipProperties->ftyp);
 
-    if( M4NO_ERROR == err )
-    {
-        M4OSA_UInt8 i;
-
-        for ( i = 0; i < pClipProperties->ftyp.nbCompatibleBrands; i++ )
-            if( M4VIDEOEDITING_BRAND_EMP
-                == pClipProperties->ftyp.compatible_brands[i] )
-                pClipProperties->VideoStreamType = M4VIDEOEDITING_kMPEG4_EMP;
-    }
-
     /**
     * We write the VSS 3GPP version in the clip analysis to be sure the integrator doesn't
     * mix older analysis results with newer libraries */
@@ -916,59 +714,12 @@ M4OSA_ERR M4VSS3GPP_intCheckClipCompatibleWithVssEditing(
     if( M4VIDEOEDITING_kNoneVideo
         != pClipProperties->VideoStreamType ) /**< if there is a video stream */
     {
-        /**
-        * Check video format is MPEG-4 or H263 */
+        /* Check video format is MPEG-4, H263 or H264 */
         switch( pClipProperties->VideoStreamType )
         {
             case M4VIDEOEDITING_kH263:
-                if( M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range
-                    == pClipProperties->ProfileAndLevel )
-                {
-                    M4OSA_TRACE1_0(
-                        "M4VSS3GPP_intCheckClipCompatibleWithVssEditing():\
-                        unsupported H263 profile");
-                    video_err = M4VSS3GPP_ERR_EDITING_UNSUPPORTED_H263_PROFILE;
-                    break;
-                }
-                uiNbOfValidStreams++;
-                pClipProperties->bVideoIsEditable = M4OSA_TRUE;
-                break;
-
-            case M4VIDEOEDITING_kMPEG4_EMP:
             case M4VIDEOEDITING_kMPEG4:
-                if( M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range
-                    == pClipProperties->ProfileAndLevel )
-                {
-                    M4OSA_TRACE1_0(
-                        "M4VSS3GPP_intCheckClipCompatibleWithVssEditing():\
-                        unsupported MPEG-4 profile");
-                    video_err = M4VSS3GPP_ERR_EDITING_UNSUPPORTED_MPEG4_PROFILE;
-                    break;
-                }
-
-                if( M4OSA_TRUE == pClipProperties->bMPEG4rvlc )
-                {
-                    M4OSA_TRACE1_0(
-                        "M4VSS3GPP_intCheckClipCompatibleWithVssEditing():\
-                        unsupported MPEG-4 RVLC tool");
-                    video_err = M4VSS3GPP_ERR_EDITING_UNSUPPORTED_MPEG4_RVLC;
-                    break;
-                }
-                uiNbOfValidStreams++;
-                pClipProperties->bVideoIsEditable = M4OSA_TRUE;
-                break;
-
             case M4VIDEOEDITING_kH264:
-                if( M4VIDEOEDITING_kProfile_and_Level_Out_Of_Range
-                    == pClipProperties->ProfileAndLevel )
-                {
-                    M4OSA_TRACE1_0(
-                        "M4VSS3GPP_intCheckClipCompatibleWithVssEditing():\
-                        unsupported H264 profile");
-                    video_err = M4VSS3GPP_ERR_EDITING_UNSUPPORTED_H264_PROFILE;
-                    break;
-                }
-
                 uiNbOfValidStreams++;
                 pClipProperties->bVideoIsEditable = M4OSA_TRUE;
                 break;

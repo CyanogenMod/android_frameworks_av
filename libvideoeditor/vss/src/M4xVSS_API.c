@@ -33,7 +33,8 @@
 #include "M4OSA_CharStar.h"
 // StageFright encoders require %16 resolution
 #include "M4ENCODER_common.h"
-
+#include "M4DECODER_Common.h"
+#include "VideoEditorVideoDecoder.h"
 
 /**
  * VSS 3GPP API definition */
@@ -664,6 +665,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
             != pSettings->xVSS.outputVideoSize
             || xVSS_context->pSettings->xVSS.outputVideoFormat
             != pSettings->xVSS.outputVideoFormat
+            || xVSS_context->pSettings->xVSS.outputVideoProfile
+            != pSettings->xVSS.outputVideoProfile
+            || xVSS_context->pSettings->xVSS.outputVideoLevel
+            != pSettings->xVSS.outputVideoLevel
             || xVSS_context->pSettings->xVSS.outputAudioFormat
             != pSettings->xVSS.outputAudioFormat
             || xVSS_context->pSettings->xVSS.bAudioMono
@@ -796,6 +801,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
     /* Copy settings from user given structure to our "local" structure */
     xVSS_context->pSettings->xVSS.outputVideoFormat =
         pSettings->xVSS.outputVideoFormat;
+    xVSS_context->pSettings->xVSS.outputVideoProfile =
+        pSettings->xVSS.outputVideoProfile;
+    xVSS_context->pSettings->xVSS.outputVideoLevel =
+        pSettings->xVSS.outputVideoLevel;
     xVSS_context->pSettings->xVSS.outputVideoSize =
         pSettings->xVSS.outputVideoSize;
     xVSS_context->pSettings->xVSS.outputAudioFormat =
@@ -887,8 +896,6 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
     if( xVSS_context->pSettings->xVSS.outputVideoFormat != M4VIDEOEDITING_kMPEG4
         && xVSS_context->pSettings->xVSS.outputVideoFormat
         != M4VIDEOEDITING_kH263
-        && xVSS_context->pSettings->xVSS.outputVideoFormat
-        != M4VIDEOEDITING_kMPEG4_EMP
         && xVSS_context->pSettings->xVSS.outputVideoFormat
         != M4VIDEOEDITING_kH264 )
     {
@@ -2498,6 +2505,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 {
                     pParams->OutputVideoFormat =
                         xVSS_context->pSettings->xVSS.outputVideoFormat;
+                    pParams->outputVideoProfile =
+                        xVSS_context->pSettings->xVSS.outputVideoProfile;
+                    pParams->outputVideoLevel =
+                        xVSS_context->pSettings->xVSS.outputVideoLevel;
                     pParams->OutputVideoFrameRate =
                         xVSS_context->pSettings->videoFrameRate;
                     pParams->OutputVideoFrameSize =
@@ -6315,5 +6326,14 @@ M4OSA_ERR M4xVSS_getVSS3GPPContext( M4OSA_Context pContext,
 
     *vss3gppContext = xVSS_context->pCurrentEditContext;
 
+    return err;
+}
+
+M4OSA_ERR M4xVSS_getVideoDecoderCapabilities(M4DECODER_VideoDecoders **decoders) {
+    M4OSA_ERR err = M4NO_ERROR;
+
+    // Call the decoder api directly
+    // to get all the video decoder capablities.
+    err = VideoEditorVideoDecoder_getVideoDecodersAndCapabilities(decoders);
     return err;
 }

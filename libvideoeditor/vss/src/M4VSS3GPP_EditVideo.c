@@ -2294,6 +2294,11 @@ M4OSA_ERR M4VSS3GPP_intCreateVideoEncoder( M4VSS3GPP_InternalEditContext *pC )
     EncParams.uiStartingQuantizerValue = 10;   /* initial QP = 10 */
     EncParams.bDataPartitioning = M4OSA_FALSE; /* no data partitioning */
 
+    /**
+    * Set the video profile and level */
+    EncParams.videoProfile = pC->ewc.outputVideoProfile;
+    EncParams.videoLevel= pC->ewc.outputVideoLevel;
+
     switch ( pC->ewc.VideoStreamType )
     {
         case M4SYS_kH263:
@@ -2348,19 +2353,6 @@ M4OSA_ERR M4VSS3GPP_intCreateVideoEncoder( M4VSS3GPP_InternalEditContext *pC )
                 "M4VSS3GPP_intCreateVideoEncoder: Unknown videoStreamType 0x%x",
                 pC->ewc.VideoStreamType);
             return M4VSS3GPP_ERR_EDITING_UNSUPPORTED_VIDEO_FORMAT;
-    }
-
-    /* In case of EMP we overwrite certain parameters */
-    if( M4OSA_TRUE == pC->ewc.bActivateEmp )
-    {
-        EncParams.uiHorizontalSearchRange = 15;    /* set value */
-        EncParams.uiVerticalSearchRange = 15;      /* set value */
-        EncParams.bErrorResilience = M4OSA_FALSE;  /* no error resilience */
-        EncParams.uiIVopPeriod = 15; /* one I frame every 15 frames */
-        EncParams.uiMotionEstimationTools = 1; /* M4V_MOTION_EST_TOOLS_NO_4MV */
-        EncParams.bAcPrediction = M4OSA_FALSE;     /* no AC prediction */
-        EncParams.uiStartingQuantizerValue = 10;   /* initial QP = 10 */
-        EncParams.bDataPartitioning = M4OSA_FALSE; /* no data partitioning */
     }
 
     if( pC->bIsMMS == M4OSA_FALSE )

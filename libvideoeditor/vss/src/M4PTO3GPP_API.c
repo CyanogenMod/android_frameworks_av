@@ -311,7 +311,6 @@ M4OSA_ERR M4PTO3GPP_Open(M4PTO3GPP_Context pContext, M4PTO3GPP_Params* pParams)
      * Video Format */
     if( (M4VIDEOEDITING_kH263 != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kMPEG4 != pParams->OutputVideoFormat) &&
-        (M4VIDEOEDITING_kMPEG4_EMP != pParams->OutputVideoFormat) &&
         (M4VIDEOEDITING_kH264 != pParams->OutputVideoFormat)) {
         M4OSA_TRACE1_0("M4PTO3GPP_Open: Undefined output video format");
         return ERR_PTO3GPP_UNDEFINED_OUTPUT_VIDEO_FORMAT;
@@ -1003,8 +1002,7 @@ M4OSA_ERR M4PTO3GPP_Close(M4PTO3GPP_Context pContext)
     {
         /* HW encoder: fetch the DSI from the shell video encoder, and feed it to the writer before
         closing it. */
-        if ( (M4VIDEOEDITING_kMPEG4_EMP == pC->m_Params.OutputVideoFormat)
-            || (M4VIDEOEDITING_kMPEG4 == pC->m_Params.OutputVideoFormat)
+        if ((M4VIDEOEDITING_kMPEG4 == pC->m_Params.OutputVideoFormat)
             || (M4VIDEOEDITING_kH264 == pC->m_Params.OutputVideoFormat))
         {
             osaErr = pC->m_pEncoderInt->pFctGetOption(pC->m_pMp4EncoderContext,
@@ -1226,7 +1224,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     M4ENCODER_Format        encFormat;
     M4ENCODER_AdvancedParams   EncParams;    /**< Encoder advanced parameters */
     M4SYS_StreamIDValue     optionValue;
-    M4OSA_Bool              bActivateEmp = M4OSA_FALSE;
 
     M4OSA_TRACE3_1("M4PTO3GPP_Ready4Processing called with pC=0x%x", pC);
 
@@ -1243,7 +1240,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
      *  Get the correct encoder interface */
     switch(pC->m_Params.OutputVideoFormat)
     {
-        case M4VIDEOEDITING_kMPEG4_EMP: bActivateEmp = M4OSA_TRUE; /* no break */
         case M4VIDEOEDITING_kMPEG4:
 #ifdef M4VSS_SUPPORT_ENCODER_MPEG4
                 err = VideoEditorVideoEncoder_getInterface_MPEG4(&encFormat, &pC->m_pEncoderInt,
@@ -1407,7 +1403,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
      * Video format */
     switch(pC->m_Params.OutputVideoFormat)
     {
-        case M4VIDEOEDITING_kMPEG4_EMP :
         case M4VIDEOEDITING_kMPEG4 :
             EncParams.Format    = M4ENCODER_kMPEG4;
             break;
@@ -1482,28 +1477,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     }
 
     /**
-     * In case of EMP, we have to explicitely give an emp ftyp to the writer */
-    if(M4OSA_TRUE == bActivateEmp)
-    {
-        M4VIDEOEDITING_FtypBox ftyp;
-
-        ftyp.major_brand          = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.minor_version        = M4VIDEOEDITING_BRAND_0000;
-        ftyp.nbCompatibleBrands   = 2;
-        ftyp.compatible_brands[0] = M4VIDEOEDITING_BRAND_3GP4;
-        ftyp.compatible_brands[1] = M4VIDEOEDITING_BRAND_EMP;
-
-        err = pC->m_pWriterGlobInt->pFctSetOption(pC->m_p3gpWriterContext,
-            (M4OSA_UInt32)M4WRITER_kSetFtypBox, (M4OSA_DataOption) &ftyp);
-        if (M4NO_ERROR != err)
-        {
-            M4OSA_TRACE1_1("M4PTO3GPP_Ready4Processing:\
-                         m_pWriterGlobInt->pFctSetOption(M4WRITER_kSetFtypBox) returns 0x%x!", err);
-            return err;
-        }
-    }
-
-    /**
      *  Allocate and fill the video stream structures for the writer */
     pC->m_pWriterVideoStream =
         (M4SYS_StreamDescription*)M4OSA_32bitAlignedMalloc(sizeof(M4SYS_StreamDescription), M4PTO3GPP,
@@ -1541,7 +1514,6 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
      * Video format */
     switch(pC->m_Params.OutputVideoFormat)
     {
-        case M4VIDEOEDITING_kMPEG4_EMP:
         case M4VIDEOEDITING_kMPEG4:
             pC->m_pWriterVideoStream->streamType = M4SYS_kMPEG_4;   break;
         case M4VIDEOEDITING_kH263:
@@ -1709,28 +1681,20 @@ M4OSA_ERR M4PTO3GPP_Ready4Processing(M4PTO3GPP_InternalContext* pC)
     EncParams.bInternalRegulation = M4OSA_TRUE; //M4OSA_FALSE;
     EncParams.uiStartingQuantizerValue = M4PTO3GPP_QUANTIZER_STEP;
 
+    EncParams.videoProfile = pC->m_Params.videoProfile;
+    EncParams.videoLevel = pC->m_Params.videoLevel;
+
     /**
      * Other encoder settings */
-    if(M4OSA_TRUE == bActivateEmp)
-    {
-        EncParams.uiHorizontalSearchRange  = 15;            /* set value */
-        EncParams.uiVerticalSearchRange    = 15;            /* set value */
-        EncParams.bErrorResilience         = M4OSA_FALSE;   /* no error resilience */
-        EncParams.uiIVopPeriod             = 15;            /* one I frame every 15 frames */
-        EncParams.uiMotionEstimationTools  = 1;             /* M4V_MOTION_EST_TOOLS_NO_4MV */
-        EncParams.bAcPrediction            = M4OSA_FALSE;   /* no AC prediction */
-        EncParams.bDataPartitioning        = M4OSA_FALSE;   /* no data partitioning */
-    }
-    else
-    {
-        EncParams.uiHorizontalSearchRange  = 0;             /* use default */
-        EncParams.uiVerticalSearchRange    = 0;             /* use default */
-        EncParams.bErrorResilience         = M4OSA_FALSE;   /* no error resilience */
-        EncParams.uiIVopPeriod             = 15;             /* use default */
-        EncParams.uiMotionEstimationTools  = 0;             /* M4V_MOTION_EST_TOOLS_ALL */
-        EncParams.bAcPrediction            = M4OSA_TRUE;    /* use AC prediction */
-        EncParams.bDataPartitioning        = M4OSA_FALSE;   /* no data partitioning */
-    }
+
+    EncParams.uiHorizontalSearchRange  = 0;             /* use default */
+    EncParams.uiVerticalSearchRange    = 0;             /* use default */
+    EncParams.bErrorResilience         = M4OSA_FALSE;   /* no error resilience */
+    EncParams.uiIVopPeriod             = 15;             /* use default */
+    EncParams.uiMotionEstimationTools  = 0;             /* M4V_MOTION_EST_TOOLS_ALL */
+    EncParams.bAcPrediction            = M4OSA_TRUE;    /* use AC prediction */
+    EncParams.bDataPartitioning        = M4OSA_FALSE;   /* no data partitioning */
+
 
     /**
      * Create video encoder */

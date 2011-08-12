@@ -373,16 +373,6 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         }
     }
 
-    {
-        // Check on the profiles
-        // These profiles requires additional parameter set extensions
-        if (ctx.mProfileIdc == 100 || ctx.mProfileIdc == 110 ||
-            ctx.mProfileIdc == 122 || ctx.mProfileIdc == 144) {
-            LOGE("Sorry, no support for profile_idc: %d!", ctx.mProfileIdc);
-            return BAD_VALUE;
-        }
-    }
-
     // ISO 14496-15: AVC file format
     outputSize += 7;  // 7 more bytes in the header
     outputData = (uint8_t *)malloc(outputSize);

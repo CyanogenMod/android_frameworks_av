@@ -206,6 +206,8 @@ typedef struct
     (and rotation info is set to 0)*/
     M4OSA_Bool                              bAdjustOrientation ;
     /*--- STILL PICTURE ---*/
+    M4OSA_Int32 outputVideoProfile;
+    M4OSA_Int32 outputVideoLevel;
 } M4MCS_OutputParams;
 
 /*--- STILL PICTURE ---*/

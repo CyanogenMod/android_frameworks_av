@@ -420,6 +420,8 @@ typedef struct
     /**
      * Output Video Stream Stuff */
     M4SYS_StreamType            VideoStreamType;        /**< Output video codec */
+    M4OSA_Int32                 outputVideoProfile;  /**< Output video profile */
+    M4OSA_Int32                 outputVideoLevel;   /**< Output video level */
     M4OSA_UInt32                uiVideoBitrate;     /**< Average video bitrate of the output file,
                                                          computed from input bitrates, durations,
                                                           transitions and cuts */
@@ -434,9 +436,6 @@ typedef struct
                                                                  MPEG-4 track */
     M4OSA_UInt16                uiVideoOutputDsiSize;    /**< Size of the Decoder Specific Info
                                                                 of the output MPEG-4 track */
-    M4OSA_Bool                  bActivateEmp;           /**< Encode in Mpeg4 format with
-                                                            limitations for EMP */
-
     /**
      * Output Audio Stream Stuff */
     M4SYS_StreamType            AudioStreamType;        /**< Type of the output audio stream */

@@ -13,13 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#include "utils/Log.h"
 #include "M4OSA_Types.h"
 #include "M4OSA_Debug.h"
 
 #include "M4VD_EXTERNAL_Interface.h"
 #include "M4VD_Tools.h"
-
+#include "M4_VideoEditingCommon.h"
+#include "OMX_Video.h"
 /**
  ************************************************************************
  * @file   M4VD_EXTERNAL_BitstreamParser.c
@@ -27,6 +28,58 @@
  * @note   This file implements external Bitstream parser
  ************************************************************************
  */
+
+typedef struct {
+    M4OSA_UInt8 code;
+    M4OSA_Int32 profile;
+    M4OSA_Int32 level;
+} codeProfileLevel;
+
+static codeProfileLevel mpeg4ProfileLevelTable[] = {
+    {0x01, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level1},
+    {0x02, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level2},
+    {0x03, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level3},
+    {0x04, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level4a},
+    {0x05, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level5},
+    {0x08, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level0},
+    {0x11, OMX_VIDEO_MPEG4ProfileSimpleScalable,OMX_VIDEO_MPEG4Level1},
+    {0x12, OMX_VIDEO_MPEG4ProfileSimpleScalable,OMX_VIDEO_MPEG4Level2},
+    {0x21, OMX_VIDEO_MPEG4ProfileCore, OMX_VIDEO_MPEG4Level1},
+    {0x22, OMX_VIDEO_MPEG4ProfileCore, OMX_VIDEO_MPEG4Level2},
+    {0x32, OMX_VIDEO_MPEG4ProfileMain, OMX_VIDEO_MPEG4Level2},
+    {0x33, OMX_VIDEO_MPEG4ProfileMain, OMX_VIDEO_MPEG4Level3},
+    {0x34, OMX_VIDEO_MPEG4ProfileMain, OMX_VIDEO_MPEG4Level4},
+    {0x42, OMX_VIDEO_MPEG4ProfileNbit, OMX_VIDEO_MPEG4Level2},
+    {0x51, OMX_VIDEO_MPEG4ProfileScalableTexture, OMX_VIDEO_MPEG4Level1},
+    {0x61, OMX_VIDEO_MPEG4ProfileSimpleFace, OMX_VIDEO_MPEG4Level1},
+    {0x62, OMX_VIDEO_MPEG4ProfileSimpleFace, OMX_VIDEO_MPEG4Level2},
+    {0x71, OMX_VIDEO_MPEG4ProfileBasicAnimated, OMX_VIDEO_MPEG4Level1},
+    {0x72, OMX_VIDEO_MPEG4ProfileBasicAnimated, OMX_VIDEO_MPEG4Level2},
+    {0x81, OMX_VIDEO_MPEG4ProfileHybrid, OMX_VIDEO_MPEG4Level1},
+    {0x82, OMX_VIDEO_MPEG4ProfileHybrid, OMX_VIDEO_MPEG4Level2},
+    {0x91, OMX_VIDEO_MPEG4ProfileAdvancedRealTime, OMX_VIDEO_MPEG4Level1},
+    {0x92, OMX_VIDEO_MPEG4ProfileAdvancedRealTime, OMX_VIDEO_MPEG4Level2},
+    {0x93, OMX_VIDEO_MPEG4ProfileAdvancedRealTime, OMX_VIDEO_MPEG4Level3},
+    {0x94, OMX_VIDEO_MPEG4ProfileAdvancedRealTime, OMX_VIDEO_MPEG4Level4},
+    {0xa1, OMX_VIDEO_MPEG4ProfileCoreScalable, OMX_VIDEO_MPEG4Level1},
+    {0xa2, OMX_VIDEO_MPEG4ProfileCoreScalable, OMX_VIDEO_MPEG4Level2},
+    {0xa3, OMX_VIDEO_MPEG4ProfileCoreScalable, OMX_VIDEO_MPEG4Level3},
+    {0xb1, OMX_VIDEO_MPEG4ProfileAdvancedCoding, OMX_VIDEO_MPEG4Level1},
+    {0xb2, OMX_VIDEO_MPEG4ProfileAdvancedCoding, OMX_VIDEO_MPEG4Level2},
+    {0xb3, OMX_VIDEO_MPEG4ProfileAdvancedCoding, OMX_VIDEO_MPEG4Level3},
+    {0xb4, OMX_VIDEO_MPEG4ProfileAdvancedCoding, OMX_VIDEO_MPEG4Level4},
+    {0xc1, OMX_VIDEO_MPEG4ProfileAdvancedCore, OMX_VIDEO_MPEG4Level1},
+    {0xc2, OMX_VIDEO_MPEG4ProfileAdvancedCore, OMX_VIDEO_MPEG4Level2},
+    {0xd1, OMX_VIDEO_MPEG4ProfileAdvancedScalable, OMX_VIDEO_MPEG4Level1},
+    {0xd2, OMX_VIDEO_MPEG4ProfileAdvancedScalable, OMX_VIDEO_MPEG4Level2},
+    {0xd3, OMX_VIDEO_MPEG4ProfileAdvancedScalable, OMX_VIDEO_MPEG4Level3},
+    {0xf0, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level0},
+    {0xf1, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level1},
+    {0xf2, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level2},
+    {0xf3, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level3},
+    {0xf4, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level4},
+    {0xf5, OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level5}
+};
 
 M4OSA_UInt32 M4VD_EXTERNAL_GetBitsFromMemory(M4VS_Bitstream_ctxt* parsingCtxt,
      M4OSA_UInt32 nb_bits)
@@ -434,90 +487,212 @@ M4OSA_ERR M4DECODER_EXTERNAL_ParseVideoDSI(M4OSA_UInt8* pVol, M4OSA_Int32 aVolSi
     return M4NO_ERROR;
 }
 
-M4OSA_ERR M4DECODER_EXTERNAL_ParseAVCDSI(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
-                                         M4DECODER_AVCProfileLevel *profile)
-{
-    M4OSA_ERR err = M4NO_ERROR;
-    M4OSA_Bool NALSPS_and_Profile0Found = M4OSA_FALSE;
+M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel) {
+
     M4OSA_UInt16 index = 28; /* the 29th byte is SPS start */
     M4OSA_Bool constraintSet3;
 
-    if (DSISize <= index) {
-        M4OSA_TRACE1_0("M4DECODER_EXTERNAL_ParseAVCDSI: DSI is invalid");
-        *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
+    if ((pProfile == M4OSA_NULL) || (pLevel == M4OSA_NULL)) {
         return M4ERR_PARAMETER;
     }
 
-    /* check for baseline profile */
-    if(((pDSI[index] & 0x1f) == 0x07) && (pDSI[index+1] == 0x42))
-    {
-        NALSPS_and_Profile0Found = M4OSA_TRUE;
+    if ((DSISize <= index) || (pDSI == M4OSA_NULL)) {
+        LOGE("getAVCProfileAndLevel: DSI is invalid");
+        *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+        *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+        return M4ERR_PARAMETER;
     }
 
-    if(M4OSA_FALSE == NALSPS_and_Profile0Found)
-    {
-        M4OSA_TRACE1_1("M4DECODER_EXTERNAL_ParseAVCDSI: index bad = %d", index);
-        *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
-    }
-    else
-    {
-        M4OSA_TRACE1_1("M4DECODER_EXTERNAL_ParseAVCDSI: index = %d", index);
-        constraintSet3 = (pDSI[index+2] & 0x10);
-        M4OSA_TRACE1_1("M4DECODER_EXTERNAL_ParseAVCDSI: level = %d", pDSI[index+3]);
-        switch(pDSI[index+3])
-        {
-        case 10:
-            *profile = M4DECODER_AVC_kProfile_0_Level_1;
+    constraintSet3 = (pDSI[index+2] & 0x10);
+    LOGV("getAVCProfileAndLevel profile_byte %d, level_byte: %d constrain3flag",
+          pDSI[index+1], pDSI[index+3], constraintSet3);
+
+    switch (pDSI[index+1]) {
+        case 66:
+            *pProfile = OMX_VIDEO_AVCProfileBaseline;
             break;
-        case 11:
-            if(constraintSet3)
-                *profile = M4DECODER_AVC_kProfile_0_Level_1b;
-            else
-                *profile = M4DECODER_AVC_kProfile_0_Level_1_1;
+        case 77:
+            *pProfile = OMX_VIDEO_AVCProfileMain;
             break;
-        case 12:
-            *profile = M4DECODER_AVC_kProfile_0_Level_1_2;
+        case 88:
+            *pProfile = OMX_VIDEO_AVCProfileExtended;
             break;
-        case 13:
-            *profile = M4DECODER_AVC_kProfile_0_Level_1_3;
+        case 100:
+            *pProfile = OMX_VIDEO_AVCProfileHigh;
             break;
-        case 20:
-            *profile = M4DECODER_AVC_kProfile_0_Level_2;
+        case 110:
+            *pProfile = OMX_VIDEO_AVCProfileHigh10;
             break;
-        case 21:
-            *profile = M4DECODER_AVC_kProfile_0_Level_2_1;
+        case 122:
+            *pProfile = OMX_VIDEO_AVCProfileHigh422;
             break;
-        case 22:
-            *profile = M4DECODER_AVC_kProfile_0_Level_2_2;
-            break;
-        case 30:
-            *profile = M4DECODER_AVC_kProfile_0_Level_3;
-            break;
-        case 31:
-            *profile = M4DECODER_AVC_kProfile_0_Level_3_1;
-            break;
-        case 32:
-            *profile = M4DECODER_AVC_kProfile_0_Level_3_2;
-            break;
-        case 40:
-            *profile = M4DECODER_AVC_kProfile_0_Level_4;
-            break;
-        case 41:
-            *profile = M4DECODER_AVC_kProfile_0_Level_4_1;
-            break;
-        case 42:
-            *profile = M4DECODER_AVC_kProfile_0_Level_4_2;
-            break;
-        case 50:
-            *profile = M4DECODER_AVC_kProfile_0_Level_5;
-            break;
-        case 51:
-            *profile = M4DECODER_AVC_kProfile_0_Level_5_1;
+        case 244:
+            *pProfile = OMX_VIDEO_AVCProfileHigh444;
             break;
         default:
-            *profile = M4DECODER_AVC_kProfile_and_Level_Out_Of_Range;
-        }
+            *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     }
-    return err;
+
+    switch (pDSI[index+3]) {
+        case 10:
+            *pLevel = OMX_VIDEO_AVCLevel1;
+            break;
+        case 11:
+            if (constraintSet3)
+                *pLevel = OMX_VIDEO_AVCLevel1b;
+            else
+                *pLevel = OMX_VIDEO_AVCLevel11;
+            break;
+        case 12:
+            *pLevel = OMX_VIDEO_AVCLevel12;
+            break;
+        case 13:
+            *pLevel = OMX_VIDEO_AVCLevel13;
+            break;
+        case 20:
+            *pLevel = OMX_VIDEO_AVCLevel2;
+            break;
+        case 21:
+            *pLevel = OMX_VIDEO_AVCLevel21;
+            break;
+        case 22:
+            *pLevel = OMX_VIDEO_AVCLevel22;
+            break;
+        case 30:
+            *pLevel = OMX_VIDEO_AVCLevel3;
+            break;
+        case 31:
+            *pLevel = OMX_VIDEO_AVCLevel31;
+            break;
+        case 32:
+            *pLevel = OMX_VIDEO_AVCLevel32;
+            break;
+        case 40:
+            *pLevel = OMX_VIDEO_AVCLevel4;
+            break;
+        case 41:
+            *pLevel = OMX_VIDEO_AVCLevel41;
+            break;
+        case 42:
+            *pLevel = OMX_VIDEO_AVCLevel42;
+            break;
+        case 50:
+            *pLevel = OMX_VIDEO_AVCLevel5;
+            break;
+        case 51:
+            *pLevel = OMX_VIDEO_AVCLevel51;
+            break;
+        default:
+            *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+    }
+    LOGI("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    return M4NO_ERROR;
 }
 
+M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel) {
+
+    M4OSA_UInt16 index = 7; /* the 5th and 6th bytes contain the level and profile */
+
+    if ((pProfile == M4OSA_NULL) || (pLevel == M4OSA_NULL)) {
+        LOGE("getH263ProfileAndLevel invalid pointer for pProfile");
+        return M4ERR_PARAMETER;
+    }
+
+    if ((DSISize < index) || (pDSI == M4OSA_NULL)) {
+        LOGE("getH263ProfileAndLevel: DSI is invalid");
+        *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+        *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+        return M4ERR_PARAMETER;
+    }
+    LOGV("getH263ProfileAndLevel profile_byte %d, level_byte",
+          pDSI[6], pDSI[5]);
+    /* get the H263 level */
+    switch (pDSI[5]) {
+        case 10:
+            *pLevel = OMX_VIDEO_H263Level10;
+            break;
+        case 20:
+            *pLevel = OMX_VIDEO_H263Level20;
+            break;
+        case 30:
+            *pLevel = OMX_VIDEO_H263Level30;
+            break;
+        case 40:
+            *pLevel = OMX_VIDEO_H263Level40;
+            break;
+        case 45:
+            *pLevel = OMX_VIDEO_H263Level45;
+            break;
+        case 50:
+            *pLevel = OMX_VIDEO_H263Level50;
+            break;
+        case 60:
+            *pLevel = OMX_VIDEO_H263Level60;
+            break;
+        case 70:
+            *pLevel = OMX_VIDEO_H263Level70;
+            break;
+        default:
+           *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+    }
+
+    /* get H263 profile */
+    switch (pDSI[6]) {
+        case 0:
+            *pProfile = OMX_VIDEO_H263ProfileBaseline;
+            break;
+        case 1:
+            *pProfile = OMX_VIDEO_H263ProfileH320Coding;
+            break;
+        case 2:
+            *pProfile = OMX_VIDEO_H263ProfileBackwardCompatible;
+            break;
+        case 3:
+            *pProfile = OMX_VIDEO_H263ProfileISWV2;
+            break;
+        case 4:
+            *pProfile = OMX_VIDEO_H263ProfileISWV3;
+            break;
+        case 5:
+            *pProfile = OMX_VIDEO_H263ProfileHighCompression;
+            break;
+        case 6:
+            *pProfile = OMX_VIDEO_H263ProfileInternet;
+            break;
+        case 7:
+            *pProfile = OMX_VIDEO_H263ProfileInterlace;
+            break;
+        case 8:
+            *pProfile = OMX_VIDEO_H263ProfileHighLatency;
+            break;
+        default:
+           *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+    }
+    LOGI("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    return M4NO_ERROR;
+}
+
+M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
+                      M4OSA_Int32 *pProfile, M4OSA_Int32 *pLevel) {
+
+    M4OSA_UInt32 i = 0;
+    M4OSA_UInt32 length = 0;
+    if ((pProfile == M4OSA_NULL) || (pLevel == M4OSA_NULL)) {
+        return M4ERR_PARAMETER;
+    }
+    LOGV("getMPEG4ProfileAndLevel profileAndLevel %d", profileAndLevel);
+    length = sizeof(mpeg4ProfileLevelTable) /sizeof(mpeg4ProfileLevelTable[0]);
+    *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
+    *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
+    for (i = 0; i < length; i++) {
+        if (mpeg4ProfileLevelTable[i].code == profileAndLevel) {
+            *pProfile = mpeg4ProfileLevelTable[i].profile;
+            *pLevel = mpeg4ProfileLevelTable[i].level;
+            break;
+        }
+    }
+    LOGI("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    return M4NO_ERROR;
+}
