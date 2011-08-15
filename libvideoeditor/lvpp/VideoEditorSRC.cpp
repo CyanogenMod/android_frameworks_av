@@ -238,7 +238,8 @@ status_t VideoEditorSRC::read (
     return OK;
 }
 
-status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
+status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
+                                       int64_t pts) {
     LOGV("Requesting        %d", pBuffer->frameCount);
     uint32_t availableFrames;
     bool lastBuffer = false;
