@@ -25,7 +25,7 @@ struct VideoEditorResampler : public AudioBufferProvider {
 
     public:
 
-        virtual status_t getNextBuffer(Buffer* buffer);
+        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
         virtual void releaseBuffer(Buffer* buffer);
 
     enum { //Sampling freq
@@ -52,7 +52,8 @@ struct VideoEditorResampler : public AudioBufferProvider {
 
 #define MAX_SAMPLEDURATION_FOR_CONVERTION 40 //ms
 
-status_t VideoEditorResampler::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
+status_t VideoEditorResampler::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
+                                             int64_t pts) {
 
     uint32_t dataSize = pBuffer->frameCount * this->nbChannels * sizeof(int16_t);
     mTmpInBuffer = (int16_t*)malloc(dataSize);
