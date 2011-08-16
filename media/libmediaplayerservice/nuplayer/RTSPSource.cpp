@@ -95,7 +95,7 @@ status_t NuPlayer::RTSPSource::feedMoreTSData() {
     return mFinalResult;
 }
 
-sp<MetaData> NuPlayer::RTSPSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::RTSPSource::getFormatMeta(bool audio) {
     sp<AnotherPacketSource> source = getSource(audio);
 
     if (source == NULL) {

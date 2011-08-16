@@ -107,7 +107,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
     return OK;
 }
 
-sp<MetaData> NuPlayer::StreamingSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
     ATSParser::SourceType type =
         audio ? ATSParser::AUDIO : ATSParser::VIDEO;
 

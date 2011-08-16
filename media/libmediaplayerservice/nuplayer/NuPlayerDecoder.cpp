@@ -20,15 +20,11 @@
 
 #include "NuPlayerDecoder.h"
 
-#include "ESDS.h"
-
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaDefs.h>
-#include <media/stagefright/MetaData.h>
-#include <media/stagefright/Utils.h>
 
 namespace android {
 
@@ -42,16 +38,24 @@ NuPlayer::Decoder::Decoder(
 NuPlayer::Decoder::~Decoder() {
 }
 
-void NuPlayer::Decoder::configure(const sp<MetaData> &meta) {
+void NuPlayer::Decoder::configure(const sp<AMessage> &format) {
     CHECK(mCodec == NULL);
 
-    const char *mime;
-    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    AString mime;
+    CHECK(format->findString("mime", &mime));
 
     sp<AMessage> notifyMsg =
         new AMessage(kWhatCodecNotify, id());
 
-    sp<AMessage> format = makeFormat(meta);
+    mCSDIndex = 0;
+    for (size_t i = 0;; ++i) {
+        sp<ABuffer> csd;
+        if (!format->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
+            break;
+        }
+
+        mCSD.push(csd);
+    }
 
     if (mNativeWindow != NULL) {
         format->setObject("native-window", mNativeWindow);
@@ -61,7 +65,7 @@ void NuPlayer::Decoder::configure(const sp<MetaData> &meta) {
     // quickly, violating the OpenMAX specs, until that is remedied
     // we need to invest in an extra looper to free the main event
     // queue.
-    bool needDedicatedLooper = !strncasecmp(mime, "video/", 6);
+    bool needDedicatedLooper = !strncasecmp(mime.c_str(), "video/", 6);
 
     mCodec = new ACodec;
 
@@ -98,25 +102,6 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
             TRESPASS();
             break;
     }
-}
-
-sp<AMessage> NuPlayer::Decoder::makeFormat(const sp<MetaData> &meta) {
-    CHECK(mCSD.isEmpty());
-
-    sp<AMessage> msg;
-    CHECK_EQ(convertMetaDataToMessage(meta, &msg), (status_t)OK);
-
-    mCSDIndex = 0;
-    for (size_t i = 0;; ++i) {
-        sp<ABuffer> csd;
-        if (!msg->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
-            break;
-        }
-
-        mCSD.push(csd);
-    }
-
-    return msg;
 }
 
 void NuPlayer::Decoder::onFillThisBuffer(const sp<AMessage> &msg) {
