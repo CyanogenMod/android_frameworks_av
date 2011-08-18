@@ -499,18 +499,10 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
 
                         bgFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_32bitAlignedMalloc( len, 1,
                                                        (M4OSA_Char*)"bgFrame");
-                        if (NULL == bgFrame.m_dataAddress) {
-                            LOGE("mBackgroundAudioSetting Malloc failed");
-                        }
-
                         bgFrame.m_bufferSize = len;
 
                         mixFrame.m_dataAddress = (M4OSA_UInt16*)M4OSA_32bitAlignedMalloc(len, 1,
                                                     (M4OSA_Char*)"mixFrame");
-                        if (NULL == mixFrame.m_dataAddress) {
-                            LOGE("mBackgroundAudioSetting Malloc failed");
-                        }
-
                         mixFrame.m_bufferSize = len;
 
                         LOGV("mix with bgm with size %lld", mBGAudioPCMFileLength);

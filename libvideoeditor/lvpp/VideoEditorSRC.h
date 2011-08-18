@@ -43,8 +43,6 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         virtual status_t getNextBuffer(Buffer* buffer);
         virtual void releaseBuffer(Buffer* buffer);
 
-        void setResampling(int32_t sampleRate=kFreq32000Hz);
-
     enum { //Sampling freq
         kFreq8000Hz = 8000,
         kFreq11025Hz = 11025,
@@ -58,7 +56,7 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
     };
 
     static const uint16_t UNITY_GAIN = 0x1000;
-    static const int32_t DEFAULT_SAMPLING_FREQ = (int32_t)kFreq32000Hz; // kFreq44100;
+    static const int32_t DEFAULT_SAMPLING_FREQ = (int32_t)kFreq32000Hz;
 
     protected :
         virtual ~VideoEditorSRC();
@@ -67,33 +65,25 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         VideoEditorSRC();
         VideoEditorSRC &operator=(const VideoEditorSRC &);
 
-        status_t checkAndSetResampler();
+        void checkAndSetResampler();
 
         AudioResampler        *mResampler;
         sp<MediaSource>      mSource;
-        MediaBuffer      *mCopyBuffer;
-        int mBitDepth;
         int mChannelCnt;
         int mSampleRate;
         int32_t mOutputSampleRate;
         bool mStarted;
-        bool mIsResamplingRequired;
-        bool mIsChannelConvertionRequired; // for mono to stereo
         sp<MetaData> mOutputFormat;
-        Mutex mLock;
 
-        uint8_t* mInterframeBuffer;
-        int32_t mInterframeBufferPosition;
+        MediaBuffer* mBuffer;
         int32_t mLeftover;
-        int32_t mLastReadSize ;
+        bool mFormatChanged;
 
         int64_t mInitialTimeStampUs;
         int64_t mAccuOutBufferSize;
 
         int64_t mSeekTimeUs;
         ReadOptions::SeekMode mSeekMode;
-        int16_t *mReSampledBuffer;
-
 };
 
 } //namespce android
