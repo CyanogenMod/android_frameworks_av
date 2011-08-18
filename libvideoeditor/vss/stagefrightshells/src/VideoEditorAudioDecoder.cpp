@@ -29,6 +29,7 @@
 #include "M4MCS_InternalTypes.h"
 
 #include "utils/Log.h"
+#include "utils/Vector.h"
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaDefs.h>
@@ -58,16 +59,12 @@ struct VideoEditorAudioDecoderSource : public MediaSource {
         virtual sp<MetaData> getFormat();
         virtual status_t read(MediaBuffer **buffer,
         const ReadOptions *options = NULL);
-        virtual int32_t storeBuffer(MediaBuffer *buffer);
+        virtual void storeBuffer(MediaBuffer *buffer);
 
     protected:
         virtual ~VideoEditorAudioDecoderSource();
 
     private:
-        struct MediaBufferChain {
-            MediaBuffer* buffer;
-            MediaBufferChain* nextLink;
-        };
         enum State {
             CREATED,
             STARTED,
@@ -76,9 +73,8 @@ struct VideoEditorAudioDecoderSource : public MediaSource {
         VideoEditorAudioDecoderSource(const sp<MetaData>& format,
          void *decoderShellContext);
         sp<MetaData> mFormat;
-        MediaBufferChain* mFirstBufferLink;
-        MediaBufferChain* mLastBufferLink;
-        int32_t mNbBuffer;
+        Vector<MediaBuffer*> mBuffers;
+        Mutex mLock;  // protects mBuffers
         bool mIsEOS;
         State mState;
         void* mDecShellContext;
@@ -124,9 +120,6 @@ sp<VideoEditorAudioDecoderSource> VideoEditorAudioDecoderSource::Create(
 VideoEditorAudioDecoderSource::VideoEditorAudioDecoderSource(
         const sp<MetaData>& format, void* decoderShellContext):
         mFormat(format),
-        mFirstBufferLink(NULL),
-        mLastBufferLink(NULL),
-        mNbBuffer(0),
         mIsEOS(false),
         mState(CREATED),
         mDecShellContext(decoderShellContext) {
@@ -155,8 +148,8 @@ cleanUp:
 }
 
 status_t VideoEditorAudioDecoderSource::stop() {
+    Mutex::Autolock autolock(mLock);
     status_t err = OK;
-    int32_t i = 0;
 
     LOGV("VideoEditorAudioDecoderSource::stop begin");
 
@@ -165,17 +158,14 @@ status_t VideoEditorAudioDecoderSource::stop() {
         return UNKNOWN_ERROR;
     }
 
-    // Release the buffer chain
-    MediaBufferChain* tmpLink = NULL;
-    while( mFirstBufferLink ) {
-        i++;
-        tmpLink = mFirstBufferLink;
-        mFirstBufferLink = mFirstBufferLink->nextLink;
-        delete tmpLink;
+    if (!mBuffers.empty()) {
+        int n = mBuffers.size();
+        for (int i = 0; i < n; i++) {
+            mBuffers.itemAt(i)->release();
+        }
+        LOGW("VideoEditorAudioDecoderSource::stop : %d buffer remained", n);
+        mBuffers.clear();
     }
-    LOGV("VideoEditorAudioDecoderSource::stop : %d buffer remained", i);
-    mFirstBufferLink = NULL;
-    mLastBufferLink = NULL;
 
     mState = CREATED;
 
@@ -189,123 +179,79 @@ sp<MetaData> VideoEditorAudioDecoderSource::getFormat() {
     return mFormat;
 }
 
+static MediaBuffer* readBufferFromReader(
+        VideoEditorAudioDecoder_Context* pDecContext) {
+    M4OSA_ERR lerr = M4NO_ERROR;
+    M4_AccessUnit* pAccessUnit = pDecContext->m_pNextAccessUnitToDecode;
+
+    // Get next AU from reader.
+    lerr = pDecContext->m_pReader->m_pFctGetNextAu(
+               pDecContext->m_pReader->m_readerContext,
+               (M4_StreamHandler*)pDecContext->mAudioStreamHandler,
+               pAccessUnit);
+
+    if (lerr == M4WAR_NO_MORE_AU) {
+        LOGV("readBufferFromReader : EOS");
+        return NULL;
+    }
+
+    pDecContext->timeStampMs = pAccessUnit->m_CTS;
+
+    MediaBuffer* newBuffer = new MediaBuffer((size_t)pAccessUnit->m_size);
+    memcpy((void *)((M4OSA_Int8*)newBuffer->data() + newBuffer->range_offset()),
+        (void *)pAccessUnit->m_dataAddress, pAccessUnit->m_size);
+    newBuffer->meta_data()->setInt64(kKeyTime, (pAccessUnit->m_CTS * 1000LL));
+    return newBuffer;
+}
+
 status_t VideoEditorAudioDecoderSource::read(MediaBuffer **buffer,
         const ReadOptions *options) {
+    Mutex::Autolock autolock(mLock);
     MediaSource::ReadOptions readOptions;
-    status_t err = OK;
-    MediaBufferChain* tmpLink = NULL;
-    M4OSA_ERR lerr = M4NO_ERROR;
 
     VideoEditorAudioDecoder_Context* pDecContext =
      (VideoEditorAudioDecoder_Context *)mDecShellContext;
-
-    LOGV("VideoEditorAudioDecoderSource::read begin");
 
     if ( STARTED != mState ) {
         LOGV("VideoEditorAudioDecoderSource::read invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
-    // Get a buffer from the chain
-    if( NULL == mFirstBufferLink ) {
-        M4_AccessUnit* pAccessUnit = pDecContext->m_pNextAccessUnitToDecode;
-
-        // Get next AU from reader.
-        lerr = pDecContext->m_pReader->m_pFctGetNextAu(
-                   pDecContext->m_pReader->m_readerContext,
-                   (M4_StreamHandler*)pDecContext->mAudioStreamHandler,
-                   pAccessUnit);
-
-        if (lerr == M4WAR_NO_MORE_AU) {
-            LOGV("VideoEditorAudioDecoderSource::getNextAU() returning err = "
-                "ERROR_END_OF_STREAM;");
+    // Get a buffer from the reader if we don't have any
+    if(mBuffers.empty()) {
+        MediaBuffer* newBuffer = readBufferFromReader(pDecContext);
+        if (!newBuffer) {
             *buffer = NULL;
-            LOGV("VideoEditorAudioDecoderSource::read : EOS");
             pDecContext->readerErrCode = M4WAR_NO_MORE_AU;
             return ERROR_END_OF_STREAM;
         }
-
-        MediaBufferChain* newLink = new MediaBufferChain;
-        MediaBuffer* newBuffer = new MediaBuffer((size_t)pAccessUnit->m_size);
-        memcpy((void *)((M4OSA_Int8*)newBuffer->data() + newBuffer->range_offset()),
-            (void *)pAccessUnit->m_dataAddress, pAccessUnit->m_size);
-        newBuffer->meta_data()->setInt64(kKeyTime, (pAccessUnit->m_CTS * 1000LL));
-
-        pDecContext->timeStampMs = pAccessUnit->m_CTS;
-        newLink->buffer = newBuffer;
-        newLink->nextLink = NULL;
-        if( NULL != mLastBufferLink ) {
-            mLastBufferLink->nextLink = newLink;
-        } else {
-            mFirstBufferLink = newLink;
-        }
-        mLastBufferLink = newLink;
-        mNbBuffer++;
-
+        mBuffers.push(newBuffer);
     }
-    *buffer = mFirstBufferLink->buffer;
+    *buffer = mBuffers.itemAt(0);
+    mBuffers.removeAt(0);
 
-    tmpLink = mFirstBufferLink;
-    mFirstBufferLink = mFirstBufferLink->nextLink;
-    if( NULL == mFirstBufferLink ) {
-        mLastBufferLink = NULL;
-    }
-    delete tmpLink;
-    mNbBuffer--;
-
-    LOGV("VideoEditorAudioDecoderSource::read END (0x%x)", err);
-    return err;
+    return OK;
 }
 
-int32_t VideoEditorAudioDecoderSource::storeBuffer(MediaBuffer *buffer) {
-    status_t err = OK;
-    M4OSA_ERR lerr = M4NO_ERROR;
-    MediaBufferChain* newLink = new MediaBufferChain;
-
+void VideoEditorAudioDecoderSource::storeBuffer(MediaBuffer *buffer) {
+    Mutex::Autolock autolock(mLock);
     VideoEditorAudioDecoder_Context* pDecContext =
      (VideoEditorAudioDecoder_Context *)mDecShellContext;
 
     LOGV("VideoEditorAudioDecoderSource::storeBuffer begin");
 
-    if( NULL == buffer ) {
-        M4_AccessUnit* pAccessUnit = pDecContext->m_pNextAccessUnitToDecode;
-        // Get next AU from reader.
-        lerr = pDecContext->m_pReader->m_pFctGetNextAu(
-                   pDecContext->m_pReader->m_readerContext,
-                   (M4_StreamHandler*)pDecContext->mAudioStreamHandler,
-                   pAccessUnit);
-
-        if (lerr == M4WAR_NO_MORE_AU) {
-            LOGV("VideoEditorAudioDecoderSource::getNextAU() returning err = "
-                "ERROR_END_OF_STREAM;");
+    // If the user didn't give us a buffer, get it from the reader.
+    if(buffer == NULL) {
+        MediaBuffer* newBuffer = readBufferFromReader(pDecContext);
+        if (!newBuffer) {
             pDecContext->readerErrCode = M4WAR_NO_MORE_AU;
-            delete newLink;
-            return mNbBuffer;
+            return;
         }
-
-        MediaBuffer* newBuffer = new MediaBuffer((size_t)pAccessUnit->m_size);
-        memcpy((void *)((M4OSA_Int8*)newBuffer->data() + newBuffer->range_offset()),
-            (void *)pAccessUnit->m_dataAddress, pAccessUnit->m_size);
-        newBuffer->meta_data()->setInt64(kKeyTime, (pAccessUnit->m_CTS * 1000LL));
-
-        pDecContext->timeStampMs = pAccessUnit->m_CTS;
-        newLink->buffer = newBuffer;
-
-    } else {
-        LOGV("VideoEditorAudioDecoderSource::storeBuffer else case");
-        newLink->buffer = buffer;
+        buffer = newBuffer;
     }
-    newLink->nextLink = NULL;
-    if( NULL != mLastBufferLink ) {
-        mLastBufferLink->nextLink = newLink;
-    } else {
-        mFirstBufferLink = newLink;
-    }
-    mLastBufferLink = newLink;
-    mNbBuffer++;
 
+    mBuffers.push(buffer);
     LOGV("VideoEditorAudioDecoderSource::storeBuffer END");
-    return mNbBuffer;
 }
 
 /********************
@@ -664,7 +610,6 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
     MediaBuffer* buffer = NULL;
-    int32_t nbBuffer = 0;
 
     LOGV("VideoEditorAudioDecoder_processInputBuffer begin");
     // Input parameters check
@@ -679,7 +624,7 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
             (void *)pInputBuffer->m_dataAddress, pInputBuffer->m_bufferSize);
         buffer->meta_data()->setInt64(kKeyTime, pInputBuffer->m_timeStampUs);
     }
-    nbBuffer = pDecoderContext->mDecoderSource->storeBuffer(buffer);
+    pDecoderContext->mDecoderSource->storeBuffer(buffer);
 
 cleanUp:
     if( M4NO_ERROR == err ) {
