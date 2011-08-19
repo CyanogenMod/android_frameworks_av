@@ -3732,10 +3732,44 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
                 pC->EncodingWidth = pC->InputFileProperties.uiVideoWidth;
             uiFrameHeight =
                 pC->EncodingHeight = pC->InputFileProperties.uiVideoHeight;
+
             /**
             * Set output video profile and level */
             pC->encodingVideoProfile = pC->InputFileProperties.uiVideoProfile;
             pC->encodingVideoLevel = pC->InputFileProperties.uiVideoLevel;
+
+            // Clip's original width and height may not be
+            // multiple of 16.
+            // Ensure encoding width and height are multiple of 16
+
+            uint32_t remainder = pC->EncodingWidth % 16;
+            if (remainder != 0) {
+                if (remainder >= 8) {
+                    // Roll forward
+                    pC->EncodingWidth =
+                        pC->EncodingWidth + (16-remainder);
+                } else {
+                    // Roll backward
+                    pC->EncodingWidth =
+                        pC->EncodingWidth - remainder;
+                }
+                uiFrameWidth = pC->EncodingWidth;
+            }
+
+            remainder = pC->EncodingHeight % 16;
+            if (remainder != 0) {
+                if (remainder >= 8) {
+                    // Roll forward
+                    pC->EncodingHeight =
+                        pC->EncodingHeight + (16-remainder);
+                } else {
+                    // Roll backward
+                    pC->EncodingHeight =
+                        pC->EncodingHeight - remainder;
+                }
+                uiFrameHeight = pC->EncodingHeight;
+            }
+
         }
         else
         {
