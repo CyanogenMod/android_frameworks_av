@@ -49,25 +49,27 @@ PreviewRenderer::PreviewRenderer(
 
 int PreviewRenderer::init() {
     int err = 0;
+    ANativeWindow* anw = mSurface.get();
 
-    err = native_window_api_connect(mSurface.get(), NATIVE_WINDOW_API_CPU);
+    err = native_window_api_connect(anw, NATIVE_WINDOW_API_CPU);
     if (err) goto fail;
 
-    err = native_window_set_usage(mSurface.get(),
-            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN);
+    err = native_window_set_usage(
+            anw, GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN);
     if (err) goto fail;
 
-    err = native_window_set_buffer_count(mSurface.get(), 3);
+    err = native_window_set_buffer_count(anw, 3);
     if (err) goto fail;
 
     err = native_window_set_scaling_mode(
-            mSurface.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+            anw, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
     if (err) goto fail;
 
     err = native_window_set_buffers_geometry(
-            mSurface.get(),
-            mWidth, mHeight,
-            HAL_PIXEL_FORMAT_YV12);
+            anw, mWidth, mHeight, HAL_PIXEL_FORMAT_YV12);
+    if (err) goto fail;
+
+    err = native_window_set_buffers_transform(anw, 0);
     if (err) goto fail;
 
 fail:
