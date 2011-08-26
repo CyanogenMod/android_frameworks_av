@@ -10092,7 +10092,48 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders( M4MCS_InternalContext *pC )
 
     M4OSA_TRACE2_1("M4MCS_intCleanUp_ReadersDecoders called with pC=0x%x", pC);
 
+    /**/
+    /* ----- Free video decoder stuff, if needed ----- */
+
+    if( M4OSA_NULL != pC->pViDecCtxt )
+    {
+        err = pC->m_pVideoDecoder->m_pFctDestroy(pC->pViDecCtxt);
+        pC->pViDecCtxt = M4OSA_NULL;
+
+        if( M4NO_ERROR != err )
+        {
+            M4OSA_TRACE1_1(
+                "M4MCS_cleanUp: m_pVideoDecoder->pFctDestroy returns 0x%x",
+                err);
+            /**< don't return, we still have stuff to free */
+        }
+    }
+
+    /* ----- Free the audio decoder stuff ----- */
+
+    if( M4OSA_NULL != pC->pAudioDecCtxt )
+    {
+        err = pC->m_pAudioDecoder->m_pFctDestroyAudioDec(pC->pAudioDecCtxt);
+        pC->pAudioDecCtxt = M4OSA_NULL;
+
+        if( M4NO_ERROR != err )
+        {
+            M4OSA_TRACE1_1(
+                "M4MCS_cleanUp: m_pAudioDecoder->m_pFctDestroyAudioDec returns 0x%x",
+                err);
+            /**< don't return, we still have stuff to free */
+        }
+    }
+
+    if( M4OSA_NULL != pC->AudioDecBufferOut.m_dataAddress )
+    {
+        free(pC->AudioDecBufferOut.m_dataAddress);
+        pC->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
+    }
+
     /* ----- Free reader stuff, if needed ----- */
+    // We cannot free the reader before decoders because the decoders may read
+    // from the reader (in another thread) before being stopped.
 
     if( M4OSA_NULL != pC->
         pReaderContext ) /**< may be M4OSA_NULL if M4MCS_open was not called */
@@ -10139,44 +10180,6 @@ static M4OSA_ERR M4MCS_intCleanUp_ReadersDecoders( M4MCS_InternalContext *pC )
     {
         free(pC->m_pDataVideoAddress2);
         pC->m_pDataVideoAddress2 = M4OSA_NULL;
-    }
-    /**/
-    /* ----- Free video decoder stuff, if needed ----- */
-
-    if( M4OSA_NULL != pC->pViDecCtxt )
-    {
-        err = pC->m_pVideoDecoder->m_pFctDestroy(pC->pViDecCtxt);
-        pC->pViDecCtxt = M4OSA_NULL;
-
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4MCS_cleanUp: m_pVideoDecoder->pFctDestroy returns 0x%x",
-                err);
-            /**< don't return, we still have stuff to free */
-        }
-    }
-
-    /* ----- Free the audio decoder stuff ----- */
-
-    if( M4OSA_NULL != pC->pAudioDecCtxt )
-    {
-        err = pC->m_pAudioDecoder->m_pFctDestroyAudioDec(pC->pAudioDecCtxt);
-        pC->pAudioDecCtxt = M4OSA_NULL;
-
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4MCS_cleanUp: m_pAudioDecoder->m_pFctDestroyAudioDec returns 0x%x",
-                err);
-            /**< don't return, we still have stuff to free */
-        }
-    }
-
-    if( M4OSA_NULL != pC->AudioDecBufferOut.m_dataAddress )
-    {
-        free(pC->AudioDecBufferOut.m_dataAddress);
-        pC->AudioDecBufferOut.m_dataAddress = M4OSA_NULL;
     }
 
     return M4NO_ERROR;
