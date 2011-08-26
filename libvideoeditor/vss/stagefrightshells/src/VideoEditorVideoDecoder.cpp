@@ -1384,6 +1384,13 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             continue;
         }
 
+        // The OMXCodec client should expect to receive 0-length buffers
+        // and drop the 0-length buffers.
+        if (pNextBuffer->range_length() == 0) {
+            pNextBuffer->release();
+            continue;
+        }
+
         // Now we have a good next buffer, release the previous one.
         if (pDecoderBuffer != NULL) {
             pDecoderBuffer->release();
