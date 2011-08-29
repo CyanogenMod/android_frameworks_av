@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 1
-#define LOG_TAG "VEAudioSource"
-#include <utils/Log.h>
-
+//#define LOG_NDEBUG 0
+#define LOG_TAG "VideoEditorSRC"
 
 #include "VideoEditorSRC.h"
 #include <media/stagefright/MetaData.h>
@@ -25,99 +23,53 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include "AudioMixer.h"
-
+#include <utils/Log.h>
 
 namespace android {
 
-VideoEditorSRC::VideoEditorSRC(
-        const sp<MediaSource> &source) {
-
-    LOGV("VideoEditorSRC::Create");
+VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
+    LOGV("VideoEditorSRC::VideoEditorSRC %p(%p)", this, source.get());
     mSource = source;
     mResampler = NULL;
-    mBitDepth = 16;
     mChannelCnt = 0;
     mSampleRate = 0;
     mOutputSampleRate = DEFAULT_SAMPLING_FREQ;
     mStarted = false;
-    mIsResamplingRequired = false;
-    mIsChannelConvertionRequired = false;
     mInitialTimeStampUs = -1;
     mAccuOutBufferSize  = 0;
     mSeekTimeUs = -1;
+    mBuffer = NULL;
     mLeftover = 0;
-    mLastReadSize = 0;
-    mReSampledBuffer = NULL;
-    mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
-
-    mOutputFormat = new MetaData;
+    mFormatChanged = false;
+    mSeekMode = ReadOptions::SEEK_PREVIOUS_SYNC;
 
     // Input Source validation
     sp<MetaData> format = mSource->getFormat();
     const char *mime;
-    bool success = format->findCString(kKeyMIMEType, &mime);
-    CHECK(success);
+    CHECK(format->findCString(kKeyMIMEType, &mime));
     CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW));
 
-    //set the meta data of the output after convertion.
-    if(mOutputFormat != NULL) {
-        mOutputFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
-        mOutputFormat->setInt32(kKeySampleRate, DEFAULT_SAMPLING_FREQ);
-
-        //by default we convert all data to stereo
-        mOutputFormat->setInt32(kKeyChannelCount, 2);
-    } else {
-        LOGE("Meta data was not allocated.");
-    }
-
-    // Allocate a  1 sec buffer (test only, to be refined)
-    mInterframeBufferPosition = 0;
-    mInterframeBuffer = new uint8_t[DEFAULT_SAMPLING_FREQ * 2 * 2]; //stereo=2 * bytespersample=2
-
-
+    // Set the metadata of the output after resampling.
+    mOutputFormat = new MetaData;
+    mOutputFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+    mOutputFormat->setInt32(kKeySampleRate, DEFAULT_SAMPLING_FREQ);
+    mOutputFormat->setInt32(kKeyChannelCount, 2);
 }
 
-VideoEditorSRC::~VideoEditorSRC(){
-    if (mStarted == true)
-        stop();
-
-    if(mOutputFormat != NULL) {
-        mOutputFormat.clear();
-        mOutputFormat = NULL;
-    }
-
-    if (mInterframeBuffer != NULL){
-        delete mInterframeBuffer;
-        mInterframeBuffer = NULL;
-    }
+VideoEditorSRC::~VideoEditorSRC() {
+    LOGV("VideoEditorSRC::~VideoEditorSRC %p(%p)", this, mSource.get());
+    stop();
 }
 
-void VideoEditorSRC::setResampling(int32_t sampleRate) {
-    Mutex::Autolock autoLock(mLock);
-    LOGV("VideoEditorSRC::setResampling called with samplreRate = %d", sampleRate);
-    if(sampleRate != DEFAULT_SAMPLING_FREQ) { //default case
-        LOGV("VideoEditor Audio resampler, freq set is other than default");
-        CHECK(mOutputFormat->setInt32(kKeySampleRate, DEFAULT_SAMPLING_FREQ));
-    }
-    mOutputSampleRate = sampleRate;
-    return;
-}
-
-status_t  VideoEditorSRC::start (MetaData *params) {
-    Mutex::Autolock autoLock(mLock);
-
+status_t VideoEditorSRC::start(MetaData *params) {
     CHECK(!mStarted);
-    LOGV(" VideoEditorSRC:start() called");
+    LOGV("VideoEditorSRC:start %p(%p)", this, mSource.get());
 
     // Set resampler if required
-    status_t err = checkAndSetResampler();
-    if (err != OK) {
-        LOGE("checkAndSetResampler() returned error %d", err);
-        return err;
-    }
+    checkAndSetResampler();
 
     mSeekTimeUs = -1;
-    mSeekMode =  ReadOptions::SEEK_PREVIOUS_SYNC;
+    mSeekMode = ReadOptions::SEEK_PREVIOUS_SYNC;
     mStarted = true;
     mSource->start();
 
@@ -125,9 +77,12 @@ status_t  VideoEditorSRC::start (MetaData *params) {
 }
 
 status_t VideoEditorSRC::stop() {
-
-    Mutex::Autolock autoLock(mLock);
-    LOGV("VideoEditorSRC::stop()");
+    LOGV("VideoEditorSRC::stop %p(%p)", this, mSource.get());
+    if (!mStarted) return OK;
+    if (mBuffer) {
+        mBuffer->release();
+        mBuffer = NULL;
+    }
     mSource->stop();
     if(mResampler != NULL) {
         delete mResampler;
@@ -135,101 +90,87 @@ status_t VideoEditorSRC::stop() {
     }
     mStarted = false;
     mInitialTimeStampUs = -1;
-    mAccuOutBufferSize  = 0;
+    mAccuOutBufferSize = 0;
     mLeftover = 0;
-    mLastReadSize = 0;
-    if (mReSampledBuffer != NULL) {
-        free(mReSampledBuffer);
-        mReSampledBuffer = NULL;
-    }
 
     return OK;
 }
 
 sp<MetaData> VideoEditorSRC::getFormat() {
-    LOGV("AudioSRC getFormat");
-    //Mutex::Autolock autoLock(mLock);
+    LOGV("VideoEditorSRC::getFormat");
     return mOutputFormat;
 }
 
-status_t VideoEditorSRC::read (
+status_t VideoEditorSRC::read(
         MediaBuffer **buffer_out, const ReadOptions *options) {
-    Mutex::Autolock autoLock(mLock);
+    LOGV("VideoEditorSRC::read %p(%p)", this, mSource.get());
     *buffer_out = NULL;
-    int32_t leftover = 0;
-
-    LOGV("VideoEditorSRC::read");
 
     if (!mStarted) {
         return ERROR_END_OF_STREAM;
     }
 
-    if(mIsResamplingRequired == true) {
-
-        LOGV("mIsResamplingRequired = true");
-
+    if (mResampler) {
         // Store the seek parameters
         int64_t seekTimeUs;
         ReadOptions::SeekMode mode = ReadOptions::SEEK_PREVIOUS_SYNC;
         if (options && options->getSeekTo(&seekTimeUs, &mode)) {
             LOGV("read Seek %lld", seekTimeUs);
-            mInitialTimeStampUs = -1;
             mSeekTimeUs = seekTimeUs;
             mSeekMode = mode;
         }
 
         // We ask for 1024 frames in output
-        size_t outFrameCnt = 1024;
-        int32_t outBufferSize = (outFrameCnt) * 2 * sizeof(int16_t); //out is always 2 channels & 16 bits
-        int64_t outDurationUs = (outBufferSize * 1000000) /(mOutputSampleRate * 2 * sizeof(int16_t)); //2 channels out * 2 bytes per sample
-        LOGV("outBufferSize            %d", outBufferSize);
-        LOGV("outFrameCnt              %d", outFrameCnt);
-
-        int32_t *pTmpBuffer = (int32_t*)malloc(outFrameCnt * 2 * sizeof(int32_t)); //out is always 2 channels and resampler out is 32 bits
-        memset(pTmpBuffer, 0x00, outFrameCnt * 2 * sizeof(int32_t));
+        const size_t outFrameCnt = 1024;
+        // resampler output is always 2 channels and 32 bits
+        int32_t *pTmpBuffer = (int32_t *)calloc(1, outFrameCnt * 2 * sizeof(int32_t));
         // Resample to target quality
         mResampler->resample(pTmpBuffer, outFrameCnt, this);
 
-        // Free previous allocation
-        if (mReSampledBuffer != NULL) {
-            free(mReSampledBuffer);
-            mReSampledBuffer = NULL;
+        // Change resampler and retry if format change happened
+        if (mFormatChanged) {
+            mFormatChanged = false;
+            checkAndSetResampler();
+            free(pTmpBuffer);
+            return read(buffer_out, NULL);
         }
-        mReSampledBuffer = (int16_t*)malloc(outBufferSize);
-        memset(mReSampledBuffer, 0x00, outBufferSize);
 
-        // Convert back to 16 bits
-        AudioMixer::ditherAndClamp((int32_t*)mReSampledBuffer, pTmpBuffer, outFrameCnt);
-        LOGV("Resampled buffer size %d", outFrameCnt* 2 * sizeof(int16_t));
+        // Create a new MediaBuffer
+        int32_t outBufferSize = outFrameCnt * 2 * sizeof(int16_t);
+        MediaBuffer* outBuffer = new MediaBuffer(outBufferSize);
 
-        // Create new MediaBuffer
-        mCopyBuffer = new MediaBuffer((void*)mReSampledBuffer, outBufferSize);
+        // Convert back to 2 channels and 16 bits
+        AudioMixer::ditherAndClamp(
+                (int32_t *)((uint8_t*)outBuffer->data() + outBuffer->range_offset()),
+                pTmpBuffer, outFrameCnt);
+        free(pTmpBuffer);
 
         // Compute and set the new timestamp
-        sp<MetaData> to = mCopyBuffer->meta_data();
-        int64_t totalOutDurationUs = (mAccuOutBufferSize * 1000000) /(mOutputSampleRate * 2 * 2); //2 channels out * 2 bytes per sample
+        sp<MetaData> to = outBuffer->meta_data();
+        int64_t totalOutDurationUs = (mAccuOutBufferSize * 1000000) / (mOutputSampleRate * 2 * 2);
         int64_t timeUs = mInitialTimeStampUs + totalOutDurationUs;
         to->setInt64(kKeyTime, timeUs);
-        LOGV("buffer duration %lld   timestamp %lld   init %lld", outDurationUs, timeUs, mInitialTimeStampUs);
 
         // update the accumulate size
         mAccuOutBufferSize += outBufferSize;
-
-        mCopyBuffer->set_range(0, outBufferSize);
-        *buffer_out = mCopyBuffer;
-
-        free(pTmpBuffer);
-
-    } else if(mIsChannelConvertionRequired == true) {
-        //TODO convert to stereo here.
+        *buffer_out = outBuffer;
     } else {
-        //LOGI("Resampling not required");
+        // Resampling not required. Read and pass-through.
         MediaBuffer *aBuffer;
         status_t err = mSource->read(&aBuffer, options);
-        LOGV("mSource->read returned %d", err);
+        if (err != OK) {
+            LOGV("read returns err = %d", err);
+        }
+
+        if (err == INFO_FORMAT_CHANGED) {
+            checkAndSetResampler();
+            return read(buffer_out, NULL);
+        }
+
+        // EOS or some other error
         if(err != OK) {
+            stop();
             *buffer_out = NULL;
-            mStarted = false;
             return err;
         }
         *buffer_out = aBuffer;
@@ -240,166 +181,131 @@ status_t VideoEditorSRC::read (
 
 status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
                                        int64_t pts) {
-    LOGV("Requesting        %d", pBuffer->frameCount);
-    uint32_t availableFrames;
-    bool lastBuffer = false;
-    MediaBuffer *aBuffer;
+    LOGV("Requesting %d, chan = %d", pBuffer->frameCount, mChannelCnt);
+    uint32_t done = 0;
+    uint32_t want = pBuffer->frameCount * mChannelCnt * 2;
+    pBuffer->raw = malloc(want);
 
-    //update the internal buffer
-    // Store the leftover at the beginning of the local buffer
-    if (mLeftover > 0) {
-        LOGV("Moving mLeftover =%d  from  %d", mLeftover, mLastReadSize);
-        if (mLastReadSize > 0) {
-            memcpy(mInterframeBuffer, (uint8_t*) (mInterframeBuffer + mLastReadSize), mLeftover);
-        }
-        mInterframeBufferPosition = mLeftover;
-    }
-    else {
-        mInterframeBufferPosition = 0;
-    }
-
-    availableFrames = mInterframeBufferPosition / (mChannelCnt*2);
-
-    while ((availableFrames < pBuffer->frameCount)&&(mStarted)) {
-        // if we seek, reset the initial time stamp and accumulated time
-        ReadOptions options;
-        if (mSeekTimeUs >= 0) {
-            LOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
-            ReadOptions::SeekMode mode = mSeekMode;
-            options.setSeekTo(mSeekTimeUs, mode);
-            mSeekTimeUs = -1;
-        }
-        /* The first call to read() will require to buffer twice as much data */
-        /* This will be needed by the resampler */
-        status_t err = mSource->read(&aBuffer, &options);
-        LOGV("mSource->read returned %d", err);
-        if (err == INFO_FORMAT_CHANGED) {
-            LOGV("getNextBuffer: source read returned INFO_FORMAT_CHANGED");
-            // Change resampler if required
-            status_t err1 = checkAndSetResampler();
-            if (err1 != OK) {
-                LOGE("checkAndSetResampler() returned error %d", err1);
-                return err1;
+    while (mStarted && want > 0) {
+        // If we don't have any data left, read a new buffer.
+        if (!mBuffer) {
+            // if we seek, reset the initial time stamp and accumulated time
+            ReadOptions options;
+            if (mSeekTimeUs >= 0) {
+                LOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
+                ReadOptions::SeekMode mode = mSeekMode;
+                options.setSeekTo(mSeekTimeUs, mode);
+                mSeekTimeUs = -1;
+                mInitialTimeStampUs = -1;
+                mAccuOutBufferSize = 0;
             }
-            // Update availableFrames with new channel count
-            availableFrames = mInterframeBufferPosition / (mChannelCnt*2);
-            continue;
-        } else if (err != OK) {
-            if (mInterframeBufferPosition == 0) {
-                mStarted = false;
-            }
-            //Empty the internal buffer if there is no more data left in the source
-            else {
-                lastBuffer = true;
-                //clear the end of the buffer, just in case
-                memset(mInterframeBuffer+mInterframeBufferPosition, 0x00, DEFAULT_SAMPLING_FREQ * 2 * 2 - mInterframeBufferPosition);
-                mStarted = false;
-            }
-        }
-        else {
-            //copy the buffer
-            memcpy(((uint8_t*) mInterframeBuffer) + mInterframeBufferPosition,
-                    ((uint8_t*) aBuffer->data()) + aBuffer->range_offset(),
-                    aBuffer->range_length());
-            LOGV("Read from buffer  %d", aBuffer->range_length());
 
-            mInterframeBufferPosition += aBuffer->range_length();
-            LOGV("Stored            %d", mInterframeBufferPosition);
+            status_t err = mSource->read(&mBuffer, &options);
 
-            // Get the time stamp of the first buffer
+            if (err != OK) {
+                free(pBuffer->raw);
+                pBuffer->raw = NULL;
+                pBuffer->frameCount = 0;
+            }
+
+            if (err == INFO_FORMAT_CHANGED) {
+                LOGV("getNextBuffer: source read returned INFO_FORMAT_CHANGED");
+                // At this point we cannot switch to a new AudioResampler because
+                // we are in a callback called by the AudioResampler itself. So
+                // just remember the fact that the format has changed, and let
+                // read() handles this.
+                mFormatChanged = true;
+                return err;
+            }
+
+            // EOS or some other error
+            if (err != OK) {
+                LOGV("EOS or some err: %d", err);
+                stop();
+                return err;
+            }
+
+            CHECK(mBuffer);
+            mLeftover = mBuffer->range_length();
             if (mInitialTimeStampUs == -1) {
                 int64_t curTS;
-                sp<MetaData> from = aBuffer->meta_data();
+                sp<MetaData> from = mBuffer->meta_data();
                 from->findInt64(kKeyTime, &curTS);
                 LOGV("setting mInitialTimeStampUs to %lld", mInitialTimeStampUs);
                 mInitialTimeStampUs = curTS;
             }
-
-            // release the buffer
-            aBuffer->release();
         }
-        availableFrames = mInterframeBufferPosition / (mChannelCnt*2);
-        LOGV("availableFrames   %d", availableFrames);
+
+        // Now copy data to the destination
+        uint32_t todo = mLeftover;
+        if (todo > want) {
+            todo = want;
+        }
+
+        uint8_t* end = (uint8_t*)mBuffer->data() + mBuffer->range_offset()
+                + mBuffer->range_length();
+        memcpy((uint8_t*)pBuffer->raw + done, end - mLeftover, todo);
+        done += todo;
+        want -= todo;
+        mLeftover -= todo;
+
+        // Release MediaBuffer as soon as possible.
+        if (mLeftover == 0) {
+            mBuffer->release();
+            mBuffer = NULL;
+        }
     }
 
-    if (lastBuffer) {
-        pBuffer->frameCount = availableFrames;
-    }
-
-    //update the input buffer
-    pBuffer->raw        = (void*)(mInterframeBuffer);
-
-    // Update how many bytes are left
-    // (actualReadSize is updated in getNextBuffer() called from resample())
-    int32_t actualReadSize = pBuffer->frameCount * mChannelCnt * 2;
-    mLeftover = mInterframeBufferPosition - actualReadSize;
-    LOGV("mLeftover         %d", mLeftover);
-
-    mLastReadSize = actualReadSize;
-
-    LOGV("inFrameCount     %d", pBuffer->frameCount);
-
+    pBuffer->frameCount = done / (mChannelCnt * 2);
+    LOGV("getNextBuffer done %d", pBuffer->frameCount);
     return OK;
 }
 
 
 void VideoEditorSRC::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
-    if(pBuffer->raw != NULL) {
-        pBuffer->raw = NULL;
-    }
+    free(pBuffer->raw);
+    pBuffer->raw = NULL;
     pBuffer->frameCount = 0;
 }
 
-status_t VideoEditorSRC::checkAndSetResampler() {
-
+void VideoEditorSRC::checkAndSetResampler() {
     LOGV("checkAndSetResampler");
 
     sp<MetaData> format = mSource->getFormat();
     const char *mime;
-    bool success = format->findCString(kKeyMIMEType, &mime);
-    CHECK(success);
+    CHECK(format->findCString(kKeyMIMEType, &mime));
     CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW));
 
-    success = format->findInt32(kKeySampleRate, &mSampleRate);
-    CHECK(success);
+    CHECK(format->findInt32(kKeySampleRate, &mSampleRate));
+    CHECK(format->findInt32(kKeyChannelCount, &mChannelCnt));
 
-    int32_t numChannels;
-    success = format->findInt32(kKeyChannelCount, &mChannelCnt);
-    CHECK(success);
-
-    // If Resampler exists, delete it first
+    // If a resampler exists, delete it first
     if (mResampler != NULL) {
         delete mResampler;
         mResampler = NULL;
     }
 
-    if (mSampleRate != mOutputSampleRate) {
-        LOGV("Resampling required (%d != %d)", mSampleRate, mOutputSampleRate);
-        mIsResamplingRequired = true;
-        LOGV("Create resampler %d %d %d", mBitDepth, mChannelCnt, mOutputSampleRate);
-
-        mResampler = AudioResampler::create(
-                        mBitDepth, mChannelCnt, mOutputSampleRate, AudioResampler::DEFAULT);
-
-        if (mResampler == NULL) {
-            return NO_MEMORY;
-        }
-        LOGV("Set input rate %d", mSampleRate);
-        mResampler->setSampleRate(mSampleRate);
-        mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
-
-    } else {
-        LOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
-        mIsResamplingRequired = false;
-        if (mChannelCnt != 2) {
-            // we always make sure to provide stereo
-            LOGV("Only Channel convertion required");
-            mIsChannelConvertionRequired = true;
-        }
+    // Clear previous buffer
+    if (mBuffer) {
+        mBuffer->release();
+        mBuffer = NULL;
     }
 
-    return OK;
+    if (mSampleRate != mOutputSampleRate || mChannelCnt != 2) {
+        LOGV("Resampling required (in rate %d, out rate %d, in channel %d)",
+            mSampleRate, mOutputSampleRate, mChannelCnt);
 
+        mResampler = AudioResampler::create(
+                        16 /* bit depth */,
+                        mChannelCnt,
+                        mOutputSampleRate,
+                        AudioResampler::DEFAULT);
+        CHECK(mResampler);
+        mResampler->setSampleRate(mSampleRate);
+        mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
+    } else {
+        LOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
+    }
 }
 
 } //namespce android
