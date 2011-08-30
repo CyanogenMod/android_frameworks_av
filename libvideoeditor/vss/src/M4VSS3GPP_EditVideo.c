@@ -98,6 +98,7 @@ static M4OSA_ERR M4VSS3GPP_intSetYuv420PlaneFromARGB888 (
 static M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(
                                              M4VSS3GPP_InternalEditContext *pC,
                                              M4VSS3GPP_ClipContext* pClipCtxt,
+                                             M4_MediaTime ts,
                                              M4OSA_Bool bIsClip1,
                                              M4VIFI_ImagePlane *pResizePlane,
                                              M4VIFI_ImagePlane *pPlaneNoResize,
@@ -1188,7 +1189,7 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         {
             pC->bIssecondClip = M4OSA_FALSE;
 
-            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC1, M4OSA_TRUE,
+            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC1, ts, M4OSA_TRUE,
                                                 pTempPlaneClip1, pTemp1,
                                                 pPlaneOut);
             if ((M4NO_ERROR != err) &&
@@ -1228,7 +1229,7 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         if( pC->pC2->isRenderDup == M4OSA_FALSE )
         {
 
-            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC2, M4OSA_FALSE,
+            err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC2, ts, M4OSA_FALSE,
                                                 pTempPlaneClip2, pTemp2,
                                                 pPlaneOut);
             if ((M4NO_ERROR != err) &&
@@ -3287,6 +3288,7 @@ M4OSA_ERR M4VSS3GPP_intSetYuv420PlaneFromARGB888 (
 
 M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
                                              M4VSS3GPP_ClipContext* pClipCtxt,
+                                             M4_MediaTime ts,
                                              M4OSA_Bool bIsClip1,
                                              M4VIFI_ImagePlane *pResizePlane,
                                              M4VIFI_ImagePlane *pPlaneNoResize,
@@ -3294,7 +3296,6 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
 
     M4OSA_ERR err = M4NO_ERROR;
     M4OSA_UInt8 numEffects = 0;
-    M4_MediaTime ts;
     M4VIFI_ImagePlane *pDecoderRenderFrame = M4OSA_NULL;
 
     /**
@@ -3340,7 +3341,7 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
                 err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
                     pClipCtxt->pViDecCtxt, &ts,
                     pClipCtxt->m_pPreResizeFrame, M4OSA_TRUE);
-                }
+            }
 
         }
         if (M4NO_ERROR != err) {
