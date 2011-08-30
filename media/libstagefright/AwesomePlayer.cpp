@@ -1152,26 +1152,22 @@ bool AwesomePlayer::isPlaying() const {
     return (mFlags & PLAYING) || (mFlags & CACHE_UNDERRUN);
 }
 
-status_t AwesomePlayer::setSurface(const sp<Surface> &surface) {
+void AwesomePlayer::setSurface(const sp<Surface> &surface) {
     Mutex::Autolock autoLock(mLock);
 
     mSurface = surface;
-    return setNativeWindow_l(surface);
+    setNativeWindow_l(surface);
 }
 
-status_t AwesomePlayer::setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+void AwesomePlayer::setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
     Mutex::Autolock autoLock(mLock);
 
     mSurface.clear();
-
-    status_t err;
     if (surfaceTexture != NULL) {
-        err = setNativeWindow_l(new SurfaceTextureClient(surfaceTexture));
+        setNativeWindow_l(new SurfaceTextureClient(surfaceTexture));
     } else {
-        err = setNativeWindow_l(NULL);
+        setNativeWindow_l(NULL);
     }
-
-    return err;
 }
 
 void AwesomePlayer::shutdownVideoDecoder_l() {
@@ -1194,11 +1190,11 @@ void AwesomePlayer::shutdownVideoDecoder_l() {
     LOGI("video decoder shutdown completed");
 }
 
-status_t AwesomePlayer::setNativeWindow_l(const sp<ANativeWindow> &native) {
+void AwesomePlayer::setNativeWindow_l(const sp<ANativeWindow> &native) {
     mNativeWindow = native;
 
     if (mVideoSource == NULL) {
-        return OK;
+        return;
     }
 
     LOGI("attempting to reconfigure to use new surface");
@@ -1210,12 +1206,7 @@ status_t AwesomePlayer::setNativeWindow_l(const sp<ANativeWindow> &native) {
 
     shutdownVideoDecoder_l();
 
-    status_t err = initVideoDecoder();
-
-    if (err != OK) {
-        LOGE("failed to reinstantiate video decoder after surface change.");
-        return err;
-    }
+    CHECK_EQ(initVideoDecoder(), (status_t)OK);
 
     if (mLastVideoTimeUs >= 0) {
         mSeeking = SEEK;
@@ -1226,8 +1217,6 @@ status_t AwesomePlayer::setNativeWindow_l(const sp<ANativeWindow> &native) {
     if (wasPlaying) {
         play_l();
     }
-
-    return OK;
 }
 
 void AwesomePlayer::setAudioSink(
