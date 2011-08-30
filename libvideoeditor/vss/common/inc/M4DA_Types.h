@@ -118,6 +118,7 @@ typedef struct
     M4OSA_UInt32        m_videoHeight;            /**< Height of the video in the stream */
     M4OSA_Float            m_averageFrameRate;        /**< Average frame rate of the video
                                                             in the stream */
+    M4OSA_Int32         videoRotationDegrees;        /**< Video rotation degree */
     M4OSA_UInt32        m_structSize;            /**< Size of the structure in bytes */
 } M4_VideoStreamHandler;
 

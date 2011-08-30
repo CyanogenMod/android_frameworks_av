@@ -825,6 +825,26 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
 
     pixelArray = NULL;
 
+    // Apply rotation if required
+    if (pFrameStr->videoRotationDegree != 0) {
+        err = applyVideoRotation((M4OSA_Void *)pFrameStr->pBuffer,
+                  pFrameStr->uiFrameWidth, pFrameStr->uiFrameHeight,
+                  pFrameStr->videoRotationDegree);
+        if (M4NO_ERROR != err) {
+            LOGE("renderPreviewFrame: cannot rotate video, err 0x%x", (unsigned int)err);
+            delete mTarget;
+            mTarget = NULL;
+            return err;
+        } else {
+           // Video rotation done.
+           // Swap width and height if 90 or 270 degrees
+           if (pFrameStr->videoRotationDegree != 180) {
+               int32_t temp = pFrameStr->uiFrameWidth;
+               pFrameStr->uiFrameWidth = pFrameStr->uiFrameHeight;
+               pFrameStr->uiFrameHeight = temp;
+           }
+        }
+    }
     // Postprocessing (apply video effect)
     if(pFrameStr->bApplyEffect == M4OSA_TRUE) {
 

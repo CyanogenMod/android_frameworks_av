@@ -104,6 +104,12 @@ static M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(
                                              M4VIFI_ImagePlane *pPlaneNoResize,
                                              M4VIFI_ImagePlane *pPlaneOut);
 
+static M4OSA_ERR M4VSS3GPP_intRotateVideo(M4VIFI_ImagePlane* pPlaneIn,
+                                      M4OSA_UInt32 rotationDegree);
+
+static M4OSA_ERR M4VSS3GPP_intSetYUV420Plane(M4VIFI_ImagePlane* planeIn,
+                                      M4OSA_UInt32 width, M4OSA_UInt32 height);
+
 /**
  ******************************************************************************
  * M4OSA_ERR M4VSS3GPP_intEditStepVideo()
@@ -1055,7 +1061,7 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
     M4VIFI_ImagePlane *pDecoderRenderFrame = M4OSA_NULL;
     M4VIFI_ImagePlane pTemp1[3],pTemp2[3];
     M4VIFI_ImagePlane pTempPlaneClip1[3],pTempPlaneClip2[3];
-    M4OSA_UInt32  i = 0;
+    M4OSA_UInt32  i = 0, yuvFrameWidth = 0, yuvFrameHeight = 0;
 
     /**
     * VPP context is actually the VSS3GPP context */
@@ -1345,6 +1351,22 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                     pC->ewc.VppError = err;
                     return M4NO_ERROR;
                 }
+                if (pC->pC1->pSettings->FileType !=
+                        M4VIDEOEDITING_kFileType_ARGB8888) {
+                    if (0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) {
+                        // Save width and height of un-rotated frame
+                        yuvFrameWidth = pC->pC1->m_pPreResizeFrame[0].u_width;
+                        yuvFrameHeight = pC->pC1->m_pPreResizeFrame[0].u_height;
+                        err = M4VSS3GPP_intRotateVideo(pC->pC1->m_pPreResizeFrame,
+                                pC->pC1->pSettings->ClipProperties.videoRotationDegrees);
+                        if (M4NO_ERROR != err) {
+                            M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                                rotateVideo() returns error 0x%x", err);
+                            pC->ewc.VppError = err;
+                            return M4NO_ERROR;
+                        }
+                    }
+                }
 
                 if (pC->nbActiveEffects > 0) {
                     pC->pC1->bGetYuvDataFromDecoder = M4OSA_TRUE;
@@ -1407,11 +1429,21 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                     }
                     pC->pC1->bGetYuvDataFromDecoder = M4OSA_FALSE;
                 }
+
+                // Reset original width and height for resize frame plane
+                if (0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees &&
+                    180 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) {
+
+                    M4VSS3GPP_intSetYUV420Plane(pC->pC1->m_pPreResizeFrame,
+                                                yuvFrameWidth, yuvFrameHeight);
+                }
             }
             else
             {
                 M4OSA_TRACE3_0("M4VSS3GPP_intVPP: NO resize required");
-                if (pC->nbActiveEffects > 0) {
+                if ((pC->nbActiveEffects > 0) ||
+                    ((0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees)
+                     && (180 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees))) {
                     /** If we do modify the image, we need an
                      * intermediate image plane */
                     if (M4OSA_NULL == pTemp1[0].pac_data) {
@@ -1438,12 +1470,76 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                     return M4NO_ERROR;
                 }
 
+                if (pC->pC1->pSettings->FileType !=
+                        M4VIDEOEDITING_kFileType_ARGB8888) {
+                    if (0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) {
+                        // Save width and height of un-rotated frame
+                        yuvFrameWidth = pDecoderRenderFrame[0].u_width;
+                        yuvFrameHeight = pDecoderRenderFrame[0].u_height;
+                        err = M4VSS3GPP_intRotateVideo(pDecoderRenderFrame,
+                            pC->pC1->pSettings->ClipProperties.videoRotationDegrees);
+                        if (M4NO_ERROR != err) {
+                            M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                                rotateVideo() returns error 0x%x", err);
+                            pC->ewc.VppError = err;
+                            return M4NO_ERROR;
+                        }
+
+                        if (180 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) {
+                            // Apply black border on rotated frame
+                            if (pC->nbActiveEffects > 0) {
+                                /** we need an intermediate image plane */
+                                if (M4OSA_NULL == pTemp2[0].pac_data) {
+                                    err = M4VSS3GPP_intAllocateYUV420(pTemp2,
+                                              pC->ewc.uiVideoWidth,
+                                              pC->ewc.uiVideoHeight);
+                                    if (M4NO_ERROR != err) {
+                                        pC->ewc.VppError = err;
+                                        return M4NO_ERROR;
+                                    }
+                                }
+                                err = M4VSS3GPP_intApplyRenderingMode(pC, M4xVSS_kBlackBorders,
+                                        pDecoderRenderFrame, pTemp2);
+                            } else {
+                                err = M4VSS3GPP_intApplyRenderingMode(pC, M4xVSS_kBlackBorders,
+                                        pDecoderRenderFrame, pTmp);
+                            }
+                            if (M4NO_ERROR != err) {
+                                M4OSA_TRACE1_1("M4VSS3GPP_intVPP: \
+                                    M4VSS3GPP_intApplyRenderingMode) error 0x%x ", err);
+                                pC->ewc.VppError = err;
+                                return M4NO_ERROR;
+                            }
+                        }
+                    }
+                }
+
                 if (pC->nbActiveEffects > 0) {
-                    err = M4VSS3GPP_intApplyVideoEffect(pC,
-                              pDecoderRenderFrame,pPlaneOut);
+                    if ((0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) &&
+                        (180 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees)) {
+                        err = M4VSS3GPP_intApplyVideoEffect(pC,
+                                  pTemp2,pPlaneOut);
+                    } else {
+                        err = M4VSS3GPP_intApplyVideoEffect(pC,
+                                  pDecoderRenderFrame,pPlaneOut);
+                    }
                     if (M4NO_ERROR != err) {
                         pC->ewc.VppError = err;
                         return M4NO_ERROR;
+                    }
+                }
+
+                // Reset original width and height for resize frame plane
+                if (0 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees &&
+                    180 != pC->pC1->pSettings->ClipProperties.videoRotationDegrees) {
+
+                    M4VSS3GPP_intSetYUV420Plane(pDecoderRenderFrame,
+                                                yuvFrameWidth, yuvFrameHeight);
+
+                    if (pC->nbActiveEffects > 0) {
+                        free((void *)pTemp2[0].pac_data);
+                        free((void *)pTemp2[1].pac_data);
+                        free((void *)pTemp2[2].pac_data);
                     }
                 }
             }
@@ -3297,6 +3393,9 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
     M4OSA_ERR err = M4NO_ERROR;
     M4OSA_UInt8 numEffects = 0;
     M4VIFI_ImagePlane *pDecoderRenderFrame = M4OSA_NULL;
+    M4OSA_UInt32 yuvFrameWidth = 0, yuvFrameHeight = 0;
+    M4VIFI_ImagePlane* pTmp = M4OSA_NULL;
+    M4VIFI_ImagePlane pTemp[3];
 
     /**
     Check if resizing is needed */
@@ -3348,6 +3447,22 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
             M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
                 returns error 0x%x", err);
             return err;
+        }
+
+        if (pClipCtxt->pSettings->FileType !=
+                M4VIDEOEDITING_kFileType_ARGB8888) {
+            if (0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+                // Save width and height of un-rotated frame
+                yuvFrameWidth = pClipCtxt->m_pPreResizeFrame[0].u_width;
+                yuvFrameHeight = pClipCtxt->m_pPreResizeFrame[0].u_height;
+                err = M4VSS3GPP_intRotateVideo(pClipCtxt->m_pPreResizeFrame,
+                    pClipCtxt->pSettings->ClipProperties.videoRotationDegrees);
+                if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                        rotateVideo() returns error 0x%x", err);
+                    return err;
+                }
+            }
         }
 
         if (bIsClip1 == M4OSA_TRUE) {
@@ -3423,6 +3538,14 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
             pClipCtxt->bGetYuvDataFromDecoder = M4OSA_FALSE;
         }
 
+        // Reset original width and height for resize frame plane
+        if (0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees &&
+            180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+
+            M4VSS3GPP_intSetYUV420Plane(pClipCtxt->m_pPreResizeFrame,
+                                        yuvFrameWidth, yuvFrameHeight);
+        }
+
     } else {
         if (bIsClip1 == M4OSA_TRUE) {
             numEffects = pC->nbActiveEffects;
@@ -3439,13 +3562,64 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
                     Render returns error 0x%x", err);
                 return err;
             }
+
+            if (pClipCtxt->pSettings->FileType !=
+                    M4VIDEOEDITING_kFileType_ARGB8888) {
+                if (0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+                    // Save width and height of un-rotated frame
+                    yuvFrameWidth = pPlaneNoResize[0].u_width;
+                    yuvFrameHeight = pPlaneNoResize[0].u_height;
+                    err = M4VSS3GPP_intRotateVideo(pPlaneNoResize,
+                        pClipCtxt->pSettings->ClipProperties.videoRotationDegrees);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                            rotateVideo() returns error 0x%x", err);
+                        return err;
+                    }
+                }
+
+                if (180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+                    // Apply Black Borders to rotated plane
+                    /** we need an intermediate image plane */
+
+                    err = M4VSS3GPP_intAllocateYUV420(pTemp,
+                              pC->ewc.uiVideoWidth,
+                              pC->ewc.uiVideoHeight);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                            memAlloc() returns error 0x%x", err);
+                        return err;
+                    }
+                    err = M4VSS3GPP_intApplyRenderingMode(pC, M4xVSS_kBlackBorders,
+                              pPlaneNoResize, pTemp);
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                            M4VSS3GPP_intApplyRenderingMode() returns error 0x%x", err);
+                        free((void *)pTemp[0].pac_data);
+                        free((void *)pTemp[1].pac_data);
+                        free((void *)pTemp[2].pac_data);
+                        return err;
+                    }
+                }
+            }
+
             if (bIsClip1 == M4OSA_TRUE) {
                 pC->bIssecondClip = M4OSA_FALSE;
-                err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv1);
+                if ((0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) &&
+                    (180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees)) {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC, pTemp ,pC->yuv1);
+                } else {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv1);
+                }
                 pClipCtxt->lastDecodedPlane = pC->yuv1;
             } else {
                 pC->bIssecondClip = M4OSA_TRUE;
-                err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv2);
+                if ((0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) &&
+                    (180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees)) {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC, pTemp ,pC->yuv2);
+                } else {
+                    err = M4VSS3GPP_intApplyVideoEffect(pC, pPlaneNoResize ,pC->yuv2);
+                }
                 pClipCtxt->lastDecodedPlane = pC->yuv2;
             }
 
@@ -3455,24 +3629,212 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
                 return err;
             }
 
-        } else {
-            if (bIsClip1 == M4OSA_TRUE) {
-                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
-                          pClipCtxt->pViDecCtxt, &ts, pC->yuv1, M4OSA_TRUE);
-                pClipCtxt->lastDecodedPlane = pC->yuv1;
-            } else {
-                err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
-                      pClipCtxt->pViDecCtxt, &ts, pC->yuv2, M4OSA_TRUE);
-                pClipCtxt->lastDecodedPlane = pC->yuv2;
+            // Reset original width and height for resize frame plane
+            if (0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees &&
+                180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+
+                M4VSS3GPP_intSetYUV420Plane(pPlaneNoResize,
+                                            yuvFrameWidth, yuvFrameHeight);
+
+                free((void *)pTemp[0].pac_data);
+                free((void *)pTemp[1].pac_data);
+                free((void *)pTemp[2].pac_data);
             }
+
+        } else {
+
+            if ((0 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) &&
+                (180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees)) {
+                pTmp = pPlaneNoResize;
+            } else if (bIsClip1 == M4OSA_TRUE) {
+                pTmp = pC->yuv1;
+            } else {
+                pTmp = pC->yuv2;
+            }
+            err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctRender(
+                      pClipCtxt->pViDecCtxt, &ts, pTmp, M4OSA_TRUE);
             if (M4NO_ERROR != err) {
                 M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
                     Render returns error 0x%x,", err);
                 return err;
             }
+
+            if (0 == pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+                pClipCtxt->lastDecodedPlane = pTmp;
+            } else {
+                // Save width and height of un-rotated frame
+                yuvFrameWidth = pTmp[0].u_width;
+                yuvFrameHeight = pTmp[0].u_height;
+                err = M4VSS3GPP_intRotateVideo(pTmp,
+                    pClipCtxt->pSettings->ClipProperties.videoRotationDegrees);
+                if (M4NO_ERROR != err) {
+                    M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                        rotateVideo() returns error 0x%x", err);
+                    return err;
+                }
+
+                if (180 != pClipCtxt->pSettings->ClipProperties.videoRotationDegrees) {
+
+                    // Apply Black borders on rotated frame
+                    if (bIsClip1) {
+                        err = M4VSS3GPP_intApplyRenderingMode (pC,
+                            M4xVSS_kBlackBorders,
+                            pTmp,pC->yuv1);
+                    } else {
+                        err = M4VSS3GPP_intApplyRenderingMode (pC,
+                            M4xVSS_kBlackBorders,
+                            pTmp,pC->yuv2);
+                    }
+                    if (M4NO_ERROR != err) {
+                        M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \
+                            M4VSS3GPP_intApplyRenderingMode error 0x%x", err);
+                        return err;
+                    }
+
+                    // Reset original width and height for noresize frame plane
+                    M4VSS3GPP_intSetYUV420Plane(pPlaneNoResize,
+                                                yuvFrameWidth, yuvFrameHeight);
+                }
+
+                if (bIsClip1) {
+                    pClipCtxt->lastDecodedPlane = pC->yuv1;
+                } else {
+                    pClipCtxt->lastDecodedPlane = pC->yuv2;
+                }
+            }
         }
         pClipCtxt->iVideoRenderCts = (M4OSA_Int32)ts;
     }
+
+    return err;
+}
+
+M4OSA_ERR M4VSS3GPP_intRotateVideo(M4VIFI_ImagePlane* pPlaneIn,
+                                   M4OSA_UInt32 rotationDegree) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4VIFI_ImagePlane outPlane[3];
+
+    if (rotationDegree != 180) {
+        // Swap width and height of in plane
+        outPlane[0].u_width = pPlaneIn[0].u_height;
+        outPlane[0].u_height = pPlaneIn[0].u_width;
+        outPlane[0].u_stride = outPlane[0].u_width;
+        outPlane[0].u_topleft = 0;
+        outPlane[0].pac_data = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(
+            (outPlane[0].u_stride*outPlane[0].u_height), M4VS,
+            (M4OSA_Char*)("out Y plane for rotation"));
+        if (outPlane[0].pac_data == M4OSA_NULL) {
+            return M4ERR_ALLOC;
+        }
+
+        outPlane[1].u_width = pPlaneIn[0].u_height/2;
+        outPlane[1].u_height = pPlaneIn[0].u_width/2;
+        outPlane[1].u_stride = outPlane[1].u_width;
+        outPlane[1].u_topleft = 0;
+        outPlane[1].pac_data = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(
+            (outPlane[1].u_stride*outPlane[1].u_height), M4VS,
+            (M4OSA_Char*)("out U plane for rotation"));
+        if (outPlane[1].pac_data == M4OSA_NULL) {
+            free((void *)outPlane[0].pac_data);
+            return M4ERR_ALLOC;
+        }
+
+        outPlane[2].u_width = pPlaneIn[0].u_height/2;
+        outPlane[2].u_height = pPlaneIn[0].u_width/2;
+        outPlane[2].u_stride = outPlane[2].u_width;
+        outPlane[2].u_topleft = 0;
+        outPlane[2].pac_data = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(
+            (outPlane[2].u_stride*outPlane[2].u_height), M4VS,
+            (M4OSA_Char*)("out V plane for rotation"));
+        if (outPlane[2].pac_data == M4OSA_NULL) {
+            free((void *)outPlane[0].pac_data);
+            free((void *)outPlane[1].pac_data);
+            return M4ERR_ALLOC;
+        }
+    }
+
+    switch(rotationDegree) {
+        case 90:
+            M4VIFI_Rotate90RightYUV420toYUV420(M4OSA_NULL, pPlaneIn, outPlane);
+            break;
+
+        case 180:
+            // In plane rotation, so planeOut = planeIn
+            M4VIFI_Rotate180YUV420toYUV420(M4OSA_NULL, pPlaneIn, pPlaneIn);
+            break;
+
+        case 270:
+            M4VIFI_Rotate90LeftYUV420toYUV420(M4OSA_NULL, pPlaneIn, outPlane);
+            break;
+
+        default:
+            M4OSA_TRACE1_1("invalid rotation param %d", (int)rotationDegree);
+            err = M4ERR_PARAMETER;
+            break;
+    }
+
+    if (rotationDegree != 180) {
+        memset((void *)pPlaneIn[0].pac_data, 0,
+            (pPlaneIn[0].u_width*pPlaneIn[0].u_height));
+        memset((void *)pPlaneIn[1].pac_data, 0,
+            (pPlaneIn[1].u_width*pPlaneIn[1].u_height));
+        memset((void *)pPlaneIn[2].pac_data, 0,
+            (pPlaneIn[2].u_width*pPlaneIn[2].u_height));
+        // Copy Y, U and V planes
+        memcpy((void *)pPlaneIn[0].pac_data, (void *)outPlane[0].pac_data,
+            (pPlaneIn[0].u_width*pPlaneIn[0].u_height));
+        memcpy((void *)pPlaneIn[1].pac_data, (void *)outPlane[1].pac_data,
+            (pPlaneIn[1].u_width*pPlaneIn[1].u_height));
+        memcpy((void *)pPlaneIn[2].pac_data, (void *)outPlane[2].pac_data,
+            (pPlaneIn[2].u_width*pPlaneIn[2].u_height));
+
+        free((void *)outPlane[0].pac_data);
+        free((void *)outPlane[1].pac_data);
+        free((void *)outPlane[2].pac_data);
+
+        // Swap the width and height of the in plane
+        uint32_t temp = 0;
+        temp = pPlaneIn[0].u_width;
+        pPlaneIn[0].u_width = pPlaneIn[0].u_height;
+        pPlaneIn[0].u_height = temp;
+        pPlaneIn[0].u_stride = pPlaneIn[0].u_width;
+
+        temp = pPlaneIn[1].u_width;
+        pPlaneIn[1].u_width = pPlaneIn[1].u_height;
+        pPlaneIn[1].u_height = temp;
+        pPlaneIn[1].u_stride = pPlaneIn[1].u_width;
+
+        temp = pPlaneIn[2].u_width;
+        pPlaneIn[2].u_width = pPlaneIn[2].u_height;
+        pPlaneIn[2].u_height = temp;
+        pPlaneIn[2].u_stride = pPlaneIn[2].u_width;
+    }
+
+    return err;
+}
+
+M4OSA_ERR M4VSS3GPP_intSetYUV420Plane(M4VIFI_ImagePlane* planeIn,
+                                      M4OSA_UInt32 width, M4OSA_UInt32 height) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+
+    if (planeIn == M4OSA_NULL) {
+        M4OSA_TRACE1_0("NULL in plane, error");
+        return M4ERR_PARAMETER;
+    }
+
+    planeIn[0].u_width = width;
+    planeIn[0].u_height = height;
+    planeIn[0].u_stride = planeIn[0].u_width;
+
+    planeIn[1].u_width = width/2;
+    planeIn[1].u_height = height/2;
+    planeIn[1].u_stride = planeIn[1].u_width;
+
+    planeIn[2].u_width = width/2;
+    planeIn[2].u_height = height/2;
+    planeIn[2].u_stride = planeIn[1].u_width;
 
     return err;
 }

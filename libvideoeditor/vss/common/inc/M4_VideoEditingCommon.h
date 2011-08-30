@@ -323,6 +323,8 @@ typedef struct {
     M4OSA_UInt32                        uiClipAudioVolumePercentage;
     M4OSA_Bool                          bSetImageData;
 
+    M4OSA_Int32     videoRotationDegrees;        /**< Video rotation degree */
+
 } M4VIDEOEDITING_ClipProperties;
 
 

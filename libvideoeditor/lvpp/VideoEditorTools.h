@@ -139,4 +139,15 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
 android::status_t getVideoSizeByResolution(M4VIDEOEDITING_VideoFrameSize resolution,
     uint32_t *pWidth, uint32_t *pHeight);
 
+M4VIFI_UInt8 M4VIFI_Rotate90LeftYUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut);
+
+M4VIFI_UInt8 M4VIFI_Rotate90RightYUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut);
+
+M4VIFI_UInt8 M4VIFI_Rotate180YUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut);
+
+M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer,
+    M4OSA_UInt32 width, M4OSA_UInt32 height, M4OSA_UInt32 rotation);
 #endif // ANDROID_VE_TOOLS_H
