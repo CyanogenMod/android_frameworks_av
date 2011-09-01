@@ -9526,6 +9526,8 @@ static M4OSA_ERR M4MCS_intGetInputClipProperties( M4MCS_InternalContext *pC )
             pC->pReaderVideoStream->m_averageFrameRate;
         pC->InputFileProperties.uiVideoMaxAuSize =
             pC->pReaderVideoStream->m_basicProperties.m_maxAUSize;
+        pC->InputFileProperties.videoRotationDegrees =
+            pC->pReaderVideoStream->videoRotationDegrees;
     }
     else
     {

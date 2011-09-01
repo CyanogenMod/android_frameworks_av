@@ -1519,6 +1519,13 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 LOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor in FLOAT: %f",
                     pVideoStreamHandler->m_averageFrameRate);
 
+                // Get the video rotation degree
+                int32_t rotationDegree;
+                if(!meta->findInt32(kKeyRotation, &rotationDegree)) {
+                    rotationDegree = 0;
+                }
+                pVideoStreamHandler->videoRotationDegrees = rotationDegree;
+
                 pC->mVideoStreamHandler =
                     (M4_StreamHandler*)(pVideoStreamHandler);
 

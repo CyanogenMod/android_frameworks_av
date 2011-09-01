@@ -5789,24 +5789,23 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                     if( xVSS_context->pMCScurrentParams->isCreated == M4OSA_FALSE )
                     {
                         /* Opening MCS */
-                        err = M4xVSS_internalStartTranscoding(xVSS_context);
+                        M4OSA_UInt32 rotationDegree = 0;
+                        err = M4xVSS_internalStartTranscoding(xVSS_context, &rotationDegree);
 
                         if( err != M4NO_ERROR )
                         {
                             M4OSA_TRACE1_1("M4xVSS_Step: M4xVSS_internalStartTranscoding returned\
-                                 error: 0x%x", err)
-                                           /* TODO ? : Translate error code of MCS to an xVSS error
-                                           code ? */
-                                           return err;
+                                 error: 0x%x", err);
+                            return err;
                         }
-                    int32_t index = xVSS_context->pMCScurrentParams->videoclipnumber;
-                    if(xVSS_context->pSettings->pClipList[index]->bTranscodingRequired
-                     == M4OSA_FALSE) {
-                        /*the cuts are done in the MCS, so we need to replace
-                           the beginCutTime and endCutTime to keep the entire video*/
-                        xVSS_context->pSettings->pClipList[index]->uiBeginCutTime = 0;
-                        xVSS_context->pSettings->pClipList[index]->uiEndCutTime = 0;
-                    }
+                        int32_t index = xVSS_context->pMCScurrentParams->videoclipnumber;
+                        if(xVSS_context->pSettings->pClipList[index]->bTranscodingRequired
+                         == M4OSA_FALSE) {
+                            /*the cuts are done in the MCS, so we need to replace
+                               the beginCutTime and endCutTime to keep the entire video*/
+                            xVSS_context->pSettings->pClipList[index]->uiBeginCutTime = 0;
+                            xVSS_context->pSettings->pClipList[index]->uiEndCutTime = 0;
+                        }
 
                         M4OSA_TRACE1_1("M4xVSS_Step: \
                             M4xVSS_internalStartTranscoding returned \
@@ -5814,6 +5813,10 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                                  xVSS_context->pMCS_Ctxt);
                         xVSS_context->analyseStep =
                             M4xVSS_kMicroStateTranscodeMCS;
+
+                        // Retain rotation info of trimmed / transcoded file
+                        xVSS_context->pSettings->pClipList[index]->\
+                            ClipProperties.videoRotationDegrees = rotationDegree;
                     }
                 }
                 else if( xVSS_context->analyseStep

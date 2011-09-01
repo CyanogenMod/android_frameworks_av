@@ -76,7 +76,8 @@ extern M4OSA_ERR M4MCS_open_normalMode(M4MCS_Context pContext, M4OSA_Void* pFile
  * @return    M4ERR_ALLOC:        Memory allocation has failed
  ******************************************************************************
  */
-M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
+M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext,
+                                          M4OSA_UInt32 *rotationDegree)
 {
     M4xVSS_Context* xVSS_context = (M4xVSS_Context*)pContext;
     M4OSA_ERR err;
@@ -84,6 +85,7 @@ M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
     M4MCS_OutputParams Params;
     M4MCS_EncodingParams Rates;
     M4OSA_UInt32 i;
+    M4VIDEOEDITING_ClipProperties clipProps;
 
     err = M4MCS_init(&mcs_context, xVSS_context->pFileReadPtr, xVSS_context->pFileWritePtr);
     if(err != M4NO_ERROR)
@@ -102,6 +104,16 @@ M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext)
         M4MCS_abort(mcs_context);
         return err;
     }
+
+    /** Get the clip properties
+     */
+    err = M4MCS_getInputFileProperties(mcs_context, &clipProps);
+    if (err != M4NO_ERROR) {
+        M4OSA_TRACE1_1("Error in M4MCS_getInputFileProperties: 0x%x", err);
+        M4MCS_abort(mcs_context);
+        return err;
+    }
+    *rotationDegree = clipProps.videoRotationDegrees;
 
     /**
      * Fill MCS parameters with the parameters contained in the current element of the

@@ -586,7 +586,7 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
             *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
     }
-    LOGI("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    LOGV("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -670,7 +670,7 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
            *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     }
-    LOGI("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    LOGV("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -693,6 +693,6 @@ M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
             break;
         }
     }
-    LOGI("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    LOGV("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }

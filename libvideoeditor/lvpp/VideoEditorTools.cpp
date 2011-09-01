@@ -3672,3 +3672,214 @@ android::status_t getVideoSizeByResolution(
 
     return android::OK;
 }
+
+M4VIFI_UInt8 M4VIFI_Rotate90LeftYUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut) {
+
+    M4VIFI_Int32 plane_number;
+    M4VIFI_UInt32 i,j, u_stride;
+    M4VIFI_UInt8 *p_buf_src, *p_buf_dest;
+
+    /**< Loop on Y,U and V planes */
+    for (plane_number = 0; plane_number < 3; plane_number++) {
+        /**< Get adresses of first valid pixel in input and output buffer */
+        /**< As we have a -90° rotation, first needed pixel is the upper-right one */
+        p_buf_src =
+            &(pPlaneIn[plane_number].pac_data[pPlaneIn[plane_number].u_topleft]) +
+             pPlaneOut[plane_number].u_height - 1 ;
+        p_buf_dest =
+            &(pPlaneOut[plane_number].pac_data[pPlaneOut[plane_number].u_topleft]);
+        u_stride = pPlaneIn[plane_number].u_stride;
+        /**< Loop on output rows */
+        for (i = 0; i < pPlaneOut[plane_number].u_height; i++) {
+            /**< Loop on all output pixels in a row */
+            for (j = 0; j < pPlaneOut[plane_number].u_width; j++) {
+                *p_buf_dest++= *p_buf_src;
+                p_buf_src += u_stride;  /**< Go to the next row */
+            }
+
+            /**< Go on next row of the output frame */
+            p_buf_dest +=
+                pPlaneOut[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+            /**< Go to next pixel in the last row of the input frame*/
+            p_buf_src -=
+                pPlaneIn[plane_number].u_stride * pPlaneOut[plane_number].u_width + 1 ;
+        }
+    }
+
+    return M4VIFI_OK;
+}
+
+M4VIFI_UInt8 M4VIFI_Rotate90RightYUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut) {
+
+    M4VIFI_Int32 plane_number;
+    M4VIFI_UInt32 i,j, u_stride;
+    M4VIFI_UInt8 *p_buf_src, *p_buf_dest;
+
+    /**< Loop on Y,U and V planes */
+    for (plane_number = 0; plane_number < 3; plane_number++) {
+        /**< Get adresses of first valid pixel in input and output buffer */
+        /**< As we have a +90° rotation, first needed pixel is the left-down one */
+        p_buf_src =
+            &(pPlaneIn[plane_number].pac_data[pPlaneIn[plane_number].u_topleft]) +
+             (pPlaneIn[plane_number].u_stride * (pPlaneOut[plane_number].u_width - 1));
+        p_buf_dest =
+            &(pPlaneOut[plane_number].pac_data[pPlaneOut[plane_number].u_topleft]);
+        u_stride = pPlaneIn[plane_number].u_stride;
+        /**< Loop on output rows */
+        for (i = 0; i < pPlaneOut[plane_number].u_height; i++) {
+            /**< Loop on all output pixels in a row */
+            for (j = 0; j < pPlaneOut[plane_number].u_width; j++) {
+                *p_buf_dest++= *p_buf_src;
+                p_buf_src -= u_stride;  /**< Go to the previous row */
+            }
+
+            /**< Go on next row of the output frame */
+            p_buf_dest +=
+                pPlaneOut[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+            /**< Go to next pixel in the last row of the input frame*/
+            p_buf_src +=
+                pPlaneIn[plane_number].u_stride * pPlaneOut[plane_number].u_width +1 ;
+        }
+    }
+
+    return M4VIFI_OK;
+}
+
+M4VIFI_UInt8 M4VIFI_Rotate180YUV420toYUV420(void* pUserData,
+    M4VIFI_ImagePlane *pPlaneIn, M4VIFI_ImagePlane *pPlaneOut) {
+    M4VIFI_Int32 plane_number;
+    M4VIFI_UInt32 i,j;
+    M4VIFI_UInt8 *p_buf_src, *p_buf_dest, temp_pix1;
+
+    /**< Loop on Y,U and V planes */
+    for (plane_number = 0; plane_number < 3; plane_number++) {
+        /**< Get adresses of first valid pixel in input and output buffer */
+        p_buf_src =
+            &(pPlaneIn[plane_number].pac_data[pPlaneIn[plane_number].u_topleft]);
+        p_buf_dest =
+            &(pPlaneOut[plane_number].pac_data[pPlaneOut[plane_number].u_topleft]);
+
+        /**< If pPlaneIn = pPlaneOut, the algorithm will be different */
+        if (p_buf_src == p_buf_dest) {
+            /**< Get Address of last pixel in the last row of the frame */
+            p_buf_dest +=
+                pPlaneOut[plane_number].u_stride*(pPlaneOut[plane_number].u_height-1) +
+                 pPlaneOut[plane_number].u_width - 1;
+
+            /**< We loop (height/2) times on the rows.
+             * In case u_height is odd, the row at the middle of the frame
+             * has to be processed as must be mirrored */
+            for (i = 0; i < ((pPlaneOut[plane_number].u_height)>>1); i++) {
+                for (j = 0; j < pPlaneOut[plane_number].u_width; j++) {
+                    temp_pix1= *p_buf_dest;
+                    *p_buf_dest--= *p_buf_src;
+                    *p_buf_src++ = temp_pix1;
+                }
+                /**< Go on next row in top of frame */
+                p_buf_src +=
+                    pPlaneOut[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+                /**< Go to the last pixel in previous row in bottom of frame*/
+                p_buf_dest -=
+                    pPlaneOut[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+            }
+
+            /**< Mirror middle row in case height is odd */
+            if ((pPlaneOut[plane_number].u_height%2)!= 0) {
+                p_buf_src =
+                    &(pPlaneOut[plane_number].pac_data[pPlaneIn[plane_number].u_topleft]);
+                p_buf_src +=
+                    pPlaneOut[plane_number].u_stride*(pPlaneOut[plane_number].u_height>>1);
+                p_buf_dest =
+                    p_buf_src + pPlaneOut[plane_number].u_width;
+
+                /**< We loop u_width/2 times on this row.
+                 *  In case u_width is odd, the pixel at the middle of this row
+                 * remains unchanged */
+                for (j = 0; j < (pPlaneOut[plane_number].u_width>>1); j++) {
+                    temp_pix1= *p_buf_dest;
+                    *p_buf_dest--= *p_buf_src;
+                    *p_buf_src++ = temp_pix1;
+                }
+            }
+        } else {
+            /**< Get Address of last pixel in the last row of the output frame */
+            p_buf_dest +=
+                pPlaneOut[plane_number].u_stride*(pPlaneOut[plane_number].u_height-1) +
+                 pPlaneIn[plane_number].u_width - 1;
+
+            /**< Loop on rows */
+            for (i = 0; i < pPlaneOut[plane_number].u_height; i++) {
+                for (j = 0; j < pPlaneOut[plane_number].u_width; j++) {
+                    *p_buf_dest--= *p_buf_src++;
+                }
+
+                /**< Go on next row in top of input frame */
+                p_buf_src +=
+                    pPlaneIn[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+                /**< Go to last pixel of previous row in bottom of input frame*/
+                p_buf_dest -=
+                    pPlaneOut[plane_number].u_stride - pPlaneOut[plane_number].u_width;
+            }
+        }
+    }
+
+    return M4VIFI_OK;
+}
+
+M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer, M4OSA_UInt32 width,
+                             M4OSA_UInt32 height, M4OSA_UInt32 rotation) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+    M4VIFI_ImagePlane planeIn[3], planeOut[3];
+
+    if (pBuffer == M4OSA_NULL) {
+        LOGE("applyVideoRotation: NULL input frame");
+        return M4ERR_PARAMETER;
+    }
+    M4OSA_UInt8* outPtr = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(
+     (width*height*1.5), M4VS, (M4OSA_Char*)("rotation out ptr"));
+    if (outPtr == M4OSA_NULL) {
+        return M4ERR_ALLOC;
+    }
+
+    // In plane
+    prepareYUV420ImagePlane(planeIn, width,
+        height, (M4VIFI_UInt8 *)pBuffer, width, height);
+
+    // Out plane
+    if (rotation != 180) {
+        prepareYUV420ImagePlane(planeOut, height,
+            width, outPtr, height, width);
+    }
+
+    switch(rotation) {
+        case 90:
+            M4VIFI_Rotate90RightYUV420toYUV420(M4OSA_NULL, planeIn, planeOut);
+            memset(pBuffer, 0, (width*height*1.5));
+            memcpy(pBuffer, (void *)outPtr, (width*height*1.5));
+            break;
+
+        case 180:
+            // In plane rotation, so planeOut = planeIn
+            M4VIFI_Rotate180YUV420toYUV420(M4OSA_NULL, planeIn, planeIn);
+            break;
+
+        case 270:
+            M4VIFI_Rotate90LeftYUV420toYUV420(M4OSA_NULL, planeIn, planeOut);
+            memset(pBuffer, 0, (width*height*1.5));
+            memcpy(pBuffer, (void *)outPtr, (width*height*1.5));
+            break;
+
+        default:
+            LOGE("invalid rotation param %d", (int)rotation);
+            err = M4ERR_PARAMETER;
+            break;
+    }
+
+    free((void *)outPtr);
+    return err;
+
+}
+

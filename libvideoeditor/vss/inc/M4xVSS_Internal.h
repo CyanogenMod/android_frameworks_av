@@ -485,7 +485,8 @@ typedef struct {
 /**
  * Internal function prototypes */
 
-M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext);
+M4OSA_ERR M4xVSS_internalStartTranscoding(M4OSA_Context pContext,
+                                          M4OSA_UInt32 *rotationDegree);
 
 M4OSA_ERR M4xVSS_internalStopTranscoding(M4OSA_Context pContext);
 
