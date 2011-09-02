@@ -940,8 +940,14 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
             pC->ewc.uiVideoWidth = 960;
             pC->ewc.uiVideoHeight = 720;
             break;
+        case M4VIDEOEDITING_k1920_1080:
+            pC->ewc.uiVideoWidth = 1920;
+            pC->ewc.uiVideoHeight = 1088; // need to be multiples of 16
+            break;
 
         default: /* If output video size is not given, we take QCIF size */
+            M4OSA_TRACE1_0(
+                "M4VSS3GPP_editOpen: no output video size given, default to QCIF!");
             pC->ewc.uiVideoWidth = 176;
             pC->ewc.uiVideoHeight = 144;
             pC->xVSS.outputVideoSize = M4VIDEOEDITING_kQCIF;
