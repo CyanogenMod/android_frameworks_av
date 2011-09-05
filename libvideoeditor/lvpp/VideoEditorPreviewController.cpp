@@ -519,7 +519,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
                 // as threadProcess first increments the clip index
                 // and then processes clip in thread loop
                 mCurrentClipNumber = i-1;
-                LOGV("startPreview:mCurrentClipNumber = %d fromMS=%d",i,fromMS);
+                LOGD("startPreview:mCurrentClipNumber = %d fromMS=%d",i,fromMS);
 
                 // Save original value
                 mFirstPreviewClipBeginTime = mClipList[i]->uiBeginCutTime;
@@ -1024,13 +1024,13 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
     if(pController->mPlayerState == VePlayerIdle) {
         (pController->mCurrentClipNumber)++;
 
-        LOGV("threadProc: playing file index %d total clips %d",
+        LOGD("threadProc: playing file index %d total clips %d",
          pController->mCurrentClipNumber, pController->mNumberClipsToPreview);
 
         if((M4OSA_UInt32)pController->mCurrentClipNumber >=
          pController->mNumberClipsToPreview) {
 
-            LOGV("All clips previewed");
+            LOGD("All clips previewed");
 
             pController->mCurrentPlayedDuration = 0;
             pController->mCurrentClipDuration = 0;
@@ -1040,7 +1040,7 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
                 pController->mCurrentClipNumber =
                  pController->mStartingClipIndex;
 
-                LOGV("Preview looping TRUE, restarting from clip index %d",
+                LOGD("Preview looping TRUE, restarting from clip index %d",
                  pController->mCurrentClipNumber);
 
                 // Reset the story board timestamp inside the player
@@ -1159,7 +1159,8 @@ void VideoEditorPreviewController::notify(
             break;
         case MEDIA_PLAYBACK_COMPLETE:
         {
-            LOGV("notify:MEDIA_PLAYBACK_COMPLETE");
+            LOGD("notify:MEDIA_PLAYBACK_COMPLETE, mCurrentClipNumber = %d",
+                    pController->mCurrentClipNumber);
             pController->mPlayerState = VePlayerIdle;
 
             //send progress callback with last frame timestamp
