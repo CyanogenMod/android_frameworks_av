@@ -3528,7 +3528,7 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
                 err = pClipCtxt->ShellAPI.m_pVideoDecoder->m_pFctSetOption(
                     pClipCtxt->pViDecCtxt,
                     M4DECODER_kOptionID_YuvWithEffectNonContiguous,
-                    (M4OSA_DataOption)pPlaneOut);
+                    (M4OSA_DataOption)pC->yuv2);
             }
             if (M4NO_ERROR != err) {
                 M4OSA_TRACE1_1("M4VSS3GPP_intRenderFrameWithEffect: \

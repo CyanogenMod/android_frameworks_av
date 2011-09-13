@@ -8841,30 +8841,41 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
     }
 
 
-    if( (pC->EncodingVideoFormat = M4ENCODER_kNULL)
+    if ((pC->EncodingVideoFormat = M4ENCODER_kNULL)
         && (pC->bLastDecodedFrameCTS == M4OSA_FALSE)
-        && (pC->uiBeginCutTime > 0) )
-    {
+        && (pC->uiBeginCutTime > 0)) {
 
         pC->bLastDecodedFrameCTS = M4OSA_TRUE;
         err = pC->m_pVideoDecoder->m_pFctGetOption(pC->pViDecCtxt,
             M4DECODER_kOptionID_AVCLastDecodedFrameCTS, &lastdecodedCTS);
 
-        if( M4NO_ERROR != err )
-        {
+        if (M4NO_ERROR != err) {
             M4OSA_TRACE1_1(
                 "M4MCS_intVideoNullEncoding: m_pVideoDecoder->m_pFctGetOption returns 0x%x!",
                 err);
             return err;
         }
+        /* Do not need video decoder any more, need to destroy it. Otherwise it
+         * will call reader function which will cause frame lost during triming,
+         * since the 3gp reader is shared between MCS and decoder.*/
+        if (M4OSA_NULL != pC->pViDecCtxt) {
+            err = pC->m_pVideoDecoder->m_pFctDestroy(pC->pViDecCtxt);
+            pC->pViDecCtxt = M4OSA_NULL;
+
+            if (M4NO_ERROR != err) {
+                M4OSA_TRACE1_1(
+                    "M4MCS_intVideoNullEncoding: decoder pFctDestroy returns 0x%x",
+                    err);
+                return err;
+            }
+        }
 
         err = pC->m_pReader->m_pFctJump(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream, &lastdecodedCTS);
 
-        if( M4NO_ERROR != err )
-        {
+        if (M4NO_ERROR != err) {
             M4OSA_TRACE1_1(
-                "M4MCS_intStepBeginVideoJump: m_pFctJump(V) returns 0x%x!",
+                "M4MCS_intVideoNullEncoding: m_pFctJump(V) returns 0x%x!",
                 err);
             return err;
         }
@@ -8875,19 +8886,17 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
         err = pC->m_pReader->m_pFctFillAuStruct(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream, &lReaderVideoAU);
 
-        if( M4NO_ERROR != err )
-        {
+        if (M4NO_ERROR != err) {
             M4OSA_TRACE1_1(
-                "M4MCS_open(): m_pReader->m_pFctFillAuStruct(video) returns 0x%x",
-                err);
+                "M4MCS_intVideoNullEncoding:m_pReader->m_pFctFillAuStruct(video)\
+                returns 0x%x", err);
             return err;
         }
 
         err = pC->m_pReaderDataIt->m_pFctGetNextAu(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream, &lReaderVideoAU);
 
-        if( M4WAR_NO_MORE_AU == err )
-        {
+        if (M4WAR_NO_MORE_AU == err) {
             M4OSA_TRACE2_0(
                 "M4MCS_intVideoNullEncoding():\
                  m_pReaderDataIt->m_pFctGetNextAu(video) returns M4WAR_NO_MORE_AU");
@@ -8895,8 +8904,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             pC->VideoState = M4MCS_kStreamState_FINISHED;
             return err;
         }
-        else if( M4NO_ERROR != err )
-        {
+        else if (M4NO_ERROR != err) {
             M4OSA_TRACE1_1(
                 "M4MCS_intVideoNullEncoding():\
                  m_pReaderDataIt->m_pFctGetNextAu(video) returns 0x%x",
@@ -8919,16 +8927,14 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
     /**
     * Initializes a new AU if needed */
 
-    if( pC->ReaderVideoAU1.m_structSize == 0 )
-    {
+    if (pC->ReaderVideoAU1.m_structSize == 0) {
         /**
         * Initializes an access Unit */
         err = pC->m_pReader->m_pFctFillAuStruct(pC->pReaderContext,
             (M4_StreamHandler *)pC->pReaderVideoStream,
             &pC->ReaderVideoAU1);
 
-        if( M4NO_ERROR != err )
-        {
+        if (M4NO_ERROR != err) {
             M4OSA_TRACE1_1(
                 "M4MCS_open(): m_pReader->m_pFctFillAuStruct(video) returns 0x%x",
                 err);
@@ -8939,8 +8945,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
             (M4OSA_MemAddr8)M4OSA_32bitAlignedMalloc(pC->ReaderVideoAU1.m_maxsize, M4MCS,
             (M4OSA_Char *)"Temporary video AU1 buffer");
 
-        if( pC->m_pDataVideoAddress1 == M4OSA_NULL )
-        {
+        if (pC->m_pDataVideoAddress1 == M4OSA_NULL) {
             M4OSA_TRACE1_0("M4MCS_intVideoNullEncoding(): allocation error");
             return M4ERR_ALLOC;
         }
