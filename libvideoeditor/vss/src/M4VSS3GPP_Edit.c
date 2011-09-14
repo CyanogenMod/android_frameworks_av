@@ -2971,21 +2971,6 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
         {
             /* if not a transition then reset previous video state */
             pC->Vstate = M4VSS3GPP_kEditVideoState_READ_WRITE;
-
-            if( pC->bIsMMS == M4OSA_FALSE ) /* RC */
-            {
-                /* There may be an encoder to destroy */
-                err = M4VSS3GPP_intDestroyVideoEncoder(pC);
-
-                if( M4NO_ERROR != err )
-                {
-                    M4OSA_TRACE1_1(
-                        "M4VSS3GPP_intSwitchToNextClip:\
-                        M4VSS3GPP_editDestroyVideoEncoder() returns 0x%x!",
-                        err);
-                    return err;
-                }
-            }
         }
     }
     /* The flags are set to false at the beginning of every clip */

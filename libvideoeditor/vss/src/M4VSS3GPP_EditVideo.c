@@ -884,15 +884,17 @@ static M4OSA_ERR M4VSS3GPP_intCheckVideoMode(
         && pC->bIsMMS == M4OSA_FALSE )
     {
         /**
-        * Create the encoder */
-        err = M4VSS3GPP_intCreateVideoEncoder(pC);
+        * Create the encoder, if not created already*/
+        if (pC->ewc.encoderState == M4VSS3GPP_kNoEncoder) {
+            err = M4VSS3GPP_intCreateVideoEncoder(pC);
 
-        if( M4NO_ERROR != err )
-        {
-            M4OSA_TRACE1_1(
-                "M4VSS3GPP_intCheckVideoMode: M4VSS3GPP_intCreateVideoEncoder returns 0x%x!",
-                err);
-            return err;
+            if( M4NO_ERROR != err )
+            {
+                M4OSA_TRACE1_1(
+                    "M4VSS3GPP_intCheckVideoMode: M4VSS3GPP_intCreateVideoEncoder \
+                     returns 0x%x!", err);
+                return err;
+            }
         }
     }
     else if( pC->bIsMMS == M4OSA_TRUE && pC->ewc.pEncContext == M4OSA_NULL )
