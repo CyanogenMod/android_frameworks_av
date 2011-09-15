@@ -93,7 +93,7 @@ typedef struct {
     M4SYS_AccessUnit            mAudioAu;
     M4SYS_AccessUnit            mVideoAu;
     M4OSA_Time                  mMaxDuration;
-    int32_t                     mFileSize;
+    int64_t                     mFileSize;
     M4_StreamType               mStreamType;
     M4OSA_UInt32                mStreamId;
     int32_t                     mTracks;
@@ -670,11 +670,8 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
 
             if (pC->mMaxDuration != 0) {
                 M4OSA_UInt32 ui32Tmp = (M4OSA_UInt32)pC->mMaxDuration;
-                *pBitrate = (M4OSA_UInt32)((M4OSA_Double)pC->mFileSize * \
-                    8000.0 / (M4OSA_Double)ui32Tmp);
-                LOGV("3gpReader_getOption bitrate:  %d", *pBitrate);
+                *pBitrate = (M4OSA_UInt32)(pC->mFileSize * 8000.0 / pC->mMaxDuration);
             }
-            *pBitrate = 384000; //check
             LOGV("VideoEditor3gpReader_getOption bitrate %ld", *pBitrate);
         }
     break;
@@ -1494,7 +1491,12 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 LOGV("VideoEditor3gpReader_getNextStreamHandler m_duration %d",
                     (*pStreamHandler)->m_duration);
 
-                pC->mFileSize  = 0;
+                off64_t fileSize = 0;
+                pC->mDataSource->getSize(&fileSize);
+                pC->mFileSize  = fileSize;
+
+                LOGV("VideoEditor3gpReader_getNextStreamHandler m_fileSize %d",
+                    pC->mFileSize);
 
                 meta->findInt32(kKeyMaxInputSize, (int32_t*)&(maxAUSize));
                 if(maxAUSize == 0) {
@@ -1504,11 +1506,11 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 LOGV("<<<<<<<<<<   video: mMaxAUSize from MP4 extractor: %d",
                     (*pStreamHandler)->m_maxAUSize);
 
-                if( (M4DA_StreamTypeVideoH263       == streamType) ||
-                    (M4DA_StreamTypeVideoMpeg4Avc   == streamType)){
-                    ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate =
-                        384000;
-                }
+                ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate =
+                        (pC->mFileSize * 8000)/pC->mMaxDuration;
+                LOGV("VideoEditor3gpReader_getNextStreamHandler m_averageBitrate %d",
+                    ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate);
+
 
                 meta->findInt32(kKeyFrameRate,
                     (int32_t*)&(avgFPS));
