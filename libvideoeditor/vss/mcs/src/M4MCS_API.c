@@ -71,6 +71,7 @@ FILE *file_pcm_encoder = NULL;
 #endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
 
 #include "M4AIR_API.h"
+#include "OMX_Video.h"
 
 /* Version */
 #define M4MCS_VERSION_MAJOR 3
@@ -121,6 +122,15 @@ static M4OSA_ERR M4MCS_intReallocTemporaryAU(
                                     M4OSA_UInt32 newSize );
 static M4OSA_ERR M4MCS_intCheckAndGetCodecProperties(
                                  M4MCS_InternalContext *pC);
+
+static M4OSA_ERR M4MCS_intLimitBitratePerCodecProfileLevel(
+                                 M4ENCODER_AdvancedParams* EncParams);
+static M4OSA_Int32 M4MCS_intLimitBitrateForH263Enc(M4OSA_Int32 profile,
+                                 M4OSA_Int32 level, M4OSA_Int32 bitrate);
+static M4OSA_Int32 M4MCS_intLimitBitrateForMpeg4Enc(M4OSA_Int32 profile,
+                                 M4OSA_Int32 level, M4OSA_Int32 bitrate);
+static M4OSA_Int32 M4MCS_intLimitBitrateForH264Enc(M4OSA_Int32 profile,
+                                 M4OSA_Int32 level, M4OSA_Int32 bitrate);
 
 /**
  **********************************************************************
@@ -5845,6 +5855,17 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
     }
 
     /**
+     * Limit the video bitrate according to encoder profile
+     * and level */
+    err = M4MCS_intLimitBitratePerCodecProfileLevel(&EncParams);
+    if (M4NO_ERROR != err) {
+        M4OSA_TRACE1_1(
+            "M4MCS_intPrepareVideoEncoder: limit bitrate returned err \
+             0x%x", err);
+        return err;
+    }
+
+    /**
     * Create video encoder */
     err = pC->pVideoEncoderGlobalFcts->pFctInit(&pC->pViEncCtxt,
         pC->pWriterDataFcts, \
@@ -10641,4 +10662,284 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecProperties(
 
     return err;
 
+}
+
+M4OSA_ERR M4MCS_intLimitBitratePerCodecProfileLevel(
+                                 M4ENCODER_AdvancedParams* EncParams) {
+
+    M4OSA_ERR err = M4NO_ERROR;
+
+    switch (EncParams->Format) {
+        case M4ENCODER_kH263:
+            EncParams->Bitrate = M4MCS_intLimitBitrateForH263Enc(
+                                     EncParams->videoProfile,
+                                     EncParams->videoLevel, EncParams->Bitrate);
+            break;
+
+        case M4ENCODER_kMPEG4:
+            EncParams->Bitrate = M4MCS_intLimitBitrateForMpeg4Enc(
+                                     EncParams->videoProfile,
+                                     EncParams->videoLevel, EncParams->Bitrate);
+            break;
+
+        case M4ENCODER_kH264:
+            EncParams->Bitrate = M4MCS_intLimitBitrateForH264Enc(
+                                     EncParams->videoProfile,
+                                     EncParams->videoLevel, EncParams->Bitrate);
+            break;
+
+        default:
+            M4OSA_TRACE1_1("M4MCS_intLimitBitratePerCodecProfileLevel: \
+                Wrong enc format %d", EncParams->Format);
+            err = M4ERR_PARAMETER;
+            break;
+    }
+
+    return err;
+
+}
+
+M4OSA_Int32 M4MCS_intLimitBitrateForH264Enc(M4OSA_Int32 profile,
+                                    M4OSA_Int32 level, M4OSA_Int32 bitrate) {
+
+    M4OSA_Int32 vidBitrate = 0;
+
+    switch (profile) {
+        case OMX_VIDEO_AVCProfileBaseline:
+        case OMX_VIDEO_AVCProfileMain:
+
+            switch (level) {
+
+                case OMX_VIDEO_AVCLevel1:
+                    vidBitrate = (bitrate > 64000) ? 64000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel1b:
+                    vidBitrate = (bitrate > 128000) ? 128000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel11:
+                    vidBitrate = (bitrate > 192000) ? 192000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel12:
+                    vidBitrate = (bitrate > 384000) ? 384000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel13:
+                    vidBitrate = (bitrate > 768000) ? 768000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel2:
+                    vidBitrate = (bitrate > 2000000) ? 2000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel21:
+                    vidBitrate = (bitrate > 4000000) ? 4000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel22:
+                    vidBitrate = (bitrate > 4000000) ? 4000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel3:
+                    vidBitrate = (bitrate > 10000000) ? 10000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel31:
+                    vidBitrate = (bitrate > 14000000) ? 14000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel32:
+                    vidBitrate = (bitrate > 20000000) ? 20000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel4:
+                    vidBitrate = (bitrate > 20000000) ? 20000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel41:
+                    vidBitrate = (bitrate > 50000000) ? 50000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel42:
+                    vidBitrate = (bitrate > 50000000) ? 50000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel5:
+                    vidBitrate = (bitrate > 135000000) ? 135000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel51:
+                    vidBitrate = (bitrate > 240000000) ? 240000000 : bitrate;
+                    break;
+
+                default:
+                    vidBitrate = bitrate;
+                    break;
+            }
+            break;
+
+        case OMX_VIDEO_AVCProfileHigh:
+            switch (level) {
+                case OMX_VIDEO_AVCLevel1:
+                    vidBitrate = (bitrate > 80000) ? 80000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel1b:
+                    vidBitrate = (bitrate > 160000) ? 160000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel11:
+                    vidBitrate = (bitrate > 240000) ? 240000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel12:
+                    vidBitrate = (bitrate > 480000) ? 480000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel13:
+                    vidBitrate = (bitrate > 960000) ? 960000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel2:
+                    vidBitrate = (bitrate > 2500000) ? 2500000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel21:
+                    vidBitrate = (bitrate > 5000000) ? 5000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel22:
+                    vidBitrate = (bitrate > 5000000) ? 5000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel3:
+                    vidBitrate = (bitrate > 12500000) ? 12500000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel31:
+                    vidBitrate = (bitrate > 17500000) ? 17500000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel32:
+                    vidBitrate = (bitrate > 25000000) ? 25000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel4:
+                    vidBitrate = (bitrate > 25000000) ? 25000000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel41:
+                    vidBitrate = (bitrate > 62500000) ? 62500000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel42:
+                    vidBitrate = (bitrate > 62500000) ? 62500000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel5:
+                    vidBitrate = (bitrate > 168750000) ? 168750000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_AVCLevel51:
+                    vidBitrate = (bitrate > 300000000) ? 300000000 : bitrate;
+                    break;
+
+                default:
+                    vidBitrate = bitrate;
+                    break;
+            }
+            break;
+
+        default:
+            // We do not handle any other AVC profile for now.
+            // Return input bitrate
+            vidBitrate = bitrate;
+            break;
+    }
+
+    return vidBitrate;
+}
+
+M4OSA_Int32 M4MCS_intLimitBitrateForMpeg4Enc(M4OSA_Int32 profile,
+                                    M4OSA_Int32 level, M4OSA_Int32 bitrate) {
+
+    M4OSA_Int32 vidBitrate = 0;
+
+    switch (profile) {
+        case OMX_VIDEO_MPEG4ProfileSimple:
+            switch (level) {
+
+                case OMX_VIDEO_MPEG4Level0:
+                    vidBitrate = (bitrate > 64000) ? 64000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_MPEG4Level0b:
+                    vidBitrate = (bitrate > 128000) ? 128000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_MPEG4Level1:
+                    vidBitrate = (bitrate > 64000) ? 64000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_MPEG4Level2:
+                    vidBitrate = (bitrate > 128000) ? 128000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_MPEG4Level3:
+                    vidBitrate = (bitrate > 384000) ? 384000 : bitrate;
+                    break;
+
+                default:
+                    vidBitrate = bitrate;
+                    break;
+            }
+            break;
+
+        default:
+            // We do not handle any other MPEG4 profile for now.
+            // Return input bitrate
+            vidBitrate = bitrate;
+            break;
+    }
+
+    return vidBitrate;
+}
+
+M4OSA_Int32 M4MCS_intLimitBitrateForH263Enc(M4OSA_Int32 profile,
+                                    M4OSA_Int32 level, M4OSA_Int32 bitrate) {
+
+    M4OSA_Int32 vidBitrate = 0;
+
+    switch (profile) {
+        case OMX_VIDEO_H263ProfileBaseline:
+            switch (level) {
+
+                case OMX_VIDEO_H263Level10:
+                    vidBitrate = (bitrate > 64000) ? 64000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_H263Level20:
+                    vidBitrate = (bitrate > 128000) ? 128000 : bitrate;
+                    break;
+
+                case OMX_VIDEO_H263Level30:
+                    vidBitrate = (bitrate > 384000) ? 384000 : bitrate;
+                    break;
+
+                default:
+                    vidBitrate = bitrate;
+                    break;
+            }
+            break;
+
+        default:
+            // We do not handle any other H263 profile for now.
+            // Return input bitrate
+            vidBitrate = bitrate;
+            break;
+    }
+
+    return vidBitrate;
 }
