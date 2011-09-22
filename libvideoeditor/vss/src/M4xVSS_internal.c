@@ -4240,11 +4240,11 @@ M4OSA_ERR M4xVSS_AlphaMagic( M4OSA_Void *userData, M4VIFI_ImagePlane PlaneIn1[3]
 
     alphaContext = (M4xVSS_internal_AlphaMagicSettings*)userData;
 
-    alphaProgressLevel = (pProgress->uiProgress * 255)/1000;
+    alphaProgressLevel = (pProgress->uiProgress * 128)/1000;
 
     if( alphaContext->isreverse != M4OSA_FALSE)
     {
-        alphaProgressLevel = 255 - alphaProgressLevel;
+        alphaProgressLevel = 128 - alphaProgressLevel;
         planeswap = PlaneIn1;
         PlaneIn1 = PlaneIn2;
         PlaneIn2 = planeswap;
@@ -4356,11 +4356,11 @@ M4OSA_ERR M4xVSS_AlphaMagicBlending( M4OSA_Void *userData, M4VIFI_ImagePlane Pla
 
     alphaContext = (M4xVSS_internal_AlphaMagicSettings*)userData;
 
-    alphaProgressLevel = (pProgress->uiProgress * 255)/1000;
+    alphaProgressLevel = (pProgress->uiProgress * 128)/1000;
 
     if( alphaContext->isreverse != M4OSA_FALSE)
     {
-        alphaProgressLevel = 255 - alphaProgressLevel;
+        alphaProgressLevel = 128 - alphaProgressLevel;
         planeswap = PlaneIn1;
         PlaneIn1 = PlaneIn2;
         PlaneIn2 = planeswap;
