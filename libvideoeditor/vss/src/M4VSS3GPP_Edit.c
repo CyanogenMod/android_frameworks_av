@@ -1047,19 +1047,29 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     }
 
     for (i=0; i<pC->uiClipNumber; i++) {
-        if ((pC->pClipList[i].ClipProperties.VideoStreamType !=
-              pC->xVSS.outputVideoFormat)||
-              (pC->pClipList[i].ClipProperties.uiVideoWidth !=
-               pC->ewc.uiVideoWidth) ||
-              (pC->pClipList[i].ClipProperties.uiVideoHeight !=
-               pC->ewc.uiVideoHeight) ||
-              (pC->pClipList[i].ClipProperties.VideoStreamType ==
-               M4VIDEOEDITING_kH264) ||
-              (pC->pClipList[i].ClipProperties.VideoStreamType ==
-               M4VIDEOEDITING_kMPEG4 &&
-               pC->pClipList[i].ClipProperties.uiVideoTimeScale !=
-                pC->ewc.uiVideoTimeScale)) {
-            pC->pClipList[i].bTranscodingRequired = M4OSA_TRUE;
+        if (pC->pClipList[i].bTranscodingRequired == M4OSA_FALSE) {
+            /** If not transcoded in Analysis phase, check
+             * if transcoding required now
+             */
+            if ((pC->pClipList[i].ClipProperties.VideoStreamType !=
+                  pC->xVSS.outputVideoFormat)||
+                  (pC->pClipList[i].ClipProperties.uiVideoWidth !=
+                   pC->ewc.uiVideoWidth) ||
+                  (pC->pClipList[i].ClipProperties.uiVideoHeight !=
+                   pC->ewc.uiVideoHeight) ||
+                  (pC->pClipList[i].ClipProperties.VideoStreamType ==
+                   M4VIDEOEDITING_kH264) ||
+                  (pC->pClipList[i].ClipProperties.VideoStreamType ==
+                   M4VIDEOEDITING_kMPEG4 &&
+                   pC->pClipList[i].ClipProperties.uiVideoTimeScale !=
+                    pC->ewc.uiVideoTimeScale)) {
+                pC->pClipList[i].bTranscodingRequired = M4OSA_TRUE;
+            }
+        } else {
+            /** If bTranscodingRequired is true, it means the clip has
+             * been transcoded in Analysis phase.
+             */
+            pC->pClipList[i].bTranscodingRequired = M4OSA_FALSE;
         }
     }
     /**
