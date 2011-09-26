@@ -49,6 +49,7 @@ Begin of xVSS API
 
 /* RC: to delete unecessary temp files on the fly */
 #include "M4VSS3GPP_InternalTypes.h"
+#include <utils/Log.h>
 
 /**
  ******************************************************************************
@@ -2430,6 +2431,19 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                     audioIsDifferent = M4OSA_FALSE;
                 }
             }
+            /* Here check the clip video profile and level, if it exceeds
+             * the profile and level of export file, then the file need
+             * to be transcoded(do not do compress domain trim) */
+           if ((fileProperties.uiVideoProfile >
+                     xVSS_context->pSettings->xVSS.outputVideoProfile) ||
+                (fileProperties.uiVideoLevel >
+                     xVSS_context->pSettings->xVSS.outputVideoLevel)) {
+               /* Set bTranscodingRequired to TRUE to indicate the video will be
+                * transcoded in MCS. */
+               xVSS_context->pSettings->pClipList[i]->bTranscodingRequired =
+                   M4OSA_TRUE;
+               videoIsDifferent = M4OSA_TRUE;
+           }
 
             if( videoIsDifferent == M4OSA_TRUE || audioIsDifferent == M4OSA_TRUE)
             {
@@ -5799,13 +5813,12 @@ M4OSA_ERR M4xVSS_Step( M4OSA_Context pContext, M4OSA_UInt8 *pProgress )
                             return err;
                         }
                         int32_t index = xVSS_context->pMCScurrentParams->videoclipnumber;
-                        if(xVSS_context->pSettings->pClipList[index]->bTranscodingRequired
-                         == M4OSA_FALSE) {
-                            /*the cuts are done in the MCS, so we need to replace
-                               the beginCutTime and endCutTime to keep the entire video*/
-                            xVSS_context->pSettings->pClipList[index]->uiBeginCutTime = 0;
-                            xVSS_context->pSettings->pClipList[index]->uiEndCutTime = 0;
-                        }
+
+                        /* The cuts are done in the MCS, so we need to replace
+                           the beginCutTime and endCutTime to keep the entire video*/
+                        xVSS_context->pSettings->pClipList[index]->uiBeginCutTime = 0;
+                        xVSS_context->pSettings->pClipList[index]->uiEndCutTime = 0;
+
 
                         M4OSA_TRACE1_1("M4xVSS_Step: \
                             M4xVSS_internalStartTranscoding returned \
