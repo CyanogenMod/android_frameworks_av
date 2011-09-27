@@ -392,7 +392,10 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     // Enable zoom, error, focus, and metadata messages by default
     enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS
 #ifndef QCOM_HARDWARE
-                  | CAMERA_MSG_PREVIEW_METADATA | CAMERA_MSG_FOCUS_MOVE
+                  | CAMERA_MSG_PREVIEW_METADATA 
+#ifndef OMAP_ICS_CAMERA
+                  | CAMERA_MSG_FOCUS_MOVE
+#endif
 #endif
                   );
 
@@ -724,8 +727,8 @@ status_t CameraService::Client::startPreviewMode() {
                 mOrientation);
     }
 
-#ifdef OMAP_ICS_CAMERA
-    disableMsgType(CAMERA_MSG_FOCUS_MOVE);
+#if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
+    disableMsgType(CAMERA_MSG_COMPRESSED_BURST_IMAGE);
 #endif
 
     mHardware->setPreviewWindow(mPreviewWindow);
@@ -881,12 +884,12 @@ status_t CameraService::Client::takePicture(int msgType) {
                         CAMERA_MSG_RAW_IMAGE_NOTIFY |
                         CAMERA_MSG_COMPRESSED_IMAGE);
 
+#if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
+        picMsgType |= CAMERA_MSG_COMPRESSED_BURST_IMAGE;
+#endif
     }
 #ifdef QCOM_HARDWARE
     disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
-#endif
-#ifdef OMAP_ICS_CAMERA
-    picMsgType |= CAMERA_MSG_FOCUS_MOVE;
 #endif
     enableMsgType(picMsgType);
 #ifdef QCOM_HARDWARE
@@ -1163,8 +1166,8 @@ void CameraService::Client::dataCallback(int32_t msgType,
         case CAMERA_MSG_COMPRESSED_IMAGE:
             client->handleCompressedPicture(dataPtr);
             break;
-#ifdef OMAP_ICS_CAMERA
-        case CAMERA_MSG_FOCUS_MOVE:
+#if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
+        case CAMERA_MSG_COMPRESSED_BURST_IMAGE:
             client->handleCompressedBurstPicture(dataPtr);
             break;
 #endif
@@ -1305,7 +1308,7 @@ void CameraService::Client::handleCompressedPicture(const sp<IMemory>& mem) {
     }
 }
 
-#ifdef OMAP_ICS_CAMERA
+#if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
 // burst picture callback - compressed picture ready
 void CameraService::Client::handleCompressedBurstPicture(const sp<IMemory>& mem) {
     // Don't disable this message type yet. In this mode takePicture() will

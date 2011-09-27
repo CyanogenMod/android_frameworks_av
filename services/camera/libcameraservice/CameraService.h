@@ -163,7 +163,7 @@ private:
         void                    handlePostview(const sp<IMemory>& mem);
         void                    handleRawPicture(const sp<IMemory>& mem);
         void                    handleCompressedPicture(const sp<IMemory>& mem);
-#ifdef OMAP_ICS_CAMERA
+#if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
         void                    handleCompressedBurstPicture(const sp<IMemory>& mem);
 #endif
         void                    handleGenericNotify(int32_t msgType, int32_t ext1, int32_t ext2);
