@@ -723,6 +723,11 @@ status_t CameraService::Client::startPreviewMode() {
         native_window_set_buffers_transform(mPreviewWindow.get(),
                 mOrientation);
     }
+
+#ifdef OMAP_ICS_CAMERA
+    disableMsgType(CAMERA_MSG_FOCUS_MOVE);
+#endif
+
     mHardware->setPreviewWindow(mPreviewWindow);
     result = mHardware->startPreview();
 
@@ -879,6 +884,9 @@ status_t CameraService::Client::takePicture(int msgType) {
     }
 #ifdef QCOM_HARDWARE
     disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+#endif
+#ifdef OMAP_ICS_CAMERA
+    picMsgType |= CAMERA_MSG_FOCUS_MOVE;
 #endif
     enableMsgType(picMsgType);
 #ifdef QCOM_HARDWARE
@@ -1155,6 +1163,11 @@ void CameraService::Client::dataCallback(int32_t msgType,
         case CAMERA_MSG_COMPRESSED_IMAGE:
             client->handleCompressedPicture(dataPtr);
             break;
+#ifdef OMAP_ICS_CAMERA
+        case CAMERA_MSG_FOCUS_MOVE:
+            client->handleCompressedBurstPicture(dataPtr);
+            break;
+#endif
         default:
             client->handleGenericData(msgType, dataPtr, metadata);
             break;
@@ -1292,6 +1305,20 @@ void CameraService::Client::handleCompressedPicture(const sp<IMemory>& mem) {
     }
 }
 
+#ifdef OMAP_ICS_CAMERA
+// burst picture callback - compressed picture ready
+void CameraService::Client::handleCompressedBurstPicture(const sp<IMemory>& mem) {
+    // Don't disable this message type yet. In this mode takePicture() will
+    // get called only once. When burst finishes this message will get automatically
+    // disabled in the respective call for restarting the preview.
+
+    sp<ICameraClient> c = mCameraClient;
+    mLock.unlock();
+    if (c != 0) {
+        c->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE, mem, NULL);
+    }
+}
+#endif
 
 void CameraService::Client::handleGenericNotify(int32_t msgType,
     int32_t ext1, int32_t ext2) {
