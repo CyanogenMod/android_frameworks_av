@@ -342,7 +342,7 @@ status_t PreviewPlayer::play() {
     Mutex::Autolock autoLock(mLock);
 
     mFlags &= ~CACHE_UNDERRUN;
-
+    mFlags &= ~INFORMED_AV_EOS;
     return play_l();
 }
 
@@ -481,8 +481,24 @@ void PreviewPlayer::onStreamDone() {
         //This lock is used to syncronize onStreamDone() in PreviewPlayer and
         //stopPreview() in PreviewController
         Mutex::Autolock autoLock(mLockControl);
-        notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
-
+        /* Make sure PreviewPlayer only notifies MEDIA_PLAYBACK_COMPLETE once for each clip!
+         * It happens twice in following scenario.
+         * To make the clips in preview storyboard are played and switched smoothly,
+         * PreviewController uses two PreviewPlayer instances and one AudioPlayer.
+         * The two PreviewPlayer use the same AudioPlayer to play the audio,
+         * and change the audio source of the AudioPlayer.
+         * If the audio source of current playing clip and next clip are dummy
+         * audio source(image or video without audio), it will not change the audio source
+         * to avoid the "audio glitch", and keep using the current audio source.
+         * When the video of current clip reached the EOS, PreviewPlayer will set EOS flag
+         * for video and audio, and it will notify MEDIA_PLAYBACK_COMPLETE.
+         * But the audio(dummy audio source) is still playing(for next clip),
+         * and when it reached the EOS, and video reached EOS,
+         * PreviewPlayer will notify MEDIA_PLAYBACK_COMPLETE again. */
+        if (!(mFlags & INFORMED_AV_EOS)) {
+            notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+            mFlags |= INFORMED_AV_EOS;
+        }
         mFlags |= AT_EOS;
         LOGV("onStreamDone end");
         return;

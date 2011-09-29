@@ -95,6 +95,7 @@ private:
         AUDIO_AT_EOS        = 256,
         VIDEO_AT_EOS        = 512,
         AUTO_LOOPING        = 1024,
+        INFORMED_AV_EOS     = 2048,
     };
 
     void cancelPlayerEvents(bool keepBufferingGoing = false);
