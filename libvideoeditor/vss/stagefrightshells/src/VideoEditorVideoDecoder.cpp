@@ -657,6 +657,7 @@ void logSupportDecodersAndCapabilities(M4DECODER_VideoDecoders* decoders) {
         pDecoder++;
     }
 }
+
 M4OSA_ERR queryVideoDecoderCapabilities
     (M4DECODER_VideoDecoders** decoders) {
     M4OSA_ERR err = M4NO_ERROR;
@@ -703,12 +704,24 @@ M4OSA_ERR queryVideoDecoderCapabilities
                     LOGV("NOTHING.\n");
                     continue;
                 }
+
+#if 0
+                // FIXME:
+                // We should ignore the software codecs and make IsSoftwareCodec()
+                // part of pubic API from OMXCodec.cpp
+                if (IsSoftwareCodec(results[i].mComponentName.string())) {
+                    LOGV("Ignore software codec %s", results[i].mComponentName.string());
+                    continue;
+                }
+#endif
+
                 // Count the supported profiles
                 int32_t profileNumber = 0;
                 int32_t profile = -1;
                 for (size_t j = 0; j < results[i].mProfileLevels.size(); ++j) {
                     const CodecProfileLevel &profileLevel =
                         results[i].mProfileLevels[j];
+                    // FIXME: assume that the profiles are ordered
                     if (profileLevel.mProfile != profile) {
                         profile = profileLevel.mProfile;
                         profileNumber++;
@@ -716,11 +729,7 @@ M4OSA_ERR queryVideoDecoderCapabilities
                 }
                 SAFE_MALLOC(pProfileLevel, VideoProfileLevel,
                     profileNumber, "VideoProfileLevel");
-
-
-
                 pOmxComponents->profileLevel = pProfileLevel;
-
                 pOmxComponents->profileNumber = profileNumber;
 
                 // Get the max Level for each profile.
@@ -733,20 +742,25 @@ M4OSA_ERR queryVideoDecoderCapabilities
                     if (profile == -1 && maxLevel == -1) {
                         profile = profileLevel.mProfile;
                         maxLevel = profileLevel.mLevel;
-                    }
-                    if (profileLevel.mProfile != profile) {
-                        // Save the current profile and the max level for this profile.
-                        LOGV("profile :%d maxLevel;%d", profile, maxLevel);
                         pProfileLevel->mProfile = profile;
                         pProfileLevel->mLevel = maxLevel;
-                        profileNumber++;
-                        pProfileLevel++;
+                        LOGV("%d profile: %ld, max level: %ld",
+                            __LINE__, pProfileLevel->mProfile, pProfileLevel->mLevel);
+                    }
+                    if (profileLevel.mProfile != profile) {
                         profile = profileLevel.mProfile;
                         maxLevel = profileLevel.mLevel;
-                    } else {
-                        if (profileLevel.mLevel > maxLevel) {
-                            maxLevel = profileLevel.mLevel;
-                        }
+                        profileNumber++;
+                        pProfileLevel++;
+                        pProfileLevel->mProfile = profile;
+                        pProfileLevel->mLevel = maxLevel;
+                        LOGV("%d profile: %ld, max level: %ld",
+                            __LINE__, pProfileLevel->mProfile, pProfileLevel->mLevel);
+                    } else if (profileLevel.mLevel > maxLevel) {
+                        maxLevel = profileLevel.mLevel;
+                        pProfileLevel->mLevel = maxLevel;
+                        LOGV("%d profile: %ld, max level: %ld",
+                            __LINE__, pProfileLevel->mProfile, pProfileLevel->mLevel);
                     }
 
                 }
