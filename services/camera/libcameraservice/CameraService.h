@@ -23,7 +23,11 @@
 #include <hardware/camera.h>
 
 /* This needs to be increased if we can have more cameras */
+#ifdef OMAP_ENHANCEMENT
+#define MAX_CAMERAS 3
+#else
 #define MAX_CAMERAS 2
+#endif
 
 namespace android {
 
