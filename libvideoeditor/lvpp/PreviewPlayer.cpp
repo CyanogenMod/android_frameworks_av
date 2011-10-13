@@ -21,7 +21,6 @@
 
 #include <dlfcn.h>
 
-#include "include/ARTSPController.h"
 #include "PreviewPlayer.h"
 #include "DummyAudioSource.h"
 #include "DummyVideoSource.h"
