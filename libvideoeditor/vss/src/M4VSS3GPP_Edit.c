@@ -157,6 +157,8 @@ M4OSA_ERR M4VSS3GPP_editInit( M4VSS3GPP_EditContext *pContext,
     pC->pEffectsList = M4OSA_NULL;
     pC->pActiveEffectsList = M4OSA_NULL;
     pC->pActiveEffectsList1 = M4OSA_NULL;
+    pC->bClip1ActiveFramingEffect = M4OSA_FALSE;
+    pC->bClip2ActiveFramingEffect = M4OSA_FALSE;
     pC->uiCurrentClip = 0;
     pC->pC1 = M4OSA_NULL;
     pC->pC2 = M4OSA_NULL;
@@ -602,6 +604,8 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
         pC->pEffectsList = M4OSA_NULL;
         pC->pActiveEffectsList = M4OSA_NULL;
         pC->pActiveEffectsList1 = M4OSA_NULL;
+        pC->bClip1ActiveFramingEffect = M4OSA_FALSE;
+        pC->bClip2ActiveFramingEffect = M4OSA_FALSE;
     }
 
     /**
@@ -2902,6 +2906,8 @@ static M4OSA_ERR M4VSS3GPP_intSwitchToNextClip(
             pC->pC1->m_pPreResizeFrame = pC->pC2->m_pPreResizeFrame;
         }
         pC->pC2 = M4OSA_NULL;
+        pC->bClip1ActiveFramingEffect = pC->bClip2ActiveFramingEffect;
+        pC->bClip2ActiveFramingEffect = M4OSA_FALSE;
     }
     /**
     * else open it */
@@ -3247,13 +3253,16 @@ M4OSA_ERR M4VSS3GPP_intOpenClip( M4VSS3GPP_InternalEditContext *pC,
         /* Video resize management   */
         /******************************/
         /**
-        * Compare input video size with output video size
-          to check if resize needed */
+        * If the input clip is a rotate video or the output resolution is different
+        * from the input resolution, then the video frame needs to be rotated
+        * or resized, force to resize mode */
         if (((M4OSA_UInt32)pC->ewc.uiVideoWidth !=
                  pClipProperties->uiVideoWidth) ||
             ((M4OSA_UInt32)pC->ewc.uiVideoHeight !=
-                 pClipProperties->uiVideoHeight)) {
-            if(pClip->m_pPreResizeFrame == M4OSA_NULL) {
+                 pClipProperties->uiVideoHeight) ||
+            pClipProperties->videoRotationDegrees != 0) {
+
+            if (pClip->m_pPreResizeFrame == M4OSA_NULL) {
                 /**
                 * Allocate the intermediate video plane that will
                   receive the decoded image before resizing */
