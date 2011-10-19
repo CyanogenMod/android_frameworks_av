@@ -607,6 +607,9 @@ typedef struct
     M4OSA_Bool               bEncodeTillEoF;
     M4xVSS_EditSettings      xVSS;
     M4OSA_Context            m_air_context;
+
+    M4OSA_Bool bClip1ActiveFramingEffect; /**< Overlay flag for clip1 */
+    M4OSA_Bool bClip2ActiveFramingEffect; /**< Overlay flag for clip2, used in transition */
 } M4VSS3GPP_InternalEditContext;
 
 
