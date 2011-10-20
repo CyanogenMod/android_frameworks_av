@@ -505,7 +505,7 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
     }
 
     constraintSet3 = (pDSI[index+2] & 0x10);
-    LOGV("getAVCProfileAndLevel profile_byte %d, level_byte: %d constrain3flag",
+    ALOGV("getAVCProfileAndLevel profile_byte %d, level_byte: %d constrain3flag",
           pDSI[index+1], pDSI[index+3], constraintSet3);
 
     switch (pDSI[index+1]) {
@@ -586,7 +586,7 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
             *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
     }
-    LOGV("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -606,7 +606,7 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
         return M4ERR_PARAMETER;
     }
-    LOGV("getH263ProfileAndLevel profile_byte %d, level_byte",
+    ALOGV("getH263ProfileAndLevel profile_byte %d, level_byte",
           pDSI[6], pDSI[5]);
     /* get the H263 level */
     switch (pDSI[5]) {
@@ -670,7 +670,7 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
            *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     }
-    LOGV("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -682,7 +682,7 @@ M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
     if ((pProfile == M4OSA_NULL) || (pLevel == M4OSA_NULL)) {
         return M4ERR_PARAMETER;
     }
-    LOGV("getMPEG4ProfileAndLevel profileAndLevel %d", profileAndLevel);
+    ALOGV("getMPEG4ProfileAndLevel profileAndLevel %d", profileAndLevel);
     length = sizeof(mpeg4ProfileLevelTable) /sizeof(mpeg4ProfileLevelTable[0]);
     *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
@@ -693,6 +693,6 @@ M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
             break;
         }
     }
-    LOGV("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
     return M4NO_ERROR;
 }

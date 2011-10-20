@@ -335,7 +335,7 @@ status_t PreviewPlayerBase::setDataSource_l(const sp<MediaExtractor> &extractor)
 
     mBitrate = totalBitRate;
 
-    LOGV("mBitrate = %lld bits/sec", mBitrate);
+    ALOGV("mBitrate = %lld bits/sec", mBitrate);
 
     bool haveAudio = false;
     bool haveVideo = false;
@@ -546,7 +546,7 @@ void PreviewPlayerBase::onVideoLagUpdate() {
     int64_t videoLateByUs = audioTimeUs - mVideoTimeUs;
 
     if (!(mFlags & VIDEO_AT_EOS) && videoLateByUs > 300000ll) {
-        LOGV("video late by %lld ms.", videoLateByUs / 1000ll);
+        ALOGV("video late by %lld ms.", videoLateByUs / 1000ll);
 
         notifyListener_l(
                 MEDIA_INFO,
@@ -574,7 +574,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, 100);
             }
             if (mFlags & PREPARING) {
-                LOGV("cache has reached EOS, prepare is done.");
+                ALOGV("cache has reached EOS, prepare is done.");
                 finishAsyncPrepare_l();
             }
         } else {
@@ -609,7 +609,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
                         play_l();
                         notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
                     } else if (mFlags & PREPARING) {
-                        LOGV("cache has filled up (> %d), prepare is done",
+                        ALOGV("cache has filled up (> %d), prepare is done",
                              kHighWaterMarkBytes);
                         finishAsyncPrepare_l();
                     }
@@ -621,7 +621,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
     int64_t cachedDurationUs;
     bool eos;
     if (getCachedDuration_l(&cachedDurationUs, &eos)) {
-        LOGV("cachedDurationUs = %.2f secs, eos=%d",
+        ALOGV("cachedDurationUs = %.2f secs, eos=%d",
              cachedDurationUs / 1E6, eos);
 
         if ((mFlags & PLAYING) && !eos
@@ -640,7 +640,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
                 play_l();
                 notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
             } else if (mFlags & PREPARING) {
-                LOGV("cache has filled up (%.2f secs), prepare is done",
+                ALOGV("cache has filled up (%.2f secs), prepare is done",
                      cachedDurationUs / 1E6);
                 finishAsyncPrepare_l();
             }
@@ -660,7 +660,7 @@ void PreviewPlayerBase::onStreamDone() {
     mStreamDoneEventPending = false;
 
     if (mStreamDoneStatus != ERROR_END_OF_STREAM) {
-        LOGV("MEDIA_ERROR %d", mStreamDoneStatus);
+        ALOGV("MEDIA_ERROR %d", mStreamDoneStatus);
 
         notifyListener_l(
                 MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, mStreamDoneStatus);
@@ -686,7 +686,7 @@ void PreviewPlayerBase::onStreamDone() {
             postVideoEvent_l();
         }
     } else {
-        LOGV("MEDIA_PLAYBACK_COMPLETE");
+        ALOGV("MEDIA_PLAYBACK_COMPLETE");
         notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
 
         pause_l(true /* at eos */);
@@ -859,12 +859,12 @@ void PreviewPlayerBase::notifyVideoSize_l() {
 
     int32_t displayWidth;
     if (meta->findInt32(kKeyDisplayWidth, &displayWidth)) {
-        LOGV("Display width changed (%d=>%d)", mDisplayWidth, displayWidth);
+        ALOGV("Display width changed (%d=>%d)", mDisplayWidth, displayWidth);
         mDisplayWidth = displayWidth;
     }
     int32_t displayHeight;
     if (meta->findInt32(kKeyDisplayHeight, &displayHeight)) {
-        LOGV("Display height changed (%d=>%d)", mDisplayHeight, displayHeight);
+        ALOGV("Display height changed (%d=>%d)", mDisplayHeight, displayHeight);
         mDisplayHeight = displayHeight;
     }
 
@@ -1126,7 +1126,7 @@ status_t PreviewPlayerBase::seekTo_l(int64_t timeUs) {
     seekAudioIfNecessary_l();
 
     if (!(mFlags & PLAYING)) {
-        LOGV("seeking while paused, sending SEEK_COMPLETE notification"
+        ALOGV("seeking while paused, sending SEEK_COMPLETE notification"
              " immediately.");
 
         notifyListener_l(MEDIA_SEEK_COMPLETE);
@@ -1255,7 +1255,7 @@ status_t PreviewPlayerBase::initVideoDecoder(uint32_t flags) {
         flags |= OMXCodec::kEnableGrallocUsageProtected;
     }
 #endif
-    LOGV("initVideoDecoder flags=0x%x", flags);
+    ALOGV("initVideoDecoder flags=0x%x", flags);
     mVideoSource = OMXCodec::Create(
             mClient.interface(), mVideoTrack->getFormat(),
             false, // createEncoder
@@ -1293,7 +1293,7 @@ void PreviewPlayerBase::finishSeekIfNecessary(int64_t videoTimeUs) {
     }
 
     if (mAudioPlayer != NULL) {
-        LOGV("seeking audio to %lld us (%.2f secs).", videoTimeUs, videoTimeUs / 1E6);
+        ALOGV("seeking audio to %lld us (%.2f secs).", videoTimeUs, videoTimeUs / 1E6);
 
         // If we don't have a video time, seek audio to the originally
         // requested seek time instead.
@@ -1356,7 +1356,7 @@ void PreviewPlayerBase::onVideoEvent() {
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
         if (mSeeking != NO_SEEK) {
-            LOGV("seeking to %lld us (%.2f secs)", mSeekTimeUs, mSeekTimeUs / 1E6);
+            ALOGV("seeking to %lld us (%.2f secs)", mSeekTimeUs, mSeekTimeUs / 1E6);
 
             options.setSeekTo(
                     mSeekTimeUs,
@@ -1372,7 +1372,7 @@ void PreviewPlayerBase::onVideoEvent() {
                 CHECK(mVideoBuffer == NULL);
 
                 if (err == INFO_FORMAT_CHANGED) {
-                    LOGV("VideoSource signalled format change.");
+                    ALOGV("VideoSource signalled format change.");
 
                     notifyVideoSize_l();
 
@@ -1387,7 +1387,7 @@ void PreviewPlayerBase::onVideoEvent() {
                 // a seek request pending that needs to be applied
                 // to the audio track.
                 if (mSeeking != NO_SEEK) {
-                    LOGV("video stream ended while seeking!");
+                    ALOGV("video stream ended while seeking!");
                 }
                 finishSeekIfNecessary(-1);
 
@@ -1491,7 +1491,7 @@ void PreviewPlayerBase::onVideoEvent() {
 
         if (latenessUs > 40000) {
             // We're more than 40ms late.
-            LOGV("we're late by %lld us (%.2f secs), dropping frame",
+            ALOGV("we're late by %lld us (%.2f secs), dropping frame",
                  latenessUs, latenessUs / 1E6);
             mVideoBuffer->release();
             mVideoBuffer = NULL;

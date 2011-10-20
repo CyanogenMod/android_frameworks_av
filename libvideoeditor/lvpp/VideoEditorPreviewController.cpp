@@ -52,7 +52,7 @@ VideoEditorPreviewController::VideoEditorPreviewController()
       mOutputVideoHeight(0),
       bStopThreadInProgress(false),
       mSemThreadWait(NULL) {
-    LOGV("VideoEditorPreviewController");
+    ALOGV("VideoEditorPreviewController");
     mRenderingMode = M4xVSS_kBlackBorders;
     mIsFiftiesEffectStarted = false;
 
@@ -64,13 +64,13 @@ VideoEditorPreviewController::VideoEditorPreviewController()
 VideoEditorPreviewController::~VideoEditorPreviewController() {
     M4OSA_UInt32 i = 0;
     M4OSA_ERR err = M4NO_ERROR;
-    LOGV("~VideoEditorPreviewController");
+    ALOGV("~VideoEditorPreviewController");
 
     // Stop the thread if its still running
     if(mThreadContext != NULL) {
         err = M4OSA_threadSyncStop(mThreadContext);
         if(err != M4NO_ERROR) {
-            LOGV("~VideoEditorPreviewController: error 0x%x \
+            ALOGV("~VideoEditorPreviewController: error 0x%x \
             in trying to stop thread", err);
             // Continue even if error
         }
@@ -88,7 +88,7 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES;
          playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
-            LOGV("clearing mVePlayer %d", playerInst);
+            ALOGV("clearing mVePlayer %d", playerInst);
             mVePlayer[playerInst].clear();
         }
     }
@@ -139,7 +139,7 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
 
     mOverlayState = OVERLAY_CLEAR;
 
-    LOGV("~VideoEditorPreviewController returns");
+    ALOGV("~VideoEditorPreviewController returns");
 }
 
 M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
@@ -149,12 +149,12 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
     M4VIFI_UInt8 *tmp = NULL;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("loadEditSettings");
-    LOGV("loadEditSettings Channels = %d, sampling Freq %d",
+    ALOGV("loadEditSettings");
+    ALOGV("loadEditSettings Channels = %d, sampling Freq %d",
           bgmSettings->uiNbChannels, bgmSettings->uiSamplingFrequency  );
           bgmSettings->uiSamplingFrequency = 32000;
 
-    LOGV("loadEditSettings Channels = %d, sampling Freq %d",
+    ALOGV("loadEditSettings Channels = %d, sampling Freq %d",
           bgmSettings->uiNbChannels, bgmSettings->uiSamplingFrequency  );
     Mutex::Autolock autoLock(mLock);
 
@@ -202,7 +202,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
     if(mClipList == NULL) {
         mNumberClipsInStoryBoard = pSettings->uiClipNumber;
-        LOGV("loadEditSettings: # of Clips = %d", mNumberClipsInStoryBoard);
+        ALOGV("loadEditSettings: # of Clips = %d", mNumberClipsInStoryBoard);
 
         mClipList = (M4VSS3GPP_ClipSettings**)M4OSA_32bitAlignedMalloc(
          sizeof(M4VSS3GPP_ClipSettings*)*pSettings->uiClipNumber, M4VS,
@@ -262,7 +262,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
     if(mEffectsSettings == NULL) {
         mNumberEffects = pSettings->nbEffects;
-        LOGV("loadEditSettings: mNumberEffects = %d", mNumberEffects);
+        ALOGV("loadEditSettings: mNumberEffects = %d", mNumberEffects);
 
         if(mNumberEffects != 0) {
             mEffectsSettings = (M4VSS3GPP_EffectSettings*)M4OSA_32bitAlignedMalloc(
@@ -412,7 +412,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 }
 
 M4OSA_ERR VideoEditorPreviewController::setSurface(const sp<Surface> &surface) {
-    LOGV("setSurface");
+    ALOGV("setSurface");
     Mutex::Autolock autoLock(mLock);
 
     mSurface = surface;
@@ -425,7 +425,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
 
     M4OSA_ERR err = M4NO_ERROR;
     M4OSA_UInt32 i = 0, iIncrementedDuration = 0;
-    LOGV("startPreview");
+    ALOGV("startPreview");
 
     if(fromMS > (M4OSA_UInt32)toMs) {
         LOGE("startPreview: fromMS > toMs");
@@ -440,7 +440,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     // If already started, then stop preview first
     for(int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
-            LOGV("startPreview: stopping previously started preview playback");
+            ALOGV("startPreview: stopping previously started preview playback");
             stopPreview();
             break;
         }
@@ -448,7 +448,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
 
     // If renderPreview was called previously, then delete Renderer object first
     if(mTarget != NULL) {
-        LOGV("startPreview: delete previous PreviewRenderer");
+        ALOGV("startPreview: delete previous PreviewRenderer");
         delete mTarget;
         mTarget = NULL;
     }
@@ -465,10 +465,10 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     getVideoSizeByResolution(mOutputVideoSize, &width, &height);
     mNativeWindowRenderer = new NativeWindowRenderer(mSurface, width, height);
 
-    LOGV("startPreview: loop = %d", loop);
+    ALOGV("startPreview: loop = %d", loop);
     mPreviewLooping = loop;
 
-    LOGV("startPreview: callBackAfterFrameCount = %d", callBackAfterFrameCount);
+    ALOGV("startPreview: callBackAfterFrameCount = %d", callBackAfterFrameCount);
     mCallBackAfterFrameCnt = callBackAfterFrameCount;
 
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
@@ -477,24 +477,24 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
             LOGE("startPreview:Error creating VideoEditorPlayer %d",playerInst);
             return M4ERR_ALLOC;
         }
-        LOGV("startPreview: object created");
+        ALOGV("startPreview: object created");
 
         mVePlayer[playerInst]->setNotifyCallback(this,(notify_callback_f)notify);
-        LOGV("startPreview: notify callback set");
+        ALOGV("startPreview: notify callback set");
 
         mVePlayer[playerInst]->loadEffectsSettings(mEffectsSettings,
          mNumberEffects);
-        LOGV("startPreview: effects settings loaded");
+        ALOGV("startPreview: effects settings loaded");
 
         mVePlayer[playerInst]->loadAudioMixSettings(mBackgroundAudioSetting);
-        LOGV("startPreview: AudioMixSettings settings loaded");
+        ALOGV("startPreview: AudioMixSettings settings loaded");
 
         mVePlayer[playerInst]->setAudioMixPCMFileHandle(mAudioMixPCMFileHandle);
-        LOGV("startPreview: AudioMixPCMFileHandle set");
+        ALOGV("startPreview: AudioMixPCMFileHandle set");
 
         mVePlayer[playerInst]->setProgressCallbackInterval(
          mCallBackAfterFrameCnt);
-        LOGV("startPreview: setProgressCallBackInterval");
+        ALOGV("startPreview: setProgressCallBackInterval");
     }
 
     mPlayerState = VePlayerIdle;
@@ -507,7 +507,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
         mVideoStoryBoardTimeMsUptoFirstPreviewClip = 0;
     }
     else {
-        LOGV("startPreview: fromMS=%d", fromMS);
+        ALOGV("startPreview: fromMS=%d", fromMS);
         if(fromMS >= mClipTotalDuration) {
             LOGE("startPreview: fromMS >= mClipTotalDuration");
             return M4ERR_PARAMETER;
@@ -547,7 +547,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
          mFirstPreviewClipBeginTime,
          mClipList[i]->ClipProperties.uiClipAudioVolumePercentage);
 
-        LOGV("startPreview:setAudioMixStoryBoardSkimTimeStamp set %d cuttime \
+        ALOGV("startPreview:setAudioMixStoryBoardSkimTimeStamp set %d cuttime \
          %d", fromMS, mFirstPreviewClipBeginTime);
     }
 
@@ -558,14 +558,14 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     mActivePlayerIndex = 0;
 
     if(toMs == -1) {
-        LOGV("startPreview: Preview till end of storyboard");
+        ALOGV("startPreview: Preview till end of storyboard");
         mNumberClipsToPreview = mNumberClipsInStoryBoard;
         // Save original value
         mLastPreviewClipEndTime =
          mClipList[mNumberClipsToPreview-1]->uiEndCutTime;
     }
     else {
-        LOGV("startPreview: toMs=%d", toMs);
+        ALOGV("startPreview: toMs=%d", toMs);
         if((M4OSA_UInt32)toMs > mClipTotalDuration) {
             LOGE("startPreview: toMs > mClipTotalDuration");
             return M4ERR_PARAMETER;
@@ -624,14 +624,14 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     }
     bStopThreadInProgress = false;
 
-    LOGV("startPreview: process thread started");
+    ALOGV("startPreview: process thread started");
     return M4NO_ERROR;
 }
 
 M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     M4OSA_ERR err = M4NO_ERROR;
     uint32_t lastRenderedFrameTimeMs = 0;
-    LOGV("stopPreview");
+    ALOGV("stopPreview");
 
     // Stop the thread
     if(mThreadContext != NULL) {
@@ -645,7 +645,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
 
         err = M4OSA_threadSyncStop(mThreadContext);
         if(err != M4NO_ERROR) {
-            LOGV("stopPreview: error 0x%x in trying to stop thread", err);
+            ALOGV("stopPreview: error 0x%x in trying to stop thread", err);
             // Continue even if error
         }
 
@@ -663,7 +663,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
         Mutex::Autolock autoLock(mLockSem);
         if(mSemThreadWait != NULL) {
             err = M4OSA_semaphoreClose(mSemThreadWait);
-            LOGV("stopPreview: close semaphore returns 0x%x", err);
+            ALOGV("stopPreview: close semaphore returns 0x%x", err);
             mSemThreadWait = NULL;
         }
     }
@@ -671,7 +671,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
             if(mVePlayer[playerInst]->isPlaying()) {
-                LOGV("stop the player first");
+                ALOGV("stop the player first");
                 mVePlayer[playerInst]->stop();
             }
             if (playerInst == mActivePlayerIndex) {
@@ -683,13 +683,13 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
             //stopPreview() in PreviewController
             sp<VideoEditorPlayer> temp = mVePlayer[playerInst];
             temp->acquireLock();
-            LOGV("stopPreview: clearing mVePlayer");
+            ALOGV("stopPreview: clearing mVePlayer");
             mVePlayer[playerInst].clear();
             mVePlayer[playerInst] = NULL;
             temp->releaseLock();
         }
     }
-    LOGV("stopPreview: clear audioSink and audioPlayer");
+    ALOGV("stopPreview: clear audioSink and audioPlayer");
     mVEAudioSink.clear();
     if (mVEAudioPlayer) {
         delete mVEAudioPlayer;
@@ -719,7 +719,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
     mOutputVideoWidth = 0;
     mOutputVideoHeight = 0;
 
-    LOGV("stopPreview() lastRenderedFrameTimeMs %ld", lastRenderedFrameTimeMs);
+    ALOGV("stopPreview() lastRenderedFrameTimeMs %ld", lastRenderedFrameTimeMs);
     return lastRenderedFrameTimeMs;
 }
 
@@ -730,7 +730,7 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
     VideoEditor_renderPreviewFrameStr* pFrameStr = pFrameInfo;
     M4OSA_UInt32 outputBufferWidth =0, outputBufferHeight=0;
     M4VIFI_ImagePlane planeOut[3];
-    LOGV("Inside preview clear frame");
+    ALOGV("Inside preview clear frame");
 
     Mutex::Autolock autoLock(mLock);
 
@@ -760,7 +760,7 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
     uint8_t* outBuffer;
     size_t outBufferStride = 0;
 
-    LOGV("doMediaRendering CALL getBuffer()");
+    ALOGV("doMediaRendering CALL getBuffer()");
     mTarget->getBufferYV12(&outBuffer, &outBufferStride);
 
     // Set the output YUV420 plane to be compatible with YV12 format
@@ -885,9 +885,9 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
             }
             if ((index < mNumberEffects) && (pCurrEditInfo != NULL)) {
                 pCurrEditInfo->overlaySettingsIndex = index;
-                LOGV("Framing index = %d", index);
+                ALOGV("Framing index = %d", index);
             } else {
-                LOGV("No framing effects found");
+                ALOGV("No framing effects found");
             }
         }
 
@@ -945,7 +945,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
 
 M4OSA_Void VideoEditorPreviewController::setJniCallback(void* cookie,
     jni_progress_callback_fct callbackFct) {
-    //LOGV("setJniCallback");
+    //ALOGV("setJniCallback");
     mJniCookie = cookie;
     mJniCallback = callbackFct;
 }
@@ -957,21 +957,21 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
     VideoEditorPreviewController *pController =
      (VideoEditorPreviewController *)param;
 
-    LOGV("preparePlayer: instance %d file %d", playerInstance, index);
+    ALOGV("preparePlayer: instance %d file %d", playerInstance, index);
 
     pController->mVePlayer[playerInstance]->setDataSource(
     (const char *)pController->mClipList[index]->pFile, NULL);
-    LOGV("preparePlayer: setDataSource instance %s",
+    ALOGV("preparePlayer: setDataSource instance %s",
      (const char *)pController->mClipList[index]->pFile);
 
     pController->mVePlayer[playerInstance]->setVideoSurface(
      pController->mSurface);
-    LOGV("preparePlayer: setVideoSurface");
+    ALOGV("preparePlayer: setVideoSurface");
 
     pController->mVePlayer[playerInstance]->setMediaRenderingMode(
      pController->mClipList[index]->xVSS.MediaRendering,
      pController->mOutputVideoSize);
-    LOGV("preparePlayer: setMediaRenderingMode");
+    ALOGV("preparePlayer: setMediaRenderingMode");
 
     if((M4OSA_UInt32)index == pController->mStartingClipIndex) {
         pController->mVePlayer[playerInstance]->setPlaybackBeginTime(
@@ -981,35 +981,35 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
         pController->mVePlayer[playerInstance]->setPlaybackBeginTime(
         pController->mClipList[index]->uiBeginCutTime);
     }
-    LOGV("preparePlayer: setPlaybackBeginTime(%d)",
+    ALOGV("preparePlayer: setPlaybackBeginTime(%d)",
      pController->mClipList[index]->uiBeginCutTime);
 
     pController->mVePlayer[playerInstance]->setPlaybackEndTime(
      pController->mClipList[index]->uiEndCutTime);
-    LOGV("preparePlayer: setPlaybackEndTime(%d)",
+    ALOGV("preparePlayer: setPlaybackEndTime(%d)",
      pController->mClipList[index]->uiEndCutTime);
 
     if(pController->mClipList[index]->FileType == M4VIDEOEDITING_kFileType_ARGB8888) {
         pController->mVePlayer[playerInstance]->setImageClipProperties(
                  pController->mClipList[index]->ClipProperties.uiVideoWidth,
                  pController->mClipList[index]->ClipProperties.uiVideoHeight);
-        LOGV("preparePlayer: setImageClipProperties");
+        ALOGV("preparePlayer: setImageClipProperties");
     }
 
     pController->mVePlayer[playerInstance]->prepare();
-    LOGV("preparePlayer: prepared");
+    ALOGV("preparePlayer: prepared");
 
     if(pController->mClipList[index]->uiBeginCutTime > 0) {
         pController->mVePlayer[playerInstance]->seekTo(
          pController->mClipList[index]->uiBeginCutTime);
 
-        LOGV("preparePlayer: seekTo(%d)",
+        ALOGV("preparePlayer: seekTo(%d)",
          pController->mClipList[index]->uiBeginCutTime);
     }
     pController->mVePlayer[pController->mCurrentPlayer]->setAudioPlayer(pController->mVEAudioPlayer);
 
     pController->mVePlayer[playerInstance]->readFirstVideoFrame();
-    LOGV("preparePlayer: readFirstVideoFrame of clip");
+    ALOGV("preparePlayer: readFirstVideoFrame of clip");
 
     return err;
 }
@@ -1020,7 +1020,7 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
     VideoEditorPreviewController *pController =
      (VideoEditorPreviewController *)param;
 
-    LOGV("inside threadProc");
+    ALOGV("inside threadProc");
     if(pController->mPlayerState == VePlayerIdle) {
         (pController->mCurrentClipNumber)++;
 
@@ -1092,7 +1092,7 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
 
         pController->mVePlayer[pController->mCurrentPlayer]->setStoryboardStartTime(
          pController->mCurrentPlayedDuration);
-        LOGV("threadProc: setStoryboardStartTime");
+        ALOGV("threadProc: setStoryboardStartTime");
 
         // Set the next clip duration for Audio mix here
         if((M4OSA_UInt32)pController->mCurrentClipNumber != pController->mStartingClipIndex) {
@@ -1102,7 +1102,7 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
              pController->mClipList[index]->uiBeginCutTime,
              pController->mClipList[index]->ClipProperties.uiClipAudioVolumePercentage);
 
-            LOGV("threadProc: setAudioMixStoryBoardParam fromMS %d \
+            ALOGV("threadProc: setAudioMixStoryBoardParam fromMS %d \
              ClipBeginTime %d", pController->mCurrentPlayedDuration +
              pController->mClipList[index]->uiBeginCutTime,
              pController->mClipList[index]->uiBeginCutTime,
@@ -1112,12 +1112,12 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
         pController->mActivePlayerIndex = pController->mCurrentPlayer;
 
         pController->mVePlayer[pController->mCurrentPlayer]->start();
-        LOGV("threadProc: started");
+        ALOGV("threadProc: started");
 
         pController->mPlayerState = VePlayerBusy;
 
     } else if(pController->mPlayerState == VePlayerAutoStop) {
-        LOGV("Preview completed..auto stop the player");
+        ALOGV("Preview completed..auto stop the player");
     } else if ((pController->mPlayerState == VePlayerBusy) && (pController->mPrepareReqest)) {
         // Prepare the player here
         pController->mPrepareReqest = M4OSA_FALSE;
@@ -1129,13 +1129,13 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
         }
     } else {
         if (!pController->bStopThreadInProgress) {
-            LOGV("threadProc: state busy...wait for sem");
+            ALOGV("threadProc: state busy...wait for sem");
             if (pController->mSemThreadWait != NULL) {
                 err = M4OSA_semaphoreWait(pController->mSemThreadWait,
                  M4OSA_WAIT_FOREVER);
              }
         }
-        LOGV("threadProc: sem wait returned err = 0x%x", err);
+        ALOGV("threadProc: sem wait returned err = 0x%x", err);
     }
 
     //Always return M4NO_ERROR to ensure the thread keeps running
@@ -1152,10 +1152,10 @@ void VideoEditorPreviewController::notify(
     uint32_t clipDuration = 0;
     switch (msg) {
         case MEDIA_NOP: // interface test message
-            LOGV("MEDIA_NOP");
+            ALOGV("MEDIA_NOP");
             break;
         case MEDIA_PREPARED:
-            LOGV("MEDIA_PREPARED");
+            ALOGV("MEDIA_PREPARED");
             break;
         case MEDIA_PLAYBACK_COMPLETE:
         {
@@ -1232,16 +1232,16 @@ void VideoEditorPreviewController::notify(
             break;
         }
         case MEDIA_SEEK_COMPLETE:
-            LOGV("MEDIA_SEEK_COMPLETE; Received seek complete");
+            ALOGV("MEDIA_SEEK_COMPLETE; Received seek complete");
             break;
         case MEDIA_BUFFERING_UPDATE:
-            LOGV("MEDIA_BUFFERING_UPDATE; buffering %d", ext1);
+            ALOGV("MEDIA_BUFFERING_UPDATE; buffering %d", ext1);
             break;
         case MEDIA_SET_VIDEO_SIZE:
-            LOGV("MEDIA_SET_VIDEO_SIZE; New video size %d x %d", ext1, ext2);
+            ALOGV("MEDIA_SET_VIDEO_SIZE; New video size %d x %d", ext1, ext2);
             break;
         case 0xAAAAAAAA:
-            LOGV("VIDEO PLAYBACK ALMOST over, prepare next player");
+            ALOGV("VIDEO PLAYBACK ALMOST over, prepare next player");
             // Select next player and prepare it
             // If there is a clip after this one
             if ((M4OSA_UInt32)(pController->mCurrentClipNumber+1) <
@@ -1262,7 +1262,7 @@ void VideoEditorPreviewController::notify(
             break;
         case 0xBBBBBBBB:
         {
-            LOGV("VIDEO PLAYBACK, Update Overlay");
+            ALOGV("VIDEO PLAYBACK, Update Overlay");
             int overlayIndex = ext2;
             VideoEditorCurretEditInfo *pEditInfo =
                     (VideoEditorCurretEditInfo*)M4OSA_32bitAlignedMalloc(sizeof(VideoEditorCurretEditInfo),
@@ -1271,7 +1271,7 @@ void VideoEditorPreviewController::notify(
             //     = 2; Clear the overlay.
             pEditInfo->overlaySettingsIndex = ext2;
             pEditInfo->clipIndex = pController->mCurrentClipNumber;
-            LOGV("pController->mCurrentClipNumber = %d",pController->mCurrentClipNumber);
+            ALOGV("pController->mCurrentClipNumber = %d",pController->mCurrentClipNumber);
             if (pController->mJniCallback != NULL) {
                 if (ext1 == 1) {
                     pController->mOverlayState = OVERLAY_UPDATE;
@@ -1287,7 +1287,7 @@ void VideoEditorPreviewController::notify(
             break;
         }
         default:
-            LOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);
+            ALOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);
             break;
     }
 }
@@ -1404,7 +1404,7 @@ M4OSA_ERR VideoEditorPreviewController::applyVideoEffect(
 status_t VideoEditorPreviewController::setPreviewFrameRenderingMode(
     M4xVSS_MediaRendering mode, M4VIDEOEDITING_VideoFrameSize outputVideoSize) {
 
-    LOGV("setMediaRenderingMode: outputVideoSize = %d", outputVideoSize);
+    ALOGV("setMediaRenderingMode: outputVideoSize = %d", outputVideoSize);
     mRenderingMode = mode;
 
     status_t err = OK;
@@ -1438,7 +1438,7 @@ M4OSA_ERR VideoEditorPreviewController::doImageRenderingMode(
     uint8_t* outBuffer;
     size_t outBufferStride = 0;
 
-    LOGV("doMediaRendering CALL getBuffer()");
+    ALOGV("doMediaRendering CALL getBuffer()");
     mTarget->getBufferYV12(&outBuffer, &outBufferStride);
 
     // Set the output YUV420 plane to be compatible with YV12 format

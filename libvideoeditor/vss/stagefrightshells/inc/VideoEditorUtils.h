@@ -44,7 +44,7 @@
 #define VIDEOEDITOR_CHECK(test, errCode) \
 { \
     if( !(test) ) { \
-        LOGV("!!! %s (L%d) check failed : " #test ", yields error 0x%.8x", \
+        ALOGV("!!! %s (L%d) check failed : " #test ", yields error 0x%.8x", \
             __FILE__, __LINE__, errCode); \
         err = (errCode); \
         goto cleanUp; \

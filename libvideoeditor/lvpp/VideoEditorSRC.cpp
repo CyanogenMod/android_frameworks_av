@@ -28,7 +28,7 @@
 namespace android {
 
 VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
-    LOGV("VideoEditorSRC::VideoEditorSRC %p(%p)", this, source.get());
+    ALOGV("VideoEditorSRC::VideoEditorSRC %p(%p)", this, source.get());
     mSource = source;
     mResampler = NULL;
     mChannelCnt = 0;
@@ -57,13 +57,13 @@ VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
 }
 
 VideoEditorSRC::~VideoEditorSRC() {
-    LOGV("VideoEditorSRC::~VideoEditorSRC %p(%p)", this, mSource.get());
+    ALOGV("VideoEditorSRC::~VideoEditorSRC %p(%p)", this, mSource.get());
     stop();
 }
 
 status_t VideoEditorSRC::start(MetaData *params) {
     CHECK(!mStarted);
-    LOGV("VideoEditorSRC:start %p(%p)", this, mSource.get());
+    ALOGV("VideoEditorSRC:start %p(%p)", this, mSource.get());
 
     // Set resampler if required
     checkAndSetResampler();
@@ -77,7 +77,7 @@ status_t VideoEditorSRC::start(MetaData *params) {
 }
 
 status_t VideoEditorSRC::stop() {
-    LOGV("VideoEditorSRC::stop %p(%p)", this, mSource.get());
+    ALOGV("VideoEditorSRC::stop %p(%p)", this, mSource.get());
     if (!mStarted) return OK;
     if (mBuffer) {
         mBuffer->release();
@@ -97,13 +97,13 @@ status_t VideoEditorSRC::stop() {
 }
 
 sp<MetaData> VideoEditorSRC::getFormat() {
-    LOGV("VideoEditorSRC::getFormat");
+    ALOGV("VideoEditorSRC::getFormat");
     return mOutputFormat;
 }
 
 status_t VideoEditorSRC::read(
         MediaBuffer **buffer_out, const ReadOptions *options) {
-    LOGV("VideoEditorSRC::read %p(%p)", this, mSource.get());
+    ALOGV("VideoEditorSRC::read %p(%p)", this, mSource.get());
     *buffer_out = NULL;
 
     if (!mStarted) {
@@ -115,7 +115,7 @@ status_t VideoEditorSRC::read(
         int64_t seekTimeUs;
         ReadOptions::SeekMode mode = ReadOptions::SEEK_PREVIOUS_SYNC;
         if (options && options->getSeekTo(&seekTimeUs, &mode)) {
-            LOGV("read Seek %lld", seekTimeUs);
+            ALOGV("read Seek %lld", seekTimeUs);
             mSeekTimeUs = seekTimeUs;
             mSeekMode = mode;
         }
@@ -159,7 +159,7 @@ status_t VideoEditorSRC::read(
         MediaBuffer *aBuffer;
         status_t err = mSource->read(&aBuffer, options);
         if (err != OK) {
-            LOGV("read returns err = %d", err);
+            ALOGV("read returns err = %d", err);
         }
 
         if (err == INFO_FORMAT_CHANGED) {
@@ -180,7 +180,7 @@ status_t VideoEditorSRC::read(
 }
 
 status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
-    LOGV("Requesting %d, chan = %d", pBuffer->frameCount, mChannelCnt);
+    ALOGV("Requesting %d, chan = %d", pBuffer->frameCount, mChannelCnt);
     uint32_t done = 0;
     uint32_t want = pBuffer->frameCount * mChannelCnt * 2;
     pBuffer->raw = malloc(want);
@@ -191,7 +191,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
             // if we seek, reset the initial time stamp and accumulated time
             ReadOptions options;
             if (mSeekTimeUs >= 0) {
-                LOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
+                ALOGV("%p cacheMore_l Seek requested = %lld", this, mSeekTimeUs);
                 ReadOptions::SeekMode mode = mSeekMode;
                 options.setSeekTo(mSeekTimeUs, mode);
                 mSeekTimeUs = -1;
@@ -208,7 +208,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
             }
 
             if (err == INFO_FORMAT_CHANGED) {
-                LOGV("getNextBuffer: source read returned INFO_FORMAT_CHANGED");
+                ALOGV("getNextBuffer: source read returned INFO_FORMAT_CHANGED");
                 // At this point we cannot switch to a new AudioResampler because
                 // we are in a callback called by the AudioResampler itself. So
                 // just remember the fact that the format has changed, and let
@@ -219,7 +219,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
             // EOS or some other error
             if (err != OK) {
-                LOGV("EOS or some err: %d", err);
+                ALOGV("EOS or some err: %d", err);
                 stop();
                 return err;
             }
@@ -230,7 +230,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
                 int64_t curTS;
                 sp<MetaData> from = mBuffer->meta_data();
                 from->findInt64(kKeyTime, &curTS);
-                LOGV("setting mInitialTimeStampUs to %lld", mInitialTimeStampUs);
+                ALOGV("setting mInitialTimeStampUs to %lld", mInitialTimeStampUs);
                 mInitialTimeStampUs = curTS;
             }
         }
@@ -256,7 +256,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
     }
 
     pBuffer->frameCount = done / (mChannelCnt * 2);
-    LOGV("getNextBuffer done %d", pBuffer->frameCount);
+    ALOGV("getNextBuffer done %d", pBuffer->frameCount);
     return OK;
 }
 
@@ -268,7 +268,7 @@ void VideoEditorSRC::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
 }
 
 void VideoEditorSRC::checkAndSetResampler() {
-    LOGV("checkAndSetResampler");
+    ALOGV("checkAndSetResampler");
 
     sp<MetaData> format = mSource->getFormat();
     const char *mime;
@@ -291,7 +291,7 @@ void VideoEditorSRC::checkAndSetResampler() {
     }
 
     if (mSampleRate != mOutputSampleRate || mChannelCnt != 2) {
-        LOGV("Resampling required (in rate %d, out rate %d, in channel %d)",
+        ALOGV("Resampling required (in rate %d, out rate %d, in channel %d)",
             mSampleRate, mOutputSampleRate, mChannelCnt);
 
         mResampler = AudioResampler::create(
@@ -303,7 +303,7 @@ void VideoEditorSRC::checkAndSetResampler() {
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
     } else {
-        LOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
+        ALOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
     }
 }
 

@@ -54,7 +54,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
     M4OSA_ERR lerr = M4NO_ERROR;
     VIDEOEDITOR_BUFFER_Pool* pool;
 
-    LOGV("VIDEOEDITOR_BUFFER_allocatePool : ppool = 0x%x nbBuffers = %d ",
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : ppool = 0x%x nbBuffers = %d ",
         ppool, nbBuffers);
 
     pool = M4OSA_NULL;
@@ -67,7 +67,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
         goto VIDEOEDITOR_BUFFER_allocatePool_Cleanup;
     }
 
-    LOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool buffers");
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool buffers");
     pool->pNXPBuffer = M4OSA_NULL;
     pool->pNXPBuffer = (VIDEOEDITOR_BUFFER_Buffer*)M4OSA_32bitAlignedMalloc(
                             sizeof(VIDEOEDITOR_BUFFER_Buffer)*nbBuffers,
@@ -79,7 +79,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
         goto VIDEOEDITOR_BUFFER_allocatePool_Cleanup;
     }
 
-    LOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool name buffer");
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool name buffer");
     pool->poolName = M4OSA_NULL;
     pool->poolName = (M4OSA_Char*)M4OSA_32bitAlignedMalloc(
         VIDEOEDITOR_BUFFEPOOL_MAX_NAME_SIZE,VIDEOEDITOR_BUFFER_EXTERNAL,
@@ -90,7 +90,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
         goto VIDEOEDITOR_BUFFER_allocatePool_Cleanup;
     }
 
-    LOGV("VIDEOEDITOR_BUFFER_allocatePool : Assigning Pool name buffer");
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : Assigning Pool name buffer");
 
     memset((void *)pool->poolName, 0,VIDEOEDITOR_BUFFEPOOL_MAX_NAME_SIZE);
     memcpy((void *)pool->poolName, (void *)poolName,
@@ -106,7 +106,7 @@ VIDEOEDITOR_BUFFER_allocatePool_Cleanup:
         VIDEOEDITOR_SAFE_FREE(pool);
     }
     *ppool = pool;
-    LOGV("VIDEOEDITOR_BUFFER_allocatePool END");
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool END");
 
     return lerr;
 }
@@ -125,7 +125,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_freePool(VIDEOEDITOR_BUFFER_Pool* ppool)
     M4OSA_ERR err;
     M4OSA_UInt32  j = 0;
 
-    LOGV("VIDEOEDITOR_BUFFER_freePool : ppool = 0x%x", ppool);
+    ALOGV("VIDEOEDITOR_BUFFER_freePool : ppool = 0x%x", ppool);
 
     err = M4NO_ERROR;
 
@@ -168,7 +168,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_getBuffer(VIDEOEDITOR_BUFFER_Pool* ppool,
     M4OSA_Bool bFound = M4OSA_FALSE;
     M4OSA_UInt32 i, ibuf;
 
-    LOGV("VIDEOEDITOR_BUFFER_getBuffer from %s in state=%d",
+    ALOGV("VIDEOEDITOR_BUFFER_getBuffer from %s in state=%d",
         ppool->poolName, desiredState);
 
     ibuf = 0;
@@ -185,7 +185,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_getBuffer(VIDEOEDITOR_BUFFER_Pool* ppool,
 
     if(!bFound)
     {
-        LOGV("VIDEOEDITOR_BUFFER_getBuffer No buffer available in state %d",
+        ALOGV("VIDEOEDITOR_BUFFER_getBuffer No buffer available in state %d",
             desiredState);
         *pNXPBuffer = M4OSA_NULL;
         return M4ERR_NO_BUFFER_AVAILABLE;
@@ -194,7 +194,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_getBuffer(VIDEOEDITOR_BUFFER_Pool* ppool,
     /* case where a buffer has been found */
     *pNXPBuffer = &(ppool->pNXPBuffer[ibuf]);
 
-    LOGV("VIDEOEDITOR_BUFFER_getBuffer: idx = %d", ibuf);
+    ALOGV("VIDEOEDITOR_BUFFER_getBuffer: idx = %d", ibuf);
 
     return(err);
 }
@@ -258,7 +258,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_getOldestBuffer(VIDEOEDITOR_BUFFER_Pool *pool,
     }
     if(M4OSA_FALSE == bFound)
     {
-        LOGV("VIDEOEDITOR_BUFFER_getOldestBuffer WARNING no buffer available");
+        ALOGV("VIDEOEDITOR_BUFFER_getOldestBuffer WARNING no buffer available");
         err = M4ERR_NO_BUFFER_AVAILABLE;
     }
     return err;

@@ -201,11 +201,11 @@ status_t PreviewPlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
     /* Add the support for Dummy audio*/
     if( !haveAudio ){
-        LOGV("PreviewPlayer: setDataSource_l Dummyaudiocreation started");
+        ALOGV("PreviewPlayer: setDataSource_l Dummyaudiocreation started");
 
         mAudioTrack = DummyAudioSource::Create(32000, 2, 20000,
                                               ((mPlayEndTimeMsec)*1000LL));
-        LOGV("PreviewPlayer: setDataSource_l Dummyauiosource created");
+        ALOGV("PreviewPlayer: setDataSource_l Dummyauiosource created");
         if(mAudioTrack != NULL) {
             haveAudio = true;
         }
@@ -221,17 +221,17 @@ status_t PreviewPlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
 status_t PreviewPlayer::setDataSource_l_jpg() {
     M4OSA_ERR err = M4NO_ERROR;
-    LOGV("PreviewPlayer: setDataSource_l_jpg started");
+    ALOGV("PreviewPlayer: setDataSource_l_jpg started");
 
     mAudioSource = DummyAudioSource::Create(32000, 2, 20000,
                                           ((mPlayEndTimeMsec)*1000LL));
-    LOGV("PreviewPlayer: setDataSource_l_jpg Dummyaudiosource created");
+    ALOGV("PreviewPlayer: setDataSource_l_jpg Dummyaudiosource created");
     if(mAudioSource != NULL) {
         setAudioSource(mAudioSource);
     }
     status_t error = mAudioSource->start();
     if (error != OK) {
-        LOGV("Error starting dummy audio source");
+        ALOGV("Error starting dummy audio source");
         mAudioSource.clear();
         return err;
     }
@@ -380,7 +380,7 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
     CHECK(!(mFlags & PLAYING));
     mAudioPlayer = audioPlayer;
 
-    LOGV("SetAudioPlayer");
+    ALOGV("SetAudioPlayer");
     mIsChangeSourceRequired = true;
     mVeAudioPlayer =
             (VideoEditorAudioPlayer*)mAudioPlayer;
@@ -389,7 +389,7 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
     sp<MediaSource> anAudioSource = mVeAudioPlayer->getSource();
     if (anAudioSource == NULL) {
         // Audio player does not have any source set.
-        LOGV("setAudioPlayer: Audio player does not have any source set");
+        ALOGV("setAudioPlayer: Audio player does not have any source set");
         return OK;
     }
 
@@ -402,7 +402,7 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
         const char *pVidSrcType;
         if (meta->findCString(kKeyDecoderComponent, &pVidSrcType)) {
             if (strcmp(pVidSrcType, "DummyVideoSource") != 0) {
-                LOGV(" Video clip with silent audio; need to change source");
+                ALOGV(" Video clip with silent audio; need to change source");
                 return OK;
             }
         }
@@ -427,7 +427,7 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
 
                     // Stop the new audio source
                     // since we continue using old source
-                    LOGV("setAudioPlayer: stop new audio source");
+                    ALOGV("setAudioPlayer: stop new audio source");
                     mAudioSource->stop();
                 }
             }
@@ -447,7 +447,7 @@ void PreviewPlayer::onStreamDone() {
     mStreamDoneEventPending = false;
 
     if (mStreamDoneStatus != ERROR_END_OF_STREAM) {
-        LOGV("MEDIA_ERROR %d", mStreamDoneStatus);
+        ALOGV("MEDIA_ERROR %d", mStreamDoneStatus);
 
         notifyListener_l(
                 MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, mStreamDoneStatus);
@@ -473,7 +473,7 @@ void PreviewPlayer::onStreamDone() {
             postVideoEvent_l();
         }
     } else {
-        LOGV("MEDIA_PLAYBACK_COMPLETE");
+        ALOGV("MEDIA_PLAYBACK_COMPLETE");
         //pause before sending event
         pause_l(true /* at eos */);
 
@@ -499,7 +499,7 @@ void PreviewPlayer::onStreamDone() {
             mFlags |= INFORMED_AV_EOS;
         }
         mFlags |= AT_EOS;
-        LOGV("onStreamDone end");
+        ALOGV("onStreamDone end");
         return;
     }
 }
@@ -572,7 +572,7 @@ status_t PreviewPlayer::play_l() {
             bool isAudioPlayerStarted = mVeAudioPlayer->isStarted();
 
             if (mIsChangeSourceRequired == true) {
-                LOGV("play_l: Change audio source required");
+                ALOGV("play_l: Change audio source required");
 
                 if (isAudioPlayerStarted == true) {
                     mVeAudioPlayer->pause();
@@ -602,7 +602,7 @@ status_t PreviewPlayer::play_l() {
                     }
                 }
             } else {
-                LOGV("play_l: No Source change required");
+                ALOGV("play_l: No Source change required");
                 mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                     mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                     mCurrentMediaVolumeValue);
@@ -708,7 +708,7 @@ status_t PreviewPlayer::initAudioDecoder() {
                 mAudioTrack);
 
         if(aRawSource != NULL) {
-            LOGV("initAudioDecoder: new VideoEditorSRC");
+            ALOGV("initAudioDecoder: new VideoEditorSRC");
             mAudioSource = new VideoEditorSRC(aRawSource);
         }
     }
@@ -820,7 +820,7 @@ void PreviewPlayer::onVideoEvent() {
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
         if (mSeeking != NO_SEEK) {
-            LOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
+            ALOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
                                                       mSeekTimeUs / 1E6);
 
             options.setSeekTo(
@@ -834,7 +834,7 @@ void PreviewPlayer::onVideoEvent() {
                 CHECK_EQ(mVideoBuffer, NULL);
 
                 if (err == INFO_FORMAT_CHANGED) {
-                    LOGV("LV PLAYER VideoSource signalled format change");
+                    ALOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
 
                     if (mVideoRenderer != NULL) {
@@ -852,10 +852,10 @@ void PreviewPlayer::onVideoEvent() {
                 // So video playback is complete, but we may still have
                 // a seek request pending that needs to be applied to the audio track
                 if (mSeeking != NO_SEEK) {
-                    LOGV("video stream ended while seeking!");
+                    ALOGV("video stream ended while seeking!");
                 }
                 finishSeekIfNecessary(-1);
-                LOGV("PreviewPlayer: onVideoEvent EOS reached.");
+                ALOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
                 mFlags |= AUDIO_AT_EOS;
                 mOverlayUpdateEventPosted = false;
@@ -959,12 +959,12 @@ void PreviewPlayer::onVideoEvent() {
             // Let's display the first frame after seeking right away.
             latenessUs = 0;
         }
-        LOGV("Audio time stamp = %lld and video time stamp = %lld",
+        ALOGV("Audio time stamp = %lld and video time stamp = %lld",
                                             ts->getRealTimeUs(),timeUs);
         if (latenessUs > 40000) {
             // We're more than 40ms late.
 
-            LOGV("LV PLAYER we're late by %lld us (%.2f secs)",
+            ALOGV("LV PLAYER we're late by %lld us (%.2f secs)",
                                            latenessUs, latenessUs / 1E6);
 
             mVideoBuffer->release();
@@ -975,7 +975,7 @@ void PreviewPlayer::onVideoEvent() {
 
         if (latenessUs < -25000) {
             // We're more than 25ms early.
-            LOGV("We're more than 25ms early, lateness %lld", latenessUs);
+            ALOGV("We're more than 25ms early, lateness %lld", latenessUs);
 
             postVideoEvent_l(25000);
             return;
@@ -997,7 +997,7 @@ void PreviewPlayer::onVideoEvent() {
         mVideoBuffer = NULL;
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
-        LOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
+        ALOGV("PreviewPlayer: onVideoEvent timeUs > mPlayEndTime; send EOS..");
         mOverlayUpdateEventPosted = false;
         // Set the last decoded timestamp to duration
         mDecodedVideoTs = (mPlayEndTimeMsec*1000LL);
@@ -1057,15 +1057,15 @@ void PreviewPlayer::onVideoEvent() {
                 mCurrFramingEffectIndex = index;
                 mOverlayUpdateEventPosted = true;
                 postOverlayUpdateEvent_l();
-                LOGV("Framing index = %d", mCurrFramingEffectIndex);
+                ALOGV("Framing index = %d", mCurrFramingEffectIndex);
             } else {
-                LOGV("No framing effects found");
+                ALOGV("No framing effects found");
             }
         }
 
     } else if (mOverlayUpdateEventPosted) {
         //Post the event when the overlay is no more valid
-        LOGV("Overlay is Done");
+        ALOGV("Overlay is Done");
         mOverlayUpdateEventPosted = false;
         postOverlayUpdateEvent_l();
     }
@@ -1086,7 +1086,7 @@ void PreviewPlayer::onVideoEvent() {
 
     // if reached EndCutTime of clip, post EOS event
     if((timeUs/1000) >= mPlayEndTimeMsec) {
-        LOGV("PreviewPlayer: onVideoEvent EOS.");
+        ALOGV("PreviewPlayer: onVideoEvent EOS.");
         mFlags |= VIDEO_AT_EOS;
         mFlags |= AUDIO_AT_EOS;
         mOverlayUpdateEventPosted = false;
@@ -1178,7 +1178,7 @@ status_t PreviewPlayer::finishSetDataSource_l() {
     }
 
     if (extractor == NULL) {
-        LOGV("PreviewPlayer::finishSetDataSource_l  extractor == NULL");
+        ALOGV("PreviewPlayer::finishSetDataSource_l  extractor == NULL");
         return setDataSource_l_jpg();
     }
 
@@ -1195,10 +1195,10 @@ bool PreviewPlayer::ContinuePreparation(void *cookie) {
 
 void PreviewPlayer::onPrepareAsyncEvent() {
     Mutex::Autolock autoLock(mLock);
-    LOGV("onPrepareAsyncEvent");
+    ALOGV("onPrepareAsyncEvent");
 
     if (mFlags & PREPARE_CANCELLED) {
-        LOGV("LV PLAYER prepare was cancelled before doing anything");
+        ALOGV("LV PLAYER prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
         return;
     }
@@ -1236,13 +1236,13 @@ void PreviewPlayer::onPrepareAsyncEvent() {
 void PreviewPlayer::finishAsyncPrepare_l() {
     if (mIsAsyncPrepare) {
         if (mVideoSource == NULL) {
-            LOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE 0 0 ");
+            ALOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE 0 0 ");
             notifyListener_l(MEDIA_SET_VIDEO_SIZE, 0, 0);
         } else {
-            LOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE");
+            ALOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE");
             notifyVideoSize_l();
         }
-        LOGV("finishAsyncPrepare_l: MEDIA_PREPARED");
+        ALOGV("finishAsyncPrepare_l: MEDIA_PREPARED");
         notifyListener_l(MEDIA_PREPARED);
     }
 
@@ -1254,12 +1254,12 @@ void PreviewPlayer::finishAsyncPrepare_l() {
 }
 
 void PreviewPlayer::acquireLock() {
-    LOGV("acquireLock");
+    ALOGV("acquireLock");
     mLockControl.lock();
 }
 
 void PreviewPlayer::releaseLock() {
-    LOGV("releaseLock");
+    ALOGV("releaseLock");
     mLockControl.unlock();
 }
 
@@ -1276,7 +1276,7 @@ status_t PreviewPlayer::loadEffectsSettings(
 status_t PreviewPlayer::loadAudioMixSettings(
                     M4xVSS_AudioMixingSettings* pAudioMixSettings) {
 
-    LOGV("PreviewPlayer: loadAudioMixSettings: ");
+    ALOGV("PreviewPlayer: loadAudioMixSettings: ");
     mPreviewPlayerAudioMixSettings = pAudioMixSettings;
     return OK;
 }
@@ -1284,7 +1284,7 @@ status_t PreviewPlayer::loadAudioMixSettings(
 status_t PreviewPlayer::setAudioMixPCMFileHandle(
                     M4OSA_Context pAudioMixPCMFileHandle) {
 
-    LOGV("PreviewPlayer: setAudioMixPCMFileHandle: ");
+    ALOGV("PreviewPlayer: setAudioMixPCMFileHandle: ");
     mAudioMixPCMFileHandle = pAudioMixPCMFileHandle;
     return OK;
 }
@@ -1479,12 +1479,12 @@ status_t PreviewPlayer::setImageClipProperties(uint32_t width,uint32_t height) {
 }
 
 status_t PreviewPlayer::readFirstVideoFrame() {
-    LOGV("PreviewPlayer::readFirstVideoFrame");
+    ALOGV("PreviewPlayer::readFirstVideoFrame");
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
         if (mSeeking != NO_SEEK) {
-            LOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
+            ALOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
                     mSeekTimeUs / 1E6);
 
             options.setSeekTo(
@@ -1498,7 +1498,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                 CHECK_EQ(mVideoBuffer, NULL);
 
                 if (err == INFO_FORMAT_CHANGED) {
-                    LOGV("LV PLAYER VideoSource signalled format change");
+                    ALOGV("LV PLAYER VideoSource signalled format change");
                     notifyVideoSize_l();
 
                     if (mVideoRenderer != NULL) {
@@ -1512,7 +1512,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     updateSizeToRender(mVideoSource->getFormat());
                     continue;
                 }
-                LOGV("PreviewPlayer: onVideoEvent EOS reached.");
+                ALOGV("PreviewPlayer: onVideoEvent EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
                 mFlags |= AUDIO_AT_EOS;
                 postStreamDoneEvent_l(err);

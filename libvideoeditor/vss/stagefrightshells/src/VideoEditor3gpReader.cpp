@@ -387,7 +387,7 @@ M4OSA_ERR VideoEditor3gpReader_create(M4OSA_Context *pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext , M4ERR_PARAMETER);
 
-    LOGV("VideoEditor3gpReader_create begin");
+    ALOGV("VideoEditor3gpReader_create begin");
 
     /* Context allocation & initialization */
     SAFE_MALLOC(pC, VideoEditor3gpReader_Context, 1, "VideoEditor3gpReader");
@@ -411,11 +411,11 @@ M4OSA_ERR VideoEditor3gpReader_create(M4OSA_Context *pContext) {
 
 cleanUp:
     if ( M4NO_ERROR == err ) {
-        LOGV("VideoEditor3gpReader_create no error");
+        ALOGV("VideoEditor3gpReader_create no error");
     } else {
-        LOGV("VideoEditor3gpReader_create ERROR 0x%X", err);
+        ALOGV("VideoEditor3gpReader_create ERROR 0x%X", err);
     }
-    LOGV("VideoEditor3gpReader_create end ");
+    ALOGV("VideoEditor3gpReader_create end ");
     return err;
 }
 
@@ -433,7 +433,7 @@ M4OSA_ERR VideoEditor3gpReader_destroy(M4OSA_Context pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditor3gpReader_Context* pC = M4OSA_NULL;
 
-    LOGV("VideoEditor3gpReader_destroy begin");
+    ALOGV("VideoEditor3gpReader_destroy begin");
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     pC = (VideoEditor3gpReader_Context*)pContext;
@@ -447,14 +447,14 @@ M4OSA_ERR VideoEditor3gpReader_destroy(M4OSA_Context pContext) {
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditor3gpReader_destroy no error");
+        ALOGV("VideoEditor3gpReader_destroy no error");
     }
     else
     {
-        LOGV("VideoEditor3gpReader_destroy ERROR 0x%X", err);
+        ALOGV("VideoEditor3gpReader_destroy ERROR 0x%X", err);
     }
 
-    LOGV("VideoEditor3gpReader_destroy end ");
+    ALOGV("VideoEditor3gpReader_destroy end ");
     return err;
 }
 
@@ -477,19 +477,19 @@ M4OSA_ERR VideoEditor3gpReader_open(M4OSA_Context pContext,
     VideoEditor3gpReader_Context* pC = (VideoEditor3gpReader_Context*)pContext;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditor3gpReader_open start ");
+    ALOGV("VideoEditor3gpReader_open start ");
     M4OSA_DEBUG_IF1((M4OSA_NULL == pC),  M4ERR_PARAMETER,
         "VideoEditor3gpReader_open: invalid context pointer");
     M4OSA_DEBUG_IF1((M4OSA_NULL == pFileDescriptor), M4ERR_PARAMETER,
         "VideoEditor3gpReader_open: invalid pointer pFileDescriptor");
 
-    LOGV("VideoEditor3gpReader_open Datasource start %s",
+    ALOGV("VideoEditor3gpReader_open Datasource start %s",
         (char*)pFileDescriptor);
     //pC->mDataSource = DataSource::CreateFromURI((char*)pFileDescriptor);
     pC->mDataSource = new FileSource ((char*)pFileDescriptor);
 
     if (pC->mDataSource == NULL) {
-        LOGV("VideoEditor3gpReader_open Datasource error");
+        ALOGV("VideoEditor3gpReader_open Datasource error");
         return M4ERR_PARAMETER;
     }
 
@@ -497,7 +497,7 @@ M4OSA_ERR VideoEditor3gpReader_open(M4OSA_Context pContext,
         MEDIA_MIMETYPE_CONTAINER_MPEG4);
 
     if (pC->mExtractor == NULL) {
-        LOGV("VideoEditor3gpReader_open extractor error");
+        ALOGV("VideoEditor3gpReader_open extractor error");
         return M4ERR_PARAMETER;
     }
 
@@ -505,11 +505,11 @@ M4OSA_ERR VideoEditor3gpReader_open(M4OSA_Context pContext,
     sp<MetaData> meta = pC->mExtractor->getMetaData();
     meta->findInt32(kKeyIsDRM, &isDRMProtected);
     if (isDRMProtected) {
-        LOGV("VideoEditorMp3Reader_open error - DRM Protected");
+        ALOGV("VideoEditorMp3Reader_open error - DRM Protected");
         return M4ERR_UNSUPPORTED_MEDIA_TYPE;
     }
 
-    LOGV("VideoEditor3gpReader_open end ");
+    ALOGV("VideoEditor3gpReader_open end ");
     return err;
 }
 
@@ -529,13 +529,13 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
     M4_AccessUnit *pAU;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditor3gpReader_close begin");
+    ALOGV("VideoEditor3gpReader_close begin");
 
     M4OSA_DEBUG_IF1((M4OSA_NULL == pC), M4ERR_PARAMETER,
         "VideoEditor3gpReader_close: invalid context pointer");
 
     if (pC->mAudioStreamHandler) {
-        LOGV("VideoEditor3gpReader_close Audio");
+        ALOGV("VideoEditor3gpReader_close Audio");
 
         if (M4OSA_NULL != pC->mAudioStreamHandler->m_pDecoderSpecificInfo) {
             free(pC->mAudioStreamHandler->\
@@ -575,7 +575,7 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
         pC->mAudioSource.clear();
     }
     if (pC->mVideoStreamHandler) {
-        LOGV("VideoEditor3gpReader_close Video ");
+        ALOGV("VideoEditor3gpReader_close Video ");
 
         if(M4OSA_NULL != pC->mVideoStreamHandler->m_pDecoderSpecificInfo) {
             free(pC->mVideoStreamHandler->\
@@ -607,7 +607,7 @@ M4OSA_ERR VideoEditor3gpReader_close(M4OSA_Context context) {
     pC->mExtractor.clear();
     pC->mDataSource.clear();
 
-    LOGV("VideoEditor3gpReader_close end");
+    ALOGV("VideoEditor3gpReader_close end");
     return err;
 }
 
@@ -635,7 +635,7 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
     VideoEditor3gpReader_Context* pC = (VideoEditor3gpReader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditor3gpReader_getOption begin %d", optionId);
+    ALOGV("VideoEditor3gpReader_getOption begin %d", optionId);
 
     M4OSA_DEBUG_IF1((M4OSA_NULL == pC), M4ERR_PARAMETER,
         "invalid context pointer");
@@ -645,23 +645,23 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
     switch (optionId) {
     case M4READER_kOptionID_Duration:
         {
-            LOGV("VideoEditor3gpReader_getOption duration %d",pC->mMaxDuration);
+            ALOGV("VideoEditor3gpReader_getOption duration %d",pC->mMaxDuration);
             *(M4OSA_Time*)pValue = pC->mMaxDuration;
         }
         break;
     case M4READER_kOptionID_Version:
         /* not used */
-        LOGV("VideoEditor3gpReader_getOption: M4READER_kOptionID_Version");
+        ALOGV("VideoEditor3gpReader_getOption: M4READER_kOptionID_Version");
         break;
 
     case M4READER_kOptionID_Copyright:
         /* not used */
-        LOGV(">>>>>>>   M4READER_kOptionID_Copyright");
+        ALOGV(">>>>>>>   M4READER_kOptionID_Copyright");
         break;
 
     case M4READER_kOptionID_CreationTime:
         /* not used */
-        LOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_CreationTime");
+        ALOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_CreationTime");
     break;
 
     case M4READER_kOptionID_Bitrate:
@@ -672,13 +672,13 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
                 M4OSA_UInt32 ui32Tmp = (M4OSA_UInt32)pC->mMaxDuration;
                 *pBitrate = (M4OSA_UInt32)(pC->mFileSize * 8000.0 / pC->mMaxDuration);
             }
-            LOGV("VideoEditor3gpReader_getOption bitrate %ld", *pBitrate);
+            ALOGV("VideoEditor3gpReader_getOption bitrate %ld", *pBitrate);
         }
     break;
     case M4READER_3GP_kOptionID_H263Properties:
         {
             if(M4OSA_NULL == pC->mVideoStreamHandler) {
-                LOGV("VideoEditor3gpReader_getOption no videoStream retrieved");
+                ALOGV("VideoEditor3gpReader_getOption no videoStream retrieved");
 
                 err = M4ERR_NO_VIDEO_STREAM_RETRIEVED_YET;
                 break;
@@ -686,7 +686,7 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
             if((M4DA_StreamTypeVideoH263 != pC->mVideoStreamHandler->\
                 m_streamType) || (pC->mVideoStreamHandler->\
                 m_decoderSpecificInfoSize < 7)) {
-                LOGV("VideoEditor3gpReader_getOption DSI Size %d",
+                ALOGV("VideoEditor3gpReader_getOption DSI Size %d",
                     pC->mVideoStreamHandler->m_decoderSpecificInfoSize);
 
                 err = M4ERR_VIDEO_NOT_H263;
@@ -699,50 +699,50 @@ M4OSA_ERR VideoEditor3gpReader_getOption(M4OSA_Context context,
                 pC->mVideoStreamHandler->m_pDecoderSpecificInfo[6];
             ((M4READER_3GP_H263Properties *)pValue)->uiLevel =
                 pC->mVideoStreamHandler->m_pDecoderSpecificInfo[5];
-            LOGV("VideoEditor3gpReader_getOption M4READER_3GP_kOptionID_\
+            ALOGV("VideoEditor3gpReader_getOption M4READER_3GP_kOptionID_\
             H263Properties end");
         }
         break;
     case M4READER_3GP_kOptionID_PurpleLabsDrm:
-        LOGV("VideoEditor3gpReaderOption M4READER_3GP_kOptionID_PurpleLabsDrm");
+        ALOGV("VideoEditor3gpReaderOption M4READER_3GP_kOptionID_PurpleLabsDrm");
         /* not used */
         break;
 
     case M4READER_kOptionID_GetNumberOfAudioAu:
         /* not used */
-        LOGV("VideoEditor3gpReadeOption M4READER_kOptionID_GetNumberOfAudioAu");
+        ALOGV("VideoEditor3gpReadeOption M4READER_kOptionID_GetNumberOfAudioAu");
     break;
 
     case M4READER_kOptionID_GetNumberOfVideoAu:
         /* not used */
-        LOGV("VideoEditor3gpReader_getOption :GetNumberOfVideoAu");
+        ALOGV("VideoEditor3gpReader_getOption :GetNumberOfVideoAu");
     break;
 
     case M4READER_kOptionID_GetMetadata:
         /* not used */
-        LOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_GetMetadata");
+        ALOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_GetMetadata");
     break;
 
     case M4READER_kOptionID_3gpFtypBox:
         /* used only for SEMC */
-        LOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_3gpFtypBox");
+        ALOGV("VideoEditor3gpReader_getOption M4READER_kOptionID_3gpFtypBox");
         err = M4ERR_BAD_OPTION_ID; //check this
         break;
 
 #ifdef OPTIONID_GET_NEXT_VIDEO_CTS
     case M4READER_3GP_kOptionID_getNextVideoCTS:
         /* not used */
-        LOGV("VideoEditor3gpReader_getOption: getNextVideoCTS");
+        ALOGV("VideoEditor3gpReader_getOption: getNextVideoCTS");
         break;
 #endif
     default:
         {
             err = M4ERR_BAD_OPTION_ID;
-            LOGV("VideoEditor3gpReader_getOption M4ERR_BAD_OPTION_ID");
+            ALOGV("VideoEditor3gpReader_getOption M4ERR_BAD_OPTION_ID");
         }
         break;
     }
-    LOGV("VideoEditor3gpReader_getOption end: optionID: x%x", optionId);
+    ALOGV("VideoEditor3gpReader_getOption end: optionID: x%x", optionId);
     return err;
 }
 /**
@@ -770,7 +770,7 @@ M4OSA_ERR VideoEditor3gpReader_setOption(M4OSA_Context context,
     M4OSA_DEBUG_IF1((M4OSA_NULL == pValue), M4ERR_PARAMETER,
         "invalid value pointer");
 
-    LOGV("VideoEditor3gpReader_setOption begin %d",optionId);
+    ALOGV("VideoEditor3gpReader_setOption begin %d",optionId);
 
     switch(optionId) {
         case M4READER_kOptionID_SetOsaFileReaderFctsPtr:
@@ -790,12 +790,12 @@ M4OSA_ERR VideoEditor3gpReader_setOption(M4OSA_Context context,
 
         default:
         {
-            LOGV("VideoEditor3gpReader_setOption: returns M4ERR_BAD_OPTION_ID");
+            ALOGV("VideoEditor3gpReader_setOption: returns M4ERR_BAD_OPTION_ID");
             err = M4ERR_BAD_OPTION_ID;
         }
         break;
     }
-    LOGV("VideoEditor3gpReader_setOption end ");
+    ALOGV("VideoEditor3gpReader_setOption end ");
     return err;
 }
 /**
@@ -822,7 +822,7 @@ M4OSA_ERR VideoEditor3gpReader_fillAuStruct(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pAccessUnit == 0),    M4ERR_PARAMETER,
         "VideoEditor3gpReader_fillAuStruct: invalid pointer to M4_AccessUnit");
 
-    LOGV("VideoEditor3gpReader_fillAuStruct begin");
+    ALOGV("VideoEditor3gpReader_fillAuStruct begin");
 
     /* Initialize pAccessUnit structure */
     pAccessUnit->m_size         = 0;
@@ -834,7 +834,7 @@ M4OSA_ERR VideoEditor3gpReader_fillAuStruct(M4OSA_Context context,
     pAccessUnit->m_streamID     = pStreamHandler->m_streamId;
     pAccessUnit->m_structSize   = sizeof(M4_AccessUnit);
 
-    LOGV("VideoEditor3gpReader_fillAuStruct end");
+    ALOGV("VideoEditor3gpReader_fillAuStruct end");
     return M4NO_ERROR;
 }
 
@@ -864,14 +864,14 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pTime == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_jump: invalid time pointer");
 
-    LOGV("VideoEditor3gpReader_jump begin");
+    ALOGV("VideoEditor3gpReader_jump begin");
 
     if (*pTime == (pStreamHandler->m_duration)) {
         *pTime -= 1;
     }
     time64 = (M4OSA_Time)*pTime;
 
-    LOGV("VideoEditor3gpReader_jump time us %ld ", time64);
+    ALOGV("VideoEditor3gpReader_jump time us %ld ", time64);
 
     if ((pC->mAudioStreamHandler != M4OSA_NULL) &&
             (pStreamHandler->m_streamId == pC->mAudioStreamHandler->m_streamId))
@@ -883,7 +883,7 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
         time64 = time64 * 1000; /* Convert the time into micro sec */
         pC->mAudioSeeking = M4OSA_TRUE;
         pC->mAudioSeekTime = time64;
-        LOGV("VideoEditor3gpReader_jump AUDIO time us %ld ", time64);
+        ALOGV("VideoEditor3gpReader_jump AUDIO time us %ld ", time64);
     } else if ((pC->mVideoStreamHandler != M4OSA_NULL) &&
             (pStreamHandler->m_streamId == pC->mVideoStreamHandler->m_streamId))
             {
@@ -894,17 +894,17 @@ M4OSA_ERR VideoEditor3gpReader_jump(M4OSA_Context context,
         time64 = time64 * 1000; /* Convert the time into micro sec */
         pC->mVideoSeeking = M4OSA_TRUE;
         pC->mVideoSeekTime = time64;
-        LOGV("VideoEditor3gpReader_jump VIDEO time us %ld ", time64);
+        ALOGV("VideoEditor3gpReader_jump VIDEO time us %ld ", time64);
     } else {
-        LOGV("VideoEditor3gpReader_jump passed StreamHandler is not known\n");
+        ALOGV("VideoEditor3gpReader_jump passed StreamHandler is not known\n");
         return M4ERR_PARAMETER;
     }
     time64 = time64 / 1000; /* Convert the time into milli sec */
-    LOGV("VideoEditor3gpReader_jump time ms before seekset %ld ", time64);
+    ALOGV("VideoEditor3gpReader_jump time ms before seekset %ld ", time64);
 
     *pTime = (M4OSA_Int32)time64;
 
-    LOGV("VideoEditor3gpReader_jump end");
+    ALOGV("VideoEditor3gpReader_jump end");
     err = M4NO_ERROR;
     return err;
 }
@@ -931,21 +931,21 @@ M4OSA_ERR VideoEditor3gpReader_reset(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_reset: invalid pointer to M4_StreamHandler");
 
-    LOGV("VideoEditor3gpReader_reset begin");
+    ALOGV("VideoEditor3gpReader_reset begin");
 
     if (pStreamHandler == (M4_StreamHandler*)pC->mAudioStreamHandler) {
         pAu = &pC->mAudioAu;
     } else if (pStreamHandler == (M4_StreamHandler*)pC->mVideoStreamHandler) {
         pAu = &pC->mVideoAu;
     } else {
-        LOGV("VideoEditor3gpReader_reset passed StreamHandler is not known\n");
+        ALOGV("VideoEditor3gpReader_reset passed StreamHandler is not known\n");
         return M4ERR_PARAMETER;
     }
 
     pAu->CTS = time64;
     pAu->DTS = time64;
 
-    LOGV("VideoEditor3gpReader_reset end");
+    ALOGV("VideoEditor3gpReader_reset end");
     return err;
 }
 
@@ -982,13 +982,13 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pAccessUnit == 0),    M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid pointer to M4_AccessUnit");
 
-    LOGV("VideoEditor3gpReader_getNextAu begin");
+    ALOGV("VideoEditor3gpReader_getNextAu begin");
 
     if (pStreamHandler == (M4_StreamHandler*)pC->mAudioStreamHandler) {
-        LOGV("VideoEditor3gpReader_getNextAu audio stream");
+        ALOGV("VideoEditor3gpReader_getNextAu audio stream");
         pAu = &pC->mAudioAu;
         if (pC->mAudioSeeking == M4OSA_TRUE) {
-            LOGV("VideoEditor3gpReader_getNextAu audio seek time: %ld",
+            ALOGV("VideoEditor3gpReader_getNextAu audio seek time: %ld",
                 pC->mAudioSeekTime);
             options.setSeekTo(pC->mAudioSeekTime);
             pC->mAudioSource->read(&mMediaBuffer, &options);
@@ -999,7 +999,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
             pC->mAudioSeeking = M4OSA_FALSE;
             flag = M4OSA_TRUE;
         } else {
-            LOGV("VideoEditor3gpReader_getNextAu audio no seek:");
+            ALOGV("VideoEditor3gpReader_getNextAu audio no seek:");
             pC->mAudioSource->read(&mMediaBuffer, &options);
             if (mMediaBuffer != NULL) {
                 mMediaBuffer->meta_data()->findInt64(kKeyTime,
@@ -1007,27 +1007,27 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
             }
         }
     } else if (pStreamHandler == (M4_StreamHandler*)pC->mVideoStreamHandler) {
-        LOGV("VideoEditor3gpReader_getNextAu video steram ");
+        ALOGV("VideoEditor3gpReader_getNextAu video steram ");
         pAu = &pC->mVideoAu;
         if(pC->mVideoSeeking == M4OSA_TRUE) {
             flag = M4OSA_TRUE;
-            LOGV("VideoEditor3gpReader_getNextAu seek: %ld",pC->mVideoSeekTime);
+            ALOGV("VideoEditor3gpReader_getNextAu seek: %ld",pC->mVideoSeekTime);
             options.setSeekTo(pC->mVideoSeekTime,
                 MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
             do
             {
                 if (mMediaBuffer != NULL) {
-                    LOGV("VideoEditor3gpReader_getNextAu free the MediaBuffer");
+                    ALOGV("VideoEditor3gpReader_getNextAu free the MediaBuffer");
                     mMediaBuffer->release();
                 }
                 error = pC->mVideoSource->read(&mMediaBuffer, &options);
-                LOGV("VE3gpReader_getNextAu MediaBuffer %x , error %d",
+                ALOGV("VE3gpReader_getNextAu MediaBuffer %x , error %d",
                     mMediaBuffer, error);
                 if (mMediaBuffer != NULL)
                 {
                     if (mMediaBuffer->meta_data()->findInt32(kKeyIsSyncFrame,
                         &i32Tmp) && i32Tmp) {
-                            LOGV("SYNC FRAME FOUND--%d", i32Tmp);
+                            ALOGV("SYNC FRAME FOUND--%d", i32Tmp);
                         pAu->attribute = AU_RAP;
                     }
                     else {
@@ -1041,17 +1041,17 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                 options.clearSeekTo();
             } while(tempTime64 < pC->mVideoSeekTime);
 
-            LOGV("VE3gpReader_getNextAu: video  time with seek  = %lld:",
+            ALOGV("VE3gpReader_getNextAu: video  time with seek  = %lld:",
                 tempTime64);
             pC->mVideoSeeking = M4OSA_FALSE;
         } else {
-            LOGV("VideoEditor3gpReader_getNextAu video no seek:");
+            ALOGV("VideoEditor3gpReader_getNextAu video no seek:");
             pC->mVideoSource->read(&mMediaBuffer, &options);
 
             if(mMediaBuffer != NULL) {
                 if (mMediaBuffer->meta_data()->findInt32(kKeyIsSyncFrame,
                     &i32Tmp) && i32Tmp) {
-                    LOGV("SYNC FRAME FOUND--%d", i32Tmp);
+                    ALOGV("SYNC FRAME FOUND--%d", i32Tmp);
                     pAu->attribute = AU_RAP;
                 }
                 else {
@@ -1059,14 +1059,14 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                 }
                 mMediaBuffer->meta_data()->findInt64(kKeyTime,
                     (int64_t*)&tempTime64);
-                LOGV("VE3gpReader_getNextAu: video no seek time = %lld:",
+                ALOGV("VE3gpReader_getNextAu: video no seek time = %lld:",
                     tempTime64);
             }else {
-                LOGV("VE3gpReader_getNextAu:video no seek time buffer is NULL");
+                ALOGV("VE3gpReader_getNextAu:video no seek time buffer is NULL");
             }
         }
     } else {
-        LOGV("VideoEditor3gpReader_getNextAu M4ERR_PARAMETER");
+        ALOGV("VideoEditor3gpReader_getNextAu M4ERR_PARAMETER");
         return M4ERR_PARAMETER;
     }
 
@@ -1077,14 +1077,14 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
                 free((M4OSA_Int32*)pAu->dataAddress);
                 pAu->dataAddress = NULL;
             }
-            LOGV("Buffer lenght = %d ,%d",(mMediaBuffer->range_length() +\
+            ALOGV("Buffer lenght = %d ,%d",(mMediaBuffer->range_length() +\
                 3) & ~0x3,(mMediaBuffer->range_length()));
 
             pAu->dataAddress = (M4OSA_Int32*)M4OSA_32bitAlignedMalloc(
                 (mMediaBuffer->range_length() + 3) & ~0x3,M4READER_3GP,
                     (M4OSA_Char*)"pAccessUnit->m_dataAddress" );
             if(pAu->dataAddress == NULL) {
-                LOGV("VideoEditor3gpReader_getNextAu malloc failed");
+                ALOGV("VideoEditor3gpReader_getNextAu malloc failed");
                 return M4ERR_ALLOC;
             }
         }
@@ -1100,7 +1100,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
             M4OSA_UInt8 *lbuffer;
 
             lbuffer = (M4OSA_UInt8 *) pAu->dataAddress;
-            LOGV("pAccessUnit->m_dataAddress size = %x",size);
+            ALOGV("pAccessUnit->m_dataAddress size = %x",size);
 
             lbuffer[0] = (size >> 24) & 0xFF;
             lbuffer[1] = (size >> 16) & 0xFF;
@@ -1111,7 +1111,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
         pAu->CTS = tempTime64;
 
         pAu->CTS = pAu->CTS / 1000; //converting the microsec to millisec
-        LOGV("VideoEditor3gpReader_getNextAu CTS = %ld",pAu->CTS);
+        ALOGV("VideoEditor3gpReader_getNextAu CTS = %ld",pAu->CTS);
 
         pAu->DTS  = pAu->CTS;
         if (pStreamHandler == (M4_StreamHandler*)pC->mAudioStreamHandler) {
@@ -1127,7 +1127,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
         pAccessUnit->m_attribute = pAu->attribute;
 
     } else {
-        LOGV("VideoEditor3gpReader_getNextAu: M4WAR_NO_MORE_AU (EOS) reached");
+        ALOGV("VideoEditor3gpReader_getNextAu: M4WAR_NO_MORE_AU (EOS) reached");
         pAccessUnit->m_size = 0;
         err = M4WAR_NO_MORE_AU;
     }
@@ -1135,7 +1135,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
 
     pAu->nbFrag = 0;
     mMediaBuffer = NULL;
-    LOGV("VideoEditor3gpReader_getNextAu end ");
+    ALOGV("VideoEditor3gpReader_getNextAu end ");
 
     return err;
 }
@@ -1425,7 +1425,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
     M4OSA_Int32  ptempTime;
     M4OSA_Int32  avgFPS=0;
 
-    LOGV("VideoEditor3gpReader_getNextStreamHandler begin");
+    ALOGV("VideoEditor3gpReader_getNextStreamHandler begin");
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextStreamHandler: invalid context");
@@ -1438,7 +1438,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
     temp = pC->mCurrTrack;
 
     if(temp >= trackCount) {
-        LOGV("VideoEditor3gpReader_getNextStreamHandler error = %d",
+        ALOGV("VideoEditor3gpReader_getNextStreamHandler error = %d",
             M4WAR_NO_MORE_STREAM);
         return (M4WAR_NO_MORE_STREAM);
     } else {
@@ -1452,7 +1452,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
             *pMediaFamily = M4READER_kMediaFamilyVideo;
             haveVideo = true;
-            LOGV("VideoEditor3gpReader_getNextStreamHandler getTrack called");
+            ALOGV("VideoEditor3gpReader_getNextStreamHandler getTrack called");
             if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
                 streamType = M4DA_StreamTypeVideoMpeg4Avc;
             } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_H263)) {
@@ -1460,9 +1460,9 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4)) {
                 streamType = M4DA_StreamTypeVideoMpeg4;
             } else {
-                LOGV("VideoEditor3gpReaderGetNextStreamHandler streamTypeNONE");
+                ALOGV("VideoEditor3gpReaderGetNextStreamHandler streamTypeNONE");
             }
-            LOGV("VideoEditor3gpReader_getNextStreamHandler: stream type: %d ",
+            ALOGV("VideoEditor3gpReader_getNextStreamHandler: stream type: %d ",
                 streamType);
 
             if(streamType != M4DA_StreamTypeUnknown) {
@@ -1488,14 +1488,14 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 ((*pStreamHandler)->m_duration) =
                     (int32_t)((Duration)/1000); // conversion to mS
                 pC->mMaxDuration = ((*pStreamHandler)->m_duration);
-                LOGV("VideoEditor3gpReader_getNextStreamHandler m_duration %d",
+                ALOGV("VideoEditor3gpReader_getNextStreamHandler m_duration %d",
                     (*pStreamHandler)->m_duration);
 
                 off64_t fileSize = 0;
                 pC->mDataSource->getSize(&fileSize);
                 pC->mFileSize  = fileSize;
 
-                LOGV("VideoEditor3gpReader_getNextStreamHandler m_fileSize %d",
+                ALOGV("VideoEditor3gpReader_getNextStreamHandler m_fileSize %d",
                     pC->mFileSize);
 
                 meta->findInt32(kKeyMaxInputSize, (int32_t*)&(maxAUSize));
@@ -1503,22 +1503,22 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     maxAUSize = 70000;
                 }
                 (*pStreamHandler)->m_maxAUSize = maxAUSize;
-                LOGV("<<<<<<<<<<   video: mMaxAUSize from MP4 extractor: %d",
+                ALOGV("<<<<<<<<<<   video: mMaxAUSize from MP4 extractor: %d",
                     (*pStreamHandler)->m_maxAUSize);
 
                 ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate =
                         (pC->mFileSize * 8000)/pC->mMaxDuration;
-                LOGV("VideoEditor3gpReader_getNextStreamHandler m_averageBitrate %d",
+                ALOGV("VideoEditor3gpReader_getNextStreamHandler m_averageBitrate %d",
                     ((M4_StreamHandler*)pVideoStreamHandler)->m_averageBitRate);
 
 
                 meta->findInt32(kKeyFrameRate,
                     (int32_t*)&(avgFPS));
-                LOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor: %d",
+                ALOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor: %d",
                     avgFPS);
 
                 pVideoStreamHandler->m_averageFrameRate =(M4OSA_Float) avgFPS;
-                LOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor in FLOAT: %f",
+                ALOGV("<<<<<<<<<<   video: Average FPS from MP4 extractor in FLOAT: %f",
                     pVideoStreamHandler->m_averageFrameRate);
 
                 // Get the video rotation degree
@@ -1557,7 +1557,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         (*pStreamHandler)->m_pH264DecoderSpecificInfo = M4OSA_NULL;
                         (*pStreamHandler)->m_H264decoderSpecificInfoSize = 0;
                     } else {
-                        LOGV("VE_getNextStreamHandler: H263 dsi not found");
+                        ALOGV("VE_getNextStreamHandler: H263 dsi not found");
                         (*pStreamHandler)->m_pDecoderSpecificInfo = M4OSA_NULL;
                         (*pStreamHandler)->m_decoderSpecificInfoSize = 0;
                         (*pStreamHandler)->m_H264decoderSpecificInfoSize = 0;
@@ -1575,13 +1575,13 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                                 decoderSpecificInfoSize, M4READER_3GP,
                                 (M4OSA_Char*)"H264 DecoderSpecific" );
                             if (M4OSA_NULL == DecoderSpecificInfo) {
-                                LOGV("VideoEditor3gp_getNextStream is NULL ");
+                                ALOGV("VideoEditor3gp_getNextStream is NULL ");
                                 return M4ERR_ALLOC;
                             }
                             memcpy((void *)DecoderSpecificInfo,
                                 (void *)data, decoderSpecificInfoSize);
                         } else {
-                            LOGV("DSI Size %d", decoderSpecificInfoSize);
+                            ALOGV("DSI Size %d", decoderSpecificInfoSize);
                             DecoderSpecificInfo = M4OSA_NULL;
                         }
                     }
@@ -1594,7 +1594,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     if (M4NO_ERROR != err) {
                         return err;
                     }
-                    LOGV("decsize %d, h264decsize %d: %d", (*pStreamHandler)->\
+                    ALOGV("decsize %d, h264decsize %d: %d", (*pStreamHandler)->\
                         m_decoderSpecificInfoSize, (*pStreamHandler)->\
                         m_H264decoderSpecificInfoSize);
 
@@ -1619,7 +1619,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
                         esds.getCodecSpecificInfo(&codec_specific_data,
                             &codec_specific_data_size);
-                        LOGV("VE MP4 dsisize: %d, %x", codec_specific_data_size,
+                        ALOGV("VE MP4 dsisize: %d, %x", codec_specific_data_size,
                             codec_specific_data);
 
                         (*pStreamHandler)->m_decoderSpecificInfoSize =
@@ -1646,17 +1646,17 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                         (*pStreamHandler)->m_H264decoderSpecificInfoSize = 0;
                     }
                 } else {
-                    LOGV("VideoEditor3gpReader_getNextStream NO video stream");
+                    ALOGV("VideoEditor3gpReader_getNextStream NO video stream");
                     return M4ERR_READER_UNKNOWN_STREAM_TYPE;
                 }
             }
             else {
-                LOGV("VideoEditor3gpReader_getNextStream NO video stream");
+                ALOGV("VideoEditor3gpReader_getNextStream NO video stream");
                 return M4ERR_READER_UNKNOWN_STREAM_TYPE;
             }
 
         } else if (!haveAudio && !strncasecmp(mime, "audio/", 6)) {
-            LOGV("VideoEditor3gpReader_getNextStream audio getTrack called");
+            ALOGV("VideoEditor3gpReader_getNextStream audio getTrack called");
             pC->mAudioSource = pC->mExtractor->getTrack(pC->mCurrTrack);
             pC->mAudioSource->start();
             *pMediaFamily = M4READER_kMediaFamilyAudio;
@@ -1669,13 +1669,13 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             else if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
                 streamType = M4DA_StreamTypeAudioAac;
             } else {
-                LOGV("VideoEditor3gpReader_getNextStrea streamtype Unknown ");
+                ALOGV("VideoEditor3gpReader_getNextStrea streamtype Unknown ");
             }
             if(streamType != M4DA_StreamTypeUnknown) {
                 pC->mStreamType = streamType;
                 pC->mStreamId = pC->mCurrTrack;
 
-                LOGV("VE streamtype %d ,id %d",  streamType, pC->mCurrTrack);
+                ALOGV("VE streamtype %d ,id %d",  streamType, pC->mCurrTrack);
 
                 pAudioStreamHandler = (M4_AudioStreamHandler*)M4OSA_32bitAlignedMalloc
                     (sizeof(M4_AudioStreamHandler), M4READER_3GP,
@@ -1703,7 +1703,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     maxAUSize = 70000;
                 }
                 (*pStreamHandler)->m_maxAUSize = maxAUSize;
-                LOGV("VE Audio mMaxAUSize from MP4 extractor: %d", maxAUSize);
+                ALOGV("VE Audio mMaxAUSize from MP4 extractor: %d", maxAUSize);
             }
             if((M4DA_StreamTypeAudioAmrNarrowBand == streamType) ||
                 (M4DA_StreamTypeAudioAmrWideBand == streamType)) {
@@ -1779,7 +1779,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     esds.getCodecSpecificInfo(&codec_specific_data,
                         &codec_specific_data_size);
 
-                    LOGV("VEdsi %d,%x",codec_specific_data_size,
+                    ALOGV("VEdsi %d,%x",codec_specific_data_size,
                         codec_specific_data);
 
                     (*pStreamHandler)->m_decoderSpecificInfoSize =
@@ -1801,15 +1801,15 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     }
                 }
             } else {
-                LOGV("VideoEditor3gpReader_getNextStream mStreamType: none ");
+                ALOGV("VideoEditor3gpReader_getNextStream mStreamType: none ");
                 return M4ERR_READER_UNKNOWN_STREAM_TYPE;
             }
         } else {
-            LOGV("VE noaudio-video stream:pC->mCurrTrack = %d ",pC->mCurrTrack);
+            ALOGV("VE noaudio-video stream:pC->mCurrTrack = %d ",pC->mCurrTrack);
             pC->mCurrTrack++; //Increment current track to get the next track
             return M4ERR_READER_UNKNOWN_STREAM_TYPE;
         }
-        LOGV("VE StreamType: %d, stremhandler %x",streamType, *pStreamHandler );
+        ALOGV("VE StreamType: %d, stremhandler %x",streamType, *pStreamHandler );
         (*pStreamHandler)->m_streamType = streamType;
         (*pStreamHandler)->m_streamId   = pC->mStreamId;
         (*pStreamHandler)->m_pUserData  = M4OSA_NULL;
@@ -1822,7 +1822,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
         (*pStreamHandler)->m_duration = (int32_t)(Duration / 1000);
 
         pC->mMaxDuration = ((*pStreamHandler)->m_duration);
-        LOGV("VE str duration duration: %d ", (*pStreamHandler)->m_duration);
+        ALOGV("VE str duration duration: %d ", (*pStreamHandler)->m_duration);
 
         /* In AAC case: Put the first AU in pAudioStreamHandler->m_pUserData
          *since decoder has to know if stream contains SBR data(Implicit sig) */
@@ -1877,14 +1877,14 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
         }
     }
     pC->mCurrTrack++; //Increment the current track to get next track
-    LOGV("pC->mCurrTrack = %d",pC->mCurrTrack);
+    ALOGV("pC->mCurrTrack = %d",pC->mCurrTrack);
 
     if (!haveAudio && !haveVideo) {
         *pMediaFamily=M4READER_kMediaFamilyUnknown;
         return M4ERR_READER_UNKNOWN_STREAM_TYPE;
     }
 Error:
-    LOGV("VideoEditor3gpReader_getNextStreamHandler end error = %d",err);
+    ALOGV("VideoEditor3gpReader_getNextStreamHandler end error = %d",err);
     return err;
 }
 
@@ -1899,7 +1899,7 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     int64_t tempTime64 = 0;
     status_t error;
 
-    LOGV("VideoEditor3gpReader_getPrevRapTime begin");
+    ALOGV("VideoEditor3gpReader_getPrevRapTime begin");
 
     M4OSA_DEBUG_IF1((pC == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getPrevRapTime: invalid context");
@@ -1913,7 +1913,7 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
 
     time64 = (M4OSA_Time)*pTime * 1000;
 
-    LOGV("VideoEditor3gpReader_getPrevRapTime seek time: %ld",time64);
+    ALOGV("VideoEditor3gpReader_getPrevRapTime seek time: %ld",time64);
     options.setSeekTo(time64, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
     error = pC->mVideoSource->read(&mMediaBuffer, &options);
     if (error != OK) {
@@ -1923,13 +1923,13 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     }
 
     mMediaBuffer->meta_data()->findInt64(kKeyTime, (int64_t*)&tempTime64);
-    LOGV("VideoEditor3gpReader_getPrevRapTime read time %ld, %x", tempTime64,
+    ALOGV("VideoEditor3gpReader_getPrevRapTime read time %ld, %x", tempTime64,
         mMediaBuffer);
 
     *pTime = (M4OSA_Int32)(tempTime64 / 1000);
 
     if(mMediaBuffer != M4OSA_NULL) {
-        LOGV(" mMediaBuffer size = %d length %d", mMediaBuffer->size(),
+        ALOGV(" mMediaBuffer size = %d length %d", mMediaBuffer->size(),
             mMediaBuffer->range_length());
         mMediaBuffer->release();
         mMediaBuffer = M4OSA_NULL;
@@ -1937,11 +1937,11 @@ M4OSA_ERR VideoEditor3gpReader_getPrevRapTime(M4OSA_Context context,
     options.clearSeekTo();
 
     if(error != OK) {
-        LOGV("VideoEditor3gpReader_getPrevRapTime end \
+        ALOGV("VideoEditor3gpReader_getPrevRapTime end \
             M4WAR_READER_INFORMATION_NOT_PRESENT");
         return M4WAR_READER_INFORMATION_NOT_PRESENT;
     } else {
-        LOGV("VideoEditor3gpReader_getPrevRapTime end: err %x", err);
+        ALOGV("VideoEditor3gpReader_getPrevRapTime end: err %x", err);
         err = M4NO_ERROR;
         return err;
     }
@@ -1958,8 +1958,8 @@ M4OSA_ERR VideoEditor3gpReader_getInterface(M4READER_MediaType *pMediaType,
     VIDEOEDITOR_CHECK(M4OSA_NULL != pRdrGlobalInterface, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pRdrDataInterface, M4ERR_PARAMETER);
 
-    LOGV("VideoEditor3gpReader_getInterface begin");
-    LOGV("VideoEditor3gpReader_getInterface %d 0x%x 0x%x", *pMediaType,
+    ALOGV("VideoEditor3gpReader_getInterface begin");
+    ALOGV("VideoEditor3gpReader_getInterface %d 0x%x 0x%x", *pMediaType,
         *pRdrGlobalInterface,*pRdrDataInterface);
 
     SAFE_MALLOC(*pRdrGlobalInterface, M4READER_GlobalInterface, 1,
@@ -1990,14 +1990,14 @@ M4OSA_ERR VideoEditor3gpReader_getInterface(M4READER_MediaType *pMediaType,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditor3gpReader_getInterface no error");
+        ALOGV("VideoEditor3gpReader_getInterface no error");
     } else {
         SAFE_FREE(*pRdrGlobalInterface);
         SAFE_FREE(*pRdrDataInterface);
 
-        LOGV("VideoEditor3gpReader_getInterface ERROR 0x%X", err);
+        ALOGV("VideoEditor3gpReader_getInterface ERROR 0x%X", err);
     }
-    LOGV("VideoEditor3gpReader_getInterface end");
+    ALOGV("VideoEditor3gpReader_getInterface end");
     return err;
 }
 

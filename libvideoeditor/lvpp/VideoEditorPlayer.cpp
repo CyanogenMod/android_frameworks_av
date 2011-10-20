@@ -31,12 +31,12 @@ namespace android {
 VideoEditorPlayer::VideoEditorPlayer(NativeWindowRenderer* renderer)
     : mPlayer(new PreviewPlayer(renderer)) {
 
-    LOGV("VideoEditorPlayer");
+    ALOGV("VideoEditorPlayer");
     mPlayer->setListener(this);
 }
 
 VideoEditorPlayer::~VideoEditorPlayer() {
-    LOGV("~VideoEditorPlayer");
+    ALOGV("~VideoEditorPlayer");
 
     reset();
     mVeAudioSink.clear();
@@ -46,7 +46,7 @@ VideoEditorPlayer::~VideoEditorPlayer() {
 }
 
 status_t VideoEditorPlayer::initCheck() {
-    LOGV("initCheck");
+    ALOGV("initCheck");
     return OK;
 }
 
@@ -71,21 +71,21 @@ status_t VideoEditorPlayer::setDataSource(int fd, int64_t offset,
 }
 
 status_t VideoEditorPlayer::setVideoSurface(const sp<Surface> &surface) {
-    LOGV("setVideoSurface");
+    ALOGV("setVideoSurface");
 
     mPlayer->setSurface(surface);
     return OK;
 }
 
 status_t VideoEditorPlayer::setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
-    LOGV("setVideoSurfaceTexture");
+    ALOGV("setVideoSurfaceTexture");
 
     mPlayer->setSurfaceTexture(surfaceTexture);
     return OK;
 }
 
 status_t VideoEditorPlayer::prepare() {
-    LOGV("prepare");
+    ALOGV("prepare");
     return mPlayer->prepare();
 }
 
@@ -94,33 +94,33 @@ status_t VideoEditorPlayer::prepareAsync() {
 }
 
 status_t VideoEditorPlayer::start() {
-    LOGV("start");
+    ALOGV("start");
     return mPlayer->play();
 }
 
 status_t VideoEditorPlayer::stop() {
-    LOGV("stop");
+    ALOGV("stop");
     return pause();
 }
 
 status_t VideoEditorPlayer::pause() {
-    LOGV("pause");
+    ALOGV("pause");
     return mPlayer->pause();
 }
 
 bool VideoEditorPlayer::isPlaying() {
-    LOGV("isPlaying");
+    ALOGV("isPlaying");
     return mPlayer->isPlaying();
 }
 
 status_t VideoEditorPlayer::seekTo(int msec) {
-    LOGV("seekTo");
+    ALOGV("seekTo");
     status_t err = mPlayer->seekTo((int64_t)msec * 1000);
     return err;
 }
 
 status_t VideoEditorPlayer::getCurrentPosition(int *msec) {
-    LOGV("getCurrentPosition");
+    ALOGV("getCurrentPosition");
     int64_t positionUs;
     status_t err = mPlayer->getPosition(&positionUs);
 
@@ -133,7 +133,7 @@ status_t VideoEditorPlayer::getCurrentPosition(int *msec) {
 }
 
 status_t VideoEditorPlayer::getDuration(int *msec) {
-    LOGV("getDuration");
+    ALOGV("getDuration");
 
     int64_t durationUs;
     status_t err = mPlayer->getDuration(&durationUs);
@@ -148,38 +148,38 @@ status_t VideoEditorPlayer::getDuration(int *msec) {
 }
 
 status_t VideoEditorPlayer::reset() {
-    LOGV("reset");
+    ALOGV("reset");
     mPlayer->reset();
     return OK;
 }
 
 status_t VideoEditorPlayer::setLooping(int loop) {
-    LOGV("setLooping");
+    ALOGV("setLooping");
     return mPlayer->setLooping(loop);
 }
 
 status_t VideoEditorPlayer::setParameter(int key, const Parcel &request) {
-    LOGV("setParameter");
+    ALOGV("setParameter");
     return mPlayer->setParameter(key, request);
 }
 
 status_t VideoEditorPlayer::getParameter(int key, Parcel *reply) {
-    LOGV("getParameter");
+    ALOGV("getParameter");
     return mPlayer->getParameter(key, reply);
 }
 
 player_type VideoEditorPlayer::playerType() {
-    LOGV("playerType");
+    ALOGV("playerType");
     return STAGEFRIGHT_PLAYER;
 }
 
 void VideoEditorPlayer::acquireLock() {
-    LOGV("acquireLock");
+    ALOGV("acquireLock");
     mPlayer->acquireLock();
 }
 
 void VideoEditorPlayer::releaseLock() {
-    LOGV("releaseLock");
+    ALOGV("releaseLock");
     mPlayer->releaseLock();
 }
 
@@ -222,20 +222,20 @@ status_t VideoEditorPlayer::getMetadata(
 
 status_t VideoEditorPlayer::loadEffectsSettings(
     M4VSS3GPP_EffectSettings* pEffectSettings, int nEffects) {
-    LOGV("loadEffectsSettings");
+    ALOGV("loadEffectsSettings");
     return mPlayer->loadEffectsSettings(pEffectSettings, nEffects);
 }
 
 status_t VideoEditorPlayer::loadAudioMixSettings(
     M4xVSS_AudioMixingSettings* pAudioMixSettings) {
-    LOGV("VideoEditorPlayer: loadAudioMixSettings");
+    ALOGV("VideoEditorPlayer: loadAudioMixSettings");
     return mPlayer->loadAudioMixSettings(pAudioMixSettings);
 }
 
 status_t VideoEditorPlayer::setAudioMixPCMFileHandle(
     M4OSA_Context pAudioMixPCMFileHandle) {
 
-    LOGV("VideoEditorPlayer: loadAudioMixSettings");
+    ALOGV("VideoEditorPlayer: loadAudioMixSettings");
     return mPlayer->setAudioMixPCMFileHandle(pAudioMixPCMFileHandle);
 }
 
@@ -244,28 +244,28 @@ status_t VideoEditorPlayer::setAudioMixStoryBoardParam(
     M4OSA_UInt32 currentMediaBeginCutTime,
     M4OSA_UInt32 primaryTrackVolValue) {
 
-    LOGV("VideoEditorPlayer: loadAudioMixSettings");
+    ALOGV("VideoEditorPlayer: loadAudioMixSettings");
     return mPlayer->setAudioMixStoryBoardParam(audioMixStoryBoardTS,
      currentMediaBeginCutTime, primaryTrackVolValue);
 }
 
 status_t VideoEditorPlayer::setPlaybackBeginTime(uint32_t msec) {
-    LOGV("setPlaybackBeginTime");
+    ALOGV("setPlaybackBeginTime");
     return mPlayer->setPlaybackBeginTime(msec);
 }
 
 status_t VideoEditorPlayer::setPlaybackEndTime(uint32_t msec) {
-    LOGV("setPlaybackEndTime");
+    ALOGV("setPlaybackEndTime");
     return mPlayer->setPlaybackEndTime(msec);
 }
 
 status_t VideoEditorPlayer::setStoryboardStartTime(uint32_t msec) {
-    LOGV("setStoryboardStartTime");
+    ALOGV("setStoryboardStartTime");
     return mPlayer->setStoryboardStartTime(msec);
 }
 
 status_t VideoEditorPlayer::setProgressCallbackInterval(uint32_t cbInterval) {
-    LOGV("setProgressCallbackInterval");
+    ALOGV("setProgressCallbackInterval");
     return mPlayer->setProgressCallbackInterval(cbInterval);
 }
 
@@ -273,12 +273,12 @@ status_t VideoEditorPlayer::setMediaRenderingMode(
     M4xVSS_MediaRendering mode,
     M4VIDEOEDITING_VideoFrameSize outputVideoSize) {
 
-    LOGV("setMediaRenderingMode");
+    ALOGV("setMediaRenderingMode");
     return mPlayer->setMediaRenderingMode(mode, outputVideoSize);
 }
 
 status_t VideoEditorPlayer::resetJniCallbackTimeStamp() {
-    LOGV("resetJniCallbackTimeStamp");
+    ALOGV("resetJniCallbackTimeStamp");
     return mPlayer->resetJniCallbackTimeStamp();
 }
 
@@ -387,12 +387,12 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
     // Check argument "bufferCount" against the mininum buffer count
     if (bufferCount < mMinBufferCount) {
-        LOGV("bufferCount (%d) is too small and increased to %d",
+        ALOGV("bufferCount (%d) is too small and increased to %d",
             bufferCount, mMinBufferCount);
         bufferCount = mMinBufferCount;
 
     }
-    LOGV("open(%u, %d, %d, %d)", sampleRate, channelCount, format, bufferCount);
+    ALOGV("open(%u, %d, %d, %d)", sampleRate, channelCount, format, bufferCount);
     if (mTrack) close();
     int afSampleRate;
     int afFrameCount;
@@ -437,7 +437,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
         return NO_INIT;
     }
 
-    LOGV("setVolume");
+    ALOGV("setVolume");
     t->setVolume(mLeftVolume, mRightVolume);
     mMsecsPerFrame = 1.e3 / (float) sampleRate;
     mLatency = t->latency();
@@ -447,7 +447,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
 void VideoEditorPlayer::VeAudioOutput::start() {
 
-    LOGV("start");
+    ALOGV("start");
     if (mTrack) {
         mTrack->setVolume(mLeftVolume, mRightVolume);
         mTrack->start();
@@ -467,7 +467,7 @@ ssize_t VideoEditorPlayer::VeAudioOutput::write(
 
     LOG_FATAL_IF(mCallback != NULL, "Don't call write if supplying a callback.");
 
-    //LOGV("write(%p, %u)", buffer, size);
+    //ALOGV("write(%p, %u)", buffer, size);
     if (mTrack) {
         snoopWrite(buffer, size);
         ssize_t ret = mTrack->write(buffer, size);
@@ -479,32 +479,32 @@ ssize_t VideoEditorPlayer::VeAudioOutput::write(
 
 void VideoEditorPlayer::VeAudioOutput::stop() {
 
-    LOGV("stop");
+    ALOGV("stop");
     if (mTrack) mTrack->stop();
 }
 
 void VideoEditorPlayer::VeAudioOutput::flush() {
 
-    LOGV("flush");
+    ALOGV("flush");
     if (mTrack) mTrack->flush();
 }
 
 void VideoEditorPlayer::VeAudioOutput::pause() {
 
-    LOGV("VeAudioOutput::pause");
+    ALOGV("VeAudioOutput::pause");
     if (mTrack) mTrack->pause();
 }
 
 void VideoEditorPlayer::VeAudioOutput::close() {
 
-    LOGV("close");
+    ALOGV("close");
     delete mTrack;
     mTrack = 0;
 }
 
 void VideoEditorPlayer::VeAudioOutput::setVolume(float left, float right) {
 
-    LOGV("setVolume(%f, %f)", left, right);
+    ALOGV("setVolume(%f, %f)", left, right);
     mLeftVolume = left;
     mRightVolume = right;
     if (mTrack) {
@@ -515,7 +515,7 @@ void VideoEditorPlayer::VeAudioOutput::setVolume(float left, float right) {
 // static
 void VideoEditorPlayer::VeAudioOutput::CallbackWrapper(
         int event, void *cookie, void *info) {
-    //LOGV("VeAudioOutput::callbackwrapper");
+    //ALOGV("VeAudioOutput::callbackwrapper");
     if (event != AudioTrack::EVENT_MORE_DATA) {
         return;
     }

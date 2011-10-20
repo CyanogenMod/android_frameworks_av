@@ -39,8 +39,8 @@
 /*  DEBUG LEVEL SETUP  */
 /*---------------------*/
 #define LOG1 LOGE    /*ERRORS Logging*/
-#define LOG2 LOGV    /*WARNING Logging*/
-#define LOG3 //LOGV    /*COMMENTS Logging*/
+#define LOG2 ALOGV    /*WARNING Logging*/
+#define LOG3 //ALOGV    /*COMMENTS Logging*/
 
 /*---------------------*/
 /*  CONSTANTS          */

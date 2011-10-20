@@ -136,14 +136,14 @@ status_t VideoEditorAudioDecoderSource::start(MetaData *meta) {
     status_t err = OK;
 
     if( CREATED != mState ) {
-        LOGV("VideoEditorAudioDecoderSource::start: invalid state %d", mState);
+        ALOGV("VideoEditorAudioDecoderSource::start: invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
     mState = STARTED;
 
 cleanUp:
-    LOGV("VideoEditorAudioDecoderSource::start END (0x%x)", err);
+    ALOGV("VideoEditorAudioDecoderSource::start END (0x%x)", err);
     return err;
 }
 
@@ -151,10 +151,10 @@ status_t VideoEditorAudioDecoderSource::stop() {
     Mutex::Autolock autolock(mLock);
     status_t err = OK;
 
-    LOGV("VideoEditorAudioDecoderSource::stop begin");
+    ALOGV("VideoEditorAudioDecoderSource::stop begin");
 
     if( STARTED != mState ) {
-        LOGV("VideoEditorAudioDecoderSource::stop: invalid state %d", mState);
+        ALOGV("VideoEditorAudioDecoderSource::stop: invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
@@ -169,13 +169,13 @@ status_t VideoEditorAudioDecoderSource::stop() {
 
     mState = CREATED;
 
-    LOGV("VideoEditorAudioDecoderSource::stop END (0x%x)", err);
+    ALOGV("VideoEditorAudioDecoderSource::stop END (0x%x)", err);
     return err;
 }
 
 sp<MetaData> VideoEditorAudioDecoderSource::getFormat() {
 
-    LOGV("VideoEditorAudioDecoderSource::getFormat");
+    ALOGV("VideoEditorAudioDecoderSource::getFormat");
     return mFormat;
 }
 
@@ -191,7 +191,7 @@ static MediaBuffer* readBufferFromReader(
                pAccessUnit);
 
     if (lerr == M4WAR_NO_MORE_AU) {
-        LOGV("readBufferFromReader : EOS");
+        ALOGV("readBufferFromReader : EOS");
         return NULL;
     }
 
@@ -213,7 +213,7 @@ status_t VideoEditorAudioDecoderSource::read(MediaBuffer **buffer,
      (VideoEditorAudioDecoder_Context *)mDecShellContext;
 
     if ( STARTED != mState ) {
-        LOGV("VideoEditorAudioDecoderSource::read invalid state %d", mState);
+        ALOGV("VideoEditorAudioDecoderSource::read invalid state %d", mState);
         return UNKNOWN_ERROR;
     }
 
@@ -238,7 +238,7 @@ void VideoEditorAudioDecoderSource::storeBuffer(MediaBuffer *buffer) {
     VideoEditorAudioDecoder_Context* pDecContext =
      (VideoEditorAudioDecoder_Context *)mDecShellContext;
 
-    LOGV("VideoEditorAudioDecoderSource::storeBuffer begin");
+    ALOGV("VideoEditorAudioDecoderSource::storeBuffer begin");
 
     // If the user didn't give us a buffer, get it from the reader.
     if(buffer == NULL) {
@@ -251,7 +251,7 @@ void VideoEditorAudioDecoderSource::storeBuffer(MediaBuffer *buffer) {
     }
 
     mBuffers.push(buffer);
-    LOGV("VideoEditorAudioDecoderSource::storeBuffer END");
+    ALOGV("VideoEditorAudioDecoderSource::storeBuffer END");
 }
 
 /********************
@@ -278,7 +278,7 @@ M4OSA_ERR VideoEditorAudioDecoder_getBits(M4OSA_Int8* pData,
     VIDEOEDITOR_CHECK(32 >= nbBits, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK((*pOffset + nbBits) <= 8*dataSize, M4ERR_PARAMETER);
 
-    LOGV("VideoEditorAudioDecoder_getBits begin");
+    ALOGV("VideoEditorAudioDecoder_getBits begin");
 
     startByte   = (*pOffset) >> 3;
     endByte     = (*pOffset + nbBits) >> 3;
@@ -308,11 +308,11 @@ M4OSA_ERR VideoEditorAudioDecoder_getBits(M4OSA_Int8* pData,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_getBits no error");
+        ALOGV("VideoEditorAudioDecoder_getBits no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_getBits ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_getBits ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_getBits end");
+    ALOGV("VideoEditorAudioDecoder_getBits end");
     return err;
 }
 
@@ -330,7 +330,7 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
     M4OSA_UInt32 offset = 0;
     M4OSA_Int32 result = 0;
 
-    LOGV("VideoEditorAudioDecoder_parse_AAC_DSI begin");
+    ALOGV("VideoEditorAudioDecoder_parse_AAC_DSI begin");
 
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pDSI, M4ERR_PARAMETER);
@@ -356,7 +356,7 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
             pProperties->aSBRPresent = 1;
             break;
         default:
-            LOGV("parse_AAC_DSI ERROR : object type %d is not supported",
+            ALOGV("parse_AAC_DSI ERROR : object type %d is not supported",
                 result);
             VIDEOEDITOR_CHECK(!"invalid AAC object type", M4ERR_BAD_OPTION_ID);
             break;
@@ -381,11 +381,11 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_parse_AAC_DSI no error");
+        ALOGV("VideoEditorAudioDecoder_parse_AAC_DSI no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_parse_AAC_DSI ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_parse_AAC_DSI ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_parse_AAC_DSI end");
+    ALOGV("VideoEditorAudioDecoder_parse_AAC_DSI end");
     return err;
 }
 
@@ -397,7 +397,7 @@ M4OSA_ERR VideoEditorAudioDecoder_destroy(M4AD_Context pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioDecoder_destroy begin");
+    ALOGV("VideoEditorAudioDecoder_destroy begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
@@ -415,15 +415,15 @@ M4OSA_ERR VideoEditorAudioDecoder_destroy(M4AD_Context pContext) {
 
     SAFE_FREE(pDecoderContext);
     pContext = M4OSA_NULL;
-    LOGV("VideoEditorAudioDecoder_destroy : DONE");
+    ALOGV("VideoEditorAudioDecoder_destroy : DONE");
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_destroy no error");
+        ALOGV("VideoEditorAudioDecoder_destroy no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_destroy ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_destroy ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_destroy : end");
+    ALOGV("VideoEditorAudioDecoder_destroy : end");
     return err;
 }
 
@@ -438,7 +438,7 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
     const char* mime = NULL;
     uint32_t codecFlags = 0;
 
-    LOGV("VideoEditorAudioDecoder_create begin: decoderType %d", decoderType);
+    ALOGV("VideoEditorAudioDecoder_create begin: decoderType %d", decoderType);
 
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext,       M4ERR_PARAMETER);
@@ -455,7 +455,7 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
     pDecoderContext->readerErrCode = M4NO_ERROR;
     pDecoderContext->timeStampMs = -1;
 
-    LOGV("VideoEditorAudioDecoder_create : maxAUSize %d",
+    ALOGV("VideoEditorAudioDecoder_create : maxAUSize %d",
         pDecoderContext->mAudioStreamHandler->m_basicProperties.m_maxAUSize);
 
     // Create the meta data for the decoder
@@ -564,7 +564,7 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
     // Get the output channels, the decoder might overwrite the input metadata
     pDecoderContext->mDecoder->getFormat()->findInt32(kKeyChannelCount,
         &pDecoderContext->mNbOutputChannels);
-    LOGV("VideoEditorAudioDecoder_create : output chan %d",
+    ALOGV("VideoEditorAudioDecoder_create : output chan %d",
         pDecoderContext->mNbOutputChannels);
 
     // Start the decoder
@@ -572,15 +572,15 @@ M4OSA_ERR VideoEditorAudioDecoder_create(M4AD_Type decoderType,
     VIDEOEDITOR_CHECK(OK == result, M4ERR_STATE);
 
     *pContext = pDecoderContext;
-    LOGV("VideoEditorAudioDecoder_create : DONE");
+    ALOGV("VideoEditorAudioDecoder_create : DONE");
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_create no error");
+        ALOGV("VideoEditorAudioDecoder_create no error");
     } else {
         VideoEditorAudioDecoder_destroy(pDecoderContext);
         *pContext = M4OSA_NULL;
-        LOGV("VideoEditorAudioDecoder_create ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_create ERROR 0x%X", err);
     }
     return err;
 }
@@ -622,7 +622,7 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
     MediaBuffer* buffer = NULL;
 
-    LOGV("VideoEditorAudioDecoder_processInputBuffer begin");
+    ALOGV("VideoEditorAudioDecoder_processInputBuffer begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
@@ -639,11 +639,11 @@ M4OSA_ERR VideoEditorAudioDecoder_processInputBuffer(
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_processInputBuffer no error");
+        ALOGV("VideoEditorAudioDecoder_processInputBuffer no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_processInputBuffer ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_processInputBuffer ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_processInputBuffer end");
+    ALOGV("VideoEditorAudioDecoder_processInputBuffer end");
     return err;
 }
 
@@ -655,7 +655,7 @@ M4OSA_ERR VideoEditorAudioDecoder_processOutputBuffer(M4AD_Context pContext,
     int64_t i64Tmp = 0;
     status_t result = OK;
 
-    LOGV("VideoEditorAudioDecoder_processOutputBuffer begin");
+    ALOGV("VideoEditorAudioDecoder_processOutputBuffer begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != buffer, M4ERR_PARAMETER);
@@ -701,12 +701,12 @@ cleanUp:
     // Release the buffer
     buffer->release();
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_processOutputBuffer no error");
+        ALOGV("VideoEditorAudioDecoder_processOutputBuffer no error");
     } else {
         pOuputBuffer->m_bufferSize = 0;
-        LOGV("VideoEditorAudioDecoder_processOutputBuffer ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_processOutputBuffer ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_processOutputBuffer end");
+    ALOGV("VideoEditorAudioDecoder_processOutputBuffer end");
     return err;
 }
 
@@ -718,7 +718,7 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
     status_t result = OK;
     MediaBuffer* outputBuffer = NULL;
 
-    LOGV("VideoEditorAudioDecoder_step begin");
+    ALOGV("VideoEditorAudioDecoder_step begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
@@ -733,7 +733,7 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
     // Read
     result = pDecoderContext->mDecoder->read(&outputBuffer, NULL);
     if (INFO_FORMAT_CHANGED == result) {
-        LOGV("VideoEditorAudioDecoder_step: Audio decoder \
+        ALOGV("VideoEditorAudioDecoder_step: Audio decoder \
          returned INFO_FORMAT_CHANGED");
         CHECK(outputBuffer == NULL);
         sp<MetaData> meta = pDecoderContext->mDecoder->getFormat();
@@ -741,8 +741,8 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
 
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
         CHECK(meta->findInt32(kKeyChannelCount, &channelCount));
-        LOGV("VideoEditorAudioDecoder_step: samplingFreq = %d", sampleRate);
-        LOGV("VideoEditorAudioDecoder_step: channelCnt = %d", channelCount);
+        ALOGV("VideoEditorAudioDecoder_step: samplingFreq = %d", sampleRate);
+        ALOGV("VideoEditorAudioDecoder_step: channelCnt = %d", channelCount);
         pDecoderContext->mAudioStreamHandler->m_samplingFrequency =
          (uint32_t)sampleRate;
         pDecoderContext->mAudioStreamHandler->m_nbChannels =
@@ -751,7 +751,7 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
 
         return M4WAR_INFO_FORMAT_CHANGE;
     } else if (ERROR_END_OF_STREAM == result) {
-        LOGV("VideoEditorAudioDecoder_step: Audio decoder \
+        ALOGV("VideoEditorAudioDecoder_step: Audio decoder \
          returned ERROR_END_OF_STREAM");
         pDecoderContext->readerErrCode = M4WAR_NO_MORE_AU;
         return M4WAR_NO_MORE_AU;
@@ -766,18 +766,18 @@ M4OSA_ERR VideoEditorAudioDecoder_step(M4AD_Context pContext,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_step no error");
+        ALOGV("VideoEditorAudioDecoder_step no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_step ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_step ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_step end");
+    ALOGV("VideoEditorAudioDecoder_step end");
     return err;
 }
 
 M4OSA_ERR VideoEditorAudioDecoder_getVersion(M4_VersionInfo* pVersionInfo) {
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorAudioDecoder_getVersion begin");
+    ALOGV("VideoEditorAudioDecoder_getVersion begin");
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pVersionInfo, M4ERR_PARAMETER);
 
@@ -788,11 +788,11 @@ M4OSA_ERR VideoEditorAudioDecoder_getVersion(M4_VersionInfo* pVersionInfo) {
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_getVersion no error");
+        ALOGV("VideoEditorAudioDecoder_getVersion no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_getVersion ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_getVersion ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_getVersion end");
+    ALOGV("VideoEditorAudioDecoder_getVersion end");
     return err;
 }
 
@@ -802,7 +802,7 @@ M4OSA_ERR VideoEditorAudioDecoder_setOption(M4AD_Context pContext,
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioDecoder_setOption begin 0x%X", optionID);
+    ALOGV("VideoEditorAudioDecoder_setOption begin 0x%X", optionID);
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
@@ -810,24 +810,24 @@ M4OSA_ERR VideoEditorAudioDecoder_setOption(M4AD_Context pContext,
 
     switch( optionID ) {
         case M4AD_kOptionID_UserParam:
-            LOGV("VideoEditorAudioDecodersetOption UserParam is not supported");
+            ALOGV("VideoEditorAudioDecodersetOption UserParam is not supported");
             err = M4ERR_NOT_IMPLEMENTED;
             break;
 
         case M4AD_kOptionID_3gpReaderInterface:
-            LOGV("VideoEditorAudioDecodersetOption 3gpReaderInterface");
+            ALOGV("VideoEditorAudioDecodersetOption 3gpReaderInterface");
             pDecoderContext->m_pReader =
              (M4READER_DataInterface *)optionValue;
             break;
 
         case M4AD_kOptionID_AudioAU:
-            LOGV("VideoEditorAudioDecodersetOption AudioAU");
+            ALOGV("VideoEditorAudioDecodersetOption AudioAU");
             pDecoderContext->m_pNextAccessUnitToDecode =
              (M4_AccessUnit *)optionValue;
             break;
 
         default:
-            LOGV("VideoEditorAudioDecoder_setOption  unsupported optionId 0x%X",
+            ALOGV("VideoEditorAudioDecoder_setOption  unsupported optionId 0x%X",
                 optionID);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_BAD_OPTION_ID);
             break;
@@ -835,11 +835,11 @@ M4OSA_ERR VideoEditorAudioDecoder_setOption(M4AD_Context pContext,
 
 cleanUp:
     if( ((M4OSA_UInt32)M4NO_ERROR == err) || ((M4OSA_UInt32)M4ERR_NOT_IMPLEMENTED == err) ) {
-        LOGV("VideoEditorAudioDecoder_setOption error 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_setOption error 0x%X", err);
     } else {
-        LOGV("VideoEditorAudioDecoder_setOption ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_setOption ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_setOption end");
+    ALOGV("VideoEditorAudioDecoder_setOption end");
     return err;
 }
 
@@ -849,7 +849,7 @@ M4OSA_ERR VideoEditorAudioDecoder_getOption(M4AD_Context pContext,
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioDecoder_Context* pDecoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioDecoder_getOption begin: optionID 0x%X", optionID);
+    ALOGV("VideoEditorAudioDecoder_getOption begin: optionID 0x%X", optionID);
     // Input parameters check
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
@@ -876,7 +876,7 @@ M4OSA_ERR VideoEditorAudioDecoder_getOption(M4AD_Context pContext,
             break;
 
         default:
-            LOGV("VideoEditorAudioDecoder_getOption unsupported optionId 0x%X",
+            ALOGV("VideoEditorAudioDecoder_getOption unsupported optionId 0x%X",
                 optionID);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_BAD_OPTION_ID);
             break;
@@ -884,11 +884,11 @@ M4OSA_ERR VideoEditorAudioDecoder_getOption(M4AD_Context pContext,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_getOption no error");
+        ALOGV("VideoEditorAudioDecoder_getOption no error");
     } else {
-        LOGV("VideoEditorAudioDecoder_getOption ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_getOption ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_getOption end");
+    ALOGV("VideoEditorAudioDecoder_getOption end");
     return err;
 }
 
@@ -901,7 +901,7 @@ M4OSA_ERR VideoEditorAudioDecoder_getInterface(M4AD_Type decoderType,
     VIDEOEDITOR_CHECK(M4OSA_NULL != pDecoderType, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pDecoderInterface, M4ERR_PARAMETER);
 
-    LOGV("VideoEditorAudioDecoder_getInterface begin %d 0x%x 0x%x",
+    ALOGV("VideoEditorAudioDecoder_getInterface begin %d 0x%x 0x%x",
         decoderType, pDecoderType, pDecoderInterface);
 
     SAFE_MALLOC(*pDecoderInterface, M4AD_Interface, 1,
@@ -927,7 +927,7 @@ M4OSA_ERR VideoEditorAudioDecoder_getInterface(M4AD_Type decoderType,
                 VideoEditorAudioDecoder_create_MP3;
             break;
         default:
-            LOGV("VEAD_getInterface ERROR: unsupported type %d", decoderType);
+            ALOGV("VEAD_getInterface ERROR: unsupported type %d", decoderType);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_PARAMETER);
         break;
     }
@@ -946,12 +946,12 @@ M4OSA_ERR VideoEditorAudioDecoder_getInterface(M4AD_Type decoderType,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioDecoder_getInterface no error");
+        ALOGV("VideoEditorAudioDecoder_getInterface no error");
     } else {
         *pDecoderInterface = M4OSA_NULL;
-        LOGV("VideoEditorAudioDecoder_getInterface ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioDecoder_getInterface ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioDecoder_getInterface end");
+    ALOGV("VideoEditorAudioDecoder_getInterface end");
     return err;
 }
 
@@ -960,14 +960,14 @@ extern "C" {
 
 M4OSA_ERR VideoEditorAudioDecoder_getInterface_AAC(M4AD_Type* pDecoderType,
         M4AD_Interface** pDecoderInterface) {
-    LOGV("TEST: AAC VideoEditorAudioDecoder_getInterface no error");
+    ALOGV("TEST: AAC VideoEditorAudioDecoder_getInterface no error");
     return VideoEditorAudioDecoder_getInterface(
         M4AD_kTypeAAC, pDecoderType, pDecoderInterface);
 }
 
 M4OSA_ERR VideoEditorAudioDecoder_getInterface_AMRNB(M4AD_Type* pDecoderType,
         M4AD_Interface** pDecoderInterface) {
-    LOGV("TEST: AMR VideoEditorAudioDecoder_getInterface no error");
+    ALOGV("TEST: AMR VideoEditorAudioDecoder_getInterface no error");
     return VideoEditorAudioDecoder_getInterface(
         M4AD_kTypeAMRNB, pDecoderType, pDecoderInterface);
 }

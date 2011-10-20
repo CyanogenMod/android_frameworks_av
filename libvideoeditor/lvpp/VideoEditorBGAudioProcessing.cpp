@@ -23,7 +23,7 @@ namespace android {
 
 VideoEditorBGAudioProcessing::VideoEditorBGAudioProcessing() {
 
-    LOGV("VideoEditorBGAudioProcessing:: Construct  VideoEditorBGAudioProcessing ");
+    ALOGV("VideoEditorBGAudioProcessing:: Construct  VideoEditorBGAudioProcessing ");
 
     mAudVolArrIndex = 0;
     mDoDucking = 0;
@@ -53,7 +53,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
     M4AM_Buffer16* pBackgroundTrack = (M4AM_Buffer16*)pBTBuffer;
     M4AM_Buffer16* pMixedOutBuffer  = (M4AM_Buffer16*)pOutBuffer;
 
-    LOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck \
+    ALOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck \
         pPTBuffer 0x%x pBTBuffer 0x%x pOutBuffer 0x%x", pPTBuffer,
         pBTBuffer, pOutBuffer);
 
@@ -107,7 +107,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
 
         mAudioVolumeArray[mAudVolArrIndex] = getDecibelSound(peakDbValue);
 
-        LOGV("VideoEditorBGAudioProcessing:: getDecibelSound %d",
+        ALOGV("VideoEditorBGAudioProcessing:: getDecibelSound %d",
             mAudioVolumeArray[mAudVolArrIndex]);
 
         // WINDOW_SIZE is 10 by default
@@ -155,7 +155,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
 
     // Mixing Logic
 
-    LOGV("VideoEditorBGAudioProcessing:: Out of Ducking analysis uiPCMsize\
+    ALOGV("VideoEditorBGAudioProcessing:: Out of Ducking analysis uiPCMsize\
         %d %f %f", mDoDucking, mDuckingFactor,mBTVolLevel);
 
     while (uiPCMsize-- > 0) {
@@ -199,12 +199,12 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
         pBTMdata1++;
         pPTMdata2++;
     }
-    //LOGV("VideoEditorBGAudioProcessing:: Copy final out ");
+    //ALOGV("VideoEditorBGAudioProcessing:: Copy final out ");
     memcpy((void *)pMixedOutBuffer->m_dataAddress,
         (void *)pBackgroundTrack->m_dataAddress,
         pBackgroundTrack->m_bufferSize);
 
-    LOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck EXIT");
+    ALOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck EXIT");
     return result;
 }
 
@@ -221,7 +221,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::calculateOutResampleBufSize() {
 void VideoEditorBGAudioProcessing ::veSetAudioProcessingParams(
         const veAudMixSettings& gInputParams) {
 
-    LOGV("VideoEditorBGAudioProcessing:: ENTER lvSetAudioProcessingParams ");
+    ALOGV("VideoEditorBGAudioProcessing:: ENTER lvSetAudioProcessingParams ");
     mDucking_enable       = gInputParams.lvInDucking_enable;
     mDucking_lowVolume    = gInputParams.lvInDucking_lowVolume;
     mDucking_threshold    = gInputParams.lvInDucking_threshold;
@@ -241,7 +241,7 @@ void VideoEditorBGAudioProcessing ::veSetAudioProcessingParams(
     mDoDucking            = 0;
     mDuckingFactor        = 1.0; // default
 
-    LOGV("VideoEditorBGAudioProcessing::  ducking_enable 0x%x \
+    ALOGV("VideoEditorBGAudioProcessing::  ducking_enable 0x%x \
         ducking_lowVolume %f  ducking_threshold %d  fPTVolLevel %f BTVolLevel %f",
         mDucking_enable, mDucking_lowVolume, mDucking_threshold,
         mPTVolLevel, mPTVolLevel);
@@ -257,7 +257,7 @@ void VideoEditorBGAudioProcessing ::veSetAudioProcessingParams(
     } else {
         mChannelConversion   = 0;
     }
-    LOGV("VideoEditorBGAudioProcessing:: EXIT veSetAudioProcessingParams ");
+    ALOGV("VideoEditorBGAudioProcessing:: EXIT veSetAudioProcessingParams ");
 }
 
 

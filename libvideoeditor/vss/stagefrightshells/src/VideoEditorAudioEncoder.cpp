@@ -82,7 +82,7 @@ struct VideoEditorAudioEncoderSource : public MediaSource {
 sp<VideoEditorAudioEncoderSource> VideoEditorAudioEncoderSource::Create(
     const sp<MetaData> &format) {
 
-    LOGV("VideoEditorAudioEncoderSource::Create");
+    ALOGV("VideoEditorAudioEncoderSource::Create");
     sp<VideoEditorAudioEncoderSource> aSource =
         new VideoEditorAudioEncoderSource(format);
 
@@ -96,12 +96,12 @@ VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource(
         mNbBuffer(0),
         mState(CREATED),
         mEncFormat(format) {
-    LOGV("VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource");
+    ALOGV("VideoEditorAudioEncoderSource::VideoEditorAudioEncoderSource");
 }
 
 
 VideoEditorAudioEncoderSource::~VideoEditorAudioEncoderSource() {
-    LOGV("VideoEditorAudioEncoderSource::~VideoEditorAudioEncoderSource");
+    ALOGV("VideoEditorAudioEncoderSource::~VideoEditorAudioEncoderSource");
 
     if( STARTED == mState ) {
         stop();
@@ -111,10 +111,10 @@ VideoEditorAudioEncoderSource::~VideoEditorAudioEncoderSource() {
 status_t VideoEditorAudioEncoderSource::start(MetaData *meta) {
     status_t err = OK;
 
-    LOGV("VideoEditorAudioEncoderSource::start");
+    ALOGV("VideoEditorAudioEncoderSource::start");
 
     if( CREATED != mState ) {
-        LOGV("VideoEditorAudioEncoderSource::start ERROR : invalid state %d",
+        ALOGV("VideoEditorAudioEncoderSource::start ERROR : invalid state %d",
             mState);
         return UNKNOWN_ERROR;
     }
@@ -122,17 +122,17 @@ status_t VideoEditorAudioEncoderSource::start(MetaData *meta) {
     mState = STARTED;
 
 cleanUp:
-    LOGV("VideoEditorAudioEncoderSource::start END (0x%x)", err);
+    ALOGV("VideoEditorAudioEncoderSource::start END (0x%x)", err);
     return err;
 }
 
 status_t VideoEditorAudioEncoderSource::stop() {
     status_t err = OK;
 
-    LOGV("VideoEditorAudioEncoderSource::stop");
+    ALOGV("VideoEditorAudioEncoderSource::stop");
 
     if( STARTED != mState ) {
-        LOGV("VideoEditorAudioEncoderSource::stop ERROR: invalid state %d",
+        ALOGV("VideoEditorAudioEncoderSource::stop ERROR: invalid state %d",
             mState);
         return UNKNOWN_ERROR;
     }
@@ -145,18 +145,18 @@ status_t VideoEditorAudioEncoderSource::stop() {
         mFirstBufferLink = mFirstBufferLink->nextLink;
         delete tmpLink;
     }
-    LOGV("VideoEditorAudioEncoderSource::stop : %d buffer remained", i);
+    ALOGV("VideoEditorAudioEncoderSource::stop : %d buffer remained", i);
     mFirstBufferLink = NULL;
     mLastBufferLink = NULL;
 
     mState = CREATED;
 
-    LOGV("VideoEditorAudioEncoderSource::stop END (0x%x)", err);
+    ALOGV("VideoEditorAudioEncoderSource::stop END (0x%x)", err);
     return err;
 }
 
 sp<MetaData> VideoEditorAudioEncoderSource::getFormat() {
-    LOGV("VideoEditorAudioEncoderSource::getFormat");
+    ALOGV("VideoEditorAudioEncoderSource::getFormat");
     return mEncFormat;
 }
 
@@ -166,17 +166,17 @@ status_t VideoEditorAudioEncoderSource::read(MediaBuffer **buffer,
     status_t err = OK;
     MediaBufferChain* tmpLink = NULL;
 
-    LOGV("VideoEditorAudioEncoderSource::read");
+    ALOGV("VideoEditorAudioEncoderSource::read");
 
     if ( STARTED != mState ) {
-        LOGV("VideoEditorAudioEncoderSource::read ERROR : invalid state %d",
+        ALOGV("VideoEditorAudioEncoderSource::read ERROR : invalid state %d",
             mState);
         return UNKNOWN_ERROR;
     }
 
     if( NULL == mFirstBufferLink ) {
         *buffer = NULL;
-        LOGV("VideoEditorAudioEncoderSource::read : EOS");
+        ALOGV("VideoEditorAudioEncoderSource::read : EOS");
         return ERROR_END_OF_STREAM;
     }
     *buffer = mFirstBufferLink->buffer;
@@ -189,14 +189,14 @@ status_t VideoEditorAudioEncoderSource::read(MediaBuffer **buffer,
     delete tmpLink;
     mNbBuffer--;
 
-    LOGV("VideoEditorAudioEncoderSource::read END (0x%x)", err);
+    ALOGV("VideoEditorAudioEncoderSource::read END (0x%x)", err);
     return err;
 }
 
 int32_t VideoEditorAudioEncoderSource::storeBuffer(MediaBuffer *buffer) {
     status_t err = OK;
 
-    LOGV("VideoEditorAudioEncoderSource::storeBuffer");
+    ALOGV("VideoEditorAudioEncoderSource::storeBuffer");
 
     MediaBufferChain* newLink = new MediaBufferChain;
     newLink->buffer = buffer;
@@ -209,7 +209,7 @@ int32_t VideoEditorAudioEncoderSource::storeBuffer(MediaBuffer *buffer) {
     mLastBufferLink = newLink;
     mNbBuffer++;
 
-    LOGV("VideoEditorAudioEncoderSource::storeBuffer END");
+    ALOGV("VideoEditorAudioEncoderSource::storeBuffer END");
     return mNbBuffer;
 }
 
@@ -241,7 +241,7 @@ M4OSA_ERR VideoEditorAudioEncoder_cleanup(M4OSA_Context pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioEncoder_Context* pEncoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioEncoder_cleanup begin");
+    ALOGV("VideoEditorAudioEncoder_cleanup begin");
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     pEncoderContext = (VideoEditorAudioEncoder_Context*)pContext;
 
@@ -251,11 +251,11 @@ M4OSA_ERR VideoEditorAudioEncoder_cleanup(M4OSA_Context pContext) {
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_cleanup no error");
+        ALOGV("VideoEditorAudioEncoder_cleanup no error");
     } else {
-        LOGV("VideoEditorAudioEncoder_cleanup ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_cleanup ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_cleanup end");
+    ALOGV("VideoEditorAudioEncoder_cleanup end");
     return err;
 }
 
@@ -265,7 +265,7 @@ M4OSA_ERR VideoEditorAudioEncoder_init(M4ENCODER_AudioFormat format,
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioEncoder_Context* pEncoderContext = M4OSA_NULL;
 
-    LOGV(" VideoEditorAudioEncoder_init begin: format %d", format);
+    ALOGV(" VideoEditorAudioEncoder_init begin: format %d", format);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
     SAFE_MALLOC(pEncoderContext, VideoEditorAudioEncoder_Context, 1,
@@ -276,13 +276,13 @@ M4OSA_ERR VideoEditorAudioEncoder_init(M4ENCODER_AudioFormat format,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_init no error");
+        ALOGV("VideoEditorAudioEncoder_init no error");
     } else {
         VideoEditorAudioEncoder_cleanup(pEncoderContext);
         *pContext = M4OSA_NULL;
-        LOGV("VideoEditorAudioEncoder_init ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_init ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_init end");
+    ALOGV("VideoEditorAudioEncoder_init end");
     return err;
 }
 
@@ -306,7 +306,7 @@ M4OSA_ERR VideoEditorAudioEncoder_close(M4OSA_Context pContext) {
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioEncoder_Context* pEncoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioEncoder_close begin");
+    ALOGV("VideoEditorAudioEncoder_close begin");
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     pEncoderContext = (VideoEditorAudioEncoder_Context*)pContext;
@@ -318,23 +318,23 @@ M4OSA_ERR VideoEditorAudioEncoder_close(M4OSA_Context pContext) {
     pEncoderContext->mClient.disconnect();
     pEncoderContext->mEncoderSource.clear();
 
-    LOGV("AudioEncoder_close:IN %d frames,OUT %d frames from %lld to %lld",
+    ALOGV("AudioEncoder_close:IN %d frames,OUT %d frames from %lld to %lld",
         pEncoderContext->mNbInputFrames,
         pEncoderContext->mNbOutputFrames, pEncoderContext->mFirstOutputCts,
         pEncoderContext->mLastOutputCts);
 
     if( pEncoderContext->mNbInputFrames != pEncoderContext->mNbInputFrames ) {
-        LOGV("VideoEditorAudioEncoder_close:some frames were not encoded %d %d",
+        ALOGV("VideoEditorAudioEncoder_close:some frames were not encoded %d %d",
             pEncoderContext->mNbInputFrames, pEncoderContext->mNbInputFrames);
     }
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_close no error");
+        ALOGV("VideoEditorAudioEncoder_close no error");
     } else {
-        LOGV("VideoEditorAudioEncoder_close ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_close ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_close begin end");
+    ALOGV("VideoEditorAudioEncoder_close begin end");
     return err;
 }
 
@@ -350,7 +350,7 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
     int32_t iNbChannel = 0;
     uint32_t codecFlags = 0;
 
-    LOGV("VideoEditorAudioEncoder_open begin");
+    ALOGV("VideoEditorAudioEncoder_open begin");
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pParams,  M4ERR_PARAMETER);
@@ -366,7 +366,7 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
     pEncoderContext->mLastOutputCts  = -1;
 
     // Allocate & initialize the encoding parameters
-    LOGV("VideoEditorAudioEncoder_open : params F=%d CN=%d BR=%d F=%d",
+    ALOGV("VideoEditorAudioEncoder_open : params F=%d CN=%d BR=%d F=%d",
         pParams->Frequency, pParams->ChannelNum, pParams->Bitrate,
         pParams->Format);
     SAFE_MALLOC(pEncoderContext->mCodecParams, M4ENCODER_AudioParams, 1,
@@ -475,16 +475,16 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
         buffer->release();
         *pDSI = pEncoderContext->mDSI;
     }
-    LOGV("VideoEditorAudioEncoder_open : DONE");
+    ALOGV("VideoEditorAudioEncoder_open : DONE");
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_open no error");
+        ALOGV("VideoEditorAudioEncoder_open no error");
     } else {
         VideoEditorAudioEncoder_close(pEncoderContext);
-        LOGV("VideoEditorAudioEncoder_open ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_open ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_open end");
+    ALOGV("VideoEditorAudioEncoder_open end");
     return err;
 }
 
@@ -497,7 +497,7 @@ M4OSA_ERR VideoEditorAudioEncoder_processInputBuffer(M4OSA_Context pContext,
     MediaBuffer* buffer = NULL;
     int32_t nbBuffer = 0;
 
-    LOGV("VideoEditorAudioEncoder_processInputBuffer begin");
+    ALOGV("VideoEditorAudioEncoder_processInputBuffer begin");
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
     pEncoderContext = (VideoEditorAudioEncoder_Context*)pContext;
@@ -512,27 +512,27 @@ M4OSA_ERR VideoEditorAudioEncoder_processInputBuffer(M4OSA_Context pContext,
                 pInBuffer->pTableBufferSize[0]);
             break;
         default:
-            LOGV("VEAE_processInputBuffer unsupported channel configuration %d",
+            ALOGV("VEAE_processInputBuffer unsupported channel configuration %d",
                 pEncoderContext->mCodecParams->ChannelNum);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_PARAMETER);
             break;
     }
 
-    LOGV("VideoEditorAudioEncoder_processInputBuffer : store %d bytes",
+    ALOGV("VideoEditorAudioEncoder_processInputBuffer : store %d bytes",
         buffer->range_length());
     // Push the buffer to the source
     nbBuffer = pEncoderContext->mEncoderSource->storeBuffer(buffer);
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_processInputBuffer no error");
+        ALOGV("VideoEditorAudioEncoder_processInputBuffer no error");
     } else {
         if( NULL != buffer ) {
             buffer->release();
         }
-        LOGV("VideoEditorAudioEncoder_processInputBuffer ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_processInputBuffer ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_processInputBuffer end");
+    ALOGV("VideoEditorAudioEncoder_processInputBuffer end");
     return err;
 }
 
@@ -546,7 +546,7 @@ M4OSA_ERR VideoEditorAudioEncoder_processOutputBuffer(M4OSA_Context pContext,
     int64_t i64Tmp = 0;
     status_t result = OK;
 
-    LOGV("VideoEditorAudioEncoder_processOutputBuffer begin");
+    ALOGV("VideoEditorAudioEncoder_processOutputBuffer begin");
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext,   M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != buffer,     M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pOutBuffer, M4ERR_PARAMETER);
@@ -556,7 +556,7 @@ M4OSA_ERR VideoEditorAudioEncoder_processOutputBuffer(M4OSA_Context pContext,
     // Process the returned AU
     if( 0 == buffer->range_length() ) {
         // Encoder has no data yet, nothing unusual
-        LOGV("VideoEditorAudioEncoder_processOutputBuffer : buffer is empty");
+        ALOGV("VideoEditorAudioEncoder_processOutputBuffer : buffer is empty");
         pOutBuffer->pTableBufferSize[0] = 0;
         goto cleanUp;
     }
@@ -587,11 +587,11 @@ cleanUp:
     // Release the buffer
     buffer->release();
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_processOutputBuffer no error");
+        ALOGV("VideoEditorAudioEncoder_processOutputBuffer no error");
     } else {
-        LOGV("VideoEditorAudioEncoder_processOutputBuffer ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_processOutputBuffer ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_processOutputBuffer end");
+    ALOGV("VideoEditorAudioEncoder_processOutputBuffer end");
     return err;
 }
 
@@ -602,7 +602,7 @@ M4OSA_ERR VideoEditorAudioEncoder_step(M4OSA_Context pContext,
     status_t result = OK;
     MediaBuffer* buffer = NULL;
 
-    LOGV("VideoEditorAudioEncoder_step begin");
+    ALOGV("VideoEditorAudioEncoder_step begin");
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext,   M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pInBuffer,  M4ERR_PARAMETER);
@@ -626,11 +626,11 @@ M4OSA_ERR VideoEditorAudioEncoder_step(M4OSA_Context pContext,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_step no error");
+        ALOGV("VideoEditorAudioEncoder_step no error");
     } else {
-        LOGV("VideoEditorAudioEncoder_step ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_step ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_step end");
+    ALOGV("VideoEditorAudioEncoder_step end");
     return err;
 }
 
@@ -639,14 +639,14 @@ M4OSA_ERR VideoEditorAudioEncoder_getOption(M4OSA_Context pContext,
     M4OSA_ERR err = M4NO_ERROR;
     VideoEditorAudioEncoder_Context* pEncoderContext = M4OSA_NULL;
 
-    LOGV("VideoEditorAudioEncoder_getOption begin optionID 0x%X", optionID);
+    ALOGV("VideoEditorAudioEncoder_getOption begin optionID 0x%X", optionID);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
     pEncoderContext = (VideoEditorAudioEncoder_Context*)pContext;
 
     switch( optionID ) {
         default:
-            LOGV("VideoEditorAudioEncoder_getOption: unsupported optionId 0x%X",
+            ALOGV("VideoEditorAudioEncoder_getOption: unsupported optionId 0x%X",
                 optionID);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_BAD_OPTION_ID);
             break;
@@ -654,11 +654,11 @@ M4OSA_ERR VideoEditorAudioEncoder_getOption(M4OSA_Context pContext,
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_getOption no error");
+        ALOGV("VideoEditorAudioEncoder_getOption no error");
     } else {
-        LOGV("VideoEditorAudioEncoder_getOption ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_getOption ERROR 0x%X", err);
     }
-    LOGV("VideoEditorAudioEncoder_getOption end");
+    ALOGV("VideoEditorAudioEncoder_getOption end");
     return err;
 }
 
@@ -671,7 +671,7 @@ M4OSA_ERR VideoEditorAudioEncoder_getInterface(
     VIDEOEDITOR_CHECK(M4OSA_NULL != pFormat,           M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pEncoderInterface, M4ERR_PARAMETER);
 
-    LOGV("VideoEditorAudioEncoder_getInterface 0x%x 0x%x",pFormat,
+    ALOGV("VideoEditorAudioEncoder_getInterface 0x%x 0x%x",pFormat,
         pEncoderInterface);
     SAFE_MALLOC(*pEncoderInterface, M4ENCODER_AudioGlobalInterface, 1,
         "AudioEncoder");
@@ -696,7 +696,7 @@ M4OSA_ERR VideoEditorAudioEncoder_getInterface(
         }
         default:
         {
-            LOGV("VideoEditorAudioEncoder_getInterface: unsupported format %d",
+            ALOGV("VideoEditorAudioEncoder_getInterface: unsupported format %d",
                 format);
             VIDEOEDITOR_CHECK(M4OSA_FALSE, M4ERR_PARAMETER);
         break;
@@ -710,10 +710,10 @@ M4OSA_ERR VideoEditorAudioEncoder_getInterface(
 
 cleanUp:
     if( M4NO_ERROR == err ) {
-        LOGV("VideoEditorAudioEncoder_getInterface no error");
+        ALOGV("VideoEditorAudioEncoder_getInterface no error");
     } else {
         *pEncoderInterface = M4OSA_NULL;
-        LOGV("VideoEditorAudioEncoder_getInterface ERROR 0x%X", err);
+        ALOGV("VideoEditorAudioEncoder_getInterface ERROR 0x%X", err);
     }
     return err;
 }
@@ -737,7 +737,7 @@ M4OSA_ERR VideoEditorAudioEncoder_getInterface_AMRNB(
 M4OSA_ERR VideoEditorAudioEncoder_getInterface_MP3(
         M4ENCODER_AudioFormat* pFormat,
         M4ENCODER_AudioGlobalInterface** pEncoderInterface) {
-    LOGV("VideoEditorAudioEncoder_getInterface_MP3 no error");
+    ALOGV("VideoEditorAudioEncoder_getInterface_MP3 no error");
 
     return VideoEditorAudioEncoder_getInterface(
         M4ENCODER_kMP3, pFormat, pEncoderInterface);

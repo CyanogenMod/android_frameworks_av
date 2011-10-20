@@ -3167,7 +3167,7 @@ M4OSA_ERR prepareFramingStructure(
 
     }
     else {
-        LOGV(" YUV buffer reuse");
+        ALOGV(" YUV buffer reuse");
         framingCtx->FramingYuv = (M4VIFI_ImagePlane*)M4OSA_32bitAlignedMalloc(
             3*sizeof(M4VIFI_ImagePlane), M4VS, (M4OSA_Char*)"YUV");
 
@@ -3218,7 +3218,7 @@ M4OSA_ERR applyColorEffect(M4xVSS_VideoEffectType colorEffect,
      colorEffect);
 
     if(err != M4NO_ERROR) {
-        LOGV("M4VSS3GPP_externalVideoEffectColor(%d) error %d",
+        ALOGV("M4VSS3GPP_externalVideoEffectColor(%d) error %d",
             colorEffect, err);
 
         if(NULL != buffer1) {
@@ -3545,7 +3545,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         }
     }
 
-    LOGV("doMediaRendering CALL getBuffer()");
+    ALOGV("doMediaRendering CALL getBuffer()");
     // Set the output YUV420 plane to be compatible with YV12 format
     // W & H even
     // YVU instead of YUV
@@ -3570,7 +3570,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
         tempOutputBuffer = M4OSA_NULL;
     }
     if(err != M4NO_ERROR) {
-        LOGV("doVideoPostProcessing: applyRenderingMode returned err=%d",err);
+        ALOGV("doVideoPostProcessing: applyRenderingMode returned err=%d",err);
         return err;
     }
     return M4NO_ERROR;

@@ -42,7 +42,7 @@
 /*---------------------*/
 #define LOG1 LOGE    /*ERRORS Logging*/
 #define LOG2 LOGI    /*WARNING Logging*/
-#define LOG3 //LOGV  /*COMMENTS Logging*/
+#define LOG3 //ALOGV  /*COMMENTS Logging*/
 
 namespace android {
 
@@ -250,7 +250,7 @@ const uint8_t *parseParamSet(AVCCodecSpecificContext* pC,
             if (pC->mProfileIdc != data[1] ||
                 pC->mProfileCompatible != data[2] ||
                 pC->mLevelIdc != data[3]) {
-                LOGV("Inconsistent profile/level found in seq parameter sets");
+                ALOGV("Inconsistent profile/level found in seq parameter sets");
                 return NULL;
             }
         }
@@ -264,7 +264,7 @@ const uint8_t *parseParamSet(AVCCodecSpecificContext* pC,
 status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         const uint8_t *data, size_t size, MetaData *param)
 {
-    //LOGV("buildAVCCodecSpecificData");
+    //ALOGV("buildAVCCodecSpecificData");
 
     if ( (pOutputData == NULL) || (pOutputSize == NULL) ) {
         LOGE("output is invalid");

@@ -88,7 +88,7 @@ M4OSA_ERR VideoEditorMp3Reader_create(M4OSA_Context *pContext) {
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
-    LOGV("VideoEditorMp3Reader_create begin");
+    ALOGV("VideoEditorMp3Reader_create begin");
 
     /* Context allocation & initialization */
     SAFE_MALLOC(pReaderContext, VideoEditorMp3Reader_Context, 1,
@@ -101,11 +101,11 @@ M4OSA_ERR VideoEditorMp3Reader_create(M4OSA_Context *pContext) {
 
 cleanUp:
     if (M4NO_ERROR == err) {
-        LOGV("VideoEditorMp3Reader_create no error");
+        ALOGV("VideoEditorMp3Reader_create no error");
     } else {
-        LOGV("VideoEditorMp3Reader_create ERROR 0x%X", err);
+        ALOGV("VideoEditorMp3Reader_create ERROR 0x%X", err);
     }
-    LOGV("VideoEditorMp3Reader_create end");
+    ALOGV("VideoEditorMp3Reader_create end");
     return err;
 }
 
@@ -124,16 +124,16 @@ M4OSA_ERR VideoEditorMp3Reader_destroy(M4OSA_Context pContext) {
         (VideoEditorMp3Reader_Context*)pContext;
 
     VIDEOEDITOR_CHECK(M4OSA_NULL != pReaderContext, M4ERR_PARAMETER);
-    LOGV("VideoEditorMp3Reader_destroy begin");
+    ALOGV("VideoEditorMp3Reader_destroy begin");
 
     SAFE_FREE(pReaderContext);
 cleanUp:
     if (M4NO_ERROR == err) {
-        LOGV("VideoEditorMp3Reader_destroy no error");
+        ALOGV("VideoEditorMp3Reader_destroy no error");
     } else {
-        LOGV("VideoEditorMp3Reader_destroy ERROR 0x%X", err);
+        ALOGV("VideoEditorMp3Reader_destroy ERROR 0x%X", err);
     }
-    LOGV("VideoEditorMp3Reader_destroy end");
+    ALOGV("VideoEditorMp3Reader_destroy end");
     return err;
 }
 /**
@@ -156,30 +156,30 @@ M4OSA_ERR VideoEditorMp3Reader_open(M4OSA_Context context,
     (VideoEditorMp3Reader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorMp3Reader_open begin");
+    ALOGV("VideoEditorMp3Reader_open begin");
     /* Check function parameters*/
     M4OSA_DEBUG_IF1((M4OSA_NULL == pReaderContext),  M4ERR_PARAMETER,
         "VideoEditorMp3Reader_open: invalid context pointer");
     M4OSA_DEBUG_IF1((M4OSA_NULL == pFileDescriptor), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_open: invalid pointer pFileDescriptor");
 
-    LOGV("VideoEditorMp3Reader_open Datasource start %s",
+    ALOGV("VideoEditorMp3Reader_open Datasource start %s",
         (char*)pFileDescriptor);
     pReaderContext->mDataSource = new FileSource ((char*)pFileDescriptor);
-    LOGV("VideoEditorMp3Reader_open Datasource end");
+    ALOGV("VideoEditorMp3Reader_open Datasource end");
 
     if (pReaderContext->mDataSource == NULL) {
-        LOGV("VideoEditorMp3Reader_open Datasource error");
+        ALOGV("VideoEditorMp3Reader_open Datasource error");
         return UNKNOWN_ERROR;
     }
 
-    LOGV("VideoEditorMp3Reader_open extractor start");
+    ALOGV("VideoEditorMp3Reader_open extractor start");
     pReaderContext->mExtractor = MediaExtractor::Create(
         pReaderContext->mDataSource,MEDIA_MIMETYPE_AUDIO_MPEG);
-    LOGV("VideoEditorMp3Reader_open extractor end");
+    ALOGV("VideoEditorMp3Reader_open extractor end");
 
     if (pReaderContext->mExtractor == NULL)    {
-        LOGV("VideoEditorMp3Reader_open extractor error");
+        ALOGV("VideoEditorMp3Reader_open extractor error");
         return UNKNOWN_ERROR;
     }
     pReaderContext->mStreamNumber = 0;
@@ -188,11 +188,11 @@ M4OSA_ERR VideoEditorMp3Reader_open(M4OSA_Context context,
     sp<MetaData> meta = pReaderContext->mExtractor->getMetaData();
     meta->findInt32(kKeyIsDRM, &isDRMProtected);
     if (isDRMProtected) {
-        LOGV("VideoEditorMp3Reader_open error - DRM Protected");
+        ALOGV("VideoEditorMp3Reader_open error - DRM Protected");
         return M4ERR_UNSUPPORTED_MEDIA_TYPE;
     }
 
-    LOGV("VideoEditorMp3Reader_open end");
+    ALOGV("VideoEditorMp3Reader_open end");
     return err;
 }
 /**
@@ -209,7 +209,7 @@ M4OSA_ERR VideoEditorMp3Reader_close(M4OSA_Context context) {
         (VideoEditorMp3Reader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorMp3Reader_close begin");
+    ALOGV("VideoEditorMp3Reader_close begin");
     /* Check function parameters */
     M4OSA_DEBUG_IF1((M4OSA_NULL == pReaderContext), M4ERR_PARAMETER,
             "VideoEditorMp3Reader_close: invalid context pointer");
@@ -240,7 +240,7 @@ M4OSA_ERR VideoEditorMp3Reader_close(M4OSA_Context context) {
     pReaderContext->mExtractor.clear();
     pReaderContext->mDataSource.clear();
 
-    LOGV("VideoEditorMp3Reader_close end ");
+    ALOGV("VideoEditorMp3Reader_close end ");
     return err;
 }
 /**
@@ -265,7 +265,7 @@ M4OSA_ERR VideoEditorMp3Reader_getOption(M4OSA_Context context,
         (VideoEditorMp3Reader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorMp3Reader_getOption begin: optionId= %d ",(int)optionId);
+    ALOGV("VideoEditorMp3Reader_getOption begin: optionId= %d ",(int)optionId);
 
     M4OSA_DEBUG_IF1((M4OSA_NULL == pReaderContext), M4ERR_PARAMETER,
         "invalid value pointer");
@@ -275,7 +275,7 @@ M4OSA_ERR VideoEditorMp3Reader_getOption(M4OSA_Context context,
     switch(optionId) {
     case M4READER_kOptionID_Duration:
         {
-            LOGV("Mp3Reader duration=%ld",pReaderContext->mMaxDuration);
+            ALOGV("Mp3Reader duration=%ld",pReaderContext->mMaxDuration);
             *(M4OSA_Time*)pValue = pReaderContext->mMaxDuration;
         }
         break;
@@ -304,11 +304,11 @@ M4OSA_ERR VideoEditorMp3Reader_getOption(M4OSA_Context context,
 
     default :
         {
-            LOGV("VideoEditorMp3Reader_getOption:  M4ERR_BAD_OPTION_ID");
+            ALOGV("VideoEditorMp3Reader_getOption:  M4ERR_BAD_OPTION_ID");
             err = M4ERR_BAD_OPTION_ID;
         }
     }
-    LOGV("VideoEditorMp3Reader_getOption end ");
+    ALOGV("VideoEditorMp3Reader_getOption end ");
     return err;
 }
 /**
@@ -334,7 +334,7 @@ M4OSA_ERR VideoEditorMp3Reader_setOption(M4OSA_Context context,
         (VideoEditorMp3Reader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorMp3Reader_Context begin: optionId: %d Value: %d ",
+    ALOGV("VideoEditorMp3Reader_Context begin: optionId: %d Value: %d ",
         (int)optionId,(int)pValue);
 
     M4OSA_DEBUG_IF1((M4OSA_NULL == pReaderContext), M4ERR_PARAMETER,
@@ -349,7 +349,7 @@ M4OSA_ERR VideoEditorMp3Reader_setOption(M4OSA_Context context,
             err = M4NO_ERROR;
         }
     }
-    LOGV("VideoEditorMp3Reader_Context end ");
+    ALOGV("VideoEditorMp3Reader_Context end ");
     return err;
 }
 /**
@@ -373,7 +373,7 @@ M4OSA_ERR VideoEditorMp3Reader_jump(M4OSA_Context context,
     M4SYS_AccessUnit* pAu;
     M4OSA_Time time64 = (M4OSA_Time)*pTime;
 
-    LOGV("VideoEditorMp3Reader_jump begin");
+    ALOGV("VideoEditorMp3Reader_jump begin");
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_jump: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
@@ -385,27 +385,27 @@ M4OSA_ERR VideoEditorMp3Reader_jump(M4OSA_Context context,
         mAudioStreamHandler){
         pAu = &pReaderContext->mAudioAu;
     } else {
-        LOGV("VideoEditorMp3Reader_jump: passed StreamHandler is not known");
+        ALOGV("VideoEditorMp3Reader_jump: passed StreamHandler is not known");
         return M4ERR_PARAMETER;
     }
 
     streamIdArray[0] = pStreamHandler->m_streamId;
     streamIdArray[1] = 0;
 
-    LOGV("VideoEditorMp3Reader_jump time ms %ld ", time64);
+    ALOGV("VideoEditorMp3Reader_jump time ms %ld ", time64);
 
     pAu->CTS = time64;
     pAu->DTS = time64;
 
     time64 = time64 * 1000; /* Convert the time into micro sec */
-    LOGV("VideoEditorMp3Reader_jump time us %ld ", time64);
+    ALOGV("VideoEditorMp3Reader_jump time us %ld ", time64);
 
     pReaderContext->mSeeking = M4OSA_TRUE;
     pReaderContext->mSeekTime = time64;
 
     time64 = time64 / 1000; /* Convert the time into milli sec */
     *pTime = (M4OSA_Int32)time64;
-    LOGV("VideoEditorMp3Reader_jump end ");
+    ALOGV("VideoEditorMp3Reader_jump end ");
     return err;
 }
 /**
@@ -439,7 +439,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     sp<MetaData> meta = NULL;
     int64_t Duration;
 
-    LOGV("VideoEditorMp3Reader_getNextStream begin");
+    ALOGV("VideoEditorMp3Reader_getNextStream begin");
     M4OSA_DEBUG_IF1((pReaderContext == 0),      M4ERR_PARAMETER,
         "VideoEditorMp3Reader_getNextStream: invalid context");
     M4OSA_DEBUG_IF1((pMediaFamily == 0),        M4ERR_PARAMETER,
@@ -447,14 +447,14 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pStreamHandlerParam == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_getNextStream: invalid pointer to StreamHandler");
 
-    LOGV("VideoEditorMp3Reader_getNextStream stream number = %d",
+    ALOGV("VideoEditorMp3Reader_getNextStream stream number = %d",
         pReaderContext->mStreamNumber);
     if (pReaderContext->mStreamNumber >= 1) {
-        LOGV("VideoEditorMp3Reader_getNextStream max number of stream reached");
+        ALOGV("VideoEditorMp3Reader_getNextStream max number of stream reached");
         return M4WAR_NO_MORE_STREAM;
     }
     pReaderContext->mStreamNumber = pReaderContext->mStreamNumber + 1;
-    LOGV("VideoEditorMp3Reader_getNextStream number of Tracks%d",
+    ALOGV("VideoEditorMp3Reader_getNextStream number of Tracks%d",
         pReaderContext->mExtractor->countTracks());
     for (temp = 0; temp < pReaderContext->mExtractor->countTracks(); temp++) {
         meta = pReaderContext->mExtractor->getTrackMetaData(temp);
@@ -474,7 +474,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     }
 
     if (!haveAudio) {
-        LOGV("VideoEditorMp3Reader_getNextStream no more stream ");
+        ALOGV("VideoEditorMp3Reader_getNextStream no more stream ");
         pReaderContext->mDataSource.clear();
         return M4WAR_NO_MORE_STREAM;
     }
@@ -487,7 +487,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
 
     meta->findInt32(kKeyBitRate, (int32_t*)&streamDesc.averageBitrate);
     meta->findInt32(kKeySampleRate, (int32_t*)&streamDesc.timeScale);
-    LOGV("Bitrate = %d, SampleRate = %d duration = %lld",
+    ALOGV("Bitrate = %d, SampleRate = %d duration = %lld",
         streamDesc.averageBitrate,streamDesc.timeScale,Duration/1000);
 
     streamDesc.streamType = M4SYS_kMP3;
@@ -503,7 +503,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
         (M4OSA_Char*)"M4_AudioStreamHandler");
 
     if (pAudioStreamHandler == M4OSA_NULL) {
-        LOGV("VideoEditorMp3Reader_getNextStream malloc failed");
+        ALOGV("VideoEditorMp3Reader_getNextStream malloc failed");
         pReaderContext->mMediaSource->stop();
         pReaderContext->mMediaSource.clear();
         pReaderContext->mDataSource.clear();
@@ -517,7 +517,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     pAudioStreamHandler->m_structSize = sizeof(M4_AudioStreamHandler);
 
     if (meta == NULL) {
-        LOGV("VideoEditorMp3Reader_getNextStream meta is NULL");
+        ALOGV("VideoEditorMp3Reader_getNextStream meta is NULL");
     }
 
     pAudioStreamHandler->m_samplingFrequency = streamDesc.timeScale;
@@ -540,7 +540,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextStream(M4OSA_Context context,
     pStreamHandler->m_maxAUSize = 0;
     pStreamHandler->m_streamType = M4DA_StreamTypeAudioMp3;
 
-    LOGV("VideoEditorMp3Reader_getNextStream end ");
+    ALOGV("VideoEditorMp3Reader_getNextStream end ");
     return err;
 }
 
@@ -569,12 +569,12 @@ M4OSA_ERR VideoEditorMp3Reader_fillAuStruct(M4OSA_Context context,
     M4OSA_DEBUG_IF1((pAccessUnit == 0),    M4ERR_PARAMETER,
         "VideoEditorMp3Reader_fillAuStruct: invalid pointer to M4_AccessUnit");
 
-    LOGV("VideoEditorMp3Reader_fillAuStruct start ");
+    ALOGV("VideoEditorMp3Reader_fillAuStruct start ");
     if(pStreamHandler == (M4_StreamHandler*)pReaderContext->\
         mAudioStreamHandler){
         pAu = &pReaderContext->mAudioAu;
     } else {
-        LOGV("VideoEditorMp3Reader_fillAuStruct StreamHandler is not known");
+        ALOGV("VideoEditorMp3Reader_fillAuStruct StreamHandler is not known");
         return M4ERR_PARAMETER;
     }
 
@@ -596,7 +596,7 @@ M4OSA_ERR VideoEditorMp3Reader_fillAuStruct(M4OSA_Context context,
     pAccessUnit->m_streamID     = pStreamHandler->m_streamId;
     pAccessUnit->m_structSize   = sizeof(M4_AccessUnit);
 
-    LOGV("VideoEditorMp3Reader_fillAuStruct end");
+    ALOGV("VideoEditorMp3Reader_fillAuStruct end");
     return M4NO_ERROR;
 }
 
@@ -620,7 +620,7 @@ M4OSA_ERR VideoEditorMp3Reader_reset(M4OSA_Context context,
     M4SYS_AccessUnit* pAu;
     M4OSA_Time time64 = 0;
 
-    LOGV("VideoEditorMp3Reader_reset start");
+    ALOGV("VideoEditorMp3Reader_reset start");
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_reset: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
@@ -630,7 +630,7 @@ M4OSA_ERR VideoEditorMp3Reader_reset(M4OSA_Context context,
         mAudioStreamHandler) {
         pAu = &pReaderContext->mAudioAu;
     } else {
-        LOGV("VideoEditorMp3Reader_reset StreamHandler is not known");
+        ALOGV("VideoEditorMp3Reader_reset StreamHandler is not known");
         return M4ERR_PARAMETER;
     }
     streamIdArray[0] = pStreamHandler->m_streamId;
@@ -641,7 +641,7 @@ M4OSA_ERR VideoEditorMp3Reader_reset(M4OSA_Context context,
     pReaderContext->mSeeking = M4OSA_TRUE;
     pReaderContext->mSeekTime = time64;
 
-    LOGV("VideoEditorMp3Reader_reset end");
+    ALOGV("VideoEditorMp3Reader_reset end");
     return err;
 }
 /**
@@ -667,7 +667,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
     MediaBuffer *mAudioBuffer;
     MediaSource::ReadOptions options;
 
-    LOGV("VideoEditorMp3Reader_getNextAu start");
+    ALOGV("VideoEditorMp3Reader_getNextAu start");
     M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
         "VideoEditorMp3Reader_getNextAu: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
@@ -679,7 +679,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
         mAudioStreamHandler) {
         pAu = &pReaderContext->mAudioAu;
     } else {
-        LOGV("VideoEditorMp3Reader_getNextAu: StreamHandler is not known\n");
+        ALOGV("VideoEditorMp3Reader_getNextAu: StreamHandler is not known\n");
         return M4ERR_PARAMETER;
     }
 
@@ -701,7 +701,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
                 M4READER_MP3, (M4OSA_Char*)"pAccessUnit->m_dataAddress" );
 
             if (pAu->dataAddress == NULL) {
-                LOGV("VideoEditorMp3Reader_getNextAu malloc failed");
+                ALOGV("VideoEditorMp3Reader_getNextAu malloc failed");
                 pReaderContext->mMediaSource->stop();
                 pReaderContext->mMediaSource.clear();
                 pReaderContext->mDataSource.clear();
@@ -722,7 +722,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
         pAu->attribute = M4SYS_kFragAttrOk;
         mAudioBuffer->release();
 
-        LOGV("VideoEditorMp3Reader_getNextAu AU CTS = %ld",pAu->CTS);
+        ALOGV("VideoEditorMp3Reader_getNextAu AU CTS = %ld",pAu->CTS);
 
         pAccessUnit->m_dataAddress = (M4OSA_Int8*) pAu->dataAddress;
         pAccessUnit->m_size = pAu->size;
@@ -730,7 +730,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
         pAccessUnit->m_DTS = pAu->DTS;
         pAccessUnit->m_attribute = pAu->attribute;
     } else {
-        LOGV("VideoEditorMp3Reader_getNextAu EOS reached.");
+        ALOGV("VideoEditorMp3Reader_getNextAu EOS reached.");
         pAccessUnit->m_size=0;
         err = M4WAR_NO_MORE_AU;
     }
@@ -739,7 +739,7 @@ M4OSA_ERR VideoEditorMp3Reader_getNextAu(M4OSA_Context context,
     options.clearSeekTo();
     pReaderContext->mSeeking = M4OSA_FALSE;
     mAudioBuffer = NULL;
-    LOGV("VideoEditorMp3Reader_getNextAu end");
+    ALOGV("VideoEditorMp3Reader_getNextAu end");
 
     return err;
 }
@@ -752,7 +752,7 @@ M4OSA_ERR VideoEditorMp3Reader_getInterface(
         M4READER_DataInterface **pRdrDataInterface) {
     M4OSA_ERR err = M4NO_ERROR;
 
-    LOGV("VideoEditorMp3Reader_getInterface: begin");
+    ALOGV("VideoEditorMp3Reader_getInterface: begin");
     /* Input parameters check */
     VIDEOEDITOR_CHECK(M4OSA_NULL != pMediaType,      M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(M4OSA_NULL != pRdrGlobalInterface, M4ERR_PARAMETER);
@@ -787,16 +787,16 @@ M4OSA_ERR VideoEditorMp3Reader_getInterface(
 cleanUp:
     if( M4NO_ERROR == err )
     {
-        LOGV("VideoEditorMp3Reader_getInterface no error");
+        ALOGV("VideoEditorMp3Reader_getInterface no error");
     }
     else
     {
         SAFE_FREE(*pRdrGlobalInterface);
         SAFE_FREE(*pRdrDataInterface);
 
-        LOGV("VideoEditorMp3Reader_getInterface ERROR 0x%X", err);
+        ALOGV("VideoEditorMp3Reader_getInterface ERROR 0x%X", err);
     }
-    LOGV("VideoEditorMp3Reader_getInterface: end");
+    ALOGV("VideoEditorMp3Reader_getInterface: end");
     return err;
 }
 }  /* extern "C" */
