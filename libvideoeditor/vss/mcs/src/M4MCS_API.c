@@ -10575,6 +10575,13 @@ M4OSA_ERR M4MCS_intCheckAndGetCodecProperties(
                     pC->pReaderAudioStream,
                     pC->m_pCurrentAudioDecoderUserData);
     }
+    if (M4NO_ERROR != err) {
+
+        M4OSA_TRACE1_1(
+            "M4MCS_intCheckAndGetCodecProperties: m_pFctCreateAudioDec \
+             returns 0x%x", err);
+        return err;
+    }
 
     pC->m_pAudioDecoder->m_pFctSetOptionAudioDec(pC->pAudioDecCtxt,
            M4AD_kOptionID_3gpReaderInterface, (M4OSA_DataOption) pC->m_pReaderDataIt);
