@@ -2432,12 +2432,15 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 }
             }
             /* Here check the clip video profile and level, if it exceeds
-             * the profile and level of export file, then the file need
-             * to be transcoded(do not do compress domain trim) */
+             * the profile and level of export file, then the file needs
+             * to be transcoded(do not do compress domain trim).
+             * Also for MPEG4 fomart, always do transcoding since HW encoder
+             * may use different time scale value than the input clip*/
            if ((fileProperties.uiVideoProfile >
                      xVSS_context->pSettings->xVSS.outputVideoProfile) ||
                 (fileProperties.uiVideoLevel >
-                     xVSS_context->pSettings->xVSS.outputVideoLevel)) {
+                     xVSS_context->pSettings->xVSS.outputVideoLevel) ||
+                (fileProperties.VideoStreamType == M4VIDEOEDITING_kMPEG4)) {
                /* Set bTranscodingRequired to TRUE to indicate the video will be
                 * transcoded in MCS. */
                xVSS_context->pSettings->pClipList[i]->bTranscodingRequired =
