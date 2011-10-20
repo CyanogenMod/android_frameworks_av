@@ -341,8 +341,19 @@ M4OSA_ERR VideoEditorAudioDecoder_parse_AAC_DSI(M4OSA_Int8* pDSI,
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
     switch( result ) {
         case 2:
+            /* Audio Object Type is 2 (AAC Low Complexity) */
             pProperties->aPSPresent  = 0;
             pProperties->aSBRPresent = 0;
+            break;
+        case 5:
+            /* Audio Object Type is 5 (Spectral Band Replication) */
+            pProperties->aPSPresent  = 0;
+            pProperties->aSBRPresent = 1;
+            break;
+        case 29:
+            /* Audio Object Type is 29 (Parametric Stereo) */
+            pProperties->aPSPresent  = 1;
+            pProperties->aSBRPresent = 1;
             break;
         default:
             LOGV("parse_AAC_DSI ERROR : object type %d is not supported",
