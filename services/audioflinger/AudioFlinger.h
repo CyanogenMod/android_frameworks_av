@@ -84,7 +84,6 @@ public:
                                 uint32_t flags,
                                 const sp<IMemory>& sharedBuffer,
                                 int output,
-                                bool isTimed,
                                 int *sessionId,
                                 status_t *status);
 
@@ -98,7 +97,6 @@ public:
     virtual     status_t    setMasterMute(bool muted);
 
     virtual     float       masterVolume() const;
-    virtual     float       masterVolumeSW() const;
     virtual     bool        masterMute() const;
 
     virtual     status_t    setStreamVolume(int stream, float value, int output);
@@ -190,7 +188,6 @@ public:
         AUDIO_HW_SET_MIC_MUTE,
         AUDIO_SET_VOICE_VOLUME,
         AUDIO_SET_PARAMETER,
-        AUDIO_HW_GET_MASTER_VOLUME,
     };
 
     // record interface
@@ -238,18 +235,12 @@ private:
         pid_t               pid() const { return mPid; }
         sp<AudioFlinger>    audioFlinger() { return mAudioFlinger; }
 
-        bool reserveTimedTrack();
-        void releaseTimedTrack();
-
     private:
                             Client(const Client&);
                             Client& operator = (const Client&);
         sp<AudioFlinger>    mAudioFlinger;
         sp<MemoryDealer>    mMemoryDealer;
         pid_t               mPid;
-
-        Mutex               mTimedTrackLock;
-        int                 mTimedTrackCount;
     };
 
     // --- Notification Client ---
@@ -355,9 +346,7 @@ private:
                                 TrackBase(const TrackBase&);
                                 TrackBase& operator = (const TrackBase&);
 
-            virtual status_t getNextBuffer(
-                AudioBufferProvider::Buffer* buffer,
-                int64_t pts) = 0;
+            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer) = 0;
             virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
 
             uint32_t format() const {
@@ -622,6 +611,7 @@ private:
                     int16_t     *mainBuffer() { return mMainBuffer; }
                     int         auxEffectId() { return mAuxEffectId; }
 
+
         protected:
             friend class ThreadBase;
             friend class TrackHandle;
@@ -632,11 +622,7 @@ private:
                                 Track(const Track&);
                                 Track& operator = (const Track&);
 
-            virtual status_t getNextBuffer(
-                AudioBufferProvider::Buffer* buffer,
-                int64_t pts);
-            virtual uint32_t framesReady() const;
-
+            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
             bool isMuted() { return mMute; }
             bool isPausing() const {
                 return mState == PAUSING;
@@ -651,8 +637,6 @@ private:
             bool isOutputTrack() const {
                 return (mStreamType == AUDIO_STREAM_CNT);
             }
-
-            virtual bool isTimedTrack() const { return false; }
 
             // we don't really need a lock for these
             float               mVolume[2];
@@ -670,78 +654,6 @@ private:
             int                 mAuxEffectId;
             bool                mHasVolumeController;
         };  // end of Track
-
-        class TimedTrack : public Track {
-          public:
-            static sp<TimedTrack> create(const wp<ThreadBase>& thread,
-                                         const sp<Client>& client,
-                                         int streamType,
-                                         uint32_t sampleRate,
-                                         uint32_t format,
-                                         uint32_t channelMask,
-                                         int frameCount,
-                                         const sp<IMemory>& sharedBuffer,
-                                         int sessionId);
-            ~TimedTrack();
-
-            class TimedBuffer {
-              public:
-                TimedBuffer();
-                TimedBuffer(const sp<IMemory>& buffer, int64_t pts);
-                const sp<IMemory>& buffer() const { return mBuffer; }
-                int64_t pts() const { return mPTS; }
-                int position() const { return mPosition; }
-                void setPosition(int pos) { mPosition = pos; }
-              private:
-                sp<IMemory> mBuffer;
-                int64_t mPTS;
-                int mPosition;
-            };
-
-            virtual bool isTimedTrack() const { return true; }
-
-            virtual uint32_t framesReady() const;
-
-            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                           int64_t pts);
-            virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
-            void timedYieldSamples(AudioBufferProvider::Buffer* buffer);
-            void timedYieldSilence(uint32_t numFrames,
-                                   AudioBufferProvider::Buffer* buffer);
-
-            status_t    allocateTimedBuffer(size_t size,
-                                            sp<IMemory>* buffer);
-            status_t    queueTimedBuffer(const sp<IMemory>& buffer,
-                                         int64_t pts);
-            status_t    setMediaTimeTransform(const LinearTransform& xform,
-                                              TimedAudioTrack::TargetTimeline target);
-            void        trimTimedBufferQueue_l();
-
-          private:
-            TimedTrack(const wp<ThreadBase>& thread,
-                       const sp<Client>& client,
-                       int streamType,
-                       uint32_t sampleRate,
-                       uint32_t format,
-                       uint32_t channelMask,
-                       int frameCount,
-                       const sp<IMemory>& sharedBuffer,
-                       int sessionId);
-
-            uint64_t            mLocalTimeFreq;
-            LinearTransform     mLocalTimeToSampleTransform;
-            sp<MemoryDealer>    mTimedMemoryDealer;
-            Vector<TimedBuffer> mTimedBufferQueue;
-            uint8_t*            mTimedSilenceBuffer;
-            uint32_t            mTimedSilenceBufferSize;
-            mutable Mutex       mTimedBufferQueueLock;
-            bool                mTimedAudioOutputOnTime;
-
-            Mutex               mMediaTimeTransformLock;
-            LinearTransform     mMediaTimeTransform;
-            bool                mMediaTimeTransformValid;
-            TimedAudioTrack::TargetTimeline mMediaTimeTransformTarget;
-        };
 
 
         // playback track
@@ -816,7 +728,6 @@ private:
                                     int frameCount,
                                     const sp<IMemory>& sharedBuffer,
                                     int sessionId,
-                                    bool isTimed,
                                     status_t *status);
 
                     AudioStreamOut* getOutput();
@@ -1005,12 +916,6 @@ private:
         virtual void        setVolume(float left, float right);
         virtual sp<IMemory> getCblk() const;
         virtual status_t    attachAuxEffect(int effectId);
-        virtual status_t    allocateTimedBuffer(size_t size,
-                                                sp<IMemory>* buffer);
-        virtual status_t    queueTimedBuffer(const sp<IMemory>& buffer,
-                                             int64_t pts);
-        virtual status_t    setMediaTimeTransform(const LinearTransform& xform,
-                                                  int target);
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
     private:
@@ -1058,9 +963,7 @@ private:
                                 RecordTrack(const RecordTrack&);
                                 RecordTrack& operator = (const RecordTrack&);
 
-            virtual status_t getNextBuffer(
-                AudioBufferProvider::Buffer* buffer,
-                int64_t pts);
+            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
 
             bool                mOverflow;
         };
@@ -1096,8 +999,7 @@ private:
                 AudioStreamIn* clearInput();
                 virtual audio_stream_t* stream();
 
-        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                          int64_t pts);
+        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer);
         virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
         virtual bool        checkForNewParameters_l();
         virtual String8     getParameters(const String8& keys);
@@ -1474,12 +1376,6 @@ private:
     friend class RecordThread;
     friend class PlaybackThread;
 
-    enum master_volume_support {
-        MVS_NONE,
-        MVS_SETONLY,
-        MVS_FULL,
-    };
-
     mutable     Mutex                               mLock;
 
                 DefaultKeyedVector< pid_t, wp<Client> >     mClients;
@@ -1493,8 +1389,6 @@ private:
                 DefaultKeyedVector< int, sp<PlaybackThread> >  mPlaybackThreads;
                 PlaybackThread::stream_type_t       mStreamTypes[AUDIO_STREAM_CNT];
                 float                               mMasterVolume;
-                float                               mMasterVolumeSW;
-                master_volume_support               mMasterVolumeSupportLvl;
                 bool                                mMasterMute;
 
                 DefaultKeyedVector< int, sp<RecordThread> >    mRecordThreads;

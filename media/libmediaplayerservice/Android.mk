@@ -29,8 +29,7 @@ LOCAL_SHARED_LIBRARIES :=     		\
 	libstagefright_omx    			\
 	libstagefright_foundation       \
 	libgui                          \
-	libdl                           \
-	libaah_rtp
+	libdl
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_nuplayer                 \

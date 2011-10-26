@@ -85,7 +85,7 @@ public:
     status_t    setParameter(int target, int name, void *value);
 
     status_t    setBufferProvider(AudioBufferProvider* bufferProvider);
-    void        process(int64_t pts);
+    void        process();
 
     uint32_t    trackNames() const { return mTrackNames; }
 
@@ -125,7 +125,7 @@ private:
     struct state_t;
     struct track_t;
 
-    typedef void (*mix_t)(state_t* state, int64_t pts);
+    typedef void (*mix_t)(state_t* state);
     typedef void (*hook_t)(track_t* t, int32_t* output, size_t numOutFrames, int32_t* temp, int32_t* aux);
     static const int BLOCKSIZE = 16; // 4 cache lines
 
@@ -163,8 +163,6 @@ private:
         int32_t*           mainBuffer;
         int32_t*           auxBuffer;
 
-        uint64_t    localTimeFreq;
-
         bool        setResampler(uint32_t sampleRate, uint32_t devSampleRate);
         bool        doesResample() const;
         void        resetResampler();
@@ -187,8 +185,6 @@ private:
     uint32_t        mTrackNames;
     const uint32_t  mSampleRate;
 
-    int64_t         mLocalTimeFreq;
-
     state_t         mState __attribute__((aligned(32)));
 
     void invalidateState(uint32_t mask);
@@ -200,17 +196,12 @@ private:
     static void volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux);
     static void volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux);
 
-    static void process__validate(state_t* state, int64_t pts);
-    static void process__nop(state_t* state, int64_t pts);
-    static void process__genericNoResampling(state_t* state, int64_t pts);
-    static void process__genericResampling(state_t* state, int64_t pts);
-    static void process__OneTrack16BitsStereoNoResampling(state_t* state,
-                                                          int64_t pts);
-    static void process__TwoTracks16BitsStereoNoResampling(state_t* state,
-                                                           int64_t pts);
-
-    static int64_t calculateOutputPTS(const track_t& t, int64_t basePTS,
-                                      int outputFrameIndex);
+    static void process__validate(state_t* state);
+    static void process__nop(state_t* state);
+    static void process__genericNoResampling(state_t* state);
+    static void process__genericResampling(state_t* state);
+    static void process__OneTrack16BitsStereoNoResampling(state_t* state);
+    static void process__TwoTracks16BitsStereoNoResampling(state_t* state);
 };
 
 // ----------------------------------------------------------------------------

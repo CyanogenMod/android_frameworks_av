@@ -65,7 +65,7 @@ void AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
     // fetch first buffer
     if (mBuffer.frameCount == 0) {
         mBuffer.frameCount = inFrameCount;
-        provider->getNextBuffer(&mBuffer, mPTS);
+        provider->getNextBuffer(&mBuffer);
         if (mBuffer.raw == NULL)
             return;
         // LOGW("New buffer: offset=%p, frames=%dn", mBuffer.raw, mBuffer.frameCount);
@@ -95,8 +95,7 @@ void AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
                 inputIndex = 0;
                 provider->releaseBuffer(&mBuffer);
                 mBuffer.frameCount = inFrameCount;
-                provider->getNextBuffer(&mBuffer,
-                                        calculateOutputPTS(outputIndex / 2));
+                provider->getNextBuffer(&mBuffer);
                 if (mBuffer.raw == NULL)
                     goto save_state;  // ugly, but efficient
                 in = mBuffer.i16;
@@ -131,7 +130,7 @@ void AudioResamplerCubic::resampleMono16(int32_t* out, size_t outFrameCount,
     // fetch first buffer
     if (mBuffer.frameCount == 0) {
         mBuffer.frameCount = inFrameCount;
-        provider->getNextBuffer(&mBuffer, mPTS);
+        provider->getNextBuffer(&mBuffer);
         if (mBuffer.raw == NULL)
             return;
         // LOGW("New buffer: offset=%p, frames=%d\n", mBuffer.raw, mBuffer.frameCount);
@@ -161,8 +160,7 @@ void AudioResamplerCubic::resampleMono16(int32_t* out, size_t outFrameCount,
                 inputIndex = 0;
                 provider->releaseBuffer(&mBuffer);
                 mBuffer.frameCount = inFrameCount;
-                provider->getNextBuffer(&mBuffer,
-                                        calculateOutputPTS(outputIndex / 2));
+                provider->getNextBuffer(&mBuffer);
                 if (mBuffer.raw == NULL)
                     goto save_state;  // ugly, but efficient
                 // LOGW("New buffer: offset=%p, frames=%dn", mBuffer.raw, mBuffer.frameCount);
@@ -183,3 +181,4 @@ save_state:
 // ----------------------------------------------------------------------------
 }
 ; // namespace android
+
