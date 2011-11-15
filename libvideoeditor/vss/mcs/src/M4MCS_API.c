@@ -3746,7 +3746,11 @@ M4OSA_ERR M4MCS_setOutputParams( M4MCS_Context pContext,
             /**
             * Set output video profile and level */
             pC->encodingVideoProfile = pC->InputFileProperties.uiVideoProfile;
-            pC->encodingVideoLevel = pC->InputFileProperties.uiVideoLevel;
+            /** Set the target video level, because input 3gp file may
+             *  have wrong video level value (some encoders do not respect
+             *  level restrictions like video resolution when content is created).
+             **/
+            pC->encodingVideoLevel = pParams->outputVideoLevel;
 
             // Clip's original width and height may not be
             // multiple of 16.

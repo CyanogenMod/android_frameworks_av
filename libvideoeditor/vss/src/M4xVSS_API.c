@@ -2587,6 +2587,10 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                 }
                 else
                 {
+                    pParams->outputVideoProfile =
+                        xVSS_context->pSettings->xVSS.outputVideoProfile;
+                    pParams->outputVideoLevel =
+                        xVSS_context->pSettings->xVSS.outputVideoLevel;
                     pParams->OutputVideoFormat = M4VIDEOEDITING_kNullVideo;
                     pParams->OutputVideoFrameRate =
                         M4VIDEOEDITING_k15_FPS; /* Must be set, otherwise, MCS returns an error */
