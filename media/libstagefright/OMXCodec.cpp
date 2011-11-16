@@ -1204,8 +1204,13 @@ status_t OMXCodec::setupErrorCorrectionParameters() {
     }
 
     errorCorrectionType.bEnableHEC = OMX_FALSE;
+#ifdef QCOM_HARDWARE
+    errorCorrectionType.bEnableResync = OMX_FALSE;
+    errorCorrectionType.nResynchMarkerSpacing = 0;
+#else
     errorCorrectionType.bEnableResync = OMX_TRUE;
     errorCorrectionType.nResynchMarkerSpacing = 256;
+#endif
     errorCorrectionType.bEnableDataPartitioning = OMX_FALSE;
     errorCorrectionType.bEnableRVLC = OMX_FALSE;
 
