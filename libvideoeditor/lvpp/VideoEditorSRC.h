@@ -78,6 +78,7 @@ class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
         MediaBuffer* mBuffer;
         int32_t mLeftover;
         bool mFormatChanged;
+        bool mStopPending;
 
         int64_t mInitialTimeStampUs;
         int64_t mAccuOutBufferSize;
