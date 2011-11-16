@@ -64,6 +64,17 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
 
+ifeq ($(BOARD_USES_AUDIO_LEGACY),true)
+    LOCAL_SRC_FILES+= \
+        AudioParameter.cpp
+
+    LOCAL_CFLAGS += -DUSES_AUDIO_LEGACY
+endif
+
+ifeq ($(BOARD_USE_KINETO_COMPATIBILITY),true)
+    LOCAL_CFLAGS += -DUSE_KINETO_COMPATIBILITY
+endif
+
 LOCAL_MODULE:= libmedia
 
 LOCAL_C_INCLUDES := \
