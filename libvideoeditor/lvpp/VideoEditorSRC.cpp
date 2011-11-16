@@ -41,6 +41,7 @@ VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
     mBuffer = NULL;
     mLeftover = 0;
     mFormatChanged = false;
+    mStopPending = false;
     mSeekMode = ReadOptions::SEEK_PREVIOUS_SYNC;
 
     // Input Source validation
@@ -126,6 +127,11 @@ status_t VideoEditorSRC::read(
         int32_t *pTmpBuffer = (int32_t *)calloc(1, outFrameCnt * 2 * sizeof(int32_t));
         // Resample to target quality
         mResampler->resample(pTmpBuffer, outFrameCnt, this);
+
+        if (mStopPending) {
+            stop();
+            mStopPending = false;
+        }
 
         // Change resampler and retry if format change happened
         if (mFormatChanged) {
@@ -221,7 +227,10 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
             // EOS or some other error
             if (err != OK) {
                 LOGV("EOS or some err: %d", err);
-                stop();
+                // We cannot call stop() here because stop() will release the
+                // AudioResampler, and we are in a callback of the AudioResampler.
+                // So just remember the fact and let read() call stop().
+                mStopPending = true;
                 return err;
             }
 
