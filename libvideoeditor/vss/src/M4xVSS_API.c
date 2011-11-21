@@ -2068,6 +2068,11 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
                         pParams->pNext = M4OSA_NULL;
                         pParams->isCreated = M4OSA_FALSE;
                         xVSS_context->nbStepTotal++;
+                       /* Set bTranscodingRequired to TRUE to indicate the kenburn video has
+                        * been generated in analysis phase, and does not need to be tanscoded again
+                        * in saving phase */
+                        xVSS_context->pSettings->pClipList[i]->bTranscodingRequired =
+                           M4OSA_TRUE;
 
     replaceARGB_3GP:
                         /* Update total duration */
