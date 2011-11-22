@@ -39,6 +39,10 @@ ifeq ($(BOARD_CAMERA_HAVE_ISO),true)
 	LOCAL_CFLAGS += -DHAVE_ISO
 endif
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+	LOCAL_CFLAGS += -DQCOM_HARDWARE
+endif
+
 LOCAL_MODULE:= libcamera_client
 
 include $(BUILD_SHARED_LIBRARY)
