@@ -49,6 +49,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 
 LOCAL_SHARED_LIBRARIES := \
+    libaudioutils      \
     libbinder          \
     libutils           \
     libcutils          \
@@ -65,6 +66,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 
 LOCAL_C_INCLUDES += \
+    $(TOP)/system/media/audio_utils/include \
     $(TOP)/frameworks/base/core/jni \
     $(TOP)/frameworks/base/include \
     $(TOP)/frameworks/base/include/media \

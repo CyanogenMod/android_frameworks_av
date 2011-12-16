@@ -52,7 +52,7 @@ LOCAL_SRC_FILES:=          \
 
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_SHARED_LIBRARIES := libcutils libutils
+LOCAL_SHARED_LIBRARIES := libcutils libutils libaudioutils
 
 LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal \
@@ -62,6 +62,7 @@ LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_stagefrightshells
 
 LOCAL_C_INCLUDES += \
+    $(TOP)/system/media/audio_utils/include \
     $(TOP)/frameworks/base/include \
     $(TOP)/frameworks/media/libvideoeditor/osal/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/inc \

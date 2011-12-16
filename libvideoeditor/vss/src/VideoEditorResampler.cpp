@@ -15,6 +15,7 @@
  */
 
 #define LOG_NDEBUG 1
+#include <audio_utils/primitives.h>
 #include <utils/Log.h>
 #include "AudioMixer.h"
 #include "VideoEditorResampler.h"
@@ -161,7 +162,7 @@ void LVAudioresample_LowQuality(M4OSA_Int16* out, M4OSA_Int16* input,
     context->mResampler->resample((int32_t *)pTmpBuffer,
        (size_t)outFrameCount, (VideoEditorResampler *)resamplerContext);
     // Convert back to 16 bits
-    AudioMixer::ditherAndClamp((int32_t*)out, pTmpBuffer, outFrameCount);
+    ditherAndClamp((int32_t*)out, pTmpBuffer, outFrameCount);
     free(pTmpBuffer);
     pTmpBuffer = NULL;
 }

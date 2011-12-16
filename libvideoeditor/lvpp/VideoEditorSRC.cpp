@@ -18,6 +18,7 @@
 #define LOG_TAG "VideoEditorSRC"
 
 #include "VideoEditorSRC.h"
+#include <audio_utils/primitives.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -146,7 +147,7 @@ status_t VideoEditorSRC::read(
         MediaBuffer* outBuffer = new MediaBuffer(outBufferSize);
 
         // Convert back to 2 channels and 16 bits
-        AudioMixer::ditherAndClamp(
+        ditherAndClamp(
                 (int32_t *)((uint8_t*)outBuffer->data() + outBuffer->range_offset()),
                 pTmpBuffer, outFrameCnt);
         free(pTmpBuffer);
