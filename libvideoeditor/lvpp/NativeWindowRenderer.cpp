@@ -146,7 +146,7 @@ NativeWindowRenderer::NativeWindowRenderer(sp<ANativeWindow> nativeWindow,
 // other threads wait until the request is finished by GL thread.
 
 int NativeWindowRenderer::threadStart(void* self) {
-    LOGD("create thread");
+    ALOGD("create thread");
     ((NativeWindowRenderer*)self)->glThread();
     return 0;
 }
@@ -181,7 +181,7 @@ void NativeWindowRenderer::glThread() {
         mThreadCmd = CMD_IDLE;
         mCond.broadcast();
     }
-    LOGD("quit");
+    ALOGD("quit");
 }
 
 void NativeWindowRenderer::initializeEGL() {
@@ -540,7 +540,7 @@ void NativeWindowRenderer::sendRequest() {
 }
 
 RenderInput* NativeWindowRenderer::createRenderInput() {
-    LOGD("new render input %d", mNextTextureId);
+    ALOGD("new render input %d", mNextTextureId);
     RenderInput* input = new RenderInput(this, mNextTextureId);
 
     startRequest(CMD_RESERVE_TEXTURE);
@@ -553,7 +553,7 @@ RenderInput* NativeWindowRenderer::createRenderInput() {
 }
 
 void NativeWindowRenderer::destroyRenderInput(RenderInput* input) {
-    LOGD("destroy render input %d", input->mTextureId);
+    ALOGD("destroy render input %d", input->mTextureId);
     GLuint textureId = input->mTextureId;
     delete input;
 

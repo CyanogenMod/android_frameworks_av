@@ -846,9 +846,9 @@ void PreviewPlayerBase::notifyVideoSize_l() {
         cropRight = vWidth - 1;
         cropBottom = vHeight - 1;
 
-        LOGD("got dimensions only %d x %d", vWidth, vHeight);
+        ALOGD("got dimensions only %d x %d", vWidth, vHeight);
     } else {
-        LOGD("got crop rect %d, %d, %d, %d",
+        ALOGD("got crop rect %d, %d, %d, %d",
              cropLeft, cropTop, cropRight, cropBottom);
     }
 
