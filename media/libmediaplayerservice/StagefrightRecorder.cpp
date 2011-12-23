@@ -52,6 +52,10 @@
 
 #include "ARTPWriter.h"
 
+#ifdef QCOM_HARDWARE
+#include <cutils/properties.h>
+#endif
+
 namespace android {
 
 // To collect the encoder usage for the battery app
@@ -1409,9 +1413,20 @@ status_t StagefrightRecorder::setupVideoEncoder(
     CHECK_EQ(client.connect(), (status_t)OK);
 
     uint32_t encoder_flags = 0;
+#ifdef QCOM_HARDWARE
+    char value[PROPERTY_VALUE_MAX];
+#endif
     if (mIsMetaDataStoredInVideoBuffers) {
         encoder_flags |= OMXCodec::kHardwareCodecsOnly;
         encoder_flags |= OMXCodec::kStoreMetaDataInVideoBuffers;
+#ifdef QCOM_HARDWARE
+        if (property_get("ro.board.platform", value, "0")
+            && (!strncmp(value, "msm7627a", sizeof("msm7627a") - 1) ||
+                !strncmp(value, "msm7x27a", sizeof("msm7x27a") - 1))) {
+            ALOGW("msm7627 family of chipsets supports, only one buffer at a time");
+            encoder_flags |= OMXCodec::kOnlySubmitOneInputBufferAtOneTime;
+        }
+#endif
     }
 
     // Do not wait for all the input buffers to become available.
