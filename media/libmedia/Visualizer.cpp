@@ -90,6 +90,14 @@ status_t Visualizer::setEnabled(bool enabled)
     return status;
 }
 
+void Visualizer::cancelCaptureCallBack()
+{
+    sp<CaptureThread> t = mCaptureThread;
+    if (t != 0) {
+        t->requestExitAndWait();
+    }
+}
+
 status_t Visualizer::setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t flags,
         uint32_t rate)
 {
