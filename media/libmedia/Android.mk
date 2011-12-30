@@ -48,6 +48,15 @@ LOCAL_SRC_FILES:= \
     SoundPool.cpp \
     SoundPoolThread.cpp
 
+ifeq ($(BOARD_USES_LIBMEDIA_WITH_AUDIOPARAMETER),true)
+    LOCAL_SRC_FILES+= \
+        AudioParameter.cpp
+endif
+
+ifeq ($(BOARD_USE_SAMSUNG_SEPARATEDSTREAM),true)
+    LOCAL_CFLAGS += -DUSE_SAMSUNG_SEPARATEDSTREAM
+endif
+
 LOCAL_SHARED_LIBRARIES := \
 	libui libcutils libutils libbinder libsonivox libicuuc libexpat \
         libcamera_client libstagefright_foundation \
