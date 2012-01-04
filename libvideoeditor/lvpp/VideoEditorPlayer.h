@@ -50,7 +50,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
 
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount,
-                int format, int bufferCount,
+                audio_format_t format, int bufferCount,
                 AudioCallback cb, void *cookie);
 
         virtual void            start();

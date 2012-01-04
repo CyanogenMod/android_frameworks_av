@@ -379,7 +379,7 @@ status_t VideoEditorPlayer::VeAudioOutput::getPosition(uint32_t *position) {
 }
 
 status_t VideoEditorPlayer::VeAudioOutput::open(
-        uint32_t sampleRate, int channelCount, int format, int bufferCount,
+        uint32_t sampleRate, int channelCount, audio_format_t format, int bufferCount,
         AudioCallback cb, void *cookie) {
 
     mCallback = cb;
