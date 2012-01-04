@@ -41,7 +41,7 @@ I420ColorConverter::I420ColorConverter() {
     // Fill the function pointers.
     getI420ColorConverter(this);
 
-    LOGI("I420ColorConverter: libI420colorconvert.so loaded");
+    ALOGI("I420ColorConverter: libI420colorconvert.so loaded");
 }
 
 bool I420ColorConverter::isLoaded() {

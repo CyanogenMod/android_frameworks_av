@@ -260,9 +260,9 @@ status_t PreviewPlayerBase::setDataSource_l(
     }
 
     if (!(mFlags & INCOGNITO)) {
-        LOGI("setDataSource_l('%s')", mUri.string());
+        ALOGI("setDataSource_l('%s')", mUri.string());
     } else {
-        LOGI("setDataSource_l(URL suppressed)");
+        ALOGI("setDataSource_l(URL suppressed)");
     }
 
     // The actual work will be done during preparation in the call to
@@ -422,7 +422,7 @@ void PreviewPlayerBase::reset_l() {
     if (mFlags & PREPARING) {
         mFlags |= PREPARE_CANCELLED;
         if (mConnectingDataSource != NULL) {
-            LOGI("interrupting the connection process");
+            ALOGI("interrupting the connection process");
             mConnectingDataSource->disconnect();
         }
 
@@ -595,7 +595,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
 
                 if ((mFlags & PLAYING) && !eos
                         && (cachedDataRemaining < kLowWaterMarkBytes)) {
-                    LOGI("cache is running low (< %d) , pausing.",
+                    ALOGI("cache is running low (< %d) , pausing.",
                          kLowWaterMarkBytes);
                     mFlags |= CACHE_UNDERRUN;
                     pause_l();
@@ -603,7 +603,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
                     notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
                 } else if (eos || cachedDataRemaining > kHighWaterMarkBytes) {
                     if (mFlags & CACHE_UNDERRUN) {
-                        LOGI("cache has filled up (> %d), resuming.",
+                        ALOGI("cache has filled up (> %d), resuming.",
                              kHighWaterMarkBytes);
                         mFlags &= ~CACHE_UNDERRUN;
                         play_l();
@@ -626,7 +626,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
 
         if ((mFlags & PLAYING) && !eos
                 && (cachedDurationUs < kLowWaterMarkUs)) {
-            LOGI("cache is running low (%.2f secs) , pausing.",
+            ALOGI("cache is running low (%.2f secs) , pausing.",
                  cachedDurationUs / 1E6);
             mFlags |= CACHE_UNDERRUN;
             pause_l();
@@ -634,7 +634,7 @@ void PreviewPlayerBase::onBufferingUpdate() {
             notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
         } else if (eos || cachedDurationUs > kHighWaterMarkUs) {
             if (mFlags & CACHE_UNDERRUN) {
-                LOGI("cache has filled up (%.2f secs), resuming.",
+                ALOGI("cache has filled up (%.2f secs), resuming.",
                      cachedDurationUs / 1E6);
                 mFlags &= ~CACHE_UNDERRUN;
                 play_l();
@@ -1025,7 +1025,7 @@ void PreviewPlayerBase::setNativeWindow_l(const sp<ANativeWindow> &native) {
         return;
     }
 
-    LOGI("attempting to reconfigure to use new surface");
+    ALOGI("attempting to reconfigure to use new surface");
 
     bool wasPlaying = (mFlags & PLAYING) != 0;
 
@@ -1421,7 +1421,7 @@ void PreviewPlayerBase::onVideoEvent() {
 
     if (mSeeking == SEEK_VIDEO_ONLY) {
         if (mSeekTimeUs > timeUs) {
-            LOGI("XXX mSeekTimeUs = %lld us, timeUs = %lld us",
+            ALOGI("XXX mSeekTimeUs = %lld us, timeUs = %lld us",
                  mSeekTimeUs, timeUs);
         }
     }
@@ -1461,7 +1461,7 @@ void PreviewPlayerBase::onVideoEvent() {
         int64_t latenessUs = nowUs - timeUs;
 
         if (latenessUs > 0) {
-            LOGI("after SEEK_VIDEO_ONLY we're late by %.2f secs", latenessUs / 1E6);
+            ALOGI("after SEEK_VIDEO_ONLY we're late by %.2f secs", latenessUs / 1E6);
         }
     }
 
@@ -1476,7 +1476,7 @@ void PreviewPlayerBase::onVideoEvent() {
                 && mAudioPlayer != NULL
                 && mAudioPlayer->getMediaTimeMapping(
                     &realTimeUs, &mediaTimeUs)) {
-            LOGI("we're much too late (%.2f secs), video skipping ahead",
+            ALOGI("we're much too late (%.2f secs), video skipping ahead",
                  latenessUs / 1E6);
 
             mVideoBuffer->release();
@@ -1677,7 +1677,7 @@ status_t PreviewPlayerBase::finishSetDataSource_l() {
         if (err != OK) {
             mConnectingDataSource.clear();
 
-            LOGI("mConnectingDataSource->connect() returned %d", err);
+            ALOGI("mConnectingDataSource->connect() returned %d", err);
             return err;
         }
 
@@ -1724,7 +1724,7 @@ status_t PreviewPlayerBase::finishSetDataSource_l() {
         }
 
         if (mFlags & PREPARE_CANCELLED) {
-            LOGI("Prepare cancelled while waiting for initial cache fill.");
+            ALOGI("Prepare cancelled while waiting for initial cache fill.");
             return UNKNOWN_ERROR;
         }
     } else {
@@ -1777,7 +1777,7 @@ void PreviewPlayerBase::onPrepareAsyncEvent() {
     Mutex::Autolock autoLock(mLock);
 
     if (mFlags & PREPARE_CANCELLED) {
-        LOGI("prepare was cancelled before doing anything");
+        ALOGI("prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
         return;
     }

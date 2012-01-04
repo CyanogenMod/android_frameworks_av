@@ -168,7 +168,7 @@ status_t DummyAudioSource::read( MediaBuffer **out, const MediaSource::ReadOptio
         Mutex::Autolock autoLock(mLock);
         if (mTimeStampUs >= mAudioDurationUs) {
             *out = NULL;
-            LOGI("EOS reached");
+            ALOGI("EOS reached");
             return ERROR_END_OF_STREAM;
         }
     }

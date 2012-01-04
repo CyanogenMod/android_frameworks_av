@@ -1055,7 +1055,7 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
         pDecShellContext->mI420ColorConverter = NULL;
     }
 
-    LOGI("decoder output format = 0x%X\n", decoderOutput);
+    ALOGI("decoder output format = 0x%X\n", decoderOutput);
 
     // Configure the buffer pool from the metadata
     err = VideoEditorVideoDecoder_configureFromMetadata(pDecShellContext,
@@ -1187,7 +1187,7 @@ M4OSA_ERR VideoEditorVideoSoftwareDecoder_create(M4OSA_Context *pContext,
     status = pDecShellContext->mClient.connect();
     VIDEOEDITOR_CHECK(OK == status, M4ERR_SF_DECODER_RSRC_FAIL);
 
-     LOGI("Using software codecs only");
+     ALOGI("Using software codecs only");
     // Create the decoder
     pDecShellContext->mVideoDecoder = OMXCodec::Create(
         pDecShellContext->mClient.interface(),

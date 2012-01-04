@@ -85,7 +85,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
     uiPCMsize = pMixedOutBuffer->m_bufferSize/2 ;
 
     if ((mDucking_enable) && (mPTVolLevel != 0.0)) {
-        // LOGI("VideoEditorBGAudioProcessing:: In Ducking analysis ");
+        // ALOGI("VideoEditorBGAudioProcessing:: In Ducking analysis ");
         loopIndex = 0;
         peakDbValue = 0;
         previousDbValue = peakDbValue;

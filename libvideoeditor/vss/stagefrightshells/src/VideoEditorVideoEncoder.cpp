@@ -653,7 +653,7 @@ M4OSA_ERR VideoEditorVideoEncoder_init(M4ENCODER_Format format,
         pEncoderContext->mI420ColorConverter = NULL;
     }
     pEncoderContext->mEncoderColorFormat = (OMX_COLOR_FORMATTYPE)encoderInput;
-    LOGI("encoder input format = 0x%X\n", encoderInput);
+    ALOGI("encoder input format = 0x%X\n", encoderInput);
 
     *pContext = pEncoderContext;
 
@@ -857,11 +857,11 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
         case M4ENCODER_k30_FPS:   iFrameRate = 30; break;
         case M4ENCODER_kVARIABLE_FPS:
             iFrameRate = 30;
-            LOGI("Frame rate set to M4ENCODER_kVARIABLE_FPS: set to 30");
+            ALOGI("Frame rate set to M4ENCODER_kVARIABLE_FPS: set to 30");
           break;
         case M4ENCODER_kUSE_TIMESCALE:
             iFrameRate = 30;
-            LOGI("Frame rate set to M4ENCODER_kUSE_TIMESCALE:  set to 30");
+            ALOGI("Frame rate set to M4ENCODER_kUSE_TIMESCALE:  set to 30");
             break;
 
         default:

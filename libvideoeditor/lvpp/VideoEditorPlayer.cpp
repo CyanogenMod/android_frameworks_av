@@ -58,7 +58,7 @@ status_t VideoEditorPlayer::setAudioPlayer(VideoEditorAudioPlayer *audioPlayer) 
 
 status_t VideoEditorPlayer::setDataSource(
         const char *url, const KeyedVector<String8, String8> *headers) {
-    LOGI("setDataSource('%s')", url);
+    ALOGI("setDataSource('%s')", url);
 
     return mPlayer->setDataSource(url, headers);
 }

@@ -41,7 +41,7 @@
 /*  DEBUG LEVEL SETUP  */
 /*---------------------*/
 #define LOG1 LOGE    /*ERRORS Logging*/
-#define LOG2 LOGI    /*WARNING Logging*/
+#define LOG2 ALOGI    /*WARNING Logging*/
 #define LOG3 //ALOGV  /*COMMENTS Logging*/
 
 namespace android {
