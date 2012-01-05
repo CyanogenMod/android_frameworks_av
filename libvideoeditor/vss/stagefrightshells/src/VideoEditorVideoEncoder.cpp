@@ -1311,7 +1311,7 @@ M4OSA_ERR VideoEditorVideoEncoder_stop(M4ENCODER_Context pContext) {
     }
 
     if (pEncoderContext->mNbInputFrames != pEncoderContext->mNbOutputFrames) {
-        LOGW("Some frames were not encoded: input(%d) != output(%d)",
+        ALOGW("Some frames were not encoded: input(%d) != output(%d)",
             pEncoderContext->mNbInputFrames, pEncoderContext->mNbOutputFrames);
     }
 
@@ -1326,7 +1326,7 @@ cleanUp:
 }
 
 M4OSA_ERR VideoEditorVideoEncoder_regulBitRate(M4ENCODER_Context pContext) {
-    LOGW("regulBitRate is not implemented");
+    ALOGW("regulBitRate is not implemented");
     return M4NO_ERROR;
 }
 

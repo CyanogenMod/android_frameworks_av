@@ -163,7 +163,7 @@ status_t VideoEditorAudioDecoderSource::stop() {
         for (int i = 0; i < n; i++) {
             mBuffers.itemAt(i)->release();
         }
-        LOGW("VideoEditorAudioDecoderSource::stop : %d buffer remained", n);
+        ALOGW("VideoEditorAudioDecoderSource::stop : %d buffer remained", n);
         mBuffers.clear();
     }
 

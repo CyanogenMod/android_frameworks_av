@@ -1224,7 +1224,7 @@ void VideoEditorPreviewController::notify(
             int info_val = ext2;
             // ext1: Media framework error code.
             // ext2: Implementation dependant error code.
-            //LOGW("MEDIA_INFO; info/warning (%d, %d)", ext1, ext2);
+            //ALOGW("MEDIA_INFO; info/warning (%d, %d)", ext1, ext2);
             if(pController->mJniCallback != NULL) {
                 pController->mJniCallback(pController->mJniCookie,
                  MSG_TYPE_PROGRESS_INDICATION, &info_val);
