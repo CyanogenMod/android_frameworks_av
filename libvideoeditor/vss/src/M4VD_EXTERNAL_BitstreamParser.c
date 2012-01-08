@@ -498,7 +498,7 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
     }
 
     if ((DSISize <= index) || (pDSI == M4OSA_NULL)) {
-        LOGE("getAVCProfileAndLevel: DSI is invalid");
+        ALOGE("getAVCProfileAndLevel: DSI is invalid");
         *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
         *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
         return M4ERR_PARAMETER;
@@ -596,12 +596,12 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
     M4OSA_UInt16 index = 7; /* the 5th and 6th bytes contain the level and profile */
 
     if ((pProfile == M4OSA_NULL) || (pLevel == M4OSA_NULL)) {
-        LOGE("getH263ProfileAndLevel invalid pointer for pProfile");
+        ALOGE("getH263ProfileAndLevel invalid pointer for pProfile");
         return M4ERR_PARAMETER;
     }
 
     if ((DSISize < index) || (pDSI == M4OSA_NULL)) {
-        LOGE("getH263ProfileAndLevel: DSI is invalid");
+        ALOGE("getH263ProfileAndLevel: DSI is invalid");
         *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
         *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
         return M4ERR_PARAMETER;

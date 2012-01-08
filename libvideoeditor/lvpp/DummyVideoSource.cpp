@@ -32,7 +32,7 @@
 #include <memory.h>
 
 
-#define LOG1 LOGE    /*ERRORS Logging*/
+#define LOG1 ALOGE    /*ERRORS Logging*/
 #define LOG2 ALOGV    /*WARNING Logging*/
 #define LOG3 //ALOGV    /*COMMENTS Logging*/
 

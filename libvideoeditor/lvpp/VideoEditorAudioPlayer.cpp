@@ -531,7 +531,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                                 mBGAudioPCMFileSeekPoint = tmp32;
 
                                 if (err != M4NO_ERROR){
-                                    LOGE("M4OSA_fileReadSeek err %d",(int)err);
+                                    ALOGE("M4OSA_fileReadSeek err %d",(int)err);
                                 }
 
                                 err = M4OSA_fileReadData(mBGAudioPCMFileHandle,

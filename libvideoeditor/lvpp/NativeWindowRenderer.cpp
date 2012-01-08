@@ -270,7 +270,7 @@ void NativeWindowRenderer::createProgram(
             char* buf = (char*) malloc(infoLen);
             if (buf) {
                 glGetProgramInfoLog(program, infoLen, NULL, buf);
-                LOGE("Program link log:\n%s\n", buf);
+                ALOGE("Program link log:\n%s\n", buf);
                 free(buf);
             }
         }
@@ -300,7 +300,7 @@ void NativeWindowRenderer::loadShader(GLenum shaderType, const char* pSource,
         char* buf = (char*) malloc(infoLen);
         if (buf) {
             glGetShaderInfoLog(shader, infoLen, NULL, buf);
-            LOGE("Shader compile log:\n%s\n", buf);
+            ALOGE("Shader compile log:\n%s\n", buf);
             free(buf);
         }
         glDeleteShader(shader);
@@ -385,7 +385,7 @@ void NativeWindowRenderer::queueInternalBuffer(ANativeWindow *anw,
     native_window_set_buffers_timestamp(anw, timeUs * 1000);
     status_t err = anw->queueBuffer(anw, buffer->graphicBuffer().get());
     if (err != 0) {
-        LOGE("queueBuffer failed with error %s (%d)", strerror(-err), -err);
+        ALOGE("queueBuffer failed with error %s (%d)", strerror(-err), -err);
         return;
     }
 

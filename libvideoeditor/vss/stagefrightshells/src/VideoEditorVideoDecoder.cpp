@@ -100,13 +100,13 @@ status_t VideoEditorVideoDecoderSource::start(
 
     if (!mStarted) {
         if (mFormat->findInt32(kKeyMaxInputSize, &mMaxAUSize) == false) {
-            LOGE("Could not find kKeyMaxInputSize");
+            ALOGE("Could not find kKeyMaxInputSize");
             return ERROR_MALFORMED;
         }
 
         mGroup = new MediaBufferGroup;
         if (mGroup == NULL) {
-            LOGE("FATAL: memory limitation ! ");
+            ALOGE("FATAL: memory limitation ! ");
             return NO_MEMORY;
         }
 
@@ -153,7 +153,7 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
         MediaSource::ReadOptions::SeekMode mode;
         options->getSeekTo(&time_us, &mode);
         if (mode != MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC) {
-            LOGE("Unexpected read options");
+            ALOGE("Unexpected read options");
             return BAD_VALUE;
         }
 
@@ -171,7 +171,7 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
             rapTime -= 40000;
             if(rapTime < 0) rapTime = 0;
         } else if (err != OK) {
-            LOGE("get rap time error = 0x%x\n", (uint32_t)err);
+            ALOGE("get rap time error = 0x%x\n", (uint32_t)err);
             return UNKNOWN_ERROR;
         }
 
@@ -181,7 +181,7 @@ status_t VideoEditorVideoDecoderSource::read(MediaBuffer** buffer_out,
                    &rapTime);
 
         if (err != OK) {
-            LOGE("jump err = 0x%x\n", (uint32_t)err);
+            ALOGE("jump err = 0x%x\n", (uint32_t)err);
             return BAD_VALUE;
         }
     }
@@ -1397,7 +1397,7 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
             }
             continue;
         } else if (errStatus != OK) {
-            LOGE("VideoEditorVideoDecoder_decode ERROR:0x%x(%d)",
+            ALOGE("VideoEditorVideoDecoder_decode ERROR:0x%x(%d)",
                 errStatus,errStatus);
             lerr = errStatus;
             goto VIDEOEDITOR_VideoDecode_cleanUP;
@@ -1485,7 +1485,7 @@ static M4OSA_ERR copyBufferToQueue(
             pDecShellContext->mGivenHeight,  // decoderHeight
             pDecShellContext->mCropRect,  // decoderRect
             tmpDecBuffer->pData /* dstBits */) < 0) {
-            LOGE("convertDecoderOutputToI420 failed");
+            ALOGE("convertDecoderOutputToI420 failed");
             lerr = M4ERR_NOT_IMPLEMENTED;
         }
     } else if (pDecShellContext->decOuputColorFormat == OMX_COLOR_FormatYUV420Planar) {
@@ -1540,7 +1540,7 @@ static M4OSA_ERR copyBufferToQueue(
             }
         }
     } else {
-        LOGE("VideoDecoder_decode: unexpected color format 0x%X",
+        ALOGE("VideoDecoder_decode: unexpected color format 0x%X",
             pDecShellContext->decOuputColorFormat);
         lerr = M4ERR_PARAMETER;
     }

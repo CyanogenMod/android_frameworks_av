@@ -77,7 +77,7 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
 
         err = M4OSA_threadSyncClose(mThreadContext);
         if(err != M4NO_ERROR) {
-            LOGE("~VideoEditorPreviewController: error 0x%x \
+            ALOGE("~VideoEditorPreviewController: error 0x%x \
             in trying to close thread", (unsigned int) err);
             // Continue even if error
         }
@@ -209,7 +209,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
          (M4OSA_Char*)"LvPP, copy of pClipList");
 
         if(NULL == mClipList) {
-            LOGE("loadEditSettings: Malloc error");
+            ALOGE("loadEditSettings: Malloc error");
             return M4ERR_ALLOC;
         }
         memset((void *)mClipList,0,
@@ -224,7 +224,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
             if(mClipList[i] == NULL) {
 
-                LOGE("loadEditSettings: Allocation error for mClipList[%d]", (int)i);
+                ALOGE("loadEditSettings: Allocation error for mClipList[%d]", (int)i);
                 return M4ERR_ALLOC;
             }
             // Copy plain structure
@@ -239,7 +239,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
 
                 if(NULL == mClipList[i]->pFile)
                 {
-                    LOGE("loadEditSettings : ERROR allocating filename");
+                    ALOGE("loadEditSettings : ERROR allocating filename");
                     return M4ERR_ALLOC;
                 }
 
@@ -248,7 +248,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                  pSettings->pClipList[i]->filePathSize);
             }
             else {
-                LOGE("NULL file path");
+                ALOGE("NULL file path");
                 return M4ERR_PARAMETER;
             }
 
@@ -270,7 +270,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
              M4VS, (M4OSA_Char*)"effects settings");
 
             if(mEffectsSettings == NULL) {
-                LOGE("loadEffectsSettings: Allocation error");
+                ALOGE("loadEffectsSettings: Allocation error");
                 return M4ERR_ALLOC;
             }
 
@@ -295,7 +295,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                      M4VS, (M4OSA_Char*)"lvpp framing buffer");
 
                     if(mEffectsSettings[i].xVSS.pFramingBuffer == NULL) {
-                        LOGE("loadEffectsSettings:Alloc error for pFramingBuf");
+                        ALOGE("loadEffectsSettings:Alloc error for pFramingBuf");
                         free(mEffectsSettings);
                         mEffectsSettings = NULL;
                         return M4ERR_ALLOC;
@@ -314,7 +314,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                          pSettings->Effects[i].xVSS.pFramingBuffer->u_height*3;
                     }
                     else {
-                        LOGE("loadEffectsSettings: wrong RGB type");
+                        ALOGE("loadEffectsSettings: wrong RGB type");
                         free(mEffectsSettings);
                         mEffectsSettings = NULL;
                         return M4ERR_PARAMETER;
@@ -324,7 +324,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
                      (M4OSA_Char*)"framing buffer pac_data");
 
                     if(tmp == NULL) {
-                        LOGE("loadEffectsSettings:Alloc error pFramingBuf pac");
+                        ALOGE("loadEffectsSettings:Alloc error pFramingBuf pac");
                         free(mEffectsSettings);
                         mEffectsSettings = NULL;
                         free(mEffectsSettings[i].xVSS.pFramingBuffer);
@@ -380,7 +380,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
         (M4OSA_Char*)"LvPP, copy of bgmSettings");
 
         if(NULL == mBackgroundAudioSetting) {
-            LOGE("loadEditSettings: mBackgroundAudioSetting Malloc failed");
+            ALOGE("loadEditSettings: mBackgroundAudioSetting Malloc failed");
             return M4ERR_ALLOC;
         }
 
@@ -400,7 +400,7 @@ M4OSA_ERR VideoEditorPreviewController::loadEditSettings(
              mBackgroundAudioSetting->pFile, M4OSA_kFileRead);
 
             if (err != M4NO_ERROR) {
-                LOGE("loadEditSettings: mBackgroundAudio PCM File open failed");
+                ALOGE("loadEditSettings: mBackgroundAudio PCM File open failed");
                 return M4ERR_PARAMETER;
             }
         }
@@ -428,12 +428,12 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     ALOGV("startPreview");
 
     if(fromMS > (M4OSA_UInt32)toMs) {
-        LOGE("startPreview: fromMS > toMs");
+        ALOGE("startPreview: fromMS > toMs");
         return M4ERR_PARAMETER;
     }
 
     if(toMs == 0) {
-        LOGE("startPreview: toMs is 0");
+        ALOGE("startPreview: toMs is 0");
         return M4ERR_PARAMETER;
     }
 
@@ -474,7 +474,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
         mVePlayer[playerInst] = new VideoEditorPlayer(mNativeWindowRenderer);
         if(mVePlayer[playerInst] == NULL) {
-            LOGE("startPreview:Error creating VideoEditorPlayer %d",playerInst);
+            ALOGE("startPreview:Error creating VideoEditorPlayer %d",playerInst);
             return M4ERR_ALLOC;
         }
         ALOGV("startPreview: object created");
@@ -509,7 +509,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     else {
         ALOGV("startPreview: fromMS=%d", fromMS);
         if(fromMS >= mClipTotalDuration) {
-            LOGE("startPreview: fromMS >= mClipTotalDuration");
+            ALOGE("startPreview: fromMS >= mClipTotalDuration");
             return M4ERR_PARAMETER;
         }
         for(i=0;i<mNumberClipsInStoryBoard;i++) {
@@ -567,7 +567,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     else {
         ALOGV("startPreview: toMs=%d", toMs);
         if((M4OSA_UInt32)toMs > mClipTotalDuration) {
-            LOGE("startPreview: toMs > mClipTotalDuration");
+            ALOGE("startPreview: toMs > mClipTotalDuration");
             return M4ERR_PARAMETER;
         }
 
@@ -599,7 +599,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     // Open the preview process thread
     err = M4OSA_threadSyncOpen(&mThreadContext, (M4OSA_ThreadDoIt)threadProc);
     if (M4NO_ERROR != err) {
-        LOGE("VideoEditorPreviewController:M4OSA_threadSyncOpen error %d", (int) err);
+        ALOGE("VideoEditorPreviewController:M4OSA_threadSyncOpen error %d", (int) err);
         return err;
     }
 
@@ -608,7 +608,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
      (M4OSA_DataOption)PREVIEW_THREAD_STACK_SIZE);
 
     if (M4NO_ERROR != err) {
-        LOGE("VideoEditorPreviewController: threadSyncSetOption error %d", (int) err);
+        ALOGE("VideoEditorPreviewController: threadSyncSetOption error %d", (int) err);
         M4OSA_threadSyncClose(mThreadContext);
         mThreadContext = NULL;
         return err;
@@ -617,7 +617,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
      // Start the thread
      err = M4OSA_threadSyncStart(mThreadContext, (M4OSA_Void*)this);
      if (M4NO_ERROR != err) {
-        LOGE("VideoEditorPreviewController: threadSyncStart error %d", (int) err);
+        ALOGE("VideoEditorPreviewController: threadSyncStart error %d", (int) err);
         M4OSA_threadSyncClose(mThreadContext);
         mThreadContext = NULL;
         return err;
@@ -651,7 +651,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
 
         err = M4OSA_threadSyncClose(mThreadContext);
         if(err != M4NO_ERROR) {
-            LOGE("stopPreview: error 0x%x in trying to close thread", (unsigned int)err);
+            ALOGE("stopPreview: error 0x%x in trying to close thread", (unsigned int)err);
             // Continue even if error
         }
 
@@ -751,7 +751,7 @@ M4OSA_ERR VideoEditorPreviewController::clearSurface(
             outputBufferWidth, outputBufferHeight);
 
         if(mTarget == NULL) {
-            LOGE("renderPreviewFrame: cannot create PreviewRenderer");
+            ALOGE("renderPreviewFrame: cannot create PreviewRenderer");
             return M4ERR_ALLOC;
         }
     }
@@ -818,7 +818,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
             mOutputVideoWidth, mOutputVideoHeight);
 
         if(mTarget == NULL) {
-            LOGE("renderPreviewFrame: cannot create PreviewRenderer");
+            ALOGE("renderPreviewFrame: cannot create PreviewRenderer");
             return M4ERR_ALLOC;
         }
     }
@@ -831,7 +831,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
                   pFrameStr->uiFrameWidth, pFrameStr->uiFrameHeight,
                   pFrameStr->videoRotationDegree);
         if (M4NO_ERROR != err) {
-            LOGE("renderPreviewFrame: cannot rotate video, err 0x%x", (unsigned int)err);
+            ALOGE("renderPreviewFrame: cannot rotate video, err 0x%x", (unsigned int)err);
             delete mTarget;
             mTarget = NULL;
             return err;
@@ -898,7 +898,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
              (M4OSA_Void *)pixelArray);
 
             if(err != M4NO_ERROR) {
-                LOGE("renderPreviewFrame: applyVideoEffect error 0x%x", (unsigned int)err);
+                ALOGE("renderPreviewFrame: applyVideoEffect error 0x%x", (unsigned int)err);
                 delete mTarget;
                 mTarget = NULL;
                 free(pixelArray);
@@ -914,7 +914,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
              pFrameStr->uiFrameHeight, (M4OSA_Void *)pixelArray);
 
             if(err != M4NO_ERROR) {
-                LOGE("renderPreviewFrame:doImageRenderingMode error 0x%x", (unsigned int)err);
+                ALOGE("renderPreviewFrame:doImageRenderingMode error 0x%x", (unsigned int)err);
                 delete mTarget;
                 mTarget = NULL;
                 free(pixelArray);
@@ -930,7 +930,7 @@ M4OSA_ERR VideoEditorPreviewController::renderPreviewFrame(
          pFrameStr->uiFrameHeight, (M4OSA_Void *)pixelArray);
 
         if(err != M4NO_ERROR) {
-            LOGE("renderPreviewFrame: doImageRenderingMode error 0x%x", (unsigned int)err);
+            ALOGE("renderPreviewFrame: doImageRenderingMode error 0x%x", (unsigned int)err);
             delete mTarget;
             mTarget = NULL;
             free(pixelArray);
@@ -1212,7 +1212,7 @@ void VideoEditorPreviewController::notify(
           // Always log errors.
           // ext1: Media framework error code.
           // ext2: Implementation dependant error code.
-            LOGE("MEDIA_ERROR; error (%d, %d)", ext1, ext2);
+            ALOGE("MEDIA_ERROR; error (%d, %d)", ext1, ext2);
             if(pController->mJniCallback != NULL) {
                 pController->mJniCallback(pController->mJniCookie,
                  MSG_TYPE_PLAYER_ERROR, &err_val);
@@ -1451,7 +1451,7 @@ M4OSA_ERR VideoEditorPreviewController::doImageRenderingMode(
 
     err = applyRenderingMode(planeIn, planeOut, mRenderingMode);
     if(err != M4NO_ERROR) {
-        LOGE("doImageRenderingMode: applyRenderingMode returned err=0x%x", (unsigned int)err);
+        ALOGE("doImageRenderingMode: applyRenderingMode returned err=0x%x", (unsigned int)err);
     }
     return err;
 }

@@ -66,7 +66,7 @@ status_t VideoEditorPlayer::setDataSource(
 //We donot use this in preview, dummy implimentation as this is pure virtual
 status_t VideoEditorPlayer::setDataSource(int fd, int64_t offset,
     int64_t length) {
-    LOGE("setDataSource(%d, %lld, %lld) Not supported", fd, offset, length);
+    ALOGE("setDataSource(%d, %lld, %lld) Not supported", fd, offset, length);
     return (!OK);
 }
 
@@ -432,7 +432,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
     }
 
     if ((t == 0) || (t->initCheck() != NO_ERROR)) {
-        LOGE("Unable to create audio track");
+        ALOGE("Unable to create audio track");
         delete t;
         return NO_INIT;
     }

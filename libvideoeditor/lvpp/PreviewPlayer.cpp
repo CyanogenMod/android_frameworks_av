@@ -743,7 +743,7 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
     initRenderer_l();
 
     if (mVideoRenderer == NULL) {
-        LOGE("Cannot create renderer");
+        ALOGE("Cannot create renderer");
         return UNKNOWN_ERROR;
     }
 
@@ -925,7 +925,7 @@ void PreviewPlayer::onVideoEvent() {
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING))) {
         status_t err = startAudioPlayer_l();
         if (err != OK) {
-            LOGE("Starting the audio player failed w/ err %d", err);
+            ALOGE("Starting the audio player failed w/ err %d", err);
             return;
         }
     }

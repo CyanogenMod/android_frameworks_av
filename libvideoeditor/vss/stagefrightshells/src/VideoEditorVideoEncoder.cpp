@@ -992,7 +992,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processInputBuffer(
                     encoderWidth, encoderHeight,
                     encoderRect,
                     (uint8_t*)newBuffer->data() + newBuffer->range_offset()) < 0) {
-                    LOGE("convertI420ToEncoderInput failed");
+                    ALOGE("convertI420ToEncoderInput failed");
                 }
 
                 // switch to new buffer

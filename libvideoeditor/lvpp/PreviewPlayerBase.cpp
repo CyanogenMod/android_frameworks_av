@@ -122,7 +122,7 @@ struct AwesomeNativeWindowRenderer : public AwesomeRenderer {
         status_t err = mNativeWindow->queueBuffer(
                 mNativeWindow.get(), buffer->graphicBuffer().get());
         if (err != 0) {
-            LOGE("queueBuffer failed with error %s (%d)", strerror(-err),
+            ALOGE("queueBuffer failed with error %s (%d)", strerror(-err),
                     -err);
             return;
         }
@@ -1437,7 +1437,7 @@ void PreviewPlayerBase::onVideoEvent() {
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
         status_t err = startAudioPlayer_l();
         if (err != OK) {
-            LOGE("Startung the audio player failed w/ err %d", err);
+            ALOGE("Startung the audio player failed w/ err %d", err);
             return;
         }
     }

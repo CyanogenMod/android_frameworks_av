@@ -40,7 +40,7 @@
 /*---------------------*/
 /*  DEBUG LEVEL SETUP  */
 /*---------------------*/
-#define LOG1 LOGE    /*ERRORS Logging*/
+#define LOG1 ALOGE    /*ERRORS Logging*/
 #define LOG2 ALOGI    /*WARNING Logging*/
 #define LOG3 //ALOGV  /*COMMENTS Logging*/
 
@@ -232,14 +232,14 @@ const uint8_t *parseParamSet(AVCCodecSpecificContext* pC,
     const uint8_t *nextStartCode = &data[length - bytesLeft];
     *paramSetLen = nextStartCode - data;
     if (*paramSetLen == 0) {
-        LOGE("Param set is malformed, since its length is 0");
+        ALOGE("Param set is malformed, since its length is 0");
         return NULL;
     }
 
     AVCParamSet paramSet(*paramSetLen, data);
     if (type == kNalUnitTypeSeqParamSet) {
         if (*paramSetLen < 4) {
-            LOGE("Seq parameter set malformed");
+            ALOGE("Seq parameter set malformed");
             return NULL;
         }
         if (pC->mSeqParamSets.empty()) {
@@ -267,17 +267,17 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
     //ALOGV("buildAVCCodecSpecificData");
 
     if ( (pOutputData == NULL) || (pOutputSize == NULL) ) {
-        LOGE("output is invalid");
+        ALOGE("output is invalid");
         return ERROR_MALFORMED;
     }
 
     if (*pOutputData != NULL) {
-        LOGE("Already have codec specific data");
+        ALOGE("Already have codec specific data");
         return ERROR_MALFORMED;
     }
 
     if (size < 4) {
-        LOGE("Codec specific data length too short: %d", size);
+        ALOGE("Codec specific data length too short: %d", size);
         return ERROR_MALFORMED;
     }
 
@@ -286,7 +286,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         // 2 bytes for each of the parameter set length field
         // plus the 7 bytes for the header
         if (size < 4 + 7) {
-            LOGE("Codec specific data length too short: %d", size);
+            ALOGE("Codec specific data length too short: %d", size);
             return ERROR_MALFORMED;
         }
 
@@ -313,7 +313,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         type = (*(tmp + 4)) & 0x1F;
         if (type == kNalUnitTypeSeqParamSet) {
             if (gotPps) {
-                LOGE("SPS must come before PPS");
+                ALOGE("SPS must come before PPS");
                 return ERROR_MALFORMED;
             }
             if (!gotSps) {
@@ -323,7 +323,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
                 &paramSetLen);
         } else if (type == kNalUnitTypePicParamSet) {
             if (!gotSps) {
-                LOGE("SPS must come before PPS");
+                ALOGE("SPS must come before PPS");
                 return ERROR_MALFORMED;
             }
             if (!gotPps) {
@@ -332,7 +332,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
             nextStartCode = parseParamSet(&ctx, tmp + 4, bytesLeft - 4, type,
                 &paramSetLen);
         } else {
-            LOGE("Only SPS and PPS Nal units are expected");
+            ALOGE("Only SPS and PPS Nal units are expected");
             return ERROR_MALFORMED;
         }
 
@@ -350,12 +350,12 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         // Check on the number of seq parameter sets
         size_t nSeqParamSets = ctx.mSeqParamSets.size();
         if (nSeqParamSets == 0) {
-            LOGE("Cound not find sequence parameter set");
+            ALOGE("Cound not find sequence parameter set");
             return ERROR_MALFORMED;
         }
 
         if (nSeqParamSets > 0x1F) {
-            LOGE("Too many seq parameter sets (%d) found", nSeqParamSets);
+            ALOGE("Too many seq parameter sets (%d) found", nSeqParamSets);
             return ERROR_MALFORMED;
         }
     }
@@ -364,11 +364,11 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         // Check on the number of pic parameter sets
         size_t nPicParamSets = ctx.mPicParamSets.size();
         if (nPicParamSets == 0) {
-            LOGE("Cound not find picture parameter set");
+            ALOGE("Cound not find picture parameter set");
             return ERROR_MALFORMED;
         }
         if (nPicParamSets > 0xFF) {
-            LOGE("Too many pic parameter sets (%d) found", nPicParamSets);
+            ALOGE("Too many pic parameter sets (%d) found", nPicParamSets);
             return ERROR_MALFORMED;
         }
     }
@@ -402,7 +402,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         uint16_t seqParamSetLength = it->mLength;
         header[0] = seqParamSetLength >> 8;
         header[1] = seqParamSetLength & 0xff;
-        //LOGE("### SPS %d %d %d", seqParamSetLength, header[0], header[1]);
+        //ALOGE("### SPS %d %d %d", seqParamSetLength, header[0], header[1]);
 
         // SPS NAL unit (sequence parameter length bytes)
         memcpy(&header[2], it->mData, seqParamSetLength);
@@ -419,7 +419,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         uint16_t picParamSetLength = it->mLength;
         header[0] = picParamSetLength >> 8;
         header[1] = picParamSetLength & 0xff;
-//LOGE("### PPS %d %d %d", picParamSetLength, header[0], header[1]);
+//ALOGE("### PPS %d %d %d", picParamSetLength, header[0], header[1]);
 
         // PPS Nal unit (picture parameter set length bytes)
         memcpy(&header[2], it->mData, picParamSetLength);

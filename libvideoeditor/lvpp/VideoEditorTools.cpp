@@ -2861,7 +2861,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
 
     M4OSA_UInt8 *pTmpData = (M4OSA_UInt8*) M4OSA_32bitAlignedMalloc(frameSize_argb, M4VS, (M4OSA_Char*)"Image argb data");
     if(pTmpData == M4OSA_NULL) {
-        LOGE("Failed to allocate memory for Image clip");
+        ALOGE("Failed to allocate memory for Image clip");
         return M4ERR_ALLOC;
     }
 
@@ -2870,14 +2870,14 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
 
     if((lerr != M4NO_ERROR) || (lImageFileFp == M4OSA_NULL))
     {
-        LOGE("LVPreviewController: Can not open the file ");
+        ALOGE("LVPreviewController: Can not open the file ");
         free(pTmpData);
         return M4ERR_FILE_NOT_FOUND;
     }
     lerr = M4OSA_fileReadData(lImageFileFp, (M4OSA_MemAddr8)pTmpData, &frameSize_argb);
     if(lerr != M4NO_ERROR)
     {
-        LOGE("LVPreviewController: can not read the data ");
+        ALOGE("LVPreviewController: can not read the data ");
         M4OSA_fileReadClose(lImageFileFp);
         free(pTmpData);
         return lerr;
@@ -2888,7 +2888,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     rgbPlane.pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(frameSize, M4VS, (M4OSA_Char*)"Image clip RGB888 data");
     if(rgbPlane.pac_data == M4OSA_NULL)
     {
-        LOGE("Failed to allocate memory for Image clip");
+        ALOGE("Failed to allocate memory for Image clip");
         free(pTmpData);
         return M4ERR_ALLOC;
     }
@@ -2904,7 +2904,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
 #ifdef FILE_DUMP
     FILE *fp = fopen("/sdcard/Input/test_rgb.raw", "wb");
     if(fp == NULL)
-        LOGE("Errors file can not be created");
+        ALOGE("Errors file can not be created");
     else {
         fwrite(rgbPlane.pac_data, frameSize, 1, fp);
         fclose(fp);
@@ -2940,15 +2940,15 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         //err = M4VIFI_BGR888toYUV420(M4OSA_NULL, &rgbPlane, yuvPlane);
         if(err != M4NO_ERROR)
         {
-            LOGE("error when converting from RGB to YUV: 0x%x\n", (unsigned int)err);
+            ALOGE("error when converting from RGB to YUV: 0x%x\n", (unsigned int)err);
         }
         free(rgbPlane.pac_data);
 
-        //LOGE("RGB to YUV done");
+        //ALOGE("RGB to YUV done");
 #ifdef FILE_DUMP
         FILE *fp1 = fopen("/sdcard/Input/test_yuv.raw", "wb");
         if(fp1 == NULL)
-            LOGE("Errors file can not be created");
+            ALOGE("Errors file can not be created");
         else {
             fwrite(yuvPlane[0].pac_data, yuvPlane[0].u_height * yuvPlane[0].u_width * 1.5, 1, fp1);
             fclose(fp1);
@@ -3249,7 +3249,7 @@ M4OSA_ERR applyLumaEffect(M4VSS3GPP_VideoEffectType videoEffect,
          lum_factor, NULL);
 
     if(err != M4NO_ERROR) {
-        LOGE("M4VFL_modifyLumaWithScale(%d) error %d", videoEffect, (int)err);
+        ALOGE("M4VFL_modifyLumaWithScale(%d) error %d", videoEffect, (int)err);
 
         if(NULL != buffer1) {
             free(buffer1);
@@ -3287,7 +3287,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
      (M4OSA_Char*)("lvpp finalOutputBuffer"));
 
     if(finalOutputBuffer == NULL) {
-        LOGE("applyEffectsAndRenderingMode: malloc error");
+        ALOGE("applyEffectsAndRenderingMode: malloc error");
         return M4ERR_ALLOC;
     }
 
@@ -3296,7 +3296,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
      ((params->videoHeight*params->videoWidth*3)>>1), M4VS, (M4OSA_Char*)("lvpp colorBuffer"));
 
     if(tempOutputBuffer == NULL) {
-        LOGE("applyEffectsAndRenderingMode: malloc error tempOutputBuffer");
+        ALOGE("applyEffectsAndRenderingMode: malloc error tempOutputBuffer");
         if(NULL != finalOutputBuffer) {
             free(finalOutputBuffer);
             finalOutputBuffer = NULL;
@@ -3420,7 +3420,7 @@ M4OSA_ERR applyEffectsAndRenderingMode(vePostProcessParams *params,
              M4xVSS_kVideoEffectType_Fifties);
 
             if(err != M4NO_ERROR) {
-                LOGE("M4VSS3GPP_externalVideoEffectFifties error 0x%x", (unsigned int)err);
+                ALOGE("M4VSS3GPP_externalVideoEffectFifties error 0x%x", (unsigned int)err);
 
                 if(NULL != finalOutputBuffer) {
                     free(finalOutputBuffer);
@@ -3583,11 +3583,11 @@ android::status_t getVideoSizeByResolution(
     uint32_t frameWidth, frameHeight;
 
     if (pWidth == NULL) {
-        LOGE("getVideoFrameSizeByResolution invalid pointer for pWidth");
+        ALOGE("getVideoFrameSizeByResolution invalid pointer for pWidth");
         return android::BAD_VALUE;
     }
     if (pHeight == NULL) {
-        LOGE("getVideoFrameSizeByResolution invalid pointer for pHeight");
+        ALOGE("getVideoFrameSizeByResolution invalid pointer for pHeight");
         return android::BAD_VALUE;
     }
 
@@ -3663,7 +3663,7 @@ android::status_t getVideoSizeByResolution(
             break;
 
         default:
-            LOGE("Unsupported video resolution %d.", resolution);
+            ALOGE("Unsupported video resolution %d.", resolution);
             return android::BAD_VALUE;
     }
 
@@ -3835,7 +3835,7 @@ M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer, M4OSA_UInt32 width,
     M4VIFI_ImagePlane planeIn[3], planeOut[3];
 
     if (pBuffer == M4OSA_NULL) {
-        LOGE("applyVideoRotation: NULL input frame");
+        ALOGE("applyVideoRotation: NULL input frame");
         return M4ERR_PARAMETER;
     }
     M4OSA_UInt8* outPtr = (M4OSA_UInt8 *)M4OSA_32bitAlignedMalloc(
@@ -3873,7 +3873,7 @@ M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer, M4OSA_UInt32 width,
             break;
 
         default:
-            LOGE("invalid rotation param %d", (int)rotation);
+            ALOGE("invalid rotation param %d", (int)rotation);
             err = M4ERR_PARAMETER;
             break;
     }
