@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#undef DEBUG_HDCP
-
 //#define LOG_NDEBUG 0
 #define LOG_TAG "PreviewPlayerBase"
 #include <utils/Log.h>
@@ -179,7 +177,6 @@ PreviewPlayerBase::PreviewPlayerBase()
       mFlags(0),
       mExtractorFlags(0),
       mVideoBuffer(NULL),
-      mDecryptHandle(NULL),
       mLastVideoTimeUs(-1) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
@@ -297,24 +294,21 @@ status_t PreviewPlayerBase::setDataSource(const sp<IStreamSource> &source) {
 
 status_t PreviewPlayerBase::setDataSource_l(
         const sp<DataSource> &dataSource) {
+
     sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
-
-    if (extractor == NULL) {
-        return UNKNOWN_ERROR;
-    }
-
-    dataSource->getDrmInfo(mDecryptHandle, &mDrmManagerClient);
-    if (mDecryptHandle != NULL) {
-        CHECK(mDrmManagerClient);
-        if (RightsStatus::RIGHTS_VALID != mDecryptHandle->status) {
-            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, ERROR_DRM_NO_LICENSE);
-        }
-    }
-
     return setDataSource_l(extractor);
 }
 
 status_t PreviewPlayerBase::setDataSource_l(const sp<MediaExtractor> &extractor) {
+    if (extractor == NULL) {
+        return UNKNOWN_ERROR;
+    }
+
+    if (extractor->getDrmFlag()) {
+        ALOGE("Data source is drm protected");
+        return INVALID_OPERATION;
+    }
+
     // Attempt to approximate overall stream bitrate by summing all
     // tracks' individual bitrates, if not all of them advertise bitrate,
     // we have to fail.
@@ -400,13 +394,6 @@ void PreviewPlayerBase::reset() {
 void PreviewPlayerBase::reset_l() {
     mDisplayWidth = 0;
     mDisplayHeight = 0;
-
-    if (mDecryptHandle != NULL) {
-            mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                    Playback::STOP, 0);
-            mDecryptHandle = NULL;
-            mDrmManagerClient = NULL;
-    }
 
     if (mFlags & PLAYING) {
         uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
@@ -721,13 +708,6 @@ status_t PreviewPlayerBase::play_l() {
     mFlags |= PLAYING;
     mFlags |= FIRST_FRAME;
 
-    if (mDecryptHandle != NULL) {
-        int64_t position;
-        getPosition(&position);
-        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                Playback::START, position / 1000);
-    }
-
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
             if (mAudioSink != NULL) {
@@ -754,11 +734,6 @@ status_t PreviewPlayerBase::play_l() {
                 mAudioPlayer = NULL;
 
                 mFlags &= ~(PLAYING | FIRST_FRAME);
-
-                if (mDecryptHandle != NULL) {
-                    mDrmManagerClient->setPlaybackStatus(
-                            mDecryptHandle, Playback::STOP, 0);
-                }
 
                 return err;
             }
@@ -961,11 +936,6 @@ status_t PreviewPlayerBase::pause_l(bool at_eos) {
 
     mFlags &= ~PLAYING;
 
-    if (mDecryptHandle != NULL) {
-        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                Playback::PAUSE, 0);
-    }
-
     uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
     if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
         params |= IMediaPlayerService::kBatteryDataTrackAudio;
@@ -1147,13 +1117,6 @@ void PreviewPlayerBase::seekAudioIfNecessary_l() {
 
         mWatchForAudioSeekComplete = true;
         mWatchForAudioEOS = true;
-
-        if (mDecryptHandle != NULL) {
-            mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                    Playback::PAUSE, 0);
-            mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                    Playback::START, mSeekTimeUs / 1000);
-        }
     }
 }
 
@@ -1210,51 +1173,6 @@ void PreviewPlayerBase::setVideoSource(sp<MediaSource> source) {
 }
 
 status_t PreviewPlayerBase::initVideoDecoder(uint32_t flags) {
-
-    // Either the application or the DRM system can independently say
-    // that there must be a hardware-protected path to an external video sink.
-    // For now we always require a hardware-protected path to external video sink
-    // if content is DRMed, but eventually this could be optional per DRM agent.
-    // When the application wants protection, then
-    //   (USE_SURFACE_ALLOC && (mSurface != 0) &&
-    //   (mSurface->getFlags() & ISurfaceComposer::eProtectedByApp))
-    // will be true, but that part is already handled by SurfaceFlinger.
-
-#ifdef DEBUG_HDCP
-    // For debugging, we allow a system property to control the protected usage.
-    // In case of uninitialized or unexpected property, we default to "DRM only".
-    bool setProtectionBit = false;
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get("persist.sys.hdcp_checking", value, NULL)) {
-        if (!strcmp(value, "never")) {
-            // nop
-        } else if (!strcmp(value, "always")) {
-            setProtectionBit = true;
-        } else if (!strcmp(value, "drm-only")) {
-            if (mDecryptHandle != NULL) {
-                setProtectionBit = true;
-            }
-        // property value is empty, or unexpected value
-        } else {
-            if (mDecryptHandle != NULL) {
-                setProtectionBit = true;
-            }
-        }
-    // can' read property value
-    } else {
-        if (mDecryptHandle != NULL) {
-            setProtectionBit = true;
-        }
-    }
-    // note that usage bit is already cleared, so no need to clear it in the "else" case
-    if (setProtectionBit) {
-        flags |= OMXCodec::kEnableGrallocUsageProtected;
-    }
-#else
-    if (mDecryptHandle != NULL) {
-        flags |= OMXCodec::kEnableGrallocUsageProtected;
-    }
-#endif
     ALOGV("initVideoDecoder flags=0x%x", flags);
     mVideoSource = OMXCodec::Create(
             mClient.interface(), mVideoTrack->getFormat(),
@@ -1310,13 +1228,6 @@ void PreviewPlayerBase::finishSeekIfNecessary(int64_t videoTimeUs) {
 
     mFlags |= FIRST_FRAME;
     mSeeking = NO_SEEK;
-
-    if (mDecryptHandle != NULL) {
-        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                Playback::PAUSE, 0);
-        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                Playback::START, videoTimeUs / 1000);
-    }
 }
 
 void PreviewPlayerBase::onVideoEvent() {
@@ -1661,94 +1572,14 @@ status_t PreviewPlayerBase::prepareAsync_l() {
 }
 
 status_t PreviewPlayerBase::finishSetDataSource_l() {
-    sp<DataSource> dataSource;
-
-    if (!strncasecmp("http://", mUri.string(), 7)
-            || !strncasecmp("https://", mUri.string(), 8)) {
-        mConnectingDataSource = HTTPBase::Create(
-                (mFlags & INCOGNITO)
-                    ? HTTPBase::kFlagIncognito
-                    : 0);
-
-        mLock.unlock();
-        status_t err = mConnectingDataSource->connect(mUri, &mUriHeaders);
-        mLock.lock();
-
-        if (err != OK) {
-            mConnectingDataSource.clear();
-
-            ALOGI("mConnectingDataSource->connect() returned %d", err);
-            return err;
-        }
-
-#if 0
-        mCachedSource = new NuCachedSource2(
-                new ThrottledSource(
-                    mConnectingDataSource, 50 * 1024 /* bytes/sec */));
-#else
-        mCachedSource = new NuCachedSource2(mConnectingDataSource);
-#endif
-        mConnectingDataSource.clear();
-
-        dataSource = mCachedSource;
-
-        String8 contentType = dataSource->getMIMEType();
-
-        if (strncasecmp(contentType.string(), "audio/", 6)) {
-            // We're not doing this for streams that appear to be audio-only
-            // streams to ensure that even low bandwidth streams start
-            // playing back fairly instantly.
-
-            // We're going to prefill the cache before trying to instantiate
-            // the extractor below, as the latter is an operation that otherwise
-            // could block on the datasource for a significant amount of time.
-            // During that time we'd be unable to abort the preparation phase
-            // without this prefill.
-
-            mLock.unlock();
-
-            for (;;) {
-                status_t finalStatus;
-                size_t cachedDataRemaining =
-                    mCachedSource->approxDataRemaining(&finalStatus);
-
-                if (finalStatus != OK || cachedDataRemaining >= kHighWaterMarkBytes
-                        || (mFlags & PREPARE_CANCELLED)) {
-                    break;
-                }
-
-                usleep(200000);
-            }
-
-            mLock.lock();
-        }
-
-        if (mFlags & PREPARE_CANCELLED) {
-            ALOGI("Prepare cancelled while waiting for initial cache fill.");
-            return UNKNOWN_ERROR;
-        }
-    } else {
-        dataSource = DataSource::CreateFromURI(mUri.string(), &mUriHeaders);
-    }
+    sp<DataSource> dataSource =
+            DataSource::CreateFromURI(mUri.string(), &mUriHeaders);
 
     if (dataSource == NULL) {
         return UNKNOWN_ERROR;
     }
 
     sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
-
-    if (extractor == NULL) {
-        return UNKNOWN_ERROR;
-    }
-
-    dataSource->getDrmInfo(mDecryptHandle, &mDrmManagerClient);
-
-    if (mDecryptHandle != NULL) {
-        CHECK(mDrmManagerClient);
-        if (RightsStatus::RIGHTS_VALID != mDecryptHandle->status) {
-            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, ERROR_DRM_NO_LICENSE);
-        }
-    }
 
     return setDataSource_l(extractor);
 }

@@ -27,7 +27,6 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
-#include <drm/DrmManagerClient.h>
 
 namespace android {
 
@@ -38,9 +37,6 @@ struct MediaExtractor;
 struct MediaSource;
 struct NuCachedSource2;
 struct ISurfaceTexture;
-
-class DrmManagerClinet;
-class DecryptHandle;
 
 struct AwesomeRenderer : public RefBase {
     AwesomeRenderer() {}
@@ -211,9 +207,6 @@ private:
 
     sp<HTTPBase> mConnectingDataSource;
     sp<NuCachedSource2> mCachedSource;
-
-    DrmManagerClient *mDrmManagerClient;
-    sp<DecryptHandle> mDecryptHandle;
 
     int64_t mLastVideoTimeUs;
 
