@@ -18,11 +18,9 @@
 
 #define PREVIEW_PLAYER_BASE_H_
 
-#include "HTTPBase.h"
 #include "TimedEventQueue.h"
 
 #include <media/MediaPlayerInterface.h>
-#include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
@@ -31,11 +29,9 @@
 namespace android {
 
 struct AudioPlayerBase;
-struct DataSource;
 struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
-struct NuCachedSource2;
 struct ISurfaceTexture;
 
 struct AwesomeRenderer : public RefBase {
@@ -54,12 +50,7 @@ struct PreviewPlayerBase {
 
     void setListener(const wp<MediaPlayerBase> &listener);
 
-    status_t setDataSource(
-            const char *uri,
-            const KeyedVector<String8, String8> *headers = NULL);
-
-    status_t setDataSource(int fd, int64_t offset, int64_t length);
-
+    status_t setDataSource(const char *path);
     status_t setDataSource(const sp<IStreamSource> &source);
 
     void reset();
@@ -81,9 +72,6 @@ struct PreviewPlayerBase {
 
     status_t getDuration(int64_t *durationUs);
     status_t getPosition(int64_t *positionUs);
-
-    status_t setParameter(int key, const Parcel &request);
-    status_t getParameter(int key, Parcel *reply);
 
     status_t seekTo(int64_t timeUs);
 
@@ -143,8 +131,6 @@ private:
     String8 mUri;
     KeyedVector<String8, String8> mUriHeaders;
 
-    sp<DataSource> mFileSource;
-
     sp<MediaSource> mVideoTrack;
     sp<MediaSource> mVideoSource;
     sp<AwesomeRenderer> mVideoRenderer;
@@ -183,8 +169,6 @@ private:
     bool mVideoEventPending;
     sp<TimedEventQueue::Event> mStreamDoneEvent;
     bool mStreamDoneEventPending;
-    sp<TimedEventQueue::Event> mBufferingEvent;
-    bool mBufferingEventPending;
     sp<TimedEventQueue::Event> mCheckAudioStatusEvent;
     bool mAudioStatusEventPending;
     sp<TimedEventQueue::Event> mVideoLagEvent;
@@ -205,19 +189,12 @@ private:
 
     MediaBuffer *mVideoBuffer;
 
-    sp<HTTPBase> mConnectingDataSource;
-    sp<NuCachedSource2> mCachedSource;
-
     int64_t mLastVideoTimeUs;
 
     ARect mCropRect;
     int32_t mGivenWidth, mGivenHeight;
 
-    status_t setDataSource_l(
-            const char *uri,
-            const KeyedVector<String8, String8> *headers = NULL);
-
-    status_t setDataSource_l(const sp<DataSource> &dataSource);
+    status_t setDataSource_l(const char *path);
     status_t setDataSource_l(const sp<MediaExtractor> &extractor);
     void reset_l();
     status_t seekTo_l(int64_t timeUs);
@@ -226,7 +203,7 @@ private:
     void notifyVideoSize_l();
     void seekAudioIfNecessary_l();
 
-    void cancelPlayerEvents(bool keepBufferingGoing = false);
+    void cancelPlayerEvents();
 
     void setAudioSource(sp<MediaSource> source);
     status_t initAudioDecoder();
@@ -246,16 +223,11 @@ private:
     void finishAsyncPrepare_l();
     void onVideoLagUpdate();
 
-    bool getCachedDuration_l(int64_t *durationUs, bool *eos);
-
     status_t finishSetDataSource_l();
 
     static bool ContinuePreparation(void *cookie);
 
-    bool getBitrate(int64_t *bitrate);
-
     void finishSeekIfNecessary(int64_t videoTimeUs);
-    void ensureCacheIsFetching_l();
 
     status_t startAudioPlayer_l();
 

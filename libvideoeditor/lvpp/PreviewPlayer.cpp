@@ -31,7 +31,6 @@
 
 #include <binder/IPCThreadState.h>
 #include <media/stagefright/DataSource.h>
-#include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
@@ -129,7 +128,7 @@ PreviewPlayer::~PreviewPlayer() {
     }
 }
 
-void PreviewPlayer::cancelPlayerEvents(bool keepBufferingGoing) {
+void PreviewPlayer::cancelPlayerEvents() {
     mQueue.cancelEvent(mVideoEvent->eventID());
     mVideoEventPending = false;
     mQueue.cancelEvent(mStreamDoneEvent->eventID());
@@ -141,21 +140,15 @@ void PreviewPlayer::cancelPlayerEvents(bool keepBufferingGoing) {
     mProgressCbEventPending = false;
 }
 
-status_t PreviewPlayer::setDataSource(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+status_t PreviewPlayer::setDataSource(const char *path) {
     Mutex::Autolock autoLock(mLock);
-    return setDataSource_l(uri, headers);
+    return setDataSource_l(path);
 }
 
-status_t PreviewPlayer::setDataSource_l(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+status_t PreviewPlayer::setDataSource_l(const char *path) {
     reset_l();
 
-    mUri = uri;
-
-    if (headers) {
-        mUriHeaders = *headers;
-    }
+    mUri = path;
 
     // The actual work will be done during preparation in the call to
     // ::finishSetDataSource_l to avoid blocking the calling thread in
@@ -324,9 +317,6 @@ void PreviewPlayer::reset_l() {
     mSeekTimeUs = 0;
 
     mUri.setTo("");
-    mUriHeaders.clear();
-
-    mFileSource.clear();
 
     mCurrentVideoEffect = VIDEO_EFFECT_NONE;
     mIsVideoSourceJpg = false;
@@ -1160,7 +1150,7 @@ status_t PreviewPlayer::finishSetDataSource_l() {
     sp<DataSource> dataSource;
     sp<MediaExtractor> extractor;
 
-    dataSource = DataSource::CreateFromURI(mUri.string(), &mUriHeaders);
+    dataSource = DataSource::CreateFromURI(mUri.string(), NULL);
 
     if (dataSource == NULL) {
         return UNKNOWN_ERROR;

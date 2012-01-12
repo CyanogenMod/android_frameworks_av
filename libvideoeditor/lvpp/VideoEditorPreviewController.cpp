@@ -959,8 +959,9 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
 
     ALOGV("preparePlayer: instance %d file %d", playerInstance, index);
 
-    pController->mVePlayer[playerInstance]->setDataSource(
-    (const char *)pController->mClipList[index]->pFile, NULL);
+    const char* fileName = (const char*) pController->mClipList[index]->pFile;
+    pController->mVePlayer[playerInstance]->setDataSource(fileName, NULL);
+
     ALOGV("preparePlayer: setDataSource instance %s",
      (const char *)pController->mClipList[index]->pFile);
 

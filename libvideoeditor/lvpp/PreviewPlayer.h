@@ -22,7 +22,6 @@
 #include "VideoEditorAudioPlayer.h"
 
 #include <media/MediaPlayerInterface.h>
-#include <media/stagefright/DataSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
@@ -33,10 +32,7 @@
 namespace android {
 
 struct AudioPlayerBase;
-struct DataSource;
-struct MediaBuffer;
 struct MediaExtractor;
-struct MediaSource;
 
 struct PreviewPlayer : public PreviewPlayerBase {
     PreviewPlayer(NativeWindowRenderer* renderer);
@@ -55,8 +51,7 @@ struct PreviewPlayer : public PreviewPlayerBase {
     void releaseLock();
 
     status_t prepare();
-    status_t setDataSource(
-        const char *uri, const KeyedVector<String8, String8> *headers);
+    status_t setDataSource(const char *path);
 
     //Added methods
     status_t loadEffectsSettings(M4VSS3GPP_EffectSettings* pEffectSettings,
@@ -98,10 +93,9 @@ private:
         INFORMED_AV_EOS     = 2048,
     };
 
-    void cancelPlayerEvents(bool keepBufferingGoing = false);
+    void cancelPlayerEvents();
     status_t setDataSource_l(const sp<MediaExtractor> &extractor);
-    status_t setDataSource_l(
-        const char *uri, const KeyedVector<String8, String8> *headers);
+    status_t setDataSource_l(const char *path);
     void reset_l();
     status_t play_l();
     status_t initRenderer_l();

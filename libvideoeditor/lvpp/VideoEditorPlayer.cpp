@@ -59,8 +59,12 @@ status_t VideoEditorPlayer::setAudioPlayer(VideoEditorAudioPlayer *audioPlayer) 
 status_t VideoEditorPlayer::setDataSource(
         const char *url, const KeyedVector<String8, String8> *headers) {
     ALOGI("setDataSource('%s')", url);
+    if (headers != NULL) {
+        ALOGE("Headers parameter is not supported");
+        return INVALID_OPERATION;
+    }
 
-    return mPlayer->setDataSource(url, headers);
+    return mPlayer->setDataSource(url);
 }
 
 //We donot use this in preview, dummy implimentation as this is pure virtual
@@ -159,13 +163,13 @@ status_t VideoEditorPlayer::setLooping(int loop) {
 }
 
 status_t VideoEditorPlayer::setParameter(int key, const Parcel &request) {
-    ALOGV("setParameter");
-    return mPlayer->setParameter(key, request);
+    ALOGE("setParameter not implemented");
+    return INVALID_OPERATION;
 }
 
 status_t VideoEditorPlayer::getParameter(int key, Parcel *reply) {
-    ALOGV("getParameter");
-    return mPlayer->getParameter(key, reply);
+    ALOGE("getParameter not implemented");
+    return INVALID_OPERATION;
 }
 
 player_type VideoEditorPlayer::playerType() {

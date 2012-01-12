@@ -23,9 +23,6 @@
 #include "PreviewPlayerBase.h"
 #include "AudioPlayerBase.h"
 #include "include/SoftwareRenderer.h"
-#include "include/NuCachedSource2.h"
-#include "include/ThrottledSource.h"
-#include "include/MPEG2TSExtractor.h"
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -33,7 +30,6 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/DataSource.h>
-#include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
@@ -51,11 +47,6 @@
 #define USE_SURFACE_ALLOC 1
 
 namespace android {
-
-static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
-static int64_t kHighWaterMarkUs = 10000000ll;  // 10secs
-static const size_t kLowWaterMarkBytes = 40000;
-static const size_t kHighWaterMarkBytes = 200000;
 
 struct AwesomeEvent : public TimedEventQueue::Event {
     AwesomeEvent(
@@ -186,8 +177,6 @@ PreviewPlayerBase::PreviewPlayerBase()
     mVideoEventPending = false;
     mStreamDoneEvent = new AwesomeEvent(this, &PreviewPlayerBase::onStreamDone);
     mStreamDoneEventPending = false;
-    mBufferingEvent = new AwesomeEvent(this, &PreviewPlayerBase::onBufferingUpdate);
-    mBufferingEventPending = false;
     mVideoLagEvent = new AwesomeEvent(this, &PreviewPlayerBase::onVideoLagUpdate);
     mVideoEventPending = false;
 
@@ -209,7 +198,7 @@ PreviewPlayerBase::~PreviewPlayerBase() {
     mClient.disconnect();
 }
 
-void PreviewPlayerBase::cancelPlayerEvents(bool keepBufferingGoing) {
+void PreviewPlayerBase::cancelPlayerEvents() {
     mQueue.cancelEvent(mVideoEvent->eventID());
     mVideoEventPending = false;
     mQueue.cancelEvent(mStreamDoneEvent->eventID());
@@ -218,11 +207,6 @@ void PreviewPlayerBase::cancelPlayerEvents(bool keepBufferingGoing) {
     mAudioStatusEventPending = false;
     mQueue.cancelEvent(mVideoLagEvent->eventID());
     mVideoLagEventPending = false;
-
-    if (!keepBufferingGoing) {
-        mQueue.cancelEvent(mBufferingEvent->eventID());
-        mBufferingEventPending = false;
-    }
 }
 
 void PreviewPlayerBase::setListener(const wp<MediaPlayerBase> &listener) {
@@ -230,31 +214,15 @@ void PreviewPlayerBase::setListener(const wp<MediaPlayerBase> &listener) {
     mListener = listener;
 }
 
-status_t PreviewPlayerBase::setDataSource(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+status_t PreviewPlayerBase::setDataSource(const char *path) {
     Mutex::Autolock autoLock(mLock);
-    return setDataSource_l(uri, headers);
+    return setDataSource_l(path);
 }
 
-status_t PreviewPlayerBase::setDataSource_l(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+status_t PreviewPlayerBase::setDataSource_l(const char *path) {
     reset_l();
 
-    mUri = uri;
-
-    if (headers) {
-        mUriHeaders = *headers;
-
-        ssize_t index = mUriHeaders.indexOfKey(String8("x-hide-urls-from-log"));
-        if (index >= 0) {
-            // Browser is in "incognito" mode, suppress logging URLs.
-
-            // This isn't something that should be passed to the server.
-            mUriHeaders.removeItemsAt(index);
-
-            mFlags |= INCOGNITO;
-        }
-    }
+    mUri = path;
 
     if (!(mFlags & INCOGNITO)) {
         ALOGI("setDataSource_l('%s')", mUri.string());
@@ -269,34 +237,8 @@ status_t PreviewPlayerBase::setDataSource_l(
     return OK;
 }
 
-status_t PreviewPlayerBase::setDataSource(
-        int fd, int64_t offset, int64_t length) {
-    Mutex::Autolock autoLock(mLock);
-
-    reset_l();
-
-    sp<DataSource> dataSource = new FileSource(fd, offset, length);
-
-    status_t err = dataSource->initCheck();
-
-    if (err != OK) {
-        return err;
-    }
-
-    mFileSource = dataSource;
-
-    return setDataSource_l(dataSource);
-}
-
 status_t PreviewPlayerBase::setDataSource(const sp<IStreamSource> &source) {
     return INVALID_OPERATION;
-}
-
-status_t PreviewPlayerBase::setDataSource_l(
-        const sp<DataSource> &dataSource) {
-
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
-    return setDataSource_l(extractor);
 }
 
 status_t PreviewPlayerBase::setDataSource_l(const sp<MediaExtractor> &extractor) {
@@ -408,10 +350,6 @@ void PreviewPlayerBase::reset_l() {
 
     if (mFlags & PREPARING) {
         mFlags |= PREPARE_CANCELLED;
-        if (mConnectingDataSource != NULL) {
-            ALOGI("interrupting the connection process");
-            mConnectingDataSource->disconnect();
-        }
 
         if (mFlags & PREPARING_CONNECTED) {
             // We are basically done preparing, we're just buffering
@@ -426,7 +364,6 @@ void PreviewPlayerBase::reset_l() {
 
     cancelPlayerEvents();
 
-    mCachedSource.clear();
     mAudioTrack.clear();
     mVideoTrack.clear();
 
@@ -465,9 +402,6 @@ void PreviewPlayerBase::reset_l() {
     mSeekTimeUs = 0;
 
     mUri.setTo("");
-    mUriHeaders.clear();
-
-    mFileSource.clear();
 
     mBitrate = -1;
     mLastVideoTimeUs = -1;
@@ -480,45 +414,6 @@ void PreviewPlayerBase::notifyListener_l(int msg, int ext1, int ext2) {
         if (listener != NULL) {
             listener->sendEvent(msg, ext1, ext2);
         }
-    }
-}
-
-bool PreviewPlayerBase::getBitrate(int64_t *bitrate) {
-    off64_t size;
-    if (mDurationUs >= 0 && mCachedSource != NULL
-            && mCachedSource->getSize(&size) == OK) {
-        *bitrate = size * 8000000ll / mDurationUs;  // in bits/sec
-        return true;
-    }
-
-    if (mBitrate >= 0) {
-        *bitrate = mBitrate;
-        return true;
-    }
-
-    *bitrate = 0;
-
-    return false;
-}
-
-// Returns true iff cached duration is available/applicable.
-bool PreviewPlayerBase::getCachedDuration_l(int64_t *durationUs, bool *eos) {
-    int64_t bitrate;
-
-    if (mCachedSource != NULL && getBitrate(&bitrate)) {
-        status_t finalStatus;
-        size_t cachedDataRemaining = mCachedSource->approxDataRemaining(&finalStatus);
-        *durationUs = cachedDataRemaining * 8000000ll / bitrate;
-        *eos = (finalStatus != OK);
-        return true;
-    }
-
-    return false;
-}
-
-void PreviewPlayerBase::ensureCacheIsFetching_l() {
-    if (mCachedSource != NULL) {
-        mCachedSource->resumeFetchingIfNecessary();
     }
 }
 
@@ -542,99 +437,6 @@ void PreviewPlayerBase::onVideoLagUpdate() {
     }
 
     postVideoLagEvent_l();
-}
-
-void PreviewPlayerBase::onBufferingUpdate() {
-    Mutex::Autolock autoLock(mLock);
-    if (!mBufferingEventPending) {
-        return;
-    }
-    mBufferingEventPending = false;
-
-    if (mCachedSource != NULL) {
-        status_t finalStatus;
-        size_t cachedDataRemaining = mCachedSource->approxDataRemaining(&finalStatus);
-        bool eos = (finalStatus != OK);
-
-        if (eos) {
-            if (finalStatus == ERROR_END_OF_STREAM) {
-                notifyListener_l(MEDIA_BUFFERING_UPDATE, 100);
-            }
-            if (mFlags & PREPARING) {
-                ALOGV("cache has reached EOS, prepare is done.");
-                finishAsyncPrepare_l();
-            }
-        } else {
-            int64_t bitrate;
-            if (getBitrate(&bitrate)) {
-                size_t cachedSize = mCachedSource->cachedSize();
-                int64_t cachedDurationUs = cachedSize * 8000000ll / bitrate;
-
-                int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
-                if (percentage > 100) {
-                    percentage = 100;
-                }
-
-                notifyListener_l(MEDIA_BUFFERING_UPDATE, percentage);
-            } else {
-                // We don't know the bitrate of the stream, use absolute size
-                // limits to maintain the cache.
-
-                if ((mFlags & PLAYING) && !eos
-                        && (cachedDataRemaining < kLowWaterMarkBytes)) {
-                    ALOGI("cache is running low (< %d) , pausing.",
-                         kLowWaterMarkBytes);
-                    mFlags |= CACHE_UNDERRUN;
-                    pause_l();
-                    ensureCacheIsFetching_l();
-                    notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
-                } else if (eos || cachedDataRemaining > kHighWaterMarkBytes) {
-                    if (mFlags & CACHE_UNDERRUN) {
-                        ALOGI("cache has filled up (> %d), resuming.",
-                             kHighWaterMarkBytes);
-                        mFlags &= ~CACHE_UNDERRUN;
-                        play_l();
-                        notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
-                    } else if (mFlags & PREPARING) {
-                        ALOGV("cache has filled up (> %d), prepare is done",
-                             kHighWaterMarkBytes);
-                        finishAsyncPrepare_l();
-                    }
-                }
-            }
-        }
-    }
-
-    int64_t cachedDurationUs;
-    bool eos;
-    if (getCachedDuration_l(&cachedDurationUs, &eos)) {
-        ALOGV("cachedDurationUs = %.2f secs, eos=%d",
-             cachedDurationUs / 1E6, eos);
-
-        if ((mFlags & PLAYING) && !eos
-                && (cachedDurationUs < kLowWaterMarkUs)) {
-            ALOGI("cache is running low (%.2f secs) , pausing.",
-                 cachedDurationUs / 1E6);
-            mFlags |= CACHE_UNDERRUN;
-            pause_l();
-            ensureCacheIsFetching_l();
-            notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
-        } else if (eos || cachedDurationUs > kHighWaterMarkUs) {
-            if (mFlags & CACHE_UNDERRUN) {
-                ALOGI("cache has filled up (%.2f secs), resuming.",
-                     cachedDurationUs / 1E6);
-                mFlags &= ~CACHE_UNDERRUN;
-                play_l();
-                notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
-            } else if (mFlags & PREPARING) {
-                ALOGV("cache has filled up (%.2f secs), prepare is done",
-                     cachedDurationUs / 1E6);
-                finishAsyncPrepare_l();
-            }
-        }
-    }
-
-    postBufferingEvent_l();
 }
 
 void PreviewPlayerBase::onStreamDone() {
@@ -919,7 +721,7 @@ status_t PreviewPlayerBase::pause_l(bool at_eos) {
         return OK;
     }
 
-    cancelPlayerEvents(true /* keepBufferingGoing */);
+    cancelPlayerEvents();
 
     if (mAudioPlayer != NULL && (mFlags & AUDIO_RUNNING)) {
         if (at_eos) {
@@ -1244,24 +1046,6 @@ void PreviewPlayerBase::onVideoEvent() {
             mVideoBuffer->release();
             mVideoBuffer = NULL;
         }
-
-        if (mSeeking == SEEK && mCachedSource != NULL && mAudioSource != NULL
-                && !(mFlags & SEEK_PREVIEW)) {
-            // We're going to seek the video source first, followed by
-            // the audio source.
-            // In order to avoid jumps in the DataSource offset caused by
-            // the audio codec prefetching data from the old locations
-            // while the video codec is already reading data from the new
-            // locations, we'll "pause" the audio source, causing it to
-            // stop reading input data until a subsequent seek.
-
-            if (mAudioPlayer != NULL && (mFlags & AUDIO_RUNNING)) {
-                mAudioPlayer->pause();
-
-                mFlags &= ~AUDIO_RUNNING;
-            }
-            mAudioSource->pause();
-        }
     }
 
     if (!mVideoBuffer) {
@@ -1459,14 +1243,6 @@ void PreviewPlayerBase::postStreamDoneEvent_l(status_t status) {
     mQueue.postEvent(mStreamDoneEvent);
 }
 
-void PreviewPlayerBase::postBufferingEvent_l() {
-    if (mBufferingEventPending) {
-        return;
-    }
-    mBufferingEventPending = true;
-    mQueue.postEventWithDelay(mBufferingEvent, 1000000ll);
-}
-
 void PreviewPlayerBase::postVideoLagEvent_l() {
     if (mVideoLagEventPending) {
         return;
@@ -1573,7 +1349,7 @@ status_t PreviewPlayerBase::prepareAsync_l() {
 
 status_t PreviewPlayerBase::finishSetDataSource_l() {
     sp<DataSource> dataSource =
-            DataSource::CreateFromURI(mUri.string(), &mUriHeaders);
+            DataSource::CreateFromURI(mUri.string(), NULL);
 
     if (dataSource == NULL) {
         return UNKNOWN_ERROR;
@@ -1642,11 +1418,7 @@ void PreviewPlayerBase::onPrepareAsyncEvent() {
 
     mFlags |= PREPARING_CONNECTED;
 
-    if (mCachedSource != NULL) {
-        postBufferingEvent_l();
-    } else {
-        finishAsyncPrepare_l();
-    }
+    finishAsyncPrepare_l();
 }
 
 void PreviewPlayerBase::finishAsyncPrepare_l() {
@@ -1679,14 +1451,6 @@ void PreviewPlayerBase::postAudioEOS(int64_t delayUs) {
 void PreviewPlayerBase::postAudioSeekComplete() {
     Mutex::Autolock autoLock(mLock);
     postCheckAudioStatusEvent_l(0 /* delayUs */);
-}
-
-status_t PreviewPlayerBase::setParameter(int key, const Parcel &request) {
-    return OK;
-}
-
-status_t PreviewPlayerBase::getParameter(int key, Parcel *reply) {
-    return OK;
 }
 
 }  // namespace android
