@@ -15,44 +15,34 @@
  */
 
 #ifndef DUMMY_AUDIOSOURCE_H_
-
 #define DUMMY_AUDIOSOURCE_H_
 
-#include <utils/RefBase.h>
-#include <utils/threads.h>
-#include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaSource.h>
-#include <media/stagefright/DataSource.h>
 
 
 namespace android {
 
-
-class MediaBuffer;
 class MetaData;
 struct MediaBufferGroup;
-
-
 
 struct DummyAudioSource : public MediaSource {
 
 public:
-    static sp<DummyAudioSource> Create(int32_t samplingRate,
-                                       int32_t channelCount,
-                                       int64_t frameDurationUs,
-                                       int64_t audioDurationUs);
+    static sp<DummyAudioSource> Create(
+                int32_t samplingRate, int32_t channelCount,
+                int64_t frameDurationUs, int64_t audioDurationUs);
+
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
     virtual sp<MetaData> getFormat();
-    virtual status_t read (MediaBuffer **buffer,
-                            const MediaSource::ReadOptions *options = NULL);
-    void setDuration (int64_t audioDurationUs);
+
+    virtual status_t read(
+                MediaBuffer **buffer,
+                const MediaSource::ReadOptions *options = NULL);
+
+    void setDuration(int64_t audioDurationUs);
 
 protected:
-    DummyAudioSource (int32_t samplingRate,
-                      int32_t channelCount,
-                      int64_t frameDurationUs,
-                      int64_t audioDurationUs);
     virtual ~DummyAudioSource();
 
 private:
@@ -66,6 +56,11 @@ private:
 
     MediaBufferGroup *mBufferGroup;
 
+    DummyAudioSource(
+            int32_t samplingRate, int32_t channelCount,
+            int64_t frameDurationUs, int64_t audioDurationUs);
+
+    // Don't call me
     DummyAudioSource(const DummyAudioSource &);
     DummyAudioSource &operator=(const DummyAudioSource &);
 

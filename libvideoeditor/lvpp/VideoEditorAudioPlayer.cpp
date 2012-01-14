@@ -34,7 +34,7 @@ namespace android {
 
 VideoEditorAudioPlayer::VideoEditorAudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
-        PreviewPlayerBase *observer)
+        PreviewPlayer *observer)
     : AudioPlayerBase(audioSink, observer) {
 
     ALOGV("VideoEditorAudioPlayer");
@@ -96,7 +96,7 @@ sp<MediaSource> VideoEditorAudioPlayer::getSource() {
     return mSource;
 }
 
-void VideoEditorAudioPlayer::setObserver(PreviewPlayerBase *observer) {
+void VideoEditorAudioPlayer::setObserver(PreviewPlayer *observer) {
     ALOGV("setObserver");
     //CHECK(!mStarted);
     mObserver = observer;

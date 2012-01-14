@@ -27,13 +27,13 @@
 #include <media/stagefright/MetaData.h>
 
 #include "AudioPlayerBase.h"
-#include "PreviewPlayerBase.h"
+#include "PreviewPlayer.h"
 
 namespace android {
 
 AudioPlayerBase::AudioPlayerBase(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
-        PreviewPlayerBase *observer)
+        PreviewPlayer *observer)
     : mAudioTrack(NULL),
       mInputBuffer(NULL),
       mSampleRate(0),

@@ -25,35 +25,51 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
-#include "PreviewPlayerBase.h"
-#include "VideoEditorPreviewController.h"
 #include "NativeWindowRenderer.h"
 
 namespace android {
 
+struct VideoEditorAudioPlayer;
 struct AudioPlayerBase;
 struct MediaExtractor;
 
-struct PreviewPlayer : public PreviewPlayerBase {
+struct PreviewPlayer {
     PreviewPlayer(NativeWindowRenderer* renderer);
     ~PreviewPlayer();
 
-    //Override baseclass methods
+    void setListener(const wp<MediaPlayerBase> &listener);
     void reset();
 
     status_t play();
+    status_t pause();
 
+    bool isPlaying() const;
+    void setSurface(const sp<Surface> &surface);
+    void setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture);
     status_t seekTo(int64_t timeUs);
 
     status_t getVideoDimensions(int32_t *width, int32_t *height) const;
 
+
+    // FIXME: Sync between ...
     void acquireLock();
     void releaseLock();
 
     status_t prepare();
+    status_t prepareAsync();
     status_t setDataSource(const char *path);
+    status_t setDataSource(const sp<IStreamSource> &source);
 
-    //Added methods
+    void setAudioSink(const sp<MediaPlayerBase::AudioSink> &audioSink);
+    status_t setLooping(bool shouldLoop);
+    status_t getDuration(int64_t *durationUs);
+    status_t getPosition(int64_t *positionUs);
+
+    uint32_t getSourceSeekFlags() const;
+
+    void postAudioEOS(int64_t delayUs = 0ll);
+    void postAudioSeekComplete();
+
     status_t loadEffectsSettings(M4VSS3GPP_EffectSettings* pEffectSettings,
                                  int nEffects);
     status_t loadAudioMixSettings(M4xVSS_AudioMixingSettings* pAudioMixSettings);
@@ -76,8 +92,6 @@ struct PreviewPlayer : public PreviewPlayerBase {
     status_t setAudioPlayer(AudioPlayerBase *audioPlayer);
 
 private:
-    friend struct PreviewPlayerEvent;
-
     enum {
         PLAYING             = 1,
         LOOPING             = 2,
@@ -91,23 +105,92 @@ private:
         VIDEO_AT_EOS        = 512,
         AUTO_LOOPING        = 1024,
         INFORMED_AV_EOS     = 2048,
+
+        // We are basically done preparing but are currently buffering
+        // sufficient data to begin playback and finish the preparation phase
+        // for good.
+        PREPARING_CONNECTED = 2048,
+
+        // We're triggering a single video event to display the first frame
+        // after the seekpoint.
+        SEEK_PREVIEW        = 4096,
+
+        AUDIO_RUNNING       = 8192,
+        AUDIOPLAYER_STARTED = 16384,
+
+        INCOGNITO           = 32768,
     };
 
-    void cancelPlayerEvents();
-    status_t setDataSource_l(const sp<MediaExtractor> &extractor);
-    status_t setDataSource_l(const char *path);
-    void reset_l();
-    status_t play_l();
-    status_t initRenderer_l();
-    status_t initAudioDecoder();
-    status_t initVideoDecoder(uint32_t flags = 0);
-    void onVideoEvent();
-    void onStreamDone();
-    status_t finishSetDataSource_l();
-    static bool ContinuePreparation(void *cookie);
-    void onPrepareAsyncEvent();
-    void finishAsyncPrepare_l();
-    status_t startAudioPlayer_l();
+    mutable Mutex mLock;
+
+    OMXClient mClient;
+    TimedEventQueue mQueue;
+    bool mQueueStarted;
+    wp<MediaPlayerBase> mListener;
+
+    sp<Surface> mSurface;
+    sp<ANativeWindow> mNativeWindow;
+    sp<MediaPlayerBase::AudioSink> mAudioSink;
+
+    SystemTimeSource mSystemTimeSource;
+    TimeSource *mTimeSource;
+
+    String8 mUri;
+
+    sp<MediaSource> mVideoTrack;
+    sp<MediaSource> mVideoSource;
+    bool mVideoRendererIsPreview;
+
+    sp<MediaSource> mAudioTrack;
+    sp<MediaSource> mAudioSource;
+    AudioPlayerBase *mAudioPlayer;
+    int64_t mDurationUs;
+
+    int32_t mDisplayWidth;
+    int32_t mDisplayHeight;
+
+    uint32_t mFlags;
+    uint32_t mExtractorFlags;
+
+    int64_t mTimeSourceDeltaUs;
+    int64_t mVideoTimeUs;
+
+    enum SeekType {
+        NO_SEEK,
+        SEEK,
+        SEEK_VIDEO_ONLY
+    };
+    SeekType mSeeking;
+
+    bool mSeekNotificationSent;
+    int64_t mSeekTimeUs;
+
+    int64_t mBitrate;  // total bitrate of the file (in bps) or -1 if unknown.
+
+    bool mWatchForAudioSeekComplete;
+    bool mWatchForAudioEOS;
+
+    sp<TimedEventQueue::Event> mVideoEvent;
+    bool mVideoEventPending;
+    sp<TimedEventQueue::Event> mStreamDoneEvent;
+    bool mStreamDoneEventPending;
+    sp<TimedEventQueue::Event> mCheckAudioStatusEvent;
+    bool mAudioStatusEventPending;
+    sp<TimedEventQueue::Event> mVideoLagEvent;
+    bool mVideoLagEventPending;
+
+    sp<TimedEventQueue::Event> mAsyncPrepareEvent;
+    Condition mPreparedCondition;
+    bool mIsAsyncPrepare;
+    status_t mPrepareResult;
+    status_t mStreamDoneStatus;
+
+    MediaBuffer *mVideoBuffer;
+    int64_t mLastVideoTimeUs;
+    ARect mCropRect;
+    int32_t mGivenWidth, mGivenHeight;
+
+
     bool mIsChangeSourceRequired;
 
     NativeWindowRenderer *mNativeWindowRenderer;
@@ -152,23 +235,60 @@ private:
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;
+    VideoEditorAudioPlayer  *mVeAudioPlayer;
 
+    void cancelPlayerEvents_l(bool updateProgressCb = false);
+    status_t setDataSource_l(const sp<MediaExtractor> &extractor);
+    status_t setDataSource_l(const char *path);
+    void setNativeWindow_l(const sp<ANativeWindow> &native);
+    void reset_l();
+    void clear_l();
+    status_t play_l();
+    status_t pause_l(bool at_eos = false);
+    status_t initRenderer_l();
+    status_t initAudioDecoder_l();
+    status_t initVideoDecoder_l(uint32_t flags = 0);
+    void notifyVideoSize_l();
+    void notifyListener_l(int msg, int ext1 = 0, int ext2 = 0);
+    void onVideoEvent();
+    void onVideoLagUpdate();
+    void onStreamDone();
+    void onCheckAudioStatus();
+    void onPrepareAsyncEvent();
+
+    void finishAsyncPrepare_l();
+    void abortPrepare(status_t err);
+
+    status_t startAudioPlayer_l();
+    void setVideoSource(const sp<MediaSource>& source);
+    status_t finishSetDataSource_l();
+    void setAudioSource(const sp<MediaSource>& source);
+
+    status_t seekTo_l(int64_t timeUs);
+    void seekAudioIfNecessary_l();
+    void finishSeekIfNecessary(int64_t videoTimeUs);
+
+    void postCheckAudioStatusEvent_l(int64_t delayUs);
+    void postVideoLagEvent_l();
+    void postStreamDoneEvent_l(status_t status);
+    void postVideoEvent_l(int64_t delayUs = -1);
     void setVideoPostProcessingNode(
                     M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable);
     void postProgressCallbackEvent_l();
+    void shutdownVideoDecoder_l();
     void onProgressCbEvent();
 
     void postOverlayUpdateEvent_l();
     void onUpdateOverlayEvent();
 
     status_t setDataSource_l_jpg();
-
     status_t prepare_l();
     status_t prepareAsync_l();
-
+    void updateBatteryUsage_l();
     void updateSizeToRender(sp<MetaData> meta);
 
-    VideoEditorAudioPlayer  *mVeAudioPlayer;
+    void setDuration_l(int64_t durationUs);
+    void setPosition_l(int64_t timeUs);
 
     PreviewPlayer(const PreviewPlayer &);
     PreviewPlayer &operator=(const PreviewPlayer &);

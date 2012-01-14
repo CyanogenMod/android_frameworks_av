@@ -27,7 +27,7 @@ namespace android {
 
 class MediaSource;
 class AudioTrack;
-class PreviewPlayerBase;
+class PreviewPlayer;
 
 class AudioPlayerBase : public TimeSource {
 public:
@@ -37,7 +37,7 @@ public:
     };
 
     AudioPlayerBase(const sp<MediaPlayerBase::AudioSink> &audioSink,
-                PreviewPlayerBase *audioObserver = NULL);
+                PreviewPlayer *audioObserver = NULL);
 
     virtual ~AudioPlayerBase();
 
@@ -93,7 +93,7 @@ private:
     MediaBuffer *mFirstBuffer;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
-    PreviewPlayerBase *mObserver;
+    PreviewPlayer *mObserver;
 
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);

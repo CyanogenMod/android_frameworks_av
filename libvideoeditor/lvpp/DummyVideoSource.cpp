@@ -14,101 +14,98 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 1
+//#define LOG_NDEBUG 0
 #define LOG_TAG "DummyVideoSource"
-#include "utils/Log.h"
-
+#include <stdlib.h>
+#include <utils/Log.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MetaData.h>
-
+#include "VideoEditorTools.h"
 #include "DummyVideoSource.h"
-
-/* Android includes*/
-#include <utils/Log.h>
-#include <memory.h>
-
-
-#define LOG1 ALOGE    /*ERRORS Logging*/
-#define LOG2 ALOGV    /*WARNING Logging*/
-#define LOG3 //ALOGV    /*COMMENTS Logging*/
 
 
 namespace android {
 
+sp<DummyVideoSource> DummyVideoSource::Create(
+        uint32_t width, uint32_t height,
+        uint64_t clipDuration, const char *imageUri) {
 
-sp<DummyVideoSource> DummyVideoSource::Create (
-            uint32_t width, uint32_t height,
-            uint64_t clipDuration, const char *imageUri) {
-    LOG2("DummyVideoSource::Create ");
-    sp<DummyVideoSource> vSource = new DummyVideoSource (
-                         width, height, clipDuration, imageUri);
-    return vSource;
+    ALOGV("Create");
+    return new DummyVideoSource(
+                    width, height, clipDuration, imageUri);
+
 }
 
 
-DummyVideoSource::DummyVideoSource (
-            uint32_t width, uint32_t height,
-            uint64_t clipDuration, const char *imageUri) {
+DummyVideoSource::DummyVideoSource(
+        uint32_t width, uint32_t height,
+        uint64_t clipDuration, const char *imageUri) {
 
-    LOG2("DummyVideoSource::DummyVideoSource constructor START");
+    ALOGV("Constructor: E");
+
     mFrameWidth = width;
     mFrameHeight = height;
     mImageClipDuration = clipDuration;
     mUri = imageUri;
     mImageBuffer = NULL;
 
-    LOG2("DummyVideoSource::DummyVideoSource constructor END");
+    ALOGV("%s", mUri);
+    ALOGV("Constructor: X");
 }
 
 
-DummyVideoSource::~DummyVideoSource () {
+DummyVideoSource::~DummyVideoSource() {
     /* Do nothing here? */
-    LOG2("DummyVideoSource::~DummyVideoSource");
+    ALOGV("~DummyVideoSource");
 }
 
 
 
 status_t DummyVideoSource::start(MetaData *params) {
-    status_t err = OK;
-    LOG2("DummyVideoSource::start START, %s", mUri);
-    //get the frame buffer from the rgb file and store into a MediaBuffer
-    err = LvGetImageThumbNail((const char *)mUri,
-                          mFrameHeight , mFrameWidth ,
-                          (M4OSA_Void **)&mImageBuffer);
+    ALOGV("start: E");
+
+    // Get the frame buffer from the rgb file, mUri,
+    // and store its content into a MediaBuffer
+    status_t err = LvGetImageThumbNail(
+                    (const char *)mUri,
+                    mFrameHeight, mFrameWidth,
+                    (M4OSA_Void **) &mImageBuffer);
+    if (err != OK) {
+        ALOGE("LvGetImageThumbNail failed: %d", err);
+        return err;
+    }
 
     mIsFirstImageFrame = true;
     mImageSeekTime = 0;
     mImagePlayStartTime = 0;
     mFrameTimeUs = 0;
-    LOG2("DummyVideoSource::start END");
 
-    return err;
+    ALOGV("start: X");
+    return OK;
 }
 
 
 status_t DummyVideoSource::stop() {
+    ALOGV("stop");
     status_t err = OK;
 
-    LOG2("DummyVideoSource::stop START");
     if (mImageBuffer != NULL) {
         free(mImageBuffer);
         mImageBuffer = NULL;
     }
-    LOG2("DummyVideoSource::stop END");
 
     return err;
 }
 
 
 sp<MetaData> DummyVideoSource::getFormat() {
-    LOG2("DummyVideoSource::getFormat");
+    ALOGV("getFormat");
 
     sp<MetaData> meta = new MetaData;
-
     meta->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420Planar);
     meta->setInt32(kKeyWidth, mFrameWidth);
     meta->setInt32(kKeyHeight, mFrameHeight);
@@ -119,45 +116,54 @@ sp<MetaData> DummyVideoSource::getFormat() {
 }
 
 status_t DummyVideoSource::read(
-                        MediaBuffer **out,
-                        const MediaSource::ReadOptions *options) {
-    status_t err = OK;
-    MediaBuffer *buffer;
-    LOG2("DummyVideoSource::read START");
+        MediaBuffer **out,
+        const MediaSource::ReadOptions *options) {
 
+    ALOGV("read: E");
+
+    const int32_t kTimeScale = 1000;  /* time scale in ms */
     bool seeking = false;
     int64_t seekTimeUs;
     ReadOptions::SeekMode seekMode;
-
     if (options && options->getSeekTo(&seekTimeUs, &seekMode)) {
         seeking = true;
         mImageSeekTime = seekTimeUs;
-        M4OSA_clockGetTime(&mImagePlayStartTime, 1000); //1000 time scale for time in ms
+        M4OSA_clockGetTime(&mImagePlayStartTime, kTimeScale);
     }
 
-    if ((mImageSeekTime == mImageClipDuration) || (mFrameTimeUs == (int64_t)mImageClipDuration)) {
-        LOG2("DummyVideoSource::read() End of stream reached; return NULL buffer");
+    if ((mImageSeekTime == mImageClipDuration) ||
+        (mFrameTimeUs == (int64_t)mImageClipDuration)) {
+        ALOGV("read: EOS reached");
         *out = NULL;
         return ERROR_END_OF_STREAM;
     }
 
-    buffer = new MediaBuffer(mImageBuffer, (mFrameWidth*mFrameHeight*1.5));
+    status_t err = OK;
+    MediaBuffer *buffer = new MediaBuffer(
+            mImageBuffer, (mFrameWidth * mFrameHeight * 1.5));
 
-    //set timestamp of buffer
+    // Set timestamp of buffer
     if (mIsFirstImageFrame) {
-        M4OSA_clockGetTime(&mImagePlayStartTime, 1000); //1000 time scale for time in ms
+        M4OSA_clockGetTime(&mImagePlayStartTime, kTimeScale);
         mFrameTimeUs =  (mImageSeekTime + 1);
-        LOG2("DummyVideoSource::read() jpg 1st frame timeUs = %lld, begin cut time = %ld", mFrameTimeUs, mImageSeekTime);
+        ALOGV("read: jpg 1st frame timeUs = %lld, begin cut time = %ld",
+            mFrameTimeUs, mImageSeekTime);
+
         mIsFirstImageFrame = false;
     } else {
         M4OSA_Time  currentTimeMs;
-        M4OSA_clockGetTime(&currentTimeMs, 1000);
+        M4OSA_clockGetTime(&currentTimeMs, kTimeScale);
 
-        mFrameTimeUs = mImageSeekTime + (currentTimeMs - mImagePlayStartTime)*1000;
-        LOG2("DummyVideoSource::read() jpg frame timeUs = %lld", mFrameTimeUs);
+        mFrameTimeUs = mImageSeekTime +
+            (currentTimeMs - mImagePlayStartTime) * 1000LL;
+
+        ALOGV("read: jpg frame timeUs = %lld", mFrameTimeUs);
     }
+
     buffer->meta_data()->setInt64(kKeyTime, mFrameTimeUs);
-    buffer->set_range(buffer->range_offset(), mFrameWidth*mFrameHeight*1.5);
+    buffer->set_range(buffer->range_offset(),
+                mFrameWidth * mFrameHeight * 1.5);
+
     *out = buffer;
     return err;
 }

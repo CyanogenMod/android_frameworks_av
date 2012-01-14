@@ -35,7 +35,6 @@ LOCAL_SRC_FILES:=          \
     DummyVideoSource.cpp \
     VideoEditorBGAudioProcessing.cpp \
     AudioPlayerBase.cpp \
-    PreviewPlayerBase.cpp \
     PreviewRenderer.cpp \
     I420ColorConverter.cpp \
     NativeWindowRenderer.cpp

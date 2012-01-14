@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
+
 #include <stdint.h>
-
-#include <utils/RefBase.h>
-#include <utils/threads.h>
-
 #include <media/stagefright/MediaSource.h>
-
 #include "AudioBufferProvider.h"
 #include "AudioResampler.h"
 
@@ -30,61 +26,61 @@ struct MediaBuffer;
 
 class VideoEditorSRC : public MediaSource , public AudioBufferProvider {
 
-    public:
-        VideoEditorSRC(
-            const sp<MediaSource> &source);
+public:
+    VideoEditorSRC(const sp<MediaSource> &source);
 
-        virtual status_t start (MetaData *params = NULL);
-        virtual status_t stop();
-        virtual sp<MetaData> getFormat();
-        virtual status_t read (
-            MediaBuffer **buffer, const ReadOptions *options = NULL);
+    virtual status_t start (MetaData *params = NULL);
+    virtual status_t stop();
+    virtual sp<MetaData> getFormat();
+    virtual status_t read (
+                MediaBuffer **buffer, const ReadOptions *options = NULL);
 
-        virtual status_t getNextBuffer(Buffer* buffer);
-        virtual void releaseBuffer(Buffer* buffer);
+    virtual status_t getNextBuffer(Buffer* buffer);
+    virtual void releaseBuffer(Buffer* buffer);
 
-    enum { //Sampling freq
-        kFreq8000Hz = 8000,
+    // Sampling freqencies
+    enum {
+        kFreq8000Hz  = 8000,
         kFreq11025Hz = 11025,
         kFreq12000Hz = 12000,
         kFreq16000Hz = 16000,
         kFreq22050Hz = 22050,
         kFreq24000Hz = 24000,
         kFreq32000Hz = 32000,
-        kFreq44100 = 44100,
-        kFreq48000 = 48000,
+        kFreq44100Hz = 44100,
+        kFreq48000Hz = 48000,
     };
 
-    static const uint16_t UNITY_GAIN = 0x1000;
-    static const int32_t DEFAULT_SAMPLING_FREQ = (int32_t)kFreq32000Hz;
+protected :
+    virtual ~VideoEditorSRC();
 
-    protected :
-        virtual ~VideoEditorSRC();
-    private:
+private:
+    AudioResampler *mResampler;
+    sp<MediaSource> mSource;
+    int mChannelCnt;
+    int mSampleRate;
+    int32_t mOutputSampleRate;
+    bool mStarted;
+    sp<MetaData> mOutputFormat;
 
-        VideoEditorSRC();
-        VideoEditorSRC &operator=(const VideoEditorSRC &);
+    MediaBuffer* mBuffer;
+    int32_t mLeftover;
+    bool mFormatChanged;
+    bool mStopPending;
 
-        void checkAndSetResampler();
+    int64_t mInitialTimeStampUs;
+    int64_t mAccuOutBufferSize;
 
-        AudioResampler        *mResampler;
-        sp<MediaSource>      mSource;
-        int mChannelCnt;
-        int mSampleRate;
-        int32_t mOutputSampleRate;
-        bool mStarted;
-        sp<MetaData> mOutputFormat;
+    int64_t mSeekTimeUs;
+    ReadOptions::SeekMode mSeekMode;
 
-        MediaBuffer* mBuffer;
-        int32_t mLeftover;
-        bool mFormatChanged;
-        bool mStopPending;
+    VideoEditorSRC();
+    void checkAndSetResampler();
 
-        int64_t mInitialTimeStampUs;
-        int64_t mAccuOutBufferSize;
+    // Don't call me
+    VideoEditorSRC(const VideoEditorSRC&);
+    VideoEditorSRC &operator=(const VideoEditorSRC &);
 
-        int64_t mSeekTimeUs;
-        ReadOptions::SeekMode mSeekMode;
 };
 
 } //namespce android
