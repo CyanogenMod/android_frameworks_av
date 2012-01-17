@@ -59,7 +59,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         virtual void            flush();
         virtual void            pause();
         virtual void            close();
-        void setAudioStreamType(int streamType) { mStreamType = streamType; }
+        void setAudioStreamType(audio_stream_type_t streamType) { mStreamType = streamType; }
                 void            setVolume(float left, float right);
         virtual status_t        dump(int fd,const Vector<String16>& args) const;
 
@@ -73,7 +73,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         AudioTrack*             mTrack;
         AudioCallback           mCallback;
         void *                  mCallbackCookie;
-        int                     mStreamType;
+        audio_stream_type_t     mStreamType;
         float                   mLeftVolume;
         float                   mRightVolume;
         float                   mMsecsPerFrame;
