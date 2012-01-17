@@ -35,7 +35,7 @@ struct VideoEditorResampler : public AudioBufferProvider {
      kFreq12000Hz = 12000,
      kFreq16000Hz = 16000,
      kFreq22050Hz = 22050,
-     kFreq240000Hz = 24000,
+     kFreq24000Hz = 24000,
      kFreq32000Hz = 32000,
      kFreq44100 = 44100,
      kFreq48000 = 48000,
