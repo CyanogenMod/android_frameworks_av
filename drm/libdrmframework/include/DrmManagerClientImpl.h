@@ -320,6 +320,18 @@ public:
             int uniqueId, const char* uri, const char* mime);
 
     /**
+     * Open the decrypt session to decrypt the given protected content
+     *
+     * @param[in] uniqueId Unique identifier for a session
+     * @param[in] buf Data to initiate decrypt session
+     * @param[in] mimeType Mime type of the protected content
+     * @return
+     *     Handle for the decryption session
+     */
+    sp<DecryptHandle> openDecryptSession(int uniqueId, const DrmBuffer& buf,
+            const String8& mimeType);
+
+    /**
      * Close the decrypt session for the given handle
      *
      * @param[in] uniqueId Unique identifier for a session
