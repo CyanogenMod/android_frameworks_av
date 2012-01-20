@@ -30,7 +30,6 @@
 namespace android {
 
 struct VideoEditorAudioPlayer;
-struct AudioPlayerBase;
 struct MediaExtractor;
 
 struct PreviewPlayer {
@@ -89,7 +88,7 @@ struct PreviewPlayer {
     status_t setImageClipProperties(uint32_t width, uint32_t height);
     status_t readFirstVideoFrame();
     status_t getLastRenderedTimeMs(uint32_t *lastRenderedTimeMs);
-    status_t setAudioPlayer(AudioPlayerBase *audioPlayer);
+    status_t setAudioPlayer(VideoEditorAudioPlayer *audioPlayer);
 
 private:
     enum {
@@ -143,7 +142,7 @@ private:
 
     sp<MediaSource> mAudioTrack;
     sp<MediaSource> mAudioSource;
-    AudioPlayerBase *mAudioPlayer;
+    VideoEditorAudioPlayer *mAudioPlayer;
     int64_t mDurationUs;
 
     int32_t mDisplayWidth;
@@ -235,7 +234,6 @@ private:
 
     M4VIFI_UInt8*  mFrameRGBBuffer;
     M4VIFI_UInt8*  mFrameYUVBuffer;
-    VideoEditorAudioPlayer  *mVeAudioPlayer;
 
     void cancelPlayerEvents_l(bool updateProgressCb = false);
     status_t setDataSource_l(const sp<MediaExtractor> &extractor);

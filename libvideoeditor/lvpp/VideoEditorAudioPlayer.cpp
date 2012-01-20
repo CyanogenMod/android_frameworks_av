@@ -35,9 +35,25 @@ namespace android {
 VideoEditorAudioPlayer::VideoEditorAudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
         PreviewPlayer *observer)
-    : AudioPlayerBase(audioSink, observer) {
+    : mAudioTrack(NULL),
+      mInputBuffer(NULL),
+      mSampleRate(0),
+      mLatencyUs(0),
+      mFrameSize(0),
+      mNumFramesPlayed(0),
+      mPositionTimeMediaUs(-1),
+      mPositionTimeRealUs(-1),
+      mSeeking(false),
+      mReachedEOS(false),
+      mFinalStatus(OK),
+      mStarted(false),
+      mIsFirstBuffer(false),
+      mFirstBufferResult(OK),
+      mFirstBuffer(NULL),
+      mAudioSink(audioSink),
+      mObserver(observer) {
 
-    ALOGV("VideoEditorAudioPlayer");
+    ALOGV("Constructor");
     mBGAudioPCMFileHandle = NULL;
     mAudioProcess = NULL;
     mBGAudioPCMFileLength = 0;
@@ -54,7 +70,7 @@ VideoEditorAudioPlayer::VideoEditorAudioPlayer(
 
 VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
 
-    ALOGV("~VideoEditorAudioPlayer");
+    ALOGV("Destructor");
     if (mStarted) {
         reset();
     }
@@ -63,6 +79,184 @@ VideoEditorAudioPlayer::~VideoEditorAudioPlayer() {
         mAudioProcess = NULL;
     }
 }
+
+void VideoEditorAudioPlayer::pause(bool playPendingSamples) {
+    ALOGV("pause: playPendingSamples=%d", playPendingSamples);
+    CHECK(mStarted);
+
+    if (playPendingSamples) {
+        if (mAudioSink.get() != NULL) {
+            mAudioSink->stop();
+        } else {
+            mAudioTrack->stop();
+        }
+    } else {
+        if (mAudioSink.get() != NULL) {
+            mAudioSink->pause();
+        } else {
+            mAudioTrack->pause();
+        }
+    }
+}
+
+void VideoEditorAudioPlayer::clear() {
+    ALOGV("clear");
+    if (!mStarted) {
+        return;
+    }
+
+    if (mAudioSink.get() != NULL) {
+        mAudioSink->stop();
+        mAudioSink->close();
+    } else {
+        mAudioTrack->stop();
+
+        delete mAudioTrack;
+        mAudioTrack = NULL;
+    }
+
+    // Make sure to release any buffer we hold onto so that the
+    // source is able to stop().
+
+    if (mFirstBuffer != NULL) {
+        mFirstBuffer->release();
+        mFirstBuffer = NULL;
+    }
+
+    if (mInputBuffer != NULL) {
+        ALOGV("AudioPlayerBase releasing input buffer.");
+
+        mInputBuffer->release();
+        mInputBuffer = NULL;
+    }
+
+    mSource->stop();
+
+    // The following hack is necessary to ensure that the OMX
+    // component is completely released by the time we may try
+    // to instantiate it again.
+    wp<MediaSource> tmp = mSource;
+    mSource.clear();
+    while (tmp.promote() != NULL) {
+        usleep(1000);
+    }
+    IPCThreadState::self()->flushCommands();
+
+    mNumFramesPlayed = 0;
+    mPositionTimeMediaUs = -1;
+    mPositionTimeRealUs = -1;
+    mSeeking = false;
+    mReachedEOS = false;
+    mFinalStatus = OK;
+    mStarted = false;
+}
+
+void VideoEditorAudioPlayer::resume() {
+    ALOGV("resume");
+
+    veAudMixSettings audioMixSettings;
+
+    // Single audio player is used;
+    // Pass on the audio ducking parameters
+    // which might have changed with new audio source
+    audioMixSettings.lvInDucking_threshold =
+        mAudioMixSettings->uiInDucking_threshold;
+    audioMixSettings.lvInDucking_lowVolume =
+        ((M4OSA_Float)mAudioMixSettings->uiInDucking_lowVolume) / 100.0;
+    audioMixSettings.lvInDucking_enable =
+        mAudioMixSettings->bInDucking_enable;
+    audioMixSettings.lvPTVolLevel =
+        ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal) / 100.0;
+    audioMixSettings.lvBTVolLevel =
+        ((M4OSA_Float)mAudioMixSettings->uiAddVolume) / 100.0;
+    audioMixSettings.lvBTChannelCount = mAudioMixSettings->uiBTChannelCount;
+    audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
+
+    // Call to Audio mix param setting
+    mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
+
+    CHECK(mStarted);
+
+    if (mAudioSink.get() != NULL) {
+        mAudioSink->start();
+    } else {
+        mAudioTrack->start();
+    }
+}
+
+status_t VideoEditorAudioPlayer::seekTo(int64_t time_us) {
+    ALOGV("seekTo: %lld", time_us);
+    Mutex::Autolock autoLock(mLock);
+
+    mSeeking = true;
+    mPositionTimeRealUs = mPositionTimeMediaUs = -1;
+    mReachedEOS = false;
+    mSeekTimeUs = time_us;
+
+    if (mAudioSink != NULL) {
+        mAudioSink->flush();
+    } else {
+        mAudioTrack->flush();
+    }
+
+    return OK;
+}
+
+bool VideoEditorAudioPlayer::isSeeking() {
+    Mutex::Autolock lock(mLock);
+    ALOGV("isSeeking: mSeeking=%d", mSeeking);
+    return mSeeking;
+}
+
+bool VideoEditorAudioPlayer::reachedEOS(status_t *finalStatus) {
+    ALOGV("reachedEOS: status=%d", mFinalStatus);
+    *finalStatus = OK;
+
+    Mutex::Autolock autoLock(mLock);
+    *finalStatus = mFinalStatus;
+    return mReachedEOS;
+}
+
+int64_t VideoEditorAudioPlayer::getRealTimeUs() {
+    Mutex::Autolock autoLock(mLock);
+    return getRealTimeUs_l();
+}
+
+int64_t VideoEditorAudioPlayer::getRealTimeUs_l() {
+    return -mLatencyUs + (mNumFramesPlayed * 1000000) / mSampleRate;
+}
+
+int64_t VideoEditorAudioPlayer::getMediaTimeUs() {
+    ALOGV("getMediaTimeUs");
+    Mutex::Autolock autoLock(mLock);
+
+    if (mPositionTimeMediaUs < 0 || mPositionTimeRealUs < 0) {
+        if (mSeeking) {
+            return mSeekTimeUs;
+        }
+
+        return 0;
+    }
+
+    int64_t realTimeOffset = getRealTimeUs_l() - mPositionTimeRealUs;
+    if (realTimeOffset < 0) {
+        realTimeOffset = 0;
+    }
+
+    return mPositionTimeMediaUs + realTimeOffset;
+}
+
+bool VideoEditorAudioPlayer::getMediaTimeMapping(
+        int64_t *realtime_us, int64_t *mediatime_us) {
+    ALOGV("getMediaTimeMapping");
+    Mutex::Autolock autoLock(mLock);
+
+    *realtime_us = mPositionTimeRealUs;
+    *mediatime_us = mPositionTimeMediaUs;
+
+    return mPositionTimeRealUs != -1 && mPositionTimeMediaUs != -1;
+}
+
 void VideoEditorAudioPlayer::setSource(const sp<MediaSource> &source) {
     Mutex::Autolock autoLock(mLock);
 
@@ -104,6 +298,23 @@ void VideoEditorAudioPlayer::setObserver(PreviewPlayer *observer) {
 
 bool VideoEditorAudioPlayer::isStarted() {
     return mStarted;
+}
+
+// static
+void VideoEditorAudioPlayer::AudioCallback(int event, void *user, void *info) {
+    static_cast<VideoEditorAudioPlayer *>(user)->AudioCallback(event, info);
+}
+
+
+void VideoEditorAudioPlayer::AudioCallback(int event, void *info) {
+    if (event != AudioTrack::EVENT_MORE_DATA) {
+        return;
+    }
+
+    AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
+    size_t numBytesWritten = fillBuffer(buffer->raw, buffer->size);
+
+    buffer->size = numBytesWritten;
 }
 
 status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
@@ -355,37 +566,11 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
     return OK;
 }
 
-void VideoEditorAudioPlayer::resume() {
-
-    veAudMixSettings audioMixSettings;
-
-    // Single audio player is used;
-    // Pass on the audio ducking parameters
-    // which might have changed with new audio source
-    audioMixSettings.lvInDucking_threshold =
-        mAudioMixSettings->uiInDucking_threshold;
-    audioMixSettings.lvInDucking_lowVolume =
-        ((M4OSA_Float)mAudioMixSettings->uiInDucking_lowVolume) / 100.0;
-    audioMixSettings.lvInDucking_enable =
-        mAudioMixSettings->bInDucking_enable;
-    audioMixSettings.lvPTVolLevel =
-        ((M4OSA_Float)mBGAudioStoryBoardCurrentMediaVolumeVal) / 100.0;
-    audioMixSettings.lvBTVolLevel =
-        ((M4OSA_Float)mAudioMixSettings->uiAddVolume) / 100.0;
-    audioMixSettings.lvBTChannelCount = mAudioMixSettings->uiBTChannelCount;
-    audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
-
-    // Call to Audio mix param setting
-    mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
-
-    //Call the base class
-    AudioPlayerBase::resume();
-}
 
 void VideoEditorAudioPlayer::reset() {
 
     ALOGV("reset");
-    AudioPlayerBase::reset();
+    clear();
 
     // Capture the current seek point
     mBGAudioPCMFileSeekPoint = 0;
