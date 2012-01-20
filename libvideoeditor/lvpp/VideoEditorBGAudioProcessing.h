@@ -90,5 +90,10 @@ private:
     // This returns the size of buffer which needs to allocated
     // before resampling is called
     M4OSA_Int32 calculateOutResampleBufSize();
+
+    // Don't call me.
+    VideoEditorBGAudioProcessing(const VideoEditorBGAudioProcessing&);
+    VideoEditorBGAudioProcessing& operator=(
+            const VideoEditorBGAudioProcessing&);
 };
 } // namespace android
