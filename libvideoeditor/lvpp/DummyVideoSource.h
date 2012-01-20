@@ -15,22 +15,14 @@
  */
 
 #ifndef DUMMY_VIDEOSOURCE_H_
-
 #define DUMMY_VIDEOSOURCE_H_
 
-#include <utils/RefBase.h>
-#include <utils/threads.h>
 #include <media/stagefright/MediaSource.h>
-#include <media/stagefright/DataSource.h>
-#include "OMX_IVCommon.h"
-#include "VideoEditorTools.h"
 #include "M4OSA_Clock.h"
 #include "M4OSA_Time.h"
 #include "M4OSA_Types.h"
 
-
 namespace android {
-
 
 class  MediaBuffer;
 class  MetaData;
@@ -38,20 +30,19 @@ class  MetaData;
 struct DummyVideoSource : public MediaSource {
 
 public:
-    static sp<DummyVideoSource> Create(uint32_t width, 
-                                       uint32_t height, 
-                                       uint64_t clipDuration, 
-                                       const char *imageUri);
+    static sp<DummyVideoSource> Create(
+                uint32_t width, uint32_t height,
+                uint64_t clipDuration, const char *imageUri);
 
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
     virtual sp<MetaData> getFormat();
-    virtual status_t read(MediaBuffer **buffer, 
-                          const MediaSource::ReadOptions *options = NULL);
+
+    virtual status_t read(
+                MediaBuffer **buffer,
+                const MediaSource::ReadOptions *options = NULL);
 
 protected:
-    DummyVideoSource (uint32_t width, uint32_t height, 
-                      uint64_t clipDuration, const char *imageUri);
     virtual ~DummyVideoSource();
 
 private:
@@ -65,6 +56,11 @@ private:
     M4OSA_Time mImagePlayStartTime;
     uint32_t mImageSeekTime;
 
+    DummyVideoSource(
+            uint32_t width, uint32_t height,
+            uint64_t clipDuration, const char *imageUri);
+
+    // Don't call me
     DummyVideoSource(const DummyVideoSource &);
     DummyVideoSource &operator=(const DummyVideoSource &);
 

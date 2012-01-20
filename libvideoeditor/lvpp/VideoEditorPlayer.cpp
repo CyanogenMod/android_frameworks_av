@@ -201,7 +201,7 @@ status_t VideoEditorPlayer::getMetadata(
         const media::Metadata::Filter& ids, Parcel *records) {
     using media::Metadata;
 
-    uint32_t flags = mPlayer->flags();
+    uint32_t flags = mPlayer->getSourceSeekFlags();
 
     Metadata metadata(records);
 

@@ -17,24 +17,27 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VideoEditorSRC"
 
-#include "VideoEditorSRC.h"
+#include <stdlib.h>
+#include <utils/Log.h>
 #include <audio_utils/primitives.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include "AudioMixer.h"
-#include <utils/Log.h>
+#include "VideoEditorSRC.h"
+
 
 namespace android {
 
 VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
-    ALOGV("VideoEditorSRC::VideoEditorSRC %p(%p)", this, source.get());
+    ALOGV("VideoEditorSRC %p(%p)", this, source.get());
+    static const int32_t kDefaultSamplingFreqencyHz = kFreq32000Hz;
     mSource = source;
     mResampler = NULL;
     mChannelCnt = 0;
     mSampleRate = 0;
-    mOutputSampleRate = DEFAULT_SAMPLING_FREQ;
+    mOutputSampleRate = kDefaultSamplingFreqencyHz;
     mStarted = false;
     mInitialTimeStampUs = -1;
     mAccuOutBufferSize  = 0;
@@ -54,18 +57,18 @@ VideoEditorSRC::VideoEditorSRC(const sp<MediaSource> &source) {
     // Set the metadata of the output after resampling.
     mOutputFormat = new MetaData;
     mOutputFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
-    mOutputFormat->setInt32(kKeySampleRate, DEFAULT_SAMPLING_FREQ);
-    mOutputFormat->setInt32(kKeyChannelCount, 2);
+    mOutputFormat->setInt32(kKeySampleRate, kDefaultSamplingFreqencyHz);
+    mOutputFormat->setInt32(kKeyChannelCount, 2);  // always stereo
 }
 
 VideoEditorSRC::~VideoEditorSRC() {
-    ALOGV("VideoEditorSRC::~VideoEditorSRC %p(%p)", this, mSource.get());
+    ALOGV("~VideoEditorSRC %p(%p)", this, mSource.get());
     stop();
 }
 
 status_t VideoEditorSRC::start(MetaData *params) {
+    ALOGV("start %p(%p)", this, mSource.get());
     CHECK(!mStarted);
-    ALOGV("VideoEditorSRC:start %p(%p)", this, mSource.get());
 
     // Set resampler if required
     checkAndSetResampler();
@@ -79,17 +82,21 @@ status_t VideoEditorSRC::start(MetaData *params) {
 }
 
 status_t VideoEditorSRC::stop() {
-    ALOGV("VideoEditorSRC::stop %p(%p)", this, mSource.get());
-    if (!mStarted) return OK;
+    ALOGV("stop %p(%p)", this, mSource.get());
+    if (!mStarted) {
+        return OK;
+    }
+
     if (mBuffer) {
         mBuffer->release();
         mBuffer = NULL;
     }
     mSource->stop();
-    if(mResampler != NULL) {
+    if (mResampler != NULL) {
         delete mResampler;
         mResampler = NULL;
     }
+
     mStarted = false;
     mInitialTimeStampUs = -1;
     mAccuOutBufferSize = 0;
@@ -99,13 +106,13 @@ status_t VideoEditorSRC::stop() {
 }
 
 sp<MetaData> VideoEditorSRC::getFormat() {
-    ALOGV("VideoEditorSRC::getFormat");
+    ALOGV("getFormat");
     return mOutputFormat;
 }
 
 status_t VideoEditorSRC::read(
         MediaBuffer **buffer_out, const ReadOptions *options) {
-    ALOGV("VideoEditorSRC::read %p(%p)", this, mSource.get());
+    ALOGV("read %p(%p)", this, mSource.get());
     *buffer_out = NULL;
 
     if (!mStarted) {
@@ -123,11 +130,17 @@ status_t VideoEditorSRC::read(
         }
 
         // We ask for 1024 frames in output
-        const size_t outFrameCnt = 1024;
         // resampler output is always 2 channels and 32 bits
-        int32_t *pTmpBuffer = (int32_t *)calloc(1, outFrameCnt * 2 * sizeof(int32_t));
+        const size_t kOutputFrameCount = 1024;
+        const size_t kBytes = kOutputFrameCount * 2 * sizeof(int32_t);
+        int32_t *pTmpBuffer = (int32_t *)calloc(1, kBytes);
+        if (!pTmpBuffer) {
+            ALOGE("calloc failed to allocate memory: %d bytes", kBytes);
+            return NO_MEMORY;
+        }
+
         // Resample to target quality
-        mResampler->resample(pTmpBuffer, outFrameCnt, this);
+        mResampler->resample(pTmpBuffer, kOutputFrameCount, this);
 
         if (mStopPending) {
             stop();
@@ -143,13 +156,13 @@ status_t VideoEditorSRC::read(
         }
 
         // Create a new MediaBuffer
-        int32_t outBufferSize = outFrameCnt * 2 * sizeof(int16_t);
+        int32_t outBufferSize = kOutputFrameCount * 2 * sizeof(int16_t);
         MediaBuffer* outBuffer = new MediaBuffer(outBufferSize);
 
         // Convert back to 2 channels and 16 bits
         ditherAndClamp(
                 (int32_t *)((uint8_t*)outBuffer->data() + outBuffer->range_offset()),
-                pTmpBuffer, outFrameCnt);
+                pTmpBuffer, kOutputFrameCount);
         free(pTmpBuffer);
 
         // Compute and set the new timestamp
@@ -187,7 +200,7 @@ status_t VideoEditorSRC::read(
 }
 
 status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
-    ALOGV("Requesting %d, chan = %d", pBuffer->frameCount, mChannelCnt);
+    ALOGV("getNextBuffer %d, chan = %d", pBuffer->frameCount, mChannelCnt);
     uint32_t done = 0;
     uint32_t want = pBuffer->frameCount * mChannelCnt * 2;
     pBuffer->raw = malloc(want);
@@ -272,6 +285,7 @@ status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
 
 
 void VideoEditorSRC::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
+    ALOGV("releaseBuffer: %p", pBuffers);
     free(pBuffer->raw);
     pBuffer->raw = NULL;
     pBuffer->frameCount = 0;
@@ -280,6 +294,7 @@ void VideoEditorSRC::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
 void VideoEditorSRC::checkAndSetResampler() {
     ALOGV("checkAndSetResampler");
 
+    static const uint16_t kUnityGain = 0x1000;
     sp<MetaData> format = mSource->getFormat();
     const char *mime;
     CHECK(format->findCString(kKeyMIMEType, &mime));
@@ -301,7 +316,7 @@ void VideoEditorSRC::checkAndSetResampler() {
     }
 
     if (mSampleRate != mOutputSampleRate || mChannelCnt != 2) {
-        ALOGV("Resampling required (in rate %d, out rate %d, in channel %d)",
+        ALOGV("Resampling required (%d => %d Hz, # channels = %d)",
             mSampleRate, mOutputSampleRate, mChannelCnt);
 
         mResampler = AudioResampler::create(
@@ -311,9 +326,10 @@ void VideoEditorSRC::checkAndSetResampler() {
                         AudioResampler::DEFAULT);
         CHECK(mResampler);
         mResampler->setSampleRate(mSampleRate);
-        mResampler->setVolume(UNITY_GAIN, UNITY_GAIN);
+        mResampler->setVolume(kUnityGain, kUnityGain);
     } else {
-        ALOGV("Resampling not required (%d = %d)", mSampleRate, mOutputSampleRate);
+        ALOGV("Resampling not required (%d => %d Hz, # channels = %d)",
+            mSampleRate, mOutputSampleRate, mChannelCnt);
     }
 }
 

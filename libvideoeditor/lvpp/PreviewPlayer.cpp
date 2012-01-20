@@ -15,35 +15,44 @@
  */
 
 
-#define LOG_NDEBUG 1
+// #define LOG_NDEBUG 0
 #define LOG_TAG "PreviewPlayer"
 #include <utils/Log.h>
 
-#include <dlfcn.h>
-
-#include "PreviewPlayer.h"
-#include "DummyAudioSource.h"
-#include "DummyVideoSource.h"
-#include "VideoEditorSRC.h"
-#include "include/NuCachedSource2.h"
-#include "include/ThrottledSource.h"
-
-
 #include <binder/IPCThreadState.h>
+#include <binder/IServiceManager.h>
+#include <media/IMediaPlayerService.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
-#include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
-
+#include <media/stagefright/foundation/ADebug.h>
 #include <surfaceflinger/Surface.h>
-#include <media/stagefright/foundation/ALooper.h>
+#include <gui/ISurfaceTexture.h>
+#include <gui/SurfaceTextureClient.h>
+#include <surfaceflinger/ISurfaceComposer.h>
+
+#include "VideoEditorPreviewController.h"
+#include "AudioPlayerBase.h"
+#include "DummyAudioSource.h"
+#include "DummyVideoSource.h"
+#include "VideoEditorSRC.h"
+#include "PreviewPlayer.h"
 
 namespace android {
 
+
+void addBatteryData(uint32_t params) {
+    sp<IBinder> binder =
+        defaultServiceManager()->getService(String16("media.player"));
+    sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
+    CHECK(service.get() != NULL);
+
+    service->addBatteryData(params);
+}
 
 struct PreviewPlayerEvent : public TimedEventQueue::Event {
     PreviewPlayerEvent(
@@ -69,11 +78,24 @@ private:
 };
 
 PreviewPlayer::PreviewPlayer(NativeWindowRenderer* renderer)
-    : PreviewPlayerBase(),
+    : mQueueStarted(false),
+      mTimeSource(NULL),
+      mVideoRendererIsPreview(false),
+      mAudioPlayer(NULL),
+      mDisplayWidth(0),
+      mDisplayHeight(0),
+      mFlags(0),
+      mExtractorFlags(0),
+      mVideoBuffer(NULL),
+      mLastVideoTimeUs(-1),
       mNativeWindowRenderer(renderer),
       mCurrFramingEffectIndex(0),
       mFrameRGBBuffer(NULL),
       mFrameYUVBuffer(NULL) {
+
+    CHECK_EQ(mClient.connect(), (status_t)OK);
+    DataSource::RegisterDefaultSniffers();
+
 
     mVideoRenderer = NULL;
     mEffectsSettings = NULL;
@@ -92,16 +114,14 @@ PreviewPlayer::PreviewPlayer(NativeWindowRenderer* renderer)
 
     mVideoEvent = new PreviewPlayerEvent(this, &PreviewPlayer::onVideoEvent);
     mVideoEventPending = false;
-    mStreamDoneEvent = new PreviewPlayerEvent(this,
-         &PreviewPlayer::onStreamDone);
-
-    mStreamDoneEventPending = false;
-
+    mVideoLagEvent = new PreviewPlayerEvent(this, &PreviewPlayer::onVideoLagUpdate);
+    mVideoEventPending = false;
     mCheckAudioStatusEvent = new PreviewPlayerEvent(
-        this, &PreviewPlayerBase::onCheckAudioStatus);
-
+            this, &PreviewPlayer::onCheckAudioStatus);
     mAudioStatusEventPending = false;
-
+    mStreamDoneEvent = new PreviewPlayerEvent(
+            this, &PreviewPlayer::onStreamDone);
+    mStreamDoneEventPending = false;
     mProgressCbEvent = new PreviewPlayerEvent(this,
          &PreviewPlayer::onProgressCbEvent);
 
@@ -126,18 +146,25 @@ PreviewPlayer::~PreviewPlayer() {
     if (mVideoRenderer) {
         mNativeWindowRenderer->destroyRenderInput(mVideoRenderer);
     }
+
+    Mutex::Autolock lock(mLock);
+    clear_l();
+    mClient.disconnect();
 }
 
-void PreviewPlayer::cancelPlayerEvents() {
+void PreviewPlayer::cancelPlayerEvents_l(bool updateProgressCb) {
     mQueue.cancelEvent(mVideoEvent->eventID());
     mVideoEventPending = false;
     mQueue.cancelEvent(mStreamDoneEvent->eventID());
     mStreamDoneEventPending = false;
     mQueue.cancelEvent(mCheckAudioStatusEvent->eventID());
     mAudioStatusEventPending = false;
-
-    mQueue.cancelEvent(mProgressCbEvent->eventID());
-    mProgressCbEventPending = false;
+    mQueue.cancelEvent(mVideoLagEvent->eventID());
+    mVideoLagEventPending = false;
+    if (updateProgressCb) {
+        mQueue.cancelEvent(mProgressCbEvent->eventID());
+        mProgressCbEventPending = false;
+    }
 }
 
 status_t PreviewPlayer::setDataSource(const char *path) {
@@ -194,11 +221,8 @@ status_t PreviewPlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
     /* Add the support for Dummy audio*/
     if( !haveAudio ){
-        ALOGV("PreviewPlayer: setDataSource_l Dummyaudiocreation started");
-
         mAudioTrack = DummyAudioSource::Create(32000, 2, 20000,
                                               ((mPlayEndTimeMsec)*1000LL));
-        ALOGV("PreviewPlayer: setDataSource_l Dummyauiosource created");
         if(mAudioTrack != NULL) {
             haveAudio = true;
         }
@@ -213,18 +237,18 @@ status_t PreviewPlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 }
 
 status_t PreviewPlayer::setDataSource_l_jpg() {
+    ALOGV("setDataSource_l_jpg");
+
     M4OSA_ERR err = M4NO_ERROR;
-    ALOGV("PreviewPlayer: setDataSource_l_jpg started");
 
     mAudioSource = DummyAudioSource::Create(32000, 2, 20000,
                                           ((mPlayEndTimeMsec)*1000LL));
-    ALOGV("PreviewPlayer: setDataSource_l_jpg Dummyaudiosource created");
     if(mAudioSource != NULL) {
         setAudioSource(mAudioSource);
     }
     status_t error = mAudioSource->start();
     if (error != OK) {
-        ALOGV("Error starting dummy audio source");
+        ALOGE("Error starting dummy audio source");
         mAudioSource.clear();
         return err;
     }
@@ -246,11 +270,6 @@ status_t PreviewPlayer::setDataSource_l_jpg() {
     return OK;
 }
 
-void PreviewPlayer::reset() {
-    Mutex::Autolock autoLock(mLock);
-    reset_l();
-}
-
 void PreviewPlayer::reset_l() {
 
     if (mFlags & PREPARING) {
@@ -261,7 +280,7 @@ void PreviewPlayer::reset_l() {
         mPreparedCondition.wait(mLock);
     }
 
-    cancelPlayerEvents();
+    cancelPlayerEvents_l();
     mAudioTrack.clear();
     mVideoTrack.clear();
 
@@ -328,6 +347,7 @@ void PreviewPlayer::reset_l() {
 }
 
 status_t PreviewPlayer::play() {
+    ALOGV("play");
     Mutex::Autolock autoLock(mLock);
 
     mFlags &= ~CACHE_UNDERRUN;
@@ -336,6 +356,7 @@ status_t PreviewPlayer::play() {
 }
 
 status_t PreviewPlayer::startAudioPlayer_l() {
+    ALOGV("startAudioPlayer_l");
     CHECK(!(mFlags & AUDIO_RUNNING));
 
     if (mAudioSource == NULL || mAudioPlayer == NULL) {
@@ -366,6 +387,7 @@ status_t PreviewPlayer::startAudioPlayer_l() {
 }
 
 status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
+    ALOGV("setAudioPlayer");
     Mutex::Autolock autoLock(mLock);
     CHECK(!(mFlags & PLAYING));
     mAudioPlayer = audioPlayer;
@@ -428,6 +450,7 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
 }
 
 void PreviewPlayer::onStreamDone() {
+    ALOGV("onStreamDone");
     // Posted whenever any stream finishes playing.
 
     Mutex::Autolock autoLock(mLock);
@@ -496,6 +519,7 @@ void PreviewPlayer::onStreamDone() {
 
 
 status_t PreviewPlayer::play_l() {
+    ALOGV("play_l");
 
     mFlags &= ~SEEK_PREVIEW;
 
@@ -658,9 +682,8 @@ status_t PreviewPlayer::initRenderer_l() {
 
 
 status_t PreviewPlayer::seekTo(int64_t timeUs) {
-
+    Mutex::Autolock autoLock(mLock);
     if ((mExtractorFlags & MediaExtractor::CAN_SEEK) || (mIsVideoSourceJpg)) {
-        Mutex::Autolock autoLock(mLock);
         return seekTo_l(timeUs);
     }
 
@@ -683,7 +706,7 @@ status_t PreviewPlayer::getVideoDimensions(
 }
 
 
-status_t PreviewPlayer::initAudioDecoder() {
+status_t PreviewPlayer::initAudioDecoder_l() {
     sp<MetaData> meta = mAudioTrack->getFormat();
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
@@ -698,7 +721,6 @@ status_t PreviewPlayer::initAudioDecoder() {
                 mAudioTrack);
 
         if(aRawSource != NULL) {
-            ALOGV("initAudioDecoder: new VideoEditorSRC");
             mAudioSource = new VideoEditorSRC(aRawSource);
         }
     }
@@ -706,10 +728,7 @@ status_t PreviewPlayer::initAudioDecoder() {
     if (mAudioSource != NULL) {
         int64_t durationUs;
         if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
-            Mutex::Autolock autoLock(mMiscStateLock);
-            if (mDurationUs < 0 || durationUs > mDurationUs) {
-                mDurationUs = durationUs;
-            }
+            setDuration_l(durationUs);
         }
         status_t err = mAudioSource->start();
 
@@ -727,9 +746,7 @@ status_t PreviewPlayer::initAudioDecoder() {
     return mAudioSource != NULL ? OK : UNKNOWN_ERROR;
 }
 
-
-status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
-
+status_t PreviewPlayer::initVideoDecoder_l(uint32_t flags) {
     initRenderer_l();
 
     if (mVideoRenderer == NULL) {
@@ -746,10 +763,7 @@ status_t PreviewPlayer::initVideoDecoder(uint32_t flags) {
     if (mVideoSource != NULL) {
         int64_t durationUs;
         if (mVideoTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
-            Mutex::Autolock autoLock(mMiscStateLock);
-            if (mDurationUs < 0 || durationUs > mDurationUs) {
-                mDurationUs = durationUs;
-            }
+            setDuration_l(durationUs);
         }
 
         updateSizeToRender(mVideoTrack->getFormat());
@@ -821,7 +835,7 @@ void PreviewPlayer::onVideoEvent() {
             options.clearSeekTo();
 
             if (err != OK) {
-                CHECK_EQ(mVideoBuffer, NULL);
+                CHECK(!mVideoBuffer);
 
                 if (err == INFO_FORMAT_CHANGED) {
                     ALOGV("LV PLAYER VideoSource signalled format change");
@@ -892,16 +906,11 @@ void PreviewPlayer::onVideoEvent() {
 
     int64_t timeUs;
     CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &timeUs));
+    setPosition_l(timeUs);
 
-    {
-        Mutex::Autolock autoLock(mMiscStateLock);
-        mVideoTimeUs = timeUs;
-    }
-
-
-    if(!mStartNextPlayer) {
-        int64_t playbackTimeRemaining = (mPlayEndTimeMsec*1000LL) - timeUs;
-        if(playbackTimeRemaining <= 1500000) {
+    if (!mStartNextPlayer) {
+        int64_t playbackTimeRemaining = (mPlayEndTimeMsec * 1000LL) - timeUs;
+        if (playbackTimeRemaining <= 1500000) {
             //When less than 1.5 sec of playback left
             // send notification to start next player
 
@@ -1047,7 +1056,7 @@ void PreviewPlayer::onVideoEvent() {
                 mCurrFramingEffectIndex = index;
                 mOverlayUpdateEventPosted = true;
                 postOverlayUpdateEvent_l();
-                ALOGV("Framing index = %d", mCurrFramingEffectIndex);
+                ALOGV("Framing index = %ld", mCurrFramingEffectIndex);
             } else {
                 ALOGV("No framing effects found");
             }
@@ -1100,11 +1109,13 @@ void PreviewPlayer::onVideoEvent() {
 }
 
 status_t PreviewPlayer::prepare() {
+    ALOGV("prepare");
     Mutex::Autolock autoLock(mLock);
     return prepare_l();
 }
 
 status_t PreviewPlayer::prepare_l() {
+    ALOGV("prepare_l");
     if (mFlags & PREPARED) {
         return OK;
     }
@@ -1127,7 +1138,14 @@ status_t PreviewPlayer::prepare_l() {
     return mPrepareResult;
 }
 
+status_t PreviewPlayer::prepareAsync() {
+    ALOGV("prepareAsync");
+    Mutex::Autolock autoLock(mLock);
+    return prepareAsync_l();
+}
+
 status_t PreviewPlayer::prepareAsync_l() {
+    ALOGV("prepareAsync_l");
     if (mFlags & PREPARING) {
         return UNKNOWN_ERROR;  // async prepare already pending
     }
@@ -1168,19 +1186,11 @@ status_t PreviewPlayer::finishSetDataSource_l() {
     }
 
     if (extractor == NULL) {
-        ALOGV("PreviewPlayer::finishSetDataSource_l  extractor == NULL");
+        ALOGV("finishSetDataSource_l: failed to create extractor");
         return setDataSource_l_jpg();
     }
 
     return setDataSource_l(extractor);
-}
-
-
-// static
-bool PreviewPlayer::ContinuePreparation(void *cookie) {
-    PreviewPlayer *me = static_cast<PreviewPlayer *>(cookie);
-
-    return (me->mFlags & PREPARE_CANCELLED) == 0;
 }
 
 void PreviewPlayer::onPrepareAsyncEvent() {
@@ -1188,7 +1198,7 @@ void PreviewPlayer::onPrepareAsyncEvent() {
     ALOGV("onPrepareAsyncEvent");
 
     if (mFlags & PREPARE_CANCELLED) {
-        ALOGV("LV PLAYER prepare was cancelled before doing anything");
+        ALOGV("prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
         return;
     }
@@ -1203,7 +1213,7 @@ void PreviewPlayer::onPrepareAsyncEvent() {
     }
 
     if (mVideoTrack != NULL && mVideoSource == NULL) {
-        status_t err = initVideoDecoder(OMXCodec::kHardwareCodecsOnly);
+        status_t err = initVideoDecoder_l(OMXCodec::kHardwareCodecsOnly);
 
         if (err != OK) {
             abortPrepare(err);
@@ -1212,7 +1222,7 @@ void PreviewPlayer::onPrepareAsyncEvent() {
     }
 
     if (mAudioTrack != NULL && mAudioSource == NULL) {
-        status_t err = initAudioDecoder();
+        status_t err = initAudioDecoder_l();
 
         if (err != OK) {
             abortPrepare(err);
@@ -1224,15 +1234,13 @@ void PreviewPlayer::onPrepareAsyncEvent() {
 }
 
 void PreviewPlayer::finishAsyncPrepare_l() {
+    ALOGV("finishAsyncPrepare_l");
     if (mIsAsyncPrepare) {
         if (mVideoSource == NULL) {
-            ALOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE 0 0 ");
             notifyListener_l(MEDIA_SET_VIDEO_SIZE, 0, 0);
         } else {
-            ALOGV("finishAsyncPrepare_l: MEDIA_SET_VIDEO_SIZE");
             notifyVideoSize_l();
         }
-        ALOGV("finishAsyncPrepare_l: MEDIA_PREPARED");
         notifyListener_l(MEDIA_PREPARED);
     }
 
@@ -1254,36 +1262,36 @@ void PreviewPlayer::releaseLock() {
 }
 
 status_t PreviewPlayer::loadEffectsSettings(
-                    M4VSS3GPP_EffectSettings* pEffectSettings, int nEffects) {
-    M4OSA_UInt32 i = 0, rgbSize = 0;
-    M4VIFI_UInt8 *tmp = M4OSA_NULL;
+        M4VSS3GPP_EffectSettings* pEffectSettings, int nEffects) {
 
+    ALOGV("loadEffectsSettings");
     mNumberEffects = nEffects;
     mEffectsSettings = pEffectSettings;
     return OK;
 }
 
 status_t PreviewPlayer::loadAudioMixSettings(
-                    M4xVSS_AudioMixingSettings* pAudioMixSettings) {
+        M4xVSS_AudioMixingSettings* pAudioMixSettings) {
 
-    ALOGV("PreviewPlayer: loadAudioMixSettings: ");
+    ALOGV("loadAudioMixSettings");
     mPreviewPlayerAudioMixSettings = pAudioMixSettings;
     return OK;
 }
 
 status_t PreviewPlayer::setAudioMixPCMFileHandle(
-                    M4OSA_Context pAudioMixPCMFileHandle) {
+        M4OSA_Context pAudioMixPCMFileHandle) {
 
-    ALOGV("PreviewPlayer: setAudioMixPCMFileHandle: ");
+    ALOGV("setAudioMixPCMFileHandle");
     mAudioMixPCMFileHandle = pAudioMixPCMFileHandle;
     return OK;
 }
 
 status_t PreviewPlayer::setAudioMixStoryBoardParam(
-                    M4OSA_UInt32 audioMixStoryBoardTS,
-                    M4OSA_UInt32 currentMediaBeginCutTime,
-                    M4OSA_UInt32 primaryTrackVolValue ) {
+        M4OSA_UInt32 audioMixStoryBoardTS,
+        M4OSA_UInt32 currentMediaBeginCutTime,
+        M4OSA_UInt32 primaryTrackVolValue ) {
 
+    ALOGV("setAudioMixStoryBoardParam");
     mAudioMixStoryBoardTS = audioMixStoryBoardTS;
     mCurrentMediaBeginCutTime = currentMediaBeginCutTime;
     mCurrentMediaVolumeValue = primaryTrackVolValue;
@@ -1305,7 +1313,7 @@ status_t PreviewPlayer::setPlaybackEndTime(uint32_t msec) {
 status_t PreviewPlayer::setStoryboardStartTime(uint32_t msec) {
 
     mStoryboardStartTimeMsec = msec;
-    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000LL;
+    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec * 1000LL;
     return OK;
 }
 
@@ -1322,17 +1330,16 @@ status_t PreviewPlayer::setMediaRenderingMode(
 
     mRenderingMode = mode;
 
-    status_t err = OK;
     /* get the video width and height by resolution */
-    err = getVideoSizeByResolution(outputVideoSize,
-              &mOutputVideoWidth, &mOutputVideoHeight);
+    return getVideoSizeByResolution(
+                outputVideoSize,
+                    &mOutputVideoWidth, &mOutputVideoHeight);
 
-    return err;
 }
 
 status_t PreviewPlayer::resetJniCallbackTimeStamp() {
 
-    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec*1000LL;
+    mDecVideoTsStoryBoard = mStoryboardStartTimeMsec * 1000LL;
     return OK;
 }
 
@@ -1354,10 +1361,9 @@ void PreviewPlayer::onProgressCbEvent() {
     mProgressCbEventPending = false;
     // If playback starts from previous I-frame,
     // then send frame storyboard duration
-    if((mDecodedVideoTs/1000) < mPlayBeginTimeMsec) {
+    if ((mDecodedVideoTs/1000) < mPlayBeginTimeMsec) {
         notifyListener_l(MEDIA_INFO, 0, mDecVideoTsStoryBoard/1000);
-    }
-    else {
+    } else {
         notifyListener_l(MEDIA_INFO, 0,
         (((mDecodedVideoTs+mDecVideoTsStoryBoard)/1000)-mPlayBeginTimeMsec));
     }
@@ -1379,18 +1385,13 @@ void PreviewPlayer::onUpdateOverlayEvent() {
     }
     mOverlayUpdateEventPending = false;
 
-    int updateState;
-    if (mOverlayUpdateEventPosted) {
-        updateState = 1;
-    } else {
-        updateState = 0;
-    }
+    int updateState = mOverlayUpdateEventPosted? 1: 0;
     notifyListener_l(0xBBBBBBBB, updateState, mCurrFramingEffectIndex);
 }
 
 
 void PreviewPlayer::setVideoPostProcessingNode(
-                    M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable) {
+        M4VSS3GPP_VideoEffectType type, M4OSA_Bool enable) {
 
     uint32_t effect = VIDEO_EFFECT_NONE;
 
@@ -1445,18 +1446,17 @@ void PreviewPlayer::setVideoPostProcessingNode(
             break;
     }
 
-    if(enable == M4OSA_TRUE) {
+    if (enable == M4OSA_TRUE) {
         //If already set, then no need to set again
-        if(!(mCurrentVideoEffect & effect)) {
+        if (!(mCurrentVideoEffect & effect)) {
             mCurrentVideoEffect |= effect;
-            if(effect == VIDEO_EFFECT_FIFTIES) {
+            if (effect == VIDEO_EFFECT_FIFTIES) {
                 mIsFiftiesEffectStarted = true;
             }
         }
-    }
-    else  {
+    } else  {
         //Reset only if already set
-        if(mCurrentVideoEffect & effect) {
+        if (mCurrentVideoEffect & effect) {
             mCurrentVideoEffect &= ~effect;
         }
     }
@@ -1469,12 +1469,12 @@ status_t PreviewPlayer::setImageClipProperties(uint32_t width,uint32_t height) {
 }
 
 status_t PreviewPlayer::readFirstVideoFrame() {
-    ALOGV("PreviewPlayer::readFirstVideoFrame");
+    ALOGV("readFirstVideoFrame");
 
     if (!mVideoBuffer) {
         MediaSource::ReadOptions options;
         if (mSeeking != NO_SEEK) {
-            ALOGV("LV PLAYER seeking to %lld us (%.2f secs)", mSeekTimeUs,
+            ALOGV("seeking to %lld us (%.2f secs)", mSeekTimeUs,
                     mSeekTimeUs / 1E6);
 
             options.setSeekTo(
@@ -1485,10 +1485,10 @@ status_t PreviewPlayer::readFirstVideoFrame() {
             options.clearSeekTo();
 
             if (err != OK) {
-                CHECK_EQ(mVideoBuffer, NULL);
+                CHECK(!mVideoBuffer);
 
                 if (err == INFO_FORMAT_CHANGED) {
-                    ALOGV("LV PLAYER VideoSource signalled format change");
+                    ALOGV("VideoSource signalled format change");
                     notifyVideoSize_l();
 
                     if (mVideoRenderer != NULL) {
@@ -1502,7 +1502,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     updateSizeToRender(mVideoSource->getFormat());
                     continue;
                 }
-                ALOGV("PreviewPlayer: onVideoEvent EOS reached.");
+                ALOGV("EOS reached.");
                 mFlags |= VIDEO_AT_EOS;
                 mFlags |= AUDIO_AT_EOS;
                 postStreamDoneEvent_l(err);
@@ -1529,7 +1529,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
                     continue;
                 }
             } else {
-                if((videoTimeUs/1000) < mPlayBeginTimeMsec) {
+                if ((videoTimeUs/1000) < mPlayBeginTimeMsec) {
                     // buffers are before begin cut time
                     // ignore them
                     mVideoBuffer->release();
@@ -1543,11 +1543,7 @@ status_t PreviewPlayer::readFirstVideoFrame() {
 
     int64_t timeUs;
     CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &timeUs));
-
-    {
-        Mutex::Autolock autoLock(mMiscStateLock);
-        mVideoTimeUs = timeUs;
-    }
+    setPosition_l(timeUs);
 
     mDecodedVideoTs = timeUs;
 
@@ -1564,6 +1560,531 @@ void PreviewPlayer::updateSizeToRender(sp<MetaData> meta) {
     if (mVideoRenderer) {
         mVideoRenderer->updateVideoSize(meta);
     }
+}
+
+void PreviewPlayer::setListener(const wp<MediaPlayerBase> &listener) {
+    Mutex::Autolock autoLock(mLock);
+    mListener = listener;
+}
+
+status_t PreviewPlayer::setDataSource(const sp<IStreamSource> &source) {
+    return INVALID_OPERATION;
+}
+
+void PreviewPlayer::reset() {
+    Mutex::Autolock autoLock(mLock);
+    reset_l();
+}
+
+void PreviewPlayer::clear_l() {
+    mDisplayWidth = 0;
+    mDisplayHeight = 0;
+
+    if (mFlags & PLAYING) {
+        updateBatteryUsage_l();
+    }
+
+    if (mFlags & PREPARING) {
+        mFlags |= PREPARE_CANCELLED;
+
+        if (mFlags & PREPARING_CONNECTED) {
+            // We are basically done preparing, we're just buffering
+            // enough data to start playback, we can safely interrupt that.
+            finishAsyncPrepare_l();
+        }
+    }
+
+    while (mFlags & PREPARING) {
+        mPreparedCondition.wait(mLock);
+    }
+
+    cancelPlayerEvents_l(true);
+
+    mAudioTrack.clear();
+    mVideoTrack.clear();
+
+    // Shutdown audio first, so that the respone to the reset request
+    // appears to happen instantaneously as far as the user is concerned
+    // If we did this later, audio would continue playing while we
+    // shutdown the video-related resources and the player appear to
+    // not be as responsive to a reset request.
+    if (mAudioPlayer == NULL && mAudioSource != NULL) {
+        // If we had an audio player, it would have effectively
+        // taken possession of the audio source and stopped it when
+        // _it_ is stopped. Otherwise this is still our responsibility.
+        mAudioSource->stop();
+    }
+    mAudioSource.clear();
+
+    mTimeSource = NULL;
+
+    delete mAudioPlayer;
+    mAudioPlayer = NULL;
+
+    if (mVideoSource != NULL) {
+        shutdownVideoDecoder_l();
+    }
+
+    mDurationUs = -1;
+    mFlags = 0;
+    mExtractorFlags = 0;
+    mTimeSourceDeltaUs = 0;
+    mVideoTimeUs = 0;
+
+    mSeeking = NO_SEEK;
+    mSeekNotificationSent = false;
+    mSeekTimeUs = 0;
+
+    mUri.setTo("");
+
+    mBitrate = -1;
+    mLastVideoTimeUs = -1;
+}
+
+void PreviewPlayer::notifyListener_l(int msg, int ext1, int ext2) {
+    if (mListener != NULL) {
+        sp<MediaPlayerBase> listener = mListener.promote();
+
+        if (listener != NULL) {
+            listener->sendEvent(msg, ext1, ext2);
+        }
+    }
+}
+
+void PreviewPlayer::onVideoLagUpdate() {
+    Mutex::Autolock autoLock(mLock);
+    if (!mVideoLagEventPending) {
+        return;
+    }
+    mVideoLagEventPending = false;
+
+    int64_t audioTimeUs = mAudioPlayer->getMediaTimeUs();
+    int64_t videoLateByUs = audioTimeUs - mVideoTimeUs;
+
+    if (!(mFlags & VIDEO_AT_EOS) && videoLateByUs > 300000ll) {
+        ALOGV("video late by %lld ms.", videoLateByUs / 1000ll);
+
+        notifyListener_l(
+                MEDIA_INFO,
+                MEDIA_INFO_VIDEO_TRACK_LAGGING,
+                videoLateByUs / 1000ll);
+    }
+
+    postVideoLagEvent_l();
+}
+
+void PreviewPlayer::notifyVideoSize_l() {
+    sp<MetaData> meta = mVideoSource->getFormat();
+
+    int32_t vWidth, vHeight;
+    int32_t cropLeft, cropTop, cropRight, cropBottom;
+
+    CHECK(meta->findInt32(kKeyWidth, &vWidth));
+    CHECK(meta->findInt32(kKeyHeight, &vHeight));
+
+    mGivenWidth = vWidth;
+    mGivenHeight = vHeight;
+
+    if (!meta->findRect(
+                kKeyCropRect, &cropLeft, &cropTop, &cropRight, &cropBottom)) {
+
+        cropLeft = cropTop = 0;
+        cropRight = vWidth - 1;
+        cropBottom = vHeight - 1;
+
+        ALOGD("got dimensions only %d x %d", vWidth, vHeight);
+    } else {
+        ALOGD("got crop rect %d, %d, %d, %d",
+             cropLeft, cropTop, cropRight, cropBottom);
+    }
+
+    mCropRect.left = cropLeft;
+    mCropRect.right = cropRight;
+    mCropRect.top = cropTop;
+    mCropRect.bottom = cropBottom;
+
+    int32_t displayWidth;
+    if (meta->findInt32(kKeyDisplayWidth, &displayWidth)) {
+        ALOGV("Display width changed (%d=>%d)", mDisplayWidth, displayWidth);
+        mDisplayWidth = displayWidth;
+    }
+    int32_t displayHeight;
+    if (meta->findInt32(kKeyDisplayHeight, &displayHeight)) {
+        ALOGV("Display height changed (%d=>%d)", mDisplayHeight, displayHeight);
+        mDisplayHeight = displayHeight;
+    }
+
+    int32_t usableWidth = cropRight - cropLeft + 1;
+    int32_t usableHeight = cropBottom - cropTop + 1;
+    if (mDisplayWidth != 0) {
+        usableWidth = mDisplayWidth;
+    }
+    if (mDisplayHeight != 0) {
+        usableHeight = mDisplayHeight;
+    }
+
+    int32_t rotationDegrees;
+    if (!mVideoTrack->getFormat()->findInt32(
+                kKeyRotation, &rotationDegrees)) {
+        rotationDegrees = 0;
+    }
+
+    if (rotationDegrees == 90 || rotationDegrees == 270) {
+        notifyListener_l(
+                MEDIA_SET_VIDEO_SIZE, usableHeight, usableWidth);
+    } else {
+        notifyListener_l(
+                MEDIA_SET_VIDEO_SIZE, usableWidth, usableHeight);
+    }
+}
+
+status_t PreviewPlayer::pause() {
+    Mutex::Autolock autoLock(mLock);
+
+    mFlags &= ~CACHE_UNDERRUN;
+
+    return pause_l();
+}
+
+status_t PreviewPlayer::pause_l(bool at_eos) {
+    if (!(mFlags & PLAYING)) {
+        return OK;
+    }
+
+    cancelPlayerEvents_l();
+
+    if (mAudioPlayer != NULL && (mFlags & AUDIO_RUNNING)) {
+        if (at_eos) {
+            // If we played the audio stream to completion we
+            // want to make sure that all samples remaining in the audio
+            // track's queue are played out.
+            mAudioPlayer->pause(true /* playPendingSamples */);
+        } else {
+            mAudioPlayer->pause();
+        }
+
+        mFlags &= ~AUDIO_RUNNING;
+    }
+
+    mFlags &= ~PLAYING;
+    updateBatteryUsage_l();
+
+    return OK;
+}
+
+bool PreviewPlayer::isPlaying() const {
+    return (mFlags & PLAYING) || (mFlags & CACHE_UNDERRUN);
+}
+
+void PreviewPlayer::setSurface(const sp<Surface> &surface) {
+    Mutex::Autolock autoLock(mLock);
+
+    mSurface = surface;
+    setNativeWindow_l(surface);
+}
+
+void PreviewPlayer::setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+    Mutex::Autolock autoLock(mLock);
+
+    mSurface.clear();
+    if (surfaceTexture != NULL) {
+        setNativeWindow_l(new SurfaceTextureClient(surfaceTexture));
+    }
+}
+
+void PreviewPlayer::shutdownVideoDecoder_l() {
+    if (mVideoBuffer) {
+        mVideoBuffer->release();
+        mVideoBuffer = NULL;
+    }
+
+    mVideoSource->stop();
+
+    // The following hack is necessary to ensure that the OMX
+    // component is completely released by the time we may try
+    // to instantiate it again.
+    wp<MediaSource> tmp = mVideoSource;
+    mVideoSource.clear();
+    while (tmp.promote() != NULL) {
+        usleep(1000);
+    }
+    IPCThreadState::self()->flushCommands();
+}
+
+void PreviewPlayer::setNativeWindow_l(const sp<ANativeWindow> &native) {
+    mNativeWindow = native;
+
+    if (mVideoSource == NULL) {
+        return;
+    }
+
+    ALOGI("attempting to reconfigure to use new surface");
+
+    bool wasPlaying = (mFlags & PLAYING) != 0;
+
+    pause_l();
+
+    shutdownVideoDecoder_l();
+
+    CHECK_EQ(initVideoDecoder_l(), (status_t)OK);
+
+    if (mLastVideoTimeUs >= 0) {
+        mSeeking = SEEK;
+        mSeekNotificationSent = true;
+        mSeekTimeUs = mLastVideoTimeUs;
+        mFlags &= ~(AT_EOS | AUDIO_AT_EOS | VIDEO_AT_EOS);
+    }
+
+    if (wasPlaying) {
+        play_l();
+    }
+}
+
+void PreviewPlayer::setAudioSink(
+        const sp<MediaPlayerBase::AudioSink> &audioSink) {
+    Mutex::Autolock autoLock(mLock);
+
+    mAudioSink = audioSink;
+}
+
+status_t PreviewPlayer::setLooping(bool shouldLoop) {
+    Mutex::Autolock autoLock(mLock);
+
+    mFlags = mFlags & ~LOOPING;
+
+    if (shouldLoop) {
+        mFlags |= LOOPING;
+    }
+
+    return OK;
+}
+
+void PreviewPlayer::setDuration_l(int64_t durationUs) {
+    if (mDurationUs < 0 || durationUs > mDurationUs) {
+        mDurationUs = durationUs;
+    }
+}
+
+status_t PreviewPlayer::getDuration(int64_t *durationUs) {
+    Mutex::Autolock autoLock(mLock);
+    if (mDurationUs < 0) {
+        return UNKNOWN_ERROR;
+    }
+
+    *durationUs = mDurationUs;
+    return OK;
+}
+
+status_t PreviewPlayer::getPosition(int64_t *positionUs) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mSeeking != NO_SEEK) {
+        *positionUs = mSeekTimeUs;
+    } else if (mVideoSource != NULL
+            && (mAudioPlayer == NULL || !(mFlags & VIDEO_AT_EOS))) {
+        *positionUs = mVideoTimeUs;
+    } else if (mAudioPlayer != NULL) {
+        *positionUs = mAudioPlayer->getMediaTimeUs();
+    } else {
+        *positionUs = 0;
+    }
+
+    return OK;
+}
+
+void PreviewPlayer::setPosition_l(int64_t timeUs) {
+    mVideoTimeUs = timeUs;
+}
+
+status_t PreviewPlayer::seekTo_l(int64_t timeUs) {
+    ALOGV("seekTo_l");
+    if (mFlags & CACHE_UNDERRUN) {
+        mFlags &= ~CACHE_UNDERRUN;
+        play_l();
+    }
+
+    if ((mFlags & PLAYING) && mVideoSource != NULL && (mFlags & VIDEO_AT_EOS)) {
+        // Video playback completed before, there's no pending
+        // video event right now. In order for this new seek
+        // to be honored, we need to post one.
+
+        postVideoEvent_l();
+    }
+
+    mSeeking = SEEK;
+    mSeekNotificationSent = false;
+    mSeekTimeUs = timeUs;
+    mFlags &= ~(AT_EOS | AUDIO_AT_EOS | VIDEO_AT_EOS);
+
+    seekAudioIfNecessary_l();
+
+    if (!(mFlags & PLAYING)) {
+        ALOGV("seeking while paused, sending SEEK_COMPLETE notification"
+             " immediately.");
+
+        notifyListener_l(MEDIA_SEEK_COMPLETE);
+        mSeekNotificationSent = true;
+
+        if ((mFlags & PREPARED) && mVideoSource != NULL) {
+            mFlags |= SEEK_PREVIEW;
+            postVideoEvent_l();
+        }
+    }
+
+    return OK;
+}
+
+void PreviewPlayer::seekAudioIfNecessary_l() {
+    if (mSeeking != NO_SEEK && mVideoSource == NULL && mAudioPlayer != NULL) {
+        mAudioPlayer->seekTo(mSeekTimeUs);
+
+        mWatchForAudioSeekComplete = true;
+        mWatchForAudioEOS = true;
+    }
+}
+
+void PreviewPlayer::setAudioSource(const sp<MediaSource>& source) {
+    CHECK(source != NULL);
+    mAudioTrack = source;
+}
+
+void PreviewPlayer::setVideoSource(const sp<MediaSource>& source) {
+    CHECK(source != NULL);
+    mVideoTrack = source;
+}
+
+void PreviewPlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
+    if (mSeeking == SEEK_VIDEO_ONLY) {
+        mSeeking = NO_SEEK;
+        return;
+    }
+
+    if (mSeeking == NO_SEEK || (mFlags & SEEK_PREVIEW)) {
+        return;
+    }
+
+    if (mAudioPlayer != NULL) {
+        ALOGV("seeking audio to %lld us (%.2f secs).", videoTimeUs, videoTimeUs / 1E6);
+
+        // If we don't have a video time, seek audio to the originally
+        // requested seek time instead.
+
+        mAudioPlayer->seekTo(videoTimeUs < 0 ? mSeekTimeUs : videoTimeUs);
+        mWatchForAudioSeekComplete = true;
+        mWatchForAudioEOS = true;
+    } else if (!mSeekNotificationSent) {
+        // If we're playing video only, report seek complete now,
+        // otherwise audio player will notify us later.
+        notifyListener_l(MEDIA_SEEK_COMPLETE);
+        mSeekNotificationSent = true;
+    }
+
+    mFlags |= FIRST_FRAME;
+    mSeeking = NO_SEEK;
+}
+
+void PreviewPlayer::onCheckAudioStatus() {
+    Mutex::Autolock autoLock(mLock);
+    if (!mAudioStatusEventPending) {
+        // Event was dispatched and while we were blocking on the mutex,
+        // has already been cancelled.
+        return;
+    }
+
+    mAudioStatusEventPending = false;
+
+    if (mWatchForAudioSeekComplete && !mAudioPlayer->isSeeking()) {
+        mWatchForAudioSeekComplete = false;
+
+        if (!mSeekNotificationSent) {
+            notifyListener_l(MEDIA_SEEK_COMPLETE);
+            mSeekNotificationSent = true;
+        }
+
+        mSeeking = NO_SEEK;
+    }
+
+    status_t finalStatus;
+    if (mWatchForAudioEOS && mAudioPlayer->reachedEOS(&finalStatus)) {
+        mWatchForAudioEOS = false;
+        mFlags |= AUDIO_AT_EOS;
+        mFlags |= FIRST_FRAME;
+        postStreamDoneEvent_l(finalStatus);
+    }
+}
+
+void PreviewPlayer::postVideoEvent_l(int64_t delayUs) {
+    if (mVideoEventPending) {
+        return;
+    }
+
+    mVideoEventPending = true;
+    mQueue.postEventWithDelay(mVideoEvent, delayUs < 0 ? 10000 : delayUs);
+}
+
+void PreviewPlayer::postStreamDoneEvent_l(status_t status) {
+    if (mStreamDoneEventPending) {
+        return;
+    }
+    mStreamDoneEventPending = true;
+
+    mStreamDoneStatus = status;
+    mQueue.postEvent(mStreamDoneEvent);
+}
+
+void PreviewPlayer::postVideoLagEvent_l() {
+    if (mVideoLagEventPending) {
+        return;
+    }
+    mVideoLagEventPending = true;
+    mQueue.postEventWithDelay(mVideoLagEvent, 1000000ll);
+}
+
+void PreviewPlayer::postCheckAudioStatusEvent_l(int64_t delayUs) {
+    if (mAudioStatusEventPending) {
+        return;
+    }
+    mAudioStatusEventPending = true;
+    mQueue.postEventWithDelay(mCheckAudioStatusEvent, delayUs);
+}
+
+void PreviewPlayer::abortPrepare(status_t err) {
+    CHECK(err != OK);
+
+    if (mIsAsyncPrepare) {
+        notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+    }
+
+    mPrepareResult = err;
+    mFlags &= ~(PREPARING|PREPARE_CANCELLED|PREPARING_CONNECTED);
+    mAsyncPrepareEvent = NULL;
+    mPreparedCondition.broadcast();
+}
+
+uint32_t PreviewPlayer::getSourceSeekFlags() const {
+    Mutex::Autolock lock(mLock);
+    return mExtractorFlags;
+}
+
+void PreviewPlayer::postAudioEOS(int64_t delayUs) {
+    Mutex::Autolock autoLock(mLock);
+    postCheckAudioStatusEvent_l(delayUs);
+}
+
+void PreviewPlayer::postAudioSeekComplete() {
+    Mutex::Autolock autoLock(mLock);
+    postCheckAudioStatusEvent_l(0 /* delayUs */);
+}
+
+void PreviewPlayer::updateBatteryUsage_l() {
+    uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
+    if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
+        params |= IMediaPlayerService::kBatteryDataTrackAudio;
+    }
+    if (mVideoSource != NULL) {
+        params |= IMediaPlayerService::kBatteryDataTrackVideo;
+    }
+    addBatteryData(params);
 }
 
 }  // namespace android

@@ -27,7 +27,7 @@
 #include "M4OSA_FileReader.h"
 #include "VideoEditorBGAudioProcessing.h"
 #include "AudioPlayerBase.h"
-#include "PreviewPlayerBase.h"
+#include "PreviewPlayer.h"
 
 namespace android {
 
@@ -44,7 +44,7 @@ public:
     };
 
     VideoEditorAudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
-        PreviewPlayerBase *audioObserver = NULL);
+        PreviewPlayer *audioObserver = NULL);
 
     virtual ~VideoEditorAudioPlayer();
 
@@ -58,7 +58,7 @@ public:
         M4OSA_UInt32 pBGAudioCurrentMediaBeginCutTS,
         M4OSA_UInt32 pBGAudioCurrentMediaVolumeVal);
 
-    void setObserver(PreviewPlayerBase *observer);
+    void setObserver(PreviewPlayer *observer);
     void setSource(const sp<MediaSource> &source);
     sp<MediaSource> getSource();
 
