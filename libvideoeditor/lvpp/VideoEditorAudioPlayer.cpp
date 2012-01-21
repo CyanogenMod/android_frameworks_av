@@ -154,7 +154,7 @@ void VideoEditorAudioPlayer::clear() {
 void VideoEditorAudioPlayer::resume() {
     ALOGV("resume");
 
-    veAudMixSettings audioMixSettings;
+    AudioMixSettings audioMixSettings;
 
     // Single audio player is used;
     // Pass on the audio ducking parameters
@@ -173,7 +173,7 @@ void VideoEditorAudioPlayer::resume() {
     audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
 
     // Call to Audio mix param setting
-    mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
+    mAudioProcess->setMixParams(audioMixSettings);
 
     CHECK(mStarted);
 
@@ -337,7 +337,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
 
     // Create the BG Audio handler
     mAudioProcess = new VideoEditorBGAudioProcessing();
-    veAudMixSettings audioMixSettings;
+    AudioMixSettings audioMixSettings;
 
     // Pass on the audio ducking parameters
     audioMixSettings.lvInDucking_threshold =
@@ -354,7 +354,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
     audioMixSettings.lvPTChannelCount = mAudioMixSettings->uiNbChannels;
 
     // Call to Audio mix param setting
-    mAudioProcess->veSetAudioProcessingParams(audioMixSettings);
+    mAudioProcess->setMixParams(audioMixSettings);
 
     // Get the BG Audio PCM file details
     if ( mBGAudioPCMFileHandle ) {
@@ -759,7 +759,7 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
                                     ptFrame.m_bufferSize = len;
 
                                     // Call to mix and duck
-                                    mAudioProcess->veProcessAudioMixNDuck(
+                                    mAudioProcess->mixAndDuck(
                                          &ptFrame, &bgFrame, &mixFrame);
 
                                         // Overwrite the decoded buffer

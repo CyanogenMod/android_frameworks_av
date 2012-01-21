@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 1
+//#define LOG_NDEBUG 0
 #define LOG_TAG "VideoEditorBGAudioProcessing"
 #include <utils/Log.h>
 #include "VideoEditorBGAudioProcessing.h"
@@ -22,8 +22,7 @@
 namespace android {
 
 VideoEditorBGAudioProcessing::VideoEditorBGAudioProcessing() {
-
-    ALOGV("VideoEditorBGAudioProcessing:: Construct  VideoEditorBGAudioProcessing ");
+    ALOGV("Constructor");
 
     mAudVolArrIndex = 0;
     mDoDucking = 0;
@@ -46,28 +45,18 @@ VideoEditorBGAudioProcessing::VideoEditorBGAudioProcessing() {
     mBTChannelCount = 1;
 }
 
-M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
-        void *pPTBuffer, void *pBTBuffer, void *pOutBuffer) {
+M4OSA_Int32 VideoEditorBGAudioProcessing::mixAndDuck(
+        void *primaryTrackBuffer,
+        void *backgroundTrackBuffer,
+        void *outBuffer) {
 
-    M4AM_Buffer16* pPrimaryTrack   = (M4AM_Buffer16*)pPTBuffer;
-    M4AM_Buffer16* pBackgroundTrack = (M4AM_Buffer16*)pBTBuffer;
-    M4AM_Buffer16* pMixedOutBuffer  = (M4AM_Buffer16*)pOutBuffer;
+    ALOGV("mixAndDuck: track buffers (primary: 0x%x and background: 0x%x) "
+            "and out buffer 0x%x",
+            primaryTrackBuffer, backgroundTrackBuffer, outBuffer);
 
-    ALOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck \
-        pPTBuffer 0x%x pBTBuffer 0x%x pOutBuffer 0x%x", pPTBuffer,
-        pBTBuffer, pOutBuffer);
-
-    M4OSA_ERR result = M4NO_ERROR;
-    M4OSA_Int16 *pBTMdata1;
-    M4OSA_Int16 *pPTMdata2;
-    M4OSA_UInt32 uiPCMsize;
-
-    // Ducking variable
-    M4OSA_UInt16 loopIndex = 0;
-    M4OSA_Int16 *pPCM16Sample = M4OSA_NULL;
-    M4OSA_Int32 peakDbValue = 0;
-    M4OSA_Int32 previousDbValue = 0;
-    M4OSA_UInt32 i;
+    M4AM_Buffer16* pPrimaryTrack   = (M4AM_Buffer16*)primaryTrackBuffer;
+    M4AM_Buffer16* pBackgroundTrack = (M4AM_Buffer16*)backgroundTrackBuffer;
+    M4AM_Buffer16* pMixedOutBuffer  = (M4AM_Buffer16*)outBuffer;
 
     // Output size if same as PT size
     pMixedOutBuffer->m_bufferSize = pPrimaryTrack->m_bufferSize;
@@ -76,23 +65,23 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
     memcpy((void *)pMixedOutBuffer->m_dataAddress,
         (void *)pPrimaryTrack->m_dataAddress, pMixedOutBuffer->m_bufferSize);
 
+    // Initialize ducking variables
     // Initially contains the input primary track
-    pPTMdata2 = (M4OSA_Int16*)pMixedOutBuffer->m_dataAddress;
+    M4OSA_Int16 *pPTMdata2 = (M4OSA_Int16*)pMixedOutBuffer->m_dataAddress;
+
     // Contains BG track processed data(like channel conversion etc..
-    pBTMdata1 = (M4OSA_Int16*) pBackgroundTrack->m_dataAddress;
+    M4OSA_Int16 *pBTMdata1 = (M4OSA_Int16*) pBackgroundTrack->m_dataAddress;
 
     // Since we need to give sample count and not buffer size
-    uiPCMsize = pMixedOutBuffer->m_bufferSize/2 ;
+    M4OSA_UInt32 uiPCMsize = pMixedOutBuffer->m_bufferSize / 2 ;
 
     if ((mDucking_enable) && (mPTVolLevel != 0.0)) {
-        // ALOGI("VideoEditorBGAudioProcessing:: In Ducking analysis ");
-        loopIndex = 0;
-        peakDbValue = 0;
-        previousDbValue = peakDbValue;
+        M4OSA_Int32 peakDbValue = 0;
+        M4OSA_Int32 previousDbValue = 0;
+        M4OSA_Int16 *pPCM16Sample = (M4OSA_Int16*)pPrimaryTrack->m_dataAddress;
+        const size_t n = pPrimaryTrack->m_bufferSize / sizeof(M4OSA_Int16);
 
-        pPCM16Sample = (M4OSA_Int16*)pPrimaryTrack->m_dataAddress;
-
-        while (loopIndex < pPrimaryTrack->m_bufferSize/sizeof(M4OSA_Int16)) {
+        for (size_t loopIndex = 0; loopIndex < n; ++loopIndex) {
             if (pPCM16Sample[loopIndex] >= 0) {
                 peakDbValue = previousDbValue > pPCM16Sample[loopIndex] ?
                         previousDbValue : pPCM16Sample[loopIndex];
@@ -102,19 +91,15 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
                         previousDbValue: -pPCM16Sample[loopIndex];
                 previousDbValue = peakDbValue;
             }
-            loopIndex++;
         }
 
         mAudioVolumeArray[mAudVolArrIndex] = getDecibelSound(peakDbValue);
 
-        ALOGV("VideoEditorBGAudioProcessing:: getDecibelSound %d",
-            mAudioVolumeArray[mAudVolArrIndex]);
+        // Check for threshold is done after kProcessingWindowSize cycles
+        if (mAudVolArrIndex >= kProcessingWindowSize - 1) {
+            mDoDucking = isThresholdBreached(
+                    mAudioVolumeArray, mAudVolArrIndex, mDucking_threshold);
 
-        // WINDOW_SIZE is 10 by default
-        // Check for threshold is done after 10 cycles
-        if (mAudVolArrIndex >= WINDOW_SIZE - 1) {
-            mDoDucking = isThresholdBreached(mAudioVolumeArray,
-            mAudVolArrIndex,mDucking_threshold );
             mAudVolArrIndex = 0;
         } else {
             mAudVolArrIndex++;
@@ -136,7 +121,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
                 // FADE OUT BG Track
                 // Increment ducking factor in total steps in factor
                 // of low volume steps to reach low volume level
-                mDuckingFactor -= (mDucking_lowVolume);
+                mDuckingFactor -= mDucking_lowVolume;
             } else {
                 mDuckingFactor = mDucking_lowVolume;
             }
@@ -145,7 +130,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
                 // FADE IN BG Track
                 // Increment ducking factor in total steps of
                 // low volume factor to reach orig.volume level
-                mDuckingFactor += (mDucking_lowVolume);
+                mDuckingFactor += mDucking_lowVolume;
             } else {
                 mDuckingFactor = 1.0;
             }
@@ -153,14 +138,11 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
     } // end if - mDucking_enable
 
 
-    // Mixing Logic
-
-    ALOGV("VideoEditorBGAudioProcessing:: Out of Ducking analysis uiPCMsize\
-        %d %f %f", mDoDucking, mDuckingFactor,mBTVolLevel);
-
+    // Mixing logic
+    ALOGV("Out of Ducking analysis uiPCMsize %d %f %f",
+            mDoDucking, mDuckingFactor, mBTVolLevel);
     while (uiPCMsize-- > 0) {
 
-        M4OSA_Int32 temp;
         // Set vol factor for BT and PT
         *pBTMdata1 = (M4OSA_Int16)(*pBTMdata1*mBTVolLevel);
         *pPTMdata2 = (M4OSA_Int16)(*pPTMdata2*mPTVolLevel);
@@ -179,6 +161,7 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
             *pBTMdata1 = (M4OSA_Int16)(*pBTMdata1 /2 + *pPTMdata2 /2);
         }
 
+        M4OSA_Int32 temp;
         if (*pBTMdata1 < 0) {
             temp = -(*pBTMdata1) * 2; // bring to original Amplitude level
 
@@ -199,17 +182,13 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::veProcessAudioMixNDuck(
         pBTMdata1++;
         pPTMdata2++;
     }
-    //ALOGV("VideoEditorBGAudioProcessing:: Copy final out ");
+
     memcpy((void *)pMixedOutBuffer->m_dataAddress,
         (void *)pBackgroundTrack->m_dataAddress,
         pBackgroundTrack->m_bufferSize);
 
-    ALOGV("VideoEditorBGAudioProcessing::lvProcessAudioMixNDuck EXIT");
-    return result;
-}
-
-VideoEditorBGAudioProcessing::~VideoEditorBGAudioProcessing() {
-
+    ALOGV("mixAndDuck: X");
+    return M4NO_ERROR;
 }
 
 M4OSA_Int32 VideoEditorBGAudioProcessing::calculateOutResampleBufSize() {
@@ -218,51 +197,48 @@ M4OSA_Int32 VideoEditorBGAudioProcessing::calculateOutResampleBufSize() {
     return (mOutSampleRate / mInSampleRate) * mBTBuffer.m_bufferSize;
 }
 
-void VideoEditorBGAudioProcessing ::veSetAudioProcessingParams(
-        const veAudMixSettings& gInputParams) {
+void VideoEditorBGAudioProcessing::setMixParams(
+        const AudioMixSettings& setting) {
+    ALOGV("setMixParams");
 
-    ALOGV("VideoEditorBGAudioProcessing:: ENTER lvSetAudioProcessingParams ");
-    mDucking_enable       = gInputParams.lvInDucking_enable;
-    mDucking_lowVolume    = gInputParams.lvInDucking_lowVolume;
-    mDucking_threshold    = gInputParams.lvInDucking_threshold;
+    mDucking_enable       = setting.lvInDucking_enable;
+    mDucking_lowVolume    = setting.lvInDucking_lowVolume;
+    mDucking_threshold    = setting.lvInDucking_threshold;
+    mPTVolLevel           = setting.lvPTVolLevel;
+    mBTVolLevel           = setting.lvBTVolLevel ;
+    mBTChannelCount       = setting.lvBTChannelCount;
+    mPTChannelCount       = setting.lvPTChannelCount;
+    mBTFormat             = setting.lvBTFormat;
+    mInSampleRate         = setting.lvInSampleRate;
+    mOutSampleRate        = setting.lvOutSampleRate;
 
-    mPTVolLevel           = gInputParams.lvPTVolLevel;
-    mBTVolLevel           = gInputParams.lvBTVolLevel ;
-
-    mBTChannelCount       = gInputParams.lvBTChannelCount;
-    mPTChannelCount       = gInputParams.lvPTChannelCount;
-
-    mBTFormat             = gInputParams.lvBTFormat;
-
-    mInSampleRate         = gInputParams.lvInSampleRate;
-    mOutSampleRate        = gInputParams.lvOutSampleRate;
-
+    // Reset the following params to default values
     mAudVolArrIndex       = 0;
     mDoDucking            = 0;
-    mDuckingFactor        = 1.0; // default
+    mDuckingFactor        = 1.0;
 
-    ALOGV("VideoEditorBGAudioProcessing::  ducking_enable 0x%x \
-        ducking_lowVolume %f  ducking_threshold %d  fPTVolLevel %f BTVolLevel %f",
-        mDucking_enable, mDucking_lowVolume, mDucking_threshold,
-        mPTVolLevel, mPTVolLevel);
+    ALOGV("ducking enable 0x%x lowVolume %f threshold %d "
+            "fPTVolLevel %f BTVolLevel %f",
+            mDucking_enable, mDucking_lowVolume, mDucking_threshold,
+            mPTVolLevel, mPTVolLevel);
 
-    // Following logc decides if SSRC support is needed for this mixing
-    mIsSSRCneeded = (gInputParams.lvInSampleRate != gInputParams.lvOutSampleRate);
-    if (gInputParams.lvBTChannelCount != gInputParams.lvPTChannelCount){
-        if (gInputParams.lvBTChannelCount == 2){
-            mChannelConversion   = 1; // convert to MONO
+    // Decides if SSRC support is needed for this mixing
+    mIsSSRCneeded = (setting.lvInSampleRate != setting.lvOutSampleRate);
+    if (setting.lvBTChannelCount != setting.lvPTChannelCount){
+        if (setting.lvBTChannelCount == 2){
+            mChannelConversion = 1; // convert to MONO
         } else {
-            mChannelConversion   = 2; // Convert to STEREO
+            mChannelConversion = 2; // Convert to STEREO
         }
     } else {
-        mChannelConversion   = 0;
+        mChannelConversion = 0;
     }
-    ALOGV("VideoEditorBGAudioProcessing:: EXIT veSetAudioProcessingParams ");
 }
-
 
 // Fast way to compute 10 * log(value)
 M4OSA_Int32 VideoEditorBGAudioProcessing::getDecibelSound(M4OSA_UInt32 value) {
+    ALOGV("getDecibelSound: %ld", value);
+
     if (value <= 0 || value > 0x8000) {
         return 0;
     } else if (value > 0x4000) { // 32768
@@ -304,6 +280,8 @@ M4OSA_Bool VideoEditorBGAudioProcessing::isThresholdBreached(
         M4OSA_Int32* averageValue,
         M4OSA_Int32 storeCount,
         M4OSA_Int32 thresholdValue) {
+
+    ALOGV("isThresholdBreached");
 
     int totalValue = 0;
     for (int i = 0; i < storeCount; ++i) {

@@ -14,30 +14,34 @@
  * limitations under the License.
  */
 
+#ifndef VE_BACKGROUND_AUDIO_PROC_H
+#define VE_BACKGROUND_AUDIO_PROC_H
+
 #include "M4OSA_Error.h"
 #include "M4OSA_Types.h"
 #include "M4OSA_Memory.h"
 #include "M4OSA_Export.h"
 #include "M4OSA_CoreID.h"
 
-namespace android{
 
-#define WINDOW_SIZE 10
-
-enum veAudioFormat {MONO_16_BIT, STEREO_16_BIT};
-
+namespace android {
 
 typedef struct {
     M4OSA_UInt16*   m_dataAddress; // Android SRC needs a Int16 pointer
     M4OSA_UInt32    m_bufferSize;
 } M4AM_Buffer16;    // Structure contains Int16_t pointer
 
+enum AudioFormat {
+    MONO_16_BIT,
+    STEREO_16_BIT
+};
+
 // Following struct will be used by app to supply the PT and BT properties
 // along with ducking values
 typedef struct {
     M4OSA_Int32 lvInSampleRate; // Sampling audio freq (8000,16000 or more )
     M4OSA_Int32 lvOutSampleRate; //Sampling audio freq (8000,16000 or more )
-    veAudioFormat lvBTFormat;
+    AudioFormat lvBTFormat;
 
     M4OSA_Int32 lvInDucking_threshold;
     M4OSA_Float lvInDucking_lowVolume;
@@ -46,25 +50,29 @@ typedef struct {
     M4OSA_Float lvBTVolLevel;
     M4OSA_Int32 lvBTChannelCount;
     M4OSA_Int32 lvPTChannelCount;
-} veAudMixSettings;
+} AudioMixSettings;
 
 // This class is defined to get SF SRC access
 class VideoEditorBGAudioProcessing {
 public:
     VideoEditorBGAudioProcessing();
-    void veSetAudioProcessingParams(const veAudMixSettings& mixParams);
+    ~VideoEditorBGAudioProcessing() {}
 
-    M4OSA_Int32 veProcessAudioMixNDuck(
+    void setMixParams(const AudioMixSettings& params);
+
+    M4OSA_Int32 mixAndDuck(
                     void* primaryTrackBuffer,
                     void* backgroundTrackBuffer,
                     void* mixedOutputBuffer);
 
-    ~VideoEditorBGAudioProcessing();
-
 private:
+    enum {
+        kProcessingWindowSize = 10,
+    };
+
     M4OSA_Int32 mInSampleRate;
     M4OSA_Int32 mOutSampleRate;
-    veAudioFormat mBTFormat;
+    AudioFormat mBTFormat;
 
     M4OSA_Bool mIsSSRCneeded;
     M4OSA_Int32 mBTChannelCount;
@@ -75,7 +83,7 @@ private:
     M4OSA_Float mDucking_lowVolume;
     M4OSA_Float mDuckingFactor ;
     M4OSA_Bool mDucking_enable;
-    M4OSA_Int32 mAudioVolumeArray[WINDOW_SIZE];
+    M4OSA_Int32 mAudioVolumeArray[kProcessingWindowSize];
     M4OSA_Int32 mAudVolArrIndex;
     M4OSA_Bool mDoDucking;
     M4OSA_Float mPTVolLevel;
@@ -96,4 +104,7 @@ private:
     VideoEditorBGAudioProcessing& operator=(
             const VideoEditorBGAudioProcessing&);
 };
-} // namespace android
+
+}  // namespace android
+
+#endif // VE_BACKGROUND_AUDIO_PROC_H
