@@ -8866,7 +8866,7 @@ static M4OSA_ERR M4MCS_intVideoNullEncoding( M4MCS_InternalContext *pC )
     }
 
 
-    if ((pC->EncodingVideoFormat = M4ENCODER_kNULL)
+    if ((pC->EncodingVideoFormat == M4ENCODER_kNULL)
         && (pC->bLastDecodedFrameCTS == M4OSA_FALSE)
         && (pC->uiBeginCutTime > 0)) {
 
