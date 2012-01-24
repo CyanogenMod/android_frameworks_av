@@ -36,7 +36,6 @@
 #include <surfaceflinger/ISurfaceComposer.h>
 
 #include "VideoEditorPreviewController.h"
-#include "AudioPlayerBase.h"
 #include "DummyAudioSource.h"
 #include "DummyVideoSource.h"
 #include "VideoEditorSRC.h"
@@ -99,7 +98,7 @@ PreviewPlayer::PreviewPlayer(NativeWindowRenderer* renderer)
 
     mVideoRenderer = NULL;
     mEffectsSettings = NULL;
-    mVeAudioPlayer = NULL;
+    mAudioPlayer = NULL;
     mAudioMixStoryBoardTS = 0;
     mCurrentMediaBeginCutTime = 0;
     mCurrentMediaVolumeValue = 0;
@@ -368,7 +367,7 @@ status_t PreviewPlayer::startAudioPlayer_l() {
 
         // We've already started the MediaSource in order to enable
         // the prefetcher to read its data.
-        status_t err = mVeAudioPlayer->start(
+        status_t err = mAudioPlayer->start(
                 true /* sourceAlreadyStarted */);
 
         if (err != OK) {
@@ -376,7 +375,7 @@ status_t PreviewPlayer::startAudioPlayer_l() {
             return err;
         }
     } else {
-        mVeAudioPlayer->resume();
+        mAudioPlayer->resume();
     }
 
     mFlags |= AUDIO_RUNNING;
@@ -386,7 +385,7 @@ status_t PreviewPlayer::startAudioPlayer_l() {
     return OK;
 }
 
-status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
+status_t PreviewPlayer::setAudioPlayer(VideoEditorAudioPlayer *audioPlayer) {
     ALOGV("setAudioPlayer");
     Mutex::Autolock autoLock(mLock);
     CHECK(!(mFlags & PLAYING));
@@ -394,11 +393,9 @@ status_t PreviewPlayer::setAudioPlayer(AudioPlayerBase *audioPlayer) {
 
     ALOGV("SetAudioPlayer");
     mIsChangeSourceRequired = true;
-    mVeAudioPlayer =
-            (VideoEditorAudioPlayer*)mAudioPlayer;
 
     // check if the new and old source are dummy
-    sp<MediaSource> anAudioSource = mVeAudioPlayer->getSource();
+    sp<MediaSource> anAudioSource = mAudioPlayer->getSource();
     if (anAudioSource == NULL) {
         // Audio player does not have any source set.
         ALOGV("setAudioPlayer: Audio player does not have any source set");
@@ -546,25 +543,22 @@ status_t PreviewPlayer::play_l() {
             if (mAudioSink != NULL) {
 
                 mAudioPlayer = new VideoEditorAudioPlayer(mAudioSink, this);
-                mVeAudioPlayer =
-                          (VideoEditorAudioPlayer*)mAudioPlayer;
-
                 mAudioPlayer->setSource(mAudioSource);
 
-                mVeAudioPlayer->setAudioMixSettings(
+                mAudioPlayer->setAudioMixSettings(
                  mPreviewPlayerAudioMixSettings);
 
-                mVeAudioPlayer->setAudioMixPCMFileHandle(
+                mAudioPlayer->setAudioMixPCMFileHandle(
                  mAudioMixPCMFileHandle);
 
-                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
+                mAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                  mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                  mCurrentMediaVolumeValue);
 
                  mFlags |= AUDIOPLAYER_STARTED;
                 // We've already started the MediaSource in order to enable
                 // the prefetcher to read its data.
-                status_t err = mVeAudioPlayer->start(
+                status_t err = mAudioPlayer->start(
                         true /* sourceAlreadyStarted */);
 
                 if (err != OK) {
@@ -575,41 +569,40 @@ status_t PreviewPlayer::play_l() {
                     return err;
                 }
 
-                mTimeSource = mVeAudioPlayer;
+                mTimeSource = mAudioPlayer;
                 mFlags |= AUDIO_RUNNING;
                 deferredAudioSeek = true;
                 mWatchForAudioSeekComplete = false;
                 mWatchForAudioEOS = true;
             }
         } else {
-            mVeAudioPlayer = (VideoEditorAudioPlayer*)mAudioPlayer;
-            bool isAudioPlayerStarted = mVeAudioPlayer->isStarted();
+            bool isAudioPlayerStarted = mAudioPlayer->isStarted();
 
             if (mIsChangeSourceRequired == true) {
                 ALOGV("play_l: Change audio source required");
 
                 if (isAudioPlayerStarted == true) {
-                    mVeAudioPlayer->pause();
+                    mAudioPlayer->pause();
                 }
 
-                mVeAudioPlayer->setSource(mAudioSource);
-                mVeAudioPlayer->setObserver(this);
+                mAudioPlayer->setSource(mAudioSource);
+                mAudioPlayer->setObserver(this);
 
-                mVeAudioPlayer->setAudioMixSettings(
+                mAudioPlayer->setAudioMixSettings(
                  mPreviewPlayerAudioMixSettings);
 
-                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
+                mAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                     mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                     mCurrentMediaVolumeValue);
 
                 if (isAudioPlayerStarted == true) {
-                    mVeAudioPlayer->resume();
+                    mAudioPlayer->resume();
                 } else {
                     status_t err = OK;
-                    err = mVeAudioPlayer->start(true);
+                    err = mAudioPlayer->start(true);
                     if (err != OK) {
                         mAudioPlayer = NULL;
-                        mVeAudioPlayer = NULL;
+                        mAudioPlayer = NULL;
 
                         mFlags &= ~(PLAYING | FIRST_FRAME);
                         return err;
@@ -617,16 +610,16 @@ status_t PreviewPlayer::play_l() {
                 }
             } else {
                 ALOGV("play_l: No Source change required");
-                mVeAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
+                mAudioPlayer->setAudioMixStoryBoardSkimTimeStamp(
                     mAudioMixStoryBoardTS, mCurrentMediaBeginCutTime,
                     mCurrentMediaVolumeValue);
 
-                mVeAudioPlayer->resume();
+                mAudioPlayer->resume();
             }
 
             mFlags |= AUDIOPLAYER_STARTED;
             mFlags |= AUDIO_RUNNING;
-            mTimeSource = mVeAudioPlayer;
+            mTimeSource = mAudioPlayer;
             deferredAudioSeek = true;
             mWatchForAudioSeekComplete = false;
             mWatchForAudioEOS = true;

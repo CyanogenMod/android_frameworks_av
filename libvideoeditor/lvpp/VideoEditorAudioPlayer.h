@@ -15,19 +15,18 @@
  */
 
 #ifndef VE_AUDIO_PLAYER_H_
-
 #define VE_AUDIO_PLAYER_H_
 
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
+
 #include "M4xVSS_API.h"
 #include "VideoEditorMain.h"
 #include "M4OSA_FileReader.h"
 #include "VideoEditorBGAudioProcessing.h"
-#include "AudioPlayerBase.h"
-#include "PreviewPlayer.h"
+
 
 namespace android {
 
@@ -35,8 +34,7 @@ class MediaSource;
 class AudioTrack;
 class PreviewPlayer;
 
-
-class VideoEditorAudioPlayer : public AudioPlayerBase {
+class VideoEditorAudioPlayer : public TimeSource {
 public:
     enum {
         REACHED_EOS,
@@ -46,10 +44,24 @@ public:
     VideoEditorAudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
         PreviewPlayer *audioObserver = NULL);
 
-    virtual ~VideoEditorAudioPlayer();
+    ~VideoEditorAudioPlayer();
+
+    // Return time in us.
+    int64_t getRealTimeUs();
+
+    // Returns the timestamp of the last buffer played (in us).
+    int64_t getMediaTimeUs();
+
+    // Returns true iff a mapping is established, i.e. the AudioPlayerBase
+    // has played at least one frame of audio.
+    bool getMediaTimeMapping(int64_t *realtime_us, int64_t *mediatime_us);
 
     status_t start(bool sourceAlreadyStarted = false);
+    void pause(bool playPendingSamples = false);
     void resume();
+    status_t seekTo(int64_t time_us);
+    bool isSeeking();
+    bool reachedEOS(status_t *finalStatus);
 
     void setAudioMixSettings(M4xVSS_AudioMixingSettings* pAudioMixSettings);
     void setAudioMixPCMFileHandle(M4OSA_Context pBGAudioPCMFileHandle);
@@ -78,14 +90,47 @@ private:
     int64_t mBGAudioStoryBoardCurrentMediaBeginCutTS;
     int64_t mBGAudioStoryBoardCurrentMediaVolumeVal;
 
+    sp<MediaSource> mSource;
+    AudioTrack *mAudioTrack;
+
+    MediaBuffer *mInputBuffer;
+
+    int mSampleRate;
+    int64_t mLatencyUs;
+    size_t mFrameSize;
+
+    Mutex mLock;
+    int64_t mNumFramesPlayed;
+
+    int64_t mPositionTimeMediaUs;
+    int64_t mPositionTimeRealUs;
+
+    bool mSeeking;
+    bool mReachedEOS;
+    status_t mFinalStatus;
+    int64_t mSeekTimeUs;
+
+    bool mStarted;
+
+    bool mIsFirstBuffer;
+    status_t mFirstBufferResult;
+    MediaBuffer *mFirstBuffer;
+
+    sp<MediaPlayerBase::AudioSink> mAudioSink;
+    PreviewPlayer *mObserver;
+
+    static void AudioCallback(int event, void *user, void *info);
+    void AudioCallback(int event, void *info);
     size_t fillBuffer(void *data, size_t size);
-
-    void reset();
-    void setPrimaryTrackVolume(M4OSA_Int16 *data, M4OSA_UInt32 size, M4OSA_Float volLevel);
-
     static size_t AudioSinkCallback(
             MediaPlayerBase::AudioSink *audioSink,
             void *data, size_t size, void *me);
+
+    void reset();
+    void clear();
+    int64_t getRealTimeUs_l();
+    void setPrimaryTrackVolume(
+            M4OSA_Int16 *data, M4OSA_UInt32 size, M4OSA_Float volLevel);
 
     VideoEditorAudioPlayer(const VideoEditorAudioPlayer &);
     VideoEditorAudioPlayer &operator=(const VideoEditorAudioPlayer &);
