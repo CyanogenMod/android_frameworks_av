@@ -14,13 +14,20 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 1
-#define LOG_TAG "VideoEditorPreviewController"
+// #define LOG_NDEBUG 0
+#define LOG_TAG "PreviewController"
+#include <utils/Log.h>
+
+#include <surfaceflinger/Surface.h>
+
+#include "VideoEditorAudioPlayer.h"
+#include "PreviewRenderer.h"
+#include "M4OSA_Semaphore.h"
+#include "M4OSA_Thread.h"
 #include "VideoEditorPreviewController.h"
 
 namespace android {
 
-#define PREVIEW_THREAD_STACK_SIZE                           (65536)
 
 VideoEditorPreviewController::VideoEditorPreviewController()
     : mCurrentPlayer(0),
@@ -56,15 +63,15 @@ VideoEditorPreviewController::VideoEditorPreviewController()
     mRenderingMode = M4xVSS_kBlackBorders;
     mIsFiftiesEffectStarted = false;
 
-    for (int i=0; i<NBPLAYER_INSTANCES; i++) {
+    for (int i = 0; i < kTotalNumPlayerInstances; ++i) {
         mVePlayer[i] = NULL;
     }
 }
 
 VideoEditorPreviewController::~VideoEditorPreviewController() {
+    ALOGV("~VideoEditorPreviewController");
     M4OSA_UInt32 i = 0;
     M4OSA_ERR err = M4NO_ERROR;
-    ALOGV("~VideoEditorPreviewController");
 
     // Stop the thread if its still running
     if(mThreadContext != NULL) {
@@ -85,7 +92,7 @@ VideoEditorPreviewController::~VideoEditorPreviewController() {
         mThreadContext = NULL;
     }
 
-    for (int playerInst=0; playerInst<NBPLAYER_INSTANCES;
+    for (int playerInst=0; playerInst<kTotalNumPlayerInstances;
          playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
             ALOGV("clearing mVePlayer %d", playerInst);
@@ -438,7 +445,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     }
 
     // If already started, then stop preview first
-    for(int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
+    for(int playerInst=0; playerInst<kTotalNumPlayerInstances; playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
             ALOGV("startPreview: stopping previously started preview playback");
             stopPreview();
@@ -471,7 +478,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
     ALOGV("startPreview: callBackAfterFrameCount = %d", callBackAfterFrameCount);
     mCallBackAfterFrameCnt = callBackAfterFrameCount;
 
-    for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
+    for (int playerInst=0; playerInst<kTotalNumPlayerInstances; playerInst++) {
         mVePlayer[playerInst] = new VideoEditorPlayer(mNativeWindowRenderer);
         if(mVePlayer[playerInst] == NULL) {
             ALOGE("startPreview:Error creating VideoEditorPlayer %d",playerInst);
@@ -542,7 +549,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
         mVideoStoryBoardTimeMsUptoFirstPreviewClip = iIncrementedDuration;
     }
 
-    for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
+    for (int playerInst=0; playerInst<kTotalNumPlayerInstances; playerInst++) {
         mVePlayer[playerInst]->setAudioMixStoryBoardParam(fromMS,
          mFirstPreviewClipBeginTime,
          mClipList[i]->ClipProperties.uiClipAudioVolumePercentage);
@@ -605,7 +612,7 @@ M4OSA_ERR VideoEditorPreviewController::startPreview(
 
     // Set the stacksize
     err = M4OSA_threadSyncSetOption(mThreadContext, M4OSA_ThreadStackSize,
-     (M4OSA_DataOption)PREVIEW_THREAD_STACK_SIZE);
+     (M4OSA_DataOption) kPreviewThreadStackSize);
 
     if (M4NO_ERROR != err) {
         ALOGE("VideoEditorPreviewController: threadSyncSetOption error %d", (int) err);
@@ -668,7 +675,7 @@ M4OSA_UInt32 VideoEditorPreviewController::stopPreview() {
         }
     }
 
-    for (int playerInst=0; playerInst<NBPLAYER_INSTANCES; playerInst++) {
+    for (int playerInst=0; playerInst<kTotalNumPlayerInstances; playerInst++) {
         if(mVePlayer[playerInst] != NULL) {
             if(mVePlayer[playerInst]->isPlaying()) {
                 ALOGV("stop the player first");
@@ -1045,7 +1052,7 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
                  pController->mCurrentClipNumber);
 
                 // Reset the story board timestamp inside the player
-                for (int playerInst=0; playerInst<NBPLAYER_INSTANCES;
+                for (int playerInst=0; playerInst<kTotalNumPlayerInstances;
                  playerInst++) {
                     pController->mVePlayer[playerInst]->resetJniCallbackTimeStamp();
                 }
@@ -1249,7 +1256,7 @@ void VideoEditorPreviewController::notify(
              pController->mNumberClipsToPreview) {
                 pController->mPrepareReqest = M4OSA_TRUE;
                 pController->mCurrentPlayer++;
-                if (pController->mCurrentPlayer >= NBPLAYER_INSTANCES) {
+                if (pController->mCurrentPlayer >= kTotalNumPlayerInstances) {
                     pController->mCurrentPlayer = 0;
                 }
                 // Prepare the first clip to be played
