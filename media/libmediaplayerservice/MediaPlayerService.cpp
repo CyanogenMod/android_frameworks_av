@@ -224,8 +224,9 @@ MediaPlayerService::~MediaPlayerService()
     ALOGV("MediaPlayerService destroyed");
 }
 
-sp<IMediaRecorder> MediaPlayerService::createMediaRecorder(pid_t pid)
+sp<IMediaRecorder> MediaPlayerService::createMediaRecorder()
 {
+    pid_t pid = IPCThreadState::self()->getCallingPid();
     sp<MediaRecorderClient> recorder = new MediaRecorderClient(this, pid);
     wp<MediaRecorderClient> w = recorder;
     Mutex::Autolock lock(mLock);
@@ -241,16 +242,18 @@ void MediaPlayerService::removeMediaRecorderClient(wp<MediaRecorderClient> clien
     ALOGV("Delete media recorder client");
 }
 
-sp<IMediaMetadataRetriever> MediaPlayerService::createMetadataRetriever(pid_t pid)
+sp<IMediaMetadataRetriever> MediaPlayerService::createMetadataRetriever()
 {
+    pid_t pid = IPCThreadState::self()->getCallingPid();
     sp<MetadataRetrieverClient> retriever = new MetadataRetrieverClient(pid);
     ALOGV("Create new media retriever from pid %d", pid);
     return retriever;
 }
 
-sp<IMediaPlayer> MediaPlayerService::create(pid_t pid, const sp<IMediaPlayerClient>& client,
+sp<IMediaPlayer> MediaPlayerService::create(const sp<IMediaPlayerClient>& client,
         int audioSessionId)
 {
+    pid_t pid = IPCThreadState::self()->getCallingPid();
     int32_t connId = android_atomic_inc(&mNextConnId);
 
     sp<Client> c = new Client(

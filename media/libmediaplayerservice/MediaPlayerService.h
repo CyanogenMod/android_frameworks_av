@@ -239,11 +239,11 @@ public:
     static  void                instantiate();
 
     // IMediaPlayerService interface
-    virtual sp<IMediaRecorder>  createMediaRecorder(pid_t pid);
+    virtual sp<IMediaRecorder>  createMediaRecorder();
     void    removeMediaRecorderClient(wp<MediaRecorderClient> client);
-    virtual sp<IMediaMetadataRetriever> createMetadataRetriever(pid_t pid);
+    virtual sp<IMediaMetadataRetriever> createMetadataRetriever();
 
-    virtual sp<IMediaPlayer>    create(pid_t pid, const sp<IMediaPlayerClient>& client, int audioSessionId);
+    virtual sp<IMediaPlayer>    create(const sp<IMediaPlayerClient>& client, int audioSessionId);
 
     virtual sp<IMemory>         decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);

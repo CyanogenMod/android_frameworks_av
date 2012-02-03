@@ -370,7 +370,7 @@ void TunnelRenderer::initPlayer() {
 
     mPlayerClient = new PlayerClient;
 
-    mPlayer = service->create(getpid(), mPlayerClient, 0);
+    mPlayer = service->create(mPlayerClient, 0);
     CHECK(mPlayer != NULL);
     CHECK_EQ(mPlayer->setDataSource(mStreamSource), (status_t)OK);
 
