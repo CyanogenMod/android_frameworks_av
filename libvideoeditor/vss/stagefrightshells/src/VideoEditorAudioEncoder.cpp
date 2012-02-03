@@ -443,9 +443,16 @@ M4OSA_ERR VideoEditorAudioEncoder_open(M4OSA_Context pContext,
 #ifdef VIDEOEDITOR_FORCECODEC
     codecFlags |= OMXCodec::VIDEOEDITOR_FORCECODEC;
 #endif /* VIDEOEDITOR_FORCECODEC */
+    // FIXME:
+    // We are moving away to use software AACEncoder and instead use OMX-based
+    // software AAC audio encoder. We want to use AACEncoder for now. After we
+    // fix the interface issue with the OMX-based AAC audio encoder, we should
+    // then set the component name back to NULL to allow the system to pick up
+    // the right AAC audio encoder.
     pEncoderContext->mEncoder = OMXCodec::Create(
-        pEncoderContext->mClient.interface(), encoderMetadata, true,
-        pEncoderContext->mEncoderSource, NULL, codecFlags);
+            pEncoderContext->mClient.interface(), encoderMetadata, true,
+            pEncoderContext->mEncoderSource, "AACEncoder" /* component name */,
+            codecFlags);
     VIDEOEDITOR_CHECK(NULL != pEncoderContext->mEncoder.get(), M4ERR_STATE);
 
     // Start the graph
