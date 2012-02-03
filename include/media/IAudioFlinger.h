@@ -56,7 +56,6 @@ public:
      * return null if the track cannot be created.
      */
     virtual sp<IAudioTrack> createTrack(
-                                pid_t pid,
                                 audio_stream_type_t streamType,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -70,7 +69,6 @@ public:
                                 status_t *status) = 0;
 
     virtual sp<IAudioRecord> openRecord(
-                                pid_t pid,
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -174,7 +172,7 @@ public:
     virtual status_t getEffectDescriptor(const effect_uuid_t *pEffectUUID,
                                         effect_descriptor_t *pDescriptor) const = 0;
 
-    virtual sp<IEffect> createEffect(pid_t pid,
+    virtual sp<IEffect> createEffect(
                                     effect_descriptor_t *pDesc,
                                     const sp<IEffectClient>& client,
                                     int32_t priority,

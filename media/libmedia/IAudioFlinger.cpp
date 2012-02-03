@@ -84,7 +84,6 @@ public:
     }
 
     virtual sp<IAudioTrack> createTrack(
-                                pid_t pid,
                                 audio_stream_type_t streamType,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -100,7 +99,6 @@ public:
         Parcel data, reply;
         sp<IAudioTrack> track;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32(pid);
         data.writeInt32((int32_t) streamType);
         data.writeInt32(sampleRate);
         data.writeInt32(format);
@@ -138,7 +136,6 @@ public:
     }
 
     virtual sp<IAudioRecord> openRecord(
-                                pid_t pid,
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -152,7 +149,6 @@ public:
         Parcel data, reply;
         sp<IAudioRecord> record;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32(pid);
         data.writeInt32((int32_t) input);
         data.writeInt32(sampleRate);
         data.writeInt32(format);
@@ -612,7 +608,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual sp<IEffect> createEffect(pid_t pid,
+    virtual sp<IEffect> createEffect(
                                     effect_descriptor_t *pDesc,
                                     const sp<IEffectClient>& client,
                                     int32_t priority,
@@ -633,7 +629,6 @@ public:
         }
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32(pid);
         data.write(pDesc, sizeof(effect_descriptor_t));
         data.writeStrongBinder(client->asBinder());
         data.writeInt32(priority);
@@ -712,7 +707,6 @@ status_t BnAudioFlinger::onTransact(
     switch (code) {
         case CREATE_TRACK: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            pid_t pid = data.readInt32();
             int streamType = data.readInt32();
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
@@ -724,7 +718,7 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             status_t status;
-            sp<IAudioTrack> track = createTrack(pid,
+            sp<IAudioTrack> track = createTrack(
                     (audio_stream_type_t) streamType, sampleRate, format,
                     channelMask, frameCount, &flags, buffer, output, tid, &sessionId, &status);
             reply->writeInt32(flags);
@@ -735,7 +729,6 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case OPEN_RECORD: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            pid_t pid = data.readInt32();
             audio_io_handle_t input = (audio_io_handle_t) data.readInt32();
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
@@ -745,7 +738,7 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             status_t status;
-            sp<IAudioRecord> record = openRecord(pid, input,
+            sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, frameCount, flags, tid, &sessionId, &status);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
@@ -1021,7 +1014,6 @@ status_t BnAudioFlinger::onTransact(
         }
         case CREATE_EFFECT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            pid_t pid = data.readInt32();
             effect_descriptor_t desc;
             data.read(&desc, sizeof(effect_descriptor_t));
             sp<IEffectClient> client = interface_cast<IEffectClient>(data.readStrongBinder());
@@ -1032,7 +1024,7 @@ status_t BnAudioFlinger::onTransact(
             int id;
             int enabled;
 
-            sp<IEffect> effect = createEffect(pid, &desc, client, priority, output, sessionId,
+            sp<IEffect> effect = createEffect(&desc, client, priority, output, sessionId,
                     &status, &id, &enabled);
             reply->writeInt32(status);
             reply->writeInt32(id);

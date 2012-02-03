@@ -44,9 +44,9 @@ class IMediaPlayerService: public IInterface
 public:
     DECLARE_META_INTERFACE(MediaPlayerService);
 
-    virtual sp<IMediaRecorder> createMediaRecorder(pid_t pid) = 0;
-    virtual sp<IMediaMetadataRetriever> createMetadataRetriever(pid_t pid) = 0;
-    virtual sp<IMediaPlayer> create(pid_t pid, const sp<IMediaPlayerClient>& client, int audioSessionId = 0) = 0;
+    virtual sp<IMediaRecorder> createMediaRecorder() = 0;
+    virtual sp<IMediaMetadataRetriever> createMetadataRetriever() = 0;
+    virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0) = 0;
 
     virtual sp<IMemory>         decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat) = 0;
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat) = 0;
