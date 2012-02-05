@@ -3857,7 +3857,6 @@ M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer, M4OSA_UInt32 width,
     switch(rotation) {
         case 90:
             M4VIFI_Rotate90RightYUV420toYUV420(M4OSA_NULL, planeIn, planeOut);
-            memset(pBuffer, 0, (width*height*1.5));
             memcpy(pBuffer, (void *)outPtr, (width*height*1.5));
             break;
 
@@ -3868,7 +3867,6 @@ M4OSA_ERR applyVideoRotation(M4OSA_Void* pBuffer, M4OSA_UInt32 width,
 
         case 270:
             M4VIFI_Rotate90LeftYUV420toYUV420(M4OSA_NULL, planeIn, planeOut);
-            memset(pBuffer, 0, (width*height*1.5));
             memcpy(pBuffer, (void *)outPtr, (width*height*1.5));
             break;
 
