@@ -17,8 +17,8 @@
 // #define LOG_NDEBUG 0
 #define LOG_TAG "DummyAudioSource"
 #include <utils/Log.h>
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MetaData.h>

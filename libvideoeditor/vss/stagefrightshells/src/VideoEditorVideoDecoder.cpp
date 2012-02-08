@@ -29,9 +29,9 @@
 #include "VideoEditorUtils.h"
 #include "M4VD_Tools.h"
 
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDefs.h>
-#include <media/stagefright/MediaDebug.h>
 /********************
  *   DEFINITIONS    *
  ********************/

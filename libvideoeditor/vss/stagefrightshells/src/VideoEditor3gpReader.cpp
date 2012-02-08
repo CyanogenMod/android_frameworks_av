@@ -46,13 +46,13 @@
 
 #include "ESDS.h"
 #include "utils/Log.h"
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
-#include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 
@@ -1605,7 +1605,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                 } else if( (M4DA_StreamTypeVideoMpeg4 == streamType) ) {
                     if (meta->findData(kKeyESDS, &type, &data, &size)) {
                         ESDS esds((const char *)data, size);
-                        CHECK_EQ(esds.InitCheck(), OK);
+                        CHECK_EQ(esds.InitCheck(), (status_t)OK);
 
                         (*pStreamHandler)->m_ESDSInfoSize = size;
                         (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)\
@@ -1718,7 +1718,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
 
                 if (meta->findData(kKeyESDS, &type, &data, &size)) {
                     ESDS esds((const char *)data, size);
-                    CHECK_EQ(esds.InitCheck(), OK);
+                    CHECK_EQ(esds.InitCheck(), (status_t)OK);
 
                     esds.getCodecSpecificInfo(&codec_specific_data,
                         &codec_specific_data_size);
@@ -1765,7 +1765,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             } else if((M4DA_StreamTypeAudioAac == streamType)) {
                 if (meta->findData(kKeyESDS, &type, &data, &size)) {
                     ESDS esds((const char *)data, size);
-                    CHECK_EQ(esds.InitCheck(), OK);
+                    CHECK_EQ(esds.InitCheck(), (status_t)OK);
 
                     (*pStreamHandler)->m_ESDSInfoSize = size;
                     (*pStreamHandler)->m_pESDSInfo = (M4OSA_UInt8*)M4OSA_32bitAlignedMalloc(

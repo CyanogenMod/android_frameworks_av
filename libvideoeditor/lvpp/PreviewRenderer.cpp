@@ -21,7 +21,7 @@
 
 #include "PreviewRenderer.h"
 
-#include <media/stagefright/MediaDebug.h>
+#include <media/stagefright/foundation/ADebug.h>
 #include <surfaceflinger/Surface.h>
 
 namespace android {
