@@ -35,7 +35,7 @@ public:
     virtual status_t read (
                 MediaBuffer **buffer, const ReadOptions *options = NULL);
 
-    virtual status_t getNextBuffer(Buffer* buffer);
+    virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
     virtual void releaseBuffer(Buffer* buffer);
 
     // Sampling freqencies

@@ -199,7 +199,7 @@ status_t VideoEditorSRC::read(
     return OK;
 }
 
-status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer) {
+status_t VideoEditorSRC::getNextBuffer(AudioBufferProvider::Buffer *pBuffer, int64_t pts) {
     ALOGV("getNextBuffer %d, chan = %d", pBuffer->frameCount, mChannelCnt);
     uint32_t done = 0;
     uint32_t want = pBuffer->frameCount * mChannelCnt * 2;
