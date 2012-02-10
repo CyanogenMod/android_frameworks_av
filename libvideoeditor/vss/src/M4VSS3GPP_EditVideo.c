@@ -1182,8 +1182,6 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         * Render Clip1 */
         if( pC->pC1->isRenderDup == M4OSA_FALSE )
         {
-            pC->bIssecondClip = M4OSA_FALSE;
-
             err = M4VSS3GPP_intRenderFrameWithEffect(pC, pC->pC1, ts, M4OSA_TRUE,
                                                 pTempPlaneClip1, pTemp1,
                                                 pPlaneOut);
@@ -3594,9 +3592,11 @@ M4OSA_ERR M4VSS3GPP_intRenderFrameWithEffect(M4VSS3GPP_InternalEditContext *pC,
         }
 
         if (bIsClip1 == M4OSA_TRUE) {
+            pC->bIssecondClip = M4OSA_FALSE;
             numEffects = pC->nbActiveEffects;
         } else {
             numEffects = pC->nbActiveEffects1;
+            pC->bIssecondClip = M4OSA_TRUE;
         }
 
         if ( numEffects > 0) {
