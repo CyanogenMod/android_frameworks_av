@@ -22,8 +22,8 @@
 #include <cutils/log.h>
 #include <gui/SurfaceTexture.h>
 #include <gui/SurfaceTextureClient.h>
+#include <stagefright/foundation/ADebug.h>
 #include <stagefright/MediaBuffer.h>
-#include <stagefright/MediaDebug.h>
 #include <stagefright/MetaData.h>
 #include <surfaceflinger/Surface.h>
 #include "VideoEditorTools.h"

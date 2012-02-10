@@ -30,8 +30,8 @@
 
 #include "utils/Log.h"
 #include "utils/Vector.h"
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaSource.h>
-#include <media/stagefright/MediaDebug.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXClient.h>
