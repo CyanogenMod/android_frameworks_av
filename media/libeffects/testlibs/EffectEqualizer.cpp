@@ -136,7 +136,7 @@ extern "C" int EffectQueryEffect(uint32_t index,
     if (index > 0) {
         return -EINVAL;
     }
-    memcpy(pDescriptor, &gEqualizerDescriptor, sizeof(effect_descriptor_t));
+    *pDescriptor = gEqualizerDescriptor;
     return 0;
 } /* end EffectQueryNext */
 
@@ -204,7 +204,7 @@ extern "C" int EffectGetDescriptor(const effect_uuid_t *uuid,
     }
 
     if (memcmp(uuid, &gEqualizerDescriptor.uuid, sizeof(effect_uuid_t)) == 0) {
-        memcpy(pDescriptor, &gEqualizerDescriptor, sizeof(effect_descriptor_t));
+        *pDescriptor = gEqualizerDescriptor;
         return 0;
     }
 
@@ -262,7 +262,7 @@ int Equalizer_setConfig(EqualizerContext *pContext, effect_config_t *pConfig)
     }
     CHECK_ARG(channelCount <= AudioBiquadFilter::MAX_CHANNELS);
 
-    memcpy(&pContext->config, pConfig, sizeof(effect_config_t));
+    pContext->config = *pConfig;
 
     pContext->pEqualizer->configure(channelCount,
                           pConfig->inputCfg.samplingRate);
@@ -290,7 +290,7 @@ int Equalizer_setConfig(EqualizerContext *pContext, effect_config_t *pConfig)
 
 void Equalizer_getConfig(EqualizerContext *pContext, effect_config_t *pConfig)
 {
-    memcpy(pConfig, &pContext->config, sizeof(effect_config_t));
+    *pConfig = pContext->config;
 }   // end Equalizer_getConfig
 
 
@@ -752,7 +752,7 @@ extern "C" int Equalizer_getDescriptor(effect_handle_t   self,
         return -EINVAL;
     }
 
-    memcpy(pDescriptor, &android::gEqualizerDescriptor, sizeof(effect_descriptor_t));
+    *pDescriptor = android::gEqualizerDescriptor;
 
     return 0;
 }

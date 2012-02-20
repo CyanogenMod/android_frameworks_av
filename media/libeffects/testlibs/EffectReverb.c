@@ -194,7 +194,7 @@ int EffectGetDescriptor(const effect_uuid_t *uuid,
 
     for (i = 0; i < length; i++) {
         if (memcmp(uuid, &gDescriptors[i]->uuid, sizeof(effect_uuid_t)) == 0) {
-            memcpy(pDescriptor, gDescriptors[i], sizeof(effect_descriptor_t));
+            *pDescriptor = *gDescriptors[i];
             ALOGV("EffectGetDescriptor - UUID matched Reverb type %d, UUID = %x",
                  i, gDescriptors[i]->uuid.timeLow);
             return 0;
@@ -440,7 +440,7 @@ int Reverb_GetDescriptor(effect_handle_t   self,
         }
     }
 
-    memcpy(pDescriptor, desc, sizeof(effect_descriptor_t));
+    *pDescriptor = *desc;
 
     return 0;
 }   /* end Reverb_getDescriptor */
@@ -546,7 +546,7 @@ int Reverb_setConfig(reverb_module_t *pRvbModule, effect_config_t *pConfig,
         return -EINVAL;
     }
 
-    memcpy(&pRvbModule->config, pConfig, sizeof(effect_config_t));
+    pRvbModule->config = *pConfig;
 
     pReverb->m_nSamplingRate = pRvbModule->config.outputCfg.samplingRate;
 
@@ -644,7 +644,7 @@ int Reverb_setConfig(reverb_module_t *pRvbModule, effect_config_t *pConfig,
 
 void Reverb_getConfig(reverb_module_t *pRvbModule, effect_config_t *pConfig)
 {
-    memcpy(pConfig, &pRvbModule->config, sizeof(effect_config_t));
+    *pConfig = pRvbModule->config;
 }
 
 /*----------------------------------------------------------------------------

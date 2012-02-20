@@ -514,7 +514,7 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
     for (size_t i = 0; i < effects.size(); i++) {
         effect_descriptor_t desc = effects[i]->descriptor();
         if (i < *count) {
-            memcpy(descriptors + i, &desc, sizeof(effect_descriptor_t));
+            descriptors[i] = desc;
         }
     }
     if (effects.size() > *count) {

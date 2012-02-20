@@ -122,19 +122,12 @@ status_t AudioEffect::set(const effect_uuid_t *type,
     mSessionId = sessionId;
 
     memset(&mDescriptor, 0, sizeof(effect_descriptor_t));
-    memcpy(&mDescriptor.type, EFFECT_UUID_NULL, sizeof(effect_uuid_t));
-    memcpy(&mDescriptor.uuid, EFFECT_UUID_NULL, sizeof(effect_uuid_t));
-
-    if (type != NULL) {
-        memcpy(&mDescriptor.type, type, sizeof(effect_uuid_t));
-    }
-    if (uuid != NULL) {
-        memcpy(&mDescriptor.uuid, uuid, sizeof(effect_uuid_t));
-    }
+    mDescriptor.type = *(type != NULL ? type : EFFECT_UUID_NULL);
+    mDescriptor.uuid = *(uuid != NULL ? uuid : EFFECT_UUID_NULL);
 
     mIEffectClient = new EffectClient(this);
 
-    iEffect = audioFlinger->createEffect(getpid(), (effect_descriptor_t *)&mDescriptor,
+    iEffect = audioFlinger->createEffect(getpid(), &mDescriptor,
             mIEffectClient, priority, io, mSessionId, &mStatus, &mId, &enabled);
 
     if (iEffect == 0 || (mStatus != NO_ERROR && mStatus != ALREADY_EXISTS)) {

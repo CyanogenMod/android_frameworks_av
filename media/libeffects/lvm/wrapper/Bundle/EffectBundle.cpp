@@ -180,16 +180,16 @@ extern "C" int EffectQueryEffect(uint32_t index, effect_descriptor_t *pDescripto
     }
     if(index == LVM_BASS_BOOST){
         ALOGV("\tEffectQueryEffect processing LVM_BASS_BOOST");
-        memcpy(pDescriptor, &gBassBoostDescriptor,   sizeof(effect_descriptor_t));
+        *pDescriptor = gBassBoostDescriptor;
     }else if(index == LVM_VIRTUALIZER){
         ALOGV("\tEffectQueryEffect processing LVM_VIRTUALIZER");
-        memcpy(pDescriptor, &gVirtualizerDescriptor, sizeof(effect_descriptor_t));
+        *pDescriptor = gVirtualizerDescriptor;
     } else if(index == LVM_EQUALIZER){
         ALOGV("\tEffectQueryEffect processing LVM_EQUALIZER");
-        memcpy(pDescriptor, &gEqualizerDescriptor,   sizeof(effect_descriptor_t));
+        *pDescriptor = gEqualizerDescriptor;
     } else if(index == LVM_VOLUME){
         ALOGV("\tEffectQueryEffect processing LVM_VOLUME");
-        memcpy(pDescriptor, &gVolumeDescriptor, sizeof(effect_descriptor_t));
+        *pDescriptor = gVolumeDescriptor;
     }
     ALOGV("\tEffectQueryEffect end\n");
     return 0;
@@ -494,7 +494,7 @@ extern "C" int EffectGetDescriptor(const effect_uuid_t *uuid,
         return  -EINVAL;
     }
 
-    memcpy(pDescriptor, desc, sizeof(effect_descriptor_t));
+    *pDescriptor = *desc;
 
     return 0;
 } /* end EffectGetDescriptor */
@@ -965,7 +965,7 @@ int Effect_setConfig(EffectContext *pContext, effect_config_t *pConfig){
               || pConfig->outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE);
     CHECK_ARG(pConfig->inputCfg.format == AUDIO_FORMAT_PCM_16_BIT);
 
-    memcpy(&pContext->config, pConfig, sizeof(effect_config_t));
+    pContext->config = *pConfig;
 
     switch (pConfig->inputCfg.samplingRate) {
     case 8000:
@@ -1041,7 +1041,7 @@ int Effect_setConfig(EffectContext *pContext, effect_config_t *pConfig){
 
 void Effect_getConfig(EffectContext *pContext, effect_config_t *pConfig)
 {
-    memcpy(pConfig, &pContext->config, sizeof(effect_config_t));
+    *pConfig = pContext->config;
 }   /* end Effect_getConfig */
 
 //----------------------------------------------------------------------------
@@ -3272,7 +3272,7 @@ int Effect_getDescriptor(effect_handle_t   self,
             return -EINVAL;
     }
 
-    memcpy(pDescriptor, desc, sizeof(effect_descriptor_t));
+    *pDescriptor = *desc;
 
     return 0;
 }   /* end Effect_getDescriptor */

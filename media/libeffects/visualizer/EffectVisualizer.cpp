@@ -106,7 +106,7 @@ int Visualizer_setConfig(VisualizerContext *pContext, effect_config_t *pConfig)
             pConfig->outputCfg.accessMode != EFFECT_BUFFER_ACCESS_ACCUMULATE) return -EINVAL;
     if (pConfig->inputCfg.format != AUDIO_FORMAT_PCM_16_BIT) return -EINVAL;
 
-    memcpy(&pContext->mConfig, pConfig, sizeof(effect_config_t));
+    pContext->mConfig = *pConfig;
 
     Visualizer_reset(pContext);
 
@@ -130,7 +130,7 @@ int Visualizer_setConfig(VisualizerContext *pContext, effect_config_t *pConfig)
 
 void Visualizer_getConfig(VisualizerContext *pContext, effect_config_t *pConfig)
 {
-    memcpy(pConfig, &pContext->mConfig, sizeof(effect_config_t));
+    *pConfig = pContext->mConfig;
 }
 
 
@@ -190,7 +190,7 @@ int VisualizerLib_QueryEffect(uint32_t index,
     if (index > 0) {
         return -EINVAL;
     }
-    memcpy(pDescriptor, &gVisualizerDescriptor, sizeof(effect_descriptor_t));
+    *pDescriptor = gVisualizerDescriptor;
     return 0;
 }
 
@@ -253,7 +253,7 @@ int VisualizerLib_GetDescriptor(const effect_uuid_t *uuid,
     }
 
     if (memcmp(uuid, &gVisualizerDescriptor.uuid, sizeof(effect_uuid_t)) == 0) {
-        memcpy(pDescriptor, &gVisualizerDescriptor, sizeof(effect_descriptor_t));
+        *pDescriptor = gVisualizerDescriptor;
         return 0;
     }
 
@@ -561,7 +561,7 @@ int Visualizer_getDescriptor(effect_handle_t   self,
         return -EINVAL;
     }
 
-    memcpy(pDescriptor, &gVisualizerDescriptor, sizeof(effect_descriptor_t));
+    *pDescriptor = gVisualizerDescriptor;
 
     return 0;
 }   /* end Visualizer_getDescriptor */

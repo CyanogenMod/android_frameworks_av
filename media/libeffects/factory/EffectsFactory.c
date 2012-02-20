@@ -214,7 +214,7 @@ int EffectQueryEffect(uint32_t index, effect_descriptor_t *pDescriptor)
     while (gCurLib) {
         if (gCurEffect) {
             if (index == gCurEffectIdx) {
-                memcpy(pDescriptor, gCurEffect->object, sizeof(effect_descriptor_t));
+                *pDescriptor = *(effect_descriptor_t *)gCurEffect->object;
                 ret = 0;
                 break;
             } else {
@@ -251,7 +251,7 @@ int EffectGetDescriptor(const effect_uuid_t *uuid, effect_descriptor_t *pDescrip
     pthread_mutex_lock(&gLibLock);
     ret = findEffect(NULL, uuid, &l, &d);
     if (ret == 0) {
-        memcpy(pDescriptor, d, sizeof(effect_descriptor_t));
+        *pDescriptor = *d;
     }
     pthread_mutex_unlock(&gLibLock);
     return ret;

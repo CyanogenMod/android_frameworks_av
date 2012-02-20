@@ -206,7 +206,7 @@ extern "C" int EffectQueryEffect(uint32_t index,
         ALOGV("\tLVM_ERROR : EffectQueryEffect index out of range %d", index);
         return -ENOENT;
     }
-    memcpy(pDescriptor, gDescriptors[index], sizeof(effect_descriptor_t));
+    *pDescriptor = *gDescriptors[index];
     ALOGV("\tEffectQueryEffect end\n");
     return 0;
 }     /* end EffectQueryEffect */
@@ -330,7 +330,7 @@ extern "C" int EffectGetDescriptor(const effect_uuid_t *uuid,
 
     for (i = 0; i < length; i++) {
         if (memcmp(uuid, &gDescriptors[i]->uuid, sizeof(effect_uuid_t)) == 0) {
-            memcpy(pDescriptor, gDescriptors[i], sizeof(effect_descriptor_t));
+            *pDescriptor = *gDescriptors[i];
             ALOGV("EffectGetDescriptor - UUID matched Reverb type %d, UUID = %x",
                  i, gDescriptors[i]->uuid.timeLow);
             return 0;
@@ -645,7 +645,7 @@ int Reverb_setConfig(ReverbContext *pContext, effect_config_t *pConfig){
     }
 
     //ALOGV("\tReverb_setConfig calling memcpy");
-    memcpy(&pContext->config, pConfig, sizeof(effect_config_t));
+    pContext->config = *pConfig;
 
 
     switch (pConfig->inputCfg.samplingRate) {
@@ -715,7 +715,7 @@ int Reverb_setConfig(ReverbContext *pContext, effect_config_t *pConfig){
 
 void Reverb_getConfig(ReverbContext *pContext, effect_config_t *pConfig)
 {
-    memcpy(pConfig, &pContext->config, sizeof(effect_config_t));
+    *pConfig = pContext->config;
 }   /* end Reverb_getConfig */
 
 //----------------------------------------------------------------------------
@@ -2157,7 +2157,7 @@ int Reverb_getDescriptor(effect_handle_t   self,
         }
     }
 
-    memcpy(pDescriptor, desc, sizeof(effect_descriptor_t));
+    *pDescriptor = *desc;
 
     return 0;
 }   /* end Reverb_getDescriptor */

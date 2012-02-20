@@ -1440,7 +1440,7 @@ void AudioFlinger::ThreadBase::updateSuspendedSessions_l(const effect_uuid_t *ty
         } else {
             desc = new SuspendedSessionDesc();
             if (type != NULL) {
-                memcpy(&desc->mType, type, sizeof(effect_uuid_t));
+                desc->mType = *type;
             }
             sessionEffects.add(key, desc);
             ALOGV("updateSuspendedSessions_l() suspend adding effect %08x", key);
@@ -7352,7 +7352,7 @@ sp<IEffect> AudioFlinger::createEffect(pid_t pid,
                     // 0 and the effect is not auxiliary, continue enumeration in case
                     // an auxiliary version of this effect type is available
                     found = true;
-                    memcpy(&d, &desc, sizeof(effect_descriptor_t));
+                    d = desc;
                     if (sessionId != AUDIO_SESSION_OUTPUT_MIX ||
                             (desc.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_AUXILIARY) {
                         break;
@@ -7368,7 +7368,7 @@ sp<IEffect> AudioFlinger::createEffect(pid_t pid,
             // connect to output mix (Compliance to OpenSL ES)
             if (sessionId == AUDIO_SESSION_OUTPUT_MIX &&
                     (d.flags & EFFECT_FLAG_TYPE_MASK) != EFFECT_FLAG_TYPE_AUXILIARY) {
-                memcpy(&desc, &d, sizeof(effect_descriptor_t));
+                desc = d;
             }
         }
 
@@ -7387,7 +7387,7 @@ sp<IEffect> AudioFlinger::createEffect(pid_t pid,
         }
 
         // return effect descriptor
-        memcpy(pDesc, &desc, sizeof(effect_descriptor_t));
+        *pDesc = desc;
 
         // If output is not specified try to find a matching audio session ID in one of the
         // output threads.
@@ -9384,7 +9384,7 @@ void AudioFlinger::EffectChain::setEffectSuspended_l(
             desc = mSuspendedEffects.valueAt(index);
         } else {
             desc = new SuspendedEffectDesc();
-            memcpy(&desc->mType, type, sizeof(effect_uuid_t));
+            desc->mType = *type;
             mSuspendedEffects.add(type->timeLow, desc);
             ALOGV("setEffectSuspended_l() add entry for %08x", type->timeLow);
         }
