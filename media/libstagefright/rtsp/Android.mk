@@ -17,6 +17,7 @@ LOCAL_SRC_FILES:=       \
         ARTPWriter.cpp              \
         ARTSPConnection.cpp         \
         ASessionDescription.cpp     \
+        SDPLoader.cpp               \
 
 LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright/include \
