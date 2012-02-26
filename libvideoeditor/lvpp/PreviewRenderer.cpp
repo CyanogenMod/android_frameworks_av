@@ -22,7 +22,7 @@
 #include "PreviewRenderer.h"
 
 #include <media/stagefright/foundation/ADebug.h>
-#include <surfaceflinger/Surface.h>
+#include <gui/Surface.h>
 
 namespace android {
 

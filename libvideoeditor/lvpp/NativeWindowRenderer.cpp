@@ -25,7 +25,6 @@
 #include <stagefright/foundation/ADebug.h>
 #include <stagefright/MediaBuffer.h>
 #include <stagefright/MetaData.h>
-#include <surfaceflinger/Surface.h>
 #include "VideoEditorTools.h"
 
 #define CHECK_EGL_ERROR CHECK(EGL_SUCCESS == eglGetError())

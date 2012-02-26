@@ -18,7 +18,7 @@
 #define LOG_TAG "PreviewController"
 #include <utils/Log.h>
 
-#include <surfaceflinger/Surface.h>
+#include <gui/Surface.h>
 
 #include "VideoEditorAudioPlayer.h"
 #include "PreviewRenderer.h"
