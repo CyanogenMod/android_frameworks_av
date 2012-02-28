@@ -529,14 +529,9 @@ status_t AudioTrack::setVolume(float left, float right)
     return NO_ERROR;
 }
 
-void AudioTrack::getVolume(float* left, float* right) const
+status_t AudioTrack::setVolume(float volume)
 {
-    if (left != NULL) {
-        *left  = mVolume[LEFT];
-    }
-    if (right != NULL) {
-        *right = mVolume[RIGHT];
-    }
+    return setVolume(volume, volume);
 }
 
 status_t AudioTrack::setAuxEffectSendLevel(float level)
