@@ -2199,8 +2199,8 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
 
     // FIXME - Current mixer implementation only supports stereo output
-    if (mChannelCount == 1) {
-        ALOGE("Invalid audio hardware channel count");
+    if (mChannelCount != FCC_2) {
+        ALOGE("Invalid audio hardware channel count %d", mChannelCount);
     }
 
     // create an NBAIO sink for the HAL output stream, and negotiate
