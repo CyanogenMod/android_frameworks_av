@@ -401,6 +401,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         IAudioFlinger::track_flags_t flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
+        pid_t tid,
         int *sessionId,
         status_t *status)
 {
@@ -458,9 +459,8 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
         ALOGV("createTrack() lSessionId: %d", lSessionId);
 
-        bool isTimed = (flags & IAudioFlinger::TRACK_TIMED) != 0;
         track = thread->createTrack_l(client, streamType, sampleRate, format,
-                channelMask, frameCount, sharedBuffer, lSessionId, flags, &lStatus);
+                channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, &lStatus);
 
         // move effect chain to this output thread if an effect on same session was waiting
         // for a track to be created
@@ -1569,6 +1569,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         const sp<IMemory>& sharedBuffer,
         int sessionId,
         IAudioFlinger::track_flags_t flags,
+        pid_t tid,
         status_t *status)
 {
     sp<Track> track;
@@ -1589,7 +1590,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               ) ||
               // use case 2: callback handler and small power-of-2 frame count
               (
-                // unfortunately we can't verify that there's a callback until start()
+                (tid != -1) &&
                 // FIXME supported frame counts should not be hard-coded
                 (
                   (frameCount == 128) ||
@@ -1678,6 +1679,20 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             chain->incTrackCnt();
         }
     }
+
+#ifdef HAVE_REQUEST_PRIORITY
+    if ((flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+        pid_t callingPid = IPCThreadState::self()->getCallingPid();
+        // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
+        // so ask activity manager to do this on our behalf
+        int err = requestPriority(callingPid, tid, 1);
+        if (err != 0) {
+            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
+                    1, callingPid, tid, err);
+        }
+    }
+#endif
+
     lStatus = NO_ERROR;
 
 Exit:
@@ -3681,20 +3696,11 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
     return false;
 }
 
-status_t AudioFlinger::PlaybackThread::Track::start(pid_t tid,
-                                                    AudioSystem::sync_event_t event,
+status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t event,
                                                     int triggerSession)
 {
     status_t status = NO_ERROR;
-    ALOGV("start(%d), calling pid %d session %d tid %d",
-            mName, IPCThreadState::self()->getCallingPid(), mSessionId, tid);
-    // check for use case 2 with missing callback
-    if (isFastTrack() && (mSharedBuffer == 0) && (tid == 0)) {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied");
-        mFlags &= ~IAudioFlinger::TRACK_FAST;
-        // FIXME the track must be invalidated and moved to another thread or
-        // attached directly to the normal mixer now
-    }
+
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
@@ -4467,14 +4473,13 @@ getNextBuffer_exit:
     return NOT_ENOUGH_DATA;
 }
 
-status_t AudioFlinger::RecordThread::RecordTrack::start(pid_t tid,
-                                                        AudioSystem::sync_event_t event,
+status_t AudioFlinger::RecordThread::RecordTrack::start(AudioSystem::sync_event_t event,
                                                         int triggerSession)
 {
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
-        return recordThread->start(this, tid, event, triggerSession);
+        return recordThread->start(this, event, triggerSession);
     } else {
         return BAD_VALUE;
     }
@@ -4541,11 +4546,10 @@ AudioFlinger::PlaybackThread::OutputTrack::~OutputTrack()
     clearBufferQueue();
 }
 
-status_t AudioFlinger::PlaybackThread::OutputTrack::start(pid_t tid,
-                                                          AudioSystem::sync_event_t event,
+status_t AudioFlinger::PlaybackThread::OutputTrack::start(AudioSystem::sync_event_t event,
                                                           int triggerSession)
 {
-    status_t status = Track::start(tid, event, triggerSession);
+    status_t status = Track::start(event, triggerSession);
     if (status != NO_ERROR) {
         return status;
     }
@@ -4575,7 +4579,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
     uint32_t waitTimeLeftMs = mSourceThread->waitTimeMs();
 
     if (!mActive && frames != 0) {
-        start(0);
+        start();
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
             MixerThread *mixerThread = (MixerThread *)thread.get();
@@ -4834,8 +4838,8 @@ sp<IMemory> AudioFlinger::TrackHandle::getCblk() const {
     return mTrack->getCblk();
 }
 
-status_t AudioFlinger::TrackHandle::start(pid_t tid) {
-    return mTrack->start(tid);
+status_t AudioFlinger::TrackHandle::start() {
+    return mTrack->start();
 }
 
 void AudioFlinger::TrackHandle::stop() {
@@ -4988,9 +4992,9 @@ sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
     return mRecordTrack->getCblk();
 }
 
-status_t AudioFlinger::RecordHandle::start(pid_t tid, int event, int triggerSession) {
+status_t AudioFlinger::RecordHandle::start(int event, int triggerSession) {
     ALOGV("RecordHandle::start()");
-    return mRecordTrack->start(tid, (AudioSystem::sync_event_t)event, triggerSession);
+    return mRecordTrack->start((AudioSystem::sync_event_t)event, triggerSession);
 }
 
 void AudioFlinger::RecordHandle::stop() {
@@ -5291,9 +5295,10 @@ Exit:
 }
 
 status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrack,
-                                           pid_t tid, AudioSystem::sync_event_t event,
+                                           AudioSystem::sync_event_t event,
                                            int triggerSession)
 {
+    // FIXME use tid here
     ALOGV("RecordThread::start tid=%d,  event %d, triggerSession %d", tid, event, triggerSession);
     sp<ThreadBase> strongMe = this;
     status_t status = NO_ERROR;

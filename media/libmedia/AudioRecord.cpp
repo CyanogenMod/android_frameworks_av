@@ -321,8 +321,8 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
         cblk->lock.lock();
         if (!(cblk->flags & CBLK_INVALID_MSK)) {
             cblk->lock.unlock();
-            ALOGV("mAudioRecord->start(tid=%d)", tid);
-            ret = mAudioRecord->start(tid, event, triggerSession);
+            ALOGV("mAudioRecord->start()");
+            ret = mAudioRecord->start(event, triggerSession);
             cblk->lock.lock();
             if (ret == DEAD_OBJECT) {
                 android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -542,7 +542,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                             "user=%08x, server=%08x", cblk->user, cblk->server);
                     cblk->lock.unlock();
                     // callback thread or sync event hasn't changed
-                    result = mAudioRecord->start(0, AudioSystem::SYNC_EVENT_SAME, 0);
+                    result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
                     cblk->lock.lock();
                     if (result == DEAD_OBJECT) {
                         android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -781,7 +781,7 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& cblk)
                 mFrameCount, getInput_l());
         if (result == NO_ERROR) {
             // callback thread or sync event hasn't changed
-            result = mAudioRecord->start(0, AudioSystem::SYNC_EVENT_SAME, 0);
+            result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
         }
         if (result != NO_ERROR) {
             mActive = false;

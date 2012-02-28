@@ -42,11 +42,10 @@ public:
     {
     }
 
-    virtual status_t start(pid_t tid, int event, int triggerSession)
+    virtual status_t start(int event, int triggerSession)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioRecord::getInterfaceDescriptor());
-        data.writeInt32(tid);
         data.writeInt32(event);
         data.writeInt32(triggerSession);
         status_t status = remote()->transact(START, data, &reply);
@@ -93,10 +92,9 @@ status_t BnAudioRecord::onTransact(
         } break;
         case START: {
             CHECK_INTERFACE(IAudioRecord, data, reply);
-            pid_t tid = (pid_t) data.readInt32();
             int event = data.readInt32();
             int triggerSession = data.readInt32();
-            reply->writeInt32(start(tid, event, triggerSession));
+            reply->writeInt32(start(event, triggerSession));
             return NO_ERROR;
         } break;
         case STOP: {
