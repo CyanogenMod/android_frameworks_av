@@ -472,7 +472,7 @@ private:
                     audio_io_handle_t id() const { return mId;}
                     bool        standby() const { return mStandby; }
                     uint32_t    device() const { return mDevice; }
-        virtual     audio_stream_t* stream() = 0;
+        virtual     audio_stream_t* stream() const = 0;
 
                     sp<EffectHandle> createEffect_l(
                                         const sp<AudioFlinger::Client>& client,
@@ -918,7 +918,7 @@ public:
 
                     AudioStreamOut* getOutput() const;
                     AudioStreamOut* clearOutput();
-                    virtual audio_stream_t* stream();
+                    virtual audio_stream_t* stream() const;
 
                     void        suspend() { mSuspended++; }
                     void        restore() { if (mSuspended > 0) mSuspended--; }
@@ -960,9 +960,13 @@ public:
         // Allocate a track name.  Returns name >= 0 if successful, -1 on failure.
         virtual int             getTrackName_l() = 0;
         virtual void            deleteTrackName_l(int name) = 0;
-        virtual uint32_t        activeSleepTimeUs();
-        virtual uint32_t        idleSleepTimeUs() = 0;
-        virtual uint32_t        suspendSleepTimeUs() = 0;
+
+        // Time to sleep between cycles when:
+        virtual uint32_t        activeSleepTimeUs() const;      // mixer state MIXER_TRACKS_ENABLED
+        virtual uint32_t        idleSleepTimeUs() const = 0;    // mixer state MIXER_IDLE
+        virtual uint32_t        suspendSleepTimeUs() const = 0; // audio policy manager suspended us
+        // No sleep when mixer state == MIXER_TRACKS_READY; relies on audio HAL stream->write()
+        // No sleep in standby mode; waits on a condition
 
         // Code snippets that are temporarily lifted up out of threadLoop() until the merge
                     void        checkSilentMode_l();
@@ -1048,8 +1052,8 @@ public:
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
         virtual     int         getTrackName_l();
         virtual     void        deleteTrackName_l(int name);
-        virtual     uint32_t    idleSleepTimeUs();
-        virtual     uint32_t    suspendSleepTimeUs();
+        virtual     uint32_t    idleSleepTimeUs() const;
+        virtual     uint32_t    suspendSleepTimeUs() const;
         virtual     void        cacheParameters_l();
 
         // threadLoop snippets
@@ -1073,9 +1077,9 @@ public:
     protected:
         virtual     int         getTrackName_l();
         virtual     void        deleteTrackName_l(int name);
-        virtual     uint32_t    activeSleepTimeUs();
-        virtual     uint32_t    idleSleepTimeUs();
-        virtual     uint32_t    suspendSleepTimeUs();
+        virtual     uint32_t    activeSleepTimeUs() const;
+        virtual     uint32_t    idleSleepTimeUs() const;
+        virtual     uint32_t    suspendSleepTimeUs() const;
         virtual     void        cacheParameters_l();
 
         // threadLoop snippets
@@ -1110,9 +1114,9 @@ private:
         // Thread virtuals
                     void        addOutputTrack(MixerThread* thread);
                     void        removeOutputTrack(MixerThread* thread);
-                    uint32_t    waitTimeMs() { return mWaitTimeMs; }
+                    uint32_t    waitTimeMs() const { return mWaitTimeMs; }
     protected:
-        virtual     uint32_t    activeSleepTimeUs();
+        virtual     uint32_t    activeSleepTimeUs() const;
 
     private:
                     bool        outputsReady(const SortedVector< sp<OutputTrack> > &outputTracks);
@@ -1260,7 +1264,7 @@ private:
                 status_t    dump(int fd, const Vector<String16>& args);
                 AudioStreamIn* getInput() const;
                 AudioStreamIn* clearInput();
-                virtual audio_stream_t* stream();
+                virtual audio_stream_t* stream() const;
 
         // AudioBufferProvider interface
         virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);

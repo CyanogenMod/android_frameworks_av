@@ -1924,7 +1924,7 @@ AudioFlinger::AudioStreamOut* AudioFlinger::PlaybackThread::clearOutput()
 }
 
 // this method must always be called either with ThreadBase mLock held or inside the thread loop
-audio_stream_t* AudioFlinger::PlaybackThread::stream()
+audio_stream_t* AudioFlinger::PlaybackThread::stream() const
 {
     if (mOutput == NULL) {
         return NULL;
@@ -1932,7 +1932,7 @@ audio_stream_t* AudioFlinger::PlaybackThread::stream()
     return &mOutput->stream->common;
 }
 
-uint32_t AudioFlinger::PlaybackThread::activeSleepTimeUs()
+uint32_t AudioFlinger::PlaybackThread::activeSleepTimeUs() const
 {
     // A2DP output latency is not due only to buffering capacity. It also reflects encoding,
     // decoding and transfer time. So sleeping for half of the latency would likely cause
@@ -2817,12 +2817,12 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
     return NO_ERROR;
 }
 
-uint32_t AudioFlinger::MixerThread::idleSleepTimeUs()
+uint32_t AudioFlinger::MixerThread::idleSleepTimeUs() const
 {
     return (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000) / 2;
 }
 
-uint32_t AudioFlinger::MixerThread::suspendSleepTimeUs()
+uint32_t AudioFlinger::MixerThread::suspendSleepTimeUs() const
 {
     return (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000);
 }
@@ -3166,7 +3166,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameters_l()
     return reconfig;
 }
 
-uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs()
+uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const
 {
     uint32_t time;
     if (audio_is_linear_pcm(mFormat)) {
@@ -3177,7 +3177,7 @@ uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs()
     return time;
 }
 
-uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs()
+uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs() const
 {
     uint32_t time;
     if (audio_is_linear_pcm(mFormat)) {
@@ -3188,7 +3188,7 @@ uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs()
     return time;
 }
 
-uint32_t AudioFlinger::DirectOutputThread::suspendSleepTimeUs()
+uint32_t AudioFlinger::DirectOutputThread::suspendSleepTimeUs() const
 {
     uint32_t time;
     if (audio_is_linear_pcm(mFormat)) {
@@ -3351,7 +3351,7 @@ bool AudioFlinger::DuplicatingThread::outputsReady(const SortedVector< sp<Output
     return true;
 }
 
-uint32_t AudioFlinger::DuplicatingThread::activeSleepTimeUs()
+uint32_t AudioFlinger::DuplicatingThread::activeSleepTimeUs() const
 {
     return (mWaitTimeMs * 1000) / 2;
 }
@@ -5623,7 +5623,7 @@ AudioFlinger::AudioStreamIn* AudioFlinger::RecordThread::clearInput()
 }
 
 // this method must always be called either with ThreadBase mLock held or inside the thread loop
-audio_stream_t* AudioFlinger::RecordThread::stream()
+audio_stream_t* AudioFlinger::RecordThread::stream() const
 {
     if (mInput == NULL) {
         return NULL;
