@@ -105,6 +105,34 @@ extern "C"
         AMR_NO_DATA         /* No data      */
     };
 
+typedef enum
+{
+    /*
+     *    One word (2-byte) to indicate type of frame type.
+     *    One word (2-byte) to indicate frame type.
+     *    One word (2-byte) to indicate mode.
+     *    N words (2-byte) containing N bits (bit 0 = 0xff81, bit 1 = 0x007f).
+     */
+    ETS = 0, /* Both AMR-Narrowband and AMR-Wideband */
+
+    /*
+     *    One word (2-byte) for sync word (good frames: 0x6b21, bad frames: 0x6b20)
+     *    One word (2-byte) for frame length N.
+     *    N words (2-byte) containing N bits (bit 0 = 0x007f, bit 1 = 0x0081).
+     */
+    ITU, /* AMR-Wideband */
+
+    /*
+     *   AMR-WB MIME/storage format, see RFC 3267 (sections 5.1 and 5.3) for details
+     */
+    MIME_IETF,
+
+    WMF, /* AMR-Narrowband */
+
+    IF2  /* AMR-Narrowband */
+
+} bitstream_format;
+
     /*----------------------------------------------------------------------------
     ; STRUCTURES TYPEDEF'S
     ----------------------------------------------------------------------------*/
