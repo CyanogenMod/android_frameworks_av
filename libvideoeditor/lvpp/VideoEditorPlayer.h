@@ -49,7 +49,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         virtual int             getSessionId();
 
         virtual status_t        open(
-                uint32_t sampleRate, int channelCount,
+                uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount,
                 AudioCallback cb, void *cookie);
 

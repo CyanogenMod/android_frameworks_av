@@ -511,7 +511,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
 
     if (mAudioSink.get() != NULL) {
         status_t err = mAudioSink->open(
-                mSampleRate, numChannels, AUDIO_FORMAT_PCM_16_BIT,
+                mSampleRate, numChannels, CHANNEL_MASK_USE_CHANNEL_ORDER, AUDIO_FORMAT_PCM_16_BIT,
                 DEFAULT_AUDIOSINK_BUFFERCOUNT,
                 &VideoEditorAudioPlayer::AudioSinkCallback, this);
         if (err != OK) {

@@ -383,7 +383,8 @@ status_t VideoEditorPlayer::VeAudioOutput::getPosition(uint32_t *position) {
 }
 
 status_t VideoEditorPlayer::VeAudioOutput::open(
-        uint32_t sampleRate, int channelCount, audio_format_t format, int bufferCount,
+        uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
+        audio_format_t format, int bufferCount,
         AudioCallback cb, void *cookie) {
 
     mCallback = cb;
@@ -413,14 +414,26 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
     frameCount = (sampleRate*afFrameCount*bufferCount)/afSampleRate;
 
+    if (channelMask == CHANNEL_MASK_USE_CHANNEL_ORDER) {
+        switch(channelCount) {
+          case 1:
+            channelMask = AUDIO_CHANNEL_OUT_MONO;
+            break;
+          case 2:
+            channelMask = AUDIO_CHANNEL_OUT_STEREO;
+            break;
+          default:
+            return NO_INIT;
+        }
+    }
+
     AudioTrack *t;
     if (mCallback != NULL) {
         t = new AudioTrack(
                 mStreamType,
                 sampleRate,
                 format,
-                (channelCount == 2) ?
-                 AUDIO_CHANNEL_OUT_STEREO : AUDIO_CHANNEL_OUT_MONO,
+                channelMask,
                 frameCount,
                 0 /* flags */,
                 CallbackWrapper,
@@ -430,8 +443,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 mStreamType,
                 sampleRate,
                 format,
-                (channelCount == 2) ?
-                 AUDIO_CHANNEL_OUT_STEREO : AUDIO_CHANNEL_OUT_MONO,
+                channelMask,
                 frameCount);
     }
 
