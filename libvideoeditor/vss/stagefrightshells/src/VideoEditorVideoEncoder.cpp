@@ -29,8 +29,10 @@
 #include "M4SYS_AccessUnit.h"
 #include "VideoEditorVideoEncoder.h"
 #include "VideoEditorUtils.h"
+#include "MediaBufferPuller.h"
 #include <I420ColorConverter.h>
 
+#include <unistd.h>
 #include "utils/Log.h"
 #include "utils/Vector.h"
 #include <media/stagefright/foundation/ADebug.h>
@@ -248,194 +250,6 @@ int32_t VideoEditorVideoEncoderSource::getNumberOfBuffersInQueue() {
     Mutex::Autolock autolock(mLock);
     return mNbBuffer;
 }
-/********************
- *      PULLER      *
- ********************/
-
-// Pulls media buffers from a MediaSource repeatedly.
-// The user can then get the buffers from that list.
-class VideoEditorVideoEncoderPuller {
-public:
-    VideoEditorVideoEncoderPuller(sp<MediaSource> source);
-    ~VideoEditorVideoEncoderPuller();
-    void start();
-    void stop();
-    MediaBuffer* getBufferBlocking();
-    MediaBuffer* getBufferNonBlocking();
-    void putBuffer(MediaBuffer* buffer);
-    bool hasMediaSourceReturnedError();
-private:
-    static int acquireThreadStart(void* arg);
-    void acquireThreadFunc();
-
-    static int releaseThreadStart(void* arg);
-    void releaseThreadFunc();
-
-    sp<MediaSource> mSource;
-    Vector<MediaBuffer*> mBuffers;
-    Vector<MediaBuffer*> mReleaseBuffers;
-
-    Mutex mLock;
-    Condition mUserCond;     // for the user of this class
-    Condition mAcquireCond;  // for the acquire thread
-    Condition mReleaseCond;  // for the release thread
-
-    bool mAskToStart;      // Asks the threads to start
-    bool mAskToStop;       // Asks the threads to stop
-    bool mAcquireStopped;  // The acquire thread has stopped
-    bool mReleaseStopped;  // The release thread has stopped
-    status_t mSourceError; // Error returned by MediaSource read
-};
-
-VideoEditorVideoEncoderPuller::VideoEditorVideoEncoderPuller(
-    sp<MediaSource> source) {
-    mSource = source;
-    mAskToStart = false;
-    mAskToStop = false;
-    mAcquireStopped = false;
-    mReleaseStopped = false;
-    mSourceError = OK;
-    androidCreateThread(acquireThreadStart, this);
-    androidCreateThread(releaseThreadStart, this);
-}
-
-VideoEditorVideoEncoderPuller::~VideoEditorVideoEncoderPuller() {
-    stop();
-}
-
-bool VideoEditorVideoEncoderPuller::hasMediaSourceReturnedError() {
-    Mutex::Autolock autolock(mLock);
-    return ((mSourceError != OK) ? true : false);
-}
-void VideoEditorVideoEncoderPuller::start() {
-    Mutex::Autolock autolock(mLock);
-    mAskToStart = true;
-    mAcquireCond.signal();
-    mReleaseCond.signal();
-}
-
-void VideoEditorVideoEncoderPuller::stop() {
-    Mutex::Autolock autolock(mLock);
-    mAskToStop = true;
-    mAcquireCond.signal();
-    mReleaseCond.signal();
-    while (!mAcquireStopped || !mReleaseStopped) {
-        mUserCond.wait(mLock);
-    }
-
-    // Release remaining buffers
-    for (size_t i = 0; i < mBuffers.size(); i++) {
-        mBuffers.itemAt(i)->release();
-    }
-
-    for (size_t i = 0; i < mReleaseBuffers.size(); i++) {
-        mReleaseBuffers.itemAt(i)->release();
-    }
-
-    mBuffers.clear();
-    mReleaseBuffers.clear();
-}
-
-MediaBuffer* VideoEditorVideoEncoderPuller::getBufferNonBlocking() {
-    Mutex::Autolock autolock(mLock);
-    if (mBuffers.empty()) {
-        return NULL;
-    } else {
-        MediaBuffer* b = mBuffers.itemAt(0);
-        mBuffers.removeAt(0);
-        return b;
-    }
-}
-
-MediaBuffer* VideoEditorVideoEncoderPuller::getBufferBlocking() {
-    Mutex::Autolock autolock(mLock);
-    while (mBuffers.empty() && !mAcquireStopped) {
-        mUserCond.wait(mLock);
-    }
-
-    if (mBuffers.empty()) {
-        return NULL;
-    } else {
-        MediaBuffer* b = mBuffers.itemAt(0);
-        mBuffers.removeAt(0);
-        return b;
-    }
-}
-
-void VideoEditorVideoEncoderPuller::putBuffer(MediaBuffer* buffer) {
-    Mutex::Autolock autolock(mLock);
-    mReleaseBuffers.push(buffer);
-    mReleaseCond.signal();
-}
-
-int VideoEditorVideoEncoderPuller::acquireThreadStart(void* arg) {
-    VideoEditorVideoEncoderPuller* self = (VideoEditorVideoEncoderPuller*)arg;
-    self->acquireThreadFunc();
-    return 0;
-}
-
-int VideoEditorVideoEncoderPuller::releaseThreadStart(void* arg) {
-    VideoEditorVideoEncoderPuller* self = (VideoEditorVideoEncoderPuller*)arg;
-    self->releaseThreadFunc();
-    return 0;
-}
-
-void VideoEditorVideoEncoderPuller::acquireThreadFunc() {
-    mLock.lock();
-
-    // Wait for the start signal
-    while (!mAskToStart && !mAskToStop) {
-        mAcquireCond.wait(mLock);
-    }
-
-    // Loop until we are asked to stop, or there is nothing more to read
-    while (!mAskToStop) {
-        MediaBuffer* pBuffer;
-        mLock.unlock();
-        status_t result = mSource->read(&pBuffer, NULL);
-        mLock.lock();
-        mSourceError = result;
-        if (result != OK) {
-            break;
-        }
-        mBuffers.push(pBuffer);
-        mUserCond.signal();
-    }
-
-    mAcquireStopped = true;
-    mUserCond.signal();
-    mLock.unlock();
-}
-
-void VideoEditorVideoEncoderPuller::releaseThreadFunc() {
-    mLock.lock();
-
-    // Wait for the start signal
-    while (!mAskToStart && !mAskToStop) {
-        mReleaseCond.wait(mLock);
-    }
-
-    // Loop until we are asked to stop
-    while (1) {
-        if (mReleaseBuffers.empty()) {
-            if (mAskToStop) {
-                break;
-            } else {
-                mReleaseCond.wait(mLock);
-                continue;
-            }
-        }
-        MediaBuffer* pBuffer = mReleaseBuffers.itemAt(0);
-        mReleaseBuffers.removeAt(0);
-        mLock.unlock();
-        pBuffer->release();
-        mLock.lock();
-    }
-
-    mReleaseStopped = true;
-    mUserCond.signal();
-    mLock.unlock();
-}
 
 /**
  ******************************************************************************
@@ -468,7 +282,7 @@ typedef struct {
     OMXClient                         mClient;
     sp<MediaSource>                   mEncoder;
     OMX_COLOR_FORMATTYPE              mEncoderColorFormat;
-    VideoEditorVideoEncoderPuller*    mPuller;
+    MediaBufferPuller*                mPuller;
     I420ColorConverter*               mI420ColorConverter;
 
     uint32_t                          mNbInputFrames;
@@ -902,7 +716,7 @@ M4OSA_ERR VideoEditorVideoEncoder_open(M4ENCODER_Context pContext,
         pEncoderContext->mEncoderSource, NULL, codecFlags);
     VIDEOEDITOR_CHECK(NULL != pEncoderContext->mEncoder.get(), M4ERR_STATE);
     ALOGV("VideoEditorVideoEncoder_open : DONE");
-    pEncoderContext->mPuller = new VideoEditorVideoEncoderPuller(
+    pEncoderContext->mPuller = new MediaBufferPuller(
         pEncoderContext->mEncoder);
 
     // Set the new state
