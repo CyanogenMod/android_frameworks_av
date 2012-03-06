@@ -1326,11 +1326,11 @@ public:
         virtual     void        threadLoop_mix();
         virtual     void        threadLoop_sleepTime();
 
+    private:
         // volumes last sent to audio HAL with stream->set_volume()
         float mLeftVolFloat;
         float mRightVolFloat;
 
-private:
         // prepareTracks_l() tells threadLoop_mix() the name of the single active track
         sp<Track>               mActiveTrack;
     public:
