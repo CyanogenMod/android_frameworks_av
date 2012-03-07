@@ -435,7 +435,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                0 /* flags */,
+                AUDIO_POLICY_OUTPUT_FLAG_NONE,
                 CallbackWrapper,
                 this);
     } else {

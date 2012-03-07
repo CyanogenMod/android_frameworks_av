@@ -537,7 +537,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
                 (numChannels == 2)
                     ? AUDIO_CHANNEL_OUT_STEREO
                     : AUDIO_CHANNEL_OUT_MONO,
-                0, 0, &AudioCallback, this, 0);
+                0, AUDIO_POLICY_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
             delete mAudioTrack;
