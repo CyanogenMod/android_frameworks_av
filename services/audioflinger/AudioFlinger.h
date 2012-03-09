@@ -505,7 +505,6 @@ private:
                     // and returns the normal mix buffer's frame count.  No API for HAL frame count.
                     size_t      frameCount() const { return mNormalFrameCount; }
 
-                    void        wakeUp()    { mWaitWorkCV.broadcast(); }
         // Should be "virtual status_t requestExitAndWait()" and override same
         // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
                     void        exit();
@@ -1415,7 +1414,6 @@ private:
                                   int triggerSession);
                 void        stop(RecordTrack* recordTrack);
                 status_t    dump(int fd, const Vector<String16>& args);
-                AudioStreamIn* getInput() const;
                 AudioStreamIn* clearInput();
                 virtual audio_stream_t* stream() const;
 
@@ -1443,7 +1441,6 @@ private:
     private:
                 void clearSyncStartEvent();
 
-                RecordThread();
                 AudioStreamIn                       *mInput;
                 RecordTrack*                        mTrack;
                 sp<RecordTrack>                     mActiveTrack;

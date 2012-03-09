@@ -6629,12 +6629,6 @@ AudioFlinger::RecordThread::RecordTrack* AudioFlinger::RecordThread::track()
     return mTrack;
 }
 
-AudioFlinger::AudioStreamIn* AudioFlinger::RecordThread::getInput() const
-{
-    Mutex::Autolock _l(mLock);
-    return mInput;
-}
-
 AudioFlinger::AudioStreamIn* AudioFlinger::RecordThread::clearInput()
 {
     Mutex::Autolock _l(mLock);
