@@ -63,6 +63,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(TOP)/system/media/audio_utils/include \
+    $(TOP)/system/media/audio_effects/include \
     $(TOP)/frameworks/base/include \
     $(TOP)/frameworks/media/libvideoeditor/osal/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/inc \

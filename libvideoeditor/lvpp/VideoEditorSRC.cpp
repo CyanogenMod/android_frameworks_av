@@ -24,7 +24,6 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
-#include "AudioMixer.h"
 #include "VideoEditorSRC.h"
 
 
