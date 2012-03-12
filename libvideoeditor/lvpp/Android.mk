@@ -81,7 +81,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/media/libvideoeditor/vss/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/media/libvideoeditor/lvpp \
-    $(TOP)/frameworks/media/libvideoeditor/include \
+    $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/base/media/jni/mediaeditor \
     $(TOP)/frameworks/base/services/audioflinger
 

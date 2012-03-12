@@ -45,7 +45,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
     $(TOP)/frameworks/media/libvideoeditor/lvpp \
     $(TOP)/frameworks/media/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/media/libvideoeditor/include \
+    $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc
 
 LOCAL_SHARED_LIBRARIES := \
