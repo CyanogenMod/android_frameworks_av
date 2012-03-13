@@ -52,6 +52,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils           \
     libcutils          \
     libmedia           \
+    libmedia_native    \
     libdrmframework    \
     libstagefright  \
     libstagefright_omx  \
