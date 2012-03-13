@@ -66,8 +66,6 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_C_INCLUDES += \
     $(TOP)/system/media/audio_utils/include \
     $(TOP)/frameworks/base/core/jni \
-    $(TOP)/frameworks/base/include \
-    $(TOP)/frameworks/base/include/media \
     $(TOP)/frameworks/base/media/libmediaplayerservice \
     $(TOP)/frameworks/base/media/libstagefright \
     $(TOP)/frameworks/base/media/libstagefright/include \

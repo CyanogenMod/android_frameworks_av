@@ -19,8 +19,8 @@
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
-#include <stagefright/MediaBuffer.h>
-#include <stagefright/MetaData.h>
+#include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MetaData.h>
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 

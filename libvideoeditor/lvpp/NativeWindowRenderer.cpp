@@ -22,9 +22,9 @@
 #include <cutils/log.h>
 #include <gui/SurfaceTexture.h>
 #include <gui/SurfaceTextureClient.h>
-#include <stagefright/foundation/ADebug.h>
-#include <stagefright/MediaBuffer.h>
-#include <stagefright/MetaData.h>
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MetaData.h>
 #include "VideoEditorTools.h"
 
 #define CHECK_EGL_ERROR CHECK(EGL_SUCCESS == eglGetError())

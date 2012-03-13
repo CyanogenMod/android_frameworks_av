@@ -18,7 +18,7 @@
 #define ANDROID_VIDEOEDITOR_PLAYER_H
 
 #include <media/MediaPlayerInterface.h>
-#include "AudioTrack.h"
+#include <media/AudioTrack.h>
 #include "M4xVSS_API.h"
 #include "VideoEditorMain.h"
 #include "VideoEditorTools.h"

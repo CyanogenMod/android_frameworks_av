@@ -30,8 +30,6 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/base/core/jni \
-    $(TOP)/frameworks/base/include \
-    $(TOP)/frameworks/base/include/media \
     $(TOP)/frameworks/base/media/libmediaplayerservice \
     $(TOP)/frameworks/base/media/libstagefright \
     $(TOP)/frameworks/base/media/libstagefright/include \
