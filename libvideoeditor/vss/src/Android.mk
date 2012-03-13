@@ -70,6 +70,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
     $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
+    $(TOP)/frameworks/native/services/audioflinger \
     $(TOP)/frameworks/base/services/audioflinger \
     $(TOP)/frameworks/native/include/media/openmax
 

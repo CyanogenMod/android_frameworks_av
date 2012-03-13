@@ -83,6 +83,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/media/libvideoeditor/lvpp \
     $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/base/media/jni/mediaeditor \
+    $(TOP)/frameworks/native/services/audioflinger \
     $(TOP)/frameworks/base/services/audioflinger
 
 
