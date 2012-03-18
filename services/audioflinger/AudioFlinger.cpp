@@ -908,7 +908,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
     {
         Mutex::Autolock _l(mLock);
         thread = checkPlaybackThread_l(ioHandle);
-        if (thread == NULL) {
+        if (thread == 0) {
             thread = checkRecordThread_l(ioHandle);
         } else if (thread == primaryPlaybackThread_l()) {
             // indicate output device change to all input threads for pre processing
@@ -1789,7 +1789,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId);
         }
-        if (track == NULL || track->getCblk() == NULL || track->name() < 0) {
+        if (track == 0 || track->getCblk() == NULL || track->name() < 0) {
             lStatus = NO_MEMORY;
             goto Exit;
         }
@@ -4826,7 +4826,7 @@ AudioFlinger::PlaybackThread::TimedTrack::create(
             const sp<IMemory>& sharedBuffer,
             int sessionId) {
     if (!client->reserveTimedTrack())
-        return NULL;
+        return 0;
 
     return new TimedTrack(
         thread, client, streamType, sampleRate, format, channelMask, frameCount,
@@ -5061,7 +5061,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
     AudioBufferProvider::Buffer* buffer, int64_t pts)
 {
     if (pts == AudioBufferProvider::kInvalidPTS) {
-        buffer->raw = 0;
+        buffer->raw = NULL;
         buffer->frameCount = 0;
         mTimedAudioOutputOnTime = false;
         return INVALID_OPERATION;
@@ -5076,7 +5076,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
 
         // if we have no timed buffers, then fail
         if (mTimedBufferQueue.isEmpty()) {
-            buffer->raw = 0;
+            buffer->raw = NULL;
             buffer->frameCount = 0;
             return NOT_ENOUGH_DATA;
         }
@@ -5103,7 +5103,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
                 // the transform failed.  this shouldn't happen, but if it does
                 // then just drop this buffer
                 ALOGW("timedGetNextBuffer transform failed");
-                buffer->raw = 0;
+                buffer->raw = NULL;
                 buffer->frameCount = 0;
                 trimTimedBufferQueueHead_l("getNextBuffer; no transform");
                 return NO_ERROR;
@@ -5112,7 +5112,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             if (mMediaTimeTransformTarget == TimedAudioTrack::COMMON_TIME) {
                 if (OK != mCCHelper.commonTimeToLocalTime(transformedPTS,
                                                           &headLocalPTS)) {
-                    buffer->raw = 0;
+                    buffer->raw = NULL;
                     buffer->frameCount = 0;
                     return INVALID_OPERATION;
                 }
@@ -7054,7 +7054,7 @@ status_t AudioFlinger::closeInput(audio_io_handle_t input)
     {
         Mutex::Autolock _l(mLock);
         thread = checkRecordThread_l(input);
-        if (thread == NULL) {
+        if (thread == 0) {
             return BAD_VALUE;
         }
 
