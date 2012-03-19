@@ -662,7 +662,8 @@ private:
                                         uint32_t channelMask,
                                         int frameCount,
                                         const sp<IMemory>& sharedBuffer,
-                                        int sessionId);
+                                        int sessionId,
+                                        IAudioFlinger::track_flags_t flags);
             virtual             ~Track();
 
                     void        dump(char* buffer, size_t size);
@@ -688,6 +689,9 @@ private:
                     void        setMainBuffer(int16_t *buffer) { mMainBuffer = buffer; }
                     int16_t     *mainBuffer() const { return mMainBuffer; }
                     int         auxEffectId() const { return mAuxEffectId; }
+
+                    bool        isFastTrack() const
+                            { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
 
         protected:
             // for numerous
@@ -742,6 +746,8 @@ private:
             bool                mHasVolumeController;
             size_t              mPresentationCompleteFrames; // number of frames written to the audio HAL
                                                        // when this track will be fully rendered
+        private:
+            IAudioFlinger::track_flags_t mFlags;
         };  // end of Track
 
         class TimedTrack : public Track {
@@ -913,7 +919,7 @@ public:
                                     int frameCount,
                                     const sp<IMemory>& sharedBuffer,
                                     int sessionId,
-                                    bool isTimed,
+                                    IAudioFlinger::track_flags_t flags,
                                     status_t *status);
 
                     AudioStreamOut* getOutput() const;

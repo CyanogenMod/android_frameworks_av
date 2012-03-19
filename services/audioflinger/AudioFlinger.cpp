@@ -504,7 +504,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
         bool isTimed = (flags & IAudioFlinger::TRACK_TIMED) != 0;
         track = thread->createTrack_l(client, streamType, sampleRate, format,
-                channelMask, frameCount, sharedBuffer, lSessionId, isTimed, &lStatus);
+                channelMask, frameCount, sharedBuffer, lSessionId, flags, &lStatus);
 
         // move effect chain to this output thread if an effect on same session was waiting
         // for a track to be created
@@ -1608,11 +1608,49 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         int frameCount,
         const sp<IMemory>& sharedBuffer,
         int sessionId,
-        bool isTimed,
+        IAudioFlinger::track_flags_t flags,
         status_t *status)
 {
     sp<Track> track;
     status_t lStatus;
+
+    bool isTimed = (flags & IAudioFlinger::TRACK_TIMED) != 0;
+
+    // client expresses a preference for FAST, but we get the final say
+    if ((flags & IAudioFlinger::TRACK_FAST) &&
+          !(
+            // not timed
+            (!isTimed) &&
+            // either of these use cases:
+            (
+              // use case 1: shared buffer with any frame count
+              (
+                (sharedBuffer != 0)
+              ) ||
+              // use case 2: callback handler and small power-of-2 frame count
+              (
+                // unfortunately we can't verify that there's a callback until start()
+                // FIXME supported frame counts should not be hard-coded
+                (
+                  (frameCount == 128) ||
+                  (frameCount == 256) ||
+                  (frameCount == 512)
+                )
+              )
+            ) &&
+            // PCM data
+            audio_is_linear_pcm(format) &&
+            // mono or stereo
+            ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
+              (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
+            // hardware sample rate
+            (sampleRate == mSampleRate)
+            // FIXME test that MixerThread for this fast track has a capable output HAL
+            // FIXME add a permission test also?
+          ) ) {
+        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
+        flags &= ~IAudioFlinger::TRACK_FAST;
+    }
 
     if (mType == DIRECT) {
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
@@ -1661,7 +1699,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
         if (!isTimed) {
             track = new Track(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId);
+                    channelMask, frameCount, sharedBuffer, sessionId, flags);
         } else {
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId);
@@ -3550,7 +3588,8 @@ AudioFlinger::PlaybackThread::Track::Track(
             uint32_t channelMask,
             int frameCount,
             const sp<IMemory>& sharedBuffer,
-            int sessionId)
+            int sessionId,
+            IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount, sharedBuffer, sessionId),
     mMute(false),
     // mFillingUpStatus ?
@@ -3561,7 +3600,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mMainBuffer(thread->mixBuffer()),
     mAuxBuffer(NULL),
     mAuxEffectId(0), mHasVolumeController(false),
-    mPresentationCompleteFrames(0)
+    mPresentationCompleteFrames(0),
+    mFlags(flags)
 {
     if (mCblk != NULL) {
         // NOTE: audio_track_cblk_t::frameSize for 8 bit PCM data is based on a sample size of
@@ -3707,6 +3747,13 @@ status_t AudioFlinger::PlaybackThread::Track::start(pid_t tid,
     status_t status = NO_ERROR;
     ALOGV("start(%d), calling pid %d session %d tid %d",
             mName, IPCThreadState::self()->getCallingPid(), mSessionId, tid);
+    // check for use case 2 with missing callback
+    if (isFastTrack() && (mSharedBuffer == 0) && (tid == 0)) {
+        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
+        mFlags &= ~IAudioFlinger::TRACK_FAST;
+        // FIXME the track must be invalidated and moved to another thread or
+        // attached directly to the normal mixer now
+    }
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
@@ -3922,7 +3969,7 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             const sp<IMemory>& sharedBuffer,
             int sessionId)
     : Track(thread, client, streamType, sampleRate, format, channelMask,
-            frameCount, sharedBuffer, sessionId),
+            frameCount, sharedBuffer, sessionId, IAudioFlinger::TRACK_TIMED),
       mTimedSilenceBuffer(NULL),
       mTimedSilenceBufferSize(0),
       mTimedAudioOutputOnTime(false),
@@ -4400,7 +4447,8 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             audio_format_t format,
             uint32_t channelMask,
             int frameCount)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount, NULL, 0),
+    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
+                NULL, 0, IAudioFlinger::TRACK_DEFAULT),
     mActive(false), mSourceThread(sourceThread)
 {
 
