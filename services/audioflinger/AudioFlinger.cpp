@@ -2488,9 +2488,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     cacheParameters_l();
     sleepTime = idleSleepTime;
 
-if (mType == MIXER) {
-    sleepTimeShift = 0;
-}
+    if (mType == MIXER) {
+        sleepTimeShift = 0;
+    }
 
     CpuStats cpuStats;
     const String8 myName(String8::format("thread %p type %d TID %d", this, mType, gettid()));
@@ -2631,15 +2631,13 @@ if (mType == MIXER) {
         // is now local to this block, but will keep it for now (at least until merge done).
     }
 
-if (mType == MIXER || mType == DIRECT) {
-    // put output stream into standby mode
-    if (!mStandby) {
-        mOutput->stream->common.standby(&mOutput->stream->common);
+    // for DuplicatingThread, standby mode is handled by the outputTracks, otherwise ...
+    if (mType == MIXER || mType == DIRECT) {
+        // put output stream into standby mode
+        if (!mStandby) {
+            mOutput->stream->common.standby(&mOutput->stream->common);
+        }
     }
-}
-if (mType == DUPLICATING) {
-    // for DuplicatingThread, standby mode is handled by the outputTracks
-}
 
     releaseWakeLock();
 

@@ -732,9 +732,7 @@ private:
                     void        flush();
                     void        destroy();
                     void        mute(bool);
-                    int name() const {
-                        return mName;
-                    }
+                    int         name() const { return mName; }
 
                     audio_stream_type_t streamType() const {
                         return mStreamType;
@@ -1102,6 +1100,7 @@ public:
         // mStreamTypes[] uses 1 additional stream type internally for the OutputTrack used by DuplicatingThread
         stream_type_t                   mStreamTypes[AUDIO_STREAM_CNT + 1];
         AudioStreamOut                  *mOutput;
+
         float                           mMasterVolume;
         nsecs_t                         mLastWriteTime;
         int                             mNumWrites;
