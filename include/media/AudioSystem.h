@@ -88,6 +88,19 @@ public:
     static status_t getOutputSamplingRate(int* samplingRate, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getOutputFrameCount(int* frameCount, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getOutputLatency(uint32_t* latency, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getSamplingRate(audio_io_handle_t output,
+                                          audio_stream_type_t streamType,
+                                          int* samplingRate);
+    // returns the number of frames per audio HAL write buffer. Corresponds to
+    // audio_stream->get_buffer_size()/audio_stream_frame_size()
+    static status_t getFrameCount(audio_io_handle_t output,
+                                  audio_stream_type_t stream,
+                                  int* frameCount);
+    // returns the audio output stream latency in ms. Corresponds to
+    // audio_stream_out->get_latency()
+    static status_t getLatency(audio_io_handle_t output,
+                               audio_stream_type_t stream,
+                               uint32_t* latency);
 
     // DEPRECATED
     static status_t getOutputSamplingRate(int* samplingRate, int stream = AUDIO_STREAM_DEFAULT);

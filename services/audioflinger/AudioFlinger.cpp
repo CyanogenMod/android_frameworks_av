@@ -150,9 +150,9 @@ out:
 }
 
 static const char * const audio_interfaces[] = {
-    "primary",
-    "a2dp",
-    "usb",
+    AUDIO_HARDWARE_MODULE_ID_PRIMARY,
+    AUDIO_HARDWARE_MODULE_ID_A2DP,
+    AUDIO_HARDWARE_MODULE_ID_USB,
 };
 #define ARRAY_SIZE(x) (sizeof((x))/sizeof(((x)[0])))
 
@@ -1503,8 +1503,6 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
             stream = (audio_stream_type_t) (stream + 1)) {
         mStreamTypes[stream].volume = mAudioFlinger->streamVolume_l(stream);
         mStreamTypes[stream].mute = mAudioFlinger->streamMute_l(stream);
-        // initialized by stream_type_t default constructor
-        // mStreamTypes[stream].valid = true;
     }
     // mStreamTypes[AUDIO_STREAM_CNT] exists but isn't explicitly initialized here,
     // because mAudioFlinger doesn't have one to copy from
@@ -1716,14 +1714,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             track->setMainBuffer(chain->inBuffer());
             chain->setStrategy(AudioSystem::getStrategyForStream(track->streamType()));
             chain->incTrackCnt();
-        }
-
-        // invalidate track immediately if the stream type was moved to another thread since
-        // createTrack() was called by the client process.
-        if (!mStreamTypes[streamType].valid) {
-            ALOGW("createTrack_l() on thread %p: invalidating track on stream %d",
-                this, streamType);
-            android_atomic_or(CBLK_INVALID_ON, &track->mCblk->flags);
         }
     }
     lStatus = NO_ERROR;
@@ -2707,15 +2697,6 @@ void AudioFlinger::MixerThread::invalidateTracks(audio_stream_type_t streamType)
             t->mCblk->cv.signal();
         }
     }
-}
-
-void AudioFlinger::PlaybackThread::setStreamValid(audio_stream_type_t streamType, bool valid)
-{
-    ALOGV ("PlaybackThread::setStreamValid() thread %p, streamType %d, valid %d",
-            this,  streamType, valid);
-    Mutex::Autolock _l(mLock);
-
-    mStreamTypes[streamType].valid = valid;
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
@@ -5969,13 +5950,10 @@ status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_hand
     ALOGV("setStreamOutput() stream %d to output %d", stream, output);
     audioConfigChanged_l(AudioSystem::STREAM_CONFIG_CHANGED, output, &stream);
 
-    dstThread->setStreamValid(stream, true);
-
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
         if (thread != dstThread && thread->type() != ThreadBase::DIRECT) {
             MixerThread *srcThread = (MixerThread *)thread;
-            srcThread->setStreamValid(stream, false);
             srcThread->invalidateTracks(stream);
         }
     }

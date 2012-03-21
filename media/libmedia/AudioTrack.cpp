@@ -185,20 +185,12 @@ status_t AudioTrack::set(
 
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(), sharedBuffer->size());
 
+    ALOGV("set() streamType %d frameCount %d flags %04x", streamType, frameCount, flags);
+
     AutoMutex lock(mLock);
     if (mAudioTrack != 0) {
         ALOGE("Track already in use");
         return INVALID_OPERATION;
-    }
-
-    int afSampleRate;
-    if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
-        return NO_INIT;
-    }
-
-    uint32_t afLatency;
-    if (AudioSystem::getOutputLatency(&afLatency, streamType) != NO_ERROR) {
-        return NO_INIT;
     }
 
     // handle default values first.
@@ -206,6 +198,10 @@ status_t AudioTrack::set(
         streamType = AUDIO_STREAM_MUSIC;
     }
 
+    int afSampleRate;
+    if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
+        return NO_INIT;
+    }
     if (sampleRate == 0) {
         sampleRate = afSampleRate;
     }
@@ -751,15 +747,15 @@ status_t AudioTrack::createTrack_l(
     }
 
     int afSampleRate;
-    if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
+    if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
         return NO_INIT;
     }
     int afFrameCount;
-    if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
+    if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
         return NO_INIT;
     }
     uint32_t afLatency;
-    if (AudioSystem::getOutputLatency(&afLatency, streamType) != NO_ERROR) {
+    if (AudioSystem::getLatency(output, streamType, &afLatency) != NO_ERROR) {
         return NO_INIT;
     }
 
@@ -774,6 +770,7 @@ status_t AudioTrack::createTrack_l(
         ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
         flags = (audio_policy_output_flags_t) (flags & ~AUDIO_POLICY_OUTPUT_FLAG_FAST);
     }
+    ALOGV("createTrack_l() output %d afFrameCount %d afLatency %d", output, afFrameCount, afLatency);
 
     mNotificationFramesAct = mNotificationFramesReq;
     if (!audio_is_linear_pcm(format)) {

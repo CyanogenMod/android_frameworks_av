@@ -36,7 +36,6 @@ sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 // Cached values
 
-DefaultKeyedVector<audio_stream_type_t, audio_io_handle_t> AudioSystem::gStreamOutputMap(0);
 DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(0);
 
 // Cached values for recording queries, all protected by gLock
@@ -213,7 +212,6 @@ status_t AudioSystem::getOutputSamplingRate(int* samplingRate, int streamType) {
 
 status_t AudioSystem::getOutputSamplingRate(int* samplingRate, audio_stream_type_t streamType)
 {
-    OutputDescriptor *outputDesc;
     audio_io_handle_t output;
 
     if (streamType == AUDIO_STREAM_DEFAULT) {
@@ -224,6 +222,15 @@ status_t AudioSystem::getOutputSamplingRate(int* samplingRate, audio_stream_type
     if (output == 0) {
         return PERMISSION_DENIED;
     }
+
+    return getSamplingRate(output, streamType, samplingRate);
+}
+
+status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
+                                      audio_stream_type_t streamType,
+                                      int* samplingRate)
+{
+    OutputDescriptor *outputDesc;
 
     gLock.lock();
     outputDesc = AudioSystem::gOutputs.valueFor(output);
@@ -239,7 +246,7 @@ status_t AudioSystem::getOutputSamplingRate(int* samplingRate, audio_stream_type
         gLock.unlock();
     }
 
-    ALOGV("getOutputSamplingRate() streamType %d, output %d, sampling rate %d", streamType, output, *samplingRate);
+    ALOGV("getSamplingRate() streamType %d, output %d, sampling rate %d", streamType, output, *samplingRate);
 
     return NO_ERROR;
 }
@@ -251,7 +258,6 @@ status_t AudioSystem::getOutputFrameCount(int* frameCount, int streamType) {
 
 status_t AudioSystem::getOutputFrameCount(int* frameCount, audio_stream_type_t streamType)
 {
-    OutputDescriptor *outputDesc;
     audio_io_handle_t output;
 
     if (streamType == AUDIO_STREAM_DEFAULT) {
@@ -262,6 +268,15 @@ status_t AudioSystem::getOutputFrameCount(int* frameCount, audio_stream_type_t s
     if (output == 0) {
         return PERMISSION_DENIED;
     }
+
+    return getFrameCount(output, streamType, frameCount);
+}
+
+status_t AudioSystem::getFrameCount(audio_io_handle_t output,
+                                    audio_stream_type_t streamType,
+                                    int* frameCount)
+{
+    OutputDescriptor *outputDesc;
 
     gLock.lock();
     outputDesc = AudioSystem::gOutputs.valueFor(output);
@@ -275,14 +290,13 @@ status_t AudioSystem::getOutputFrameCount(int* frameCount, audio_stream_type_t s
         gLock.unlock();
     }
 
-    ALOGV("getOutputFrameCount() streamType %d, output %d, frameCount %d", streamType, output, *frameCount);
+    ALOGV("getFrameCount() streamType %d, output %d, frameCount %d", streamType, output, *frameCount);
 
     return NO_ERROR;
 }
 
 status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t streamType)
 {
-    OutputDescriptor *outputDesc;
     audio_io_handle_t output;
 
     if (streamType == AUDIO_STREAM_DEFAULT) {
@@ -293,6 +307,15 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
     if (output == 0) {
         return PERMISSION_DENIED;
     }
+
+    return getLatency(output, streamType, latency);
+}
+
+status_t AudioSystem::getLatency(audio_io_handle_t output,
+                                 audio_stream_type_t streamType,
+                                 uint32_t* latency)
+{
+    OutputDescriptor *outputDesc;
 
     gLock.lock();
     outputDesc = AudioSystem::gOutputs.valueFor(output);
@@ -306,7 +329,7 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
         gLock.unlock();
     }
 
-    ALOGV("getOutputLatency() streamType %d, output %d, latency %d", streamType, output, *latency);
+    ALOGV("getLatency() streamType %d, output %d, latency %d", streamType, output, *latency);
 
     return NO_ERROR;
 }
@@ -395,7 +418,6 @@ void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who) {
 
     AudioSystem::gAudioFlinger.clear();
     // clear output handles and stream to output map caches
-    AudioSystem::gStreamOutputMap.clear();
     AudioSystem::gOutputs.clear();
 
     if (gAudioErrorCallback) {
@@ -416,12 +438,6 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
     switch (event) {
     case STREAM_CONFIG_CHANGED:
-        if (param2 == NULL) break;
-        stream = *(const audio_stream_type_t *)param2;
-        ALOGV("ioConfigChanged() STREAM_CONFIG_CHANGED stream %d, output %d", stream, ioHandle);
-        if (gStreamOutputMap.indexOfKey(stream) >= 0) {
-            gStreamOutputMap.replaceValueFor(stream, ioHandle);
-        }
         break;
     case OUTPUT_OPENED: {
         if (gOutputs.indexOfKey(ioHandle) >= 0) {
@@ -444,11 +460,6 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         ALOGV("ioConfigChanged() output %d closed", ioHandle);
 
         gOutputs.removeItem(ioHandle);
-        for (int i = gStreamOutputMap.size() - 1; i >= 0 ; i--) {
-            if (gStreamOutputMap.valueAt(i) == ioHandle) {
-                gStreamOutputMap.removeItemsAt(i);
-            }
-        }
         } break;
 
     case OUTPUT_CONFIG_CHANGED: {
@@ -580,33 +591,9 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
                                     uint32_t channels,
                                     audio_policy_output_flags_t flags)
 {
-    audio_io_handle_t output = 0;
-    // Do not use stream to output map cache if the direct output
-    // flag is set or if we are likely to use a direct output
-    // (e.g voice call stream @ 8kHz could use BT SCO device and be routed to
-    // a direct output on some platforms).
-    // TODO: the output cache and stream to output mapping implementation needs to
-    // be reworked for proper operation with direct outputs. This code is too specific
-    // to the first use case we want to cover (Voice Recognition and Voice Dialer over
-    // Bluetooth SCO
-    if ((flags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT) == 0 &&
-        ((stream != AUDIO_STREAM_VOICE_CALL && stream != AUDIO_STREAM_BLUETOOTH_SCO) ||
-         channels != AUDIO_CHANNEL_OUT_MONO ||
-         (samplingRate != 8000 && samplingRate != 16000))) {
-        Mutex::Autolock _l(gLock);
-        output = AudioSystem::gStreamOutputMap.valueFor(stream);
-        ALOGV_IF((output != 0), "getOutput() read %d from cache for stream %d", output, stream);
-    }
-    if (output == 0) {
-        const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-        if (aps == 0) return 0;
-        output = aps->getOutput(stream, samplingRate, format, channels, flags);
-        if ((flags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT) == 0) {
-            Mutex::Autolock _l(gLock);
-            AudioSystem::gStreamOutputMap.add(stream, output);
-        }
-    }
-    return output;
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return 0;
+    return aps->getOutput(stream, samplingRate, format, channels, flags);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,
@@ -754,7 +741,6 @@ void AudioSystem::clearAudioConfigCache()
 {
     Mutex::Autolock _l(gLock);
     ALOGV("clearAudioConfigCache()");
-    gStreamOutputMap.clear();
     gOutputs.clear();
 }
 

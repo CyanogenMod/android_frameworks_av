@@ -630,13 +630,11 @@ private:
     struct  stream_type_t {
         stream_type_t()
             :   volume(1.0f),
-                mute(false),
-                valid(true)
+                mute(false)
         {
         }
         float       volume;
         bool        mute;
-        bool        valid;
     };
 
     // --- PlaybackThread ---
@@ -945,7 +943,6 @@ public:
                     virtual uint32_t hasAudioSession(int sessionId);
                     virtual uint32_t getStrategyForSession_l(int sessionId);
 
-                            void setStreamValid(audio_stream_type_t streamType, bool valid);
 
                     virtual status_t setSyncEvent(const sp<SyncEvent>& event);
                     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
