@@ -39,10 +39,10 @@ LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES += libdl

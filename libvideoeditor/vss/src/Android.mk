@@ -62,16 +62,16 @@ LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_stagefrightshells
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/system/media/audio_utils/include \
-    $(TOP)/system/media/audio_effects/include \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
-    $(TOP)/frameworks/native/services/audioflinger \
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/base/services/audioflinger \
-    $(TOP)/frameworks/native/include/media/openmax
+    $(TOP)/frameworks/native/include/media/openmax \
+    $(TOP)/frameworks/native/services/audioflinger \
+    $(TOP)/system/media/audio_effects/include \
+    $(TOP)/system/media/audio_utils/include
 
 
 LOCAL_SHARED_LIBRARIES += libdl

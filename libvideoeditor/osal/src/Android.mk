@@ -44,7 +44,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES := libcutils libutils
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
 
 LOCAL_SHARED_LIBRARIES += libdl
 

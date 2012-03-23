@@ -42,8 +42,8 @@ LOCAL_STATIC_LIBRARIES := \
     libvideoeditor_osal
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/common/inc
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc
 
 LOCAL_SHARED_LIBRARIES += libdl
 

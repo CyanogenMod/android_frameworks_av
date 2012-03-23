@@ -36,15 +36,15 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/base/media/libstagefright/rtsp \
     $(JNI_H_INCLUDE) \
     $(call include-path-for, corecg graphics) \
-    $(TOP)/frameworks/native/include/media/openmax \
+    $(TOP)/frameworks/av/libvideoeditor/lvpp \
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/base/core/jni/mediaeditor \
-    $(TOP)/frameworks/media/libvideoeditor/vss/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/media/libvideoeditor/lvpp \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
     $(TOP)/frameworks/native/include/media/editor \
-    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc
+    $(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \

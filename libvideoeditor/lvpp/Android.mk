@@ -73,17 +73,17 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/base/media/libstagefright/rtsp \
     $(JNI_H_INCLUDE) \
     $(call include-path-for, corecg graphics) \
-    $(TOP)/frameworks/native/include/media/openmax \
-    $(TOP)/frameworks/media/libvideoeditor/osal/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/common/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/mcs/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/inc \
-    $(TOP)/frameworks/media/libvideoeditor/vss/stagefrightshells/inc \
-    $(TOP)/frameworks/media/libvideoeditor/lvpp \
-    $(TOP)/frameworks/native/include/media/editor \
+    $(TOP)/frameworks/av/libvideoeditor/osal/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/inc \
+    $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
+    $(TOP)/frameworks/av/libvideoeditor/lvpp \
     $(TOP)/frameworks/base/media/jni/mediaeditor \
-    $(TOP)/frameworks/native/services/audioflinger \
-    $(TOP)/frameworks/base/services/audioflinger
+    $(TOP)/frameworks/base/services/audioflinger \
+    $(TOP)/frameworks/native/include/media/editor \
+    $(TOP)/frameworks/native/include/media/openmax \
+    $(TOP)/frameworks/native/services/audioflinger
 
 
 LOCAL_SHARED_LIBRARIES += libdl
