@@ -29,12 +29,10 @@ LOCAL_SRC_FILES:= \
     VideoEditorAudioEncoder.cpp
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/base/core/jni \
     $(TOP)/frameworks/base/media/libmediaplayerservice \
     $(TOP)/frameworks/base/media/libstagefright \
     $(TOP)/frameworks/base/media/libstagefright/include \
     $(TOP)/frameworks/base/media/libstagefright/rtsp \
-    $(JNI_H_INCLUDE) \
     $(call include-path-for, corecg graphics) \
     $(TOP)/frameworks/av/libvideoeditor/lvpp \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
@@ -42,7 +40,6 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
-    $(TOP)/frameworks/base/core/jni/mediaeditor \
     $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/native/include/media/openmax
 
