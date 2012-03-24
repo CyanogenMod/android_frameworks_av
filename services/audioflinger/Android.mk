@@ -34,6 +34,8 @@ LOCAL_SRC_FILES:=               \
 #   AudioResamplerSinc.cpp.arm
 #   AudioResamplerCubic.cpp.arm
 
+LOCAL_SRC_FILES += StateQueue.cpp
+
 LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
