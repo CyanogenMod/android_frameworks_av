@@ -66,32 +66,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     // and mTrackNames is initially 0.  However, leave it here until that's verified.
     track_t* t = mState.tracks;
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
-        t->needs = 0;
-        t->volume[0] = UNITY_GAIN;
-        t->volume[1] = UNITY_GAIN;
-        // no initialization needed
-        // t->prevVolume[0]
-        // t->prevVolume[1]
-        t->volumeInc[0] = 0;
-        t->volumeInc[1] = 0;
-        t->auxLevel = 0;
-        t->auxInc = 0;
-        // no initialization needed
-        // t->prevAuxLevel
-        // t->frameCount
-        t->channelCount = 2;
-        t->enabled = false;
-        t->format = 16;
-        t->channelMask = AUDIO_CHANNEL_OUT_STEREO;
-        t->bufferProvider = NULL;
-        t->buffer.raw = NULL;
-        // t->buffer.frameCount
-        t->hook = NULL;
-        t->in = NULL;
-        t->resampler = NULL;
-        t->sampleRate = mSampleRate;
-        t->mainBuffer = NULL;
-        t->auxBuffer = NULL;
+        // FIXME redundant per track
         t->localTimeFreq = lc.getLocalFreq();
         t++;
     }
@@ -115,6 +90,38 @@ int AudioMixer::getTrackName()
         int n = __builtin_ctz(names);
         ALOGV("add track (%d)", n);
         mTrackNames |= 1 << n;
+        // assume default parameters for the track, except where noted below
+        track_t* t = &mState.tracks[n];
+        t->needs = 0;
+        t->volume[0] = UNITY_GAIN;
+        t->volume[1] = UNITY_GAIN;
+        // no initialization needed
+        // t->prevVolume[0]
+        // t->prevVolume[1]
+        t->volumeInc[0] = 0;
+        t->volumeInc[1] = 0;
+        t->auxLevel = 0;
+        t->auxInc = 0;
+        // no initialization needed
+        // t->prevAuxLevel
+        // t->frameCount
+        t->channelCount = 2;
+        t->enabled = false;
+        t->format = 16;
+        t->channelMask = AUDIO_CHANNEL_OUT_STEREO;
+        // setBufferProvider(name, AudioBufferProvider *) is required before enable(name)
+        t->bufferProvider = NULL;
+        t->buffer.raw = NULL;
+        // no initialization needed
+        // t->buffer.frameCount
+        t->hook = NULL;
+        t->in = NULL;
+        t->resampler = NULL;
+        t->sampleRate = mSampleRate;
+        // setParameter(name, TRACK, MAIN_BUFFER, mixBuffer) is required before enable(name)
+        t->mainBuffer = NULL;
+        t->auxBuffer = NULL;
+        // see t->localTimeFreq in constructor above
         return TRACK0 + n;
     }
     return -1;
@@ -214,6 +221,9 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
                 ALOGV("setParameter(TRACK, AUX_BUFFER, %p)", valueBuf);
                 invalidateState(1 << name);
             }
+            break;
+        case FORMAT:
+            ALOG_ASSERT(valueInt == AUDIO_FORMAT_PCM_16_BIT);
             break;
         default:
             LOG_FATAL("bad param");
