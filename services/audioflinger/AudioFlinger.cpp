@@ -74,6 +74,18 @@
 
 // ----------------------------------------------------------------------------
 
+// Note: the following macro is used for extremely verbose logging message.  In
+// order to run with ALOG_ASSERT turned on, we need to have LOG_NDEBUG set to
+// 0; but one side effect of this is to turn all LOGV's as well.  Some messages
+// are so verbose that we want to suppress them even when we have ALOG_ASSERT
+// turned on.  Do not uncomment the #def below unless you really know what you
+// are doing and want to see all of the extremely verbose messages.
+//#define VERY_VERY_VERBOSE_LOGGING
+#ifdef VERY_VERY_VERBOSE_LOGGING
+#define ALOGVV ALOGV
+#else
+#define ALOGVV(a...) do { } while(0)
+#endif
 
 namespace android {
 
@@ -3898,6 +3910,7 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             frameCount, sharedBuffer, sessionId, IAudioFlinger::TRACK_TIMED),
       mQueueHeadInFlight(false),
       mTrimQueueHeadOnRelease(false),
+      mFramesPendingInQueue(0),
       mTimedSilenceBuffer(NULL),
       mTimedSilenceBufferSize(0),
       mTimedAudioOutputOnTime(false),
@@ -3976,9 +3989,9 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
         }
     }
 
-    size_t trimIndex;
-    for (trimIndex = 0; trimIndex < mTimedBufferQueue.size(); trimIndex++) {
-        int64_t frameCount = mTimedBufferQueue[trimIndex].buffer()->size()
+    size_t trimEnd;
+    for (trimEnd = 0; trimEnd < mTimedBufferQueue.size(); trimEnd++) {
+        int64_t frameCount = mTimedBufferQueue[trimEnd].buffer()->size()
                            / mCblk->frameSize;
         int64_t bufEnd;
 
@@ -3991,7 +4004,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
                   __PRETTY_FUNCTION__);
             break;
         }
-        bufEnd += mTimedBufferQueue[trimIndex].pts();
+        bufEnd += mTimedBufferQueue[trimEnd].pts();
 
         if (bufEnd > mediaTimeNow)
             break;
@@ -3999,15 +4012,53 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
         // Is the buffer we want to use in the middle of a mix operation right
         // now?  If so, don't actually trim it.  Just wait for the releaseBuffer
         // from the mixer which should be coming back shortly.
-        if (!trimIndex && mQueueHeadInFlight) {
+        if (!trimEnd && mQueueHeadInFlight) {
             mTrimQueueHeadOnRelease = true;
         }
     }
 
     size_t trimStart = mTrimQueueHeadOnRelease ? 1 : 0;
-    if (trimStart < trimIndex) {
-        mTimedBufferQueue.removeItemsAt(trimStart, trimIndex);
+    if (trimStart < trimEnd) {
+        // Update the bookkeeping for framesReady()
+        for (size_t i = trimStart; i < trimEnd; ++i) {
+            updateFramesPendingAfterTrim_l(mTimedBufferQueue[i], "trim");
+        }
+
+        // Now actually remove the buffers from the queue.
+        mTimedBufferQueue.removeItemsAt(trimStart, trimEnd);
     }
+}
+
+void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueueHead_l(
+        const char* logTag) {
+    LOG_ASSERT(mTimedBufferQueue.size() > 0,
+               "%s called (reason \"%s\"), but timed buffer queue has no"
+               " elements to trim.", __FUNCTION__, logTag);
+
+    updateFramesPendingAfterTrim_l(mTimedBufferQueue[0], logTag);
+    mTimedBufferQueue.removeAt(0);
+}
+
+void AudioFlinger::PlaybackThread::TimedTrack::updateFramesPendingAfterTrim_l(
+        const TimedBuffer& buf,
+        const char* logTag) {
+    uint32_t bufBytes        = buf.buffer()->size();
+    uint32_t consumedAlready = buf.position();
+
+    LOG_ASSERT(consumedAlready <= bufFrames,
+               "Bad bookkeeping while updating frames pending.  Timed buffer is"
+               " only %u bytes long, but claims to have consumed %u"
+               " bytes.  (update reason: \"%s\")",
+               bufFrames, consumedAlready, logTag);
+
+    uint32_t bufFrames = (bufBytes - consumedAlready) / mCblk->frameSize;
+    LOG_ASSERT(mFramesPendingInQueue >= bufFrames,
+               "Bad bookkeeping while updating frames pending.  Should have at"
+               " least %u queued frames, but we think we have only %u.  (update"
+               " reason: \"%s\")",
+               bufFrames, mFramesPendingInQueue, logTag);
+
+    mFramesPendingInQueue -= bufFrames;
 }
 
 status_t AudioFlinger::PlaybackThread::TimedTrack::queueTimedBuffer(
@@ -4021,6 +4072,8 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::queueTimedBuffer(
 
     Mutex::Autolock _l(mTimedBufferQueueLock);
 
+    uint32_t bufFrames = buffer->size() / mCblk->frameSize;
+    mFramesPendingInQueue += bufFrames;
     mTimedBufferQueue.add(TimedBuffer(buffer, pts));
 
     return NO_ERROR;
@@ -4029,9 +4082,9 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::queueTimedBuffer(
 status_t AudioFlinger::PlaybackThread::TimedTrack::setMediaTimeTransform(
     const LinearTransform& xform, TimedAudioTrack::TargetTimeline target) {
 
-    ALOGV("%s az=%lld bz=%lld n=%d d=%u tgt=%d", __PRETTY_FUNCTION__,
-         xform.a_zero, xform.b_zero, xform.a_to_b_numer, xform.a_to_b_denom,
-         target);
+    ALOGVV("setMediaTimeTransform az=%lld bz=%lld n=%d d=%u tgt=%d",
+           xform.a_zero, xform.b_zero, xform.a_to_b_numer, xform.a_to_b_denom,
+           target);
 
     if (!(target == TimedAudioTrack::LOCAL_TIME ||
           target == TimedAudioTrack::COMMON_TIME)) {
@@ -4096,7 +4149,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
                 ALOGW("timedGetNextBuffer transform failed");
                 buffer->raw = 0;
                 buffer->frameCount = 0;
-                mTimedBufferQueue.removeAt(0);
+                trimTimedBufferQueueHead_l("getNextBuffer; no transform");
                 return NO_ERROR;
             }
 
@@ -4125,20 +4178,23 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
         int64_t sampleDelta;
         if (llabs(effectivePTS - pts) >= (static_cast<int64_t>(1) << 31)) {
             ALOGV("*** head buffer is too far from PTS: dropped buffer");
-            mTimedBufferQueue.removeAt(0);
+            trimTimedBufferQueueHead_l("getNextBuffer, buf pts too far from"
+                                       " mix");
             continue;
         }
         if (!mLocalTimeToSampleTransform.doForwardTransform(
                 (effectivePTS - pts) << 32, &sampleDelta)) {
-            ALOGV("*** too late during sample rate transform: dropped buffer");
-            mTimedBufferQueue.removeAt(0);
+            LOGV("*** too late during sample rate transform: dropped buffer");
+            trimTimedBufferQueueHead_l("getNextBuffer, bad local to sample");
             continue;
         }
 
-        ALOGV("*** %s head.pts=%lld head.pos=%d pts=%lld sampleDelta=[%d.%08x]",
-             __PRETTY_FUNCTION__, head.pts(), head.position(), pts,
-             static_cast<int32_t>((sampleDelta >= 0 ? 0 : 1) + (sampleDelta >> 32)),
-             static_cast<uint32_t>(sampleDelta & 0xFFFFFFFF));
+        ALOGVV("*** getNextBuffer head.pts=%lld head.pos=%d pts=%lld"
+               " sampleDelta=[%d.%08x]",
+               head.pts(), head.position(), pts,
+               static_cast<int32_t>((sampleDelta >= 0 ? 0 : 1)
+                   + (sampleDelta >> 32)),
+               static_cast<uint32_t>(sampleDelta & 0xFFFFFFFF));
 
         // if the delta between the ideal placement for the next input sample and
         // the current output position is within this threshold, then we will
@@ -4156,7 +4212,8 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             // with the last output
             timedYieldSamples_l(buffer);
 
-            ALOGV("*** on time: head.pos=%d frameCount=%u", head.position(), buffer->frameCount);
+            ALOGVV("*** on time: head.pos=%d frameCount=%u",
+                    head.position(), buffer->frameCount);
             return NO_ERROR;
         } else if (sampleDelta > 0) {
             // the gap between the current output position and the proper start of
@@ -4176,7 +4233,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
                 // all the remaining samples in the head are too late, so
                 // drop it and move on
                 ALOGV("*** too late: dropped buffer");
-                mTimedBufferQueue.removeAt(0);
+                trimTimedBufferQueueHead_l("getNextBuffer, dropped late buffer");
                 continue;
             } else {
                 // skip over the late samples
@@ -4273,9 +4330,16 @@ void AudioFlinger::PlaybackThread::TimedTrack::releaseBuffer(
                 (buffer->frameCount * mCblk->frameSize));
         mQueueHeadInFlight = false;
 
+        ALOG_ASSERT(mFramesPendingInQueue >= buffer->frameCount,
+                    "Bad bookkeeping during releaseBuffer!  Should have at"
+                    " least %u queued frames, but we think we have only %u",
+                    buffer->frameCount, mFramesPendingInQueue);
+
+        mFramesPendingInQueue -= buffer->frameCount;
+
         if ((static_cast<size_t>(head.position()) >= head.buffer()->size())
             || mTrimQueueHeadOnRelease) {
-            mTimedBufferQueue.removeAt(0);
+            trimTimedBufferQueueHead_l("releaseBuffer");
             mTrimQueueHeadOnRelease = false;
         }
     } else {
@@ -4290,14 +4354,7 @@ done:
 
 uint32_t AudioFlinger::PlaybackThread::TimedTrack::framesReady() const {
     Mutex::Autolock _l(mTimedBufferQueueLock);
-
-    uint32_t frames = 0;
-    for (size_t i = 0; i < mTimedBufferQueue.size(); i++) {
-        const TimedBuffer& tb = mTimedBufferQueue[i];
-        frames += (tb.buffer()->size() - tb.position())  / mCblk->frameSize;
-    }
-
-    return frames;
+    return mFramesPendingInQueue;
 }
 
 AudioFlinger::PlaybackThread::TimedTrack::TimedBuffer::TimedBuffer()
