@@ -214,19 +214,18 @@ void TimedTextDriver::getTrackInfo(Parcel *parcel) {
     for (iter = mTextSourceVector.begin();
          iter != mTextSourceVector.end(); ++iter) {
         sp<MetaData> meta = (*iter)->getFormat();
+
+        // There are two fields.
+        parcel->writeInt32(2);
+
+        // track type.
+        parcel->writeInt32(MEDIA_TRACK_TYPE_TIMEDTEXT);
+
+        const char *lang = "und";
         if (meta != NULL) {
-            // There are two fields.
-            parcel->writeInt32(2);
-
-            // track type.
-            parcel->writeInt32(MEDIA_TRACK_TYPE_TIMEDTEXT);
-
-            const char *lang = "und";
             meta->findCString(kKeyMediaLanguage, &lang);
-            parcel->writeString16(String16(lang));
-        } else {
-            parcel->writeInt32(0);
         }
+        parcel->writeString16(String16(lang));
     }
 }
 
