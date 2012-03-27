@@ -50,6 +50,7 @@ private:
     enum {
         kWhatPause = 'paus',
         kWhatSeek = 'seek',
+        kWhatRetryRead = 'read',
         kWhatSendSubtitle = 'send',
         kWhatSetSource = 'ssrc',
     };
