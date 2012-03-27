@@ -3896,6 +3896,8 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             int sessionId)
     : Track(thread, client, streamType, sampleRate, format, channelMask,
             frameCount, sharedBuffer, sessionId, IAudioFlinger::TRACK_TIMED),
+      mQueueHeadInFlight(false),
+      mTrimQueueHeadOnRelease(false),
       mTimedSilenceBuffer(NULL),
       mTimedSilenceBufferSize(0),
       mTimedAudioOutputOnTime(false),
@@ -3910,6 +3912,13 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
     mLocalTimeToSampleTransform.a_to_b_denom = mLocalTimeFreq;
     LinearTransform::reduce(&mLocalTimeToSampleTransform.a_to_b_numer,
                             &mLocalTimeToSampleTransform.a_to_b_denom);
+
+    mMediaTimeToSampleTransform.a_zero = 0;
+    mMediaTimeToSampleTransform.b_zero = 0;
+    mMediaTimeToSampleTransform.a_to_b_numer = sampleRate;
+    mMediaTimeToSampleTransform.a_to_b_denom = 1000000;
+    LinearTransform::reduce(&mMediaTimeToSampleTransform.a_to_b_numer,
+                            &mMediaTimeToSampleTransform.a_to_b_denom);
 }
 
 AudioFlinger::PlaybackThread::TimedTrack::~TimedTrack() {
@@ -3969,12 +3978,35 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
 
     size_t trimIndex;
     for (trimIndex = 0; trimIndex < mTimedBufferQueue.size(); trimIndex++) {
-        if (mTimedBufferQueue[trimIndex].pts() > mediaTimeNow)
+        int64_t frameCount = mTimedBufferQueue[trimIndex].buffer()->size()
+                           / mCblk->frameSize;
+        int64_t bufEnd;
+
+        if (!mMediaTimeToSampleTransform.doReverseTransform(frameCount,
+                                                            &bufEnd)) {
+            ALOGE("Failed to convert frame count of %lld to media time duration"
+                  " (scale factor %d/%u) in %s", frameCount,
+                  mMediaTimeToSampleTransform.a_to_b_numer,
+                  mMediaTimeToSampleTransform.a_to_b_denom,
+                  __PRETTY_FUNCTION__);
             break;
+        }
+        bufEnd += mTimedBufferQueue[trimIndex].pts();
+
+        if (bufEnd > mediaTimeNow)
+            break;
+
+        // Is the buffer we want to use in the middle of a mix operation right
+        // now?  If so, don't actually trim it.  Just wait for the releaseBuffer
+        // from the mixer which should be coming back shortly.
+        if (!trimIndex && mQueueHeadInFlight) {
+            mTrimQueueHeadOnRelease = true;
+        }
     }
 
-    if (trimIndex) {
-        mTimedBufferQueue.removeItemsAt(0, trimIndex);
+    size_t trimStart = mTrimQueueHeadOnRelease ? 1 : 0;
+    if (trimStart < trimIndex) {
+        mTimedBufferQueue.removeItemsAt(trimStart, trimIndex);
     }
 }
 
@@ -4028,6 +4060,9 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
 
     Mutex::Autolock _l(mTimedBufferQueueLock);
 
+    ALOG_ASSERT(!mQueueHeadInFlight,
+                "getNextBuffer called without releaseBuffer!");
+
     while (true) {
 
         // if we have no timed buffers, then fail
@@ -4049,7 +4084,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
 
             if (mMediaTimeTransform.a_to_b_denom == 0) {
                 // the transform represents a pause, so yield silence
-                timedYieldSilence(buffer->frameCount, buffer);
+                timedYieldSilence_l(buffer->frameCount, buffer);
                 return NO_ERROR;
             }
 
@@ -4119,7 +4154,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             (!mTimedAudioOutputOnTime && llabs(sampleDelta) <= kSampleStartupThreshold)) {
             // the next input is close enough to being on time, so concatenate it
             // with the last output
-            timedYieldSamples(buffer);
+            timedYieldSamples_l(buffer);
 
             ALOGV("*** on time: head.pos=%d frameCount=%u", head.position(), buffer->frameCount);
             return NO_ERROR;
@@ -4128,7 +4163,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             // the next input sample is too big, so fill it with silence
             uint32_t framesUntilNextInput = (sampleDelta + 0x80000000) >> 32;
 
-            timedYieldSilence(framesUntilNextInput, buffer);
+            timedYieldSilence_l(framesUntilNextInput, buffer);
             ALOGV("*** silence: frameCount=%u", buffer->frameCount);
             return NO_ERROR;
         } else {
@@ -4148,7 +4183,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
                 head.setPosition(onTimeSamplePosition);
 
                 // yield the available samples
-                timedYieldSamples(buffer);
+                timedYieldSamples_l(buffer);
 
                 ALOGV("*** late: head.pos=%d frameCount=%u", head.position(), buffer->frameCount);
                 return NO_ERROR;
@@ -4161,7 +4196,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
 // buffer's capacity.
 //
 // Caller must hold mTimedBufferQueueLock
-void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSamples(
+void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSamples_l(
     AudioBufferProvider::Buffer* buffer) {
 
     const TimedBuffer& head = mTimedBufferQueue[0];
@@ -4174,13 +4209,14 @@ void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSamples(
     size_t framesRequested = buffer->frameCount;
     buffer->frameCount = min(framesLeftInHead, framesRequested);
 
+    mQueueHeadInFlight = true;
     mTimedAudioOutputOnTime = true;
 }
 
 // Yield samples of silence up to the given output buffer's capacity
 //
 // Caller must hold mTimedBufferQueueLock
-void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSilence(
+void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSilence_l(
     uint32_t numFrames, AudioBufferProvider::Buffer* buffer) {
 
     // lazily allocate a buffer filled with silence
@@ -4210,21 +4246,44 @@ void AudioFlinger::PlaybackThread::TimedTrack::releaseBuffer(
     // queue, its either because the buffer is part of the silence buffer, or
     // because the head of the timed queue was trimmed after the mixer called
     // getNextBuffer but before the mixer called releaseBuffer.
-    if ((buffer->raw != mTimedSilenceBuffer) && mTimedBufferQueue.size()) {
+    if (buffer->raw == mTimedSilenceBuffer) {
+        ALOG_ASSERT(!mQueueHeadInFlight,
+                    "Queue head in flight during release of silence buffer!");
+        goto done;
+    }
+
+    ALOG_ASSERT(mQueueHeadInFlight,
+                "TimedTrack::releaseBuffer of non-silence buffer, but no queue"
+                " head in flight.");
+
+    if (mTimedBufferQueue.size()) {
         TimedBuffer& head = mTimedBufferQueue.editItemAt(0);
 
         void* start = head.buffer()->pointer();
-        void* end   = (char *) head.buffer()->pointer() + head.buffer()->size();
+        void* end   = reinterpret_cast<void*>(
+                        reinterpret_cast<uint8_t*>(head.buffer()->pointer())
+                        + head.buffer()->size());
 
-        if ((buffer->raw >= start) && (buffer->raw <= end)) {
-            head.setPosition(head.position() +
-                    (buffer->frameCount * mCblk->frameSize));
-            if (static_cast<size_t>(head.position()) >= head.buffer()->size()) {
-                mTimedBufferQueue.removeAt(0);
-            }
+        ALOG_ASSERT((buffer->raw >= start) && (buffer->raw < end),
+                    "released buffer not within the head of the timed buffer"
+                    " queue; qHead = [%p, %p], released buffer = %p",
+                    start, end, buffer->raw);
+
+        head.setPosition(head.position() +
+                (buffer->frameCount * mCblk->frameSize));
+        mQueueHeadInFlight = false;
+
+        if ((static_cast<size_t>(head.position()) >= head.buffer()->size())
+            || mTrimQueueHeadOnRelease) {
+            mTimedBufferQueue.removeAt(0);
+            mTrimQueueHeadOnRelease = false;
         }
+    } else {
+        LOG_FATAL("TimedTrack::releaseBuffer of non-silence buffer with no"
+                  " buffers in the timed buffer queue");
     }
 
+done:
     buffer->raw = 0;
     buffer->frameCount = 0;
 }

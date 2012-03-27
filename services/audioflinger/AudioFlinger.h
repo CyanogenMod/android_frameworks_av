@@ -786,10 +786,9 @@ private:
             // AudioBufferProvider interface
             virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
             virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
-
-            void timedYieldSamples(AudioBufferProvider::Buffer* buffer);
-            void timedYieldSilence(uint32_t numFrames,
-                                   AudioBufferProvider::Buffer* buffer);
+            void timedYieldSamples_l(AudioBufferProvider::Buffer* buffer);
+            void timedYieldSilence_l(uint32_t numFrames,
+                                     AudioBufferProvider::Buffer* buffer);
 
             status_t    allocateTimedBuffer(size_t size,
                                             sp<IMemory>* buffer);
@@ -812,8 +811,13 @@ private:
 
             uint64_t            mLocalTimeFreq;
             LinearTransform     mLocalTimeToSampleTransform;
+            LinearTransform     mMediaTimeToSampleTransform;
             sp<MemoryDealer>    mTimedMemoryDealer;
+
             Vector<TimedBuffer> mTimedBufferQueue;
+            bool                mQueueHeadInFlight;
+            bool                mTrimQueueHeadOnRelease;
+
             uint8_t*            mTimedSilenceBuffer;
             uint32_t            mTimedSilenceBufferSize;
             mutable Mutex       mTimedBufferQueueLock;
