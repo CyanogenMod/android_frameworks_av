@@ -299,9 +299,14 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
     LOG1("CameraService::removeClient X (pid %d)", callingPid);
 }
 
-sp<CameraService::Client> CameraService::getClientById(int cameraId) {
+CameraService::Client* CameraService::getClientByIdUnsafe(int cameraId) {
     if (cameraId < 0 || cameraId >= mNumberOfCameras) return NULL;
-    return mClient[cameraId].promote();
+    return mClient[cameraId].unsafe_get();
+}
+
+Mutex* CameraService::getClientLockById(int cameraId) {
+    if (cameraId < 0 || cameraId >= mNumberOfCameras) return NULL;
+    return &mClientLock[cameraId];
 }
 
 status_t CameraService::onTransact(
@@ -408,6 +413,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     mMsgEnabled = 0;
     mSurface = 0;
     mPreviewWindow = 0;
+    mDestructionStarted = false;
     mHardware->setCallbacks(notifyCallback,
                             dataCallback,
                             dataCallbackTimestamp,
@@ -428,6 +434,12 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
 
 // tear down the client
 CameraService::Client::~Client() {
+    // this lock should never be NULL
+    Mutex* lock = mCameraService->getClientLockById(mCameraId);
+    lock->lock();
+    mDestructionStarted = true;
+    // client will not be accessed from callback. should unlock to prevent dead-lock in disconnect
+    lock->unlock();
     int callingPid = getCallingPid();
     LOG1("Client::~Client E (pid %d, this %p)", callingPid, this);
 
@@ -994,16 +1006,22 @@ bool CameraService::Client::lockIfMessageWanted(int32_t msgType) {
 
 // ----------------------------------------------------------------------------
 
-// Converts from a raw pointer to the client to a strong pointer during a
-// hardware callback. This requires the callbacks only happen when the client
-// is still alive.
-sp<CameraService::Client> CameraService::Client::getClientFromCookie(void* user) {
-    sp<Client> client = gCameraService->getClientById((int) user);
+Mutex* CameraService::Client::getClientLockFromCookie(void* user) {
+    return gCameraService->getClientLockById((int) user);
+}
+
+// Provide client pointer for callbacks. Client lock returned from getClientLockFromCookie should
+// be acquired for this to be safe
+CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
+    Client* client = gCameraService->getClientByIdUnsafe((int) user);
 
     // This could happen if the Client is in the process of shutting down (the
     // last strong reference is gone, but the destructor hasn't finished
     // stopping the hardware).
-    if (client == 0) return NULL;
+    if (client == NULL) return NULL;
+
+    // destruction already started, so should not be accessed
+    if (client->mDestructionStarted) return NULL;
 
     // The checks below are not necessary and are for debugging only.
     if (client->mCameraService.get() != gCameraService) {
@@ -1046,8 +1064,13 @@ void CameraService::Client::notifyCallback(int32_t msgType, int32_t ext1,
         int32_t ext2, void* user) {
     LOG2("notifyCallback(%d)", msgType);
 
-    sp<Client> client = getClientFromCookie(user);
-    if (client == 0) return;
+    Mutex* lock = getClientLockFromCookie(user);
+    if (lock == NULL) return;
+    Mutex::Autolock alock(*lock);
+
+    Client* client = getClientFromCookie(user);
+    if (client == NULL) return;
+
     if (!client->lockIfMessageWanted(msgType)) return;
 
     switch (msgType) {
@@ -1065,10 +1088,14 @@ void CameraService::Client::dataCallback(int32_t msgType,
         const sp<IMemory>& dataPtr, camera_frame_metadata_t *metadata, void* user) {
     LOG2("dataCallback(%d)", msgType);
 
-    sp<Client> client = getClientFromCookie(user);
-    if (client == 0) return;
-    if (!client->lockIfMessageWanted(msgType)) return;
+    Mutex* lock = getClientLockFromCookie(user);
+    if (lock == NULL) return;
+    Mutex::Autolock alock(*lock);
 
+    Client* client = getClientFromCookie(user);
+    if (client == NULL) return;
+
+    if (!client->lockIfMessageWanted(msgType)) return;
     if (dataPtr == 0 && metadata == NULL) {
         ALOGE("Null data returned in data callback");
         client->handleGenericNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
@@ -1098,8 +1125,13 @@ void CameraService::Client::dataCallbackTimestamp(nsecs_t timestamp,
         int32_t msgType, const sp<IMemory>& dataPtr, void* user) {
     LOG2("dataCallbackTimestamp(%d)", msgType);
 
-    sp<Client> client = getClientFromCookie(user);
-    if (client == 0) return;
+    Mutex* lock = getClientLockFromCookie(user);
+    if (lock == NULL) return;
+    Mutex::Autolock alock(*lock);
+
+    Client* client = getClientFromCookie(user);
+    if (client == NULL) return;
+
     if (!client->lockIfMessageWanted(msgType)) return;
 
     if (dataPtr == 0) {

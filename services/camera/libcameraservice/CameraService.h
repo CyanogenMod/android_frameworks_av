@@ -49,7 +49,10 @@ public:
     virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
                                 bool force, bool keep);
     virtual void        removeClient(const sp<ICameraClient>& cameraClient);
-    virtual sp<Client>  getClientById(int cameraId);
+    // returns plain pointer of client. Note that mClientLock should be acquired to
+    // prevent the client from destruction. The result can be NULL.
+    virtual Client*     getClientByIdUnsafe(int cameraId);
+    virtual Mutex*      getClientLockById(int cameraId);
 
     virtual status_t    dump(int fd, const Vector<String16>& args);
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
@@ -69,6 +72,7 @@ public:
 private:
     Mutex               mServiceLock;
     wp<Client>          mClient[MAX_CAMERAS];  // protected by mServiceLock
+    Mutex               mClientLock[MAX_CAMERAS]; // prevent Client destruction inside callbacks
     int                 mNumberOfCameras;
 
     // atomics to record whether the hardware is allocated to some client.
@@ -147,8 +151,9 @@ private:
         static void             dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
                                              camera_frame_metadata_t *metadata, void* user);
         static void             dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr, void* user);
-        // convert client from cookie
-        static sp<Client>       getClientFromCookie(void* user);
+        static Mutex*        getClientLockFromCookie(void* user);
+        // convert client from cookie. Client lock should be acquired before getting Client.
+        static Client*       getClientFromCookie(void* user);
         // handlers for messages
         void                    handleShutter(void);
         void                    handlePreviewData(int32_t msgType, const sp<IMemory>& mem,
@@ -203,6 +208,11 @@ private:
         // If the user want us to return a copy of the preview frame (instead
         // of the original one), we allocate mPreviewBuffer and reuse it if possible.
         sp<MemoryHeapBase>              mPreviewBuffer;
+
+        // the instance is in the middle of destruction. When this is set,
+        // the instance should not be accessed from callback.
+        // CameraService's mClientLock should be acquired to access this.
+        bool                            mDestructionStarted;
 
         // We need to avoid the deadlock when the incoming command thread and
         // the CameraHardwareInterface callback thread both want to grab mLock.
