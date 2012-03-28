@@ -6,7 +6,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
         external/tremolo \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
 
 LOCAL_SHARED_LIBRARIES := \

@@ -8,7 +8,7 @@ LOCAL_SRC_FILES:=               \
         M3UParser.cpp           \
 
 LOCAL_C_INCLUDES:= \
-	$(TOP)/frameworks/base/media/libstagefright \
+	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax \
 	$(TOP)/external/openssl/include
 

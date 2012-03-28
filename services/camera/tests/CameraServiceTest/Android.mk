@@ -9,7 +9,7 @@ LOCAL_MODULE:= CameraServiceTest
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_C_INCLUDES += \
-                frameworks/base/libs
+                frameworks/av/libs
 
 LOCAL_CFLAGS :=
 

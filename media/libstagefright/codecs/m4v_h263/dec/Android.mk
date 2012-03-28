@@ -41,7 +41,7 @@ LOCAL_MODULE := libstagefright_m4vh263dec
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/src \
 	$(LOCAL_PATH)/include \
-	$(TOP)/frameworks/base/media/libstagefright/include \
+	$(TOP)/frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS := -DOSCL_EXPORT_REF= -DOSCL_IMPORT_REF=
@@ -58,7 +58,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/src \
 	$(LOCAL_PATH)/include \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS := -DOSCL_EXPORT_REF= -DOSCL_IMPORT_REF=

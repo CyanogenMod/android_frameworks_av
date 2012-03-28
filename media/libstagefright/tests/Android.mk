@@ -15,7 +15,6 @@ LOCAL_SRC_FILES := \
 LOCAL_SHARED_LIBRARIES := \
 	libEGL \
 	libGLESv2 \
-	libandroid \
 	libbinder \
 	libcutils \
 	libgui \
@@ -36,8 +35,8 @@ LOCAL_C_INCLUDES := \
     bionic/libstdc++/include \
     external/gtest/include \
     external/stlport/stlport \
-	frameworks/base/media/libstagefright \
-	frameworks/base/media/libstagefright/include \
+	frameworks/av/media/libstagefright \
+	frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
 
 include $(BUILD_EXECUTABLE)

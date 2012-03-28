@@ -29,7 +29,6 @@
 #include <cutils/properties.h>
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
-#include <android_runtime/ActivityManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <media/MediaMetadataRetrieverInterface.h>

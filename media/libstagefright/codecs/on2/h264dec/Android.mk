@@ -34,7 +34,7 @@ LOCAL_SRC_FILES := \
 	SoftAVC.cpp \
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/./inc \
-	frameworks/base/media/libstagefright/include \
+	frameworks/av/media/libstagefright/include \
 	frameworks/native/include/media/openmax \
 
 MY_ASM := \

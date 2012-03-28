@@ -8,7 +8,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libstagefright libbinder libmedia libutils libstagefright_foundation
 
 LOCAL_C_INCLUDES := \
-	frameworks/base/media/libstagefright \
+	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_MODULE := omx_tests

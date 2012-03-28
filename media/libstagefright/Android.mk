@@ -1,7 +1,7 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-include frameworks/base/media/libstagefright/codecs/common/Config.mk
+include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 LOCAL_SRC_FILES:=                         \
         ACodec.cpp                        \
@@ -57,7 +57,7 @@ LOCAL_SRC_FILES:=                         \
         avc_utils.cpp                     \
 
 LOCAL_C_INCLUDES:= \
-        $(TOP)/frameworks/base/include/media/stagefright/timedtext \
+        $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/expat/lib \

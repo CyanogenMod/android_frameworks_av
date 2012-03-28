@@ -29,10 +29,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/base/drm/libdrmframework/include \
-    $(TOP)/frameworks/base/drm/libdrmframework/plugins/passthru/include \
-    $(TOP)/frameworks/base/drm/libdrmframework/plugins/common/include \
-    $(TOP)/frameworks/base/include
+    $(TOP)/frameworks/av/drm/libdrmframework/include \
+    $(TOP)/frameworks/av/drm/libdrmframework/plugins/passthru/include \
+    $(TOP)/frameworks/av/drm/libdrmframework/plugins/common/include \
+    $(TOP)/frameworks/av/include
 
 # Set the following flag to enable the decryption passthru flow
 #LOCAL_CFLAGS += -DENABLE_PASSTHRU_DECRYPTION

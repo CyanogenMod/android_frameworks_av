@@ -32,9 +32,9 @@ LOCAL_SRC_FILES:= \
     ReadWriteUtils.cpp
 
 LOCAL_C_INCLUDES := \
-    $(TOP)/frameworks/base/include \
-    $(TOP)/frameworks/base/drm/libdrmframework/include \
-    $(TOP)/frameworks/base/drm/libdrmframework/plugins/common/include
+    $(TOP)/frameworks/av/include \
+    $(TOP)/frameworks/av/drm/libdrmframework/include \
+    $(TOP)/frameworks/av/drm/libdrmframework/plugins/common/include
 
 LOCAL_MODULE:= libdrmframeworkcommon
 

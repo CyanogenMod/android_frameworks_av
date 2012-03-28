@@ -66,10 +66,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(TOP)/system/media/audio_utils/include \
-    $(TOP)/frameworks/base/media/libmediaplayerservice \
-    $(TOP)/frameworks/base/media/libstagefright \
-    $(TOP)/frameworks/base/media/libstagefright/include \
-    $(TOP)/frameworks/base/media/libstagefright/rtsp \
+    $(TOP)/frameworks/av/media/libmediaplayerservice \
+    $(TOP)/frameworks/av/media/libstagefright \
+    $(TOP)/frameworks/av/media/libstagefright/include \
+    $(TOP)/frameworks/av/media/libstagefright/rtsp \
     $(call include-path-for, corecg graphics) \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/common/inc \
@@ -77,7 +77,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/vss/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/av/libvideoeditor/lvpp \
-    $(TOP)/frameworks/base/services/audioflinger \
+    $(TOP)/frameworks/av/services/audioflinger \
     $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/native/include/media/openmax \
     $(TOP)/frameworks/native/services/audioflinger

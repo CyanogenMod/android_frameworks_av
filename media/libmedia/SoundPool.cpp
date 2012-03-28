@@ -28,7 +28,7 @@
 
 #include <system/audio.h>
 
-#include "SoundPool.h"
+#include <media/SoundPool.h>
 #include "SoundPoolThread.h"
 
 namespace android

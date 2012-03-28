@@ -43,7 +43,7 @@ LOCAL_SRC_FILES += \
 endif
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include
 
@@ -64,7 +64,7 @@ LOCAL_SRC_FILES := \
         SoftMP3.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include

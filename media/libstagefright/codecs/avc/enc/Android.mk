@@ -25,7 +25,7 @@ LOCAL_MODULE := libstagefright_avcenc
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/src \
     $(LOCAL_PATH)/../common/include \
-    $(TOP)/frameworks/base/media/libstagefright/include \
+    $(TOP)/frameworks/av/media/libstagefright/include \
     $(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS := \

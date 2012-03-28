@@ -34,8 +34,6 @@
 
 #include <utils/misc.h>
 
-#include <android_runtime/ActivityManager.h>
-
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryHeapBase.h>
@@ -59,6 +57,7 @@
 
 #include <private/android_filesystem_config.h>
 
+#include "ActivityManager.h"
 #include "MediaRecorderClient.h"
 #include "MediaPlayerService.h"
 #include "MetadataRetrieverClient.h"

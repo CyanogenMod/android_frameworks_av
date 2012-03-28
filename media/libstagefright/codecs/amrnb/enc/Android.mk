@@ -61,7 +61,7 @@ LOCAL_SRC_FILES := \
  	src/ton_stab.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \
         $(LOCAL_PATH)/../common/include \
@@ -82,7 +82,7 @@ LOCAL_SRC_FILES := \
         SoftAMRNBEncoder.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \

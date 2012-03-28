@@ -147,7 +147,7 @@ LOCAL_SRC_FILES := \
 LOCAL_CFLAGS := -DAAC_PLUS -DHQ_SBR -DPARAMETRICSTEREO -DOSCL_IMPORT_REF= -DOSCL_EXPORT_REF= -DOSCL_UNUSED_ARG=
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
 
 LOCAL_ARM_MODE := arm
 
@@ -163,7 +163,7 @@ LOCAL_SRC_FILES := \
         SoftAAC.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS := -DOSCL_IMPORT_REF=

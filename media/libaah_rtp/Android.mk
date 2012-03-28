@@ -20,9 +20,9 @@ LOCAL_SRC_FILES := \
     pipe_event.cpp
 
 LOCAL_C_INCLUDES := \
-    frameworks/base/include \
-    frameworks/base/media \
-    frameworks/base/media/libstagefright \
+    frameworks/av/include \
+    frameworks/av/media \
+    frameworks/av/media/libstagefright \
     frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \

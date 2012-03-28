@@ -29,10 +29,10 @@ LOCAL_SRC_FILES:= \
     VideoEditorAudioEncoder.cpp
 
 LOCAL_C_INCLUDES += \
-    $(TOP)/frameworks/base/media/libmediaplayerservice \
-    $(TOP)/frameworks/base/media/libstagefright \
-    $(TOP)/frameworks/base/media/libstagefright/include \
-    $(TOP)/frameworks/base/media/libstagefright/rtsp \
+    $(TOP)/frameworks/av/media/libmediaplayerservice \
+    $(TOP)/frameworks/av/media/libstagefright \
+    $(TOP)/frameworks/av/media/libstagefright/include \
+    $(TOP)/frameworks/av/media/libstagefright/rtsp \
     $(call include-path-for, corecg graphics) \
     $(TOP)/frameworks/av/libvideoeditor/lvpp \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
@@ -46,8 +46,6 @@ LOCAL_C_INCLUDES += \
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
-    libandroid_runtime \
-    libnativehelper \
     libmedia \
     libbinder \
     libstagefright \

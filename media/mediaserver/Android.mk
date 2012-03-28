@@ -13,10 +13,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 # FIXME The duplicate audioflinger is temporary
 LOCAL_C_INCLUDES := \
-    frameworks/native/services/audioflinger \
-    frameworks/base/services/audioflinger \
-    frameworks/base/services/camera/libcameraservice \
-    frameworks/base/media/libmediaplayerservice
+    frameworks/av/media/libmediaplayerservice \
+    frameworks/av/services/audioflinger \
+    frameworks/av/services/camera/libcameraservice \
+    frameworks/native/services/audioflinger
 
 LOCAL_MODULE:= mediaserver
 

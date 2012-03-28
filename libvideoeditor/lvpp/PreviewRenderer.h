@@ -22,7 +22,6 @@
 #include <utils/RefBase.h>
 #include <system/window.h>
 #include <ui/GraphicBufferMapper.h>
-#include "SoftwareRenderer.h"
 
 
 namespace android {

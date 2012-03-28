@@ -39,7 +39,7 @@ LOCAL_SRC_FILES := \
  	src/wmf_to_ets.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \
         $(LOCAL_PATH)/../common/include \
@@ -60,8 +60,8 @@ LOCAL_SRC_FILES := \
         SoftAMR.cpp
 
 LOCAL_C_INCLUDES := \
-        frameworks/base/media/libstagefright/include \
-        frameworks/base/media/libstagefright/codecs/amrwb/src \
+        frameworks/av/media/libstagefright/include \
+        frameworks/av/media/libstagefright/codecs/amrwb/src \
         frameworks/native/include/media/openmax \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \

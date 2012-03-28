@@ -26,12 +26,10 @@ LOCAL_SHARED_LIBRARIES :=  \
     libutils \
     libdl \
     libdvm \
-    libandroid_runtime \
-    libnativehelper \
     liblog
 
 
-base := frameworks/base
+base := frameworks/av
 
 LOCAL_C_INCLUDES += \
     $(JNI_H_INCLUDE) \

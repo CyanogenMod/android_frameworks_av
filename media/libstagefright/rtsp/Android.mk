@@ -18,7 +18,7 @@ LOCAL_SRC_FILES:=       \
         ASessionDescription.cpp     \
 
 LOCAL_C_INCLUDES:= \
-	$(TOP)/frameworks/base/media/libstagefright/include \
+	$(TOP)/frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
 	$(TOP)/external/openssl/include
 
@@ -44,7 +44,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_rtsp
 
 LOCAL_C_INCLUDES:= \
-	frameworks/base/media/libstagefright \
+	frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS += -Wno-multichar

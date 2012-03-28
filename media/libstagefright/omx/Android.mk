@@ -10,7 +10,7 @@ LOCAL_SRC_FILES:=                     \
         SoftOMXPlugin.cpp             \
 
 LOCAL_C_INCLUDES += \
-        frameworks/base/media/libstagefright \
+        $(TOP)/frameworks/av/media/libstagefright \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax
 

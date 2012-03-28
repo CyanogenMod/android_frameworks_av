@@ -21,7 +21,7 @@
 #include <utils/Vector.h>
 #include <media/AudioTrack.h>
 
-#include "SoundPool.h"
+#include <media/SoundPool.h>
 
 namespace android {
 

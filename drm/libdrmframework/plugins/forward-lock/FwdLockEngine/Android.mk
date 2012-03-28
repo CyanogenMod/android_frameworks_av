@@ -20,7 +20,7 @@ include $(CLEAR_VARS)
 # The flag below turns on local debug printouts
 #LOCAL_CFLAGS += -DDRM_OMA_FL_ENGINE_DEBUG
 
-base := frameworks/base
+base := frameworks/av
 
 # Determine whether the DRM framework uses 64-bit data types for file offsets and do the same.
 ifneq ($(shell grep -c 'off64_t offset' $(base)/drm/libdrmframework/plugins/common/include/IDrmEngine.h), 0)
@@ -37,8 +37,6 @@ LOCAL_SHARED_LIBRARIES := \
     libicuuc \
     libutils \
     libdl \
-    libandroid_runtime \
-    libnativehelper \
     libcrypto \
     libssl \
     libdrmframework

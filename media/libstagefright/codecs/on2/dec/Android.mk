@@ -8,7 +8,7 @@ LOCAL_C_INCLUDES := \
         $(TOP)/external/libvpx \
         $(TOP)/external/libvpx/vpx_codec \
         $(TOP)/external/libvpx/vpx_ports \
-        frameworks/base/media/libstagefright/include \
+        frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
 
 LOCAL_STATIC_LIBRARIES := \
