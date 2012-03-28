@@ -32,7 +32,6 @@ LOCAL_SHARED_LIBRARIES :=  \
 base := frameworks/av
 
 LOCAL_C_INCLUDES += \
-    $(JNI_H_INCLUDE) \
     $(base)/include \
     $(base)/include/drm \
     $(base)/include/drm/plugins \

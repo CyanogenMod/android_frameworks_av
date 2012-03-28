@@ -51,7 +51,6 @@ LOCAL_STATIC_LIBRARIES := \
 
 
 LOCAL_C_INCLUDES += \
-    $(JNI_H_INCLUDE) \
     $(base)/include/drm \
     $(base)/drm/libdrmframework/plugins/common/include \
     $(base)/drm/libdrmframework/plugins/common/util/include \
