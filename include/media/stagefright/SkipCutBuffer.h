@@ -19,6 +19,7 @@
 #define SKIP_CUT_BUFFER_H_
 
 #include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/foundation/ABuffer.h>
 
 namespace android {
 
@@ -30,14 +31,14 @@ class SkipCutBuffer {
  public:
     // 'skip' is the number of bytes to skip from the beginning
     // 'cut' is the number of bytes to cut from the end
-    // 'output_size' is the size in bytes of the MediaBuffers that will be used
-    SkipCutBuffer(int32_t skip, int32_t cut, int32_t output_size);
+    SkipCutBuffer(int32_t skip, int32_t cut);
     virtual ~SkipCutBuffer();
 
     // Submit one MediaBuffer for skipping and cutting. This may consume all or
     // some of the data in the buffer, or it may add data to it.
     // After this, the caller should continue processing the buffer as usual.
     void submit(MediaBuffer *buffer);
+    void submit(const sp<ABuffer>& buffer);    // same as above, but with an ABuffer
     void clear();
     size_t size(); // how many bytes are currently stored in the buffer
 
