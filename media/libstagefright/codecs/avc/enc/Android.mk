@@ -3,6 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
     AVCEncoder.cpp \
+    SoftAVCEncoder.cpp \
     src/avcenc_api.cpp \
     src/bitstream_io.cpp \
     src/block.cpp \
@@ -33,3 +34,40 @@ LOCAL_CFLAGS := \
     -DOSCL_IMPORT_REF= -DOSCL_UNUSED_ARG= -DOSCL_EXPORT_REF=
 
 include $(BUILD_STATIC_LIBRARY)
+
+################################################################################
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+        SoftAVCEncoder.cpp
+
+LOCAL_C_INCLUDES := \
+        frameworks/av/media/libstagefright/include \
+        frameworks/native/include/media/openmax \
+        $(LOCAL_PATH)/src \
+        $(LOCAL_PATH)/include \
+        $(LOCAL_PATH)/../common/include \
+        $(LOCAL_PATH)/../common
+
+LOCAL_CFLAGS := \
+    -D__arm__ \
+    -DOSCL_IMPORT_REF= -DOSCL_UNUSED_ARG= -DOSCL_EXPORT_REF=
+
+
+LOCAL_STATIC_LIBRARIES := \
+        libstagefright_avcenc
+
+LOCAL_SHARED_LIBRARIES := \
+        libstagefright \
+        libstagefright_avc_common \
+        libstagefright_enc_common \
+        libstagefright_foundation \
+        libstagefright_omx \
+        libutils \
+
+
+LOCAL_MODULE := libstagefright_soft_h264enc
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_SHARED_LIBRARY)
