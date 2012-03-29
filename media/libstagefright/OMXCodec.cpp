@@ -534,6 +534,14 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
 
         setG711Format(numChannels);
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_RAW, mMIME)) {
+        CHECK(!mIsEncoder);
+
+        int32_t numChannels, sampleRate;
+        CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
+        CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+
+        setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
     }
 
     if (!strncasecmp(mMIME, "video/", 6)) {
@@ -1359,6 +1367,8 @@ void OMXCodec::setComponentRole(
             "video_decoder.h263", "video_encoder.h263" },
         { MEDIA_MIMETYPE_VIDEO_VPX,
             "video_decoder.vpx", "video_encoder.vpx" },
+        { MEDIA_MIMETYPE_AUDIO_RAW,
+            "audio_decoder.raw", "audio_encoder.raw" },
     };
 
     static const size_t kNumMimeToRole =

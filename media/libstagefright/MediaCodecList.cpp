@@ -64,6 +64,9 @@ MediaCodecList::MediaCodecList()
         addMediaCodec(true /* encoder */, "M4vH263Encoder");
         addType("video/3gpp");
         addType("video/mp4v-es");
+
+        addMediaCodec(
+                false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
     }
 
 #if 0

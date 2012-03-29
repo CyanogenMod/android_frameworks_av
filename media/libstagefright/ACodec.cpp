@@ -768,6 +768,8 @@ status_t ACodec::setComponentRole(
             "video_decoder.h263", "video_encoder.h263" },
         { MEDIA_MIMETYPE_VIDEO_VPX,
             "video_decoder.vpx", "video_encoder.vpx" },
+        { MEDIA_MIMETYPE_AUDIO_RAW,
+            "audio_decoder.raw", "audio_encoder.raw" },
     };
 
     static const size_t kNumMimeToRole =
@@ -872,6 +874,15 @@ status_t ACodec::configureCodec(
             err = INVALID_OPERATION;
         } else {
             err = setupG711Codec(encoder, numChannels);
+        }
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+        int32_t numChannels, sampleRate;
+        if (encoder
+                || !msg->findInt32("channel-count", &numChannels)
+                || !msg->findInt32("sample-rate", &sampleRate)) {
+            err = INVALID_OPERATION;
+        } else {
+            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
         }
     }
 
