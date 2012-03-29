@@ -1605,8 +1605,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     }
                     delete mSkipCutBuffer;
                 }
-                mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize,
-                                                   def.nBufferSize);
+                mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
             }
         }
     }
