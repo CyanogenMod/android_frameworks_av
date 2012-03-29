@@ -513,6 +513,17 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             Mutex::Autolock _sl(effectThread->mLock);
             moveEffectChain_l(lSessionId, effectThread, thread, true);
         }
+
+        // Look for sync events awaiting for a session to be used.
+        for (int i = 0; i < (int)mPendingSyncEvents.size(); i++) {
+            if (mPendingSyncEvents[i]->triggerSession() == lSessionId) {
+                if (thread->isValidSyncEvent(mPendingSyncEvents[i])) {
+                    track->setSyncEvent(mPendingSyncEvents[i]);
+                    mPendingSyncEvents.removeAt(i);
+                    i--;
+                }
+            }
+        }
     }
     if (lStatus == NO_ERROR) {
         trackHandle = new TrackHandle(track);
@@ -1933,6 +1944,36 @@ uint32_t AudioFlinger::PlaybackThread::activeSleepTimeUs()
     }
 }
 
+status_t AudioFlinger::PlaybackThread::setSyncEvent(const sp<SyncEvent>& event)
+{
+    if (!isValidSyncEvent(event)) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        sp<Track> track = mTracks[i];
+        if (event->triggerSession() == track->sessionId()) {
+            track->setSyncEvent(event);
+            return NO_ERROR;
+        }
+    }
+
+    return NAME_NOT_FOUND;
+}
+
+bool AudioFlinger::PlaybackThread::isValidSyncEvent(const sp<SyncEvent>& event)
+{
+    switch (event->type()) {
+    case AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
@@ -2530,7 +2571,15 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             if (track->isTerminated() || track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
-                tracksToRemove->add(track);
+                // TODO: use actual buffer filling status instead of latency when available from
+                // audio HAL
+                size_t audioHALFrames =
+                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                size_t framesWritten =
+                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                    tracksToRemove->add(track);
+                }
             } else {
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
@@ -2909,7 +2958,14 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             if (track->isTerminated() || track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
-                trackToRemove = track;
+                // TODO: implement behavior for compressed audio
+                size_t audioHALFrames =
+                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                size_t framesWritten =
+                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                    trackToRemove = track;
+                }
             } else {
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
@@ -3466,6 +3522,12 @@ void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t f
     return bufferStart;
 }
 
+status_t AudioFlinger::ThreadBase::TrackBase::setSyncEvent(const sp<SyncEvent>& event)
+{
+    mSyncEvents.add(event);
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 // Track constructor must be called with AudioFlinger::mLock and ThreadBase::mLock held
@@ -3488,7 +3550,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mName(-1),  // see note below
     mMainBuffer(thread->mixBuffer()),
     mAuxBuffer(NULL),
-    mAuxEffectId(0), mHasVolumeController(false)
+    mAuxEffectId(0), mHasVolumeController(false),
+    mPresentationCompleteFrames(0)
 {
     if (mCblk != NULL) {
         // NOTE: audio_track_cblk_t::frameSize for 8 bit PCM data is based on a sample size of
@@ -3627,7 +3690,9 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
     return false;
 }
 
-status_t AudioFlinger::PlaybackThread::Track::start(pid_t tid)
+status_t AudioFlinger::PlaybackThread::Track::start(pid_t tid,
+                                                    AudioSystem::sync_event_t event,
+                                                    int triggerSession)
 {
     status_t status = NO_ERROR;
     ALOGV("start(%d), calling pid %d session %d tid %d",
@@ -3756,6 +3821,7 @@ void AudioFlinger::PlaybackThread::Track::reset()
         android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
         mFillingUpStatus = FS_FILLING;
         mResetDone = true;
+        mPresentationCompleteFrames = 0;
     }
 }
 
@@ -3780,6 +3846,39 @@ void AudioFlinger::PlaybackThread::Track::setAuxBuffer(int EffectId, int32_t *bu
     mAuxEffectId = EffectId;
     mAuxBuffer = buffer;
 }
+
+bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWritten,
+                                                         size_t audioHalFrames)
+{
+    // a track is considered presented when the total number of frames written to audio HAL
+    // corresponds to the number of frames written when presentationComplete() is called for the
+    // first time (mPresentationCompleteFrames == 0) plus the buffer filling status at that time.
+    if (mPresentationCompleteFrames == 0) {
+        mPresentationCompleteFrames = framesWritten + audioHalFrames;
+        ALOGV("presentationComplete() reset: mPresentationCompleteFrames %d audioHalFrames %d",
+                  mPresentationCompleteFrames, audioHalFrames);
+    }
+    if (framesWritten >= mPresentationCompleteFrames) {
+        ALOGV("presentationComplete() session %d complete: framesWritten %d",
+                  mSessionId, framesWritten);
+        triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
+        mPresentationCompleteFrames = 0;
+        return true;
+    }
+    return false;
+}
+
+void AudioFlinger::PlaybackThread::Track::triggerEvents(AudioSystem::sync_event_t type)
+{
+    for (int i = 0; i < (int)mSyncEvents.size(); i++) {
+        if (mSyncEvents[i]->type() == type) {
+            mSyncEvents[i]->trigger();
+            mSyncEvents.removeAt(i);
+            i--;
+        }
+    }
+}
+
 
 // timed audio tracks
 
@@ -4241,12 +4340,14 @@ getNextBuffer_exit:
     return NOT_ENOUGH_DATA;
 }
 
-status_t AudioFlinger::RecordThread::RecordTrack::start(pid_t tid)
+status_t AudioFlinger::RecordThread::RecordTrack::start(pid_t tid,
+                                                        AudioSystem::sync_event_t event,
+                                                        int triggerSession)
 {
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
-        return recordThread->start(this, tid);
+        return recordThread->start(this, tid, event, triggerSession);
     } else {
         return BAD_VALUE;
     }
@@ -4312,9 +4413,11 @@ AudioFlinger::PlaybackThread::OutputTrack::~OutputTrack()
     clearBufferQueue();
 }
 
-status_t AudioFlinger::PlaybackThread::OutputTrack::start(pid_t tid)
+status_t AudioFlinger::PlaybackThread::OutputTrack::start(pid_t tid,
+                                                          AudioSystem::sync_event_t event,
+                                                          int triggerSession)
 {
-    status_t status = Track::start(tid);
+    status_t status = Track::start(tid, event, triggerSession);
     if (status != NO_ERROR) {
         return status;
     }
@@ -4757,9 +4860,9 @@ sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
     return mRecordTrack->getCblk();
 }
 
-status_t AudioFlinger::RecordHandle::start(pid_t tid) {
+status_t AudioFlinger::RecordHandle::start(pid_t tid, int event, int triggerSession) {
     ALOGV("RecordHandle::start()");
-    return mRecordTrack->start(tid);
+    return mRecordTrack->start(tid, (AudioSystem::sync_event_t)event, triggerSession);
 }
 
 void AudioFlinger::RecordHandle::stop() {
@@ -4968,7 +5071,16 @@ bool AudioFlinger::RecordThread::threadLoop()
                     }
 
                 }
-                mActiveTrack->releaseBuffer(&buffer);
+                if (mFramestoDrop == 0) {
+                    mActiveTrack->releaseBuffer(&buffer);
+                } else {
+                    if (mFramestoDrop > 0) {
+                        mFramestoDrop -= buffer.frameCount;
+                        if (mFramestoDrop < 0) {
+                            mFramestoDrop = 0;
+                        }
+                    }
+                }
                 mActiveTrack->overflow();
             }
             // client isn't retrieving buffers fast enough
@@ -5050,11 +5162,26 @@ Exit:
     return track;
 }
 
-status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrack, pid_t tid)
+status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrack,
+                                           pid_t tid, AudioSystem::sync_event_t event,
+                                           int triggerSession)
 {
-    ALOGV("RecordThread::start tid=%d", tid);
+    ALOGV("RecordThread::start tid=%d,  event %d, triggerSession %d", tid, event, triggerSession);
     sp<ThreadBase> strongMe = this;
     status_t status = NO_ERROR;
+
+    if (event == AudioSystem::SYNC_EVENT_NONE) {
+        mSyncStartEvent.clear();
+        mFramestoDrop = 0;
+    } else if (event != AudioSystem::SYNC_EVENT_SAME) {
+        mSyncStartEvent = mAudioFlinger->createSyncEvent(event,
+                                       triggerSession,
+                                       recordTrack->sessionId(),
+                                       syncStartEventCallback,
+                                       this);
+        mFramestoDrop = -1;
+    }
+
     {
         AutoMutex lock(mLock);
         if (mActiveTrack != 0) {
@@ -5073,6 +5200,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         mLock.lock();
         if (status != NO_ERROR) {
             mActiveTrack.clear();
+            clearSyncStartEvent();
             return status;
         }
         mRsmpInIndex = mFrameCount;
@@ -5101,7 +5229,42 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     }
 startError:
     AudioSystem::stopInput(mId);
+    clearSyncStartEvent();
     return status;
+}
+
+void AudioFlinger::RecordThread::clearSyncStartEvent()
+{
+    if (mSyncStartEvent != 0) {
+        mSyncStartEvent->cancel();
+    }
+    mSyncStartEvent.clear();
+}
+
+void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& event)
+{
+    sp<SyncEvent> strongEvent = event.promote();
+
+    if (strongEvent != 0) {
+        RecordThread *me = (RecordThread *)strongEvent->cookie();
+        me->handleSyncStartEvent(strongEvent);
+    }
+}
+
+void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event)
+{
+    ALOGV("handleSyncStartEvent() mActiveTrack %p session %d event->listenerSession() %d",
+              mActiveTrack.get(),
+              mActiveTrack.get() ? mActiveTrack->sessionId() : 0,
+              event->listenerSession());
+
+    if (mActiveTrack != 0 &&
+            event == mSyncStartEvent) {
+        // TODO: use actual buffer filling status instead of 2 buffers when info is available
+        // from audio HAL
+        mFramestoDrop = mFrameCount * 2;
+        mSyncStartEvent.clear();
+    }
 }
 
 void AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
@@ -5125,6 +5288,26 @@ void AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
             }
         }
     }
+}
+
+bool AudioFlinger::RecordThread::isValidSyncEvent(const sp<SyncEvent>& event)
+{
+    return false;
+}
+
+status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
+{
+    if (!isValidSyncEvent(event)) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    if (mTrack != NULL && event->triggerSession() == mTrack->sessionId()) {
+        mTrack->setSyncEvent(event);
+        return NO_ERROR;
+    }
+    return NAME_NOT_FOUND;
 }
 
 status_t AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
@@ -5899,6 +6082,37 @@ uint32_t AudioFlinger::primaryOutputDevice_l() const
     return thread->device();
 }
 
+sp<AudioFlinger::SyncEvent> AudioFlinger::createSyncEvent(AudioSystem::sync_event_t type,
+                                    int triggerSession,
+                                    int listenerSession,
+                                    sync_event_callback_t callBack,
+                                    void *cookie)
+{
+    Mutex::Autolock _l(mLock);
+
+    sp<SyncEvent> event = new SyncEvent(type, triggerSession, listenerSession, callBack, cookie);
+    status_t playStatus = NAME_NOT_FOUND;
+    status_t recStatus = NAME_NOT_FOUND;
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        playStatus = mPlaybackThreads.valueAt(i)->setSyncEvent(event);
+        if (playStatus == NO_ERROR) {
+            return event;
+        }
+    }
+    for (size_t i = 0; i < mRecordThreads.size(); i++) {
+        recStatus = mRecordThreads.valueAt(i)->setSyncEvent(event);
+        if (recStatus == NO_ERROR) {
+            return event;
+        }
+    }
+    if (playStatus == NAME_NOT_FOUND || recStatus == NAME_NOT_FOUND) {
+        mPendingSyncEvents.add(event);
+    } else {
+        ALOGV("createSyncEvent() invalid event %d", event->type());
+        event.clear();
+    }
+    return event;
+}
 
 // ----------------------------------------------------------------------------
 //  Effect management

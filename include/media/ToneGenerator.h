@@ -159,6 +159,9 @@ public:
 
     bool isInited() { return (mState == TONE_IDLE)?false:true;}
 
+    // returns the audio session this ToneGenerator belongs to or 0 if an error occured.
+    int getSessionId() { return (mpAudioTrack == NULL) ? 0 : mpAudioTrack->getSessionId(); }
+
 private:
 
     enum tone_state {

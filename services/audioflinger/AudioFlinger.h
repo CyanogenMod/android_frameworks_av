@@ -204,6 +204,44 @@ public:
 
     // end of IAudioFlinger interface
 
+    class SyncEvent;
+
+    typedef void (*sync_event_callback_t)(const wp<SyncEvent>& event) ;
+
+    class SyncEvent : public RefBase {
+    public:
+        SyncEvent(AudioSystem::sync_event_t type,
+                  int triggerSession,
+                  int listenerSession,
+                  sync_event_callback_t callBack,
+                  void *cookie)
+        : mType(type), mTriggerSession(triggerSession), mListenerSession(listenerSession),
+          mCallback(callBack), mCookie(cookie)
+        {}
+
+        virtual ~SyncEvent() {}
+
+        void trigger() { Mutex::Autolock _l(mLock); if (mCallback) mCallback(this); }
+        void cancel() {Mutex::Autolock _l(mLock); mCallback = NULL; }
+        AudioSystem::sync_event_t type() const { return mType; }
+        int triggerSession() const { return mTriggerSession; }
+        int listenerSession() const { return mListenerSession; }
+        void *cookie() const { return mCookie; }
+
+    private:
+          const AudioSystem::sync_event_t mType;
+          const int mTriggerSession;
+          const int mListenerSession;
+          sync_event_callback_t mCallback;
+          void * const mCookie;
+          Mutex mLock;
+    };
+
+    sp<SyncEvent> createSyncEvent(AudioSystem::sync_event_t type,
+                                        int triggerSession,
+                                        int listenerSession,
+                                        sync_event_callback_t callBack,
+                                        void *cookie);
 private:
                audio_mode_t getMode() const { return mMode; }
 
@@ -334,11 +372,14 @@ private:
                                         int sessionId);
             virtual             ~TrackBase();
 
-            virtual status_t    start(pid_t tid) = 0;
+            virtual status_t    start(pid_t tid,
+                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+                                     int triggerSession = 0) = 0;
             virtual void        stop() = 0;
                     sp<IMemory> getCblk() const { return mCblkMemory; }
                     audio_track_cblk_t* cblk() const { return mCblk; }
                     int         sessionId() const { return mSessionId; }
+            virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
         protected:
                                 TrackBase(const TrackBase&);
@@ -385,6 +426,7 @@ private:
             const int           mSessionId;
             uint8_t             mChannelCount;
             uint32_t            mChannelMask;
+            Vector < sp<SyncEvent> >mSyncEvents;
         };
 
         class ConfigEvent {
@@ -499,6 +541,11 @@ private:
                     void checkSuspendOnEffectEnabled_l(const sp<EffectModule>& effect,
                                                        bool enabled,
                                                        int sessionId = AUDIO_SESSION_OUTPUT_MIX);
+
+                    virtual status_t    setSyncEvent(const sp<SyncEvent>& event) = 0;
+                    virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) = 0;
+
+
         mutable     Mutex                   mLock;
 
     protected:
@@ -619,7 +666,9 @@ private:
             virtual             ~Track();
 
                     void        dump(char* buffer, size_t size);
-            virtual status_t    start(pid_t tid);
+            virtual status_t    start(pid_t tid,
+                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+                                     int triggerSession = 0);
             virtual void        stop();
                     void        pause();
 
@@ -670,6 +719,9 @@ private:
                 return (mStreamType == AUDIO_STREAM_CNT);
             }
 
+            bool presentationComplete(size_t framesWritten, size_t audioHalFrames);
+            void triggerEvents(AudioSystem::sync_event_t type);
+
         public:
             virtual bool isTimedTrack() const { return false; }
         protected:
@@ -688,6 +740,8 @@ private:
             int32_t             *mAuxBuffer;
             int                 mAuxEffectId;
             bool                mHasVolumeController;
+            size_t              mPresentationCompleteFrames; // number of frames written to the audio HAL
+                                                       // when this track will be fully rendered
         };  // end of Track
 
         class TimedTrack : public Track {
@@ -782,7 +836,9 @@ private:
                                         int frameCount);
             virtual             ~OutputTrack();
 
-            virtual status_t    start(pid_t tid);
+            virtual status_t    start(pid_t tid,
+                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+                                     int triggerSession = 0);
             virtual void        stop();
                     bool        write(int16_t* data, uint32_t frames);
                     bool        bufferQueueEmpty() const { return mBufferQueue.size() == 0; }
@@ -884,6 +940,9 @@ public:
                     virtual uint32_t getStrategyForSession_l(int sessionId);
 
                             void setStreamValid(audio_stream_type_t streamType, bool valid);
+
+                    virtual status_t setSyncEvent(const sp<SyncEvent>& event);
+                    virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
 
     protected:
         int16_t*                        mMixBuffer;
@@ -1145,7 +1204,9 @@ private:
                                         int sessionId);
             virtual             ~RecordTrack();
 
-            virtual status_t    start(pid_t tid);
+            virtual status_t    start(pid_t tid,
+                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+                                     int triggerSession = 0);
             virtual void        stop();
 
                     bool        overflow() { bool tmp = mOverflow; mOverflow = false; return tmp; }
@@ -1192,8 +1253,9 @@ private:
                         int sessionId,
                         status_t *status);
 
-                status_t    start(RecordTrack* recordTrack);
-                status_t    start(RecordTrack* recordTrack, pid_t tid);
+                status_t    start(RecordTrack* recordTrack, pid_t tid,
+                                  AudioSystem::sync_event_t event,
+                                  int triggerSession);
                 void        stop(RecordTrack* recordTrack);
                 status_t    dump(int fd, const Vector<String16>& args);
                 AudioStreamIn* getInput() const;
@@ -1215,7 +1277,15 @@ private:
         virtual uint32_t hasAudioSession(int sessionId);
                 RecordTrack* track();
 
+        virtual status_t setSyncEvent(const sp<SyncEvent>& event);
+        virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
+
+        static void syncStartEventCallback(const wp<SyncEvent>& event);
+               void handleSyncStartEvent(const sp<SyncEvent>& event);
+
     private:
+                void clearSyncStartEvent();
+
                 RecordThread();
                 AudioStreamIn                       *mInput;
                 RecordTrack*                        mTrack;
@@ -1229,6 +1299,11 @@ private:
                 const int                           mReqChannelCount;
                 const uint32_t                      mReqSampleRate;
                 ssize_t                             mBytesRead;
+                // sync event triggering actual audio capture. Frames read before this event will
+                // be dropped and therefore not read by the application.
+                sp<SyncEvent>                       mSyncStartEvent;
+                // number of captured frames to drop after the start sync event has been received.
+                ssize_t                             mFramestoDrop;
     };
 
     // server side of the client's IAudioRecord
@@ -1237,7 +1312,7 @@ private:
         RecordHandle(const sp<RecordThread::RecordTrack>& recordTrack);
         virtual             ~RecordHandle();
         virtual sp<IMemory> getCblk() const;
-        virtual status_t    start(pid_t tid);
+        virtual status_t    start(pid_t tid, int event, int triggerSession);
         virtual void        stop();
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
@@ -1675,6 +1750,9 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 float       masterVolume_l() const;
                 float       masterVolumeSW_l() const  { return mMasterVolumeSW; }
                 bool        masterMute_l() const    { return mMasterMute; }
+
+                Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
+                                                             // to be created
 
 private:
     sp<Client>  registerPid_l(pid_t pid);    // always returns non-0

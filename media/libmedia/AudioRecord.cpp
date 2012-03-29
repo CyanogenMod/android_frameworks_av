@@ -279,12 +279,12 @@ audio_source_t AudioRecord::inputSource() const
 
 // -------------------------------------------------------------------------
 
-status_t AudioRecord::start()
+status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 {
     status_t ret = NO_ERROR;
     sp<ClientRecordThread> t = mClientRecordThread;
 
-    ALOGV("start");
+    ALOGV("start, sync event %d trigger session %d", event, triggerSession);
 
     if (t != 0) {
         if (t->exitPending()) {
@@ -322,7 +322,7 @@ status_t AudioRecord::start()
         if (!(cblk->flags & CBLK_INVALID_MSK)) {
             cblk->lock.unlock();
             ALOGV("mAudioRecord->start(tid=%d)", tid);
-            ret = mAudioRecord->start(tid);
+            ret = mAudioRecord->start(tid, event, triggerSession);
             cblk->lock.lock();
             if (ret == DEAD_OBJECT) {
                 android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -541,7 +541,8 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                     ALOGW(   "obtainBuffer timed out (is the CPU pegged?) "
                             "user=%08x, server=%08x", cblk->user, cblk->server);
                     cblk->lock.unlock();
-                    result = mAudioRecord->start(0);    // callback thread hasn't changed
+                    // callback thread or sync event hasn't changed
+                    result = mAudioRecord->start(0, AudioSystem::SYNC_EVENT_SAME, 0);
                     cblk->lock.lock();
                     if (result == DEAD_OBJECT) {
                         android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -779,7 +780,8 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& cblk)
         result = openRecord_l(cblk->sampleRate, mFormat, mChannelMask,
                 mFrameCount, getInput_l());
         if (result == NO_ERROR) {
-            result = mAudioRecord->start(0);    // callback thread hasn't changed
+            // callback thread or sync event hasn't changed
+            result = mAudioRecord->start(0, AudioSystem::SYNC_EVENT_SAME, 0);
         }
         if (result != NO_ERROR) {
             mActive = false;

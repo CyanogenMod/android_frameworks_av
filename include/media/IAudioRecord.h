@@ -25,7 +25,6 @@
 #include <binder/IInterface.h>
 #include <binder/IMemory.h>
 
-
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -39,7 +38,7 @@ public:
      * make it active. If set, the callback will start being called.
      * tid identifies the client callback thread, or 0 if not needed.
      */
-    virtual status_t    start(pid_t tid) = 0;
+    virtual status_t    start(pid_t tid, int event, int triggerSession) = 0;
 
     /* Stop a track. If set, the callback will cease being called and
      * obtainBuffer will return an error. Buffers that are already released
