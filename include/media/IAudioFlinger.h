@@ -29,6 +29,7 @@
 #include <media/IAudioFlingerClient.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
+#include <hardware/audio_policy.h>
 #include <hardware/audio_effect.h>
 #include <media/IEffect.h>
 #include <media/IEffectClient.h>
@@ -126,23 +127,24 @@ public:
     // retrieve the audio recording buffer size
     virtual size_t getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const = 0;
 
-    virtual audio_io_handle_t openOutput(uint32_t *pDevices,
-                                    uint32_t *pSamplingRate,
-                                    audio_format_t *pFormat,
-                                    uint32_t *pChannels,
-                                    uint32_t *pLatencyMs,
-                                    audio_policy_output_flags_t flags) = 0;
+    virtual audio_io_handle_t openOutput(audio_module_handle_t module,
+                                         audio_devices_t *pDevices,
+                                         uint32_t *pSamplingRate,
+                                         audio_format_t *pFormat,
+                                         audio_channel_mask_t *pChannelMask,
+                                         uint32_t *pLatencyMs,
+                                         audio_policy_output_flags_t flags) = 0;
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                     audio_io_handle_t output2) = 0;
     virtual status_t closeOutput(audio_io_handle_t output) = 0;
     virtual status_t suspendOutput(audio_io_handle_t output) = 0;
     virtual status_t restoreOutput(audio_io_handle_t output) = 0;
 
-    virtual audio_io_handle_t openInput(uint32_t *pDevices,
-                                    uint32_t *pSamplingRate,
-                                    audio_format_t *pFormat,
-                                    uint32_t *pChannels,
-                                    audio_in_acoustics_t acoustics) = 0;
+    virtual audio_io_handle_t openInput(audio_module_handle_t module,
+                                        audio_devices_t *pDevices,
+                                        uint32_t *pSamplingRate,
+                                        audio_format_t *pFormat,
+                                        audio_channel_mask_t *pChannelMask) = 0;
     virtual status_t closeInput(audio_io_handle_t input) = 0;
 
     virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output) = 0;
@@ -178,6 +180,8 @@ public:
 
     virtual status_t moveEffects(int session, audio_io_handle_t srcOutput,
                                     audio_io_handle_t dstOutput) = 0;
+
+    virtual audio_module_handle_t loadHwModule(const char *name) = 0;
 };
 
 

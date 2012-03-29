@@ -69,7 +69,8 @@ enum {
     QUERY_EFFECT,
     GET_EFFECT_DESCRIPTOR,
     CREATE_EFFECT,
-    MOVE_EFFECTS
+    MOVE_EFFECTS,
+    LOAD_HW_MODULE
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -355,38 +356,40 @@ public:
         return reply.readInt32();
     }
 
-    virtual audio_io_handle_t openOutput(uint32_t *pDevices,
-                            uint32_t *pSamplingRate,
-                            audio_format_t *pFormat,
-                            uint32_t *pChannels,
-                            uint32_t *pLatencyMs,
-                            audio_policy_output_flags_t flags)
+    virtual audio_io_handle_t openOutput(audio_module_handle_t module,
+                                         audio_devices_t *pDevices,
+                                         uint32_t *pSamplingRate,
+                                         audio_format_t *pFormat,
+                                         audio_channel_mask_t *pChannelMask,
+                                         uint32_t *pLatencyMs,
+                                         audio_policy_output_flags_t flags)
     {
         Parcel data, reply;
-        uint32_t devices = pDevices ? *pDevices : 0;
+        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
         uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
         audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        uint32_t channels = pChannels ? *pChannels : 0;
+        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
         uint32_t latency = pLatencyMs ? *pLatencyMs : 0;
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(module);
         data.writeInt32(devices);
         data.writeInt32(samplingRate);
         data.writeInt32(format);
-        data.writeInt32(channels);
+        data.writeInt32(channelMask);
         data.writeInt32(latency);
         data.writeInt32((int32_t) flags);
         remote()->transact(OPEN_OUTPUT, data, &reply);
         audio_io_handle_t output = (audio_io_handle_t) reply.readInt32();
         ALOGV("openOutput() returned output, %d", output);
-        devices = reply.readInt32();
+        devices = (audio_devices_t)reply.readInt32();
         if (pDevices) *pDevices = devices;
         samplingRate = reply.readInt32();
         if (pSamplingRate) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
         if (pFormat) *pFormat = format;
-        channels = reply.readInt32();
-        if (pChannels) *pChannels = channels;
+        channelMask = (audio_channel_mask_t)reply.readInt32();
+        if (pChannelMask) *pChannelMask = channelMask;
         latency = reply.readInt32();
         if (pLatencyMs) *pLatencyMs = latency;
         return output;
@@ -430,34 +433,34 @@ public:
         return reply.readInt32();
     }
 
-    virtual audio_io_handle_t openInput(uint32_t *pDevices,
-                            uint32_t *pSamplingRate,
-                            audio_format_t *pFormat,
-                            uint32_t *pChannels,
-                            audio_in_acoustics_t acoustics)
+    virtual audio_io_handle_t openInput(audio_module_handle_t module,
+                                        audio_devices_t *pDevices,
+                                        uint32_t *pSamplingRate,
+                                        audio_format_t *pFormat,
+                                        audio_channel_mask_t *pChannelMask)
     {
         Parcel data, reply;
-        uint32_t devices = pDevices ? *pDevices : 0;
+        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
         uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
         audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        uint32_t channels = pChannels ? *pChannels : 0;
+        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(module);
         data.writeInt32(devices);
         data.writeInt32(samplingRate);
         data.writeInt32(format);
-        data.writeInt32(channels);
-        data.writeInt32((int32_t) acoustics);
+        data.writeInt32(channelMask);
         remote()->transact(OPEN_INPUT, data, &reply);
         audio_io_handle_t input = (audio_io_handle_t) reply.readInt32();
-        devices = reply.readInt32();
+        devices = (audio_devices_t)reply.readInt32();
         if (pDevices) *pDevices = devices;
         samplingRate = reply.readInt32();
         if (pSamplingRate) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
         if (pFormat) *pFormat = format;
-        channels = reply.readInt32();
-        if (pChannels) *pChannels = channels;
+        channelMask = (audio_channel_mask_t)reply.readInt32();
+        if (pChannelMask) *pChannelMask = channelMask;
         return input;
     }
 
@@ -668,6 +671,15 @@ public:
         remote()->transact(MOVE_EFFECTS, data, &reply);
         return reply.readInt32();
     }
+
+    virtual audio_module_handle_t loadHwModule(const char *name)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeCString(name);
+        remote()->transact(LOAD_HW_MODULE, data, &reply);
+        return (audio_module_handle_t) reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -837,24 +849,26 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case OPEN_OUTPUT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            uint32_t devices = data.readInt32();
+            audio_module_handle_t module = (audio_module_handle_t)data.readInt32();
+            audio_devices_t devices = (audio_devices_t)data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
-            uint32_t channels = data.readInt32();
+            audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
             uint32_t latency = data.readInt32();
             audio_policy_output_flags_t flags = (audio_policy_output_flags_t) data.readInt32();
-            audio_io_handle_t output = openOutput(&devices,
-                                     &samplingRate,
-                                     &format,
-                                     &channels,
-                                     &latency,
-                                     flags);
+            audio_io_handle_t output = openOutput(module,
+                                                 &devices,
+                                                 &samplingRate,
+                                                 &format,
+                                                 &channelMask,
+                                                 &latency,
+                                                 flags);
             ALOGV("OPEN_OUTPUT output, %p", output);
             reply->writeInt32((int32_t) output);
             reply->writeInt32(devices);
             reply->writeInt32(samplingRate);
             reply->writeInt32(format);
-            reply->writeInt32(channels);
+            reply->writeInt32(channelMask);
             reply->writeInt32(latency);
             return NO_ERROR;
         } break;
@@ -882,22 +896,22 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case OPEN_INPUT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            uint32_t devices = data.readInt32();
+            audio_module_handle_t module = (audio_module_handle_t)data.readInt32();
+            audio_devices_t devices = (audio_devices_t)data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
-            uint32_t channels = data.readInt32();
-            audio_in_acoustics_t acoustics = (audio_in_acoustics_t) data.readInt32();
+            audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
 
-            audio_io_handle_t input = openInput(&devices,
-                                     &samplingRate,
-                                     &format,
-                                     &channels,
-                                     acoustics);
+            audio_io_handle_t input = openInput(module,
+                                             &devices,
+                                             &samplingRate,
+                                             &format,
+                                             &channelMask);
             reply->writeInt32((int32_t) input);
             reply->writeInt32(devices);
             reply->writeInt32(samplingRate);
             reply->writeInt32(format);
-            reply->writeInt32(channels);
+            reply->writeInt32(channelMask);
             return NO_ERROR;
         } break;
         case CLOSE_INPUT: {
@@ -1013,6 +1027,11 @@ status_t BnAudioFlinger::onTransact(
             audio_io_handle_t srcOutput = (audio_io_handle_t) data.readInt32();
             audio_io_handle_t dstOutput = (audio_io_handle_t) data.readInt32();
             reply->writeInt32(moveEffects(session, srcOutput, dstOutput));
+            return NO_ERROR;
+        } break;
+        case LOAD_HW_MODULE: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            reply->writeInt32(loadHwModule(data.readCString()));
             return NO_ERROR;
         } break;
         default:

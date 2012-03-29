@@ -43,6 +43,7 @@
 
 #include <system/audio.h>
 #include <hardware/audio.h>
+#include <hardware/audio_policy.h>
 
 #include "AudioBufferProvider.h"
 
@@ -137,12 +138,13 @@ public:
 
     virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const;
 
-    virtual audio_io_handle_t openOutput(uint32_t *pDevices,
-                                    uint32_t *pSamplingRate,
-                                    audio_format_t *pFormat,
-                                    uint32_t *pChannels,
-                                    uint32_t *pLatencyMs,
-                                    audio_policy_output_flags_t flags);
+    virtual audio_io_handle_t openOutput(audio_module_handle_t module,
+                                         audio_devices_t *pDevices,
+                                         uint32_t *pSamplingRate,
+                                         audio_format_t *pFormat,
+                                         audio_channel_mask_t *pChannelMask,
+                                         uint32_t *pLatencyMs,
+                                         audio_policy_output_flags_t flags);
 
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                                   audio_io_handle_t output2);
@@ -153,11 +155,11 @@ public:
 
     virtual status_t restoreOutput(audio_io_handle_t output);
 
-    virtual audio_io_handle_t openInput(uint32_t *pDevices,
-                            uint32_t *pSamplingRate,
-                            audio_format_t *pFormat,
-                            uint32_t *pChannels,
-                            audio_in_acoustics_t acoustics);
+    virtual audio_io_handle_t openInput(audio_module_handle_t module,
+                                        audio_devices_t *pDevices,
+                                        uint32_t *pSamplingRate,
+                                        audio_format_t *pFormat,
+                                        audio_channel_mask_t *pChannelMask);
 
     virtual status_t closeInput(audio_io_handle_t input);
 
@@ -195,6 +197,8 @@ public:
 
     virtual status_t moveEffects(int sessionId, audio_io_handle_t srcOutput,
                         audio_io_handle_t dstOutput);
+
+    virtual audio_module_handle_t loadHwModule(const char *name);
 
     virtual     status_t    onTransact(
                                 uint32_t code,
@@ -256,7 +260,7 @@ private:
     // RefBase
     virtual     void        onFirstRef();
 
-    audio_hw_device_t*      findSuitableHwDev_l(uint32_t devices);
+    audio_hw_device_t*      findSuitableHwDev_l(audio_module_handle_t module, uint32_t devices);
     void                    purgeStaleEffects_l();
 
     // standby delay for MIXER and DUPLICATING playback threads is read from property
@@ -1699,15 +1703,30 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         MVS_FULL,
     };
 
+    class AudioHwDevice {
+    public:
+        AudioHwDevice(const char *moduleName, audio_hw_device_t *hwDevice) :
+            mModuleName(strdup(moduleName)), mHwDevice(hwDevice){}
+        ~AudioHwDevice() { free((void *)mModuleName); }
+
+        const char *moduleName() const { return mModuleName; }
+        audio_hw_device_t *hwDevice() const { return mHwDevice; }
+    private:
+        const char * const mModuleName;
+        audio_hw_device_t * const mHwDevice;
+    };
+
     mutable     Mutex                               mLock;
 
                 DefaultKeyedVector< pid_t, wp<Client> >     mClients;   // see ~Client()
 
                 mutable     Mutex                   mHardwareLock;
+                // NOTE: If both mLock and mHardwareLock mutexes must be held,
+                // always take mLock before mHardwareLock
 
                 // These two fields are immutable after onFirstRef(), so no lock needed to access
                 audio_hw_device_t*                  mPrimaryHardwareDev; // mAudioHwDevs[0] or NULL
-                Vector<audio_hw_device_t*>          mAudioHwDevs;
+                DefaultKeyedVector<audio_module_handle_t, AudioHwDevice*>  mAudioHwDevs;
 
     // for dump, indicates which hardware operation is currently in progress (but not stream ops)
     enum hardware_call_state {
@@ -1757,6 +1776,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 float       masterVolume_l() const;
                 float       masterVolumeSW_l() const  { return mMasterVolumeSW; }
                 bool        masterMute_l() const    { return mMasterMute; }
+                audio_module_handle_t loadHwModule_l(const char *name);
 
                 Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
                                                              // to be created
