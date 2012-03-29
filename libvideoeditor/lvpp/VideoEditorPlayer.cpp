@@ -376,10 +376,17 @@ float VideoEditorPlayer::VeAudioOutput::msecsPerFrame() const
     return mMsecsPerFrame;
 }
 
-status_t VideoEditorPlayer::VeAudioOutput::getPosition(uint32_t *position) {
+status_t VideoEditorPlayer::VeAudioOutput::getPosition(uint32_t *position) const {
 
     if (mTrack == 0) return NO_INIT;
     return mTrack->getPosition(position);
+}
+
+status_t VideoEditorPlayer::VeAudioOutput::getFramesWritten(uint32_t *written) const {
+
+    if (mTrack == 0) return NO_INIT;
+    *written = mNumFramesWritten;
+    return OK;
 }
 
 status_t VideoEditorPlayer::VeAudioOutput::open(
@@ -569,7 +576,7 @@ status_t VideoEditorPlayer::VeAudioOutput::dump(int fd, const Vector<String16>& 
     return NO_ERROR;
 }
 
-int VideoEditorPlayer::VeAudioOutput::getSessionId() {
+int VideoEditorPlayer::VeAudioOutput::getSessionId() const {
 
     return mSessionId;
 }

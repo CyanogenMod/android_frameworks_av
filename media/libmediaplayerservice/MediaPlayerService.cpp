@@ -1417,6 +1417,7 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId)
     : mCallback(NULL),
       mCallbackCookie(NULL),
       mCallbackData(NULL),
+      mBytesWritten(0),
       mSessionId(sessionId) {
     ALOGV("AudioOutput(%d)", sessionId);
     mTrack = 0;
@@ -1495,10 +1496,17 @@ float MediaPlayerService::AudioOutput::msecsPerFrame() const
     return mMsecsPerFrame;
 }
 
-status_t MediaPlayerService::AudioOutput::getPosition(uint32_t *position)
+status_t MediaPlayerService::AudioOutput::getPosition(uint32_t *position) const
 {
     if (mTrack == 0) return NO_INIT;
     return mTrack->getPosition(position);
+}
+
+status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritten) const
+{
+    if (mTrack == 0) return NO_INIT;
+    *frameswritten = mBytesWritten / frameSize();
+    return OK;
 }
 
 status_t MediaPlayerService::AudioOutput::open(
@@ -1656,6 +1664,7 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
         mTrack = NULL;
         mNextOutput->mSampleRateHz = mSampleRateHz;
         mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
+        mNextOutput->mBytesWritten = mBytesWritten;
     }
 }
 
@@ -1666,6 +1675,7 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size)
     //ALOGV("write(%p, %u)", buffer, size);
     if (mTrack) {
         ssize_t ret = mTrack->write(buffer, size);
+        mBytesWritten += ret;
         return ret;
     }
     return NO_INIT;
@@ -1777,7 +1787,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
     data->unlock();
 }
 
-int MediaPlayerService::AudioOutput::getSessionId()
+int MediaPlayerService::AudioOutput::getSessionId() const
 {
     return mSessionId;
 }
@@ -1802,10 +1812,17 @@ float MediaPlayerService::AudioCache::msecsPerFrame() const
     return mMsecsPerFrame;
 }
 
-status_t MediaPlayerService::AudioCache::getPosition(uint32_t *position)
+status_t MediaPlayerService::AudioCache::getPosition(uint32_t *position) const
 {
     if (position == 0) return BAD_VALUE;
     *position = mSize;
+    return NO_ERROR;
+}
+
+status_t MediaPlayerService::AudioCache::getFramesWritten(uint32_t *written) const
+{
+    if (written == 0) return BAD_VALUE;
+    *written = mSize;
     return NO_ERROR;
 }
 
@@ -1971,7 +1988,7 @@ void MediaPlayerService::AudioCache::notify(
     p->mSignal.signal();
 }
 
-int MediaPlayerService::AudioCache::getSessionId()
+int MediaPlayerService::AudioCache::getSessionId() const
 {
     return 0;
 }

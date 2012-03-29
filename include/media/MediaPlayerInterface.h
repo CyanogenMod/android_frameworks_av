@@ -87,8 +87,9 @@ public:
         virtual ssize_t     frameSize() const = 0;
         virtual uint32_t    latency() const = 0;
         virtual float       msecsPerFrame() const = 0;
-        virtual status_t    getPosition(uint32_t *position) = 0;
-        virtual int         getSessionId() = 0;
+        virtual status_t    getPosition(uint32_t *position) const = 0;
+        virtual status_t    getFramesWritten(uint32_t *frameswritten) const = 0;
+        virtual int         getSessionId() const = 0;
 
         // If no callback is specified, use the "write" API below to submit
         // audio data.

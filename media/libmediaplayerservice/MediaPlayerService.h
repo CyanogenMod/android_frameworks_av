@@ -84,8 +84,9 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         frameSize() const;
         virtual uint32_t        latency() const;
         virtual float           msecsPerFrame() const;
-        virtual status_t        getPosition(uint32_t *position);
-        virtual int             getSessionId();
+        virtual status_t        getPosition(uint32_t *position) const;
+        virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
+        virtual int             getSessionId() const;
 
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
@@ -122,6 +123,7 @@ class MediaPlayerService : public BnMediaPlayerService
         AudioCallback           mCallback;
         void *                  mCallbackCookie;
         CallbackData *          mCallbackData;
+        uint64_t                mBytesWritten;
         audio_stream_type_t     mStreamType;
         float                   mLeftVolume;
         float                   mRightVolume;
@@ -181,8 +183,9 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         frameSize() const { return ssize_t(mChannelCount * ((mFormat == AUDIO_FORMAT_PCM_16_BIT)?sizeof(int16_t):sizeof(u_int8_t))); }
         virtual uint32_t        latency() const;
         virtual float           msecsPerFrame() const;
-        virtual status_t        getPosition(uint32_t *position);
-        virtual int             getSessionId();
+        virtual status_t        getPosition(uint32_t *position) const;
+        virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
+        virtual int             getSessionId() const;
 
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
