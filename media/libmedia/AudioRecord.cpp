@@ -577,7 +577,7 @@ create_new_record:
     uint32_t u = cblk->user;
     uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
 
-    if (u + framesReq > bufferEnd) {
+    if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
     }
 

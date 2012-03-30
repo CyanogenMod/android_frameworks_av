@@ -952,7 +952,7 @@ create_new_track:
     uint32_t u = cblk->user;
     uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
 
-    if (u + framesReq > bufferEnd) {
+    if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
     }
 
@@ -1382,8 +1382,9 @@ audio_track_cblk_t::audio_track_cblk_t()
 
 uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount)
 {
-    uint32_t u = user;
+    ALOGV("stepuser %08x %08x %d", user, server, frameCount);
 
+    uint32_t u = user;
     u += frameCount;
     // Ensure that user is never ahead of server for AudioRecord
     if (flags & CBLK_DIRECTION_MSK) {
@@ -1392,12 +1393,19 @@ uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount)
             bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
         }
     } else if (u > server) {
-        ALOGW("stepServer occurred after track reset");
+        ALOGW("stepUser occurred after track reset");
         u = server;
     }
 
-    if (u >= userBase + this->frameCount) {
-        userBase += this->frameCount;
+    uint32_t fc = this->frameCount;
+    if (u >= fc) {
+        // common case, user didn't just wrap
+        if (u - fc >= userBase ) {
+            userBase += fc;
+        }
+    } else if (u >= userBase + fc) {
+        // user just wrapped
+        userBase += fc;
     }
 
     user = u;
@@ -1412,12 +1420,15 @@ uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount)
 
 bool audio_track_cblk_t::stepServer(uint32_t frameCount)
 {
+    ALOGV("stepserver %08x %08x %d", user, server, frameCount);
+
     if (!tryLock()) {
         ALOGW("stepServer() could not lock cblk");
         return false;
     }
 
     uint32_t s = server;
+    bool flushed = (s == user);
 
     s += frameCount;
     if (flags & CBLK_DIRECTION_MSK) {
@@ -1430,7 +1441,7 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount)
         // while the mixer is processing a block: in this case,
         // stepServer() is called After the flush() has reset u & s and
         // we have s > u
-        if (s > user) {
+        if (flushed) {
             ALOGW("stepServer occurred after track reset");
             s = user;
         }
@@ -1444,8 +1455,16 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount)
             loopStart = UINT_MAX;
         }
     }
-    if (s >= serverBase + this->frameCount) {
-        serverBase += this->frameCount;
+
+    uint32_t fc = this->frameCount;
+    if (s >= fc) {
+        // common case, server didn't just wrap
+        if (s - fc >= serverBase ) {
+            serverBase += fc;
+        }
+    } else if (s >= serverBase + fc) {
+        // server just wrapped
+        serverBase += fc;
     }
 
     server = s;

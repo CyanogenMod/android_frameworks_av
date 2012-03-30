@@ -3409,6 +3409,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                 // clear all buffers
                 mCblk->frameCount = frameCount;
                 mCblk->sampleRate = sampleRate;
+// uncomment the following lines to quickly test 32-bit wraparound
+//                mCblk->user = 0xffff0000;
+//                mCblk->server = 0xffff0000;
+//                mCblk->userBase = 0xffff0000;
+//                mCblk->serverBase = 0xffff0000;
                 mChannelCount = channelCount;
                 mChannelMask = channelMask;
                 if (sharedBuffer == 0) {
@@ -3434,6 +3439,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         // clear all buffers
         mCblk->frameCount = frameCount;
         mCblk->sampleRate = sampleRate;
+// uncomment the following lines to quickly test 32-bit wraparound
+//        mCblk->user = 0xffff0000;
+//        mCblk->server = 0xffff0000;
+//        mCblk->userBase = 0xffff0000;
+//        mCblk->serverBase = 0xffff0000;
         mChannelCount = channelCount;
         mChannelMask = channelMask;
         mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
@@ -3513,7 +3523,7 @@ void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t f
     if (bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd ||
         ((unsigned long)bufferStart & (unsigned long)(frameSize - 1))) {
         ALOGE("TrackBase::getBuffer buffer out of range:\n    start: %p, end %p , mBuffer %p mBufferEnd %p\n    \
-                server %d, serverBase %d, user %d, userBase %d",
+                server %u, serverBase %u, user %u, userBase %u",
                 bufferStart, bufferEnd, mBuffer, mBufferEnd,
                 cblk->server, cblk->serverBase, cblk->user, cblk->userBase);
         return NULL;
@@ -3656,7 +3666,7 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
         if (framesReq > framesReady) {
             framesReq = framesReady;
         }
-        if (s + framesReq > bufferEnd) {
+        if (framesReq > bufferEnd - s) {
             framesReq = bufferEnd - s;
         }
 
@@ -4323,7 +4333,7 @@ status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvi
         if (framesReq > framesAvail) {
             framesReq = framesAvail;
         }
-        if (s + framesReq > bufferEnd) {
+        if (framesReq > bufferEnd - s) {
             framesReq = bufferEnd - s;
         }
 
@@ -4596,7 +4606,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(AudioBufferProv
     uint32_t u = cblk->user;
     uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
 
-    if (u + framesReq > bufferEnd) {
+    if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
     }
 
