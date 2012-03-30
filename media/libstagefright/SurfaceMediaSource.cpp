@@ -460,6 +460,7 @@ status_t SurfaceMediaSource::disconnect(int api) {
 }
 
 status_t SurfaceMediaSource::queueBuffer(int bufIndex, int64_t timestamp,
+        const Rect& crop, int scalingMode, uint32_t transform,
         uint32_t* outWidth, uint32_t* outHeight, uint32_t* outTransform) {
     ALOGV("queueBuffer");
 

@@ -101,6 +101,7 @@ public:
     // (zero point, etc) are client-dependent and should be documented by the
     // client.
     virtual status_t queueBuffer(int buf, int64_t timestamp,
+            const Rect& crop, int scalingMode, uint32_t transform,
             uint32_t* outWidth, uint32_t* outHeight, uint32_t* outTransform);
     virtual void cancelBuffer(int buf);
 
@@ -111,12 +112,7 @@ public:
     // Make sure this is called when the mutex is locked
     virtual status_t onFrameReceivedLocked();
 
-    virtual status_t setScalingMode(int mode) { return OK; } // no op for encoding
     virtual int query(int what, int* value);
-
-    // Just confirming to the ISurfaceTexture interface as of now
-    virtual status_t setCrop(const Rect& reg) { return OK; }
-    virtual status_t setTransform(uint32_t transform) {return OK;}
 
     // setSynchronousMode set whether dequeueBuffer is synchronous or
     // asynchronous. In synchronous mode, dequeueBuffer blocks until
