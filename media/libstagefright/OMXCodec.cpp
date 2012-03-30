@@ -4509,66 +4509,80 @@ status_t QueryCodecs(
     for (size_t c = 0; c < matchingCodecs.size(); c++) {
         const char *componentName = matchingCodecs.itemAt(c).string();
 
-        if (strncmp(componentName, "OMX.", 4)) {
-            // Not an OpenMax component but a software codec.
-
-            results->push();
-            CodecCapabilities *caps = &results->editItemAt(results->size() - 1);
-            caps->mComponentName = componentName;
-            continue;
-        }
-
-        sp<OMXCodecObserver> observer = new OMXCodecObserver;
-        IOMX::node_id node;
-        status_t err = omx->allocateNode(componentName, observer, &node);
-
-        if (err != OK) {
-            continue;
-        }
-
-        OMXCodec::setComponentRole(omx, node, !queryDecoders, mime);
-
         results->push();
         CodecCapabilities *caps = &results->editItemAt(results->size() - 1);
-        caps->mComponentName = componentName;
 
-        OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-        InitOMXParams(&param);
+        status_t err =
+            QueryCodec(omx, componentName, mime, !queryDecoders, caps);
 
-        param.nPortIndex = queryDecoders ? 0 : 1;
-
-        for (param.nProfileIndex = 0;; ++param.nProfileIndex) {
-            err = omx->getParameter(
-                    node, OMX_IndexParamVideoProfileLevelQuerySupported,
-                    &param, sizeof(param));
-
-            if (err != OK) {
-                break;
-            }
-
-            CodecProfileLevel profileLevel;
-            profileLevel.mProfile = param.eProfile;
-            profileLevel.mLevel = param.eLevel;
-
-            caps->mProfileLevels.push(profileLevel);
+        if (err != OK) {
+            results->removeAt(results->size() - 1);
         }
-
-        // Color format query
-        OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
-        InitOMXParams(&portFormat);
-        portFormat.nPortIndex = queryDecoders ? 1 : 0;
-        for (portFormat.nIndex = 0;; ++portFormat.nIndex)  {
-            err = omx->getParameter(
-                    node, OMX_IndexParamVideoPortFormat,
-                    &portFormat, sizeof(portFormat));
-            if (err != OK) {
-                break;
-            }
-            caps->mColorFormats.push(portFormat.eColorFormat);
-        }
-
-        CHECK_EQ(omx->freeNode(node), (status_t)OK);
     }
+
+    return OK;
+}
+
+status_t QueryCodec(
+        const sp<IOMX> &omx,
+        const char *componentName, const char *mime,
+        bool isEncoder,
+        CodecCapabilities *caps) {
+    if (strncmp(componentName, "OMX.", 4)) {
+        // Not an OpenMax component but a software codec.
+
+        caps->mComponentName = componentName;
+        return OK;
+    }
+
+    sp<OMXCodecObserver> observer = new OMXCodecObserver;
+    IOMX::node_id node;
+    status_t err = omx->allocateNode(componentName, observer, &node);
+
+    if (err != OK) {
+        return err;
+    }
+
+    OMXCodec::setComponentRole(omx, node, isEncoder, mime);
+
+    caps->mComponentName = componentName;
+
+    OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
+    InitOMXParams(&param);
+
+    param.nPortIndex = !isEncoder ? 0 : 1;
+
+    for (param.nProfileIndex = 0;; ++param.nProfileIndex) {
+        err = omx->getParameter(
+                node, OMX_IndexParamVideoProfileLevelQuerySupported,
+                &param, sizeof(param));
+
+        if (err != OK) {
+            break;
+        }
+
+        CodecProfileLevel profileLevel;
+        profileLevel.mProfile = param.eProfile;
+        profileLevel.mLevel = param.eLevel;
+
+        caps->mProfileLevels.push(profileLevel);
+    }
+
+    // Color format query
+    OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
+    InitOMXParams(&portFormat);
+    portFormat.nPortIndex = !isEncoder ? 1 : 0;
+    for (portFormat.nIndex = 0;; ++portFormat.nIndex)  {
+        err = omx->getParameter(
+                node, OMX_IndexParamVideoPortFormat,
+                &portFormat, sizeof(portFormat));
+        if (err != OK) {
+            break;
+        }
+        caps->mColorFormats.push(portFormat.eColorFormat);
+    }
+
+    CHECK_EQ(omx->freeNode(node), (status_t)OK);
 
     return OK;
 }

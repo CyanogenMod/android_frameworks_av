@@ -22,6 +22,8 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/OMXClient.h>
+#include <media/stagefright/OMXCodec.h>
 #include <utils/threads.h>
 
 #include <expat.h>
@@ -448,6 +450,10 @@ ssize_t MediaCodecList::findCodecByName(const char *name) const {
     return -ENOENT;
 }
 
+size_t MediaCodecList::countCodecs() const {
+    return mCodecInfos.size();
+}
+
 const char *MediaCodecList::getCodecName(size_t index) const {
     if (index >= mCodecInfos.size()) {
         return NULL;
@@ -455,6 +461,15 @@ const char *MediaCodecList::getCodecName(size_t index) const {
 
     const CodecInfo &info = mCodecInfos.itemAt(index);
     return info.mName.c_str();
+}
+
+bool MediaCodecList::isEncoder(size_t index) const {
+    if (index >= mCodecInfos.size()) {
+        return NULL;
+    }
+
+    const CodecInfo &info = mCodecInfos.itemAt(index);
+    return info.mIsEncoder;
 }
 
 bool MediaCodecList::codecHasQuirk(
@@ -473,6 +488,71 @@ bool MediaCodecList::codecHasQuirk(
     }
 
     return false;
+}
+
+status_t MediaCodecList::getSupportedTypes(
+        size_t index, Vector<AString> *types) const {
+    types->clear();
+
+    if (index >= mCodecInfos.size()) {
+        return -ERANGE;
+    }
+
+    const CodecInfo &info = mCodecInfos.itemAt(index);
+
+    for (size_t i = 0; i < mTypes.size(); ++i) {
+        uint32_t typeMask = 1ul << mTypes.valueAt(i);
+
+        if (info.mTypes & typeMask) {
+            types->push(mTypes.keyAt(i));
+        }
+    }
+
+    return OK;
+}
+
+status_t MediaCodecList::getCodecCapabilities(
+        size_t index, const char *type,
+        Vector<ProfileLevel> *profileLevels,
+        Vector<uint32_t> *colorFormats) const {
+    profileLevels->clear();
+    colorFormats->clear();
+
+    if (index >= mCodecInfos.size()) {
+        return -ERANGE;
+    }
+
+    const CodecInfo &info = mCodecInfos.itemAt(index);
+
+    OMXClient client;
+    status_t err = client.connect();
+    if (err != OK) {
+        return err;
+    }
+
+    CodecCapabilities caps;
+    err = QueryCodec(
+            client.interface(),
+            info.mName.c_str(), type, info.mIsEncoder, &caps);
+
+    if (err != OK) {
+        return err;
+    }
+
+    for (size_t i = 0; i < caps.mProfileLevels.size(); ++i) {
+        const CodecProfileLevel &src = caps.mProfileLevels.itemAt(i);
+
+        ProfileLevel profileLevel;
+        profileLevel.mProfile = src.mProfile;
+        profileLevel.mLevel = src.mLevel;
+        profileLevels->push(profileLevel);
+    }
+
+    for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
+        colorFormats->push(caps.mColorFormats.itemAt(i));
+    }
+
+    return OK;
 }
 
 }  // namespace android

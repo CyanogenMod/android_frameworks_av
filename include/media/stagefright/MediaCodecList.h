@@ -36,8 +36,21 @@ struct MediaCodecList {
 
     ssize_t findCodecByName(const char *name) const;
 
+    size_t countCodecs() const;
     const char *getCodecName(size_t index) const;
+    bool isEncoder(size_t index) const;
     bool codecHasQuirk(size_t index, const char *quirkName) const;
+
+    status_t getSupportedTypes(size_t index, Vector<AString> *types) const;
+
+    struct ProfileLevel {
+        uint32_t mProfile;
+        uint32_t mLevel;
+    };
+    status_t getCodecCapabilities(
+            size_t index, const char *type,
+            Vector<ProfileLevel> *profileLevels,
+            Vector<uint32_t> *colorFormats) const;
 
 private:
     enum Section {
