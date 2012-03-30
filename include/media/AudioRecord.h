@@ -30,6 +30,7 @@
 #include <utils/threads.h>
 
 #include <system/audio.h>
+#include <media/AudioSystem.h>
 
 namespace android {
 
@@ -215,8 +216,11 @@ public:
 
     /* After it's created the track is not active. Call start() to
      * make it active. If set, the callback will start being called.
+     * if event is not AudioSystem::SYNC_EVENT_NONE, the capture start will be delayed until
+     * the specified event occurs on the specified trigger session.
      */
-            status_t    start();
+            status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+                              int triggerSession = 0);
 
     /* Stop a track. If set, the callback will cease being called and
      * obtainBuffer returns STOPPED. Note that obtainBuffer() still works

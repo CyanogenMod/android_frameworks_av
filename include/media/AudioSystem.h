@@ -145,6 +145,21 @@ public:
         uint32_t latency;
     };
 
+    // Events used to synchronize actions between audio sessions.
+    // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until playback
+    // is complete on another audio session.
+    // See definitions in MediaSyncEvent.java
+    enum sync_event_t {
+        SYNC_EVENT_SAME = -1,             // used internally to indicate restart with same event
+        SYNC_EVENT_NONE = 0,
+        SYNC_EVENT_PRESENTATION_COMPLETE,
+
+        //
+        // Define new events here: SYNC_EVENT_START, SYNC_EVENT_STOP, SYNC_EVENT_TIME ...
+        //
+        SYNC_EVENT_CNT,
+    };
+
     //
     // IAudioPolicyService interface (see AudioPolicyInterface for method descriptions)
     //
