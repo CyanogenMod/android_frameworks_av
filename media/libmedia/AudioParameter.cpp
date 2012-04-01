@@ -19,16 +19,18 @@
 
 #include <utils/Log.h>
 
+#include <hardware/audio.h>
 #include <media/AudioParameter.h>
 
 namespace android {
 
-const char *AudioParameter::keyRouting = "routing";
-const char *AudioParameter::keySamplingRate = "sampling_rate";
-const char *AudioParameter::keyFormat = "format";
-const char *AudioParameter::keyChannels = "channels";
-const char *AudioParameter::keyFrameCount = "frame_count";
-const char *AudioParameter::keyInputSource = "input_source";
+// static
+const char * const AudioParameter::keyRouting = AUDIO_PARAMETER_STREAM_ROUTING;
+const char * const AudioParameter::keySamplingRate = AUDIO_PARAMETER_STREAM_SAMPLING_RATE;
+const char * const AudioParameter::keyFormat = AUDIO_PARAMETER_STREAM_FORMAT;
+const char * const AudioParameter::keyChannels = AUDIO_PARAMETER_STREAM_CHANNELS;
+const char * const AudioParameter::keyFrameCount = AUDIO_PARAMETER_STREAM_FRAME_COUNT;
+const char * const AudioParameter::keyInputSource = AUDIO_PARAMETER_STREAM_INPUT_SOURCE;
 
 AudioParameter::AudioParameter(const String8& keyValuePairs)
 {
