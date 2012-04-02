@@ -226,7 +226,8 @@ status_t AudioTrack::set(
 
     // force direct flag if format is not linear PCM
     if (!audio_is_linear_pcm(format)) {
-        flags = (audio_policy_output_flags_t) (flags | AUDIO_POLICY_OUTPUT_FLAG_DIRECT);
+        flags = (audio_policy_output_flags_t)
+                ((flags | AUDIO_POLICY_OUTPUT_FLAG_DIRECT) & ~AUDIO_POLICY_OUTPUT_FLAG_FAST);
     }
 
     if (!audio_is_output_channel(channelMask)) {
@@ -252,6 +253,7 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mSessionId = sessionId;
     mAuxEffectId = 0;
+    mCbf = cbf;
 
     // create the IAudioTrack
     status_t status = createTrack_l(streamType,
@@ -280,7 +282,6 @@ status_t AudioTrack::set(
     mSharedBuffer = sharedBuffer;
     mMuted = false;
     mActive = false;
-    mCbf = cbf;
     mUserData = user;
     mLoopCount = 0;
     mMarkerPosition = 0;
@@ -762,6 +763,18 @@ status_t AudioTrack::createTrack_l(
         return NO_INIT;
     }
 
+    // Client decides whether the track is TIMED (see below), but can only express a preference
+    // for FAST.  Server will perform additional tests.
+    if ((flags & AUDIO_POLICY_OUTPUT_FLAG_FAST) && !(
+            // either of these use cases:
+            // use case 1: shared buffer
+            (sharedBuffer != 0) ||
+            // use case 2: callback handler
+            (mCbf != NULL))) {
+        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
+        flags = (audio_policy_output_flags_t) (flags & ~AUDIO_POLICY_OUTPUT_FLAG_FAST);
+    }
+
     mNotificationFramesAct = mNotificationFramesReq;
     if (!audio_is_linear_pcm(format)) {
         if (sharedBuffer != 0) {
@@ -786,7 +799,7 @@ status_t AudioTrack::createTrack_l(
             if (mNotificationFramesAct > (uint32_t)frameCount/2) {
                 mNotificationFramesAct = frameCount/2;
             }
-            if (frameCount < minFrameCount) {
+            if (frameCount < minFrameCount && !(flags & AUDIO_POLICY_OUTPUT_FLAG_FAST)) {
                 // not ALOGW because it happens all the time when playing key clicks over A2DP
                 ALOGV("Minimum buffer size corrected from %d to %d",
                          frameCount, minFrameCount);
@@ -807,6 +820,10 @@ status_t AudioTrack::createTrack_l(
     if (mIsTimed) {
         trackFlags |= IAudioFlinger::TRACK_TIMED;
     }
+    if (flags & AUDIO_POLICY_OUTPUT_FLAG_FAST) {
+        trackFlags |= IAudioFlinger::TRACK_FAST;
+    }
+
     sp<IAudioTrack> track = audioFlinger->createTrack(getpid(),
                                                       streamType,
                                                       sampleRate,

@@ -139,13 +139,15 @@ public:
      *                     latency of the track. The actual size selected by the AudioTrack could be
      *                     larger if the requested size is not compatible with current audio HAL
      *                     latency.
-     * flags:              Reserved for future use.
+     * flags:              See comments on audio_policy_output_flags_t in <system/audio_policy.h>.
      * cbf:                Callback function. If not null, this function is called periodically
      *                     to request new PCM data.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames have been consumed from track input buffer.
      * sessionId:          Specific session ID, or zero to use default.
+     * threadCanCallJava:  Whether callbacks are made from an attached thread and thus can call JNI.
+     *                     If not present in parameter list, then fixed at false.
      */
 
                         AudioTrack( audio_stream_type_t streamType,
@@ -157,7 +159,7 @@ public:
                                     callback_t cbf       = NULL,
                                     void* user           = NULL,
                                     int notificationFrames = 0,
-                                    int sessionId = 0);
+                                    int sessionId        = 0);
 
                         // DEPRECATED
                         explicit AudioTrack( int streamType,
@@ -189,7 +191,7 @@ public:
                                     callback_t cbf      = NULL,
                                     void* user          = NULL,
                                     int notificationFrames = 0,
-                                    int sessionId = 0);
+                                    int sessionId       = 0);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
