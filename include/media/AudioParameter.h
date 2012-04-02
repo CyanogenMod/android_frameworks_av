@@ -40,12 +40,12 @@ public:
     //  keyFrameCount: to change audio output frame count, value is an int
     //  keyInputSource: to change audio input source, value is an int in audio_source_t
     //     (defined in media/mediarecorder.h)
-    static const char *keyRouting;
-    static const char *keySamplingRate;
-    static const char *keyFormat;
-    static const char *keyChannels;
-    static const char *keyFrameCount;
-    static const char *keyInputSource;
+    static const char * const keyRouting;
+    static const char * const keySamplingRate;
+    static const char * const keyFormat;
+    static const char * const keyChannels;
+    static const char * const keyFrameCount;
+    static const char * const keyInputSource;
 
     String8 toString();
 
