@@ -591,6 +591,10 @@ bool NuPlayer::Renderer::dropBufferWhileFlushing(
 void NuPlayer::Renderer::onAudioSinkChanged() {
     CHECK(!mDrainAudioQueuePending);
     mNumFramesWritten = 0;
+    uint32_t written;
+    if (mAudioSink->getFramesWritten(&written) == OK) {
+        mNumFramesWritten = written;
+    }
 }
 
 void NuPlayer::Renderer::notifyPosition() {
