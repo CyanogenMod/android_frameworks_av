@@ -1617,6 +1617,10 @@ status_t MediaPlayerService::AudioOutput::open(
 
     mSampleRateHz = sampleRate;
     mMsecsPerFrame = mPlaybackRatePermille / (float) sampleRate;
+    uint32_t pos;
+    if (t->getPosition(&pos) == OK) {
+        mBytesWritten = uint64_t(pos) * t->frameSize();
+    }
     mTrack = t;
 
     status_t res = t->setSampleRate(mPlaybackRatePermille * mSampleRateHz / 1000);
