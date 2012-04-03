@@ -384,6 +384,11 @@ status_t QueryCodecs(
         const char *mimeType, bool queryDecoders,
         Vector<CodecCapabilities> *results);
 
+status_t QueryCodec(
+        const sp<IOMX> &omx,
+        const char *componentName, const char *mime,
+        bool isEncoder,
+        CodecCapabilities *caps);
 
 }  // namespace android
 
