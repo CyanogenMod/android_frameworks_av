@@ -28,6 +28,8 @@
 #include <audio_processing.h>
 #include "speex/speex_resampler.h"
 
+// undefine to perform multi channels API functional tests
+//#define DUAL_MIC_TEST
 
 //------------------------------------------------------------------------------
 // local definitions
@@ -87,6 +89,10 @@ struct preproc_effect_s {
     preproc_session_t *session;     // session the effect is on
     const preproc_ops_t *ops;       // effect ops table
     preproc_fx_handle_t engine;     // handle on webRTC engine
+#ifdef DUAL_MIC_TEST
+    bool aux_channels_on;           // support auxiliary channels
+    size_t cur_channel_config;      // current auciliary channel configuration
+#endif
 };
 
 // Session context
@@ -126,6 +132,41 @@ struct preproc_session_s {
     size_t framesRev;                   // number of frames in reverse channel input buffer
     SpeexResamplerState *revResampler;  // handle on reverse channel input speex resampler
 };
+
+#ifdef DUAL_MIC_TEST
+enum {
+    PREPROC_CMD_DUAL_MIC_ENABLE = EFFECT_CMD_FIRST_PROPRIETARY, // enable dual mic mode
+    PREPROC_CMD_DUAL_MIC_PCM_DUMP_START,                        // start pcm capture
+    PREPROC_CMD_DUAL_MIC_PCM_DUMP_STOP                          // stop pcm capture
+};
+
+enum {
+    CHANNEL_CFG_MONO,
+    CHANNEL_CFG_STEREO,
+    CHANNEL_CFG_MONO_AUX,
+    CHANNEL_CFG_STEREO_AUX,
+    CHANNEL_CFG_CNT,
+    CHANNEL_CFG_FIRST_AUX = CHANNEL_CFG_MONO_AUX,
+};
+
+const channel_config_t sDualMicConfigs[CHANNEL_CFG_CNT] = {
+        {AUDIO_CHANNEL_IN_MONO , 0},
+        {AUDIO_CHANNEL_IN_STEREO , 0},
+        {AUDIO_CHANNEL_IN_FRONT , AUDIO_CHANNEL_IN_BACK},
+        {AUDIO_CHANNEL_IN_STEREO , AUDIO_CHANNEL_IN_RIGHT}
+};
+
+bool sHasAuxChannels[PREPROC_NUM_EFFECTS] = {
+        false,   // PREPROC_AGC
+        true,   // PREPROC_AEC
+        true,   // PREPROC_NS
+};
+
+bool gDualMicEnabled;
+FILE *gPcmDumpFh;
+static pthread_mutex_t gPcmDumpLock = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 
 //------------------------------------------------------------------------------
 // Effect descriptors
@@ -644,9 +685,11 @@ int Effect_SetState(preproc_effect_t *effect, uint32_t state)
         switch(effect->state) {
         case PREPROC_EFFECT_STATE_INIT:
         case PREPROC_EFFECT_STATE_CREATED:
-        case PREPROC_EFFECT_STATE_ACTIVE:
             ALOGE("Effect_SetState invalid transition");
             status = -ENOSYS;
+            break;
+        case PREPROC_EFFECT_STATE_ACTIVE:
+            // enabling an already enabled effect is just ignored
             break;
         case PREPROC_EFFECT_STATE_CONFIG:
             effect->ops->enable(effect);
@@ -895,6 +938,13 @@ int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
     session->revFrame->_audioChannel = inCnl;
     session->revFrame->_frequencyInHz = session->apmSamplingRate;
 
+    // force process buffer reallocation
+    session->inBufSize = 0;
+    session->outBufSize = 0;
+    session->framesIn = 0;
+    session->framesOut = 0;
+
+
     if (session->inResampler != NULL) {
         speex_resampler_destroy(session->inResampler);
         session->inResampler = NULL;
@@ -989,6 +1039,10 @@ int Session_SetReverseConfig(preproc_session_t *session, effect_config_t *config
     session->revChannelCount = inCnl;
     session->revFrame->_audioChannel = inCnl;
     session->revFrame->_frequencyInHz = session->apmSamplingRate;
+    // force process buffer reallocation
+    session->revBufSize = 0;
+    session->framesRev = 0;
+
     return 0;
 }
 
@@ -1161,6 +1215,14 @@ int PreProcessingFx_Process(effect_handle_t     self,
             memcpy(session->inBuf + session->framesIn * session->inChannelCount,
                    inBuffer->s16,
                    fr * session->inChannelCount * sizeof(int16_t));
+#ifdef DUAL_MIC_TEST
+            pthread_mutex_lock(&gPcmDumpLock);
+            if (gPcmDumpFh != NULL) {
+                fwrite(inBuffer->raw,
+                       fr * session->inChannelCount * sizeof(int16_t), 1, gPcmDumpFh);
+            }
+            pthread_mutex_unlock(&gPcmDumpLock);
+#endif
 
             session->framesIn += fr;
             inBuffer->frameCount = fr;
@@ -1195,6 +1257,16 @@ int PreProcessingFx_Process(effect_handle_t     self,
             memcpy(session->procFrame->_payloadData + session->framesIn * session->inChannelCount,
                    inBuffer->s16,
                    fr * session->inChannelCount * sizeof(int16_t));
+
+#ifdef DUAL_MIC_TEST
+            pthread_mutex_lock(&gPcmDumpLock);
+            if (gPcmDumpFh != NULL) {
+                fwrite(inBuffer->raw,
+                       fr * session->inChannelCount * sizeof(int16_t), 1, gPcmDumpFh);
+            }
+            pthread_mutex_unlock(&gPcmDumpLock);
+#endif
+
             session->framesIn += fr;
             inBuffer->frameCount = fr;
             if (session->framesIn < session->frameCount) {
@@ -1284,7 +1356,7 @@ int PreProcessingFx_Command(effect_handle_t  self,
             *(int *)pReplyData = 0;
             break;
 
-        case EFFECT_CMD_SET_CONFIG:
+        case EFFECT_CMD_SET_CONFIG: {
             if (pCmdData    == NULL||
                 cmdSize     != sizeof(effect_config_t)||
                 pReplyData  == NULL||
@@ -1293,14 +1365,27 @@ int PreProcessingFx_Command(effect_handle_t  self,
                         "EFFECT_CMD_SET_CONFIG: ERROR");
                 return -EINVAL;
             }
+#ifdef DUAL_MIC_TEST
+            // make sure that the config command is accepted by making as if all effects were
+            // disabled: this is OK for functional tests
+            uint32_t enabledMsk = effect->session->enabledMsk;
+            if (gDualMicEnabled) {
+                effect->session->enabledMsk = 0;
+            }
+#endif
             *(int *)pReplyData = Session_SetConfig(effect->session, (effect_config_t *)pCmdData);
+#ifdef DUAL_MIC_TEST
+            if (gDualMicEnabled) {
+                effect->session->enabledMsk = enabledMsk;
+            }
+#endif
             if (*(int *)pReplyData != 0) {
                 break;
             }
             if (effect->state != PREPROC_EFFECT_STATE_ACTIVE) {
                 *(int *)pReplyData = Effect_SetState(effect, PREPROC_EFFECT_STATE_CONFIG);
             }
-            break;
+            } break;
 
         case EFFECT_CMD_GET_CONFIG:
             if (pReplyData == NULL ||
@@ -1426,6 +1511,179 @@ int PreProcessingFx_Command(effect_handle_t  self,
         case EFFECT_CMD_SET_AUDIO_MODE:
             break;
 
+#ifdef DUAL_MIC_TEST
+        ///// test commands start
+        case PREPROC_CMD_DUAL_MIC_ENABLE: {
+            if (pCmdData == NULL|| cmdSize != sizeof(uint32_t) ||
+                    pReplyData == NULL || replySize == NULL) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "PREPROC_CMD_DUAL_MIC_ENABLE: ERROR");
+                *replySize = 0;
+                return -EINVAL;
+            }
+            gDualMicEnabled = *(bool *)pCmdData;
+            if (gDualMicEnabled) {
+                effect->aux_channels_on = sHasAuxChannels[effect->procId];
+            } else {
+                effect->aux_channels_on = false;
+            }
+            effect->cur_channel_config = (effect->session->inChannelCount == 1) ?
+                    CHANNEL_CFG_MONO : CHANNEL_CFG_STEREO;
+
+            ALOGV("PREPROC_CMD_DUAL_MIC_ENABLE: %s", gDualMicEnabled ? "enabled" : "disabled");
+            *replySize = sizeof(int);
+            *(int *)pReplyData = 0;
+            } break;
+        case PREPROC_CMD_DUAL_MIC_PCM_DUMP_START: {
+            if (pCmdData == NULL|| pReplyData == NULL || replySize == NULL) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "PREPROC_CMD_DUAL_MIC_PCM_DUMP_START: ERROR");
+                *replySize = 0;
+                return -EINVAL;
+            }
+            pthread_mutex_lock(&gPcmDumpLock);
+            if (gPcmDumpFh != NULL) {
+                fclose(gPcmDumpFh);
+                gPcmDumpFh = NULL;
+            }
+            char *path = strndup((char *)pCmdData, cmdSize);
+            gPcmDumpFh = fopen((char *)path, "wb");
+            pthread_mutex_unlock(&gPcmDumpLock);
+            ALOGV("PREPROC_CMD_DUAL_MIC_PCM_DUMP_START: path %s gPcmDumpFh %p",
+                  path, gPcmDumpFh);
+            ALOGE_IF(gPcmDumpFh <= 0, "gPcmDumpFh open error %d %s", errno, strerror(errno));
+            free(path);
+            *replySize = sizeof(int);
+            *(int *)pReplyData = 0;
+            } break;
+        case PREPROC_CMD_DUAL_MIC_PCM_DUMP_STOP: {
+            if (pReplyData == NULL || replySize == NULL) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "PREPROC_CMD_DUAL_MIC_PCM_DUMP_STOP: ERROR");
+                *replySize = 0;
+                return -EINVAL;
+            }
+            pthread_mutex_lock(&gPcmDumpLock);
+            if (gPcmDumpFh != NULL) {
+                fclose(gPcmDumpFh);
+                gPcmDumpFh = NULL;
+            }
+            pthread_mutex_unlock(&gPcmDumpLock);
+            ALOGV("PREPROC_CMD_DUAL_MIC_PCM_DUMP_STOP");
+            *replySize = sizeof(int);
+            *(int *)pReplyData = 0;
+            } break;
+        ///// test commands end
+
+        case EFFECT_CMD_GET_FEATURE_SUPPORTED_CONFIGS: {
+            if(!gDualMicEnabled) {
+                return -EINVAL;
+            }
+            if (pCmdData == NULL|| cmdSize != 2 * sizeof(uint32_t) ||
+                    pReplyData == NULL || replySize == NULL) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "EFFECT_CMD_GET_FEATURE_SUPPORTED_CONFIGS: ERROR");
+                *replySize = 0;
+                return -EINVAL;
+            }
+            if (*(uint32_t *)pCmdData != EFFECT_FEATURE_AUX_CHANNELS ||
+                  !effect->aux_channels_on) {
+                ALOGV("PreProcessingFx_Command feature EFFECT_FEATURE_AUX_CHANNELS not supported by"
+                        " fx %d", effect->procId);
+                *(uint32_t *)pReplyData = -ENOSYS;
+                *replySize = sizeof(uint32_t);
+                break;
+            }
+            size_t num_configs = *((uint32_t *)pCmdData + 1);
+            if (*replySize < (2 * sizeof(uint32_t) +
+                              num_configs * sizeof(channel_config_t))) {
+                *replySize = 0;
+                return -EINVAL;
+            }
+
+            *((uint32_t *)pReplyData + 1) = CHANNEL_CFG_CNT;
+            if (num_configs < CHANNEL_CFG_CNT ||
+                    *replySize < (2 * sizeof(uint32_t) +
+                                     CHANNEL_CFG_CNT * sizeof(channel_config_t))) {
+                *(uint32_t *)pReplyData = -ENOMEM;
+            } else {
+                num_configs = CHANNEL_CFG_CNT;
+                *(uint32_t *)pReplyData = 0;
+            }
+            ALOGV("PreProcessingFx_Command EFFECT_CMD_GET_FEATURE_SUPPORTED_CONFIGS num config %d",
+                  num_configs);
+
+            *replySize = 2 * sizeof(uint32_t) + num_configs * sizeof(channel_config_t);
+            *((uint32_t *)pReplyData + 1) = num_configs;
+            memcpy((uint32_t *)pReplyData + 2, &sDualMicConfigs, num_configs * sizeof(channel_config_t));
+            } break;
+        case EFFECT_CMD_GET_FEATURE_CONFIG:
+            if(!gDualMicEnabled) {
+                return -EINVAL;
+            }
+            if (pCmdData == NULL|| cmdSize != sizeof(uint32_t) ||
+                    pReplyData == NULL || replySize == NULL ||
+                    *replySize < sizeof(uint32_t) + sizeof(channel_config_t)) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "EFFECT_CMD_GET_FEATURE_CONFIG: ERROR");
+                return -EINVAL;
+            }
+            if (*(uint32_t *)pCmdData != EFFECT_FEATURE_AUX_CHANNELS || !effect->aux_channels_on) {
+                *(uint32_t *)pReplyData = -ENOSYS;
+                *replySize = sizeof(uint32_t);
+                break;
+            }
+            ALOGV("PreProcessingFx_Command EFFECT_CMD_GET_FEATURE_CONFIG");
+            *(uint32_t *)pReplyData = 0;
+            *replySize = sizeof(uint32_t) + sizeof(channel_config_t);
+            memcpy((uint32_t *)pReplyData + 1,
+                   &sDualMicConfigs[effect->cur_channel_config],
+                   sizeof(channel_config_t));
+            break;
+        case EFFECT_CMD_SET_FEATURE_CONFIG: {
+            ALOGV("PreProcessingFx_Command EFFECT_CMD_SET_FEATURE_CONFIG: "
+                    "gDualMicEnabled %d effect->aux_channels_on %d",
+                  gDualMicEnabled, effect->aux_channels_on);
+            if(!gDualMicEnabled) {
+                return -EINVAL;
+            }
+            if (pCmdData == NULL|| cmdSize != (sizeof(uint32_t) + sizeof(channel_config_t)) ||
+                    pReplyData == NULL || replySize == NULL ||
+                    *replySize < sizeof(uint32_t)) {
+                ALOGE("PreProcessingFx_Command cmdCode Case: "
+                        "EFFECT_CMD_SET_FEATURE_CONFIG: ERROR\n"
+                        "pCmdData %p cmdSize %d pReplyData %p replySize %p *replySize %d",
+                        pCmdData, cmdSize, pReplyData, replySize, replySize ? *replySize : -1);
+                return -EINVAL;
+            }
+            *replySize = sizeof(uint32_t);
+            if (*(uint32_t *)pCmdData != EFFECT_FEATURE_AUX_CHANNELS || !effect->aux_channels_on) {
+                *(uint32_t *)pReplyData = -ENOSYS;
+                ALOGV("PreProcessingFx_Command cmdCode Case: "
+                                        "EFFECT_CMD_SET_FEATURE_CONFIG: ERROR\n"
+                                        "CmdData %d effect->aux_channels_on %d",
+                                        *(uint32_t *)pCmdData, effect->aux_channels_on);
+                break;
+            }
+            size_t i;
+            for (i = 0; i < CHANNEL_CFG_CNT;i++) {
+                if (memcmp((uint32_t *)pCmdData + 1,
+                           &sDualMicConfigs[i], sizeof(channel_config_t)) == 0) {
+                    break;
+                }
+            }
+            if (i == CHANNEL_CFG_CNT) {
+                *(uint32_t *)pReplyData = -EINVAL;
+                ALOGW("PreProcessingFx_Command EFFECT_CMD_SET_FEATURE_CONFIG invalid config"
+                        "[%08x].[%08x]", *((uint32_t *)pCmdData + 1), *((uint32_t *)pCmdData + 2));
+            } else {
+                effect->cur_channel_config = i;
+                *(uint32_t *)pReplyData = 0;
+                ALOGV("PreProcessingFx_Command EFFECT_CMD_SET_FEATURE_CONFIG New config"
+                        "[%08x].[%08x]", sDualMicConfigs[i].main_channels, sDualMicConfigs[i].aux_channels);
+            }
+            } break;
+#endif
         default:
             return -EINVAL;
     }
