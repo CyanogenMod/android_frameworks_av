@@ -20,8 +20,10 @@
 
 #include "SimplePlayer.h"
 
+#include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
-
+#include <media/ICrypto.h>
+#include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -59,6 +61,33 @@ struct CodecState {
     bool mIsAudio;
 };
 
+static sp<ICrypto> makeCrypto(
+        const uint8_t uuid[16], const void *data, size_t size) {
+    sp<IServiceManager> sm = defaultServiceManager();
+
+    sp<IBinder> binder =
+        sm->getService(String16("media.player"));
+
+    sp<IMediaPlayerService> service =
+        interface_cast<IMediaPlayerService>(binder);
+
+    CHECK(service != NULL);
+
+    sp<ICrypto> crypto = service->makeCrypto();
+
+    if (crypto == NULL || crypto->initCheck() != OK) {
+        return NULL;
+    }
+
+    status_t err = crypto->createPlugin(uuid, data, size);
+
+    if (err != OK) {
+        return NULL;
+    }
+
+    return crypto;
+}
+
 }  // namespace android
 
 static int decode(
@@ -77,6 +106,8 @@ static int decode(
         fprintf(stderr, "unable to instantiate extractor.\n");
         return 1;
     }
+
+    sp<ICrypto> crypto;
 
     KeyedVector<size_t, CodecState> stateByTrack;
 
@@ -113,7 +144,38 @@ static int decode(
         state->mNumBuffersDecoded = 0;
         state->mIsAudio = isAudio;
 
-        if (decryptInputBuffers && !isAudio) {
+        if (decryptInputBuffers && crypto == NULL) {
+            sp<ABuffer> emm;
+            CHECK(format->findBuffer("emm", &emm));
+
+            sp<ABuffer> ecm;
+            CHECK(format->findBuffer("ecm", &ecm));
+
+            struct WVOpaqueInitData {
+                uint8_t mEMM[16];
+                uint8_t mECM[32];
+
+            } opaque;
+
+            CHECK_EQ(emm->size(), sizeof(opaque.mEMM));
+            memcpy(opaque.mEMM, emm->data(), emm->size());
+
+            CHECK_EQ(ecm->size(), 80u);
+            // bytes 16..47 of the original ecm stream data.
+            memcpy(opaque.mECM, ecm->data() + 16, 32);
+
+            static const uint8_t kUUIDWidevine[16] = {
+                0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+                0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+            };
+
+            crypto = makeCrypto(kUUIDWidevine, &opaque, sizeof(opaque));
+            CHECK(crypto != NULL);
+            CHECK_EQ(crypto->initCheck(), (status_t)OK);
+        }
+
+        if (decryptInputBuffers
+                && crypto->requiresSecureDecoderComponent(mime.c_str())) {
             static const MediaCodecList *list = MediaCodecList::getInstance();
 
             ssize_t index =
@@ -137,7 +199,8 @@ static int decode(
 
         err = state->mCodec->configure(
                 format, isVideo ? surface : NULL,
-                decryptInputBuffers ? MediaCodec::CONFIGURE_FLAG_SECURE : 0);
+                crypto,
+                0 /* flags */);
 
         CHECK_EQ(err, (status_t)OK);
 

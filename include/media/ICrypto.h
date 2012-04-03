@@ -16,6 +16,7 @@
 
 #include <binder/IInterface.h>
 #include <media/stagefright/foundation/ABase.h>
+#include <media/hardware/CryptoAPI.h>
 
 #ifndef ANDROID_ICRYPTO_H_
 
@@ -26,26 +27,26 @@ namespace android {
 struct ICrypto : public IInterface {
     DECLARE_META_INTERFACE(Crypto);
 
-    virtual status_t initialize() = 0;
-    virtual status_t terminate() = 0;
+    virtual status_t initCheck() const = 0;
 
-    virtual status_t setEntitlementKey(
-            const void *key, size_t keyLength) = 0;
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) const = 0;
 
-    virtual status_t setEntitlementControlMessage(
-            const void *msg, size_t msgLength) = 0;
+    virtual status_t createPlugin(
+            const uint8_t uuid[16], const void *data, size_t size) = 0;
 
-    // "dstData" is in media_server's address space (but inaccessible).
-    virtual ssize_t decryptVideo(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataOffset) = 0;
+    virtual status_t destroyPlugin() = 0;
 
-    // "dstData" is in the calling process' address space.
-    virtual ssize_t decryptAudio(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataSize) = 0;
+    virtual bool requiresSecureDecoderComponent(
+            const char *mime) const = 0;
+
+    virtual status_t decrypt(
+            bool secure,
+            const uint8_t key[16],
+            const uint8_t iv[16],
+            CryptoPlugin::Mode mode,
+            const void *srcPtr,
+            const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
+            void *dstPtr) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(ICrypto);

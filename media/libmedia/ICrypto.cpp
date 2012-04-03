@@ -25,12 +25,12 @@
 namespace android {
 
 enum {
-    INITIALIZE = IBinder::FIRST_CALL_TRANSACTION,
-    TERMINATE,
-    SET_ENTITLEMENT_KEY,
-    SET_ECM,
-    DECRYPT_VIDEO,
-    DECRYPT_AUDIO,
+    INIT_CHECK = IBinder::FIRST_CALL_TRANSACTION,
+    IS_CRYPTO_SUPPORTED,
+    CREATE_PLUGIN,
+    DESTROY_PLUGIN,
+    REQUIRES_SECURE_COMPONENT,
+    DECRYPT,
 };
 
 struct BpCrypto : public BpInterface<ICrypto> {
@@ -38,104 +38,97 @@ struct BpCrypto : public BpInterface<ICrypto> {
         : BpInterface<ICrypto>(impl) {
     }
 
-    virtual status_t initialize() {
+    virtual status_t initCheck() const {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        remote()->transact(INITIALIZE, data, &reply);
+        remote()->transact(INIT_CHECK, data, &reply);
 
         return reply.readInt32();
     }
 
-    virtual status_t terminate() {
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) const {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        remote()->transact(TERMINATE, data, &reply);
+        data.write(uuid, 16);
+        remote()->transact(IS_CRYPTO_SUPPORTED, data, &reply);
+
+        return reply.readInt32() != 0;
+    }
+
+    virtual status_t createPlugin(
+            const uint8_t uuid[16], const void *opaqueData, size_t opaqueSize) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
+        data.write(uuid, 16);
+        data.writeInt32(opaqueSize);
+        data.write(opaqueData, opaqueSize);
+        remote()->transact(CREATE_PLUGIN, data, &reply);
 
         return reply.readInt32();
     }
 
-    virtual status_t setEntitlementKey(
-            const void *key, size_t keyLength) {
+    virtual status_t destroyPlugin() {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        data.writeInt32(keyLength);
-        data.write(key, keyLength);
-        remote()->transact(SET_ENTITLEMENT_KEY, data, &reply);
+        remote()->transact(DESTROY_PLUGIN, data, &reply);
 
         return reply.readInt32();
     }
 
-    virtual status_t setEntitlementControlMessage(
-            const void *msg, size_t msgLength) {
+    virtual bool requiresSecureDecoderComponent(
+            const char *mime) const {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        data.writeInt32(msgLength);
-        data.write(msg, msgLength);
-        remote()->transact(SET_ECM, data, &reply);
+        data.writeCString(mime);
+        remote()->transact(REQUIRES_SECURE_COMPONENT, data, &reply);
 
-        return reply.readInt32();
+        return reply.readInt32() != 0;
     }
 
-    virtual ssize_t decryptVideo(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataOffset) {
+    virtual status_t decrypt(
+            bool secure,
+            const uint8_t key[16],
+            const uint8_t iv[16],
+            CryptoPlugin::Mode mode,
+            const void *srcPtr,
+            const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
+            void *dstPtr) {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        if (iv == NULL) {
-            if (ivLength > 0) {
-                return -EINVAL;
-            }
+        data.writeInt32(secure);
+        data.writeInt32(mode);
+        data.write(key, 16);
+        data.write(iv, 16);
 
-            data.writeInt32(-1);
-        } else {
-            data.writeInt32(ivLength);
-            data.write(iv, ivLength);
+        size_t totalSize = 0;
+        for (size_t i = 0; i < numSubSamples; ++i) {
+            totalSize += subSamples[i].mNumBytesOfEncryptedData;
+            totalSize += subSamples[i].mNumBytesOfClearData;
         }
 
-        data.writeInt32(srcDataSize);
-        data.write(srcData, srcDataSize);
+        data.writeInt32(totalSize);
+        data.write(srcPtr, totalSize);
 
-        data.writeIntPtr((intptr_t)dstData);
-        data.writeInt32(dstDataOffset);
+        data.writeInt32(numSubSamples);
+        data.write(subSamples, sizeof(CryptoPlugin::SubSample) * numSubSamples);
 
-        remote()->transact(DECRYPT_VIDEO, data, &reply);
-
-        return reply.readInt32();
-    }
-
-    virtual ssize_t decryptAudio(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataSize) {
-        Parcel data, reply;
-        data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
-        if (iv == NULL) {
-            if (ivLength > 0) {
-                return -EINVAL;
-            }
-
-            data.writeInt32(-1);
-        } else {
-            data.writeInt32(ivLength);
-            data.write(iv, ivLength);
+        if (secure) {
+            data.writeIntPtr((intptr_t)dstPtr);
         }
 
-        data.writeInt32(srcDataSize);
-        data.write(srcData, srcDataSize);
-        data.writeInt32(dstDataSize);
+        remote()->transact(DECRYPT, data, &reply);
 
-        remote()->transact(DECRYPT_AUDIO, data, &reply);
+        status_t result = reply.readInt32();
 
-        ssize_t res = reply.readInt32();
-
-        if (res <= 0) {
-            return res;
+        if (result != OK) {
+            return result;
         }
 
-        reply.read(dstData, res);
+        if (!secure) {
+            reply.read(dstPtr, totalSize);
+        }
 
-        return res;
+        return OK;
     }
 
 private:
@@ -149,137 +142,119 @@ IMPLEMENT_META_INTERFACE(Crypto, "android.hardware.ICrypto");
 status_t BnCrypto::onTransact(
     uint32_t code, const Parcel &data, Parcel *reply, uint32_t flags) {
     switch (code) {
-        case INITIALIZE:
+        case INIT_CHECK:
         {
             CHECK_INTERFACE(ICrypto, data, reply);
-            reply->writeInt32(initialize());
+            reply->writeInt32(initCheck());
 
             return OK;
         }
 
-        case TERMINATE:
+        case IS_CRYPTO_SUPPORTED:
         {
             CHECK_INTERFACE(ICrypto, data, reply);
-            reply->writeInt32(terminate());
+            uint8_t uuid[16];
+            data.read(uuid, sizeof(uuid));
+            reply->writeInt32(isCryptoSchemeSupported(uuid));
 
             return OK;
         }
 
-        case SET_ENTITLEMENT_KEY:
+        case CREATE_PLUGIN:
         {
             CHECK_INTERFACE(ICrypto, data, reply);
 
-            size_t keyLength = data.readInt32();
-            void *key = malloc(keyLength);
-            data.read(key, keyLength);
+            uint8_t uuid[16];
+            data.read(uuid, sizeof(uuid));
 
-            reply->writeInt32(setEntitlementKey(key, keyLength));
+            size_t opaqueSize = data.readInt32();
+            void *opaqueData = malloc(opaqueSize);
+            data.read(opaqueData, opaqueSize);
 
-            free(key);
-            key = NULL;
+            reply->writeInt32(createPlugin(uuid, opaqueData, opaqueSize));
+
+            free(opaqueData);
+            opaqueData = NULL;
 
             return OK;
         }
 
-        case SET_ECM:
+        case DESTROY_PLUGIN:
         {
             CHECK_INTERFACE(ICrypto, data, reply);
-
-            size_t msgLength = data.readInt32();
-            void *msg = malloc(msgLength);
-            data.read(msg, msgLength);
-
-            reply->writeInt32(setEntitlementControlMessage(msg, msgLength));
-
-            free(msg);
-            msg = NULL;
+            reply->writeInt32(destroyPlugin());
 
             return OK;
         }
 
-        case DECRYPT_VIDEO:
+        case REQUIRES_SECURE_COMPONENT:
         {
             CHECK_INTERFACE(ICrypto, data, reply);
 
-            void *iv = NULL;
+            const char *mime = data.readCString();
+            reply->writeInt32(requiresSecureDecoderComponent(mime));
 
-            int32_t ivLength = data.readInt32();
-            if (ivLength >= 0) {
-                iv = malloc(ivLength);
-                data.read(iv, ivLength);
+            return OK;
+        }
+
+        case DECRYPT:
+        {
+            CHECK_INTERFACE(ICrypto, data, reply);
+
+            bool secure = data.readInt32() != 0;
+            CryptoPlugin::Mode mode = (CryptoPlugin::Mode)data.readInt32();
+
+            uint8_t key[16];
+            data.read(key, sizeof(key));
+
+            uint8_t iv[16];
+            data.read(iv, sizeof(iv));
+
+            size_t totalSize = data.readInt32();
+            void *srcData = malloc(totalSize);
+            data.read(srcData, totalSize);
+
+            int32_t numSubSamples = data.readInt32();
+
+            CryptoPlugin::SubSample *subSamples =
+                new CryptoPlugin::SubSample[numSubSamples];
+
+            data.read(
+                    subSamples,
+                    sizeof(CryptoPlugin::SubSample) * numSubSamples);
+
+            void *dstPtr;
+            if (secure) {
+                dstPtr = (void *)data.readIntPtr();
+            } else {
+                dstPtr = malloc(totalSize);
             }
 
-            size_t srcDataSize = data.readInt32();
-            void *srcData = malloc(srcDataSize);
-            data.read(srcData, srcDataSize);
+            status_t err = decrypt(
+                    secure,
+                    key,
+                    iv,
+                    mode,
+                    srcData,
+                    subSamples, numSubSamples,
+                    dstPtr);
 
-            void *dstData = (void *)data.readIntPtr();
-            size_t dstDataOffset = data.readInt32();
+            reply->writeInt32(err);
 
-            reply->writeInt32(
-                    decryptVideo(
-                        iv,
-                        ivLength < 0 ? 0 : ivLength,
-                        srcData,
-                        srcDataSize,
-                        dstData,
-                        dstDataOffset));
+            if (!secure) {
+                if (err == OK) {
+                    reply->write(dstPtr, totalSize);
+                }
+
+                free(dstPtr);
+                dstPtr = NULL;
+            }
+
+            delete[] subSamples;
+            subSamples = NULL;
 
             free(srcData);
             srcData = NULL;
-
-            if (iv != NULL) {
-                free(iv);
-                iv = NULL;
-            }
-
-            return OK;
-        }
-
-        case DECRYPT_AUDIO:
-        {
-            CHECK_INTERFACE(ICrypto, data, reply);
-
-            void *iv = NULL;
-
-            int32_t ivLength = data.readInt32();
-            if (ivLength >= 0) {
-                iv = malloc(ivLength);
-                data.read(iv, ivLength);
-            }
-
-            size_t srcDataSize = data.readInt32();
-            void *srcData = malloc(srcDataSize);
-            data.read(srcData, srcDataSize);
-
-            size_t dstDataSize = data.readInt32();
-            void *dstData = malloc(dstDataSize);
-
-            ssize_t res =
-                decryptAudio(
-                        iv,
-                        ivLength < 0 ? 0 : ivLength,
-                        srcData,
-                        srcDataSize,
-                        dstData,
-                        dstDataSize);
-
-            reply->writeInt32(res);
-
-            if (res > 0) {
-                reply->write(dstData, res);
-            }
-
-            free(dstData);
-            dstData = NULL;
-
-            free(srcData);
-            srcData = NULL;
-
-            if (iv != NULL) {
-                free(iv);
-                iv = NULL;
-            }
 
             return OK;
         }

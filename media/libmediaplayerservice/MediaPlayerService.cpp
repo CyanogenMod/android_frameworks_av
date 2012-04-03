@@ -294,13 +294,7 @@ sp<IOMX> MediaPlayerService::getOMX() {
 }
 
 sp<ICrypto> MediaPlayerService::makeCrypto() {
-    Mutex::Autolock autoLock(mLock);
-
-    if (mCrypto == NULL) {
-        mCrypto = new Crypto;
-    }
-
-    return mCrypto;
+    return new Crypto;
 }
 
 status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& args) const

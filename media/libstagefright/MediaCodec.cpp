@@ -22,10 +22,8 @@
 
 #include "include/SoftwareRenderer.h"
 
-#include <binder/IServiceManager.h>
 #include <gui/SurfaceTextureClient.h>
 #include <media/ICrypto.h>
-#include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -134,6 +132,7 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
 status_t MediaCodec::configure(
         const sp<AMessage> &format,
         const sp<SurfaceTextureClient> &nativeWindow,
+        const sp<ICrypto> &crypto,
         uint32_t flags) {
     sp<AMessage> msg = new AMessage(kWhatConfigure, id());
 
@@ -141,13 +140,13 @@ status_t MediaCodec::configure(
     msg->setInt32("flags", flags);
 
     if (nativeWindow != NULL) {
-        if (!(mFlags & kFlagIsSoftwareCodec)) {
-            msg->setObject(
-                    "native-window",
-                    new NativeWindowWrapper(nativeWindow));
-        } else {
-            mNativeWindow = nativeWindow;
-        }
+        msg->setObject(
+                "native-window",
+                new NativeWindowWrapper(nativeWindow));
+    }
+
+    if (crypto != NULL) {
+        msg->setPointer("crypto", crypto.get());
     }
 
     sp<AMessage> response;
@@ -490,6 +489,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags &= ~kFlagIsSoftwareCodec;
                     }
 
+                    if (componentName.endsWith(".secure")) {
+                        mFlags |= kFlagIsSecure;
+                    } else {
+                        mFlags &= ~kFlagIsSecure;
+                    }
+
                     (new AMessage)->postReply(mReplyID);
                     break;
                 }
@@ -532,8 +537,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         info.mOwnedByClient = false;
                         CHECK(msg->findBuffer(name.c_str(), &info.mData));
 
-                        if (portIndex == kPortIndexInput
-                                && (mFlags & kFlagIsSecure)) {
+                        if (portIndex == kPortIndexInput && mCrypto != NULL) {
                             info.mEncryptedData =
                                 new ABuffer(info.mData->capacity());
                         }
@@ -743,66 +747,28 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (obj != NULL) {
                 format->setObject("native-window", obj);
+
+                if (mFlags & kFlagIsSoftwareCodec) {
+                    mNativeWindow =
+                        static_cast<NativeWindowWrapper *>(obj.get())
+                            ->getSurfaceTextureClient();
+                }
+            } else {
+                mNativeWindow.clear();
             }
+
+            void *crypto;
+            if (!msg->findPointer("crypto", &crypto)) {
+                crypto = NULL;
+            }
+
+            mCrypto = static_cast<ICrypto *>(crypto);
 
             uint32_t flags;
             CHECK(msg->findInt32("flags", (int32_t *)&flags));
 
             if (flags & CONFIGURE_FLAG_ENCODE) {
                 format->setInt32("encoder", true);
-            }
-
-            if (flags & CONFIGURE_FLAG_SECURE) {
-                mFlags |= kFlagIsSecure;
-
-                sp<IServiceManager> sm = defaultServiceManager();
-
-                sp<IBinder> binder =
-                    sm->getService(String16("media.player"));
-
-                sp<IMediaPlayerService> service =
-                    interface_cast<IMediaPlayerService>(binder);
-
-                CHECK(service != NULL);
-
-                mCrypto = service->makeCrypto();
-
-                status_t err = mCrypto->initialize();
-
-                if (err == OK) {
-                    sp<ABuffer> emm;
-                    if (format->findBuffer("emm", &emm)) {
-                        err = mCrypto->setEntitlementKey(
-                                emm->data(), emm->size());
-                    }
-                }
-
-                if (err == OK) {
-                    sp<ABuffer> ecm;
-                    if (format->findBuffer("ecm", &ecm)) {
-                        CHECK_EQ(ecm->size(), 80u);
-
-                        // bytes 16..47 of the original ecm stream data.
-                        err = mCrypto->setEntitlementControlMessage(
-                                ecm->data() + 16, 32);
-                    }
-                }
-
-                if (err != OK) {
-                    ALOGE("failed to instantiate crypto service.");
-
-                    mCrypto.clear();
-
-                    setState(INITIALIZED);
-
-                    sp<AMessage> response = new AMessage;
-                    response->setInt32("err", UNKNOWN_ERROR);
-
-                    response->postReply(mReplyID);
-                    break;
-                }
-            } else {
-                mFlags &= ~kFlagIsSecure;
             }
 
             mCodec->initiateConfigureComponent(format);
@@ -1047,8 +1013,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 const BufferInfo &info = srcBuffers.itemAt(i);
 
                 dstBuffers->push_back(
-                        (portIndex == kPortIndexInput
-                            && (mFlags & kFlagIsSecure))
+                        (portIndex == kPortIndexInput && mCrypto != NULL)
                                 ? info.mEncryptedData : info.mData);
             }
 
@@ -1107,11 +1072,7 @@ void MediaCodec::setState(State newState) {
         delete mSoftRenderer;
         mSoftRenderer = NULL;
 
-        if (mCrypto != NULL) {
-            mCrypto->terminate();
-            mCrypto.clear();
-        }
-
+        mCrypto.clear();
         mNativeWindow.clear();
 
         mOutputFormat.clear();
@@ -1221,39 +1182,41 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         info->mData->meta()->setInt32("csd", true);
     }
 
-    if (mFlags & kFlagIsSecure) {
-        uint8_t iv[16];
-        memset(iv, 0, sizeof(iv));
-
-        ssize_t outLength;
-
-        if (mFlags & kFlagIsSoftwareCodec) {
-            outLength = mCrypto->decryptAudio(
-                    (flags & BUFFER_FLAG_ENCRYPTED) ? iv : NULL,
-                    (flags & BUFFER_FLAG_ENCRYPTED) ? sizeof(iv) : 0,
-                        info->mEncryptedData->base() + offset,
-                        size,
-                        info->mData->base(),
-                        info->mData->capacity());
-        } else {
-            outLength = mCrypto->decryptVideo(
-                    (flags & BUFFER_FLAG_ENCRYPTED) ? iv : NULL,
-                    (flags & BUFFER_FLAG_ENCRYPTED) ? sizeof(iv) : 0,
-                        info->mEncryptedData->base() + offset,
-                        size,
-                        info->mData->base(),
-                        0  /* offset */);
-        }
-
-        if (outLength < 0) {
-            return outLength;
-        }
-
-        if ((size_t)outLength > info->mEncryptedData->capacity()) {
+    if (mCrypto != NULL) {
+        if (size > info->mEncryptedData->capacity()) {
             return -ERANGE;
         }
 
-        info->mData->setRange(0, outLength);
+        uint8_t key[16];
+        uint8_t iv[16];
+
+        CryptoPlugin::Mode mode;
+        CryptoPlugin::SubSample ss;
+        if (flags & BUFFER_FLAG_ENCRYPTED) {
+            mode = CryptoPlugin::kMode_AES_WV;
+            ss.mNumBytesOfClearData = 0;
+            ss.mNumBytesOfEncryptedData = size;
+        } else {
+            mode = CryptoPlugin::kMode_Unencrypted;
+            ss.mNumBytesOfClearData = size;
+            ss.mNumBytesOfEncryptedData = 0;
+        }
+
+        status_t err = mCrypto->decrypt(
+                (mFlags & kFlagIsSecure) != 0,
+                key,
+                iv,
+                mode,
+                info->mEncryptedData->base() + offset,
+                &ss,
+                1 /* numSubSamples */,
+                info->mData->base());
+
+        if (err != OK) {
+            return err;
+        }
+
+        info->mData->setRange(0, size);
     } else if (flags & BUFFER_FLAG_ENCRYPTED) {
         return -EINVAL;
     }

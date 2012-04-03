@@ -22,6 +22,7 @@
 
 #include <gui/SurfaceTextureClient.h>
 #include <media/AudioTrack.h>
+#include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -318,7 +319,9 @@ status_t SimplePlayer::onPrepare() {
         CHECK(state->mCodec != NULL);
 
         err = state->mCodec->configure(
-                format, mNativeWindow->getSurfaceTextureClient(),
+                format,
+                mNativeWindow->getSurfaceTextureClient(),
+                NULL /* crypto */,
                 0 /* flags */);
 
         CHECK_EQ(err, (status_t)OK);

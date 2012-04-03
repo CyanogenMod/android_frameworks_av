@@ -20,46 +20,137 @@
 
 #include "Crypto.h"
 
+#include <media/hardware/CryptoAPI.h>
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
+
+#include <dlfcn.h>
 
 namespace android {
 
-Crypto::Crypto() {
+Crypto::Crypto()
+    : mInitCheck(NO_INIT),
+      mLibHandle(NULL),
+      mPlugin(NULL) {
+    mInitCheck = init();
 }
 
 Crypto::~Crypto() {
+    delete mPlugin;
+    mPlugin = NULL;
+
+    delete mFactory;
+    mFactory = NULL;
+
+    if (mLibHandle != NULL) {
+        dlclose(mLibHandle);
+        mLibHandle = NULL;
+    }
 }
 
-status_t Crypto::initialize() {
-    return ERROR_UNSUPPORTED;
+status_t Crypto::initCheck() const {
+    return mInitCheck;
 }
 
-status_t Crypto::terminate() {
-    return ERROR_UNSUPPORTED;
+status_t Crypto::init() {
+    mLibHandle = dlopen("libdrmdecrypt.so", RTLD_NOW);
+
+    if (mLibHandle == NULL) {
+        return ERROR_UNSUPPORTED;
+    }
+
+    typedef CryptoFactory *(*CreateCryptoFactoryFunc)();
+    CreateCryptoFactoryFunc createCryptoFactory =
+        (CreateCryptoFactoryFunc)dlsym(mLibHandle, "createCryptoFactory");
+
+    if (createCryptoFactory == NULL
+            || ((mFactory = createCryptoFactory()) == NULL)) {
+        dlclose(mLibHandle);
+        mLibHandle = NULL;
+
+        return ERROR_UNSUPPORTED;
+    }
+
+    return OK;
 }
 
-status_t Crypto::setEntitlementKey(
-        const void *key, size_t keyLength) {
-    return ERROR_UNSUPPORTED;
+bool Crypto::isCryptoSchemeSupported(const uint8_t uuid[16]) const {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return false;
+    }
+
+    return mFactory->isCryptoSchemeSupported(uuid);
 }
 
-status_t Crypto::setEntitlementControlMessage(
-        const void *msg, size_t msgLength) {
-    return ERROR_UNSUPPORTED;
+status_t Crypto::createPlugin(
+        const uint8_t uuid[16], const void *data, size_t size) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin != NULL) {
+        return -EINVAL;
+    }
+
+    return mFactory->createPlugin(uuid, data, size, &mPlugin);
 }
 
-ssize_t Crypto::decryptVideo(
-        const void *iv, size_t ivLength,
-        const void *srcData, size_t srcDataSize,
-        void *dstData, size_t dstDataOffset) {
-    return ERROR_UNSUPPORTED;
+status_t Crypto::destroyPlugin() {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    delete mPlugin;
+    mPlugin = NULL;
+
+    return OK;
 }
 
-ssize_t Crypto::decryptAudio(
-        const void *iv, size_t ivLength,
-        const void *srcData, size_t srcDataSize,
-        void *dstData, size_t dstDataSize) {
-    return ERROR_UNSUPPORTED;
+bool Crypto::requiresSecureDecoderComponent(const char *mime) const {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->requiresSecureDecoderComponent(mime);
+}
+
+status_t Crypto::decrypt(
+        bool secure,
+        const uint8_t key[16],
+        const uint8_t iv[16],
+        CryptoPlugin::Mode mode,
+        const void *srcPtr,
+        const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
+        void *dstPtr) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->decrypt(
+            secure, key, iv, mode, srcPtr, subSamples, numSubSamples, dstPtr);
 }
 
 }  // namespace android

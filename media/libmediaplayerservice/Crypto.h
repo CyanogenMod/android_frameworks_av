@@ -23,32 +23,44 @@
 
 namespace android {
 
+struct CryptoFactory;
+struct CryptoPlugin;
+
 struct Crypto : public BnCrypto {
     Crypto();
-
-    virtual status_t initialize();
-    virtual status_t terminate();
-
-    virtual status_t setEntitlementKey(
-            const void *key, size_t keyLength);
-
-    virtual status_t setEntitlementControlMessage(
-            const void *msg, size_t msgLength);
-
-    virtual ssize_t decryptVideo(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataOffset);
-
-    virtual ssize_t decryptAudio(
-            const void *iv, size_t ivLength,
-            const void *srcData, size_t srcDataSize,
-            void *dstData, size_t dstDataSize);
-
-protected:
     virtual ~Crypto();
 
+    virtual status_t initCheck() const;
+
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) const;
+
+    virtual status_t createPlugin(
+            const uint8_t uuid[16], const void *data, size_t size);
+
+    virtual status_t destroyPlugin();
+
+    virtual bool requiresSecureDecoderComponent(
+            const char *mime) const;
+
+    virtual status_t decrypt(
+            bool secure,
+            const uint8_t key[16],
+            const uint8_t iv[16],
+            CryptoPlugin::Mode mode,
+            const void *srcPtr,
+            const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
+            void *dstPtr);
+
 private:
+    mutable Mutex mLock;
+
+    status_t mInitCheck;
+    void *mLibHandle;
+    CryptoFactory *mFactory;
+    CryptoPlugin *mPlugin;
+
+    status_t init();
+
     DISALLOW_EVIL_CONSTRUCTORS(Crypto);
 };
 

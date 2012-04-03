@@ -34,7 +34,6 @@ struct SurfaceTextureClient;
 struct MediaCodec : public AHandler {
     enum ConfigureFlags {
         CONFIGURE_FLAG_ENCODE   = 1,
-        CONFIGURE_FLAG_SECURE   = 2,
     };
 
     enum BufferFlags {
@@ -53,6 +52,7 @@ struct MediaCodec : public AHandler {
     status_t configure(
             const sp<AMessage> &format,
             const sp<SurfaceTextureClient> &nativeWindow,
+            const sp<ICrypto> &crypto,
             uint32_t flags);
 
     status_t start();
