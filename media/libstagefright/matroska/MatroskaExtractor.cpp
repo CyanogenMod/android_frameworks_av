@@ -346,9 +346,7 @@ void BlockIterator::seek(
                 long len; long long pos;
                 pSegment->ParseCues(pEntry->pos, pos, len);
                 pCues = pSegment->GetCues();
-                // Pull one cue point to fix loop below
-                ALOGV("Loading Cue points");
-                pCues->LoadCuePoint();
+                ALOGV("Cues found");
                 break;
             }
         }
@@ -365,16 +363,13 @@ void BlockIterator::seek(
 
     const mkvparser::CuePoint* pCP;
     while (!pCues->DoneParsing()) {
-        // Make sure we don't have the necessary Cue already.
-        // If one Cue hadn't been loaded it would need to pre-emptively
-        // load one every time (until they are all loaded).
+        pCues->LoadCuePoint();
         pCP = pCues->GetLast();
+
         if (pCP->GetTime(pSegment) >= seekTimeNs) {
-            ALOGV("Located segment");
+            ALOGV("Parsed past relevant Cue");
             break;
         }
-
-        pCues->LoadCuePoint();
     }
 
     // Find the video track for seeking. It doesn't make sense to search the
