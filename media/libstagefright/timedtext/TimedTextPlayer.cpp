@@ -75,6 +75,21 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mSendSubtitleGeneration++;
             break;
         }
+        case kWhatRetryRead: {
+            int64_t seekTimeUs;
+            int seekMode;
+            if (msg->findInt64("seekTimeUs", &seekTimeUs) &&
+                msg->findInt32("seekMode", &seekMode)) {
+                MediaSource::ReadOptions options;
+                options.setSeekTo(
+                    seekTimeUs,
+                    static_cast<MediaSource::ReadOptions::SeekMode>(seekMode));
+                doRead(&options);
+            } else {
+                doRead();
+            }
+            break;
+        }
         case kWhatSeek: {
             int64_t seekTimeUs = 0;
             msg->findInt64("seekTimeUs", &seekTimeUs);
@@ -146,7 +161,15 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
     status_t err = mSource->read(&startTimeUs, &endTimeUs,
                                  &(parcelEvent->parcel), options);
     if (err == WOULD_BLOCK) {
-        postTextEventDelayUs(NULL, kWaitTimeUsToRetryRead);
+        sp<AMessage> msg = new AMessage(kWhatRetryRead);
+        if (options != NULL) {
+            int64_t seekTimeUs;
+            MediaSource::ReadOptions::SeekMode seekMode;
+            CHECK(options->getSeekTo(&seekTimeUs, &seekMode));
+            msg->setInt64("seekTimeUs", seekTimeUs);
+            msg->setInt32("seekMode", seekMode);
+        }
+        msg->post(kWaitTimeUsToRetryRead);
         return;
     } else if (err != OK) {
         notifyError(err);
