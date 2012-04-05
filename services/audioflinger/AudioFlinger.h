@@ -964,8 +964,9 @@ public:
     protected:
         SortedVector< wp<Track> >       mActiveTracks;
 
-        // Allocate a track name.  Returns name >= 0 if successful, -1 on failure.
-        virtual int             getTrackName_l() = 0;
+        // Allocate a track name for a given channel mask.
+        //   Returns name >= 0 if successful, -1 on failure.
+        virtual int             getTrackName_l(audio_channel_mask_t channelMask) = 0;
         virtual void            deleteTrackName_l(int name) = 0;
 
         // Time to sleep between cycles when:
@@ -1057,7 +1058,7 @@ public:
 
     protected:
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-        virtual     int         getTrackName_l();
+        virtual     int         getTrackName_l(audio_channel_mask_t channelMask);
         virtual     void        deleteTrackName_l(int name);
         virtual     uint32_t    idleSleepTimeUs() const;
         virtual     uint32_t    suspendSleepTimeUs() const;
@@ -1082,7 +1083,7 @@ public:
         virtual     bool        checkForNewParameters_l();
 
     protected:
-        virtual     int         getTrackName_l();
+        virtual     int         getTrackName_l(audio_channel_mask_t channelMask);
         virtual     void        deleteTrackName_l(int name);
         virtual     uint32_t    activeSleepTimeUs() const;
         virtual     uint32_t    idleSleepTimeUs() const;
