@@ -95,7 +95,7 @@ struct BlockIterator {
     void reset();
 
     void seek(
-            int64_t seekTimeUs, bool seekToKeyFrame,
+            int64_t seekTimeUs, bool isAudio,
             int64_t *actualFrameTimeUs);
 
     const mkvparser::Block *block() const;
@@ -307,7 +307,7 @@ void BlockIterator::reset() {
 }
 
 void BlockIterator::seek(
-        int64_t seekTimeUs, bool seekToKeyFrame,
+        int64_t seekTimeUs, bool isAudio,
         int64_t *actualFrameTimeUs) {
     Mutex::Autolock autoLock(mExtractor->mLock);
 
@@ -372,9 +372,7 @@ void BlockIterator::seek(
         }
     }
 
-    // Find the video track for seeking. It doesn't make sense to search the
-    // audio track because we'd still want to make sure we're jumping to a
-    // keyframe in the video track.
+    // The Cue index is built around video keyframes
     mkvparser::Tracks const *pTracks = pSegment->GetTracks();
     const mkvparser::Track *pTrack = NULL;
     for (size_t index = 0; index < pTracks->GetTracksCount(); ++index) {
@@ -385,56 +383,36 @@ void BlockIterator::seek(
         }
     }
 
+    // Always *search* based on the video track, but finalize based on mTrackNum
     const mkvparser::CuePoint::TrackPosition* pTP;
-    if (pTrack) {
+    if (pTrack && pTrack->GetType() == 1) {
         pCues->Find(seekTimeNs, pTrack, pCP, pTP);
     } else {
-        ALOGE("Did not locate a VIDEO_TRACK");
+        ALOGE("Did not locate the video track for seeking");
         return;
     }
 
     mCluster = pSegment->FindOrPreloadCluster(pTP->m_pos);
-    if (pTP->m_block > 0) {
-        // m_block starts at 1, but mBlockEntryIndex is expected to start at 0
-        mBlockEntryIndex = pTP->m_block - 1;
-    } else {
-        ALOGE("m_block must be > 0");
-        return;
-    }
 
-    long prevKeyFrameBlockEntryIndex = -1;
+    CHECK(mCluster);
+    CHECK(!mCluster->EOS());
+
+    // mBlockEntryIndex starts at 0 but m_block starts at 1
+    CHECK_GT(pTP->m_block, 0);
+    mBlockEntryIndex = pTP->m_block - 1;
 
     for (;;) {
         advance_l();
 
-        if (eos()) {
+        if (eos()) break;
+
+        if (isAudio || block()->IsKey()) {
+            // Accept the first key frame
+            *actualFrameTimeUs = (block()->GetTime(mCluster) + 500LL) / 1000LL;
+            ALOGV("Requested seek point: %lld actual: %lld",
+                  seekTimeUs, actualFrameTimeUs);
             break;
         }
-
-        if (block()->GetTrackNumber() != mTrackNum) {
-            continue;
-        }
-
-        if (block()->IsKey()) {
-            prevKeyFrameBlockEntryIndex = mBlockEntryIndex - 1;
-        }
-
-        int64_t timeNs = block()->GetTime(mCluster);
-
-        if (timeNs >= seekTimeNs) {
-            *actualFrameTimeUs = (timeNs + 500ll) / 1000ll;
-            break;
-        }
-    }
-
-    if (eos()) {
-        return;
-    }
-
-    if (seekToKeyFrame && !block()->IsKey()) {
-        CHECK_GE(prevKeyFrameBlockEntryIndex, 0);
-        mBlockEntryIndex = prevKeyFrameBlockEntryIndex;
-        advance_l();
     }
 }
 
@@ -521,11 +499,11 @@ status_t MatroskaSource::read(
             && !mExtractor->isLiveStreaming()) {
         clearPendingFrames();
 
-        // Apparently keyframe indication in audio tracks is unreliable,
-        // fortunately in all our currently supported audio encodings every
-        // frame is effectively a keyframe.
+        // The audio we want is located by using the Cues to seek the video
+        // stream to find the target Cluster then iterating to finalize for
+        // audio.
         int64_t actualFrameTimeUs;
-        mBlockIter.seek(seekTimeUs, !mIsAudio, &actualFrameTimeUs);
+        mBlockIter.seek(seekTimeUs, mIsAudio, &actualFrameTimeUs);
 
         if (mode == ReadOptions::SEEK_CLOSEST) {
             targetSampleTimeUs = actualFrameTimeUs;
