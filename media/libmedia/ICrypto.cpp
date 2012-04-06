@@ -97,6 +97,17 @@ struct BpCrypto : public BpInterface<ICrypto> {
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
         data.writeInt32(secure);
         data.writeInt32(mode);
+
+        static const uint8_t kDummy[16] = { 0 };
+
+        if (key == NULL) {
+            key = kDummy;
+        }
+
+        if (iv == NULL) {
+            iv = kDummy;
+        }
+
         data.write(key, 16);
         data.write(iv, 16);
 

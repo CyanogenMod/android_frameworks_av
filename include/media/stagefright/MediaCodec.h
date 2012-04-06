@@ -19,6 +19,7 @@
 #define MEDIA_CODEC_H_
 
 #include <gui/ISurfaceTexture.h>
+#include <media/hardware/CryptoAPI.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <utils/Vector.h>
 
@@ -40,7 +41,6 @@ struct MediaCodec : public AHandler {
         BUFFER_FLAG_SYNCFRAME   = 1,
         BUFFER_FLAG_CODECCONFIG = 2,
         BUFFER_FLAG_EOS         = 4,
-        BUFFER_FLAG_ENCRYPTED   = 8,
     };
 
     static sp<MediaCodec> CreateByType(
@@ -71,6 +71,17 @@ struct MediaCodec : public AHandler {
             size_t index,
             size_t offset,
             size_t size,
+            int64_t presentationTimeUs,
+            uint32_t flags);
+
+    status_t queueSecureInputBuffer(
+            size_t index,
+            size_t offset,
+            const CryptoPlugin::SubSample *subSamples,
+            size_t numSubSamples,
+            const uint8_t key[16],
+            const uint8_t iv[16],
+            CryptoPlugin::Mode mode,
             int64_t presentationTimeUs,
             uint32_t flags);
 

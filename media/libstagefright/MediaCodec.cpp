@@ -191,6 +191,31 @@ status_t MediaCodec::queueInputBuffer(
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::queueSecureInputBuffer(
+        size_t index,
+        size_t offset,
+        const CryptoPlugin::SubSample *subSamples,
+        size_t numSubSamples,
+        const uint8_t key[16],
+        const uint8_t iv[16],
+        CryptoPlugin::Mode mode,
+        int64_t presentationTimeUs,
+        uint32_t flags) {
+    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
+    msg->setSize("index", index);
+    msg->setSize("offset", offset);
+    msg->setPointer("subSamples", (void *)subSamples);
+    msg->setSize("numSubSamples", numSubSamples);
+    msg->setPointer("key", (void *)key);
+    msg->setPointer("iv", (void *)iv);
+    msg->setInt32("mode", mode);
+    msg->setInt64("timeUs", presentationTimeUs);
+    msg->setInt32("flags", flags);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
 status_t MediaCodec::dequeueInputBuffer(size_t *index, int64_t timeoutUs) {
     sp<AMessage> msg = new AMessage(kWhatDequeueInputBuffer, id());
     msg->setInt64("timeoutUs", timeoutUs);
@@ -1149,9 +1174,50 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     uint32_t flags;
     CHECK(msg->findSize("index", &index));
     CHECK(msg->findSize("offset", &offset));
-    CHECK(msg->findSize("size", &size));
     CHECK(msg->findInt64("timeUs", &timeUs));
     CHECK(msg->findInt32("flags", (int32_t *)&flags));
+
+    const CryptoPlugin::SubSample *subSamples;
+    size_t numSubSamples;
+    const uint8_t *key;
+    const uint8_t *iv;
+    CryptoPlugin::Mode mode = CryptoPlugin::kMode_Unencrypted;
+
+    // We allow the simpler queueInputBuffer API to be used even in
+    // secure mode, by fabricating a single unencrypted subSample.
+    CryptoPlugin::SubSample ss;
+
+    if (msg->findSize("size", &size)) {
+        if (mCrypto != NULL) {
+            ss.mNumBytesOfClearData = size;
+            ss.mNumBytesOfEncryptedData = 0;
+
+            subSamples = &ss;
+            numSubSamples = 1;
+            key = NULL;
+            iv = NULL;
+        }
+    } else {
+        if (mCrypto == NULL) {
+            return -EINVAL;
+        }
+
+        CHECK(msg->findPointer("subSamples", (void **)&subSamples));
+        CHECK(msg->findSize("numSubSamples", &numSubSamples));
+        CHECK(msg->findPointer("key", (void **)&key));
+        CHECK(msg->findPointer("iv", (void **)&iv));
+
+        int32_t tmp;
+        CHECK(msg->findInt32("mode", &tmp));
+
+        mode = (CryptoPlugin::Mode)tmp;
+
+        size = 0;
+        for (size_t i = 0; i < numSubSamples; ++i) {
+            size += subSamples[i].mNumBytesOfClearData;
+            size += subSamples[i].mNumBytesOfEncryptedData;
+        }
+    }
 
     if (index >= mPortBuffers[kPortIndexInput].size()) {
         return -ERANGE;
@@ -1187,29 +1253,14 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
             return -ERANGE;
         }
 
-        uint8_t key[16];
-        uint8_t iv[16];
-
-        CryptoPlugin::Mode mode;
-        CryptoPlugin::SubSample ss;
-        if (flags & BUFFER_FLAG_ENCRYPTED) {
-            mode = CryptoPlugin::kMode_AES_WV;
-            ss.mNumBytesOfClearData = 0;
-            ss.mNumBytesOfEncryptedData = size;
-        } else {
-            mode = CryptoPlugin::kMode_Unencrypted;
-            ss.mNumBytesOfClearData = size;
-            ss.mNumBytesOfEncryptedData = 0;
-        }
-
         status_t err = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
                 key,
                 iv,
                 mode,
                 info->mEncryptedData->base() + offset,
-                &ss,
-                1 /* numSubSamples */,
+                subSamples,
+                numSubSamples,
                 info->mData->base());
 
         if (err != OK) {
@@ -1217,8 +1268,6 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         }
 
         info->mData->setRange(0, size);
-    } else if (flags & BUFFER_FLAG_ENCRYPTED) {
-        return -EINVAL;
     }
 
     reply->setBuffer("buffer", info->mData);

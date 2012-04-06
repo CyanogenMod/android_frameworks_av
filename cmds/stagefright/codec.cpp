@@ -296,15 +296,28 @@ static int decode(
                     if (sampleFlags & NuMediaExtractor::SAMPLE_FLAG_ENCRYPTED) {
                         CHECK(decryptInputBuffers);
 
-                        bufferFlags |= MediaCodec::BUFFER_FLAG_ENCRYPTED;
-                    }
+                        CryptoPlugin::SubSample ss;
+                        ss.mNumBytesOfClearData = 0;
+                        ss.mNumBytesOfEncryptedData = buffer->size();
 
-                    err = state->mCodec->queueInputBuffer(
-                            index,
-                            0 /* offset */,
-                            buffer->size(),
-                            timeUs,
-                            bufferFlags);
+                        err = state->mCodec->queueSecureInputBuffer(
+                                index,
+                                0 /* offset */,
+                                &ss,
+                                1 /* numSubSamples */,
+                                NULL /* key */,
+                                NULL /* iv */,
+                                CryptoPlugin::kMode_AES_WV,
+                                timeUs,
+                                bufferFlags);
+                    } else {
+                        err = state->mCodec->queueInputBuffer(
+                                index,
+                                0 /* offset */,
+                                buffer->size(),
+                                timeUs,
+                                bufferFlags);
+                    }
 
                     CHECK_EQ(err, (status_t)OK);
 
