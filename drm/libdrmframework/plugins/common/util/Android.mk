@@ -22,13 +22,6 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := libdrmutility
 
-LOCAL_SHARED_LIBRARIES :=  \
-    libutils \
-    libdl \
-    libdvm \
-    liblog
-
-
 base := frameworks/av
 
 LOCAL_C_INCLUDES += \
