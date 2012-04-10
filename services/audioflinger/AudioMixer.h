@@ -21,8 +21,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <utils/threads.h>
+
 #include "AudioBufferProvider.h"
 #include "AudioResampler.h"
+
+#include <audio_effects/effect_downmix.h>
+#include <system/audio.h>
 
 namespace android {
 
@@ -37,7 +42,10 @@ public:
     /*virtual*/             ~AudioMixer();  // non-virtual saves a v-table, restore if sub-classed
 
     static const uint32_t MAX_NUM_TRACKS = 32;
+    // maximum number of channels supported by the mixer
     static const uint32_t MAX_NUM_CHANNELS = 2;
+    // maximum number of channels supported for the content
+    static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = 8;
 
     static const uint16_t UNITY_GAIN = 0x1000;
 
@@ -60,6 +68,7 @@ public:
         FORMAT          = 0x4001,
         MAIN_BUFFER     = 0x4002,
         AUX_BUFFER      = 0x4003,
+        DOWNMIX_TYPE    = 0X4004,
         // for target RESAMPLE
         SAMPLE_RATE     = 0x4100,
         RESET           = 0x4101,
@@ -94,7 +103,7 @@ public:
 private:
 
     enum {
-        NEEDS_CHANNEL_COUNT__MASK   = 0x00000003,
+        NEEDS_CHANNEL_COUNT__MASK   = 0x00000007,
         NEEDS_FORMAT__MASK          = 0x000000F0,
         NEEDS_MUTE__MASK            = 0x00000100,
         NEEDS_RESAMPLE__MASK        = 0x00001000,
@@ -119,6 +128,7 @@ private:
 
     struct state_t;
     struct track_t;
+    class DownmixerBufferProvider;
 
     typedef void (*hook_t)(track_t* t, int32_t* output, size_t numOutFrames, int32_t* temp, int32_t* aux);
     static const int BLOCKSIZE = 16; // 4 cache lines
@@ -147,8 +157,10 @@ private:
         uint8_t     channelCount;   // 1 or 2, redundant with (needs & NEEDS_CHANNEL_COUNT__MASK)
         uint8_t     format;         // always 16
         uint16_t    enabled;        // actually bool
-        uint32_t    channelMask;    // currently under-used
+        audio_channel_mask_t channelMask;
 
+        // actual buffer provider used by the track hooks, see DownmixerBufferProvider below
+        //  for how the Track buffer provider is wrapped by another one when dowmixing is required
         AudioBufferProvider*                bufferProvider;
 
         // 16-byte boundary
@@ -169,7 +181,9 @@ private:
 
         uint64_t    localTimeFreq;
 
-        int64_t     padding;
+        DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
+
+        int32_t     padding;
 
         // 16-byte boundary
 
@@ -194,6 +208,19 @@ private:
         track_t         tracks[MAX_NUM_TRACKS]; __attribute__((aligned(32)));
     };
 
+    // AudioBufferProvider that wraps a track AudioBufferProvider by a call to a downmix effect
+    class DownmixerBufferProvider : public AudioBufferProvider {
+    public:
+        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
+        virtual void releaseBuffer(Buffer* buffer);
+        DownmixerBufferProvider();
+        virtual ~DownmixerBufferProvider();
+
+        AudioBufferProvider* mTrackBufferProvider;
+        effect_handle_t    mDownmixHandle;
+        effect_config_t    mDownmixConfig;
+    };
+
     // bitmask of allocated track names, where bit 0 corresponds to TRACK0 etc.
     uint32_t        mTrackNames;
 
@@ -205,7 +232,13 @@ private:
 
     state_t         mState __attribute__((aligned(32)));
 
+    // effect descriptor for the downmixer used by the mixer
+    static effect_descriptor_t dwnmFxDesc;
+    // indicates whether a downmix effect has been found and is usable by this mixer
+    static bool                isMultichannelCapable;
+
     void invalidateState(uint32_t mask);
+    static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
 
     static void track__genericResample(track_t* t, int32_t* out, size_t numFrames, int32_t* temp, int32_t* aux);
     static void track__nop(track_t* t, int32_t* out, size_t numFrames, int32_t* temp, int32_t* aux);

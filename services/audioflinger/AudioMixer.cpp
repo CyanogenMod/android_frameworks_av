@@ -36,11 +36,62 @@
 #include <common_time/local_clock.h>
 #include <common_time/cc_helper.h>
 
+#include <media/EffectsFactoryApi.h>
+
 #include "AudioMixer.h"
 
 namespace android {
 
 // ----------------------------------------------------------------------------
+AudioMixer::DownmixerBufferProvider::DownmixerBufferProvider() : AudioBufferProvider(),
+        mTrackBufferProvider(NULL), mDownmixHandle(NULL)
+{
+}
+
+AudioMixer::DownmixerBufferProvider::~DownmixerBufferProvider()
+{
+    ALOGV("AudioMixer deleting DownmixerBufferProvider (%p)", this);
+    EffectRelease(mDownmixHandle);
+}
+
+status_t AudioMixer::DownmixerBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
+        int64_t pts) {
+    //ALOGV("DownmixerBufferProvider::getNextBuffer()");
+    if (this->mTrackBufferProvider != NULL) {
+        status_t res = mTrackBufferProvider->getNextBuffer(pBuffer, pts);
+        if (res == OK) {
+            mDownmixConfig.inputCfg.buffer.frameCount = pBuffer->frameCount;
+            mDownmixConfig.inputCfg.buffer.raw = pBuffer->raw;
+            mDownmixConfig.outputCfg.buffer.frameCount = pBuffer->frameCount;
+            mDownmixConfig.outputCfg.buffer.raw = mDownmixConfig.inputCfg.buffer.raw;
+            // in-place so overwrite the buffer contents, has been set in prepareTrackForDownmix()
+            //mDownmixConfig.outputCfg.accessMode = EFFECT_BUFFER_ACCESS_WRITE;
+
+            res = (*mDownmixHandle)->process(mDownmixHandle,
+                    &mDownmixConfig.inputCfg.buffer, &mDownmixConfig.outputCfg.buffer);
+            ALOGV("getNextBuffer is downmixing");
+        }
+        return res;
+    } else {
+        ALOGE("DownmixerBufferProvider::getNextBuffer() error: NULL track buffer provider");
+        return NO_INIT;
+    }
+}
+
+void AudioMixer::DownmixerBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
+    ALOGV("DownmixerBufferProvider::releaseBuffer()");
+    if (this->mTrackBufferProvider != NULL) {
+        mTrackBufferProvider->releaseBuffer(pBuffer);
+    } else {
+        ALOGE("DownmixerBufferProvider::releaseBuffer() error: NULL track buffer provider");
+    }
+}
+
+
+// ----------------------------------------------------------------------------
+bool AudioMixer::isMultichannelCapable = false;
+
+effect_descriptor_t AudioMixer::dwnmFxDesc;
 
 AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTracks)
     :   mTrackNames(0), mConfiguredNames((1 << maxNumTracks) - 1), mSampleRate(sampleRate)
@@ -70,6 +121,28 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         t->localTimeFreq = lc.getLocalFreq();
         t++;
     }
+
+    // find multichannel downmix effect if we have to play multichannel content
+    uint32_t numEffects = 0;
+    int ret = EffectQueryNumberEffects(&numEffects);
+    if (ret != 0) {
+        ALOGE("AudioMixer() error %d querying number of effects", ret);
+        return;
+    }
+    ALOGV("EffectQueryNumberEffects() numEffects=%d", numEffects);
+
+    for (uint32_t i = 0 ; i < numEffects ; i++) {
+        if (EffectQueryEffect(i, &dwnmFxDesc) == 0) {
+            ALOGV("effect %d is called %s", i, dwnmFxDesc.name);
+            if (memcmp(&dwnmFxDesc.type, EFFECT_UIID_DOWNMIX, sizeof(effect_uuid_t)) == 0) {
+                ALOGI("found effect \"%s\" from %s",
+                        dwnmFxDesc.name, dwnmFxDesc.implementor);
+                isMultichannelCapable = true;
+                break;
+            }
+        }
+    }
+    ALOGE_IF(!isMultichannelCapable, "unable to find downmix effect");
 }
 
 AudioMixer::~AudioMixer()
@@ -111,6 +184,7 @@ int AudioMixer::getTrackName()
         t->channelMask = AUDIO_CHANNEL_OUT_STEREO;
         // setBufferProvider(name, AudioBufferProvider *) is required before enable(name)
         t->bufferProvider = NULL;
+        t->downmixerBufferProvider = NULL;
         t->buffer.raw = NULL;
         // no initialization needed
         // t->buffer.frameCount
@@ -134,6 +208,113 @@ void AudioMixer::invalidateState(uint32_t mask)
         mState.hook = process__validate;
     }
  }
+
+status_t AudioMixer::prepareTrackForDownmix(track_t* pTrack, int trackName)
+{
+    ALOGV("AudioMixer::prepareTrackForDownmix(%d) with mask 0x%x", trackName, pTrack->channelMask);
+
+    if (pTrack->downmixerBufferProvider != NULL) {
+        // this track had previously been configured with a downmixer, reset it
+        ALOGV("AudioMixer::prepareTrackForDownmix(%d) deleting old downmixer", trackName);
+        pTrack->bufferProvider = pTrack->downmixerBufferProvider->mTrackBufferProvider;
+        delete pTrack->downmixerBufferProvider;
+    }
+
+    DownmixerBufferProvider* pDbp = new DownmixerBufferProvider();
+    int32_t status;
+
+    if (!isMultichannelCapable) {
+        ALOGE("prepareTrackForDownmix(%d) fails: mixer doesn't support multichannel content",
+                trackName);
+        goto noDownmixForActiveTrack;
+    }
+
+    if (EffectCreate(&dwnmFxDesc.uuid,
+            -2 /*sessionId*/, -2 /*ioId*/,// both not relevant here, using random value
+            &pDbp->mDownmixHandle/*pHandle*/) != 0) {
+        ALOGE("prepareTrackForDownmix(%d) fails: error creating downmixer effect", trackName);
+        goto noDownmixForActiveTrack;
+    }
+
+    // channel input configuration will be overridden per-track
+    pDbp->mDownmixConfig.inputCfg.channels = pTrack->channelMask;
+    pDbp->mDownmixConfig.outputCfg.channels = AUDIO_CHANNEL_OUT_STEREO;
+    pDbp->mDownmixConfig.inputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
+    pDbp->mDownmixConfig.outputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
+    pDbp->mDownmixConfig.inputCfg.samplingRate = pTrack->sampleRate;
+    pDbp->mDownmixConfig.outputCfg.samplingRate = pTrack->sampleRate;
+    pDbp->mDownmixConfig.inputCfg.accessMode = EFFECT_BUFFER_ACCESS_READ;
+    pDbp->mDownmixConfig.outputCfg.accessMode = EFFECT_BUFFER_ACCESS_WRITE;
+    // input and output buffer provider, and frame count will not be used as the downmix effect
+    // process() function is called directly (see DownmixerBufferProvider::getNextBuffer())
+    pDbp->mDownmixConfig.inputCfg.mask = EFFECT_CONFIG_SMP_RATE | EFFECT_CONFIG_CHANNELS |
+            EFFECT_CONFIG_FORMAT | EFFECT_CONFIG_ACC_MODE;
+    pDbp->mDownmixConfig.outputCfg.mask = pDbp->mDownmixConfig.inputCfg.mask;
+
+    {// scope for local variables that are not used in goto label "noDownmixForActiveTrack"
+        int cmdStatus;
+        uint32_t replySize = sizeof(int);
+
+        // Configure and enable downmixer
+        status = (*pDbp->mDownmixHandle)->command(pDbp->mDownmixHandle,
+                EFFECT_CMD_SET_CONFIG /*cmdCode*/, sizeof(effect_config_t) /*cmdSize*/,
+                &pDbp->mDownmixConfig /*pCmdData*/,
+                &replySize /*replySize*/, &cmdStatus /*pReplyData*/);
+        if ((status != 0) || (cmdStatus != 0)) {
+            ALOGE("error %d while configuring downmixer for track %d", status, trackName);
+            goto noDownmixForActiveTrack;
+        }
+        replySize = sizeof(int);
+        status = (*pDbp->mDownmixHandle)->command(pDbp->mDownmixHandle,
+                EFFECT_CMD_ENABLE /*cmdCode*/, 0 /*cmdSize*/, NULL /*pCmdData*/,
+                &replySize /*replySize*/, &cmdStatus /*pReplyData*/);
+        if ((status != 0) || (cmdStatus != 0)) {
+            ALOGE("error %d while enabling downmixer for track %d", status, trackName);
+            goto noDownmixForActiveTrack;
+        }
+
+        // Set downmix type
+        // parameter size rounded for padding on 32bit boundary
+        const int psizePadded = ((sizeof(downmix_params_t) - 1)/sizeof(int) + 1) * sizeof(int);
+        const int downmixParamSize =
+                sizeof(effect_param_t) + psizePadded + sizeof(downmix_type_t);
+        effect_param_t * const param = (effect_param_t *) malloc(downmixParamSize);
+        param->psize = sizeof(downmix_params_t);
+        const downmix_params_t downmixParam = DOWNMIX_PARAM_TYPE;
+        memcpy(param->data, &downmixParam, param->psize);
+        const downmix_type_t downmixType = DOWNMIX_TYPE_FOLD;
+        param->vsize = sizeof(downmix_type_t);
+        memcpy(param->data + psizePadded, &downmixType, param->vsize);
+
+        status = (*pDbp->mDownmixHandle)->command(pDbp->mDownmixHandle,
+                EFFECT_CMD_SET_PARAM /* cmdCode */, downmixParamSize/* cmdSize */,
+                param /*pCmndData*/, &replySize /*replySize*/, &cmdStatus /*pReplyData*/);
+
+        free(param);
+
+        if ((status != 0) || (cmdStatus != 0)) {
+            ALOGE("error %d while setting downmix type for track %d", status, trackName);
+            goto noDownmixForActiveTrack;
+        } else {
+            ALOGV("downmix type set to %d for track %d", (int) downmixType, trackName);
+        }
+    }// end of scope for local variables that are not used in goto label "noDownmixForActiveTrack"
+
+    // initialization successful:
+    // - keep track of the real buffer provider in case it was set before
+    pDbp->mTrackBufferProvider = pTrack->bufferProvider;
+    // - we'll use the downmix effect integrated inside this
+    //    track's buffer provider, and we'll use it as the track's buffer provider
+    pTrack->downmixerBufferProvider = pDbp;
+    pTrack->bufferProvider = pDbp;
+
+    return NO_ERROR;
+
+noDownmixForActiveTrack:
+    delete pDbp;
+    pTrack->downmixerBufferProvider = NULL;
+    return NO_INIT;
+}
 
 void AudioMixer::deleteTrackName(int name)
 {
@@ -177,6 +358,11 @@ void AudioMixer::disable(int name)
     track_t& track = mState.tracks[name];
 
     if (track.enabled) {
+        if (track.downmixerBufferProvider != NULL) {
+            ALOGV("AudioMixer::disable(%d) deleting downmixerBufferProvider", name);
+            delete track.downmixerBufferProvider;
+            track.downmixerBufferProvider = NULL;
+        }
         track.enabled = false;
         ALOGV("disable(%d)", name);
         invalidateState(1 << name);
@@ -200,10 +386,14 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             uint32_t mask = (uint32_t)value;
             if (track.channelMask != mask) {
                 uint32_t channelCount = popcount(mask);
-                ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS) && (channelCount),
-                        "bad channel count %u", channelCount);
+                ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
                 track.channelMask = mask;
                 track.channelCount = channelCount;
+                if (channelCount > MAX_NUM_CHANNELS) {
+                    ALOGV("AudioMixer::setParameter(TRACK, CHANNEL_MASK, mask=0x%x count=%d)",
+                            mask, channelCount);
+                    status_t status = prepareTrackForDownmix(&mState.tracks[name], name);
+                }
                 ALOGV("setParameter(TRACK, CHANNEL_MASK, %x)", mask);
                 invalidateState(1 << name);
             }
@@ -225,6 +415,10 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         case FORMAT:
             ALOG_ASSERT(valueInt == AUDIO_FORMAT_PCM_16_BIT);
             break;
+        // FIXME do we want to support setting the downmix type from AudioFlinger?
+        //         for a specific track? or per mixer?
+        /* case DOWNMIX_TYPE:
+            break          */
         default:
             LOG_FATAL("bad param");
         }
@@ -350,7 +544,22 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
 {
     name -= TRACK0;
     ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
-    mState.tracks[name].bufferProvider = bufferProvider;
+
+    if (mState.tracks[name].downmixerBufferProvider != NULL) {
+        // update required?
+        if (mState.tracks[name].downmixerBufferProvider->mTrackBufferProvider != bufferProvider) {
+            ALOGV("AudioMixer::setBufferProvider(%p) for downmix", bufferProvider);
+            // setting the buffer provider for a track that gets downmixed consists in:
+            //  1/ setting the buffer provider to the "downmix / buffer provider" wrapper
+            //     so it's the one that gets called when the buffer provider is needed,
+            mState.tracks[name].bufferProvider = mState.tracks[name].downmixerBufferProvider;
+            //  2/ saving the buffer provider for the track so the wrapper can use it
+            //     when it downmixes.
+            mState.tracks[name].downmixerBufferProvider->mTrackBufferProvider = bufferProvider;
+        }
+    } else {
+        mState.tracks[name].bufferProvider = bufferProvider;
+    }
 }
 
 
@@ -419,13 +628,17 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
                 all16BitsStereoNoResample = false;
                 resampling = true;
                 t.hook = track__genericResample;
+                ALOGV_IF((n & NEEDS_CHANNEL_COUNT__MASK) > NEEDS_CHANNEL_2,
+                        "Track needs downmix + resample");
             } else {
                 if ((n & NEEDS_CHANNEL_COUNT__MASK) == NEEDS_CHANNEL_1){
                     t.hook = track__16BitsMono;
                     all16BitsStereoNoResample = false;
                 }
-                if ((n & NEEDS_CHANNEL_COUNT__MASK) == NEEDS_CHANNEL_2){
+                if ((n & NEEDS_CHANNEL_COUNT__MASK) >= NEEDS_CHANNEL_2){
                     t.hook = track__16BitsStereo;
+                    ALOGV_IF((n & NEEDS_CHANNEL_COUNT__MASK) > NEEDS_CHANNEL_2,
+                            "Track needs downmix");
                 }
             }
         }

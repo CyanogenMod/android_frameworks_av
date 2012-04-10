@@ -610,7 +610,7 @@ int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t siz
         }
         value16 = *(int16_t *)pValue;
         ALOGV("set DOWNMIX_PARAM_TYPE, type %d", value16);
-        if (!((value16 > DOWNMIX_TYPE_INVALID) && (value16 < DOWNMIX_TYPE_LAST))) {
+        if (!((value16 > DOWNMIX_TYPE_INVALID) && (value16 <= DOWNMIX_TYPE_LAST))) {
             ALOGE("Downmix_setParameter invalid DOWNMIX_PARAM_TYPE value %d", value16);
             return -EINVAL;
         } else {

@@ -2639,9 +2639,15 @@ void AudioFlinger::MixerThread::invalidateTracks(audio_stream_type_t streamType)
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
-int AudioFlinger::MixerThread::getTrackName_l()
+int AudioFlinger::MixerThread::getTrackName_l(audio_channel_mask_t channelMask)
 {
-    return mAudioMixer->getTrackName();
+    int name = mAudioMixer->getTrackName();
+    if (name >= 0) {
+        mAudioMixer->setParameter(name,
+                AudioMixer::TRACK,
+                AudioMixer::CHANNEL_MASK, (void *)channelMask);
+    }
+    return name;
 }
 
 // deleteTrackName_l() must be called with ThreadBase::mLock held
@@ -2738,7 +2744,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                 readOutputParameters();
                 mAudioMixer = new AudioMixer(mFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
-                    int name = getTrackName_l();
+                    int name = getTrackName_l((audio_channel_mask_t)mTracks[i]->mChannelMask);
                     if (name < 0) break;
                     mTracks[i]->mName = name;
                     // limit track sample rate to 2 x new output sample rate
@@ -3066,7 +3072,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
-int AudioFlinger::DirectOutputThread::getTrackName_l()
+int AudioFlinger::DirectOutputThread::getTrackName_l(audio_channel_mask_t channelMask)
 {
     return 0;
 }
@@ -3528,7 +3534,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
         mCblk->frameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) : sizeof(uint8_t);
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
-        mName = thread->getTrackName_l();
+        mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
         if (mName < 0) {
             ALOGE("no more track names available");
         }
