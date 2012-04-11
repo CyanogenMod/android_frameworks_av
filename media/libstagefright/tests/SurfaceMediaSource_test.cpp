@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "SurfaceMediaSource_test"
 
 #include <gtest/gtest.h>
@@ -107,8 +107,8 @@ protected:
                     window.get(), NULL);
         } else {
             ALOGV("No actual display. Choosing EGLSurface based on SurfaceMediaSource");
-            sp<ISurfaceTexture> sms = new SurfaceMediaSource(
-                    getSurfaceWidth(), getSurfaceHeight());
+            sp<ISurfaceTexture> sms = (new SurfaceMediaSource(
+                    getSurfaceWidth(), getSurfaceHeight()))->getBufferQueue();
             sp<SurfaceTextureClient> stc = new SurfaceTextureClient(sms);
             sp<ANativeWindow> window = stc;
 
@@ -359,9 +359,9 @@ protected:
     virtual void SetUp() {
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-        mSMS->setSynchronousMode(true);
+
         // Manual cast is required to avoid constructor ambiguity
-        mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS));
+        mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS->getBufferQueue()));
         mANW = mSTC;
     }
 
@@ -396,7 +396,7 @@ protected:
         ALOGV("SMS-GLTest::SetUp()");
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-        mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS));
+        mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS->getBufferQueue()));
         mANW = mSTC;
 
         // Doing the setup related to the GL Side
@@ -675,7 +675,7 @@ TEST_F(SurfaceMediaSourceTest,  DISABLED_DummyEncodingFromCpuFilledYV12BufferNpo
 
 // Delayed pass of multiple buffers from the native_window the SurfaceMediaSource
 // Dummy Encoder
-TEST_F(SurfaceMediaSourceTest,  DISABLED_DummyLagEncodingFromCpuFilledYV12BufferNpotMultiBufferPass) {
+TEST_F(SurfaceMediaSourceTest,  DummyLagEncodingFromCpuFilledYV12BufferNpotMultiBufferPass) {
     ALOGV("Test # %d", testId++);
     ALOGV("Testing MultiBufferPass, Dummy Recorder Lagging **************");
 
@@ -686,8 +686,10 @@ TEST_F(SurfaceMediaSourceTest,  DISABLED_DummyLagEncodingFromCpuFilledYV12Buffer
     writer.start();
 
     int32_t nFramesCount = 1;
-    const int FRAMES_LAG = mSMS->getBufferCount() - 1;
+    const int FRAMES_LAG = SurfaceMediaSource::MIN_UNDEQUEUED_BUFFERS;
+
     while (nFramesCount <= 300) {
+        ALOGV("Frame: %d", nFramesCount);
         oneBufferPass(mYuvTexWidth, mYuvTexHeight);
         // Forcing the writer to lag behind a few frames
         if (nFramesCount > FRAMES_LAG) {
@@ -700,7 +702,7 @@ TEST_F(SurfaceMediaSourceTest,  DISABLED_DummyLagEncodingFromCpuFilledYV12Buffer
 
 // pass multiple buffers from the native_window the SurfaceMediaSource
 // A dummy writer (MULTITHREADED) is used to simulate actual MPEG4Writer
-TEST_F(SurfaceMediaSourceTest, DISABLED_DummyThreadedEncodingFromCpuFilledYV12BufferNpotMultiBufferPass) {
+TEST_F(SurfaceMediaSourceTest, DummyThreadedEncodingFromCpuFilledYV12BufferNpotMultiBufferPass) {
     ALOGV("Test # %d", testId++);
     ALOGV("Testing MultiBufferPass, Dummy Recorder Multi-Threaded **********");
     ASSERT_EQ(NO_ERROR, native_window_set_buffers_format(mANW.get(),
@@ -711,6 +713,7 @@ TEST_F(SurfaceMediaSourceTest, DISABLED_DummyThreadedEncodingFromCpuFilledYV12Bu
 
     int32_t nFramesCount = 0;
     while (nFramesCount <= 300) {
+        ALOGV("Frame: %d", nFramesCount);
         oneBufferPass(mYuvTexWidth, mYuvTexHeight);
 
         nFramesCount++;
@@ -774,7 +777,7 @@ TEST_F(SurfaceMediaSourceGLTest, ChooseAndroidRecordableEGLConfigDummyWriter) {
     ALOGV("Verify creating a surface w/ right config + dummy writer*********");
 
     mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-    mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS));
+    mSTC = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >( mSMS->getBufferQueue()));
     mANW = mSTC;
 
     DummyRecorder writer(mSMS);
