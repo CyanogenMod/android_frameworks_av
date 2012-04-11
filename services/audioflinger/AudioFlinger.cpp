@@ -5681,7 +5681,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
     ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %d, Channels %x, flags %x",
               module,
-              pDevices ? *pDevices : 0,
+              (pDevices != NULL) ? (int)*pDevices : 0,
               samplingRate,
               format,
               channelMask,
