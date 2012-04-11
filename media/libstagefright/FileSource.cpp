@@ -35,6 +35,10 @@ FileSource::FileSource(const char *filename)
       mDrmBuf(NULL){
 
     mFd = open(filename, O_LARGEFILE | O_RDONLY);
+
+    if (mFd >= 0) {
+        mLength = lseek64(mFd, 0, SEEK_END);
+    }
 }
 
 FileSource::FileSource(int fd, int64_t offset, int64_t length)
@@ -116,13 +120,7 @@ status_t FileSource::getSize(off64_t *size) {
         return NO_INIT;
     }
 
-    if (mLength >= 0) {
-        *size = mLength;
-
-        return OK;
-    }
-
-    *size = lseek64(mFd, 0, SEEK_END);
+    *size = mLength;
 
     return OK;
 }
