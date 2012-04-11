@@ -38,6 +38,8 @@ FileSource::FileSource(const char *filename)
 
     if (mFd >= 0) {
         mLength = lseek64(mFd, 0, SEEK_END);
+    } else {
+        ALOGE("Failed to open file '%s'. (%s)", filename, strerror(errno));
     }
 }
 

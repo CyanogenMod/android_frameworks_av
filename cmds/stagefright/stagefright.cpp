@@ -775,7 +775,18 @@ int main(int argc, char **argv) {
             const char *filename = argv[k];
 
             bool failed = true;
-            CHECK_EQ(retriever->setDataSource(filename), (status_t)OK);
+
+            int fd = open(filename, O_RDONLY | O_LARGEFILE);
+            CHECK_GE(fd, 0);
+
+            off64_t fileSize = lseek64(fd, 0, SEEK_END);
+            CHECK_GE(fileSize, 0ll);
+
+            CHECK_EQ(retriever->setDataSource(fd, 0, fileSize), (status_t)OK);
+
+            close(fd);
+            fd = -1;
+
             sp<IMemory> mem =
                     retriever->getFrameAtTime(-1,
                                     MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
