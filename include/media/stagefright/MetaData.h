@@ -134,6 +134,28 @@ enum {
     kKeyECM               = 'ecm ',  // raw data
 
     kKeyIsADTS            = 'adts',  // bool (int32_t)
+
+    // If a MediaBuffer's data represents (at least partially) encrypted
+    // data, the following fields aid in decryption.
+    // The data can be thought of as pairs of plain and encrypted data
+    // fragments, i.e. plain and encrypted data alternate.
+    // The first fragment is by convention plain data (if that's not the
+    // case, simply specify plain fragment size of 0).
+    // kKeyEncryptedSizes and kKeyPlainSizes each map to an array of
+    // size_t values. The sum total of all size_t values of both arrays
+    // must equal the amount of data (i.e. MediaBuffer's range_length()).
+    // If both arrays are present, they must be of the same size.
+    // If only encrypted sizes are present it is assumed that all
+    // plain sizes are 0, i.e. all fragments are encrypted.
+    // To programmatically set these array, use the MetaData::setData API, i.e.
+    // const size_t encSizes[];
+    // meta->setData(
+    //  kKeyEncryptedSizes, 0 /* type */, encSizes, sizeof(encSizes));
+    // A plain sizes array by itself makes no sense.
+    kKeyEncryptedSizes    = 'encr',  // size_t[]
+    kKeyPlainSizes        = 'plai',  // size_t[]
+    kKeyCryptoKey         = 'cryK',  // uint8_t[16]
+    kKeyCryptoIV          = 'cryI',  // uint8_t[16]
 };
 
 enum {
