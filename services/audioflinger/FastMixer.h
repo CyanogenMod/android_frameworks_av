@@ -58,6 +58,8 @@ struct FastMixerDumpState {
     uint32_t mWriteErrors;      // total number of write() errors
     uint32_t mUnderruns;        // total number of underruns
     uint32_t mOverruns;         // total number of overruns
+    uint32_t mSampleRate;
+    size_t   mFrameCount;
 #ifdef FAST_MIXER_STATISTICS
     // cycle times in seconds
     float    mMean;

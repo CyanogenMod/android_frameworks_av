@@ -130,6 +130,7 @@ bool FastMixer::threadLoop()
             continue;
         case FastMixerState::COLD_IDLE:
             // only perform a cold idle command once
+            // FIXME consider checking previous state and only perform if previous != COLD_IDLE
             if (current->mColdGen != coldGen) {
                 int32_t *coldFutexAddr = current->mColdFutexAddr;
                 ALOG_ASSERT(coldFutexAddr != NULL);
@@ -176,6 +177,7 @@ bool FastMixer::threadLoop()
                     sampleRate = Format_sampleRate(format);
                     ALOG_ASSERT(Format_channelCount(format) == 2);
                 }
+                dumpState->mSampleRate = sampleRate;
             }
 
             if ((format != previousFormat) || (frameCount != previous->mFrameCount)) {
@@ -207,6 +209,7 @@ bool FastMixer::threadLoop()
                 // we need to reconfigure all active tracks
                 previousTrackMask = 0;
                 fastTracksGen = current->mFastTracksGen - 1;
+                dumpState->mFrameCount = frameCount;
             } else {
                 previousTrackMask = previous->mTrackMask;
             }
@@ -251,6 +254,12 @@ bool FastMixer::threadLoop()
                         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                                 (void *) mixBuffer);
                         // newly allocated track names default to full scale volume
+                        if (fastTrack->mSampleRate != 0 && fastTrack->mSampleRate != sampleRate) {
+                            mixer->setParameter(name, AudioMixer::RESAMPLE,
+                                    AudioMixer::SAMPLE_RATE, (void*) fastTrack->mSampleRate);
+                        }
+                        mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
+                                (void *) fastTrack->mChannelMask);
                         mixer->enable(name);
                     }
                     generations[i] = fastTrack->mGeneration;
@@ -276,6 +285,16 @@ bool FastMixer::threadLoop()
                                 mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
                                         (void *)0x1000);
                             }
+                            if (fastTrack->mSampleRate != 0 &&
+                                    fastTrack->mSampleRate != sampleRate) {
+                                mixer->setParameter(name, AudioMixer::RESAMPLE,
+                                        AudioMixer::SAMPLE_RATE, (void*) fastTrack->mSampleRate);
+                            } else {
+                                mixer->setParameter(name, AudioMixer::RESAMPLE,
+                                        AudioMixer::REMOVE, NULL);
+                            }
+                            mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
+                                    (void *) fastTrack->mChannelMask);
                             // already enabled
                         }
                         generations[i] = fastTrack->mGeneration;
@@ -401,7 +420,8 @@ bool FastMixer::threadLoop()
 
 FastMixerDumpState::FastMixerDumpState() :
     mCommand(FastMixerState::INITIAL), mWriteSequence(0), mFramesWritten(0),
-    mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0)
+    mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
+    mSampleRate(0), mFrameCount(0)
 #ifdef FAST_MIXER_STATISTICS
     , mMean(0.0), mMinimum(0.0), mMaximum(0.0), mStddev(0.0)
 #endif
@@ -443,9 +463,11 @@ void FastMixerDumpState::dump(int fd)
         break;
     }
     fdprintf(fd, "FastMixer command=%s writeSequence=%u framesWritten=%u\n"
-                 "          numTracks=%u writeErrors=%u underruns=%u overruns=%u\n",
+                 "          numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
+                 "          sampleRate=%u frameCount=%u\n",
                  string, mWriteSequence, mFramesWritten,
-                 mNumTracks, mWriteErrors, mUnderruns, mOverruns);
+                 mNumTracks, mWriteErrors, mUnderruns, mOverruns,
+                 mSampleRate, mFrameCount);
 #ifdef FAST_MIXER_STATISTICS
     fdprintf(fd, "          cycle time in ms: mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
                  mMean*1e3, mMinimum*1e3, mMaximum*1e3, mStddev*1e3);

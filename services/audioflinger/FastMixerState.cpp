@@ -19,7 +19,8 @@
 namespace android {
 
 FastTrack::FastTrack() :
-    mBufferProvider(NULL), mVolumeProvider(NULL), mGeneration(0)
+    mBufferProvider(NULL), mVolumeProvider(NULL), mSampleRate(0),
+    mChannelMask(AUDIO_CHANNEL_OUT_STEREO), mGeneration(0)
 {
 }
 

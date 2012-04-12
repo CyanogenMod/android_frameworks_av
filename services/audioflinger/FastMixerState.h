@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_FAST_MIXER_STATE_H
 #define ANDROID_AUDIO_FAST_MIXER_STATE_H
 
+#include <system/audio.h>
 #include "AudioBufferProvider.h"
 #include "NBAIO.h"
 
@@ -41,6 +42,8 @@ struct FastTrack {
 
     AudioBufferProvider*    mBufferProvider; // must not be NULL
     VolumeProvider*         mVolumeProvider; // optional; if NULL then full-scale
+    unsigned                mSampleRate;     // optional; if zero then use mixer sample rate
+    audio_channel_mask_t    mChannelMask;    // AUDIO_CHANNEL_OUT_MONO or AUDIO_CHANNEL_OUT_STEREO
     int                     mGeneration;     // increment when any field is assigned
 };
 

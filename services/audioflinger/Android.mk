@@ -64,7 +64,7 @@ LOCAL_MODULE:= libaudioflinger
 
 LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp
 
-#LOCAL_CFLAGS += -DFAST_MIXER_STATISTICS
+LOCAL_CFLAGS += -DFAST_MIXER_STATISTICS
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
