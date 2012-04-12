@@ -70,8 +70,17 @@ public:
         AUX_BUFFER      = 0x4003,
         DOWNMIX_TYPE    = 0X4004,
         // for target RESAMPLE
-        SAMPLE_RATE     = 0x4100,
-        RESET           = 0x4101,
+        SAMPLE_RATE     = 0x4100, // Configure sample rate conversion on this track name;
+                                  // parameter 'value' is the new sample rate in Hz.
+                                  // Only creates a sample rate converter the first time that
+                                  // the track sample rate is different from the mix sample rate.
+                                  // If the new sample rate is the same as the mix sample rate,
+                                  // and a sample rate converter already exists,
+                                  // then the sample rate converter remains present but is a no-op.
+        RESET           = 0x4101, // Reset sample rate converter without changing sample rate.
+                                  // This clears out the resampler's input buffer.
+        REMOVE          = 0x4102, // Remove the sample rate converter on this track name;
+                                  // the track is restored to the mix sample rate.
         // for target RAMP_VOLUME and VOLUME (8 channels max)
         VOLUME0         = 0x4200,
         VOLUME1         = 0x4201,
@@ -237,7 +246,10 @@ private:
     // indicates whether a downmix effect has been found and is usable by this mixer
     static bool                isMultichannelCapable;
 
+    // Call after changing either the enabled status of a track, or parameters of an enabled track.
+    // OK to call more often than that, but unnecessary.
     void invalidateState(uint32_t mask);
+
     static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
 
     static void track__genericResample(track_t* t, int32_t* out, size_t numFrames, int32_t* temp, int32_t* aux);

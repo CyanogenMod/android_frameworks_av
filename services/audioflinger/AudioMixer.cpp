@@ -327,15 +327,9 @@ void AudioMixer::deleteTrackName(int name)
         track.enabled = false;
         invalidateState(1<<name);
     }
-    if (track.resampler != NULL) {
-        // delete the resampler
-        delete track.resampler;
-        track.resampler = NULL;
-        track.sampleRate = mSampleRate;
-        invalidateState(1<<name);
-    }
-    track.volumeInc[0] = 0;
-    track.volumeInc[1] = 0;
+    // delete the resampler
+    delete track.resampler;
+    track.resampler = NULL;
     mTrackNames &= ~(1<<name);
 }
 
@@ -439,6 +433,12 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             track.resetResampler();
             invalidateState(1 << name);
             break;
+        case REMOVE:
+            delete track.resampler;
+            track.resampler = NULL;
+            track.sampleRate = mSampleRate;
+            invalidateState(1 << name);
+            break;
         default:
             LOG_FATAL("bad param");
         }
@@ -499,7 +499,7 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
 
 bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
 {
-    if (value!=devSampleRate || resampler) {
+    if (value != devSampleRate || resampler != NULL) {
         if (sampleRate != value) {
             sampleRate = value;
             if (resampler == NULL) {
