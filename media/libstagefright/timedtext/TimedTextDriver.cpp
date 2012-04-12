@@ -52,16 +52,13 @@ TimedTextDriver::TimedTextDriver(
 
 TimedTextDriver::~TimedTextDriver() {
     mTextSourceVector.clear();
+    mTextSourceTypeVector.clear();
     mLooper->stop();
 }
 
-status_t TimedTextDriver::selectTrack_l(int32_t index) {
-    if (index >= (int)(mTextSourceVector.size())) {
-        return BAD_VALUE;
-    }
-
+status_t TimedTextDriver::selectTrack_l(size_t index) {
     sp<TimedTextSource> source;
-    source = mTextSourceVector.itemAt(index);
+    source = mTextSourceVector.valueFor(index);
     mPlayer->setDataSource(source);
     if (mState == UNINITIALIZED) {
         mState = PAUSED;
@@ -108,7 +105,7 @@ status_t TimedTextDriver::pause() {
     return OK;
 }
 
-status_t TimedTextDriver::selectTrack(int32_t index) {
+status_t TimedTextDriver::selectTrack(size_t index) {
     status_t ret = OK;
     Mutex::Autolock autoLock(mLock);
     switch (mState) {
@@ -130,7 +127,7 @@ status_t TimedTextDriver::selectTrack(int32_t index) {
     return ret;
 }
 
-status_t TimedTextDriver::unselectTrack(int32_t index) {
+status_t TimedTextDriver::unselectTrack(size_t index) {
     if (mCurrentTrackIndex != index) {
         return INVALID_OPERATION;
     }
@@ -149,19 +146,21 @@ status_t TimedTextDriver::seekToAsync(int64_t timeUs) {
 }
 
 status_t TimedTextDriver::addInBandTextSource(
-        const sp<MediaSource>& mediaSource) {
+        size_t trackIndex, const sp<MediaSource>& mediaSource) {
     sp<TimedTextSource> source =
             TimedTextSource::CreateTimedTextSource(mediaSource);
     if (source == NULL) {
         return ERROR_UNSUPPORTED;
     }
     Mutex::Autolock autoLock(mLock);
-    mTextSourceVector.add(source);
+    mTextSourceVector.add(trackIndex, source);
+    mTextSourceTypeVector.add(true);
     return OK;
 }
 
 status_t TimedTextDriver::addOutOfBandTextSource(
-        const char *uri, const char *mimeType) {
+        size_t trackIndex, const char *uri, const char *mimeType) {
+
     // To support local subtitle file only for now
     if (strncasecmp("file://", uri, 7)) {
         ALOGE("uri('%s') is not a file", uri);
@@ -170,11 +169,11 @@ status_t TimedTextDriver::addOutOfBandTextSource(
 
     sp<DataSource> dataSource =
             DataSource::CreateFromURI(uri);
-    return createOutOfBandTextSource(mimeType, dataSource);
+    return createOutOfBandTextSource(trackIndex, mimeType, dataSource);
 }
 
 status_t TimedTextDriver::addOutOfBandTextSource(
-        int fd, off64_t offset, off64_t length, const char *mimeType) {
+        size_t trackIndex, int fd, off64_t offset, off64_t length, const char *mimeType) {
 
     if (fd < 0) {
         ALOGE("Invalid file descriptor: %d", fd);
@@ -182,11 +181,13 @@ status_t TimedTextDriver::addOutOfBandTextSource(
     }
 
     sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
-    return createOutOfBandTextSource(mimeType, dataSource);
+    return createOutOfBandTextSource(trackIndex, mimeType, dataSource);
 }
 
 status_t TimedTextDriver::createOutOfBandTextSource(
-        const char *mimeType, const sp<DataSource>& dataSource) {
+        size_t trackIndex,
+        const char *mimeType,
+        const sp<DataSource>& dataSource) {
 
     if (dataSource == NULL) {
         return ERROR_UNSUPPORTED;
@@ -199,28 +200,40 @@ status_t TimedTextDriver::createOutOfBandTextSource(
     }
 
     if (source == NULL) {
+        ALOGE("Failed to create timed text source");
         return ERROR_UNSUPPORTED;
     }
 
     Mutex::Autolock autoLock(mLock);
-    mTextSourceVector.add(source);
+    mTextSourceVector.add(trackIndex, source);
+    mTextSourceTypeVector.add(false);
     return OK;
 }
 
-void TimedTextDriver::getTrackInfo(Parcel *parcel) {
+size_t TimedTextDriver::countExternalTracks() const {
+    size_t nTracks = 0;
+    for (size_t i = 0, n = mTextSourceTypeVector.size(); i < n; ++i) {
+        if (!mTextSourceTypeVector[i]) {
+            ++nTracks;
+        }
+    }
+    return nTracks;
+}
+
+void TimedTextDriver::getExternalTrackInfo(Parcel *parcel) {
     Mutex::Autolock autoLock(mLock);
-    Vector<sp<TimedTextSource> >::const_iterator iter;
-    parcel->writeInt32(mTextSourceVector.size());
-    for (iter = mTextSourceVector.begin();
-         iter != mTextSourceVector.end(); ++iter) {
-        sp<MetaData> meta = (*iter)->getFormat();
+    for (size_t i = 0, n = mTextSourceTypeVector.size(); i < n; ++i) {
+        if (mTextSourceTypeVector[i]) {
+            continue;
+        }
+
+        sp<MetaData> meta = mTextSourceVector.valueAt(i)->getFormat();
 
         // There are two fields.
         parcel->writeInt32(2);
 
         // track type.
         parcel->writeInt32(MEDIA_TRACK_TYPE_TIMEDTEXT);
-
         const char *lang = "und";
         if (meta != NULL) {
             meta->findCString(kKeyMediaLanguage, &lang);
