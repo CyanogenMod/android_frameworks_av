@@ -4031,9 +4031,9 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
 
 void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueueHead_l(
         const char* logTag) {
-    LOG_ASSERT(mTimedBufferQueue.size() > 0,
-               "%s called (reason \"%s\"), but timed buffer queue has no"
-               " elements to trim.", __FUNCTION__, logTag);
+    ALOG_ASSERT(mTimedBufferQueue.size() > 0,
+                "%s called (reason \"%s\"), but timed buffer queue has no"
+                " elements to trim.", __FUNCTION__, logTag);
 
     updateFramesPendingAfterTrim_l(mTimedBufferQueue[0], logTag);
     mTimedBufferQueue.removeAt(0);
@@ -4045,18 +4045,18 @@ void AudioFlinger::PlaybackThread::TimedTrack::updateFramesPendingAfterTrim_l(
     uint32_t bufBytes        = buf.buffer()->size();
     uint32_t consumedAlready = buf.position();
 
-    LOG_ASSERT(consumedAlready <= bufFrames,
-               "Bad bookkeeping while updating frames pending.  Timed buffer is"
-               " only %u bytes long, but claims to have consumed %u"
-               " bytes.  (update reason: \"%s\")",
-               bufFrames, consumedAlready, logTag);
+    ALOG_ASSERT(consumedAlready <= bufFrames,
+                "Bad bookkeeping while updating frames pending.  Timed buffer is"
+                " only %u bytes long, but claims to have consumed %u"
+                " bytes.  (update reason: \"%s\")",
+                bufFrames, consumedAlready, logTag);
 
     uint32_t bufFrames = (bufBytes - consumedAlready) / mCblk->frameSize;
-    LOG_ASSERT(mFramesPendingInQueue >= bufFrames,
-               "Bad bookkeeping while updating frames pending.  Should have at"
-               " least %u queued frames, but we think we have only %u.  (update"
-               " reason: \"%s\")",
-               bufFrames, mFramesPendingInQueue, logTag);
+    ALOG_ASSERT(mFramesPendingInQueue >= bufFrames,
+                "Bad bookkeeping while updating frames pending.  Should have at"
+                " least %u queued frames, but we think we have only %u.  (update"
+                " reason: \"%s\")",
+                bufFrames, mFramesPendingInQueue, logTag);
 
     mFramesPendingInQueue -= bufFrames;
 }
@@ -4184,7 +4184,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
         }
         if (!mLocalTimeToSampleTransform.doForwardTransform(
                 (effectivePTS - pts) << 32, &sampleDelta)) {
-            LOGV("*** too late during sample rate transform: dropped buffer");
+            ALOGV("*** too late during sample rate transform: dropped buffer");
             trimTimedBufferQueueHead_l("getNextBuffer, bad local to sample");
             continue;
         }
