@@ -61,7 +61,11 @@ struct BpCrypto : public BpInterface<ICrypto> {
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
         data.write(uuid, 16);
         data.writeInt32(opaqueSize);
-        data.write(opaqueData, opaqueSize);
+
+        if (opaqueSize > 0) {
+            data.write(opaqueData, opaqueSize);
+        }
+
         remote()->transact(CREATE_PLUGIN, data, &reply);
 
         return reply.readInt32();
@@ -179,13 +183,19 @@ status_t BnCrypto::onTransact(
             data.read(uuid, sizeof(uuid));
 
             size_t opaqueSize = data.readInt32();
-            void *opaqueData = malloc(opaqueSize);
-            data.read(opaqueData, opaqueSize);
+            void *opaqueData = NULL;
+
+            if (opaqueSize > 0) {
+                opaqueData = malloc(opaqueSize);
+                data.read(opaqueData, opaqueSize);
+            }
 
             reply->writeInt32(createPlugin(uuid, opaqueData, opaqueSize));
 
-            free(opaqueData);
-            opaqueData = NULL;
+            if (opaqueData != NULL) {
+                free(opaqueData);
+                opaqueData = NULL;
+            }
 
             return OK;
         }
