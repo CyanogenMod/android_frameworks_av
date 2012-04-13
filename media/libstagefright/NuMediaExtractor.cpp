@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -51,14 +52,40 @@ NuMediaExtractor::~NuMediaExtractor() {
     mSelectedTracks.clear();
 }
 
-status_t NuMediaExtractor::setDataSource(const char *path) {
-    sp<DataSource> dataSource = DataSource::CreateFromURI(path);
+status_t NuMediaExtractor::setDataSource(
+        const char *path, const KeyedVector<String8, String8> *headers) {
+    if (mImpl != NULL) {
+        return -EINVAL;
+    }
+
+    sp<DataSource> dataSource = DataSource::CreateFromURI(path, headers);
 
     if (dataSource == NULL) {
         return -ENOENT;
     }
 
     mImpl = MediaExtractor::Create(dataSource);
+
+    if (mImpl == NULL) {
+        return ERROR_UNSUPPORTED;
+    }
+
+    return OK;
+}
+
+status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
+    if (mImpl != NULL) {
+        return -EINVAL;
+    }
+
+    sp<FileSource> fileSource = new FileSource(dup(fd), offset, size);
+
+    status_t err = fileSource->initCheck();
+    if (err != OK) {
+        return err;
+    }
+
+    mImpl = MediaExtractor::Create(fileSource);
 
     if (mImpl == NULL) {
         return ERROR_UNSUPPORTED;
@@ -90,6 +117,11 @@ status_t NuMediaExtractor::getTrackFormat(
 
     sp<AMessage> msg = new AMessage;
     msg->setString("mime", mime);
+
+    int64_t durationUs;
+    if (meta->findInt64(kKeyDuration, &durationUs)) {
+        msg->setInt64("durationUs", durationUs);
+    }
 
     if (!strncasecmp("video/", mime, 6)) {
         int32_t width, height;
