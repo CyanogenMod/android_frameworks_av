@@ -59,10 +59,14 @@ WVMExtractor::WVMExtractor(const sp<DataSource> &source)
                 "_ZN7android11GetInstanceENS_2spINS_10DataSourceEEE");
 
     if (getInstanceFunc) {
-        CHECK(source->DrmInitialization(MEDIA_MIMETYPE_CONTAINER_WVM) != NULL);
-        mImpl = (*getInstanceFunc)(source);
-        CHECK(mImpl != NULL);
-        setDrmFlag(true);
+        if (source->DrmInitialization(
+                MEDIA_MIMETYPE_CONTAINER_WVM) != NULL) {
+            mImpl = (*getInstanceFunc)(source);
+            CHECK(mImpl != NULL);
+            setDrmFlag(true);
+        } else {
+            ALOGE("Drm manager failed to initialize.");
+        }
     } else {
         ALOGE("Failed to locate GetInstance in libwvm.so");
     }

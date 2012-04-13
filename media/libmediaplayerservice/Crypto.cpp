@@ -32,6 +32,7 @@ namespace android {
 Crypto::Crypto()
     : mInitCheck(NO_INIT),
       mLibHandle(NULL),
+      mFactory(NULL),
       mPlugin(NULL) {
     mInitCheck = init();
 }
@@ -57,6 +58,8 @@ status_t Crypto::init() {
     mLibHandle = dlopen("libdrmdecrypt.so", RTLD_NOW);
 
     if (mLibHandle == NULL) {
+        ALOGE("Unable to locate libdrmdecrypt.so");
+
         return ERROR_UNSUPPORTED;
     }
 
@@ -66,6 +69,12 @@ status_t Crypto::init() {
 
     if (createCryptoFactory == NULL
             || ((mFactory = createCryptoFactory()) == NULL)) {
+        if (createCryptoFactory == NULL) {
+            ALOGE("Unable to find symbol 'createCryptoFactory'.");
+        } else {
+            ALOGE("createCryptoFactory() failed.");
+        }
+
         dlclose(mLibHandle);
         mLibHandle = NULL;
 

@@ -21,6 +21,7 @@
 #include <media/stagefright/NuMediaExtractor.h>
 
 #include "include/ESDS.h"
+#include "include/WVMExtractor.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -58,13 +59,32 @@ status_t NuMediaExtractor::setDataSource(
         return -EINVAL;
     }
 
-    sp<DataSource> dataSource = DataSource::CreateFromURI(path, headers);
+    sp<DataSource> dataSource =
+        DataSource::CreateFromURI(path, headers);
 
     if (dataSource == NULL) {
         return -ENOENT;
     }
 
-    mImpl = MediaExtractor::Create(dataSource);
+    if (!strncasecmp("widevine://", path, 11)) {
+        String8 mimeType;
+        float confidence;
+        sp<AMessage> dummy;
+        bool success = SniffWVM(dataSource, &mimeType, &confidence, &dummy);
+
+        if (!success
+                || strcasecmp(
+                    mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
+            return ERROR_UNSUPPORTED;
+        }
+
+        sp<WVMExtractor> extractor = new WVMExtractor(dataSource);
+        extractor->setAdaptiveStreamingMode(true);
+
+        mImpl = extractor;
+    } else {
+        mImpl = MediaExtractor::Create(dataSource);
+    }
 
     if (mImpl == NULL) {
         return ERROR_UNSUPPORTED;
