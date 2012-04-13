@@ -23,6 +23,7 @@
 #include <media/mediaplayer.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaSource.h>
@@ -161,15 +162,32 @@ status_t TimedTextDriver::addInBandTextSource(
 
 status_t TimedTextDriver::addOutOfBandTextSource(
         const char *uri, const char *mimeType) {
-    // TODO: Define "TimedTextSource::CreateFromURI(uri)"
-    // and move below lines there..?
-
     // To support local subtitle file only for now
     if (strncasecmp("file://", uri, 7)) {
+        ALOGE("uri('%s') is not a file", uri);
         return ERROR_UNSUPPORTED;
     }
+
     sp<DataSource> dataSource =
             DataSource::CreateFromURI(uri);
+    return createOutOfBandTextSource(mimeType, dataSource);
+}
+
+status_t TimedTextDriver::addOutOfBandTextSource(
+        int fd, off64_t offset, off64_t length, const char *mimeType) {
+
+    if (fd < 0) {
+        ALOGE("Invalid file descriptor: %d", fd);
+        return ERROR_UNSUPPORTED;
+    }
+
+    sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
+    return createOutOfBandTextSource(mimeType, dataSource);
+}
+
+status_t TimedTextDriver::createOutOfBandTextSource(
+        const char *mimeType, const sp<DataSource>& dataSource) {
+
     if (dataSource == NULL) {
         return ERROR_UNSUPPORTED;
     }
@@ -187,13 +205,6 @@ status_t TimedTextDriver::addOutOfBandTextSource(
     Mutex::Autolock autoLock(mLock);
     mTextSourceVector.add(source);
     return OK;
-}
-
-status_t TimedTextDriver::addOutOfBandTextSource(
-        int fd, off64_t offset, size_t length, const char *mimeType) {
-    // Not supported yet. This requires DataSource::sniff to detect various text
-    // formats such as srt/smi/ttml.
-    return ERROR_UNSUPPORTED;
 }
 
 void TimedTextDriver::getTrackInfo(Parcel *parcel) {
