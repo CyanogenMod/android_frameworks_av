@@ -109,7 +109,6 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     MediaSource::ReadOptions options;
     if (mSeeking) {
         options.setSeekTo(mSeekTimeUs);
-        mSeeking = false;
     }
 
     do {
@@ -122,8 +121,25 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         CHECK(mFirstBuffer == NULL);
         mFirstBufferResult = OK;
         mIsFirstBuffer = false;
+
+        if (mSeeking) {
+            mPositionTimeRealUs = 0;
+            mPositionTimeMediaUs = mSeekTimeUs;
+            mSeeking = false;
+        }
+
     } else {
         mIsFirstBuffer = true;
+
+        if (mSeeking) {
+            mPositionTimeRealUs = 0;
+            if (mFirstBuffer == NULL || !mFirstBuffer->meta_data()->findInt64(
+                    kKeyTime, &mPositionTimeMediaUs)) {
+                return UNKNOWN_ERROR;
+            }
+            mSeeking = false;
+        }
+
     }
 
     sp<MetaData> format = mSource->getFormat();
