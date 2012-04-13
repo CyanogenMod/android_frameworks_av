@@ -2292,7 +2292,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
             }
             int fd         = request.readFileDescriptor();
             off64_t offset = request.readInt64();
-            size_t length  = request.readInt64();
+            off64_t length  = request.readInt64();
             String8 mimeType(request.readString16());
             return mTextDriver->addOutOfBandTextSource(
                     fd, offset, length, mimeType);

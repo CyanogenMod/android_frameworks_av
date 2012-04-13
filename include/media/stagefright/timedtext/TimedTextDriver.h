@@ -30,6 +30,7 @@ class MediaSource;
 class Parcel;
 class TimedTextPlayer;
 class TimedTextSource;
+class DataSource;
 
 class TimedTextDriver {
 public:
@@ -48,7 +49,7 @@ public:
     status_t addOutOfBandTextSource(const char *uri, const char *mimeType);
     // Caller owns the file desriptor and caller is responsible for closing it.
     status_t addOutOfBandTextSource(
-            int fd, off64_t offset, size_t length, const char *mimeType);
+            int fd, off64_t offset, off64_t length, const char *mimeType);
 
     void getTrackInfo(Parcel *parcel);
 
@@ -72,6 +73,8 @@ private:
     // -- End of variables to be guarded by mLock
 
     status_t selectTrack_l(int32_t index);
+    status_t createOutOfBandTextSource(
+            const char *mimeType, const sp<DataSource>& dataSource);
 
     DISALLOW_EVIL_CONSTRUCTORS(TimedTextDriver);
 };
