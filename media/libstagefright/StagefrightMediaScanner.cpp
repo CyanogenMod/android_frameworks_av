@@ -18,6 +18,10 @@
 #define LOG_TAG "StagefrightMediaScanner"
 #include <utils/Log.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <media/stagefright/StagefrightMediaScanner.h>
 
 #include <media/mediametadataretriever.h>
@@ -139,7 +143,16 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
 
     sp<MediaMetadataRetriever> mRetriever(new MediaMetadataRetriever);
 
-    status_t status = mRetriever->setDataSource(path);
+    int fd = open(path, O_RDONLY | O_LARGEFILE);
+    status_t status;
+    if (fd < 0) {
+        // couldn't open it locally, maybe the media server can?
+        status = mRetriever->setDataSource(path);
+    } else {
+        status = mRetriever->setDataSource(fd, 0, 0x7ffffffffffffffL);
+        close(fd);
+    }
+
     if (status) {
         return MEDIA_SCAN_RESULT_ERROR;
     }
