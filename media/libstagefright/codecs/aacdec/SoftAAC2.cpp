@@ -26,23 +26,6 @@
 
 namespace android {
 
-static Mutex gAACLibraryLock;
-static int gAACLibraryCount = 0;
-
-void initializeAACLibrary() {
-  Mutex::Autolock autoLock(gAACLibraryLock);
-  if (gAACLibraryCount++ == 0) {
-    CDKprolog();
-  }
-}
-
-void cleanupAACLibrary() {
-  Mutex::Autolock autoLock(gAACLibraryLock);
-  if (--gAACLibraryCount == 0) {
-    CDKepilog();
-  }
-}
-
 template<class T>
 static void InitOMXParams(T *params) {
     params->nSize = sizeof(T);
@@ -63,17 +46,16 @@ SoftAAC2::SoftAAC2(
       mIsADTS(false),
       mInputBufferCount(0),
       mSignalledError(false),
+      mInputDiscontinuity(false),
       mAnchorTimeUs(0),
       mNumSamplesOutput(0),
       mOutputPortSettingsChange(NONE) {
-    initializeAACLibrary();
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
 
 SoftAAC2::~SoftAAC2() {
     aacDecoder_Close(mAACDecoder);
-    cleanupAACLibrary();
 }
 
 void SoftAAC2::initPorts() {
@@ -102,7 +84,7 @@ void SoftAAC2::initPorts() {
     def.eDir = OMX_DirOutput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = 8192;
+    def.nBufferSize = 8192 * 2;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
@@ -183,6 +165,10 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
             pcmParams->ePCMMode = OMX_AUDIO_PCMModeLinear;
             pcmParams->eChannelMapping[0] = OMX_AUDIO_ChannelLF;
             pcmParams->eChannelMapping[1] = OMX_AUDIO_ChannelRF;
+            pcmParams->eChannelMapping[2] = OMX_AUDIO_ChannelCF;
+            pcmParams->eChannelMapping[3] = OMX_AUDIO_ChannelLFE;
+            pcmParams->eChannelMapping[4] = OMX_AUDIO_ChannelLS;
+            pcmParams->eChannelMapping[5] = OMX_AUDIO_ChannelRS;
 
             if (!isConfigured()) {
                 pcmParams->nChannels = 1;
@@ -360,15 +346,17 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         INT_PCM *outBuffer = reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
         bytesValid[0] = inBufferLength[0];
 
+        int flags = mInputDiscontinuity ? AACDEC_INTR : 0;
         int prevSampleRate = mStreamInfo->sampleRate;
         decoderErr = aacDecoder_Fill(mAACDecoder,
-                                      inBuffer,
-                                      inBufferLength,
-                                      bytesValid);
+                                     inBuffer,
+                                     inBufferLength,
+                                     bytesValid);
         decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
                                             outBuffer,
                                             outHeader->nAllocLen,
-                                            /* flags */ 0);
+                                            flags);
+        mInputDiscontinuity = false;
 
         /*
          * AAC+/eAAC+ streams can be signalled in two ways: either explicitly
@@ -447,13 +435,9 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
 
 void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
     if (portIndex == 0) {
-
         // Make sure that the next buffer output does not still
         // depend on fragments from the last one decoded.
-        aacDecoder_DecodeFrame(mAACDecoder,
-                               NULL,
-                               0,
-                               AACDEC_FLUSH);
+        mInputDiscontinuity = true;
     }
 }
 

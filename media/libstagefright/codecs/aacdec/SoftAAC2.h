@@ -52,6 +52,7 @@ private:
     bool mIsADTS;
     size_t mInputBufferCount;
     bool mSignalledError;
+    bool mInputDiscontinuity;
     int64_t mAnchorTimeUs;
     int64_t mNumSamplesOutput;
 
