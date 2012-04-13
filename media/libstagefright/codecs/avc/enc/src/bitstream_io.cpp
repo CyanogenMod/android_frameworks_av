@@ -276,7 +276,7 @@ AVCEnc_Status AVCBitstreamUseOverrunBuffer(AVCEncBitstream* stream, int numExtra
                 if (encvid->overrunBuffer)
                 {
                     encvid->avcHandle->CBAVC_Free((uint32*)encvid->avcHandle->userData,
-                                                  (int)encvid->overrunBuffer);
+                                                  encvid->overrunBuffer);
                 }
 
                 encvid->oBSize = stream->oBSize;
@@ -315,7 +315,7 @@ AVCEnc_Status AVCBitstreamUseOverrunBuffer(AVCEncBitstream* stream, int numExtra
             memcpy(encvid->overrunBuffer, stream->overrunBuffer, stream->write_pos);
             // free old buffer
             encvid->avcHandle->CBAVC_Free((uint32*)encvid->avcHandle->userData,
-                                          (int)stream->overrunBuffer);
+                                          stream->overrunBuffer);
 
             // assign pointer to new buffer
             stream->overrunBuffer = encvid->overrunBuffer;

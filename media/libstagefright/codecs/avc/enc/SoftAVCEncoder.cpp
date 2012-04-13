@@ -131,13 +131,13 @@ inline static void ConvertYUV420SemiPlanarToYUV420Planar(
     }
 }
 
-static int32_t MallocWrapper(
+static void* MallocWrapper(
         void *userData, int32_t size, int32_t attrs) {
-    return reinterpret_cast<int32_t>(malloc(size));
+    return malloc(size);
 }
 
-static void FreeWrapper(void *userData, int32_t ptr) {
-    free(reinterpret_cast<void *>(ptr));
+static void FreeWrapper(void *userData, void* ptr) {
+    free(ptr);
 }
 
 static int32_t DpbAllocWrapper(void *userData,

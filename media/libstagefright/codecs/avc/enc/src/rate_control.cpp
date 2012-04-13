@@ -300,7 +300,7 @@ void CleanupRateControlModule(AVCHandle *avcHandle)
 
     if (rateCtrl->MADofMB)
     {
-        avcHandle->CBAVC_Free(avcHandle->userData, (int)(rateCtrl->MADofMB));
+        avcHandle->CBAVC_Free(avcHandle->userData, rateCtrl->MADofMB);
     }
 
     if (rateCtrl->pMP)
@@ -311,12 +311,12 @@ void CleanupRateControlModule(AVCHandle *avcHandle)
             {
                 if (rateCtrl->pMP->pRDSamples[i])
                 {
-                    avcHandle->CBAVC_Free(avcHandle->userData, (int)rateCtrl->pMP->pRDSamples[i]);
+                    avcHandle->CBAVC_Free(avcHandle->userData, rateCtrl->pMP->pRDSamples[i]);
                 }
             }
-            avcHandle->CBAVC_Free(avcHandle->userData, (int)rateCtrl->pMP->pRDSamples);
+            avcHandle->CBAVC_Free(avcHandle->userData, rateCtrl->pMP->pRDSamples);
         }
-        avcHandle->CBAVC_Free(avcHandle->userData, (int)(rateCtrl->pMP));
+        avcHandle->CBAVC_Free(avcHandle->userData, rateCtrl->pMP);
     }
 
     return ;
