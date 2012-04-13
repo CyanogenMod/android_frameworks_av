@@ -1412,7 +1412,8 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId)
       mCallbackCookie(NULL),
       mCallbackData(NULL),
       mBytesWritten(0),
-      mSessionId(sessionId) {
+      mSessionId(sessionId),
+      mFlags(AUDIO_OUTPUT_FLAG_NONE) {
     ALOGV("AudioOutput(%d)", sessionId);
     mTrack = 0;
     mRecycledTrack = 0;
@@ -1506,7 +1507,8 @@ status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritt
 status_t MediaPlayerService::AudioOutput::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie)
+        AudioCallback cb, void *cookie,
+        audio_output_flags_t flags)
 {
     mCallback = cb;
     mCallbackCookie = cookie;
@@ -1521,7 +1523,7 @@ status_t MediaPlayerService::AudioOutput::open(
             format, bufferCount, mSessionId);
     int afSampleRate;
     int afFrameCount;
-    int frameCount;
+    uint32_t frameCount;
 
     if (AudioSystem::getOutputFrameCount(&afFrameCount, mStreamType) != NO_ERROR) {
         return NO_INIT;
@@ -1539,6 +1541,7 @@ status_t MediaPlayerService::AudioOutput::open(
             return NO_INIT;
         }
     }
+
     if (mRecycledTrack) {
         // check if the existing track can be reused as-is, or if a new track needs to be created.
 
@@ -1552,6 +1555,9 @@ status_t MediaPlayerService::AudioOutput::open(
                 (mRecycledTrack->channelCount() != channelCount) ||
                 (mRecycledTrack->frameCount() != frameCount)) {
             ALOGV("samplerate, channelcount or framecount differ");
+            reuse = false;
+        } if (flags != mFlags) {
+            ALOGV("output flags differ");
             reuse = false;
         }
         if (reuse) {
@@ -1587,7 +1593,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                AUDIO_OUTPUT_FLAG_NONE,
+                flags,
                 CallbackWrapper,
                 mCallbackData,
                 0,  // notification frames
@@ -1599,7 +1605,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                AUDIO_OUTPUT_FLAG_NONE,
+                flags,
                 NULL,
                 NULL,
                 0,
@@ -1616,6 +1622,7 @@ status_t MediaPlayerService::AudioOutput::open(
     t->setVolume(mLeftVolume, mRightVolume);
 
     mSampleRateHz = sampleRate;
+    mFlags = flags;
     mMsecsPerFrame = mPlaybackRatePermille / (float) sampleRate;
     uint32_t pos;
     if (t->getPosition(&pos) == OK) {
@@ -1891,7 +1898,7 @@ bool CallbackThread::threadLoop() {
 status_t MediaPlayerService::AudioCache::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie)
+        AudioCallback cb, void *cookie, audio_output_flags_t flags)
 {
     ALOGV("open(%u, %d, 0x%x, %d, %d)", sampleRate, channelCount, channelMask, format, bufferCount);
     if (mHeap->getHeapID() < 0) {

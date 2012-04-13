@@ -63,6 +63,9 @@ enum player_type {
 // when the channel mask isn't known, use the channel count to derive a mask in AudioSink::open()
 #define CHANNEL_MASK_USE_CHANNEL_ORDER 0
 
+// duration below which we do not allow deep audio buffering
+#define AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US 5000000
+
 // callback mechanism for passing messages to MediaPlayer object
 typedef void (*notify_callback_f)(void* cookie,
         int msg, int ext1, int ext2, const Parcel *obj);
@@ -98,7 +101,8 @@ public:
                 audio_format_t format=AUDIO_FORMAT_PCM_16_BIT,
                 int bufferCount=DEFAULT_AUDIOSINK_BUFFERCOUNT,
                 AudioCallback cb = NULL,
-                void *cookie = NULL) = 0;
+                void *cookie = NULL,
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE) = 0;
 
         virtual void        start() = 0;
         virtual ssize_t     write(const void* buffer, size_t size) = 0;

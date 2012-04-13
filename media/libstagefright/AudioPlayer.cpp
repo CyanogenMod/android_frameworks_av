@@ -33,6 +33,7 @@ namespace android {
 
 AudioPlayer::AudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
+        bool allowDeepBuffering,
         AwesomePlayer *observer)
     : mAudioTrack(NULL),
       mInputBuffer(NULL),
@@ -50,6 +51,7 @@ AudioPlayer::AudioPlayer(
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
       mAudioSink(audioSink),
+      mAllowDeepBuffering(allowDeepBuffering),
       mObserver(observer) {
 }
 
@@ -120,10 +122,15 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     }
 
     if (mAudioSink.get() != NULL) {
+
         status_t err = mAudioSink->open(
                 mSampleRate, numChannels, channelMask, AUDIO_FORMAT_PCM_16_BIT,
                 DEFAULT_AUDIOSINK_BUFFERCOUNT,
-                &AudioPlayer::AudioSinkCallback, this);
+                &AudioPlayer::AudioSinkCallback,
+                this,
+                (mAllowDeepBuffering ?
+                            AUDIO_OUTPUT_FLAG_DEEP_BUFFER :
+                            AUDIO_OUTPUT_FLAG_NONE));
         if (err != OK) {
             if (mFirstBuffer != NULL) {
                 mFirstBuffer->release();

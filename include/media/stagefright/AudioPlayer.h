@@ -37,6 +37,7 @@ public:
     };
 
     AudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
+                bool allowDeepBuffering = false,
                 AwesomePlayer *audioObserver = NULL);
 
     virtual ~AudioPlayer();
@@ -95,6 +96,8 @@ private:
     MediaBuffer *mFirstBuffer;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
+    bool mAllowDeepBuffering;       // allow audio deep audio buffers. Helps with low power audio
+                                    // playback but implies high latency
     AwesomePlayer *mObserver;
 
     static void AudioCallback(int event, void *user, void *info);

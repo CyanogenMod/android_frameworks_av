@@ -390,12 +390,30 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                          sampleRate, numChannels);
 
                     mAudioSink->close();
+
+                    audio_output_flags_t flags;
+                    int64_t durationUs;
+                    // FIXME: we should handle the case where the video decoder is created after
+                    // we receive the format change indication. Current code will just make that
+                    // we select deep buffer with video which should not be a problem as it should
+                    // not prevent from keeping A/V sync.
+                    if (mVideoDecoder == NULL &&
+                            mSource->getDuration(&durationUs) == OK &&
+                            durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
+                        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+                    } else {
+                        flags = AUDIO_OUTPUT_FLAG_NONE;
+                    }
+
                     CHECK_EQ(mAudioSink->open(
                                 sampleRate,
                                 numChannels,
                                 CHANNEL_MASK_USE_CHANNEL_ORDER,
                                 AUDIO_FORMAT_PCM_16_BIT,
-                                8 /* bufferCount */),
+                                8 /* bufferCount */,
+                                NULL,
+                                NULL,
+                                flags),
                              (status_t)OK);
                     mAudioSink->start();
 

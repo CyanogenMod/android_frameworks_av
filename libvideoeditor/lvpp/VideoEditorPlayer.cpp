@@ -392,7 +392,7 @@ status_t VideoEditorPlayer::VeAudioOutput::getFramesWritten(uint32_t *written) c
 status_t VideoEditorPlayer::VeAudioOutput::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie) {
+        AudioCallback cb, void *cookie, audio_output_flags_t flags) {
 
     mCallback = cb;
     mCallbackCookie = cookie;
@@ -442,7 +442,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                AUDIO_OUTPUT_FLAG_NONE,
+                flags,
                 CallbackWrapper,
                 this);
     } else {
@@ -451,7 +451,8 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
                 sampleRate,
                 format,
                 channelMask,
-                frameCount);
+                frameCount,
+                flags);
     }
 
     if ((t == 0) || (t->initCheck() != NO_ERROR)) {

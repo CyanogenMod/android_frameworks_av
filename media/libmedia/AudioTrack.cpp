@@ -225,6 +225,10 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
+    // only allow deep buffering for music stream type
+    if (streamType != AUDIO_STREAM_MUSIC) {
+        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
+    }
 
     if (!audio_is_output_channel(channelMask)) {
         ALOGE("Invalid channel mask");
