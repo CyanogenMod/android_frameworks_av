@@ -4045,11 +4045,11 @@ void AudioFlinger::PlaybackThread::TimedTrack::updateFramesPendingAfterTrim_l(
     uint32_t bufBytes        = buf.buffer()->size();
     uint32_t consumedAlready = buf.position();
 
-    ALOG_ASSERT(consumedAlready <= bufFrames,
+    ALOG_ASSERT(consumedAlready <= bufBytes,
                 "Bad bookkeeping while updating frames pending.  Timed buffer is"
                 " only %u bytes long, but claims to have consumed %u"
                 " bytes.  (update reason: \"%s\")",
-                bufFrames, consumedAlready, logTag);
+                bufBytes, consumedAlready, logTag);
 
     uint32_t bufFrames = (bufBytes - consumedAlready) / mCblk->frameSize;
     ALOG_ASSERT(mFramesPendingInQueue >= bufFrames,
