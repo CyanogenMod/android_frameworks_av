@@ -98,7 +98,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
 {
     // AudioMixer is not yet capable of multi-channel beyond stereo
     COMPILE_TIME_ASSERT_FUNCTION_SCOPE(2 == MAX_NUM_CHANNELS);
-    
+
     ALOG_ASSERT(maxNumTracks <= MAX_NUM_TRACKS, "maxNumTracks %u > MAX_NUM_TRACKS %u",
             maxNumTracks, MAX_NUM_TRACKS);
 
@@ -504,7 +504,10 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
             sampleRate = value;
             if (resampler == NULL) {
                 resampler = AudioResampler::create(
-                        format, channelCount, devSampleRate);
+                        format,
+                        // the resampler sees the number of channels after the downmixer, if any
+                        downmixerBufferProvider != NULL ? MAX_NUM_CHANNELS : channelCount,
+                        devSampleRate);
                 resampler->setLocalTimeFreq(localTimeFreq);
             }
             return true;

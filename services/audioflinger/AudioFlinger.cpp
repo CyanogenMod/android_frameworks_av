@@ -3507,14 +3507,12 @@ void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t f
     int8_t *bufferEnd = bufferStart + frames * frameSize;
 
     // Check validity of returned pointer in case the track control block would have been corrupted.
-    if (bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd ||
-        ((unsigned long)bufferStart & (unsigned long)(frameSize - 1))) {
-        ALOGE("TrackBase::getBuffer buffer out of range:\n    start: %p, end %p , mBuffer %p mBufferEnd %p\n    \
-                server %u, serverBase %u, user %u, userBase %u",
+    ALOG_ASSERT(!(bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd),
+            "TrackBase::getBuffer buffer out of range:\n"
+                "    start: %p, end %p , mBuffer %p mBufferEnd %p\n"
+                "    server %u, serverBase %u, user %u, userBase %u, frameSize %d",
                 bufferStart, bufferEnd, mBuffer, mBufferEnd,
-                cblk->server, cblk->serverBase, cblk->user, cblk->userBase);
-        return NULL;
-    }
+                cblk->server, cblk->serverBase, cblk->user, cblk->userBase, frameSize);
 
     return bufferStart;
 }
