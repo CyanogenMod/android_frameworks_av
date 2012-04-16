@@ -93,7 +93,10 @@ status_t BnAudioRecord::onTransact(
         } break;
         case START: {
             CHECK_INTERFACE(IAudioRecord, data, reply);
-            reply->writeInt32(start(data.readInt32(), data.readInt32(), data.readInt32()));
+            pid_t tid = (pid_t) data.readInt32();
+            int event = data.readInt32();
+            int triggerSession = data.readInt32();
+            reply->writeInt32(start(tid, event, triggerSession));
             return NO_ERROR;
         } break;
         case STOP: {
