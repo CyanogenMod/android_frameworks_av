@@ -19,7 +19,9 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <utils/Errors.h>
+#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
+#include <utils/String8.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -38,7 +40,11 @@ struct NuMediaExtractor : public RefBase {
 
     NuMediaExtractor();
 
-    status_t setDataSource(const char *path);
+    status_t setDataSource(
+            const char *path,
+            const KeyedVector<String8, String8> *headers = NULL);
+
+    status_t setDataSource(int fd, off64_t offset, off64_t size);
 
     size_t countTracks() const;
     status_t getTrackFormat(size_t index, sp<AMessage> *format) const;

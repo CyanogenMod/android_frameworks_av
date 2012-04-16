@@ -142,7 +142,19 @@ sp<DataSource> DataSource::CreateFromURI(
         if (httpSource->connect(uri, headers) != OK) {
             return NULL;
         }
-        source = new NuCachedSource2(httpSource);
+
+        String8 cacheConfig;
+        bool disconnectAtHighwatermark;
+        if (headers != NULL) {
+            KeyedVector<String8, String8> copy = *headers;
+            NuCachedSource2::RemoveCacheSpecificHeaders(
+                    &copy, &cacheConfig, &disconnectAtHighwatermark);
+        }
+
+        source = new NuCachedSource2(
+                httpSource,
+                cacheConfig.isEmpty() ? NULL : cacheConfig.string());
+
 # if CHROMIUM_AVAILABLE
     } else if (!strncasecmp("data:", uri, 5)) {
         source = new DataUriSource(uri);
