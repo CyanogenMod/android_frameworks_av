@@ -91,7 +91,7 @@ public:
     // For all APIs with "name": TRACK0 <= name < TRACK0 + MAX_NUM_TRACKS
 
     // Allocate a track name.  Returns new track name if successful, -1 on failure.
-    int         getTrackName();
+    int         getTrackName(audio_channel_mask_t channelMask);
 
     // Free an allocated track by name
     void        deleteTrackName(int name);
@@ -250,7 +250,9 @@ private:
     // OK to call more often than that, but unnecessary.
     void invalidateState(uint32_t mask);
 
+    static status_t initTrackDownmix(track_t* pTrack, int trackNum, audio_channel_mask_t mask);
     static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
+    static void unprepareTrackForDownmix(track_t* pTrack, int trackName);
 
     static void track__genericResample(track_t* t, int32_t* out, size_t numFrames, int32_t* temp, int32_t* aux);
     static void track__nop(track_t* t, int32_t* out, size_t numFrames, int32_t* temp, int32_t* aux);

@@ -69,7 +69,7 @@ status_t AudioMixer::DownmixerBufferProvider::getNextBuffer(AudioBufferProvider:
 
             res = (*mDownmixHandle)->process(mDownmixHandle,
                     &mDownmixConfig.inputCfg.buffer, &mDownmixConfig.outputCfg.buffer);
-            ALOGV("getNextBuffer is downmixing");
+            //ALOGV("getNextBuffer is downmixing");
         }
         return res;
     } else {
@@ -79,7 +79,7 @@ status_t AudioMixer::DownmixerBufferProvider::getNextBuffer(AudioBufferProvider:
 }
 
 void AudioMixer::DownmixerBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
-    ALOGV("DownmixerBufferProvider::releaseBuffer()");
+    //ALOGV("DownmixerBufferProvider::releaseBuffer()");
     if (this->mTrackBufferProvider != NULL) {
         mTrackBufferProvider->releaseBuffer(pBuffer);
     } else {
@@ -120,6 +120,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         // FIXME redundant per track
         t->localTimeFreq = lc.getLocalFreq();
         t->resampler = NULL;
+        t->downmixerBufferProvider = NULL;
         t++;
     }
 
@@ -151,13 +152,14 @@ AudioMixer::~AudioMixer()
     track_t* t = mState.tracks;
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
         delete t->resampler;
+        delete t->downmixerBufferProvider;
         t++;
     }
     delete [] mState.outputTemp;
     delete [] mState.resampleTemp;
 }
 
-int AudioMixer::getTrackName()
+int AudioMixer::getTrackName(audio_channel_mask_t channelMask)
 {
     uint32_t names = (~mTrackNames) & mConfiguredNames;
     if (names != 0) {
@@ -197,7 +199,13 @@ int AudioMixer::getTrackName()
         t->mainBuffer = NULL;
         t->auxBuffer = NULL;
         // see t->localTimeFreq in constructor above
-        return TRACK0 + n;
+
+        status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
+        if (status == OK) {
+            return TRACK0 + n;
+        }
+        ALOGE("AudioMixer::getTrackName(0x%x) failed, error preparing track for downmix",
+                channelMask);
     }
     return -1;
 }
@@ -210,16 +218,43 @@ void AudioMixer::invalidateState(uint32_t mask)
     }
  }
 
+status_t AudioMixer::initTrackDownmix(track_t* pTrack, int trackNum, audio_channel_mask_t mask)
+{
+    uint32_t channelCount = popcount(mask);
+    ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
+    status_t status = OK;
+    if (channelCount > MAX_NUM_CHANNELS) {
+        pTrack->channelMask = mask;
+        pTrack->channelCount = channelCount;
+        ALOGV("initTrackDownmix(track=%d, mask=0x%x) calls prepareTrackForDownmix()",
+                trackNum, mask);
+        status = prepareTrackForDownmix(pTrack, trackNum);
+    } else {
+        unprepareTrackForDownmix(pTrack, trackNum);
+    }
+    return status;
+}
+
+void AudioMixer::unprepareTrackForDownmix(track_t* pTrack, int trackName) {
+    ALOGV("AudioMixer::unprepareTrackForDownmix(%d)", trackName);
+
+    if (pTrack->downmixerBufferProvider != NULL) {
+        // this track had previously been configured with a downmixer, delete it
+        ALOGV(" deleting old downmixer");
+        pTrack->bufferProvider = pTrack->downmixerBufferProvider->mTrackBufferProvider;
+        delete pTrack->downmixerBufferProvider;
+        pTrack->downmixerBufferProvider = NULL;
+    } else {
+        ALOGV(" nothing to do, no downmixer to delete");
+    }
+}
+
 status_t AudioMixer::prepareTrackForDownmix(track_t* pTrack, int trackName)
 {
     ALOGV("AudioMixer::prepareTrackForDownmix(%d) with mask 0x%x", trackName, pTrack->channelMask);
 
-    if (pTrack->downmixerBufferProvider != NULL) {
-        // this track had previously been configured with a downmixer, reset it
-        ALOGV("AudioMixer::prepareTrackForDownmix(%d) deleting old downmixer", trackName);
-        pTrack->bufferProvider = pTrack->downmixerBufferProvider->mTrackBufferProvider;
-        delete pTrack->downmixerBufferProvider;
-    }
+    // discard the previous downmixer if there was one
+    unprepareTrackForDownmix(pTrack, trackName);
 
     DownmixerBufferProvider* pDbp = new DownmixerBufferProvider();
     int32_t status;
@@ -319,6 +354,7 @@ noDownmixForActiveTrack:
 
 void AudioMixer::deleteTrackName(int name)
 {
+    ALOGV("AudioMixer::deleteTrackName(%d)", name);
     name -= TRACK0;
     ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
     ALOGV("deleteTrackName(%d)", name);
@@ -330,6 +366,9 @@ void AudioMixer::deleteTrackName(int name)
     // delete the resampler
     delete track.resampler;
     track.resampler = NULL;
+    // delete the downmixer
+    unprepareTrackForDownmix(&mState.tracks[name], name);
+
     mTrackNames &= ~(1<<name);
 }
 
@@ -353,11 +392,6 @@ void AudioMixer::disable(int name)
     track_t& track = mState.tracks[name];
 
     if (track.enabled) {
-        if (track.downmixerBufferProvider != NULL) {
-            ALOGV("AudioMixer::disable(%d) deleting downmixerBufferProvider", name);
-            delete track.downmixerBufferProvider;
-            track.downmixerBufferProvider = NULL;
-        }
         track.enabled = false;
         ALOGV("disable(%d)", name);
         invalidateState(1 << name);
@@ -384,11 +418,8 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
                 ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
                 track.channelMask = mask;
                 track.channelCount = channelCount;
-                if (channelCount > MAX_NUM_CHANNELS) {
-                    ALOGV("AudioMixer::setParameter(TRACK, CHANNEL_MASK, mask=0x%x count=%d)",
-                            mask, channelCount);
-                    status_t status = prepareTrackForDownmix(&mState.tracks[name], name);
-                }
+                // the mask has changed, does this track need a downmixer?
+                initTrackDownmix(&mState.tracks[name], name, mask);
                 ALOGV("setParameter(TRACK, CHANNEL_MASK, %x)", mask);
                 invalidateState(1 << name);
             }
@@ -633,7 +664,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
                 resampling = true;
                 t.hook = track__genericResample;
                 ALOGV_IF((n & NEEDS_CHANNEL_COUNT__MASK) > NEEDS_CHANNEL_2,
-                        "Track needs downmix + resample");
+                        "Track %d needs downmix + resample", i);
             } else {
                 if ((n & NEEDS_CHANNEL_COUNT__MASK) == NEEDS_CHANNEL_1){
                     t.hook = track__16BitsMono;
@@ -642,7 +673,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
                 if ((n & NEEDS_CHANNEL_COUNT__MASK) >= NEEDS_CHANNEL_2){
                     t.hook = track__16BitsStereo;
                     ALOGV_IF((n & NEEDS_CHANNEL_COUNT__MASK) > NEEDS_CHANNEL_2,
-                            "Track needs downmix");
+                            "Track %d needs downmix", i);
                 }
             }
         }

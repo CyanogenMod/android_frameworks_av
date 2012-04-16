@@ -2664,13 +2664,7 @@ void AudioFlinger::MixerThread::invalidateTracks(audio_stream_type_t streamType)
 // getTrackName_l() must be called with ThreadBase::mLock held
 int AudioFlinger::MixerThread::getTrackName_l(audio_channel_mask_t channelMask)
 {
-    int name = mAudioMixer->getTrackName();
-    if (name >= 0) {
-        mAudioMixer->setParameter(name,
-                AudioMixer::TRACK,
-                AudioMixer::CHANNEL_MASK, (void *)channelMask);
-    }
-    return name;
+    return mAudioMixer->getTrackName(channelMask);
 }
 
 // deleteTrackName_l() must be called with ThreadBase::mLock held
