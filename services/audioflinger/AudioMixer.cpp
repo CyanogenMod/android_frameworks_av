@@ -119,6 +119,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
         // FIXME redundant per track
         t->localTimeFreq = lc.getLocalFreq();
+        t->resampler = NULL;
         t++;
     }
 
