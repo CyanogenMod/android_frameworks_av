@@ -108,6 +108,12 @@ public:
     // returns the sampling rate of the audio being captured
     uint32_t getSamplingRate() { return mSampleRate; }
 
+    // set the way volume affects the captured data
+    // mode must one of VISUALIZER_SCALING_MODE_NORMALIZED,
+    //  VISUALIZER_SCALING_MODE_AS_PLAYED
+    status_t setScalingMode(uint32_t mode);
+    uint32_t getScalingMode() { return mScalingMode; }
+
     // return a capture in PCM 8 bit unsigned format. The size of the capture is equal to
     // getCaptureSize()
     status_t getWaveForm(uint8_t *waveform);
@@ -116,6 +122,10 @@ public:
     // getCaptureSize() but the length of the FFT is half of the size (both parts of the spectrum
     // are returned
     status_t getFft(uint8_t *fft);
+
+protected:
+    // from IEffectClient
+    virtual void controlStatusChanged(bool controlGranted);
 
 private:
 
@@ -147,6 +157,7 @@ private:
     uint32_t mCaptureRate;
     uint32_t mCaptureSize;
     uint32_t mSampleRate;
+    uint32_t mScalingMode;
     capture_cbk_t mCaptureCallBack;
     void *mCaptureCbkUser;
     sp<CaptureThread> mCaptureThread;

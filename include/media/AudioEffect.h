@@ -402,6 +402,15 @@ protected:
      int32_t                 mId;                // system wide unique effect engine instance ID
      Mutex                   mLock;               // Mutex for mEnabled access
 
+     // IEffectClient
+     virtual void controlStatusChanged(bool controlGranted);
+     virtual void enableStatusChanged(bool enabled);
+     virtual void commandExecuted(uint32_t cmdCode,
+             uint32_t cmdSize,
+             void *pCmdData,
+             uint32_t replySize,
+             void *pReplyData);
+
 private:
 
      // Implements the IEffectClient interface
@@ -433,19 +442,7 @@ private:
         AudioEffect *mEffect;
     };
 
-
-    friend class EffectClient;
-
-    // IEffectClient
-    void controlStatusChanged(bool controlGranted);
-    void enableStatusChanged(bool enabled);
-    void commandExecuted(uint32_t cmdCode,
-                         uint32_t cmdSize,
-                         void *pCmdData,
-                         uint32_t replySize,
-                         void *pReplyData);
     void binderDied();
-
 
     sp<IEffect>             mIEffect;           // IEffect binder interface
     sp<EffectClient>        mIEffectClient;     // IEffectClient implementation

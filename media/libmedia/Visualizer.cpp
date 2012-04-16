@@ -41,6 +41,7 @@ Visualizer::Visualizer (int32_t priority,
         mCaptureRate(CAPTURE_RATE_DEF),
         mCaptureSize(CAPTURE_SIZE_DEF),
         mSampleRate(44100000),
+        mScalingMode(VISUALIZER_SCALING_MODE_NORMALIZED),
         mCaptureCallBack(NULL),
         mCaptureCbkUser(NULL)
 {
@@ -146,9 +147,38 @@ status_t Visualizer::setCaptureSize(uint32_t size)
 
     if (status == NO_ERROR) {
         status = p->status;
+        if (status == NO_ERROR) {
+            mCaptureSize = size;
+        }
     }
+
+    return status;
+}
+
+status_t Visualizer::setScalingMode(uint32_t mode) {
+    if ((mode != VISUALIZER_SCALING_MODE_NORMALIZED)
+            && (mode != VISUALIZER_SCALING_MODE_AS_PLAYED)) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mCaptureLock);
+
+    uint32_t buf32[sizeof(effect_param_t) / sizeof(uint32_t) + 2];
+    effect_param_t *p = (effect_param_t *)buf32;
+
+    p->psize = sizeof(uint32_t);
+    p->vsize = sizeof(uint32_t);
+    *(int32_t *)p->data = VISUALIZER_PARAM_SCALING_MODE;
+    *((int32_t *)p->data + 1)= mode;
+    status_t status = setParameter(p);
+
+    ALOGV("setScalingMode mode %d  status %d p->status %d", mode, status, p->status);
+
     if (status == NO_ERROR) {
-        mCaptureSize = size;
+        status = p->status;
+        if (status == NO_ERROR) {
+            mScalingMode = mode;
+        }
     }
 
     return status;
@@ -287,6 +317,19 @@ uint32_t Visualizer::initCaptureSize()
     ALOGV("initCaptureSize size %d status %d", mCaptureSize, status);
 
     return size;
+}
+
+void Visualizer::controlStatusChanged(bool controlGranted) {
+    if (controlGranted) {
+        // this Visualizer instance regained control of the effect, reset the scaling mode
+        //   and capture size as has been cached through it.
+        ALOGV("controlStatusChanged(true) causes effect parameter reset:");
+        ALOGV("    scaling mode reset to %d", mScalingMode);
+        setScalingMode(mScalingMode);
+        ALOGV("    capture size reset to %d", mCaptureSize);
+        setCaptureSize(mCaptureSize);
+    }
+    AudioEffect::controlStatusChanged(controlGranted);
 }
 
 //-------------------------------------------------------------------------
