@@ -133,7 +133,10 @@ inline static void ConvertYUV420SemiPlanarToYUV420Planar(
 
 static void* MallocWrapper(
         void *userData, int32_t size, int32_t attrs) {
-    return malloc(size);
+    void *ptr = malloc(size);
+    if (ptr)
+        memset(ptr, 0, size);
+    return ptr;
 }
 
 static void FreeWrapper(void *userData, void* ptr) {
