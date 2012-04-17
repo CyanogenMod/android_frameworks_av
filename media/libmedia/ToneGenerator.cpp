@@ -1020,15 +1020,15 @@ bool ToneGenerator::initAudioTrack() {
     ALOGV("Create Track: %p", mpAudioTrack);
 
     mpAudioTrack->set(mStreamType,
-                      0,
+                      0,    // sampleRate
                       AUDIO_FORMAT_PCM_16_BIT,
                       AUDIO_CHANNEL_OUT_MONO,
-                      0,
-                      AUDIO_POLICY_OUTPUT_FLAG_NONE,
+                      0,    // frameCount
+                      AUDIO_POLICY_OUTPUT_FLAG_FAST,
                       audioCallback,
-                      this,
-                      0,
-                      0,
+                      this, // user
+                      0,    // notificationFrames
+                      0,    // sharedBuffer
                       mThreadCanCallJava);
 
     if (mpAudioTrack->initCheck() != NO_ERROR) {
