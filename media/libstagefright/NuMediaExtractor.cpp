@@ -429,7 +429,13 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
 }
 
 status_t NuMediaExtractor::seekTo(int64_t timeUs) {
-    return fetchTrackSamples(timeUs);
+    ssize_t minIndex = fetchTrackSamples(timeUs);
+
+    if (minIndex < 0) {
+        return ERROR_END_OF_STREAM;
+    }
+
+    return OK;
 }
 
 status_t NuMediaExtractor::advance() {
