@@ -486,6 +486,10 @@ void SurfaceMediaSourceGLTest::setUpEGLSurfaceFromMediaRecorder(sp<MediaRecorder
     mSTC = new SurfaceTextureClient(iST);
     mANW = mSTC;
 
+    if (mEglSurface != EGL_NO_SURFACE) {
+        EXPECT_TRUE(eglDestroySurface(mEglDisplay, mEglSurface));
+        mEglSurface = EGL_NO_SURFACE;
+    }
     mEglSurface = eglCreateWindowSurface(mEglDisplay, mGlConfig,
                                 mANW.get(), NULL);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
@@ -782,6 +786,11 @@ TEST_F(SurfaceMediaSourceGLTest, ChooseAndroidRecordableEGLConfigDummyWriter) {
 
     DummyRecorder writer(mSMS);
     writer.start();
+
+    if (mEglSurface != EGL_NO_SURFACE) {
+        EXPECT_TRUE(eglDestroySurface(mEglDisplay, mEglSurface));
+        mEglSurface = EGL_NO_SURFACE;
+    }
 
     mEglSurface = eglCreateWindowSurface(mEglDisplay, mGlConfig,
                                 mANW.get(), NULL);
