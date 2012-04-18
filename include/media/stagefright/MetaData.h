@@ -129,10 +129,6 @@ enum {
 
     kKeyRequiresSecureBuffers = 'secu',  // bool (int32_t)
 
-    kKeyScrambling        = 'scrm',  // int32_t
-    kKeyEMM               = 'emm ',  // raw data
-    kKeyECM               = 'ecm ',  // raw data
-
     kKeyIsADTS            = 'adts',  // bool (int32_t)
 
     // If a MediaBuffer's data represents (at least partially) encrypted
@@ -156,6 +152,7 @@ enum {
     kKeyPlainSizes        = 'plai',  // size_t[]
     kKeyCryptoKey         = 'cryK',  // uint8_t[16]
     kKeyCryptoIV          = 'cryI',  // uint8_t[16]
+    kKeyCryptoMode        = 'cryM',  // int32_t
 };
 
 enum {

@@ -39,8 +39,7 @@ static void usage(const char *me) {
     fprintf(stderr, "usage: %s [-a] use audio\n"
                     "\t\t[-v] use video\n"
                     "\t\t[-p] playback\n"
-                    "\t\t[-S] allocate buffers from a surface\n"
-                    "\t\t[-D] decrypt input buffers\n",
+                    "\t\t[-S] allocate buffers from a surface\n",
                     me);
 
     exit(1);
@@ -61,33 +60,6 @@ struct CodecState {
     bool mIsAudio;
 };
 
-static sp<ICrypto> makeCrypto(
-        const uint8_t uuid[16], const void *data, size_t size) {
-    sp<IServiceManager> sm = defaultServiceManager();
-
-    sp<IBinder> binder =
-        sm->getService(String16("media.player"));
-
-    sp<IMediaPlayerService> service =
-        interface_cast<IMediaPlayerService>(binder);
-
-    CHECK(service != NULL);
-
-    sp<ICrypto> crypto = service->makeCrypto();
-
-    if (crypto == NULL || crypto->initCheck() != OK) {
-        return NULL;
-    }
-
-    status_t err = crypto->createPlugin(uuid, data, size);
-
-    if (err != OK) {
-        return NULL;
-    }
-
-    return crypto;
-}
-
 }  // namespace android
 
 static int decode(
@@ -95,8 +67,7 @@ static int decode(
         const char *path,
         bool useAudio,
         bool useVideo,
-        const android::sp<android::Surface> &surface,
-        bool decryptInputBuffers) {
+        const android::sp<android::Surface> &surface) {
     using namespace android;
 
     static int64_t kTimeout = 500ll;
@@ -106,8 +77,6 @@ static int decode(
         fprintf(stderr, "unable to instantiate extractor.\n");
         return 1;
     }
-
-    sp<ICrypto> crypto;
 
     KeyedVector<size_t, CodecState> stateByTrack;
 
@@ -144,62 +113,14 @@ static int decode(
         state->mNumBuffersDecoded = 0;
         state->mIsAudio = isAudio;
 
-        if (decryptInputBuffers && crypto == NULL) {
-            sp<ABuffer> emm;
-            CHECK(format->findBuffer("emm", &emm));
-
-            sp<ABuffer> ecm;
-            CHECK(format->findBuffer("ecm", &ecm));
-
-            struct WVOpaqueInitData {
-                uint8_t mEMM[16];
-                uint8_t mECM[32];
-
-            } opaque;
-
-            CHECK_EQ(emm->size(), sizeof(opaque.mEMM));
-            memcpy(opaque.mEMM, emm->data(), emm->size());
-
-            CHECK_EQ(ecm->size(), 80u);
-            // bytes 16..47 of the original ecm stream data.
-            memcpy(opaque.mECM, ecm->data() + 16, 32);
-
-            static const uint8_t kUUIDWidevine[16] = {
-                0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-            };
-
-            crypto = makeCrypto(kUUIDWidevine, &opaque, sizeof(opaque));
-            CHECK(crypto != NULL);
-            CHECK_EQ(crypto->initCheck(), (status_t)OK);
-        }
-
-        if (decryptInputBuffers
-                && crypto->requiresSecureDecoderComponent(mime.c_str())) {
-            static const MediaCodecList *list = MediaCodecList::getInstance();
-
-            ssize_t index =
-                list->findCodecByType(mime.c_str(), false /* encoder */);
-
-            CHECK_GE(index, 0);
-
-            const char *componentName = list->getCodecName(index);
-
-            AString fullName = componentName;
-            fullName.append(".secure");
-
-            state->mCodec = MediaCodec::CreateByComponentName(
-                    looper, fullName.c_str());
-        } else {
-            state->mCodec = MediaCodec::CreateByType(
-                    looper, mime.c_str(), false /* encoder */);
-        }
+        state->mCodec = MediaCodec::CreateByType(
+                looper, mime.c_str(), false /* encoder */);
 
         CHECK(state->mCodec != NULL);
 
         err = state->mCodec->configure(
                 format, isVideo ? surface : NULL,
-                crypto,
+                NULL /* crypto */,
                 0 /* flags */);
 
         CHECK_EQ(err, (status_t)OK);
@@ -289,35 +210,12 @@ static int decode(
 
                     uint32_t bufferFlags = 0;
 
-                    uint32_t sampleFlags;
-                    err = extractor->getSampleFlags(&sampleFlags);
-                    CHECK_EQ(err, (status_t)OK);
-
-                    if (sampleFlags & NuMediaExtractor::SAMPLE_FLAG_ENCRYPTED) {
-                        CHECK(decryptInputBuffers);
-
-                        CryptoPlugin::SubSample ss;
-                        ss.mNumBytesOfClearData = 0;
-                        ss.mNumBytesOfEncryptedData = buffer->size();
-
-                        err = state->mCodec->queueSecureInputBuffer(
-                                index,
-                                0 /* offset */,
-                                &ss,
-                                1 /* numSubSamples */,
-                                NULL /* key */,
-                                NULL /* iv */,
-                                CryptoPlugin::kMode_AES_WV,
-                                timeUs,
-                                bufferFlags);
-                    } else {
-                        err = state->mCodec->queueInputBuffer(
-                                index,
-                                0 /* offset */,
-                                buffer->size(),
-                                timeUs,
-                                bufferFlags);
-                    }
+                    err = state->mCodec->queueInputBuffer(
+                            index,
+                            0 /* offset */,
+                            buffer->size(),
+                            timeUs,
+                            bufferFlags);
 
                     CHECK_EQ(err, (status_t)OK);
 
@@ -451,7 +349,6 @@ int main(int argc, char **argv) {
     bool useVideo = false;
     bool playback = false;
     bool useSurface = false;
-    bool decryptInputBuffers = false;
 
     int res;
     while ((res = getopt(argc, argv, "havpSD")) >= 0) {
@@ -477,12 +374,6 @@ int main(int argc, char **argv) {
             case 'S':
             {
                 useSurface = true;
-                break;
-            }
-
-            case 'D':
-            {
-                decryptInputBuffers = true;
                 break;
             }
 
@@ -557,8 +448,7 @@ int main(int argc, char **argv) {
         player->stop();
         player->reset();
     } else {
-        decode(looper, argv[0],
-               useAudio, useVideo, surface, decryptInputBuffers);
+        decode(looper, argv[0], useAudio, useVideo, surface);
     }
 
     if (playback || (useSurface && useVideo)) {
