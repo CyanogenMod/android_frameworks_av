@@ -356,6 +356,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
     int64_t totalBitRate = 0;
 
+    mExtractor = extractor;
     for (size_t i = 0; i < extractor->countTracks(); ++i) {
         sp<MetaData> meta = extractor->getTrackMetaData(i);
 
@@ -443,7 +444,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
                 }
             }
         } else if (!strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
-            addTextSource(extractor->getTrack(i));
+            addTextSource(i, extractor->getTrack(i));
         }
     }
 
@@ -507,6 +508,7 @@ void AwesomePlayer::reset_l() {
     mCachedSource.clear();
     mAudioTrack.clear();
     mVideoTrack.clear();
+    mExtractor.clear();
 
     // Shutdown audio first, so that the respone to the reset request
     // appears to happen instantaneously as far as the user is concerned
@@ -1331,7 +1333,7 @@ void AwesomePlayer::setAudioSource(sp<MediaSource> source) {
     mAudioTrack = source;
 }
 
-void AwesomePlayer::addTextSource(const sp<MediaSource>& source) {
+void AwesomePlayer::addTextSource(size_t trackIndex, const sp<MediaSource>& source) {
     Mutex::Autolock autoLock(mTimedTextLock);
     CHECK(source != NULL);
 
@@ -1339,7 +1341,7 @@ void AwesomePlayer::addTextSource(const sp<MediaSource>& source) {
         mTextDriver = new TimedTextDriver(mListener);
     }
 
-    mTextDriver->addInBandTextSource(source);
+    mTextDriver->addInBandTextSource(trackIndex, source);
 }
 
 status_t AwesomePlayer::initAudioDecoder() {
@@ -2254,6 +2256,94 @@ status_t AwesomePlayer::getParameter(int key, Parcel *reply) {
     }
 }
 
+status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
+    Mutex::Autolock autoLock(mTimedTextLock);
+    if (mTextDriver == NULL) {
+        return INVALID_OPERATION;
+    }
+
+    reply->writeInt32(mTextDriver->countExternalTracks() +
+                mExtractor->countTracks());
+    for (size_t i = 0; i < mExtractor->countTracks(); ++i) {
+        sp<MetaData> meta = mExtractor->getTrackMetaData(i);
+
+        const char *_mime;
+        CHECK(meta->findCString(kKeyMIMEType, &_mime));
+
+        String8 mime = String8(_mime);
+
+        reply->writeInt32(2); // 2 fields
+
+        if (!strncasecmp(mime.string(), "video/", 6)) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_VIDEO);
+        } else if (!strncasecmp(mime.string(), "audio/", 6)) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_AUDIO);
+        } else if (!strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_TIMEDTEXT);
+        } else {
+            reply->writeInt32(MEDIA_TRACK_TYPE_UNKNOWN);
+        }
+
+        const char *lang;
+        if (meta->findCString(kKeyMediaLanguage, &lang)) {
+            reply->writeString16(String16(lang));
+        } else {
+            reply->writeString16(String16(""));
+        }
+    }
+
+    mTextDriver->getExternalTrackInfo(reply);
+    return OK;
+}
+
+// FIXME:
+// At present, only timed text track is able to be selected or unselected.
+status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
+    Mutex::Autolock autoLock(mTimedTextLock);
+    if (mTextDriver == NULL) {
+        return INVALID_OPERATION;
+    }
+
+    if (trackIndex >= mExtractor->countTracks()
+                + mTextDriver->countExternalTracks()) {
+        return BAD_VALUE;
+    }
+
+    if (trackIndex < mExtractor->countTracks()) {
+        sp<MetaData> meta = mExtractor->getTrackMetaData(trackIndex);
+        const char *_mime;
+        CHECK(meta->findCString(kKeyMIMEType, &_mime));
+        String8 mime = String8(_mime);
+
+        if (strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
+            return ERROR_UNSUPPORTED;
+        }
+    }
+
+    status_t err = OK;
+    if (select) {
+        err = mTextDriver->selectTrack(trackIndex);
+        if (err == OK) {
+            modifyFlags(TEXTPLAYER_INITIALIZED, SET);
+            if (mFlags & PLAYING && !(mFlags & TEXT_RUNNING)) {
+                mTextDriver->start();
+                modifyFlags(TEXT_RUNNING, SET);
+            }
+        }
+    } else {
+        err = mTextDriver->unselectTrack(trackIndex);
+        if (err == OK) {
+            modifyFlags(TEXTPLAYER_INITIALIZED, CLEAR);
+            modifyFlags(TEXT_RUNNING, CLEAR);
+        }
+    }
+    return err;
+}
+
+size_t AwesomePlayer::countTracks() const {
+    return mExtractor->countTracks() + mTextDriver->countExternalTracks();
+}
+
 status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
     if (NULL == reply) {
         return android::BAD_VALUE;
@@ -2266,12 +2356,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
     switch(methodId) {
         case INVOKE_ID_GET_TRACK_INFO:
         {
-            Mutex::Autolock autoLock(mTimedTextLock);
-            if (mTextDriver == NULL) {
-                return INVALID_OPERATION;
-            }
-            mTextDriver->getTrackInfo(reply);
-            return OK;
+            return getTrackInfo(reply);
         }
         case INVOKE_ID_ADD_EXTERNAL_SOURCE:
         {
@@ -2282,7 +2367,8 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
             // String values written in Parcel are UTF-16 values.
             String8 uri(request.readString16());
             String8 mimeType(request.readString16());
-            return mTextDriver->addOutOfBandTextSource(uri, mimeType);
+            size_t nTracks = countTracks();
+            return mTextDriver->addOutOfBandTextSource(nTracks, uri, mimeType);
         }
         case INVOKE_ID_ADD_EXTERNAL_SOURCE_FD:
         {
@@ -2294,40 +2380,19 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
             off64_t offset = request.readInt64();
             off64_t length  = request.readInt64();
             String8 mimeType(request.readString16());
+            size_t nTracks = countTracks();
             return mTextDriver->addOutOfBandTextSource(
-                    fd, offset, length, mimeType);
+                    nTracks, fd, offset, length, mimeType);
         }
         case INVOKE_ID_SELECT_TRACK:
         {
-            Mutex::Autolock autoLock(mTimedTextLock);
-            if (mTextDriver == NULL) {
-                return INVALID_OPERATION;
-            }
-
-            status_t err = mTextDriver->selectTrack(
-                    request.readInt32());
-            if (err == OK) {
-                modifyFlags(TEXTPLAYER_INITIALIZED, SET);
-                if (mFlags & PLAYING && !(mFlags & TEXT_RUNNING)) {
-                    mTextDriver->start();
-                    modifyFlags(TEXT_RUNNING, SET);
-                }
-            }
-            return err;
+            int trackIndex = request.readInt32();
+            return selectTrack(trackIndex, true);
         }
         case INVOKE_ID_UNSELECT_TRACK:
         {
-            Mutex::Autolock autoLock(mTimedTextLock);
-            if (mTextDriver == NULL) {
-                return INVALID_OPERATION;
-            }
-            status_t err = mTextDriver->unselectTrack(
-                    request.readInt32());
-            if (err == OK) {
-                modifyFlags(TEXTPLAYER_INITIALIZED, CLEAR);
-                modifyFlags(TEXT_RUNNING, CLEAR);
-            }
-            return err;
+            int trackIndex = request.readInt32();
+            return selectTrack(trackIndex, false);
         }
         default:
         {

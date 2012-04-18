@@ -235,6 +235,7 @@ private:
     mutable Mutex mTimedTextLock;
 
     sp<WVMExtractor> mWVMExtractor;
+    sp<MediaExtractor> mExtractor;
 
     status_t setDataSource_l(
             const char *uri,
@@ -257,7 +258,7 @@ private:
     void setVideoSource(sp<MediaSource> source);
     status_t initVideoDecoder(uint32_t flags = 0);
 
-    void addTextSource(const sp<MediaSource>& source);
+    void addTextSource(size_t trackIndex, const sp<MediaSource>& source);
 
     void onStreamDone();
 
@@ -317,6 +318,14 @@ private:
         uint32_t mFlags;
         Vector<TrackStat> mTracks;
     } mStats;
+
+    status_t getTrackInfo(Parcel* reply) const;
+
+    // when select is true, the given track is selected.
+    // otherwise, the given track is unselected.
+    status_t selectTrack(size_t trackIndex, bool select);
+
+    size_t countTracks() const;
 
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);

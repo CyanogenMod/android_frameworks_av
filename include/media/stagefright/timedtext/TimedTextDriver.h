@@ -40,18 +40,24 @@ public:
 
     status_t start();
     status_t pause();
-    status_t selectTrack(int32_t index);
-    status_t unselectTrack(int32_t index);
+    status_t selectTrack(size_t index);
+    status_t unselectTrack(size_t index);
 
     status_t seekToAsync(int64_t timeUs);
 
-    status_t addInBandTextSource(const sp<MediaSource>& source);
-    status_t addOutOfBandTextSource(const char *uri, const char *mimeType);
+    status_t addInBandTextSource(
+            size_t trackIndex, const sp<MediaSource>& source);
+
+    status_t addOutOfBandTextSource(
+            size_t trackIndex, const char *uri, const char *mimeType);
+
     // Caller owns the file desriptor and caller is responsible for closing it.
     status_t addOutOfBandTextSource(
-            int fd, off64_t offset, off64_t length, const char *mimeType);
+            size_t trackIndex, int fd, off64_t offset,
+            off64_t length, const char *mimeType);
 
-    void getTrackInfo(Parcel *parcel);
+    void getExternalTrackInfo(Parcel *parcel);
+    size_t countExternalTracks() const;
 
 private:
     Mutex mLock;
@@ -68,13 +74,17 @@ private:
 
     // Variables to be guarded by mLock.
     State mState;
-    int32_t mCurrentTrackIndex;
-    Vector<sp<TimedTextSource> > mTextSourceVector;
+    size_t mCurrentTrackIndex;
+    KeyedVector<size_t, sp<TimedTextSource> > mTextSourceVector;
+    Vector<bool> mTextSourceTypeVector;
+
     // -- End of variables to be guarded by mLock
 
-    status_t selectTrack_l(int32_t index);
+    status_t selectTrack_l(size_t index);
+
     status_t createOutOfBandTextSource(
-            const char *mimeType, const sp<DataSource>& dataSource);
+            size_t trackIndex, const char* mimeType,
+            const sp<DataSource>& dataSource);
 
     DISALLOW_EVIL_CONSTRUCTORS(TimedTextDriver);
 };
