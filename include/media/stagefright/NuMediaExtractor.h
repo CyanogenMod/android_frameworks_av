@@ -31,6 +31,7 @@ struct AMessage;
 struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
+struct MetaData;
 
 struct NuMediaExtractor : public RefBase {
     enum SampleFlags {
@@ -57,7 +58,7 @@ struct NuMediaExtractor : public RefBase {
     status_t readSampleData(const sp<ABuffer> &buffer);
     status_t getSampleTrackIndex(size_t *trackIndex);
     status_t getSampleTime(int64_t *sampleTimeUs);
-    status_t getSampleFlags(uint32_t *sampleFlags);
+    status_t getSampleMeta(sp<MetaData> *sampleMeta);
 
 protected:
     virtual ~NuMediaExtractor();
@@ -73,7 +74,6 @@ private:
         status_t mFinalResult;
         MediaBuffer *mSample;
         int64_t mSampleTimeUs;
-        uint32_t mSampleFlags;
 
         uint32_t mTrackFlags;  // bitmask of "TrackFlags"
     };

@@ -289,20 +289,6 @@ status_t NuMediaExtractor::getTrackFormat(
         msg->setBuffer("csd-1", buffer);
     }
 
-    if (meta->findData(kKeyEMM, &type, &data, &size)) {
-        sp<ABuffer> emm = new ABuffer(size);
-        memcpy(emm->data(), data, size);
-
-        msg->setBuffer("emm", emm);
-    }
-
-    if (meta->findData(kKeyECM, &type, &data, &size)) {
-        sp<ABuffer> ecm = new ABuffer(size);
-        memcpy(ecm->data(), data, size);
-
-        msg->setBuffer("ecm", ecm);
-    }
-
     *format = msg;
 
     return OK;
@@ -338,7 +324,6 @@ status_t NuMediaExtractor::selectTrack(size_t index) {
     info->mFinalResult = OK;
     info->mSample = NULL;
     info->mSampleTimeUs = -1ll;
-    info->mSampleFlags = 0;
     info->mTrackFlags = 0;
 
     const char *mime;
@@ -360,7 +345,6 @@ void NuMediaExtractor::releaseTrackSamples() {
             info->mSample = NULL;
 
             info->mSampleTimeUs = -1ll;
-            info->mSampleFlags = 0;
         }
     }
 }
@@ -379,7 +363,6 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
                 info->mSample->release();
                 info->mSample = NULL;
                 info->mSampleTimeUs = -1ll;
-                info->mSampleFlags = 0;
             }
         } else if (info->mFinalResult != OK) {
             continue;
@@ -397,25 +380,11 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
 
                 info->mFinalResult = err;
                 info->mSampleTimeUs = -1ll;
-                info->mSampleFlags = 0;
                 continue;
             } else {
                 CHECK(info->mSample != NULL);
                 CHECK(info->mSample->meta_data()->findInt64(
                             kKeyTime, &info->mSampleTimeUs));
-
-                info->mSampleFlags = 0;
-
-                int32_t val;
-                if (info->mSample->meta_data()->findInt32(
-                            kKeyIsSyncFrame, &val) && val != 0) {
-                    info->mSampleFlags |= SAMPLE_FLAG_SYNC;
-                }
-
-                if (info->mSample->meta_data()->findInt32(
-                            kKeyScrambling, &val) && val != 0) {
-                    info->mSampleFlags |= SAMPLE_FLAG_ENCRYPTED;
-                }
             }
         }
 
@@ -524,7 +493,9 @@ status_t NuMediaExtractor::getSampleTime(int64_t *sampleTimeUs) {
     return OK;
 }
 
-status_t NuMediaExtractor::getSampleFlags(uint32_t *sampleFlags) {
+status_t NuMediaExtractor::getSampleMeta(sp<MetaData> *sampleMeta) {
+    *sampleMeta = NULL;
+
     ssize_t minIndex = fetchTrackSamples();
 
     if (minIndex < 0) {
@@ -532,7 +503,7 @@ status_t NuMediaExtractor::getSampleFlags(uint32_t *sampleFlags) {
     }
 
     TrackInfo *info = &mSelectedTracks.editItemAt(minIndex);
-    *sampleFlags = info->mSampleFlags;
+    *sampleMeta = info->mSample->meta_data();
 
     return OK;
 }
