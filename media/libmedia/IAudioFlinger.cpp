@@ -362,7 +362,7 @@ public:
                                          audio_format_t *pFormat,
                                          audio_channel_mask_t *pChannelMask,
                                          uint32_t *pLatencyMs,
-                                         audio_policy_output_flags_t flags)
+                                         audio_output_flags_t flags)
     {
         Parcel data, reply;
         audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
@@ -855,7 +855,7 @@ status_t BnAudioFlinger::onTransact(
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
             uint32_t latency = data.readInt32();
-            audio_policy_output_flags_t flags = (audio_policy_output_flags_t) data.readInt32();
+            audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
             audio_io_handle_t output = openOutput(module,
                                                  &devices,
                                                  &samplingRate,

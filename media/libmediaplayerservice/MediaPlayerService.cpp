@@ -1587,7 +1587,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                AUDIO_POLICY_OUTPUT_FLAG_NONE,
+                AUDIO_OUTPUT_FLAG_NONE,
                 CallbackWrapper,
                 mCallbackData,
                 0,  // notification frames
@@ -1599,7 +1599,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 format,
                 channelMask,
                 frameCount,
-                AUDIO_POLICY_OUTPUT_FLAG_NONE,
+                AUDIO_OUTPUT_FLAG_NONE,
                 NULL,
                 NULL,
                 0,

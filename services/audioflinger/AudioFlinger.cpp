@@ -1608,7 +1608,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // FIXME test that MixerThread for this fast track has a capable output HAL
             // FIXME add a permission test also?
           ) ) {
-        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied");
         flags &= ~IAudioFlinger::TRACK_FAST;
     }
 
@@ -3696,7 +3696,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(pid_t tid,
             mName, IPCThreadState::self()->getCallingPid(), mSessionId, tid);
     // check for use case 2 with missing callback
     if (isFastTrack() && (mSharedBuffer == 0) && (tid == 0)) {
-        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied");
         mFlags &= ~IAudioFlinger::TRACK_FAST;
         // FIXME the track must be invalidated and moved to another thread or
         // attached directly to the normal mixer now
@@ -5792,7 +5792,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_format_t *pFormat,
                                            audio_channel_mask_t *pChannelMask,
                                            uint32_t *pLatencyMs,
-                                           audio_policy_output_flags_t flags)
+                                           audio_output_flags_t flags)
 {
     status_t status;
     PlaybackThread *thread = NULL;
@@ -5844,7 +5844,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     if (status == NO_ERROR && outStream != NULL) {
         AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream);
 
-        if ((flags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT) ||
+        if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
             (config.format != AUDIO_FORMAT_PCM_16_BIT) ||
             (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
             thread = new DirectOutputThread(this, output, id, *pDevices);
@@ -5864,7 +5864,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
 
         // the first primary output opened designates the primary hw device
-        if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_POLICY_OUTPUT_FLAG_PRIMARY)) {
+        if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = outHwDev;
 

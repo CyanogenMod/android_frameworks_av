@@ -92,7 +92,7 @@ AudioTrack::AudioTrack(
         audio_format_t format,
         int channelMask,
         int frameCount,
-        audio_policy_output_flags_t flags,
+        audio_output_flags_t flags,
         callback_t cbf,
         void* user,
         int notificationFrames,
@@ -124,7 +124,7 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(ANDROID_TGROUP_DEFAULT)
 {
     mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format, channelMask,
-            frameCount, (audio_policy_output_flags_t)flags, cbf, user, notificationFrames,
+            frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId);
 }
 
@@ -134,7 +134,7 @@ AudioTrack::AudioTrack(
         audio_format_t format,
         int channelMask,
         const sp<IMemory>& sharedBuffer,
-        audio_policy_output_flags_t flags,
+        audio_output_flags_t flags,
         callback_t cbf,
         void* user,
         int notificationFrames,
@@ -174,7 +174,7 @@ status_t AudioTrack::set(
         audio_format_t format,
         int channelMask,
         int frameCount,
-        audio_policy_output_flags_t flags,
+        audio_output_flags_t flags,
         callback_t cbf,
         void* user,
         int notificationFrames,
@@ -222,8 +222,8 @@ status_t AudioTrack::set(
 
     // force direct flag if format is not linear PCM
     if (!audio_is_linear_pcm(format)) {
-        flags = (audio_policy_output_flags_t)
-                ((flags | AUDIO_POLICY_OUTPUT_FLAG_DIRECT) & ~AUDIO_POLICY_OUTPUT_FLAG_FAST);
+        flags = (audio_output_flags_t)
+                ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
 
     if (!audio_is_output_channel(channelMask)) {
@@ -735,7 +735,7 @@ status_t AudioTrack::createTrack_l(
         audio_format_t format,
         uint32_t channelMask,
         int frameCount,
-        audio_policy_output_flags_t flags,
+        audio_output_flags_t flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output)
 {
@@ -761,14 +761,14 @@ status_t AudioTrack::createTrack_l(
 
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
-    if ((flags & AUDIO_POLICY_OUTPUT_FLAG_FAST) && !(
+    if ((flags & AUDIO_OUTPUT_FLAG_FAST) && !(
             // either of these use cases:
             // use case 1: shared buffer
             (sharedBuffer != 0) ||
             // use case 2: callback handler
             (mCbf != NULL))) {
-        ALOGW("AUDIO_POLICY_OUTPUT_FLAG_FAST denied");
-        flags = (audio_policy_output_flags_t) (flags & ~AUDIO_POLICY_OUTPUT_FLAG_FAST);
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied");
+        flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
     ALOGV("createTrack_l() output %d afFrameCount %d afLatency %d", output, afFrameCount, afLatency);
 
@@ -796,7 +796,7 @@ status_t AudioTrack::createTrack_l(
             if (mNotificationFramesAct > (uint32_t)frameCount/2) {
                 mNotificationFramesAct = frameCount/2;
             }
-            if (frameCount < minFrameCount && !(flags & AUDIO_POLICY_OUTPUT_FLAG_FAST)) {
+            if (frameCount < minFrameCount && !(flags & AUDIO_OUTPUT_FLAG_FAST)) {
                 // not ALOGW because it happens all the time when playing key clicks over A2DP
                 ALOGV("Minimum buffer size corrected from %d to %d",
                          frameCount, minFrameCount);
@@ -817,7 +817,7 @@ status_t AudioTrack::createTrack_l(
     if (mIsTimed) {
         trackFlags |= IAudioFlinger::TRACK_TIMED;
     }
-    if (flags & AUDIO_POLICY_OUTPUT_FLAG_FAST) {
+    if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         trackFlags |= IAudioFlinger::TRACK_FAST;
     }
 
@@ -1033,7 +1033,7 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
 
         size_t toWrite;
 
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT)) {
+        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
             // Divide capacity by 2 to take expansion into account
             toWrite = audioBuffer.size>>1;
             memcpy_to_i16_from_u8(audioBuffer.i16, (const uint8_t *) src, toWrite);
@@ -1190,7 +1190,7 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
         // Divide buffer size by 2 to take into account the expansion
         // due to 8 to 16 bit conversion: the callback must fill only half
         // of the destination buffer
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT)) {
+        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
             audioBuffer.size >>= 1;
         }
 
@@ -1209,7 +1209,7 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
         }
         if (writtenSize > reqSize) writtenSize = reqSize;
 
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_POLICY_OUTPUT_FLAG_DIRECT)) {
+        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
             // 8 to 16 bit conversion, note that source and destination are the same address
             memcpy_to_i16_from_u8(audioBuffer.i16, (const uint8_t *) audioBuffer.i8, writtenSize);
             writtenSize <<= 1;

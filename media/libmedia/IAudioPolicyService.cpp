@@ -124,7 +124,7 @@ public:
                                         uint32_t samplingRate,
                                         audio_format_t format,
                                         uint32_t channels,
-                                        audio_policy_output_flags_t flags)
+                                        audio_output_flags_t flags)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
@@ -418,8 +418,8 @@ status_t BnAudioPolicyService::onTransact(
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             uint32_t channels = data.readInt32();
-            audio_policy_output_flags_t flags =
-                    static_cast <audio_policy_output_flags_t>(data.readInt32());
+            audio_output_flags_t flags =
+                    static_cast <audio_output_flags_t>(data.readInt32());
 
             audio_io_handle_t output = getOutput(stream,
                                                  samplingRate,
