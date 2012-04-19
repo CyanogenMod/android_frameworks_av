@@ -68,6 +68,11 @@ private:
         PAUSED,
     };
 
+    enum TextSourceType {
+        TEXT_SOURCE_TYPE_IN_BAND = 0,
+        TEXT_SOURCE_TYPE_OUT_OF_BAND,
+    };
+
     sp<ALooper> mLooper;
     sp<TimedTextPlayer> mPlayer;
     wp<MediaPlayerBase> mListener;
@@ -76,7 +81,7 @@ private:
     State mState;
     size_t mCurrentTrackIndex;
     KeyedVector<size_t, sp<TimedTextSource> > mTextSourceVector;
-    Vector<bool> mTextSourceTypeVector;
+    Vector<TextSourceType> mTextSourceTypeVector;
 
     // -- End of variables to be guarded by mLock
 
