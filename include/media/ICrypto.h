@@ -24,6 +24,8 @@
 
 namespace android {
 
+struct AString;
+
 struct ICrypto : public IInterface {
     DECLARE_META_INTERFACE(Crypto);
 
@@ -46,7 +48,8 @@ struct ICrypto : public IInterface {
             CryptoPlugin::Mode mode,
             const void *srcPtr,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
-            void *dstPtr) = 0;
+            void *dstPtr,
+            AString *errorDetailMsg) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(ICrypto);

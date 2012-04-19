@@ -27,6 +27,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaErrors.h>
@@ -179,13 +180,19 @@ status_t MediaCodec::queueInputBuffer(
         size_t offset,
         size_t size,
         int64_t presentationTimeUs,
-        uint32_t flags) {
+        uint32_t flags,
+        AString *errorDetailMsg) {
+    if (errorDetailMsg != NULL) {
+        errorDetailMsg->clear();
+    }
+
     sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
     msg->setSize("index", index);
     msg->setSize("offset", offset);
     msg->setSize("size", size);
     msg->setInt64("timeUs", presentationTimeUs);
     msg->setInt32("flags", flags);
+    msg->setPointer("errorDetailMsg", errorDetailMsg);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -200,7 +207,12 @@ status_t MediaCodec::queueSecureInputBuffer(
         const uint8_t iv[16],
         CryptoPlugin::Mode mode,
         int64_t presentationTimeUs,
-        uint32_t flags) {
+        uint32_t flags,
+        AString *errorDetailMsg) {
+    if (errorDetailMsg != NULL) {
+        errorDetailMsg->clear();
+    }
+
     sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
     msg->setSize("index", index);
     msg->setSize("offset", offset);
@@ -211,9 +223,12 @@ status_t MediaCodec::queueSecureInputBuffer(
     msg->setInt32("mode", mode);
     msg->setInt64("timeUs", presentationTimeUs);
     msg->setInt32("flags", flags);
+    msg->setPointer("errorDetailMsg", errorDetailMsg);
 
     sp<AMessage> response;
-    return PostAndAwaitResponse(msg, &response);
+    status_t err = PostAndAwaitResponse(msg, &response);
+
+    return err;
 }
 
 status_t MediaCodec::dequeueInputBuffer(size_t *index, int64_t timeoutUs) {
@@ -1234,9 +1249,6 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     }
 
     sp<AMessage> reply = info->mNotify;
-    info->mNotify = NULL;
-    info->mOwnedByClient = false;
-
     info->mData->setRange(offset, size);
     info->mData->meta()->setInt64("timeUs", timeUs);
 
@@ -1253,6 +1265,9 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
             return -ERANGE;
         }
 
+        AString *errorDetailMsg;
+        CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
+
         status_t err = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
                 key,
@@ -1261,7 +1276,8 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
                 info->mEncryptedData->base() + offset,
                 subSamples,
                 numSubSamples,
-                info->mData->base());
+                info->mData->base(),
+                errorDetailMsg);
 
         if (err != OK) {
             return err;
@@ -1272,6 +1288,9 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
 
     reply->setBuffer("buffer", info->mData);
     reply->post();
+
+    info->mNotify = NULL;
+    info->mOwnedByClient = false;
 
     return OK;
 }

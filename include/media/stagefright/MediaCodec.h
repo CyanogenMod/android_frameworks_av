@@ -28,6 +28,7 @@ namespace android {
 struct ABuffer;
 struct ACodec;
 struct AMessage;
+struct AString;
 struct ICrypto;
 struct SoftwareRenderer;
 struct SurfaceTextureClient;
@@ -72,7 +73,8 @@ struct MediaCodec : public AHandler {
             size_t offset,
             size_t size,
             int64_t presentationTimeUs,
-            uint32_t flags);
+            uint32_t flags,
+            AString *errorDetailMsg = NULL);
 
     status_t queueSecureInputBuffer(
             size_t index,
@@ -83,7 +85,8 @@ struct MediaCodec : public AHandler {
             const uint8_t iv[16],
             CryptoPlugin::Mode mode,
             int64_t presentationTimeUs,
-            uint32_t flags);
+            uint32_t flags,
+            AString *errorDetailMsg = NULL);
 
     status_t dequeueInputBuffer(size_t *index, int64_t timeoutUs = 0ll);
 

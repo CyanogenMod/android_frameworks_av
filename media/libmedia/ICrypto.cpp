@@ -20,7 +20,9 @@
 
 #include <binder/Parcel.h>
 #include <media/ICrypto.h>
+#include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AString.h>
 
 namespace android {
 
@@ -96,7 +98,8 @@ struct BpCrypto : public BpInterface<ICrypto> {
             CryptoPlugin::Mode mode,
             const void *srcPtr,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
-            void *dstPtr) {
+            void *dstPtr,
+            AString *errorDetailMsg) {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
         data.writeInt32(secure);
@@ -134,6 +137,10 @@ struct BpCrypto : public BpInterface<ICrypto> {
         remote()->transact(DECRYPT, data, &reply);
 
         status_t result = reply.readInt32();
+
+        if (result >= ERROR_DRM_VENDOR_MIN && result <= ERROR_DRM_VENDOR_MAX) {
+            errorDetailMsg->setTo(reply.readCString());
+        }
 
         if (result != OK) {
             return result;
@@ -251,6 +258,8 @@ status_t BnCrypto::onTransact(
                 dstPtr = malloc(totalSize);
             }
 
+            AString errorDetailMsg;
+
             status_t err = decrypt(
                     secure,
                     key,
@@ -258,9 +267,15 @@ status_t BnCrypto::onTransact(
                     mode,
                     srcData,
                     subSamples, numSubSamples,
-                    dstPtr);
+                    dstPtr,
+                    &errorDetailMsg);
 
             reply->writeInt32(err);
+
+            if (err >= ERROR_DRM_VENDOR_MIN
+                    && err <= ERROR_DRM_VENDOR_MAX) {
+                reply->writeCString(errorDetailMsg.c_str());
+            }
 
             if (!secure) {
                 if (err == OK) {
