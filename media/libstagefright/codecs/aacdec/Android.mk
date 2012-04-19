@@ -1,6 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 
-AAC_LIBRARY = pv
+AAC_LIBRARY = fraunhofer
 
 ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(CLEAR_VARS)
