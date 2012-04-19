@@ -18,6 +18,7 @@
 #define LOG_TAG "AACWriter"
 #include <utils/Log.h>
 
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/AACWriter.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -38,7 +39,8 @@ AACWriter::AACWriter(const char *filename)
       mPaused(false),
       mResumed(false),
       mChannelCount(-1),
-      mSampleRate(-1) {
+      mSampleRate(-1),
+      mAACProfile(OMX_AUDIO_AACObjectLC) {
 
     ALOGV("AACWriter Constructor");
 
@@ -96,6 +98,7 @@ status_t AACWriter::addSource(const sp<MediaSource> &source) {
     CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC));
     CHECK(meta->findInt32(kKeyChannelCount, &mChannelCount));
     CHECK(meta->findInt32(kKeySampleRate, &mSampleRate));
+    CHECK(meta->findInt32(kKeyAACProfile, &mAACProfile));
     CHECK(mChannelCount >= 1 && mChannelCount <= 2);
 
     mSource = source;
@@ -254,7 +257,7 @@ status_t AACWriter::writeAdtsHeader(uint32_t frameLength) {
     data |= kProtectionAbsense;
     write(mFd, &data, 1);
 
-    const uint8_t kProfileCode = 1;  // AAC-LC
+    const uint8_t kProfileCode = mAACProfile - 1;
     uint8_t kSampleFreqIndex;
     CHECK(getSampleRateTableIndex(mSampleRate, &kSampleFreqIndex));
     const uint8_t kPrivateStream = 0;

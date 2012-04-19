@@ -24,6 +24,7 @@
 #include <binder/IServiceManager.h>
 
 #include <media/IMediaPlayerService.h>
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/AudioSource.h>
 #include <media/stagefright/AMRWriter.h>
@@ -817,6 +818,11 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             break;
         case AUDIO_ENCODER_AAC:
             mime = MEDIA_MIMETYPE_AUDIO_AAC;
+            encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectLC);
+            break;
+        case AUDIO_ENCODER_AAC_ELD:
+            mime = MEDIA_MIMETYPE_AUDIO_AAC;
+            encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectELD);
             break;
         default:
             ALOGE("Unknown audio encoder: %d", mAudioEncoder);
@@ -852,7 +858,8 @@ status_t StagefrightRecorder::startAACRecording() {
     // Add support for OUTPUT_FORMAT_AAC_ADIF
     CHECK_EQ(mOutputFormat, OUTPUT_FORMAT_AAC_ADTS);
 
-    CHECK_EQ(mAudioEncoder, AUDIO_ENCODER_AAC);
+    CHECK(mAudioEncoder == AUDIO_ENCODER_AAC ||
+          mAudioEncoder == AUDIO_ENCODER_AAC_ELD);
     CHECK(mAudioSource != AUDIO_SOURCE_CNT);
 
     mWriter = new AACWriter(mOutputFd);
@@ -1435,6 +1442,7 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
         case AUDIO_ENCODER_AMR_NB:
         case AUDIO_ENCODER_AMR_WB:
         case AUDIO_ENCODER_AAC:
+        case AUDIO_ENCODER_AAC_ELD:
             break;
 
         default:

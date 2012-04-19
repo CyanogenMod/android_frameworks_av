@@ -182,7 +182,7 @@ private:
     status_t setupAACCodec(
             bool encoder,
             int32_t numChannels, int32_t sampleRate, int32_t bitRate,
-            bool isADTS);
+            int32_t aacProfile, bool isADTS);
 
     status_t selectAudioPortFormat(
             OMX_U32 portIndex, OMX_AUDIO_CODINGTYPE desiredFormat);

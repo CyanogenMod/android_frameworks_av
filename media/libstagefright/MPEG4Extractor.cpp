@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
@@ -1824,26 +1825,23 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         return ERROR_MALFORMED;
     }
 
-    uint32_t objectType = csd[0] >> 3;
+    ABitReader br(csd, csd_size);
+    uint32_t objectType = br.getBits(5);
 
-    if (objectType == 31) {
-        return ERROR_UNSUPPORTED;
+    if (objectType == 31) {  // AAC-ELD => additional 6 bits
+        objectType = 32 + br.getBits(6);
     }
 
-    uint32_t freqIndex = (csd[0] & 7) << 1 | (csd[1] >> 7);
+    uint32_t freqIndex = br.getBits(4);
+
     int32_t sampleRate = 0;
     int32_t numChannels = 0;
     if (freqIndex == 15) {
         if (csd_size < 5) {
             return ERROR_MALFORMED;
         }
-
-        sampleRate = (csd[1] & 0x7f) << 17
-                        | csd[2] << 9
-                        | csd[3] << 1
-                        | (csd[4] >> 7);
-
-        numChannels = (csd[4] >> 3) & 15;
+        sampleRate = br.getBits(24);
+        numChannels = br.getBits(4);
     } else {
         static uint32_t kSamplingRate[] = {
             96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
@@ -1855,7 +1853,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         }
 
         sampleRate = kSamplingRate[freqIndex];
-        numChannels = (csd[1] >> 3) & 15;
+        numChannels = br.getBits(4);
     }
 
     if (numChannels == 0) {

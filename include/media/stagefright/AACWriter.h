@@ -59,6 +59,7 @@ private:
     int64_t mEstimatedDurationUs;
     int32_t mChannelCount;
     int32_t mSampleRate;
+    int32_t mAACProfile;
     int32_t mFrameDurationUs;
 
     static void *ThreadWrapper(void *);

@@ -41,9 +41,10 @@ const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sAudioEncoderNameMap[] = {
-    {"amrnb", AUDIO_ENCODER_AMR_NB},
-    {"amrwb", AUDIO_ENCODER_AMR_WB},
-    {"aac",   AUDIO_ENCODER_AAC},
+    {"amrnb",  AUDIO_ENCODER_AMR_NB},
+    {"amrwb",  AUDIO_ENCODER_AMR_WB},
+    {"aac",    AUDIO_ENCODER_AAC},
+    {"aaceld", AUDIO_ENCODER_AAC_ELD},
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sFileFormatMap[] = {
