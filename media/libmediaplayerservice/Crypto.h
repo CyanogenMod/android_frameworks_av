@@ -49,7 +49,8 @@ struct Crypto : public BnCrypto {
             CryptoPlugin::Mode mode,
             const void *srcPtr,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
-            void *dstPtr);
+            void *dstPtr,
+            AString *errorDetailMsg);
 
 private:
     mutable Mutex mLock;

@@ -22,6 +22,7 @@
 
 #include <media/hardware/CryptoAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
 
@@ -147,7 +148,8 @@ status_t Crypto::decrypt(
         CryptoPlugin::Mode mode,
         const void *srcPtr,
         const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
-        void *dstPtr) {
+        void *dstPtr,
+        AString *errorDetailMsg) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -159,7 +161,8 @@ status_t Crypto::decrypt(
     }
 
     return mPlugin->decrypt(
-            secure, key, iv, mode, srcPtr, subSamples, numSubSamples, dstPtr);
+            secure, key, iv, mode, srcPtr, subSamples, numSubSamples, dstPtr,
+            errorDetailMsg);
 }
 
 }  // namespace android
