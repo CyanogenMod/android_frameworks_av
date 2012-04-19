@@ -154,7 +154,7 @@ status_t TimedTextDriver::addInBandTextSource(
     }
     Mutex::Autolock autoLock(mLock);
     mTextSourceVector.add(trackIndex, source);
-    mTextSourceTypeVector.add(true);
+    mTextSourceTypeVector.add(TEXT_SOURCE_TYPE_IN_BAND);
     return OK;
 }
 
@@ -206,14 +206,14 @@ status_t TimedTextDriver::createOutOfBandTextSource(
 
     Mutex::Autolock autoLock(mLock);
     mTextSourceVector.add(trackIndex, source);
-    mTextSourceTypeVector.add(false);
+    mTextSourceTypeVector.add(TEXT_SOURCE_TYPE_OUT_OF_BAND);
     return OK;
 }
 
 size_t TimedTextDriver::countExternalTracks() const {
     size_t nTracks = 0;
     for (size_t i = 0, n = mTextSourceTypeVector.size(); i < n; ++i) {
-        if (!mTextSourceTypeVector[i]) {
+        if (mTextSourceTypeVector[i] == TEXT_SOURCE_TYPE_OUT_OF_BAND) {
             ++nTracks;
         }
     }
@@ -223,7 +223,7 @@ size_t TimedTextDriver::countExternalTracks() const {
 void TimedTextDriver::getExternalTrackInfo(Parcel *parcel) {
     Mutex::Autolock autoLock(mLock);
     for (size_t i = 0, n = mTextSourceTypeVector.size(); i < n; ++i) {
-        if (mTextSourceTypeVector[i]) {
+        if (mTextSourceTypeVector[i] == TEXT_SOURCE_TYPE_IN_BAND) {
             continue;
         }
 
