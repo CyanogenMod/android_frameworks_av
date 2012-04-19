@@ -501,12 +501,12 @@ size_t NuCachedSource2::cachedSize() {
     return mCacheOffset + mCache->totalSize();
 }
 
-size_t NuCachedSource2::approxDataRemaining(status_t *finalStatus) {
+size_t NuCachedSource2::approxDataRemaining(status_t *finalStatus) const {
     Mutex::Autolock autoLock(mLock);
     return approxDataRemaining_l(finalStatus);
 }
 
-size_t NuCachedSource2::approxDataRemaining_l(status_t *finalStatus) {
+size_t NuCachedSource2::approxDataRemaining_l(status_t *finalStatus) const {
     *finalStatus = mFinalStatus;
 
     if (mFinalStatus != OK && mNumRetriesLeft > 0) {

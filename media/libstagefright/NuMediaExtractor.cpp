@@ -21,6 +21,7 @@
 #include <media/stagefright/NuMediaExtractor.h>
 
 #include "include/ESDS.h"
+#include "include/NuCachedSource2.h"
 #include "include/WVMExtractor.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
@@ -38,7 +39,10 @@
 
 namespace android {
 
-NuMediaExtractor::NuMediaExtractor() {
+NuMediaExtractor::NuMediaExtractor()
+    : mIsWidevineExtractor(false),
+      mTotalBitrate(-1ll),
+      mDurationUs(-1ll) {
 }
 
 NuMediaExtractor::~NuMediaExtractor() {
@@ -66,6 +70,7 @@ status_t NuMediaExtractor::setDataSource(
         return -ENOENT;
     }
 
+    mIsWidevineExtractor = false;
     if (!strncasecmp("widevine://", path, 11)) {
         String8 mimeType;
         float confidence;
@@ -82,6 +87,7 @@ status_t NuMediaExtractor::setDataSource(
         extractor->setAdaptiveStreamingMode(true);
 
         mImpl = extractor;
+        mIsWidevineExtractor = true;
     } else {
         mImpl = MediaExtractor::Create(dataSource);
     }
@@ -89,6 +95,10 @@ status_t NuMediaExtractor::setDataSource(
     if (mImpl == NULL) {
         return ERROR_UNSUPPORTED;
     }
+
+    mDataSource = dataSource;
+
+    updateDurationAndBitrate();
 
     return OK;
 }
@@ -111,7 +121,37 @@ status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
         return ERROR_UNSUPPORTED;
     }
 
+    mDataSource = fileSource;
+
+    updateDurationAndBitrate();
+
     return OK;
+}
+
+void NuMediaExtractor::updateDurationAndBitrate() {
+    mTotalBitrate = 0ll;
+    mDurationUs = -1ll;
+
+    for (size_t i = 0; i < mImpl->countTracks(); ++i) {
+        sp<MetaData> meta = mImpl->getTrackMetaData(i);
+
+        int32_t bitrate;
+        if (!meta->findInt32(kKeyBitRate, &bitrate)) {
+            const char *mime;
+            CHECK(meta->findCString(kKeyMIMEType, &mime));
+            ALOGV("track of type '%s' does not publish bitrate", mime);
+
+            mTotalBitrate = -1ll;
+        } else if (mTotalBitrate >= 0ll) {
+            mTotalBitrate += bitrate;
+        }
+
+        int64_t durationUs;
+        if (meta->findInt64(kKeyDuration, &durationUs)
+                && durationUs > mDurationUs) {
+            mDurationUs = durationUs;
+        }
+    }
 }
 
 size_t NuMediaExtractor::countTracks() const {
@@ -506,6 +546,50 @@ status_t NuMediaExtractor::getSampleMeta(sp<MetaData> *sampleMeta) {
     *sampleMeta = info->mSample->meta_data();
 
     return OK;
+}
+
+bool NuMediaExtractor::getTotalBitrate(int64_t *bitrate) const {
+    if (mTotalBitrate >= 0) {
+        *bitrate = mTotalBitrate;
+        return true;
+    }
+
+    off64_t size;
+    if (mDurationUs >= 0 && mDataSource->getSize(&size) == OK) {
+        *bitrate = size * 8000000ll / mDurationUs;  // in bits/sec
+        return true;
+    }
+
+    return false;
+}
+
+// Returns true iff cached duration is available/applicable.
+bool NuMediaExtractor::getCachedDuration(
+        int64_t *durationUs, bool *eos) const {
+    int64_t bitrate;
+    if (mIsWidevineExtractor) {
+        sp<WVMExtractor> wvmExtractor =
+            static_cast<WVMExtractor *>(mImpl.get());
+
+        status_t finalStatus;
+        *durationUs = wvmExtractor->getCachedDurationUs(&finalStatus);
+        *eos = (finalStatus != OK);
+        return true;
+    } else if ((mDataSource->flags() & DataSource::kIsCachingDataSource)
+            && getTotalBitrate(&bitrate)) {
+        sp<NuCachedSource2> cachedSource =
+            static_cast<NuCachedSource2 *>(mDataSource.get());
+
+        status_t finalStatus;
+        size_t cachedDataRemaining =
+            cachedSource->approxDataRemaining(&finalStatus);
+
+        *durationUs = cachedDataRemaining * 8000000ll / bitrate;
+        *eos = (finalStatus != OK);
+        return true;
+    }
+
+    return false;
 }
 
 }  // namespace android
