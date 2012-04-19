@@ -84,7 +84,7 @@ AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(ANDROID_TGROUP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT)
 {
 }
 
@@ -102,7 +102,7 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(ANDROID_TGROUP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -123,7 +123,7 @@ AudioTrack::AudioTrack(
         int sessionId)
     : mStatus(NO_INIT),
       mIsTimed(false),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(ANDROID_TGROUP_DEFAULT)
+      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
     mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format, channelMask,
             frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
@@ -144,7 +144,7 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(ANDROID_TGROUP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
@@ -378,7 +378,7 @@ void AudioTrack::start()
             t->resume();
         } else {
             mPreviousPriority = getpriority(PRIO_PROCESS, 0);
-            mPreviousSchedulingGroup = androidGetThreadSchedulingGroup(0);
+            get_sched_policy(0, &mPreviousSchedulingGroup);
             androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
         }
 
@@ -403,7 +403,7 @@ void AudioTrack::start()
                 t->pause();
             } else {
                 setpriority(PRIO_PROCESS, 0, mPreviousPriority);
-                androidSetThreadSchedulingGroup(0, mPreviousSchedulingGroup);
+                set_sched_policy(0, mPreviousSchedulingGroup);
             }
         }
     }
@@ -436,7 +436,7 @@ void AudioTrack::stop()
             t->pause();
         } else {
             setpriority(PRIO_PROCESS, 0, mPreviousPriority);
-            androidSetThreadSchedulingGroup(0, mPreviousSchedulingGroup);
+            set_sched_policy(0, mPreviousSchedulingGroup);
         }
     }
 

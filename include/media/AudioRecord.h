@@ -27,6 +27,7 @@
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
 #include <binder/IMemory.h>
+#include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
 #include <system/audio.h>
@@ -393,7 +394,7 @@ private:
     audio_io_handle_t       mInput;
     int                     mSessionId;
     int                     mPreviousPriority;          // before start()
-    int                     mPreviousSchedulingGroup;
+    SchedPolicy             mPreviousSchedulingGroup;
 };
 
 }; // namespace android

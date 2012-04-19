@@ -28,6 +28,7 @@
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
 #include <binder/IMemory.h>
+#include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -536,7 +537,7 @@ protected:
     status_t                mRestoreStatus;
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
-    int                     mPreviousSchedulingGroup;
+    SchedPolicy             mPreviousSchedulingGroup;
 };
 
 class TimedAudioTrack : public AudioTrack
