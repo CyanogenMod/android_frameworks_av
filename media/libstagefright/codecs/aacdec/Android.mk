@@ -1,6 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 
-AAC_LIBRARY = pv
+AAC_LIBRARY = fraunhofer
 
 ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(CLEAR_VARS)
@@ -12,7 +12,8 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
           frameworks/av/media/libstagefright/include \
           frameworks/native/include/media/openmax \
           external/aac/libAACdec/include \
-          external/aac/libCDK/include \
+          external/aac/libPCMutils/include \
+          external/aac/libFDK/include \
           external/aac/libMpegTPDec/include \
           external/aac/libSBRdec/include \
           external/aac/libSYS/include
@@ -20,7 +21,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
   LOCAL_CFLAGS :=
 
   LOCAL_STATIC_LIBRARIES := \
-          libAACdec libMpegTPDec libSBRdec libCDK libSYS
+          libAACdec libMpegTPDec libSBRdec libPCMutils libFDK libSYS
 
   LOCAL_SHARED_LIBRARIES := \
           libstagefright_omx libstagefright_foundation libutils
