@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <pthread.h>
-#include <time.h>
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -34,7 +33,6 @@
 #include <hardware/hardware.h>
 #include <media/AudioSystem.h>
 #include <media/mediaplayer.h>
-#include <utils/Condition.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
@@ -43,8 +41,6 @@
 #include "CameraHardwareInterface.h"
 
 namespace android {
-
-#define WAIT_RELEASE_TIMEOUT 250 // 250ms
 
 // ----------------------------------------------------------------------------
 // Logging support -- this is for debugging only
@@ -66,13 +62,6 @@ static int getCallingPid() {
 
 static int getCallingUid() {
     return IPCThreadState::self()->getCallingUid();
-}
-
-static long long getTimeInMs() {
-    struct timeval t;
-    t.tv_sec = t.tv_usec = 0;
-    gettimeofday(&t, NULL);
-    return t.tv_sec * 1000LL + t.tv_usec / 1000;
 }
 
 // ----------------------------------------------------------------------------
@@ -142,7 +131,7 @@ status_t CameraService::getCameraInfo(int cameraId,
 }
 
 sp<ICamera> CameraService::connect(
-        const sp<ICameraClient>& cameraClient, int cameraId, bool force, bool keep) {
+        const sp<ICameraClient>& cameraClient, int cameraId) {
     int callingPid = getCallingPid();
     sp<CameraHardwareInterface> hardware = NULL;
 
@@ -168,73 +157,27 @@ sp<ICamera> CameraService::connect(
         return NULL;
     }
 
-    if (keep && !checkCallingPermission(String16("android.permission.KEEP_CAMERA"))) {
-        ALOGE("connect X (pid %d) rejected (no KEEP_CAMERA permission).", callingPid);
-        return NULL;
-    }
-
     Mutex::Autolock lock(mServiceLock);
-    // Check if there is an existing client.
-    client = mClient[cameraId].promote();
-    if (client != 0 &&
-            cameraClient->asBinder() == client->getCameraClient()->asBinder()) {
-        LOG1("connect X (pid %d) (the same client)", callingPid);
-        return client;
-    }
-
-    if (!force) {
-        if (mClient[cameraId].promote() != 0) {
-            ALOGW("connect X (pid %d) rejected (existing client).", callingPid);
-            return NULL;
-        }
-        mClient[cameraId].clear();
-        if (mBusy[cameraId]) {
-            ALOGW("connect X (pid %d) rejected (camera %d is still busy).",
-                  callingPid, cameraId);
-            return NULL;
-        }
-    } else { // force == true
-        int i = 0;
-        long long start_time = getTimeInMs();
-        while (i < mNumberOfCameras) {
-            if (getTimeInMs() - start_time >= 3000LL) {
-                ALOGE("connect X (pid %d) rejected (timeout 3s)", callingPid);
+    if (mClient[cameraId] != 0) {
+        client = mClient[cameraId].promote();
+        if (client != 0) {
+            if (cameraClient->asBinder() == client->getCameraClient()->asBinder()) {
+                LOG1("CameraService::connect X (pid %d) (the same client)",
+                     callingPid);
+                return client;
+            } else {
+                ALOGW("CameraService::connect X (pid %d) rejected (existing client).",
+                      callingPid);
                 return NULL;
             }
-
-            client = mClient[i].promote();
-            if (client != 0) {
-                if (client->keep()) {
-                    ALOGW("connect X (pid %d) rejected (existing client wants to keeps the camera)",
-                          callingPid);
-                    return NULL;
-                } else {
-                    ALOGW("New client (pid %d, id=%d). Disconnect the existing client (id=%d).",
-                         callingPid, cameraId, i);
-                    // Do not hold mServiceLock because disconnect will try to get it.
-                    mServiceLock.unlock();
-                    client->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0, &i);
-                    client->waitRelease(WAIT_RELEASE_TIMEOUT);
-                    client->disconnectInternal(false);
-                    mServiceLock.lock();
-                    // Restart from the first client because a new client may have connected
-                    // when mServiceLock is unlocked.
-                    i = 0;
-                    continue;
-                }
-            }
-
-            if (mBusy[i]) {
-                // Give the client a chance to release the hardware.
-                mServiceLock.unlock();
-                usleep(10 * 1000);
-                mServiceLock.lock();
-                i = 0; // Restart from the first client
-                continue;
-            }
-
-            i++;
         }
+        mClient[cameraId].clear();
+    }
+
+    if (mBusy[cameraId]) {
+        ALOGW("CameraService::connect X (pid %d) rejected"
+                " (camera %d is still busy).", callingPid, cameraId);
+        return NULL;
     }
 
     struct camera_info info;
@@ -252,13 +195,7 @@ sp<ICamera> CameraService::connect(
         return NULL;
     }
 
-    client = new Client(this, cameraClient, hardware, cameraId, info.facing,
-                        callingPid, keep);
-    // We need to clear the hardware here. After the destructor of mServiceLock
-    // finishes, a new client may connect and disconnect this client. If this
-    // reference is not cleared, the destructor of CameraHardwareInterface
-    // cannot run. The new client will not be able to connect.
-    hardware.clear();
+    client = new Client(this, cameraClient, hardware, cameraId, info.facing, callingPid);
     mClient[cameraId] = client;
     LOG1("CameraService::connect X (id %d)", cameraId);
     return client;
@@ -399,7 +336,7 @@ void CameraService::playSound(sound_kind kind) {
 CameraService::Client::Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
         const sp<CameraHardwareInterface>& hardware,
-        int cameraId, int cameraFacing, int clientPid, bool keep) {
+        int cameraId, int cameraFacing, int clientPid) {
     int callingPid = getCallingPid();
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
@@ -409,7 +346,6 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     mCameraId = cameraId;
     mCameraFacing = cameraFacing;
     mClientPid = clientPid;
-    mKeep = keep;
     mMsgEnabled = 0;
     mSurface = 0;
     mPreviewWindow = 0;
@@ -544,24 +480,18 @@ static void disconnectWindow(const sp<ANativeWindow>& window) {
 }
 
 void CameraService::Client::disconnect() {
-    disconnectInternal(true);
-}
-
-void CameraService::Client::disconnectInternal(bool needCheckPid) {
     int callingPid = getCallingPid();
-    LOG1("disconnectInternal E (pid %d)", callingPid);
+    LOG1("disconnect E (pid %d)", callingPid);
     Mutex::Autolock lock(mLock);
 
-    if (needCheckPid) {
-        if (checkPid() != NO_ERROR) {
-            ALOGW("different client - don't disconnect");
-            return;
-        }
+    if (checkPid() != NO_ERROR) {
+        ALOGW("different client - don't disconnect");
+        return;
+    }
 
-        if (mClientPid <= 0) {
-            LOG1("camera is unlocked (mClientPid = %d), don't tear down hardware", mClientPid);
-            return;
-        }
+    if (mClientPid <= 0) {
+        LOG1("camera is unlocked (mClientPid = %d), don't tear down hardware", mClientPid);
+        return;
     }
 
     // Make sure disconnect() is done once and once only, whether it is called
@@ -588,16 +518,8 @@ void CameraService::Client::disconnectInternal(bool needCheckPid) {
 
     mCameraService->removeClient(mCameraClient);
     mCameraService->setCameraFree(mCameraId);
-    mReleaseCondition.signal();
 
-    LOG1("disconnectInternal X (pid %d)", callingPid);
-}
-
-void CameraService::Client::waitRelease(int ms) {
-    Mutex::Autolock lock(mLock);
-    if (mHardware != 0) {
-        mReleaseCondition.waitRelative(mLock, ms * 1000000);
-    }
+    LOG1("disconnect X (pid %d)", callingPid);
 }
 
 // ----------------------------------------------------------------------------
@@ -1328,11 +1250,6 @@ int CameraService::Client::getOrientation(int degrees, bool mirror) {
     }
     ALOGE("Invalid setDisplayOrientation degrees=%d", degrees);
     return -1;
-}
-
-// Whether the client wants to keep the camera from taking
-bool CameraService::Client::keep() const {
-    return mKeep;
 }
 
 // ----------------------------------------------------------------------------
