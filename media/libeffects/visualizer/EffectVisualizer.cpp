@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Visualizer"
+#define LOG_TAG "EffectVisualizer"
 //#define LOG_NDEBUG 0
 #include <cutils/log.h>
 #include <assert.h>
@@ -57,6 +57,7 @@ struct VisualizerContext {
     effect_config_t mConfig;
     uint32_t mCaptureIdx;
     uint32_t mCaptureSize;
+    uint32_t mScalingMode;
     uint8_t mState;
     uint8_t mCurrentBuf;
     uint8_t mLastBuf;
@@ -164,6 +165,7 @@ int Visualizer_init(VisualizerContext *pContext)
     pContext->mConfig.outputCfg.mask = EFFECT_CONFIG_ALL;
 
     pContext->mCaptureSize = VISUALIZER_CAPTURE_SIZE_MAX;
+    pContext->mScalingMode = VISUALIZER_SCALING_MODE_NORMALIZED;
 
     Visualizer_setConfig(pContext, &pContext->mConfig);
 
@@ -285,26 +287,32 @@ int Visualizer_process(
     }
 
     // all code below assumes stereo 16 bit PCM output and input
+    int32_t shift;
 
-    // derive capture scaling factor from peak value in current buffer
-    // this gives more interesting captures for display.
-    int32_t shift = 32;
-    int len = inBuffer->frameCount * 2;
-    for (int i = 0; i < len; i++) {
-        int32_t smp = inBuffer->s16[i];
-        if (smp < 0) smp = -smp - 1; // take care to keep the max negative in range
-        int32_t clz = __builtin_clz(smp);
-        if (shift > clz) shift = clz;
+    if (pContext->mScalingMode == VISUALIZER_SCALING_MODE_NORMALIZED) {
+        // derive capture scaling factor from peak value in current buffer
+        // this gives more interesting captures for display.
+        shift = 32;
+        int len = inBuffer->frameCount * 2;
+        for (int i = 0; i < len; i++) {
+            int32_t smp = inBuffer->s16[i];
+            if (smp < 0) smp = -smp - 1; // take care to keep the max negative in range
+            int32_t clz = __builtin_clz(smp);
+            if (shift > clz) shift = clz;
+        }
+        // A maximum amplitude signal will have 17 leading zeros, which we want to
+        // translate to a shift of 8 (for converting 16 bit to 8 bit)
+        shift = 25 - shift;
+        // Never scale by less than 8 to avoid returning unaltered PCM signal.
+        if (shift < 3) {
+            shift = 3;
+        }
+        // add one to combine the division by 2 needed after summing left and right channels below
+        shift++;
+    } else {
+        assert(pContext->mScalingMode == VISUALIZER_SCALING_MODE_AS_PLAYED);
+        shift = 9;
     }
-    // A maximum amplitude signal will have 17 leading zeros, which we want to
-    // translate to a shift of 8 (for converting 16 bit to 8 bit)
-     shift = 25 - shift;
-    // Never scale by less than 8 to avoid returning unaltered PCM signal.
-    if (shift < 3) {
-        shift = 3;
-    }
-    // add one to combine the division by 2 needed after summing left and right channels below
-    shift++;
 
     uint32_t captIdx;
     uint32_t inIdx;
@@ -414,15 +422,26 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         effect_param_t *p = (effect_param_t *)pReplyData;
         p->status = 0;
         *replySize = sizeof(effect_param_t) + sizeof(uint32_t);
-        if (p->psize != sizeof(uint32_t) ||
-            *(uint32_t *)p->data != VISUALIZER_PARAM_CAPTURE_SIZE) {
+        if (p->psize != sizeof(uint32_t)) {
             p->status = -EINVAL;
             break;
         }
-        ALOGV("get mCaptureSize = %d", pContext->mCaptureSize);
-        *((uint32_t *)p->data + 1) = pContext->mCaptureSize;
-        p->vsize = sizeof(uint32_t);
-        *replySize += sizeof(uint32_t);
+        switch (*(uint32_t *)p->data) {
+        case VISUALIZER_PARAM_CAPTURE_SIZE:
+            ALOGV("get mCaptureSize = %d", pContext->mCaptureSize);
+            *((uint32_t *)p->data + 1) = pContext->mCaptureSize;
+            p->vsize = sizeof(uint32_t);
+            *replySize += sizeof(uint32_t);
+            break;
+        case VISUALIZER_PARAM_SCALING_MODE:
+            ALOGV("get mScalingMode = %d", pContext->mScalingMode);
+            *((uint32_t *)p->data + 1) = pContext->mScalingMode;
+            p->vsize = sizeof(uint32_t);
+            *replySize += sizeof(uint32_t);
+            break;
+        default:
+            p->status = -EINVAL;
+        }
         } break;
     case EFFECT_CMD_SET_PARAM: {
         if (pCmdData == NULL ||
@@ -432,14 +451,22 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         }
         *(int32_t *)pReplyData = 0;
         effect_param_t *p = (effect_param_t *)pCmdData;
-        if (p->psize != sizeof(uint32_t) ||
-            p->vsize != sizeof(uint32_t) ||
-            *(uint32_t *)p->data != VISUALIZER_PARAM_CAPTURE_SIZE) {
+        if (p->psize != sizeof(uint32_t) || p->vsize != sizeof(uint32_t)) {
             *(int32_t *)pReplyData = -EINVAL;
-            break;;
+            break;
         }
-        pContext->mCaptureSize = *((uint32_t *)p->data + 1);
-        ALOGV("set mCaptureSize = %d", pContext->mCaptureSize);
+        switch (*(uint32_t *)p->data) {
+        case VISUALIZER_PARAM_CAPTURE_SIZE:
+            pContext->mCaptureSize = *((uint32_t *)p->data + 1);
+            ALOGV("set mCaptureSize = %d", pContext->mCaptureSize);
+            break;
+        case VISUALIZER_PARAM_SCALING_MODE:
+            pContext->mScalingMode = *((uint32_t *)p->data + 1);
+            ALOGV("set mScalingMode = %d", pContext->mScalingMode);
+            break;
+        default:
+            *(int32_t *)pReplyData = -EINVAL;
+        }
         } break;
     case EFFECT_CMD_SET_DEVICE:
     case EFFECT_CMD_SET_VOLUME:
