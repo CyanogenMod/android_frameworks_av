@@ -56,15 +56,12 @@ public:
     }
 
     // connect to camera service
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
-                                bool force, bool keep)
+    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(cameraClient->asBinder());
         data.writeInt32(cameraId);
-        data.writeInt32(force);
-        data.writeInt32(keep);
         remote()->transact(BnCameraService::CONNECT, data, &reply);
         return interface_cast<ICamera>(reply.readStrongBinder());
     }
@@ -96,10 +93,7 @@ status_t BnCameraService::onTransact(
         case CONNECT: {
             CHECK_INTERFACE(ICameraService, data, reply);
             sp<ICameraClient> cameraClient = interface_cast<ICameraClient>(data.readStrongBinder());
-            const int cameraId = data.readInt32();
-            const int force = data.readInt32();
-            const int keep = data.readInt32();
-            sp<ICamera> camera = connect(cameraClient, cameraId, force, keep);
+            sp<ICamera> camera = connect(cameraClient, data.readInt32());
             reply->writeStrongBinder(camera->asBinder());
             return NO_ERROR;
         } break;

@@ -46,8 +46,7 @@ public:
     virtual int32_t     getNumberOfCameras();
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
-                                bool force, bool keep);
+    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId);
     virtual void        removeClient(const sp<ICameraClient>& cameraClient);
     // returns plain pointer of client. Note that mClientLock should be acquired to
     // prevent the client from destruction. The result can be NULL.
@@ -119,8 +118,7 @@ private:
                                        const sp<CameraHardwareInterface>& hardware,
                                        int cameraId,
                                        int cameraFacing,
-                                       int clientPid,
-                                       bool keep);
+                                       int clientPid);
                                 ~Client();
 
         // return our camera client
@@ -179,19 +177,12 @@ private:
                                     const sp<IBinder>& binder,
                                     const sp<ANativeWindow>& window);
 
-        void                    disconnectInternal(bool needCheckPid);
-        bool                    keep() const;
-        void                    waitRelease(int ms);
-
-
         // these are initialized in the constructor.
         sp<CameraService>               mCameraService;  // immutable after constructor
         sp<ICameraClient>               mCameraClient;
         int                             mCameraId;       // immutable after constructor
         int                             mCameraFacing;   // immutable after constructor
         pid_t                           mClientPid;
-        // Client wants to keep the camera from taking by other clients.
-        bool                            mKeep;
         sp<CameraHardwareInterface>     mHardware;       // cleared after disconnect()
         int                             mPreviewCallbackFlag;
         int                             mOrientation;     // Current display orientation
@@ -199,8 +190,6 @@ private:
 
         // Ensures atomicity among the public methods
         mutable Mutex                   mLock;
-        // This will get notified when the hardware is released.
-        Condition                       mReleaseCondition;
         // This is a binder of Surface or SurfaceTexture.
         sp<IBinder>                     mSurface;
         sp<ANativeWindow>               mPreviewWindow;
