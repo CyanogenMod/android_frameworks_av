@@ -312,6 +312,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             mNumSamplesOutput = 0;
         }
 
+        size_t adtsHeaderSize = 0;
         if (mIsADTS) {
             // skip 30 bits, aac_frame_length follows.
             // ssssssss ssssiiip ppffffPc ccohCCll llllllll lll?????
@@ -329,13 +330,13 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
 
             CHECK_GE(inHeader->nFilledLen, aac_frame_length);
 
-            size_t headerSize = (protectionAbsent ? 7 : 9);
+            adtsHeaderSize = (protectionAbsent ? 7 : 9);
 
-            inBuffer[0] = (UCHAR *)adtsHeader + headerSize;
-            inBufferLength[0] = aac_frame_length - headerSize;
+            inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
+            inBufferLength[0] = aac_frame_length - adtsHeaderSize;
 
-            inHeader->nOffset += headerSize;
-            inHeader->nFilledLen -= headerSize;
+            inHeader->nOffset += adtsHeaderSize;
+            inHeader->nFilledLen -= adtsHeaderSize;
         } else {
             inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
             inBufferLength[0] = inHeader->nFilledLen;
@@ -352,10 +353,12 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                                      inBuffer,
                                      inBufferLength,
                                      bytesValid);
+
         decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
                                             outBuffer,
                                             outHeader->nAllocLen,
                                             flags);
+
         mInputDiscontinuity = false;
 
         /*
@@ -374,6 +377,12 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
          */
         if (decoderErr == AAC_DEC_OK && mInputBufferCount <= 2) {
             if (mStreamInfo->sampleRate != prevSampleRate) {
+                // We're going to want to revisit this input buffer, but
+                // may have already advanced the offset. Undo that if
+                // necessary.
+                inHeader->nOffset -= adtsHeaderSize;
+                inHeader->nFilledLen += adtsHeaderSize;
+
                 notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
                 mOutputPortSettingsChange = AWAITING_DISABLED;
                 return;
