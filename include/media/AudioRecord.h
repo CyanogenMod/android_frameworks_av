@@ -38,7 +38,7 @@ class audio_track_cblk_t;
 
 // ----------------------------------------------------------------------------
 
-class AudioRecord
+class AudioRecord : virtual public RefBase
 {
 public:
 
