@@ -870,7 +870,18 @@ status_t AwesomePlayer::play_l() {
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
             if (mAudioSink != NULL) {
-                mAudioPlayer = new AudioPlayer(mAudioSink, this);
+                bool allowDeepBuffering;
+                int64_t cachedDurationUs;
+                bool eos;
+                if (mVideoSource == NULL && (mDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US ||
+                        getCachedDuration_l(&cachedDurationUs, &eos) &&
+                        cachedDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US)) {
+                    allowDeepBuffering = true;
+                } else {
+                    allowDeepBuffering = false;
+                }
+
+                mAudioPlayer = new AudioPlayer(mAudioSink, allowDeepBuffering, this);
                 mAudioPlayer->setSource(mAudioSource);
 
                 mTimeSource = mAudioPlayer;

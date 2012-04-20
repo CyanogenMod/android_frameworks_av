@@ -91,7 +91,8 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount,
-                AudioCallback cb, void *cookie);
+                AudioCallback cb, void *cookie,
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
 
         virtual void            start();
         virtual ssize_t         write(const void* buffer, size_t size);
@@ -135,6 +136,7 @@ class MediaPlayerService : public BnMediaPlayerService
         int                     mAuxEffectId;
         static bool             mIsOnEmulator;
         static int              mMinBufferCount;  // 12 for emulator; otherwise 4
+        audio_output_flags_t    mFlags;
 
         // CallbackData is what is passed to the AudioTrack as the "user" data.
         // We need to be able to target this to a different Output on the fly,
@@ -190,7 +192,8 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount = 1,
-                AudioCallback cb = NULL, void *cookie = NULL);
+                AudioCallback cb = NULL, void *cookie = NULL,
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
 
         virtual void            start();
         virtual ssize_t         write(const void* buffer, size_t size);
