@@ -49,7 +49,7 @@ struct NuCachedSource2 : public DataSource {
     ////////////////////////////////////////////////////////////////////////////
 
     size_t cachedSize();
-    size_t approxDataRemaining(status_t *finalStatus);
+    size_t approxDataRemaining(status_t *finalStatus) const;
 
     void resumeFetchingIfNecessary();
 
@@ -94,7 +94,7 @@ private:
     sp<ALooper> mLooper;
 
     Mutex mSerializer;
-    Mutex mLock;
+    mutable Mutex mLock;
     Condition mCondition;
 
     PageCache *mCache;
@@ -123,7 +123,7 @@ private:
     ssize_t readInternal(off64_t offset, void *data, size_t size);
     status_t seekInternal_l(off64_t offset);
 
-    size_t approxDataRemaining_l(status_t *finalStatus);
+    size_t approxDataRemaining_l(status_t *finalStatus) const;
 
     void restartPrefetcherIfNecessary_l(
             bool ignoreLowWaterThreshold = false, bool force = false);

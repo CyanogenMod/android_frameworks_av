@@ -28,6 +28,7 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
+struct DataSource;
 struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
@@ -60,6 +61,8 @@ struct NuMediaExtractor : public RefBase {
     status_t getSampleTime(int64_t *sampleTimeUs);
     status_t getSampleMeta(sp<MetaData> *sampleMeta);
 
+    bool getCachedDuration(int64_t *durationUs, bool *eos) const;
+
 protected:
     virtual ~NuMediaExtractor();
 
@@ -78,12 +81,20 @@ private:
         uint32_t mTrackFlags;  // bitmask of "TrackFlags"
     };
 
+    sp<DataSource> mDataSource;
+
     sp<MediaExtractor> mImpl;
+    bool mIsWidevineExtractor;
 
     Vector<TrackInfo> mSelectedTracks;
+    int64_t mTotalBitrate;  // in bits/sec
+    int64_t mDurationUs;
 
     ssize_t fetchTrackSamples(int64_t seekTimeUs = -1ll);
     void releaseTrackSamples();
+
+    bool getTotalBitrate(int64_t *bitRate) const;
+    void updateDurationAndBitrate();
 
     DISALLOW_EVIL_CONSTRUCTORS(NuMediaExtractor);
 };
