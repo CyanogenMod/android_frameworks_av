@@ -212,6 +212,9 @@ status_t TimedTextSRTSource::readNextLine(off64_t *offset, AString *data) {
 status_t TimedTextSRTSource::getText(
         const MediaSource::ReadOptions *options,
         AString *text, int64_t *startTimeUs, int64_t *endTimeUs) {
+    if (mTextVector.size() == 0) {
+        return ERROR_END_OF_STREAM;
+    }
     text->clear();
     int64_t seekTimeUs;
     MediaSource::ReadOptions::SeekMode mode;
@@ -225,23 +228,26 @@ status_t TimedTextSRTSource::getText(
             mIndex = 0;
         } else {
             // binary search
-            ssize_t low = 0;
-            ssize_t high = mTextVector.size() - 1;
-            ssize_t mid = 0;
+            size_t low = 0;
+            size_t high = mTextVector.size() - 1;
+            size_t mid = 0;
             int64_t currTimeUs;
 
             while (low <= high) {
                 mid = low + (high - low)/2;
                 currTimeUs = mTextVector.keyAt(mid);
-                const int diff = currTimeUs - seekTimeUs;
+                const int64_t diffTime = currTimeUs - seekTimeUs;
 
-                if (diff == 0) {
+                if (diffTime == 0) {
                     break;
-                } else if (diff < 0) {
+                } else if (diffTime < 0) {
                     low = mid + 1;
                 } else {
                     if ((high == mid + 1)
                         && (seekTimeUs < mTextVector.keyAt(high))) {
+                        break;
+                    }
+                    if (mid < 1) {
                         break;
                     }
                     high = mid - 1;
@@ -249,6 +255,10 @@ status_t TimedTextSRTSource::getText(
             }
             mIndex = mid;
         }
+    }
+
+    if (mIndex >= mTextVector.size()) {
+        return ERROR_END_OF_STREAM;
     }
     const TextInfo &info = mTextVector.valueAt(mIndex);
     *startTimeUs = mTextVector.keyAt(mIndex);
