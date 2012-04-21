@@ -112,15 +112,14 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
               break;
             }
             sp<RefBase> obj;
-            msg->findObject("subtitle", &obj);
-            if (obj != NULL) {
+            if (msg->findObject("subtitle", &obj)) {
                 sp<ParcelEvent> parcelEvent;
                 parcelEvent = static_cast<ParcelEvent*>(obj.get());
                 notifyListener(&(parcelEvent->parcel));
+                doRead();
             } else {
                 notifyListener();
             }
-            doRead();
             break;
         }
         case kWhatSetSource: {
