@@ -53,6 +53,7 @@ namespace android {
 #define CBLK_RESTORED_MSK       0x0040
 #define CBLK_RESTORED_ON        0x0040  // track has been restored after invalidation
 #define CBLK_RESTORED_OFF       0x0040  // by AudioFlinger
+#define CBLK_FAST               0x0080  // AudioFlinger successfully created a fast track
 
 // Important: do not add any virtual methods, including ~
 struct audio_track_cblk_t

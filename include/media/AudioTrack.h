@@ -138,7 +138,7 @@ public:
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     latency of the track. The actual size selected by the AudioTrack could be
      *                     larger if the requested size is not compatible with current audio HAL
-     *                     latency.
+     *                     latency.  Zero means to use a default value.
      * flags:              See comments on audio_output_flags_t in <system/audio.h>.
      * cbf:                Callback function. If not null, this function is called periodically
      *                     to request new PCM data.
@@ -460,12 +460,24 @@ protected:
     {
     public:
         AudioTrackThread(AudioTrack& receiver, bool bCanCallJava = false);
+
+        // Do not call Thread::requestExitAndWait() without first calling requestExit().
+        // Thread::requestExitAndWait() is not virtual, and the implementation doesn't do enough.
+        virtual void        requestExit();
+
+                void        pause();    // suspend thread from execution at next loop boundary
+                void        resume();   // allow thread to execute, if not requested to exit
+
     private:
         friend class AudioTrack;
         virtual bool        threadLoop();
         virtual status_t    readyToRun();
         virtual void        onFirstRef();
         AudioTrack& mReceiver;
+        ~AudioTrackThread();
+        Mutex               mMyLock;    // Thread::mLock is private
+        Condition           mMyCond;    // Thread::mThreadExitedCondition is private
+        bool                mPaused;    // whether thread is currently paused
     };
 
             // body of AudioTrackThread::threadLoop()

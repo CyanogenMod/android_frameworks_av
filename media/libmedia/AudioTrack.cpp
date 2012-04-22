@@ -73,6 +73,8 @@ status_t AudioTrack::getMinFrameCount(
 
     *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
             afFrameCount * minBufCount * sampleRate / afSampleRate;
+    ALOGV("getMinFrameCount=%d: afFrameCount=%d, minBufCount=%d, afSampleRate=%d, afLatency=%d",
+            *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
 }
 
@@ -159,6 +161,7 @@ AudioTrack::~AudioTrack()
         // Otherwise the callback thread will never exit.
         stop();
         if (mAudioTrackThread != 0) {
+            mAudioTrackThread->requestExit();   // see comment in AudioTrack.h
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
@@ -223,6 +226,7 @@ status_t AudioTrack::set(
     // force direct flag if format is not linear PCM
     if (!audio_is_linear_pcm(format)) {
         flags = (audio_output_flags_t)
+                // FIXME why can't we allow direct AND fast?
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
     // only allow deep buffering for music stream type
@@ -255,6 +259,11 @@ status_t AudioTrack::set(
     mAuxEffectId = 0;
     mCbf = cbf;
 
+    if (cbf != NULL) {
+        mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
+        mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
+    }
+
     // create the IAudioTrack
     status_t status = createTrack_l(streamType,
                                   sampleRate,
@@ -266,11 +275,11 @@ status_t AudioTrack::set(
                                   output);
 
     if (status != NO_ERROR) {
+        if (mAudioTrackThread != 0) {
+            mAudioTrackThread->requestExit();
+            mAudioTrackThread.clear();
+        }
         return status;
-    }
-
-    if (cbf != NULL) {
-        mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
     }
 
     mStatus = NO_ERROR;
@@ -349,14 +358,6 @@ void AudioTrack::start()
     status_t status = NO_ERROR;
 
     ALOGV("start %p", this);
-    if (t != 0) {
-        if (t->exitPending()) {
-            if (t->requestExitAndWait() == WOULD_BLOCK) {
-                ALOGE("AudioTrack::start called from thread");
-                return;
-            }
-        }
-    }
 
     AutoMutex lock(mLock);
     // acquire a strong reference on the IMemory and IAudioTrack so that they cannot be destroyed
@@ -373,26 +374,19 @@ void AudioTrack::start()
         cblk->bufferTimeoutMs = MAX_STARTUP_TIMEOUT_MS;
         cblk->waitTimeMs = 0;
         android_atomic_and(~CBLK_DISABLED_ON, &cblk->flags);
-        pid_t tid;
         if (t != 0) {
-            t->run("AudioTrack", ANDROID_PRIORITY_AUDIO);
-            tid = t->getTid();  // pid_t is unknown until run()
-            ALOGV("getTid=%d", tid);
-            if (tid == -1) {
-                tid = 0;
-            }
+            t->resume();
         } else {
             mPreviousPriority = getpriority(PRIO_PROCESS, 0);
             mPreviousSchedulingGroup = androidGetThreadSchedulingGroup(0);
             androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
-            tid = 0;    // not gettid()
         }
 
         ALOGV("start %p before lock cblk %p", this, mCblk);
         if (!(cblk->flags & CBLK_INVALID_MSK)) {
             cblk->lock.unlock();
-            ALOGV("mAudioTrack->start(tid=%d)", tid);
-            status = mAudioTrack->start(tid);
+            ALOGV("mAudioTrack->start()");
+            status = mAudioTrack->start();
             cblk->lock.lock();
             if (status == DEAD_OBJECT) {
                 android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -406,7 +400,7 @@ void AudioTrack::start()
             ALOGV("start() failed");
             mActive = false;
             if (t != 0) {
-                t->requestExit();
+                t->pause();
             } else {
                 setpriority(PRIO_PROCESS, 0, mPreviousPriority);
                 androidSetThreadSchedulingGroup(0, mPreviousSchedulingGroup);
@@ -439,7 +433,7 @@ void AudioTrack::stop()
             flush_l();
         }
         if (t != 0) {
-            t->requestExit();
+            t->pause();
         } else {
             setpriority(PRIO_PROCESS, 0, mPreviousPriority);
             androidSetThreadSchedulingGroup(0, mPreviousSchedulingGroup);
@@ -771,7 +765,7 @@ status_t AudioTrack::createTrack_l(
             (sharedBuffer != 0) ||
             // use case 2: callback handler
             (mCbf != NULL))) {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied");
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
         flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
     ALOGV("createTrack_l() output %d afFrameCount %d afLatency %d", output, afFrameCount, afLatency);
@@ -787,6 +781,13 @@ status_t AudioTrack::createTrack_l(
         if (minBufCount < 2) minBufCount = 2;
 
         int minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
+        ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%d, afSampleRate=%d"
+                ", afLatency=%d",
+                minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
+#define MIN_FRAME_COUNT_FAST 128    // FIXME hard-coded
+        if ((flags & AUDIO_OUTPUT_FLAG_FAST) && (minFrameCount > MIN_FRAME_COUNT_FAST)) {
+            minFrameCount = MIN_FRAME_COUNT_FAST;
+        }
 
         if (sharedBuffer == 0) {
             if (frameCount == 0) {
@@ -800,7 +801,7 @@ status_t AudioTrack::createTrack_l(
             if (mNotificationFramesAct > (uint32_t)frameCount/2) {
                 mNotificationFramesAct = frameCount/2;
             }
-            if (frameCount < minFrameCount && !(flags & AUDIO_OUTPUT_FLAG_FAST)) {
+            if (frameCount < minFrameCount) {
                 // not ALOGW because it happens all the time when playing key clicks over A2DP
                 ALOGV("Minimum buffer size corrected from %d to %d",
                          frameCount, minFrameCount);
@@ -821,8 +822,13 @@ status_t AudioTrack::createTrack_l(
     if (mIsTimed) {
         trackFlags |= IAudioFlinger::TRACK_TIMED;
     }
+
+    pid_t tid = -1;
     if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         trackFlags |= IAudioFlinger::TRACK_FAST;
+        if (mAudioTrackThread != 0) {
+            tid = mAudioTrackThread->getTid();
+        }
     }
 
     sp<IAudioTrack> track = audioFlinger->createTrack(getpid(),
@@ -834,6 +840,7 @@ status_t AudioTrack::createTrack_l(
                                                       trackFlags,
                                                       sharedBuffer,
                                                       output,
+                                                      tid,
                                                       &mSessionId,
                                                       &status);
 
@@ -849,7 +856,15 @@ status_t AudioTrack::createTrack_l(
     mAudioTrack = track;
     mCblkMemory = cblk;
     mCblk = static_cast<audio_track_cblk_t*>(cblk->pointer());
-    android_atomic_or(CBLK_DIRECTION_OUT, &mCblk->flags);
+    // old has the previous value of mCblk->flags before the "or" operation
+    int32_t old = android_atomic_or(CBLK_DIRECTION_OUT, &mCblk->flags);
+    if (flags & AUDIO_OUTPUT_FLAG_FAST) {
+        if (old & CBLK_FAST) {
+            ALOGI("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", mCblk->frameCount);
+        } else {
+            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", mCblk->frameCount);
+        }
+    }
     if (sharedBuffer == 0) {
         mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
     } else {
@@ -926,7 +941,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                                 "user=%08x, server=%08x", this, cblk->user, cblk->server);
                         //unlock cblk mutex before calling mAudioTrack->start() (see issue #1617140)
                         cblk->lock.unlock();
-                        result = mAudioTrack->start(0); // callback thread hasn't changed
+                        result = mAudioTrack->start();
                         cblk->lock.lock();
                         if (result == DEAD_OBJECT) {
                             android_atomic_or(CBLK_INVALID_ON, &cblk->flags);
@@ -958,7 +973,7 @@ create_new_track:
     if (mActive && (cblk->flags & CBLK_DISABLED_MSK)) {
         android_atomic_and(~CBLK_DISABLED_ON, &cblk->flags);
         ALOGW("obtainBuffer() track %p disabled, restarting", this);
-        mAudioTrack->start(0);  // callback thread hasn't changed
+        mAudioTrack->start();
     }
 
     cblk->waitTimeMs = 0;
@@ -1096,7 +1111,7 @@ status_t TimedAudioTrack::queueTimedBuffer(const sp<IMemory>& buffer,
     if (mActive && (mCblk->flags & CBLK_DISABLED_MSK)) {
         android_atomic_and(~CBLK_DISABLED_ON, &mCblk->flags);
         ALOGW("queueTimedBuffer() track %p disabled, restarting", this);
-        mAudioTrack->start(0);
+        mAudioTrack->start();
     }
 
     return mAudioTrack->queueTimedBuffer(buffer, pts);
@@ -1301,7 +1316,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart)
                 }
             }
             if (mActive) {
-                result = mAudioTrack->start(0); // callback thread hasn't changed
+                result = mAudioTrack->start();
                 ALOGW_IF(result != NO_ERROR, "restoreTrack_l() start() failed status %d", result);
             }
             if (fromStart && result == NO_ERROR) {
@@ -1369,12 +1384,24 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
 // =========================================================================
 
 AudioTrack::AudioTrackThread::AudioTrackThread(AudioTrack& receiver, bool bCanCallJava)
-    : Thread(bCanCallJava), mReceiver(receiver)
+    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true)
+{
+}
+
+AudioTrack::AudioTrackThread::~AudioTrackThread()
 {
 }
 
 bool AudioTrack::AudioTrackThread::threadLoop()
 {
+    {
+        AutoMutex _l(mMyLock);
+        if (mPaused) {
+            mMyCond.wait(mMyLock);
+            // caller will check for exitPending()
+            return true;
+        }
+    }
     return mReceiver.processAudioBuffer(this);
 }
 
@@ -1385,6 +1412,28 @@ status_t AudioTrack::AudioTrackThread::readyToRun()
 
 void AudioTrack::AudioTrackThread::onFirstRef()
 {
+}
+
+void AudioTrack::AudioTrackThread::requestExit()
+{
+    // must be in this order to avoid a race condition
+    Thread::requestExit();
+    mMyCond.signal();
+}
+
+void AudioTrack::AudioTrackThread::pause()
+{
+    AutoMutex _l(mMyLock);
+    mPaused = true;
+}
+
+void AudioTrack::AudioTrackThread::resume()
+{
+    AutoMutex _l(mMyLock);
+    if (mPaused) {
+        mPaused = false;
+        mMyCond.signal();
+    }
 }
 
 // =========================================================================

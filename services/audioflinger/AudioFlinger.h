@@ -91,6 +91,7 @@ public:
                                 IAudioFlinger::track_flags_t flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
+                                pid_t tid,
                                 int *sessionId,
                                 status_t *status);
 
@@ -376,8 +377,7 @@ private:
                                         int sessionId);
             virtual             ~TrackBase();
 
-            virtual status_t    start(pid_t tid,
-                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0) = 0;
             virtual void        stop() = 0;
                     sp<IMemory> getCblk() const { return mCblkMemory; }
@@ -669,8 +669,7 @@ private:
             virtual             ~Track();
 
                     void        dump(char* buffer, size_t size);
-            virtual status_t    start(pid_t tid,
-                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
             virtual void        stop();
                     void        pause();
@@ -855,8 +854,7 @@ private:
                                         int frameCount);
             virtual             ~OutputTrack();
 
-            virtual status_t    start(pid_t tid,
-                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
             virtual void        stop();
                     bool        write(int16_t* data, uint32_t frames);
@@ -933,6 +931,7 @@ public:
                                     const sp<IMemory>& sharedBuffer,
                                     int sessionId,
                                     IAudioFlinger::track_flags_t flags,
+                                    pid_t tid,
                                     status_t *status);
 
                     AudioStreamOut* getOutput() const;
@@ -1188,7 +1187,7 @@ private:
                             TrackHandle(const sp<PlaybackThread::Track>& track);
         virtual             ~TrackHandle();
         virtual sp<IMemory> getCblk() const;
-        virtual status_t    start(pid_t tid);
+        virtual status_t    start();
         virtual void        stop();
         virtual void        flush();
         virtual void        mute(bool);
@@ -1227,8 +1226,7 @@ private:
                                         int sessionId);
             virtual             ~RecordTrack();
 
-            virtual status_t    start(pid_t tid,
-                                     AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
             virtual void        stop();
 
@@ -1276,7 +1274,7 @@ private:
                         int sessionId,
                         status_t *status);
 
-                status_t    start(RecordTrack* recordTrack, pid_t tid,
+                status_t    start(RecordTrack* recordTrack,
                                   AudioSystem::sync_event_t event,
                                   int triggerSession);
                 void        stop(RecordTrack* recordTrack);
@@ -1335,7 +1333,7 @@ private:
         RecordHandle(const sp<RecordThread::RecordTrack>& recordTrack);
         virtual             ~RecordHandle();
         virtual sp<IMemory> getCblk() const;
-        virtual status_t    start(pid_t tid, int event, int triggerSession);
+        virtual status_t    start(int event, int triggerSession);
         virtual void        stop();
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
