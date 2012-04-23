@@ -59,6 +59,8 @@ NuMediaExtractor::~NuMediaExtractor() {
 
 status_t NuMediaExtractor::setDataSource(
         const char *path, const KeyedVector<String8, String8> *headers) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mImpl != NULL) {
         return -EINVAL;
     }
@@ -104,6 +106,8 @@ status_t NuMediaExtractor::setDataSource(
 }
 
 status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mImpl != NULL) {
         return -EINVAL;
     }
@@ -155,11 +159,15 @@ void NuMediaExtractor::updateDurationAndBitrate() {
 }
 
 size_t NuMediaExtractor::countTracks() const {
+    Mutex::Autolock autoLock(mLock);
+
     return mImpl == NULL ? 0 : mImpl->countTracks();
 }
 
 status_t NuMediaExtractor::getTrackFormat(
         size_t index, sp<AMessage> *format) const {
+    Mutex::Autolock autoLock(mLock);
+
     *format = NULL;
 
     if (mImpl == NULL) {
@@ -335,6 +343,8 @@ status_t NuMediaExtractor::getTrackFormat(
 }
 
 status_t NuMediaExtractor::selectTrack(size_t index) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mImpl == NULL) {
         return -EINVAL;
     }
@@ -438,6 +448,8 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
 }
 
 status_t NuMediaExtractor::seekTo(int64_t timeUs) {
+    Mutex::Autolock autoLock(mLock);
+
     ssize_t minIndex = fetchTrackSamples(timeUs);
 
     if (minIndex < 0) {
@@ -448,6 +460,8 @@ status_t NuMediaExtractor::seekTo(int64_t timeUs) {
 }
 
 status_t NuMediaExtractor::advance() {
+    Mutex::Autolock autoLock(mLock);
+
     ssize_t minIndex = fetchTrackSamples();
 
     if (minIndex < 0) {
@@ -464,6 +478,8 @@ status_t NuMediaExtractor::advance() {
 }
 
 status_t NuMediaExtractor::readSampleData(const sp<ABuffer> &buffer) {
+    Mutex::Autolock autoLock(mLock);
+
     ssize_t minIndex = fetchTrackSamples();
 
     if (minIndex < 0) {
@@ -508,6 +524,8 @@ status_t NuMediaExtractor::readSampleData(const sp<ABuffer> &buffer) {
 }
 
 status_t NuMediaExtractor::getSampleTrackIndex(size_t *trackIndex) {
+    Mutex::Autolock autoLock(mLock);
+
     ssize_t minIndex = fetchTrackSamples();
 
     if (minIndex < 0) {
@@ -521,6 +539,8 @@ status_t NuMediaExtractor::getSampleTrackIndex(size_t *trackIndex) {
 }
 
 status_t NuMediaExtractor::getSampleTime(int64_t *sampleTimeUs) {
+    Mutex::Autolock autoLock(mLock);
+
     ssize_t minIndex = fetchTrackSamples();
 
     if (minIndex < 0) {
@@ -534,6 +554,8 @@ status_t NuMediaExtractor::getSampleTime(int64_t *sampleTimeUs) {
 }
 
 status_t NuMediaExtractor::getSampleMeta(sp<MetaData> *sampleMeta) {
+    Mutex::Autolock autoLock(mLock);
+
     *sampleMeta = NULL;
 
     ssize_t minIndex = fetchTrackSamples();
@@ -566,6 +588,8 @@ bool NuMediaExtractor::getTotalBitrate(int64_t *bitrate) const {
 // Returns true iff cached duration is available/applicable.
 bool NuMediaExtractor::getCachedDuration(
         int64_t *durationUs, bool *eos) const {
+    Mutex::Autolock autoLock(mLock);
+
     int64_t bitrate;
     if (mIsWidevineExtractor) {
         sp<WVMExtractor> wvmExtractor =

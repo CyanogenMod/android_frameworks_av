@@ -22,6 +22,7 @@
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/String8.h>
+#include <utils/threads.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -80,6 +81,8 @@ private:
 
         uint32_t mTrackFlags;  // bitmask of "TrackFlags"
     };
+
+    mutable Mutex mLock;
 
     sp<DataSource> mDataSource;
 
