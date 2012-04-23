@@ -1402,7 +1402,10 @@ bool AudioTrack::AudioTrackThread::threadLoop()
             return true;
         }
     }
-    return mReceiver.processAudioBuffer(this);
+    if (!mReceiver.processAudioBuffer(this)) {
+        pause();
+    }
+    return true;
 }
 
 status_t AudioTrack::AudioTrackThread::readyToRun()
