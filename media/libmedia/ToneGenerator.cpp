@@ -1024,7 +1024,7 @@ bool ToneGenerator::initAudioTrack() {
                       AUDIO_FORMAT_PCM_16_BIT,
                       AUDIO_CHANNEL_OUT_MONO,
                       0,    // frameCount
-                      AUDIO_OUTPUT_FLAG_FAST,
+                      AUDIO_OUTPUT_FLAG_NONE,
                       audioCallback,
                       this, // user
                       0,    // notificationFrames
