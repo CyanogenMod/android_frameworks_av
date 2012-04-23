@@ -315,6 +315,7 @@ void SoftAAC::onQueueFilled(OMX_U32 portIndex) {
             mNumSamplesOutput = 0;
         }
 
+        size_t adtsHeaderSize = 0;
         if (mIsADTS) {
             // skip 30 bits, aac_frame_length follows.
             // ssssssss ssssiiip ppffffPc ccohCCll llllllll lll?????
@@ -332,13 +333,13 @@ void SoftAAC::onQueueFilled(OMX_U32 portIndex) {
 
             CHECK_GE(inHeader->nFilledLen, aac_frame_length);
 
-            size_t headerSize = (protectionAbsent ? 7 : 9);
+            adtsHeaderSize = (protectionAbsent ? 7 : 9);
 
-            mConfig->pInputBuffer = (UChar *)adtsHeader + headerSize;
-            mConfig->inputBufferCurrentLength = aac_frame_length - headerSize;
+            mConfig->pInputBuffer = (UChar *)adtsHeader + adtsHeaderSize;
+            mConfig->inputBufferCurrentLength = aac_frame_length - adtsHeaderSize;
 
-            inHeader->nOffset += headerSize;
-            inHeader->nFilledLen -= headerSize;
+            inHeader->nOffset += adtsHeaderSize;
+            inHeader->nFilledLen -= adtsHeaderSize;
         } else {
             mConfig->pInputBuffer = inHeader->pBuffer + inHeader->nOffset;
             mConfig->inputBufferCurrentLength = inHeader->nFilledLen;
@@ -386,6 +387,12 @@ void SoftAAC::onQueueFilled(OMX_U32 portIndex) {
 
                     // We'll hold onto the input buffer and will decode
                     // it again once the output port has been reconfigured.
+
+                    // We're going to want to revisit this input buffer, but
+                    // may have already advanced the offset. Undo that if
+                    // necessary.
+                    inHeader->nOffset -= adtsHeaderSize;
+                    inHeader->nFilledLen += adtsHeaderSize;
 
                     notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
                     mOutputPortSettingsChange = AWAITING_DISABLED;
