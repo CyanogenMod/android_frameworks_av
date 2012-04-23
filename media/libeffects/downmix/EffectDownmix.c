@@ -24,6 +24,27 @@
 
 #define MINUS_3_DB_IN_Q19_12 2896 // -3dB = 0.707 * 2^12 = 2896
 
+typedef enum {
+    CHANNEL_MASK_SURROUND = AUDIO_CHANNEL_OUT_SURROUND,
+    CHANNEL_MASK_QUAD_BACK = AUDIO_CHANNEL_OUT_QUAD,
+    // like AUDIO_CHANNEL_OUT_QUAD with *_SIDE_* instead of *_BACK_*, same channel order
+    CHANNEL_MASK_QUAD_SIDE =
+            AUDIO_CHANNEL_OUT_FRONT_LEFT |
+            AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_SIDE_LEFT |
+            AUDIO_CHANNEL_OUT_SIDE_RIGHT,
+    CHANNEL_MASK_5POINT1_BACK = AUDIO_CHANNEL_OUT_5POINT1,
+    // like AUDIO_CHANNEL_OUT_5POINT1 with *_SIDE_* instead of *_BACK_*, same channel order
+    CHANNEL_MASK_5POINT1_SIDE =
+            AUDIO_CHANNEL_OUT_FRONT_LEFT |
+            AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER |
+            AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
+            AUDIO_CHANNEL_OUT_SIDE_LEFT |
+            AUDIO_CHANNEL_OUT_SIDE_RIGHT,
+    CHANNEL_MASK_7POINT1_SIDE_BACK = AUDIO_CHANNEL_OUT_7POINT1,
+} downmix_input_channel_mask_t;
+
 // effect_handle_t interface implementation for downmix effect
 const struct effect_interface_s gDownmixInterface = {
         Downmix_Process,
@@ -236,17 +257,19 @@ static int Downmix_Process(effect_handle_t self,
 
       case DOWNMIX_TYPE_FOLD:
         // optimize for the common formats
-        switch(pDwmModule->config.inputCfg.channels) {
-        case AUDIO_CHANNEL_OUT_QUAD:
+        switch((downmix_input_channel_mask_t)pDwmModule->config.inputCfg.channels) {
+        case CHANNEL_MASK_QUAD_BACK:
+        case CHANNEL_MASK_QUAD_SIDE:
             Downmix_foldFromQuad(pSrc, pDst, numFrames, accumulate);
             break;
-        case AUDIO_CHANNEL_OUT_SURROUND:
+        case CHANNEL_MASK_SURROUND:
             Downmix_foldFromSurround(pSrc, pDst, numFrames, accumulate);
             break;
-        case AUDIO_CHANNEL_OUT_5POINT1:
+        case CHANNEL_MASK_5POINT1_BACK:
+        case CHANNEL_MASK_5POINT1_SIDE:
             Downmix_foldFrom5Point1(pSrc, pDst, numFrames, accumulate);
             break;
-        case AUDIO_CHANNEL_OUT_7POINT1:
+        case CHANNEL_MASK_7POINT1_SIDE_BACK:
             Downmix_foldFrom7Point1(pSrc, pDst, numFrames, accumulate);
             break;
         default:
