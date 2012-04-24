@@ -54,6 +54,12 @@ status_t AudioTrack::getMinFrameCount(
         audio_stream_type_t streamType,
         uint32_t sampleRate)
 {
+    // FIXME merge with similar code in createTrack_l(), except we're missing
+    //       some information here that is available in createTrack_l():
+    //          audio_io_handle_t output
+    //          audio_format_t format
+    //          audio_channel_mask_t channelMask
+    //          audio_output_flags_t flags
     int afSampleRate;
     if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
         return NO_INIT;
@@ -201,11 +207,11 @@ status_t AudioTrack::set(
         streamType = AUDIO_STREAM_MUSIC;
     }
 
-    int afSampleRate;
-    if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
-        return NO_INIT;
-    }
     if (sampleRate == 0) {
+        int afSampleRate;
+        if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
+            return NO_INIT;
+        }
         sampleRate = afSampleRate;
     }
 
@@ -220,6 +226,12 @@ status_t AudioTrack::set(
     // validate parameters
     if (!audio_is_valid_format(format)) {
         ALOGE("Invalid format");
+        return BAD_VALUE;
+    }
+
+    // AudioFlinger does not currently support 8-bit data in shared memory
+    if (format == AUDIO_FORMAT_PCM_8_BIT && sharedBuffer != 0) {
+        ALOGE("8-bit data in shared memory is not supported");
         return BAD_VALUE;
     }
 
@@ -744,14 +756,6 @@ status_t AudioTrack::createTrack_l(
         return NO_INIT;
     }
 
-    int afSampleRate;
-    if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
-        return NO_INIT;
-    }
-    int afFrameCount;
-    if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
-        return NO_INIT;
-    }
     uint32_t afLatency;
     if (AudioSystem::getLatency(output, streamType, &afLatency) != NO_ERROR) {
         return NO_INIT;
@@ -768,14 +772,57 @@ status_t AudioTrack::createTrack_l(
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
         flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
-    ALOGV("createTrack_l() output %d afFrameCount %d afLatency %d", output, afFrameCount, afLatency);
+    ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
     mNotificationFramesAct = mNotificationFramesReq;
+
     if (!audio_is_linear_pcm(format)) {
+
         if (sharedBuffer != 0) {
+            // Same comment as below about ignoring frameCount parameter for set()
             frameCount = sharedBuffer->size();
+        } else if (frameCount == 0) {
+            int afFrameCount;
+            if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
+                return NO_INIT;
+            }
+            frameCount = afFrameCount;
         }
-    } else {
+
+    } else if (sharedBuffer != 0) {
+
+        // Ensure that buffer alignment matches channelCount
+        int channelCount = popcount(channelMask);
+        // 8-bit data in shared memory is not currently supported by AudioFlinger
+        size_t alignment = /* format == AUDIO_FORMAT_PCM_8_BIT ? 1 : */ 2;
+        if (channelCount > 1) {
+            // More than 2 channels does not require stronger alignment than stereo
+            alignment <<= 1;
+        }
+        if (((uint32_t)sharedBuffer->pointer() & (alignment - 1)) != 0) {
+            ALOGE("Invalid buffer alignment: address %p, channelCount %d",
+                    sharedBuffer->pointer(), channelCount);
+            return BAD_VALUE;
+        }
+
+        // When initializing a shared buffer AudioTrack via constructors,
+        // there's no frameCount parameter.
+        // But when initializing a shared buffer AudioTrack via set(),
+        // there _is_ a frameCount parameter.  We silently ignore it.
+        frameCount = sharedBuffer->size()/channelCount/sizeof(int16_t);
+
+    } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
+
+        // FIXME move these calculations and associated checks to server
+        int afSampleRate;
+        if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
+            return NO_INIT;
+        }
+        int afFrameCount;
+        if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
+            return NO_INIT;
+        }
+
         // Ensure that buffer depth covers at least audio hardware latency
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
         if (minBufCount < 2) minBufCount = 2;
@@ -784,38 +831,27 @@ status_t AudioTrack::createTrack_l(
         ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%d, afSampleRate=%d"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
-#define MIN_FRAME_COUNT_FAST 128    // FIXME hard-coded
-        if ((flags & AUDIO_OUTPUT_FLAG_FAST) && (minFrameCount > MIN_FRAME_COUNT_FAST)) {
-            minFrameCount = MIN_FRAME_COUNT_FAST;
+
+        if (frameCount == 0) {
+            frameCount = minFrameCount;
+        }
+        if (mNotificationFramesAct == 0) {
+            mNotificationFramesAct = frameCount/2;
+        }
+        // Make sure that application is notified with sufficient margin
+        // before underrun
+        if (mNotificationFramesAct > (uint32_t)frameCount/2) {
+            mNotificationFramesAct = frameCount/2;
+        }
+        if (frameCount < minFrameCount) {
+            // not ALOGW because it happens all the time when playing key clicks over A2DP
+            ALOGV("Minimum buffer size corrected from %d to %d",
+                     frameCount, minFrameCount);
+            frameCount = minFrameCount;
         }
 
-        if (sharedBuffer == 0) {
-            if (frameCount == 0) {
-                frameCount = minFrameCount;
-            }
-            if (mNotificationFramesAct == 0) {
-                mNotificationFramesAct = frameCount/2;
-            }
-            // Make sure that application is notified with sufficient margin
-            // before underrun
-            if (mNotificationFramesAct > (uint32_t)frameCount/2) {
-                mNotificationFramesAct = frameCount/2;
-            }
-            if (frameCount < minFrameCount) {
-                // not ALOGW because it happens all the time when playing key clicks over A2DP
-                ALOGV("Minimum buffer size corrected from %d to %d",
-                         frameCount, minFrameCount);
-                frameCount = minFrameCount;
-            }
-        } else {
-            // Ensure that buffer alignment matches channelCount
-            int channelCount = popcount(channelMask);
-            if (((uint32_t)sharedBuffer->pointer() & (channelCount | 1)) != 0) {
-                ALOGE("Invalid buffer alignement: address %p, channelCount %d", sharedBuffer->pointer(), channelCount);
-                return BAD_VALUE;
-            }
-            frameCount = sharedBuffer->size()/channelCount/sizeof(int16_t);
-        }
+    } else {
+        // For fast tracks, the frame count calculations and checks are done by server
     }
 
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
@@ -864,6 +900,9 @@ status_t AudioTrack::createTrack_l(
         } else {
             ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", mCblk->frameCount);
         }
+        if (sharedBuffer == 0) {
+            mNotificationFramesAct = mCblk->frameCount/2;
+        }
     }
     if (sharedBuffer == 0) {
         mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
@@ -879,6 +918,7 @@ status_t AudioTrack::createTrack_l(
     mCblk->bufferTimeoutMs = MAX_STARTUP_TIMEOUT_MS;
     mCblk->waitTimeMs = 0;
     mRemainingFrames = mNotificationFramesAct;
+    // FIXME don't believe this lie
     mLatency = afLatency + (1000*mCblk->frameCount) / sampleRate;
     return NO_ERROR;
 }
