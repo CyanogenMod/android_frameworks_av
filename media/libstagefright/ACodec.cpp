@@ -1182,13 +1182,8 @@ status_t ACodec::setupRawAudioFormat(
     pcmParams.nSamplingRate = sampleRate;
     pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
 
-    if (numChannels == 1) {
-        pcmParams.eChannelMapping[0] = OMX_AUDIO_ChannelCF;
-    } else {
-        CHECK_EQ(numChannels, 2);
-
-        pcmParams.eChannelMapping[0] = OMX_AUDIO_ChannelLF;
-        pcmParams.eChannelMapping[1] = OMX_AUDIO_ChannelRF;
+    if (getOMXChannelMapping(numChannels, pcmParams.eChannelMapping) != OK) {
+        return OMX_ErrorNone;
     }
 
     return mOMX->setParameter(

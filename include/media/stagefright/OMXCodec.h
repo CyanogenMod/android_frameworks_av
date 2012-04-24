@@ -24,6 +24,8 @@
 #include <media/stagefright/MediaSource.h>
 #include <utils/threads.h>
 
+#include <OMX_Audio.h>
+
 namespace android {
 
 struct MediaCodecList;
@@ -389,6 +391,8 @@ status_t QueryCodec(
         const char *componentName, const char *mime,
         bool isEncoder,
         CodecCapabilities *caps);
+
+status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
 
 }  // namespace android
 
