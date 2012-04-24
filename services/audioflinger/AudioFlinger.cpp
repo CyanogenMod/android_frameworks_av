@@ -80,6 +80,10 @@
 #include "MonoPipeReader.h"
 #include "SourceAudioBufferProvider.h"
 
+#ifdef HAVE_REQUEST_PRIORITY
+#include "SchedulingPolicyService.h"
+#endif
+
 #ifdef SOAKER
 #include "Soaker.h"
 #endif

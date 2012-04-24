@@ -3,6 +3,17 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
+    ISchedulingPolicyService.cpp \
+    SchedulingPolicyService.cpp
+
+# FIXME Move this library to frameworks/native
+LOCAL_MODULE := libscheduling_policy
+
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
     AudioBufferProviderSource.cpp   \
     AudioStreamOutSink.cpp          \
     AudioStreamInSource.cpp         \
@@ -56,6 +67,7 @@ LOCAL_SHARED_LIBRARIES := \
     libpowermanager
 
 LOCAL_STATIC_LIBRARIES := \
+    libscheduling_policy \
     libnbaio \
     libcpustats \
     libmedia_helper
@@ -68,6 +80,6 @@ LOCAL_CFLAGS += -DFAST_MIXER_STATISTICS
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
-LOCAL_CFLAGS += -UHAVE_REQUEST_PRIORITY -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE -USOAKER
+LOCAL_CFLAGS += -DHAVE_REQUEST_PRIORITY -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE -USOAKER
 
 include $(BUILD_SHARED_LIBRARY)
