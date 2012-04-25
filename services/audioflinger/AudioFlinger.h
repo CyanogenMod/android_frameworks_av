@@ -844,7 +844,7 @@ private:
                                          int frameCount,
                                          const sp<IMemory>& sharedBuffer,
                                          int sessionId);
-            ~TimedTrack();
+            virtual ~TimedTrack();
 
             class TimedBuffer {
               public:
@@ -1494,6 +1494,9 @@ private:
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
     private:
         const sp<RecordThread::RecordTrack> mRecordTrack;
+
+        // for use from destructor
+        void                stop_nonvirtual();
     };
 
     //--- Audio Effect Management
@@ -1887,7 +1890,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     public:
         AudioHwDevice(const char *moduleName, audio_hw_device_t *hwDevice) :
             mModuleName(strdup(moduleName)), mHwDevice(hwDevice){}
-        ~AudioHwDevice() { free((void *)mModuleName); }
+        /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
 
         const char *moduleName() const { return mModuleName; }
         audio_hw_device_t *hwDevice() const { return mHwDevice; }
@@ -1964,6 +1967,9 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 private:
     sp<Client>  registerPid_l(pid_t pid);    // always returns non-0
 
+    // for use from destructor
+    status_t    closeOutput_nonvirtual(audio_io_handle_t output);
+    status_t    closeInput_nonvirtual(audio_io_handle_t input);
 };
 
 

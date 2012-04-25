@@ -246,14 +246,13 @@ void AudioFlinger::onFirstRef()
 
 AudioFlinger::~AudioFlinger()
 {
-
     while (!mRecordThreads.isEmpty()) {
         // closeInput() will remove first entry from mRecordThreads
-        closeInput(mRecordThreads.keyAt(0));
+        closeInput_nonvirtual(mRecordThreads.keyAt(0));
     }
     while (!mPlaybackThreads.isEmpty()) {
         // closeOutput() will remove first entry from mPlaybackThreads
-        closeOutput(mPlaybackThreads.keyAt(0));
+        closeOutput_nonvirtual(mPlaybackThreads.keyAt(0));
     }
 
     for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
@@ -5863,7 +5862,7 @@ AudioFlinger::RecordHandle::RecordHandle(const sp<AudioFlinger::RecordThread::Re
 }
 
 AudioFlinger::RecordHandle::~RecordHandle() {
-    stop();
+    stop_nonvirtual();
 }
 
 sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
@@ -5876,6 +5875,10 @@ status_t AudioFlinger::RecordHandle::start(int event, int triggerSession) {
 }
 
 void AudioFlinger::RecordHandle::stop() {
+    stop_nonvirtual();
+}
+
+void AudioFlinger::RecordHandle::stop_nonvirtual() {
     ALOGV("RecordHandle::stop()");
     mRecordTrack->stop();
 }
@@ -6847,6 +6850,11 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
 
 status_t AudioFlinger::closeOutput(audio_io_handle_t output)
 {
+    return closeOutput_nonvirtual(output);
+}
+
+status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
+{
     // keep strong reference on the playback thread so that
     // it is not destroyed while exit() is executed
     sp<PlaybackThread> thread;
@@ -6997,6 +7005,11 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
 }
 
 status_t AudioFlinger::closeInput(audio_io_handle_t input)
+{
+    return closeInput_nonvirtual(input);
+}
+
+status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
 {
     // keep strong reference on the record thread so that
     // it is not destroyed while exit() is executed
