@@ -138,7 +138,7 @@ private:
     };
 
     enum {
-        kMaxNumItems = 32
+        kMaxNumItems = 64
     };
     Item mItems[kMaxNumItems];
     size_t mNumItems;

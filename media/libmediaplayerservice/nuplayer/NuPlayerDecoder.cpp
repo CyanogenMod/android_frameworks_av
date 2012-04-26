@@ -116,9 +116,7 @@ sp<AMessage> NuPlayer::Decoder::makeFormat(const sp<MetaData> &meta) {
 
         msg->setInt32("width", width);
         msg->setInt32("height", height);
-    } else {
-        CHECK(!strncasecmp("audio/", mime, 6));
-
+    } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
