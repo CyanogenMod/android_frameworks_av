@@ -108,6 +108,7 @@ status_t SoftAAC2::initDecoder() {
             status = OK;
         }
     }
+    mIsFirst = true;
     return status;
 }
 
@@ -298,7 +299,16 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             inInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inHeader);
 
-            outHeader->nFilledLen = 0;
+            // flush out the decoder's delayed data by calling DecodeFrame one more time, with
+            // the AACDEC_FLUSH flag set
+            INT_PCM *outBuffer =
+                    reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
+            decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
+                                                outBuffer,
+                                                outHeader->nAllocLen,
+                                                AACDEC_FLUSH);
+            outHeader->nFilledLen =
+                    mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
             outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
             outQueue.erase(outQueue.begin());
@@ -412,6 +422,12 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             // We'll only output data if we successfully decoded it or
             // we've previously decoded valid data, in the latter case
             // (decode failed) we'll output a silent frame.
+            if (mIsFirst) {
+                mIsFirst = false;
+                // the first decoded frame should be discarded to account for decoder delay
+                numOutBytes = 0;
+            }
+
             outHeader->nFilledLen = numOutBytes;
             outHeader->nFlags = 0;
 
@@ -447,6 +463,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         // Make sure that the next buffer output does not still
         // depend on fragments from the last one decoded.
         mInputDiscontinuity = true;
+        mIsFirst = true;
     }
 }
 
