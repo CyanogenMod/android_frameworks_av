@@ -42,8 +42,23 @@ private:
 
 };  // class FastMixer
 
+// Represents the dump state of a fast track
+struct FastTrackDump {
+    FastTrackDump() : mUnderruns(0) { }
+    /*virtual*/ ~FastTrackDump() { }
+    uint32_t mUnderruns;        // Underrun status, represented as follows:
+                                //   bit 0 == 0 means not currently in underrun
+                                //   bit 0 == 1 means currently in underrun
+                                //   bits 1 to 31 == total number of underruns
+                                // Not reset to zero for new tracks or if track generation changes.
+                                // This representation is used to keep the information atomic.
+};
+
 // The FastMixerDumpState keeps a cache of FastMixer statistics that can be logged by dumpsys.
-// Since used non-atomically, only POD types are permitted, and the contents can't be trusted.
+// Each individual native word-sized field is accessed atomically.  But the
+// overall structure is non-atomic, that is there may be an inconsistency between fields.
+// No barriers or locks are used for either writing or reading.
+// Only POD types are permitted, and the contents shouldn't be trusted (i.e. do range checks).
 // It has a different lifetime than the FastMixer, and so it can't be a member of FastMixer.
 struct FastMixerDumpState {
     FastMixerDumpState();
@@ -60,6 +75,9 @@ struct FastMixerDumpState {
     uint32_t mOverruns;         // total number of overruns
     uint32_t mSampleRate;
     size_t   mFrameCount;
+    struct timespec mMeasuredWarmupTs;  // measured warmup time
+    uint32_t mWarmupCycles;     // number of loop cycles required to warmup
+    FastTrackDump   mTracks[FastMixerState::kMaxFastTracks];
 #ifdef FAST_MIXER_STATISTICS
     // cycle times in seconds
     float    mMean;

@@ -95,4 +95,10 @@ void SourceAudioBufferProvider::releaseBuffer(Buffer *buffer)
     mGetCount = 0;
 }
 
+size_t SourceAudioBufferProvider::framesReady() const
+{
+    ssize_t avail = mSource->availableToRead();
+    return avail < 0 ? 0 : (size_t) avail;
+}
+
 }   // namespace android

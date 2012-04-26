@@ -29,6 +29,7 @@
 
 #define FAST_HOT_IDLE_NS     1000000L   // 1 ms: time to sleep while hot idling
 #define FAST_DEFAULT_NS    999999999L   // ~1 sec: default time to sleep
+#define MAX_WARMUP_CYCLES         10    // maximum number of loop cycles to wait for warmup
 
 namespace android {
 
@@ -58,8 +59,9 @@ bool FastMixer::threadLoop()
     unsigned sampleRate = 0;
     int fastTracksGen = 0;
     long periodNs = 0;      // expected period; the time required to render one mix buffer
-    long underrunNs = 0;    // an underrun is likely if an actual cycle is greater than this value
-    long overrunNs = 0;     // an overrun is likely if an actual cycle if less than this value
+    long underrunNs = 0;    // underrun likely when write cycle is greater than this value
+    long overrunNs = 0;     // overrun likely when write cycle is less than this value
+    long warmupNs = 0;      // warmup complete when write cycle is greater than to this value
     FastMixerDumpState dummyDumpState, *dumpState = &dummyDumpState;
     bool ignoreNextOverrun = true;  // used to ignore initial overrun and first after an underrun
 #ifdef FAST_MIXER_STATISTICS
@@ -67,6 +69,9 @@ bool FastMixer::threadLoop()
     static const unsigned kMaxSamples = 1000;
 #endif
     unsigned coldGen = 0;   // last observed mColdGen
+    bool isWarm = false;    // true means ready to mix, false means wait for warmup before mixing
+    struct timespec measuredWarmupTs = {0, 0};  // how long did it take for warmup to complete
+    uint32_t warmupCycles = 0;  // counter of number of loop cycles required to warmup
 
     for (;;) {
 
@@ -138,6 +143,12 @@ bool FastMixer::threadLoop()
                 if (old <= 0) {
                     __futex_syscall4(coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
+                // This may be overly conservative; there could be times that the normal mixer
+                // requests such a brief cold idle that it doesn't require resetting this flag.
+                isWarm = false;
+                measuredWarmupTs.tv_sec = 0;
+                measuredWarmupTs.tv_nsec = 0;
+                warmupCycles = 0;
                 sleepNs = -1;
                 coldGen = current->mColdGen;
             } else {
@@ -195,6 +206,7 @@ bool FastMixer::threadLoop()
                     periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
                     underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
                     overrunNs = (frameCount * 250000000LL) / sampleRate;    // 0.25
+                    warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
                 } else {
                     periodNs = 0;
                     underrunNs = 0;
@@ -226,6 +238,7 @@ bool FastMixer::threadLoop()
                     i = __builtin_ctz(removedTracks);
                     removedTracks &= ~(1 << i);
                     const FastTrack* fastTrack = &current->mFastTracks[i];
+                    ALOG_ASSERT(fastTrack->mBufferProvider == NULL);
                     if (mixer != NULL) {
                         name = fastTrackNames[i];
                         ALOG_ASSERT(name >= 0);
@@ -234,6 +247,7 @@ bool FastMixer::threadLoop()
 #if !LOG_NDEBUG
                     fastTrackNames[i] = -1;
 #endif
+                    // don't reset track dump state, since other side is ignoring it
                     generations[i] = fastTrack->mGeneration;
                 }
 
@@ -313,13 +327,13 @@ bool FastMixer::threadLoop()
         }
 
         // do work using current state here
-        if ((command & FastMixerState::MIX) && (mixer != NULL)) {
+        if ((command & FastMixerState::MIX) && (mixer != NULL) && isWarm) {
             ALOG_ASSERT(mixBuffer != NULL);
-            // update volumes
-            unsigned volumeTracks = current->mTrackMask;
-            while (volumeTracks != 0) {
-                i = __builtin_ctz(volumeTracks);
-                volumeTracks &= ~(1 << i);
+            // for each track, update volume and check for underrun
+            unsigned currentTrackMask = current->mTrackMask;
+            while (currentTrackMask != 0) {
+                i = __builtin_ctz(currentTrackMask);
+                currentTrackMask &= ~(1 << i);
                 const FastTrack* fastTrack = &current->mFastTracks[i];
                 int name = fastTrackNames[i];
                 ALOG_ASSERT(name >= 0);
@@ -330,6 +344,25 @@ bool FastMixer::threadLoop()
                     mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
                             (void *)(vlr >> 16));
                 }
+                // FIXME The current implementation of framesReady() for fast tracks
+                // takes a tryLock, which can block
+                // up to 1 ms.  If enough active tracks all blocked in sequence, this would result
+                // in the overall fast mix cycle being delayed.  Should use a non-blocking FIFO.
+                size_t framesReady = fastTrack->mBufferProvider->framesReady();
+                FastTrackDump *ftDump = &dumpState->mTracks[i];
+                uint32_t underruns = ftDump->mUnderruns;
+                if (framesReady < frameCount) {
+                    ftDump->mUnderruns = (underruns + 2) | 1;
+                    if (framesReady == 0) {
+                        mixer->disable(name);
+                    } else {
+                        // allow mixing partial buffer
+                        mixer->enable(name);
+                    }
+                } else if (underruns & 1) {
+                    ftDump->mUnderruns = underruns & ~1;
+                    mixer->enable(name);
+                }
             }
             // process() is CPU-bound
             mixer->process(AudioBufferProvider::kInvalidPTS);
@@ -337,6 +370,8 @@ bool FastMixer::threadLoop()
         } else if (mixBufferState == MIXED) {
             mixBufferState = UNDEFINED;
         }
+        bool attemptedWrite = false;
+        //bool didFullWrite = false;    // dumpsys could display a count of partial writes
         if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
             if (mixBufferState == UNDEFINED) {
                 memset(mixBuffer, 0, frameCount * 2 * sizeof(short));
@@ -348,10 +383,15 @@ bool FastMixer::threadLoop()
             ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
             dumpState->mWriteSequence++;
             if (framesWritten >= 0) {
+                ALOG_ASSERT(framesWritten <= frameCount);
                 dumpState->mFramesWritten += framesWritten;
+                //if ((size_t) framesWritten == frameCount) {
+                //    didFullWrite = true;
+                //}
             } else {
                 dumpState->mWriteErrors++;
             }
+            attemptedWrite = true;
             // FIXME count # of writes blocked excessively, CPU usage, etc. for dump
         }
 
@@ -367,6 +407,27 @@ bool FastMixer::threadLoop()
                 if (nsec < 0) {
                     --sec;
                     nsec += 1000000000;
+                }
+                // To avoid an initial underrun on fast tracks after exiting standby,
+                // do not start pulling data from tracks and mixing until warmup is complete.
+                // Warmup is considered complete after the earlier of:
+                //      first successful single write() that blocks for more than warmupNs
+                //      MAX_WARMUP_CYCLES write() attempts.
+                // This is overly conservative, but to get better accuracy requires a new HAL API.
+                if (!isWarm && attemptedWrite) {
+                    measuredWarmupTs.tv_sec += sec;
+                    measuredWarmupTs.tv_nsec += nsec;
+                    if (measuredWarmupTs.tv_nsec >= 1000000000) {
+                        measuredWarmupTs.tv_sec++;
+                        measuredWarmupTs.tv_nsec -= 1000000000;
+                    }
+                    ++warmupCycles;
+                    if ((attemptedWrite && nsec > warmupNs) ||
+                            (warmupCycles >= MAX_WARMUP_CYCLES)) {
+                        isWarm = true;
+                        dumpState->mMeasuredWarmupTs = measuredWarmupTs;
+                        dumpState->mWarmupCycles = warmupCycles;
+                    }
                 }
                 if (sec > 0 || nsec > underrunNs) {
                     // FIXME only log occasionally
@@ -421,11 +482,13 @@ bool FastMixer::threadLoop()
 FastMixerDumpState::FastMixerDumpState() :
     mCommand(FastMixerState::INITIAL), mWriteSequence(0), mFramesWritten(0),
     mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
-    mSampleRate(0), mFrameCount(0)
+    mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0)
 #ifdef FAST_MIXER_STATISTICS
     , mMean(0.0), mMinimum(0.0), mMaximum(0.0), mStddev(0.0)
 #endif
 {
+    mMeasuredWarmupTs.tv_sec = 0;
+    mMeasuredWarmupTs.tv_nsec = 0;
 }
 
 FastMixerDumpState::~FastMixerDumpState()
@@ -462,12 +525,14 @@ void FastMixerDumpState::dump(int fd)
         snprintf(string, COMMAND_MAX, "%d", mCommand);
         break;
     }
+    double mMeasuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
+            (mMeasuredWarmupTs.tv_nsec / 1000000.0);
     fdprintf(fd, "FastMixer command=%s writeSequence=%u framesWritten=%u\n"
                  "          numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
-                 "          sampleRate=%u frameCount=%u\n",
+                 "          sampleRate=%u frameCount=%u measuredWarmup=%.3g ms, warmupCycles=%u\n",
                  string, mWriteSequence, mFramesWritten,
                  mNumTracks, mWriteErrors, mUnderruns, mOverruns,
-                 mSampleRate, mFrameCount);
+                 mSampleRate, mFrameCount, mMeasuredWarmupMs, mWarmupCycles);
 #ifdef FAST_MIXER_STATISTICS
     fdprintf(fd, "          cycle time in ms: mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
                  mMean*1e3, mMinimum*1e3, mMaximum*1e3, mStddev*1e3);

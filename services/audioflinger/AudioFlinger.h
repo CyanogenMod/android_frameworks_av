@@ -46,6 +46,7 @@
 #include <hardware/audio_policy.h>
 
 #include "AudioBufferProvider.h"
+#include "ExtendedAudioBufferProvider.h"
 #include "FastMixer.h"
 #include "NBAIO.h"
 
@@ -355,7 +356,7 @@ private:
         void clearPowerManager();
 
         // base for record and playback
-        class TrackBase : public AudioBufferProvider, public RefBase {
+        class TrackBase : public ExtendedAudioBufferProvider, public RefBase {
 
         public:
             enum track_state {
@@ -395,6 +396,10 @@ private:
             // AudioBufferProvider interface
             virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts) = 0;
             virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
+
+            // ExtendedAudioBufferProvider interface is only needed for Track,
+            // but putting it in TrackBase avoids the complexity of virtual inheritance
+            virtual size_t  framesReady() const { return SIZE_MAX; }
 
             audio_format_t format() const {
                 return mFormat;
@@ -676,6 +681,7 @@ private:
                                         IAudioFlinger::track_flags_t flags);
             virtual             ~Track();
 
+            static  void        appendDumpHeader(String8& result);
                     void        dump(char* buffer, size_t size);
             virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
@@ -699,11 +705,6 @@ private:
                     int16_t     *mainBuffer() const { return mMainBuffer; }
                     int         auxEffectId() const { return mAuxEffectId; }
 
-#if 0
-                    bool        isFastTrack() const
-                            { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
-#endif
-
         // implement FastMixerState::VolumeProvider interface
             virtual uint32_t    getVolumeLR();
 
@@ -720,7 +721,7 @@ private:
             virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts = kInvalidPTS);
             // releaseBuffer() not overridden
 
-            virtual uint32_t framesReady() const;
+            virtual size_t framesReady() const;
 
             bool isMuted() const { return mMute; }
             bool isPausing() const {
@@ -728,6 +729,9 @@ private:
             }
             bool isPaused() const {
                 return mState == PAUSED;
+            }
+            bool isResuming() const {
+                return mState == RESUMING;
             }
             bool isReady() const;
             void setPaused() { mState = PAUSED; }
@@ -756,7 +760,9 @@ private:
             const sp<IMemory>   mSharedBuffer;
             bool                mResetDone;
             const audio_stream_type_t mStreamType;
-            int                 mName;      // track name on the normal mixer
+            int                 mName;      // track name on the normal mixer,
+                                            // allocated statically at track creation time,
+                                            // and is even allocated (though unused) for fast tracks
             int16_t             *mMainBuffer;
             int32_t             *mAuxBuffer;
             int                 mAuxEffectId;
@@ -765,7 +771,17 @@ private:
                                                        // when this track will be fully rendered
         private:
             IAudioFlinger::track_flags_t mFlags;
-            int                 mFastIndex; // index within FastMixerState::mFastTracks[] or -1
+
+            // The following fields are only for fast tracks, and should be in a subclass
+            int                 mFastIndex; // index within FastMixerState::mFastTracks[];
+                                            // either mFastIndex == -1
+                                            // or 0 < mFastIndex < FastMixerState::kMaxFast because
+                                            // index 0 is reserved for normal mixer's submix;
+                                            // index is allocated statically at track creation time
+                                            // but the slot is only used if track is active
+            uint32_t            mObservedUnderruns; // Most recently observed value of
+                                            // mFastMixerDumpState.mTracks[mFastIndex].mUnderruns
+            uint32_t            mUnderrunCount; // Counter of total number of underruns, never reset
             volatile float      mCachedVolume;  // combined master volume and stream type volume;
                                                 // 'volatile' means accessed without lock or
                                                 // barrier, but is read/written atomically
@@ -800,7 +816,7 @@ private:
 
             // Mixer facing methods.
             virtual bool isTimedTrack() const { return true; }
-            virtual uint32_t framesReady() const;
+            virtual size_t framesReady() const;
 
             // AudioBufferProvider interface
             virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
@@ -921,9 +937,9 @@ protected:
         virtual     void        threadLoop_standby();
         virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove) { }
 
-                    // prepareTracks_l reads and writes mActiveTracks, and also returns the
-                    // pending set of tracks to remove via Vector 'tracksToRemove'.  The caller is
-                    // responsible for clearing or destroying this Vector later on, when it
+                    // prepareTracks_l reads and writes mActiveTracks, and returns
+                    // the pending set of tracks to remove via Vector 'tracksToRemove'.  The caller
+                    // is responsible for clearing or destroying this Vector later on, when it
                     // is safe to do so. That will drop the final ref count and destroy the tracks.
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove) = 0;
 
@@ -993,7 +1009,7 @@ public:
         bool                            mMasterMute;
                     void        setMasterMute_l(bool muted) { mMasterMute = muted; }
     protected:
-        SortedVector< wp<Track> >       mActiveTracks;
+        SortedVector< wp<Track> >       mActiveTracks;  // FIXME check if this could be sp<>
 
         // Allocate a track name for a given channel mask.
         //   Returns name >= 0 if successful, -1 on failure.
@@ -1080,12 +1096,11 @@ public:
         sp<NBAIO_Sink>          mNormalSink;
     public:
         virtual     bool        hasFastMixer() const = 0;
+        virtual     uint32_t    getFastTrackUnderruns(size_t fastIndex) const { return 0; }
 
     protected:
                     // accessed by both binder threads and within threadLoop(), lock on mutex needed
                     unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
-                    unsigned    mFastTrackNewMask;      // bit i set if fast track [i] just created
-                    Track*      mFastTrackNewArray[FastMixerState::kMaxFastTracks];
 
     };
 
@@ -1136,6 +1151,11 @@ public:
 
     public:
         virtual     bool        hasFastMixer() const { return mFastMixer != NULL; }
+        virtual     uint32_t    getFastTrackUnderruns(size_t fastIndex) const {
+                                    ALOG_ASSERT(0 < fastIndex &&
+                                            fastIndex < FastMixerState::kMaxFastTracks);
+                                    return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
+                                }
     };
 
     class DirectOutputThread : public PlaybackThread {
