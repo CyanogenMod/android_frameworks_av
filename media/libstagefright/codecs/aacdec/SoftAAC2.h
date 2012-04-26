@@ -50,6 +50,7 @@ private:
     HANDLE_AACDECODER mAACDecoder;
     CStreamInfo *mStreamInfo;
     bool mIsADTS;
+    bool mIsFirst;
     size_t mInputBufferCount;
     bool mSignalledError;
     bool mInputDiscontinuity;
