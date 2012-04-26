@@ -232,7 +232,6 @@ private:
 
     int64_t mLastVideoTimeUs;
     TimedTextDriver *mTextDriver;
-    mutable Mutex mTimedTextLock;
 
     sp<WVMExtractor> mWVMExtractor;
     sp<MediaExtractor> mExtractor;
