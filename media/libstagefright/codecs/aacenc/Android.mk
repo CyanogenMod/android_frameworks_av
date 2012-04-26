@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
-
+AAC_LIBRARY = fraunhofer
 
 LOCAL_SRC_FILES := basic_op/basicop2.c basic_op/oper_32b.c
 
@@ -90,24 +90,57 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := \
-        SoftAACEncoder.cpp
+ifeq ($(AAC_LIBRARY), fraunhofer)
 
-LOCAL_C_INCLUDES := \
-	frameworks/av/media/libstagefright/include \
-	frameworks/av/media/libstagefright/codecs/common/include \
-	frameworks/native/include/media/openmax
+  include $(CLEAR_VARS)
 
-LOCAL_CFLAGS := -DOSCL_IMPORT_REF=
+  LOCAL_SRC_FILES := \
+          SoftAACEncoder2.cpp
 
-LOCAL_STATIC_LIBRARIES := \
-        libstagefright_aacenc
+  LOCAL_C_INCLUDES := \
+          frameworks/av/media/libstagefright/include \
+          frameworks/native/include/media/openmax \
+          external/aac/libAACenc/include \
+          external/aac/libFDK/include \
+          external/aac/libMpegTPEnc/include \
+          external/aac/libSBRenc/include \
+          external/aac/libSYS/include
 
-LOCAL_SHARED_LIBRARIES := \
-        libstagefright_omx libstagefright_foundation libutils \
-        libstagefright_enc_common
+  LOCAL_CFLAGS :=
 
-LOCAL_MODULE := libstagefright_soft_aacenc
-LOCAL_MODULE_TAGS := optional
+  LOCAL_STATIC_LIBRARIES := \
+          libAACenc libMpegTPEnc libSBRenc libFDK libSYS
 
-include $(BUILD_SHARED_LIBRARY)
+  LOCAL_SHARED_LIBRARIES := \
+          libstagefright_omx libstagefright_foundation libutils
+
+  LOCAL_MODULE := libstagefright_soft_aacenc
+  LOCAL_MODULE_TAGS := optional
+
+  include $(BUILD_SHARED_LIBRARY)
+
+else # visualon
+
+  LOCAL_SRC_FILES := \
+          SoftAACEncoder.cpp
+
+  LOCAL_C_INCLUDES := \
+          frameworks/av/media/libstagefright/include \
+          frameworks/av/media/libstagefright/codecs/common/include \
+          frameworks/native/include/media/openmax
+
+  LOCAL_CFLAGS := -DOSCL_IMPORT_REF=
+
+  LOCAL_STATIC_LIBRARIES := \
+          libstagefright_aacenc
+
+  LOCAL_SHARED_LIBRARIES := \
+          libstagefright_omx libstagefright_foundation libutils \
+          libstagefright_enc_common
+
+  LOCAL_MODULE := libstagefright_soft_aacenc
+  LOCAL_MODULE_TAGS := optional
+
+  include $(BUILD_SHARED_LIBRARY)
+
+endif # $(AAC_LIBRARY)

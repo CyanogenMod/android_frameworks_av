@@ -852,13 +852,16 @@ status_t ACodec::configureCodec(
                 || !msg->findInt32("sample-rate", &sampleRate)) {
             err = INVALID_OPERATION;
         } else {
-            int32_t isADTS;
+            int32_t isADTS, aacProfile;
             if (!msg->findInt32("is-adts", &isADTS)) {
                 isADTS = 0;
             }
+            if (!msg->findInt32("aac-profile", &aacProfile)) {
+                aacProfile = OMX_AUDIO_AACObjectNull;
+            }
 
             err = setupAACCodec(
-                    encoder, numChannels, sampleRate, bitRate, isADTS != 0);
+                    encoder, numChannels, sampleRate, bitRate, aacProfile, isADTS != 0);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -960,8 +963,8 @@ status_t ACodec::selectAudioPortFormat(
 }
 
 status_t ACodec::setupAACCodec(
-        bool encoder,
-        int32_t numChannels, int32_t sampleRate, int32_t bitRate, bool isADTS) {
+        bool encoder, int32_t numChannels, int32_t sampleRate,
+        int32_t bitRate, int32_t aacProfile, bool isADTS) {
     if (encoder && isADTS) {
         return -EINVAL;
     }
@@ -1026,7 +1029,7 @@ status_t ACodec::setupAACCodec(
         profile.nFrameLength = 0;
         profile.nAACtools = OMX_AUDIO_AACToolAll;
         profile.nAACERtools = OMX_AUDIO_AACERNone;
-        profile.eAACProfile = OMX_AUDIO_AACObjectLC;
+        profile.eAACProfile = (OMX_AUDIO_AACPROFILETYPE) aacProfile;
         profile.eAACStreamFormat = OMX_AUDIO_AACStreamFormatMP4FF;
 
         err = mOMX->setParameter(

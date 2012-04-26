@@ -511,16 +511,20 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mMIME)) {
         setAMRFormat(true /* isWAMR */, bitRate);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mMIME)) {
-        int32_t numChannels, sampleRate;
+        int32_t numChannels, sampleRate, aacProfile;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+
+        if (!meta->findInt32(kKeyAACProfile, &aacProfile)) {
+            aacProfile = OMX_AUDIO_AACObjectNull;
+        }
 
         int32_t isADTS;
         if (!meta->findInt32(kKeyIsADTS, &isADTS)) {
             isADTS = false;
         }
 
-        status_t err = setAACFormat(numChannels, sampleRate, bitRate, isADTS);
+        status_t err = setAACFormat(numChannels, sampleRate, bitRate, aacProfile, isADTS);
         if (err != OK) {
             CODEC_LOGE("setAACFormat() failed (err = %d)", err);
             return err;
@@ -3395,7 +3399,7 @@ void OMXCodec::setAMRFormat(bool isWAMR, int32_t bitRate) {
 }
 
 status_t OMXCodec::setAACFormat(
-        int32_t numChannels, int32_t sampleRate, int32_t bitRate, bool isADTS) {
+        int32_t numChannels, int32_t sampleRate, int32_t bitRate, int32_t aacProfile, bool isADTS) {
     if (numChannels > 2) {
         ALOGW("Number of channels: (%d) \n", numChannels);
     }
@@ -3453,7 +3457,7 @@ status_t OMXCodec::setAACFormat(
         profile.nFrameLength = 0;
         profile.nAACtools = OMX_AUDIO_AACToolAll;
         profile.nAACERtools = OMX_AUDIO_AACERNone;
-        profile.eAACProfile = OMX_AUDIO_AACObjectLC;
+        profile.eAACProfile = (OMX_AUDIO_AACPROFILETYPE) aacProfile;
         profile.eAACStreamFormat = OMX_AUDIO_AACStreamFormatMP4FF;
         err = mOMX->setParameter(mNode, OMX_IndexParamAudioAac,
                 &profile, sizeof(profile));
