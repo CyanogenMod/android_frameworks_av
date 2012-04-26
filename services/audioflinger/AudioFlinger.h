@@ -1052,8 +1052,8 @@ public:
         uint32_t                        sleepTime;
 
         // mixer status returned by prepareTracks_l()
-        mixer_state                     mMixerStatus;       // current cycle
-        mixer_state                     mPrevMixerStatus;   // previous cycle
+        mixer_state                     mMixerStatus; // current cycle
+                                                      // previous cycle when in prepareTracks_l()
 
         // FIXME move these declarations into the specific sub-class that needs them
         // MIXER only
