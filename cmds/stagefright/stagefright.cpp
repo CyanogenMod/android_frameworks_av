@@ -611,6 +611,53 @@ static void usage(const char *me) {
     fprintf(stderr, "       -D(ump) filename (decoded PCM data to a file)\n");
 }
 
+static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
+    const char *kMimeTypes[] = {
+        MEDIA_MIMETYPE_VIDEO_AVC, MEDIA_MIMETYPE_VIDEO_MPEG4,
+        MEDIA_MIMETYPE_VIDEO_H263, MEDIA_MIMETYPE_AUDIO_AAC,
+        MEDIA_MIMETYPE_AUDIO_AMR_NB, MEDIA_MIMETYPE_AUDIO_AMR_WB,
+        MEDIA_MIMETYPE_AUDIO_MPEG, MEDIA_MIMETYPE_AUDIO_G711_MLAW,
+        MEDIA_MIMETYPE_AUDIO_G711_ALAW, MEDIA_MIMETYPE_AUDIO_VORBIS,
+        MEDIA_MIMETYPE_VIDEO_VPX
+    };
+
+    if (queryDecoders) {
+        printf("decoder profiles:\n");
+    } else {
+        printf("encoder profiles:\n");
+    }
+
+    for (size_t k = 0; k < sizeof(kMimeTypes) / sizeof(kMimeTypes[0]); ++k) {
+        printf("type '%s':\n", kMimeTypes[k]);
+
+        Vector<CodecCapabilities> results;
+        // will retrieve hardware and software codecs
+        CHECK_EQ(QueryCodecs(omx, kMimeTypes[k],
+                             queryDecoders,
+                             &results), (status_t)OK);
+
+        for (size_t i = 0; i < results.size(); ++i) {
+            printf("  decoder '%s' supports ",
+                       results[i].mComponentName.string());
+
+            if (results[i].mProfileLevels.size() == 0) {
+                    printf("NOTHING.\n");
+                    continue;
+            }
+
+            for (size_t j = 0; j < results[i].mProfileLevels.size(); ++j) {
+                const CodecProfileLevel &profileLevel =
+                     results[i].mProfileLevels[j];
+
+                printf("%s%ld/%ld", j > 0 ? ", " : "",
+                    profileLevel.mProfile, profileLevel.mLevel);
+            }
+
+            printf("\n");
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     android::ProcessState::self()->startThreadPool();
 
@@ -840,46 +887,8 @@ int main(int argc, char **argv) {
 
         sp<IOMX> omx = service->getOMX();
         CHECK(omx.get() != NULL);
-
-        const char *kMimeTypes[] = {
-            MEDIA_MIMETYPE_VIDEO_AVC, MEDIA_MIMETYPE_VIDEO_MPEG4,
-            MEDIA_MIMETYPE_VIDEO_H263, MEDIA_MIMETYPE_AUDIO_AAC,
-            MEDIA_MIMETYPE_AUDIO_AMR_NB, MEDIA_MIMETYPE_AUDIO_AMR_WB,
-            MEDIA_MIMETYPE_AUDIO_MPEG, MEDIA_MIMETYPE_AUDIO_G711_MLAW,
-            MEDIA_MIMETYPE_AUDIO_G711_ALAW, MEDIA_MIMETYPE_AUDIO_VORBIS,
-            MEDIA_MIMETYPE_VIDEO_VPX
-        };
-
-        for (size_t k = 0; k < sizeof(kMimeTypes) / sizeof(kMimeTypes[0]);
-             ++k) {
-            printf("type '%s':\n", kMimeTypes[k]);
-
-            Vector<CodecCapabilities> results;
-            // will retrieve hardware and software codecs
-            CHECK_EQ(QueryCodecs(omx, kMimeTypes[k],
-                                 true, // queryDecoders
-                                 &results), (status_t)OK);
-
-            for (size_t i = 0; i < results.size(); ++i) {
-                printf("  decoder '%s' supports ",
-                       results[i].mComponentName.string());
-
-                if (results[i].mProfileLevels.size() == 0) {
-                    printf("NOTHING.\n");
-                    continue;
-                }
-
-                for (size_t j = 0; j < results[i].mProfileLevels.size(); ++j) {
-                    const CodecProfileLevel &profileLevel =
-                        results[i].mProfileLevels[j];
-
-                    printf("%s%ld/%ld", j > 0 ? ", " : "",
-                           profileLevel.mProfile, profileLevel.mLevel);
-                }
-
-                printf("\n");
-            }
-        }
+        dumpCodecProfiles(omx, true /* queryDecoders */);
+        dumpCodecProfiles(omx, false /* queryDecoders */);
     }
 
     if (listComponents) {
