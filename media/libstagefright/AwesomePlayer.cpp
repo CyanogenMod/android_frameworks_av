@@ -1345,7 +1345,7 @@ void AwesomePlayer::setAudioSource(sp<MediaSource> source) {
 }
 
 void AwesomePlayer::addTextSource(size_t trackIndex, const sp<MediaSource>& source) {
-    Mutex::Autolock autoLock(mTimedTextLock);
+    Mutex::Autolock autoLock(mLock);
     CHECK(source != NULL);
 
     if (mTextDriver == NULL) {
@@ -1395,7 +1395,6 @@ status_t AwesomePlayer::initAudioDecoder() {
     if (mAudioSource != NULL) {
         Mutex::Autolock autoLock(mStatsLock);
         TrackStat *stat = &mStats.mTracks.editItemAt(mStats.mAudioTrackIndex);
-
         const char *component;
         if (!mAudioSource->getFormat()
                 ->findCString(kKeyDecoderComponent, &component)) {
@@ -2268,13 +2267,13 @@ status_t AwesomePlayer::getParameter(int key, Parcel *reply) {
 }
 
 status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
-    Mutex::Autolock autoLock(mTimedTextLock);
-    if (mTextDriver == NULL) {
-        return INVALID_OPERATION;
+    Mutex::Autolock autoLock(mLock);
+    size_t trackCount = mExtractor->countTracks();
+    if (mTextDriver != NULL) {
+        trackCount += mTextDriver->countExternalTracks();
     }
 
-    reply->writeInt32(mTextDriver->countExternalTracks() +
-                mExtractor->countTracks());
+    reply->writeInt32(trackCount);
     for (size_t i = 0; i < mExtractor->countTracks(); ++i) {
         sp<MetaData> meta = mExtractor->getTrackMetaData(i);
 
@@ -2296,28 +2295,31 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
         }
 
         const char *lang;
-        if (meta->findCString(kKeyMediaLanguage, &lang)) {
-            reply->writeString16(String16(lang));
-        } else {
-            reply->writeString16(String16(""));
+        if (!meta->findCString(kKeyMediaLanguage, &lang)) {
+            lang = "und";
         }
+        reply->writeString16(String16(lang));
     }
 
-    mTextDriver->getExternalTrackInfo(reply);
+    if (mTextDriver != NULL) {
+        mTextDriver->getExternalTrackInfo(reply);
+    }
     return OK;
 }
 
 // FIXME:
 // At present, only timed text track is able to be selected or unselected.
 status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
-    Mutex::Autolock autoLock(mTimedTextLock);
-    if (mTextDriver == NULL) {
-        return INVALID_OPERATION;
+    ALOGV("selectTrack: trackIndex = %d and select=%d", trackIndex, select);
+    Mutex::Autolock autoLock(mLock);
+    size_t trackCount = mExtractor->countTracks();
+    if (mTextDriver != NULL) {
+        trackCount += mTextDriver->countExternalTracks();
     }
 
-    if (trackIndex >= mExtractor->countTracks()
-                + mTextDriver->countExternalTracks()) {
-        return BAD_VALUE;
+    if (trackIndex >= trackCount) {
+        ALOGE("Track index (%d) is out of range [0, %d)", trackIndex, trackCount);
+        return ERROR_OUT_OF_RANGE;
     }
 
     if (trackIndex < mExtractor->countTracks()) {
@@ -2329,6 +2331,11 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
         if (strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
             return ERROR_UNSUPPORTED;
         }
+    }
+
+    // Timed text track handling
+    if (mTextDriver == NULL) {
+        return INVALID_OPERATION;
     }
 
     status_t err = OK;
@@ -2371,7 +2378,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         }
         case INVOKE_ID_ADD_EXTERNAL_SOURCE:
         {
-            Mutex::Autolock autoLock(mTimedTextLock);
+            Mutex::Autolock autoLock(mLock);
             if (mTextDriver == NULL) {
                 mTextDriver = new TimedTextDriver(mListener);
             }
@@ -2383,7 +2390,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         }
         case INVOKE_ID_ADD_EXTERNAL_SOURCE_FD:
         {
-            Mutex::Autolock autoLock(mTimedTextLock);
+            Mutex::Autolock autoLock(mLock);
             if (mTextDriver == NULL) {
                 mTextDriver = new TimedTextDriver(mListener);
             }
@@ -2398,12 +2405,12 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         case INVOKE_ID_SELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return selectTrack(trackIndex, true);
+            return selectTrack(trackIndex, true /* select */);
         }
         case INVOKE_ID_UNSELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return selectTrack(trackIndex, false);
+            return selectTrack(trackIndex, false /* select */);
         }
         default:
         {
