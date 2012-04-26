@@ -3,6 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
     M4vH263Encoder.cpp \
+    SoftMPEG4Encoder.cpp \
     src/bitstream_io.cpp \
     src/combined_encode.cpp \
     src/datapart_encode.cpp \
@@ -35,3 +36,39 @@ LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/native/include/media/openmax
 
 include $(BUILD_STATIC_LIBRARY)
+
+################################################################################
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+        SoftMPEG4Encoder.cpp
+
+LOCAL_C_INCLUDES := \
+        frameworks/av/media/libstagefright/include \
+        frameworks/native/include/media/openmax \
+        $(LOCAL_PATH)/src \
+        $(LOCAL_PATH)/include \
+        $(LOCAL_PATH)/../common/include \
+        $(LOCAL_PATH)/../common
+
+LOCAL_CFLAGS := \
+    -DBX_RC \
+    -DOSCL_IMPORT_REF= -DOSCL_UNUSED_ARG= -DOSCL_EXPORT_REF=
+
+
+LOCAL_STATIC_LIBRARIES := \
+        libstagefright_m4vh263enc
+
+LOCAL_SHARED_LIBRARIES := \
+        libstagefright \
+        libstagefright_enc_common \
+        libstagefright_foundation \
+        libstagefright_omx \
+        libutils \
+
+
+LOCAL_MODULE := libstagefright_soft_mpeg4enc
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_SHARED_LIBRARY)
