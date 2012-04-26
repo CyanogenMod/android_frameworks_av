@@ -34,6 +34,7 @@ public:
 
     virtual int64_t getCachedDurationUs(status_t *finalStatus) = 0;
     virtual void setAdaptiveStreamingMode(bool adaptive) = 0;
+    virtual void setCryptoPluginMode(bool cryptoPluginMode) = 0;
     virtual void setUID(uid_t uid) = 0;
 };
 
@@ -60,6 +61,12 @@ public:
     // Should set to use adaptive streaming mode only if widevine:// protocol
     // is used.
     void setAdaptiveStreamingMode(bool adaptive);
+
+    // setCryptoPluginMode(true) to select crypto plugin mode.
+    // In this mode, the extractor returns encrypted data for use
+    // with the MediaCodec model, which handles the decryption in the
+    // codec.
+    void setCryptoPluginMode(bool cryptoPluginMode);
 
     void setUID(uid_t uid);
 

@@ -127,6 +127,12 @@ void WVMExtractor::setAdaptiveStreamingMode(bool adaptive) {
     }
 }
 
+void WVMExtractor::setCryptoPluginMode(bool cryptoPluginMode) {
+    if (mImpl != NULL) {
+        mImpl->setCryptoPluginMode(cryptoPluginMode);
+    }
+}
+
 void WVMExtractor::setUID(uid_t uid) {
     if (mImpl != NULL) {
         mImpl->setUID(uid);
