@@ -375,7 +375,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
          * Thus, we could not say for sure whether a stream is
          * AAC+/eAAC+ until the first data frame is decoded.
          */
-        if (decoderErr == AAC_DEC_OK && mInputBufferCount <= 2) {
+        if (mInputBufferCount <= 2) {
             if (mStreamInfo->sampleRate != prevSampleRate) {
                 // We're going to want to revisit this input buffer, but
                 // may have already advanced the offset. Undo that if
