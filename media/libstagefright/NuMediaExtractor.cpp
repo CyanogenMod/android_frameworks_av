@@ -384,6 +384,47 @@ status_t NuMediaExtractor::selectTrack(size_t index) {
     return OK;
 }
 
+status_t NuMediaExtractor::unselectTrack(size_t index) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mImpl == NULL) {
+        return -EINVAL;
+    }
+
+    if (index >= mImpl->countTracks()) {
+        return -ERANGE;
+    }
+
+    size_t i;
+    for (i = 0; i < mSelectedTracks.size(); ++i) {
+        TrackInfo *info = &mSelectedTracks.editItemAt(i);
+
+        if (info->mTrackIndex == index) {
+            break;
+        }
+    }
+
+    if (i == mSelectedTracks.size()) {
+        // Not selected.
+        return OK;
+    }
+
+    TrackInfo *info = &mSelectedTracks.editItemAt(i);
+
+    if (info->mSample != NULL) {
+        info->mSample->release();
+        info->mSample = NULL;
+
+        info->mSampleTimeUs = -1ll;
+    }
+
+    CHECK_EQ((status_t)OK, info->mSource->stop());
+
+    mSelectedTracks.removeAt(i);
+
+    return OK;
+}
+
 void NuMediaExtractor::releaseTrackSamples() {
     for (size_t i = 0; i < mSelectedTracks.size(); ++i) {
         TrackInfo *info = &mSelectedTracks.editItemAt(i);
@@ -397,7 +438,8 @@ void NuMediaExtractor::releaseTrackSamples() {
     }
 }
 
-ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
+ssize_t NuMediaExtractor::fetchTrackSamples(
+        int64_t seekTimeUs, MediaSource::ReadOptions::SeekMode mode) {
     TrackInfo *minInfo = NULL;
     ssize_t minIndex = -1;
 
@@ -419,7 +461,7 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
         if (info->mSample == NULL) {
             MediaSource::ReadOptions options;
             if (seekTimeUs >= 0ll) {
-                options.setSeekTo(seekTimeUs);
+                options.setSeekTo(seekTimeUs, mode);
             }
             status_t err = info->mSource->read(&info->mSample, &options);
 
@@ -445,10 +487,11 @@ ssize_t NuMediaExtractor::fetchTrackSamples(int64_t seekTimeUs) {
     return minIndex;
 }
 
-status_t NuMediaExtractor::seekTo(int64_t timeUs) {
+status_t NuMediaExtractor::seekTo(
+        int64_t timeUs, MediaSource::ReadOptions::SeekMode mode) {
     Mutex::Autolock autoLock(mLock);
 
-    ssize_t minIndex = fetchTrackSamples(timeUs);
+    ssize_t minIndex = fetchTrackSamples(timeUs, mode);
 
     if (minIndex < 0) {
         return ERROR_END_OF_STREAM;

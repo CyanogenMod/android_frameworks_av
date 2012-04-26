@@ -18,6 +18,7 @@
 #define NU_MEDIA_EXTRACTOR_H_
 
 #include <media/stagefright/foundation/ABase.h>
+#include <media/stagefright/MediaSource.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
@@ -53,8 +54,12 @@ struct NuMediaExtractor : public RefBase {
     status_t getTrackFormat(size_t index, sp<AMessage> *format) const;
 
     status_t selectTrack(size_t index);
+    status_t unselectTrack(size_t index);
 
-    status_t seekTo(int64_t timeUs);
+    status_t seekTo(
+            int64_t timeUs,
+            MediaSource::ReadOptions::SeekMode mode =
+                MediaSource::ReadOptions::SEEK_CLOSEST_SYNC);
 
     status_t advance();
     status_t readSampleData(const sp<ABuffer> &buffer);
@@ -93,7 +98,11 @@ private:
     int64_t mTotalBitrate;  // in bits/sec
     int64_t mDurationUs;
 
-    ssize_t fetchTrackSamples(int64_t seekTimeUs = -1ll);
+    ssize_t fetchTrackSamples(
+            int64_t seekTimeUs = -1ll,
+            MediaSource::ReadOptions::SeekMode mode =
+                MediaSource::ReadOptions::SEEK_CLOSEST_SYNC);
+
     void releaseTrackSamples();
 
     bool getTotalBitrate(int64_t *bitRate) const;
