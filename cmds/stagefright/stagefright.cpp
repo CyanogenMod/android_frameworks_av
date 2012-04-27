@@ -608,6 +608,7 @@ static void usage(const char *me) {
     fprintf(stderr, "       -S allocate buffers from a surface\n");
     fprintf(stderr, "       -T allocate buffers from a surface texture\n");
     fprintf(stderr, "       -d(ump) filename (raw stream data to a file)\n");
+    fprintf(stderr, "       -D(ump) filename (decoded PCM data to a file)\n");
 }
 
 static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
@@ -668,6 +669,7 @@ int main(int argc, char **argv) {
     bool useSurfaceAlloc = false;
     bool useSurfaceTexAlloc = false;
     bool dumpStream = false;
+    bool dumpPCMStream = false;
     String8 dumpStreamFilename;
     gNumRepetitions = 1;
     gMaxNumFrames = 0;
@@ -682,7 +684,7 @@ int main(int argc, char **argv) {
     sp<LiveSession> liveSession;
 
     int res;
-    while ((res = getopt(argc, argv, "han:lm:b:ptsrow:kxSTd:")) >= 0) {
+    while ((res = getopt(argc, argv, "han:lm:b:ptsrow:kxSTd:D:")) >= 0) {
         switch (res) {
             case 'a':
             {
@@ -693,6 +695,14 @@ int main(int argc, char **argv) {
             case 'd':
             {
                 dumpStream = true;
+                dumpStreamFilename.setTo(optarg);
+                break;
+            }
+
+            case 'D':
+            {
+                dumpPCMStream = true;
+                audioOnly = true;
                 dumpStreamFilename.setTo(optarg);
                 break;
             }
@@ -1103,6 +1113,20 @@ int main(int argc, char **argv) {
             writeSourcesToMP4(mediaSources, syncInfoPresent);
         } else if (dumpStream) {
             dumpSource(mediaSource, dumpStreamFilename);
+        } else if (dumpPCMStream) {
+            OMXClient client;
+            CHECK_EQ(client.connect(), (status_t)OK);
+
+            sp<MediaSource> decSource =
+                OMXCodec::Create(
+                        client.interface(),
+                        mediaSource->getFormat(),
+                        false,
+                        mediaSource,
+                        0,
+                        0);
+
+            dumpSource(decSource, dumpStreamFilename);
         } else if (seekTest) {
             performSeekTest(mediaSource);
         } else {
