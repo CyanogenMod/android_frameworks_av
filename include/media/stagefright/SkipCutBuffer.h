@@ -27,12 +27,11 @@ namespace android {
  * utility class to cut the start and end off a stream of data in MediaBuffers
  *
  */
-class SkipCutBuffer {
+class SkipCutBuffer: public RefBase {
  public:
     // 'skip' is the number of bytes to skip from the beginning
     // 'cut' is the number of bytes to cut from the end
     SkipCutBuffer(int32_t skip, int32_t cut);
-    virtual ~SkipCutBuffer();
 
     // Submit one MediaBuffer for skipping and cutting. This may consume all or
     // some of the data in the buffer, or it may add data to it.
@@ -41,6 +40,9 @@ class SkipCutBuffer {
     void submit(const sp<ABuffer>& buffer);    // same as above, but with an ABuffer
     void clear();
     size_t size(); // how many bytes are currently stored in the buffer
+
+ protected:
+    virtual ~SkipCutBuffer();
 
  private:
     void write(const char *src, size_t num);

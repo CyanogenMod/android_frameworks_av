@@ -22,6 +22,7 @@
 #include <android/native_window.h>
 #include <media/IOMX.h>
 #include <media/stagefright/foundation/AHierarchicalStateMachine.h>
+#include <media/stagefright/SkipCutBuffer.h>
 #include <OMX_Audio.h>
 
 namespace android {
@@ -120,6 +121,9 @@ private:
     sp<ExecutingToIdleState> mExecutingToIdleState;
     sp<IdleToLoadedState> mIdleToLoadedState;
     sp<FlushingState> mFlushingState;
+    int32_t mEncoderDelay;
+    int32_t mEncoderPadding;
+    sp<SkipCutBuffer> mSkipCutBuffer;
 
     AString mComponentName;
     uint32_t mFlags;

@@ -889,6 +889,13 @@ status_t ACodec::configureCodec(
         }
     }
 
+    if (!msg->findInt32("encoder-delay", &mEncoderDelay)) {
+        mEncoderDelay = 0;
+    }
+    if (!msg->findInt32("encoder-padding", &mEncoderPadding)) {
+        mEncoderPadding = 0;
+    }
+
     int32_t maxInputSize;
     if (msg->findInt32("max-input-size", &maxInputSize)) {
         err = setMinBufferSize(kPortIndexInput, (size_t)maxInputSize);
@@ -2003,6 +2010,17 @@ void ACodec::sendFormatChange() {
             notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
             notify->setInt32("channel-count", params.nChannels);
             notify->setInt32("sample-rate", params.nSamplingRate);
+            if (mEncoderDelay + mEncoderPadding) {
+                size_t frameSize = params.nChannels * sizeof(int16_t);
+                if (mSkipCutBuffer != NULL) {
+                    size_t prevbufsize = mSkipCutBuffer->size();
+                    if (prevbufsize != 0) {
+                        ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbufsize);
+                    }
+                }
+                mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay * frameSize,
+                                                   mEncoderPadding * frameSize);
+            }
             break;
         }
 
@@ -2417,6 +2435,9 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 info->mData->setRange(rangeOffset, rangeLength);
             }
 
+            if (mCodec->mSkipCutBuffer != NULL) {
+                mCodec->mSkipCutBuffer->submit(info->mData);
+            }
             info->mData->meta()->setInt64("timeUs", timeUs);
 
             sp<AMessage> notify = mCodec->mNotify->dup();

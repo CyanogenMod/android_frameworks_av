@@ -1434,9 +1434,6 @@ OMXCodec::~OMXCodec() {
 
     free(mMIME);
     mMIME = NULL;
-
-    delete mSkipCutBuffer;
-    mSkipCutBuffer = NULL;
 }
 
 status_t OMXCodec::init() {
@@ -1610,14 +1607,13 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         }
         int32_t numchannels = 0;
         if (delay + padding) {
-            if (meta->findInt32(kKeyChannelCount, &numchannels)) {
+            if (mOutputFormat->findInt32(kKeyChannelCount, &numchannels)) {
                 size_t frameSize = numchannels * sizeof(int16_t);
-                if (mSkipCutBuffer) {
+                if (mSkipCutBuffer != NULL) {
                     size_t prevbuffersize = mSkipCutBuffer->size();
                     if (prevbuffersize != 0) {
                         ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbuffersize);
                     }
-                    delete mSkipCutBuffer;
                 }
                 mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
             }
@@ -2541,7 +2537,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
             CHECK_EQ(countBuffersWeOwn(mPortBuffers[portIndex]),
                      mPortBuffers[portIndex].size());
 
-            if (mSkipCutBuffer && mPortStatus[kPortIndexOutput] == ENABLED) {
+            if (mSkipCutBuffer != NULL && mPortStatus[kPortIndexOutput] == ENABLED) {
                 mSkipCutBuffer->clear();
             }
 
@@ -3863,7 +3859,7 @@ status_t OMXCodec::read(
     info->mStatus = OWNED_BY_CLIENT;
 
     info->mMediaBuffer->add_ref();
-    if (mSkipCutBuffer) {
+    if (mSkipCutBuffer != NULL) {
         mSkipCutBuffer->submit(info->mMediaBuffer);
     }
     *buffer = info->mMediaBuffer;

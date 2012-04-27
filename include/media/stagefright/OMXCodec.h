@@ -204,7 +204,7 @@ private:
     ReadOptions::SeekMode mSeekMode;
     int64_t mTargetTimeUs;
     bool mOutputPortSettingsChangedPending;
-    SkipCutBuffer *mSkipCutBuffer;
+    sp<SkipCutBuffer> mSkipCutBuffer;
 
     MediaBuffer *mLeftOverBuffer;
 

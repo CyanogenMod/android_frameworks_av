@@ -39,7 +39,6 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
-#include <media/stagefright/SkipCutBuffer.h>
 #include <gui/ISurfaceTexture.h>
 
 #include "avc_utils.h"
@@ -64,13 +63,10 @@ NuPlayer::NuPlayer()
       mSkipRenderingVideoUntilMediaTimeUs(-1ll),
       mVideoLateByUs(0ll),
       mNumFramesTotal(0ll),
-      mNumFramesDropped(0ll),
-      mSkipCutBuffer(NULL) {
+      mNumFramesDropped(0ll) {
 }
 
 NuPlayer::~NuPlayer() {
-    delete mSkipCutBuffer;
-    mSkipCutBuffer = NULL;
 }
 
 void NuPlayer::setUID(uid_t uid) {
@@ -237,32 +233,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mNumFramesDropped = 0;
 
             mSource->start();
-
-            sp<MetaData> meta = mSource->getFormat(true /* audio */);
-            if (meta != NULL) {
-                int32_t delay = 0;
-                if (!meta->findInt32(kKeyEncoderDelay, &delay)) {
-                    delay = 0;
-                }
-                int32_t padding = 0;
-                if (!meta->findInt32(kKeyEncoderPadding, &padding)) {
-                    padding = 0;
-                }
-                int32_t numchannels = 0;
-                if (delay + padding) {
-                    if (meta->findInt32(kKeyChannelCount, &numchannels)) {
-                        size_t frameSize = numchannels * sizeof(int16_t);
-                        if (mSkipCutBuffer) {
-                            size_t prevbuffersize = mSkipCutBuffer->size();
-                            if (prevbuffersize != 0) {
-                                ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbuffersize);
-                            }
-                            delete mSkipCutBuffer;
-                        }
-                        mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
-                    }
-                }
-            }
 
             mRenderer = new Renderer(
                     mAudioSink,
@@ -890,10 +860,6 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
         }
 
         skipUntilMediaTimeUs = -1;
-    }
-
-    if (audio && mSkipCutBuffer) {
-        mSkipCutBuffer->submit(buffer);
     }
 
     mRenderer->queueBuffer(audio, buffer, reply);
