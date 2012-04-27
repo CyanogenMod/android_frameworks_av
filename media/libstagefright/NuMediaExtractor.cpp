@@ -98,6 +98,20 @@ status_t NuMediaExtractor::setDataSource(
         return ERROR_UNSUPPORTED;
     }
 
+    sp<MetaData> fileMeta = mImpl->getMetaData();
+    const char *containerMime;
+    if (fileMeta != NULL
+            && fileMeta->findCString(kKeyMIMEType, &containerMime)
+            && !strcasecmp(containerMime, "video/wvm")) {
+        // We always want to use "cryptoPluginMode" when using the wvm
+        // extractor. We can tell that it is this extractor by looking
+        // at the container mime type.
+        // The cryptoPluginMode ensures that the extractor will actually
+        // give us data in a call to MediaSource::read(), unlike its
+        // default mode that we use from AwesomePlayer.
+        static_cast<WVMExtractor *>(mImpl.get())->setCryptoPluginMode(true);
+    }
+
     mDataSource = dataSource;
 
     updateDurationAndBitrate();
