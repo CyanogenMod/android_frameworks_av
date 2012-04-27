@@ -142,6 +142,23 @@ static const uint32_t kMinNormalMixBufferSizeMs = 20;
 
 nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
 
+// Whether to use fast mixer
+static const enum {
+    FastMixer_Never,    // never initialize or use: for debugging only
+    FastMixer_Always,   // always initialize and use, even if not needed: for debugging only
+                        // normal mixer multiplier is 1
+    FastMixer_Static,   // initialize if needed, then use all the time if initialized,
+                        // multipler is calculated based on minimum normal mixer buffer size
+    FastMixer_Dynamic,  // initialize if needed, then use dynamically depending on track load,
+                        // multipler is calculated based on minimum normal mixer buffer size
+    // FIXME for FastMixer_Dynamic:
+    //  Supporting this option will require fixing HALs that can't handle large writes.
+    //  For example, one HAL implementation returns an error from a large write,
+    //  and another HAL implementation corrupts memory, possibly in the sample rate converter.
+    //  We could either fix the HAL implementations, or provide a wrapper that breaks
+    //  up large writes into smaller ones, and the wrapper would need to deal with scheduler.
+} kUseFastMixer = FastMixer_Static;
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -1636,7 +1653,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               (
                 (tid != -1) &&
                 ((frameCount == 0) ||
-                (frameCount >= (int) mFrameCount)) // FIXME int cast is due to wrong parameter type
+                (frameCount >= (int) (mFrameCount * 2))) // * 2 is due to SRC jitter, see below
               )
             ) &&
             // PCM data
@@ -1655,12 +1672,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // FIXME test that MixerThread for this fast track has a capable output HAL
             // FIXME add a permission test also?
         ) {
-        ALOGI("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
-                frameCount, mFrameCount);
         // if frameCount not specified, then it defaults to fast mixer (HAL) frame count
         if (frameCount == 0) {
-            frameCount = mFrameCount;
+            frameCount = mFrameCount * 2;   // FIXME * 2 is due to SRC jitter, should be computed
         }
+        ALOGI("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
+                frameCount, mFrameCount);
       } else {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
                 "mFrameCount=%d format=%d isLinear=%d channelMask=%d sampleRate=%d mSampleRate=%d "
@@ -1920,17 +1937,19 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
                 mFrameCount);
     }
 
-    // Calculate size of normal mix buffer
-    if (mType == MIXER) {
+    // Calculate size of normal mix buffer relative to the HAL output buffer size
+    uint32_t multiple = 1;
+    if (mType == MIXER && (kUseFastMixer == FastMixer_Static || kUseFastMixer == FastMixer_Dynamic)) {
         size_t minNormalFrameCount = (kMinNormalMixBufferSizeMs * mSampleRate) / 1000;
-        mNormalFrameCount = ((minNormalFrameCount + mFrameCount - 1) / mFrameCount) * mFrameCount;
-        if (mNormalFrameCount & 15) {
-            ALOGW("Normal mix buffer size is %u frames but AudioMixer requires multiples of 16 "
-                  "frames", mNormalFrameCount);
+        multiple = (minNormalFrameCount + mFrameCount - 1) / mFrameCount;
+        // force multiple to be even, for compatibility with doubling of fast tracks due to HAL SRC
+        // (it would be unusual for the normal mix buffer size to not be a multiple of fast track)
+        // FIXME this rounding up should not be done if no HAL SRC
+        if ((multiple > 2) && (multiple & 1)) {
+            ++multiple;
         }
-    } else {
-        mNormalFrameCount = mFrameCount;
     }
+    mNormalFrameCount = multiple * mFrameCount;
     ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount, mNormalFrameCount);
 
     // FIXME - Current mixer implementation only supports stereo output: Always
@@ -2107,8 +2126,21 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     ssize_t index = mOutputSink->negotiate(offers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
 
-    // initialize fast mixer if needed
-    if (mFrameCount < mNormalFrameCount) {
+    // initialize fast mixer depending on configuration
+    bool initFastMixer;
+    switch (kUseFastMixer) {
+    case FastMixer_Never:
+        initFastMixer = false;
+        break;
+    case FastMixer_Always:
+        initFastMixer = true;
+        break;
+    case FastMixer_Static:
+    case FastMixer_Dynamic:
+        initFastMixer = mFrameCount < mNormalFrameCount;
+        break;
+    }
+    if (initFastMixer) {
 
         // create a MonoPipe to connect our submix to FastMixer
         NBAIO_Format format = mOutputSink->format();
@@ -2166,7 +2198,19 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     } else {
         mFastMixer = NULL;
     }
-    mNormalSink = mOutputSink;
+
+    switch (kUseFastMixer) {
+    case FastMixer_Never:
+    case FastMixer_Dynamic:
+        mNormalSink = mOutputSink;
+        break;
+    case FastMixer_Always:
+        mNormalSink = mPipeSink;
+        break;
+    case FastMixer_Static:
+        mNormalSink = initFastMixer ? mPipeSink : mOutputSink;
+        break;
+    }
 }
 
 AudioFlinger::MixerThread::~MixerThread()
@@ -2571,7 +2615,8 @@ void AudioFlinger::MixerThread::threadLoop_removeTracks(const Vector< sp<Track> 
         }
         state->mFastTracksGen++;
         // if the fast mixer was active, but now there are no fast tracks, then put it in cold idle
-        if (state->mCommand == FastMixerState::MIX_WRITE && state->mTrackMask <= 1) {
+        if (kUseFastMixer == FastMixer_Dynamic &&
+                state->mCommand == FastMixerState::MIX_WRITE && state->mTrackMask <= 1) {
             state->mCommand = FastMixerState::COLD_IDLE;
             state->mColdFutexAddr = &mFastMixerFutex;
             state->mColdGen++;
@@ -2599,7 +2644,8 @@ void AudioFlinger::MixerThread::threadLoop_write()
     if (mFastMixer != NULL) {
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
-        if (state->mCommand != FastMixerState::MIX_WRITE && state->mTrackMask > 1) {
+        if (state->mCommand != FastMixerState::MIX_WRITE &&
+                (kUseFastMixer != FastMixer_Dynamic || state->mTrackMask > 1)) {
             if (state->mCommand == FastMixerState::COLD_IDLE) {
                 int32_t old = android_atomic_inc(&mFastMixerFutex);
                 if (old == -1) {
@@ -2609,7 +2655,9 @@ void AudioFlinger::MixerThread::threadLoop_write()
             state->mCommand = FastMixerState::MIX_WRITE;
             sq->end();
             sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
-            mNormalSink = mPipeSink;
+            if (kUseFastMixer == FastMixer_Dynamic) {
+                mNormalSink = mPipeSink;
+            }
         } else {
             sq->end(false /*didModify*/);
         }
@@ -2623,26 +2671,15 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
     // FIXME rewrite to reduce number of system calls
     mLastWriteTime = systemTime();
     mInWrite = true;
-    int bytesWritten;
 
-    // If an NBAIO sink is present, use it to write the normal mixer's submix
-    if (mNormalSink != 0) {
 #define mBitShift 2 // FIXME
-        size_t count = mixBufferSize >> mBitShift;
-        ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
-        if (framesWritten > 0) {
-            bytesWritten = framesWritten << mBitShift;
-        } else {
-            bytesWritten = framesWritten;
-        }
-
-    // otherwise use the HAL / AudioStreamOut directly
-    } else {
-        // FIXME legacy, remove
-        bytesWritten = (int)mOutput->stream->write(mOutput->stream, mMixBuffer, mixBufferSize);
+    size_t count = mixBufferSize >> mBitShift;
+    ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
+    if (framesWritten > 0) {
+        size_t bytesWritten = framesWritten << mBitShift;
+        mBytesWritten += bytesWritten;
     }
 
-    if (bytesWritten > 0) mBytesWritten += mixBufferSize;
     mNumWrites++;
     mInWrite = false;
 }
@@ -2661,7 +2698,9 @@ void AudioFlinger::MixerThread::threadLoop_standby()
             sq->end();
             // BLOCK_UNTIL_PUSHED would be insufficient, as we need it to stop doing I/O now
             sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
-            mNormalSink = mOutputSink;
+            if (kUseFastMixer == FastMixer_Dynamic) {
+                mNormalSink = mOutputSink;
+            }
         } else {
             sq->end(false /*didModify*/);
         }
