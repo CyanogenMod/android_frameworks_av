@@ -2831,7 +2831,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // hence the test on (mMixerStatus == MIXER_TRACKS_READY) meaning the track was mixed
         // during last round
         uint32_t minFrames = 1;
-        if (!track->isStopped() && !track->isPausing() &&
+        if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
                 (mMixerStatus == MIXER_TRACKS_READY)) {
             if (t->sampleRate() == (int)mSampleRate) {
                 minFrames = mNormalFrameCount;
@@ -2990,7 +2990,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             if (track->isStopped()) {
                 track->reset();
             }
-            if (track->isTerminated() || track->isStopped() || track->isPaused()) {
+            if ((track->sharedBuffer() != 0) || track->isTerminated() ||
+                    track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
                 // TODO: use actual buffer filling status instead of latency when available from

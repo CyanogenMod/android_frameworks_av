@@ -737,6 +737,8 @@ private:
                 return (mStreamType == AUDIO_STREAM_CNT);
             }
 
+            sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
+
             bool presentationComplete(size_t framesWritten, size_t audioHalFrames);
             void triggerEvents(AudioSystem::sync_event_t type);
 
