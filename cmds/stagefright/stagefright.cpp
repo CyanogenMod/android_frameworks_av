@@ -621,11 +621,8 @@ static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
         MEDIA_MIMETYPE_VIDEO_VPX
     };
 
-    if (queryDecoders) {
-        printf("decoder profiles:\n");
-    } else {
-        printf("encoder profiles:\n");
-    }
+    const char *codecType = queryDecoders? "decoder" : "encoder";
+    printf("%s profiles:\n", codecType);
 
     for (size_t k = 0; k < sizeof(kMimeTypes) / sizeof(kMimeTypes[0]); ++k) {
         printf("type '%s':\n", kMimeTypes[k]);
@@ -637,8 +634,8 @@ static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
                              &results), (status_t)OK);
 
         for (size_t i = 0; i < results.size(); ++i) {
-            printf("  decoder '%s' supports ",
-                       results[i].mComponentName.string());
+            printf("  %s '%s' supports ",
+                       codecType, results[i].mComponentName.string());
 
             if (results[i].mProfileLevels.size() == 0) {
                     printf("NOTHING.\n");
