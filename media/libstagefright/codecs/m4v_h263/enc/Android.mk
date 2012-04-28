@@ -2,8 +2,6 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    M4vH263Encoder.cpp \
-    SoftMPEG4Encoder.cpp \
     src/bitstream_io.cpp \
     src/combined_encode.cpp \
     src/datapart_encode.cpp \
