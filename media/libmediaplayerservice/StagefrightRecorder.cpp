@@ -820,10 +820,15 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             mime = MEDIA_MIMETYPE_AUDIO_AAC;
             encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectLC);
             break;
+        case AUDIO_ENCODER_HE_AAC:
+            mime = MEDIA_MIMETYPE_AUDIO_AAC;
+            encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectHE);
+            break;
         case AUDIO_ENCODER_AAC_ELD:
             mime = MEDIA_MIMETYPE_AUDIO_AAC;
             encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectELD);
             break;
+
         default:
             ALOGE("Unknown audio encoder: %d", mAudioEncoder);
             return NULL;
@@ -844,7 +849,6 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
 
     OMXClient client;
     CHECK_EQ(client.connect(), (status_t)OK);
-
     sp<MediaSource> audioEncoder =
         OMXCodec::Create(client.interface(), encMeta,
                          true /* createEncoder */, audioSource);
@@ -859,6 +863,7 @@ status_t StagefrightRecorder::startAACRecording() {
     CHECK_EQ(mOutputFormat, OUTPUT_FORMAT_AAC_ADTS);
 
     CHECK(mAudioEncoder == AUDIO_ENCODER_AAC ||
+          mAudioEncoder == AUDIO_ENCODER_HE_AAC ||
           mAudioEncoder == AUDIO_ENCODER_AAC_ELD);
     CHECK(mAudioSource != AUDIO_SOURCE_CNT);
 
@@ -977,7 +982,9 @@ status_t StagefrightRecorder::startMPEG2TSRecording() {
     sp<MediaWriter> writer = new MPEG2TSWriter(mOutputFd);
 
     if (mAudioSource != AUDIO_SOURCE_CNT) {
-        if (mAudioEncoder != AUDIO_ENCODER_AAC) {
+        if (mAudioEncoder != AUDIO_ENCODER_AAC &&
+            mAudioEncoder != AUDIO_ENCODER_HE_AAC &&
+            mAudioEncoder != AUDIO_ENCODER_AAC_ELD) {
             return ERROR_UNSUPPORTED;
         }
 
@@ -1442,6 +1449,7 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
         case AUDIO_ENCODER_AMR_NB:
         case AUDIO_ENCODER_AMR_WB:
         case AUDIO_ENCODER_AAC:
+        case AUDIO_ENCODER_HE_AAC:
         case AUDIO_ENCODER_AAC_ELD:
             break;
 
