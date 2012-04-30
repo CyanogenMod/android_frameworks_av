@@ -305,10 +305,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
-    Vector<size_t> ranges;
-    Vector<size_t> frameOffsets;
-    Vector<size_t> frameSizes;
-    size_t auSize = 0;
+    int64_t timeUs;
 
     size_t offset = 0;
     while (offset + 7 <= mBuffer->size()) {
@@ -331,6 +328,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
 
             mFormat = MakeAACCodecSpecificData(
                     profile, sampling_freq_index, channel_configuration);
+
+            mFormat->setInt32(kKeyIsADTS, true);
 
             int32_t sampleRate;
             int32_t numChannels;
@@ -367,10 +366,12 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
 
         size_t headerSize = protection_absent ? 7 : 9;
 
-        ranges.push(aac_frame_length);
-        frameOffsets.push(offset + headerSize);
-        frameSizes.push(aac_frame_length - headerSize);
-        auSize += aac_frame_length - headerSize;
+        int64_t tmpUs = fetchTimestamp(aac_frame_length);
+        CHECK_GE(tmpUs, 0ll);
+
+        if (offset == 0) {
+            timeUs = tmpUs;
+        }
 
         offset += aac_frame_length;
     }
@@ -379,37 +380,14 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
         return NULL;
     }
 
-    int64_t timeUs = -1;
-
-    for (size_t i = 0; i < ranges.size(); ++i) {
-        int64_t tmpUs = fetchTimestamp(ranges.itemAt(i));
-
-        if (i == 0) {
-            timeUs = tmpUs;
-        }
-    }
-
-    sp<ABuffer> accessUnit = new ABuffer(auSize);
-    size_t dstOffset = 0;
-    for (size_t i = 0; i < frameOffsets.size(); ++i) {
-        size_t frameOffset = frameOffsets.itemAt(i);
-
-        memcpy(accessUnit->data() + dstOffset,
-               mBuffer->data() + frameOffset,
-               frameSizes.itemAt(i));
-
-        dstOffset += frameSizes.itemAt(i);
-    }
+    sp<ABuffer> accessUnit = new ABuffer(offset);
+    memcpy(accessUnit->data(), mBuffer->data(), offset);
 
     memmove(mBuffer->data(), mBuffer->data() + offset,
             mBuffer->size() - offset);
     mBuffer->setRange(0, mBuffer->size() - offset);
 
-    if (timeUs >= 0) {
-        accessUnit->meta()->setInt64("timeUs", timeUs);
-    } else {
-        ALOGW("no time for AAC access unit");
-    }
+    accessUnit->meta()->setInt64("timeUs", timeUs);
 
     return accessUnit;
 }
