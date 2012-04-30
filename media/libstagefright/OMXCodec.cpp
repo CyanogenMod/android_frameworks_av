@@ -19,8 +19,6 @@
 #include <utils/Log.h>
 
 #include "include/AACEncoder.h"
-#include "include/AVCEncoder.h"
-#include "include/M4vH263Encoder.h"
 
 #include "include/ESDS.h"
 
@@ -67,8 +65,6 @@ static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaDa
 #define FACTORY_REF(name) { #name, Make##name },
 
 FACTORY_CREATE_ENCODER(AACEncoder)
-FACTORY_CREATE_ENCODER(AVCEncoder)
-FACTORY_CREATE_ENCODER(M4vH263Encoder)
 
 static sp<MediaSource> InstantiateSoftwareEncoder(
         const char *name, const sp<MediaSource> &source,
@@ -80,8 +76,6 @@ static sp<MediaSource> InstantiateSoftwareEncoder(
 
     static const FactoryInfo kFactoryInfo[] = {
         FACTORY_REF(AACEncoder)
-        FACTORY_REF(AVCEncoder)
-        FACTORY_REF(M4vH263Encoder)
     };
     for (size_t i = 0;
          i < sizeof(kFactoryInfo) / sizeof(kFactoryInfo[0]); ++i) {

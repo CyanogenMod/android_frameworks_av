@@ -91,8 +91,6 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \
-        libstagefright_avcenc \
-        libstagefright_m4vh263enc \
         libstagefright_matroska \
         libstagefright_timedtext \
         libvpx \
