@@ -142,9 +142,9 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
                 aacParams->nSampleRate = 44100;
                 aacParams->nFrameLength = 0;
             } else {
-                aacParams->nChannels = mStreamInfo->channelConfig;
-                aacParams->nSampleRate = mStreamInfo->aacSampleRate;
-                aacParams->nFrameLength = mStreamInfo->aacSamplesPerFrame;
+                aacParams->nChannels = mStreamInfo->numChannels;
+                aacParams->nSampleRate = mStreamInfo->sampleRate;
+                aacParams->nFrameLength = mStreamInfo->frameSize;
             }
 
             return OMX_ErrorNone;
@@ -175,7 +175,7 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
                 pcmParams->nChannels = 1;
                 pcmParams->nSamplingRate = 44100;
             } else {
-                pcmParams->nChannels = mStreamInfo->channelConfig;
+                pcmParams->nChannels = mStreamInfo->numChannels;
                 pcmParams->nSamplingRate = mStreamInfo->sampleRate;
             }
 
@@ -185,6 +185,7 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
         default:
             return SimpleSoftOMXComponent::internalGetParameter(index, params);
     }
+
 }
 
 OMX_ERRORTYPE SoftAAC2::internalSetParameter(
@@ -254,7 +255,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
     UCHAR* inBuffer[FILEREAD_MAX_LAYERS];
     UINT inBufferLength[FILEREAD_MAX_LAYERS] = {0};
     UINT bytesValid[FILEREAD_MAX_LAYERS] = {0};
-    AAC_DECODER_ERROR decoderErr;
 
     List<BufferInfo *> &inQueue = getPortQueue(0);
     List<BufferInfo *> &outQueue = getPortQueue(1);
@@ -277,7 +277,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
             return;
         }
-
         inQueue.erase(inQueue.begin());
         info->mOwnedByUs = false;
         notifyEmptyBufferDone(header);
@@ -303,10 +302,16 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             // the AACDEC_FLUSH flag set
             INT_PCM *outBuffer =
                     reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
-            decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
-                                                outBuffer,
-                                                outHeader->nAllocLen,
-                                                AACDEC_FLUSH);
+            AAC_DECODER_ERROR decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
+                                                                  outBuffer,
+                                                                  outHeader->nAllocLen,
+                                                                  AACDEC_FLUSH);
+            if (decoderErr != AAC_DEC_OK) {
+                mSignalledError = true;
+                notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
+                return;
+            }
+
             outHeader->nFilledLen =
                     mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
             outHeader->nFlags = OMX_BUFFERFLAG_EOS;
@@ -352,23 +357,27 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             inBufferLength[0] = inHeader->nFilledLen;
         }
 
-
         // Fill and decode
         INT_PCM *outBuffer = reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
         bytesValid[0] = inBufferLength[0];
 
         int flags = mInputDiscontinuity ? AACDEC_INTR : 0;
         int prevSampleRate = mStreamInfo->sampleRate;
-        decoderErr = aacDecoder_Fill(mAACDecoder,
-                                     inBuffer,
-                                     inBufferLength,
-                                     bytesValid);
+        int prevNumChannels = mStreamInfo->numChannels;
 
-        decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
-                                            outBuffer,
-                                            outHeader->nAllocLen,
-                                            flags);
+        AAC_DECODER_ERROR decoderErr = AAC_DEC_NOT_ENOUGH_BITS;
+        while (bytesValid[0] > 0 && decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
+            aacDecoder_Fill(mAACDecoder,
+                            inBuffer,
+                            inBufferLength,
+                            bytesValid);
 
+            decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
+                                                outBuffer,
+                                                outHeader->nAllocLen,
+                                                flags);
+
+        }
         mInputDiscontinuity = false;
 
         /*
@@ -386,7 +395,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
          * AAC+/eAAC+ until the first data frame is decoded.
          */
         if (mInputBufferCount <= 2) {
-            if (mStreamInfo->sampleRate != prevSampleRate) {
+            if (mStreamInfo->sampleRate != prevSampleRate ||
+                mStreamInfo->numChannels != prevNumChannels) {
                 // We're going to want to revisit this input buffer, but
                 // may have already advanced the offset. Undo that if
                 // necessary.

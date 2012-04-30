@@ -239,7 +239,6 @@ OMX_ERRORTYPE SoftAACEncoder2::internalSetParameter(
             mBitRate = aacParams->nBitRate;
             mNumChannels = aacParams->nChannels;
             mSampleRate = aacParams->nSampleRate;
-
             if (aacParams->eAACProfile != OMX_AUDIO_AACObjectNull) {
                 mAACProfile = aacParams->eAACProfile;
             }
@@ -262,7 +261,6 @@ OMX_ERRORTYPE SoftAACEncoder2::internalSetParameter(
 
             mNumChannels = pcmParams->nChannels;
             mSampleRate = pcmParams->nSamplingRate;
-
             if (setAudioParams() != OK) {
                 return OMX_ErrorUndefined;
             }
@@ -275,7 +273,7 @@ OMX_ERRORTYPE SoftAACEncoder2::internalSetParameter(
     }
 }
 
-CHANNEL_MODE getChannelMode(OMX_U32 nChannels) {
+static CHANNEL_MODE getChannelMode(OMX_U32 nChannels) {
     CHANNEL_MODE chMode = MODE_INVALID;
     switch (nChannels) {
         case 1: chMode = MODE_1; break;
@@ -289,6 +287,19 @@ CHANNEL_MODE getChannelMode(OMX_U32 nChannels) {
     return chMode;
 }
 
+static AUDIO_OBJECT_TYPE getAOTFromProfile(OMX_U32 profile) {
+    if (profile == OMX_AUDIO_AACObjectLC) {
+        return AOT_AAC_LC;
+    } else if (profile == OMX_AUDIO_AACObjectHE) {
+        return AOT_SBR;
+    } else if (profile == OMX_AUDIO_AACObjectELD) {
+        return AOT_ER_AAC_ELD;
+    } else {
+        ALOGW("Unsupported AAC profile - defaulting to AAC-LC");
+        return AOT_AAC_LC;
+    }
+}
+
 status_t SoftAACEncoder2::setAudioParams() {
     // We call this whenever sample rate, number of channels or bitrate change
     // in reponse to setParameter calls.
@@ -297,7 +308,7 @@ status_t SoftAACEncoder2::setAudioParams() {
          mSampleRate, mNumChannels, mBitRate);
 
     if (AACENC_OK != aacEncoder_SetParam(mAACEncoder, AACENC_AOT,
-            mAACProfile == OMX_AUDIO_AACObjectELD ? AOT_ER_AAC_ELD : AOT_AAC_LC)) {
+            getAOTFromProfile(mAACProfile))) {
         ALOGE("Failed to set AAC encoder parameters");
         return UNKNOWN_ERROR;
     }
@@ -341,10 +352,15 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
         }
 
         if (AACENC_OK != aacEncEncode(mAACEncoder, NULL, NULL, NULL, NULL)) {
-            ALOGE("Failed to initialize AAC encoder");
+            ALOGE("Unable to initialize encoder for profile / sample-rate / bit-rate / channels");
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
             mSignalledError = true;
             return;
+        }
+
+        OMX_U32 actualBitRate  = aacEncoder_GetParam(mAACEncoder, AACENC_BITRATE);
+        if (mBitRate != actualBitRate) {
+            ALOGW("Requested bitrate %lu unsupported, using %lu", mBitRate, actualBitRate);
         }
 
         AACENC_InfoStruct encInfo;
@@ -373,7 +389,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
     size_t numBytesPerInputFrame =
         mNumChannels * kNumSamplesPerFrame * sizeof(int16_t);
 
-    // BUGBUG: Fraunhofer's decoder chokes on large chunks of AAC-ELD
+    // Limit input size so we only get one ELD frame
     if (mAACProfile == OMX_AUDIO_AACObjectELD && numBytesPerInputFrame > 512) {
         numBytesPerInputFrame = 512;
     }
@@ -402,7 +418,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
             }
 
             if (mInputFrame == NULL) {
-                mInputFrame = new int16_t[kNumSamplesPerFrame * mNumChannels];
+                mInputFrame = new int16_t[numBytesPerInputFrame / sizeof(int16_t)];
             }
 
             if (mInputSize == 0) {
@@ -490,6 +506,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
         // Encode the mInputFrame, which is treated as a modulo buffer
         AACENC_ERROR encoderErr = AACENC_OK;
         size_t nOutputBytes = 0;
+
         do {
             memset(&outargs, 0, sizeof(outargs));
 

@@ -75,9 +75,8 @@ enum audio_encoder {
     AUDIO_ENCODER_AMR_NB = 1,
     AUDIO_ENCODER_AMR_WB = 2,
     AUDIO_ENCODER_AAC = 3,
-    AUDIO_ENCODER_AAC_PLUS = 4,
-    AUDIO_ENCODER_EAAC_PLUS = 5,
-    AUDIO_ENCODER_AAC_ELD = 6,
+    AUDIO_ENCODER_HE_AAC = 4,
+    AUDIO_ENCODER_AAC_ELD = 5,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };
