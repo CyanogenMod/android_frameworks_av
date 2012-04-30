@@ -20,11 +20,11 @@
 #define ANDROID_SOURCE_AUDIO_BUFFER_PROVIDER_H
 
 #include "NBAIO.h"
-#include "AudioBufferProvider.h"
+#include "ExtendedAudioBufferProvider.h"
 
 namespace android {
 
-class SourceAudioBufferProvider : public AudioBufferProvider {
+class SourceAudioBufferProvider : public ExtendedAudioBufferProvider {
 
 public:
     SourceAudioBufferProvider(const sp<NBAIO_Source>& source);
@@ -33,6 +33,9 @@ public:
     // AudioBufferProvider interface
     virtual status_t getNextBuffer(Buffer *buffer, int64_t pts);
     virtual void     releaseBuffer(Buffer *buffer);
+
+    // ExtendedAudioBufferProvider interface
+    virtual size_t   framesReady() const;
 
 private:
     const sp<NBAIO_Source> mSource;     // the wrapped source
