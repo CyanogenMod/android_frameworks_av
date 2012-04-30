@@ -1493,12 +1493,9 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
         mMixerStatus(MIXER_IDLE),
         standbyDelay(AudioFlinger::mStandbyTimeInNsecs),
-        mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
-        mFastTrackNewMask(0)
+        // index 0 is reserved for normal mixer's submix
+        mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
 {
-#if !LOG_NDEBUG
-    memset(mFastTrackNewArray, 0, sizeof(mFastTrackNewArray));
-#endif
     snprintf(mName, kNameLength, "AudioOut_%X", id);
 
     readOutputParameters();
@@ -1550,8 +1547,7 @@ status_t AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>
 
     snprintf(buffer, SIZE, "Output thread %p tracks\n", this);
     result.append(buffer);
-    result.append("   Name Client Type Fmt Chn mask   Session Frames S M F SRate  L dB  R dB  "
-                  "Server     User       Main buf   Aux Buf\n");
+    Track::appendDumpHeader(result);
     for (size_t i = 0; i < mTracks.size(); ++i) {
         sp<Track> track = mTracks[i];
         if (track != 0) {
@@ -1562,8 +1558,7 @@ status_t AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>
 
     snprintf(buffer, SIZE, "Output thread %p active tracks\n", this);
     result.append(buffer);
-    result.append("   Name Client Type Fmt Chn mask   Session Frames S M F SRate  L dB  R dB  "
-                  "Server     User       Main buf   Aux Buf\n");
+    Track::appendDumpHeader(result);
     for (size_t i = 0; i < mActiveTracks.size(); ++i) {
         sp<Track> track = mActiveTracks[i].promote();
         if (track != 0) {
@@ -1866,6 +1861,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 {
     track->mState = TrackBase::TERMINATED;
+    // active tracks are removed by threadLoop()
     if (mActiveTracks.indexOf(track) < 0) {
         removeTrack_l(track);
     }
@@ -1875,6 +1871,16 @@ void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
 {
     mTracks.remove(track);
     deleteTrackName_l(track->name());
+    // redundant as track is about to be destroyed, for dumpsys only
+    track->mName = -1;
+    if (track->isFastTrack()) {
+        int index = track->mFastIndex;
+        ALOG_ASSERT(0 < index && index < FastMixerState::kMaxFastTracks);
+        ALOG_ASSERT(!(mFastTrackAvailMask & (1 << index)));
+        mFastTrackAvailMask |= 1 << index;
+        // redundant as track is about to be destroyed, for dumpsys only
+        track->mFastIndex = -1;
+    }
     sp<EffectChain> chain = getEffectChain_l(track->sessionId());
     if (chain != 0) {
         chain->decTrackCnt();
@@ -2541,99 +2547,9 @@ if (mType == DUPLICATING) {
     return false;
 }
 
-// FIXME This method needs a better name.
-// It pushes a new fast mixer state and returns (via tracksToRemove) a set of tracks to remove.
+// returns (via tracksToRemove) a set of tracks to remove.
 void AudioFlinger::MixerThread::threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove)
 {
-    // were any of the removed tracks also fast tracks?
-    unsigned removedMask = 0;
-    for (size_t i = 0; i < tracksToRemove.size(); ++i) {
-        if (tracksToRemove[i]->isFastTrack()) {
-            int j = tracksToRemove[i]->mFastIndex;
-            ALOG_ASSERT(0 < j && j < FastMixerState::kMaxFastTracks);
-            removedMask |= 1 << j;
-        }
-    }
-    Track* newArray[FastMixerState::kMaxFastTracks];
-    unsigned newMask;
-    {
-        AutoMutex _l(mLock);
-        mFastTrackAvailMask |= removedMask;
-        newMask = mFastTrackNewMask;
-        if (newMask) {
-            mFastTrackNewMask = 0;
-            memcpy(newArray, mFastTrackNewArray, sizeof(mFastTrackNewArray));
-#if !LOG_NDEBUG
-            memset(mFastTrackNewArray, 0, sizeof(mFastTrackNewArray));
-#endif
-        }
-    }
-    unsigned changedMask = newMask | removedMask;
-    // are there any newly added or removed fast tracks?
-    if (changedMask) {
-
-        // This assert would be incorrect because it's theoretically possible (though unlikely)
-        // for a track to be created and then removed within the same normal mix cycle:
-        //    ALOG_ASSERT(!(newMask & removedMask));
-        // The converse, of removing a track and then creating a new track at the identical slot
-        // within the same normal mix cycle, is impossible because the slot isn't marked available.
-
-        // prepare a new state to push
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        FastMixerStateQueue::block_t block = FastMixerStateQueue::BLOCK_UNTIL_PUSHED;
-        while (changedMask) {
-            int j = __builtin_ctz(changedMask);
-            ALOG_ASSERT(0 < j && j < FastMixerState::kMaxFastTracks);
-            changedMask &= ~(1 << j);
-            FastTrack *fastTrack = &state->mFastTracks[j];
-            // must first do new tracks, then removed tracks, in case same track in both
-            if (newMask & (1 << j)) {
-                ALOG_ASSERT(!(state->mTrackMask & (1 << j)));
-                ALOG_ASSERT(fastTrack->mBufferProvider == NULL &&
-                        fastTrack->mVolumeProvider == NULL);
-                Track *track = newArray[j];
-                AudioBufferProvider *abp = track;
-                VolumeProvider *vp = track;
-                fastTrack->mBufferProvider = abp;
-                fastTrack->mVolumeProvider = vp;
-                fastTrack->mSampleRate = track->mSampleRate;
-                fastTrack->mChannelMask = track->mChannelMask;
-                state->mTrackMask |= 1 << j;
-            }
-            if (removedMask & (1 << j)) {
-                ALOG_ASSERT(state->mTrackMask & (1 << j));
-                ALOG_ASSERT(fastTrack->mBufferProvider != NULL &&
-                        fastTrack->mVolumeProvider != NULL);
-                fastTrack->mBufferProvider = NULL;
-                fastTrack->mVolumeProvider = NULL;
-                fastTrack->mSampleRate = mSampleRate;
-                fastTrack->mChannelMask = AUDIO_CHANNEL_OUT_STEREO;
-                state->mTrackMask &= ~(1 << j);
-            }
-            fastTrack->mGeneration++;
-        }
-        state->mFastTracksGen++;
-        // if the fast mixer was active, but now there are no fast tracks, then put it in cold idle
-        if (kUseFastMixer == FastMixer_Dynamic &&
-                state->mCommand == FastMixerState::MIX_WRITE && state->mTrackMask <= 1) {
-            state->mCommand = FastMixerState::COLD_IDLE;
-            state->mColdFutexAddr = &mFastMixerFutex;
-            state->mColdGen++;
-            mFastMixerFutex = 0;
-            mNormalSink = mOutputSink;
-            block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
-        }
-        sq->end();
-        // If any fast tracks were removed, we must wait for acknowledgement
-        // because we're about to decrement the last sp<> on those tracks.
-        // Similarly if we put it into cold idle, need to wait for acknowledgement
-        // so that it stops doing I/O.
-        if (removedMask) {
-            block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
-        }
-        sq->push(block);
-    }
     PlaybackThread::threadLoop_removeTracks(tracksToRemove);
 }
 
@@ -2783,7 +2699,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
     size_t count = mActiveTracks.size();
     size_t mixedTracks = 0;
     size_t tracksWithEffect = 0;
+    // counts only _active_ fast tracks
     size_t fastTracks = 0;
+    uint32_t resetMask = 0; // bit mask of fast tracks that need to be reset
 
     float masterVolume = mMasterVolume;
     bool masterMute = mMasterMute;
@@ -2800,6 +2718,16 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         chain.clear();
     }
 
+    // prepare a new state to push
+    FastMixerStateQueue *sq = NULL;
+    FastMixerState *state = NULL;
+    bool didModify = false;
+    FastMixerStateQueue::block_t block = FastMixerStateQueue::BLOCK_UNTIL_PUSHED;
+    if (mFastMixer != NULL) {
+        sq = mFastMixer->sq();
+        state = sq->begin();
+    }
+
     for (size_t i=0 ; i<count ; i++) {
         sp<Track> t = mActiveTracks[i].promote();
         if (t == 0) continue;
@@ -2807,13 +2735,98 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // this const just means the local variable doesn't change
         Track* const track = t.get();
 
+        // process fast tracks
         if (track->isFastTrack()) {
-            // cache the combined master volume and stream type volume for fast mixer;
-            // this lacks any synchronization or barrier so VolumeProvider may read a stale value
-            track->mCachedVolume = masterVolume * mStreamTypes[track->streamType()].volume;
-            ++fastTracks;
-            if (track->isTerminated()) {
-                tracksToRemove->add(track);
+
+            // It's theoretically possible (though unlikely) for a fast track to be created
+            // and then removed within the same normal mix cycle.  This is not a problem, as
+            // the track never becomes active so it's fast mixer slot is never touched.
+            // The converse, of removing an (active) track and then creating a new track
+            // at the identical fast mixer slot within the same normal mix cycle,
+            // is impossible because the slot isn't marked available until the end of each cycle.
+            int j = track->mFastIndex;
+            FastTrack *fastTrack = &state->mFastTracks[j];
+
+            // Determine whether the track is currently in underrun condition,
+            // and whether it had a recent underrun.
+            uint32_t underruns = mFastMixerDumpState.mTracks[j].mUnderruns;
+            uint32_t recentUnderruns = (underruns - (track->mObservedUnderruns & ~1)) >> 1;
+            // don't count underruns that occur while stopping or pausing
+            if (!(track->isStopped() || track->isPausing())) {
+                track->mUnderrunCount += recentUnderruns;
+            }
+            track->mObservedUnderruns = underruns;
+
+            // This is similar to the formula for normal tracks,
+            // with a few modifications for fast tracks.
+            bool isActive;
+            if (track->isStopped()) {
+                // track stays active after stop() until first underrun
+                isActive = recentUnderruns == 0;
+            } else if (track->isPaused() || track->isTerminated()) {
+                isActive = false;
+            } else if (track->isPausing()) {
+                // ramp down is not yet implemented
+                isActive = true;
+                track->setPaused();
+            } else if (track->isResuming()) {
+                // ramp up is not yet implemented
+                isActive = true;
+                track->mState = TrackBase::ACTIVE;
+            } else {
+                // no minimum frame count for fast tracks; continual underrun is allowed,
+                // but later could implement automatic pause after several consecutive underruns,
+                // or auto-mute yet still consider the track active and continue to service it
+                isActive = true;
+            }
+
+            if (isActive) {
+                // was it previously inactive?
+                if (!(state->mTrackMask & (1 << j))) {
+                    ExtendedAudioBufferProvider *eabp = track;
+                    VolumeProvider *vp = track;
+                    fastTrack->mBufferProvider = eabp;
+                    fastTrack->mVolumeProvider = vp;
+                    fastTrack->mSampleRate = track->mSampleRate;
+                    fastTrack->mChannelMask = track->mChannelMask;
+                    fastTrack->mGeneration++;
+                    state->mTrackMask |= 1 << j;
+                    didModify = true;
+                    // no acknowledgement required for newly active tracks
+                }
+                // cache the combined master volume and stream type volume for fast mixer; this
+                // lacks any synchronization or barrier so VolumeProvider may read a stale value
+                track->mCachedVolume = track->isMuted() ?
+                        0 : masterVolume * mStreamTypes[track->streamType()].volume;
+                ++fastTracks;
+            } else {
+                // was it previously active?
+                if (state->mTrackMask & (1 << j)) {
+                    fastTrack->mBufferProvider = NULL;
+                    fastTrack->mGeneration++;
+                    state->mTrackMask &= ~(1 << j);
+                    didModify = true;
+                    // If any fast tracks were removed, we must wait for acknowledgement
+                    // because we're about to decrement the last sp<> on those tracks.
+                    block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
+                }
+                // Remainder of this block is copied from similar code for normal tracks
+                if (track->isStopped()) {
+                    // Can't reset directly, as fast mixer is still polling this track
+                    //   track->reset();
+                    // So instead mark this track as needing to be reset after push with ack
+                    resetMask |= 1 << i;
+                }
+                // This would be incomplete if we auto-paused on underrun
+                size_t audioHALFrames =
+                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                size_t framesWritten =
+                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                    tracksToRemove->add(track);
+                }
+                // Avoids a misleading display in dumpsys
+                track->mObservedUnderruns &= ~1;
             }
             continue;
         }
@@ -3009,7 +3022,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 if (--(track->mRetryCount) <= 0) {
                     ALOGV("BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
                     tracksToRemove->add(track);
-                    // indicate to client process that the track was disabled because of underrun
+                    // indicate to client process that the track was disabled because of underrun;
+                    // it will then automatically call start() when data is available
                     android_atomic_or(CBLK_DISABLED_ON, &cblk->flags);
                 // If one track is not ready, mark the mixer also not ready if:
                 //  - the mixer was ready during previous round OR
@@ -3027,7 +3041,41 @@ track_is_ready: ;
 
     }
 
-    // FIXME Here is where we would push the new FastMixer state if necessary
+    // Push the new FastMixer state if necessary
+    if (didModify) {
+        state->mFastTracksGen++;
+        // if the fast mixer was active, but now there are no fast tracks, then put it in cold idle
+        if (kUseFastMixer == FastMixer_Dynamic &&
+                state->mCommand == FastMixerState::MIX_WRITE && state->mTrackMask <= 1) {
+            state->mCommand = FastMixerState::COLD_IDLE;
+            state->mColdFutexAddr = &mFastMixerFutex;
+            state->mColdGen++;
+            mFastMixerFutex = 0;
+            if (kUseFastMixer == FastMixer_Dynamic) {
+                mNormalSink = mOutputSink;
+            }
+            // If we go into cold idle, need to wait for acknowledgement
+            // so that fast mixer stops doing I/O.
+            block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
+        }
+        sq->end();
+    }
+    if (sq != NULL) {
+        sq->end(didModify);
+        sq->push(block);
+    }
+
+    // Now perform the deferred reset on fast tracks that have stopped
+    while (resetMask != 0) {
+        size_t i = __builtin_ctz(resetMask);
+        ALOG_ASSERT(i < count);
+        resetMask &= ~(1 << i);
+        sp<Track> t = mActiveTracks[i].promote();
+        if (t == 0) continue;
+        Track* track = t.get();
+        ALOG_ASSERT(track->isFastTrack() && track->isStopped());
+        track->reset();
+    }
 
     // remove all the tracks that need to be...
     count = tracksToRemove->size();
@@ -3940,6 +3988,7 @@ void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buf
 {
     buffer->raw = NULL;
     mFrameCount = buffer->frameCount;
+    // FIXME See note at getNextBuffer()
     (void) step();      // ignore return value of step()
     buffer->frameCount = 0;
 }
@@ -4021,6 +4070,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mPresentationCompleteFrames(0),
     mFlags(flags),
     mFastIndex(-1),
+    mObservedUnderruns(0),
+    mUnderrunCount(0),
     mCachedVolume(1.0)
 {
     if (mCblk != NULL) {
@@ -4032,18 +4083,22 @@ AudioFlinger::PlaybackThread::Track::Track(
             ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
             int i = __builtin_ctz(thread->mFastTrackAvailMask);
             ALOG_ASSERT(0 < i && i < FastMixerState::kMaxFastTracks);
+            // FIXME This is too eager.  We allocate a fast track index before the
+            //       fast track becomes active.  Since fast tracks are a scarce resource,
+            //       this means we are potentially denying other more important fast tracks from
+            //       being created.  It would be better to allocate the index dynamically.
             mFastIndex = i;
+            // Read the initial underruns because this field is never cleared by the fast mixer
+            mObservedUnderruns = thread->getFastTrackUnderruns(i) & ~1;
             thread->mFastTrackAvailMask &= ~(1 << i);
-            // Although we've allocated an index, we can't mutate or push a new fast track state
-            // here, because that data structure can only be changed within the normal mixer
-            // threadLoop().  So instead, make a note to mutate and push later.
-            thread->mFastTrackNewArray[i] = this;
-            thread->mFastTrackNewMask |= 1 << i;
         }
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
         mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
         if (mName < 0) {
             ALOGE("no more track names available");
+            // FIXME bug - if sufficient fast track indices, but insufficient normal mixer names,
+            // then we leak a fast track index.  Should swap these two sections, or better yet
+            // only allocate a normal mixer name for normal tracks.
         }
     }
     ALOGV("Track constructor name %d, calling pid %d", mName, IPCThreadState::self()->getCallingPid());
@@ -4091,22 +4146,59 @@ void AudioFlinger::PlaybackThread::Track::destroy()
     }
 }
 
+/*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
+{
+    result.append("   Name Client Type Fmt Chn mask   Session Frames S M F SRate  L dB  R dB  "
+                  "  Server      User     Main buf    Aux Buf  FastUnder\n");
+
+}
+
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
 {
     uint32_t vlr = mCblk->getVolumeLR();
     if (isFastTrack()) {
-        strcpy(buffer, "   fast");
+        sprintf(buffer, "   F %2d", mFastIndex);
     } else {
         sprintf(buffer, "   %4d", mName - AudioMixer::TRACK0);
     }
-    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %1d %1d %1d %5u %5.2g %5.2g  0x%08x 0x%08x 0x%08x 0x%08x\n",
+    track_state state = mState;
+    char stateChar;
+    switch (state) {
+    case IDLE:
+        stateChar = 'I';
+        break;
+    case TERMINATED:
+        stateChar = 'T';
+        break;
+    case STOPPED:
+        stateChar = 'S';
+        break;
+    case RESUMING:
+        stateChar = 'R';
+        break;
+    case ACTIVE:
+        stateChar = 'A';
+        break;
+    case PAUSING:
+        stateChar = 'p';
+        break;
+    case PAUSED:
+        stateChar = 'P';
+        break;
+    default:
+        stateChar = '?';
+        break;
+    }
+    bool nowInUnderrun = mObservedUnderruns & 1;
+    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %1c %1d %1d %5u %5.2g %5.2g  "
+            "0x%08x 0x%08x 0x%08x 0x%08x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
             mFormat,
             mChannelMask,
             mSessionId,
             mFrameCount,
-            mState,
+            stateChar,
             mMute,
             mFillingUpStatus,
             mCblk->sampleRate,
@@ -4115,7 +4207,9 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mCblk->server,
             mCblk->user,
             (int)mMainBuffer,
-            (int)mAuxBuffer);
+            (int)mAuxBuffer,
+            mUnderrunCount,
+            nowInUnderrun ? '*' : ' ');
 }
 
 // AudioBufferProvider interface
@@ -4128,11 +4222,19 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
 
     // Check if last stepServer failed, try to step now
     if (mStepServerFailed) {
+        // FIXME When called by fast mixer, this takes a mutex with tryLock().
+        //       Since the fast mixer is higher priority than client callback thread,
+        //       it does not result in priority inversion for client.
+        //       But a non-blocking solution would be preferable to avoid
+        //       fast mixer being unable to tryLock(), and
+        //       to avoid the extra context switches if the client wakes up,
+        //       discovers the mutex is locked, then has to wait for fast mixer to unlock.
         if (!step())  goto getNextBuffer_exit;
         ALOGV("stepServer recovered");
         mStepServerFailed = false;
     }
 
+    // FIXME Same as above
     framesReady = cblk->framesReady();
 
     if (CC_LIKELY(framesReady)) {
@@ -4161,10 +4263,19 @@ getNextBuffer_exit:
     return NOT_ENOUGH_DATA;
 }
 
-uint32_t AudioFlinger::PlaybackThread::Track::framesReady() const {
+// Note that framesReady() takes a mutex on the control block using tryLock().
+// This could result in priority inversion if framesReady() is called by the normal mixer,
+// as the normal mixer thread runs at lower
+// priority than the client's callback thread:  there is a short window within framesReady()
+// during which the normal mixer could be preempted, and the client callback would block.
+// Another problem can occur if framesReady() is called by the fast mixer:
+// the tryLock() could block for up to 1 ms, and a sequence of these could delay fast mixer.
+// FIXME Replace AudioTrackShared control block implementation by a non-blocking FIFO queue.
+size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
     return mCblk->framesReady();
 }
 
+// Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
     if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) return true;
 
@@ -4895,7 +5006,7 @@ done:
     buffer->frameCount = 0;
 }
 
-uint32_t AudioFlinger::PlaybackThread::TimedTrack::framesReady() const {
+size_t AudioFlinger::PlaybackThread::TimedTrack::framesReady() const {
     Mutex::Autolock _l(mTimedBufferQueueLock);
     return mFramesPendingInQueue;
 }

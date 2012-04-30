@@ -18,7 +18,7 @@
 #define ANDROID_AUDIO_FAST_MIXER_STATE_H
 
 #include <system/audio.h>
-#include "AudioBufferProvider.h"
+#include "ExtendedAudioBufferProvider.h"
 #include "NBAIO.h"
 
 namespace android {
@@ -40,7 +40,7 @@ struct FastTrack {
     FastTrack();
     /*virtual*/ ~FastTrack();
 
-    AudioBufferProvider*    mBufferProvider; // must not be NULL
+    ExtendedAudioBufferProvider* mBufferProvider; // must be NULL if inactive, or non-NULL if active
     VolumeProvider*         mVolumeProvider; // optional; if NULL then full-scale
     unsigned                mSampleRate;     // optional; if zero then use mixer sample rate
     audio_channel_mask_t    mChannelMask;    // AUDIO_CHANNEL_OUT_MONO or AUDIO_CHANNEL_OUT_STEREO
@@ -57,7 +57,7 @@ struct FastMixerState {
     // all pointer fields use raw pointers; objects are owned and ref-counted by the normal mixer
     FastTrack   mFastTracks[kMaxFastTracks];
     int         mFastTracksGen; // increment when any mFastTracks[i].mGeneration is incremented
-    unsigned    mTrackMask;     // bit i is set if and only if mFastTracks[i] != NULL
+    unsigned    mTrackMask;     // bit i is set if and only if mFastTracks[i] is active
     NBAIO_Sink* mOutputSink;    // HAL output device, must already be negotiated
     int         mOutputSinkGen; // increment when mOutputSink is assigned
     size_t      mFrameCount;    // number of frames per fast mix buffer
