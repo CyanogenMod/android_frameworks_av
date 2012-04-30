@@ -175,6 +175,7 @@ private:
 
     int32_t mDisplayWidth;
     int32_t mDisplayHeight;
+    int32_t mVideoScalingMode;
 
     uint32_t mFlags;
     uint32_t mExtractorFlags;
@@ -318,6 +319,8 @@ private:
         Vector<TrackStat> mTracks;
     } mStats;
 
+    status_t setVideoScalingMode(int32_t mode);
+    status_t setVideoScalingMode_l(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
 
     // when select is true, the given track is selected.

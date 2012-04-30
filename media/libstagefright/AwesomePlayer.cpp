@@ -184,6 +184,7 @@ AwesomePlayer::AwesomePlayer()
       mAudioPlayer(NULL),
       mDisplayWidth(0),
       mDisplayHeight(0),
+      mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
       mFlags(0),
       mExtractorFlags(0),
       mVideoBuffer(NULL),
@@ -1081,6 +1082,8 @@ void AwesomePlayer::initRenderer_l() {
     // before creating a new one.
     IPCThreadState::self()->flushCommands();
 
+    // Even if set scaling mode fails, we will continue anyway
+    setVideoScalingMode_l(mVideoScalingMode);
     if (USE_SURFACE_ALLOC
             && !strncmp(component, "OMX.", 4)
             && strncmp(component, "OMX.google.", 11)
@@ -2362,6 +2365,23 @@ size_t AwesomePlayer::countTracks() const {
     return mExtractor->countTracks() + mTextDriver->countExternalTracks();
 }
 
+status_t AwesomePlayer::setVideoScalingMode(int32_t mode) {
+    Mutex::Autolock lock(mLock);
+    return setVideoScalingMode_l(mode);
+}
+
+status_t AwesomePlayer::setVideoScalingMode_l(int32_t mode) {
+    mVideoScalingMode = mode;
+    if (mNativeWindow != NULL) {
+        status_t err = native_window_set_scaling_mode(
+                mNativeWindow.get(), mVideoScalingMode);
+        if (err != OK) {
+            ALOGW("Failed to set scaling mode: %d", err);
+        }
+    }
+    return OK;
+}
+
 status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
     if (NULL == reply) {
         return android::BAD_VALUE;
@@ -2372,6 +2392,12 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         return ret;
     }
     switch(methodId) {
+        case INVOKE_ID_SET_VIDEO_SCALING_MODE:
+        {
+            int mode = request.readInt32();
+            return setVideoScalingMode(mode);
+        }
+
         case INVOKE_ID_GET_TRACK_INFO:
         {
             return getTrackInfo(reply);
