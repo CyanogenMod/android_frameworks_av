@@ -1364,6 +1364,8 @@ void OMXCodec::setComponentRole(
             "video_decoder.vpx", "video_encoder.vpx" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
+        { MEDIA_MIMETYPE_AUDIO_FLAC,
+            "audio_decoder.flac", "audio_encoder.flac" },
     };
 
     static const size_t kNumMimeToRole =
