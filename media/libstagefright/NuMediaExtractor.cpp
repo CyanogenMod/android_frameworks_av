@@ -220,6 +220,15 @@ status_t NuMediaExtractor::getTrackFormat(
         msg->setInt32("channel-count", numChannels);
         msg->setInt32("sample-rate", sampleRate);
 
+        int32_t delay = 0;
+        if (meta->findInt32(kKeyEncoderDelay, &delay)) {
+            msg->setInt32("encoder-delay", delay);
+        }
+        int32_t padding = 0;
+        if (meta->findInt32(kKeyEncoderPadding, &padding)) {
+            msg->setInt32("encoder-padding", padding);
+        }
+
         int32_t isADTS;
         if (meta->findInt32(kKeyIsADTS, &isADTS)) {
             msg->setInt32("is-adts", true);

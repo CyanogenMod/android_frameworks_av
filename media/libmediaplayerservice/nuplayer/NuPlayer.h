@@ -27,7 +27,6 @@ namespace android {
 struct ACodec;
 struct MetaData;
 struct NuPlayerDriver;
-class SkipCutBuffer;
 
 struct NuPlayer : public AHandler {
     NuPlayer();
@@ -128,8 +127,6 @@ private:
 
     int64_t mVideoLateByUs;
     int64_t mNumFramesTotal, mNumFramesDropped;
-
-    SkipCutBuffer *mSkipCutBuffer;
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
