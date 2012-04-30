@@ -103,7 +103,7 @@ status_t NuPlayerDriver::setVideoSurfaceTexture(
 }
 
 status_t NuPlayerDriver::prepare() {
-    sendEvent(MEDIA_SET_VIDEO_SIZE, 320, 240);
+    sendEvent(MEDIA_SET_VIDEO_SIZE, 0, 0);
     return OK;
 }
 
