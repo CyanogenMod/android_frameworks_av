@@ -611,7 +611,7 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
                 channels, sample->getIMemory(), AUDIO_OUTPUT_FLAG_NONE, callback, userData);
 #else
         newTrack = new AudioTrack(streamType, sampleRate, sample->format(),
-                channels, frameCount, AUDIO_OUTPUT_FLAG_NONE, callback, userData,
+                channels, frameCount, AUDIO_OUTPUT_FLAG_FAST, callback, userData,
                 bufferFrames);
 #endif
         oldTrack = mAudioTrack;
