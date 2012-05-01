@@ -117,7 +117,9 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     CHECK(success);
 
     if(!format->findInt32(kKeyChannelMask, &channelMask)) {
-        ALOGW("source format didn't specify channel mask, using channel order");
+        // log only when there's a risk of ambiguity of channel mask selection
+        ALOGI_IF(numChannels > 2,
+                "source format didn't specify channel mask, using (%d) channel order", numChannels);
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
 
