@@ -1683,13 +1683,6 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-    err = native_window_set_scaling_mode(mNativeWindow.get(),
-            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-
-    if (err != OK) {
-        return err;
-    }
-
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
@@ -1911,14 +1904,6 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
         ALOGE("error pushing blank frames: api_connect failed: %s (%d)",
                 strerror(-err), -err);
         return err;
-    }
-
-    err = native_window_set_scaling_mode(mNativeWindow.get(),
-            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffers_geometry failed: %s (%d)",
-                strerror(-err), -err);
-        goto error;
     }
 
     err = native_window_set_buffers_geometry(mNativeWindow.get(), 1, 1,
