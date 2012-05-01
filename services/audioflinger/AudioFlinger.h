@@ -1072,6 +1072,8 @@ public:
         // mixer status returned by prepareTracks_l()
         mixer_state                     mMixerStatus; // current cycle
                                                       // previous cycle when in prepareTracks_l()
+        mixer_state                     mMixerStatusIgnoringFastTracks;
+                                                      // FIXME or a separate ready state per track
 
         // FIXME move these declarations into the specific sub-class that needs them
         // MIXER only

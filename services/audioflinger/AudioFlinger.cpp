@@ -1492,6 +1492,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMasterVolume(audioFlinger->masterVolumeSW_l()),
         mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
         mMixerStatus(MIXER_IDLE),
+        mMixerStatusIgnoringFastTracks(MIXER_IDLE),
         standbyDelay(AudioFlinger::mStandbyTimeInNsecs),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
@@ -2442,6 +2443,7 @@ if (mType == MIXER) {
                     acquireWakeLock_l();
 
                     mMixerStatus = MIXER_IDLE;
+                    mMixerStatusIgnoringFastTracks = MIXER_IDLE;
 
                     checkSilentMode_l();
 
@@ -2455,6 +2457,7 @@ if (mType == MIXER) {
                 }
             }
 
+            // mMixerStatusIgnoringFastTracks is also updated internally
             mMixerStatus = prepareTracks_l(&tracksToRemove);
 
             // prevent any changes in effect chain list and in each effect chain
@@ -2845,7 +2848,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // during last round
         uint32_t minFrames = 1;
         if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
-                (mMixerStatus == MIXER_TRACKS_READY)) {
+                (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY)) {
             if (t->sampleRate() == (int)mSampleRate) {
                 minFrames = mNormalFrameCount;
             } else {
@@ -2994,7 +2997,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // If one track is ready, set the mixer ready if:
             //  - the mixer was not ready during previous round OR
             //  - no other track is not ready
-            if (mMixerStatus != MIXER_TRACKS_READY ||
+            if (mMixerStatusIgnoringFastTracks != MIXER_TRACKS_READY ||
                     mixerStatus != MIXER_TRACKS_ENABLED) {
                 mixerStatus = MIXER_TRACKS_READY;
             }
@@ -3028,7 +3031,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // If one track is not ready, mark the mixer also not ready if:
                 //  - the mixer was ready during previous round OR
                 //  - no other track is ready
-                } else if (mMixerStatus == MIXER_TRACKS_READY ||
+                } else if (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY ||
                                 mixerStatus != MIXER_TRACKS_READY) {
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
@@ -3105,6 +3108,7 @@ track_is_ready: ;
     }
 
     // if any fast tracks, then status is ready
+    mMixerStatusIgnoringFastTracks = mixerStatus;
     if (fastTracks > 0) {
         mixerStatus = MIXER_TRACKS_READY;
     }
