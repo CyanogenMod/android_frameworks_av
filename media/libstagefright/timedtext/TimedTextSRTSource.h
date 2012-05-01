@@ -56,7 +56,7 @@ private:
         int textLen;
     };
 
-    int mIndex;
+    size_t mIndex;
     KeyedVector<int64_t, TextInfo> mTextVector;
 
     void reset();
