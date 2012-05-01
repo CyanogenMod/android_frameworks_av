@@ -100,7 +100,7 @@ status_t ChromiumHTTPDataSource::connect_l(
 
     mDelegate->initiateConnection(mURI.c_str(), &mHeaders, offset);
 
-    while (mState == CONNECTING) {
+    while (mState == CONNECTING || mState == DISCONNECTING) {
         mCondition.wait(mLock);
     }
 
@@ -110,6 +110,13 @@ status_t ChromiumHTTPDataSource::connect_l(
 void ChromiumHTTPDataSource::onConnectionEstablished(
         int64_t contentSize, const char *contentType) {
     Mutex::Autolock autoLock(mLock);
+
+    if (mState != CONNECTING) {
+        // We may have initiated disconnection.
+        CHECK_EQ(mState, DISCONNECTING);
+        return;
+    }
+
     mState = CONNECTED;
     mContentSize = (contentSize < 0) ? -1 : contentSize + mCurrentOffset;
     mContentType = String8(contentType);
@@ -255,6 +262,7 @@ void ChromiumHTTPDataSource::onDisconnectComplete() {
 
     mState = DISCONNECTED;
     // mURI.clear();
+    mIOResult = -ENOTCONN;
 
     mCondition.broadcast();
 }
