@@ -490,6 +490,10 @@ void SfDelegate::OnInitiateDisconnectWrapper(SfDelegate *me) {
 }
 
 void SfDelegate::onInitiateDisconnect() {
+    if (mURLRequest == NULL) {
+        return;
+    }
+
     mURLRequest->Cancel();
 
     delete mURLRequest;
