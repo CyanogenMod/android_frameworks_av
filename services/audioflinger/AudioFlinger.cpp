@@ -1672,7 +1672,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         if (frameCount == 0) {
             frameCount = mFrameCount * 2;   // FIXME * 2 is due to SRC jitter, should be computed
         }
-        ALOGI("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
+        ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
       } else {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "

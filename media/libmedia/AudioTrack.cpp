@@ -896,9 +896,9 @@ status_t AudioTrack::createTrack_l(
     int32_t old = android_atomic_or(CBLK_DIRECTION_OUT, &mCblk->flags);
     if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         if (old & CBLK_FAST) {
-            ALOGI("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", mCblk->frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", mCblk->frameCount);
         } else {
-            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", mCblk->frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", mCblk->frameCount);
         }
         if (sharedBuffer == 0) {
             mNotificationFramesAct = mCblk->frameCount/2;
