@@ -253,7 +253,11 @@ status_t OMX::freeNode(node_id node) {
     OMXNodeInstance *instance = findInstance(node);
 
     ssize_t index = mLiveNodes.indexOfKey(instance->observer()->asBinder());
-    CHECK(index >= 0);
+    if (index < 0) {
+        // This could conceivably happen if the observer dies at roughly the
+        // same time that a client attempts to free the node explicitly.
+        return OK;
+    }
     mLiveNodes.removeItemsAt(index);
 
     instance->observer()->asBinder()->unlinkToDeath(this);
