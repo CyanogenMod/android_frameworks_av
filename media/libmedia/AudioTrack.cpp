@@ -1461,7 +1461,7 @@ void AudioTrack::AudioTrackThread::requestExit()
 {
     // must be in this order to avoid a race condition
     Thread::requestExit();
-    mMyCond.signal();
+    resume();
 }
 
 void AudioTrack::AudioTrackThread::pause()
