@@ -365,6 +365,9 @@ private:
                 // These are order-sensitive; do not change order without reviewing the impact.
                 // In particular there are assumptions about > STOPPED.
                 STOPPED,
+                // next 2 states are currently used for fast tracks only
+                STOPPING_1,     // waiting for first underrun
+                STOPPING_2,     // waiting for presentation complete
                 RESUMING,
                 ACTIVE,
                 PAUSING,
@@ -415,6 +418,17 @@ private:
 
             bool isStopped() const {
                 return mState == STOPPED;
+            }
+
+            // for fast tracks only
+            bool isStopping() const {
+                return mState == STOPPING_1 || mState == STOPPING_2;
+            }
+            bool isStopping_1() const {
+                return mState == STOPPING_1;
+            }
+            bool isStopping_2() const {
+                return mState == STOPPING_2;
             }
 
             bool isTerminated() const {
