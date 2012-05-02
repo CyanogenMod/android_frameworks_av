@@ -227,7 +227,7 @@ status_t WAVExtractor::init() {
             if (mWaveFormat == WAVE_FORMAT_EXTENSIBLE) {
                 uint16_t validBitsPerSample = U16_LE_AT(&formatSpec[18]);
                 if (validBitsPerSample != mBitsPerSample) {
-                    if ((validBitsPerSample != 0) {
+                    if (validBitsPerSample != 0) {
                         ALOGE("validBits(%d) != bitsPerSample(%d) are not supported",
                                 validBitsPerSample, mBitsPerSample);
                         return ERROR_UNSUPPORTED;
