@@ -227,9 +227,15 @@ status_t WAVExtractor::init() {
             if (mWaveFormat == WAVE_FORMAT_EXTENSIBLE) {
                 uint16_t validBitsPerSample = U16_LE_AT(&formatSpec[18]);
                 if (validBitsPerSample != mBitsPerSample) {
-                    ALOGE("validBits(%d) != bitsPerSample(%d) are not supported",
-                            validBitsPerSample, mBitsPerSample);
-                    return ERROR_UNSUPPORTED;
+                    if ((validBitsPerSample != 0) {
+                        ALOGE("validBits(%d) != bitsPerSample(%d) are not supported",
+                                validBitsPerSample, mBitsPerSample);
+                        return ERROR_UNSUPPORTED;
+                    } else {
+                        // we only support valitBitsPerSample == bitsPerSample but some WAV_EXT
+                        // writers don't correctly set the valid bits value, and leave it at 0.
+                        ALOGW("WAVE_EXT has 0 valid bits per sample, ignoring");
+                    }
                 }
 
                 mChannelMask = U32_LE_AT(&formatSpec[20]);
