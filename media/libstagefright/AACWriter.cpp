@@ -98,8 +98,12 @@ status_t AACWriter::addSource(const sp<MediaSource> &source) {
     CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC));
     CHECK(meta->findInt32(kKeyChannelCount, &mChannelCount));
     CHECK(meta->findInt32(kKeySampleRate, &mSampleRate));
-    CHECK(meta->findInt32(kKeyAACProfile, &mAACProfile));
     CHECK(mChannelCount >= 1 && mChannelCount <= 2);
+
+    // Optionally, we want to check whether AACProfile is also set.
+    if (meta->findInt32(kKeyAACProfile, &mAACProfile)) {
+        ALOGI("AAC profile is changed to %d", mAACProfile);
+    }
 
     mSource = source;
     return OK;
