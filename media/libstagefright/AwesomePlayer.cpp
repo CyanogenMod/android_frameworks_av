@@ -445,7 +445,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
                 }
             }
         } else if (!strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
-            addTextSource(i, extractor->getTrack(i));
+            addTextSource_l(i, extractor->getTrack(i));
         }
     }
 
@@ -1347,8 +1347,7 @@ void AwesomePlayer::setAudioSource(sp<MediaSource> source) {
     mAudioTrack = source;
 }
 
-void AwesomePlayer::addTextSource(size_t trackIndex, const sp<MediaSource>& source) {
-    Mutex::Autolock autoLock(mLock);
+void AwesomePlayer::addTextSource_l(size_t trackIndex, const sp<MediaSource>& source) {
     CHECK(source != NULL);
 
     if (mTextDriver == NULL) {
