@@ -121,8 +121,6 @@ private:
     sp<ExecutingToIdleState> mExecutingToIdleState;
     sp<IdleToLoadedState> mIdleToLoadedState;
     sp<FlushingState> mFlushingState;
-    int32_t mEncoderDelay;
-    int32_t mEncoderPadding;
     sp<SkipCutBuffer> mSkipCutBuffer;
 
     AString mComponentName;
@@ -148,6 +146,12 @@ private:
     // If "mKeepComponentAllocated" we only transition back to Loaded state
     // and do not release the component instance.
     bool mKeepComponentAllocated;
+
+    int32_t mEncoderDelay;
+    int32_t mEncoderPadding;
+
+    bool mChannelMaskPresent;
+    int32_t mChannelMask;
 
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffersOnPort(OMX_U32 portIndex);
