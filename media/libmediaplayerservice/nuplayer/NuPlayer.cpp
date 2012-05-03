@@ -375,10 +375,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         flags = AUDIO_OUTPUT_FLAG_NONE;
                     }
 
+                    int32_t channelMask;
+                    if (!codecRequest->findInt32("channel-mask", &channelMask)) {
+                        channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+                    }
+
                     CHECK_EQ(mAudioSink->open(
                                 sampleRate,
                                 numChannels,
-                                CHANNEL_MASK_USE_CHANNEL_ORDER,
+                                (audio_channel_mask_t)channelMask,
                                 AUDIO_FORMAT_PCM_16_BIT,
                                 8 /* bufferCount */,
                                 NULL,
