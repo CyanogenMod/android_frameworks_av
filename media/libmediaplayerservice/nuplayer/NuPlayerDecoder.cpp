@@ -103,157 +103,17 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
 sp<AMessage> NuPlayer::Decoder::makeFormat(const sp<MetaData> &meta) {
     CHECK(mCSD.isEmpty());
 
-    const char *mime;
-    CHECK(meta->findCString(kKeyMIMEType, &mime));
-
-    sp<AMessage> msg = new AMessage;
-    msg->setString("mime", mime);
-
-    if (!strncasecmp("video/", mime, 6)) {
-        int32_t width, height;
-        CHECK(meta->findInt32(kKeyWidth, &width));
-        CHECK(meta->findInt32(kKeyHeight, &height));
-
-        msg->setInt32("width", width);
-        msg->setInt32("height", height);
-    } else if (!strncasecmp("audio/", mime, 6)) {
-        int32_t numChannels, sampleRate;
-        CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
-        CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
-
-        msg->setInt32("channel-count", numChannels);
-        msg->setInt32("sample-rate", sampleRate);
-
-        int32_t delay = 0;
-        if (meta->findInt32(kKeyEncoderDelay, &delay)) {
-            msg->setInt32("encoder-delay", delay);
-        }
-        int32_t padding = 0;
-        if (meta->findInt32(kKeyEncoderPadding, &padding)) {
-            msg->setInt32("encoder-padding", padding);
-        }
-
-        int32_t isADTS;
-        if (meta->findInt32(kKeyIsADTS, &isADTS) && isADTS != 0) {
-            msg->setInt32("is-adts", true);
-        }
-    }
-
-    int32_t maxInputSize;
-    if (meta->findInt32(kKeyMaxInputSize, &maxInputSize)) {
-        msg->setInt32("max-input-size", maxInputSize);
-    }
+    sp<AMessage> msg;
+    CHECK_EQ(convertMetaDataToMessage(meta, &msg), (status_t)OK);
 
     mCSDIndex = 0;
-
-    uint32_t type;
-    const void *data;
-    size_t size;
-    if (meta->findData(kKeyAVCC, &type, &data, &size)) {
-        // Parse the AVCDecoderConfigurationRecord
-
-        const uint8_t *ptr = (const uint8_t *)data;
-
-        CHECK(size >= 7);
-        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
-        uint8_t profile = ptr[1];
-        uint8_t level = ptr[3];
-
-        // There is decodable content out there that fails the following
-        // assertion, let's be lenient for now...
-        // CHECK((ptr[4] >> 2) == 0x3f);  // reserved
-
-        size_t lengthSize = 1 + (ptr[4] & 3);
-
-        // commented out check below as H264_QVGA_500_NO_AUDIO.3gp
-        // violates it...
-        // CHECK((ptr[5] >> 5) == 7);  // reserved
-
-        size_t numSeqParameterSets = ptr[5] & 31;
-
-        ptr += 6;
-        size -= 6;
-
-        sp<ABuffer> buffer = new ABuffer(1024);
-        buffer->setRange(0, 0);
-
-        for (size_t i = 0; i < numSeqParameterSets; ++i) {
-            CHECK(size >= 2);
-            size_t length = U16_AT(ptr);
-
-            ptr += 2;
-            size -= 2;
-
-            CHECK(size >= length);
-
-            memcpy(buffer->data() + buffer->size(), "\x00\x00\x00\x01", 4);
-            memcpy(buffer->data() + buffer->size() + 4, ptr, length);
-            buffer->setRange(0, buffer->size() + 4 + length);
-
-            ptr += length;
-            size -= length;
+    for (size_t i = 0;; ++i) {
+        sp<ABuffer> csd;
+        if (!msg->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
+            break;
         }
 
-        buffer->meta()->setInt32("csd", true);
-        mCSD.push(buffer);
-
-        buffer = new ABuffer(1024);
-        buffer->setRange(0, 0);
-
-        CHECK(size >= 1);
-        size_t numPictureParameterSets = *ptr;
-        ++ptr;
-        --size;
-
-        for (size_t i = 0; i < numPictureParameterSets; ++i) {
-            CHECK(size >= 2);
-            size_t length = U16_AT(ptr);
-
-            ptr += 2;
-            size -= 2;
-
-            CHECK(size >= length);
-
-            memcpy(buffer->data() + buffer->size(), "\x00\x00\x00\x01", 4);
-            memcpy(buffer->data() + buffer->size() + 4, ptr, length);
-            buffer->setRange(0, buffer->size() + 4 + length);
-
-            ptr += length;
-            size -= length;
-        }
-
-        buffer->meta()->setInt32("csd", true);
-        mCSD.push(buffer);
-    } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
-        ESDS esds((const char *)data, size);
-        CHECK_EQ(esds.InitCheck(), (status_t)OK);
-
-        const void *codec_specific_data;
-        size_t codec_specific_data_size;
-        esds.getCodecSpecificInfo(
-                &codec_specific_data, &codec_specific_data_size);
-
-        sp<ABuffer> buffer = new ABuffer(codec_specific_data_size);
-
-        memcpy(buffer->data(), codec_specific_data,
-               codec_specific_data_size);
-
-        buffer->meta()->setInt32("csd", true);
-        mCSD.push(buffer);
-    } else if (meta->findData(kKeyVorbisInfo, &type, &data, &size)) {
-        sp<ABuffer> buffer = new ABuffer(size);
-        memcpy(buffer->data(), data, size);
-
-        buffer->meta()->setInt32("csd", true);
-        mCSD.push(buffer);
-
-        CHECK(meta->findData(kKeyVorbisBooks, &type, &data, &size));
-
-        buffer = new ABuffer(size);
-        memcpy(buffer->data(), data, size);
-
-        buffer->meta()->setInt32("csd", true);
-        mCSD.push(buffer);
+        mCSD.push(csd);
     }
 
     return msg;
