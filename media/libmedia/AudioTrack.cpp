@@ -269,6 +269,7 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mSessionId = sessionId;
     mAuxEffectId = 0;
+    mFlags = flags;
     mCbf = cbf;
 
     if (cbf != NULL) {
@@ -310,7 +311,6 @@ status_t AudioTrack::set(
     mNewPosition = 0;
     mUpdatePeriod = 0;
     mFlushed = false;
-    mFlags = flags;
     AudioSystem::acquireAudioSessionId(mSessionId);
     mRestoreStatus = NO_ERROR;
     return NO_ERROR;
@@ -770,7 +770,9 @@ status_t AudioTrack::createTrack_l(
             // use case 2: callback handler
             (mCbf != NULL))) {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
+        // once denied, do not request again if IAudioTrack is re-created
         flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
+        mFlags = flags;
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
@@ -899,6 +901,9 @@ status_t AudioTrack::createTrack_l(
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", mCblk->frameCount);
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", mCblk->frameCount);
+            // once denied, do not request again if IAudioTrack is re-created
+            flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
+            mFlags = flags;
         }
         if (sharedBuffer == 0) {
             mNotificationFramesAct = mCblk->frameCount/2;
@@ -920,6 +925,11 @@ status_t AudioTrack::createTrack_l(
     mRemainingFrames = mNotificationFramesAct;
     // FIXME don't believe this lie
     mLatency = afLatency + (1000*mCblk->frameCount) / sampleRate;
+    // If IAudioTrack is re-created, don't let the requested frameCount
+    // decrease.  This can confuse clients that cache frameCount().
+    if (mCblk->frameCount > mFrameCount) {
+        mFrameCount = mCblk->frameCount;
+    }
     return NO_ERROR;
 }
 
