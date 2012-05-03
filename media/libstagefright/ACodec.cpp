@@ -333,7 +333,11 @@ ACodec::ACodec()
       mNode(NULL),
       mSentFormat(false),
       mIsEncoder(false),
-      mShutdownInProgress(false) {
+      mShutdownInProgress(false),
+      mEncoderDelay(0),
+      mEncoderPadding(0),
+      mChannelMaskPresent(false),
+      mChannelMask(0) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -892,8 +896,15 @@ status_t ACodec::configureCodec(
     if (!msg->findInt32("encoder-delay", &mEncoderDelay)) {
         mEncoderDelay = 0;
     }
+
     if (!msg->findInt32("encoder-padding", &mEncoderPadding)) {
         mEncoderPadding = 0;
+    }
+
+    if (msg->findInt32("channel-mask", &mChannelMask)) {
+        mChannelMaskPresent = true;
+    } else {
+        mChannelMaskPresent = false;
     }
 
     int32_t maxInputSize;
@@ -2021,6 +2032,11 @@ void ACodec::sendFormatChange() {
                 mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay * frameSize,
                                                    mEncoderPadding * frameSize);
             }
+
+            if (mChannelMaskPresent) {
+                notify->setInt32("channel-mask", mChannelMask);
+            }
+
             break;
         }
 

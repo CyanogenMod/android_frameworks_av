@@ -19,6 +19,8 @@
 #define UTILS_H_
 
 #include <stdint.h>
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
 
 namespace android {
 
@@ -35,6 +37,11 @@ uint64_t U64LE_AT(const uint8_t *ptr);
 
 uint64_t ntoh64(uint64_t x);
 uint64_t hton64(uint64_t x);
+
+struct MetaData;
+struct AMessage;
+status_t convertMetaDataToMessage(
+        const sp<MetaData> &meta, sp<AMessage> *format);
 
 }  // namespace android
 
