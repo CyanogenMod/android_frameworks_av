@@ -19,6 +19,7 @@
 
 #include "../include/SoftwareRenderer.h"
 
+#include <cutils/properties.h> // for property_get
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MetaData.h>
 #include <system/window.h>
@@ -26,6 +27,11 @@
 #include <gui/ISurfaceTexture.h>
 
 namespace android {
+
+static bool runningInEmulator() {
+    char prop[PROPERTY_VALUE_MAX];
+    return (property_get("ro.kernel.qemu", prop, NULL) > 0);
+}
 
 SoftwareRenderer::SoftwareRenderer(
         const sp<ANativeWindow> &nativeWindow, const sp<MetaData> &meta)
@@ -62,10 +68,14 @@ SoftwareRenderer::SoftwareRenderer(
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
         {
-            halFormat = HAL_PIXEL_FORMAT_YV12;
-            bufWidth = (mCropWidth + 1) & ~1;
-            bufHeight = (mCropHeight + 1) & ~1;
-            break;
+            if (!runningInEmulator()) {
+                halFormat = HAL_PIXEL_FORMAT_YV12;
+                bufWidth = (mCropWidth + 1) & ~1;
+                bufHeight = (mCropHeight + 1) & ~1;
+                break;
+            }
+
+            // fall through.
         }
 
         default:
