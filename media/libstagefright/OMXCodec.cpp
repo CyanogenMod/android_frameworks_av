@@ -1123,9 +1123,10 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profileLevel.mProfile);
     h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(profileLevel.mLevel);
 
-    // FIXME:
-    // Remove the workaround after the work in done.
-    if (!strncmp(mComponentName, "OMX.TI.DUCATI1", 14)) {
+    // XXX
+    if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
+        ALOGW("Use baseline profile instead of %d for AVC recording",
+            h264type.eProfile);
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
 
@@ -1159,10 +1160,6 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     h264type.bFrameMBsOnly = OMX_TRUE;
     h264type.bMBAFF = OMX_FALSE;
     h264type.eLoopFilterMode = OMX_VIDEO_AVCLoopFilterEnable;
-
-    if (!strcasecmp("OMX.Nvidia.h264.encoder", mComponentName)) {
-        h264type.eLevel = OMX_VIDEO_AVCLevelMax;
-    }
 
     err = mOMX->setParameter(
             mNode, OMX_IndexParamVideoAvc, &h264type, sizeof(h264type));
