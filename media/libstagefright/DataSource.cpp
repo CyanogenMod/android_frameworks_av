@@ -15,7 +15,6 @@
  */
 
 #include "include/AMRExtractor.h"
-#include "include/AVIExtractor.h"
 
 #if CHROMIUM_AVAILABLE
 #include "include/DataUriSource.h"
@@ -119,7 +118,6 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer(SniffMPEG2TS);
     RegisterSniffer(SniffMP3);
     RegisterSniffer(SniffAAC);
-    RegisterSniffer(SniffAVI);
     RegisterSniffer(SniffMPEG2PS);
     RegisterSniffer(SniffWVM);
 
