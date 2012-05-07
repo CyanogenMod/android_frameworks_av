@@ -401,7 +401,7 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
         if (f) {
             while (!feof(f)) {
                 fgets(buffer, SIZE, f);
-                if (strstr(buffer, " /mnt/sdcard/") ||
+                if (strstr(buffer, " /storage/") ||
                     strstr(buffer, " /system/sounds/") ||
                     strstr(buffer, " /data/") ||
                     strstr(buffer, " /system/media/")) {
@@ -437,7 +437,7 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
                                 } else {
                                     linkto[len] = 0;
                                 }
-                                if (strstr(linkto, "/mnt/sdcard/") == linkto ||
+                                if (strstr(linkto, "/storage/") == linkto ||
                                     strstr(linkto, "/system/sounds/") == linkto ||
                                     strstr(linkto, "/data/") == linkto ||
                                     strstr(linkto, "/system/media/") == linkto) {
