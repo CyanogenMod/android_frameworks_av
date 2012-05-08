@@ -186,6 +186,8 @@ private:
 
     sp<ICrypto> mCrypto;
 
+    List<sp<ABuffer> > mCSD;
+
     MediaCodec(const sp<ALooper> &looper);
 
     static status_t PostAndAwaitResponse(
@@ -204,6 +206,9 @@ private:
     bool handleDequeueInputBuffer(uint32_t replyID, bool newRequest = false);
     bool handleDequeueOutputBuffer(uint32_t replyID, bool newRequest = false);
     void cancelPendingDequeueOperations();
+
+    void extractCSD(const sp<AMessage> &format);
+    status_t queueCSDInputBuffer(size_t bufferIndex);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
