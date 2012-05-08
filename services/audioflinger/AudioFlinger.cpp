@@ -4152,9 +4152,8 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt Chn mask   Session Frames S M F SRate  L dB  R dB  "
-                  "  Server      User     Main buf    Aux Buf  FastUnder\n");
-
+    result.append("   Name Client Type Fmt Chn mask   Session mFrCnt fCount S M F SRate  L dB  R dB  "
+                  "  Server      User     Main buf    Aux Buf  Flags FastUnder\n");
 }
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
@@ -4194,14 +4193,15 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         break;
     }
     bool nowInUnderrun = mObservedUnderruns & 1;
-    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %1c %1d %1d %5u %5.2g %5.2g  "
-            "0x%08x 0x%08x 0x%08x 0x%08x %9u%c\n",
+    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %1d %5u %5.2g %5.2g  "
+            "0x%08x 0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
             mFormat,
             mChannelMask,
             mSessionId,
             mFrameCount,
+            mCblk->frameCount,
             stateChar,
             mMute,
             mFillingUpStatus,
@@ -4212,6 +4212,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mCblk->user,
             (int)mMainBuffer,
             (int)mAuxBuffer,
+            mCblk->flags,
             mUnderrunCount,
             nowInUnderrun ? '*' : ' ');
 }
