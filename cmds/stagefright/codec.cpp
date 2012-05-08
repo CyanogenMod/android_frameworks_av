@@ -50,8 +50,6 @@ namespace android {
 
 struct CodecState {
     sp<MediaCodec> mCodec;
-    Vector<sp<ABuffer> > mCSD;
-    size_t mCSDIndex;
     Vector<sp<ABuffer> > mInBuffers;
     Vector<sp<ABuffer> > mOutBuffers;
     bool mSignalledInputEOS;
@@ -126,19 +124,8 @@ static int decode(
 
         CHECK_EQ(err, (status_t)OK);
 
-        size_t j = 0;
-        sp<ABuffer> buffer;
-        while (format->findBuffer(StringPrintf("csd-%d", j).c_str(), &buffer)) {
-            state->mCSD.push_back(buffer);
-
-            ++j;
-        }
-
-        state->mCSDIndex = 0;
         state->mSignalledInputEOS = false;
         state->mSawOutputEOS = false;
-
-        ALOGV("got %d pieces of codec specific data.", state->mCSD.size());
     }
 
     CHECK(!stateByTrack.isEmpty());
@@ -157,28 +144,6 @@ static int decode(
 
         ALOGV("got %d input and %d output buffers",
               state->mInBuffers.size(), state->mOutBuffers.size());
-
-        while (state->mCSDIndex < state->mCSD.size()) {
-            size_t index;
-            status_t err = codec->dequeueInputBuffer(&index, -1ll);
-            CHECK_EQ(err, (status_t)OK);
-
-            const sp<ABuffer> &srcBuffer =
-                state->mCSD.itemAt(state->mCSDIndex++);
-
-            const sp<ABuffer> &buffer = state->mInBuffers.itemAt(index);
-
-            memcpy(buffer->data(), srcBuffer->data(), srcBuffer->size());
-
-            err = codec->queueInputBuffer(
-                    index,
-                    0 /* offset */,
-                    srcBuffer->size(),
-                    0ll /* timeUs */,
-                    MediaCodec::BUFFER_FLAG_CODECCONFIG);
-
-            CHECK_EQ(err, (status_t)OK);
-        }
     }
 
     bool sawInputEOS = false;
