@@ -646,6 +646,28 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         break;
                     }
 
+                    if (!mCSD.empty()) {
+                        ssize_t index = dequeuePortBuffer(kPortIndexInput);
+                        CHECK_GE(index, 0);
+
+                        // If codec specific data had been specified as
+                        // part of the format in the call to configure and
+                        // if there's more csd left, we submit it here
+                        // clients only get access to input buffers once
+                        // this data has been exhausted.
+
+                        status_t err = queueCSDInputBuffer(index);
+
+                        if (err != OK) {
+                            ALOGE("queueCSDInputBuffer failed w/ error %d",
+                                  err);
+
+                            mFlags |= kFlagStickyError;
+                            cancelPendingDequeueOperations();
+                        }
+                        break;
+                    }
+
                     if (mFlags & kFlagDequeueInputPending) {
                         CHECK(handleDequeueInputBuffer(mDequeueInputReplyID));
 
@@ -810,6 +832,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             if (flags & CONFIGURE_FLAG_ENCODE) {
                 format->setInt32("encoder", true);
             }
+
+            extractCSD(format);
 
             mCodec->initiateConfigureComponent(format);
             break;
@@ -1105,6 +1129,54 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
         default:
             TRESPASS();
     }
+}
+
+void MediaCodec::extractCSD(const sp<AMessage> &format) {
+    mCSD.clear();
+
+    size_t i = 0;
+    for (;;) {
+        sp<ABuffer> csd;
+        if (!format->findBuffer(StringPrintf("csd-%u", i).c_str(), &csd)) {
+            break;
+        }
+
+        mCSD.push_back(csd);
+        ++i;
+    }
+
+    ALOGV("Found %u pieces of codec specific data.", mCSD.size());
+}
+
+status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
+    CHECK(!mCSD.empty());
+
+    BufferInfo *info =
+        &mPortBuffers[kPortIndexInput].editItemAt(bufferIndex);
+
+    sp<ABuffer> csd = *mCSD.begin();
+    mCSD.erase(mCSD.begin());
+
+    const sp<ABuffer> &codecInputData =
+        (mCrypto != NULL) ? info->mEncryptedData : info->mData;
+
+    if (csd->size() > codecInputData->capacity()) {
+        return -EINVAL;
+    }
+
+    memcpy(codecInputData->data(), csd->data(), csd->size());
+
+    AString errorDetailMsg;
+
+    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
+    msg->setSize("index", bufferIndex);
+    msg->setSize("offset", 0);
+    msg->setSize("size", csd->size());
+    msg->setInt64("timeUs", 0ll);
+    msg->setInt32("flags", BUFFER_FLAG_CODECCONFIG);
+    msg->setPointer("errorDetailMsg", &errorDetailMsg);
+
+    return onQueueInputBuffer(msg);
 }
 
 void MediaCodec::setState(State newState) {
