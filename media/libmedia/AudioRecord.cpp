@@ -334,7 +334,8 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
         cblk->lock.unlock();
         if (ret == NO_ERROR) {
             mNewPosition = cblk->user + mUpdatePeriod;
-            cblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
+            cblk->bufferTimeoutMs = (event == AudioSystem::SYNC_EVENT_NONE) ? MAX_RUN_TIMEOUT_MS :
+                                            AudioSystem::kSyncRecordStartTimeOutMs;
             cblk->waitTimeMs = 0;
             if (t != 0) {
                 // thread unblocks in readyToRun() and returns NO_ERROR
@@ -569,6 +570,8 @@ create_new_record:
     }
 
     cblk->waitTimeMs = 0;
+    // reset time out to running value after obtaining a buffer
+    cblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
 
     if (framesReq > framesReady) {
         framesReq = framesReady;
