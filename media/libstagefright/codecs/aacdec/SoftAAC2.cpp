@@ -267,6 +267,15 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         inBuffer[0] = header->pBuffer + header->nOffset;
         inBufferLength[0] = header->nFilledLen;
 
+        // Make the decoder more robust by pruning explicit backward compatible
+        // extension for LC, HE-AACv1 (SBR), HE-AACv2 (SBR + PS). We'll depend
+        // on implicit configuration.
+        if (inBufferLength[0] > 2) {
+            UCHAR aot = inBuffer[0][0] >> 3;
+            if (aot == 2 | aot == 5 | aot == 29) {
+                inBufferLength[0] = 2;
+            }
+        }
         AAC_DECODER_ERROR decoderErr =
             aacDecoder_ConfigRaw(mAACDecoder,
                                  inBuffer,
