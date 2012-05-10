@@ -774,6 +774,8 @@ status_t ACodec::setComponentRole(
             "video_decoder.vpx", "video_encoder.vpx" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
+        { MEDIA_MIMETYPE_AUDIO_FLAC,
+            "audio_decoder.flac", "audio_encoder.flac" },
     };
 
     static const size_t kNumMimeToRole =
@@ -834,7 +836,9 @@ status_t ACodec::configureCodec(
     }
 
     int32_t bitRate = 0;
-    if (encoder && !msg->findInt32("bitrate", &bitRate)) {
+    // FLAC encoder doesn't need a bitrate, other encoders do
+    if (encoder && strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)
+            && !msg->findInt32("bitrate", &bitRate)) {
         return INVALID_OPERATION;
     }
 
@@ -881,6 +885,27 @@ status_t ACodec::configureCodec(
             err = INVALID_OPERATION;
         } else {
             err = setupG711Codec(encoder, numChannels);
+        }
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
+        int32_t numChannels, sampleRate, compressionLevel = -1;
+        if (encoder &&
+                (!msg->findInt32("channel-count", &numChannels)
+                        || !msg->findInt32("sample-rate", &sampleRate))) {
+            ALOGE("missing channel count or sample rate for FLAC encoder");
+            err = INVALID_OPERATION;
+        } else {
+            if (encoder) {
+                if (!msg->findInt32("flac-compression-level", &compressionLevel)) {
+                    compressionLevel = 5;// default FLAC compression level
+                } else if (compressionLevel < 0) {
+                    ALOGW("compression level %d outside [0..8] range, using 0", compressionLevel);
+                    compressionLevel = 0;
+                } else if (compressionLevel > 8) {
+                    ALOGW("compression level %d outside [0..8] range, using 8", compressionLevel);
+                    compressionLevel = 8;
+                }
+            }
+            err = setupFlacCodec(encoder, numChannels, sampleRate, compressionLevel);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         int32_t numChannels, sampleRate;
@@ -1161,6 +1186,34 @@ status_t ACodec::setupG711Codec(bool encoder, int32_t numChannels) {
 
     return setupRawAudioFormat(
             kPortIndexInput, 8000 /* sampleRate */, numChannels);
+}
+
+status_t ACodec::setupFlacCodec(
+        bool encoder, int32_t numChannels, int32_t sampleRate, int32_t compressionLevel) {
+
+    if (encoder) {
+        OMX_AUDIO_PARAM_FLACTYPE def;
+        InitOMXParams(&def);
+        def.nPortIndex = kPortIndexOutput;
+
+        // configure compression level
+        status_t err = mOMX->getParameter(mNode, OMX_IndexParamAudioFlac, &def, sizeof(def));
+        if (err != OK) {
+            ALOGE("setupFlacCodec(): Error %d getting OMX_IndexParamAudioFlac parameter", err);
+            return err;
+        }
+        def.nCompressionLevel = compressionLevel;
+        err = mOMX->setParameter(mNode, OMX_IndexParamAudioFlac, &def, sizeof(def));
+        if (err != OK) {
+            ALOGE("setupFlacCodec(): Error %d setting OMX_IndexParamAudioFlac parameter", err);
+            return err;
+        }
+    }
+
+    return setupRawAudioFormat(
+            encoder ? kPortIndexInput : kPortIndexOutput,
+            sampleRate,
+            numChannels);
 }
 
 status_t ACodec::setupRawAudioFormat(
