@@ -210,6 +210,9 @@ private:
     void extractCSD(const sp<AMessage> &format);
     status_t queueCSDInputBuffer(size_t bufferIndex);
 
+    status_t setNativeWindow(
+            const sp<SurfaceTextureClient> &surfaceTextureClient);
+
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
 
