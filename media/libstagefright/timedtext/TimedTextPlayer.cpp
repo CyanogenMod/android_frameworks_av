@@ -160,7 +160,7 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
     status_t err = mSource->read(&startTimeUs, &endTimeUs,
                                  &(parcelEvent->parcel), options);
     if (err == WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatRetryRead);
+        sp<AMessage> msg = new AMessage(kWhatRetryRead, id());
         if (options != NULL) {
             int64_t seekTimeUs;
             MediaSource::ReadOptions::SeekMode seekMode;
