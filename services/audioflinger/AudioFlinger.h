@@ -793,7 +793,7 @@ private:
                                             // index 0 is reserved for normal mixer's submix;
                                             // index is allocated statically at track creation time
                                             // but the slot is only used if track is active
-            uint32_t            mObservedUnderruns; // Most recently observed value of
+            FastTrackUnderruns  mObservedUnderruns; // Most recently observed value of
                                             // mFastMixerDumpState.mTracks[mFastIndex].mUnderruns
             uint32_t            mUnderrunCount; // Counter of total number of underruns, never reset
             volatile float      mCachedVolume;  // combined master volume and stream type volume;
@@ -1112,7 +1112,8 @@ public:
         sp<NBAIO_Sink>          mNormalSink;
     public:
         virtual     bool        hasFastMixer() const = 0;
-        virtual     uint32_t    getFastTrackUnderruns(size_t fastIndex) const { return 0; }
+        virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const
+                                    { FastTrackUnderruns dummy; return dummy; }
 
     protected:
                     // accessed by both binder threads and within threadLoop(), lock on mutex needed
@@ -1167,10 +1168,10 @@ public:
 
     public:
         virtual     bool        hasFastMixer() const { return mFastMixer != NULL; }
-        virtual     uint32_t    getFastTrackUnderruns(size_t fastIndex) const {
-                                    ALOG_ASSERT(0 < fastIndex &&
-                                            fastIndex < FastMixerState::kMaxFastTracks);
-                                    return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
+        virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const {
+                                  ALOG_ASSERT(0 < fastIndex &&
+                                              fastIndex < FastMixerState::kMaxFastTracks);
+                                  return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
                                 }
     };
 

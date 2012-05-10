@@ -360,20 +360,25 @@ bool FastMixer::threadLoop()
                 // in the overall fast mix cycle being delayed.  Should use a non-blocking FIFO.
                 size_t framesReady = fastTrack->mBufferProvider->framesReady();
                 FastTrackDump *ftDump = &dumpState->mTracks[i];
-                uint32_t underruns = ftDump->mUnderruns;
+                FastTrackUnderruns underruns = ftDump->mUnderruns;
                 if (framesReady < frameCount) {
                     ATRACE_INT("underrun", i);
-                    ftDump->mUnderruns = (underruns + 2) | 1;
                     if (framesReady == 0) {
+                        underruns.mBitFields.mEmpty++;
+                        underruns.mBitFields.mMostRecent = UNDERRUN_EMPTY;
                         mixer->disable(name);
                     } else {
                         // allow mixing partial buffer
+                        underruns.mBitFields.mPartial++;
+                        underruns.mBitFields.mMostRecent = UNDERRUN_PARTIAL;
                         mixer->enable(name);
                     }
-                } else if (underruns & 1) {
-                    ftDump->mUnderruns = underruns & ~1;
+                } else {
+                    underruns.mBitFields.mFull++;
+                    underruns.mBitFields.mMostRecent = UNDERRUN_FULL;
                     mixer->enable(name);
                 }
+                ftDump->mUnderruns = underruns;
             }
             // process() is CPU-bound
             mixer->process(AudioBufferProvider::kInvalidPTS);
