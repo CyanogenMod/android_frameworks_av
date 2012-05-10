@@ -20,7 +20,7 @@
 
 #include "m4vh263_decoder_pv_types.h"
 
-#define PV_TOLERATE_VOL_ERRORS
+// #define PV_TOLERATE_VOL_ERRORS
 #define PV_MEMORY_POOL
 
 #ifndef _PV_TYPES_
