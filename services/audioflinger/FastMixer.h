@@ -64,7 +64,7 @@ struct FastMixerDumpState {
     FastMixerDumpState();
     /*virtual*/ ~FastMixerDumpState();
 
-    void dump(int fd);
+    void dump(int fd);          // should only be called on a stable copy, not the original
 
     FastMixerState::Command mCommand;   // current command
     uint32_t mWriteSequence;    // incremented before and after each write()
@@ -78,12 +78,20 @@ struct FastMixerDumpState {
     struct timespec mMeasuredWarmupTs;  // measured warmup time
     uint32_t mWarmupCycles;     // number of loop cycles required to warmup
     FastTrackDump   mTracks[FastMixerState::kMaxFastTracks];
+
 #ifdef FAST_MIXER_STATISTICS
-    // cycle times in seconds
-    float    mMean;
-    float    mMinimum;
-    float    mMaximum;
-    float    mStddev;
+    // Recently collected samples of per-cycle monotonic time, thread CPU time, and CPU frequency.
+    // kSamplingN is the size of the sampling frame, and must be a power of 2 <= 0x8000.
+    static const uint32_t kSamplingN = 0x1000;
+    // The bounds define the interval of valid samples, and are represented as follows:
+    //      newest open (excluded) endpoint   = lower 16 bits of bounds, modulo N
+    //      oldest closed (included) endpoint = upper 16 bits of bounds, modulo N
+    // Number of valid samples is newest - oldest.
+    uint32_t mBounds;                   // bounds for mMonotonicNs, mThreadCpuNs, and mCpukHz
+    // The elements in the *Ns arrays are in units of nanoseconds <= 3999999999.
+    uint32_t mMonotonicNs[kSamplingN];  // delta monotonic (wall clock) time
+    uint32_t mLoadNs[kSamplingN];       // delta CPU load in time
+    uint32_t mCpukHz[kSamplingN];       // absolute CPU clock frequency in kHz, bits 0-3 are CPU#
 #endif
 };
 
