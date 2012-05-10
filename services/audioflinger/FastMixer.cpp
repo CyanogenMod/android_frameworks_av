@@ -23,6 +23,7 @@
 #include <system/audio.h>
 #ifdef FAST_MIXER_STATISTICS
 #include <cpustats/CentralTendencyStatistics.h>
+#include <cpustats/ThreadCpuUsage.h>
 #endif
 #include "AudioMixer.h"
 #include "FastMixer.h"
@@ -65,8 +66,11 @@ bool FastMixer::threadLoop()
     FastMixerDumpState dummyDumpState, *dumpState = &dummyDumpState;
     bool ignoreNextOverrun = true;  // used to ignore initial overrun and first after an underrun
 #ifdef FAST_MIXER_STATISTICS
-    CentralTendencyStatistics cts;  // cycle times in seconds
-    static const unsigned kMaxSamples = 1000;
+    struct timespec oldLoad = {0, 0};    // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
+    bool oldLoadValid = false;  // whether oldLoad is valid
+    uint32_t bounds = 0;
+    bool full = false;      // whether we have collected at least kSamplingN samples
+    ThreadCpuUsage tcu;     // for reading the current CPU clock frequency in kHz
 #endif
     unsigned coldGen = 0;   // last observed mColdGen
     bool isWarm = false;    // true means ready to mix, false means wait for warmup before mixing
@@ -116,6 +120,7 @@ bool FastMixer::threadLoop()
                     preIdle = *current;
                     current = &preIdle;
                     oldTsValid = false;
+                    oldLoadValid = false;
                     ignoreNextOverrun = true;
                 }
                 previous = current;
@@ -151,6 +156,8 @@ bool FastMixer::threadLoop()
                 warmupCycles = 0;
                 sleepNs = -1;
                 coldGen = current->mColdGen;
+                bounds = 0;
+                full = false;
             } else {
                 sleepNs = FAST_HOT_IDLE_NS;
             }
@@ -451,15 +458,54 @@ bool FastMixer::threadLoop()
                     ignoreNextOverrun = false;
                 }
 #ifdef FAST_MIXER_STATISTICS
-                // long-term statistics
-                cts.sample(sec + nsec * 1e-9);
-                if (cts.n() >= kMaxSamples) {
-                    dumpState->mMean = cts.mean();
-                    dumpState->mMinimum = cts.minimum();
-                    dumpState->mMaximum = cts.maximum();
-                    dumpState->mStddev = cts.stddev();
-                    cts.reset();
+                // advance the FIFO queue bounds
+                size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
+                bounds = (bounds + 1) & 0xFFFF;
+                if (full) {
+                    bounds += 0x10000;
+                } else if (!(bounds & (FastMixerDumpState::kSamplingN - 1))) {
+                    full = true;
                 }
+                // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
+                uint32_t monotonicNs = nsec;
+                if (sec > 0 && sec < 4) {
+                    monotonicNs += sec * 1000000000;
+                }
+                // compute the raw CPU load = delta value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
+                uint32_t loadNs = 0;
+                struct timespec newLoad;
+                rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &newLoad);
+                if (rc == 0) {
+                    if (oldLoadValid) {
+                        sec = newLoad.tv_sec - oldLoad.tv_sec;
+                        nsec = newLoad.tv_nsec - oldLoad.tv_nsec;
+                        if (nsec < 0) {
+                            --sec;
+                            nsec += 1000000000;
+                        }
+                        loadNs = nsec;
+                        if (sec > 0 && sec < 4) {
+                            loadNs += sec * 1000000000;
+                        }
+                    } else {
+                        // first time through the loop
+                        oldLoadValid = true;
+                    }
+                    oldLoad = newLoad;
+                }
+                // get the absolute value of CPU clock frequency in kHz
+                int cpuNum = sched_getcpu();
+                uint32_t kHz = tcu.getCpukHz(cpuNum);
+                kHz = (kHz & ~0xF) | (cpuNum & 0xF);
+                // save values in FIFO queues for dumpsys
+                // these stores #1, #2, #3 are not atomic with respect to each other,
+                // or with respect to store #4 below
+                dumpState->mMonotonicNs[i] = monotonicNs;
+                dumpState->mLoadNs[i] = loadNs;
+                dumpState->mCpukHz[i] = kHz;
+                // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
+                // the newest open and oldest closed halves are atomic with respect to each other
+                dumpState->mBounds = bounds;
 #endif
             } else {
                 // first time through the loop
@@ -474,6 +520,7 @@ bool FastMixer::threadLoop()
             sleepNs = periodNs;
         }
 
+
     }   // for (;;)
 
     // never return 'true'; Thread::_threadLoop() locks mutex which can result in priority inversion
@@ -484,11 +531,16 @@ FastMixerDumpState::FastMixerDumpState() :
     mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
     mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0)
 #ifdef FAST_MIXER_STATISTICS
-    , mMean(0.0), mMinimum(0.0), mMaximum(0.0), mStddev(0.0)
+    , mBounds(0)
 #endif
 {
     mMeasuredWarmupTs.tv_sec = 0;
     mMeasuredWarmupTs.tv_nsec = 0;
+    // sample arrays aren't accessed atomically with respect to the bounds,
+    // so clearing reduces chance for dumpsys to read random uninitialized samples
+    memset(&mMonotonicNs, 0, sizeof(mMonotonicNs));
+    memset(&mLoadNs, 0, sizeof(mLoadNs));
+    memset(&mCpukHz, 0, sizeof(mCpukHz));
 }
 
 FastMixerDumpState::~FastMixerDumpState()
@@ -525,17 +577,63 @@ void FastMixerDumpState::dump(int fd)
         snprintf(string, COMMAND_MAX, "%d", mCommand);
         break;
     }
-    double mMeasuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
+    double measuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
             (mMeasuredWarmupTs.tv_nsec / 1000000.0);
+    double mixPeriodSec = (double) mFrameCount / (double) mSampleRate;
     fdprintf(fd, "FastMixer command=%s writeSequence=%u framesWritten=%u\n"
                  "          numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
-                 "          sampleRate=%u frameCount=%u measuredWarmup=%.3g ms, warmupCycles=%u\n",
+                 "          sampleRate=%u frameCount=%u measuredWarmup=%.3g ms, warmupCycles=%u\n"
+                 "          mixPeriod=%.2f ms\n",
                  string, mWriteSequence, mFramesWritten,
                  mNumTracks, mWriteErrors, mUnderruns, mOverruns,
-                 mSampleRate, mFrameCount, mMeasuredWarmupMs, mWarmupCycles);
+                 mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
+                 mixPeriodSec * 1e3);
 #ifdef FAST_MIXER_STATISTICS
-    fdprintf(fd, "          cycle time in ms: mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
-                 mMean*1e3, mMinimum*1e3, mMaximum*1e3, mStddev*1e3);
+    // find the interval of valid samples
+    uint32_t bounds = mBounds;
+    uint32_t newestOpen = bounds & 0xFFFF;
+    uint32_t oldestClosed = bounds >> 16;
+    uint32_t n = (newestOpen - oldestClosed) & 0xFFFF;
+    if (n > kSamplingN) {
+        ALOGE("too many samples %u", n);
+        n = kSamplingN;
+    }
+    // statistics for monotonic (wall clock) time, thread raw CPU load in time, CPU clock frequency,
+    // and adjusted CPU load in MHz normalized for CPU clock frequency
+    CentralTendencyStatistics wall, loadNs, kHz, loadMHz;
+    // only compute adjusted CPU load in Hz if current CPU number and CPU clock frequency are stable
+    bool valid = false;
+    uint32_t previousCpukHz = 0;
+    // loop over all the samples
+    for (; n > 0; --n) {
+        size_t i = oldestClosed++ & (kSamplingN - 1);
+        uint32_t wallNs = mMonotonicNs[i];
+        wall.sample(wallNs);
+        uint32_t sampleLoadNs = mLoadNs[i];
+        uint32_t sampleCpukHz = mCpukHz[i];
+        loadNs.sample(sampleLoadNs);
+        kHz.sample(sampleCpukHz & ~0xF);
+        if (sampleCpukHz == previousCpukHz) {
+            double megacycles = (double) sampleLoadNs * (double) sampleCpukHz;
+            double adjMHz = megacycles / mixPeriodSec;  // _not_ wallNs * 1e9
+            loadMHz.sample(adjMHz);
+        }
+        previousCpukHz = sampleCpukHz;
+    }
+    fdprintf(fd, "Simple moving statistics over last %.1f seconds:\n", wall.n() * mixPeriodSec);
+    fdprintf(fd, "  wall clock time in ms per mix cycle:\n"
+                 "    mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
+                 wall.mean()*1e-6, wall.minimum()*1e-6, wall.maximum()*1e-6, wall.stddev()*1e-6);
+    fdprintf(fd, "  raw CPU load in us per mix cycle:\n"
+                 "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
+                 loadNs.mean()*1e-3, loadNs.minimum()*1e-3, loadNs.maximum()*1e-3,
+                 loadNs.stddev()*1e-3);
+    fdprintf(fd, "  CPU clock frequency in MHz:\n"
+                 "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
+                 kHz.mean()*1e-3, kHz.minimum()*1e-3, kHz.maximum()*1e-3, kHz.stddev()*1e-3);
+    fdprintf(fd, "  adjusted CPU load in MHz (i.e. normalized for CPU clock frequency):\n"
+                 "    mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
+                 loadMHz.mean(), loadMHz.minimum(), loadMHz.maximum(), loadMHz.stddev());
 #endif
 }
 
