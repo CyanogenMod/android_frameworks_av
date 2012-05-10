@@ -796,9 +796,6 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
-            mReplyID = replyID;
-            setState(CONFIGURING);
-
             sp<RefBase> obj;
             if (!msg->findObject("native-window", &obj)) {
                 obj.clear();
@@ -810,14 +807,23 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             if (obj != NULL) {
                 format->setObject("native-window", obj);
 
-                if (mFlags & kFlagIsSoftwareCodec) {
-                    mNativeWindow =
-                        static_cast<NativeWindowWrapper *>(obj.get())
-                            ->getSurfaceTextureClient();
+                status_t err = setNativeWindow(
+                    static_cast<NativeWindowWrapper *>(obj.get())
+                        ->getSurfaceTextureClient());
+
+                if (err != OK) {
+                    sp<AMessage> response = new AMessage;
+                    response->setInt32("err", err);
+
+                    response->postReply(replyID);
+                    break;
                 }
             } else {
-                mNativeWindow.clear();
+                setNativeWindow(NULL);
             }
+
+            mReplyID = replyID;
+            setState(CONFIGURING);
 
             void *crypto;
             if (!msg->findPointer("crypto", &crypto)) {
@@ -1180,12 +1186,12 @@ status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
 }
 
 void MediaCodec::setState(State newState) {
-    if (newState == INITIALIZED) {
+    if (newState == INITIALIZED || newState == UNINITIALIZED) {
         delete mSoftRenderer;
         mSoftRenderer = NULL;
 
         mCrypto.clear();
-        mNativeWindow.clear();
+        setNativeWindow(NULL);
 
         mOutputFormat.clear();
         mFlags &= ~kFlagOutputFormatChanged;
@@ -1423,6 +1429,39 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
     info->mOwnedByClient = true;
 
     return index;
+}
+
+status_t MediaCodec::setNativeWindow(
+        const sp<SurfaceTextureClient> &surfaceTextureClient) {
+    status_t err;
+
+    if (mNativeWindow != NULL) {
+        err = native_window_api_disconnect(
+                mNativeWindow.get(), NATIVE_WINDOW_API_MEDIA);
+
+        if (err != OK) {
+            ALOGW("native_window_api_disconnect returned an error: %s (%d)",
+                    strerror(-err), err);
+        }
+
+        mNativeWindow.clear();
+    }
+
+    if (surfaceTextureClient != NULL) {
+        err = native_window_api_connect(
+                surfaceTextureClient.get(), NATIVE_WINDOW_API_MEDIA);
+
+        if (err != OK) {
+            ALOGE("native_window_api_connect returned an error: %s (%d)",
+                    strerror(-err), err);
+
+            return err;
+        }
+
+        mNativeWindow = surfaceTextureClient;
+    }
+
+    return OK;
 }
 
 }  // namespace android
