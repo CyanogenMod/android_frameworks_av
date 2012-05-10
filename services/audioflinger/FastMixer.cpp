@@ -17,9 +17,12 @@
 #define LOG_TAG "FastMixer"
 //#define LOG_NDEBUG 0
 
+//#define ATRACE_TAG ATRACE_TAG_AUDIO
+
 #include <sys/atomics.h>
 #include <time.h>
 #include <utils/Log.h>
+#include <utils/Trace.h>
 #include <system/audio.h>
 #ifdef FAST_MIXER_STATISTICS
 #include <cpustats/CentralTendencyStatistics.h>
@@ -359,6 +362,7 @@ bool FastMixer::threadLoop()
                 FastTrackDump *ftDump = &dumpState->mTracks[i];
                 uint32_t underruns = ftDump->mUnderruns;
                 if (framesReady < frameCount) {
+                    ATRACE_INT("underrun", i);
                     ftDump->mUnderruns = (underruns + 2) | 1;
                     if (framesReady == 0) {
                         mixer->disable(name);
@@ -387,7 +391,9 @@ bool FastMixer::threadLoop()
             // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
             //       but this code should be modified to handle both non-blocking and blocking sinks
             dumpState->mWriteSequence++;
+            Tracer::traceBegin(ATRACE_TAG, "write");
             ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
+            Tracer::traceEnd(ATRACE_TAG);
             dumpState->mWriteSequence++;
             if (framesWritten >= 0) {
                 ALOG_ASSERT(framesWritten <= frameCount);
@@ -437,6 +443,7 @@ bool FastMixer::threadLoop()
                     }
                 }
                 if (sec > 0 || nsec > underrunNs) {
+                    ScopedTrace st(ATRACE_TAG, "underrun");
                     // FIXME only log occasionally
                     ALOGV("underrun: time since last cycle %d.%03ld sec",
                             (int) sec, nsec / 1000000L);
