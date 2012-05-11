@@ -14,7 +14,6 @@ LOCAL_SRC_FILES:=                         \
         AwesomePlayer.cpp                 \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
-        VideoSourceDownSampler.cpp        \
         DataSource.cpp                    \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
