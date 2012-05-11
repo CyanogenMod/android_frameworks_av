@@ -467,7 +467,7 @@ bool FastMixer::threadLoop()
 #ifdef FAST_MIXER_STATISTICS
                 // advance the FIFO queue bounds
                 size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
-                bounds = (bounds + 1) & 0xFFFF;
+                bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
                 if (full) {
                     bounds += 0x10000;
                 } else if (!(bounds & (FastMixerDumpState::kSamplingN - 1))) {
@@ -621,7 +621,7 @@ void FastMixerDumpState::dump(int fd)
         loadNs.sample(sampleLoadNs);
         kHz.sample(sampleCpukHz & ~0xF);
         if (sampleCpukHz == previousCpukHz) {
-            double megacycles = (double) sampleLoadNs * (double) sampleCpukHz;
+            double megacycles = (double) sampleLoadNs * (double) sampleCpukHz * 1e-12;
             double adjMHz = megacycles / mixPeriodSec;  // _not_ wallNs * 1e9
             loadMHz.sample(adjMHz);
         }
