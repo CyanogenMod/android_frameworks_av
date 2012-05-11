@@ -45,7 +45,8 @@ protected:
 
 private:
     enum {
-        kNumBuffers = 4
+        kNumInputBuffers        = 32,
+        kNumOutputBuffers       = 4,
     };
 
     tPVMP4AudioDecoderExternal *mConfig;

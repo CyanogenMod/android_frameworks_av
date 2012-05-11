@@ -44,7 +44,8 @@ protected:
 
 private:
     enum {
-        kNumBuffers = 4
+        kNumInputBuffers        = 32,
+        kNumOutputBuffers       = 4,
     };
 
     HANDLE_AACDECODER mAACDecoder;

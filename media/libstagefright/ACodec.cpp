@@ -472,14 +472,16 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     notify->setInt32("what", ACodec::kWhatBuffersAllocated);
 
     notify->setInt32("portIndex", portIndex);
-    for (size_t i = 0; i < mBuffers[portIndex].size(); ++i) {
-        AString name = StringPrintf("buffer-id_%d", i);
-        notify->setPointer(name.c_str(), mBuffers[portIndex][i].mBufferID);
 
-        name = StringPrintf("data_%d", i);
-        notify->setBuffer(name.c_str(), mBuffers[portIndex][i].mData);
+    sp<PortDescription> desc = new PortDescription;
+
+    for (size_t i = 0; i < mBuffers[portIndex].size(); ++i) {
+        const BufferInfo &info = mBuffers[portIndex][i];
+
+        desc->addBuffer(info.mBufferID, info.mData);
     }
 
+    notify->setObject("portDesc", desc);
     notify->post();
 
     return OK;
@@ -2106,6 +2108,29 @@ void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
     notify->setInt32("omx-error", error);
     notify->setInt32("err", internalError);
     notify->post();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ACodec::PortDescription::PortDescription() {
+}
+
+void ACodec::PortDescription::addBuffer(
+        IOMX::buffer_id id, const sp<ABuffer> &buffer) {
+    mBufferIDs.push_back(id);
+    mBuffers.push_back(buffer);
+}
+
+size_t ACodec::PortDescription::countBuffers() {
+    return mBufferIDs.size();
+}
+
+IOMX::buffer_id ACodec::PortDescription::bufferIDAt(size_t index) const {
+    return mBufferIDs.itemAt(index);
+}
+
+sp<ABuffer> ACodec::PortDescription::bufferAt(size_t index) const {
+    return mBuffers.itemAt(index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

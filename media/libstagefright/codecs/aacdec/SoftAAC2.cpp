@@ -64,7 +64,7 @@ void SoftAAC2::initPorts() {
 
     def.nPortIndex = 0;
     def.eDir = OMX_DirInput;
-    def.nBufferCountMin = kNumBuffers;
+    def.nBufferCountMin = kNumInputBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
     def.nBufferSize = 8192;
     def.bEnabled = OMX_TRUE;
@@ -82,7 +82,7 @@ void SoftAAC2::initPorts() {
 
     def.nPortIndex = 1;
     def.eDir = OMX_DirOutput;
-    def.nBufferCountMin = kNumBuffers;
+    def.nBufferCountMin = kNumOutputBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
     def.nBufferSize = 8192 * 2;
     def.bEnabled = OMX_TRUE;
