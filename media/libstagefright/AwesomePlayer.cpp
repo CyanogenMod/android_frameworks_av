@@ -18,7 +18,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AwesomePlayer"
+#define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include <dlfcn.h>
 
@@ -123,6 +125,7 @@ struct AwesomeNativeWindowRenderer : public AwesomeRenderer {
     }
 
     virtual void render(MediaBuffer *buffer) {
+        ATRACE_CALL();
         int64_t timeUs;
         CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
         native_window_set_buffers_timestamp(mNativeWindow.get(), timeUs * 1000);
@@ -787,6 +790,7 @@ void AwesomePlayer::sendCacheStats() {
 
 void AwesomePlayer::onStreamDone() {
     // Posted whenever any stream finishes playing.
+    ATRACE_CALL();
 
     Mutex::Autolock autoLock(mLock);
     if (!mStreamDoneEventPending) {
@@ -836,6 +840,8 @@ void AwesomePlayer::onStreamDone() {
 }
 
 status_t AwesomePlayer::play() {
+    ATRACE_CALL();
+
     Mutex::Autolock autoLock(mLock);
 
     modifyFlags(CACHE_UNDERRUN, CLEAR);
@@ -995,6 +1001,7 @@ status_t AwesomePlayer::startAudioPlayer_l(bool sendErrorNotification) {
 }
 
 void AwesomePlayer::notifyVideoSize_l() {
+    ATRACE_CALL();
     sp<MetaData> meta = mVideoSource->getFormat();
 
     int32_t cropLeft, cropTop, cropRight, cropBottom;
@@ -1056,6 +1063,8 @@ void AwesomePlayer::notifyVideoSize_l() {
 }
 
 void AwesomePlayer::initRenderer_l() {
+    ATRACE_CALL();
+
     if (mNativeWindow == NULL) {
         return;
     }
@@ -1103,6 +1112,8 @@ void AwesomePlayer::initRenderer_l() {
 }
 
 status_t AwesomePlayer::pause() {
+    ATRACE_CALL();
+
     Mutex::Autolock autoLock(mLock);
 
     modifyFlags(CACHE_UNDERRUN, CLEAR);
@@ -1276,6 +1287,8 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
 }
 
 status_t AwesomePlayer::seekTo(int64_t timeUs) {
+    ATRACE_CALL();
+
     if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
         Mutex::Autolock autoLock(mLock);
         return seekTo_l(timeUs);
@@ -1358,6 +1371,8 @@ void AwesomePlayer::addTextSource_l(size_t trackIndex, const sp<MediaSource>& so
 }
 
 status_t AwesomePlayer::initAudioDecoder() {
+    ATRACE_CALL();
+
     sp<MetaData> meta = mAudioTrack->getFormat();
 
     const char *mime;
@@ -1416,6 +1431,7 @@ void AwesomePlayer::setVideoSource(sp<MediaSource> source) {
 }
 
 status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
+    ATRACE_CALL();
 
     // Either the application or the DRM system can independently say
     // that there must be a hardware-protected path to an external video sink.
@@ -1515,6 +1531,8 @@ status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
 }
 
 void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
+    ATRACE_CALL();
+
     if (mSeeking == SEEK_VIDEO_ONLY) {
         mSeeking = NO_SEEK;
         return;
@@ -1552,6 +1570,7 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
 }
 
 void AwesomePlayer::onVideoEvent() {
+    ATRACE_CALL();
     Mutex::Autolock autoLock(mLock);
     if (!mVideoEventPending) {
         // The event has been cancelled in reset_l() but had already
@@ -1705,6 +1724,8 @@ void AwesomePlayer::onVideoEvent() {
 
         int64_t latenessUs = nowUs - timeUs;
 
+        ATRACE_INT("Video Lateness (ms)", latenessUs / 1E3);
+
         if (latenessUs > 0) {
             ALOGI("after SEEK_VIDEO_ONLY we're late by %.2f secs", latenessUs / 1E6);
         }
@@ -1716,6 +1737,8 @@ void AwesomePlayer::onVideoEvent() {
         int64_t nowUs = ts->getRealTimeUs() - mTimeSourceDeltaUs;
 
         int64_t latenessUs = nowUs - timeUs;
+
+        ATRACE_INT("Video Lateness (ms)", latenessUs / 1E3);
 
         if (latenessUs > 500000ll
                 && mAudioPlayer != NULL
@@ -1762,7 +1785,6 @@ void AwesomePlayer::onVideoEvent() {
 
         if (latenessUs < -10000) {
             // We're more than 10ms early.
-
             postVideoEvent_l(10000);
             return;
         }
@@ -1792,6 +1814,8 @@ void AwesomePlayer::onVideoEvent() {
 }
 
 void AwesomePlayer::postVideoEvent_l(int64_t delayUs) {
+    ATRACE_CALL();
+
     if (mVideoEventPending) {
         return;
     }
@@ -1874,6 +1898,7 @@ void AwesomePlayer::onCheckAudioStatus() {
 }
 
 status_t AwesomePlayer::prepare() {
+    ATRACE_CALL();
     Mutex::Autolock autoLock(mLock);
     return prepare_l();
 }
@@ -1902,6 +1927,7 @@ status_t AwesomePlayer::prepare_l() {
 }
 
 status_t AwesomePlayer::prepareAsync() {
+    ATRACE_CALL();
     Mutex::Autolock autoLock(mLock);
 
     if (mFlags & PREPARING) {
@@ -1932,6 +1958,7 @@ status_t AwesomePlayer::prepareAsync_l() {
 }
 
 status_t AwesomePlayer::finishSetDataSource_l() {
+    ATRACE_CALL();
     sp<DataSource> dataSource;
 
     bool isWidevineStreaming = false;
@@ -2312,6 +2339,7 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
 // FIXME:
 // At present, only timed text track is able to be selected or unselected.
 status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
+    ATRACE_CALL();
     ALOGV("selectTrack: trackIndex = %d and select=%d", trackIndex, select);
     Mutex::Autolock autoLock(mLock);
     size_t trackCount = mExtractor->countTracks();
@@ -2382,6 +2410,7 @@ status_t AwesomePlayer::setVideoScalingMode_l(int32_t mode) {
 }
 
 status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
+    ATRACE_CALL();
     if (NULL == reply) {
         return android::BAD_VALUE;
     }
