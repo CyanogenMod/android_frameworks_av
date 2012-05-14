@@ -21,6 +21,7 @@
 #include <binder/IPCThreadState.h>
 #include <media/AudioTrack.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -41,6 +42,7 @@ AudioPlayer::AudioPlayer(
       mLatencyUs(0),
       mFrameSize(0),
       mNumFramesPlayed(0),
+      mNumFramesPlayedSysTimeUs(ALooper::GetNowUs()),
       mPositionTimeMediaUs(-1),
       mPositionTimeRealUs(-1),
       mSeeking(false),
@@ -200,6 +202,7 @@ void AudioPlayer::pause(bool playPendingSamples) {
         }
 
         mNumFramesPlayed = 0;
+        mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
     } else {
         if (mAudioSink.get() != NULL) {
             mAudioSink->pause();
@@ -260,6 +263,7 @@ void AudioPlayer::reset() {
     IPCThreadState::self()->flushCommands();
 
     mNumFramesPlayed = 0;
+    mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
     mPositionTimeMediaUs = -1;
     mPositionTimeRealUs = -1;
     mSeeking = false;
@@ -485,6 +489,7 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
     {
         Mutex::Autolock autoLock(mLock);
         mNumFramesPlayed += size_done / mFrameSize;
+        mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
     }
 
     if (postEOS) {
@@ -506,7 +511,14 @@ int64_t AudioPlayer::getRealTimeUs() {
 int64_t AudioPlayer::getRealTimeUsLocked() const {
     CHECK(mStarted);
     CHECK_NE(mSampleRate, 0);
-    return -mLatencyUs + (mNumFramesPlayed * 1000000) / mSampleRate;
+    int64_t result = -mLatencyUs + (mNumFramesPlayed * 1000000) / mSampleRate;
+
+    // Compensate for large audio buffers, updates of mNumFramesPlayed
+    // are less frequent, therefore to get a "smoother" notion of time we
+    // compensate using system time.
+    int64_t diffUs = ALooper::GetNowUs() - mNumFramesPlayedSysTimeUs;
+
+    return result + diffUs;
 }
 
 int64_t AudioPlayer::getMediaTimeUs() {
@@ -548,6 +560,7 @@ status_t AudioPlayer::seekTo(int64_t time_us) {
 
     // Flush resets the number of played frames
     mNumFramesPlayed = 0;
+    mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
 
     if (mAudioSink != NULL) {
         mAudioSink->flush();
