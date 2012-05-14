@@ -562,20 +562,20 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     mPortBuffers[portIndex].clear();
 
                     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
-                    for (size_t i = 0;; ++i) {
-                        AString name = StringPrintf("buffer-id_%d", i);
 
-                        void *bufferID;
-                        if (!msg->findPointer(name.c_str(), &bufferID)) {
-                            break;
-                        }
+                    sp<RefBase> obj;
+                    CHECK(msg->findObject("portDesc", &obj));
 
-                        name = StringPrintf("data_%d", i);
+                    sp<ACodec::PortDescription> portDesc =
+                        static_cast<ACodec::PortDescription *>(obj.get());
 
+                    size_t numBuffers = portDesc->countBuffers();
+
+                    for (size_t i = 0; i < numBuffers; ++i) {
                         BufferInfo info;
-                        info.mBufferID = bufferID;
+                        info.mBufferID = portDesc->bufferIDAt(i);
                         info.mOwnedByClient = false;
-                        CHECK(msg->findBuffer(name.c_str(), &info.mData));
+                        info.mData = portDesc->bufferAt(i);
 
                         if (portIndex == kPortIndexInput && mCrypto != NULL) {
                             info.mEncryptedData =

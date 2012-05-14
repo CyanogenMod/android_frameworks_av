@@ -56,6 +56,23 @@ struct ACodec : public AHierarchicalStateMachine {
     void initiateConfigureComponent(const sp<AMessage> &msg);
     void initiateStart();
 
+    struct PortDescription : public RefBase {
+        size_t countBuffers();
+        IOMX::buffer_id bufferIDAt(size_t index) const;
+        sp<ABuffer> bufferAt(size_t index) const;
+
+    private:
+        friend struct ACodec;
+
+        Vector<IOMX::buffer_id> mBufferIDs;
+        Vector<sp<ABuffer> > mBuffers;
+
+        PortDescription();
+        void addBuffer(IOMX::buffer_id id, const sp<ABuffer> &buffer);
+
+        DISALLOW_EVIL_CONSTRUCTORS(PortDescription);
+    };
+
 protected:
     virtual ~ACodec();
 
