@@ -168,6 +168,7 @@ private:
     sp<AwesomeRenderer> mVideoRenderer;
     bool mVideoRendererIsPreview;
 
+    ssize_t mActiveAudioTrackIndex;
     sp<MediaSource> mAudioTrack;
     sp<MediaSource> mAudioSource;
     AudioPlayer *mAudioPlayer;
@@ -309,8 +310,14 @@ private:
         int mFd;
         String8 mURI;
         int64_t mBitrate;
+
+        // FIXME:
+        // These two indices are just 0 or 1 for now
+        // They are not representing the actual track
+        // indices in the stream.
         ssize_t mAudioTrackIndex;
         ssize_t mVideoTrackIndex;
+
         int64_t mNumVideoFramesDecoded;
         int64_t mNumVideoFramesDropped;
         int32_t mVideoWidth;
@@ -322,6 +329,8 @@ private:
     status_t setVideoScalingMode(int32_t mode);
     status_t setVideoScalingMode_l(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
+
+    status_t selectAudioTrack_l(const sp<MediaSource>& source, size_t trackIndex);
 
     // when select is true, the given track is selected.
     // otherwise, the given track is unselected.
