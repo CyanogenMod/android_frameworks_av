@@ -1465,7 +1465,9 @@ void AudioFlinger::ThreadBase::checkSuspendOnEffectEnabled_l(const sp<EffectModu
         // suspend all effects in AUDIO_SESSION_OUTPUT_MIX when enabling any effect on
         // another session. This gives the priority to well behaved effect control panels
         // and applications not using global effects.
-        if (sessionId != AUDIO_SESSION_OUTPUT_MIX) {
+        // Enabling post processing in AUDIO_SESSION_OUTPUT_STAGE session does not affect
+        // global effects
+        if ((sessionId != AUDIO_SESSION_OUTPUT_MIX) && (sessionId != AUDIO_SESSION_OUTPUT_STAGE)) {
             setEffectSuspended_l(NULL, enabled, AUDIO_SESSION_OUTPUT_MIX);
         }
     }
