@@ -142,6 +142,8 @@ static const uint32_t kMaxThreadSleepTimeShift = 2;
 
 // minimum normal mix buffer size, expressed in milliseconds rather than frames
 static const uint32_t kMinNormalMixBufferSizeMs = 20;
+// maximum normal mix buffer size
+static const uint32_t kMaxNormalMixBufferSizeMs = 24;
 
 nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
 
@@ -151,9 +153,9 @@ static const enum {
     FastMixer_Always,   // always initialize and use, even if not needed: for debugging only
                         // normal mixer multiplier is 1
     FastMixer_Static,   // initialize if needed, then use all the time if initialized,
-                        // multipler is calculated based on minimum normal mixer buffer size
+                        // multiplier is calculated based on min & max normal mixer buffer size
     FastMixer_Dynamic,  // initialize if needed, then use dynamically depending on track load,
-                        // multipler is calculated based on minimum normal mixer buffer size
+                        // multiplier is calculated based on min & max normal mixer buffer size
     // FIXME for FastMixer_Dynamic:
     //  Supporting this option will require fixing HALs that can't handle large writes.
     //  For example, one HAL implementation returns an error from a large write,
@@ -1950,18 +1952,42 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
     }
 
     // Calculate size of normal mix buffer relative to the HAL output buffer size
-    uint32_t multiple = 1;
+    double multiplier = 1.0;
     if (mType == MIXER && (kUseFastMixer == FastMixer_Static || kUseFastMixer == FastMixer_Dynamic)) {
         size_t minNormalFrameCount = (kMinNormalMixBufferSizeMs * mSampleRate) / 1000;
-        multiple = (minNormalFrameCount + mFrameCount - 1) / mFrameCount;
-        // force multiple to be even, for compatibility with doubling of fast tracks due to HAL SRC
-        // (it would be unusual for the normal mix buffer size to not be a multiple of fast track)
-        // FIXME this rounding up should not be done if no HAL SRC
-        if ((multiple > 2) && (multiple & 1)) {
-            ++multiple;
+        size_t maxNormalFrameCount = (kMaxNormalMixBufferSizeMs * mSampleRate) / 1000;
+        // round up minimum and round down maximum to nearest 16 frames to satisfy AudioMixer
+        minNormalFrameCount = (minNormalFrameCount + 15) & ~15;
+        maxNormalFrameCount = maxNormalFrameCount & ~15;
+        if (maxNormalFrameCount < minNormalFrameCount) {
+            maxNormalFrameCount = minNormalFrameCount;
+        }
+        multiplier = (double) minNormalFrameCount / (double) mFrameCount;
+        if (multiplier <= 1.0) {
+            multiplier = 1.0;
+        } else if (multiplier <= 2.0) {
+            if (2 * mFrameCount <= maxNormalFrameCount) {
+                multiplier = 2.0;
+            } else {
+                multiplier = (double) maxNormalFrameCount / (double) mFrameCount;
+            }
+        } else {
+            // prefer an even multiplier, for compatibility with doubling of fast tracks due to HAL SRC
+            // (it would be unusual for the normal mix buffer size to not be a multiple of fast
+            // track, but we sometimes have to do this to satisfy the maximum frame count constraint)
+            // FIXME this rounding up should not be done if no HAL SRC
+            uint32_t truncMult = (uint32_t) multiplier;
+            if ((truncMult & 1)) {
+                if ((truncMult + 1) * mFrameCount <= maxNormalFrameCount) {
+                    ++truncMult;
+                }
+            }
+            multiplier = (double) truncMult;
         }
     }
-    mNormalFrameCount = multiple * mFrameCount;
+    mNormalFrameCount = multiplier * mFrameCount;
+    // round up to nearest 16 frames to satisfy AudioMixer
+    mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
     ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount, mNormalFrameCount);
 
     // FIXME - Current mixer implementation only supports stereo output: Always
