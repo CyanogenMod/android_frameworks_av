@@ -2588,13 +2588,23 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
             } else {
                 CHECK_EQ((int)mState, (int)EXECUTING_TO_IDLE);
 
-                CHECK_EQ(
-                    countBuffersWeOwn(mPortBuffers[kPortIndexInput]),
-                    mPortBuffers[kPortIndexInput].size());
+                if (countBuffersWeOwn(mPortBuffers[kPortIndexInput]) !=
+                    mPortBuffers[kPortIndexInput].size()) {
+                    ALOGE("Codec did not return all input buffers "
+                          "(received %d / %d)",
+                            countBuffersWeOwn(mPortBuffers[kPortIndexInput]),
+                            mPortBuffers[kPortIndexInput].size());
+                    TRESPASS();
+                }
 
-                CHECK_EQ(
-                    countBuffersWeOwn(mPortBuffers[kPortIndexOutput]),
-                    mPortBuffers[kPortIndexOutput].size());
+                if (countBuffersWeOwn(mPortBuffers[kPortIndexOutput]) !=
+                    mPortBuffers[kPortIndexOutput].size()) {
+                    ALOGE("Codec did not return all output buffers "
+                          "(received %d / %d)",
+                            countBuffersWeOwn(mPortBuffers[kPortIndexOutput]),
+                            mPortBuffers[kPortIndexOutput].size());
+                    TRESPASS();
+                }
 
                 status_t err = mOMX->sendCommand(
                         mNode, OMX_CommandStateSet, OMX_StateLoaded);
