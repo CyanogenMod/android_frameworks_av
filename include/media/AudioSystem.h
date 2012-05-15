@@ -173,6 +173,10 @@ public:
         SYNC_EVENT_CNT,
     };
 
+    // Timeout for synchronous record start. Prevents from blocking the record thread forever
+    // if the trigger event is not fired.
+    static const uint32_t kSyncRecordStartTimeOutMs = 30000;
+
     //
     // IAudioPolicyService interface (see AudioPolicyInterface for method descriptions)
     //
