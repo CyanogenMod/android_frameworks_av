@@ -950,7 +950,7 @@ protected:
         virtual     void        threadLoop_sleepTime() = 0;
         virtual     void        threadLoop_write();
         virtual     void        threadLoop_standby();
-        virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove) { }
+        virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
 
                     // prepareTracks_l reads and writes mActiveTracks, and returns
                     // the pending set of tracks to remove via Vector 'tracksToRemove'.  The caller
