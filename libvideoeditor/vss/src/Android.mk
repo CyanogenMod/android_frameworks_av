@@ -52,14 +52,25 @@ LOCAL_SRC_FILES:=          \
 
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_SHARED_LIBRARIES := libcutils libutils libaudioutils
+LOCAL_SHARED_LIBRARIES :=       \
+    libaudioflinger             \
+    libaudioutils               \
+    libbinder                   \
+    libcutils                   \
+    libmedia                    \
+    libstagefright              \
+    libstagefright_foundation   \
+    libstagefright_omx          \
+    libutils                    \
+    libvideoeditor_osal         \
+    libvideoeditor_videofilters \
+    libvideoeditorplayer        \
 
 LOCAL_STATIC_LIBRARIES := \
-    libvideoeditor_osal \
-    libvideoeditor_3gpwriter \
+    libstagefright_color_conversion \
     libvideoeditor_mcs \
-    libvideoeditor_videofilters \
-    libvideoeditor_stagefrightshells
+    libvideoeditor_stagefrightshells \
+    libvideoeditor_3gpwriter \
 
 LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
@@ -84,5 +95,5 @@ LOCAL_CFLAGS += -Wno-multichar \
     -DM4xVSS_RESERVED_MOOV_DISK_SPACEno \
     -DDECODE_GIF_ON_SAVING
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)
 
