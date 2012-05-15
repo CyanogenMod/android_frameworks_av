@@ -2763,32 +2763,69 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             uint32_t underruns = mFastMixerDumpState.mTracks[j].mUnderruns;
             uint32_t recentUnderruns = (underruns - (track->mObservedUnderruns & ~1)) >> 1;
             // don't count underruns that occur while stopping or pausing
-            if (!(track->isStopped() || track->isPausing())) {
+            // or stopped which can occur when flush() is called while active
+            if (!(track->isStopping() || track->isPausing() || track->isStopped())) {
                 track->mUnderrunCount += recentUnderruns;
             }
             track->mObservedUnderruns = underruns;
 
-            // This is similar to the formula for normal tracks,
+            // This is similar to the state machine for normal tracks,
             // with a few modifications for fast tracks.
-            bool isActive;
-            if (track->isStopped()) {
-                // track stays active after stop() until first underrun
-                isActive = recentUnderruns == 0;
-            } else if (track->isPaused() || track->isTerminated()) {
-                isActive = false;
-            } else if (track->isPausing()) {
+            bool isActive = true;
+            switch (track->mState) {
+            case TrackBase::STOPPING_1:
+                // track stays active in STOPPING_1 state until first underrun
+                if (recentUnderruns > 0) {
+                    track->mState = TrackBase::STOPPING_2;
+                }
+                break;
+            case TrackBase::PAUSING:
                 // ramp down is not yet implemented
-                isActive = true;
                 track->setPaused();
-            } else if (track->isResuming()) {
+                break;
+            case TrackBase::RESUMING:
                 // ramp up is not yet implemented
-                isActive = true;
                 track->mState = TrackBase::ACTIVE;
-            } else {
+                break;
+            case TrackBase::ACTIVE:
                 // no minimum frame count for fast tracks; continual underrun is allowed,
                 // but later could implement automatic pause after several consecutive underruns,
                 // or auto-mute yet still consider the track active and continue to service it
-                isActive = true;
+                if (track->sharedBuffer() == 0 || recentUnderruns == 0) {
+                    break;
+                }
+                // fall through
+            case TrackBase::STOPPING_2:
+            case TrackBase::PAUSED:
+            case TrackBase::TERMINATED:
+            case TrackBase::STOPPED:    // flush() while active
+                // Check for presentation complete if track is inactive
+                // We have consumed all the buffers of this track.
+                // This would be incomplete if we auto-paused on underrun
+                {
+                    size_t audioHALFrames =
+                            (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                    size_t framesWritten =
+                            mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                    if (!track->presentationComplete(framesWritten, audioHALFrames)) {
+                        // track stays in active list until presentation is complete
+                        break;
+                    }
+                }
+                if (track->isStopping_2()) {
+                    track->mState = TrackBase::STOPPED;
+                }
+                if (track->isStopped()) {
+                    // Can't reset directly, as fast mixer is still polling this track
+                    //   track->reset();
+                    // So instead mark this track as needing to be reset after push with ack
+                    resetMask |= 1 << i;
+                }
+                isActive = false;
+                break;
+            case TrackBase::IDLE:
+            default:
+                LOG_FATAL("unexpected track state %d", track->mState);
             }
 
             if (isActive) {
@@ -2820,22 +2857,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     // If any fast tracks were removed, we must wait for acknowledgement
                     // because we're about to decrement the last sp<> on those tracks.
                     block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
+                } else {
+                    LOG_FATAL("fast track %d should have been active", j);
                 }
-                // Remainder of this block is copied from similar code for normal tracks
-                if (track->isStopped()) {
-                    // Can't reset directly, as fast mixer is still polling this track
-                    //   track->reset();
-                    // So instead mark this track as needing to be reset after push with ack
-                    resetMask |= 1 << i;
-                }
-                // This would be incomplete if we auto-paused on underrun
-                size_t audioHALFrames =
-                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
-                size_t framesWritten =
-                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
-                if (track->presentationComplete(framesWritten, audioHALFrames)) {
-                    tracksToRemove->add(track);
-                }
+                tracksToRemove->add(track);
                 // Avoids a misleading display in dumpsys
                 track->mObservedUnderruns &= ~1;
             }
@@ -4181,6 +4206,12 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
     case TERMINATED:
         stateChar = 'T';
         break;
+    case STOPPING_1:
+        stateChar = 's';
+        break;
+    case STOPPING_2:
+        stateChar = '5';
+        break;
     case STOPPED:
         stateChar = 'S';
         break;
@@ -4353,14 +4384,20 @@ void AudioFlinger::PlaybackThread::Track::stop()
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
         track_state state = mState;
-        if (mState > STOPPED) {
-            mState = STOPPED;
+        if (state == RESUMING || state == ACTIVE || state == PAUSING || state == PAUSED) {
             // If the track is not active (PAUSED and buffers full), flush buffers
             PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
+                mState = STOPPED;
+            } else if (!isFastTrack()) {
+                mState = STOPPED;
+            } else {
+                // prepareTracks_l() will set state to STOPPING_2 after next underrun,
+                // and then to STOPPED and reset() when presentation is complete
+                mState = STOPPING_1;
             }
-            ALOGV("(> STOPPED) => STOPPED (%d) on thread %p", mName, playbackThread);
+            ALOGV("not stopping/stopped => stopping/stopped (%d) on thread %p", mName, playbackThread);
         }
         if (!isOutputTrack() && (state == ACTIVE || state == RESUMING)) {
             thread->mLock.unlock();
@@ -4404,15 +4441,17 @@ void AudioFlinger::PlaybackThread::Track::flush()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
-        if (mState != STOPPED && mState != PAUSED && mState != PAUSING) {
+        if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED && mState != PAUSED &&
+                mState != PAUSING) {
             return;
         }
         // No point remaining in PAUSED state after a flush => go to
         // STOPPED state
         mState = STOPPED;
-
         // do not reset the track if it is still in the process of being stopped or paused.
         // this will be done by prepareTracks_l() when the track is stopped.
+        // prepareTracks_l() will see mState == STOPPED, then
+        // remove from active track list, reset(), and trigger presentation complete
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
         if (playbackThread->mActiveTracks.indexOf(this) < 0) {
             reset();
