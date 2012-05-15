@@ -36,10 +36,10 @@ LOCAL_SRC_FILES:=          \
 
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_SHARED_LIBRARIES := libcutils libutils
-
-LOCAL_STATIC_LIBRARIES := \
-    libvideoeditor_osal
+LOCAL_SHARED_LIBRARIES := \
+    libcutils \
+    libutils \
+    libvideoeditor_osal \
 
 LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
@@ -53,5 +53,5 @@ LOCAL_LDLIBS := \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)
 
