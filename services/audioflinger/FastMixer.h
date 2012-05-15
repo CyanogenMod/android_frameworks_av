@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_FAST_MIXER_H
 #define ANDROID_AUDIO_FAST_MIXER_H
 
+#include <utils/Debug.h>
 #include <utils/Thread.h>
 extern "C" {
 #include "../private/bionic_futex.h"
@@ -42,16 +43,38 @@ private:
 
 };  // class FastMixer
 
+// Describes the underrun status for a single "pull" attempt
+enum FastTrackUnderrunStatus {
+    UNDERRUN_FULL,      // framesReady() is full frame count, no underrun
+    UNDERRUN_PARTIAL,   // framesReady() is non-zero but < full frame count, partial underrun
+    UNDERRUN_EMPTY,     // framesReady() is zero, total underrun
+};
+
+// Underrun counters are not reset to zero for new tracks or if track generation changes.
+// This packed representation is used to keep the information atomic.
+union FastTrackUnderruns {
+    FastTrackUnderruns() { mAtomic = 0;
+            COMPILE_TIME_ASSERT_FUNCTION_SCOPE(sizeof(FastTrackUnderruns) == sizeof(uint32_t)); }
+    FastTrackUnderruns(const FastTrackUnderruns& copyFrom) : mAtomic(copyFrom.mAtomic) { }
+    FastTrackUnderruns& operator=(const FastTrackUnderruns& rhs)
+            { if (this != &rhs) mAtomic = rhs.mAtomic; return *this; }
+    struct {
+#define UNDERRUN_BITS 10
+#define UNDERRUN_MASK ((1 << UNDERRUN_BITS) - 1)
+        uint32_t mFull    : UNDERRUN_BITS; // framesReady() is full frame count
+        uint32_t mPartial : UNDERRUN_BITS; // framesReady() is non-zero but < full frame count
+        uint32_t mEmpty   : UNDERRUN_BITS; // framesReady() is zero
+        FastTrackUnderrunStatus mMostRecent : 2;    // status of most recent framesReady()
+    }        mBitFields;
+private:
+    uint32_t mAtomic;
+};
+
 // Represents the dump state of a fast track
 struct FastTrackDump {
-    FastTrackDump() : mUnderruns(0) { }
+    FastTrackDump() { }
     /*virtual*/ ~FastTrackDump() { }
-    uint32_t mUnderruns;        // Underrun status, represented as follows:
-                                //   bit 0 == 0 means not currently in underrun
-                                //   bit 0 == 1 means currently in underrun
-                                //   bits 1 to 31 == total number of underruns
-                                // Not reset to zero for new tracks or if track generation changes.
-                                // This representation is used to keep the information atomic.
+    FastTrackUnderruns mUnderruns;
 };
 
 // The FastMixerDumpState keeps a cache of FastMixer statistics that can be logged by dumpsys.
