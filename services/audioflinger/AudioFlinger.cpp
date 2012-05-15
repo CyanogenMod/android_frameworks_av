@@ -2760,14 +2760,20 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
 
             // Determine whether the track is currently in underrun condition,
             // and whether it had a recent underrun.
-            uint32_t underruns = mFastMixerDumpState.mTracks[j].mUnderruns;
-            uint32_t recentUnderruns = (underruns - (track->mObservedUnderruns & ~1)) >> 1;
+            FastTrackUnderruns underruns = mFastMixerDumpState.mTracks[j].mUnderruns;
+            uint32_t recentFull = (underruns.mBitFields.mFull -
+                    track->mObservedUnderruns.mBitFields.mFull) & UNDERRUN_MASK;
+            uint32_t recentPartial = (underruns.mBitFields.mPartial -
+                    track->mObservedUnderruns.mBitFields.mPartial) & UNDERRUN_MASK;
+            uint32_t recentEmpty = (underruns.mBitFields.mEmpty -
+                    track->mObservedUnderruns.mBitFields.mEmpty) & UNDERRUN_MASK;
+            uint32_t recentUnderruns = recentPartial + recentEmpty;
+            track->mObservedUnderruns = underruns;
             // don't count underruns that occur while stopping or pausing
             // or stopped which can occur when flush() is called while active
             if (!(track->isStopping() || track->isPausing() || track->isStopped())) {
                 track->mUnderrunCount += recentUnderruns;
             }
-            track->mObservedUnderruns = underruns;
 
             // This is similar to the state machine for normal tracks,
             // with a few modifications for fast tracks.
@@ -2788,10 +2794,30 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 track->mState = TrackBase::ACTIVE;
                 break;
             case TrackBase::ACTIVE:
-                // no minimum frame count for fast tracks; continual underrun is allowed,
-                // but later could implement automatic pause after several consecutive underruns,
-                // or auto-mute yet still consider the track active and continue to service it
-                if (track->sharedBuffer() == 0 || recentUnderruns == 0) {
+                if (recentFull > 0 || recentPartial > 0) {
+                    // track has provided at least some frames recently: reset retry count
+                    track->mRetryCount = kMaxTrackRetries;
+                }
+                if (recentUnderruns == 0) {
+                    // no recent underruns: stay active
+                    break;
+                }
+                // there has recently been an underrun of some kind
+                if (track->sharedBuffer() == 0) {
+                    // were any of the recent underruns "empty" (no frames available)?
+                    if (recentEmpty == 0) {
+                        // no, then ignore the partial underruns as they are allowed indefinitely
+                        break;
+                    }
+                    // there has recently been an "empty" underrun: decrement the retry counter
+                    if (--(track->mRetryCount) > 0) {
+                        break;
+                    }
+                    // indicate to client process that the track was disabled because of underrun;
+                    // it will then automatically call start() when data is available
+                    android_atomic_or(CBLK_DISABLED_ON, &track->mCblk->flags);
+                    // remove from active list, but state remains ACTIVE [confusing but true]
+                    isActive = false;
                     break;
                 }
                 // fall through
@@ -2862,7 +2888,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 }
                 tracksToRemove->add(track);
                 // Avoids a misleading display in dumpsys
-                track->mObservedUnderruns &= ~1;
+                track->mObservedUnderruns.mBitFields.mMostRecent = UNDERRUN_FULL;
             }
             continue;
         }
@@ -4107,7 +4133,6 @@ AudioFlinger::PlaybackThread::Track::Track(
     mPresentationCompleteFrames(0),
     mFlags(flags),
     mFastIndex(-1),
-    mObservedUnderruns(0),
     mUnderrunCount(0),
     mCachedVolume(1.0)
 {
@@ -4126,7 +4151,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             //       being created.  It would be better to allocate the index dynamically.
             mFastIndex = i;
             // Read the initial underruns because this field is never cleared by the fast mixer
-            mObservedUnderruns = thread->getFastTrackUnderruns(i) & ~1;
+            mObservedUnderruns = thread->getFastTrackUnderruns(i);
             thread->mFastTrackAvailMask &= ~(1 << i);
         }
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
@@ -4231,7 +4256,21 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         stateChar = '?';
         break;
     }
-    bool nowInUnderrun = mObservedUnderruns & 1;
+    char nowInUnderrun;
+    switch (mObservedUnderruns.mBitFields.mMostRecent) {
+    case UNDERRUN_FULL:
+        nowInUnderrun = ' ';
+        break;
+    case UNDERRUN_PARTIAL:
+        nowInUnderrun = '<';
+        break;
+    case UNDERRUN_EMPTY:
+        nowInUnderrun = '*';
+        break;
+    default:
+        nowInUnderrun = '?';
+        break;
+    }
     snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %1d %5u %5.2g %5.2g  "
             "0x%08x 0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
@@ -4253,7 +4292,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             (int)mAuxBuffer,
             mCblk->flags,
             mUnderrunCount,
-            nowInUnderrun ? '*' : ' ');
+            nowInUnderrun);
 }
 
 // AudioBufferProvider interface
