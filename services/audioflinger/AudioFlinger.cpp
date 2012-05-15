@@ -2136,6 +2136,21 @@ bool AudioFlinger::PlaybackThread::isValidSyncEvent(const sp<SyncEvent>& event)
     return false;
 }
 
+void AudioFlinger::PlaybackThread::threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove)
+{
+    size_t count = tracksToRemove.size();
+    if (CC_UNLIKELY(count)) {
+        for (size_t i = 0 ; i < count ; i++) {
+            const sp<Track>& track = tracksToRemove.itemAt(i);
+            if ((track->sharedBuffer() != 0) &&
+                    (track->mState == TrackBase::ACTIVE || track->mState == TrackBase::RESUMING)) {
+                AudioSystem::stopOutput(mId, track->streamType(), track->sessionId());
+            }
+        }
+    }
+
+}
+
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
@@ -2588,7 +2603,6 @@ if (mType == DUPLICATING) {
     return false;
 }
 
-// returns (via tracksToRemove) a set of tracks to remove.
 void AudioFlinger::MixerThread::threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove)
 {
     PlaybackThread::threadLoop_removeTracks(tracksToRemove);
