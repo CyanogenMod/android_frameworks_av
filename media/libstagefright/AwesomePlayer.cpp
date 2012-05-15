@@ -425,6 +425,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
         } else if (!haveAudio && !strncasecmp(mime.string(), "audio/", 6)) {
             setAudioSource(extractor->getTrack(i));
             haveAudio = true;
+            mActiveAudioTrackIndex = i;
 
             {
                 Mutex::Autolock autoLock(mStatsLock);
@@ -467,6 +468,7 @@ void AwesomePlayer::reset() {
 }
 
 void AwesomePlayer::reset_l() {
+    mActiveAudioTrackIndex = -1;
     mDisplayWidth = 0;
     mDisplayHeight = 0;
 
@@ -880,9 +882,10 @@ status_t AwesomePlayer::play_l() {
                 bool allowDeepBuffering;
                 int64_t cachedDurationUs;
                 bool eos;
-                if (mVideoSource == NULL && (mDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US ||
-                        getCachedDuration_l(&cachedDurationUs, &eos) &&
-                        cachedDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US)) {
+                if (mVideoSource == NULL
+                        && (mDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US ||
+                        (getCachedDuration_l(&cachedDurationUs, &eos) &&
+                        cachedDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US))) {
                     allowDeepBuffering = true;
                 } else {
                     allowDeepBuffering = false;
@@ -2336,8 +2339,77 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
     return OK;
 }
 
-// FIXME:
-// At present, only timed text track is able to be selected or unselected.
+status_t AwesomePlayer::selectAudioTrack_l(
+        const sp<MediaSource>& source, size_t trackIndex) {
+
+    ALOGI("selectAudioTrack_l: trackIndex=%d, mFlags=0x%x", trackIndex, mFlags);
+
+    {
+        Mutex::Autolock autoLock(mStatsLock);
+        if ((ssize_t)trackIndex == mActiveAudioTrackIndex) {
+            ALOGI("Track %d is active. Does nothing.", trackIndex);
+            return OK;
+        }
+        //mStats.mFlags = mFlags;
+    }
+
+    if (mSeeking != NO_SEEK) {
+        ALOGE("Selecting a track while seeking is not supported");
+        return ERROR_UNSUPPORTED;
+    }
+
+    if ((mFlags & PREPARED) == 0) {
+        ALOGE("Data source has not finished preparation");
+        return ERROR_UNSUPPORTED;
+    }
+
+    CHECK(source != NULL);
+    bool wasPlaying = (mFlags & PLAYING) != 0;
+
+    pause_l();
+
+    int64_t curTimeUs;
+    CHECK_EQ(getPosition(&curTimeUs), (status_t)OK);
+
+    if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+            && mAudioSource != NULL) {
+        // If we had an audio player, it would have effectively
+        // taken possession of the audio source and stopped it when
+        // _it_ is stopped. Otherwise this is still our responsibility.
+        mAudioSource->stop();
+    }
+    mAudioSource.clear();
+
+    mTimeSource = NULL;
+
+    delete mAudioPlayer;
+    mAudioPlayer = NULL;
+
+    modifyFlags(AUDIOPLAYER_STARTED, CLEAR);
+
+    setAudioSource(source);
+
+    modifyFlags(AUDIO_AT_EOS, CLEAR);
+    modifyFlags(AT_EOS, CLEAR);
+
+    status_t err;
+    if ((err = initAudioDecoder()) != OK) {
+        ALOGE("Failed to init audio decoder: 0x%x", err);
+        return err;
+    }
+
+    mSeekNotificationSent = true;
+    seekTo_l(curTimeUs);
+
+    if (wasPlaying) {
+        play_l();
+    }
+
+    mActiveAudioTrackIndex = trackIndex;
+
+    return OK;
+}
+
 status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
     ATRACE_CALL();
     ALOGV("selectTrack: trackIndex = %d and select=%d", trackIndex, select);
@@ -2346,21 +2418,30 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
     if (mTextDriver != NULL) {
         trackCount += mTextDriver->countExternalTracks();
     }
-
     if (trackIndex >= trackCount) {
         ALOGE("Track index (%d) is out of range [0, %d)", trackIndex, trackCount);
         return ERROR_OUT_OF_RANGE;
     }
 
+    bool isAudioTrack = false;
     if (trackIndex < mExtractor->countTracks()) {
         sp<MetaData> meta = mExtractor->getTrackMetaData(trackIndex);
-        const char *_mime;
-        CHECK(meta->findCString(kKeyMIMEType, &_mime));
-        String8 mime = String8(_mime);
+        const char *mime;
+        CHECK(meta->findCString(kKeyMIMEType, &mime));
+        isAudioTrack = !strncasecmp(mime, "audio/", 6);
 
-        if (strcasecmp(mime.string(), MEDIA_MIMETYPE_TEXT_3GPP)) {
+        if (!isAudioTrack && !strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP)) {
+            ALOGE("Track %d is not either audio or timed text", trackIndex);
             return ERROR_UNSUPPORTED;
         }
+    }
+
+    if (isAudioTrack) {
+        if (!select) {
+            ALOGE("Deselect an audio track (%d) is not supported", trackIndex);
+            return ERROR_UNSUPPORTED;
+        }
+        return selectAudioTrack_l(mExtractor->getTrack(trackIndex), trackIndex);
     }
 
     // Timed text track handling
