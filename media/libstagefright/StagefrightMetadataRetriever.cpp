@@ -250,16 +250,23 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
 
     ColorConverter converter(
             (OMX_COLOR_FORMATTYPE)srcFormat, OMX_COLOR_Format16bitRGB565);
-    CHECK(converter.isValid());
 
-    err = converter.convert(
-            (const uint8_t *)buffer->data() + buffer->range_offset(),
-            width, height,
-            crop_left, crop_top, crop_right, crop_bottom,
-            frame->mData,
-            frame->mWidth,
-            frame->mHeight,
-            0, 0, frame->mWidth - 1, frame->mHeight - 1);
+    if (converter.isValid()) {
+        err = converter.convert(
+                (const uint8_t *)buffer->data() + buffer->range_offset(),
+                width, height,
+                crop_left, crop_top, crop_right, crop_bottom,
+                frame->mData,
+                frame->mWidth,
+                frame->mHeight,
+                0, 0, frame->mWidth - 1, frame->mHeight - 1);
+    } else {
+        ALOGE("Unable to instantiate color conversion from format 0x%08x to "
+              "RGB565",
+              srcFormat);
+
+        err = ERROR_UNSUPPORTED;
+    }
 
     buffer->release();
     buffer = NULL;
