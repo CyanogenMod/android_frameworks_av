@@ -49,6 +49,17 @@ typedef struct downmix_module_s {
     downmix_object_t context;
 } downmix_module_t;
 
+const uint32_t kSides = AUDIO_CHANNEL_OUT_SIDE_LEFT | AUDIO_CHANNEL_OUT_SIDE_RIGHT;
+const uint32_t kBacks = AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT;
+const uint32_t kUnsupported =
+        AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER | AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER |
+        AUDIO_CHANNEL_OUT_TOP_CENTER |
+        AUDIO_CHANNEL_OUT_TOP_FRONT_LEFT |
+        AUDIO_CHANNEL_OUT_TOP_FRONT_CENTER |
+        AUDIO_CHANNEL_OUT_TOP_FRONT_RIGHT |
+        AUDIO_CHANNEL_OUT_TOP_BACK_LEFT |
+        AUDIO_CHANNEL_OUT_TOP_BACK_CENTER |
+        AUDIO_CHANNEL_OUT_TOP_BACK_RIGHT;
 
 /*------------------------------------
  * Effect API
@@ -92,5 +103,7 @@ void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool ac
 void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
+bool Downmix_foldGeneric(
+        uint32_t mask, int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 
 #endif /*ANDROID_EFFECTDOWNMIX_H_*/
