@@ -80,6 +80,7 @@ private:
 
     Mutex mLock;
     int64_t mNumFramesPlayed;
+    int64_t mNumFramesPlayedSysTimeUs;
 
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
