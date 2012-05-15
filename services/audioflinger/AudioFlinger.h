@@ -231,6 +231,7 @@ public:
         virtual ~SyncEvent() {}
 
         void trigger() { Mutex::Autolock _l(mLock); if (mCallback) mCallback(this); }
+        bool isCancelled() { Mutex::Autolock _l(mLock); return (mCallback == NULL); }
         void cancel() {Mutex::Autolock _l(mLock); mCallback = NULL; }
         AudioSystem::sync_event_t type() const { return mType; }
         int triggerSession() const { return mTriggerSession; }
@@ -362,8 +363,7 @@ private:
             enum track_state {
                 IDLE,
                 TERMINATED,
-                // These are order-sensitive; do not change order without reviewing the impact.
-                // In particular there are assumptions about > STOPPED.
+                FLUSHED,
                 STOPPED,
                 // next 2 states are currently used for fast tracks only
                 STOPPING_1,     // waiting for first underrun
@@ -417,7 +417,7 @@ private:
             void* getBuffer(uint32_t offset, uint32_t frames) const;
 
             bool isStopped() const {
-                return mState == STOPPED;
+                return (mState == STOPPED || mState == FLUSHED);
             }
 
             // for fast tracks only
@@ -721,6 +721,7 @@ private:
 
         // implement FastMixerState::VolumeProvider interface
             virtual uint32_t    getVolumeLR();
+            virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
         protected:
             // for numerous
@@ -758,9 +759,9 @@ private:
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
             bool presentationComplete(size_t framesWritten, size_t audioHalFrames);
-            void triggerEvents(AudioSystem::sync_event_t type);
 
         public:
+            void triggerEvents(AudioSystem::sync_event_t type);
             virtual bool isTimedTrack() const { return false; }
             bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
         protected:
@@ -1422,6 +1423,8 @@ private:
                 // be dropped and therefore not read by the application.
                 sp<SyncEvent>                       mSyncStartEvent;
                 // number of captured frames to drop after the start sync event has been received.
+                // when < 0, maximum frames to drop before starting capture even if sync event is
+                // not received
                 ssize_t                             mFramestoDrop;
     };
 

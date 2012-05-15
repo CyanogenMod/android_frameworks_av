@@ -515,7 +515,11 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         for (int i = 0; i < (int)mPendingSyncEvents.size(); i++) {
             if (mPendingSyncEvents[i]->triggerSession() == lSessionId) {
                 if (thread->isValidSyncEvent(mPendingSyncEvents[i])) {
-                    track->setSyncEvent(mPendingSyncEvents[i]);
+                    if (lStatus == NO_ERROR) {
+                        track->setSyncEvent(mPendingSyncEvents[i]);
+                    } else {
+                        mPendingSyncEvents[i]->cancel();
+                    }
                     mPendingSyncEvents.removeAt(i);
                     i--;
                 }
@@ -1847,6 +1851,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         // effectively get the latency it requested.
         track->mFillingUpStatus = Track::FS_FILLING;
         track->mResetDone = false;
+        track->mPresentationCompleteFrames = 0;
         mActiveTracks.add(track);
         if (track->mainBuffer() != mMixBuffer) {
             sp<EffectChain> chain = getEffectChain_l(track->sessionId());
@@ -1877,13 +1882,14 @@ void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 
 void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
 {
+    track->triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
     mTracks.remove(track);
     deleteTrackName_l(track->name());
     // redundant as track is about to be destroyed, for dumpsys only
     track->mName = -1;
     if (track->isFastTrack()) {
         int index = track->mFastIndex;
-        ALOG_ASSERT(0 < index && index < FastMixerState::kMaxFastTracks);
+        ALOG_ASSERT(0 < index && index < (int)FastMixerState::kMaxFastTracks);
         ALOG_ASSERT(!(mFastTrackAvailMask & (1 << index)));
         mFastTrackAvailMask |= 1 << index;
         // redundant as track is about to be destroyed, for dumpsys only
@@ -2850,7 +2856,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             case TrackBase::STOPPING_2:
             case TrackBase::PAUSED:
             case TrackBase::TERMINATED:
-            case TrackBase::STOPPED:    // flush() while active
+            case TrackBase::STOPPED:
+            case TrackBase::FLUSHED:   // flush() while active
                 // Check for presentation complete if track is inactive
                 // We have consumed all the buffers of this track.
                 // This would be incomplete if we auto-paused on underrun
@@ -3088,9 +3095,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             }
         } else {
             //ALOGV("track %d u=%08x, s=%08x [NOT READY] on thread %p", name, cblk->user, cblk->server, this);
-            if (track->isStopped()) {
-                track->reset();
-            }
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -3102,6 +3106,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
                 if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                    if (track->isStopped()) {
+                        track->reset();
+                    }
                     tracksToRemove->add(track);
                 }
             } else {
@@ -3546,9 +3553,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             mixerStatus = MIXER_TRACKS_READY;
         } else {
             //ALOGV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
-            if (track->isStopped()) {
-                track->reset();
-            }
             if (track->isTerminated() || track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
@@ -3558,6 +3562,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
                 if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                    if (track->isStopped()) {
+                        track->reset();
+                    }
                     trackToRemove = track;
                 }
             } else {
@@ -4170,7 +4177,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             mCblk->flags |= CBLK_FAST;  // atomic op not needed yet
             ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
             int i = __builtin_ctz(thread->mFastTrackAvailMask);
-            ALOG_ASSERT(0 < i && i < FastMixerState::kMaxFastTracks);
+            ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);
             // FIXME This is too eager.  We allocate a fast track index before the
             //       fast track becomes active.  Since fast tracks are a scarce resource,
             //       this means we are potentially denying other more important fast tracks from
@@ -4277,6 +4284,9 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         break;
     case PAUSED:
         stateChar = 'P';
+        break;
+    case FLUSHED:
+        stateChar = 'F';
         break;
     default:
         stateChar = '?';
@@ -4435,6 +4445,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             playbackThread->addTrack_l(this);
         } else {
             mState = state;
+            triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
         }
     } else {
         status = BAD_VALUE;
@@ -4511,11 +4522,11 @@ void AudioFlinger::PlaybackThread::Track::flush()
             return;
         }
         // No point remaining in PAUSED state after a flush => go to
-        // STOPPED state
-        mState = STOPPED;
+        // FLUSHED state
+        mState = FLUSHED;
         // do not reset the track if it is still in the process of being stopped or paused.
         // this will be done by prepareTracks_l() when the track is stopped.
-        // prepareTracks_l() will see mState == STOPPED, then
+        // prepareTracks_l() will see mState == FLUSHED, then
         // remove from active track list, reset(), and trigger presentation complete
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
         if (playbackThread->mActiveTracks.indexOf(this) < 0) {
@@ -4536,7 +4547,9 @@ void AudioFlinger::PlaybackThread::Track::reset()
         android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
         mFillingUpStatus = FS_FILLING;
         mResetDone = true;
-        mPresentationCompleteFrames = 0;
+        if (mState == FLUSHED) {
+            mState = IDLE;
+        }
     }
 }
 
@@ -4577,7 +4590,6 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWrit
         ALOGV("presentationComplete() session %d complete: framesWritten %d",
                   mSessionId, framesWritten);
         triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
-        mPresentationCompleteFrames = 0;
         return true;
     }
     return false;
@@ -4619,6 +4631,20 @@ uint32_t AudioFlinger::PlaybackThread::Track::getVolumeLR()
     vlr = (vr << 16) | (vl & 0xFFFF);
     // FIXME look at mute, pause, and stop flags
     return vlr;
+}
+
+status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& event)
+{
+    if (mState == TERMINATED || mState == PAUSED ||
+            ((framesReady() == 0) && ((mSharedBuffer != 0) ||
+                                      (mState == STOPPED)))) {
+        ALOGW("Track::setSyncEvent() in invalid state %d on session %d %s mode, framesReady %d ",
+              mState, mSessionId, (mSharedBuffer != 0) ? "static" : "stream", framesReady());
+        event->cancel();
+        return INVALID_OPERATION;
+    }
+    TrackBase::setSyncEvent(event);
+    return NO_ERROR;
 }
 
 // timed audio tracks
@@ -5945,8 +5971,18 @@ bool AudioFlinger::RecordThread::threadLoop()
                 } else {
                     if (mFramestoDrop > 0) {
                         mFramestoDrop -= buffer.frameCount;
-                        if (mFramestoDrop < 0) {
-                            mFramestoDrop = 0;
+                        if (mFramestoDrop <= 0) {
+                            clearSyncStartEvent();
+                        }
+                    } else {
+                        mFramestoDrop += buffer.frameCount;
+                        if (mFramestoDrop >= 0 || mSyncStartEvent == 0 ||
+                                mSyncStartEvent->isCancelled()) {
+                            ALOGW("Synced record %s, session %d, trigger session %d",
+                                  (mFramestoDrop >= 0) ? "timed out" : "cancelled",
+                                  mActiveTrack->sessionId(),
+                                  (mSyncStartEvent != 0) ? mSyncStartEvent->triggerSession() : 0);
+                            clearSyncStartEvent();
                         }
                     }
                 }
@@ -6040,15 +6076,21 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     status_t status = NO_ERROR;
 
     if (event == AudioSystem::SYNC_EVENT_NONE) {
-        mSyncStartEvent.clear();
-        mFramestoDrop = 0;
+        clearSyncStartEvent();
     } else if (event != AudioSystem::SYNC_EVENT_SAME) {
         mSyncStartEvent = mAudioFlinger->createSyncEvent(event,
                                        triggerSession,
                                        recordTrack->sessionId(),
                                        syncStartEventCallback,
                                        this);
-        mFramestoDrop = -1;
+        // Sync event can be cancelled by the trigger session if the track is not in a
+        // compatible state in which case we start record immediately
+        if (mSyncStartEvent->isCancelled()) {
+            clearSyncStartEvent();
+        } else {
+            // do not wait for the event for more than AudioSystem::kSyncRecordStartTimeOutMs
+            mFramestoDrop = - ((AudioSystem::kSyncRecordStartTimeOutMs * mReqSampleRate) / 1000);
+        }
     }
 
     {
@@ -6108,6 +6150,7 @@ void AudioFlinger::RecordThread::clearSyncStartEvent()
         mSyncStartEvent->cancel();
     }
     mSyncStartEvent.clear();
+    mFramestoDrop = 0;
 }
 
 void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& event)
@@ -6122,17 +6165,10 @@ void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& eve
 
 void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event)
 {
-    ALOGV("handleSyncStartEvent() mActiveTrack %p session %d event->listenerSession() %d",
-              mActiveTrack.get(),
-              mActiveTrack.get() ? mActiveTrack->sessionId() : 0,
-              event->listenerSession());
-
-    if (mActiveTrack != 0 &&
-            event == mSyncStartEvent) {
+    if (event == mSyncStartEvent) {
         // TODO: use actual buffer filling status instead of 2 buffers when info is available
         // from audio HAL
         mFramestoDrop = mFrameCount * 2;
-        mSyncStartEvent.clear();
     }
 }
 

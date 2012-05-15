@@ -1365,6 +1365,9 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart)
                     mCblk->stepUser(frames);
                 }
             }
+            if (mSharedBuffer != 0) {
+                mCblk->stepUser(mCblk->frameCount);
+            }
             if (mActive) {
                 result = mAudioTrack->start();
                 ALOGW_IF(result != NO_ERROR, "restoreTrack_l() start() failed status %d", result);
