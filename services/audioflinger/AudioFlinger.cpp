@@ -2203,9 +2203,10 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 
         // create a MonoPipe to connect our submix to FastMixer
         NBAIO_Format format = mOutputSink->format();
-        // frame count will be rounded up to a power of 2, so this formula should work well
-        MonoPipe *monoPipe = new MonoPipe((mNormalFrameCount * 3) / 2, format,
-                true /*writeCanBlock*/);
+        // This pipe depth compensates for scheduling latency of the normal mixer thread.
+        // When it wakes up after a maximum latency, it runs a few cycles quickly before
+        // finally blocking.  Note the pipe implementation rounds up the request to a power of 2.
+        MonoPipe *monoPipe = new MonoPipe(mNormalFrameCount * 4, format, true /*writeCanBlock*/);
         const NBAIO_Format offers[1] = {format};
         size_t numCounterOffers = 0;
         ssize_t index = monoPipe->negotiate(offers, 1, NULL, numCounterOffers);
