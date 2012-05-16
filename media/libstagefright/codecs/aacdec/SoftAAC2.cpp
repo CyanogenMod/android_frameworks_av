@@ -179,6 +179,9 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
                 pcmParams->nSamplingRate = mStreamInfo->sampleRate;
             }
 
+            if (!pcmParams->nChannels) ALOGW("Audio contains 0 channels");
+            if (!pcmParams->nSamplingRate) ALOGW("Sampling rate of 0 Hz");
+
             return OMX_ErrorNone;
         }
 
