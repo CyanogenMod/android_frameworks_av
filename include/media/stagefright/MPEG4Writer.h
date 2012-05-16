@@ -50,6 +50,7 @@ public:
     void writeCString(const char *s);
     void writeFourcc(const char *fourcc);
     void write(const void *data, size_t size);
+    inline size_t write(const void *ptr, size_t size, size_t nmemb);
     void endBox();
     uint32_t interleaveDuration() const { return mInterleaveDurationUs; }
     status_t setInterleaveDuration(uint32_t duration);
@@ -168,7 +169,6 @@ private:
     off64_t addSample_l(MediaBuffer *buffer);
     off64_t addLengthPrefixedSample_l(MediaBuffer *buffer);
 
-    inline size_t write(const void *ptr, size_t size, size_t nmemb);
     bool exceedsFileSizeLimit();
     bool use32BitFileOffset() const;
     bool exceedsFileDurationLimit();
