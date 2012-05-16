@@ -72,6 +72,7 @@ public:
 private:
     enum {
         kMaxCttsOffsetTimeUs = 1000000LL,  // 1 second
+        kSampleArraySize = 1000,
     };
 
     MPEG4Writer *mOwner;
@@ -96,11 +97,16 @@ private:
 
     pthread_t mThread;
 
-    // mNumSamples is used to track how many samples in mSampleSizes List.
-    // This is to reduce the cost associated with mSampleSizes.size() call,
-    // since it is O(n). Ideally, the fix should be in List class.
-    size_t              mNumSamples;
-    List<size_t>        mSampleSizes;
+    /*
+     * mNumSamples is used to track the total number of samples in
+     * mSampleSizes List.
+     *
+     * A linked list of fixed sized array is used here to reduce the time
+     * to write out stsz box.
+     */
+    uint32_t            mNumSamples;
+    uint32_t*           mCurrentSampleSizeArr;
+    List<uint32_t *>    mSampleSizes;
     bool                mSamplesHaveSameSize;
 
     List<MediaBuffer *> mChunkSamples;
@@ -1263,6 +1269,12 @@ MPEG4Writer::Track::~Track() {
         free(mCodecSpecificData);
         mCodecSpecificData = NULL;
     }
+
+    while (!mSampleSizes.empty()) {
+        List<uint32_t *>::iterator it = mSampleSizes.begin();
+        delete[] (*it);
+        mSampleSizes.erase(it);
+    }
 }
 
 void MPEG4Writer::Track::initTrackingProgressStatus(MetaData *params) {
@@ -2038,7 +2050,14 @@ status_t MPEG4Writer::Track::threadEntry() {
                 (lastTimestampUs * mTimeScale + 500000LL) / 1000000LL);
         CHECK_GE(currDurationTicks, 0ll);
 
-        mSampleSizes.push_back(sampleSize);
+        if ((mNumSamples % kSampleArraySize) == 0) {
+            uint32_t *arr = new uint32_t[kSampleArraySize];
+            CHECK(arr != NULL);
+            mSampleSizes.push_back(arr);
+            mCurrentSampleSizeArr = arr;
+        }
+
+        mCurrentSampleSizeArr[mNumSamples % kSampleArraySize] = htonl(sampleSize);
         ++mNumSamples;
         if (mNumSamples > 2) {
 
@@ -2788,22 +2807,31 @@ void MPEG4Writer::Track::writeStssBox() {
 }
 
 void MPEG4Writer::Track::writeStszBox() {
+    ALOGD("writeStszBox for %s track", isAudio()? "Audio": "Video");
     mOwner->beginBox("stsz");
     mOwner->writeInt32(0);  // version=0, flags=0
     if (mSamplesHaveSameSize) {
-        List<size_t>::iterator it = mSampleSizes.begin();
-        mOwner->writeInt32(*it);  // default sample size
+        List<uint32_t *>::iterator it = mSampleSizes.begin();
+        mOwner->writeInt32((*it)[0]);  // default sample size
     } else {
         mOwner->writeInt32(0);
     }
     mOwner->writeInt32(mNumSamples);
+    uint32_t nSamples = mNumSamples;
     if (!mSamplesHaveSameSize) {
-        for (List<size_t>::iterator it = mSampleSizes.begin();
+        for (List<uint32_t *>::iterator it = mSampleSizes.begin();
             it != mSampleSizes.end(); ++it) {
-            mOwner->writeInt32(*it);
+            if (nSamples >= kSampleArraySize) {
+                mOwner->write(*it, 4, kSampleArraySize);
+                nSamples -= kSampleArraySize;
+            } else {
+                mOwner->write(*it, 4, nSamples);
+                break;
+            }
         }
     }
     mOwner->endBox();  // stsz
+    ALOGD("writeStszBox: X");
 }
 
 void MPEG4Writer::Track::writeStscBox() {
