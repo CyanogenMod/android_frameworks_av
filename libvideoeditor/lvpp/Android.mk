@@ -41,27 +41,27 @@ LOCAL_SRC_FILES:=          \
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_STATIC_LIBRARIES := \
-    libvideoeditor_osal \
     libstagefright_color_conversion
 
 
 
-LOCAL_SHARED_LIBRARIES := \
-    libaudioutils      \
-    libbinder          \
-    libutils           \
-    libcutils          \
-    libmedia           \
-    libmedia_native    \
-    libdrmframework    \
-    libstagefright  \
-    libstagefright_omx  \
+LOCAL_SHARED_LIBRARIES :=     \
+    libaudioflinger           \
+    libaudioutils             \
+    libbinder                 \
+    libcutils                 \
+    libEGL                    \
+    libGLESv2                 \
+    libgui                    \
+    libmedia                  \
+    libmedia_native           \
+    libdrmframework           \
+    libstagefright            \
     libstagefright_foundation \
-    libgui \
-    libaudioflinger \
-    libui \
-    libEGL \
-    libGLESv2
+    libstagefright_omx        \
+    libui                     \
+    libutils                  \
+    libvideoeditor_osal       \
 
 
 LOCAL_C_INCLUDES += \

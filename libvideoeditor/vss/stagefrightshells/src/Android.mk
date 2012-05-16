@@ -43,23 +43,21 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_SHARED_LIBRARIES := \
-    libcutils \
-    libutils \
-    libmedia \
-    libbinder \
-    libstagefright \
+LOCAL_SHARED_LIBRARIES :=     \
+    libcutils                 \
+    libutils                  \
+    libmedia                  \
+    libbinder                 \
+    libstagefright            \
     libstagefright_foundation \
-    libstagefright_omx \
-    libgui \
-    libvideoeditorplayer
+    libstagefright_omx        \
+    libgui                    \
+    libvideoeditor_osal       \
+    libvideoeditorplayer      \
 
 LOCAL_CFLAGS += \
 
-
-
 LOCAL_STATIC_LIBRARIES := \
-    libvideoeditor_osal \
     libstagefright_color_conversion
 
 
