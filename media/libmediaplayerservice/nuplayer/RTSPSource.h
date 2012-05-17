@@ -88,6 +88,7 @@ private:
     State mState;
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
+    bool mStartingUp;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<RTSPSource> > mReflector;
@@ -106,6 +107,8 @@ private:
     void finishDisconnectIfPossible();
 
     void performSeek(int64_t seekTimeUs);
+
+    bool haveSufficientDataOnAllTracks();
 
     DISALLOW_EVIL_CONSTRUCTORS(RTSPSource);
 };
