@@ -43,6 +43,10 @@ struct AnotherPacketSource : public MediaSource {
 
     bool hasBufferAvailable(status_t *finalResult);
 
+    // Returns the difference between the last and the first queued
+    // presentation timestamps since the last discontinuity (if any).
+    int64_t getBufferedDurationUs(status_t *finalResult);
+
     status_t nextBufferTime(int64_t *timeUs);
 
     void queueAccessUnit(const sp<ABuffer> &buffer);

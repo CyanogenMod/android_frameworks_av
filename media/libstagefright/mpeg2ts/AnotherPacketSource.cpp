@@ -198,6 +198,40 @@ bool AnotherPacketSource::hasBufferAvailable(status_t *finalResult) {
     return false;
 }
 
+int64_t AnotherPacketSource::getBufferedDurationUs(status_t *finalResult) {
+    Mutex::Autolock autoLock(mLock);
+
+    *finalResult = mEOSResult;
+
+    if (mBuffers.empty()) {
+        return 0;
+    }
+
+    int64_t time1 = -1;
+    int64_t time2 = -1;
+
+    List<sp<ABuffer> >::iterator it = mBuffers.begin();
+    while (it != mBuffers.end()) {
+        const sp<ABuffer> &buffer = *it;
+
+        int64_t timeUs;
+        if (buffer->meta()->findInt64("timeUs", &timeUs)) {
+            if (time1 < 0) {
+                time1 = timeUs;
+            }
+
+            time2 = timeUs;
+        } else {
+            // This is a discontinuity, reset everything.
+            time1 = time2 = -1;
+        }
+
+        ++it;
+    }
+
+    return time2 - time1;
+}
+
 status_t AnotherPacketSource::nextBufferTime(int64_t *timeUs) {
     *timeUs = 0;
 
