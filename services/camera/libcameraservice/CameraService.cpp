@@ -40,6 +40,8 @@
 #include "CameraService.h"
 #include "CameraClient.h"
 #include "CameraHardwareInterface.h"
+#include "Camera2Client.h"
+#include "Camera2Device.h"
 
 namespace android {
 
@@ -134,7 +136,6 @@ status_t CameraService::getCameraInfo(int cameraId,
 sp<ICamera> CameraService::connect(
         const sp<ICameraClient>& cameraClient, int cameraId) {
     int callingPid = getCallingPid();
-    sp<CameraHardwareInterface> hardware = NULL;
 
     LOG1("CameraService::connect E (pid %d, id %d)", callingPid, cameraId);
 
@@ -190,13 +191,41 @@ sp<ICamera> CameraService::connect(
     char camera_device_name[10];
     snprintf(camera_device_name, sizeof(camera_device_name), "%d", cameraId);
 
-    hardware = new CameraHardwareInterface(camera_device_name);
-    if (hardware->initialize(&mModule->common) != OK) {
-        hardware.clear();
+    int deviceVersion;
+    if (mModule->common.module_api_version == CAMERA_MODULE_API_VERSION_2_0) {
+        deviceVersion = info.device_version;
+    } else {
+        deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
+    }
+
+    switch(deviceVersion) {
+    case CAMERA_DEVICE_API_VERSION_1_0: {
+        sp<CameraHardwareInterface> hardware =
+            new CameraHardwareInterface(camera_device_name);
+        if (hardware->initialize(&mModule->common) != OK) {
+            return NULL;
+        }
+
+        client = new CameraClient(this, cameraClient, hardware, cameraId,
+                info.facing, callingPid);
+        break;
+    }
+    case CAMERA_DEVICE_API_VERSION_2_0: {
+        sp<Camera2Device> hardware =
+            new Camera2Device(camera_device_name);
+        if (hardware->initialize(&mModule->common) != OK) {
+            return NULL;
+        }
+
+        client = new Camera2Client(this, cameraClient, hardware, cameraId,
+                info.facing, callingPid);
+        break;
+    }
+    default:
+        ALOGE("Unknown camera device HAL version: %d", deviceVersion);
         return NULL;
     }
 
-    client = new CameraClient(this, cameraClient, hardware, cameraId, info.facing, callingPid);
     mClient[cameraId] = client;
     LOG1("CameraService::connect X (id %d)", cameraId);
     return client;
