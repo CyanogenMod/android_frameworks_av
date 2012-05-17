@@ -100,6 +100,7 @@ private:
     bool mAllowDeepBuffering;       // allow audio deep audio buffers. Helps with low power audio
                                     // playback but implies high latency
     AwesomePlayer *mObserver;
+    int64_t mPinnedTimeUs;
 
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);
