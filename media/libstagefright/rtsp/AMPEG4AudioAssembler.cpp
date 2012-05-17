@@ -534,27 +534,7 @@ void AMPEG4AudioAssembler::submitAccessUnit() {
     LOG(VERBOSE) << "Access unit complete (" << mPackets.size() << " packets)";
 #endif
 
-    size_t totalSize = 0;
-    List<sp<ABuffer> >::iterator it = mPackets.begin();
-    while (it != mPackets.end()) {
-        const sp<ABuffer> &unit = *it;
-
-        totalSize += unit->size();
-        ++it;
-    }
-
-    sp<ABuffer> accessUnit = new ABuffer(totalSize);
-    size_t offset = 0;
-    it = mPackets.begin();
-    while (it != mPackets.end()) {
-        const sp<ABuffer> &unit = *it;
-
-        memcpy((uint8_t *)accessUnit->data() + offset,
-               unit->data(), unit->size());
-
-        ++it;
-    }
-
+    sp<ABuffer> accessUnit = MakeCompoundFromPackets(mPackets);
     accessUnit = removeLATMFraming(accessUnit);
     CopyTimes(accessUnit, *mPackets.begin());
 

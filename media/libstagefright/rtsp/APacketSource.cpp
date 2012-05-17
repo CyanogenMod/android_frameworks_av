@@ -551,6 +551,7 @@ APacketSource::APacketSource(
 
         mFormat->setInt32(kKeySampleRate, sampleRate);
         mFormat->setInt32(kKeyChannelCount, numChannels);
+        mFormat->setInt32(kKeyIsADTS, true);
 
         sp<ABuffer> codecSpecificData =
             MakeAACCodecSpecificData2(params.c_str());
