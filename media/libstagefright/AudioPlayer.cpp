@@ -142,9 +142,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
                 mFirstBuffer = NULL;
             }
 
-            if (!sourceAlreadyStarted) {
-                mSource->stop();
-            }
+            // At this point, source already got started
+            // Stop the source when error is found.
+            mSource->stop();
+            mSource = NULL;
 
             return err;
         }
@@ -174,9 +175,9 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
                 mFirstBuffer = NULL;
             }
 
-            if (!sourceAlreadyStarted) {
-                mSource->stop();
-            }
+            // At this point, source already got started
+            // Stop the source when error is found.
+            mSource->stop();
 
             return err;
         }
