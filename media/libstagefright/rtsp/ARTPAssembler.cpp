@@ -74,4 +74,77 @@ void ARTPAssembler::CopyTimes(const sp<ABuffer> &to, const sp<ABuffer> &from) {
     to->setInt32Data(from->int32Data());
 }
 
+// static
+sp<ABuffer> ARTPAssembler::MakeADTSCompoundFromAACFrames(
+        unsigned profile,
+        unsigned samplingFreqIndex,
+        unsigned channelConfig,
+        const List<sp<ABuffer> > &frames) {
+    size_t totalSize = 0;
+    for (List<sp<ABuffer> >::const_iterator it = frames.begin();
+         it != frames.end(); ++it) {
+        // Each frame is prefixed by a 7 byte ADTS header
+        totalSize += (*it)->size() + 7;
+    }
+
+    sp<ABuffer> accessUnit = new ABuffer(totalSize);
+    size_t offset = 0;
+    for (List<sp<ABuffer> >::const_iterator it = frames.begin();
+         it != frames.end(); ++it) {
+        sp<ABuffer> nal = *it;
+        uint8_t *dst = accessUnit->data() + offset;
+
+        static const unsigned kADTSId = 0;
+        static const unsigned kADTSLayer = 0;
+        static const unsigned kADTSProtectionAbsent = 1;
+
+        unsigned frameLength = nal->size() + 7;
+
+        dst[0] = 0xff;
+
+        dst[1] =
+            0xf0 | (kADTSId << 3) | (kADTSLayer << 1) | kADTSProtectionAbsent;
+
+        dst[2] = (profile << 6)
+                | (samplingFreqIndex << 2)
+                | (channelConfig >> 2);
+
+        dst[3] = ((channelConfig & 3) << 6) | (frameLength >> 11);
+
+        dst[4] = (frameLength >> 3) & 0xff;
+        dst[5] = (frameLength & 7) << 5;
+        dst[6] = 0x00;
+
+        memcpy(dst + 7, nal->data(), nal->size());
+        offset += nal->size() + 7;
+    }
+
+    CopyTimes(accessUnit, *frames.begin());
+
+    return accessUnit;
+}
+
+// static
+sp<ABuffer> ARTPAssembler::MakeCompoundFromPackets(
+        const List<sp<ABuffer> > &packets) {
+    size_t totalSize = 0;
+    for (List<sp<ABuffer> >::const_iterator it = packets.begin();
+         it != packets.end(); ++it) {
+        totalSize += (*it)->size();
+    }
+
+    sp<ABuffer> accessUnit = new ABuffer(totalSize);
+    size_t offset = 0;
+    for (List<sp<ABuffer> >::const_iterator it = packets.begin();
+         it != packets.end(); ++it) {
+        sp<ABuffer> nal = *it;
+        memcpy(accessUnit->data() + offset, nal->data(), nal->size());
+        offset += nal->size();
+    }
+
+    CopyTimes(accessUnit, *packets.begin());
+
+    return accessUnit;
+}
+
 }  // namespace android

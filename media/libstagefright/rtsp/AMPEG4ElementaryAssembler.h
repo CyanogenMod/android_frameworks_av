@@ -25,6 +25,8 @@
 #include <utils/List.h>
 #include <utils/RefBase.h>
 
+#include <OMX_Audio.h>
+
 namespace android {
 
 struct ABuffer;
@@ -56,6 +58,9 @@ private:
     unsigned mStreamStateIndication;
     unsigned mAuxiliaryDataSizeLength;
     bool mHasAUHeader;
+
+    int32_t mChannelConfig;
+    size_t mSampleRateIndex;
 
     uint32_t mAccessUnitRTPTime;
     bool mNextExpectedSeqNoValid;
