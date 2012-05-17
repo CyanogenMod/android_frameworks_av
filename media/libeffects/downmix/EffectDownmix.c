@@ -22,6 +22,11 @@
 #include <stdbool.h>
 #include "EffectDownmix.h"
 
+// Do not submit with DOWNMIX_TEST_CHANNEL_INDEX defined, strictly for testing
+//#define DOWNMIX_TEST_CHANNEL_INDEX 0
+// Do not submit with DOWNMIX_ALWAYS_USE_GENERIC_DOWNMIXER defined, strictly for testing
+//#define DOWNMIX_ALWAYS_USE_GENERIC_DOWNMIXER 0
+
 #define MINUS_3_DB_IN_Q19_12 2896 // -3dB = 0.707 * 2^12 = 2896
 
 typedef enum {
@@ -88,6 +93,67 @@ const int kNbEffects = sizeof(gDescriptors) / sizeof(const effect_descriptor_t *
 
 
 /*----------------------------------------------------------------------------
+ * Test code
+ *--------------------------------------------------------------------------*/
+#ifdef DOWNMIX_TEST_CHANNEL_INDEX
+// strictly for testing, logs the indices of the channels for a given mask,
+// uses the same code as Downmix_foldGeneric()
+void Downmix_testIndexComputation(uint32_t mask) {
+    ALOGI("Testing index computation for 0x%x:", mask);
+    // check against unsupported channels
+    if (mask & kUnsupported) {
+        ALOGE("Unsupported channels (top or front left/right of center)");
+        return;
+    }
+    // verify has FL/FR
+    if ((mask & AUDIO_CHANNEL_OUT_STEREO) != AUDIO_CHANNEL_OUT_STEREO) {
+        ALOGE("Front channels must be present");
+        return;
+    }
+    // verify uses SIDE as a pair (ok if not using SIDE at all)
+    bool hasSides = false;
+    if ((mask & kSides) != 0) {
+        if ((mask & kSides) != kSides) {
+            ALOGE("Side channels must be used as a pair");
+            return;
+        }
+        hasSides = true;
+    }
+    // verify uses BACK as a pair (ok if not using BACK at all)
+    bool hasBacks = false;
+    if ((mask & kBacks) != 0) {
+        if ((mask & kBacks) != kBacks) {
+            ALOGE("Back channels must be used as a pair");
+            return;
+        }
+        hasBacks = true;
+    }
+
+    const int numChan = popcount(mask);
+    const bool hasFC = ((mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) == AUDIO_CHANNEL_OUT_FRONT_CENTER);
+    const bool hasLFE =
+            ((mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY);
+    const bool hasBC = ((mask & AUDIO_CHANNEL_OUT_BACK_CENTER) == AUDIO_CHANNEL_OUT_BACK_CENTER);
+    // compute at what index each channel is: samples will be in the following order:
+    //   FL FR FC LFE BL BR BC SL SR
+    // when a channel is not present, its index is set to the same as the index of the preceding
+    // channel
+    const int indexFC  = hasFC    ? 2            : 1;        // front center
+    const int indexLFE = hasLFE   ? indexFC + 1  : indexFC;  // low frequency
+    const int indexBL  = hasBacks ? indexLFE + 1 : indexLFE; // back left
+    const int indexBR  = hasBacks ? indexBL + 1  : indexBL;  // back right
+    const int indexBC  = hasBC    ? indexBR + 1  : indexBR;  // back center
+    const int indexSL  = hasSides ? indexBC + 1  : indexBC;  // side left
+    const int indexSR  = hasSides ? indexSL + 1  : indexSL;  // side right
+
+    ALOGI("  FL FR FC LFE BL BR BC SL SR");
+    ALOGI("   %d  %d  %d   %d  %d  %d  %d  %d  %d",
+            0, 1, indexFC, indexLFE, indexBL, indexBR, indexBC, indexSL, indexSR);
+}
+#endif
+
+
+/*----------------------------------------------------------------------------
  * Effect API implementation
  *--------------------------------------------------------------------------*/
 
@@ -122,6 +188,26 @@ int32_t DownmixLib_Create(const effect_uuid_t *uuid,
     const effect_descriptor_t *desc;
 
     ALOGV("DownmixLib_Create()");
+
+#ifdef DOWNMIX_TEST_CHANNEL_INDEX
+    // should work (won't log an error)
+    ALOGI("DOWNMIX_TEST_CHANNEL_INDEX: should work:");
+    Downmix_testIndexComputation(AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+                    AUDIO_CHANNEL_OUT_LOW_FREQUENCY | AUDIO_CHANNEL_OUT_BACK_CENTER);
+    Downmix_testIndexComputation(CHANNEL_MASK_QUAD_SIDE | CHANNEL_MASK_QUAD_BACK);
+    Downmix_testIndexComputation(CHANNEL_MASK_5POINT1_SIDE | AUDIO_CHANNEL_OUT_BACK_CENTER);
+    Downmix_testIndexComputation(CHANNEL_MASK_5POINT1_BACK | AUDIO_CHANNEL_OUT_BACK_CENTER);
+    // shouldn't work (will log an error, won't display channel indices)
+    ALOGI("DOWNMIX_TEST_CHANNEL_INDEX: should NOT work:");
+    Downmix_testIndexComputation(AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+                        AUDIO_CHANNEL_OUT_LOW_FREQUENCY | AUDIO_CHANNEL_OUT_BACK_LEFT);
+    Downmix_testIndexComputation(AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+                            AUDIO_CHANNEL_OUT_LOW_FREQUENCY | AUDIO_CHANNEL_OUT_SIDE_LEFT);
+    Downmix_testIndexComputation(AUDIO_CHANNEL_OUT_FRONT_LEFT |
+                        AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT);
+    Downmix_testIndexComputation(AUDIO_CHANNEL_OUT_FRONT_LEFT |
+                            AUDIO_CHANNEL_OUT_SIDE_LEFT | AUDIO_CHANNEL_OUT_SIDE_RIGHT);
+#endif
 
     if (pHandle == NULL || uuid == NULL) {
         return -EINVAL;
@@ -232,6 +318,7 @@ static int Downmix_Process(effect_handle_t self,
 
     const bool accumulate =
             (pDwmModule->config.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE);
+    const uint32_t downmixInputChannelMask = pDwmModule->config.inputCfg.channels;
 
     switch(pDownmixer->type) {
 
@@ -256,8 +343,17 @@ static int Downmix_Process(effect_handle_t self,
           break;
 
       case DOWNMIX_TYPE_FOLD:
+#ifdef DOWNMIX_ALWAYS_USE_GENERIC_DOWNMIXER
+          // bypass the optimized downmix routines for the common formats
+          if (!Downmix_foldGeneric(
+                  downmixInputChannelMask, pSrc, pDst, numFrames, accumulate)) {
+              ALOGE("Multichannel configuration 0x%x is not supported", downmixInputChannelMask);
+              return -EINVAL;
+          }
+          break;
+#endif
         // optimize for the common formats
-        switch((downmix_input_channel_mask_t)pDwmModule->config.inputCfg.channels) {
+        switch((downmix_input_channel_mask_t)downmixInputChannelMask) {
         case CHANNEL_MASK_QUAD_BACK:
         case CHANNEL_MASK_QUAD_SIDE:
             Downmix_foldFromQuad(pSrc, pDst, numFrames, accumulate);
@@ -273,8 +369,11 @@ static int Downmix_Process(effect_handle_t self,
             Downmix_foldFrom7Point1(pSrc, pDst, numFrames, accumulate);
             break;
         default:
-            // FIXME implement generic downmix
-            ALOGE("Multichannel configurations other than quad, 4.0, 5.1 and 7.1 are not supported");
+            if (!Downmix_foldGeneric(
+                    downmixInputChannelMask, pSrc, pDst, numFrames, accumulate)) {
+                ALOGE("Multichannel configuration 0x%x is not supported", downmixInputChannelMask);
+                return -EINVAL;
+            }
             break;
         }
         break;
@@ -707,6 +806,8 @@ int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, size_t *pS
  * Inputs:
  *  pSrc       quad audio samples to downmix
  *  numFrames  the number of quad frames to downmix
+ *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
+ *               or overwrite pDst (when false)
  *
  * Outputs:
  *  pDst       downmixed stereo audio samples
@@ -751,6 +852,8 @@ void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool ac
  * Inputs:
  *  pSrc       surround signal to downmix
  *  numFrames  the number of surround frames to downmix
+ *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
+ *               or overwrite pDst (when false)
  *
  * Outputs:
  *  pDst       downmixed stereo audio samples
@@ -763,6 +866,8 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
     // sample at index 1 is FR
     // sample at index 2 is FC
     // sample at index 3 is RC
+    // code is mostly duplicated between the two values of accumulate to avoid repeating the test
+    // for every sample
     if (accumulate) {
         while (numFrames) {
             // centerPlusRearContrib = FC(-3dB) + RC(-3dB)
@@ -771,6 +876,7 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
             lt = (pSrc[0] << 12) + centerPlusRearContrib;
             // FR + centerPlusRearContrib
             rt = (pSrc[1] << 12) + centerPlusRearContrib;
+            // accumulate in destination
             pDst[0] = clamp16(pDst[0] + (lt >> 12));
             pDst[1] = clamp16(pDst[1] + (rt >> 12));
             pSrc += 4;
@@ -785,8 +891,9 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
             lt = (pSrc[0] << 12) + centerPlusRearContrib;
             // FR + centerPlusRearContrib
             rt = (pSrc[1] << 12) + centerPlusRearContrib;
-            pDst[0] = clamp16(lt >> 12);
-            pDst[1] = clamp16(rt >> 12);
+            // store in destination
+            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
             pSrc += 4;
             pDst += 2;
             numFrames--;
@@ -804,6 +911,8 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
  * Inputs:
  *  pSrc       5.1 audio samples to downmix
  *  numFrames  the number of 5.1 frames to downmix
+ *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
+ *               or overwrite pDst (when false)
  *
  * Outputs:
  *  pDst       downmixed stereo audio samples
@@ -818,6 +927,8 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
     // sample at index 3 is LFE
     // sample at index 4 is RL
     // sample at index 5 is RR
+    // code is mostly duplicated between the two values of accumulate to avoid repeating the test
+    // for every sample
     if (accumulate) {
         while (numFrames) {
             // centerPlusLfeContrib = FC(-3dB) + LFE(-3dB)
@@ -827,6 +938,7 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             lt = (pSrc[0] << 12) + centerPlusLfeContrib + (pSrc[4] << 12);
             // FR + centerPlusLfeContrib + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[5] << 12);
+            // accumulate in destination
             pDst[0] = clamp16(pDst[0] + (lt >> 12));
             pDst[1] = clamp16(pDst[1] + (rt >> 12));
             pSrc += 6;
@@ -842,8 +954,9 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             lt = (pSrc[0] << 12) + centerPlusLfeContrib + (pSrc[4] << 12);
             // FR + centerPlusLfeContrib + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[5] << 12);
-            pDst[0] = clamp16(lt >> 12);
-            pDst[1] = clamp16(rt >> 12);
+            // store in destination
+            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
             pSrc += 6;
             pDst += 2;
             numFrames--;
@@ -861,6 +974,8 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
  * Inputs:
  *  pSrc       7.1 audio samples to downmix
  *  numFrames  the number of 7.1 frames to downmix
+ *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
+ *               or overwrite pDst (when false)
  *
  * Outputs:
  *  pDst       downmixed stereo audio samples
@@ -877,6 +992,8 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
     // sample at index 5 is RR
     // sample at index 6 is SL
     // sample at index 7 is SR
+    // code is mostly duplicated between the two values of accumulate to avoid repeating the test
+    // for every sample
     if (accumulate) {
         while (numFrames) {
             // centerPlusLfeContrib = FC(-3dB) + LFE(-3dB)
@@ -886,8 +1003,9 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             lt = (pSrc[0] << 12) + centerPlusLfeContrib + (pSrc[6] << 12) + (pSrc[4] << 12);
             // FR + centerPlusLfeContrib + SR + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[7] << 12) + (pSrc[5] << 12);
-            pDst[0] = clamp16(lt >> 12);
-            pDst[1] = clamp16(rt >> 12);
+            //accumulate in destination
+            pDst[0] = clamp16(pDst[0] + (lt >> 12));
+            pDst[1] = clamp16(pDst[1] + (rt >> 12));
             pSrc += 8;
             pDst += 2;
             numFrames--;
@@ -901,8 +1019,9 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             lt = (pSrc[0] << 12) + centerPlusLfeContrib + (pSrc[6] << 12) + (pSrc[4] << 12);
             // FR + centerPlusLfeContrib + SR + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[7] << 12) + (pSrc[5] << 12);
-            pDst[0] = clamp16(pDst[0] + (lt >> 12));
-            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            // store in destination
+            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
             pSrc += 8;
             pDst += 2;
             numFrames--;
@@ -910,3 +1029,142 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
     }
 }
 
+
+/*----------------------------------------------------------------------------
+ * Downmix_foldGeneric()
+ *----------------------------------------------------------------------------
+ * Purpose:
+ * downmix to stereo a multichannel signal whose format is:
+ *  - has FL/FR
+ *  - if using AUDIO_CHANNEL_OUT_SIDE*, it contains both left and right
+ *  - if using AUDIO_CHANNEL_OUT_BACK*, it contains both left and right
+ *  - doesn't use any of the AUDIO_CHANNEL_OUT_TOP* channels
+ *  - doesn't use any of the AUDIO_CHANNEL_OUT_FRONT_*_OF_CENTER channels
+ * Only handles channel masks not enumerated in downmix_input_channel_mask_t
+ *
+ * Inputs:
+ *  mask       the channel mask of pSrc
+ *  pSrc       multichannel audio buffer to downmix
+ *  numFrames  the number of multichannel frames to downmix
+ *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
+ *               or overwrite pDst (when false)
+ *
+ * Outputs:
+ *  pDst       downmixed stereo audio samples
+ *
+ * Returns: false if multichannel format is not supported
+ *
+ *----------------------------------------------------------------------------
+ */
+bool Downmix_foldGeneric(
+        uint32_t mask, int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate) {
+    // check against unsupported channels
+    if (mask & kUnsupported) {
+        ALOGE("Unsupported channels (top or front left/right of center)");
+        return false;
+    }
+    // verify has FL/FR
+    if ((mask & AUDIO_CHANNEL_OUT_STEREO) != AUDIO_CHANNEL_OUT_STEREO) {
+        ALOGE("Front channels must be present");
+        return false;
+    }
+    // verify uses SIDE as a pair (ok if not using SIDE at all)
+    bool hasSides = false;
+    if ((mask & kSides) != 0) {
+        if ((mask & kSides) != kSides) {
+            ALOGE("Side channels must be used as a pair");
+            return false;
+        }
+        hasSides = true;
+    }
+    // verify uses BACK as a pair (ok if not using BACK at all)
+    bool hasBacks = false;
+    if ((mask & kBacks) != 0) {
+        if ((mask & kBacks) != kBacks) {
+            ALOGE("Back channels must be used as a pair");
+            return false;
+        }
+        hasBacks = true;
+    }
+
+    const int numChan = popcount(mask);
+    const bool hasFC = ((mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) == AUDIO_CHANNEL_OUT_FRONT_CENTER);
+    const bool hasLFE =
+            ((mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY);
+    const bool hasBC = ((mask & AUDIO_CHANNEL_OUT_BACK_CENTER) == AUDIO_CHANNEL_OUT_BACK_CENTER);
+    // compute at what index each channel is: samples will be in the following order:
+    //   FL FR FC LFE BL BR BC SL SR
+    // when a channel is not present, its index is set to the same as the index of the preceding
+    // channel
+    const int indexFC  = hasFC    ? 2            : 1;        // front center
+    const int indexLFE = hasLFE   ? indexFC + 1  : indexFC;  // low frequency
+    const int indexBL  = hasBacks ? indexLFE + 1 : indexLFE; // back left
+    const int indexBR  = hasBacks ? indexBL + 1  : indexBL;  // back right
+    const int indexBC  = hasBC    ? indexBR + 1  : indexBR;  // back center
+    const int indexSL  = hasSides ? indexBC + 1  : indexBC;  // side left
+    const int indexSR  = hasSides ? indexSL + 1  : indexSL;  // side right
+
+    int32_t lt, rt, centersLfeContrib; // samples in Q19.12 format
+    // code is mostly duplicated between the two values of accumulate to avoid repeating the test
+    // for every sample
+    if (accumulate) {
+        while (numFrames) {
+            // compute contribution of FC, BC and LFE
+            centersLfeContrib = 0;
+            if (hasFC)  { centersLfeContrib += pSrc[indexFC]; }
+            if (hasLFE) { centersLfeContrib += pSrc[indexLFE]; }
+            if (hasBC)  { centersLfeContrib += pSrc[indexBC]; }
+            centersLfeContrib *= MINUS_3_DB_IN_Q19_12;
+            // always has FL/FR
+            lt = (pSrc[0] << 12);
+            rt = (pSrc[1] << 12);
+            // mix in sides and backs
+            if (hasSides) {
+                lt += pSrc[indexSL] << 12;
+                rt += pSrc[indexSR] << 12;
+            }
+            if (hasBacks) {
+                lt += pSrc[indexBL] << 12;
+                rt += pSrc[indexBR] << 12;
+            }
+            lt += centersLfeContrib;
+            rt += centersLfeContrib;
+            // accumulate in destination
+            pDst[0] = clamp16(pDst[0] + (lt >> 12));
+            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            pSrc += numChan;
+            pDst += 2;
+            numFrames--;
+        }
+    } else {
+        while (numFrames) {
+            // compute contribution of FC, BC and LFE
+            centersLfeContrib = 0;
+            if (hasFC)  { centersLfeContrib += pSrc[indexFC]; }
+            if (hasLFE) { centersLfeContrib += pSrc[indexLFE]; }
+            if (hasBC)  { centersLfeContrib += pSrc[indexBC]; }
+            centersLfeContrib *= MINUS_3_DB_IN_Q19_12;
+            // always has FL/FR
+            lt = (pSrc[0] << 12);
+            rt = (pSrc[1] << 12);
+            // mix in sides and backs
+            if (hasSides) {
+                lt += pSrc[indexSL] << 12;
+                rt += pSrc[indexSR] << 12;
+            }
+            if (hasBacks) {
+                lt += pSrc[indexBL] << 12;
+                rt += pSrc[indexBR] << 12;
+            }
+            lt += centersLfeContrib;
+            rt += centersLfeContrib;
+            // store in destination
+            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
+            pSrc += numChan;
+            pDst += 2;
+            numFrames--;
+        }
+    }
+    return true;
+}
