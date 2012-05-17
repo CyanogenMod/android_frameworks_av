@@ -27,6 +27,8 @@
 
 namespace android {
 
+extern volatile int32_t gLogLevel;
+
 class MemoryHeapBase;
 class MediaPlayer;
 class CameraHardwareInterface;
@@ -35,9 +37,9 @@ class CameraService :
     public BinderService<CameraService>,
     public BnCameraService
 {
-    class Client;
     friend class BinderService<CameraService>;
 public:
+    class Client;
     static char const* getServiceName() { return "media.camera"; }
 
                         CameraService();
@@ -68,6 +70,66 @@ public:
     void                playSound(sound_kind kind);
     void                releaseSound();
 
+    class Client : public BnCamera
+    {
+    public:
+        // ICamera interface (see ICamera for details)
+        virtual void          disconnect();
+        virtual status_t      connect(const sp<ICameraClient>& client) = 0;
+        virtual status_t      lock() = 0;
+        virtual status_t      unlock() = 0;
+        virtual status_t      setPreviewDisplay(const sp<Surface>& surface) = 0;
+        virtual status_t      setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture) = 0;
+        virtual void          setPreviewCallbackFlag(int flag) = 0;
+        virtual status_t      startPreview() = 0;
+        virtual void          stopPreview() = 0;
+        virtual bool          previewEnabled() = 0;
+        virtual status_t      storeMetaDataInBuffers(bool enabled) = 0;
+        virtual status_t      startRecording() = 0;
+        virtual void          stopRecording() = 0;
+        virtual bool          recordingEnabled() = 0;
+        virtual void          releaseRecordingFrame(const sp<IMemory>& mem) = 0;
+        virtual status_t      autoFocus() = 0;
+        virtual status_t      cancelAutoFocus() = 0;
+        virtual status_t      takePicture(int msgType) = 0;
+        virtual status_t      setParameters(const String8& params) = 0;
+        virtual String8       getParameters() const = 0;
+        virtual status_t      sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) = 0;
+
+        // Interface used by CameraService
+        Client(const sp<CameraService>& cameraService,
+                const sp<ICameraClient>& cameraClient,
+                int cameraId,
+                int cameraFacing,
+                int clientPid);
+        ~Client();
+
+        // return our camera client
+        const sp<ICameraClient>&    getCameraClient() {
+            return mCameraClient;
+        }
+
+        virtual status_t dump(int fd, const Vector<String16>& args) = 0;
+
+    protected:
+        static Mutex*        getClientLockFromCookie(void* user);
+        // convert client from cookie. Client lock should be acquired before getting Client.
+        static Client*       getClientFromCookie(void* user);
+
+        // the instance is in the middle of destruction. When this is set,
+        // the instance should not be accessed from callback.
+        // CameraService's mClientLock should be acquired to access this.
+        bool                            mDestructionStarted;
+
+        // these are initialized in the constructor.
+        sp<CameraService>               mCameraService;  // immutable after constructor
+        sp<ICameraClient>               mCameraClient;
+        int                             mCameraId;       // immutable after constructor
+        int                             mCameraFacing;   // immutable after constructor
+        pid_t                           mClientPid;
+
+    };
+
 private:
     Mutex               mServiceLock;
     wp<Client>          mClient[MAX_CAMERAS];  // protected by mServiceLock
@@ -85,142 +147,6 @@ private:
     Mutex               mSoundLock;
     sp<MediaPlayer>     mSoundPlayer[NUM_SOUNDS];
     int                 mSoundRef;  // reference count (release all MediaPlayer when 0)
-
-    class Client : public BnCamera
-    {
-    public:
-        // ICamera interface (see ICamera for details)
-        virtual void            disconnect();
-        virtual status_t        connect(const sp<ICameraClient>& client);
-        virtual status_t        lock();
-        virtual status_t        unlock();
-        virtual status_t        setPreviewDisplay(const sp<Surface>& surface);
-        virtual status_t        setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture);
-        virtual void            setPreviewCallbackFlag(int flag);
-        virtual status_t        startPreview();
-        virtual void            stopPreview();
-        virtual bool            previewEnabled();
-        virtual status_t        storeMetaDataInBuffers(bool enabled);
-        virtual status_t        startRecording();
-        virtual void            stopRecording();
-        virtual bool            recordingEnabled();
-        virtual void            releaseRecordingFrame(const sp<IMemory>& mem);
-        virtual status_t        autoFocus();
-        virtual status_t        cancelAutoFocus();
-        virtual status_t        takePicture(int msgType);
-        virtual status_t        setParameters(const String8& params);
-        virtual String8         getParameters() const;
-        virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
-    private:
-        friend class CameraService;
-                                Client(const sp<CameraService>& cameraService,
-                                       const sp<ICameraClient>& cameraClient,
-                                       const sp<CameraHardwareInterface>& hardware,
-                                       int cameraId,
-                                       int cameraFacing,
-                                       int clientPid);
-                                ~Client();
-
-        // return our camera client
-        const sp<ICameraClient>&    getCameraClient() { return mCameraClient; }
-
-        // check whether the calling process matches mClientPid.
-        status_t                checkPid() const;
-        status_t                checkPidAndHardware() const;  // also check mHardware != 0
-
-        // these are internal functions used to set up preview buffers
-        status_t                registerPreviewBuffers();
-
-        // camera operation mode
-        enum camera_mode {
-            CAMERA_PREVIEW_MODE   = 0,  // frame automatically released
-            CAMERA_RECORDING_MODE = 1,  // frame has to be explicitly released by releaseRecordingFrame()
-        };
-        // these are internal functions used for preview/recording
-        status_t                startCameraMode(camera_mode mode);
-        status_t                startPreviewMode();
-        status_t                startRecordingMode();
-
-        // internal function used by sendCommand to enable/disable shutter sound.
-        status_t                enableShutterSound(bool enable);
-
-        // these are static callback functions
-        static void             notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2, void* user);
-        static void             dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
-                                             camera_frame_metadata_t *metadata, void* user);
-        static void             dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr, void* user);
-        static Mutex*        getClientLockFromCookie(void* user);
-        // convert client from cookie. Client lock should be acquired before getting Client.
-        static Client*       getClientFromCookie(void* user);
-        // handlers for messages
-        void                    handleShutter(void);
-        void                    handlePreviewData(int32_t msgType, const sp<IMemory>& mem,
-                                                  camera_frame_metadata_t *metadata);
-        void                    handlePostview(const sp<IMemory>& mem);
-        void                    handleRawPicture(const sp<IMemory>& mem);
-        void                    handleCompressedPicture(const sp<IMemory>& mem);
-        void                    handleGenericNotify(int32_t msgType, int32_t ext1, int32_t ext2);
-        void                    handleGenericData(int32_t msgType, const sp<IMemory>& dataPtr,
-                                                  camera_frame_metadata_t *metadata);
-        void                    handleGenericDataTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr);
-
-        void                    copyFrameAndPostCopiedFrame(
-                                    int32_t msgType,
-                                    const sp<ICameraClient>& client,
-                                    const sp<IMemoryHeap>& heap,
-                                    size_t offset, size_t size,
-                                    camera_frame_metadata_t *metadata);
-
-        int                     getOrientation(int orientation, bool mirror);
-
-        status_t                setPreviewWindow(
-                                    const sp<IBinder>& binder,
-                                    const sp<ANativeWindow>& window);
-
-        // these are initialized in the constructor.
-        sp<CameraService>               mCameraService;  // immutable after constructor
-        sp<ICameraClient>               mCameraClient;
-        int                             mCameraId;       // immutable after constructor
-        int                             mCameraFacing;   // immutable after constructor
-        pid_t                           mClientPid;
-        sp<CameraHardwareInterface>     mHardware;       // cleared after disconnect()
-        int                             mPreviewCallbackFlag;
-        int                             mOrientation;     // Current display orientation
-        bool                            mPlayShutterSound;
-
-        // Ensures atomicity among the public methods
-        mutable Mutex                   mLock;
-        // This is a binder of Surface or SurfaceTexture.
-        sp<IBinder>                     mSurface;
-        sp<ANativeWindow>               mPreviewWindow;
-
-        // If the user want us to return a copy of the preview frame (instead
-        // of the original one), we allocate mPreviewBuffer and reuse it if possible.
-        sp<MemoryHeapBase>              mPreviewBuffer;
-
-        // the instance is in the middle of destruction. When this is set,
-        // the instance should not be accessed from callback.
-        // CameraService's mClientLock should be acquired to access this.
-        bool                            mDestructionStarted;
-
-        // We need to avoid the deadlock when the incoming command thread and
-        // the CameraHardwareInterface callback thread both want to grab mLock.
-        // An extra flag is used to tell the callback thread that it should stop
-        // trying to deliver the callback messages if the client is not
-        // interested in it anymore. For example, if the client is calling
-        // stopPreview(), the preview frame messages do not need to be delivered
-        // anymore.
-
-        // This function takes the same parameter as the enableMsgType() and
-        // disableMsgType() functions in CameraHardwareInterface.
-        void                    enableMsgType(int32_t msgType);
-        void                    disableMsgType(int32_t msgType);
-        volatile int32_t        mMsgEnabled;
-
-        // This function keeps trying to grab mLock, or give up if the message
-        // is found to be disabled. It returns true if mLock is grabbed.
-        bool                    lockIfMessageWanted(int32_t msgType);
-    };
 
     camera_module_t *mModule;
 };
