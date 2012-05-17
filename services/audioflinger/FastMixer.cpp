@@ -508,7 +508,7 @@ bool FastMixer::threadLoop()
                 // get the absolute value of CPU clock frequency in kHz
                 int cpuNum = sched_getcpu();
                 uint32_t kHz = tcu.getCpukHz(cpuNum);
-                kHz = (kHz & ~0xF) | (cpuNum & 0xF);
+                kHz = (kHz << 4) | (cpuNum & 0xF);
                 // save values in FIFO queues for dumpsys
                 // these stores #1, #2, #3 are not atomic with respect to each other,
                 // or with respect to store #4 below
@@ -624,11 +624,14 @@ void FastMixerDumpState::dump(int fd)
         uint32_t sampleLoadNs = mLoadNs[i];
         uint32_t sampleCpukHz = mCpukHz[i];
         loadNs.sample(sampleLoadNs);
-        kHz.sample(sampleCpukHz & ~0xF);
-        if (sampleCpukHz == previousCpukHz) {
-            double megacycles = (double) sampleLoadNs * (double) sampleCpukHz * 1e-12;
-            double adjMHz = megacycles / mixPeriodSec;  // _not_ wallNs * 1e9
-            loadMHz.sample(adjMHz);
+        // skip bad kHz samples
+        if ((sampleCpukHz & ~0xF) != 0) {
+            kHz.sample(sampleCpukHz >> 4);
+            if (sampleCpukHz == previousCpukHz) {
+                double megacycles = (double) sampleLoadNs * (double) (sampleCpukHz >> 4) * 1e-12;
+                double adjMHz = megacycles / mixPeriodSec;  // _not_ wallNs * 1e9
+                loadMHz.sample(adjMHz);
+            }
         }
         previousCpukHz = sampleCpukHz;
     }
