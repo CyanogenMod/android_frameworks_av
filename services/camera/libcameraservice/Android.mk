@@ -8,7 +8,9 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
     CameraService.cpp \
-    CameraClient.cpp
+    CameraClient.cpp \
+    Camera2Client.cpp \
+    Camera2Device.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
@@ -20,6 +22,9 @@ LOCAL_SHARED_LIBRARIES:= \
     libcamera_client \
     libgui \
     libhardware
+
+LOCAL_C_INCLUDES += \
+    system/media/camera/include
 
 LOCAL_MODULE:= libcameraservice
 
