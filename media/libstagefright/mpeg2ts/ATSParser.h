@@ -22,6 +22,7 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 #include <utils/RefBase.h>
 
@@ -91,9 +92,13 @@ protected:
 private:
     struct Program;
     struct Stream;
+    struct PSISection;
 
     uint32_t mFlags;
     Vector<sp<Program> > mPrograms;
+
+    // Keyed by PID
+    KeyedVector<unsigned, sp<PSISection> > mPSISections;
 
     void parseProgramAssociationTable(ABitReader *br);
     void parseProgramMap(ABitReader *br);
