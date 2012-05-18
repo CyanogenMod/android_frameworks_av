@@ -67,7 +67,6 @@ private:
     volatile int32_t mRear;         // written by writer with android_atomic_release_store,
                                     // read by reader with android_atomic_acquire_load
     const bool      mWriteCanBlock; // whether write() should block if the pipe is full
-    struct timespec mSleep;         // time to sleep if blocking is enabled and the pipe is full
 };
 
 }   // namespace android

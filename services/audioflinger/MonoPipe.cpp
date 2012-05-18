@@ -33,16 +33,6 @@ MonoPipe::MonoPipe(size_t maxFrames, NBAIO_Format format, bool writeCanBlock) :
         mRear(0),
         mWriteCanBlock(writeCanBlock)
 {
-    if (writeCanBlock) {
-        // compute sleep time to be about 2/3 of a full pipe;
-        // this gives a balance between risk of underrun vs. too-frequent wakeups
-        mSleep.tv_sec = 0;
-        uint64_t ns = mMaxFrames * (666666667 / Format_sampleRate(format));
-        if (ns > 999999999) {
-            ns = 999999999;
-        }
-        mSleep.tv_nsec = ns;
-    }
 }
 
 MonoPipe::~MonoPipe()
@@ -62,13 +52,13 @@ ssize_t MonoPipe::availableToWrite() const
 
 ssize_t MonoPipe::write(const void *buffer, size_t count)
 {
-    // count == 0 is unlikely and not worth checking for explicitly; will be handled automatically
     if (CC_UNLIKELY(!mNegotiated)) {
         return NEGOTIATE;
     }
     size_t totalFramesWritten = 0;
-    for (;;) {
-        size_t written = availableToWrite();
+    while (count > 0) {
+        size_t avail = availableToWrite();
+        size_t written = avail;
         if (CC_LIKELY(written > count)) {
             written = count;
         }
@@ -88,12 +78,64 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
             android_atomic_release_store(written + mRear, &mRear);
             totalFramesWritten += written;
         }
-        if ((count -= written) == 0 || !mWriteCanBlock) {
+        if (!mWriteCanBlock) {
             break;
         }
+        count -= written;
         buffer = (char *) buffer + (written << mBitShift);
-        // simulate blocking I/O by sleeping
-        nanosleep(&mSleep, NULL);
+        // Simulate blocking I/O by sleeping at different rates, depending on a throttle.
+        // The throttle tries to keep the pipe about 5/8 full on average, with a slight jitter.
+        uint64_t ns;
+        enum {
+            THROTTLE_VERY_FAST, // pipe is (nearly) empty, fill quickly
+            THROTTLE_FAST,      // pipe is normal, fill at slightly faster rate
+            THROTTLE_NOMINAL,   // pipe is normal, fill at nominal rate
+            THROTTLE_SLOW,      // pipe is normal, fill at slightly slower rate
+            THROTTLE_VERY_SLOW, // pipe is (nearly) full, fill slowly
+        } throttle;
+        avail -= written;
+        // FIXME cache these values to avoid re-computation
+        if (avail >= (mMaxFrames * 3) / 4) {
+            throttle = THROTTLE_VERY_FAST;
+        } else if (avail >= mMaxFrames / 2) {
+            throttle = THROTTLE_FAST;
+        } else if (avail >= (mMaxFrames * 3) / 8) {
+            throttle = THROTTLE_NOMINAL;
+        } else if (avail >= mMaxFrames / 4) {
+            throttle = THROTTLE_SLOW;
+        } else {
+            throttle = THROTTLE_VERY_SLOW;
+        }
+        if (written > 0) {
+            // FIXME cache these values also
+            switch (throttle) {
+            case THROTTLE_VERY_FAST:
+            default:
+                ns = written * ( 500000000 / Format_sampleRate(mFormat));
+                break;
+            case THROTTLE_FAST:
+                ns = written * ( 750000000 / Format_sampleRate(mFormat));
+                break;
+            case THROTTLE_NOMINAL:
+                ns = written * (1000000000 / Format_sampleRate(mFormat));
+                break;
+            case THROTTLE_SLOW:
+                ns = written * (1100000000 / Format_sampleRate(mFormat));
+                break;
+            case THROTTLE_VERY_SLOW:
+                ns = written * (1250000000 / Format_sampleRate(mFormat));
+                break;
+            }
+        } else {
+            ns = mMaxFrames * (250000000 / Format_sampleRate(mFormat));
+        }
+        if (ns > 999999999) {
+            ns = 999999999;
+        }
+        struct timespec sleep;
+        sleep.tv_sec = 0;
+        sleep.tv_nsec = ns;
+        nanosleep(&sleep, NULL);
     }
     mFramesWritten += totalFramesWritten;
     return totalFramesWritten;
