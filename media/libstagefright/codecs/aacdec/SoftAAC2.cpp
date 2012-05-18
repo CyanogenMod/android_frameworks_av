@@ -46,7 +46,6 @@ SoftAAC2::SoftAAC2(
       mIsADTS(false),
       mInputBufferCount(0),
       mSignalledError(false),
-      mInputDiscontinuity(false),
       mAnchorTimeUs(0),
       mNumSamplesOutput(0),
       mOutputPortSettingsChange(NONE) {
@@ -364,7 +363,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         INT_PCM *outBuffer = reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
         bytesValid[0] = inBufferLength[0];
 
-        int flags = mInputDiscontinuity ? AACDEC_INTR : 0;
         int prevSampleRate = mStreamInfo->sampleRate;
         int prevNumChannels = mStreamInfo->numChannels;
 
@@ -378,38 +376,22 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
                                                 outBuffer,
                                                 outHeader->nAllocLen,
-                                                flags);
+                                                0 /* flags */);
 
         }
-        mInputDiscontinuity = false;
 
-        /*
-         * AAC+/eAAC+ streams can be signalled in two ways: either explicitly
-         * or implicitly, according to MPEG4 spec. AAC+/eAAC+ is a dual
-         * rate system and the sampling rate in the final output is actually
-         * doubled compared with the core AAC decoder sampling rate.
-         *
-         * Explicit signalling is done by explicitly defining SBR audio object
-         * type in the bitstream. Implicit signalling is done by embedding
-         * SBR content in AAC extension payload specific to SBR, and hence
-         * requires an AAC decoder to perform pre-checks on actual audio frames.
-         *
-         * Thus, we could not say for sure whether a stream is
-         * AAC+/eAAC+ until the first data frame is decoded.
-         */
-        if (mInputBufferCount <= 2) {
-            if (mStreamInfo->sampleRate != prevSampleRate ||
-                mStreamInfo->numChannels != prevNumChannels) {
-                // We're going to want to revisit this input buffer, but
-                // may have already advanced the offset. Undo that if
-                // necessary.
-                inHeader->nOffset -= adtsHeaderSize;
-                inHeader->nFilledLen += adtsHeaderSize;
+        // Check if stream info has changed
+        if (mStreamInfo->sampleRate != prevSampleRate ||
+            mStreamInfo->numChannels != prevNumChannels) {
+            // We're going to want to revisit this input buffer, but
+            // may have already advanced the offset. Undo that if
+            // necessary.
+            inHeader->nOffset -= adtsHeaderSize;
+            inHeader->nFilledLen += adtsHeaderSize;
 
-                notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-                mOutputPortSettingsChange = AWAITING_DISABLED;
-                return;
-            }
+            notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
+            mOutputPortSettingsChange = AWAITING_DISABLED;
+            return;
         }
 
         size_t numOutBytes =
@@ -477,7 +459,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
     if (portIndex == 0) {
         // Make sure that the next buffer output does not still
         // depend on fragments from the last one decoded.
-        mInputDiscontinuity = true;
+        aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
         mIsFirst = true;
     }
 }
