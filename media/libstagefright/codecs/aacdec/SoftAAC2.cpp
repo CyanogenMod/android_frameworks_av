@@ -101,7 +101,7 @@ void SoftAAC2::initPorts() {
 
 status_t SoftAAC2::initDecoder() {
     status_t status = UNKNOWN_ERROR;
-    mAACDecoder = aacDecoder_Open(TT_MP4_RAW, /* num layers */ 1);
+    mAACDecoder = aacDecoder_Open(TT_MP4_ADIF, /* num layers */ 1);
     if (mAACDecoder != NULL) {
         mStreamInfo = aacDecoder_GetStreamInfo(mAACDecoder);
         if (mStreamInfo != NULL) {
@@ -427,6 +427,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
 
             // Discard input buffer.
             inHeader->nFilledLen = 0;
+
+            aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
 
             // fall through
         }
