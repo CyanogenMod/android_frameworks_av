@@ -136,7 +136,7 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
 
             aacParams->eChannelMode = OMX_AUDIO_ChannelModeStereo;
 
-            if (!isConfigured()) {
+            if (!isConfigured() || !mStreamInfo->numChannels || !mStreamInfo->sampleRate) {
                 aacParams->nChannels = 1;
                 aacParams->nSampleRate = 44100;
                 aacParams->nFrameLength = 0;
@@ -170,15 +170,12 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
             pcmParams->eChannelMapping[4] = OMX_AUDIO_ChannelLS;
             pcmParams->eChannelMapping[5] = OMX_AUDIO_ChannelRS;
 
-            if (!isConfigured()) {
+            if (!isConfigured() || !mStreamInfo->numChannels || !mStreamInfo->sampleRate) {
                 pcmParams->nChannels = 1;
                 pcmParams->nSamplingRate = 44100;
             } else {
                 pcmParams->nChannels = mStreamInfo->numChannels;
                 pcmParams->nSamplingRate = mStreamInfo->sampleRate;
-                ALOGI("Sampling rate: %lu, channels: %lu",
-                      pcmParams->nSamplingRate,
-                      pcmParams->nChannels);
             }
 
             return OMX_ErrorNone;
@@ -383,6 +380,10 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         // Check if stream info has changed
         if (mStreamInfo->sampleRate != prevSampleRate ||
             mStreamInfo->numChannels != prevNumChannels) {
+            ALOGI("Reconfiguring decoder: %d Hz, %d channels",
+                  mStreamInfo->sampleRate,
+                  mStreamInfo->numChannels);
+
             // We're going to want to revisit this input buffer, but
             // may have already advanced the offset. Undo that if
             // necessary.
