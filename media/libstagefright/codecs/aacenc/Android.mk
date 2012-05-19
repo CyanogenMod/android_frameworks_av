@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
-AAC_LIBRARY = fraunhofer
+AAC_LIBRARY = visualon
 
 LOCAL_SRC_FILES := basic_op/basicop2.c basic_op/oper_32b.c
 
@@ -90,7 +90,7 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-ifeq ($(AAC_LIBRARY), fraunhofer)
+ifneq ($(AAC_LIBRARY), visualon)
 
   include $(CLEAR_VARS)
 
