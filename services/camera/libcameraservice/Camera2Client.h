@@ -19,6 +19,7 @@
 
 #include "Camera2Device.h"
 #include "CameraService.h"
+#include "camera/CameraParameters.h"
 
 namespace android {
 
@@ -55,17 +56,25 @@ public:
     // Interface used by CameraService
     Camera2Client(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
-            const sp<Camera2Device>& device,
             int cameraId,
             int cameraFacing,
             int clientPid);
     ~Camera2Client();
 
+    status_t initialize(camera_module_t *module);
+
     virtual status_t dump(int fd, const Vector<String16>& args);
 
 private:
+    CameraParameters *mParams;
+    sp<Camera2Device> mDevice;
 
+    // Convert static camera info from a camera2 device to the
+    // old API parameter map.
+    status_t buildDefaultParameters();
 
+    // Free parameters for mapping from new to old HAL
+    static const unsigned int kNumZoomSteps = 10;
 };
 
 }; // namespace android

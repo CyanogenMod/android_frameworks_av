@@ -21,7 +21,8 @@ LOCAL_SHARED_LIBRARIES:= \
     libmedia_native \
     libcamera_client \
     libgui \
-    libhardware
+    libhardware \
+    libcamera_metadata
 
 LOCAL_C_INCLUDES += \
     system/media/camera/include

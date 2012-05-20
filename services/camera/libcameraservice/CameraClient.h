@@ -53,13 +53,14 @@ public:
     // Interface used by CameraService
     CameraClient(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
-            const sp<CameraHardwareInterface>& hardware,
             int cameraId,
             int cameraFacing,
             int clientPid);
     ~CameraClient();
 
-    virtual status_t dump(int fd, const Vector<String16>& args);
+    status_t initialize(camera_module_t *module);
+
+    status_t dump(int fd, const Vector<String16>& args);
 
 private:
 
