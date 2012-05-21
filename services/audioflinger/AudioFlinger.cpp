@@ -1579,6 +1579,12 @@ status_t AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>
         }
     }
     write(fd, result.string(), result.size());
+
+    // These values are "raw"; they will wrap around.  See prepareTracks_l() for a better way.
+    FastTrackUnderruns underruns = getFastTrackUnderruns(0);
+    fdprintf(fd, "Normal mixer raw underrun counters: partial=%u empty=%u\n",
+            underruns.mBitFields.mPartial, underruns.mBitFields.mEmpty);
+
     return NO_ERROR;
 }
 
