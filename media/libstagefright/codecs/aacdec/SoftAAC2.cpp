@@ -367,17 +367,17 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                     inHeader->nOffset += adtsHeaderSize;
                     inHeader->nFilledLen -= adtsHeaderSize;
                 }
+            }
 
-                if (signalError) {
-                    mSignalledError = true;
+            if (signalError) {
+                mSignalledError = true;
 
-                    notify(OMX_EventError,
-                           OMX_ErrorStreamCorrupt,
-                           ERROR_MALFORMED,
-                           NULL);
+                notify(OMX_EventError,
+                       OMX_ErrorStreamCorrupt,
+                       ERROR_MALFORMED,
+                       NULL);
 
-                    return;
-                }
+                return;
             }
         } else {
             inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
