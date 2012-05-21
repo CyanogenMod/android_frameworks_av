@@ -2972,6 +2972,8 @@ void ACodec::LoadedToIdleState::stateEntered() {
              err);
 
         mCodec->signalError(OMX_ErrorUndefined, err);
+
+        mCodec->changeState(mCodec->mLoadedState);
     }
 }
 
