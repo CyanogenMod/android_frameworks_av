@@ -39,6 +39,7 @@ NuPlayer::RTSPSource::RTSPSource(
       mState(DISCONNECTED),
       mFinalResult(OK),
       mDisconnectReplyID(0),
+      mStartingUp(true),
       mSeekGeneration(0) {
     if (headers) {
         mExtraHeaders = *headers;
@@ -104,8 +105,45 @@ sp<MetaData> NuPlayer::RTSPSource::getFormat(bool audio) {
     return source->getFormat();
 }
 
+bool NuPlayer::RTSPSource::haveSufficientDataOnAllTracks() {
+    // We're going to buffer at least 2 secs worth data on all tracks before
+    // starting playback (both at startup and after a seek).
+
+    static const int64_t kMinDurationUs = 2000000ll;
+
+    status_t err;
+    int64_t durationUs;
+    if (mAudioTrack != NULL
+            && (durationUs = mAudioTrack->getBufferedDurationUs(&err))
+                    < kMinDurationUs
+            && err == OK) {
+        ALOGV("audio track doesn't have enough data yet. (%.2f secs buffered)",
+              durationUs / 1E6);
+        return false;
+    }
+
+    if (mVideoTrack != NULL
+            && (durationUs = mVideoTrack->getBufferedDurationUs(&err))
+                    < kMinDurationUs
+            && err == OK) {
+        ALOGV("video track doesn't have enough data yet. (%.2f secs buffered)",
+              durationUs / 1E6);
+        return false;
+    }
+
+    return true;
+}
+
 status_t NuPlayer::RTSPSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
+    if (mStartingUp) {
+        if (!haveSufficientDataOnAllTracks()) {
+            return -EWOULDBLOCK;
+        }
+
+        mStartingUp = false;
+    }
+
     sp<AnotherPacketSource> source = getSource(audio);
 
     if (source == NULL) {
@@ -209,6 +247,7 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         case MyHandler::kWhatSeekDone:
         {
             mState = CONNECTED;
+            mStartingUp = true;
             break;
         }
 
