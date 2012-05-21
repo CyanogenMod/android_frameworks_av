@@ -19,8 +19,6 @@
 #define LOG_TAG "AudioFlinger"
 //#define LOG_NDEBUG 0
 
-//#define ATRACE_TAG ATRACE_TAG_AUDIO
-
 #include <math.h>
 #include <signal.h>
 #include <sys/time.h>
@@ -2557,7 +2555,9 @@ if (mType == MIXER) {
             if (!mStandby && delta > maxPeriod) {
                 mNumDelayedWrites++;
                 if ((now - lastWarning) > kWarningThrottleNs) {
+#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
                     ScopedTrace st(ATRACE_TAG, "underrun");
+#endif
                     ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
                             ns2ms(delta), mNumDelayedWrites, this);
                     lastWarning = now;
@@ -2652,9 +2652,13 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
 
 #define mBitShift 2 // FIXME
     size_t count = mixBufferSize >> mBitShift;
+#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
     Tracer::traceBegin(ATRACE_TAG, "write");
+#endif
     ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
+#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
     Tracer::traceEnd(ATRACE_TAG);
+#endif
     if (framesWritten > 0) {
         size_t bytesWritten = framesWritten << mBitShift;
         mBytesWritten += bytesWritten;
