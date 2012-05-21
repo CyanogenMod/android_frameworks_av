@@ -21,6 +21,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/hexdump.h>
+#include <media/stagefright/MediaErrors.h>
 
 #define FILEREAD_MAX_LAYERS 2
 
@@ -336,24 +337,48 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
 
             const uint8_t *adtsHeader = inHeader->pBuffer + inHeader->nOffset;
 
-            CHECK_GE(inHeader->nFilledLen, 7);
+            bool signalError = false;
+            if (inHeader->nFilledLen < 7) {
+                ALOGE("Audio data too short to contain even the ADTS header. "
+                      "Got %ld bytes.", inHeader->nFilledLen);
+                hexdump(adtsHeader, inHeader->nFilledLen);
+                signalError = true;
+            } else {
+                bool protectionAbsent = (adtsHeader[1] & 1);
 
-            bool protectionAbsent = (adtsHeader[1] & 1);
+                unsigned aac_frame_length =
+                    ((adtsHeader[3] & 3) << 11)
+                    | (adtsHeader[4] << 3)
+                    | (adtsHeader[5] >> 5);
 
-            unsigned aac_frame_length =
-                ((adtsHeader[3] & 3) << 11)
-                | (adtsHeader[4] << 3)
-                | (adtsHeader[5] >> 5);
+                if (inHeader->nFilledLen < aac_frame_length) {
+                    ALOGE("Not enough audio data for the complete frame. "
+                          "Got %ld bytes, frame size according to the ADTS "
+                          "header is %u bytes.",
+                          inHeader->nFilledLen, aac_frame_length);
+                    hexdump(adtsHeader, inHeader->nFilledLen);
+                    signalError = true;
+                } else {
+                    adtsHeaderSize = (protectionAbsent ? 7 : 9);
 
-            CHECK_GE(inHeader->nFilledLen, aac_frame_length);
+                    inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
+                    inBufferLength[0] = aac_frame_length - adtsHeaderSize;
 
-            adtsHeaderSize = (protectionAbsent ? 7 : 9);
+                    inHeader->nOffset += adtsHeaderSize;
+                    inHeader->nFilledLen -= adtsHeaderSize;
+                }
 
-            inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
-            inBufferLength[0] = aac_frame_length - adtsHeaderSize;
+                if (signalError) {
+                    mSignalledError = true;
 
-            inHeader->nOffset += adtsHeaderSize;
-            inHeader->nFilledLen -= adtsHeaderSize;
+                    notify(OMX_EventError,
+                           OMX_ErrorStreamCorrupt,
+                           ERROR_MALFORMED,
+                           NULL);
+
+                    return;
+                }
+            }
         } else {
             inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
             inBufferLength[0] = inHeader->nFilledLen;
