@@ -21,6 +21,7 @@
 #include "AMPEG4ElementaryAssembler.h"
 
 #include "ARTPSource.h"
+#include "ASessionDescription.h"
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -85,6 +86,25 @@ static bool GetIntegerAttribute(
     return true;
 }
 
+static bool GetSampleRateIndex(int32_t sampleRate, size_t *tableIndex) {
+    static const int32_t kSampleRateTable[] = {
+        96000, 88200, 64000, 48000, 44100, 32000,
+        24000, 22050, 16000, 12000, 11025, 8000
+    };
+    const size_t kNumSampleRates =
+        sizeof(kSampleRateTable) / sizeof(kSampleRateTable[0]);
+
+    *tableIndex = 0;
+    for (size_t index = 0; index < kNumSampleRates; ++index) {
+        if (sampleRate == kSampleRateTable[index]) {
+            *tableIndex = index;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // static
 AMPEG4ElementaryAssembler::AMPEG4ElementaryAssembler(
         const sp<AMessage> &notify, const AString &desc, const AString &params)
@@ -100,6 +120,8 @@ AMPEG4ElementaryAssembler::AMPEG4ElementaryAssembler(
       mStreamStateIndication(0),
       mAuxiliaryDataSizeLength(0),
       mHasAUHeader(false),
+      mChannelConfig(0),
+      mSampleRateIndex(0),
       mAccessUnitRTPTime(0),
       mNextExpectedSeqNoValid(false),
       mNextExpectedSeqNo(0),
@@ -163,6 +185,13 @@ AMPEG4ElementaryAssembler::AMPEG4ElementaryAssembler(
             || mDTSDeltaLength > 0
             || mRandomAccessIndication
             || mStreamStateIndication > 0;
+
+        int32_t sampleRate, numChannels;
+        ASessionDescription::ParseFormatDesc(
+                desc.c_str(), &sampleRate, &numChannels);
+
+        mChannelConfig = numChannels;
+        CHECK(GetSampleRateIndex(sampleRate, &mSampleRateIndex));
     }
 }
 
@@ -338,22 +367,17 @@ void AMPEG4ElementaryAssembler::submitAccessUnit() {
 
     ALOGV("Access unit complete (%d nal units)", mPackets.size());
 
-    size_t totalSize = 0;
-    for (List<sp<ABuffer> >::iterator it = mPackets.begin();
-         it != mPackets.end(); ++it) {
-        totalSize += (*it)->size();
-    }
+    sp<ABuffer> accessUnit;
 
-    sp<ABuffer> accessUnit = new ABuffer(totalSize);
-    size_t offset = 0;
-    for (List<sp<ABuffer> >::iterator it = mPackets.begin();
-         it != mPackets.end(); ++it) {
-        sp<ABuffer> nal = *it;
-        memcpy(accessUnit->data() + offset, nal->data(), nal->size());
-        offset += nal->size();
+    if (mIsGeneric) {
+        accessUnit = MakeADTSCompoundFromAACFrames(
+                OMX_AUDIO_AACObjectLC - 1,
+                mSampleRateIndex,
+                mChannelConfig,
+                mPackets);
+    } else {
+        accessUnit = MakeCompoundFromPackets(mPackets);
     }
-
-    CopyTimes(accessUnit, *mPackets.begin());
 
 #if 0
     printf(mAccessUnitDamaged ? "X" : ".");

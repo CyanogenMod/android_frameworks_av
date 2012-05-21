@@ -19,6 +19,7 @@
 #define A_RTP_ASSEMBLER_H_
 
 #include <media/stagefright/foundation/ABase.h>
+#include <utils/List.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -44,6 +45,15 @@ protected:
     virtual void packetLost() = 0;
 
     static void CopyTimes(const sp<ABuffer> &to, const sp<ABuffer> &from);
+
+    static sp<ABuffer> MakeADTSCompoundFromAACFrames(
+            unsigned profile,
+            unsigned samplingFreqIndex,
+            unsigned channelConfig,
+            const List<sp<ABuffer> > &frames);
+
+    static sp<ABuffer> MakeCompoundFromPackets(
+            const List<sp<ABuffer> > &frames);
 
 private:
     int64_t mFirstFailureTimeUs;
