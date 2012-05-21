@@ -276,14 +276,9 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
                 if (!info->mNPTMappingValid) {
                     // This is a live stream, we didn't receive any normal
-                    // playtime mapping. Assume the first packets correspond
-                    // to time 0.
-
-                    ALOGV("This is a live stream, assuming time = 0");
-
-                    info->mRTPTime = rtpTime;
-                    info->mNormalPlaytimeUs = 0ll;
-                    info->mNPTMappingValid = true;
+                    // playtime mapping. We won't map to npt time.
+                    source->queueAccessUnit(accessUnit);
+                    break;
                 }
 
                 int64_t nptUs =
