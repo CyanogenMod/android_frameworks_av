@@ -54,7 +54,8 @@ AudioPlayer::AudioPlayer(
       mFirstBuffer(NULL),
       mAudioSink(audioSink),
       mAllowDeepBuffering(allowDeepBuffering),
-      mObserver(observer) {
+      mObserver(observer),
+      mPinnedTimeUs(-1ll) {
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -187,6 +188,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     }
 
     mStarted = true;
+    mPinnedTimeUs = -1ll;
 
     return OK;
 }
@@ -209,6 +211,8 @@ void AudioPlayer::pause(bool playPendingSamples) {
         } else {
             mAudioTrack->pause();
         }
+
+        mPinnedTimeUs = ALooper::GetNowUs();
     }
 }
 
@@ -490,6 +494,12 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
         Mutex::Autolock autoLock(mLock);
         mNumFramesPlayed += size_done / mFrameSize;
         mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
+
+        if (mReachedEOS) {
+            mPinnedTimeUs = mNumFramesPlayedSysTimeUs;
+        } else {
+            mPinnedTimeUs = -1ll;
+        }
     }
 
     if (postEOS) {
@@ -516,7 +526,14 @@ int64_t AudioPlayer::getRealTimeUsLocked() const {
     // Compensate for large audio buffers, updates of mNumFramesPlayed
     // are less frequent, therefore to get a "smoother" notion of time we
     // compensate using system time.
-    int64_t diffUs = ALooper::GetNowUs() - mNumFramesPlayedSysTimeUs;
+    int64_t diffUs;
+    if (mPinnedTimeUs >= 0ll) {
+        diffUs = mPinnedTimeUs;
+    } else {
+        diffUs = ALooper::GetNowUs();
+    }
+
+    diffUs -= mNumFramesPlayedSysTimeUs;
 
     return result + diffUs;
 }
