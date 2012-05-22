@@ -1111,6 +1111,9 @@ public:
         sp<NBAIO_Sink>          mPipeSink;
         // The current sink for the normal mixer to write it's (sub)mix, mOutputSink or mPipeSink
         sp<NBAIO_Sink>          mNormalSink;
+        // For dumpsys
+        sp<NBAIO_Sink>          mTeeSink;
+        sp<NBAIO_Source>        mTeeSource;
     public:
         virtual     bool        hasFastMixer() const = 0;
         virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const

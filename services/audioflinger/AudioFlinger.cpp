@@ -79,6 +79,8 @@
 #include "AudioStreamOutSink.h"
 #include "MonoPipe.h"
 #include "MonoPipeReader.h"
+#include "Pipe.h"
+#include "PipeReader.h"
 #include "SourceAudioBufferProvider.h"
 
 #ifdef HAVE_REQUEST_PRIORITY
@@ -2217,6 +2219,20 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         ALOG_ASSERT(index == 0);
         mPipeSink = monoPipe;
 
+#ifdef TEE_SINK_FRAMES
+        // create a Pipe to archive a copy of FastMixer's output for dumpsys
+        Pipe *teeSink = new Pipe(TEE_SINK_FRAMES, format);
+        numCounterOffers = 0;
+        index = teeSink->negotiate(offers, 1, NULL, numCounterOffers);
+        ALOG_ASSERT(index == 0);
+        mTeeSink = teeSink;
+        PipeReader *teeSource = new PipeReader(*teeSink);
+        numCounterOffers = 0;
+        index = teeSource->negotiate(offers, 1, NULL, numCounterOffers);
+        ALOG_ASSERT(index == 0);
+        mTeeSource = teeSource;
+#endif
+
 #ifdef SOAKER
         // create a soaker as workaround for governor issues
         mSoaker = new Soaker();
@@ -2245,6 +2261,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         state->mColdFutexAddr = &mFastMixerFutex;
         state->mColdGen++;
         state->mDumpState = &mFastMixerDumpState;
+        state->mTeeSink = mTeeSink.get();
         sq->end();
         sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
 
@@ -3439,6 +3456,62 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
     FastMixerDumpState copy = mFastMixerDumpState;
     copy.dump(fd);
+
+    // Write the tee output to a .wav file
+    NBAIO_Source *teeSource = mTeeSource.get();
+    if (teeSource != NULL) {
+        char teePath[64];
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        struct tm tm;
+        localtime_r(&tv.tv_sec, &tm);
+        strftime(teePath, sizeof(teePath), "/data/misc/media/%T.wav", &tm);
+        int teeFd = open(teePath, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+        if (teeFd >= 0) {
+            char wavHeader[44];
+            memcpy(wavHeader,
+                "RIFF\0\0\0\0WAVEfmt \20\0\0\0\1\0\2\0\104\254\0\0\0\0\0\0\4\0\20\0data\0\0\0\0",
+                sizeof(wavHeader));
+            NBAIO_Format format = teeSource->format();
+            unsigned channelCount = Format_channelCount(format);
+            ALOG_ASSERT(channelCount <= FCC_2);
+            unsigned sampleRate = Format_sampleRate(format);
+            wavHeader[22] = channelCount;       // number of channels
+            wavHeader[24] = sampleRate;         // sample rate
+            wavHeader[25] = sampleRate >> 8;
+            wavHeader[32] = channelCount * 2;   // block alignment
+            write(teeFd, wavHeader, sizeof(wavHeader));
+            size_t total = 0;
+            bool firstRead = true;
+            for (;;) {
+#define TEE_SINK_READ 1024
+                short buffer[TEE_SINK_READ * FCC_2];
+                size_t count = TEE_SINK_READ;
+                ssize_t actual = teeSource->read(buffer, count);
+                bool wasFirstRead = firstRead;
+                firstRead = false;
+                if (actual <= 0) {
+                    if (actual == (ssize_t) OVERRUN && wasFirstRead) {
+                        continue;
+                    }
+                    break;
+                }
+                ALOG_ASSERT(actual <= count);
+                write(teeFd, buffer, actual * channelCount * sizeof(short));
+                total += actual;
+            }
+            lseek(teeFd, (off_t) 4, SEEK_SET);
+            uint32_t temp = 44 + total * channelCount * sizeof(short) - 8;
+            write(teeFd, &temp, sizeof(temp));
+            lseek(teeFd, (off_t) 40, SEEK_SET);
+            temp =  total * channelCount * sizeof(short);
+            write(teeFd, &temp, sizeof(temp));
+            close(teeFd);
+            fdprintf(fd, "FastMixer tee copied to %s\n", teePath);
+        } else {
+            fdprintf(fd, "FastMixer unable to create tee %s: \n", strerror(errno));
+        }
+    }
 
     return NO_ERROR;
 }
