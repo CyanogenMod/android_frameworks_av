@@ -57,7 +57,10 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int clientPid):
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
-        mParams(NULL)
+        mState(NOT_INITIALIZED),
+        mParams(NULL),
+        mPreviewStreamId(NO_PREVIEW_STREAM),
+        mPreviewRequest(NULL)
 {
     ALOG1_ENTRY;
 
@@ -90,6 +93,8 @@ status_t Camera2Client::initialize(camera_module_t *module)
         mParams->dump();
     }
 
+    mState = STOPPED;
+
     ALOG1_EXIT;
     return OK;
 }
@@ -118,7 +123,12 @@ void Camera2Client::disconnect() {
 
     if (mDevice == 0) return;
 
-    mDevice->setStreamingRequest(NULL);
+    stopPreview();
+
+    if (mPreviewStreamId != NO_PREVIEW_STREAM) {
+        mDevice->deleteStream(mPreviewStreamId);
+        mPreviewStreamId = NO_PREVIEW_STREAM;
+    }
 
     CameraService::Client::disconnect();
 }
@@ -135,12 +145,67 @@ status_t Camera2Client::unlock() {
     return BAD_VALUE;
 }
 
-status_t Camera2Client::setPreviewDisplay(const sp<Surface>& surface) {
-    return BAD_VALUE;
+status_t Camera2Client::setPreviewDisplay(
+        const sp<Surface>& surface) {
+    ALOG1_ENTRY;
+    if (mState == PREVIEW) return INVALID_OPERATION;
+
+    sp<IBinder> binder;
+    sp<ANativeWindow> window;
+    if (surface != 0) {
+        binder = surface->asBinder();
+        window = surface;
+    }
+
+    return setPreviewWindow(binder,window);
 }
 
-status_t Camera2Client::setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture) {
-    return BAD_VALUE;
+status_t Camera2Client::setPreviewTexture(
+        const sp<ISurfaceTexture>& surfaceTexture) {
+    ALOG1_ENTRY;
+    if (mState == PREVIEW) return INVALID_OPERATION;
+
+    sp<IBinder> binder;
+    sp<ANativeWindow> window;
+    if (surfaceTexture != 0) {
+        binder = surfaceTexture->asBinder();
+        window = new SurfaceTextureClient(surfaceTexture);
+    }
+    return setPreviewWindow(binder, window);
+}
+
+status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
+        const sp<ANativeWindow>& window) {
+    ALOG1_ENTRY;
+    status_t res;
+
+    if (binder == mPreviewSurface) {
+        return NO_ERROR;
+    }
+
+    if (mPreviewStreamId != NO_PREVIEW_STREAM) {
+        res = mDevice->deleteStream(mPreviewStreamId);
+        if (res != OK) {
+            return res;
+        }
+    }
+
+    int previewWidth, previewHeight;
+    mParams->getPreviewSize(&previewWidth, &previewHeight);
+
+    res = mDevice->createStream(window,
+            previewWidth, previewHeight, CAMERA2_HAL_PIXEL_FORMAT_OPAQUE,
+            &mPreviewStreamId);
+    if (res != OK) {
+        return res;
+    }
+
+    if (mState == WAITING_FOR_PREVIEW_WINDOW) {
+        return startPreview();
+    }
+
+    ALOG1_EXIT;
+    return OK;
 }
 
 void Camera2Client::setPreviewCallbackFlag(int flag) {
@@ -148,15 +213,63 @@ void Camera2Client::setPreviewCallbackFlag(int flag) {
 }
 
 status_t Camera2Client::startPreview() {
-    return BAD_VALUE;
+    ALOG1_ENTRY;
+    status_t res;
+    if (mState == PREVIEW) return INVALID_OPERATION;
+
+    if (mPreviewStreamId == NO_PREVIEW_STREAM) {
+        mState = WAITING_FOR_PREVIEW_WINDOW;
+        return OK;
+    }
+
+    if (mPreviewRequest == NULL) {
+        updatePreviewRequest();
+    }
+
+    uint8_t outputStream = mPreviewStreamId;
+
+    camera_metadata_entry_t outputStreams;
+    res = find_camera_metadata_entry(mPreviewRequest,
+            ANDROID_REQUEST_OUTPUT_STREAMS,
+            &outputStreams);
+    if (res == NAME_NOT_FOUND) {
+        res = add_camera_metadata_entry(mPreviewRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                &outputStream, 1);
+    } else if (res == OK) {
+        res = update_camera_metadata_entry(mPreviewRequest,
+                outputStreams.index, &outputStream, 1, NULL);
+    }
+
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        mState = STOPPED;
+        return res;
+    }
+
+    res = mDevice->setStreamingRequest(mPreviewRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set preview request to start preview: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        mState = STOPPED;
+        return res;
+    }
+    mState = PREVIEW;
+
+    return OK;
 }
 
 void Camera2Client::stopPreview() {
+    ALOG1_ENTRY;
+    if (mState != PREVIEW) return;
 
+    mDevice->setStreamingRequest(NULL);
+    mState = STOPPED;
 }
 
 bool Camera2Client::previewEnabled() {
-    return false;
+    return mState == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
@@ -179,11 +292,11 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
 }
 
 status_t Camera2Client::autoFocus() {
-    return BAD_VALUE;
+    return OK;
 }
 
 status_t Camera2Client::cancelAutoFocus() {
-    return BAD_VALUE;
+    return OK;
 }
 
 status_t Camera2Client::takePicture(int msgType) {
@@ -191,7 +304,7 @@ status_t Camera2Client::takePicture(int msgType) {
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
-    return BAD_VALUE;
+    return OK;
 }
 
 String8 Camera2Client::getParameters() const {
@@ -199,7 +312,7 @@ String8 Camera2Client::getParameters() const {
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
-    return BAD_VALUE;
+    return OK;
 }
 
 // private methods
@@ -781,7 +894,7 @@ status_t Camera2Client::buildDefaultParameters() {
             "(0,0,0,0,0)");
 
     mParams->set(CameraParameters::KEY_ZOOM, 0);
-    mParams->set(CameraParameters::KEY_MAX_ZOOM, kNumZoomSteps - 1);
+    mParams->set(CameraParameters::KEY_MAX_ZOOM, NUM_ZOOM_STEPS - 1);
 
     camera_metadata_entry_t maxDigitalZoom;
     res = find_camera_metadata_entry(mDevice->info(),
@@ -792,9 +905,9 @@ status_t Camera2Client::buildDefaultParameters() {
         String8 zoomRatios;
         float zoom = 1.f;
         float zoomIncrement = (maxDigitalZoom.data.f[0] - zoom) /
-                (kNumZoomSteps-1);
+                (NUM_ZOOM_STEPS-1);
         bool addComma = false;
-        for (size_t i=0; i < kNumZoomSteps; i++) {
+        for (size_t i=0; i < NUM_ZOOM_STEPS; i++) {
             if (addComma) zoomRatios += ",";
             addComma = true;
             zoomRatios += String8::format("%d", static_cast<int>(zoom * 100));
@@ -843,6 +956,23 @@ status_t Camera2Client::buildDefaultParameters() {
                 "false");
     }
 
+    return OK;
+}
+
+status_t Camera2Client::updatePreviewRequest() {
+    ALOG1_ENTRY
+    status_t res;
+    if (mPreviewRequest == NULL) {
+        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                &mPreviewRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create default preview request: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+    // TODO: Adjust for mParams changes
+    ALOG1_EXIT
     return OK;
 }
 

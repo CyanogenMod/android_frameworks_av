@@ -19,6 +19,7 @@
 
 #include <utils/RefBase.h>
 #include <utils/List.h>
+#include <utils/Vector.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
 #include <utils/Errors.h>
@@ -34,11 +35,18 @@ class Camera2Device : public virtual RefBase {
 
     status_t initialize(camera_module_t *module);
 
+    camera_metadata_t* info();
+
     status_t setStreamingRequest(camera_metadata_t* request);
 
-    camera_metadata_t* info() {
-        return mDeviceInfo;
-    }
+    status_t createStream(sp<ANativeWindow> consumer,
+            uint32_t width, uint32_t height, int format,
+            int *id);
+
+    status_t deleteStream(int id);
+
+    status_t createDefaultRequest(int templateId,
+            camera_metadata_t **request);
 
   private:
 
@@ -63,6 +71,11 @@ class Camera2Device : public virtual RefBase {
         const camera2_request_queue_src_ops_t*   getToConsumerInterface();
         void setFromConsumerInterface(camera2_device_t *d);
 
+        // Connect queue consumer endpoint to a camera2 device
+        status_t setConsumerDevice(camera2_device_t *d);
+        // Connect queue producer endpoint to a camera2 device
+        status_t setProducerDevice(camera2_device_t *d);
+
         const camera2_frame_queue_dst_ops_t* getToProducerInterface();
 
         // Real interfaces. On enqueue, queue takes ownership of buffer pointer
@@ -79,6 +92,7 @@ class Camera2Device : public virtual RefBase {
         status_t setStreamSlot(const List<camera_metadata_t*> &bufs);
 
       private:
+        status_t signalConsumerLocked();
         status_t freeBuffers(List<camera_metadata_t*>::iterator start,
                 List<camera_metadata_t*>::iterator end);
 
@@ -124,6 +138,67 @@ class Camera2Device : public virtual RefBase {
 
     MetadataQueue mRequestQueue;
     MetadataQueue mFrameQueue;
+
+    /**
+     * Adapter from an ANativeWindow interface to camera2 device stream ops.
+     * Also takes care of allocating/deallocating stream in device interface
+     */
+    class StreamAdapter: public camera2_stream_ops, public virtual RefBase {
+      public:
+        StreamAdapter(camera2_device_t *d);
+
+        ~StreamAdapter();
+
+        status_t connectToDevice(sp<ANativeWindow> consumer,
+                uint32_t width, uint32_t height, int format);
+
+        status_t disconnect();
+
+        // Get stream ID. Only valid after a successful connectToDevice call.
+        int      getId();
+
+      private:
+        enum {
+            ERROR = -1,
+            DISCONNECTED = 0,
+            ALLOCATED,
+            CONNECTED,
+            ACTIVE
+        } mState;
+
+        sp<ANativeWindow> mConsumerInterface;
+        camera2_device_t *mDevice;
+
+        uint32_t mId;
+        uint32_t mWidth;
+        uint32_t mHeight;
+        uint32_t mFormat;
+        uint32_t mUsage;
+        uint32_t mMaxProducerBuffers;
+        uint32_t mMaxConsumerBuffers;
+
+        int mFormatRequested;
+
+        const camera2_stream_ops *getStreamOps();
+
+        static ANativeWindow* toANW(const camera2_stream_ops_t *w);
+
+        static int dequeue_buffer(const camera2_stream_ops_t *w,
+                buffer_handle_t** buffer);
+
+        static int enqueue_buffer(const camera2_stream_ops_t* w,
+                int64_t timestamp,
+                buffer_handle_t* buffer);
+
+        static int cancel_buffer(const camera2_stream_ops_t* w,
+                buffer_handle_t* buffer);
+
+        static int set_crop(const camera2_stream_ops_t* w,
+                int left, int top, int right, int bottom);
+    }; // class StreamAdapter
+
+    typedef List<sp<StreamAdapter> > StreamList;
+    StreamList mStreams;
 
 }; // class Camera2Device
 

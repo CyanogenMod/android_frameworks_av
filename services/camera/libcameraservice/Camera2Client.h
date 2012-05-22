@@ -36,7 +36,8 @@ public:
     virtual status_t        lock();
     virtual status_t        unlock();
     virtual status_t        setPreviewDisplay(const sp<Surface>& surface);
-    virtual status_t        setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture);
+    virtual status_t        setPreviewTexture(
+        const sp<ISurfaceTexture>& surfaceTexture);
     virtual void            setPreviewCallbackFlag(int flag);
     virtual status_t        startPreview();
     virtual void            stopPreview();
@@ -66,15 +67,35 @@ public:
     virtual status_t dump(int fd, const Vector<String16>& args);
 
 private:
-    CameraParameters *mParams;
+    // Number of zoom steps to simulate
+    static const unsigned int NUM_ZOOM_STEPS = 10;
+    // Used with mPreviewStreamId
+    static const int NO_PREVIEW_STREAM = -1;
+
+    enum {
+        NOT_INITIALIZED,
+        STOPPED,
+        WAITING_FOR_PREVIEW_WINDOW,
+        PREVIEW
+    } mState;
+
     sp<Camera2Device> mDevice;
+
+    CameraParameters *mParams;
+
+    sp<IBinder> mPreviewSurface;
+    int mPreviewStreamId;
+    camera_metadata_t *mPreviewRequest;
+
+    status_t setPreviewWindow(const sp<IBinder>& binder,
+            const sp<ANativeWindow>& window);
 
     // Convert static camera info from a camera2 device to the
     // old API parameter map.
     status_t buildDefaultParameters();
 
-    // Free parameters for mapping from new to old HAL
-    static const unsigned int kNumZoomSteps = 10;
+    // Update preview request based on mParams
+    status_t updatePreviewRequest();
 };
 
 }; // namespace android
