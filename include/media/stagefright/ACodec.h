@@ -233,6 +233,8 @@ private:
 
     status_t initNativeWindow();
 
+    status_t pushBlankBuffersToNativeWindow();
+
     // Returns true iff all buffers on the given port have status OWNED_BY_US.
     bool allYourBuffersAreBelongToUs(OMX_U32 portIndex);
 
