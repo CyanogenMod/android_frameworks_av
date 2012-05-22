@@ -325,6 +325,12 @@ ssize_t NuMediaExtractor::fetchTrackSamples(
                 CHECK(info->mSample == NULL);
 
                 info->mFinalResult = err;
+
+                if (info->mFinalResult != ERROR_END_OF_STREAM) {
+                    ALOGW("read on track %d failed with error %d",
+                          info->mTrackIndex, err);
+                }
+
                 info->mSampleTimeUs = -1ll;
                 continue;
             } else {
