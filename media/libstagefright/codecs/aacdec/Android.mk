@@ -1,8 +1,8 @@
 LOCAL_PATH:= $(call my-dir)
 
-AAC_LIBRARY = pv
+AAC_LIBRARY = fraunhofer
 
-ifneq ($(AAC_LIBRARY), pv)
+ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(CLEAR_VARS)
 
   LOCAL_SRC_FILES := \
