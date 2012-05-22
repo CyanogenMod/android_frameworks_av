@@ -77,6 +77,7 @@ bool FastMixer::threadLoop()
     bool isWarm = false;    // true means ready to mix, false means wait for warmup before mixing
     struct timespec measuredWarmupTs = {0, 0};  // how long did it take for warmup to complete
     uint32_t warmupCycles = 0;  // counter of number of loop cycles required to warmup
+    NBAIO_Sink* teeSink = NULL; // if non-NULL, then duplicate write() to this non-blocking sink
 
     for (;;) {
 
@@ -106,6 +107,7 @@ bool FastMixer::threadLoop()
 
             // As soon as possible of learning of a new dump area, start using it
             dumpState = next->mDumpState != NULL ? next->mDumpState : &dummyDumpState;
+            teeSink = next->mTeeSink;
 
             // We want to always have a valid reference to the previous (non-idle) state.
             // However, the state queue only guarantees access to current and previous states.
@@ -397,6 +399,9 @@ bool FastMixer::threadLoop()
             if (mixBufferState == UNDEFINED) {
                 memset(mixBuffer, 0, frameCount * 2 * sizeof(short));
                 mixBufferState = ZEROED;
+            }
+            if (teeSink != NULL) {
+                (void) teeSink->write(mixBuffer, frameCount);
             }
             // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
             //       but this code should be modified to handle both non-blocking and blocking sinks

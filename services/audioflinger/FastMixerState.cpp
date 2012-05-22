@@ -30,7 +30,8 @@ FastTrack::~FastTrack()
 
 FastMixerState::FastMixerState() :
     mFastTracksGen(0), mTrackMask(0), mOutputSink(NULL), mOutputSinkGen(0),
-    mFrameCount(0), mCommand(INITIAL), mColdFutexAddr(NULL), mColdGen(0), mDumpState(NULL)
+    mFrameCount(0), mCommand(INITIAL), mColdFutexAddr(NULL), mColdGen(0),
+    mDumpState(NULL), mTeeSink(NULL)
 {
 }
 

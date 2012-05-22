@@ -85,4 +85,8 @@ LOCAL_CFLAGS += -DHAVE_REQUEST_PRIORITY -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE 
 # uncomment for systrace
 # LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_AUDIO
 
+# uncomment for dumpsys to write most recent audio output to .wav file
+# 47.5 seconds at 44.1 kHz, 8 megabytes
+# LOCAL_CFLAGS += -DTEE_SINK_FRAMES=0x200000
+
 include $(BUILD_SHARED_LIBRARY)
