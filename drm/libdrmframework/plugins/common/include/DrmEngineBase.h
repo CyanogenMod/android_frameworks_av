@@ -87,6 +87,9 @@ public:
             int uniqueId, DecryptHandle* decryptHandle,
             const char* uri, const char* mime);
 
+    status_t openDecryptSession(int uniqueId, DecryptHandle* decryptHandle,
+            const DrmBuffer& buf, const String8& mimeType);
+
     status_t closeDecryptSession(int uniqueId, DecryptHandle* decryptHandle);
 
     status_t initializeDecryptUnit(int uniqueId, DecryptHandle* decryptHandle,
@@ -429,6 +432,21 @@ protected:
             int uniqueId, DecryptHandle* decryptHandle,
             const char* uri, const char* mime) {
 
+        return DRM_ERROR_CANNOT_HANDLE;
+    }
+
+    /**
+     * Open the decrypt session to decrypt the given protected content
+     *
+     * @param[in] uniqueId Unique identifier for a session
+     * @param[in] decryptHandle Handle for the current decryption session
+     * @param[in] buf Data to initiate decrypt session
+     * @param[in] mimeType Mime type of the protected content
+     * @return
+     *     DRM_ERROR_CANNOT_HANDLE for failure and DRM_NO_ERROR for success
+     */
+    virtual status_t onOpenDecryptSession(int uniqueId, DecryptHandle* decryptHandle,
+            const DrmBuffer& buf, const String8& mimeType) {
         return DRM_ERROR_CANNOT_HANDLE;
     }
 

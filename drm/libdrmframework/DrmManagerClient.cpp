@@ -130,6 +130,11 @@ sp<DecryptHandle> DrmManagerClient::openDecryptSession(
                     mUniqueId, uri, mime);
 }
 
+sp<DecryptHandle> DrmManagerClient::openDecryptSession(
+            const DrmBuffer& buf, const String8& mimeType) {
+    return mDrmManagerClientImpl->openDecryptSession(mUniqueId, buf, mimeType);
+}
+
 status_t DrmManagerClient::closeDecryptSession(sp<DecryptHandle> &decryptHandle) {
     return mDrmManagerClientImpl->closeDecryptSession(mUniqueId, decryptHandle);
 }
