@@ -1804,11 +1804,25 @@ Exit:
     return track;
 }
 
+uint32_t AudioFlinger::MixerThread::correctLatency(uint32_t latency) const
+{
+    if (mFastMixer != NULL) {
+        MonoPipe *pipe = (MonoPipe *)mPipeSink.get();
+        latency += (pipe->getAvgFrames() * 1000) / mSampleRate;
+    }
+    return latency;
+}
+
+uint32_t AudioFlinger::PlaybackThread::correctLatency(uint32_t latency) const
+{
+    return latency;
+}
+
 uint32_t AudioFlinger::PlaybackThread::latency() const
 {
     Mutex::Autolock _l(mLock);
     if (initCheck() == NO_ERROR) {
-        return mOutput->stream->get_latency(mOutput->stream);
+        return correctLatency(mOutput->stream->get_latency(mOutput->stream));
     } else {
         return 0;
     }
@@ -2019,6 +2033,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
         mAudioFlinger->moveEffectChain_l(effectChains[i]->sessionId(), this, this, false);
     }
 }
+
 
 status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames)
 {

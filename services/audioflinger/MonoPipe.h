@@ -56,6 +56,10 @@ public:
     virtual ssize_t write(const void *buffer, size_t count);
     //virtual ssize_t writeVia(writeVia_t via, size_t total, void *user, size_t block);
 
+            // average number of frames present in the pipe under normal conditions.
+            // See throttling mechanism in MonoPipe::write()
+            size_t  getAvgFrames() const { return (mMaxFrames * 11) / 16; }
+
 private:
     const size_t    mMaxFrames;     // always a power of 2
     void * const    mBuffer;
