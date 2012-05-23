@@ -66,6 +66,7 @@ private:
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
+    void maybeConfigureDownmix() const;
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAAC2);
 };
