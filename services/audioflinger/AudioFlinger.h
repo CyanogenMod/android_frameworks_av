@@ -1048,6 +1048,8 @@ public:
         // Cache various calculated values, at threadLoop() entry and after a parameter change
         virtual     void        cacheParameters_l();
 
+        virtual     uint32_t    correctLatency(uint32_t latency) const;
+
     private:
 
         friend class AudioFlinger;      // for numerous
@@ -1154,6 +1156,7 @@ public:
         virtual     void        threadLoop_mix();
         virtual     void        threadLoop_sleepTime();
         virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
+        virtual     uint32_t    correctLatency(uint32_t latency) const;
 
                     AudioMixer* mAudioMixer;    // normal mixer
     private:
