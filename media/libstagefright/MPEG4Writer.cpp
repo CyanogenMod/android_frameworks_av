@@ -2811,8 +2811,8 @@ void MPEG4Writer::Track::writeStszBox() {
     mOwner->beginBox("stsz");
     mOwner->writeInt32(0);  // version=0, flags=0
     if (mSamplesHaveSameSize) {
-        List<uint32_t *>::iterator it = mSampleSizes.begin();
-        mOwner->writeInt32((*it)[0]);  // default sample size
+        CHECK(mCurrentSampleSizeArr != 0);
+        mOwner->write(mCurrentSampleSizeArr, 4, 1);  // default sample size
     } else {
         mOwner->writeInt32(0);
     }
