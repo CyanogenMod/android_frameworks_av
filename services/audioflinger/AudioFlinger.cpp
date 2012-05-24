@@ -474,19 +474,15 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_OUTPUT_MIX) {
+            // check if an effect chain with the same session ID is present on another
+            // output thread and move it here.
             for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
                 sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
                 if (mPlaybackThreads.keyAt(i) != output) {
-                    // prevent same audio session on different output threads
                     uint32_t sessions = t->hasAudioSession(*sessionId);
-                    if (sessions & PlaybackThread::TRACK_SESSION) {
-                        ALOGE("createTrack() session ID %d already in use", *sessionId);
-                        lStatus = BAD_VALUE;
-                        goto Exit;
-                    }
-                    // check if an effect with same session ID is waiting for a track to be created
                     if (sessions & PlaybackThread::EFFECT_SESSION) {
                         effectThread = t.get();
+                        break;
                     }
                 }
             }
