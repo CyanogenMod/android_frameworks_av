@@ -1692,7 +1692,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
       } else {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
+        ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
                 "mFrameCount=%d format=%d isLinear=%d channelMask=%d sampleRate=%d mSampleRate=%d "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
                 isTimed, sharedBuffer.get(), frameCount, mFrameCount, format,
