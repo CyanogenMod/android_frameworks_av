@@ -822,9 +822,9 @@ void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool ac
     if (accumulate) {
         while (numFrames) {
             // FL + RL
-            pDst[0] = clamp16(pDst[0] + pSrc[0] + pSrc[2]);
+            pDst[0] = clamp16(pDst[0] + ((pSrc[0] + pSrc[2]) >> 1));
             // FR + RR
-            pDst[1] = clamp16(pDst[1] + pSrc[1] + pSrc[3]);
+            pDst[1] = clamp16(pDst[1] + ((pSrc[1] + pSrc[3]) >> 1));
             pSrc += 4;
             pDst += 2;
             numFrames--;
@@ -832,9 +832,9 @@ void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool ac
     } else { // same code as above but without adding and clamping pDst[i] to itself
         while (numFrames) {
             // FL + RL
-            pDst[0] = clamp16(pSrc[0] + pSrc[2]);
+            pDst[0] = clamp16((pSrc[0] + pSrc[2]) >> 1);
             // FR + RR
-            pDst[1] = clamp16(pSrc[1] + pSrc[3]);
+            pDst[1] = clamp16((pSrc[1] + pSrc[3]) >> 1);
             pSrc += 4;
             pDst += 2;
             numFrames--;
@@ -877,8 +877,8 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
             // FR + centerPlusRearContrib
             rt = (pSrc[1] << 12) + centerPlusRearContrib;
             // accumulate in destination
-            pDst[0] = clamp16(pDst[0] + (lt >> 12));
-            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            pDst[0] = clamp16(pDst[0] + (lt >> 13));
+            pDst[1] = clamp16(pDst[1] + (rt >> 13));
             pSrc += 4;
             pDst += 2;
             numFrames--;
@@ -892,8 +892,8 @@ void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, boo
             // FR + centerPlusRearContrib
             rt = (pSrc[1] << 12) + centerPlusRearContrib;
             // store in destination
-            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
-            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
+            pDst[0] = clamp16(lt >> 13); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 13); // differs from when accumulate is true above
             pSrc += 4;
             pDst += 2;
             numFrames--;
@@ -939,8 +939,8 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             // FR + centerPlusLfeContrib + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[5] << 12);
             // accumulate in destination
-            pDst[0] = clamp16(pDst[0] + (lt >> 12));
-            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            pDst[0] = clamp16(pDst[0] + (lt >> 13));
+            pDst[1] = clamp16(pDst[1] + (rt >> 13));
             pSrc += 6;
             pDst += 2;
             numFrames--;
@@ -955,8 +955,8 @@ void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             // FR + centerPlusLfeContrib + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[5] << 12);
             // store in destination
-            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
-            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
+            pDst[0] = clamp16(lt >> 13); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 13); // differs from when accumulate is true above
             pSrc += 6;
             pDst += 2;
             numFrames--;
@@ -1004,8 +1004,8 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             // FR + centerPlusLfeContrib + SR + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[7] << 12) + (pSrc[5] << 12);
             //accumulate in destination
-            pDst[0] = clamp16(pDst[0] + (lt >> 12));
-            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            pDst[0] = clamp16(pDst[0] + (lt >> 13));
+            pDst[1] = clamp16(pDst[1] + (rt >> 13));
             pSrc += 8;
             pDst += 2;
             numFrames--;
@@ -1020,8 +1020,8 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
             // FR + centerPlusLfeContrib + SR + RR
             rt = (pSrc[1] << 12) + centerPlusLfeContrib + (pSrc[7] << 12) + (pSrc[5] << 12);
             // store in destination
-            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
-            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
+            pDst[0] = clamp16(lt >> 13); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 13); // differs from when accumulate is true above
             pSrc += 8;
             pDst += 2;
             numFrames--;
@@ -1130,8 +1130,8 @@ bool Downmix_foldGeneric(
             lt += centersLfeContrib;
             rt += centersLfeContrib;
             // accumulate in destination
-            pDst[0] = clamp16(pDst[0] + (lt >> 12));
-            pDst[1] = clamp16(pDst[1] + (rt >> 12));
+            pDst[0] = clamp16(pDst[0] + (lt >> 13));
+            pDst[1] = clamp16(pDst[1] + (rt >> 13));
             pSrc += numChan;
             pDst += 2;
             numFrames--;
@@ -1159,8 +1159,8 @@ bool Downmix_foldGeneric(
             lt += centersLfeContrib;
             rt += centersLfeContrib;
             // store in destination
-            pDst[0] = clamp16(lt >> 12); // differs from when accumulate is true above
-            pDst[1] = clamp16(rt >> 12); // differs from when accumulate is true above
+            pDst[0] = clamp16(lt >> 13); // differs from when accumulate is true above
+            pDst[1] = clamp16(rt >> 13); // differs from when accumulate is true above
             pSrc += numChan;
             pDst += 2;
             numFrames--;
