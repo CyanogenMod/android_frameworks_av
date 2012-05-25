@@ -19,6 +19,7 @@
 
 #include "SoftAAC2.h"
 
+#include <cutils/properties.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
@@ -185,7 +186,6 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
         default:
             return SimpleSoftOMXComponent::internalGetParameter(index, params);
     }
-
 }
 
 OMX_ERRORTYPE SoftAAC2::internalSetParameter(
@@ -247,6 +247,18 @@ bool SoftAAC2::isConfigured() const {
     return mInputBufferCount > 0;
 }
 
+void SoftAAC2::maybeConfigureDownmix() const {
+    if (mStreamInfo->numChannels > 2) {
+        char value[PROPERTY_VALUE_MAX];
+        if (!(property_get("media.aac_51_output_enabled", value, NULL) &&
+                (!strcmp(value, "1") || !strcasecmp(value, "true")))) {
+            ALOGI("Downmixing multichannel AAC to stereo");
+            aacDecoder_SetParam(mAACDecoder, AAC_PCM_OUTPUT_CHANNELS, 2);
+            mStreamInfo->numChannels = 2;
+        }
+    }
+}
+
 void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
@@ -281,7 +293,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         info->mOwnedByUs = false;
         notifyEmptyBufferDone(header);
 
-        ALOGI("Configuring decoder: %d Hz, %d channels",
+        maybeConfigureDownmix();
+        ALOGI("Initially configuring decoder: %d Hz, %d channels",
               mStreamInfo->sampleRate,
               mStreamInfo->numChannels);
         notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
@@ -422,6 +435,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         if (mInputBufferCount <= 2) {
             if (mStreamInfo->sampleRate != prevSampleRate ||
                 mStreamInfo->numChannels != prevNumChannels) {
+                maybeConfigureDownmix();
                 ALOGI("Reconfiguring decoder: %d Hz, %d channels",
                       mStreamInfo->sampleRate,
                       mStreamInfo->numChannels);
