@@ -24,7 +24,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
           libAACdec libMpegTPDec libSBRdec libPCMutils libFDK libSYS
 
   LOCAL_SHARED_LIBRARIES := \
-          libstagefright_omx libstagefright_foundation libutils
+          libstagefright_omx libstagefright_foundation libutils libcutils
 
   LOCAL_MODULE := libstagefright_soft_aacdec
   LOCAL_MODULE_TAGS := optional
