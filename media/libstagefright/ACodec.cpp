@@ -3472,11 +3472,14 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
 
                     mCodec->signalError(OMX_ErrorUndefined, err);
 
-                    // This is technically not correct, since we were unable
-                    // to allocate output buffers and therefore the output port
-                    // remains disabled. It is necessary however to allow us
-                    // to shutdown the codec properly.
-                    mCodec->changeState(mCodec->mExecutingState);
+                    // This is technically not correct, but appears to be
+                    // the only way to free the component instance.
+                    // Controlled transitioning from excecuting->idle
+                    // and idle->loaded seem impossible probably because
+                    // the output port never finishes re-enabling.
+                    mCodec->mShutdownInProgress = true;
+                    mCodec->mKeepComponentAllocated = false;
+                    mCodec->changeState(mCodec->mLoadedState);
                 }
 
                 return true;
