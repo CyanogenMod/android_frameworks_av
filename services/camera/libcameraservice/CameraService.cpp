@@ -410,6 +410,7 @@ status_t CameraService::Client::checkPidAndHardware() const {
 status_t CameraService::Client::lock() {
     int callingPid = getCallingPid();
     LOG1("lock (pid %d)", callingPid);
+    Mutex::Autolock ilock(mICameraLock);
     Mutex::Autolock lock(mLock);
 
     // lock camera to this client if the the camera is unlocked
@@ -425,6 +426,7 @@ status_t CameraService::Client::lock() {
 status_t CameraService::Client::unlock() {
     int callingPid = getCallingPid();
     LOG1("unlock (pid %d)", callingPid);
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
 
     // allow anyone to use camera (after they lock the camera)
@@ -447,6 +449,7 @@ status_t CameraService::Client::unlock() {
 status_t CameraService::Client::connect(const sp<ICameraClient>& client) {
     int callingPid = getCallingPid();
     LOG1("connect E (pid %d)", callingPid);
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
 
     if (mClientPid != 0 && checkPid() != NO_ERROR) {
@@ -482,6 +485,7 @@ static void disconnectWindow(const sp<ANativeWindow>& window) {
 void CameraService::Client::disconnect() {
     int callingPid = getCallingPid();
     LOG1("disconnect E (pid %d)", callingPid);
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
 
     if (checkPid() != NO_ERROR) {
@@ -526,6 +530,7 @@ void CameraService::Client::disconnect() {
 
 status_t CameraService::Client::setPreviewWindow(const sp<IBinder>& binder,
         const sp<ANativeWindow>& window) {
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
@@ -597,6 +602,7 @@ status_t CameraService::Client::setPreviewTexture(
 // preview are handled.
 void CameraService::Client::setPreviewCallbackFlag(int callback_flag) {
     LOG1("setPreviewCallbackFlag(%d) (pid %d)", callback_flag, getCallingPid());
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
 
@@ -623,6 +629,7 @@ status_t CameraService::Client::startRecording() {
 // start preview or recording
 status_t CameraService::Client::startCameraMode(camera_mode mode) {
     LOG1("startCameraMode(%d)", mode);
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
@@ -696,6 +703,7 @@ status_t CameraService::Client::startRecordingMode() {
 // stop preview mode
 void CameraService::Client::stopPreview() {
     LOG1("stopPreview (pid %d)", getCallingPid());
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
 
@@ -709,6 +717,7 @@ void CameraService::Client::stopPreview() {
 // stop recording mode
 void CameraService::Client::stopRecording() {
     LOG1("stopRecording (pid %d)", getCallingPid());
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
 
@@ -721,6 +730,7 @@ void CameraService::Client::stopRecording() {
 
 // release a recording frame
 void CameraService::Client::releaseRecordingFrame(const sp<IMemory>& mem) {
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
     mHardware->releaseRecordingFrame(mem);
@@ -729,6 +739,7 @@ void CameraService::Client::releaseRecordingFrame(const sp<IMemory>& mem) {
 status_t CameraService::Client::storeMetaDataInBuffers(bool enabled)
 {
     LOG1("storeMetaDataInBuffers: %s", enabled? "true": "false");
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) {
         return UNKNOWN_ERROR;
@@ -739,6 +750,7 @@ status_t CameraService::Client::storeMetaDataInBuffers(bool enabled)
 bool CameraService::Client::previewEnabled() {
     LOG1("previewEnabled (pid %d)", getCallingPid());
 
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return false;
     return mHardware->previewEnabled();
@@ -747,6 +759,7 @@ bool CameraService::Client::previewEnabled() {
 bool CameraService::Client::recordingEnabled() {
     LOG1("recordingEnabled (pid %d)", getCallingPid());
 
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return false;
     return mHardware->recordingEnabled();
@@ -755,6 +768,7 @@ bool CameraService::Client::recordingEnabled() {
 status_t CameraService::Client::autoFocus() {
     LOG1("autoFocus (pid %d)", getCallingPid());
 
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
@@ -765,6 +779,7 @@ status_t CameraService::Client::autoFocus() {
 status_t CameraService::Client::cancelAutoFocus() {
     LOG1("cancelAutoFocus (pid %d)", getCallingPid());
 
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
@@ -776,26 +791,30 @@ status_t CameraService::Client::cancelAutoFocus() {
 status_t CameraService::Client::takePicture(int msgType) {
     LOG1("takePicture (pid %d): 0x%x", getCallingPid(), msgType);
 
-    Mutex::Autolock lock(mLock);
-    status_t result = checkPidAndHardware();
-    if (result != NO_ERROR) return result;
+    Mutex::Autolock iLock(mICameraLock);
+    int picMsgType = 0;
+    { // scope for lock
+        Mutex::Autolock lock(mLock);
+        status_t result = checkPidAndHardware();
+        if (result != NO_ERROR) return result;
 
-    if ((msgType & CAMERA_MSG_RAW_IMAGE) &&
-        (msgType & CAMERA_MSG_RAW_IMAGE_NOTIFY)) {
-        ALOGE("CAMERA_MSG_RAW_IMAGE and CAMERA_MSG_RAW_IMAGE_NOTIFY"
-                " cannot be both enabled");
-        return BAD_VALUE;
+        if ((msgType & CAMERA_MSG_RAW_IMAGE) &&
+                (msgType & CAMERA_MSG_RAW_IMAGE_NOTIFY)) {
+            ALOGE("CAMERA_MSG_RAW_IMAGE and CAMERA_MSG_RAW_IMAGE_NOTIFY"
+                    " cannot be both enabled");
+            return BAD_VALUE;
+        }
+
+        // We only accept picture related message types
+        // and ignore other types of messages for takePicture().
+        picMsgType = msgType
+                & (CAMERA_MSG_SHUTTER |
+                        CAMERA_MSG_POSTVIEW_FRAME |
+                        CAMERA_MSG_RAW_IMAGE |
+                        CAMERA_MSG_RAW_IMAGE_NOTIFY |
+                        CAMERA_MSG_COMPRESSED_IMAGE);
+
     }
-
-    // We only accept picture related message types
-    // and ignore other types of messages for takePicture().
-    int picMsgType = msgType
-                        & (CAMERA_MSG_SHUTTER |
-                           CAMERA_MSG_POSTVIEW_FRAME |
-                           CAMERA_MSG_RAW_IMAGE |
-                           CAMERA_MSG_RAW_IMAGE_NOTIFY |
-                           CAMERA_MSG_COMPRESSED_IMAGE);
-
     enableMsgType(picMsgType);
 
     return mHardware->takePicture();
@@ -805,6 +824,7 @@ status_t CameraService::Client::takePicture(int msgType) {
 status_t CameraService::Client::setParameters(const String8& params) {
     LOG1("setParameters (pid %d) (%s)", getCallingPid(), params.string());
 
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
@@ -815,6 +835,7 @@ status_t CameraService::Client::setParameters(const String8& params) {
 
 // get preview/capture parameters - key/value pairs
 String8 CameraService::Client::getParameters() const {
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return String8();
 
@@ -855,6 +876,7 @@ status_t CameraService::Client::enableShutterSound(bool enable) {
 status_t CameraService::Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     LOG1("sendCommand (pid %d)", getCallingPid());
     int orientation;
+    Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
