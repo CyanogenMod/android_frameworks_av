@@ -190,6 +190,11 @@ private:
 
         // Ensures atomicity among the public methods
         mutable Mutex                   mLock;
+        // A lock to synchronize access through the ICamera binder
+        // interface. The entire binder call should be done with mICameraLock
+        // locked, to serialize ICamera access, even when mLock is disabled for
+        // calls to the HAL.
+        mutable Mutex                   mICameraLock;
         // This is a binder of Surface or SurfaceTexture.
         sp<IBinder>                     mSurface;
         sp<ANativeWindow>               mPreviewWindow;
