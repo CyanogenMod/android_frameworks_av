@@ -3643,7 +3643,7 @@ status_t OMXCodec::start(MetaData *meta) {
 }
 
 status_t OMXCodec::stop() {
-    CODEC_LOGV("stop mState=%d", mState);
+    CODEC_LOGI("stop mState=%d", mState);
 
     Mutex::Autolock autoLock(mLock);
 
@@ -3724,9 +3724,10 @@ status_t OMXCodec::stop() {
         mLeftOverBuffer = NULL;
     }
 
+    CODEC_LOGI("stopping in state %d", mState);
     mSource->stop();
 
-    CODEC_LOGV("stopped in state %d", mState);
+    CODEC_LOGI("stopped in state %d", mState);
 
     return OK;
 }
