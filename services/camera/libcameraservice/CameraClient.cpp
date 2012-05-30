@@ -40,7 +40,6 @@ static int getCallingUid() {
 
 CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        const sp<CameraHardwareInterface>& hardware,
         int cameraId, int cameraFacing, int clientPid):
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid)
@@ -48,19 +47,11 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     int callingPid = getCallingPid();
     LOG1("CameraClient::CameraClient E (pid %d, id %d)", callingPid, cameraId);
 
-    mHardware = hardware;
+    mHardware = NULL;
     mMsgEnabled = 0;
     mSurface = 0;
     mPreviewWindow = 0;
     mDestructionStarted = false;
-    mHardware->setCallbacks(notifyCallback,
-                            dataCallback,
-                            dataCallbackTimestamp,
-                            (void *)cameraId);
-
-    // Enable zoom, error, focus, and metadata messages by default
-    enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS |
-                  CAMERA_MSG_PREVIEW_METADATA | CAMERA_MSG_FOCUS_MOVE);
 
     // Callback is disabled by default
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
@@ -68,6 +59,36 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     mPlayShutterSound = true;
     LOG1("CameraClient::CameraClient X (pid %d, id %d)", callingPid, cameraId);
 }
+
+status_t CameraClient::initialize(camera_module_t *module) {
+    int callingPid = getCallingPid();
+    LOG1("CameraClient::initialize E (pid %d, id %d)", callingPid, mCameraId);
+
+    char camera_device_name[10];
+    status_t res;
+    snprintf(camera_device_name, sizeof(camera_device_name), "%d", mCameraId);
+
+    mHardware = new CameraHardwareInterface(camera_device_name);
+    res = mHardware->initialize(&module->common);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return NO_INIT;
+    }
+
+    mHardware->setCallbacks(notifyCallback,
+            dataCallback,
+            dataCallbackTimestamp,
+            (void *)mCameraId);
+
+    // Enable zoom, error, focus, and metadata messages by default
+    enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS |
+                  CAMERA_MSG_PREVIEW_METADATA | CAMERA_MSG_FOCUS_MOVE);
+
+    LOG1("CameraClient::initialize X (pid %d, id %d)", callingPid, mCameraId);
+    return OK;
+}
+
 
 // tear down the client
 CameraClient::~CameraClient() {
@@ -83,7 +104,6 @@ CameraClient::~CameraClient() {
     // set mClientPid to let disconnet() tear down the hardware
     mClientPid = callingPid;
     disconnect();
-    mCameraService->releaseSound();
     LOG1("CameraClient::~CameraClient X (pid %d, this %p)", callingPid, this);
 }
 
