@@ -33,11 +33,11 @@ class MonoPipe : public NBAIO_Sink {
     friend class MonoPipeReader;
 
 public:
-    // maxFrames will be rounded up to a power of 2, and all slots are available. Must be >= 2.
+    // reqFrames will be rounded up to a power of 2, and all slots are available. Must be >= 2.
     // Note: whatever shares this object with another thread needs to do so in an SMP-safe way (like
     // creating it the object before creating the other thread, or storing the object with a
     // release_store). Otherwise the other thread could see a partially-constructed object.
-    MonoPipe(size_t maxFrames, NBAIO_Format format, bool writeCanBlock = false);
+    MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock = false);
     virtual ~MonoPipe();
 
     // NBAIO_Port interface
@@ -58,9 +58,10 @@ public:
 
             // average number of frames present in the pipe under normal conditions.
             // See throttling mechanism in MonoPipe::write()
-            size_t  getAvgFrames() const { return (mMaxFrames * 11) / 16; }
+            size_t  getAvgFrames() const { return (mReqFrames * 11) / 16; }
 
 private:
+    const size_t    mReqFrames;     // as requested in constructor, unrounded
     const size_t    mMaxFrames;     // always a power of 2
     void * const    mBuffer;
     // mFront and mRear will never be separated by more than mMaxFrames.
