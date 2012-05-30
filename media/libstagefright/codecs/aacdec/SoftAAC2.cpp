@@ -416,6 +416,9 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                                                 outHeader->nAllocLen,
                                                 0 /* flags */);
 
+            if (decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
+                ALOGW("Not enough bits, bytesValid %d", bytesValid[0]);
+            }
         }
 
         /*
