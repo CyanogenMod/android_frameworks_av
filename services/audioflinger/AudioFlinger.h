@@ -49,6 +49,7 @@
 #include "ExtendedAudioBufferProvider.h"
 #include "FastMixer.h"
 #include "NBAIO.h"
+#include "AudioWatchdog.h"
 
 #include <powermanager/IPowerManager.h>
 
@@ -1169,6 +1170,7 @@ public:
 #endif
                     // one-time initialization, no locks required
                     FastMixer*  mFastMixer;         // non-NULL if there is also a fast mixer
+                    sp<AudioWatchdog> mAudioWatchdog; // non-0 if there is an audio watchdog thread
 
                     // contents are not guaranteed to be consistent, no locks required
                     FastMixerDumpState mFastMixerDumpState;
@@ -1176,6 +1178,7 @@ public:
                     StateQueueObserverDump mStateQueueObserverDump;
                     StateQueueMutatorDump  mStateQueueMutatorDump;
 #endif
+                    AudioWatchdogDump mAudioWatchdogDump;
 
                     // accessible only within the threadLoop(), no locks required
                     //          mFastMixer->sq()    // for mutating and pushing state
