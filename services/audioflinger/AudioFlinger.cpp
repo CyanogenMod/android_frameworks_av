@@ -3147,6 +3147,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 mixerStatus = MIXER_TRACKS_READY;
             }
         } else {
+            // clear effect chain input buffer if an active track underruns to avoid sending
+            // previous audio buffer again to effects
+            chain = getEffectChain_l(track->sessionId());
+            if (chain != 0) {
+                chain->clearInputBuffer();
+            }
+
             //ALOGV("track %d u=%08x, s=%08x [NOT READY] on thread %p", name, cblk->user, cblk->server, this);
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
@@ -3661,6 +3668,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             mActiveTrack = t;
             mixerStatus = MIXER_TRACKS_READY;
         } else {
+            // clear effect chain input buffer if an active track underruns to avoid sending
+            // previous audio buffer again to effects
+            if (!mEffectChains.isEmpty()) {
+                mEffectChains[0]->clearInputBuffer();
+            }
+
             //ALOGV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
             if (track->isTerminated() || track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -8978,6 +8991,25 @@ sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromType_l(
     return 0;
 }
 
+void AudioFlinger::EffectChain::clearInputBuffer()
+{
+    Mutex::Autolock _l(mLock);
+    sp<ThreadBase> thread = mThread.promote();
+    if (thread == 0) {
+        ALOGW("clearInputBuffer(): cannot promote mixer thread");
+        return;
+    }
+    clearInputBuffer_l(thread);
+}
+
+// Must be called with EffectChain::mLock locked
+void AudioFlinger::EffectChain::clearInputBuffer_l(sp<ThreadBase> thread)
+{
+    size_t numSamples = thread->frameCount() * thread->channelCount();
+    memset(mInBuffer, 0, numSamples * sizeof(int16_t));
+
+}
+
 // Must be called with EffectChain::mLock locked
 void AudioFlinger::EffectChain::process_l()
 {
@@ -9002,8 +9034,7 @@ void AudioFlinger::EffectChain::process_l()
             // if no track is active and the effect tail has not been rendered,
             // the input buffer must be cleared here as the mixer process will not do it
             if (tracksOnSession || mTailBufferCount > 0) {
-                size_t numSamples = thread->frameCount() * thread->channelCount();
-                memset(mInBuffer, 0, numSamples * sizeof(int16_t));
+                clearInputBuffer_l(thread);
                 if (mTailBufferCount > 0) {
                     mTailBufferCount--;
                 }

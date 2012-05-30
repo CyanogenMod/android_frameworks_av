@@ -1717,6 +1717,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         void checkSuspendOnEffectEnabled(const sp<EffectModule>& effect,
                                               bool enabled);
 
+        void clearInputBuffer();
+
         status_t dump(int fd, const Vector<String16>& args);
 
     protected:
@@ -1743,6 +1745,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         // OEMs can modify the rules implemented in this method to exclude specific effect
         // types or implementations from the suspend/restore mechanism.
         bool isEffectEligibleForSuspend(const effect_descriptor_t& desc);
+
+        void clearInputBuffer_l(sp<ThreadBase> thread);
 
         wp<ThreadBase> mThread;     // parent mixer thread
         Mutex mLock;                // mutex protecting effect list
