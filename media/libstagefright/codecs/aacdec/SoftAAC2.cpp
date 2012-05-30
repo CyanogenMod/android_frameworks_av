@@ -293,12 +293,18 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         info->mOwnedByUs = false;
         notifyEmptyBufferDone(header);
 
-        maybeConfigureDownmix();
-        ALOGI("Initially configuring decoder: %d Hz, %d channels",
-              mStreamInfo->sampleRate,
-              mStreamInfo->numChannels);
-        notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-        mOutputPortSettingsChange = AWAITING_DISABLED;
+        // Only send out port settings changed event if both sample rate
+        // and numChannels are valid.
+        if (mStreamInfo->sampleRate && mStreamInfo->numChannels) {
+            maybeConfigureDownmix();
+            ALOGI("Initially configuring decoder: %d Hz, %d channels",
+                mStreamInfo->sampleRate,
+                mStreamInfo->numChannels);
+
+            notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
+            mOutputPortSettingsChange = AWAITING_DISABLED;
+        }
+
         return;
     }
 
