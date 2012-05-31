@@ -15,8 +15,11 @@
  */
 
 #define LOG_TAG "Camera2Client"
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
+
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include <cutils/properties.h>
 #include <gui/SurfaceTextureClient.h>
@@ -30,15 +33,6 @@ namespace android {
 
 #define ALOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define ALOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
-
-#define ALOG1_ENTRY        \
-    int callingPid = getCallingPid(); \
-    ALOG1("%s: E (pid %d, id %d) ", __FUNCTION__, \
-            callingPid, mCameraId)
-
-#define ALOG1_EXIT        \
-    ALOG1("%s: X (pid %d, id %d) ", __FUNCTION__, \
-            callingPid, mCameraId)
 
 static int getCallingPid() {
     return IPCThreadState::self()->getCallingPid();
@@ -62,16 +56,14 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mPreviewStreamId(NO_PREVIEW_STREAM),
         mPreviewRequest(NULL)
 {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
 
     mDevice = new Camera2Device(cameraId);
-
-    ALOG1_EXIT;
 }
 
 status_t Camera2Client::initialize(camera_module_t *module)
 {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     status_t res;
 
     res = mDevice->initialize(module);
@@ -95,11 +87,11 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
     mState = STOPPED;
 
-    ALOG1_EXIT;
     return OK;
 }
 
 Camera2Client::~Camera2Client() {
+    ATRACE_CALL();
     mDestructionStarted = true;
 
     if (mParams) delete mParams;
@@ -120,7 +112,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 // ICamera interface
 
 void Camera2Client::disconnect() {
-
+    ATRACE_CALL();
     if (mDevice == 0) return;
 
     stopPreview();
@@ -134,20 +126,23 @@ void Camera2Client::disconnect() {
 }
 
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 status_t Camera2Client::lock() {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 status_t Camera2Client::unlock() {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     if (mState == PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
@@ -162,7 +157,7 @@ status_t Camera2Client::setPreviewDisplay(
 
 status_t Camera2Client::setPreviewTexture(
         const sp<ISurfaceTexture>& surfaceTexture) {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     if (mState == PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
@@ -176,7 +171,7 @@ status_t Camera2Client::setPreviewTexture(
 
 status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
         const sp<ANativeWindow>& window) {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     status_t res;
 
     if (binder == mPreviewSurface) {
@@ -204,16 +199,15 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
         return startPreview();
     }
 
-    ALOG1_EXIT;
     return OK;
 }
 
 void Camera2Client::setPreviewCallbackFlag(int flag) {
-
+    ATRACE_CALL();
 }
 
 status_t Camera2Client::startPreview() {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     status_t res;
     if (mState == PREVIEW) return INVALID_OPERATION;
 
@@ -261,7 +255,7 @@ status_t Camera2Client::startPreview() {
 }
 
 void Camera2Client::stopPreview() {
-    ALOG1_ENTRY;
+    ATRACE_CALL();
     if (mState != PREVIEW) return;
 
     mDevice->setStreamingRequest(NULL);
@@ -269,55 +263,67 @@ void Camera2Client::stopPreview() {
 }
 
 bool Camera2Client::previewEnabled() {
+    ATRACE_CALL();
     return mState == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 status_t Camera2Client::startRecording() {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 void Camera2Client::stopRecording() {
+    ATRACE_CALL();
 }
 
 bool Camera2Client::recordingEnabled() {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
-
+    ATRACE_CALL();
 }
 
 status_t Camera2Client::autoFocus() {
+    ATRACE_CALL();
     return OK;
 }
 
 status_t Camera2Client::cancelAutoFocus() {
+    ATRACE_CALL();
     return OK;
 }
 
 status_t Camera2Client::takePicture(int msgType) {
+    ATRACE_CALL();
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
+    ATRACE_CALL();
     return OK;
 }
 
 String8 Camera2Client::getParameters() const {
+    ATRACE_CALL();
     return mParams->flatten();
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
+    ATRACE_CALL();
     return OK;
 }
 
 // private methods
 
 status_t Camera2Client::buildDefaultParameters() {
+    ATRACE_CALL();
     status_t res;
     if (mParams) {
         delete mParams;
@@ -960,7 +966,7 @@ status_t Camera2Client::buildDefaultParameters() {
 }
 
 status_t Camera2Client::updatePreviewRequest() {
-    ALOG1_ENTRY
+    ATRACE_CALL();
     status_t res;
     if (mPreviewRequest == NULL) {
         res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
@@ -972,7 +978,6 @@ status_t Camera2Client::updatePreviewRequest() {
         }
     }
     // TODO: Adjust for mParams changes
-    ALOG1_EXIT
     return OK;
 }
 
