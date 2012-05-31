@@ -1867,6 +1867,28 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
             }
             err = VideoEditor3gpReader_getNextAu(pC, (*pStreamHandler),
                 (M4_AccessUnit*)pUserData->m_pFirstAU);
+
+            /*
+             * 1. "M4WAR_NO_MORE_AU == err" indicates that there is no more
+             * access unit from the current track. In other words, there
+             * is only a single access unit from the current track, and
+             * the parsing of this track has reached EOS. The reason why
+             * the first access unit needs to be parsed here is because for
+             * some audio codec (like AAC), the very first access unit
+             * must be decoded before its configuration/encoding parameters
+             * (such as # of channels and sample rate) can be correctly
+             * determined.
+             *
+             * 2. "trackCount > pC->mCurrTrack" indicates that there are other
+             * tracks to be parsed, in addition to the current track.
+             *
+             * When both conditions 1 & 2 hold, other tracks should be
+             * parsed. Thus, we should not bail out.
+             */
+            if (M4WAR_NO_MORE_AU == err && trackCount > pC->mCurrTrack) {
+                err = M4NO_ERROR;
+            }
+
             if (M4NO_ERROR != err) {
                 goto Error;
             }
