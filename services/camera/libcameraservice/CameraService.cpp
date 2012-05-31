@@ -417,24 +417,18 @@ static bool tryLock(Mutex& mutex)
 }
 
 status_t CameraService::dump(int fd, const Vector<String16>& args) {
-    static const char* kDeadlockedString = "CameraService may be deadlocked\n";
-
-    const size_t SIZE = 256;
-    char buffer[SIZE];
     String8 result;
     if (checkCallingPermission(String16("android.permission.DUMP")) == false) {
-        snprintf(buffer, SIZE, "Permission Denial: "
+        result.appendFormat("Permission Denial: "
                 "can't dump CameraService from pid=%d, uid=%d\n",
                 getCallingPid(),
                 getCallingUid());
-        result.append(buffer);
         write(fd, result.string(), result.size());
     } else {
         bool locked = tryLock(mServiceLock);
         // failed to lock - CameraService is probably deadlocked
         if (!locked) {
-            String8 result(kDeadlockedString);
-            write(fd, result.string(), result.size());
+            result.append("CameraService may be deadlocked\n");
         }
 
         bool hasClient = false;
@@ -445,8 +439,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             client->dump(fd, args);
         }
         if (!hasClient) {
-            result.append("No camera client yet.\n");
-            write(fd, result.string(), result.size());
+            result.append("No camera clients yet.\n");
         }
 
         if (locked) mServiceLock.unlock();
@@ -454,14 +447,15 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         // change logging level
         int n = args.size();
         for (int i = 0; i + 1 < n; i++) {
-            if (args[i] == String16("-v")) {
+            String16 verboseOption("-v");
+            if (args[i] == verboseOption) {
                 String8 levelStr(args[i+1]);
                 int level = atoi(levelStr.string());
-                sprintf(buffer, "Set Log Level to %d", level);
-                result.append(buffer);
+                result.appendFormat("Setting log level to %d.\n", level);
                 setLogLevel(level);
             }
         }
+        write(fd, result.string(), result.size());
     }
     return NO_ERROR;
 }

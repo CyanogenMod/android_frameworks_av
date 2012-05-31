@@ -103,7 +103,13 @@ Camera2Client::~Camera2Client() {
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
-    return BAD_VALUE;
+    String8 result;
+    result.appendFormat("Client2[%d] (%p) PID: %d:\n",
+            mCameraId,
+            getCameraClient()->asBinder().get(),
+            mClientPid);
+    write(fd, result.string(), result.size());
+    return NO_ERROR;
 }
 
 // ICamera interface
