@@ -1169,6 +1169,10 @@ public:
 
                     // contents are not guaranteed to be consistent, no locks required
                     FastMixerDumpState mFastMixerDumpState;
+#ifdef STATE_QUEUE_DUMP
+                    StateQueueObserverDump mStateQueueObserverDump;
+                    StateQueueMutatorDump  mStateQueueMutatorDump;
+#endif
 
                     // accessible only within the threadLoop(), no locks required
                     //          mFastMixer->sq()    // for mutating and pushing state

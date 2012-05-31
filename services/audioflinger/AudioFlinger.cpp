@@ -2255,6 +2255,10 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // create fast mixer and configure it initially with just one fast track for our submix
         mFastMixer = new FastMixer();
         FastMixerStateQueue *sq = mFastMixer->sq();
+#ifdef STATE_QUEUE_DUMP
+        sq->setObserverDump(&mStateQueueObserverDump);
+        sq->setMutatorDump(&mStateQueueMutatorDump);
+#endif
         FastMixerState *state = sq->begin();
         FastTrack *fastTrack = &state->mFastTracks[0];
         // wrap the source side of the MonoPipe to make it an AudioBufferProvider
@@ -3479,6 +3483,14 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
     FastMixerDumpState copy = mFastMixerDumpState;
     copy.dump(fd);
+
+#ifdef STATE_QUEUE_DUMP
+    // Similar for state queue
+    StateQueueObserverDump observerCopy = mStateQueueObserverDump;
+    observerCopy.dump(fd);
+    StateQueueMutatorDump mutatorCopy = mStateQueueMutatorDump;
+    mutatorCopy.dump(fd);
+#endif
 
     // Write the tee output to a .wav file
     NBAIO_Source *teeSource = mTeeSource.get();

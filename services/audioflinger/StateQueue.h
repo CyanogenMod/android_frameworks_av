@@ -19,6 +19,34 @@
 
 namespace android {
 
+#ifdef STATE_QUEUE_DUMP
+// The StateQueueObserverDump and StateQueueMutatorDump keep
+// a cache of StateQueue statistics that can be logged by dumpsys.
+// Each individual native word-sized field is accessed atomically.  But the
+// overall structure is non-atomic, that is there may be an inconsistency between fields.
+// No barriers or locks are used for either writing or reading.
+// Only POD types are permitted, and the contents shouldn't be trusted (i.e. do range checks).
+// It has a different lifetime than the StateQueue, and so it can't be a member of StateQueue.
+
+struct StateQueueObserverDump {
+    StateQueueObserverDump() : mStateChanges(0) { }
+    /*virtual*/ ~StateQueueObserverDump() { }
+    unsigned    mStateChanges;    // incremented each time poll() detects a state change
+    void        dump(int fd);
+};
+
+struct StateQueueMutatorDump {
+    StateQueueMutatorDump() : mPushDirty(0), mPushAck(0), mBlockedSequence(0) { }
+    /*virtual*/ ~StateQueueMutatorDump() { }
+    unsigned    mPushDirty;       // incremented each time push() is called with a dirty state
+    unsigned    mPushAck;         // incremented each time push(BLOCK_UNTIL_ACKED) is called
+    unsigned    mBlockedSequence; // incremented before and after each time that push()
+                                  // blocks for more than one PUSH_BLOCK_ACK_NS;
+                                  // if odd, then mutator is currently blocked inside push()
+    void        dump(int fd);
+};
+#endif
+
 // manages a FIFO queue of states
 template<typename T> class StateQueue {
 
@@ -69,6 +97,16 @@ public:
     // Return whether the current state is dirty (modified and not pushed).
     bool    isDirty() const { return mIsDirty; }
 
+#ifdef STATE_QUEUE_DUMP
+    // Register location of observer dump area
+    void    setObserverDump(StateQueueObserverDump *dump)
+            { mObserverDump = dump != NULL ? dump : &mObserverDummyDump; }
+
+    // Register location of mutator dump area
+    void    setMutatorDump(StateQueueMutatorDump *dump)
+            { mMutatorDump = dump != NULL ? dump : &mMutatorDummyDump; }
+#endif
+
 private:
     static const unsigned kN = 4;       // values != 4 are not supported by this code
     T                 mStates[kN];      // written by mutator, read by observer
@@ -86,6 +124,13 @@ private:
     bool              mInMutation;      // whether we're currently in the middle of a mutation
     bool              mIsDirty;         // whether mutating state has been modified since last push
     bool              mIsInitialized;   // whether mutating state has been initialized yet
+
+#ifdef STATE_QUEUE_DUMP
+    StateQueueObserverDump  mObserverDummyDump; // default area for observer dump if not set
+    StateQueueObserverDump* mObserverDump;      // pointer to active observer dump, always non-NULL
+    StateQueueMutatorDump   mMutatorDummyDump;  // default area for mutator dump if not set
+    StateQueueMutatorDump*  mMutatorDump;       // pointer to active mutator dump, always non-NULL
+#endif
 
 };  // class StateQueue
 
