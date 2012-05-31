@@ -72,9 +72,10 @@ private:
 
 // Represents the dump state of a fast track
 struct FastTrackDump {
-    FastTrackDump() { }
+    FastTrackDump() : mFramesReady(0) { }
     /*virtual*/ ~FastTrackDump() { }
     FastTrackUnderruns mUnderruns;
+    size_t mFramesReady;        // most recent value only; no long-term statistics kept
 };
 
 // The FastMixerDumpState keeps a cache of FastMixer statistics that can be logged by dumpsys.
@@ -100,6 +101,7 @@ struct FastMixerDumpState {
     size_t   mFrameCount;
     struct timespec mMeasuredWarmupTs;  // measured warmup time
     uint32_t mWarmupCycles;     // number of loop cycles required to warmup
+    uint32_t mTrackMask;        // mask of active tracks
     FastTrackDump   mTracks[FastMixerState::kMaxFastTracks];
 
 #ifdef FAST_MIXER_STATISTICS
