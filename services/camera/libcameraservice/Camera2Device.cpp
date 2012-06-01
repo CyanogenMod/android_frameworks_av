@@ -26,11 +26,12 @@ Camera2Device::Camera2Device(int id):
         mId(id),
         mDevice(NULL)
 {
-
+    ALOGV("%s: E", __FUNCTION__);
 }
 
 Camera2Device::~Camera2Device()
 {
+    ALOGV("%s: E", __FUNCTION__);
     if (mDevice) {
         status_t res;
         res = mDevice->common.close(&mDevice->common);
@@ -45,6 +46,8 @@ Camera2Device::~Camera2Device()
 
 status_t Camera2Device::initialize(camera_module_t *module)
 {
+    ALOGV("%s: E", __FUNCTION__);
+
     status_t res;
     char name[10];
     snprintf(name, sizeof(name), "%d", mId);
@@ -79,24 +82,88 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     mDeviceInfo = info.static_camera_characteristics;
 
-    res = mDevice->ops->set_request_queue_src_ops(mDevice,
-            mRequestQueue.getToConsumerInterface());
-    if (res != OK) return res;
-
-    res = mDevice->ops->set_frame_queue_dst_ops(mDevice,
-            mFrameQueue.getToProducerInterface());
-    if (res != OK) return res;
+    res = mRequestQueue.setConsumerDevice(mDevice);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to connect request queue to device: %s (%d)",
+                __FUNCTION__, mId, strerror(-res), res);
+        return res;
+    }
+    res = mFrameQueue.setProducerDevice(mDevice);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to connect frame queue to device: %s (%d)",
+                __FUNCTION__, mId, strerror(-res), res);
+        return res;
+    }
 
     res = mDevice->ops->get_metadata_vendor_tag_ops(mDevice, &mVendorTagOps);
-    if (res != OK ) return res;
+    if (res != OK ) {
+        ALOGE("%s: Camera %d: Unable to retrieve tag ops from device: %s (%d)",
+                __FUNCTION__, mId, strerror(-res), res);
+        return res;
+    }
 
     return OK;
 }
 
+camera_metadata_t *Camera2Device::info() {
+    ALOGV("%s: E", __FUNCTION__);
+
+    return mDeviceInfo;
+}
+
 status_t Camera2Device::setStreamingRequest(camera_metadata_t* request)
 {
+    ALOGV("%s: E", __FUNCTION__);
+
     mRequestQueue.setStreamSlot(request);
     return OK;
+}
+
+status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
+        uint32_t width, uint32_t height, int format, int *id) {
+    status_t res;
+    ALOGV("%s: E", __FUNCTION__);
+
+    sp<StreamAdapter> stream = new StreamAdapter(mDevice);
+
+    res = stream->connectToDevice(consumer, width, height, format);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to create stream (%d x %d, format %x):"
+                "%s (%d)",
+                __FUNCTION__, mId, width, height, format, strerror(-res), res);
+        return res;
+    }
+
+    *id = stream->getId();
+
+    mStreams.push_back(stream);
+    return OK;
+}
+
+status_t Camera2Device::deleteStream(int id) {
+    ALOGV("%s: E", __FUNCTION__);
+
+    bool found = false;
+    for (StreamList::iterator streamI = mStreams.begin();
+         streamI != mStreams.end(); streamI++) {
+        if ((*streamI)->getId() == id) {
+            mStreams.erase(streamI);
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Unable to find stream %d to delete",
+                __FUNCTION__, mId, id);
+        return BAD_VALUE;
+    }
+    return OK;
+}
+
+status_t Camera2Device::createDefaultRequest(int templateId,
+        camera_metadata_t **request) {
+    ALOGV("%s: E", __FUNCTION__);
+    return mDevice->ops->construct_default_request(mDevice, templateId, request);
 }
 
 /**
@@ -125,39 +192,32 @@ Camera2Device::MetadataQueue::~MetadataQueue() {
     freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
 }
 
-// Interface to camera2 HAL as consumer (input requests/reprocessing)
-const camera2_request_queue_src_ops_t*
-Camera2Device::MetadataQueue::getToConsumerInterface() {
-    return static_cast<camera2_request_queue_src_ops_t*>(this);
-}
-
-void Camera2Device::MetadataQueue::setFromConsumerInterface(camera2_device_t *d) {
-    Mutex::Autolock l(mMutex);
+// Connect to camera2 HAL as consumer (input requests/reprocessing)
+status_t Camera2Device::MetadataQueue::setConsumerDevice(camera2_device_t *d) {
+    status_t res;
+    res = d->ops->set_request_queue_src_ops(d,
+            this);
+    if (res != OK) return res;
     mDevice = d;
+    return OK;
 }
 
-const camera2_frame_queue_dst_ops_t*
-Camera2Device::MetadataQueue::getToProducerInterface() {
-    return static_cast<camera2_frame_queue_dst_ops_t*>(this);
+status_t Camera2Device::MetadataQueue::setProducerDevice(camera2_device_t *d) {
+    status_t res;
+    res = d->ops->set_frame_queue_dst_ops(d,
+            this);
+    return res;
 }
 
 // Real interfaces
 status_t Camera2Device::MetadataQueue::enqueue(camera_metadata_t *buf) {
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
 
     mCount++;
     mEntries.push_back(buf);
-    notEmpty.signal();
 
-    if (mSignalConsumer && mDevice != NULL) {
-        mSignalConsumer = false;
-
-        mMutex.unlock();
-        ALOGV("%s: Signaling consumer", __FUNCTION__);
-        mDevice->ops->notify_request_queue_not_empty(mDevice);
-        mMutex.lock();
-    }
-    return OK;
+    return signalConsumerLocked();
 }
 
 int Camera2Device::MetadataQueue::getBufferCount() {
@@ -171,6 +231,8 @@ int Camera2Device::MetadataQueue::getBufferCount() {
 status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
         bool incrementCount)
 {
+    ALOGV("%s: E", __FUNCTION__);
+    status_t res;
     Mutex::Autolock l(mMutex);
 
     if (mCount == 0) {
@@ -201,9 +263,16 @@ status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
     mEntries.erase(mEntries.begin());
 
     if (incrementCount) {
-        add_camera_metadata_entry(b,
+        camera_metadata_entry_t frameCount;
+        res = find_camera_metadata_entry(b,
                 ANDROID_REQUEST_FRAME_COUNT,
-                (void**)&mFrameCount, 1);
+                &frameCount);
+        if (res != OK) {
+            ALOGE("%s: Unable to add frame count: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+        } else {
+            *frameCount.data.i32 = mFrameCount;
+        }
         mFrameCount++;
     }
 
@@ -226,6 +295,7 @@ status_t Camera2Device::MetadataQueue::waitForBuffer(nsecs_t timeout)
 
 status_t Camera2Device::MetadataQueue::setStreamSlot(camera_metadata_t *buf)
 {
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
     if (buf == NULL) {
         freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
@@ -244,20 +314,34 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(camera_metadata_t *buf)
         mStreamSlot.push_front(buf);
         mStreamSlotCount = 1;
     }
-    return OK;
+    return signalConsumerLocked();
 }
 
 status_t Camera2Device::MetadataQueue::setStreamSlot(
         const List<camera_metadata_t*> &bufs)
 {
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
     if (mStreamSlotCount > 0) {
         freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
     }
     mStreamSlot = bufs;
     mStreamSlotCount = mStreamSlot.size();
+    return signalConsumerLocked();
+}
 
-    return OK;
+status_t Camera2Device::MetadataQueue::signalConsumerLocked() {
+    status_t res = OK;
+    notEmpty.signal();
+    if (mSignalConsumer && mDevice != NULL) {
+        mSignalConsumer = false;
+
+        mMutex.unlock();
+        ALOGV("%s: Signaling consumer", __FUNCTION__);
+        res = mDevice->ops->notify_request_queue_not_empty(mDevice);
+        mMutex.lock();
+    }
+    return res;
 }
 
 status_t Camera2Device::MetadataQueue::freeBuffers(
@@ -335,6 +419,269 @@ int Camera2Device::MetadataQueue::producer_enqueue(
 {
     MetadataQueue *queue = getInstance(q);
     return queue->enqueue(filled_buffer);
+}
+
+/**
+ * Camera2Device::StreamAdapter
+ */
+
+#ifndef container_of
+#define container_of(ptr, type, member) \
+    (type *)((char*)(ptr) - offsetof(type, member))
+#endif
+
+Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
+        mState(DISCONNECTED),
+        mDevice(d),
+        mId(-1),
+        mWidth(0), mHeight(0), mFormatRequested(0)
+{
+    camera2_stream_ops::dequeue_buffer = dequeue_buffer;
+    camera2_stream_ops::enqueue_buffer = enqueue_buffer;
+    camera2_stream_ops::cancel_buffer = cancel_buffer;
+    camera2_stream_ops::set_crop = set_crop;
+}
+
+Camera2Device::StreamAdapter::~StreamAdapter() {
+    disconnect();
+}
+
+status_t Camera2Device::StreamAdapter::connectToDevice(sp<ANativeWindow> consumer,
+        uint32_t width, uint32_t height, int format) {
+    status_t res;
+
+    if (mState != DISCONNECTED) return INVALID_OPERATION;
+    if (consumer == NULL) {
+        ALOGE("%s: Null consumer passed to stream adapter", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    mConsumerInterface = consumer;
+    mWidth = width;
+    mHeight = height;
+    mFormatRequested = format;
+
+    // Allocate device-side stream interface
+
+    uint32_t id;
+    uint32_t formatActual;
+    uint32_t usage;
+    uint32_t maxBuffers = 2;
+    res = mDevice->ops->allocate_stream(mDevice,
+            mWidth, mHeight, mFormatRequested, getStreamOps(),
+            &id, &formatActual, &usage, &maxBuffers);
+    if (res != OK) {
+        ALOGE("%s: Device stream allocation failed: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    mId = id;
+    mFormat = formatActual;
+    mUsage = usage;
+    mMaxProducerBuffers = maxBuffers;
+
+    mState = ALLOCATED;
+
+    // Configure consumer-side ANativeWindow interface
+    res = native_window_api_connect(mConsumerInterface.get(),
+            NATIVE_WINDOW_API_CAMERA);
+    if (res != OK) {
+        ALOGE("%s: Unable to connect to native window for stream %d",
+                __FUNCTION__, mId);
+
+        return res;
+    }
+
+    mState = CONNECTED;
+
+    res = native_window_set_usage(mConsumerInterface.get(), mUsage);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure usage %08x for stream %d",
+                __FUNCTION__, mUsage, mId);
+        return res;
+    }
+
+    res = native_window_set_buffers_geometry(mConsumerInterface.get(),
+            mWidth, mHeight, mFormat);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure buffer geometry"
+                " %d x %d, format 0x%x for stream %d",
+                __FUNCTION__, mWidth, mHeight, mFormat, mId);
+        return res;
+    }
+
+    int maxConsumerBuffers;
+    res = mConsumerInterface->query(mConsumerInterface.get(),
+            NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &maxConsumerBuffers);
+    if (res != OK) {
+        ALOGE("%s: Unable to query consumer undequeued"
+                " buffer count for stream %d", __FUNCTION__, mId);
+        return res;
+    }
+    mMaxConsumerBuffers = maxConsumerBuffers;
+
+    ALOGV("%s: Producer wants %d buffers, consumer wants %d", __FUNCTION__,
+            mMaxProducerBuffers, mMaxConsumerBuffers);
+
+    int totalBuffers = mMaxConsumerBuffers + mMaxProducerBuffers;
+
+    res = native_window_set_buffer_count(mConsumerInterface.get(),
+            totalBuffers);
+    if (res != OK) {
+        ALOGE("%s: Unable to set buffer count for stream %d",
+                __FUNCTION__, mId);
+        return res;
+    }
+
+    // Register allocated buffers with HAL device
+    buffer_handle_t *buffers = new buffer_handle_t[totalBuffers];
+    ANativeWindowBuffer **anwBuffers = new ANativeWindowBuffer*[totalBuffers];
+    int bufferIdx = 0;
+    for (; bufferIdx < totalBuffers; bufferIdx++) {
+        res = mConsumerInterface->dequeueBuffer(mConsumerInterface.get(),
+                &anwBuffers[bufferIdx]);
+        if (res != OK) {
+            ALOGE("%s: Unable to dequeue buffer %d for initial registration for"
+                    "stream %d", __FUNCTION__, bufferIdx, mId);
+            goto cleanUpBuffers;
+        }
+
+        res = mConsumerInterface->lockBuffer(mConsumerInterface.get(),
+                anwBuffers[bufferIdx]);
+        if (res != OK) {
+            ALOGE("%s: Unable to lock buffer %d for initial registration for"
+                    "stream %d", __FUNCTION__, bufferIdx, mId);
+            bufferIdx++;
+            goto cleanUpBuffers;
+        }
+
+        buffers[bufferIdx] = anwBuffers[bufferIdx]->handle;
+    }
+
+    res = mDevice->ops->register_stream_buffers(mDevice,
+            mId,
+            totalBuffers,
+            buffers);
+    if (res != OK) {
+        ALOGE("%s: Unable to register buffers with HAL device for stream %d",
+                __FUNCTION__, mId);
+    } else {
+        mState = ACTIVE;
+    }
+
+cleanUpBuffers:
+    for (int i = 0; i < bufferIdx; i++) {
+        res = mConsumerInterface->cancelBuffer(mConsumerInterface.get(),
+                anwBuffers[i]);
+        if (res != OK) {
+            ALOGE("%s: Unable to cancel buffer %d after registration",
+                    __FUNCTION__, i);
+        }
+    }
+    delete anwBuffers;
+    delete buffers;
+
+    return res;
+}
+
+status_t Camera2Device::StreamAdapter::disconnect() {
+    status_t res;
+    if (mState >= ALLOCATED) {
+        res = mDevice->ops->release_stream(mDevice, mId);
+        if (res != OK) {
+            ALOGE("%s: Unable to release stream %d",
+                    __FUNCTION__, mId);
+            return res;
+        }
+    }
+    if (mState >= CONNECTED) {
+        res = native_window_api_disconnect(mConsumerInterface.get(),
+                NATIVE_WINDOW_API_CAMERA);
+        if (res != OK) {
+            ALOGE("%s: Unable to disconnect stream %d from native window",
+                    __FUNCTION__, mId);
+            return res;
+        }
+    }
+    mId = -1;
+    mState = DISCONNECTED;
+    return OK;
+}
+
+int Camera2Device::StreamAdapter::getId() {
+    return mId;
+}
+
+const camera2_stream_ops *Camera2Device::StreamAdapter::getStreamOps() {
+    return static_cast<camera2_stream_ops *>(this);
+}
+
+ANativeWindow* Camera2Device::StreamAdapter::toANW(
+        const camera2_stream_ops_t *w) {
+    return static_cast<const StreamAdapter*>(w)->mConsumerInterface.get();
+}
+
+int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
+        buffer_handle_t** buffer) {
+    int res;
+    int state = static_cast<const StreamAdapter*>(w)->mState;
+    if (state != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+        return INVALID_OPERATION;
+    }
+
+    ANativeWindow *a = toANW(w);
+    ANativeWindowBuffer* anb;
+    res = a->dequeueBuffer(a, &anb);
+    if (res != OK) return res;
+    res = a->lockBuffer(a, anb);
+    if (res != OK) return res;
+
+    *buffer = &(anb->handle);
+    ALOGV("%s: Buffer %p", __FUNCTION__, *buffer);
+    return res;
+}
+
+int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
+        int64_t timestamp,
+        buffer_handle_t* buffer) {
+    ALOGV("%s: Buffer %p captured at %lld ns", __FUNCTION__, buffer, timestamp);
+    int state = static_cast<const StreamAdapter*>(w)->mState;
+    if (state != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+        return INVALID_OPERATION;
+    }
+    ANativeWindow *a = toANW(w);
+    status_t err;
+    err = native_window_set_buffers_timestamp(a, timestamp);
+    if (err != OK) return err;
+    return a->queueBuffer(a,
+            container_of(buffer, ANativeWindowBuffer, handle));
+}
+
+int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
+        buffer_handle_t* buffer) {
+    int state = static_cast<const StreamAdapter*>(w)->mState;
+    if (state != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+        return INVALID_OPERATION;
+    }
+    ANativeWindow *a = toANW(w);
+    return a->cancelBuffer(a,
+            container_of(buffer, ANativeWindowBuffer, handle));
+}
+
+int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,
+        int left, int top, int right, int bottom) {
+    int state = static_cast<const StreamAdapter*>(w)->mState;
+    if (state != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+        return INVALID_OPERATION;
+    }
+    ANativeWindow *a = toANW(w);
+    android_native_rect_t crop = { left, top, right, bottom };
+    return native_window_set_crop(a, &crop);
 }
 
 
