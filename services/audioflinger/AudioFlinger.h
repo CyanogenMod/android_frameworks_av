@@ -778,6 +778,7 @@ private:
             int                 mName;      // track name on the normal mixer,
                                             // allocated statically at track creation time,
                                             // and is even allocated (though unused) for fast tracks
+                                            // FIXME don't allocate track name for fast tracks
             int16_t             *mMainBuffer;
             int32_t             *mAuxBuffer;
             int                 mAuxEffectId;
@@ -789,7 +790,7 @@ private:
 
             // The following fields are only for fast tracks, and should be in a subclass
             int                 mFastIndex; // index within FastMixerState::mFastTracks[];
-                                            // either mFastIndex == -1
+                                            // either mFastIndex == -1 if not isFastTrack()
                                             // or 0 < mFastIndex < FastMixerState::kMaxFast because
                                             // index 0 is reserved for normal mixer's submix;
                                             // index is allocated statically at track creation time

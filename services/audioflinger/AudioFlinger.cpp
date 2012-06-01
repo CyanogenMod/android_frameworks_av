@@ -2841,6 +2841,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // at the identical fast mixer slot within the same normal mix cycle,
             // is impossible because the slot isn't marked available until the end of each cycle.
             int j = track->mFastIndex;
+            ALOG_ASSERT(0 < j && j < (int)FastMixerState::kMaxFastTracks);
+            ALOG_ASSERT(!(mFastTrackAvailMask & (1 << j)));
             FastTrack *fastTrack = &state->mFastTracks[j];
 
             // Determine whether the track is currently in underrun condition,
@@ -4295,6 +4297,13 @@ AudioFlinger::PlaybackThread::Track::Track(
         // NOTE: audio_track_cblk_t::frameSize for 8 bit PCM data is based on a sample size of
         // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
         mCblk->frameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) : sizeof(uint8_t);
+        // to avoid leaking a track name, do not allocate one unless there is an mCblk
+        mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
+        if (mName < 0) {
+            ALOGE("no more track names available");
+            return;
+        }
+        // only allocate a fast track index if we were able to allocate a normal track name
         if (flags & IAudioFlinger::TRACK_FAST) {
             mCblk->flags |= CBLK_FAST;  // atomic op not needed yet
             ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
@@ -4308,14 +4317,6 @@ AudioFlinger::PlaybackThread::Track::Track(
             // Read the initial underruns because this field is never cleared by the fast mixer
             mObservedUnderruns = thread->getFastTrackUnderruns(i);
             thread->mFastTrackAvailMask &= ~(1 << i);
-        }
-        // to avoid leaking a track name, do not allocate one unless there is an mCblk
-        mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
-        if (mName < 0) {
-            ALOGE("no more track names available");
-            // FIXME bug - if sufficient fast track indices, but insufficient normal mixer names,
-            // then we leak a fast track index.  Should swap these two sections, or better yet
-            // only allocate a normal mixer name for normal tracks.
         }
     }
     ALOGV("Track constructor name %d, calling pid %d", mName, IPCThreadState::self()->getCallingPid());
