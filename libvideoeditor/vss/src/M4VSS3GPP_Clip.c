@@ -167,6 +167,47 @@ M4OSA_ERR M4VSS3GPP_intClipInit( M4VSS3GPP_ClipContext ** hClipCtxt,
     return M4NO_ERROR;
 }
 
+// This method maps the frequency value to a string.
+static const char* freqToString(int freq) {
+    switch (freq) {
+    case 8000:
+        return "_8000";
+    case 11025:
+        return "_11025";
+    case 12000:
+        return "_12000";
+    case 16000:
+        return "_16000";
+    case 22050:
+        return "_22050";
+    case 24000:
+        return "_24000";
+    case 32000:
+        return "_32000";
+    case 44100:
+        return "_44100";
+    case 48000:
+        return "_48000";
+    default:
+        M4OSA_TRACE1_1("Unsupported sampling rate: %d Hz", freq);
+        return NULL;
+    }
+}
+
+// This method maps the number of channel value to
+// a string that will be part of a file name extension
+static const char* channelToStringAndFileExt(int channels) {
+    switch (channels) {
+    case 1:
+        return "_1.pcm";
+    case 2:
+        return "_2.pcm";
+    default:
+        M4OSA_TRACE1_1("Unsupported %d channels", channels);
+        return NULL;
+    }
+}
+
 /* Note: if the clip is opened in fast mode, it can only be used for analysis and nothing else. */
 M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
                                 M4VSS3GPP_ClipSettings *pClipSettings, M4OSA_Bool bSkipAudioTrack,
@@ -185,7 +226,6 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
 #endif /* M4VSS_ENABLE_EXTERNAL_DECODERS */
 
     M4DECODER_OutputFilter FilterOption;
-    M4OSA_Char pTempFile[100];
 
     /**
     *    Check input parameters */
@@ -303,73 +343,45 @@ M4OSA_ERR M4VSS3GPP_intClipOpen( M4VSS3GPP_ClipContext *pClipCtxt,
             }
         }
     }
-    if(pClipCtxt->pSettings->FileType == M4VIDEOEDITING_kFileType_PCM)
-    {
+    if (pClipCtxt->pSettings->FileType == M4VIDEOEDITING_kFileType_PCM) {
+        // Compose the temp filename with sample rate and channel information.
+        const char* freqStr = freqToString(
+                    pClipCtxt->pSettings->ClipProperties.uiSamplingFrequency);
 
-
-
-
-        M4OSA_chrNCopy(pTempFile,pClipSettings->pFile,strlen(pClipSettings->pFile));
-
-
-    switch (pClipCtxt->pSettings->ClipProperties.uiSamplingFrequency)
-    {
-        case 8000:
-        strncat((char *)pTempFile,(const char *)"_8000",6);
-        break;
-        case 11025:
-        strncat((char *)pTempFile,(const char *)"_11025",6);
-        break;
-        case 12000:
-        strncat((char *)pTempFile,(const char *)"_12000",6);
-        break;
-        case 16000:
-        strncat((char *)pTempFile,(const char *)"_16000",6);
-        break;
-        case 22050:
-        strncat((char *)pTempFile,(const char *)"_22050",6);
-        break;
-        case 24000:
-        strncat((char *)pTempFile,(const char *)"_24000",6);
-        break;
-        case 32000:
-        strncat((char *)pTempFile,(const char *)"_32000",6);
-        break;
-        case 44100:
-        strncat((char *)pTempFile,(const char *)"_44100",6);
-        break;
-        case 48000:
-        strncat((char *)pTempFile,(const char *)"_48000",6);
-        break;
-        default:
-            M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen: invalid input for BG tracksampling \
-                frequency (%d Hz), returning M4VSS3GPP_WAR_INCOMPATIBLE_AUDIO_SAMPLING_FREQUENCY"\
-                    ,pClipCtxt->pSettings->ClipProperties.uiSamplingFrequency );
+        if (freqStr == NULL) {
             return M4VSS3GPP_WAR_INCOMPATIBLE_AUDIO_SAMPLING_FREQUENCY;
-    }
-
-
-
-        //M4OSA_chrNCat(pTempFile,
-        //    itoa(pClipCtxt->pSettings->ClipProperties.uiSamplingFrequency),5);
-        switch(pClipCtxt->pSettings->ClipProperties.uiNbChannels)
-        {
-            case 1:
-                strncat((char *)pTempFile,(const char *)"_1.pcm",6);
-            break;
-            case 2:
-                strncat((char *)pTempFile,(const char *)"_2.pcm",6);
-            break;
-            default:
-            M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen: invalid input for BG track no.\
-                 of channels (%d ), returning M4VSS3GPP_WAR_INCOMPATIBLE_AUDIO_NB_OF_CHANNELS",\
-                    pClipCtxt->pSettings->ClipProperties.uiNbChannels);
-            return    M4VSS3GPP_WAR_INCOMPATIBLE_AUDIO_NB_OF_CHANNELS;
         }
-        //M4OSA_chrNCat(pTempFile,itoa(pClipCtxt->pSettings->ClipProperties.uiNbChannels),1);
+
+        const char* chanStr = channelToStringAndFileExt(
+                    pClipCtxt->pSettings->ClipProperties.uiNbChannels);
+
+        if (chanStr == NULL) {
+                return M4VSS3GPP_WAR_INCOMPATIBLE_AUDIO_NB_OF_CHANNELS;
+        }
+
+        // Allocate one byte more to hold the null terminator
+        M4OSA_UInt32 length =
+            strlen(pClipSettings->pFile) + strlen(freqStr) + strlen(chanStr) + 1;
+
+        char* pTempFile = (char *) malloc(length);
+        if (pTempFile == NULL) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen(): malloc %d bytes fail",length);
+            return M4ERR_ALLOC;
+        }
+        memset(pTempFile, 0, length);
+        memcpy(pTempFile, pClipSettings->pFile, strlen(pClipSettings->pFile));
+        strncat(pTempFile, freqStr, strlen(freqStr));
+        strncat(pTempFile, chanStr, strlen(chanStr));
 
         err = pClipCtxt->ShellAPI.m_pReader->m_pFctOpen( pClipCtxt->pReaderContext, pTempFile);
-
+        if (pTempFile != NULL) {
+            free(pTempFile);
+            pTempFile = NULL;
+        }
+        if ( M4NO_ERROR != err ) {
+            M4OSA_TRACE1_1("M4VSS3GPP_intClipOpen(): open pcm file returns error : 0x%x", err);
+            return err;
+        }
     }
     else
     {
