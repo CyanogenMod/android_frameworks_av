@@ -161,6 +161,7 @@ bool FastMixer::threadLoop()
                 coldGen = current->mColdGen;
                 bounds = 0;
                 full = false;
+                oldTsValid = !clock_gettime(CLOCK_MONOTONIC, &oldTs);
             } else {
                 sleepNs = FAST_HOT_IDLE_NS;
             }
