@@ -1019,13 +1019,6 @@ create_new_track:
         cblk->lock.unlock();
     }
 
-    // restart track if it was disabled by audioflinger due to previous underrun
-    if (mActive && (cblk->flags & CBLK_DISABLED_MSK)) {
-        android_atomic_and(~CBLK_DISABLED_ON, &cblk->flags);
-        ALOGW("obtainBuffer() track %p disabled, restarting", this);
-        mAudioTrack->start();
-    }
-
     cblk->waitTimeMs = 0;
 
     if (framesReq > framesAvail) {
@@ -1057,6 +1050,14 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 {
     AutoMutex lock(mLock);
     mCblk->stepUser(audioBuffer->frameCount);
+    if (audioBuffer->frameCount > 0) {
+        // restart track if it was disabled by audioflinger due to previous underrun
+        if (mActive && (mCblk->flags & CBLK_DISABLED_MSK)) {
+            android_atomic_and(~CBLK_DISABLED_ON, &mCblk->flags);
+            ALOGW("releaseBuffer() track %p disabled, restarting", this);
+            mAudioTrack->start();
+        }
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -1076,6 +1077,10 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
     }
 
     ALOGV("write %p: %d bytes, mActive=%d", this, userSize, mActive);
+
+    if (userSize == 0) {
+        return 0;
+    }
 
     // acquire a strong reference on the IMemory and IAudioTrack so that they cannot be destroyed
     // while we are accessing the cblk
@@ -1157,14 +1162,18 @@ status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
 status_t TimedAudioTrack::queueTimedBuffer(const sp<IMemory>& buffer,
                                            int64_t pts)
 {
-    // restart track if it was disabled by audioflinger due to previous underrun
-    if (mActive && (mCblk->flags & CBLK_DISABLED_MSK)) {
-        android_atomic_and(~CBLK_DISABLED_ON, &mCblk->flags);
-        ALOGW("queueTimedBuffer() track %p disabled, restarting", this);
-        mAudioTrack->start();
+    status_t status = mAudioTrack->queueTimedBuffer(buffer, pts);
+    {
+        AutoMutex lock(mLock);
+        // restart track if it was disabled by audioflinger due to previous underrun
+        if (buffer->size() != 0 && status == NO_ERROR &&
+                mActive && (mCblk->flags & CBLK_DISABLED_MSK)) {
+            android_atomic_and(~CBLK_DISABLED_ON, &mCblk->flags);
+            ALOGW("queueTimedBuffer() track %p disabled, restarting", this);
+            mAudioTrack->start();
+        }
     }
-
-    return mAudioTrack->queueTimedBuffer(buffer, pts);
+    return status;
 }
 
 status_t TimedAudioTrack::setMediaTimeTransform(const LinearTransform& xform,
@@ -1276,6 +1285,7 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             usleep(WAIT_PERIOD_MS*1000);
             break;
         }
+
         if (writtenSize > reqSize) writtenSize = reqSize;
 
         if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
