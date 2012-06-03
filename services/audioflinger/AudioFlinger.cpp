@@ -3174,6 +3174,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     tracksToRemove->add(track);
                 }
             } else {
+                track->mUnderrunCount++;
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
                 if (--(track->mRetryCount) <= 0) {
@@ -4367,7 +4368,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
     result.append("   Name Client Type Fmt Chn mask   Session mFrCnt fCount S M F SRate  L dB  R dB  "
-                  "  Server      User     Main buf    Aux Buf  Flags FastUnder\n");
+                  "  Server      User     Main buf    Aux Buf  Flags Underruns\n");
 }
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
