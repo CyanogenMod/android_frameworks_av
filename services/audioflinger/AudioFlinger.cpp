@@ -1605,6 +1605,7 @@ status_t AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String
     snprintf(buffer, SIZE, "mix buffer : %p\n", mMixBuffer);
     result.append(buffer);
     write(fd, result.string(), result.size());
+    fdprintf(fd, "Fast track availMask=%#x\n", mFastTrackAvailMask);
 
     dumpBase(fd, args);
 
@@ -2847,7 +2848,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
 
             // Determine whether the track is currently in underrun condition,
             // and whether it had a recent underrun.
-            FastTrackUnderruns underruns = mFastMixerDumpState.mTracks[j].mUnderruns;
+            FastTrackDump *ftDump = &mFastMixerDumpState.mTracks[j];
+            FastTrackUnderruns underruns = ftDump->mUnderruns;
             uint32_t recentFull = (underruns.mBitFields.mFull -
                     track->mObservedUnderruns.mBitFields.mFull) & UNDERRUN_MASK;
             uint32_t recentPartial = (underruns.mBitFields.mPartial -
