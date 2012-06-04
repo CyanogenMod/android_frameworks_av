@@ -489,6 +489,7 @@ status_t MediaPlayer::reset_l()
         }
         // setDataSource has to be called again to create a
         // new mediaplayer.
+        mPlayer->disconnect();
         mPlayer = 0;
         return ret;
     }
