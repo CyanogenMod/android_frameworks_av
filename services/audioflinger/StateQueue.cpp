@@ -24,12 +24,28 @@
 
 namespace android {
 
+#ifdef STATE_QUEUE_DUMP
+void StateQueueObserverDump::dump(int fd)
+{
+    fdprintf(fd, "State queue observer: stateChanges=%u\n", mStateChanges);
+}
+
+void StateQueueMutatorDump::dump(int fd)
+{
+    fdprintf(fd, "State queue mutator: pushDirty=%u pushAck=%u blockedSequence=%u\n",
+            mPushDirty, mPushAck, mBlockedSequence);
+}
+#endif
+
 // Constructor and destructor
 
 template<typename T> StateQueue<T>::StateQueue() :
     mNext(NULL), mAck(NULL), mCurrent(NULL),
     mMutating(&mStates[0]), mExpecting(NULL),
     mInMutation(false), mIsDirty(false), mIsInitialized(false)
+#ifdef STATE_QUEUE_DUMP
+    , mObserverDump(&mObserverDummyDump), mMutatorDump(&mMutatorDummyDump)
+#endif
 {
 }
 
@@ -45,6 +61,9 @@ template<typename T> const T* StateQueue<T>::poll()
     if (next != mCurrent) {
         mAck = next;    // no additional barrier needed
         mCurrent = next;
+#ifdef STATE_QUEUE_DUMP
+        mObserverDump->mStateChanges++;
+#endif
     }
     return next;
 }
@@ -77,10 +96,23 @@ template<typename T> bool StateQueue<T>::push(StateQueue<T>::block_t block)
 
     ALOG_ASSERT(!mInMutation, "push() called when in a mutation");
 
+#ifdef STATE_QUEUE_DUMP
+    if (block == BLOCK_UNTIL_ACKED) {
+        mMutatorDump->mPushAck++;
+    }
+#endif
+
     if (mIsDirty) {
+
+#ifdef STATE_QUEUE_DUMP
+        mMutatorDump->mPushDirty++;
+#endif
 
         // wait for prior push to be acknowledged
         if (mExpecting != NULL) {
+#ifdef STATE_QUEUE_DUMP
+            unsigned count = 0;
+#endif
             for (;;) {
                 const T *ack = (const T *) mAck;    // no additional barrier needed
                 if (ack == mExpecting) {
@@ -91,8 +123,19 @@ template<typename T> bool StateQueue<T>::push(StateQueue<T>::block_t block)
                 if (block == BLOCK_NEVER) {
                     return false;
                 }
+#ifdef STATE_QUEUE_DUMP
+                if (count == 1) {
+                    mMutatorDump->mBlockedSequence++;
+                }
+                ++count;
+#endif
                 nanosleep(&req, NULL);
             }
+#ifdef STATE_QUEUE_DUMP
+            if (count > 1) {
+                mMutatorDump->mBlockedSequence++;
+            }
+#endif
         }
 
         // publish
@@ -111,14 +154,28 @@ template<typename T> bool StateQueue<T>::push(StateQueue<T>::block_t block)
     // optionally wait for this push or a prior push to be acknowledged
     if (block == BLOCK_UNTIL_ACKED) {
         if (mExpecting != NULL) {
+#ifdef STATE_QUEUE_DUMP
+            unsigned count = 0;
+#endif
             for (;;) {
                 const T *ack = (const T *) mAck;    // no additional barrier needed
                 if (ack == mExpecting) {
                     mExpecting = NULL;
                     break;
                 }
+#ifdef STATE_QUEUE_DUMP
+                if (count == 1) {
+                    mMutatorDump->mBlockedSequence++;
+                }
+                ++count;
+#endif
                 nanosleep(&req, NULL);
             }
+#ifdef STATE_QUEUE_DUMP
+            if (count > 1) {
+                mMutatorDump->mBlockedSequence++;
+            }
+#endif
         }
     }
 
