@@ -161,6 +161,10 @@ static const enum {
 static uint32_t gScreenState; // incremented by 2 when screen state changes, bit 0 == 1 means "off"
                               // AudioFlinger::setParameters() updates, other threads read w/o lock
 
+// Priorities for requestPriority
+static const int kPriorityAudioApp = 2;
+static const int kPriorityFastMixer = 3;
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -1795,10 +1799,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         pid_t callingPid = IPCThreadState::self()->getCallingPid();
         // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
         // so ask activity manager to do this on our behalf
-        int err = requestPriority(callingPid, tid, 1);
+        int err = requestPriority(callingPid, tid, kPriorityAudioApp);
         if (err != 0) {
             ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    1, callingPid, tid, err);
+                    kPriorityAudioApp, callingPid, tid, err);
         }
     }
 
@@ -2281,10 +2285,10 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // start the fast mixer
         mFastMixer->run("FastMixer", PRIORITY_URGENT_AUDIO);
         pid_t tid = mFastMixer->getTid();
-        int err = requestPriority(getpid_cached, tid, 2);
+        int err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
         if (err != 0) {
             ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    2, getpid_cached, tid, err);
+                    kPriorityFastMixer, getpid_cached, tid, err);
         }
 
 #ifdef AUDIO_WATCHDOG
@@ -2293,10 +2297,10 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         mAudioWatchdog->setDump(&mAudioWatchdogDump);
         mAudioWatchdog->run("AudioWatchdog", PRIORITY_URGENT_AUDIO);
         tid = mAudioWatchdog->getTid();
-        err = requestPriority(getpid_cached, tid, 1);
+        err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
         if (err != 0) {
             ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    1, getpid_cached, tid, err);
+                    kPriorityFastMixer, getpid_cached, tid, err);
         }
 #endif
 
