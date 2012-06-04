@@ -239,6 +239,7 @@ bool FastMixer::threadLoop()
 
             // check for change in active track set
             unsigned currentTrackMask = current->mTrackMask;
+            dumpState->mTrackMask = currentTrackMask;
             if (current->mFastTracksGen != fastTracksGen) {
                 ALOG_ASSERT(mixBuffer != NULL);
                 int name;
@@ -387,6 +388,7 @@ bool FastMixer::threadLoop()
                     mixer->enable(name);
                 }
                 ftDump->mUnderruns = underruns;
+                ftDump->mFramesReady = framesReady;
             }
             // process() is CPU-bound
             mixer->process(AudioBufferProvider::kInvalidPTS);
@@ -562,7 +564,8 @@ bool FastMixer::threadLoop()
 FastMixerDumpState::FastMixerDumpState() :
     mCommand(FastMixerState::INITIAL), mWriteSequence(0), mFramesWritten(0),
     mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
-    mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0)
+    mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0),
+    mTrackMask(0)
 #ifdef FAST_MIXER_STATISTICS
     , mBounds(0)
 #endif
@@ -671,6 +674,40 @@ void FastMixerDumpState::dump(int fd)
                  "    mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
                  loadMHz.mean(), loadMHz.minimum(), loadMHz.maximum(), loadMHz.stddev());
 #endif
+    // The active track mask and track states are updated non-atomically.
+    // So if we relied on isActive to decide whether to display,
+    // then we might display an obsolete track or omit an active track.
+    // Instead we always display all tracks, with an indication
+    // of whether we think the track is active.
+    uint32_t trackMask = mTrackMask;
+    fdprintf(fd, "Fast tracks: kMaxFastTracks=%u activeMask=%#x\n",
+            FastMixerState::kMaxFastTracks, trackMask);
+    fdprintf(fd, "Index Active Full Partial Empty  Recent Ready\n");
+    for (uint32_t i = 0; i < FastMixerState::kMaxFastTracks; ++i, trackMask >>= 1) {
+        bool isActive = trackMask & 1;
+        const FastTrackDump *ftDump = &mTracks[i];
+        const FastTrackUnderruns& underruns = ftDump->mUnderruns;
+        const char *mostRecent;
+        switch (underruns.mBitFields.mMostRecent) {
+        case UNDERRUN_FULL:
+            mostRecent = "full";
+            break;
+        case UNDERRUN_PARTIAL:
+            mostRecent = "partial";
+            break;
+        case UNDERRUN_EMPTY:
+            mostRecent = "empty";
+            break;
+        default:
+            mostRecent = "?";
+            break;
+        }
+        fdprintf(fd, "%5u %6s %4u %7u %5u %7s %5u\n", i, isActive ? "yes" : "no",
+                (underruns.mBitFields.mFull) & UNDERRUN_MASK,
+                (underruns.mBitFields.mPartial) & UNDERRUN_MASK,
+                (underruns.mBitFields.mEmpty) & UNDERRUN_MASK,
+                mostRecent, ftDump->mFramesReady);
+    }
 }
 
 }   // namespace android
