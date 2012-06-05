@@ -2114,14 +2114,7 @@ audio_stream_t* AudioFlinger::PlaybackThread::stream() const
 
 uint32_t AudioFlinger::PlaybackThread::activeSleepTimeUs() const
 {
-    // A2DP output latency is not due only to buffering capacity. It also reflects encoding,
-    // decoding and transfer time. So sleeping for half of the latency would likely cause
-    // underruns
-    if (audio_is_a2dp_device((audio_devices_t)mDevice)) {
-        return (uint32_t)((uint32_t)((mNormalFrameCount * 1000) / mSampleRate) * 1000);
-    } else {
-        return (uint32_t)(mOutput->stream->get_latency(mOutput->stream) * 1000) / 2;
-    }
+    return (uint32_t)((uint32_t)((mNormalFrameCount * 1000) / mSampleRate) * 1000);
 }
 
 status_t AudioFlinger::PlaybackThread::setSyncEvent(const sp<SyncEvent>& event)
