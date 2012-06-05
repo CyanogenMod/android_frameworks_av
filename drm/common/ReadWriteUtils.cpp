@@ -47,7 +47,7 @@ String8 ReadWriteUtils::readBytes(const String8& filePath) {
             if (length == read(fd, (void*) bytes, length)) {
                 string.append(bytes, length);
             }
-            delete bytes;
+            delete[] bytes;
         }
         fclose(file);
     }
