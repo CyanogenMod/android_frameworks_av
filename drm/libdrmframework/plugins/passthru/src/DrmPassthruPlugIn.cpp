@@ -65,10 +65,11 @@ DrmConstraints* DrmPassthruPlugIn::onGetConstraints(
     char* charValue = NULL;
     charValue = new char[value.length() + 1];
     strncpy(charValue, value.string(), value.length());
+    charValue[value.length()] = '\0';
 
     //Just add dummy available time for verification
     drmConstraints->put(&(DrmConstraints::LICENSE_AVAILABLE_TIME), charValue);
-
+    delete[] charValue;
     return drmConstraints;
 }
 

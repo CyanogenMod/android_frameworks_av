@@ -190,8 +190,9 @@ DrmConstraints* BpDrmManagerService::getConstraints(
             if (0 < bufferSize) {
                 data = new char[bufferSize];
                 reply.read(data, bufferSize);
+                drmConstraints->put(&key, data);
+                delete[] data;
             }
-            drmConstraints->put(&key, data);
         }
     }
     return drmConstraints;
@@ -219,8 +220,9 @@ DrmMetadata* BpDrmManagerService::getMetadata(int uniqueId, const String8* path)
             if (0 < bufferSize) {
                 data = new char[bufferSize];
                 reply.read(data, bufferSize);
+                drmMetadata->put(&key, data);
+                delete[] data;
             }
-            drmMetadata->put(&key, data);
         }
     }
     return drmMetadata;
@@ -889,9 +891,11 @@ status_t BnDrmManagerService::onTransact(
                 int bufferSize = 0;
                 if (NULL != value) {
                     bufferSize = strlen(value);
+                    reply->writeInt32(bufferSize + 1);
+                    reply->write(value, bufferSize + 1);
+                } else {
+                    reply->writeInt32(0);
                 }
-                reply->writeInt32(bufferSize + 1);
-                reply->write(value, bufferSize + 1);
             }
         }
         delete drmConstraints; drmConstraints = NULL;
