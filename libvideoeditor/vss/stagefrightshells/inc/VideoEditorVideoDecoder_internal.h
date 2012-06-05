@@ -115,6 +115,9 @@ typedef struct {
     ARect                   mCropRect;  // These are obtained from kKeyCropRect.
     I420ColorConverter*     mI420ColorConverter;
 
+    // Time interval between two consequtive/neighboring video frames.
+    M4_MediaTime            mFrameIntervalMs;
+
 } VideoEditorVideoDecoder_Context;
 
 } //namespace android
