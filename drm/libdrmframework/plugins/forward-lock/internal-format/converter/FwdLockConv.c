@@ -245,7 +245,9 @@ static int FwdLockConv_DeriveKeys(FwdLockConv_Session_t *pSession) {
         AES_KEY sessionRoundKeys;
         unsigned char value[KEY_SIZE];
         unsigned char key[KEY_SIZE];
-    } *pData = malloc(sizeof *pData);
+    };
+    const size_t kSize = sizeof(struct FwdLockConv_DeriveKeys_Data);
+    struct FwdLockConv_DeriveKeys_Data *pData = malloc(kSize);
     if (pData == NULL) {
         status = FwdLockConv_Status_OutOfMemory;
     } else {
@@ -268,7 +270,7 @@ static int FwdLockConv_DeriveKeys(FwdLockConv_Session_t *pSession) {
                 status = FwdLockConv_Status_OK;
             }
         }
-        memset(pData, 0, sizeof pData); // Zero out key data.
+        memset(pData, 0, kSize); // Zero out key data.
         free(pData);
     }
     return status;
