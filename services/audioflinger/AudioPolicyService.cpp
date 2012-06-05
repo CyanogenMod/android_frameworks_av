@@ -1375,7 +1375,6 @@ static audio_io_handle_t aps_open_output_on_module(void *service,
         ALOGW("%s: could not get AudioFlinger", __func__);
         return 0;
     }
-    ALOGW("%s: %d", __func__, module);
     return af->openOutput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags);
 }
