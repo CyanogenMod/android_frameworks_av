@@ -1211,17 +1211,8 @@ public:
         virtual     void        threadLoop_sleepTime();
 
         // volumes last sent to audio HAL with stream->set_volume()
-        // FIXME use standard representation and names
         float mLeftVolFloat;
         float mRightVolFloat;
-        uint16_t mLeftVolShort;
-        uint16_t mRightVolShort;
-
-        // FIXME rename these former local variables of threadLoop to standard names
-        // next 3 were local to the while !exitingPending loop
-        bool rampVolume;
-        uint16_t leftVol;
-        uint16_t rightVol;
 
 private:
         // prepareTracks_l() tells threadLoop_mix() the name of the single active track

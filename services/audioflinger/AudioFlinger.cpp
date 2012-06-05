@@ -2013,11 +2013,9 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
     mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
     ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount, mNormalFrameCount);
 
-    // FIXME - Current mixer implementation only supports stereo output: Always
-    // Allocate a stereo buffer even if HW output is mono.
     delete[] mMixBuffer;
-    mMixBuffer = new int16_t[mNormalFrameCount * 2];
-    memset(mMixBuffer, 0, mNormalFrameCount * 2 * sizeof(int16_t));
+    mMixBuffer = new int16_t[mNormalFrameCount * mChannelCount];
+    memset(mMixBuffer, 0, mNormalFrameCount * mChannelCount * sizeof(int16_t));
 
     // force reconfiguration of effect chains and engines to take new buffer size and audio
     // parameters into account
@@ -2675,21 +2673,31 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
     // FIXME rewrite to reduce number of system calls
     mLastWriteTime = systemTime();
     mInWrite = true;
+    int bytesWritten;
 
+    // If an NBAIO sink is present, use it to write the normal mixer's submix
+    if (mNormalSink != 0) {
 #define mBitShift 2 // FIXME
-    size_t count = mixBufferSize >> mBitShift;
+        size_t count = mixBufferSize >> mBitShift;
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-    Tracer::traceBegin(ATRACE_TAG, "write");
+        Tracer::traceBegin(ATRACE_TAG, "write");
 #endif
-    ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
+        ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-    Tracer::traceEnd(ATRACE_TAG);
+        Tracer::traceEnd(ATRACE_TAG);
 #endif
-    if (framesWritten > 0) {
-        size_t bytesWritten = framesWritten << mBitShift;
-        mBytesWritten += bytesWritten;
+        if (framesWritten > 0) {
+            bytesWritten = framesWritten << mBitShift;
+        } else {
+            bytesWritten = framesWritten;
+        }
+    // otherwise use the HAL / AudioStreamOut directly
+    } else {
+        // Direct output thread.
+        bytesWritten = (int)mOutput->stream->write(mOutput->stream, mMixBuffer, mixBufferSize);
     }
 
+    if (bytesWritten > 0) mBytesWritten += mixBufferSize;
     mNumWrites++;
     mInWrite = false;
 }
@@ -3570,7 +3578,6 @@ AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& aud
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device)
     :   PlaybackThread(audioFlinger, output, id, device, DIRECT)
         // mLeftVolFloat, mRightVolFloat
-        // mLeftVolShort, mRightVolShort
 {
 }
 
@@ -3597,7 +3604,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
         // The first time a track is added we wait
         // for all its buffers to be filled before processing it
-        if (cblk->framesReady() && track->isReady() &&
+        uint32_t minFrames;
+        if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing()) {
+            minFrames = mNormalFrameCount;
+        } else {
+            minFrames = 1;
+        }
+        if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
             //ALOGV("track %d u=%08x, s=%08x [OK]", track->name(), cblk->user, cblk->server);
@@ -3605,16 +3618,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
                 mLeftVolFloat = mRightVolFloat = 0;
-                mLeftVolShort = mRightVolShort = 0;
                 if (track->mState == TrackBase::RESUMING) {
                     track->mState = TrackBase::ACTIVE;
-                    rampVolume = true;
                 }
-            } else if (cblk->server != 0) {
-                // If the track is stopped before the first frame was mixed,
-                // do not apply ramp
-                rampVolume = true;
             }
+
             // compute volume for this track
             float left, right;
             if (track->isMuted() || mMasterMute || track->isPausing() ||
@@ -3639,13 +3647,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 mLeftVolFloat = left;
                 mRightVolFloat = right;
 
-                // If audio HAL implements volume control,
-                // force software volume to nominal value
-                if (mOutput->stream->set_volume(mOutput->stream, left, right) == NO_ERROR) {
-                    left = 1.0f;
-                    right = 1.0f;
-                }
-
                 // Convert volumes from float to 8.24
                 uint32_t vl = (uint32_t)(left * (1 << 24));
                 uint32_t vr = (uint32_t)(right * (1 << 24));
@@ -3655,22 +3656,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // there is one, the track is connected to it
                 if (!mEffectChains.isEmpty()) {
                     // Do not ramp volume if volume is controlled by effect
-                    if (mEffectChains[0]->setVolume_l(&vl, &vr)) {
-                        rampVolume = false;
-                    }
+                    mEffectChains[0]->setVolume_l(&vl, &vr);
+                    left = (float)vl / (1 << 24);
+                    right = (float)vr / (1 << 24);
                 }
-
-                // Convert volumes from 8.24 to 4.12 format
-                uint32_t v_clamped = (vl + (1 << 11)) >> 12;
-                if (v_clamped > MAX_GAIN_INT) v_clamped = MAX_GAIN_INT;
-                leftVol = (uint16_t)v_clamped;
-                v_clamped = (vr + (1 << 11)) >> 12;
-                if (v_clamped > MAX_GAIN_INT) v_clamped = MAX_GAIN_INT;
-                rightVol = (uint16_t)v_clamped;
-            } else {
-                leftVol = mLeftVolShort;
-                rightVol = mRightVolShort;
-                rampVolume = false;
+                mOutput->stream->set_volume(mOutput->stream, left, right);
             }
 
             // reset retry count
@@ -3685,7 +3675,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             }
 
             //ALOGV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
-            if (track->isTerminated() || track->isStopped() || track->isPaused()) {
+            if ((track->sharedBuffer() != 0) || track->isTerminated() ||
+                    track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
                 // TODO: implement behavior for compressed audio
@@ -3752,78 +3743,6 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
     standbyTime = systemTime() + standbyDelay;
     mActiveTrack.clear();
 
-    // apply volume
-
-    // Do not apply volume on compressed audio
-    if (!audio_is_linear_pcm(mFormat)) {
-        return;
-    }
-
-    // convert to signed 16 bit before volume calculation
-    if (mFormat == AUDIO_FORMAT_PCM_8_BIT) {
-        size_t count = mFrameCount * mChannelCount;
-        uint8_t *src = (uint8_t *)mMixBuffer + count-1;
-        int16_t *dst = mMixBuffer + count-1;
-        while (count--) {
-            *dst-- = (int16_t)(*src--^0x80) << 8;
-        }
-    }
-
-    frameCount = mFrameCount;
-    int16_t *out = mMixBuffer;
-    if (rampVolume) {
-        if (mChannelCount == 1) {
-            int32_t d = ((int32_t)leftVol - (int32_t)mLeftVolShort) << 16;
-            int32_t vlInc = d / (int32_t)frameCount;
-            int32_t vl = ((int32_t)mLeftVolShort << 16);
-            do {
-                out[0] = clamp16(mul(out[0], vl >> 16) >> 12);
-                out++;
-                vl += vlInc;
-            } while (--frameCount);
-
-        } else {
-            int32_t d = ((int32_t)leftVol - (int32_t)mLeftVolShort) << 16;
-            int32_t vlInc = d / (int32_t)frameCount;
-            d = ((int32_t)rightVol - (int32_t)mRightVolShort) << 16;
-            int32_t vrInc = d / (int32_t)frameCount;
-            int32_t vl = ((int32_t)mLeftVolShort << 16);
-            int32_t vr = ((int32_t)mRightVolShort << 16);
-            do {
-                out[0] = clamp16(mul(out[0], vl >> 16) >> 12);
-                out[1] = clamp16(mul(out[1], vr >> 16) >> 12);
-                out += 2;
-                vl += vlInc;
-                vr += vrInc;
-            } while (--frameCount);
-        }
-    } else {
-        if (mChannelCount == 1) {
-            do {
-                out[0] = clamp16(mul(out[0], leftVol) >> 12);
-                out++;
-            } while (--frameCount);
-        } else {
-            do {
-                out[0] = clamp16(mul(out[0], leftVol) >> 12);
-                out[1] = clamp16(mul(out[1], rightVol) >> 12);
-                out += 2;
-            } while (--frameCount);
-        }
-    }
-
-    // convert back to unsigned 8 bit after volume calculation
-    if (mFormat == AUDIO_FORMAT_PCM_8_BIT) {
-        size_t count = mFrameCount * mChannelCount;
-        int16_t *src = mMixBuffer;
-        uint8_t *dst = (uint8_t *)mMixBuffer;
-        while (count--) {
-            *dst++ = (uint8_t)(((int32_t)*src++ + (1<<7)) >> 8)^0x80;
-        }
-    }
-
-    mLeftVolShort = leftVol;
-    mRightVolShort = rightVol;
 }
 
 void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
