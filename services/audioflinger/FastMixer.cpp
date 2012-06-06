@@ -483,7 +483,10 @@ bool FastMixer::threadLoop()
                                 (int) sec, nsec / 1000000L);
                         dumpState->mOverruns++;
                     }
-                    sleepNs = periodNs - overrunNs;
+                    // Code for non blocking audio HAL. Sleep time must be tuned to allow
+                    // catching up after an underrun
+                    //     sleepNs = periodNs - overrunNs;
+                    sleepNs = -1;
                 } else {
                     sleepNs = -1;
                     ignoreNextOverrun = false;
