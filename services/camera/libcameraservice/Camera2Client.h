@@ -71,7 +71,9 @@ private:
         NOT_INITIALIZED,
         STOPPED,
         WAITING_FOR_PREVIEW_WINDOW,
-        PREVIEW
+        PREVIEW,
+        RECORD,
+        STILL_CAPTURE
     } mState;
 
     /** ICamera interface-related private members */
