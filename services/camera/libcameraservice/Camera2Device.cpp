@@ -502,10 +502,25 @@ status_t Camera2Device::StreamAdapter::connectToDevice(sp<ANativeWindow> consume
         return res;
     }
 
+    res = native_window_set_scaling_mode(mConsumerInterface.get(),
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream scaling: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    res = native_window_set_buffers_transform(mConsumerInterface.get(), 0);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream transform: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
     res = native_window_set_buffers_geometry(mConsumerInterface.get(),
             mWidth, mHeight, mFormat);
     if (res != OK) {
-        ALOGE("%s: Unable to configure buffer geometry"
+        ALOGE("%s: Unable to configure stream buffer geometry"
                 " %d x %d, format 0x%x for stream %d",
                 __FUNCTION__, mWidth, mHeight, mFormat, mId);
         return res;
@@ -646,8 +661,10 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
 int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         int64_t timestamp,
         buffer_handle_t* buffer) {
-    ALOGV("%s: Buffer %p captured at %lld ns", __FUNCTION__, buffer, timestamp);
-    int state = static_cast<const StreamAdapter*>(w)->mState;
+    const StreamAdapter *stream = static_cast<const StreamAdapter*>(w);
+    ALOGV("%s: Stream %d: Buffer %p captured at %lld ns",
+            __FUNCTION__, stream->mId, buffer, timestamp);
+    int state = stream->mState;
     if (state != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
         return INVALID_OPERATION;
@@ -655,9 +672,18 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
     ANativeWindow *a = toANW(w);
     status_t err;
     err = native_window_set_buffers_timestamp(a, timestamp);
-    if (err != OK) return err;
-    return a->queueBuffer(a,
+    if (err != OK) {
+        ALOGE("%s: Error setting timestamp on native window: %s (%d)",
+                __FUNCTION__, strerror(-err), err);
+        return err;
+    }
+    err = a->queueBuffer(a,
             container_of(buffer, ANativeWindowBuffer, handle));
+    if (err != OK) {
+        ALOGE("%s: Error queueing buffer to native window: %s (%d)",
+                __FUNCTION__, strerror(-err), err);
+    }
+    return err;
 }
 
 int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
