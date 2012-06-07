@@ -274,9 +274,11 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
 void Camera2Client::disconnect() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     if (mDevice == 0) return;
 
-    stopPreview();
+    stopPreviewLocked();
 
     if (mPreviewStreamId != NO_PREVIEW_STREAM) {
         mDevice->deleteStream(mPreviewStreamId);
@@ -288,23 +290,31 @@ void Camera2Client::disconnect() {
 
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::lock() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::unlock() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
     ATRACE_CALL();
-    if (mState == PREVIEW) return INVALID_OPERATION;
+    Mutex::Autolock icl(mICameraLock);
+
+    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -319,7 +329,9 @@ status_t Camera2Client::setPreviewDisplay(
 status_t Camera2Client::setPreviewTexture(
         const sp<ISurfaceTexture>& surfaceTexture) {
     ATRACE_CALL();
-    if (mState == PREVIEW) return INVALID_OPERATION;
+    Mutex::Autolock icl(mICameraLock);
+
+    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -362,10 +374,13 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
 
 void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     status_t res;
     if (mState == PREVIEW) return INVALID_OPERATION;
 
@@ -414,6 +429,12 @@ status_t Camera2Client::startPreview() {
 
 void Camera2Client::stopPreview() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+    stopPreviewLocked();
+}
+
+void Camera2Client::stopPreviewLocked() {
+    ATRACE_CALL();
     if (mState != PREVIEW) return;
 
     mDevice->setStreamingRequest(NULL);
@@ -422,60 +443,75 @@ void Camera2Client::stopPreview() {
 
 bool Camera2Client::previewEnabled() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return mState == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 status_t Camera2Client::startRecording() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 void Camera2Client::stopRecording() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 status_t Camera2Client::autoFocus() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 status_t Camera2Client::cancelAutoFocus() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
+    Mutex::Autolock pl(mParamsLock);
+
     // TODO: Deal with focus distances
     return mParamsFlattened;
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
@@ -520,6 +556,8 @@ camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
 
 status_t Camera2Client::buildDefaultParameters() {
     ATRACE_CALL();
+    Mutex::Autolock pl(mParamsLock);
+
     status_t res;
     CameraParameters params;
 

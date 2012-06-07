@@ -78,8 +78,16 @@ private:
 
     /** ICamera interface-related private members */
 
+    // Mutex that must be locked by methods implementing the ICamera interface.
+    // Ensures serialization between incoming ICamera calls
+    mutable Mutex mICameraLock;
+
     status_t setPreviewWindow(const sp<IBinder>& binder,
             const sp<ANativeWindow>& window);
+    void stopPreviewLocked();
+
+    // Mutex that must be locked before accessing mParams, mParamsFlattened
+    mutable Mutex mParamsLock;
     String8 mParamsFlattened;
     // Current camera state; this is the contents of the CameraParameters object
     // in a more-efficient format. The enum values are mostly based off the
