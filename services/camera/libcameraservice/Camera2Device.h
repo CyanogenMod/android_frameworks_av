@@ -87,7 +87,8 @@ class Camera2Device : public virtual RefBase {
 
         // Set repeating buffer(s); if the queue is empty on a dequeue call, the
         // queue copies the contents of the stream slot into the queue, and then
-        // dequeues the first new entry.
+        // dequeues the first new entry. The metadata buffers passed in are
+        // copied.
         status_t setStreamSlot(camera_metadata_t *buf);
         status_t setStreamSlot(const List<camera_metadata_t*> &bufs);
 
