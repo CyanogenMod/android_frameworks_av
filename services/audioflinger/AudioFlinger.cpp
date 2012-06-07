@@ -164,6 +164,9 @@ static const enum {
     //  up large writes into smaller ones, and the wrapper would need to deal with scheduler.
 } kUseFastMixer = FastMixer_Static;
 
+static uint32_t gScreenState; // incremented by 2 when screen state changes, bit 0 == 1 means "off"
+                              // AudioFlinger::setParameters() updates, other threads read w/o lock
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -889,6 +892,13 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
                 mBtNrecIsOff = btNrecIsOff;
             }
         }
+        String8 screenState;
+        if (param.get(String8(AudioParameter::keyScreenState), screenState) == NO_ERROR) {
+            bool isOff = screenState == "off";
+            if (isOff != (gScreenState & 1)) {
+                gScreenState = ((gScreenState & ~1) + 2) | isOff;
+            }
+        }
         return final_result;
     }
 
@@ -1501,6 +1511,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMixerStatus(MIXER_IDLE),
         mMixerStatusIgnoringFastTracks(MIXER_IDLE),
         standbyDelay(AudioFlinger::mStandbyTimeInNsecs),
+        mScreenState(gScreenState),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
 {
@@ -2224,6 +2235,8 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         size_t numCounterOffers = 0;
         ssize_t index = monoPipe->negotiate(offers, 1, NULL, numCounterOffers);
         ALOG_ASSERT(index == 0);
+        monoPipe->setAvgFrames((mScreenState & 1) ?
+                (monoPipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
         mPipeSink = monoPipe;
 
 #ifdef TEE_SINK_FRAMES
@@ -2686,6 +2699,16 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
         Tracer::traceBegin(ATRACE_TAG, "write");
 #endif
+        // update the setpoint when gScreenState changes
+        uint32_t screenState = gScreenState;
+        if (screenState != mScreenState) {
+            mScreenState = screenState;
+            MonoPipe *pipe = (MonoPipe *)mPipeSink.get();
+            if (pipe != NULL) {
+                pipe->setAvgFrames((mScreenState & 1) ?
+                        (pipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
+            }
+        }
         ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
         Tracer::traceEnd(ATRACE_TAG);
