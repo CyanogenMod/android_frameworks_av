@@ -52,7 +52,6 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
         mState(NOT_INITIALIZED),
-        mParams(NULL),
         mPreviewStreamId(NO_PREVIEW_STREAM),
         mPreviewRequest(NULL)
 {
@@ -79,10 +78,11 @@ status_t Camera2Client::initialize(camera_module_t *module)
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return NO_INIT;
     }
+
     if (gLogLevel >= 1) {
         ALOGD("%s: Default parameters converted from camera %d:", __FUNCTION__,
               mCameraId);
-        mParams->dump();
+        ALOGD("%s", mParamsFlattened.string());
     }
 
     mState = STOPPED;
@@ -94,9 +94,8 @@ Camera2Client::~Camera2Client() {
     ATRACE_CALL();
     mDestructionStarted = true;
 
-    if (mParams) delete mParams;
-
     disconnect();
+
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
@@ -184,12 +183,9 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
             return res;
         }
     }
-
-    int previewWidth, previewHeight;
-    mParams->getPreviewSize(&previewWidth, &previewHeight);
-
     res = mDevice->createStream(window,
-            previewWidth, previewHeight, CAMERA2_HAL_PIXEL_FORMAT_OPAQUE,
+            mParameters.previewWidth, mParameters.previewHeight,
+            CAMERA2_HAL_PIXEL_FORMAT_OPAQUE,
             &mPreviewStreamId);
     if (res != OK) {
         return res;
@@ -312,7 +308,8 @@ status_t Camera2Client::setParameters(const String8& params) {
 
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
-    return mParams->flatten();
+    // TODO: Deal with focus distances
+    return mParamsFlattened;
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
@@ -320,38 +317,65 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     return OK;
 }
 
-// private methods
+/** Device-related methods */
+
+camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
+        size_t minCount, size_t maxCount) {
+    status_t res;
+    camera_metadata_entry_t entry;
+    res = find_camera_metadata_entry(mDevice->info(),
+            tag,
+            &entry);
+    if (CC_UNLIKELY( res != OK )) {
+        const char* tagSection = get_camera_metadata_section_name(tag);
+        if (tagSection == NULL) tagSection = "<unknown>";
+        const char* tagName = get_camera_metadata_tag_name(tag);
+        if (tagName == NULL) tagName = "<unknown>";
+
+        ALOGE("Error finding static metadata entry '%s.%s' (%x): %s (%d)",
+                tagSection, tagName, tag, strerror(-res), res);
+        entry.count = 0;
+        entry.data.u8 = NULL;
+    } else if (CC_UNLIKELY(
+            (minCount != 0 && entry.count < minCount) ||
+            (maxCount != 0 && entry.count > maxCount) ) ) {
+        const char* tagSection = get_camera_metadata_section_name(tag);
+        if (tagSection == NULL) tagSection = "<unknown>";
+        const char* tagName = get_camera_metadata_tag_name(tag);
+        if (tagName == NULL) tagName = "<unknown>";
+        ALOGE("Malformed static metadata entry '%s.%s' (%x):"
+                "Expected between %d and %d values, but got %d values",
+                tagSection, tagName, tag, minCount, maxCount, entry.count);
+        entry.count = 0;
+        entry.data.u8 = NULL;
+    }
+
+    return entry;
+}
+
+/** Utility methods */
+
 
 status_t Camera2Client::buildDefaultParameters() {
     ATRACE_CALL();
     status_t res;
-    if (mParams) {
-        delete mParams;
-    }
-    mParams = new CameraParameters;
+    CameraParameters params;
 
-    camera_metadata_entry_t availableProcessedSizes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES,
-            &availableProcessedSizes);
-    if (res != OK) return res;
-    if (availableProcessedSizes.count < 2) {
-        ALOGE("%s: Camera %d: "
-                "Malformed %s entry",
-                __FUNCTION__, mCameraId,
-                get_camera_metadata_tag_name(
-                    ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES));
-        return NO_INIT;
-    }
+    camera_metadata_entry_t availableProcessedSizes =
+        staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, 2);
+    if (!availableProcessedSizes.count) return NO_INIT;
 
     // TODO: Pick more intelligently
-    int previewWidth = availableProcessedSizes.data.i32[0];
-    int previewHeight = availableProcessedSizes.data.i32[1];
+    mParameters.previewWidth = availableProcessedSizes.data.i32[0];
+    mParameters.previewHeight = availableProcessedSizes.data.i32[1];
+    mParameters.videoWidth = mParameters.previewWidth;
+    mParameters.videoHeight = mParameters.previewHeight;
 
-    mParams->setPreviewSize(previewWidth, previewHeight);
-    mParams->setVideoSize(previewWidth, previewHeight);
-    mParams->set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO,
-            String8::format("%dx%d",previewWidth,previewHeight));
+    params.setPreviewSize(mParameters.previewWidth, mParameters.previewHeight);
+    params.setVideoSize(mParameters.videoWidth, mParameters.videoHeight);
+    params.set(CameraParameters::KEY_PREFERRED_PREVIEW_SIZE_FOR_VIDEO,
+            String8::format("%dx%d",
+                    mParameters.previewWidth, mParameters.previewHeight));
     {
         String8 supportedPreviewSizes;
         for (size_t i=0; i < availableProcessedSizes.count; i += 2) {
@@ -360,31 +384,23 @@ status_t Camera2Client::buildDefaultParameters() {
                     availableProcessedSizes.data.i32[i],
                     availableProcessedSizes.data.i32[i+1]);
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
+        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
                 supportedPreviewSizes);
-        mParams->set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES,
+        params.set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES,
                 supportedPreviewSizes);
     }
 
-    camera_metadata_entry_t availableFpsRanges;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES,
-            &availableFpsRanges);
-    if (res != OK) return res;
-    if (availableFpsRanges.count < 2) {
-        ALOGE("%s: Camera %d: "
-                "Malformed %s entry",
-                __FUNCTION__, mCameraId,
-                get_camera_metadata_tag_name(
-                    ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES));
-        return NO_INIT;
-    }
+    camera_metadata_entry_t availableFpsRanges =
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
+    if (!availableFpsRanges.count) return NO_INIT;
 
-    int previewFpsRangeMin = availableFpsRanges.data.i32[0];
-    int previewFpsRangeMax = availableFpsRanges.data.i32[1];
+    mParameters.previewFpsRangeMin = availableFpsRanges.data.i32[0];
+    mParameters.previewFpsRangeMax = availableFpsRanges.data.i32[1];
 
-    mParams->set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
-            String8::format("%d,%d", previewFpsRangeMin, previewFpsRangeMax));
+    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
+            String8::format("%d,%d",
+                    mParameters.previewFpsRangeMin,
+                    mParameters.previewFpsRangeMax));
 
     {
         String8 supportedPreviewFpsRange;
@@ -394,17 +410,17 @@ status_t Camera2Client::buildDefaultParameters() {
                     availableFpsRanges.data.i32[i],
                     availableFpsRanges.data.i32[i+1]);
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,
+        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,
                 supportedPreviewFpsRange);
     }
 
-    mParams->set(CameraParameters::KEY_PREVIEW_FORMAT,
-            "yuv420sp"); // NV21
+    mParameters.previewFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
+    params.set(CameraParameters::KEY_PREVIEW_FORMAT,
+            formatEnumToString(mParameters.previewFormat)); // NV21
 
-    camera_metadata_entry_t availableFormats;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_SCALER_AVAILABLE_FORMATS,
-            &availableFormats);
+    camera_metadata_entry_t availableFormats =
+        staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
+
     {
         String8 supportedPreviewFormats;
         bool addComma = false;
@@ -438,15 +454,15 @@ status_t Camera2Client::buildDefaultParameters() {
                 break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
+        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
                 supportedPreviewFormats);
     }
 
     // PREVIEW_FRAME_RATE / SUPPORTED_PREVIEW_FRAME_RATES are deprecated, but
     // still have to do something sane for them
 
-    mParams->set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
-            previewFpsRangeMin);
+    params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
+            mParameters.previewFpsRangeMin);
 
     {
         String8 supportedPreviewFrameRates;
@@ -455,29 +471,20 @@ status_t Camera2Client::buildDefaultParameters() {
             supportedPreviewFrameRates += String8::format("%d",
                     availableFpsRanges.data.i32[i]);
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
+        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
                 supportedPreviewFrameRates);
     }
 
-    camera_metadata_entry_t availableJpegSizes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_SCALER_AVAILABLE_JPEG_SIZES,
-            &availableJpegSizes);
-    if (res != OK) return res;
-    if (availableJpegSizes.count < 2) {
-        ALOGE("%s: Camera %d: "
-                "Malformed %s entry",
-                __FUNCTION__, mCameraId,
-                get_camera_metadata_tag_name(
-                    ANDROID_SCALER_AVAILABLE_JPEG_SIZES));
-        return NO_INIT;
-    }
+    camera_metadata_entry_t availableJpegSizes =
+        staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES, 2);
+    if (!availableJpegSizes.count) return NO_INIT;
 
     // TODO: Pick maximum
-    int32_t pictureWidth = availableJpegSizes.data.i32[0];
-    int32_t pictureHeight = availableJpegSizes.data.i32[1];
+    mParameters.pictureWidth = availableJpegSizes.data.i32[0];
+    mParameters.pictureHeight = availableJpegSizes.data.i32[1];
 
-    mParams->setPictureSize(pictureWidth, pictureHeight);
+    params.setPictureSize(mParameters.pictureWidth,
+            mParameters.pictureHeight);
 
     {
         String8 supportedPictureSizes;
@@ -487,37 +494,26 @@ status_t Camera2Client::buildDefaultParameters() {
                     availableJpegSizes.data.i32[i],
                     availableJpegSizes.data.i32[i+1]);
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES,
+        params.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES,
                 supportedPictureSizes);
     }
 
-    mParams->setPictureFormat("jpeg");
+    params.setPictureFormat(CameraParameters::PIXEL_FORMAT_JPEG);
+    params.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,
+            CameraParameters::PIXEL_FORMAT_JPEG);
 
-    mParams->set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,
-            "jpeg");
-
-    camera_metadata_entry_t availableJpegThumbnailSizes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES,
-            &availableJpegThumbnailSizes);
-    if (res != OK) return res;
-    if (availableJpegThumbnailSizes.count < 2) {
-        ALOGE("%s: Camera %d: "
-                "Malformed %s entry",
-                __FUNCTION__, mCameraId,
-                get_camera_metadata_tag_name(
-                    ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES));
-        return NO_INIT;
-    }
+    camera_metadata_entry_t availableJpegThumbnailSizes =
+        staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES, 2);
+    if (!availableJpegThumbnailSizes.count) return NO_INIT;
 
     // TODO: Pick default thumbnail size sensibly
-    int32_t jpegThumbWidth = availableJpegThumbnailSizes.data.i32[0];
-    int32_t jpegThumbHeight = availableJpegThumbnailSizes.data.i32[1];
+    mParameters.jpegThumbWidth = availableJpegThumbnailSizes.data.i32[0];
+    mParameters.jpegThumbHeight = availableJpegThumbnailSizes.data.i32[1];
 
-    mParams->set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH,
-            jpegThumbWidth);
-    mParams->set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT,
-            jpegThumbHeight);
+    params.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH,
+            mParameters.jpegThumbWidth);
+    params.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT,
+            mParameters.jpegThumbHeight);
 
     {
         String8 supportedJpegThumbSizes;
@@ -527,25 +523,30 @@ status_t Camera2Client::buildDefaultParameters() {
                     availableJpegThumbnailSizes.data.i32[i],
                     availableJpegThumbnailSizes.data.i32[i+1]);
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,
+        params.set(CameraParameters::KEY_SUPPORTED_JPEG_THUMBNAIL_SIZES,
                 supportedJpegThumbSizes);
     }
 
-    mParams->set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY,
-            "90");
-    mParams->set(CameraParameters::KEY_JPEG_QUALITY,
-            "90");
-    mParams->set(CameraParameters::KEY_ROTATION,
-            "0");
-    // Not settting GPS fields
+    mParameters.jpegThumbQuality = 90;
+    params.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY,
+            mParameters.jpegThumbQuality);
+    mParameters.jpegQuality = 90;
+    params.set(CameraParameters::KEY_JPEG_QUALITY,
+            mParameters.jpegQuality);
+    mParameters.jpegRotation = 0;
+    params.set(CameraParameters::KEY_ROTATION,
+            mParameters.jpegRotation);
 
-    mParams->set(CameraParameters::KEY_WHITE_BALANCE,
-            "auto");
+    mParameters.gpsEnabled = false;
+    mParameters.gpsProcessingMethod = "unknown";
+    // GPS fields in CameraParameters are not set by implementation
 
-    camera_metadata_entry_t availableWhiteBalanceModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AWB_AVAILABLE_MODES,
-            &availableWhiteBalanceModes);
+    mParameters.wbMode = ANDROID_CONTROL_AWB_AUTO;
+    params.set(CameraParameters::KEY_WHITE_BALANCE,
+            CameraParameters::WHITE_BALANCE_AUTO);
+
+    camera_metadata_entry_t availableWhiteBalanceModes =
+        staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
     {
         String8 supportedWhiteBalance;
         bool addComma = false;
@@ -589,16 +590,17 @@ status_t Camera2Client::buildDefaultParameters() {
                 break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE,
+        params.set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE,
                 supportedWhiteBalance);
     }
 
-    mParams->set(CameraParameters::KEY_EFFECT, "none");
-    camera_metadata_entry_t availableEffects;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AVAILABLE_EFFECTS,
-            &availableEffects);
-    if (res != OK) return res;
+    mParameters.effectMode = ANDROID_CONTROL_EFFECT_OFF;
+    params.set(CameraParameters::KEY_EFFECT,
+            CameraParameters::EFFECT_NONE);
+
+    camera_metadata_entry_t availableEffects =
+        staticInfo(ANDROID_CONTROL_AVAILABLE_EFFECTS);
+    if (!availableEffects.count) return NO_INIT;
     {
         String8 supportedEffects;
         bool addComma = false;
@@ -639,15 +641,16 @@ status_t Camera2Client::buildDefaultParameters() {
                     break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_EFFECTS, supportedEffects);
+        params.set(CameraParameters::KEY_SUPPORTED_EFFECTS, supportedEffects);
     }
 
-    mParams->set(CameraParameters::KEY_ANTIBANDING, "auto");
-    camera_metadata_entry_t availableAntibandingModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,
-            &availableAntibandingModes);
-    if (res != OK) return res;
+    mParameters.antibandingMode = ANDROID_CONTROL_AE_ANTIBANDING_AUTO;
+    params.set(CameraParameters::KEY_ANTIBANDING,
+            CameraParameters::ANTIBANDING_AUTO);
+
+    camera_metadata_entry_t availableAntibandingModes =
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES);
+    if (!availableAntibandingModes.count) return NO_INIT;
     {
         String8 supportedAntibanding;
         bool addComma = false;
@@ -675,16 +678,17 @@ status_t Camera2Client::buildDefaultParameters() {
                     break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_ANTIBANDING,
+        params.set(CameraParameters::KEY_SUPPORTED_ANTIBANDING,
                 supportedAntibanding);
     }
 
-    mParams->set(CameraParameters::KEY_SCENE_MODE, "auto");
-    camera_metadata_entry_t availableSceneModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AVAILABLE_SCENE_MODES,
-            &availableSceneModes);
-    if (res != OK) return res;
+    mParameters.sceneMode = ANDROID_CONTROL_OFF;
+    params.set(CameraParameters::KEY_SCENE_MODE,
+            CameraParameters::SCENE_MODE_AUTO);
+
+    camera_metadata_entry_t availableSceneModes =
+        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
+    if (!availableSceneModes.count) return NO_INIT;
     {
         String8 supportedSceneModes("auto");
         bool addComma = true;
@@ -753,53 +757,69 @@ status_t Camera2Client::buildDefaultParameters() {
             }
         }
         if (!noSceneModes) {
-            mParams->set(CameraParameters::KEY_SUPPORTED_SCENE_MODES,
+            params.set(CameraParameters::KEY_SUPPORTED_SCENE_MODES,
                     supportedSceneModes);
         }
     }
 
-    camera_metadata_entry_t flashAvailable;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_FLASH_AVAILABLE, &flashAvailable);
-    if (res != OK) return res;
+    camera_metadata_entry_t flashAvailable =
+        staticInfo(ANDROID_FLASH_AVAILABLE, 1, 1);
+    if (!flashAvailable.count) return NO_INIT;
 
-    camera_metadata_entry_t availableAeModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AE_AVAILABLE_MODES,
-            &availableAeModes);
-    if (res != OK) return res;
+    camera_metadata_entry_t availableAeModes =
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES);
+    if (!availableAeModes.count) return NO_INIT;
 
     if (flashAvailable.data.u8[0]) {
-        mParams->set(CameraParameters::KEY_FLASH_MODE, "auto");
-        String8 supportedFlashModes("off,auto,on,torch");
+        mParameters.flashMode = Parameters::FLASH_MODE_AUTO;
+        params.set(CameraParameters::KEY_FLASH_MODE,
+                CameraParameters::FLASH_MODE_AUTO);
+
+        String8 supportedFlashModes(CameraParameters::FLASH_MODE_OFF);
+        supportedFlashModes = supportedFlashModes +
+            "," + CameraParameters::FLASH_MODE_AUTO +
+            "," + CameraParameters::FLASH_MODE_ON +
+            "," + CameraParameters::FLASH_MODE_TORCH;
         for (size_t i=0; i < availableAeModes.count; i++) {
             if (availableAeModes.data.u8[i] ==
                     ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE) {
-                supportedFlashModes += ",red-eye";
+                supportedFlashModes = supportedFlashModes + "," +
+                    CameraParameters::FLASH_MODE_RED_EYE;
                 break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_FLASH_MODES,
+        params.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES,
                 supportedFlashModes);
+    } else {
+        mParameters.flashMode = Parameters::FLASH_MODE_OFF;
+        params.set(CameraParameters::KEY_FLASH_MODE,
+                CameraParameters::FLASH_MODE_OFF);
+        params.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES,
+                CameraParameters::FLASH_MODE_OFF);
     }
 
-    camera_metadata_entry_t minFocusDistance;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_LENS_MINIMUM_FOCUS_DISTANCE,
-            &minFocusDistance);
-    if (res != OK) return res;
-    camera_metadata_entry_t availableAfModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AF_AVAILABLE_MODES,
-            &availableAfModes);
-    if (res != OK) return res;
+    camera_metadata_entry_t minFocusDistance =
+        staticInfo(ANDROID_LENS_MINIMUM_FOCUS_DISTANCE, 1, 1);
+    if (!minFocusDistance.count) return NO_INIT;
+
+    camera_metadata_entry_t availableAfModes =
+        staticInfo(ANDROID_CONTROL_AF_AVAILABLE_MODES);
+    if (!availableAfModes.count) return NO_INIT;
+
     if (minFocusDistance.data.f[0] == 0) {
         // Fixed-focus lens
-        mParams->set(CameraParameters::KEY_FOCUS_MODE, "fixed");
-        mParams->set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, "fixed");
+        mParameters.focusMode = Parameters::FOCUS_MODE_FIXED;
+        params.set(CameraParameters::KEY_FOCUS_MODE,
+                CameraParameters::FOCUS_MODE_FIXED);
+        params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
+                CameraParameters::FOCUS_MODE_FIXED);
     } else {
-        mParams->set(CameraParameters::KEY_FOCUS_MODE, "auto");
-        String8 supportedFocusModes("fixed,infinity");
+        mParameters.focusMode = Parameters::FOCUS_MODE_AUTO;
+        params.set(CameraParameters::KEY_FOCUS_MODE,
+                CameraParameters::FOCUS_MODE_AUTO);
+        String8 supportedFocusModes(CameraParameters::FOCUS_MODE_FIXED);
+        supportedFocusModes = supportedFocusModes + "," +
+            CameraParameters::FOCUS_MODE_INFINITY;
         bool addComma = true;
         for (size_t i=0; i < availableAfModes.count; i++) {
             if (addComma) supportedFocusModes += ",";
@@ -831,81 +851,86 @@ status_t Camera2Client::buildDefaultParameters() {
                     break;
             }
         }
-        mParams->set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
+        params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
                 supportedFocusModes);
     }
 
-    camera_metadata_entry_t max3aRegions;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_MAX_REGIONS, &max3aRegions);
-    if (res != OK) return res;
+    camera_metadata_entry_t max3aRegions =
+        staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1);
+    if (!max3aRegions.count) return NO_INIT;
 
-    mParams->set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS,
+    params.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS,
             max3aRegions.data.i32[0]);
-    mParams->set(CameraParameters::KEY_FOCUS_AREAS,
+    params.set(CameraParameters::KEY_FOCUS_AREAS,
             "(0,0,0,0,0)");
+    mParameters.focusingAreas.clear();
+    mParameters.focusingAreas.add(Parameters::Area(0,0,0,0,0));
 
-    camera_metadata_entry_t availableFocalLengths;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_LENS_AVAILABLE_FOCAL_LENGTHS,
-            &availableFocalLengths);
-    if (res != OK) return res;
+    camera_metadata_entry_t availableFocalLengths =
+        staticInfo(ANDROID_LENS_AVAILABLE_FOCAL_LENGTHS);
+    if (!availableFocalLengths.count) return NO_INIT;
+
     float minFocalLength = availableFocalLengths.data.f[0];
-    mParams->setFloat(CameraParameters::KEY_FOCAL_LENGTH, minFocalLength);
+    params.setFloat(CameraParameters::KEY_FOCAL_LENGTH, minFocalLength);
 
-    camera_metadata_entry_t sensorSize;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_SENSOR_PHYSICAL_SIZE,
-            &sensorSize);
-    if (res != OK) return res;
+    camera_metadata_entry_t sensorSize =
+        staticInfo(ANDROID_SENSOR_PHYSICAL_SIZE, 2, 2);
+    if (!sensorSize.count) return NO_INIT;
 
     // The fields of view here assume infinity focus, maximum wide angle
     float horizFov = 180 / M_PI *
             2 * atanf(sensorSize.data.f[0] / (2 * minFocalLength));
     float vertFov  = 180 / M_PI *
             2 * atanf(sensorSize.data.f[1] / (2 * minFocalLength));
-    mParams->setFloat(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, horizFov);
-    mParams->setFloat(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, vertFov);
+    params.setFloat(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, horizFov);
+    params.setFloat(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, vertFov);
 
-    mParams->set(CameraParameters::KEY_EXPOSURE_COMPENSATION, 0);
+    mParameters.exposureCompensation = 0;
+    params.set(CameraParameters::KEY_EXPOSURE_COMPENSATION,
+                mParameters.exposureCompensation);
 
-    camera_metadata_entry_t exposureCompensationRange;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AE_EXP_COMPENSATION_RANGE,
-            &exposureCompensationRange);
-    if (res != OK) return res;
-    mParams->set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,
+    camera_metadata_entry_t exposureCompensationRange =
+        staticInfo(ANDROID_CONTROL_AE_EXP_COMPENSATION_RANGE, 2, 2);
+    if (!exposureCompensationRange.count) return NO_INIT;
+
+    params.set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,
             exposureCompensationRange.data.i32[1]);
-    mParams->set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,
+    params.set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,
             exposureCompensationRange.data.i32[0]);
 
-    camera_metadata_entry_t exposureCompensationStep;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AE_EXP_COMPENSATION_STEP,
-            &exposureCompensationStep);
-    if (res != OK) return res;
-    mParams->setFloat(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,
+    camera_metadata_entry_t exposureCompensationStep =
+        staticInfo(ANDROID_CONTROL_AE_EXP_COMPENSATION_STEP, 1, 1);
+    if (!exposureCompensationStep.count) return NO_INIT;
+
+    params.setFloat(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,
             exposureCompensationStep.data.r[0].numerator /
             exposureCompensationStep.data.r[0].denominator);
 
-    mParams->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK, "false");
-    mParams->set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK_SUPPORTED, "true");
+    mParameters.autoExposureLock = false;
+    params.set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK,
+            CameraParameters::FALSE);
+    params.set(CameraParameters::KEY_AUTO_EXPOSURE_LOCK_SUPPORTED,
+            CameraParameters::TRUE);
 
-    mParams->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK, "false");
-    mParams->set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED, "true");
+    mParameters.autoWhiteBalanceLock = false;
+    params.set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK,
+            CameraParameters::FALSE);
+    params.set(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK_SUPPORTED,
+            CameraParameters::TRUE);
 
-    mParams->set(CameraParameters::KEY_MAX_NUM_METERING_AREAS,
+    mParameters.meteringAreas.add(Parameters::Area(0, 0, 0, 0, 0));
+    params.set(CameraParameters::KEY_MAX_NUM_METERING_AREAS,
             max3aRegions.data.i32[0]);
-    mParams->set(CameraParameters::KEY_METERING_AREAS,
+    params.set(CameraParameters::KEY_METERING_AREAS,
             "(0,0,0,0,0)");
 
-    mParams->set(CameraParameters::KEY_ZOOM, 0);
-    mParams->set(CameraParameters::KEY_MAX_ZOOM, NUM_ZOOM_STEPS - 1);
+    mParameters.zoom = 0;
+    params.set(CameraParameters::KEY_ZOOM, mParameters.zoom);
+    params.set(CameraParameters::KEY_MAX_ZOOM, NUM_ZOOM_STEPS - 1);
 
-    camera_metadata_entry_t maxDigitalZoom;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_SCALER_AVAILABLE_MAX_ZOOM, &maxDigitalZoom);
-    if (res != OK) return res;
+    camera_metadata_entry_t maxDigitalZoom =
+        staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM, 1, 1);
+    if (!maxDigitalZoom.count) return NO_INIT;
 
     {
         String8 zoomRatios;
@@ -919,48 +944,49 @@ status_t Camera2Client::buildDefaultParameters() {
             zoomRatios += String8::format("%d", static_cast<int>(zoom * 100));
             zoom += zoomIncrement;
         }
-        mParams->set(CameraParameters::KEY_ZOOM_RATIOS, zoomRatios);
+        params.set(CameraParameters::KEY_ZOOM_RATIOS, zoomRatios);
     }
 
-    mParams->set(CameraParameters::KEY_ZOOM_SUPPORTED, "true");
-    mParams->set(CameraParameters::KEY_SMOOTH_ZOOM_SUPPORTED, "true");
+    params.set(CameraParameters::KEY_ZOOM_SUPPORTED,
+            CameraParameters::TRUE);
+    params.set(CameraParameters::KEY_SMOOTH_ZOOM_SUPPORTED,
+            CameraParameters::TRUE);
 
-    mParams->set(CameraParameters::KEY_FOCUS_DISTANCES,
+    params.set(CameraParameters::KEY_FOCUS_DISTANCES,
             "Infinity,Infinity,Infinity");
 
-    camera_metadata_entry_t maxFacesDetected;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_STATS_MAX_FACE_COUNT,
-            &maxFacesDetected);
-    mParams->set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW,
+    camera_metadata_entry_t maxFacesDetected =
+        staticInfo(ANDROID_STATS_MAX_FACE_COUNT, 1, 1);
+    params.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW,
             maxFacesDetected.data.i32[0]);
-    mParams->set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_SW,
+    params.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_SW,
             0);
 
-    mParams->set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
-            "yuv420sp");
+    params.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
+            formatEnumToString(HAL_PIXEL_FORMAT_YCrCb_420_SP));
 
-    mParams->set(CameraParameters::KEY_RECORDING_HINT,
-            "false");
+    params.set(CameraParameters::KEY_RECORDING_HINT,
+            CameraParameters::FALSE);
 
-    mParams->set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED,
-            "true");
+    params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED,
+            CameraParameters::TRUE);
 
-    mParams->set(CameraParameters::KEY_VIDEO_STABILIZATION,
-            "false");
+    params.set(CameraParameters::KEY_VIDEO_STABILIZATION,
+            CameraParameters::FALSE);
 
-    camera_metadata_entry_t availableVideoStabilizationModes;
-    res = find_camera_metadata_entry(mDevice->info(),
-            ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES,
-            &availableVideoStabilizationModes);
-    if (res != OK) return res;
+    camera_metadata_entry_t availableVideoStabilizationModes =
+        staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+    if (!availableVideoStabilizationModes.count) return NO_INIT;
+
     if (availableVideoStabilizationModes.count > 1) {
-        mParams->set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
-                "true");
+        params.set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
+                CameraParameters::TRUE);
     } else {
-        mParams->set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
-                "false");
+        params.set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
+                CameraParameters::FALSE);
     }
+
+    mParamsFlattened = params.flatten();
 
     return OK;
 }
@@ -977,8 +1003,41 @@ status_t Camera2Client::updatePreviewRequest() {
             return res;
         }
     }
-    // TODO: Adjust for mParams changes
+    // TODO: Adjust for params changes
     return OK;
 }
 
+const char* Camera2Client::formatEnumToString(int format) {
+    const char *fmt;
+    switch(format) {
+        case HAL_PIXEL_FORMAT_YCbCr_422_SP: // NV16
+            fmt = CameraParameters::PIXEL_FORMAT_YUV422SP;
+            break;
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP: // NV21
+            fmt = CameraParameters::PIXEL_FORMAT_YUV420SP;
+            break;
+        case HAL_PIXEL_FORMAT_YCbCr_422_I: // YUY2
+            fmt = CameraParameters::PIXEL_FORMAT_YUV422I;
+            break;
+        case HAL_PIXEL_FORMAT_YV12:        // YV12
+            fmt = CameraParameters::PIXEL_FORMAT_YUV420P;
+            break;
+        case HAL_PIXEL_FORMAT_RGB_565:     // RGB565
+            fmt = CameraParameters::PIXEL_FORMAT_RGB565;
+            break;
+        case HAL_PIXEL_FORMAT_RGBA_8888:   // RGBA8888
+            fmt = CameraParameters::PIXEL_FORMAT_RGBA8888;
+            break;
+        case HAL_PIXEL_FORMAT_RAW_SENSOR:
+            ALOGW("Raw sensor preview format requested.");
+            fmt = CameraParameters::PIXEL_FORMAT_BAYER_RGGB;
+            break;
+        default:
+            ALOGE("%s: Unknown preview format: %x",
+                    __FUNCTION__,  format);
+            fmt = NULL;
+            break;
+    }
+    return fmt;
+}
 } // namespace android
