@@ -20,6 +20,7 @@
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <utils/Log.h>
+#include <utils/Trace.h>
 #include "MonoPipe.h"
 #include "roundup.h"
 
@@ -32,6 +33,9 @@ MonoPipe::MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock) :
         mBuffer(malloc(mMaxFrames * Format_frameSize(format))),
         mFront(0),
         mRear(0),
+        mWriteTsValid(false),
+        // mWriteTs
+        mSetpoint((reqFrames * 11) / 16),
         mWriteCanBlock(writeCanBlock)
 {
 }
@@ -87,40 +91,75 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
         count -= written;
         buffer = (char *) buffer + (written << mBitShift);
         // Simulate blocking I/O by sleeping at different rates, depending on a throttle.
-        // The throttle tries to keep the pipe about 11/16 full on average, with a slight jitter.
+        // The throttle tries to keep the mean pipe depth near the setpoint, with a slight jitter.
         uint32_t ns;
         if (written > 0) {
             size_t filled = (mMaxFrames - avail) + written;
             // FIXME cache these values to avoid re-computation
-            if (filled <= mReqFrames / 4) {
+            if (filled <= mSetpoint / 2) {
                 // pipe is (nearly) empty, fill quickly
                 ns = written * ( 500000000 / Format_sampleRate(mFormat));
-            } else if (filled <= mReqFrames / 2) {
-                // pipe is normal, fill at slightly faster rate
+            } else if (filled <= (mSetpoint * 3) / 4) {
+                // pipe is below setpoint, fill at slightly faster rate
                 ns = written * ( 750000000 / Format_sampleRate(mFormat));
-            } else if (filled <= (mReqFrames * 5) / 8) {
-                // pipe is normal, fill at nominal rate
+            } else if (filled <= (mSetpoint * 5) / 4) {
+                // pipe is at setpoint, fill at nominal rate
                 ns = written * (1000000000 / Format_sampleRate(mFormat));
-            } else if (filled <= (mReqFrames * 3) / 4) {
-                // pipe is normal, fill at slightly slower rate
-                ns = written * (1100000000 / Format_sampleRate(mFormat));
+            } else if (filled <= (mSetpoint * 3) / 2) {
+                // pipe is above setpoint, fill at slightly slower rate
+                ns = written * (1150000000 / Format_sampleRate(mFormat));
+            } else if (filled <= (mSetpoint * 7) / 4) {
+                // pipe is overflowing, fill slowly
+                ns = written * (1350000000 / Format_sampleRate(mFormat));
             } else {
-                // pipe is (nearly) full, fill slowly
-                ns = written * (1250000000 / Format_sampleRate(mFormat));
+                // pipe is severely overflowing
+                ns = written * (1750000000 / Format_sampleRate(mFormat));
             }
         } else {
-            ns = mReqFrames * (250000000 / Format_sampleRate(mFormat));
+            ns = count * (1350000000 / Format_sampleRate(mFormat));
         }
         if (ns > 999999999) {
             ns = 999999999;
         }
-        struct timespec sleep;
-        sleep.tv_sec = 0;
-        sleep.tv_nsec = ns;
-        nanosleep(&sleep, NULL);
+        struct timespec nowTs;
+        bool nowTsValid = !clock_gettime(CLOCK_MONOTONIC, &nowTs);
+        // deduct the elapsed time since previous write() completed
+        if (nowTsValid && mWriteTsValid) {
+            time_t sec = nowTs.tv_sec - mWriteTs.tv_sec;
+            long nsec = nowTs.tv_nsec - mWriteTs.tv_nsec;
+            if (nsec < 0) {
+                --sec;
+                nsec += 1000000000;
+            }
+            if (sec == 0) {
+                if ((long) ns > nsec) {
+                    ns -= nsec;
+                } else {
+                    ns = 0;
+                }
+            }
+        }
+        if (ns > 0) {
+            const struct timespec req = {0, ns};
+            nanosleep(&req, NULL);
+        }
+        // record the time that this write() completed
+        if (nowTsValid) {
+            mWriteTs = nowTs;
+            if ((mWriteTs.tv_nsec += ns) >= 1000000000) {
+                mWriteTs.tv_nsec -= 1000000000;
+                ++mWriteTs.tv_sec;
+            }
+        }
+        mWriteTsValid = nowTsValid;
     }
     mFramesWritten += totalFramesWritten;
     return totalFramesWritten;
+}
+
+void MonoPipe::setAvgFrames(size_t setpoint)
+{
+    mSetpoint = setpoint;
 }
 
 }   // namespace android

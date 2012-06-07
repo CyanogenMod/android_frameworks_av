@@ -30,6 +30,9 @@ LOCAL_SRC_FILES := \
 #LOCAL_C_INCLUDES += path/to/libsndfile/src
 #LOCAL_STATIC_LIBRARIES += libsndfile
 
+# uncomment for systrace
+# LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_AUDIO
+
 LOCAL_MODULE := libnbaio
 
 include $(BUILD_STATIC_LIBRARY)
