@@ -1818,6 +1818,10 @@ uint32_t AudioFlinger::PlaybackThread::correctLatency(uint32_t latency) const
 uint32_t AudioFlinger::PlaybackThread::latency() const
 {
     Mutex::Autolock _l(mLock);
+    return latency_l();
+}
+uint32_t AudioFlinger::PlaybackThread::latency_l() const
+{
     if (initCheck() == NO_ERROR) {
         return correctLatency(mOutput->stream->get_latency(mOutput->stream));
     } else {
@@ -8185,6 +8189,31 @@ status_t AudioFlinger::EffectModule::configure()
                                                    &cmdStatus);
     if (status == 0) {
         status = cmdStatus;
+    }
+
+    if (status == 0 &&
+            (memcmp(&mDescriptor.type, SL_IID_VISUALIZATION, sizeof(effect_uuid_t)) == 0)) {
+        uint32_t buf32[sizeof(effect_param_t) / sizeof(uint32_t) + 2];
+        effect_param_t *p = (effect_param_t *)buf32;
+
+        p->psize = sizeof(uint32_t);
+        p->vsize = sizeof(uint32_t);
+        size = sizeof(int);
+        *(int32_t *)p->data = VISUALIZER_PARAM_LATENCY;
+
+        uint32_t latency = 0;
+        PlaybackThread *pbt = thread->mAudioFlinger->checkPlaybackThread_l(thread->mId);
+        if (pbt != NULL) {
+            latency = pbt->latency_l();
+        }
+
+        *((int32_t *)p->data + 1)= latency;
+        (*mEffectInterface)->command(mEffectInterface,
+                                     EFFECT_CMD_SET_PARAM,
+                                     sizeof(effect_param_t) + 8,
+                                     &buf32,
+                                     &size,
+                                     &cmdStatus);
     }
 
     mMaxDisableWaitCnt = (MAX_DISABLE_TIME_MS * mConfig.outputCfg.samplingRate) /

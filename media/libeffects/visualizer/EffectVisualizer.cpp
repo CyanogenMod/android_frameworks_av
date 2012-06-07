@@ -52,6 +52,8 @@ enum visualizer_state_e {
 // that the framework has stopped playing audio and we must start returning silence
 #define MAX_STALL_TIME_MS 1000
 
+#define CAPTURE_BUF_SIZE 65536 // "64k should be enough for everyone"
+
 struct VisualizerContext {
     const struct effect_interface_s *mItfe;
     effect_config_t mConfig;
@@ -59,10 +61,10 @@ struct VisualizerContext {
     uint32_t mCaptureSize;
     uint32_t mScalingMode;
     uint8_t mState;
-    uint8_t mCurrentBuf;
-    uint8_t mLastBuf;
+    uint8_t mLastCaptureIdx;
+    uint32_t mLatency;
     struct timespec mBufferUpdateTime;
-    uint8_t mCaptureBuf[2][VISUALIZER_CAPTURE_SIZE_MAX];
+    uint8_t mCaptureBuf[CAPTURE_BUF_SIZE];
 };
 
 //
@@ -72,11 +74,10 @@ struct VisualizerContext {
 void Visualizer_reset(VisualizerContext *pContext)
 {
     pContext->mCaptureIdx = 0;
-    pContext->mCurrentBuf = 0;
-    pContext->mLastBuf = 1;
+    pContext->mLastCaptureIdx = 0;
     pContext->mBufferUpdateTime.tv_sec = 0;
-    memset(pContext->mCaptureBuf[0], 0x80, VISUALIZER_CAPTURE_SIZE_MAX);
-    memset(pContext->mCaptureBuf[1], 0x80, VISUALIZER_CAPTURE_SIZE_MAX);
+    pContext->mLatency = 0;
+    memset(pContext->mCaptureBuf, 0x80, CAPTURE_BUF_SIZE);
 }
 
 //----------------------------------------------------------------------------
@@ -316,25 +317,25 @@ int Visualizer_process(
 
     uint32_t captIdx;
     uint32_t inIdx;
-    uint8_t *buf = pContext->mCaptureBuf[pContext->mCurrentBuf];
+    uint8_t *buf = pContext->mCaptureBuf;
     for (inIdx = 0, captIdx = pContext->mCaptureIdx;
-         inIdx < inBuffer->frameCount && captIdx < pContext->mCaptureSize;
+         inIdx < inBuffer->frameCount;
          inIdx++, captIdx++) {
+        if (captIdx >= CAPTURE_BUF_SIZE) {
+            // wrap around
+            captIdx = 0;
+        }
         int32_t smp = inBuffer->s16[2 * inIdx] + inBuffer->s16[2 * inIdx + 1];
         smp = smp >> shift;
         buf[captIdx] = ((uint8_t)smp)^0x80;
     }
+
+    // XXX the following two should really be atomic, though it probably doesn't
+    // matter much for visualization purposes
     pContext->mCaptureIdx = captIdx;
-
-    // go to next buffer when buffer full
-    if (pContext->mCaptureIdx == pContext->mCaptureSize) {
-        pContext->mCurrentBuf ^= 1;
-        pContext->mCaptureIdx = 0;
-
-        // update last buffer update time stamp
-        if (clock_gettime(CLOCK_MONOTONIC, &pContext->mBufferUpdateTime) < 0) {
-            pContext->mBufferUpdateTime.tv_sec = 0;
-        }
+    // update last buffer update time stamp
+    if (clock_gettime(CLOCK_MONOTONIC, &pContext->mBufferUpdateTime) < 0) {
+        pContext->mBufferUpdateTime.tv_sec = 0;
     }
 
     if (inBuffer->raw != outBuffer->raw) {
@@ -464,6 +465,10 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
             pContext->mScalingMode = *((uint32_t *)p->data + 1);
             ALOGV("set mScalingMode = %d", pContext->mScalingMode);
             break;
+        case VISUALIZER_PARAM_LATENCY:
+            pContext->mLatency = *((uint32_t *)p->data + 1);
+            ALOGV("set mLatency = %d", pContext->mLatency);
+            break;
         default:
             *(int32_t *)pReplyData = -EINVAL;
         }
@@ -481,13 +486,9 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
             return -EINVAL;
         }
         if (pContext->mState == VISUALIZER_STATE_ACTIVE) {
-            memcpy(pReplyData,
-                   pContext->mCaptureBuf[pContext->mCurrentBuf ^ 1],
-                   pContext->mCaptureSize);
-            // if audio framework has stopped playing audio although the effect is still
-            // active we must clear the capture buffer to return silence
-            if ((pContext->mLastBuf == pContext->mCurrentBuf) &&
-                    (pContext->mBufferUpdateTime.tv_sec != 0)) {
+            int32_t latencyMs = pContext->mLatency;
+            uint32_t deltaMs = 0;
+            if (pContext->mBufferUpdateTime.tv_sec != 0) {
                 struct timespec ts;
                 if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
                     time_t secs = ts.tv_sec - pContext->mBufferUpdateTime.tv_sec;
@@ -496,17 +497,45 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
                         --secs;
                         nsec += 1000000000;
                     }
-                    uint32_t deltaMs = secs * 1000 + nsec / 1000000;
-                    if (deltaMs > MAX_STALL_TIME_MS) {
-                        ALOGV("capture going to idle");
-                        pContext->mBufferUpdateTime.tv_sec = 0;
-                        memset(pContext->mCaptureBuf[pContext->mCurrentBuf ^ 1],
-                                0x80,
-                                pContext->mCaptureSize);
+                    deltaMs = secs * 1000 + nsec / 1000000;
+                    latencyMs -= deltaMs;
+                    if (latencyMs < 0) {
+                        latencyMs = 0;
                     }
                 }
             }
-            pContext->mLastBuf = pContext->mCurrentBuf;
+            uint32_t deltaSmpl = pContext->mConfig.inputCfg.samplingRate * latencyMs / 1000;
+
+            int32_t capturePoint = pContext->mCaptureIdx - pContext->mCaptureSize - deltaSmpl;
+            int32_t captureSize = pContext->mCaptureSize;
+            if (capturePoint < 0) {
+                int32_t size = -capturePoint;
+                if (size > captureSize) {
+                    size = captureSize;
+                }
+                memcpy(pReplyData,
+                       pContext->mCaptureBuf + CAPTURE_BUF_SIZE + capturePoint,
+                       size);
+                pReplyData += size;
+                captureSize -= size;
+                capturePoint = 0;
+            }
+            memcpy(pReplyData,
+                   pContext->mCaptureBuf + capturePoint,
+                   captureSize);
+
+
+            // if audio framework has stopped playing audio although the effect is still
+            // active we must clear the capture buffer to return silence
+            if ((pContext->mLastCaptureIdx == pContext->mCaptureIdx) &&
+                    (pContext->mBufferUpdateTime.tv_sec != 0)) {
+                if (deltaMs > MAX_STALL_TIME_MS) {
+                    ALOGV("capture going to idle");
+                    pContext->mBufferUpdateTime.tv_sec = 0;
+                    memset(pReplyData, 0x80, pContext->mCaptureSize);
+                }
+            }
+            pContext->mLastCaptureIdx = pContext->mCaptureIdx;
         } else {
             memset(pReplyData, 0x80, pContext->mCaptureSize);
         }
