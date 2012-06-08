@@ -20,6 +20,8 @@
  * @note
  ******************************************************************************
  */
+#undef M4OSA_TRACE_LEVEL
+#define M4OSA_TRACE_LEVEL 1
 
 /****************/
 /*** Includes ***/
@@ -491,7 +493,6 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                     }
 
 #endif                                   //M4VSS_SUPPORT_OMX_CODECS
-
                 }
                 else if( M4NO_ERROR != err ) /**< ...or an encoder error */
                 {
@@ -655,7 +656,6 @@ M4OSA_ERR M4VSS3GPP_intEditStepVideo( M4VSS3GPP_InternalEditContext *pC )
                     }
 
 #endif //M4VSS_SUPPORT_OMX_CODECS
-
                 }
                 else if( M4NO_ERROR != err ) /**< ...or an encoder error */
                 {
@@ -1198,7 +1198,7 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         if ((pC->pC1->isRenderDup == M4OSA_TRUE) ||
              (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)) {
             pTmp = pC->yuv1;
-            if (pC->pC1->lastDecodedPlane != M4NO_ERROR) {
+            if (pC->pC1->lastDecodedPlane != M4OSA_NULL) {
                 /* Copy last decoded plane to output plane */
                 memcpy((void *)pTmp[0].pac_data,
                     (void *)pC->pC1->lastDecodedPlane[0].pac_data,
@@ -1209,6 +1209,12 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                 memcpy((void *)pTmp[2].pac_data,
                     (void *)pC->pC1->lastDecodedPlane[2].pac_data,
                     (pTmp[2].u_height * pTmp[2].u_width));
+            } else {
+                err = M4VSS3GPP_ERR_NO_VALID_VID_FRAME;
+                M4OSA_TRACE1_3("Can not find an input frame. Set error 0x%x in %s (%d)",
+                   err, __FILE__, __LINE__);
+                pC->ewc.VppError = err;
+                return M4NO_ERROR;
             }
             pC->pC1->lastDecodedPlane = pTmp;
         }
@@ -1238,7 +1244,7 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
         if ((pC->pC2->isRenderDup == M4OSA_TRUE) ||
              (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)) {
             pTmp = pC->yuv2;
-            if (pC->pC2->lastDecodedPlane != M4NO_ERROR) {
+            if (pC->pC2->lastDecodedPlane != M4OSA_NULL) {
                 /* Copy last decoded plane to output plane */
                 memcpy((void *)pTmp[0].pac_data,
                     (void *)pC->pC2->lastDecodedPlane[0].pac_data,
@@ -1249,6 +1255,12 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                 memcpy((void *)pTmp[2].pac_data,
                     (void *)pC->pC2->lastDecodedPlane[2].pac_data,
                     (pTmp[2].u_height * pTmp[2].u_width));
+            } else {
+                err = M4VSS3GPP_ERR_NO_VALID_VID_FRAME;
+                M4OSA_TRACE1_3("Can not find an input frame. Set error 0x%x in %s (%d)",
+                   err, __FILE__, __LINE__);
+                pC->ewc.VppError = err;
+                return M4NO_ERROR;
             }
             pC->pC2->lastDecodedPlane = pTmp;
         }
@@ -1505,17 +1517,29 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
             if (M4OSA_NULL != pC->pC1->m_pPreResizeFrame) {
                 /**
                 * Copy last decoded plane to output plane */
-                memcpy((void *)pC->pC1->m_pPreResizeFrame[0].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[0].pac_data,
-                 (pC->pC1->m_pPreResizeFrame[0].u_height * pC->pC1->m_pPreResizeFrame[0].u_width));
+                if (pC->pC1->lastDecodedPlane != M4OSA_NULL) {
 
-                memcpy((void *)pC->pC1->m_pPreResizeFrame[1].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[1].pac_data,
-                 (pC->pC1->m_pPreResizeFrame[1].u_height * pC->pC1->m_pPreResizeFrame[1].u_width));
+                    memcpy((void *)pC->pC1->m_pPreResizeFrame[0].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[0].pac_data,
+                        (pC->pC1->m_pPreResizeFrame[0].u_height * \
+                         pC->pC1->m_pPreResizeFrame[0].u_width));
 
-                memcpy((void *)pC->pC1->m_pPreResizeFrame[2].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[2].pac_data,
-                 (pC->pC1->m_pPreResizeFrame[2].u_height * pC->pC1->m_pPreResizeFrame[2].u_width));
+                    memcpy((void *)pC->pC1->m_pPreResizeFrame[1].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[1].pac_data,
+                        (pC->pC1->m_pPreResizeFrame[1].u_height * \
+                         pC->pC1->m_pPreResizeFrame[1].u_width));
+
+                    memcpy((void *)pC->pC1->m_pPreResizeFrame[2].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[2].pac_data,
+                        (pC->pC1->m_pPreResizeFrame[2].u_height * \
+                         pC->pC1->m_pPreResizeFrame[2].u_width));
+                } else {
+                    err = M4VSS3GPP_ERR_NO_VALID_VID_FRAME;
+                    M4OSA_TRACE1_3("Can not find an input frame. Set error 0x%x in %s (%d)",
+                        err, __FILE__, __LINE__);
+                    pC->ewc.VppError = err;
+                    return M4NO_ERROR;
+                }
 
                 if(pC->nbActiveEffects > 0) {
                     /**
@@ -1587,17 +1611,26 @@ M4OSA_ERR M4VSS3GPP_intVPP( M4VPP_Context pContext, M4VIFI_ImagePlane *pPlaneIn,
                 }
                 /**
                  * Copy last decoded plane to output plane */
-                memcpy((void *)pLastDecodedFrame[0].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[0].pac_data,
-                 (pLastDecodedFrame[0].u_height * pLastDecodedFrame[0].u_width));
+                if (pC->pC1->lastDecodedPlane != M4OSA_NULL &&
+                    pLastDecodedFrame != M4OSA_NULL) {
+                    memcpy((void *)pLastDecodedFrame[0].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[0].pac_data,
+                        (pLastDecodedFrame[0].u_height * pLastDecodedFrame[0].u_width));
 
-                memcpy((void *)pLastDecodedFrame[1].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[1].pac_data,
-                 (pLastDecodedFrame[1].u_height * pLastDecodedFrame[1].u_width));
+                    memcpy((void *)pLastDecodedFrame[1].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[1].pac_data,
+                        (pLastDecodedFrame[1].u_height * pLastDecodedFrame[1].u_width));
 
-                memcpy((void *)pLastDecodedFrame[2].pac_data,
-                 (void *)pC->pC1->lastDecodedPlane[2].pac_data,
-                 (pLastDecodedFrame[2].u_height * pLastDecodedFrame[2].u_width));
+                    memcpy((void *)pLastDecodedFrame[2].pac_data,
+                        (void *)pC->pC1->lastDecodedPlane[2].pac_data,
+                        (pLastDecodedFrame[2].u_height * pLastDecodedFrame[2].u_width));
+                } else {
+                    err = M4VSS3GPP_ERR_NO_VALID_VID_FRAME;
+                    M4OSA_TRACE1_3("Can not find an input frame. Set error 0x%x in %s (%d)",
+                        err, __FILE__, __LINE__);
+                    pC->ewc.VppError = err;
+                    return M4NO_ERROR;
+                }
 
                 pTmp = pPlaneOut;
                 /**

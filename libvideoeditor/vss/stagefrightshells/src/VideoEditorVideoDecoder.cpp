@@ -982,6 +982,11 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
     pDecShellContext->mLastOutputCts     = -1;
     pDecShellContext->m_pDecBufferPool   = M4OSA_NULL;
 
+    // Calculate the interval between two video frames.
+    CHECK(pDecShellContext->m_pVideoStreamhandler->m_averageFrameRate > 0);
+    pDecShellContext->mFrameIntervalMs =
+            1000.0 / pDecShellContext->m_pVideoStreamhandler->m_averageFrameRate;
+
     /**
      * StageFright graph building
      */
@@ -1423,20 +1428,29 @@ M4OSA_ERR VideoEditorVideoDecoder_decode(M4OSA_Context context,
         ALOGV("VideoEditorVideoDecoder_decode,decoded frametime = %lf,size = %d",
             (M4_MediaTime)lFrameTime, pDecoderBuffer->size() );
 
-        // If bJump is false, we need to save every decoded buffer
-        if (!bJump) {
+        /*
+         * We need to save a buffer if bJump == false to a queue. These
+         * buffers have a timestamp >= the target time, *pTime (for instance,
+         * the transition between two videos, or a trimming postion inside
+         * one video), since they are part of the transition clip or the
+         * trimmed video.
+         *
+         * If *pTime does not have the same value as any of the existing
+         * video frames, we would like to get the buffer right before *pTime
+         * and in the transcoding phrase, this video frame will be encoded
+         * as a key frame and becomes the first video frame for the transition or the
+         * trimmed video to be generated. This buffer must also be queued.
+         *
+         */
+        int64_t targetTimeMs =
+                pDecShellContext->m_lastDecodedCTS +
+                pDecShellContext->mFrameIntervalMs +
+                tolerance;
+        if (!bJump || targetTimeMs > *pTime) {
             lerr = copyBufferToQueue(pDecShellContext, pDecoderBuffer);
             if (lerr != M4NO_ERROR) {
                 goto VIDEOEDITOR_VideoDecode_cleanUP;
             }
-        }
-    }
-
-    // If bJump is true, we only need to copy the last buffer
-    if (bJump) {
-        lerr = copyBufferToQueue(pDecShellContext, pDecoderBuffer);
-        if (lerr != M4NO_ERROR) {
-            goto VIDEOEDITOR_VideoDecode_cleanUP;
         }
     }
 
