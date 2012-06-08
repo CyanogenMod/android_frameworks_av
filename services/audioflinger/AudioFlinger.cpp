@@ -3891,6 +3891,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
     }
     sleepTime = 0;
     writeFrames = mNormalFrameCount;
+    standbyTime = systemTime() + standbyDelay;
 }
 
 void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
@@ -3902,21 +3903,19 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0) {
-        // flush remaining overflow buffers in output tracks
-        for (size_t i = 0; i < outputTracks.size(); i++) {
-            if (outputTracks[i]->isActive()) {
-                sleepTime = 0;
-                writeFrames = 0;
-                memset(mMixBuffer, 0, mixBufferSize);
-                break;
-            }
+        if (mMixerStatus == MIXER_TRACKS_ENABLED) {
+            writeFrames = mNormalFrameCount;
+            memset(mMixBuffer, 0, mixBufferSize);
+        } else {
+            // flush remaining overflow buffers in output tracks
+            writeFrames = 0;
         }
+        sleepTime = 0;
     }
 }
 
 void AudioFlinger::DuplicatingThread::threadLoop_write()
 {
-    standbyTime = systemTime() + standbyDelay;
     for (size_t i = 0; i < outputTracks.size(); i++) {
         outputTracks[i]->write(mMixBuffer, writeFrames);
     }
