@@ -67,11 +67,6 @@ public:
     virtual status_t dump(int fd, const Vector<String16>& args);
 
 private:
-    // Number of zoom steps to simulate
-    static const unsigned int NUM_ZOOM_STEPS = 10;
-    // Used with mPreviewStreamId
-    static const int NO_PREVIEW_STREAM = -1;
-
     enum {
         NOT_INITIALIZED,
         STOPPED,
@@ -79,16 +74,108 @@ private:
         PREVIEW
     } mState;
 
-    sp<Camera2Device> mDevice;
+    /** ICamera interface-related private members */
 
-    CameraParameters *mParams;
+    status_t setPreviewWindow(const sp<IBinder>& binder,
+            const sp<ANativeWindow>& window);
+    String8 mParamsFlattened;
+    // Current camera state; this is the contents of the CameraParameters object
+    // in a more-efficient format. The enum values are mostly based off the
+    // corresponding camera2 enums, not the camera1 strings. A few are defined
+    // here if they don't cleanly map to camera2 values.
+    struct Parameters {
+        int previewWidth, previewHeight;
+        int previewFpsRangeMin, previewFpsRangeMax;
+        int previewFps; // deprecated, here only for tracking changes
+        int previewFormat;
+
+        int pictureWidth, pictureHeight;
+
+        int jpegThumbWidth, jpegThumbHeight;
+        int jpegQuality, jpegThumbQuality;
+        int jpegRotation;
+
+        bool gpsEnabled;
+        double gpsLatitude;
+        double gpsLongitude;
+        double gpsAltitude;
+        int64_t gpsTimestamp;
+        String8 gpsProcessingMethod;
+
+        int wbMode;
+        int effectMode;
+        int antibandingMode;
+        int sceneMode;
+
+        enum flashMode_t {
+            FLASH_MODE_OFF = 0,
+            FLASH_MODE_AUTO,
+            FLASH_MODE_ON,
+            FLASH_MODE_TORCH,
+            FLASH_MODE_RED_EYE = ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE,
+            FLASH_MODE_INVALID = -1
+        } flashMode;
+
+        enum focusMode_t {
+            FOCUS_MODE_AUTO = ANDROID_CONTROL_AF_AUTO,
+            FOCUS_MODE_MACRO = ANDROID_CONTROL_AF_MACRO,
+            FOCUS_MODE_CONTINUOUS_VIDEO = ANDROID_CONTROL_AF_CONTINUOUS_VIDEO,
+            FOCUS_MODE_CONTINUOUS_PICTURE =
+                ANDROID_CONTROL_AF_CONTINUOUS_PICTURE,
+            FOCUS_MODE_EDOF = ANDROID_CONTROL_AF_EDOF,
+            FOCUS_MODE_INFINITY,
+            FOCUS_MODE_FIXED,
+            FOCUS_MODE_INVALID = -1
+        } focusMode;
+
+        struct Area {
+            int left, top, right, bottom;
+            int weight;
+            Area() {}
+            Area(int left, int top, int right, int bottom, int weight):
+                    left(left), top(top), right(right), bottom(bottom),
+                    weight(weight) {}
+        };
+        Vector<Area> focusingAreas;
+
+        int exposureCompensation;
+        bool autoExposureLock;
+        bool autoWhiteBalanceLock;
+
+        Vector<Area> meteringAreas;
+
+        int zoom;
+
+        int videoWidth, videoHeight;
+
+        bool recordingHint;
+        bool videoStabilization;
+    } mParameters;
+
+    /** Camera device-related private members */
+
+    // Number of zoom steps to simulate
+    static const unsigned int NUM_ZOOM_STEPS = 10;
+    // Used with mPreviewStreamId
+    static const int NO_PREVIEW_STREAM = -1;
 
     sp<IBinder> mPreviewSurface;
     int mPreviewStreamId;
     camera_metadata_t *mPreviewRequest;
 
-    status_t setPreviewWindow(const sp<IBinder>& binder,
-            const sp<ANativeWindow>& window);
+    camera_metadata_t *mCaptureRequest;
+
+    sp<Camera2Device> mDevice;
+
+
+    // Get values for static camera info entry. min/maxCount are used for error
+    // checking the number of values in the entry. 0 for max/minCount means to
+    // do no bounds check in that direction. In case of error, the entry data
+    // pointer is null and the count is 0.
+    camera_metadata_entry_t staticInfo(uint32_t tag,
+            size_t minCount=0, size_t maxCount=0);
+
+    /** Utility methods */
 
     // Convert static camera info from a camera2 device to the
     // old API parameter map.
@@ -96,6 +183,7 @@ private:
 
     // Update preview request based on mParams
     status_t updatePreviewRequest();
+    static const char *formatEnumToString(int format);
 };
 
 }; // namespace android
