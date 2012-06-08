@@ -52,8 +52,10 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
         mState(NOT_INITIALIZED),
-        mPreviewStreamId(NO_PREVIEW_STREAM),
-        mPreviewRequest(NULL)
+        mPreviewStreamId(NO_STREAM),
+        mPreviewRequest(NULL),
+        mCaptureStreamId(NO_STREAM),
+        mCaptureRequest(NULL)
 {
     ATRACE_CALL();
 
@@ -280,9 +282,16 @@ void Camera2Client::disconnect() {
 
     stopPreviewLocked();
 
-    if (mPreviewStreamId != NO_PREVIEW_STREAM) {
+    mDevice->waitUntilDrained();
+
+    if (mPreviewStreamId != NO_STREAM) {
         mDevice->deleteStream(mPreviewStreamId);
-        mPreviewStreamId = NO_PREVIEW_STREAM;
+        mPreviewStreamId = NO_STREAM;
+    }
+
+    if (mCaptureStreamId != NO_STREAM) {
+        mDevice->deleteStream(mCaptureStreamId);
+        mCaptureStreamId = NO_STREAM;
     }
 
     CameraService::Client::disconnect();
@@ -323,7 +332,7 @@ status_t Camera2Client::setPreviewDisplay(
         window = surface;
     }
 
-    return setPreviewWindow(binder,window);
+    return setPreviewWindowLocked(binder,window);
 }
 
 status_t Camera2Client::setPreviewTexture(
@@ -339,10 +348,10 @@ status_t Camera2Client::setPreviewTexture(
         binder = surfaceTexture->asBinder();
         window = new SurfaceTextureClient(surfaceTexture);
     }
-    return setPreviewWindow(binder, window);
+    return setPreviewWindowLocked(binder, window);
 }
 
-status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
+status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
         const sp<ANativeWindow>& window) {
     ATRACE_CALL();
     status_t res;
@@ -351,7 +360,9 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
         return NO_ERROR;
     }
 
-    if (mPreviewStreamId != NO_PREVIEW_STREAM) {
+    // TODO: Should wait until HAL has no remaining requests
+
+    if (mPreviewStreamId != NO_STREAM) {
         res = mDevice->deleteStream(mPreviewStreamId);
         if (res != OK) {
             return res;
@@ -359,7 +370,7 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
     }
     res = mDevice->createStream(window,
             mParameters.previewWidth, mParameters.previewHeight,
-            CAMERA2_HAL_PIXEL_FORMAT_OPAQUE,
+            CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0,
             &mPreviewStreamId);
     if (res != OK) {
         return res;
@@ -368,7 +379,7 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
     mPreviewSurface = binder;
 
     if (mState == WAITING_FOR_PREVIEW_WINDOW) {
-        return startPreview();
+        return startPreviewLocked();
     }
 
     return OK;
@@ -382,11 +393,15 @@ void Camera2Client::setPreviewCallbackFlag(int flag) {
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    return startPreviewLocked();
+}
 
+status_t Camera2Client::startPreviewLocked() {
+    ATRACE_CALL();
     status_t res;
-    if (mState == PREVIEW) return INVALID_OPERATION;
+    if (mState >= PREVIEW) return INVALID_OPERATION;
 
-    if (mPreviewStreamId == NO_PREVIEW_STREAM) {
+    if (mPreviewStreamId == NO_STREAM) {
         mState = WAITING_FOR_PREVIEW_WINDOW;
         return OK;
     }
@@ -438,10 +453,28 @@ void Camera2Client::stopPreview() {
 
 void Camera2Client::stopPreviewLocked() {
     ATRACE_CALL();
-    if (mState != PREVIEW) return;
-
-    mDevice->setStreamingRequest(NULL);
-    mState = STOPPED;
+    switch (mState) {
+        case NOT_INITIALIZED:
+            ALOGE("%s: Camera %d: Call before initialized",
+                    __FUNCTION__, mCameraId);
+            break;
+        case STOPPED:
+            break;
+        case STILL_CAPTURE:
+            ALOGE("%s: Camera %d: Cannot stop preview during still capture.",
+                    __FUNCTION__, mCameraId);
+            break;
+        case RECORD:
+            // TODO: Handle record stop here
+        case PREVIEW:
+            mDevice->setStreamingRequest(NULL);
+        case WAITING_FOR_PREVIEW_WINDOW:
+            mState = STOPPED;
+            break;
+        default:
+            ALOGE("%s: Camera %d: Unknown state %d", __FUNCTION__, mCameraId,
+                    mState);
+    }
 }
 
 bool Camera2Client::previewEnabled() {
@@ -493,7 +526,95 @@ status_t Camera2Client::cancelAutoFocus() {
 status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    return BAD_VALUE;
+    status_t res;
+
+    switch (mState) {
+        case NOT_INITIALIZED:
+        case STOPPED:
+        case WAITING_FOR_PREVIEW_WINDOW:
+            ALOGE("%s: Camera %d: Cannot take picture without preview enabled",
+                    __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+        case PREVIEW:
+        case RECORD:
+            // Good to go for takePicture
+            break;
+        case STILL_CAPTURE:
+        case VIDEO_SNAPSHOT:
+            ALOGE("%s: Camera %d: Already taking a picture",
+                    __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+    }
+
+    Mutex::Autolock pl(mParamsLock);
+
+    res = updateCaptureStream();
+
+    if (mCaptureRequest == NULL) {
+        updateCaptureRequest();
+    }
+
+    // TODO: For video snapshot, need 3 streams here
+    camera_metadata_entry_t outputStreams;
+    uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
+    res = find_camera_metadata_entry(mCaptureRequest,
+            ANDROID_REQUEST_OUTPUT_STREAMS,
+            &outputStreams);
+    if (res == NAME_NOT_FOUND) {
+        res = add_camera_metadata_entry(mCaptureRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                streamIds, 2);
+    } else if (res == OK) {
+        res = update_camera_metadata_entry(mCaptureRequest,
+                outputStreams.index, streamIds, 2, NULL);
+    }
+
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set up still image capture request: "
+                "%s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    camera_metadata_t *captureCopy = clone_camera_metadata(mCaptureRequest);
+    if (captureCopy == NULL) {
+        ALOGE("%s: Camera %d: Unable to copy capture request for HAL device",
+                __FUNCTION__, mCameraId);
+        return NO_MEMORY;
+    }
+
+    if (mState == PREVIEW) {
+        res = mDevice->setStreamingRequest(NULL);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
+                    "%s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    res = mDevice->capture(captureCopy);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to submit still image capture request: "
+                "%s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    switch (mState) {
+        case PREVIEW:
+            mState = STILL_CAPTURE;
+            break;
+        case RECORD:
+            mState = VIDEO_SNAPSHOT;
+            break;
+        default:
+            ALOGE("%s: Camera %d: Unknown state for still capture!",
+                    __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+    }
+
+    return OK;
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
@@ -991,6 +1112,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     mParameters.videoStabilization = videoStabilization;
 
     updatePreviewRequest();
+    updateCaptureRequest();
 
     return OK;
 }
@@ -1012,6 +1134,65 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
 }
 
 /** Device-related methods */
+
+void Camera2Client::onCaptureAvailable() {
+    ATRACE_CALL();
+    status_t res;
+    sp<ICameraClient> currentClient;
+    CpuConsumer::LockedBuffer imgBuffer;
+    {
+        Mutex::Autolock icl(mICameraLock);
+
+        // TODO: Signal errors here upstream
+        if (mState != STILL_CAPTURE && mState != VIDEO_SNAPSHOT) {
+            ALOGE("%s: Camera %d: Still image produced unexpectedly!",
+                    __FUNCTION__, mCameraId);
+            return;
+        }
+
+        res = mCaptureConsumer->lockNextBuffer(&imgBuffer);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error receiving still image buffer: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return;
+        }
+
+        if (imgBuffer.format != HAL_PIXEL_FORMAT_BLOB) {
+            ALOGE("%s: Camera %d: Unexpected format for still image: "
+                    "%x, expected %x", __FUNCTION__, mCameraId,
+                    imgBuffer.format,
+                    HAL_PIXEL_FORMAT_BLOB);
+            mCaptureConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+
+        // TODO: Optimize this to avoid memcopy
+        void* captureMemory = mCaptureHeap->getBase();
+        size_t size = mCaptureHeap->getSize();
+        memcpy(captureMemory, imgBuffer.data, size);
+
+        mCaptureConsumer->unlockBuffer(imgBuffer);
+
+        currentClient = mCameraClient;
+        switch (mState) {
+            case STILL_CAPTURE:
+                mState = STOPPED;
+                break;
+            case VIDEO_SNAPSHOT:
+                mState = RECORD;
+                break;
+            default:
+                ALOGE("%s: Camera %d: Unexpected state %d", __FUNCTION__,
+                        mCameraId, mState);
+                break;
+        }
+    }
+    // Call outside mICameraLock to allow re-entrancy from notification
+    if (currentClient != 0) {
+        currentClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
+                mCaptureMemory, NULL);
+    }
+}
 
 camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
         size_t minCount, size_t maxCount) {
@@ -1745,6 +1926,88 @@ status_t Camera2Client::updatePreviewRequest() {
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create default preview request: "
                     "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+    // TODO: Adjust for params changes
+    return OK;
+}
+
+status_t Camera2Client::updateCaptureStream() {
+    status_t res;
+    // Find out buffer size for JPEG
+    camera_metadata_entry_t maxJpegSize =
+            staticInfo(ANDROID_JPEG_MAX_SIZE);
+    if (maxJpegSize.count == 0) {
+        ALOGE("%s: Camera %d: Can't find ANDROID_JPEG_MAX_SIZE!",
+                __FUNCTION__, mCameraId);
+        return INVALID_OPERATION;
+    }
+
+    if (mCaptureConsumer == 0) {
+        // Create CPU buffer queue endpoint
+        mCaptureConsumer = new CpuConsumer(1);
+        mCaptureConsumer->setFrameAvailableListener(new CaptureWaiter(this));
+        mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
+        mCaptureWindow = new SurfaceTextureClient(
+            mCaptureConsumer->getProducerInterface());
+        // Create memory for API consumption
+        mCaptureHeap = new MemoryHeapBase(maxJpegSize.data.i32[0], 0,
+                "Camera2Client::CaptureHeap");
+        if (mCaptureHeap->getSize() == 0) {
+            ALOGE("%s: Camera %d: Unable to allocate memory for capture",
+                    __FUNCTION__, mCameraId);
+            return NO_MEMORY;
+        }
+        mCaptureMemory = new MemoryBase(mCaptureHeap,
+                0, maxJpegSize.data.i32[0]);
+    }
+    if (mCaptureStreamId == NO_STREAM) {
+        // Create stream for HAL production
+        res = mDevice->createStream(mCaptureWindow,
+                mParameters.pictureWidth, mParameters.pictureHeight,
+                HAL_PIXEL_FORMAT_BLOB, maxJpegSize.data.i32[0],
+                &mCaptureStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't create output stream for capture: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+
+    } else {
+        // Check if stream parameters have to change
+        uint32_t currentWidth, currentHeight;
+        res = mDevice->getStreamInfo(mCaptureStreamId,
+                &currentWidth, &currentHeight, 0);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error querying capture output stream info: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        if (currentWidth != (uint32_t)mParameters.pictureWidth ||
+                currentHeight != (uint32_t)mParameters.pictureHeight) {
+            res = mDevice->deleteStream(mCaptureStreamId);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete old output stream "
+                        "for capture: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
+            mCaptureStreamId = NO_STREAM;
+            return updateCaptureStream();
+        }
+    }
+    return OK;
+}
+status_t Camera2Client::updateCaptureRequest() {
+    ATRACE_CALL();
+    status_t res;
+    if (mCaptureRequest == NULL) {
+        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_STILL_CAPTURE,
+                &mCaptureRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create default still image request:"
+                    " %s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
     }

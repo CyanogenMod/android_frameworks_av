@@ -20,6 +20,9 @@
 #include "Camera2Device.h"
 #include "CameraService.h"
 #include "camera/CameraParameters.h"
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#include <gui/CpuConsumer.h>
 
 namespace android {
 
@@ -73,7 +76,8 @@ private:
         WAITING_FOR_PREVIEW_WINDOW,
         PREVIEW,
         RECORD,
-        STILL_CAPTURE
+        STILL_CAPTURE,
+        VIDEO_SNAPSHOT
     } mState;
 
     /** ICamera interface-related private members */
@@ -82,11 +86,15 @@ private:
     // Ensures serialization between incoming ICamera calls
     mutable Mutex mICameraLock;
 
-    status_t setPreviewWindow(const sp<IBinder>& binder,
-            const sp<ANativeWindow>& window);
-    void stopPreviewLocked();
+    // The following must be called with mICamaeraLock already locked
 
-    // Mutex that must be locked before accessing mParams, mParamsFlattened
+    status_t setPreviewWindowLocked(const sp<IBinder>& binder,
+            const sp<ANativeWindow>& window);
+
+    void stopPreviewLocked();
+    status_t startPreviewLocked();
+
+    // Mutex that must be locked before accessing mParameters, mParamsFlattened
     mutable Mutex mParamsLock;
     String8 mParamsFlattened;
     // Current camera state; this is the contents of the CameraParameters object
@@ -164,16 +172,34 @@ private:
 
     /** Camera device-related private members */
 
+    // Simple listener that forwards frame available notifications from
+    // a CPU consumer to the capture notification
+    class CaptureWaiter: public CpuConsumer::FrameAvailableListener {
+      public:
+        CaptureWaiter(Camera2Client *parent) : mParent(parent) {}
+        void onFrameAvailable() { mParent->onCaptureAvailable(); }
+      private:
+        Camera2Client *mParent;
+    };
+
+    void onCaptureAvailable();
+
     // Number of zoom steps to simulate
     static const unsigned int NUM_ZOOM_STEPS = 10;
-    // Used with mPreviewStreamId
-    static const int NO_PREVIEW_STREAM = -1;
+    // Used with mPreviewStreamId, mCaptureStreamId
+    static const int NO_STREAM = -1;
 
     sp<IBinder> mPreviewSurface;
     int mPreviewStreamId;
     camera_metadata_t *mPreviewRequest;
 
+    int mCaptureStreamId;
+    sp<CpuConsumer>    mCaptureConsumer;
+    sp<ANativeWindow>  mCaptureWindow;
+    sp<CaptureWaiter>  mCaptureWaiter;
     camera_metadata_t *mCaptureRequest;
+    sp<MemoryHeapBase> mCaptureHeap;
+    sp<MemoryBase>     mCaptureMemory;
 
     sp<Camera2Device> mDevice;
 
@@ -193,6 +219,11 @@ private:
 
     // Update preview request based on mParams
     status_t updatePreviewRequest();
+
+    // Update capture request based on mParams
+    status_t updateCaptureRequest();
+    // Update capture stream based on mParams
+    status_t updateCaptureStream();
 
     // Convert camera1 preview format string to camera2 enum
     static int formatStringToEnum(const char *format);
