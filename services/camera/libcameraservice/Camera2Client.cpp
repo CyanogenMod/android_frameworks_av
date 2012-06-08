@@ -104,7 +104,169 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
             mCameraId,
             getCameraClient()->asBinder().get(),
             mClientPid);
+    result.append("  State: ");
+#define CASE_APPEND_ENUM(x) case x: result.append(#x "\n"); break;
+
+    switch (mState) {
+        CASE_APPEND_ENUM(NOT_INITIALIZED)
+        CASE_APPEND_ENUM(STOPPED)
+        CASE_APPEND_ENUM(WAITING_FOR_PREVIEW_WINDOW)
+        CASE_APPEND_ENUM(PREVIEW)
+        CASE_APPEND_ENUM(RECORD)
+        CASE_APPEND_ENUM(STILL_CAPTURE)
+        default: result.append("UNKNOWN\n"); break;
+    }
+
+    result.append("  Current parameters:\n");
+    result.appendFormat("    Preview size: %d x %d\n",
+            mParameters.previewWidth, mParameters.previewHeight);
+    result.appendFormat("    Preview FPS range: %d - %d\n",
+            mParameters.previewFpsRangeMin, mParameters.previewFpsRangeMax);
+    result.appendFormat("    Preview HAL pixel format: 0x%x\n",
+            mParameters.previewFormat);
+    result.appendFormat("    Picture size: %d x %d\n",
+            mParameters.pictureWidth, mParameters.pictureHeight);
+    result.appendFormat("    Jpeg thumbnail size: %d x %d\n",
+            mParameters.jpegThumbWidth, mParameters.jpegThumbHeight);
+    result.appendFormat("    Jpeg quality: %d, thumbnail quality: %d\n",
+            mParameters.jpegQuality, mParameters.jpegThumbQuality);
+    result.appendFormat("    Jpeg rotation: %d\n", mParameters.jpegRotation);
+    result.appendFormat("    GPS tags %s\n",
+            mParameters.gpsEnabled ? "enabled" : "disabled");
+    if (mParameters.gpsEnabled) {
+        result.appendFormat("    GPS lat x long x alt: %f x %f x %f\n",
+                mParameters.gpsLatitude, mParameters.gpsLongitude,
+                mParameters.gpsAltitude);
+        result.appendFormat("    GPS timestamp: %lld\n",
+                mParameters.gpsTimestamp);
+        result.appendFormat("    GPS processing method: %s\n",
+                mParameters.gpsProcessingMethod.string());
+    }
+
+    result.append("    White balance mode: ");
+    switch (mParameters.wbMode) {
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_AUTO)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_INCANDESCENT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_FLUORESCENT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_WARM_FLUORESCENT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_DAYLIGHT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_CLOUDY_DAYLIGHT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_TWILIGHT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AWB_SHADE)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Effect mode: ");
+    switch (mParameters.effectMode) {
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_OFF)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_MONO)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_NEGATIVE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_SOLARIZE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_SEPIA)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_POSTERIZE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_WHITEBOARD)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_BLACKBOARD)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_EFFECT_AQUA)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Antibanding mode: ");
+    switch (mParameters.antibandingMode) {
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AE_ANTIBANDING_AUTO)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AE_ANTIBANDING_OFF)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AE_ANTIBANDING_50HZ)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AE_ANTIBANDING_60HZ)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Scene mode: ");
+    switch (mParameters.sceneMode) {
+        case ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED:
+            result.append("AUTO\n"); break;
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_ACTION)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_PORTRAIT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_LANDSCAPE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_NIGHT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_NIGHT_PORTRAIT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_THEATRE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_BEACH)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_SNOW)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_SUNSET)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_STEADYPHOTO)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_FIREWORKS)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_SPORTS)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_PARTY)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_CANDLELIGHT)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_BARCODE)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Flash mode: ");
+    switch (mParameters.flashMode) {
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_OFF)
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_AUTO)
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_ON)
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_TORCH)
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_RED_EYE)
+        CASE_APPEND_ENUM(Parameters::FLASH_MODE_INVALID)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Focus mode: ");
+    switch (mParameters.focusMode) {
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_AUTO)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_MACRO)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_CONTINUOUS_VIDEO)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_CONTINUOUS_PICTURE)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_EDOF)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_INFINITY)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_FIXED)
+        CASE_APPEND_ENUM(Parameters::FOCUS_MODE_INVALID)
+        default: result.append("UNKNOWN\n");
+    }
+
+    result.append("    Focusing areas:\n");
+    for (size_t i = 0; i < mParameters.focusingAreas.size(); i++) {
+        result.appendFormat("      [ (%d, %d, %d, %d), weight %d ]\n",
+                mParameters.focusingAreas[i].left,
+                mParameters.focusingAreas[i].top,
+                mParameters.focusingAreas[i].right,
+                mParameters.focusingAreas[i].bottom,
+                mParameters.focusingAreas[i].weight);
+    }
+
+    result.appendFormat("    Exposure compensation index: %d\n",
+            mParameters.exposureCompensation);
+
+    result.appendFormat("    AE lock %s, AWB lock %s\n",
+            mParameters.autoExposureLock ? "enabled" : "disabled",
+            mParameters.autoWhiteBalanceLock ? "enabled" : "disabled" );
+
+    result.appendFormat("    Metering areas:\n");
+    for (size_t i = 0; i < mParameters.meteringAreas.size(); i++) {
+        result.appendFormat("      [ (%d, %d, %d, %d), weight %d ]\n",
+                mParameters.meteringAreas[i].left,
+                mParameters.meteringAreas[i].top,
+                mParameters.meteringAreas[i].right,
+                mParameters.meteringAreas[i].bottom,
+                mParameters.meteringAreas[i].weight);
+    }
+
+    result.appendFormat("   Zoom index: %d\n", mParameters.zoom);
+    result.appendFormat("   Video size: %d x %d\n", mParameters.videoWidth,
+            mParameters.videoHeight);
+
+    result.appendFormat("   Recording hint is %s\n",
+            mParameters.recordingHint ? "set" : "not set");
+
+    result.appendFormat("   Video stabilization is %s\n",
+            mParameters.videoStabilization ? "enabled" : "disabled");
+
     write(fd, result.string(), result.size());
+
+    // TODO: Dump Camera2Device
+
+#undef CASE_APPEND_ENUM
     return NO_ERROR;
 }
 
@@ -112,9 +274,11 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
 void Camera2Client::disconnect() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     if (mDevice == 0) return;
 
-    stopPreview();
+    stopPreviewLocked();
 
     if (mPreviewStreamId != NO_PREVIEW_STREAM) {
         mDevice->deleteStream(mPreviewStreamId);
@@ -126,23 +290,31 @@ void Camera2Client::disconnect() {
 
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::lock() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::unlock() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
     ATRACE_CALL();
-    if (mState == PREVIEW) return INVALID_OPERATION;
+    Mutex::Autolock icl(mICameraLock);
+
+    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -157,7 +329,9 @@ status_t Camera2Client::setPreviewDisplay(
 status_t Camera2Client::setPreviewTexture(
         const sp<ISurfaceTexture>& surfaceTexture) {
     ATRACE_CALL();
-    if (mState == PREVIEW) return INVALID_OPERATION;
+    Mutex::Autolock icl(mICameraLock);
+
+    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -200,10 +374,13 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
 
 void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
     status_t res;
     if (mState == PREVIEW) return INVALID_OPERATION;
 
@@ -252,6 +429,12 @@ status_t Camera2Client::startPreview() {
 
 void Camera2Client::stopPreview() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+    stopPreviewLocked();
+}
+
+void Camera2Client::stopPreviewLocked() {
+    ATRACE_CALL();
     if (mState != PREVIEW) return;
 
     mDevice->setStreamingRequest(NULL);
@@ -260,60 +443,75 @@ void Camera2Client::stopPreview() {
 
 bool Camera2Client::previewEnabled() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return mState == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 status_t Camera2Client::startRecording() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 void Camera2Client::stopRecording() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
 }
 
 status_t Camera2Client::autoFocus() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 status_t Camera2Client::cancelAutoFocus() {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return BAD_VALUE;
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
+
+    Mutex::Autolock pl(mParamsLock);
+
     // TODO: Deal with focus distances
     return mParamsFlattened;
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
+    Mutex::Autolock icl(mICameraLock);
     return OK;
 }
 
@@ -358,6 +556,8 @@ camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
 
 status_t Camera2Client::buildDefaultParameters() {
     ATRACE_CALL();
+    Mutex::Autolock pl(mParamsLock);
+
     status_t res;
     CameraParameters params;
 
