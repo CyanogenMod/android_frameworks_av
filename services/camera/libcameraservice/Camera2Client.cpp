@@ -365,6 +365,8 @@ status_t Camera2Client::setPreviewWindow(const sp<IBinder>& binder,
         return res;
     }
 
+    mPreviewSurface = binder;
+
     if (mState == WAITING_FOR_PREVIEW_WINDOW) {
         return startPreview();
     }
@@ -417,7 +419,8 @@ status_t Camera2Client::startPreview() {
 
     res = mDevice->setStreamingRequest(mPreviewRequest);
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set preview request to start preview: %s (%d)",
+        ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
+                "%s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         mState = STOPPED;
         return res;
@@ -1122,19 +1125,24 @@ status_t Camera2Client::buildDefaultParameters() {
             addComma = true;
             switch (availableFormats.data.i32[i]) {
             case HAL_PIXEL_FORMAT_YCbCr_422_SP:
-                supportedPreviewFormats += "yuv422sp";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV422SP;
                 break;
             case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-                supportedPreviewFormats += "yuv420sp";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV420SP;
                 break;
             case HAL_PIXEL_FORMAT_YCbCr_422_I:
-                supportedPreviewFormats += "yuv422i-yuyv";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV422I;
                 break;
             case HAL_PIXEL_FORMAT_YV12:
-                supportedPreviewFormats += "yuv420p";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV420P;
                 break;
             case HAL_PIXEL_FORMAT_RGB_565:
-                supportedPreviewFormats += "rgb565";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_RGB565;
                 break;
                 // Not advertizing JPEG, RAW_SENSOR, etc, for preview formats
             case HAL_PIXEL_FORMAT_RAW_SENSOR:
@@ -1248,28 +1256,36 @@ status_t Camera2Client::buildDefaultParameters() {
             addComma = true;
             switch (availableWhiteBalanceModes.data.u8[i]) {
             case ANDROID_CONTROL_AWB_AUTO:
-                supportedWhiteBalance += "auto";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_AUTO;
                 break;
             case ANDROID_CONTROL_AWB_INCANDESCENT:
-                supportedWhiteBalance += "incandescent";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_INCANDESCENT;
                 break;
             case ANDROID_CONTROL_AWB_FLUORESCENT:
-                supportedWhiteBalance += "fluorescent";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_FLUORESCENT;
                 break;
             case ANDROID_CONTROL_AWB_WARM_FLUORESCENT:
-                supportedWhiteBalance += "warm-fluorescent";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_WARM_FLUORESCENT;
                 break;
             case ANDROID_CONTROL_AWB_DAYLIGHT:
-                supportedWhiteBalance += "daylight";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_DAYLIGHT;
                 break;
             case ANDROID_CONTROL_AWB_CLOUDY_DAYLIGHT:
-                supportedWhiteBalance += "cloudy-daylight";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT;
                 break;
             case ANDROID_CONTROL_AWB_TWILIGHT:
-                supportedWhiteBalance += "twilight";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_TWILIGHT;
                 break;
             case ANDROID_CONTROL_AWB_SHADE:
-                supportedWhiteBalance += "shade";
+                supportedWhiteBalance +=
+                    CameraParameters::WHITE_BALANCE_SHADE;
                 break;
             // Skipping values not mappable to v1 API
             case ANDROID_CONTROL_AWB_OFF:
@@ -1302,30 +1318,40 @@ status_t Camera2Client::buildDefaultParameters() {
             addComma = true;
             switch (availableEffects.data.u8[i]) {
                 case ANDROID_CONTROL_EFFECT_OFF:
-                    supportedEffects += "none";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_NONE;
                     break;
                 case ANDROID_CONTROL_EFFECT_MONO:
-                    supportedEffects += "mono";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_MONO;
+                    break;
                 case ANDROID_CONTROL_EFFECT_NEGATIVE:
-                    supportedEffects += "negative";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_NEGATIVE;
                     break;
                 case ANDROID_CONTROL_EFFECT_SOLARIZE:
-                    supportedEffects += "solarize";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_SOLARIZE;
                     break;
                 case ANDROID_CONTROL_EFFECT_SEPIA:
-                    supportedEffects += "sepia";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_SEPIA;
                     break;
                 case ANDROID_CONTROL_EFFECT_POSTERIZE:
-                    supportedEffects += "posterize";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_POSTERIZE;
                     break;
                 case ANDROID_CONTROL_EFFECT_WHITEBOARD:
-                    supportedEffects += "whiteboard";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_WHITEBOARD;
                     break;
                 case ANDROID_CONTROL_EFFECT_BLACKBOARD:
-                    supportedEffects += "blackboard";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_BLACKBOARD;
                     break;
                 case ANDROID_CONTROL_EFFECT_AQUA:
-                    supportedEffects += "aqua";
+                    supportedEffects +=
+                        CameraParameters::EFFECT_AQUA;
                     break;
                 default:
                     ALOGW("%s: Camera %d: Unknown effect value: %d",
@@ -1352,16 +1378,20 @@ status_t Camera2Client::buildDefaultParameters() {
             addComma = true;
             switch (availableAntibandingModes.data.u8[i]) {
                 case ANDROID_CONTROL_AE_ANTIBANDING_OFF:
-                    supportedAntibanding += "off";
+                    supportedAntibanding +=
+                        CameraParameters::ANTIBANDING_OFF;
                     break;
                 case ANDROID_CONTROL_AE_ANTIBANDING_50HZ:
-                    supportedAntibanding += "50hz";
+                    supportedAntibanding +=
+                        CameraParameters::ANTIBANDING_50HZ;
                     break;
                 case ANDROID_CONTROL_AE_ANTIBANDING_60HZ:
-                    supportedAntibanding += "60hz";
+                    supportedAntibanding +=
+                        CameraParameters::ANTIBANDING_60HZ;
                     break;
                 case ANDROID_CONTROL_AE_ANTIBANDING_AUTO:
-                    supportedAntibanding += "auto";
+                    supportedAntibanding +=
+                        CameraParameters::ANTIBANDING_AUTO;
                     break;
                 default:
                     ALOGW("%s: Camera %d: Unknown antibanding value: %d",
@@ -1383,7 +1413,7 @@ status_t Camera2Client::buildDefaultParameters() {
         staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
     if (!availableSceneModes.count) return NO_INIT;
     {
-        String8 supportedSceneModes("auto");
+        String8 supportedSceneModes(CameraParameters::SCENE_MODE_AUTO);
         bool addComma = true;
         bool noSceneModes = false;
         for (size_t i=0; i < availableSceneModes.count; i++) {
@@ -1398,53 +1428,69 @@ status_t Camera2Client::buildDefaultParameters() {
                     addComma = false;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_ACTION:
-                    supportedSceneModes += "action";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_ACTION;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_PORTRAIT:
-                    supportedSceneModes += "portrait";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_PORTRAIT;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_LANDSCAPE:
-                    supportedSceneModes += "landscape";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_LANDSCAPE;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_NIGHT:
-                    supportedSceneModes += "night";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_NIGHT;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_NIGHT_PORTRAIT:
-                    supportedSceneModes += "night-portrait";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_NIGHT_PORTRAIT;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_THEATRE:
-                    supportedSceneModes += "theatre";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_THEATRE;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_BEACH:
-                    supportedSceneModes += "beach";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_BEACH;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_SNOW:
-                    supportedSceneModes += "snow";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_SNOW;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_SUNSET:
-                    supportedSceneModes += "sunset";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_SUNSET;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_STEADYPHOTO:
-                    supportedSceneModes += "steadyphoto";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_STEADYPHOTO;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_FIREWORKS:
-                    supportedSceneModes += "fireworks";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_FIREWORKS;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_SPORTS:
-                    supportedSceneModes += "sports";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_SPORTS;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_PARTY:
-                    supportedSceneModes += "party";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_PARTY;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_CANDLELIGHT:
-                    supportedSceneModes += "candlelight";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_CANDLELIGHT;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_BARCODE:
-                    supportedSceneModes += "barcode";
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_BARCODE;
                     break;
                 default:
                     ALOGW("%s: Camera %d: Unknown scene mode value: %d",
-                        __FUNCTION__, mCameraId, availableSceneModes.data.u8[i]);
+                        __FUNCTION__, mCameraId,
+                            availableSceneModes.data.u8[i]);
                     addComma = false;
                     break;
             }
@@ -1514,26 +1560,32 @@ status_t Camera2Client::buildDefaultParameters() {
         supportedFocusModes = supportedFocusModes + "," +
             CameraParameters::FOCUS_MODE_INFINITY;
         bool addComma = true;
+
         for (size_t i=0; i < availableAfModes.count; i++) {
             if (addComma) supportedFocusModes += ",";
             addComma = true;
             switch (availableAfModes.data.u8[i]) {
                 case ANDROID_CONTROL_AF_AUTO:
-                    supportedFocusModes += "auto";
+                    supportedFocusModes +=
+                        CameraParameters::FOCUS_MODE_AUTO;
                     break;
                 case ANDROID_CONTROL_AF_MACRO:
-                    supportedFocusModes += "macro";
+                    supportedFocusModes +=
+                        CameraParameters::FOCUS_MODE_MACRO;
                     break;
                 case ANDROID_CONTROL_AF_CONTINUOUS_VIDEO:
-                    supportedFocusModes += "continuous-video";
+                    supportedFocusModes +=
+                        CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO;
                     break;
                 case ANDROID_CONTROL_AF_CONTINUOUS_PICTURE:
-                    supportedFocusModes += "continuous-picture";
+                    supportedFocusModes +=
+                        CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE;
                     break;
                 case ANDROID_CONTROL_AF_EDOF:
-                    supportedFocusModes += "edof";
+                    supportedFocusModes +=
+                        CameraParameters::FOCUS_MODE_EDOF;
                     break;
-                // Not supported in v1 API
+                // Not supported in old API
                 case ANDROID_CONTROL_AF_OFF:
                     addComma = false;
                     break;
