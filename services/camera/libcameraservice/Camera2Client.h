@@ -193,7 +193,22 @@ private:
 
     // Update preview request based on mParams
     status_t updatePreviewRequest();
+
+    // Convert camera1 preview format string to camera2 enum
+    static int formatStringToEnum(const char *format);
     static const char *formatEnumToString(int format);
+
+    static int wbModeStringToEnum(const char *wbMode);
+    static int effectModeStringToEnum(const char *effectMode);
+    static int abModeStringToEnum(const char *abMode);
+    static int sceneModeStringToEnum(const char *sceneMode);
+    static Parameters::flashMode_t flashModeStringToEnum(const char *flashMode);
+    static Parameters::focusMode_t focusModeStringToEnum(const char *focusMode);
+    static status_t parseAreas(const char *areasCStr,
+            Vector<Parameters::Area> *areas);
+    static status_t validateAreas(const Vector<Parameters::Area> &areas,
+                                  size_t maxRegions);
+    static bool boolFromString(const char *boolStr);
 };
 
 }; // namespace android
