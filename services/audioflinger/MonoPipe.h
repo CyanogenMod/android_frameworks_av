@@ -58,7 +58,9 @@ public:
 
             // average number of frames present in the pipe under normal conditions.
             // See throttling mechanism in MonoPipe::write()
-            size_t  getAvgFrames() const { return (mReqFrames * 11) / 16; }
+            size_t  getAvgFrames() const { return mSetpoint; }
+            void    setAvgFrames(size_t setpoint);
+            size_t  maxFrames() const { return mMaxFrames; }
 
 private:
     const size_t    mReqFrames;     // as requested in constructor, unrounded
@@ -71,6 +73,9 @@ private:
                                     // read by writer with android_atomic_acquire_load
     volatile int32_t mRear;         // written by writer with android_atomic_release_store,
                                     // read by reader with android_atomic_acquire_load
+    bool            mWriteTsValid;  // whether mWriteTs is valid
+    struct timespec mWriteTs;       // time that the previous write() completed
+    size_t          mSetpoint;      // target value for pipe fill depth
     const bool      mWriteCanBlock; // whether write() should block if the pipe is full
 };
 
