@@ -1119,6 +1119,7 @@ public:
         // For dumpsys
         sp<NBAIO_Sink>          mTeeSink;
         sp<NBAIO_Source>        mTeeSource;
+        uint32_t                mScreenState;   // cached copy of gScreenState
     public:
         virtual     bool        hasFastMixer() const = 0;
         virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const
