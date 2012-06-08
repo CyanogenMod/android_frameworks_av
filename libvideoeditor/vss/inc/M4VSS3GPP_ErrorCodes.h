@@ -273,6 +273,9 @@
 /**
  * Output file must be 3GPP or MP3 */
 #define M4VSS3GPP_ERR_OUTPUT_FILE_TYPE_ERROR         M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0117)
+/**
+ * Can not find a valid video frame */
+#define M4VSS3GPP_ERR_NO_VALID_VID_FRAME         M4OSA_ERR_CREATE( M4_ERR, M4VSS3GPP, 0x0118)
 
 #endif /* __M4VSS3GPP_ErrorCodes_H__ */
 
