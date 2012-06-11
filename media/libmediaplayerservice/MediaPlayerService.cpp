@@ -1542,51 +1542,10 @@ status_t MediaPlayerService::AudioOutput::open(
         }
     }
 
-    if (mRecycledTrack) {
-        // check if the existing track can be reused as-is, or if a new track needs to be created.
-
-        bool reuse = true;
-        if ((mCallbackData == NULL && mCallback != NULL) ||
-                (mCallbackData != NULL && mCallback == NULL)) {
-            // recycled track uses callbacks but the caller wants to use writes, or vice versa
-            ALOGV("can't chain callback and write");
-            reuse = false;
-        } else if ((mRecycledTrack->getSampleRate() != sampleRate) ||
-                (mRecycledTrack->channelCount() != channelCount) ||
-                (mRecycledTrack->frameCount() != frameCount)) {
-            ALOGV("samplerate, channelcount or framecount differ");
-            reuse = false;
-        } if (flags != mFlags) {
-            ALOGV("output flags differ");
-            reuse = false;
-        }
-        if (reuse) {
-            ALOGV("chaining to next output");
-            close();
-            mTrack = mRecycledTrack;
-            mRecycledTrack = NULL;
-            if (mCallbackData != NULL) {
-                mCallbackData->setOutput(this);
-            }
-            return OK;
-        }
-
-        // if we're not going to reuse the track, unblock and flush it
-        if (mCallbackData != NULL) {
-            mCallbackData->setOutput(NULL);
-            mCallbackData->endTrackSwitch();
-        }
-        mRecycledTrack->flush();
-        delete mRecycledTrack;
-        mRecycledTrack = NULL;
-        delete mCallbackData;
-        mCallbackData = NULL;
-        close();
-    }
-
     AudioTrack *t;
+    CallbackData *newcbd = NULL;
     if (mCallback != NULL) {
-        mCallbackData = new CallbackData(this);
+        newcbd = new CallbackData(this);
         t = new AudioTrack(
                 mStreamType,
                 sampleRate,
@@ -1595,7 +1554,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 frameCount,
                 flags,
                 CallbackWrapper,
-                mCallbackData,
+                newcbd,
                 0,  // notification frames
                 mSessionId);
     } else {
@@ -1615,9 +1574,59 @@ status_t MediaPlayerService::AudioOutput::open(
     if ((t == 0) || (t->initCheck() != NO_ERROR)) {
         ALOGE("Unable to create audio track");
         delete t;
+        delete newcbd;
         return NO_INIT;
     }
 
+
+    if (mRecycledTrack) {
+        // check if the existing track can be reused as-is, or if a new track needs to be created.
+
+        bool reuse = true;
+        if ((mCallbackData == NULL && mCallback != NULL) ||
+                (mCallbackData != NULL && mCallback == NULL)) {
+            // recycled track uses callbacks but the caller wants to use writes, or vice versa
+            ALOGV("can't chain callback and write");
+            reuse = false;
+        } else if ((mRecycledTrack->getSampleRate() != sampleRate) ||
+                (mRecycledTrack->channelCount() != channelCount) ||
+                (mRecycledTrack->frameCount() != t->frameCount())) {
+            ALOGV("samplerate, channelcount or framecount differ: %d/%d Hz, %d/%d ch, %d/%d frames",
+                  mRecycledTrack->getSampleRate(), sampleRate,
+                  mRecycledTrack->channelCount(), channelCount,
+                  mRecycledTrack->frameCount(), t->frameCount());
+            reuse = false;
+        } else if (flags != mFlags) {
+            ALOGV("output flags differ %08x/%08x", flags, mFlags);
+            reuse = false;
+        }
+        if (reuse) {
+            ALOGV("chaining to next output");
+            close();
+            mTrack = mRecycledTrack;
+            mRecycledTrack = NULL;
+            if (mCallbackData != NULL) {
+                mCallbackData->setOutput(this);
+            }
+            delete t;
+            delete newcbd;
+            return OK;
+        }
+
+        // if we're not going to reuse the track, unblock and flush it
+        if (mCallbackData != NULL) {
+            mCallbackData->setOutput(NULL);
+            mCallbackData->endTrackSwitch();
+        }
+        mRecycledTrack->flush();
+        delete mRecycledTrack;
+        mRecycledTrack = NULL;
+        delete mCallbackData;
+        mCallbackData = NULL;
+        close();
+    }
+
+    mCallbackData = newcbd;
     ALOGV("setVolume");
     t->setVolume(mLeftVolume, mRightVolume);
 
