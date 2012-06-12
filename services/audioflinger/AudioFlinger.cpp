@@ -2300,6 +2300,19 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         }
 #endif
 
+#ifdef AUDIO_WATCHDOG
+        // create and start the watchdog
+        mAudioWatchdog = new AudioWatchdog();
+        mAudioWatchdog->setDump(&mAudioWatchdogDump);
+        mAudioWatchdog->run("AudioWatchdog", PRIORITY_URGENT_AUDIO);
+        tid = mAudioWatchdog->getTid();
+        err = requestPriority(getpid_cached, tid, 1);
+        if (err != 0) {
+            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
+                    1, getpid_cached, tid, err);
+        }
+#endif
+
     } else {
         mFastMixer = NULL;
     }
@@ -2349,6 +2362,11 @@ AudioFlinger::MixerThread::~MixerThread()
         }
         delete mSoaker;
 #endif
+        if (mAudioWatchdog != 0) {
+            mAudioWatchdog->requestExit();
+            mAudioWatchdog->requestExitAndWait();
+            mAudioWatchdog.clear();
+        }
     }
     delete mAudioMixer;
 }
@@ -2670,6 +2688,9 @@ void AudioFlinger::MixerThread::threadLoop_write()
                 if (old == -1) {
                     __futex_syscall3(&mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);
                 }
+                if (mAudioWatchdog != 0) {
+                    mAudioWatchdog->resume();
+                }
             }
             state->mCommand = FastMixerState::MIX_WRITE;
             sq->end();
@@ -2745,6 +2766,9 @@ void AudioFlinger::MixerThread::threadLoop_standby()
             sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
             if (kUseFastMixer == FastMixer_Dynamic) {
                 mNormalSink = mOutputSink;
+            }
+            if (mAudioWatchdog != 0) {
+                mAudioWatchdog->pause();
             }
         } else {
             sq->end(false /*didModify*/);
@@ -3234,6 +3258,7 @@ track_is_ready: ;
     }
 
     // Push the new FastMixer state if necessary
+    bool pauseAudioWatchdog = false;
     if (didModify) {
         state->mFastTracksGen++;
         // if the fast mixer was active, but now there are no fast tracks, then put it in cold idle
@@ -3249,12 +3274,16 @@ track_is_ready: ;
             // If we go into cold idle, need to wait for acknowledgement
             // so that fast mixer stops doing I/O.
             block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
+            pauseAudioWatchdog = true;
         }
         sq->end();
     }
     if (sq != NULL) {
         sq->end(didModify);
         sq->push(block);
+    }
+    if (pauseAudioWatchdog && mAudioWatchdog != 0) {
+        mAudioWatchdog->pause();
     }
 
     // Now perform the deferred reset on fast tracks that have stopped
@@ -3574,6 +3603,12 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
         } else {
             fdprintf(fd, "FastMixer unable to create tee %s: \n", strerror(errno));
         }
+    }
+
+    if (mAudioWatchdog != 0) {
+        // Make a non-atomic copy of audio watchdog dump so it won't change underneath us
+        AudioWatchdogDump wdCopy = mAudioWatchdogDump;
+        wdCopy.dump(fd);
     }
 
     return NO_ERROR;
