@@ -108,8 +108,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
 
   LOCAL_CFLAGS :=
 
-  LOCAL_STATIC_LIBRARIES := \
-          libAACenc libMpegTPEnc libSBRenc libFDK libSYS
+  LOCAL_STATIC_LIBRARIES := libFraunhoferAAC
 
   LOCAL_SHARED_LIBRARIES := \
           libstagefright_omx libstagefright_foundation libutils
