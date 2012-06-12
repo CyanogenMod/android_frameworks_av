@@ -95,4 +95,8 @@ LOCAL_CFLAGS += -DHAVE_REQUEST_PRIORITY -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE 
 # 47.5 seconds at 44.1 kHz, 8 megabytes
 # LOCAL_CFLAGS += -DTEE_SINK_FRAMES=0x200000
 
+# uncomment to enable the audio watchdog
+LOCAL_SRC_FILES += AudioWatchdog.cpp
+LOCAL_CFLAGS += -DAUDIO_WATCHDOG
+
 include $(BUILD_SHARED_LIBRARY)
