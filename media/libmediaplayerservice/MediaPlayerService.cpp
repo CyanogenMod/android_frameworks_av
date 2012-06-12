@@ -1679,6 +1679,7 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
         mNextOutput->mSampleRateHz = mSampleRateHz;
         mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
         mNextOutput->mBytesWritten = mBytesWritten;
+        mNextOutput->mFlags = mFlags;
     }
 }
 
