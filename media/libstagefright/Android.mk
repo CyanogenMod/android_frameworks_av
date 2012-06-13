@@ -81,6 +81,7 @@ LOCAL_SHARED_LIBRARIES := \
         libssl \
         libstagefright_omx \
         libstagefright_yuv \
+        libsync \
         libui \
         libutils \
         libvorbisidec \

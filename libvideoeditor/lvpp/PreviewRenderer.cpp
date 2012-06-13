@@ -97,12 +97,11 @@ PreviewRenderer::~PreviewRenderer() {
 void PreviewRenderer::getBufferYV12(uint8_t **data, size_t *stride) {
     int err = OK;
 
-    if ((err = mSurface->ANativeWindow::dequeueBuffer(mSurface.get(), &mBuf)) != 0) {
-        ALOGW("Surface::dequeueBuffer returned error %d", err);
+    if ((err = native_window_dequeue_buffer_and_wait(mSurface.get(),
+            &mBuf)) != 0) {
+        ALOGW("native_window_dequeue_buffer_and_wait returned error %d", err);
         return;
     }
-
-    CHECK_EQ(0, mSurface->ANativeWindow::lockBuffer(mSurface.get(), mBuf));
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 
@@ -131,7 +130,7 @@ void PreviewRenderer::renderYV12() {
     if (mBuf!= NULL) {
         CHECK_EQ(0, mapper.unlock(mBuf->handle));
 
-        if ((err = mSurface->ANativeWindow::queueBuffer(mSurface.get(), mBuf)) != 0) {
+        if ((err = mSurface->ANativeWindow::queueBuffer(mSurface.get(), mBuf, -1)) != 0) {
             ALOGW("Surface::queueBuffer returned error %d", err);
         }
     }

@@ -569,7 +569,7 @@ private:
         int rc;
         ANativeWindow *a = anw(w);
         ANativeWindowBuffer* anb;
-        rc = a->dequeueBuffer(a, &anb);
+        rc = native_window_dequeue_buffer_and_wait(a, &anb);
         if (!rc) {
             *buffer = &anb->handle;
             *stride = anb->stride;
@@ -587,8 +587,7 @@ private:
                       buffer_handle_t* buffer)
     {
         ANativeWindow *a = anw(w);
-        return a->lockBuffer(a,
-                  container_of(buffer, ANativeWindowBuffer, handle));
+        return 0;
     }
 
     static int __enqueue_buffer(struct preview_stream_ops* w,
@@ -596,7 +595,7 @@ private:
     {
         ANativeWindow *a = anw(w);
         return a->queueBuffer(a,
-                  container_of(buffer, ANativeWindowBuffer, handle));
+                  container_of(buffer, ANativeWindowBuffer, handle), -1);
     }
 
     static int __cancel_buffer(struct preview_stream_ops* w,
@@ -604,7 +603,7 @@ private:
     {
         ANativeWindow *a = anw(w);
         return a->cancelBuffer(a,
-                  container_of(buffer, ANativeWindowBuffer, handle));
+                  container_of(buffer, ANativeWindowBuffer, handle), -1);
     }
 
     static int __set_buffer_count(struct preview_stream_ops* w, int count)

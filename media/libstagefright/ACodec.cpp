@@ -595,7 +595,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
     // Dequeue buffers and send them to OMX
     for (OMX_U32 i = 0; i < def.nBufferCountActual; i++) {
         ANativeWindowBuffer *buf;
-        err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf);
+        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
         if (err != 0) {
             ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
             break;
@@ -653,7 +653,7 @@ status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
          mComponentName.c_str(), info->mBufferID);
 
     int err = mNativeWindow->cancelBuffer(
-        mNativeWindow.get(), info->mGraphicBuffer.get());
+        mNativeWindow.get(), info->mGraphicBuffer.get(), -1);
 
     CHECK_EQ(err, 0);
 
@@ -664,7 +664,8 @@ status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
 
 ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     ANativeWindowBuffer *buf;
-    if (mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf) != 0) {
+    int fenceFd = -1;
+    if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
         ALOGE("dequeueBuffer failed.");
         return NULL;
     }
@@ -2188,7 +2189,8 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
     // on the screen and then been replaced, so an previous video frames are
     // guaranteed NOT to be currently displayed.
     for (int i = 0; i < numBufs + 1; i++) {
-        err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &anb);
+        int fenceFd = -1;
+        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &anb);
         if (err != NO_ERROR) {
             ALOGE("error pushing blank frames: dequeueBuffer failed: %s (%d)",
                     strerror(-err), -err);
@@ -2196,13 +2198,6 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
         }
 
         sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
-        err = mNativeWindow->lockBuffer(mNativeWindow.get(),
-                buf->getNativeBuffer());
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: lockBuffer failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
 
         // Fill the buffer with the a 1x1 checkerboard pattern ;)
         uint32_t* img = NULL;
@@ -2223,7 +2218,7 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
         }
 
         err = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                buf->getNativeBuffer());
+                buf->getNativeBuffer(), -1);
         if (err != NO_ERROR) {
             ALOGE("error pushing blank frames: queueBuffer failed: %s (%d)",
                     strerror(-err), -err);
@@ -2238,7 +2233,7 @@ error:
     if (err != NO_ERROR) {
         // Clean up after an error.
         if (anb != NULL) {
-            mNativeWindow->cancelBuffer(mNativeWindow.get(), anb);
+            mNativeWindow->cancelBuffer(mNativeWindow.get(), anb, -1);
         }
 
         native_window_api_disconnect(mNativeWindow.get(),
@@ -2751,7 +2746,7 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         status_t err;
         if ((err = mCodec->mNativeWindow->queueBuffer(
                     mCodec->mNativeWindow.get(),
-                    info->mGraphicBuffer.get())) == OK) {
+                    info->mGraphicBuffer.get(), -1)) == OK) {
             info->mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
         } else {
             mCodec->signalError(OMX_ErrorUndefined, err);
@@ -3253,11 +3248,6 @@ void ACodec::ExecutingState::submitOutputBuffers() {
             if (info->mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
                 continue;
             }
-
-            status_t err = mCodec->mNativeWindow->lockBuffer(
-                    mCodec->mNativeWindow.get(),
-                    info->mGraphicBuffer.get());
-            CHECK_EQ(err, (status_t)OK);
         } else {
             CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
         }

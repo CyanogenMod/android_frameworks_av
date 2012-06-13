@@ -758,20 +758,11 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     ANativeWindowBuffer **anwBuffers = new ANativeWindowBuffer*[mTotalBuffers];
     uint32_t bufferIdx = 0;
     for (; bufferIdx < mTotalBuffers; bufferIdx++) {
-        res = mConsumerInterface->dequeueBuffer(mConsumerInterface.get(),
+        res = native_window_dequeue_buffer_and_wait(mConsumerInterface.get(),
                 &anwBuffers[bufferIdx]);
         if (res != OK) {
             ALOGE("%s: Unable to dequeue buffer %d for initial registration for"
                     "stream %d", __FUNCTION__, bufferIdx, mId);
-            goto cleanUpBuffers;
-        }
-
-        res = mConsumerInterface->lockBuffer(mConsumerInterface.get(),
-                anwBuffers[bufferIdx]);
-        if (res != OK) {
-            ALOGE("%s: Unable to lock buffer %d for initial registration for"
-                    "stream %d", __FUNCTION__, bufferIdx, mId);
-            bufferIdx++;
             goto cleanUpBuffers;
         }
 
@@ -792,7 +783,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
 cleanUpBuffers:
     for (uint32_t i = 0; i < bufferIdx; i++) {
         res = mConsumerInterface->cancelBuffer(mConsumerInterface.get(),
-                anwBuffers[i]);
+                anwBuffers[i], -1);
         if (res != OK) {
             ALOGE("%s: Unable to cancel buffer %d after registration",
                     __FUNCTION__, i);
@@ -878,9 +869,7 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
 
     ANativeWindow *a = toANW(w);
     ANativeWindowBuffer* anb;
-    res = a->dequeueBuffer(a, &anb);
-    if (res != OK) return res;
-    res = a->lockBuffer(a, anb);
+    res = native_window_dequeue_buffer_and_wait(a, &anb);
     if (res != OK) return res;
 
     *buffer = &(anb->handle);
@@ -911,7 +900,7 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         return err;
     }
     err = a->queueBuffer(a,
-            container_of(buffer, ANativeWindowBuffer, handle));
+            container_of(buffer, ANativeWindowBuffer, handle), -1);
     if (err != OK) {
         ALOGE("%s: Error queueing buffer to native window: %s (%d)",
                 __FUNCTION__, strerror(-err), err);
@@ -933,7 +922,7 @@ int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
     stream->mActiveBuffers--;
     ANativeWindow *a = toANW(w);
     return a->cancelBuffer(a,
-            container_of(buffer, ANativeWindowBuffer, handle));
+            container_of(buffer, ANativeWindowBuffer, handle), -1);
 }
 
 int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,

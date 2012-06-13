@@ -59,6 +59,7 @@ LOCAL_SHARED_LIBRARIES :=     \
     libstagefright            \
     libstagefright_foundation \
     libstagefright_omx        \
+    libsync                   \
     libui                     \
     libutils                  \
     libvideoeditor_osal       \

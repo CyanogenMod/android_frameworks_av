@@ -509,31 +509,31 @@ void SurfaceMediaSourceGLTest::setUpEGLSurfaceFromMediaRecorder(sp<MediaRecorder
 // cpu YV12 buffer
 void SurfaceMediaSourceTest::oneBufferPass(int width, int height ) {
     ANativeWindowBuffer* anb;
-    ASSERT_EQ(NO_ERROR, mANW->dequeueBuffer(mANW.get(), &anb));
+    ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(), &anb));
     ASSERT_TRUE(anb != NULL);
 
-    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
-    ASSERT_EQ(NO_ERROR, mANW->lockBuffer(mANW.get(), buf->getNativeBuffer()));
 
     // Fill the buffer with the a checkerboard pattern
     uint8_t* img = NULL;
+    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
     buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
     SurfaceMediaSourceTest::fillYV12Buffer(img, width, height, buf->getStride());
     buf->unlock();
 
-    ASSERT_EQ(NO_ERROR, mANW->queueBuffer(mANW.get(), buf->getNativeBuffer()));
+    ASSERT_EQ(NO_ERROR, mANW->queueBuffer(mANW.get(), buf->getNativeBuffer(),
+            -1));
 }
 
 // Dequeuing and queuing the buffer without really filling it in.
 void SurfaceMediaSourceTest::oneBufferPassNoFill(int width, int height ) {
     ANativeWindowBuffer* anb;
-    ASSERT_EQ(NO_ERROR, mANW->dequeueBuffer(mANW.get(), &anb));
+    ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(), &anb));
     ASSERT_TRUE(anb != NULL);
 
-    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
-    // ASSERT_EQ(NO_ERROR, mANW->lockBuffer(mANW.get(), buf->getNativeBuffer()));
     // We do not fill the buffer in. Just queue it back.
-    ASSERT_EQ(NO_ERROR, mANW->queueBuffer(mANW.get(), buf->getNativeBuffer()));
+    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
+    ASSERT_EQ(NO_ERROR, mANW->queueBuffer(mANW.get(), buf->getNativeBuffer(),
+            -1));
 }
 
 // Fill a YV12 buffer with a multi-colored checkerboard pattern
@@ -652,7 +652,7 @@ TEST_F(SurfaceMediaSourceTest, DISABLED_DummyEncodingFromCpuFilledYV12BufferNpot
     ANativeWindowBuffer* anb;
 
     // Note: make sure we get an ERROR back when dequeuing!
-    ASSERT_NE(NO_ERROR, mANW->dequeueBuffer(mANW.get(), &anb));
+    ASSERT_NE(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(), &anb));
 }
 
 // pass multiple buffers from the native_window the SurfaceMediaSource

@@ -22,6 +22,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libcamera_client \
     libgui \
     libhardware \
+    libsync \
     libcamera_metadata
 
 LOCAL_C_INCLUDES += \

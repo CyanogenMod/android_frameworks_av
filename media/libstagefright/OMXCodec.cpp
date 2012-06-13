@@ -1776,7 +1776,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     // Dequeue buffers and send them to OMX
     for (OMX_U32 i = 0; i < def.nBufferCountActual; i++) {
         ANativeWindowBuffer* buf;
-        err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf);
+        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
         if (err != 0) {
             ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
             break;
@@ -1832,7 +1832,7 @@ status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)OWNED_BY_US);
     CODEC_LOGV("Calling cancelBuffer on buffer %p", info->mBuffer);
     int err = mNativeWindow->cancelBuffer(
-        mNativeWindow.get(), info->mMediaBuffer->graphicBuffer().get());
+        mNativeWindow.get(), info->mMediaBuffer->graphicBuffer().get(), -1);
     if (err != 0) {
       CODEC_LOGE("cancelBuffer failed w/ error 0x%08x", err);
 
@@ -1846,7 +1846,8 @@ status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
 OMXCodec::BufferInfo* OMXCodec::dequeueBufferFromNativeWindow() {
     // Dequeue the next buffer from the native window.
     ANativeWindowBuffer* buf;
-    int err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf);
+    int fenceFd = -1;
+    int err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
     if (err != 0) {
       CODEC_LOGE("dequeueBuffer failed w/ error 0x%08x", err);
 
@@ -1950,7 +1951,8 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
     // on the screen and then been replaced, so an previous video frames are
     // guaranteed NOT to be currently displayed.
     for (int i = 0; i < numBufs + 1; i++) {
-        err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &anb);
+        int fenceFd = -1;
+        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &anb);
         if (err != NO_ERROR) {
             ALOGE("error pushing blank frames: dequeueBuffer failed: %s (%d)",
                     strerror(-err), -err);
@@ -1958,13 +1960,6 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
         }
 
         sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
-        err = mNativeWindow->lockBuffer(mNativeWindow.get(),
-                buf->getNativeBuffer());
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: lockBuffer failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
 
         // Fill the buffer with the a 1x1 checkerboard pattern ;)
         uint32_t* img = NULL;
@@ -1985,7 +1980,7 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
         }
 
         err = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                buf->getNativeBuffer());
+                buf->getNativeBuffer(), -1);
         if (err != NO_ERROR) {
             ALOGE("error pushing blank frames: queueBuffer failed: %s (%d)",
                     strerror(-err), -err);
@@ -2000,7 +1995,7 @@ error:
     if (err != NO_ERROR) {
         // Clean up after an error.
         if (anb != NULL) {
-            mNativeWindow->cancelBuffer(mNativeWindow.get(), anb);
+            mNativeWindow->cancelBuffer(mNativeWindow.get(), anb, -1);
         }
 
         native_window_api_disconnect(mNativeWindow.get(),
@@ -3197,23 +3192,6 @@ void OMXCodec::fillOutputBuffer(BufferInfo *info) {
         CODEC_LOGV("There is no more output data available, not "
              "calling fillOutputBuffer");
         return;
-    }
-
-    if (info->mMediaBuffer != NULL) {
-        sp<GraphicBuffer> graphicBuffer = info->mMediaBuffer->graphicBuffer();
-        if (graphicBuffer != 0) {
-            // When using a native buffer we need to lock the buffer before
-            // giving it to OMX.
-            CODEC_LOGV("Calling lockBuffer on %p", info->mBuffer);
-            int err = mNativeWindow->lockBuffer(mNativeWindow.get(),
-                    graphicBuffer.get());
-            if (err != 0) {
-                CODEC_LOGE("lockBuffer failed w/ error 0x%08x", err);
-
-                setState(ERROR);
-                return;
-            }
-        }
     }
 
     CODEC_LOGV("Calling fillBuffer on buffer %p", info->mBuffer);

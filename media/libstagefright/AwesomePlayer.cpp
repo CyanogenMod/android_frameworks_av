@@ -130,7 +130,7 @@ struct AwesomeNativeWindowRenderer : public AwesomeRenderer {
         CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
         native_window_set_buffers_timestamp(mNativeWindow.get(), timeUs * 1000);
         status_t err = mNativeWindow->queueBuffer(
-                mNativeWindow.get(), buffer->graphicBuffer().get());
+                mNativeWindow.get(), buffer->graphicBuffer().get(), -1);
         if (err != 0) {
             ALOGE("queueBuffer failed with error %s (%d)", strerror(-err),
                     -err);
