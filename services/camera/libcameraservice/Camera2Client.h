@@ -70,7 +70,7 @@ public:
     virtual status_t dump(int fd, const Vector<String16>& args);
 
 private:
-    enum {
+    enum State {
         NOT_INITIALIZED,
         STOPPED,
         WAITING_FOR_PREVIEW_WINDOW,
@@ -79,6 +79,8 @@ private:
         STILL_CAPTURE,
         VIDEO_SNAPSHOT
     } mState;
+
+    static const char *getStateName(State state);
 
     /** ICamera interface-related private members */
 
