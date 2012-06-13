@@ -56,19 +56,39 @@ AudioSource::AudioSource(
 
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
     CHECK(channelCount == 1 || channelCount == 2);
-    AudioRecord::record_flags flags = (AudioRecord::record_flags)
-                    (AudioRecord::RECORD_AGC_ENABLE |
-                     AudioRecord::RECORD_NS_ENABLE  |
-                     AudioRecord::RECORD_IIR_ENABLE);
-    mRecord = new AudioRecord(
-                inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
-                audio_channel_in_mask_from_count(channelCount),
-                4 * kMaxBufferSize / sizeof(int16_t), /* Enable ping-pong buffers */
-                flags,
-                AudioRecordCallbackFunction,
-                this);
 
-    mInitCheck = mRecord->initCheck();
+    int minFrameCount;
+    status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
+                                           sampleRate,
+                                           AUDIO_FORMAT_PCM_16_BIT,
+                                           channelCount);
+    if (status == OK) {
+        // make sure that the AudioRecord callback never returns more than the maximum
+        // buffer size
+        int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
+
+        // make sure that the AudioRecord total buffer size is large enough
+        int bufCount = 2;
+        while ((bufCount * frameCount) < minFrameCount) {
+            bufCount++;
+        }
+
+        AudioRecord::record_flags flags = (AudioRecord::record_flags)
+                        (AudioRecord::RECORD_AGC_ENABLE |
+                         AudioRecord::RECORD_NS_ENABLE  |
+                         AudioRecord::RECORD_IIR_ENABLE);
+        mRecord = new AudioRecord(
+                    inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
+                    audio_channel_in_mask_from_count(channelCount),
+                    bufCount * frameCount,
+                    flags,
+                    AudioRecordCallbackFunction,
+                    this,
+                    frameCount);
+        mInitCheck = mRecord->initCheck();
+    } else {
+        mInitCheck = status;
+    }
 }
 
 AudioSource::~AudioSource() {
