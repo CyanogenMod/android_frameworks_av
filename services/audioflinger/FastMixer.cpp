@@ -33,6 +33,7 @@
 
 #define FAST_HOT_IDLE_NS     1000000L   // 1 ms: time to sleep while hot idling
 #define FAST_DEFAULT_NS    999999999L   // ~1 sec: default time to sleep
+#define MIN_WARMUP_CYCLES          2    // minimum number of loop cycles to wait for warmup
 #define MAX_WARMUP_CYCLES         10    // maximum number of loop cycles to wait for warmup
 
 namespace android {
@@ -454,7 +455,7 @@ bool FastMixer::threadLoop()
                 // To avoid an initial underrun on fast tracks after exiting standby,
                 // do not start pulling data from tracks and mixing until warmup is complete.
                 // Warmup is considered complete after the earlier of:
-                //      first successful single write() that blocks for more than warmupNs
+                //      MIN_WARMUP_CYCLES write() attempts and last one blocks for at least warmupNs
                 //      MAX_WARMUP_CYCLES write() attempts.
                 // This is overly conservative, but to get better accuracy requires a new HAL API.
                 if (!isWarm && attemptedWrite) {
@@ -465,7 +466,7 @@ bool FastMixer::threadLoop()
                         measuredWarmupTs.tv_nsec -= 1000000000;
                     }
                     ++warmupCycles;
-                    if ((attemptedWrite && nsec > warmupNs) ||
+                    if ((nsec > warmupNs && warmupCycles >= MIN_WARMUP_CYCLES) ||
                             (warmupCycles >= MAX_WARMUP_CYCLES)) {
                         isWarm = true;
                         dumpState->mMeasuredWarmupTs = measuredWarmupTs;
@@ -504,6 +505,7 @@ bool FastMixer::threadLoop()
                 }
               }
 #ifdef FAST_MIXER_STATISTICS
+              if (isWarm) {
                 // advance the FIFO queue bounds
                 size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
                 bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
@@ -560,6 +562,7 @@ bool FastMixer::threadLoop()
                 ATRACE_INT("cycle_ms", monotonicNs / 1000000);
                 ATRACE_INT("load_us", loadNs / 1000);
 #endif
+              }
 #endif
             } else {
                 // first time through the loop
