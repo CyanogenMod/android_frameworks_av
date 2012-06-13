@@ -2120,7 +2120,13 @@ status_t AwesomePlayer::finishSetDataSource_l() {
         String8 mimeType;
         float confidence;
         sp<AMessage> dummy;
-        bool success = SniffWVM(dataSource, &mimeType, &confidence, &dummy);
+        bool success;
+
+        // SniffWVM is potentially blocking since it may require network access.
+        // Do not call it with mLock held.
+        mLock.unlock();
+        success = SniffWVM(dataSource, &mimeType, &confidence, &dummy);
+        mLock.lock();
 
         if (!success
                 || strcasecmp(
