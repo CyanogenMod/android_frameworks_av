@@ -588,6 +588,10 @@ FastMixerDumpState::~FastMixerDumpState()
 
 void FastMixerDumpState::dump(int fd)
 {
+    if (mCommand == FastMixerState::INITIAL) {
+        fdprintf(fd, "FastMixer not initialized\n");
+        return;
+    }
 #define COMMAND_MAX 32
     char string[COMMAND_MAX];
     switch (mCommand) {
