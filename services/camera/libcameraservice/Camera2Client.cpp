@@ -94,6 +94,8 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
 Camera2Client::~Camera2Client() {
     ATRACE_CALL();
+    ALOGV("%s: Camera %d: Shutting down", __FUNCTION__, mCameraId);
+
     mDestructionStarted = true;
 
     disconnect();
@@ -109,17 +111,9 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     result.append("  State: ");
 #define CASE_APPEND_ENUM(x) case x: result.append(#x "\n"); break;
 
-    switch (mState) {
-        CASE_APPEND_ENUM(NOT_INITIALIZED)
-        CASE_APPEND_ENUM(STOPPED)
-        CASE_APPEND_ENUM(WAITING_FOR_PREVIEW_WINDOW)
-        CASE_APPEND_ENUM(PREVIEW)
-        CASE_APPEND_ENUM(RECORD)
-        CASE_APPEND_ENUM(STILL_CAPTURE)
-        default: result.append("UNKNOWN\n"); break;
-    }
+    result.append(getStateName(mState));
 
-    result.append("  Current parameters:\n");
+    result.append("\n  Current parameters:\n");
     result.appendFormat("    Preview size: %d x %d\n",
             mParameters.previewWidth, mParameters.previewHeight);
     result.appendFormat("    Preview FPS range: %d - %d\n",
@@ -272,6 +266,23 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     return NO_ERROR;
 }
 
+const char* Camera2Client::getStateName(State state) {
+#define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
+    switch(state) {
+        CASE_ENUM_TO_CHAR(NOT_INITIALIZED)
+        CASE_ENUM_TO_CHAR(STOPPED)
+        CASE_ENUM_TO_CHAR(WAITING_FOR_PREVIEW_WINDOW)
+        CASE_ENUM_TO_CHAR(PREVIEW)
+        CASE_ENUM_TO_CHAR(RECORD)
+        CASE_ENUM_TO_CHAR(STILL_CAPTURE)
+        CASE_ENUM_TO_CHAR(VIDEO_SNAPSHOT)
+        default:
+            return "Unknown state!";
+            break;
+    }
+#undef CASE_ENUM_TO_CHAR
+}
+
 // ICamera interface
 
 void Camera2Client::disconnect() {
@@ -399,7 +410,11 @@ status_t Camera2Client::startPreview() {
 status_t Camera2Client::startPreviewLocked() {
     ATRACE_CALL();
     status_t res;
-    if (mState >= PREVIEW) return INVALID_OPERATION;
+    if (mState >= PREVIEW) {
+        ALOGE("%s: Can't start preview in state %s",
+                __FUNCTION__, getStateName(mState));
+        return INVALID_OPERATION;
+    }
 
     if (mPreviewStreamId == NO_STREAM) {
         mState = WAITING_FOR_PREVIEW_WINDOW;
@@ -549,9 +564,19 @@ status_t Camera2Client::takePicture(int msgType) {
     Mutex::Autolock pl(mParamsLock);
 
     res = updateCaptureStream();
+    if (res != OK) {
+        ALOGE("%s: Can't set up still image stream: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
 
     if (mCaptureRequest == NULL) {
-        updateCaptureRequest();
+        res = updateCaptureRequest();
+        if (res != OK) {
+            ALOGE("%s: Can't set up still image capture request: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+            return res;
+        }
     }
 
     // TODO: For video snapshot, need 3 streams here

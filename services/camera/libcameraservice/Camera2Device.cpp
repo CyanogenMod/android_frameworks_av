@@ -174,11 +174,16 @@ status_t Camera2Device::getStreamInfo(int id,
 
 status_t Camera2Device::deleteStream(int id) {
     ALOGV("%s: E", __FUNCTION__);
-
     bool found = false;
     for (StreamList::iterator streamI = mStreams.begin();
          streamI != mStreams.end(); streamI++) {
         if ((*streamI)->getId() == id) {
+            status_t res = (*streamI)->disconnect();
+            if (res != OK) {
+                ALOGE("%s: Unable to disconnect stream %d from HAL device: "
+                        "%s (%d)", __FUNCTION__, id, strerror(-res), res);
+                return res;
+            }
             mStreams.erase(streamI);
             found = true;
             break;
