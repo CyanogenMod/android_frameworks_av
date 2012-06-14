@@ -65,6 +65,7 @@ bool FastMixer::threadLoop()
     long periodNs = 0;      // expected period; the time required to render one mix buffer
     long underrunNs = 0;    // underrun likely when write cycle is greater than this value
     long overrunNs = 0;     // overrun likely when write cycle is less than this value
+    long forceNs = 0;       // if overrun detected, force the write cycle to take this much time
     long warmupNs = 0;      // warmup complete when write cycle is greater than to this value
     FastMixerDumpState dummyDumpState, *dumpState = &dummyDumpState;
     bool ignoreNextOverrun = true;  // used to ignore initial overrun and first after an underrun
@@ -221,11 +222,14 @@ bool FastMixer::threadLoop()
                     periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
                     underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
                     overrunNs = (frameCount * 250000000LL) / sampleRate;    // 0.25
+                    forceNs = (frameCount * 750000000LL) / sampleRate;      // 0.75
                     warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
                 } else {
                     periodNs = 0;
                     underrunNs = 0;
                     overrunNs = 0;
+                    forceNs = 0;
+                    warmupNs = 0;
                 }
                 mixBufferState = UNDEFINED;
 #if !LOG_NDEBUG
@@ -468,6 +472,8 @@ bool FastMixer::threadLoop()
                         dumpState->mWarmupCycles = warmupCycles;
                     }
                 }
+                sleepNs = -1;
+              if (isWarm) {
                 if (sec > 0 || nsec > underrunNs) {
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
                     ScopedTrace st(ATRACE_TAG, "underrun");
@@ -476,7 +482,6 @@ bool FastMixer::threadLoop()
                     ALOGV("underrun: time since last cycle %d.%03ld sec",
                             (int) sec, nsec / 1000000L);
                     dumpState->mUnderruns++;
-                    sleepNs = -1;
                     ignoreNextOverrun = true;
                 } else if (nsec < overrunNs) {
                     if (ignoreNextOverrun) {
@@ -487,14 +492,17 @@ bool FastMixer::threadLoop()
                                 (int) sec, nsec / 1000000L);
                         dumpState->mOverruns++;
                     }
-                    // Code for non blocking audio HAL. Sleep time must be tuned to allow
-                    // catching up after an underrun
-                    //     sleepNs = periodNs - overrunNs;
-                    sleepNs = -1;
+                    // This forces a minimum cycle time. It:
+                    //   - compensates for an audio HAL with jitter due to sample rate conversion
+                    //   - works with a variable buffer depth audio HAL that never pulls at a rate
+                    //     < than overrunNs per buffer.
+                    //   - recovers from overrun immediately after underrun
+                    // It doesn't work with a non-blocking audio HAL.
+                    sleepNs = forceNs - nsec;
                 } else {
-                    sleepNs = -1;
                     ignoreNextOverrun = false;
                 }
+              }
 #ifdef FAST_MIXER_STATISTICS
                 // advance the FIFO queue bounds
                 size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
