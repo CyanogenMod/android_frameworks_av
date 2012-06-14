@@ -1921,6 +1921,14 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
         goto error;
     }
 
+    err = native_window_set_scaling_mode(mNativeWindow.get(),
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (err != OK) {
+        ALOGE("error pushing blank frames: set_scaling_mode failed: %s (%d)",
+                strerror(-err), -err);
+        goto error;
+    }
+
     err = mNativeWindow->query(mNativeWindow.get(),
             NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBufs);
     if (err != NO_ERROR) {
