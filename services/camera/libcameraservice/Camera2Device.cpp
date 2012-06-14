@@ -111,8 +111,15 @@ camera_metadata_t *Camera2Device::info() {
     return mDeviceInfo;
 }
 
-status_t Camera2Device::setStreamingRequest(camera_metadata_t* request)
-{
+status_t Camera2Device::capture(camera_metadata_t* request) {
+    ALOGV("%s: E", __FUNCTION__);
+
+    mRequestQueue.enqueue(request);
+    return OK;
+}
+
+
+status_t Camera2Device::setStreamingRequest(camera_metadata_t* request) {
     ALOGV("%s: E", __FUNCTION__);
 
     mRequestQueue.setStreamSlot(request);
@@ -120,13 +127,13 @@ status_t Camera2Device::setStreamingRequest(camera_metadata_t* request)
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format, int *id) {
+        uint32_t width, uint32_t height, int format, size_t size, int *id) {
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
     sp<StreamAdapter> stream = new StreamAdapter(mDevice);
 
-    res = stream->connectToDevice(consumer, width, height, format);
+    res = stream->connectToDevice(consumer, width, height, format, size);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to create stream (%d x %d, format %x):"
                 "%s (%d)",
@@ -137,6 +144,31 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
     *id = stream->getId();
 
     mStreams.push_back(stream);
+    return OK;
+}
+
+status_t Camera2Device::getStreamInfo(int id,
+        uint32_t *width, uint32_t *height, uint32_t *format) {
+    ALOGV("%s: E", __FUNCTION__);
+    bool found = false;
+    StreamList::iterator streamI;
+    for (streamI = mStreams.begin();
+         streamI != mStreams.end(); streamI++) {
+        if ((*streamI)->getId() == id) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Stream %d does not exist",
+                __FUNCTION__, mId, id);
+        return BAD_VALUE;
+    }
+
+    if (width) *width = (*streamI)->getWidth();
+    if (height) *height = (*streamI)->getHeight();
+    if (format) *format = (*streamI)->getFormat();
+
     return OK;
 }
 
@@ -163,7 +195,29 @@ status_t Camera2Device::deleteStream(int id) {
 status_t Camera2Device::createDefaultRequest(int templateId,
         camera_metadata_t **request) {
     ALOGV("%s: E", __FUNCTION__);
-    return mDevice->ops->construct_default_request(mDevice, templateId, request);
+    return mDevice->ops->construct_default_request(
+        mDevice, templateId, request);
+}
+
+status_t Camera2Device::waitUntilDrained() {
+    static const uint32_t kSleepTime = 50000; // 50 ms
+    static const uint32_t kMaxSleepTime = 10000000; // 10 s
+
+    if (mRequestQueue.getBufferCount() ==
+            CAMERA2_REQUEST_QUEUE_IS_BOTTOMLESS) return INVALID_OPERATION;
+
+    // TODO: Set up notifications from HAL, instead of sleeping here
+    uint32_t totalTime = 0;
+    while (mDevice->ops->get_in_progress_count(mDevice) > 0) {
+        usleep(kSleepTime);
+        totalTime += kSleepTime;
+        if (totalTime > kMaxSleepTime) {
+            ALOGE("%s: Waited %d us, requests still in flight", __FUNCTION__,
+                    totalTime);
+            return TIMED_OUT;
+        }
+    }
+    return OK;
 }
 
 /**
@@ -463,8 +517,9 @@ Camera2Device::StreamAdapter::~StreamAdapter() {
     disconnect();
 }
 
-status_t Camera2Device::StreamAdapter::connectToDevice(sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format) {
+status_t Camera2Device::StreamAdapter::connectToDevice(
+        sp<ANativeWindow> consumer,
+        uint32_t width, uint32_t height, int format, size_t size) {
     status_t res;
 
     if (mState != DISCONNECTED) return INVALID_OPERATION;
@@ -476,6 +531,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(sp<ANativeWindow> consume
     mConsumerInterface = consumer;
     mWidth = width;
     mHeight = height;
+    mSize = (format == HAL_PIXEL_FORMAT_BLOB) ? size : 0;
     mFormatRequested = format;
 
     // Allocate device-side stream interface
@@ -534,13 +590,24 @@ status_t Camera2Device::StreamAdapter::connectToDevice(sp<ANativeWindow> consume
         return res;
     }
 
-    res = native_window_set_buffers_geometry(mConsumerInterface.get(),
-            mWidth, mHeight, mFormat);
-    if (res != OK) {
-        ALOGE("%s: Unable to configure stream buffer geometry"
-                " %d x %d, format 0x%x for stream %d",
-                __FUNCTION__, mWidth, mHeight, mFormat, mId);
-        return res;
+    if (mFormat == HAL_PIXEL_FORMAT_BLOB) {
+        res = native_window_set_buffers_geometry(mConsumerInterface.get(),
+                mSize, 1, mFormat);
+        if (res != OK) {
+            ALOGE("%s: Unable to configure compressed stream buffer geometry"
+                    " %d x %d, size %d for stream %d",
+                    __FUNCTION__, mWidth, mHeight, mSize, mId);
+            return res;
+        }
+    } else {
+        res = native_window_set_buffers_geometry(mConsumerInterface.get(),
+                mWidth, mHeight, mFormat);
+        if (res != OK) {
+            ALOGE("%s: Unable to configure stream buffer geometry"
+                    " %d x %d, format 0x%x for stream %d",
+                    __FUNCTION__, mWidth, mHeight, mFormat, mId);
+            return res;
+        }
     }
 
     int maxConsumerBuffers;
@@ -639,10 +706,6 @@ status_t Camera2Device::StreamAdapter::disconnect() {
     mId = -1;
     mState = DISCONNECTED;
     return OK;
-}
-
-int Camera2Device::StreamAdapter::getId() {
-    return mId;
 }
 
 const camera2_stream_ops *Camera2Device::StreamAdapter::getStreamOps() {

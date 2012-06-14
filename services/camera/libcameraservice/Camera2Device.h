@@ -37,16 +37,57 @@ class Camera2Device : public virtual RefBase {
 
     camera_metadata_t* info();
 
-    status_t setStreamingRequest(camera_metadata_t* request);
+    /**
+     * Submit request for capture. The Camera2Device takes ownership of the
+     * passed-in buffer.
+     */
+    status_t capture(camera_metadata_t *request);
 
+    /**
+     * Submit request for streaming. The Camera2Device makes a copy of the
+     * passed-in buffer and the caller retains ownership.
+     */
+    status_t setStreamingRequest(camera_metadata_t *request);
+
+    /**
+     * Create an output stream of the requested size and format.
+     *
+     * If format is CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, then the HAL device selects
+     * an appropriate format; it can be queried with getStreamInfo.
+     *
+     * If format is HAL_PIXEL_FORMAT_COMPRESSED, the size parameter must be
+     * equal to the size in bytes of the buffers to allocate for the stream. For
+     * other formats, the size parameter is ignored.
+     */
     status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format,
+            uint32_t width, uint32_t height, int format, size_t size,
             int *id);
 
+    /**
+     * Get information about a given stream.
+     */
+    status_t getStreamInfo(int id,
+            uint32_t *width, uint32_t *height, uint32_t *format);
+
+    /**
+     * Delete stream. Must not be called if there are requests in flight which
+     * reference that stream.
+     */
     status_t deleteStream(int id);
 
+    /**
+     * Create a metadata buffer with fields that the HAL device believes are
+     * best for the given use case
+     */
     status_t createDefaultRequest(int templateId,
             camera_metadata_t **request);
+
+    /**
+     * Wait until all requests have been processed. Returns INVALID_OPERATION if
+     * the streaming slot is not empty, or TIMED_OUT if the requests haven't
+     * finished processing in 10 seconds.
+     */
+    status_t waitUntilDrained();
 
   private:
 
@@ -150,13 +191,27 @@ class Camera2Device : public virtual RefBase {
 
         ~StreamAdapter();
 
+        /**
+         * Create a HAL device stream of the requested size and format.
+         *
+         * If format is CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, then the HAL device
+         * selects an appropriate format; it can be queried with getFormat.
+         *
+         * If format is HAL_PIXEL_FORMAT_COMPRESSED, the size parameter must
+         * be equal to the size in bytes of the buffers to allocate for the
+         * stream. For other formats, the size parameter is ignored.
+         */
         status_t connectToDevice(sp<ANativeWindow> consumer,
-                uint32_t width, uint32_t height, int format);
+                uint32_t width, uint32_t height, int format, size_t size);
 
         status_t disconnect();
 
-        // Get stream ID. Only valid after a successful connectToDevice call.
-        int      getId();
+        // Get stream parameters.
+        // Only valid after a successful connectToDevice call.
+        int      getId() const     { return mId; }
+        uint32_t getWidth() const  { return mWidth; }
+        uint32_t getHeight() const { return mHeight; }
+        uint32_t getFormat() const { return mFormat; }
 
       private:
         enum {
@@ -174,6 +229,7 @@ class Camera2Device : public virtual RefBase {
         uint32_t mWidth;
         uint32_t mHeight;
         uint32_t mFormat;
+        size_t   mSize;
         uint32_t mUsage;
         uint32_t mMaxProducerBuffers;
         uint32_t mMaxConsumerBuffers;
