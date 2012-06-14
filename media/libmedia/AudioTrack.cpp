@@ -491,6 +491,7 @@ void AudioTrack::pause()
     AutoMutex lock(mLock);
     if (mActive) {
         mActive = false;
+        mCblk->cv.signal();
         mAudioTrack->pause();
     }
 }
