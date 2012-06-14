@@ -93,7 +93,13 @@ sp<VBRISeeker> VBRISeeker::CreateFromSource(
 
     sp<VBRISeeker> seeker = new VBRISeeker;
     seeker->mBasePos = post_id3_pos + frameSize;
-    seeker->mDurationUs = durationUs;
+    // only update mDurationUs if the calculated duration is valid (non zero)
+    // otherwise, leave duration at -1 so that getDuration() and getOffsetForTime()
+    // return false when called, to indicate that this vbri tag does not have the
+    // requested information
+    if (durationUs) {
+        seeker->mDurationUs = durationUs;
+    }
 
     off64_t offset = post_id3_pos;
     for (size_t i = 0; i < numEntries; ++i) {
