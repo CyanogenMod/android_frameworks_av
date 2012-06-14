@@ -97,9 +97,7 @@ public:
 
                 // read-only for client, server writes once at initialization and is then read-only
                 uint8_t     frameSize;       // would normally be size_t, but 8 bits is plenty
-
-                // never used
-                uint8_t     pad1;
+                uint8_t     mName;           // normal tracks: track name, fast tracks: track index
 
                 // used by client only
                 uint16_t    bufferTimeoutMs; // Maximum cumulated timeout before restarting audioflinger

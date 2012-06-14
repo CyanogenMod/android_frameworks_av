@@ -987,8 +987,8 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                     // timing out when a loop has been set and we have already written upto loop end
                     // is a normal condition: no need to wake AudioFlinger up.
                     if (cblk->user < cblk->loopEnd) {
-                        ALOGW(   "obtainBuffer timed out (is the CPU pegged?) %p "
-                                "user=%08x, server=%08x", this, cblk->user, cblk->server);
+                        ALOGW(   "obtainBuffer timed out (is the CPU pegged?) %p name=%#x"
+                                "user=%08x, server=%08x", this, cblk->mName, cblk->user, cblk->server);
                         //unlock cblk mutex before calling mAudioTrack->start() (see issue #1617140)
                         cblk->lock.unlock();
                         result = mAudioTrack->start();
@@ -1054,7 +1054,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
         // restart track if it was disabled by audioflinger due to previous underrun
         if (mActive && (mCblk->flags & CBLK_DISABLED_MSK)) {
             android_atomic_and(~CBLK_DISABLED_ON, &mCblk->flags);
-            ALOGW("releaseBuffer() track %p disabled, restarting", this);
+            ALOGW("releaseBuffer() track %p name=%#x disabled, restarting", this, mCblk->mName);
             mAudioTrack->start();
         }
     }
