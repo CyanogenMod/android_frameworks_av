@@ -104,7 +104,7 @@ Camera2Client::~Camera2Client() {
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
-    result.appendFormat("Client2[%d] (%p) PID: %d:\n",
+    result.appendFormat("Client2[%d] (%p) PID: %d, dump:\n",
             mCameraId,
             getCameraClient()->asBinder().get(),
             mClientPid);
@@ -248,19 +248,48 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
                 mParameters.meteringAreas[i].weight);
     }
 
-    result.appendFormat("   Zoom index: %d\n", mParameters.zoom);
-    result.appendFormat("   Video size: %d x %d\n", mParameters.videoWidth,
+    result.appendFormat("    Zoom index: %d\n", mParameters.zoom);
+    result.appendFormat("    Video size: %d x %d\n", mParameters.videoWidth,
             mParameters.videoHeight);
 
-    result.appendFormat("   Recording hint is %s\n",
+    result.appendFormat("    Recording hint is %s\n",
             mParameters.recordingHint ? "set" : "not set");
 
-    result.appendFormat("   Video stabilization is %s\n",
+    result.appendFormat("    Video stabilization is %s\n",
             mParameters.videoStabilization ? "enabled" : "disabled");
 
+    result.append("  Current streams:\n");
+    result.appendFormat("    Preview stream ID: %d\n", mPreviewStreamId);
+    result.appendFormat("    Capture stream ID: %d\n", mCaptureStreamId);
+
+    result.append("  Current requests:\n");
+    if (mPreviewRequest != NULL) {
+        result.append("    Preview request:\n");
+        write(fd, result.string(), result.size());
+        dump_camera_metadata(mPreviewRequest, fd, 2);
+    } else {
+        result.append("    Preview request: undefined\n");
+        write(fd, result.string(), result.size());
+    }
+
+    if (mCaptureRequest != NULL) {
+        result = "    Capture request:\n";
+        write(fd, result.string(), result.size());
+        dump_camera_metadata(mCaptureRequest, fd, 2);
+    } else {
+        result = "    Capture request: undefined\n";
+        write(fd, result.string(), result.size());
+    }
+
+    result = "  Device dump:\n";
     write(fd, result.string(), result.size());
 
-    // TODO: Dump Camera2Device
+    status_t res = mDevice->dump(fd, args);
+    if (res != OK) {
+        result = String8::format("   Error dumping device: %s (%d)",
+                strerror(-res), res);
+        write(fd, result.string(), result.size());
+    }
 
 #undef CASE_APPEND_ENUM
     return NO_ERROR;

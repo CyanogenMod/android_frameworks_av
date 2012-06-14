@@ -17,12 +17,15 @@
 #ifndef ANDROID_SERVERS_CAMERA_CAMERA2DEVICE_H
 #define ANDROID_SERVERS_CAMERA_CAMERA2DEVICE_H
 
-#include <utils/RefBase.h>
-#include <utils/List.h>
-#include <utils/Vector.h>
-#include <utils/Mutex.h>
 #include <utils/Condition.h>
 #include <utils/Errors.h>
+#include <utils/List.h>
+#include <utils/Mutex.h>
+#include <utils/RefBase.h>
+#include <utils/String8.h>
+#include <utils/String16.h>
+#include <utils/Vector.h>
+
 #include "hardware/camera2.h"
 
 namespace android {
@@ -35,6 +38,11 @@ class Camera2Device : public virtual RefBase {
 
     status_t initialize(camera_module_t *module);
 
+    status_t dump(int fd, const Vector<String16>& args);
+
+    /**
+     * Get a pointer to the device's static characteristics metadata buffer
+     */
     camera_metadata_t* info();
 
     /**
@@ -133,6 +141,8 @@ class Camera2Device : public virtual RefBase {
         status_t setStreamSlot(camera_metadata_t *buf);
         status_t setStreamSlot(const List<camera_metadata_t*> &bufs);
 
+        status_t dump(int fd, const Vector<String16>& args);
+
       private:
         status_t signalConsumerLocked();
         status_t freeBuffers(List<camera_metadata_t*>::iterator start,
@@ -213,6 +223,9 @@ class Camera2Device : public virtual RefBase {
         uint32_t getHeight() const { return mHeight; }
         uint32_t getFormat() const { return mFormat; }
 
+        // Dump stream information
+        status_t dump(int fd, const Vector<String16>& args);
+
       private:
         enum {
             ERROR = -1,
@@ -233,8 +246,13 @@ class Camera2Device : public virtual RefBase {
         uint32_t mUsage;
         uint32_t mMaxProducerBuffers;
         uint32_t mMaxConsumerBuffers;
-
+        uint32_t mTotalBuffers;
         int mFormatRequested;
+
+        /** Debugging information */
+        uint32_t mActiveBuffers;
+        uint32_t mFrameCount;
+        int64_t  mLastTimestamp;
 
         const camera2_stream_ops *getStreamOps();
 

@@ -105,6 +105,39 @@ status_t Camera2Device::initialize(camera_module_t *module)
     return OK;
 }
 
+status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
+
+    String8 result;
+
+    result.appendFormat("  Camera2Device[%d] dump:\n", mId);
+
+    result.appendFormat("    Static camera information metadata:\n");
+    write(fd, result.string(), result.size());
+    dump_camera_metadata(mDeviceInfo, fd, 2);
+
+    result = "    Request queue contents:\n";
+    write(fd, result.string(), result.size());
+    mRequestQueue.dump(fd, args);
+
+    result = "    Frame queue contents:\n";
+    write(fd, result.string(), result.size());
+    mFrameQueue.dump(fd, args);
+
+    result = "    Active streams:\n";
+    write(fd, result.string(), result.size());
+    for (StreamList::iterator s = mStreams.begin(); s != mStreams.end(); s++) {
+        (*s)->dump(fd, args);
+    }
+
+    result = "    HAL device dump:\n";
+    write(fd, result.string(), result.size());
+
+    status_t res;
+    res = mDevice->ops->dump(mDevice, fd);
+
+    return res;
+}
+
 camera_metadata_t *Camera2Device::info() {
     ALOGV("%s: E", __FUNCTION__);
 
@@ -406,6 +439,53 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(
     return signalConsumerLocked();
 }
 
+status_t Camera2Device::MetadataQueue::dump(int fd,
+        const Vector<String16>& args) {
+    String8 result;
+    status_t notLocked;
+    notLocked = mMutex.tryLock();
+    if (notLocked) {
+        result.append("    (Unable to lock queue mutex)\n");
+    }
+    result.appendFormat("      Current frame number: %d\n", mFrameCount);
+    if (mStreamSlotCount == 0) {
+        result.append("      Stream slot: Empty\n");
+        write(fd, result.string(), result.size());
+    } else {
+        result.appendFormat("      Stream slot: %d entries\n",
+                mStreamSlot.size());
+        int i = 0;
+        for (List<camera_metadata_t*>::iterator r = mStreamSlot.begin();
+             r != mStreamSlot.end(); r++) {
+            result = String8::format("       Stream slot buffer %d:\n", i);
+            write(fd, result.string(), result.size());
+            dump_camera_metadata(*r, fd, 2);
+            i++;
+        }
+    }
+    if (mEntries.size() == 0) {
+        result = "      Main queue is empty\n";
+        write(fd, result.string(), result.size());
+    } else {
+        result = String8::format("      Main queue has %d entries:\n",
+                mEntries.size());
+        int i = 0;
+        for (List<camera_metadata_t*>::iterator r = mEntries.begin();
+             r != mEntries.end(); r++) {
+            result = String8::format("       Queue entry %d:\n", i);
+            write(fd, result.string(), result.size());
+            dump_camera_metadata(*r, fd, 2);
+            i++;
+        }
+    }
+
+    if (notLocked == 0) {
+        mMutex.unlock();
+    }
+
+    return OK;
+}
+
 status_t Camera2Device::MetadataQueue::signalConsumerLocked() {
     status_t res = OK;
     notEmpty.signal();
@@ -510,7 +590,13 @@ Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
         mState(DISCONNECTED),
         mDevice(d),
         mId(-1),
-        mWidth(0), mHeight(0), mFormatRequested(0)
+        mWidth(0), mHeight(0), mFormat(0), mSize(0), mUsage(0),
+        mMaxProducerBuffers(0), mMaxConsumerBuffers(0),
+        mTotalBuffers(0),
+        mFormatRequested(0),
+        mActiveBuffers(0),
+        mFrameCount(0),
+        mLastTimestamp(0)
 {
     camera2_stream_ops::dequeue_buffer = dequeue_buffer;
     camera2_stream_ops::enqueue_buffer = enqueue_buffer;
@@ -628,10 +714,13 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     ALOGV("%s: Producer wants %d buffers, consumer wants %d", __FUNCTION__,
             mMaxProducerBuffers, mMaxConsumerBuffers);
 
-    int totalBuffers = mMaxConsumerBuffers + mMaxProducerBuffers;
+    mTotalBuffers = mMaxConsumerBuffers + mMaxProducerBuffers;
+    mActiveBuffers = 0;
+    mFrameCount = 0;
+    mLastTimestamp = 0;
 
     res = native_window_set_buffer_count(mConsumerInterface.get(),
-            totalBuffers);
+            mTotalBuffers);
     if (res != OK) {
         ALOGE("%s: Unable to set buffer count for stream %d",
                 __FUNCTION__, mId);
@@ -639,10 +728,10 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
 
     // Register allocated buffers with HAL device
-    buffer_handle_t *buffers = new buffer_handle_t[totalBuffers];
-    ANativeWindowBuffer **anwBuffers = new ANativeWindowBuffer*[totalBuffers];
-    int bufferIdx = 0;
-    for (; bufferIdx < totalBuffers; bufferIdx++) {
+    buffer_handle_t *buffers = new buffer_handle_t[mTotalBuffers];
+    ANativeWindowBuffer **anwBuffers = new ANativeWindowBuffer*[mTotalBuffers];
+    uint32_t bufferIdx = 0;
+    for (; bufferIdx < mTotalBuffers; bufferIdx++) {
         res = mConsumerInterface->dequeueBuffer(mConsumerInterface.get(),
                 &anwBuffers[bufferIdx]);
         if (res != OK) {
@@ -665,7 +754,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
 
     res = mDevice->ops->register_stream_buffers(mDevice,
             mId,
-            totalBuffers,
+            mTotalBuffers,
             buffers);
     if (res != OK) {
         ALOGE("%s: Unable to register buffers with HAL device for stream %d",
@@ -675,7 +764,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
 
 cleanUpBuffers:
-    for (int i = 0; i < bufferIdx; i++) {
+    for (uint32_t i = 0; i < bufferIdx; i++) {
         res = mConsumerInterface->cancelBuffer(mConsumerInterface.get(),
                 anwBuffers[i]);
         if (res != OK) {
@@ -683,8 +772,8 @@ cleanUpBuffers:
                     __FUNCTION__, i);
         }
     }
-    delete anwBuffers;
-    delete buffers;
+    delete[] anwBuffers;
+    delete[] buffers;
 
     return res;
 }
@@ -713,6 +802,20 @@ status_t Camera2Device::StreamAdapter::disconnect() {
     return OK;
 }
 
+status_t Camera2Device::StreamAdapter::dump(int fd,
+        const Vector<String16>& args) {
+    String8 result = String8::format("      Stream %d: %d x %d, format 0x%x\n",
+            mId, mWidth, mHeight, mFormat);
+    result.appendFormat("        size %d, usage 0x%x, requested format 0x%x\n",
+            mSize, mUsage, mFormatRequested);
+    result.appendFormat("        total buffers: %d, dequeued buffers: %d\n",
+            mTotalBuffers, mActiveBuffers);
+    result.appendFormat("        frame count: %d, last timestamp %lld\n",
+            mFrameCount, mLastTimestamp);
+    write(fd, result.string(), result.size());
+    return OK;
+}
+
 const camera2_stream_ops *Camera2Device::StreamAdapter::getStreamOps() {
     return static_cast<camera2_stream_ops *>(this);
 }
@@ -725,9 +828,10 @@ ANativeWindow* Camera2Device::StreamAdapter::toANW(
 int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
         buffer_handle_t** buffer) {
     int res;
-    int state = static_cast<const StreamAdapter*>(w)->mState;
-    if (state != ACTIVE) {
-        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+    StreamAdapter* stream =
+            const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
+    if (stream->mState != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, stream->mState);
         return INVALID_OPERATION;
     }
 
@@ -739,6 +843,8 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
     if (res != OK) return res;
 
     *buffer = &(anb->handle);
+    stream->mActiveBuffers++;
+
     ALOGV("%s: Buffer %p", __FUNCTION__, *buffer);
     return res;
 }
@@ -746,7 +852,8 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
 int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         int64_t timestamp,
         buffer_handle_t* buffer) {
-    const StreamAdapter *stream = static_cast<const StreamAdapter*>(w);
+    StreamAdapter *stream =
+            const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
     ALOGV("%s: Stream %d: Buffer %p captured at %lld ns",
             __FUNCTION__, stream->mId, buffer, timestamp);
     int state = stream->mState;
@@ -768,16 +875,21 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         ALOGE("%s: Error queueing buffer to native window: %s (%d)",
                 __FUNCTION__, strerror(-err), err);
     }
+    stream->mActiveBuffers--;
+    stream->mFrameCount++;
+    stream->mLastTimestamp = timestamp;
     return err;
 }
 
 int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
-    int state = static_cast<const StreamAdapter*>(w)->mState;
-    if (state != ACTIVE) {
-        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+    StreamAdapter *stream =
+            const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
+    if (stream->mState != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, stream->mState);
         return INVALID_OPERATION;
     }
+    stream->mActiveBuffers--;
     ANativeWindow *a = toANW(w);
     return a->cancelBuffer(a,
             container_of(buffer, ANativeWindowBuffer, handle));
