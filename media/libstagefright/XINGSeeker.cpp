@@ -29,7 +29,8 @@ XINGSeeker::XINGSeeker()
     : mDurationUs(-1),
       mSizeBytes(0),
       mEncoderDelay(0),
-      mEncoderPadding(0) {
+      mEncoderPadding(0),
+      mTOCValid(false) {
 }
 
 bool XINGSeeker::getDuration(int64_t *durationUs) {
@@ -80,10 +81,6 @@ sp<XINGSeeker> XINGSeeker::CreateFromSource(
     sp<XINGSeeker> seeker = new XINGSeeker;
 
     seeker->mFirstFramePos = first_frame_pos;
-
-    seeker->mSizeBytes = 0;
-    seeker->mTOCValid = false;
-    seeker->mDurationUs = 0;
 
     uint8_t buffer[4];
     int offset = first_frame_pos;
@@ -140,7 +137,13 @@ sp<XINGSeeker> XINGSeeker::CreateFromSource(
              return NULL;
         }
         int32_t frames = U32_AT(buffer);
-        seeker->mDurationUs = (int64_t)frames * samples_per_frame * 1000000LL / sampling_rate;
+        // only update mDurationUs if the calculated duration is valid (non zero)
+        // otherwise, leave duration at -1 so that getDuration() and getOffsetForTime()
+        // return false when called, to indicate that this xing tag does not have the
+        // requested information
+        if (frames) {
+            seeker->mDurationUs = (int64_t)frames * samples_per_frame * 1000000LL / sampling_rate;
+        }
         offset += 4;
     }
     if (flags & 0x0002) {  // Bytes field is present
