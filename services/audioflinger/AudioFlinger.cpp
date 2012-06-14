@@ -4287,6 +4287,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         mCblk->frameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) : sizeof(uint8_t);
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
         mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
+        mCblk->mName = mName;
         if (mName < 0) {
             ALOGE("no more track names available");
             return;
@@ -4302,6 +4303,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             //       this means we are potentially denying other more important fast tracks from
             //       being created.  It would be better to allocate the index dynamically.
             mFastIndex = i;
+            mCblk->mName = i;
             // Read the initial underruns because this field is never cleared by the fast mixer
             mObservedUnderruns = thread->getFastTrackUnderruns(i);
             thread->mFastTrackAvailMask &= ~(1 << i);
