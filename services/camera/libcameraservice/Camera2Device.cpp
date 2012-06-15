@@ -205,6 +205,27 @@ status_t Camera2Device::getStreamInfo(int id,
     return OK;
 }
 
+status_t Camera2Device::setStreamTransform(int id,
+        int transform) {
+    ALOGV("%s: E", __FUNCTION__);
+    bool found = false;
+    StreamList::iterator streamI;
+    for (streamI = mStreams.begin();
+         streamI != mStreams.end(); streamI++) {
+        if ((*streamI)->getId() == id) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Stream %d does not exist",
+                __FUNCTION__, mId, id);
+        return BAD_VALUE;
+    }
+
+    return (*streamI)->setTransform(transform);
+}
+
 status_t Camera2Device::deleteStream(int id) {
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
@@ -674,10 +695,8 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         return res;
     }
 
-    res = native_window_set_buffers_transform(mConsumerInterface.get(), 0);
+    res = setTransform(0);
     if (res != OK) {
-        ALOGE("%s: Unable to configure stream transform: %s (%d)",
-                __FUNCTION__, strerror(-res), res);
         return res;
     }
 
@@ -800,6 +819,21 @@ status_t Camera2Device::StreamAdapter::disconnect() {
     mId = -1;
     mState = DISCONNECTED;
     return OK;
+}
+
+status_t Camera2Device::StreamAdapter::setTransform(int transform) {
+    status_t res;
+    if (mState < CONNECTED) {
+        ALOGE("%s: Cannot set transform on unconnected stream", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    res = native_window_set_buffers_transform(mConsumerInterface.get(),
+                                              transform);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream transform to %x: %s (%d)",
+                __FUNCTION__, transform, strerror(-res), res);
+    }
+    return res;
 }
 
 status_t Camera2Device::StreamAdapter::dump(int fd,
