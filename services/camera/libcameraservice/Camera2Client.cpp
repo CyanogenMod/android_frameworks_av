@@ -117,13 +117,15 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     result.appendFormat("    Preview size: %d x %d\n",
             mParameters.previewWidth, mParameters.previewHeight);
     result.appendFormat("    Preview FPS range: %d - %d\n",
-            mParameters.previewFpsRangeMin, mParameters.previewFpsRangeMax);
+            mParameters.previewFpsRange[0], mParameters.previewFpsRange[1]);
     result.appendFormat("    Preview HAL pixel format: 0x%x\n",
             mParameters.previewFormat);
+    result.appendFormat("    Preview transform: %x\n",
+            mParameters.previewTransform);
     result.appendFormat("    Picture size: %d x %d\n",
             mParameters.pictureWidth, mParameters.pictureHeight);
     result.appendFormat("    Jpeg thumbnail size: %d x %d\n",
-            mParameters.jpegThumbWidth, mParameters.jpegThumbHeight);
+            mParameters.jpegThumbSize[0], mParameters.jpegThumbSize[1]);
     result.appendFormat("    Jpeg quality: %d, thumbnail quality: %d\n",
             mParameters.jpegQuality, mParameters.jpegThumbQuality);
     result.appendFormat("    Jpeg rotation: %d\n", mParameters.jpegRotation);
@@ -131,8 +133,8 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
             mParameters.gpsEnabled ? "enabled" : "disabled");
     if (mParameters.gpsEnabled) {
         result.appendFormat("    GPS lat x long x alt: %f x %f x %f\n",
-                mParameters.gpsLatitude, mParameters.gpsLongitude,
-                mParameters.gpsAltitude);
+                mParameters.gpsCoordinates[0], mParameters.gpsCoordinates[1],
+                mParameters.gpsCoordinates[2]);
         result.appendFormat("    GPS timestamp: %lld\n",
                 mParameters.gpsTimestamp);
         result.appendFormat("    GPS processing method: %s\n",
@@ -712,28 +714,29 @@ status_t Camera2Client::setParameters(const String8& params) {
     }
 
     // PREVIEW_FPS_RANGE
-    int previewFpsRangeMin, previewFpsRangeMax, previewFps = 0;
+    int previewFpsRange[2];
+    int previewFps = 0;
     bool fpsRangeChanged = false;
-    newParams.getPreviewFpsRange(&previewFpsRangeMin, &previewFpsRangeMax);
-    if (previewFpsRangeMin != mParameters.previewFpsRangeMin ||
-            previewFpsRangeMax != mParameters.previewFpsRangeMax) {
+    newParams.getPreviewFpsRange(&previewFpsRange[0], &previewFpsRange[1]);
+    if (previewFpsRange[0] != mParameters.previewFpsRange[0] ||
+            previewFpsRange[1] != mParameters.previewFpsRange[1]) {
         fpsRangeChanged = true;
         camera_metadata_entry_t availablePreviewFpsRanges =
             staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
         for (i = 0; i < availablePreviewFpsRanges.count; i += 2) {
             if ((availablePreviewFpsRanges.data.i32[i] ==
-                    previewFpsRangeMin) &&
+                    previewFpsRange[0]) &&
                 (availablePreviewFpsRanges.data.i32[i+1] ==
-                    previewFpsRangeMax) ) {
+                    previewFpsRange[1]) ) {
                 break;
             }
         }
         if (i == availablePreviewFpsRanges.count) {
             ALOGE("%s: Requested preview FPS range %d - %d is not supported",
-                __FUNCTION__, previewFpsRangeMin, previewFpsRangeMax);
+                __FUNCTION__, previewFpsRange[0], previewFpsRange[1]);
             return BAD_VALUE;
         }
-        previewFps = previewFpsRangeMin;
+        previewFps = previewFpsRange[0];
     }
 
     // PREVIEW_FORMAT
@@ -772,8 +775,8 @@ status_t Camera2Client::setParameters(const String8& params) {
                         __FUNCTION__, previewFps);
                 return BAD_VALUE;
             }
-            previewFpsRangeMin = availableFrameRates.data.i32[i];
-            previewFpsRangeMax = availableFrameRates.data.i32[i+1];
+            previewFpsRange[0] = availableFrameRates.data.i32[i];
+            previewFpsRange[1] = availableFrameRates.data.i32[i+1];
         }
     }
 
@@ -796,24 +799,24 @@ status_t Camera2Client::setParameters(const String8& params) {
     }
 
     // JPEG_THUMBNAIL_WIDTH/HEIGHT
-    int jpegThumbWidth, jpegThumbHeight;
-    jpegThumbWidth =
+    int jpegThumbSize[2];
+    jpegThumbSize[0] =
             newParams.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
-    jpegThumbHeight =
+    jpegThumbSize[1] =
             newParams.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
-    if (jpegThumbWidth != mParameters.jpegThumbWidth ||
-            jpegThumbHeight != mParameters.jpegThumbHeight) {
+    if (jpegThumbSize[0] != mParameters.jpegThumbSize[0] ||
+            jpegThumbSize[1] != mParameters.jpegThumbSize[1]) {
         camera_metadata_entry_t availableJpegThumbSizes =
             staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES);
         for (i = 0; i < availableJpegThumbSizes.count; i+=2) {
-            if (availableJpegThumbSizes.data.i32[i] == jpegThumbWidth &&
-                    availableJpegThumbSizes.data.i32[i+1] == jpegThumbHeight) {
+            if (availableJpegThumbSizes.data.i32[i] == jpegThumbSize[0] &&
+                    availableJpegThumbSizes.data.i32[i+1] == jpegThumbSize[1]) {
                 break;
             }
         }
         if (i == availableJpegThumbSizes.count) {
             ALOGE("%s: Requested JPEG thumbnail size %d x %d is not supported",
-                    __FUNCTION__, jpegThumbWidth, jpegThumbHeight);
+                    __FUNCTION__, jpegThumbSize[0], jpegThumbSize[1]);
             return BAD_VALUE;
         }
     }
@@ -850,7 +853,7 @@ status_t Camera2Client::setParameters(const String8& params) {
 
     // GPS
     bool gpsEnabled = false;
-    double gpsLatitude = 0, gpsLongitude = 0, gpsAltitude = 0;
+    double gpsCoordinates[3] = {0,0,0};
     int64_t gpsTimestamp = 0;
     String8 gpsProcessingMethod;
     const char *gpsLatStr =
@@ -874,19 +877,19 @@ status_t Camera2Client::setParameters(const String8& params) {
         }
         char *endPtr;
         errno = 0;
-        gpsLatitude = strtod(gpsLatStr, &endPtr);
+        gpsCoordinates[0] = strtod(gpsLatStr, &endPtr);
         if (errno || endPtr == gpsLatStr) {
             ALOGE("%s: Malformed GPS latitude: %s", __FUNCTION__, gpsLatStr);
             return BAD_VALUE;
         }
         errno = 0;
-        gpsLongitude = strtod(gpsLongStr, &endPtr);
+        gpsCoordinates[1] = strtod(gpsLongStr, &endPtr);
         if (errno || endPtr == gpsLongStr) {
             ALOGE("%s: Malformed GPS longitude: %s", __FUNCTION__, gpsLongStr);
             return BAD_VALUE;
         }
         errno = 0;
-        gpsAltitude = strtod(gpsAltitudeStr, &endPtr);
+        gpsCoordinates[2] = strtod(gpsAltitudeStr, &endPtr);
         if (errno || endPtr == gpsAltitudeStr) {
             ALOGE("%s: Malformed GPS altitude: %s", __FUNCTION__,
                     gpsAltitudeStr);
@@ -1124,23 +1127,23 @@ status_t Camera2Client::setParameters(const String8& params) {
     /** Update internal parameters */
     mParameters.previewWidth = previewWidth;
     mParameters.previewHeight = previewHeight;
-    mParameters.previewFpsRangeMin = previewFpsRangeMin;
-    mParameters.previewFpsRangeMax = previewFpsRangeMax;
+    mParameters.previewFpsRange[0] = previewFpsRange[0];
+    mParameters.previewFpsRange[1] = previewFpsRange[1];
     mParameters.previewFps = previewFps;
     mParameters.previewFormat = previewFormat;
 
     mParameters.pictureWidth = pictureWidth;
     mParameters.pictureHeight = pictureHeight;
 
-    mParameters.jpegThumbWidth = jpegThumbWidth;
-    mParameters.jpegThumbHeight = jpegThumbHeight;
+    mParameters.jpegThumbSize[0] = jpegThumbSize[0];
+    mParameters.jpegThumbSize[1] = jpegThumbSize[1];
     mParameters.jpegQuality = jpegQuality;
     mParameters.jpegThumbQuality = jpegThumbQuality;
 
     mParameters.gpsEnabled = gpsEnabled;
-    mParameters.gpsLatitude = gpsLatitude;
-    mParameters.gpsLongitude = gpsLongitude;
-    mParameters.gpsAltitude = gpsAltitude;
+    mParameters.gpsCoordinates[0] = gpsCoordinates[0];
+    mParameters.gpsCoordinates[1] = gpsCoordinates[1];
+    mParameters.gpsCoordinates[2] = gpsCoordinates[2];
     mParameters.gpsTimestamp = gpsTimestamp;
     mParameters.gpsProcessingMethod = gpsProcessingMethod;
 
@@ -1325,13 +1328,13 @@ status_t Camera2Client::buildDefaultParameters() {
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
     if (!availableFpsRanges.count) return NO_INIT;
 
-    mParameters.previewFpsRangeMin = availableFpsRanges.data.i32[0];
-    mParameters.previewFpsRangeMax = availableFpsRanges.data.i32[1];
+    mParameters.previewFpsRange[0] = availableFpsRanges.data.i32[0];
+    mParameters.previewFpsRange[1] = availableFpsRanges.data.i32[1];
 
     params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
             String8::format("%d,%d",
-                    mParameters.previewFpsRangeMin,
-                    mParameters.previewFpsRangeMax));
+                    mParameters.previewFpsRange[0],
+                    mParameters.previewFpsRange[1]));
 
     {
         String8 supportedPreviewFpsRange;
@@ -1379,10 +1382,16 @@ status_t Camera2Client::buildDefaultParameters() {
                 supportedPreviewFormats +=
                     CameraParameters::PIXEL_FORMAT_RGB565;
                 break;
-                // Not advertizing JPEG, RAW_SENSOR, etc, for preview formats
+            case HAL_PIXEL_FORMAT_RGBA_8888:
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_RGBA8888;
+                break;
+            // Not advertizing JPEG, RAW_SENSOR, etc, for preview formats
             case HAL_PIXEL_FORMAT_RAW_SENSOR:
+            case HAL_PIXEL_FORMAT_BLOB:
                 addComma = false;
                 break;
+
             default:
                 ALOGW("%s: Camera %d: Unknown preview format: %x",
                         __FUNCTION__, mCameraId, availableFormats.data.i32[i]);
@@ -1398,7 +1407,7 @@ status_t Camera2Client::buildDefaultParameters() {
     // still have to do something sane for them
 
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
-            mParameters.previewFpsRangeMin);
+            mParameters.previewFpsRange[0]);
 
     {
         String8 supportedPreviewFrameRates;
@@ -1443,13 +1452,13 @@ status_t Camera2Client::buildDefaultParameters() {
     if (!availableJpegThumbnailSizes.count) return NO_INIT;
 
     // TODO: Pick default thumbnail size sensibly
-    mParameters.jpegThumbWidth = availableJpegThumbnailSizes.data.i32[0];
-    mParameters.jpegThumbHeight = availableJpegThumbnailSizes.data.i32[1];
+    mParameters.jpegThumbSize[0] = availableJpegThumbnailSizes.data.i32[0];
+    mParameters.jpegThumbSize[1] = availableJpegThumbnailSizes.data.i32[1];
 
     params.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH,
-            mParameters.jpegThumbWidth);
+            mParameters.jpegThumbSize[0]);
     params.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT,
-            mParameters.jpegThumbHeight);
+            mParameters.jpegThumbSize[1]);
 
     {
         String8 supportedJpegThumbSizes;
