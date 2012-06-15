@@ -16,6 +16,13 @@
 
 #define LOG_TAG "Camera2Device"
 //#define LOG_NDEBUG 0
+//#define LOG_NNDEBUG 0  // Per-frame verbose logging
+
+#ifdef LOG_NNDEBUG
+#define ALOGVV(...) ALOGV(__VA_ARGS__)
+#else
+#define ALOGVV(...) ((void)0)
+#endif
 
 #include <utils/Log.h>
 #include "Camera2Device.h"
@@ -324,7 +331,7 @@ status_t Camera2Device::MetadataQueue::setProducerDevice(camera2_device_t *d) {
 
 // Real interfaces
 status_t Camera2Device::MetadataQueue::enqueue(camera_metadata_t *buf) {
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGVV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
 
     mCount++;
@@ -344,18 +351,18 @@ int Camera2Device::MetadataQueue::getBufferCount() {
 status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
         bool incrementCount)
 {
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGVV("%s: E", __FUNCTION__);
     status_t res;
     Mutex::Autolock l(mMutex);
 
     if (mCount == 0) {
         if (mStreamSlotCount == 0) {
-            ALOGV("%s: Empty", __FUNCTION__);
+            ALOGVV("%s: Empty", __FUNCTION__);
             *buf = NULL;
             mSignalConsumer = true;
             return OK;
         }
-        ALOGV("%s: Streaming %d frames to queue", __FUNCTION__,
+        ALOGVV("%s: Streaming %d frames to queue", __FUNCTION__,
               mStreamSlotCount);
 
         for (List<camera_metadata_t*>::iterator slotEntry = mStreamSlot.begin();
@@ -371,7 +378,7 @@ status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
         }
         mCount = mStreamSlotCount;
     }
-    ALOGV("MetadataQueue: deque (%d buffers)", mCount);
+    ALOGVV("MetadataQueue: deque (%d buffers)", mCount);
     camera_metadata_t *b = *(mEntries.begin());
     mEntries.erase(mEntries.begin());
 
@@ -879,7 +886,7 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
     *buffer = &(anb->handle);
     stream->mActiveBuffers++;
 
-    ALOGV("%s: Buffer %p", __FUNCTION__, *buffer);
+    ALOGVV("%s: Buffer %p", __FUNCTION__, *buffer);
     return res;
 }
 
@@ -888,7 +895,7 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
-    ALOGV("%s: Stream %d: Buffer %p captured at %lld ns",
+    ALOGVV("%s: Stream %d: Buffer %p captured at %lld ns",
             __FUNCTION__, stream->mId, buffer, timestamp);
     int state = stream->mState;
     if (state != ACTIVE) {
