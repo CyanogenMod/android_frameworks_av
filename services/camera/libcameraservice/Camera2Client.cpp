@@ -394,7 +394,7 @@ status_t Camera2Client::setPreviewTexture(
 }
 
 status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
-        const sp<ANativeWindow>& window) {
+        sp<ANativeWindow> window) {
     ATRACE_CALL();
     status_t res;
 
@@ -402,23 +402,24 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
         return NO_ERROR;
     }
 
-    // TODO: Should wait until HAL has no remaining requests
-
     if (mPreviewStreamId != NO_STREAM) {
-        res = mDevice->deleteStream(mPreviewStreamId);
+        res = mDevice->waitUntilDrained();
         if (res != OK) {
+            ALOGE("%s: Error waiting for preview to drain: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
             return res;
         }
-    }
-    res = mDevice->createStream(window,
-            mParameters.previewWidth, mParameters.previewHeight,
-            CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0,
-            &mPreviewStreamId);
-    if (res != OK) {
-        return res;
+        res = mDevice->deleteStream(mPreviewStreamId);
+        if (res != OK) {
+            ALOGE("%s: Unable to delete old preview stream: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+            return res;
+        }
+        mPreviewStreamId = NO_STREAM;
     }
 
     mPreviewSurface = binder;
+    mPreviewWindow = window;
 
     if (mState == WAITING_FOR_PREVIEW_WINDOW) {
         return startPreviewLocked();
@@ -447,34 +448,40 @@ status_t Camera2Client::startPreviewLocked() {
         return INVALID_OPERATION;
     }
 
-    if (mPreviewStreamId == NO_STREAM) {
+    if (mPreviewWindow == 0) {
         mState = WAITING_FOR_PREVIEW_WINDOW;
         return OK;
     }
+    mState = STOPPED;
+
+    res = updatePreviewStream();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update preview stream: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
 
     if (mPreviewRequest == NULL) {
-        updatePreviewRequest();
+        res = updatePreviewRequest();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
 
-    uint8_t outputStream = mPreviewStreamId;
-
-    camera_metadata_entry_t outputStreams;
-    res = find_camera_metadata_entry(mPreviewRequest,
+    res = updateEntry(mPreviewRequest,
             ANDROID_REQUEST_OUTPUT_STREAMS,
-            &outputStreams);
-    if (res == NAME_NOT_FOUND) {
-        res = add_camera_metadata_entry(mPreviewRequest,
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                &outputStream, 1);
-    } else if (res == OK) {
-        res = update_camera_metadata_entry(mPreviewRequest,
-                outputStreams.index, &outputStream, 1, NULL);
-    }
-
+            &mPreviewStreamId, 1);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
-        mState = STOPPED;
+        return res;
+    }
+    res = sort_camera_metadata(mPreviewRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
@@ -483,7 +490,6 @@ status_t Camera2Client::startPreviewLocked() {
         ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
                 "%s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
-        mState = STOPPED;
         return res;
     }
     mState = PREVIEW;
@@ -596,38 +602,34 @@ status_t Camera2Client::takePicture(int msgType) {
 
     res = updateCaptureStream();
     if (res != OK) {
-        ALOGE("%s: Can't set up still image stream: %s (%d)",
-                __FUNCTION__, strerror(-res), res);
+        ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
     if (mCaptureRequest == NULL) {
         res = updateCaptureRequest();
         if (res != OK) {
-            ALOGE("%s: Can't set up still image capture request: %s (%d)",
-                    __FUNCTION__, strerror(-res), res);
+            ALOGE("%s: Camera %d: Can't create still image capture request: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
     }
 
-    // TODO: For video snapshot, need 3 streams here
+    // TODO: For video snapshot, will need 3 streams here
     camera_metadata_entry_t outputStreams;
     uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
-    res = find_camera_metadata_entry(mCaptureRequest,
-            ANDROID_REQUEST_OUTPUT_STREAMS,
-            &outputStreams);
-    if (res == NAME_NOT_FOUND) {
-        res = add_camera_metadata_entry(mCaptureRequest,
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                streamIds, 2);
-    } else if (res == OK) {
-        res = update_camera_metadata_entry(mCaptureRequest,
-                outputStreams.index, streamIds, 2, NULL);
-    }
-
+    res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+            &streamIds, 2);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up still image capture request: "
                 "%s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+    res = sort_camera_metadata(mCaptureRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to sort capture request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
@@ -1168,8 +1170,27 @@ status_t Camera2Client::setParameters(const String8& params) {
     mParameters.recordingHint = recordingHint;
     mParameters.videoStabilization = videoStabilization;
 
-    updatePreviewRequest();
-    updateCaptureRequest();
+    res = updatePreviewRequest();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update preview request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+    res = updateCaptureRequest();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update capture request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    if (mState == PREVIEW) {
+        res = mDevice->setStreamingRequest(mPreviewRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error streaming new preview request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
 
     return OK;
 }
@@ -1980,6 +2001,53 @@ status_t Camera2Client::buildDefaultParameters() {
     return OK;
 }
 
+status_t Camera2Client::updatePreviewStream() {
+    ATRACE_CALL();
+    status_t res;
+    if (mPreviewStreamId != NO_STREAM) {
+        // Check if stream parameters have to change
+        uint32_t currentWidth, currentHeight;
+        res = mDevice->getStreamInfo(mPreviewStreamId,
+                &currentWidth, &currentHeight, 0);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error querying preview stream info: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        if (currentWidth != (uint32_t)mParameters.previewWidth ||
+                currentHeight != (uint32_t)mParameters.previewHeight) {
+            res = mDevice->waitUntilDrained();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Error waiting for preview to drain: "
+                        "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
+            res = mDevice->deleteStream(mPreviewStreamId);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete old output stream "
+                        "for preview: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
+            mPreviewStreamId = NO_STREAM;
+        }
+    }
+
+    if (mPreviewStreamId == NO_STREAM) {
+        res = mDevice->createStream(mPreviewWindow,
+                mParameters.previewWidth, mParameters.previewHeight,
+                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0,
+                &mPreviewStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create preview stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    return OK;
+}
+
 status_t Camera2Client::updatePreviewRequest() {
     ATRACE_CALL();
     status_t res;
@@ -1992,11 +2060,20 @@ status_t Camera2Client::updatePreviewRequest() {
             return res;
         }
     }
-    // TODO: Adjust for params changes
+
+    res = updateRequestCommon(mPreviewRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update common entries of preview "
+                "request: %s (%d)", __FUNCTION__, mCameraId,
+                strerror(-res), res);
+        return res;
+    }
+
     return OK;
 }
 
 status_t Camera2Client::updateCaptureStream() {
+    ATRACE_CALL();
     status_t res;
     // Find out buffer size for JPEG
     camera_metadata_entry_t maxJpegSize =
@@ -2025,19 +2102,8 @@ status_t Camera2Client::updateCaptureStream() {
         mCaptureMemory = new MemoryBase(mCaptureHeap,
                 0, maxJpegSize.data.i32[0]);
     }
-    if (mCaptureStreamId == NO_STREAM) {
-        // Create stream for HAL production
-        res = mDevice->createStream(mCaptureWindow,
-                mParameters.pictureWidth, mParameters.pictureHeight,
-                HAL_PIXEL_FORMAT_BLOB, maxJpegSize.data.i32[0],
-                &mCaptureStreamId);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't create output stream for capture: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
 
-    } else {
+    if (mCaptureStreamId != NO_STREAM) {
         // Check if stream parameters have to change
         uint32_t currentWidth, currentHeight;
         res = mDevice->getStreamInfo(mCaptureStreamId,
@@ -2057,11 +2123,25 @@ status_t Camera2Client::updateCaptureStream() {
                 return res;
             }
             mCaptureStreamId = NO_STREAM;
-            return updateCaptureStream();
         }
+    }
+
+    if (mCaptureStreamId == NO_STREAM) {
+        // Create stream for HAL production
+        res = mDevice->createStream(mCaptureWindow,
+                mParameters.pictureWidth, mParameters.pictureHeight,
+                HAL_PIXEL_FORMAT_BLOB, maxJpegSize.data.i32[0],
+                &mCaptureStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't create output stream for capture: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+
     }
     return OK;
 }
+
 status_t Camera2Client::updateCaptureRequest() {
     ATRACE_CALL();
     status_t res;
@@ -2074,10 +2154,273 @@ status_t Camera2Client::updateCaptureRequest() {
             return res;
         }
     }
-    // TODO: Adjust for params changes
+
+    res = updateRequestCommon(mCaptureRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update common entries of capture "
+                "request: %s (%d)", __FUNCTION__, mCameraId,
+                strerror(-res), res);
+        return res;
+    }
+
+    res = updateEntry(mCaptureRequest,
+            ANDROID_JPEG_THUMBNAIL_SIZE,
+            mParameters.jpegThumbSize, 2);
+    if (res != OK) return res;
+    res = updateEntry(mCaptureRequest,
+            ANDROID_JPEG_THUMBNAIL_QUALITY,
+            &mParameters.jpegThumbQuality, 1);
+    if (res != OK) return res;
+    res = updateEntry(mCaptureRequest,
+            ANDROID_JPEG_QUALITY,
+            &mParameters.jpegQuality, 1);
+    if (res != OK) return res;
+    res = updateEntry(mCaptureRequest,
+            ANDROID_JPEG_ORIENTATION,
+            &mParameters.jpegRotation, 1);
+    if (res != OK) return res;
+
+    if (mParameters.gpsEnabled) {
+        res = updateEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_COORDINATES,
+                mParameters.gpsCoordinates, 3);
+        if (res != OK) return res;
+        res = updateEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_TIMESTAMP,
+                &mParameters.gpsTimestamp, 1);
+        if (res != OK) return res;
+        res = updateEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_PROCESSING_METHOD,
+                mParameters.gpsProcessingMethod.string(),
+                mParameters.gpsProcessingMethod.size());
+        if (res != OK) return res;
+    } else {
+        res = deleteEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_COORDINATES);
+        if (res != OK) return res;
+        res = deleteEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_TIMESTAMP);
+        if (res != OK) return res;
+        res = deleteEntry(mCaptureRequest,
+                ANDROID_JPEG_GPS_PROCESSING_METHOD);
+        if (res != OK) return res;
+    }
+
     return OK;
 }
 
+status_t Camera2Client::updateRequestCommon(camera_metadata_t *request) {
+    ATRACE_CALL();
+    status_t res;
+    res = updateEntry(request,
+            ANDROID_CONTROL_AE_TARGET_FPS_RANGE, mParameters.previewFpsRange, 2);
+    if (res != OK) return res;
+
+    uint8_t wbMode = mParameters.autoWhiteBalanceLock ?
+            ANDROID_CONTROL_AWB_LOCKED : mParameters.wbMode;
+    res = updateEntry(request,
+            ANDROID_CONTROL_AWB_MODE, &wbMode, 1);
+    if (res != OK) return res;
+    res = updateEntry(request,
+            ANDROID_CONTROL_EFFECT_MODE, &mParameters.effectMode, 1);
+    if (res != OK) return res;
+    res = updateEntry(request,
+            ANDROID_CONTROL_AE_ANTIBANDING_MODE,
+            &mParameters.antibandingMode, 1);
+    if (res != OK) return res;
+
+    uint8_t controlMode =
+            (mParameters.sceneMode == ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ?
+            ANDROID_CONTROL_AUTO : ANDROID_CONTROL_USE_SCENE_MODE;
+    res = updateEntry(request,
+            ANDROID_CONTROL_MODE, &controlMode, 1);
+    if (res != OK) return res;
+    if (controlMode == ANDROID_CONTROL_USE_SCENE_MODE) {
+        res = updateEntry(request,
+                ANDROID_CONTROL_SCENE_MODE,
+                &mParameters.sceneMode, 1);
+        if (res != OK) return res;
+    }
+
+    uint8_t flashMode = ANDROID_FLASH_OFF;
+    uint8_t aeMode;
+    switch (mParameters.flashMode) {
+        case Parameters::FLASH_MODE_OFF:
+            aeMode = ANDROID_CONTROL_AE_ON; break;
+        case Parameters::FLASH_MODE_AUTO:
+            aeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH; break;
+        case Parameters::FLASH_MODE_ON:
+            aeMode = ANDROID_CONTROL_AE_ON_ALWAYS_FLASH; break;
+        case Parameters::FLASH_MODE_TORCH:
+            aeMode = ANDROID_CONTROL_AE_ON;
+            flashMode = ANDROID_FLASH_TORCH;
+            break;
+        case Parameters::FLASH_MODE_RED_EYE:
+            aeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE; break;
+        default:
+            ALOGE("%s: Camera %d: Unknown flash mode %d", __FUNCTION__,
+                    mCameraId, mParameters.flashMode);
+            return BAD_VALUE;
+    }
+    if (mParameters.autoExposureLock) aeMode = ANDROID_CONTROL_AE_LOCKED;
+
+    res = updateEntry(request,
+            ANDROID_FLASH_MODE, &flashMode, 1);
+    if (res != OK) return res;
+    res = updateEntry(request,
+            ANDROID_CONTROL_AE_MODE, &aeMode, 1);
+    if (res != OK) return res;
+
+    float focusDistance = 0; // infinity focus in diopters
+    uint8_t focusMode;
+    switch (mParameters.focusMode) {
+        case Parameters::FOCUS_MODE_AUTO:
+        case Parameters::FOCUS_MODE_MACRO:
+        case Parameters::FOCUS_MODE_CONTINUOUS_VIDEO:
+        case Parameters::FOCUS_MODE_CONTINUOUS_PICTURE:
+        case Parameters::FOCUS_MODE_EDOF:
+            focusMode = mParameters.focusMode;
+            break;
+        case Parameters::FOCUS_MODE_INFINITY:
+        case Parameters::FOCUS_MODE_FIXED:
+            focusMode = ANDROID_CONTROL_AF_OFF;
+            break;
+        default:
+            ALOGE("%s: Camera %d: Unknown focus mode %d", __FUNCTION__,
+                    mCameraId, mParameters.focusMode);
+            return BAD_VALUE;
+    }
+    res = updateEntry(request,
+            ANDROID_LENS_FOCUS_DISTANCE, &focusDistance, 1);
+    if (res != OK) return res;
+    res = updateEntry(request,
+            ANDROID_CONTROL_AF_MODE, &focusMode, 1);
+    if (res != OK) return res;
+
+    size_t focusingAreasSize = mParameters.focusingAreas.size() * 5;
+    int32_t *focusingAreas = new int32_t[focusingAreasSize];
+    for (size_t i = 0; i < focusingAreasSize; i += 5) {
+        focusingAreas[i + 0] = mParameters.focusingAreas[i].left;
+        focusingAreas[i + 1] = mParameters.focusingAreas[i].top;
+        focusingAreas[i + 2] = mParameters.focusingAreas[i].right;
+        focusingAreas[i + 3] = mParameters.focusingAreas[i].bottom;
+        focusingAreas[i + 4] = mParameters.focusingAreas[i].weight;
+    }
+    res = updateEntry(request,
+            ANDROID_CONTROL_AF_REGIONS, focusingAreas,focusingAreasSize);
+    if (res != OK) return res;
+    delete[] focusingAreas;
+
+    res = updateEntry(request,
+            ANDROID_CONTROL_AE_EXP_COMPENSATION,
+            &mParameters.exposureCompensation, 1);
+    if (res != OK) return res;
+
+    size_t meteringAreasSize = mParameters.meteringAreas.size() * 5;
+    int32_t *meteringAreas = new int32_t[meteringAreasSize];
+    for (size_t i = 0; i < meteringAreasSize; i += 5) {
+        meteringAreas[i + 0] = mParameters.meteringAreas[i].left;
+        meteringAreas[i + 1] = mParameters.meteringAreas[i].top;
+        meteringAreas[i + 2] = mParameters.meteringAreas[i].right;
+        meteringAreas[i + 3] = mParameters.meteringAreas[i].bottom;
+        meteringAreas[i + 4] = mParameters.meteringAreas[i].weight;
+    }
+    res = updateEntry(request,
+            ANDROID_CONTROL_AE_REGIONS, meteringAreas, meteringAreasSize);
+    if (res != OK) return res;
+
+    res = updateEntry(request,
+            ANDROID_CONTROL_AWB_REGIONS, meteringAreas, meteringAreasSize);
+    if (res != OK) return res;
+    delete[] meteringAreas;
+
+    // Need to convert zoom index into a crop rectangle. The rectangle is
+    // chosen to maximize its area on the sensor
+
+    camera_metadata_entry_t maxDigitalZoom =
+            staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
+    float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
+            (NUM_ZOOM_STEPS-1);
+    float zoomRatio = 1 + zoomIncrement * mParameters.zoom;
+
+    camera_metadata_entry_t activePixelArraySize =
+            staticInfo(ANDROID_SENSOR_ACTIVE_ARRAY_SIZE, 2, 2);
+    int32_t arrayWidth = activePixelArraySize.data.i32[0];
+    int32_t arrayHeight = activePixelArraySize.data.i32[1];
+    float zoomLeft, zoomTop, zoomWidth, zoomHeight;
+    if (mParameters.previewWidth >= mParameters.previewHeight) {
+        zoomWidth =  arrayWidth / zoomRatio;
+        zoomHeight = zoomWidth *
+                mParameters.previewHeight / mParameters.previewWidth;
+    } else {
+        zoomHeight = arrayHeight / zoomRatio;
+        zoomWidth = zoomHeight *
+                mParameters.previewWidth / mParameters.previewHeight;
+    }
+    zoomLeft = (arrayWidth - zoomWidth) / 2;
+    zoomTop = (arrayHeight - zoomHeight) / 2;
+
+    int32_t cropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
+    res = updateEntry(request,
+            ANDROID_SCALER_CROP_REGION, cropRegion, 3);
+    if (res != OK) return res;
+
+    // TODO: Decide how to map recordingHint, or whether just to ignore it
+
+    uint8_t vstabMode = mParameters.videoStabilization ?
+            ANDROID_CONTROL_VIDEO_STABILIZATION_ON :
+            ANDROID_CONTROL_VIDEO_STABILIZATION_OFF;
+    res = updateEntry(request,
+            ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
+            &vstabMode, 1);
+    if (res != OK) return res;
+
+    return OK;
+}
+
+status_t Camera2Client::updateEntry(camera_metadata_t *buffer,
+        uint32_t tag, const void *data, size_t data_count) {
+    camera_metadata_entry_t entry;
+    status_t res;
+    res = find_camera_metadata_entry(buffer, tag, &entry);
+    if (res == NAME_NOT_FOUND) {
+        res = add_camera_metadata_entry(buffer,
+                tag, data, data_count);
+    } else if (res == OK) {
+        res = update_camera_metadata_entry(buffer,
+                entry.index, data, data_count, NULL);
+    }
+
+    if (res != OK) {
+        ALOGE("%s: Unable to update metadata entry %s.%s (%x): %s (%d)",
+                __FUNCTION__, get_camera_metadata_section_name(tag),
+                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
+    }
+    return res;
+}
+
+status_t Camera2Client::deleteEntry(camera_metadata_t *buffer, uint32_t tag) {
+    camera_metadata_entry_t entry;
+    status_t res;
+    res = find_camera_metadata_entry(buffer, tag, &entry);
+    if (res == NAME_NOT_FOUND) {
+        return OK;
+    } else if (res != OK) {
+        ALOGE("%s: Error looking for entry %s.%s (%x): %s %d",
+                __FUNCTION__,
+                get_camera_metadata_section_name(tag),
+                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
+        return res;
+    }
+    res = delete_camera_metadata_entry(buffer, entry.index);
+    if (res != OK) {
+        ALOGE("%s: Error deleting entry %s.%s (%x): %s %d",
+                __FUNCTION__,
+                get_camera_metadata_section_name(tag),
+                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
+    }
+    return res;
+}
 int Camera2Client::formatStringToEnum(const char *format) {
     return
         !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV422SP) ?
