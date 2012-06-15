@@ -24,7 +24,9 @@
 #include <system/audio.h>
 #ifdef FAST_MIXER_STATISTICS
 #include <cpustats/CentralTendencyStatistics.h>
+#ifdef CPU_FREQUENCY_STATISTICS
 #include <cpustats/ThreadCpuUsage.h>
+#endif
 #endif
 #include "AudioMixer.h"
 #include "FastMixer.h"
@@ -71,7 +73,9 @@ bool FastMixer::threadLoop()
     bool oldLoadValid = false;  // whether oldLoad is valid
     uint32_t bounds = 0;
     bool full = false;      // whether we have collected at least kSamplingN samples
+#ifdef CPU_FREQUENCY_STATISTICS
     ThreadCpuUsage tcu;     // for reading the current CPU clock frequency in kHz
+#endif
 #endif
     unsigned coldGen = 0;   // last observed mColdGen
     bool isWarm = false;    // true means ready to mix, false means wait for warmup before mixing
@@ -527,16 +531,20 @@ bool FastMixer::threadLoop()
                     }
                     oldLoad = newLoad;
                 }
+#ifdef CPU_FREQUENCY_STATISTICS
                 // get the absolute value of CPU clock frequency in kHz
                 int cpuNum = sched_getcpu();
                 uint32_t kHz = tcu.getCpukHz(cpuNum);
                 kHz = (kHz << 4) | (cpuNum & 0xF);
+#endif
                 // save values in FIFO queues for dumpsys
                 // these stores #1, #2, #3 are not atomic with respect to each other,
                 // or with respect to store #4 below
                 dumpState->mMonotonicNs[i] = monotonicNs;
                 dumpState->mLoadNs[i] = loadNs;
+#ifdef CPU_FREQUENCY_STATISTICS
                 dumpState->mCpukHz[i] = kHz;
+#endif
                 // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
                 // the newest open and oldest closed halves are atomic with respect to each other
                 dumpState->mBounds = bounds;
@@ -579,7 +587,9 @@ FastMixerDumpState::FastMixerDumpState() :
     // so clearing reduces chance for dumpsys to read random uninitialized samples
     memset(&mMonotonicNs, 0, sizeof(mMonotonicNs));
     memset(&mLoadNs, 0, sizeof(mLoadNs));
+#ifdef CPU_FREQUENCY_STATISTICS
     memset(&mCpukHz, 0, sizeof(mCpukHz));
+#endif
 }
 
 FastMixerDumpState::~FastMixerDumpState()
@@ -643,18 +653,20 @@ void FastMixerDumpState::dump(int fd)
     }
     // statistics for monotonic (wall clock) time, thread raw CPU load in time, CPU clock frequency,
     // and adjusted CPU load in MHz normalized for CPU clock frequency
-    CentralTendencyStatistics wall, loadNs, kHz, loadMHz;
-    // only compute adjusted CPU load in Hz if current CPU number and CPU clock frequency are stable
-    bool valid = false;
+    CentralTendencyStatistics wall, loadNs;
+#ifdef CPU_FREQUENCY_STATISTICS
+    CentralTendencyStatistics kHz, loadMHz;
     uint32_t previousCpukHz = 0;
+#endif
     // loop over all the samples
     for (; n > 0; --n) {
         size_t i = oldestClosed++ & (kSamplingN - 1);
         uint32_t wallNs = mMonotonicNs[i];
         wall.sample(wallNs);
         uint32_t sampleLoadNs = mLoadNs[i];
-        uint32_t sampleCpukHz = mCpukHz[i];
         loadNs.sample(sampleLoadNs);
+#ifdef CPU_FREQUENCY_STATISTICS
+        uint32_t sampleCpukHz = mCpukHz[i];
         // skip bad kHz samples
         if ((sampleCpukHz & ~0xF) != 0) {
             kHz.sample(sampleCpukHz >> 4);
@@ -665,6 +677,7 @@ void FastMixerDumpState::dump(int fd)
             }
         }
         previousCpukHz = sampleCpukHz;
+#endif
     }
     fdprintf(fd, "Simple moving statistics over last %.1f seconds:\n", wall.n() * mixPeriodSec);
     fdprintf(fd, "  wall clock time in ms per mix cycle:\n"
@@ -674,12 +687,14 @@ void FastMixerDumpState::dump(int fd)
                  "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
                  loadNs.mean()*1e-3, loadNs.minimum()*1e-3, loadNs.maximum()*1e-3,
                  loadNs.stddev()*1e-3);
+#ifdef CPU_FREQUENCY_STATISTICS
     fdprintf(fd, "  CPU clock frequency in MHz:\n"
                  "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
                  kHz.mean()*1e-3, kHz.minimum()*1e-3, kHz.maximum()*1e-3, kHz.stddev()*1e-3);
     fdprintf(fd, "  adjusted CPU load in MHz (i.e. normalized for CPU clock frequency):\n"
                  "    mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
                  loadMHz.mean(), loadMHz.minimum(), loadMHz.maximum(), loadMHz.stddev());
+#endif
 #endif
     // The active track mask and track states are updated non-atomically.
     // So if we relied on isActive to decide whether to display,
