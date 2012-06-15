@@ -116,7 +116,9 @@ struct FastMixerDumpState {
     // The elements in the *Ns arrays are in units of nanoseconds <= 3999999999.
     uint32_t mMonotonicNs[kSamplingN];  // delta monotonic (wall clock) time
     uint32_t mLoadNs[kSamplingN];       // delta CPU load in time
+#ifdef CPU_FREQUENCY_STATISTICS
     uint32_t mCpukHz[kSamplingN];       // absolute CPU clock frequency in kHz, bits 0-3 are CPU#
+#endif
 #endif
 };
 
