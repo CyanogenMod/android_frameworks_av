@@ -97,12 +97,12 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_id3 \
         libFLAC \
 
-ifneq ($(TARGET_BUILD_PDK), true)
-LOCAL_STATIC_LIBRARIES += \
-	libstagefright_chromium_http
-LOCAL_SHARED_LIBRARIES += \
-        libchromium_net
+LOCAL_SRC_FILES += \
+        chromium_http_stub.cpp
 LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
+
+ifneq ($(TARGET_BUILD_PDK), true)
+LOCAL_REQUIRED_MODULES := libstagefright_chromium_http
 endif
 
 LOCAL_SHARED_LIBRARIES += libstlport

@@ -6,7 +6,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=       \
         DataUriSource.cpp \
         ChromiumHTTPDataSource.cpp \
-        support.cpp
+        support.cpp \
+        chromium_http_stub.cpp
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/media/libstagefright \
@@ -16,10 +17,20 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_SHARED_LIBRARIES += libstlport
+LOCAL_SHARED_LIBRARIES += \
+        libstlport \
+        libchromium_net \
+        libutils \
+        libcutils \
+        libstagefright_foundation \
+        libstagefright \
+        libdrmframework
+
 include external/stlport/libstlport.mk
 
 LOCAL_MODULE:= libstagefright_chromium_http
 
-include $(BUILD_STATIC_LIBRARY)
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_SHARED_LIBRARY)
 endif

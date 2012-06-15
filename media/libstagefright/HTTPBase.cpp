@@ -21,7 +21,7 @@
 #include "include/HTTPBase.h"
 
 #if CHROMIUM_AVAILABLE
-#include "include/ChromiumHTTPDataSource.h"
+#include "include/chromium_http_stub.h"
 #endif
 
 #include <media/stagefright/foundation/ADebug.h>
@@ -46,7 +46,10 @@ HTTPBase::HTTPBase()
 // static
 sp<HTTPBase> HTTPBase::Create(uint32_t flags) {
 #if CHROMIUM_AVAILABLE
-        return new ChromiumHTTPDataSource(flags);
+        HTTPBase *dataSource = createChromiumHTTPDataSource(flags);
+        if (dataSource) {
+           return dataSource;
+        }
 #endif
     {
         TRESPASS();

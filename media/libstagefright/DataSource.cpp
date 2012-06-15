@@ -17,7 +17,7 @@
 #include "include/AMRExtractor.h"
 
 #if CHROMIUM_AVAILABLE
-#include "include/DataUriSource.h"
+#include "include/chromium_http_stub.h"
 #endif
 
 #include "include/MP3Extractor.h"
@@ -173,7 +173,7 @@ sp<DataSource> DataSource::CreateFromURI(
 
 # if CHROMIUM_AVAILABLE
     } else if (!strncasecmp("data:", uri, 5)) {
-        source = new DataUriSource(uri);
+        source = createDataUriSource(uri);
 #endif
     } else {
         // Assume it's a filename.
