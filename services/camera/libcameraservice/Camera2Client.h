@@ -174,6 +174,29 @@ private:
 
     /** Camera device-related private members */
 
+    class Camera2Heap;
+
+    // Number of zoom steps to simulate
+    static const unsigned int NUM_ZOOM_STEPS = 10;
+    // Used with stream IDs
+    static const int NO_STREAM = -1;
+
+    /* Preview related members */
+
+    int mPreviewStreamId;
+    camera_metadata_t *mPreviewRequest;
+    sp<IBinder> mPreviewSurface;
+    sp<ANativeWindow> mPreviewWindow;
+    // Update preview request based on mParameters
+    status_t updatePreviewRequest();
+    // Update preview stream based on mParameters
+    status_t updatePreviewStream();
+
+    /* Still image capture related members */
+
+    int mCaptureStreamId;
+    sp<CpuConsumer>    mCaptureConsumer;
+    sp<ANativeWindow>  mCaptureWindow;
     // Simple listener that forwards frame available notifications from
     // a CPU consumer to the capture notification
     class CaptureWaiter: public CpuConsumer::FrameAvailableListener {
@@ -183,30 +206,77 @@ private:
       private:
         Camera2Client *mParent;
     };
-
-    void onCaptureAvailable();
-
-    // Number of zoom steps to simulate
-    static const unsigned int NUM_ZOOM_STEPS = 10;
-    // Used with mPreviewStreamId, mCaptureStreamId
-    static const int NO_STREAM = -1;
-
-    sp<IBinder> mPreviewSurface;
-    sp<ANativeWindow> mPreviewWindow;
-
-    int mPreviewStreamId;
-    camera_metadata_t *mPreviewRequest;
-
-    int mCaptureStreamId;
-    sp<CpuConsumer>    mCaptureConsumer;
-    sp<ANativeWindow>  mCaptureWindow;
     sp<CaptureWaiter>  mCaptureWaiter;
     camera_metadata_t *mCaptureRequest;
-    sp<MemoryHeapBase> mCaptureHeap;
-    sp<MemoryBase>     mCaptureMemory;
+    sp<Camera2Heap>    mCaptureHeap;
+    // Handle captured image buffers
+    void onCaptureAvailable();
+    // Update capture request based on mParameters
+    status_t updateCaptureRequest();
+    // Update capture stream based on mParameters
+    status_t updateCaptureStream();
+
+    /* Recording related members */
+
+    int mRecordingStreamId;
+    sp<CpuConsumer>    mRecordingConsumer;
+    sp<ANativeWindow>  mRecordingWindow;
+    // Simple listener that forwards frame available notifications from
+    // a CPU consumer to the recording notification
+    class RecordingWaiter: public CpuConsumer::FrameAvailableListener {
+      public:
+        RecordingWaiter(Camera2Client *parent) : mParent(parent) {}
+        void onFrameAvailable() { mParent->onRecordingFrameAvailable(); }
+      private:
+        Camera2Client *mParent;
+    };
+    sp<RecordingWaiter>  mRecordingWaiter;
+    camera_metadata_t *mRecordingRequest;
+    sp<Camera2Heap> mRecordingHeap;
+
+    // TODO: This needs to be queried from somewhere, or the BufferQueue needs
+    // to be passed all the way to stagefright
+    static const size_t kRecordingHeapCount = 4;
+    static const uint32_t kRecordingFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
+    size_t mRecordingHeapHead, mRecordingHeapFree;
+    // Handle new recording image buffers
+    void onRecordingFrameAvailable();
+    // Update recording request based on mParameters
+    status_t updateRecordingRequest();
+    // Update recording stream based on mParameters
+    status_t updateRecordingStream();
+
+    /** Camera2Device instance wrapping HAL2 entry */
 
     sp<Camera2Device> mDevice;
 
+    /** Utility members */
+
+    // Utility class for managing a set of IMemory blocks
+    class Camera2Heap : public RefBase {
+    public:
+        Camera2Heap(size_t buf_size, uint_t num_buffers = 1,
+                const char *name = NULL) :
+                         mBufSize(buf_size),
+                         mNumBufs(num_buffers) {
+            mHeap = new MemoryHeapBase(buf_size * num_buffers, 0, name);
+            mBuffers = new sp<MemoryBase>[mNumBufs];
+            for (uint_t i = 0; i < mNumBufs; i++)
+                mBuffers[i] = new MemoryBase(mHeap,
+                                             i * mBufSize,
+                                             mBufSize);
+        }
+
+        virtual ~Camera2Heap()
+        {
+            delete [] mBuffers;
+        }
+
+        size_t mBufSize;
+        uint_t mNumBufs;
+        sp<MemoryHeapBase> mHeap;
+        sp<MemoryBase> *mBuffers;
+    };
 
     // Get values for static camera info entry. min/maxCount are used for error
     // checking the number of values in the entry. 0 for max/minCount means to
@@ -215,21 +285,9 @@ private:
     camera_metadata_entry_t staticInfo(uint32_t tag,
             size_t minCount=0, size_t maxCount=0);
 
-    /** Utility methods */
-
     // Convert static camera info from a camera2 device to the
     // old API parameter map.
     status_t buildDefaultParameters();
-
-    // Update preview request based on mParameters
-    status_t updatePreviewRequest();
-    // Update preview stream based on mParameters
-    status_t updatePreviewStream();
-
-    // Update capture request based on mParameters
-    status_t updateCaptureRequest();
-    // Update capture stream based on mParameters
-    status_t updateCaptureStream();
 
     // Update parameters all requests use, based on mParameters
     status_t updateRequestCommon(camera_metadata_t *request);

@@ -239,9 +239,9 @@ status_t Camera2Device::deleteStream(int id) {
     for (StreamList::iterator streamI = mStreams.begin();
          streamI != mStreams.end(); streamI++) {
         if ((*streamI)->getId() == id) {
-            status_t res = (*streamI)->disconnect();
+            status_t res = (*streamI)->release();
             if (res != OK) {
-                ALOGE("%s: Unable to disconnect stream %d from HAL device: "
+                ALOGE("%s: Unable to release stream %d from HAL device: "
                         "%s (%d)", __FUNCTION__, id, strerror(-res), res);
                 return res;
             }
@@ -615,7 +615,7 @@ int Camera2Device::MetadataQueue::producer_enqueue(
 #endif
 
 Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
-        mState(DISCONNECTED),
+        mState(RELEASED),
         mDevice(d),
         mId(-1),
         mWidth(0), mHeight(0), mFormat(0), mSize(0), mUsage(0),
@@ -633,7 +633,9 @@ Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
 }
 
 Camera2Device::StreamAdapter::~StreamAdapter() {
-    disconnect();
+    if (mState != RELEASED) {
+        release();
+    }
 }
 
 status_t Camera2Device::StreamAdapter::connectToDevice(
@@ -641,11 +643,14 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         uint32_t width, uint32_t height, int format, size_t size) {
     status_t res;
 
-    if (mState != DISCONNECTED) return INVALID_OPERATION;
+    if (mState != RELEASED) return INVALID_OPERATION;
     if (consumer == NULL) {
         ALOGE("%s: Null consumer passed to stream adapter", __FUNCTION__);
         return BAD_VALUE;
     }
+
+    ALOGV("%s: New stream parameters %d x %d, format 0x%x, size %d",
+            __FUNCTION__, width, height, format, size);
 
     mConsumerInterface = consumer;
     mWidth = width;
@@ -667,6 +672,10 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
                 __FUNCTION__, strerror(-res), res);
         return res;
     }
+
+    ALOGV("%s: Allocated stream id %d, actual format 0x%x, "
+            "usage 0x%x, producer wants %d buffers", __FUNCTION__,
+            id, formatActual, usage, maxBuffers);
 
     mId = id;
     mFormat = formatActual;
@@ -737,8 +746,8 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
     mMaxConsumerBuffers = maxConsumerBuffers;
 
-    ALOGV("%s: Producer wants %d buffers, consumer wants %d", __FUNCTION__,
-            mMaxProducerBuffers, mMaxConsumerBuffers);
+    ALOGV("%s: Consumer wants %d buffers", __FUNCTION__,
+            mMaxConsumerBuffers);
 
     mTotalBuffers = mMaxConsumerBuffers + mMaxProducerBuffers;
     mActiveBuffers = 0;
@@ -761,7 +770,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         res = native_window_dequeue_buffer_and_wait(mConsumerInterface.get(),
                 &anwBuffers[bufferIdx]);
         if (res != OK) {
-            ALOGE("%s: Unable to dequeue buffer %d for initial registration for"
+            ALOGE("%s: Unable to dequeue buffer %d for initial registration for "
                     "stream %d", __FUNCTION__, bufferIdx, mId);
             goto cleanUpBuffers;
         }
@@ -795,8 +804,9 @@ cleanUpBuffers:
     return res;
 }
 
-status_t Camera2Device::StreamAdapter::disconnect() {
+status_t Camera2Device::StreamAdapter::release() {
     status_t res;
+    ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
     if (mState >= ALLOCATED) {
         res = mDevice->ops->release_stream(mDevice, mId);
         if (res != OK) {
@@ -815,7 +825,7 @@ status_t Camera2Device::StreamAdapter::disconnect() {
         }
     }
     mId = -1;
-    mState = DISCONNECTED;
+    mState = RELEASED;
     return OK;
 }
 

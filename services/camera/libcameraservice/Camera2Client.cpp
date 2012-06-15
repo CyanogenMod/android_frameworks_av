@@ -55,7 +55,9 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mPreviewStreamId(NO_STREAM),
         mPreviewRequest(NULL),
         mCaptureStreamId(NO_STREAM),
-        mCaptureRequest(NULL)
+        mCaptureRequest(NULL),
+        mRecordingStreamId(NO_STREAM),
+        mRecordingRequest(NULL)
 {
     ATRACE_CALL();
 
@@ -341,31 +343,65 @@ void Camera2Client::disconnect() {
 
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     ATRACE_CALL();
+
     Mutex::Autolock icl(mICameraLock);
 
-    return BAD_VALUE;
+    if (mClientPid != 0 && getCallingPid() != mClientPid) {
+        ALOGE("%s: Camera %d: Connection attempt from pid %d; "
+                "current locked to pid %d", __FUNCTION__,
+                mCameraId, getCallingPid(), mClientPid);
+        return BAD_VALUE;
+    }
+
+    mClientPid = getCallingPid();
+    mCameraClient = client;
+
+    return OK;
 }
 
 status_t Camera2Client::lock() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    ALOGV("%s: Camera %d: Lock call from pid %d; current client pid %d",
+            __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
 
-    return BAD_VALUE;
+    if (mClientPid == 0) {
+        mClientPid = getCallingPid();
+        return OK;
+    }
+
+    if (mClientPid != getCallingPid()) {
+        ALOGE("%s: Camera %d: Lock call from pid %d; currently locked to pid %d",
+                __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
+        return EBUSY;
+    }
+
+    return OK;
 }
 
 status_t Camera2Client::unlock() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    ALOGV("%s: Camera %d: Unlock call from pid %d; current client pid %d",
+            __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
 
-    return BAD_VALUE;
+    // TODO: Check for uninterruptable conditions
+
+    if (mClientPid == getCallingPid()) {
+        mClientPid = 0;
+        mCameraClient.clear();
+        return OK;
+    }
+
+    ALOGE("%s: Camera %d: Unlock call from pid %d; currently locked to pid %d",
+            __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
+    return EBUSY;
 }
 
 status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-
-    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -381,8 +417,6 @@ status_t Camera2Client::setPreviewTexture(
         const sp<ISurfaceTexture>& surfaceTexture) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-
-    if (mState >= PREVIEW) return INVALID_OPERATION;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -400,6 +434,27 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
 
     if (binder == mPreviewSurface) {
         return NO_ERROR;
+    }
+
+    switch (mState) {
+        case NOT_INITIALIZED:
+        case RECORD:
+        case STILL_CAPTURE:
+        case VIDEO_SNAPSHOT:
+            ALOGE("%s: Camera %d: Cannot set preview display while in state %s",
+                    __FUNCTION__, mCameraId, getStateName(mState));
+            return INVALID_OPERATION;
+        case STOPPED:
+        case WAITING_FOR_PREVIEW_WINDOW:
+            // OK
+            break;
+        case PREVIEW:
+            // Already running preview - need to stop and create a new stream
+            // TODO: Optimize this so that we don't wait for old stream to drain
+            // before spinning up new stream
+            mDevice->setStreamingRequest(NULL);
+            mState = WAITING_FOR_PREVIEW_WINDOW;
+            break;
     }
 
     if (mPreviewStreamId != NO_STREAM) {
@@ -453,6 +508,8 @@ status_t Camera2Client::startPreviewLocked() {
         return OK;
     }
     mState = STOPPED;
+
+    Mutex::Autolock pl(mParamsLock);
 
     res = updatePreviewStream();
     if (res != OK) {
@@ -544,23 +601,125 @@ status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
 status_t Camera2Client::startRecording() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    return BAD_VALUE;
+    status_t res;
+    switch (mState) {
+        case STOPPED:
+            res = startPreviewLocked();
+            if (res != OK) return res;
+            break;
+        case PREVIEW:
+            // Ready to go
+            break;
+        case RECORD:
+        case VIDEO_SNAPSHOT:
+            // OK to call this when recording is already on
+            return OK;
+            break;
+        default:
+            ALOGE("%s: Camera %d: Can't start recording in state %s",
+                    __FUNCTION__, mCameraId, getStateName(mState));
+            return INVALID_OPERATION;
+    };
+
+    Mutex::Autolock pl(mParamsLock);
+
+    res = updateRecordingStream();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    if (mRecordingRequest == NULL) {
+        res = updateRecordingRequest();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create recording request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    uint8_t outputStreams[2] = { mPreviewStreamId, mRecordingStreamId };
+    res = updateEntry(mRecordingRequest,
+            ANDROID_REQUEST_OUTPUT_STREAMS,
+            outputStreams, 2);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set up recording request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+    res = sort_camera_metadata(mRecordingRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Error sorting recording request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    res = mDevice->setStreamingRequest(mRecordingRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set recording request to start "
+                "recording: %s (%d)", __FUNCTION__, mCameraId,
+                strerror(-res), res);
+        return res;
+    }
+    mState = RECORD;
+
+    return OK;
 }
 
 void Camera2Client::stopRecording() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    switch (mState) {
+        case RECORD:
+            // OK to stop
+            break;
+        case STOPPED:
+        case PREVIEW:
+        case STILL_CAPTURE:
+        case VIDEO_SNAPSHOT:
+        default:
+            ALOGE("%s: Camera %d: Can't stop recording in state %s",
+                    __FUNCTION__, mCameraId, getStateName(mState));
+            return;
+    };
+
+    // Back to preview. Since record can only be reached through preview,
+    // all preview stream setup should be up to date.
+    res = mDevice->setStreamingRequest(mPreviewRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to switch back to preview request: "
+                "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+        return;
+    }
+
+    // TODO: Should recording heap be freed? Can't do it yet since requests
+    // could still be in flight.
+
+    mState = PREVIEW;
 }
 
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    return BAD_VALUE;
+    return (mState == RECORD || mState == VIDEO_SNAPSHOT);
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    // Make sure this is for the current heap
+    ssize_t offset;
+    size_t size;
+    sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
+    if (heap->getHeapID() != mRecordingHeap->mHeap->getHeapID()) {
+        ALOGW("%s: Camera %d: Mismatched heap ID, ignoring release "
+                "(got %x, expected %x)", __FUNCTION__, mCameraId,
+                heap->getHeapID(), mRecordingHeap->mHeap->getHeapID());
+        return;
+    }
+    mRecordingHeapFree++;
 }
 
 status_t Camera2Client::autoFocus() {
@@ -616,11 +775,18 @@ status_t Camera2Client::takePicture(int msgType) {
         }
     }
 
-    // TODO: For video snapshot, will need 3 streams here
     camera_metadata_entry_t outputStreams;
-    uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
-    res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-            &streamIds, 2);
+    if (mState == PREVIEW) {
+        uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
+        res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                &streamIds, 2);
+    } else if (mState == RECORD) {
+        uint8_t streamIds[3] = { mPreviewStreamId, mRecordingStreamId,
+                                 mCaptureStreamId };
+        res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                &streamIds, 3);
+    }
+
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up still image capture request: "
                 "%s (%d)",
@@ -650,7 +816,7 @@ status_t Camera2Client::takePicture(int msgType) {
             return res;
         }
     }
-
+    // TODO: Capture should be atomic with setStreamingRequest here
     res = mDevice->capture(captureCopy);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to submit still image capture request: "
@@ -699,7 +865,10 @@ status_t Camera2Client::setParameters(const String8& params) {
             previewHeight != mParameters.previewHeight) {
         if (mState >= PREVIEW) {
             ALOGE("%s: Preview size cannot be updated when preview "
-                    "is active!", __FUNCTION__);
+                    "is active! (Currently %d x %d, requested %d x %d",
+                    __FUNCTION__,
+                    mParameters.previewWidth, mParameters.previewHeight,
+                    previewWidth, previewHeight);
             return BAD_VALUE;
         }
         camera_metadata_entry_t availablePreviewSizes =
@@ -1127,6 +1296,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     }
 
     /** Update internal parameters */
+
     mParameters.previewWidth = previewWidth;
     mParameters.previewHeight = previewHeight;
     mParameters.previewFpsRange[0] = previewFpsRange[0];
@@ -1183,6 +1353,13 @@ status_t Camera2Client::setParameters(const String8& params) {
         return res;
     }
 
+    res = updateRecordingRequest();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
     if (mState == PREVIEW) {
         res = mDevice->setStreamingRequest(mPreviewRequest);
         if (res != OK) {
@@ -1190,7 +1367,16 @@ status_t Camera2Client::setParameters(const String8& params) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+    } else if (mState == RECORD || mState == VIDEO_SNAPSHOT) {
+        res = mDevice->setStreamingRequest(mRecordingRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error streaming new record request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
+
+    mParamsFlattened = params;
 
     return OK;
 }
@@ -1240,6 +1426,8 @@ void Camera2Client::onCaptureAvailable() {
     ATRACE_CALL();
     status_t res;
     sp<ICameraClient> currentClient;
+    ALOGV("%s: Camera %d: Still capture available", __FUNCTION__, mCameraId);
+
     CpuConsumer::LockedBuffer imgBuffer;
     {
         Mutex::Autolock icl(mICameraLock);
@@ -1268,8 +1456,8 @@ void Camera2Client::onCaptureAvailable() {
         }
 
         // TODO: Optimize this to avoid memcopy
-        void* captureMemory = mCaptureHeap->getBase();
-        size_t size = mCaptureHeap->getSize();
+        void* captureMemory = mCaptureHeap->mHeap->getBase();
+        size_t size = mCaptureHeap->mHeap->getSize();
         memcpy(captureMemory, imgBuffer.data, size);
 
         mCaptureConsumer->unlockBuffer(imgBuffer);
@@ -1291,7 +1479,100 @@ void Camera2Client::onCaptureAvailable() {
     // Call outside mICameraLock to allow re-entrancy from notification
     if (currentClient != 0) {
         currentClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
-                mCaptureMemory, NULL);
+                mCaptureHeap->mBuffers[0], NULL);
+    }
+}
+
+void Camera2Client::onRecordingFrameAvailable() {
+    ATRACE_CALL();
+    status_t res;
+    sp<ICameraClient> currentClient;
+    size_t heapIdx = 0;
+    nsecs_t timestamp;
+    {
+        Mutex::Autolock icl(mICameraLock);
+        // TODO: Signal errors here upstream
+        if (mState != RECORD && mState != VIDEO_SNAPSHOT) {
+            ALOGE("%s: Camera %d: Recording image buffer produced unexpectedly!",
+                    __FUNCTION__, mCameraId);
+            return;
+        }
+
+        CpuConsumer::LockedBuffer imgBuffer;
+        res = mRecordingConsumer->lockNextBuffer(&imgBuffer);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return;
+        }
+
+        if (imgBuffer.format != (int)kRecordingFormat) {
+            ALOGE("%s: Camera %d: Unexpected recording format: %x",
+                    __FUNCTION__, mCameraId, imgBuffer.format);
+            mRecordingConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+        size_t bufferSize = imgBuffer.width * imgBuffer.height * 3 / 2;
+
+        if (mRecordingHeap == 0 ||
+                bufferSize >
+                mRecordingHeap->mHeap->getSize() / kRecordingHeapCount) {
+            ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
+                    "size %d bytes", __FUNCTION__, mCameraId,
+                    kRecordingHeapCount, bufferSize);
+            if (mRecordingHeap != 0) {
+                ALOGV("%s: Camera %d: Previous heap has size %d "
+                        "(new will be %d) bytes", __FUNCTION__, mCameraId,
+                        mRecordingHeap->mHeap->getSize(),
+                        bufferSize * kRecordingHeapCount);
+            }
+            // Need to allocate memory for heap
+            mRecordingHeap.clear();
+
+            mRecordingHeap = new Camera2Heap(bufferSize, kRecordingHeapCount,
+                    "Camera2Client::RecordingHeap");
+            if (mRecordingHeap->mHeap->getSize() == 0) {
+                ALOGE("%s: Camera %d: Unable to allocate memory for recording",
+                        __FUNCTION__, mCameraId);
+                mRecordingConsumer->unlockBuffer(imgBuffer);
+                return;
+            }
+            mRecordingHeapHead = 0;
+            mRecordingHeapFree = kRecordingHeapCount;
+        }
+
+        // TODO: Optimize this to avoid memcopy
+        if ( mRecordingHeapFree == 0) {
+            ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
+                    __FUNCTION__, mCameraId);
+            mRecordingConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+        heapIdx = mRecordingHeapHead;
+        timestamp = imgBuffer.timestamp;
+        mRecordingHeapHead = (mRecordingHeapHead + 1) % kRecordingHeapCount;
+        mRecordingHeapFree--;
+
+        ALOGV("%s: Camera %d: Timestamp %lld",
+                __FUNCTION__, mCameraId, timestamp);
+
+        ssize_t offset;
+        size_t size;
+        sp<IMemoryHeap> heap =
+                mRecordingHeap->mBuffers[heapIdx]->getMemory(&offset,
+                        &size);
+
+        memcpy((uint8_t*)heap->getBase() + offset, imgBuffer.data, size);
+
+        mRecordingConsumer->unlockBuffer(imgBuffer);
+
+        currentClient = mCameraClient;
+    }
+    // Call outside mICameraLock to allow re-entrancy from notification
+    if (currentClient != 0) {
+        currentClient->dataCallbackTimestamp(timestamp,
+                CAMERA_MSG_VIDEO_FRAME,
+                mRecordingHeap->mBuffers[heapIdx]);
     }
 }
 
@@ -1999,7 +2280,7 @@ status_t Camera2Client::buildDefaultParameters() {
             0);
 
     params.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
-            formatEnumToString(HAL_PIXEL_FORMAT_YCrCb_420_SP));
+            formatEnumToString(kRecordingFormat));
 
     params.set(CameraParameters::KEY_RECORDING_HINT,
             CameraParameters::FALSE);
@@ -2126,15 +2407,13 @@ status_t Camera2Client::updateCaptureStream() {
         mCaptureWindow = new SurfaceTextureClient(
             mCaptureConsumer->getProducerInterface());
         // Create memory for API consumption
-        mCaptureHeap = new MemoryHeapBase(maxJpegSize.data.i32[0], 0,
-                "Camera2Client::CaptureHeap");
-        if (mCaptureHeap->getSize() == 0) {
+        mCaptureHeap = new Camera2Heap(maxJpegSize.data.i32[0], 1,
+                                       "Camera2Client::CaptureHeap");
+        if (mCaptureHeap->mHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for capture",
                     __FUNCTION__, mCameraId);
             return NO_MEMORY;
         }
-        mCaptureMemory = new MemoryBase(mCaptureHeap,
-                0, maxJpegSize.data.i32[0]);
     }
 
     if (mCaptureStreamId != NO_STREAM) {
@@ -2238,6 +2517,81 @@ status_t Camera2Client::updateCaptureRequest() {
         res = deleteEntry(mCaptureRequest,
                 ANDROID_JPEG_GPS_PROCESSING_METHOD);
         if (res != OK) return res;
+    }
+
+    return OK;
+}
+
+status_t Camera2Client::updateRecordingRequest() {
+    ATRACE_CALL();
+    status_t res;
+    if (mRecordingRequest == NULL) {
+        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_VIDEO_RECORD,
+                &mRecordingRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to create default recording request:"
+                    " %s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    res = updateRequestCommon(mRecordingRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update common entries of recording "
+                "request: %s (%d)", __FUNCTION__, mCameraId,
+                strerror(-res), res);
+        return res;
+    }
+
+    return OK;
+}
+
+status_t Camera2Client::updateRecordingStream() {
+    status_t res;
+
+    if (mRecordingConsumer == 0) {
+        // Create CPU buffer queue endpoint
+        mRecordingConsumer = new CpuConsumer(1);
+        mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
+        mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
+        mRecordingWindow = new SurfaceTextureClient(
+            mRecordingConsumer->getProducerInterface());
+        // Allocate memory later, since we don't know buffer size until receipt
+    }
+
+    if (mRecordingStreamId != NO_STREAM) {
+        // Check if stream parameters have to change
+        uint32_t currentWidth, currentHeight;
+        res = mDevice->getStreamInfo(mRecordingStreamId,
+                &currentWidth, &currentHeight, 0);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error querying recording output stream info: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        if (currentWidth != (uint32_t)mParameters.videoWidth ||
+                currentHeight != (uint32_t)mParameters.videoHeight) {
+            // TODO: Should wait to be sure previous recording has finished
+            res = mDevice->deleteStream(mRecordingStreamId);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete old output stream "
+                        "for recording: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
+            mRecordingStreamId = NO_STREAM;
+        }
+    }
+
+    if (mRecordingStreamId == NO_STREAM) {
+        res = mDevice->createStream(mRecordingWindow,
+                mParameters.videoWidth, mParameters.videoHeight,
+                kRecordingFormat, 0, &mRecordingStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't create output stream for recording: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
 
     return OK;

@@ -219,7 +219,7 @@ class Camera2Device : public virtual RefBase {
         status_t connectToDevice(sp<ANativeWindow> consumer,
                 uint32_t width, uint32_t height, int format, size_t size);
 
-        status_t disconnect();
+        status_t release();
 
         status_t setTransform(int transform);
 
@@ -236,7 +236,7 @@ class Camera2Device : public virtual RefBase {
       private:
         enum {
             ERROR = -1,
-            DISCONNECTED = 0,
+            RELEASED = 0,
             ALLOCATED,
             CONNECTED,
             ACTIVE
