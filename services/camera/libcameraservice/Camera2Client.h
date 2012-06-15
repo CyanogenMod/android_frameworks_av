@@ -105,20 +105,20 @@ private:
     // here if they don't cleanly map to camera2 values.
     struct Parameters {
         int previewWidth, previewHeight;
-        int previewFpsRangeMin, previewFpsRangeMax;
+        int32_t previewFpsRange[2];
         int previewFps; // deprecated, here only for tracking changes
         int previewFormat;
 
+        int previewTransform; // set by CAMERA_CMD_SET_DISPLAY_ORIENTATION
+
         int pictureWidth, pictureHeight;
 
-        int jpegThumbWidth, jpegThumbHeight;
-        int jpegQuality, jpegThumbQuality;
-        int jpegRotation;
+        int32_t jpegThumbSize[2];
+        int32_t jpegQuality, jpegThumbQuality;
+        int32_t jpegRotation;
 
         bool gpsEnabled;
-        double gpsLatitude;
-        double gpsLongitude;
-        double gpsAltitude;
+        double gpsCoordinates[3];
         int64_t gpsTimestamp;
         String8 gpsProcessingMethod;
 
@@ -158,7 +158,7 @@ private:
         };
         Vector<Area> focusingAreas;
 
-        int exposureCompensation;
+        int32_t exposureCompensation;
         bool autoExposureLock;
         bool autoWhiteBalanceLock;
 
