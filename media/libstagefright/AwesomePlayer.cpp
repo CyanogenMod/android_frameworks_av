@@ -2440,7 +2440,7 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
         CHECK(meta->findCString(kKeyMIMEType, &mime));
         isAudioTrack = !strncasecmp(mime, "audio/", 6);
 
-        if (!isAudioTrack && !strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP)) {
+        if (!isAudioTrack && strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP) != 0) {
             ALOGE("Track %d is not either audio or timed text", trackIndex);
             return ERROR_UNSUPPORTED;
         }
