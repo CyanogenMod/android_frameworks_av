@@ -1208,6 +1208,29 @@ String8 Camera2Client::getParameters() const {
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+
+    ALOGV("%s: Camera %d: Command %d (%d, %d)", __FUNCTION__, mCameraId,
+            cmd, arg1, arg2);
+
+    if (cmd == CAMERA_CMD_SET_DISPLAY_ORIENTATION) {
+        int transform = degToTransform(arg1,
+                mCameraFacing == CAMERA_FACING_FRONT);
+        if (transform == -1) {
+            ALOGE("%s: Camera %d: Error setting %d as display orientation value",
+                    __FUNCTION__, mCameraId, arg1);
+            return BAD_VALUE;
+        }
+        if (transform != mParameters.previewTransform &&
+                mPreviewStreamId != NO_STREAM) {
+            mDevice->setStreamTransform(mPreviewStreamId, transform);
+        }
+        mParameters.previewTransform = transform;
+        return OK;
+    }
+
+    ALOGE("%s: Camera %d: Unimplemented command %d (%d, %d)", __FUNCTION__,
+            mCameraId, cmd, arg1, arg2);
+
     return OK;
 }
 
@@ -1372,6 +1395,9 @@ status_t Camera2Client::buildDefaultParameters() {
     mParameters.previewFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
     params.set(CameraParameters::KEY_PREVIEW_FORMAT,
             formatEnumToString(mParameters.previewFormat)); // NV21
+
+    mParameters.previewTransform = degToTransform(0,
+            mCameraFacing == CAMERA_FACING_FRONT);
 
     camera_metadata_entry_t availableFormats =
         staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
@@ -2045,6 +2071,14 @@ status_t Camera2Client::updatePreviewStream() {
         }
     }
 
+    res = mDevice->setStreamTransform(mPreviewStreamId,
+            mParameters.previewTransform);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set preview stream transform: "
+                "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
     return OK;
 }
 
@@ -2672,5 +2706,25 @@ bool Camera2Client::boolFromString(const char *boolStr) {
         false;
 }
 
+int Camera2Client::degToTransform(int degrees, bool mirror) {
+    if (!mirror) {
+        if (degrees == 0) return 0;
+        else if (degrees == 90) return HAL_TRANSFORM_ROT_90;
+        else if (degrees == 180) return HAL_TRANSFORM_ROT_180;
+        else if (degrees == 270) return HAL_TRANSFORM_ROT_270;
+    } else {  // Do mirror (horizontal flip)
+        if (degrees == 0) {           // FLIP_H and ROT_0
+            return HAL_TRANSFORM_FLIP_H;
+        } else if (degrees == 90) {   // FLIP_H and ROT_90
+            return HAL_TRANSFORM_FLIP_H | HAL_TRANSFORM_ROT_90;
+        } else if (degrees == 180) {  // FLIP_H and ROT_180
+            return HAL_TRANSFORM_FLIP_V;
+        } else if (degrees == 270) {  // FLIP_H and ROT_270
+            return HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_ROT_90;
+        }
+    }
+    ALOGE("%s: Bad input: %d", __FUNCTION__, degrees);
+    return -1;
+}
 
 } // namespace android

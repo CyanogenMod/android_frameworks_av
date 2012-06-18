@@ -259,6 +259,9 @@ private:
     static status_t validateAreas(const Vector<Parameters::Area> &areas,
                                   size_t maxRegions);
     static bool boolFromString(const char *boolStr);
+
+    // Map from camera orientation + facing to gralloc transform enum
+    static int degToTransform(int degrees, bool mirror);
 };
 
 }; // namespace android

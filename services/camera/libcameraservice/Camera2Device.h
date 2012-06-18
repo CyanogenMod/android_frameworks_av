@@ -78,6 +78,11 @@ class Camera2Device : public virtual RefBase {
             uint32_t *width, uint32_t *height, uint32_t *format);
 
     /**
+     * Set stream gralloc buffer transform
+     */
+    status_t setStreamTransform(int id, int transform);
+
+    /**
      * Delete stream. Must not be called if there are requests in flight which
      * reference that stream.
      */
@@ -215,6 +220,8 @@ class Camera2Device : public virtual RefBase {
                 uint32_t width, uint32_t height, int format, size_t size);
 
         status_t disconnect();
+
+        status_t setTransform(int transform);
 
         // Get stream parameters.
         // Only valid after a successful connectToDevice call.
