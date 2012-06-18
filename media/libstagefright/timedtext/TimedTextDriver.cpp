@@ -145,21 +145,41 @@ status_t TimedTextDriver::selectTrack(size_t index) {
 }
 
 status_t TimedTextDriver::unselectTrack(size_t index) {
+    Mutex::Autolock autoLock(mLock);
     if (mCurrentTrackIndex != index) {
         return INVALID_OPERATION;
     }
-    status_t err = pause();
-    if (err != OK) {
-        return err;
+    switch (mState) {
+        case UNINITIALIZED:
+            return INVALID_OPERATION;
+        case PLAYING:
+            mPlayer->pause();
+            mState = UNINITIALIZED;
+            return OK;
+        case PAUSED:
+            mState = UNINITIALIZED;
+            return OK;
+        default:
+            TRESPASS();
     }
-    Mutex::Autolock autoLock(mLock);
-    mState = UNINITIALIZED;
-    return OK;
+    return UNKNOWN_ERROR;
 }
 
 status_t TimedTextDriver::seekToAsync(int64_t timeUs) {
-    mPlayer->seekToAsync(timeUs);
-    return OK;
+    Mutex::Autolock autoLock(mLock);
+    switch (mState) {
+        case UNINITIALIZED:
+            return INVALID_OPERATION;
+        case PAUSED:
+            mPlayer->seekToAsync(timeUs);
+            return OK;
+        case PLAYING:
+            mPlayer->seekToAsync(timeUs);
+            return OK;
+        defaut:
+            TRESPASS();
+    }
+    return UNKNOWN_ERROR;
 }
 
 status_t TimedTextDriver::addInBandTextSource(

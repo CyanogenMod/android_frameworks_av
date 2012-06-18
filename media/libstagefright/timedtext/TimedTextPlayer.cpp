@@ -41,6 +41,8 @@ static const int64_t kInvalidTimeUs = INT_MIN;
 TimedTextPlayer::TimedTextPlayer(const wp<MediaPlayerBase> &listener)
     : mListener(listener),
       mSource(NULL),
+      mPendingSeekTimeUs(kInvalidTimeUs),
+      mPaused(false),
       mSendSubtitleGeneration(0) {
 }
 
@@ -53,9 +55,7 @@ TimedTextPlayer::~TimedTextPlayer() {
 }
 
 void TimedTextPlayer::start() {
-    sp<AMessage> msg = new AMessage(kWhatSeek, id());
-    msg->setInt64("seekTimeUs", kInvalidTimeUs);
-    msg->post();
+    (new AMessage(kWhatStart, id()))->post();
 }
 
 void TimedTextPlayer::pause() {
@@ -81,11 +81,34 @@ void TimedTextPlayer::setDataSource(sp<TimedTextSource> source) {
 void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatPause: {
-            mSendSubtitleGeneration++;
+            mPaused = true;
             break;
         }
         case kWhatResume: {
-            doRead();
+            mPaused = false;
+            if (mPendingSeekTimeUs != kInvalidTimeUs) {
+                seekToAsync(mPendingSeekTimeUs);
+                mPendingSeekTimeUs = kInvalidTimeUs;
+            } else {
+                doRead();
+            }
+            break;
+        }
+        case kWhatStart: {
+            sp<MediaPlayerBase> listener = mListener.promote();
+            if (listener == NULL) {
+                ALOGE("Listener is NULL when kWhatStart is received.");
+                break;
+            }
+            mPaused = false;
+            mPendingSeekTimeUs = kInvalidTimeUs;
+            int32_t positionMs = 0;
+            listener->getCurrentPosition(&positionMs);
+            int64_t seekTimeUs = positionMs * 1000ll;
+
+            notifyListener();
+            mSendSubtitleGeneration++;
+            doSeekAndRead(seekTimeUs);
             break;
         }
         case kWhatRetryRead: {
@@ -110,7 +133,6 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
         case kWhatSeek: {
-            mSendSubtitleGeneration++;
             int64_t seekTimeUs = kInvalidTimeUs;
             // Clear a displayed timed text before seeking.
             notifyListener();
@@ -123,6 +145,11 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     seekTimeUs = positionMs * 1000ll;
                 }
             }
+            if (mPaused) {
+                mPendingSeekTimeUs = seekTimeUs;
+                break;
+            }
+            mSendSubtitleGeneration++;
             doSeekAndRead(seekTimeUs);
             break;
         }
@@ -221,22 +248,20 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
 
 void TimedTextPlayer::postTextEvent(const sp<ParcelEvent>& parcel, int64_t timeUs) {
     int64_t delayUs = delayUsFromCurrentTime(timeUs);
-    sp<MediaPlayerBase> listener = mListener.promote();
-    if (listener != NULL) {
-        sp<AMessage> msg = new AMessage(kWhatSendSubtitle, id());
-        msg->setInt32("generation", mSendSubtitleGeneration);
-        if (parcel != NULL) {
-            msg->setObject("subtitle", parcel);
-        }
-        msg->setInt64("fireTimeUs", timeUs);
-        msg->post(delayUs);
+    sp<AMessage> msg = new AMessage(kWhatSendSubtitle, id());
+    msg->setInt32("generation", mSendSubtitleGeneration);
+    if (parcel != NULL) {
+        msg->setObject("subtitle", parcel);
     }
+    msg->setInt64("fireTimeUs", timeUs);
+    msg->post(delayUs);
 }
 
 int64_t TimedTextPlayer::delayUsFromCurrentTime(int64_t fireTimeUs) {
     sp<MediaPlayerBase> listener = mListener.promote();
     if (listener == NULL) {
         // TODO: it may be better to return kInvalidTimeUs
+        ALOGE("%s: Listener is NULL.", __FUNCTION__, fireTimeUs);
         return 0;
     }
     int32_t positionMs = 0;
@@ -256,19 +281,23 @@ int64_t TimedTextPlayer::delayUsFromCurrentTime(int64_t fireTimeUs) {
 
 void TimedTextPlayer::notifyError(int error) {
     sp<MediaPlayerBase> listener = mListener.promote();
-    if (listener != NULL) {
-        listener->sendEvent(MEDIA_INFO, MEDIA_INFO_TIMED_TEXT_ERROR, error);
+    if (listener == NULL) {
+        ALOGE("%s(error=%d): Listener is NULL.", __FUNCTION__, error);
+        return;
     }
+    listener->sendEvent(MEDIA_INFO, MEDIA_INFO_TIMED_TEXT_ERROR, error);
 }
 
 void TimedTextPlayer::notifyListener(const Parcel *parcel) {
     sp<MediaPlayerBase> listener = mListener.promote();
-    if (listener != NULL) {
-        if (parcel != NULL && (parcel->dataSize() > 0)) {
-            listener->sendEvent(MEDIA_TIMED_TEXT, 0, 0, parcel);
-        } else {  // send an empty timed text to clear the screen
-            listener->sendEvent(MEDIA_TIMED_TEXT);
-        }
+    if (listener == NULL) {
+        ALOGE("%s: Listener is NULL.", __FUNCTION__);
+        return;
+    }
+    if (parcel != NULL && (parcel->dataSize() > 0)) {
+        listener->sendEvent(MEDIA_TIMED_TEXT, 0, 0, parcel);
+    } else {  // send an empty timed text to clear the screen
+        listener->sendEvent(MEDIA_TIMED_TEXT);
     }
 }
 
