@@ -91,7 +91,7 @@ private:
     // The following must be called with mICamaeraLock already locked
 
     status_t setPreviewWindowLocked(const sp<IBinder>& binder,
-            const sp<ANativeWindow>& window);
+            sp<ANativeWindow> window);
 
     void stopPreviewLocked();
     status_t startPreviewLocked();
@@ -192,6 +192,8 @@ private:
     static const int NO_STREAM = -1;
 
     sp<IBinder> mPreviewSurface;
+    sp<ANativeWindow> mPreviewWindow;
+
     int mPreviewStreamId;
     camera_metadata_t *mPreviewRequest;
 
@@ -219,13 +221,28 @@ private:
     // old API parameter map.
     status_t buildDefaultParameters();
 
-    // Update preview request based on mParams
+    // Update preview request based on mParameters
     status_t updatePreviewRequest();
+    // Update preview stream based on mParameters
+    status_t updatePreviewStream();
 
-    // Update capture request based on mParams
+    // Update capture request based on mParameters
     status_t updateCaptureRequest();
-    // Update capture stream based on mParams
+    // Update capture stream based on mParameters
     status_t updateCaptureStream();
+
+    // Update parameters all requests use, based on mParameters
+    status_t updateRequestCommon(camera_metadata_t *request);
+
+    // Update specific metadata entry with new values. Adds entry if it does not
+    // exist, which will invalidate sorting
+    static status_t updateEntry(camera_metadata_t *buffer,
+            uint32_t tag, const void *data, size_t data_count);
+
+    // Remove metadata entry. Will invalidate sorting. If entry does not exist,
+    // does nothing.
+    static status_t deleteEntry(camera_metadata_t *buffer,
+            uint32_t tag);
 
     // Convert camera1 preview format string to camera2 enum
     static int formatStringToEnum(const char *format);
