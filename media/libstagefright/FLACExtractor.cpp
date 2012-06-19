@@ -350,7 +350,7 @@ void FLACParser::metadataCallback(const FLAC__StreamMetadata *metadata)
         for (FLAC__uint32 i = 0; i < vc->num_comments; ++i) {
             FLAC__StreamMetadata_VorbisComment_Entry *vce;
             vce = &vc->comments[i];
-            if (mFileMetadata != 0) {
+            if (mFileMetadata != 0 && vce->entry != NULL) {
                 parseVorbisComment(mFileMetadata, (const char *) vce->entry,
                         vce->length);
             }
