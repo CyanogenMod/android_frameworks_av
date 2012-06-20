@@ -44,7 +44,7 @@ protected:
 
 private:
     enum {
-        kNumInputBuffers        = 32,
+        kNumInputBuffers        = 4,
         kNumOutputBuffers       = 4,
     };
 
