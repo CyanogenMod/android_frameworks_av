@@ -3359,7 +3359,7 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
     idleSleepTime = idleSleepTimeUs();
 }
 
-void AudioFlinger::MixerThread::invalidateTracks(audio_stream_type_t streamType)
+void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
 {
     ALOGV ("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %d",
             this,  streamType, mTracks.size());
@@ -7026,21 +7026,11 @@ status_t AudioFlinger::closeInput(audio_io_handle_t input)
 status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
 {
     Mutex::Autolock _l(mLock);
-    MixerThread *dstThread = checkMixerThread_l(output);
-    if (dstThread == NULL) {
-        ALOGW("setStreamOutput() bad output id %d", output);
-        return BAD_VALUE;
-    }
-
     ALOGV("setStreamOutput() stream %d to output %d", stream, output);
-    audioConfigChanged_l(AudioSystem::STREAM_CONFIG_CHANGED, output, &stream);
 
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
-        if (thread != dstThread && thread->type() != ThreadBase::DIRECT) {
-            MixerThread *srcThread = (MixerThread *)thread;
-            srcThread->invalidateTracks(stream);
-        }
+        thread->invalidateTracks(stream);
     }
 
     return NO_ERROR;

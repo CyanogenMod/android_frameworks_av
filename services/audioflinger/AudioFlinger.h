@@ -1016,6 +1016,8 @@ public:
 
                     virtual status_t setSyncEvent(const sp<SyncEvent>& event);
                     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
+                            void     invalidateTracks(audio_stream_type_t streamType);
+
 
     protected:
         int16_t*                        mMixBuffer;
@@ -1143,7 +1145,6 @@ public:
 
         // Thread virtuals
 
-                    void        invalidateTracks(audio_stream_type_t streamType);
         virtual     bool        checkForNewParameters_l();
         virtual     status_t    dumpInternals(int fd, const Vector<String16>& args);
 
