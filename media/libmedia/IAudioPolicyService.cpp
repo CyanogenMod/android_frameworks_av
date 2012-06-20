@@ -274,7 +274,7 @@ public:
         return (audio_devices_t) reply.readInt32();
     }
 
-    virtual audio_io_handle_t getOutputForEffect(effect_descriptor_t *desc)
+    virtual audio_io_handle_t getOutputForEffect(const effect_descriptor_t *desc)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
@@ -283,7 +283,7 @@ public:
         return static_cast <audio_io_handle_t> (reply.readInt32());
     }
 
-    virtual status_t registerEffect(effect_descriptor_t *desc,
+    virtual status_t registerEffect(const effect_descriptor_t *desc,
                                         audio_io_handle_t io,
                                         uint32_t strategy,
                                         int session,

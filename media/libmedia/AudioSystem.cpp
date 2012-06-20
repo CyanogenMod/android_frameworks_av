@@ -694,14 +694,14 @@ audio_devices_t AudioSystem::getDevicesForStream(audio_stream_type_t stream)
     return aps->getDevicesForStream(stream);
 }
 
-audio_io_handle_t AudioSystem::getOutputForEffect(effect_descriptor_t *desc)
+audio_io_handle_t AudioSystem::getOutputForEffect(const effect_descriptor_t *desc)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
     return aps->getOutputForEffect(desc);
 }
 
-status_t AudioSystem::registerEffect(effect_descriptor_t *desc,
+status_t AudioSystem::registerEffect(const effect_descriptor_t *desc,
                                 audio_io_handle_t io,
                                 uint32_t strategy,
                                 int session,

@@ -1576,7 +1576,7 @@ private:
         size_t disconnect(EffectHandle *handle, bool unpinIfLast);
         size_t removeHandle(EffectHandle *handle);
 
-        effect_descriptor_t& desc() { return mDescriptor; }
+        const effect_descriptor_t& desc() const { return mDescriptor; }
         wp<EffectChain>&     chain() { return mChain; }
 
         status_t         setDevice(audio_devices_t device);
@@ -1615,7 +1615,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         wp<EffectChain>     mChain;     // parent effect chain
         const int           mId;        // this instance unique ID
         const int           mSessionId; // audio session ID
-        effect_descriptor_t mDescriptor;// effect descriptor received from effect engine
+        const effect_descriptor_t mDescriptor;// effect descriptor received from effect engine
         effect_config_t     mConfig;    // input and output audio configuration
         effect_handle_t  mEffectInterface; // Effect module C API
         status_t            mStatus;    // initialization status

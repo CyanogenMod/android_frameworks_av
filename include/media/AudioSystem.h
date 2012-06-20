@@ -219,8 +219,8 @@ public:
     static uint32_t getStrategyForStream(audio_stream_type_t stream);
     static audio_devices_t getDevicesForStream(audio_stream_type_t stream);
 
-    static audio_io_handle_t getOutputForEffect(effect_descriptor_t *desc);
-    static status_t registerEffect(effect_descriptor_t *desc,
+    static audio_io_handle_t getOutputForEffect(const effect_descriptor_t *desc);
+    static status_t registerEffect(const effect_descriptor_t *desc,
                                     audio_io_handle_t io,
                                     uint32_t strategy,
                                     int session,

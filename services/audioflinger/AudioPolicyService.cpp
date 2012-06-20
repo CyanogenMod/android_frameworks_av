@@ -441,7 +441,7 @@ audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stre
     return mpAudioPolicy->get_devices_for_stream(mpAudioPolicy, stream);
 }
 
-audio_io_handle_t AudioPolicyService::getOutputForEffect(effect_descriptor_t *desc)
+audio_io_handle_t AudioPolicyService::getOutputForEffect(const effect_descriptor_t *desc)
 {
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
@@ -450,7 +450,7 @@ audio_io_handle_t AudioPolicyService::getOutputForEffect(effect_descriptor_t *de
     return mpAudioPolicy->get_output_for_effect(mpAudioPolicy, desc);
 }
 
-status_t AudioPolicyService::registerEffect(effect_descriptor_t *desc,
+status_t AudioPolicyService::registerEffect(const effect_descriptor_t *desc,
                                 audio_io_handle_t io,
                                 uint32_t strategy,
                                 int session,
