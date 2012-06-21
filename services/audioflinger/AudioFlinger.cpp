@@ -4462,8 +4462,6 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
         }
 
         buffer->raw = getBuffer(s, framesReq);
-        if (buffer->raw == NULL) goto getNextBuffer_exit;
-
         buffer->frameCount = framesReq;
         return NO_ERROR;
     }
@@ -5355,8 +5353,6 @@ status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvi
         }
 
         buffer->raw = getBuffer(s, framesReq);
-        if (buffer->raw == NULL) goto getNextBuffer_exit;
-
         buffer->frameCount = framesReq;
         return NO_ERROR;
     }
