@@ -472,6 +472,14 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         goto Exit;
     }
 
+    // client is responsible for conversion of 8-bit PCM to 16-bit PCM,
+    // and we don't yet support 8.24 or 32-bit PCM
+    if (audio_is_linear_pcm(format) && format != AUDIO_FORMAT_PCM_16_BIT) {
+        ALOGE("createTrack() invalid format %d", format);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     {
         Mutex::Autolock _l(mLock);
         PlaybackThread *thread = checkPlaybackThread_l(output);
@@ -2280,7 +2288,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mNormalSink below
 {
     ALOGV("MixerThread() id=%d device=%#x type=%d", id, device, type);
-    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
+    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%u, "
             "mFrameCount=%d, mNormalFrameCount=%d",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
             mNormalFrameCount);
@@ -4190,11 +4198,12 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mState(IDLE),
         mSampleRate(sampleRate),
         mFormat(format),
-        mFrameSize(0),  // will be set to correct value in constructor
+        mChannelMask(channelMask),
+        mChannelCount(popcount(channelMask)),
+        mFrameSize(audio_is_linear_pcm(format) ?
+                mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mStepServerFailed(false),
         mSessionId(sessionId)
-        // mChannelCount
-        // mChannelMask
 {
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
@@ -4204,8 +4213,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
-    uint8_t channelCount = popcount(channelMask);
-    size_t bufferSize = frameCount*channelCount*sizeof(int16_t);
+    size_t bufferSize = frameCount * mFrameSize;
     if (sharedBuffer == 0) {
         size += bufferSize;
     }
@@ -4236,11 +4244,9 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 //      mCblk->server = 0xffff0000;
 //      mCblk->userBase = 0xffff0000;
 //      mCblk->serverBase = 0xffff0000;
-        mChannelCount = channelCount;
-        mChannelMask = channelMask;
         if (sharedBuffer == 0) {
             mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
-            memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
+            memset(mBuffer, 0, bufferSize);
             // Force underrun condition to avoid false underrun callback until first data is
             // written to buffer (other flags are cleared)
             mCblk->flags = CBLK_UNDERRUN;
@@ -4312,17 +4318,16 @@ uint32_t AudioFlinger::ThreadBase::TrackBase::sampleRate() const {
 
 void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t frames) const {
     audio_track_cblk_t* cblk = this->cblk();
-    size_t frameSize = mFrameSize;
-    int8_t *bufferStart = (int8_t *)mBuffer + (offset-cblk->serverBase)*frameSize;
-    int8_t *bufferEnd = bufferStart + frames * frameSize;
+    int8_t *bufferStart = (int8_t *)mBuffer + (offset-cblk->serverBase) * mFrameSize;
+    int8_t *bufferEnd = bufferStart + frames * mFrameSize;
 
     // Check validity of returned pointer in case the track control block would have been corrupted.
     ALOG_ASSERT(!(bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd),
             "TrackBase::getBuffer buffer out of range:\n"
                 "    start: %p, end %p , mBuffer %p mBufferEnd %p\n"
-                "    server %u, serverBase %u, user %u, userBase %u, frameSize %d",
+                "    server %u, serverBase %u, user %u, userBase %u, frameSize %u",
                 bufferStart, bufferEnd, mBuffer, mBufferEnd,
-                cblk->server, cblk->serverBase, cblk->user, cblk->userBase, frameSize);
+                cblk->server, cblk->serverBase, cblk->user, cblk->userBase, mFrameSize);
 
     return bufferStart;
 }
@@ -4364,10 +4369,6 @@ AudioFlinger::PlaybackThread::Track::Track(
     mUnderrunCount(0),
     mCachedVolume(1.0)
 {
-    // NOTE: frame size for 8 bit PCM data is based on a sample size of
-    // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
-    mFrameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) :
-            sizeof(uint8_t);
     if (mCblk != NULL) {
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
         mName = thread->getTrackName_l(channelMask, sessionId);
@@ -5411,13 +5412,6 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         mOverflow(false)
 {
     ALOGV("RecordTrack constructor, size %d", (int)mBufferEnd - (int)mBuffer);
-    if (format == AUDIO_FORMAT_PCM_16_BIT) {
-        mFrameSize = mChannelCount * sizeof(int16_t);
-    } else if (format == AUDIO_FORMAT_PCM_8_BIT) {
-        mFrameSize = mChannelCount * sizeof(int8_t);
-    } else {
-        mFrameSize = sizeof(int8_t);
-    }
 }
 
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()

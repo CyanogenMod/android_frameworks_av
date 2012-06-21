@@ -520,7 +520,7 @@ protected:
             // address space.  AudioFlinger::TrackBase::mBuffer is for the server address space.
     void*                   mBuffers;
 
-    audio_format_t          mFormat;
+    audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
     audio_stream_type_t     mStreamType;
     uint8_t                 mChannelCount;
     uint8_t                 mMuted;
