@@ -789,10 +789,14 @@ private:
             void triggerEvents(AudioSystem::sync_event_t type);
             virtual bool isTimedTrack() const { return false; }
             bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+
         protected:
 
-            // we don't really need a lock for these
-            volatile bool       mMute;
+            // written by Track::mute() called by binder thread(s), without a mutex or barrier.
+            // read by Track::isMuted() called by playback thread, also without a mutex or barrier.
+            // The lack of mutex or barrier is safe because the mute status is only used by itself.
+            bool                mMute;
+
             // FILLED state is used for suppressing volume ramp at begin of playing
             enum {FS_INVALID, FS_FILLING, FS_FILLED, FS_ACTIVE};
             mutable uint8_t     mFillingUpStatus;
