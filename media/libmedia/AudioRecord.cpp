@@ -77,7 +77,7 @@ AudioRecord::AudioRecord(
         audio_source_t inputSource,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         callback_t cbf,
         void* user,
@@ -111,7 +111,7 @@ status_t AudioRecord::set(
         audio_source_t inputSource,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         callback_t cbf,
         void* user,
@@ -120,7 +120,7 @@ status_t AudioRecord::set(
         int sessionId)
 {
 
-    ALOGV("set(): sampleRate %d, channelMask %d, frameCount %d",sampleRate, channelMask, frameCount);
+    ALOGV("set(): sampleRate %d, channelMask %#x, frameCount %d",sampleRate, channelMask, frameCount);
 
     AutoMutex lock(mLock);
 
@@ -444,7 +444,7 @@ unsigned int AudioRecord::getInputFramesLost() const
 status_t AudioRecord::openRecord_l(
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         audio_io_handle_t input)
 {

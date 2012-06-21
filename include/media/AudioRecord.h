@@ -139,7 +139,7 @@ public:
                         AudioRecord(audio_source_t inputSource,
                                     uint32_t sampleRate = 0,
                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    uint32_t channelMask = AUDIO_CHANNEL_IN_MONO,
+                                    audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
                                     int frameCount      = 0,
                                     callback_t cbf = NULL,
                                     void* user = NULL,
@@ -164,7 +164,7 @@ public:
             status_t    set(audio_source_t inputSource = AUDIO_SOURCE_DEFAULT,
                             uint32_t sampleRate = 0,
                             audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                            uint32_t channelMask = AUDIO_CHANNEL_IN_MONO,
+                            audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
                             int frameCount      = 0,
                             callback_t cbf = NULL,
                             void* user = NULL,
@@ -337,7 +337,7 @@ private:
             bool processAudioBuffer(const sp<ClientRecordThread>& thread);
             status_t openRecord_l(uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 audio_io_handle_t input);
             audio_io_handle_t getInput_l();
@@ -369,7 +369,7 @@ private:
     bool                    mMarkerReached;
     uint32_t                mNewPosition;
     uint32_t                mUpdatePeriod;
-    uint32_t                mChannelMask;
+    audio_channel_mask_t    mChannelMask;
     audio_io_handle_t       mInput;
     int                     mSessionId;
     int                     mPreviousPriority;          // before start()
