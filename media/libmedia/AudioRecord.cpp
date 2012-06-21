@@ -18,28 +18,18 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioRecord"
 
-#include <stdint.h>
+#include <sys/resource.h>
 #include <sys/types.h>
 
-#include <sched.h>
-#include <sys/resource.h>
+#include <binder/IPCThreadState.h>
+#include <cutils/atomic.h>
+#include <cutils/compiler.h>
+#include <media/AudioRecord.h>
+#include <media/AudioSystem.h>
+#include <system/audio.h>
+#include <utils/Log.h>
 
 #include <private/media/AudioTrackShared.h>
-
-#include <media/AudioSystem.h>
-#include <media/AudioRecord.h>
-#include <media/mediarecorder.h>
-
-#include <binder/IServiceManager.h>
-#include <utils/Log.h>
-#include <binder/Parcel.h>
-#include <binder/IPCThreadState.h>
-#include <utils/Timers.h>
-#include <utils/Atomic.h>
-
-#include <system/audio.h>
-#include <cutils/bitops.h>
-#include <cutils/compiler.h>
 
 namespace android {
 // ---------------------------------------------------------------------------

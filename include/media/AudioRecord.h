@@ -17,21 +17,14 @@
 #ifndef AUDIORECORD_H_
 #define AUDIORECORD_H_
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <media/IAudioFlinger.h>
-#include <media/IAudioRecord.h>
-
-#include <utils/RefBase.h>
-#include <utils/Errors.h>
-#include <binder/IInterface.h>
 #include <binder/IMemory.h>
 #include <cutils/sched_policy.h>
-#include <utils/threads.h>
-
-#include <system/audio.h>
 #include <media/AudioSystem.h>
+#include <media/IAudioRecord.h>
+#include <system/audio.h>
+#include <utils/RefBase.h>
+#include <utils/Errors.h>
+#include <utils/threads.h>
 
 namespace android {
 
