@@ -367,7 +367,6 @@ sp<IMemory>& AudioTrack::sharedBuffer()
 void AudioTrack::start()
 {
     sp<AudioTrackThread> t = mAudioTrackThread;
-    status_t status = NO_ERROR;
 
     ALOGV("start %p", this);
 
@@ -395,6 +394,7 @@ void AudioTrack::start()
         }
 
         ALOGV("start %p before lock cblk %p", this, mCblk);
+        status_t status = NO_ERROR;
         if (!(cblk->flags & CBLK_INVALID_MSK)) {
             cblk->lock.unlock();
             ALOGV("mAudioTrack->start()");
