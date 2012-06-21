@@ -560,9 +560,6 @@ create_new_record:
         framesReq = bufferEnd - u;
     }
 
-    audioBuffer->flags       = 0;
-    audioBuffer->channelCount= mChannelCount;
-    audioBuffer->format      = mFormat;
     audioBuffer->frameCount  = framesReq;
     audioBuffer->size        = framesReq*cblk->frameSize;
     audioBuffer->raw         = (int8_t*)cblk->buffer(u);
