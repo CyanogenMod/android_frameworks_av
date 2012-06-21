@@ -858,7 +858,9 @@ status_t AudioTrack::createTrack_l(
     sp<IAudioTrack> track = audioFlinger->createTrack(getpid(),
                                                       streamType,
                                                       sampleRate,
-                                                      format,
+                                                      // AudioFlinger only sees 16-bit PCM
+                                                      format == AUDIO_FORMAT_PCM_8_BIT ?
+                                                              AUDIO_FORMAT_PCM_16_BIT : format,
                                                       channelMask,
                                                       frameCount,
                                                       &trackFlags,
