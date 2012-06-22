@@ -162,7 +162,6 @@ status_t AudioRecord::set(
                                                     sampleRate,
                                                     format,
                                                     channelMask,
-                                                    (audio_in_acoustics_t) 0,
                                                     mSessionId);
     if (input == 0) {
         ALOGE("Could not get audio input for record source %d", inputSource);
@@ -600,7 +599,6 @@ audio_io_handle_t AudioRecord::getInput_l()
                                 mCblk->sampleRate,
                                 mFormat,
                                 mChannelMask,
-                                (audio_in_acoustics_t) 0,
                                 mSessionId);
     return mInput;
 }

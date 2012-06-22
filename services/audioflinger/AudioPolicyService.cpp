@@ -272,7 +272,6 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     uint32_t channels,
-                                    audio_in_acoustics_t acoustics,
                                     int audioSession)
 {
     if (mpAudioPolicy == NULL) {
@@ -283,8 +282,9 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return 0;
     }
     Mutex::Autolock _l(mLock);
+    // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
-                                                       format, channels, acoustics);
+                                                       format, channels, (audio_in_acoustics_t) 0);
 
     if (input == 0) {
         return input;
@@ -1424,7 +1424,7 @@ static int aps_restore_output(void *service, audio_io_handle_t output)
     return af->restoreOutput(output);
 }
 
-// deprecated: replaced by aps_open_input_on_module()
+// deprecated: replaced by aps_open_input_on_module(), and acoustics parameter is ignored
 static audio_io_handle_t aps_open_input(void *service,
                                         audio_devices_t *pDevices,
                                         uint32_t *pSamplingRate,
