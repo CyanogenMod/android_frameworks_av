@@ -37,11 +37,9 @@
 #include "MidiMetadataRetriever.h"
 #include "MetadataRetrieverClient.h"
 #include "StagefrightMetadataRetriever.h"
+#include "MediaPlayerFactory.h"
 
 namespace android {
-
-extern player_type getPlayerType(const char* url);
-extern player_type getPlayerType(int fd, int64_t offset, int64_t length);
 
 MetadataRetrieverClient::MetadataRetrieverClient(pid_t pid)
 {
@@ -115,7 +113,17 @@ status_t MetadataRetrieverClient::setDataSource(
     if (url == NULL) {
         return UNKNOWN_ERROR;
     }
-    player_type playerType = getPlayerType(url);
+
+    // When asking the MediaPlayerFactory subsystem to choose a media player for
+    // a given URL, a pointer to an outer IMediaPlayer can be passed to the
+    // factory system to be taken into consideration along with the URL.  In the
+    // case of choosing an instance of a MediaPlayerBase for a
+    // MetadataRetrieverClient, there is no outer IMediaPlayer which will
+    // eventually encapsulate the result of this selection.  In this case, just
+    // pass NULL to getPlayerType to indicate that there is no outer
+    // IMediaPlayer to consider during selection.
+    player_type playerType =
+        MediaPlayerFactory::getPlayerType(NULL /* client */, url);
     ALOGV("player type = %d", playerType);
     sp<MediaMetadataRetrieverBase> p = createRetriever(playerType);
     if (p == NULL) return NO_INIT;
@@ -150,7 +158,11 @@ status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t 
         ALOGV("calculated length = %lld", length);
     }
 
-    player_type playerType = getPlayerType(fd, offset, length);
+    player_type playerType =
+        MediaPlayerFactory::getPlayerType(NULL /* client */,
+                                          fd,
+                                          offset,
+                                          length);
     ALOGV("player type = %d", playerType);
     sp<MediaMetadataRetrieverBase> p = createRetriever(playerType);
     if (p == NULL) {

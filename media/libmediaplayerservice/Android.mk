@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:=               \
     ActivityManager.cpp         \
     Crypto.cpp                  \
     MediaRecorderClient.cpp     \
+    MediaPlayerFactory.cpp      \
     MediaPlayerService.cpp      \
     MetadataRetrieverClient.cpp \
     TestPlayerStub.cpp          \
