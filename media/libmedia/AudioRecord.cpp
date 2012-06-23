@@ -643,10 +643,12 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
         status_t err = obtainBuffer(&audioBuffer, ((2 * MAX_RUN_TIMEOUT_MS) / WAIT_PERIOD_MS));
         if (err < 0) {
             // out of buffers, return #bytes written
-            if (err == status_t(NO_MORE_BUFFERS))
+            if (err == status_t(NO_MORE_BUFFERS)) {
                 break;
-            if (err == status_t(TIMED_OUT))
+            }
+            if (err == status_t(TIMED_OUT)) {
                 err = 0;
+            }
             return ssize_t(err);
         }
 

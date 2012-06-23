@@ -423,7 +423,9 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             dumpTee(fd, mRecordTeeSource);
         }
 
-        if (locked) mLock.unlock();
+        if (locked) {
+            mLock.unlock();
+        }
     }
     return NO_ERROR;
 }
@@ -2629,7 +2631,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
                     clearOutputTracks();
 
-                    if (exitPending()) break;
+                    if (exitPending()) {
+                        break;
+                    }
 
                     releaseWakeLock_l();
                     // wait until we have something to do...
@@ -2822,7 +2826,9 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
         bytesWritten = (int)mOutput->stream->write(mOutput->stream, mMixBuffer, mixBufferSize);
     }
 
-    if (bytesWritten > 0) mBytesWritten += mixBufferSize;
+    if (bytesWritten > 0) {
+        mBytesWritten += mixBufferSize;
+    }
     mNumWrites++;
     mInWrite = false;
 }
@@ -2963,7 +2969,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
 
     for (size_t i=0 ; i<count ; i++) {
         sp<Track> t = mActiveTracks[i].promote();
-        if (t == 0) continue;
+        if (t == 0) {
+            continue;
+        }
 
         // this const just means the local variable doesn't change
         Track* const track = t.get();
@@ -3243,11 +3251,17 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // Convert volumes from 8.24 to 4.12 format
             // This additional clamping is needed in case chain->setVolume_l() overshot
             vl = (vl + (1 << 11)) >> 12;
-            if (vl > MAX_GAIN_INT) vl = MAX_GAIN_INT;
+            if (vl > MAX_GAIN_INT) {
+                vl = MAX_GAIN_INT;
+            }
             vr = (vr + (1 << 11)) >> 12;
-            if (vr > MAX_GAIN_INT) vr = MAX_GAIN_INT;
+            if (vr > MAX_GAIN_INT) {
+                vr = MAX_GAIN_INT;
+            }
 
-            if (va > MAX_GAIN_INT) va = MAX_GAIN_INT;   // va is uint32_t, so no need to check for -
+            if (va > MAX_GAIN_INT) {
+                va = MAX_GAIN_INT;   // va is uint32_t, so no need to check for -
+            }
 
             // XXX: these things DON'T need to be done each time
             mAudioMixer->setBufferProvider(name, track);
@@ -3376,7 +3390,9 @@ track_is_ready: ;
         ALOG_ASSERT(i < count);
         resetMask &= ~(1 << i);
         sp<Track> t = mActiveTracks[i].promote();
-        if (t == 0) continue;
+        if (t == 0) {
+            continue;
+        }
         Track* track = t.get();
         ALOG_ASSERT(track->isFastTrack() && track->isStopped());
         track->reset();
@@ -3578,7 +3594,9 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                 mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
                     int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
-                    if (name < 0) break;
+                    if (name < 0) {
+                        break;
+                    }
                     mTracks[i]->mName = name;
                     // limit track sample rate to 2 x new output sample rate
                     if (mTracks[i]->mCblk->sampleRate > 2 * sampleRate()) {
@@ -3753,7 +3771,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     if (mActiveTracks.size() != 0) {
         sp<Track> t = mActiveTracks[0].promote();
         // The track died recently
-        if (t == 0) return MIXER_IDLE;
+        if (t == 0) {
+            return MIXER_IDLE;
+        }
 
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
@@ -3792,10 +3812,14 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 float v = mMasterVolume * typeVolume;
                 uint32_t vlr = cblk->getVolumeLR();
                 float v_clamped = v * (vlr & 0xFFFF);
-                if (v_clamped > MAX_GAIN) v_clamped = MAX_GAIN;
+                if (v_clamped > MAX_GAIN) {
+                    v_clamped = MAX_GAIN;
+                }
                 left = v_clamped/MAX_GAIN;
                 v_clamped = v * (vlr >> 16);
-                if (v_clamped > MAX_GAIN) v_clamped = MAX_GAIN;
+                if (v_clamped > MAX_GAIN) {
+                    v_clamped = MAX_GAIN;
+                }
                 right = v_clamped/MAX_GAIN;
             }
 
@@ -4587,7 +4611,9 @@ size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
-    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) return true;
+    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
+        return true;
+    }
 
     if (framesReady() >= mCblk->frameCount ||
             (mCblk->flags & CBLK_FORCEREADY)) {
@@ -5429,7 +5455,9 @@ status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvi
 
     // Check if last stepServer failed, try to step now
     if (mStepServerFailed) {
-        if (!step()) goto getNextBuffer_exit;
+        if (!step()) {
+            goto getNextBuffer_exit;
+        }
         ALOGV("stepServer recovered");
         mStepServerFailed = false;
     }
@@ -6090,7 +6118,9 @@ bool AudioFlinger::RecordThread::threadLoop()
             if (mActiveTrack == 0 && mConfigEvents.isEmpty()) {
                 standby();
 
-                if (exitPending()) break;
+                if (exitPending()) {
+                    break;
+                }
 
                 releaseWakeLock_l();
                 ALOGV("RecordThread: loop stopping");
@@ -8122,7 +8152,9 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
         // indicate all active tracks in the chain
         for (size_t i = 0 ; i < mActiveTracks.size() ; ++i) {
             sp<Track> track = mActiveTracks[i].promote();
-            if (track == 0) continue;
+            if (track == 0) {
+                continue;
+            }
             if (session == track->sessionId()) {
                 ALOGV("addEffectChain_l() activating track %p on session %d", track.get(), session);
                 chain->incActiveTrackCnt();
@@ -8145,7 +8177,9 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
     size_t size = mEffectChains.size();
     size_t i = 0;
     for (i = 0; i < size; i++) {
-        if (mEffectChains[i]->sessionId() < session) break;
+        if (mEffectChains[i]->sessionId() < session) {
+            break;
+        }
     }
     mEffectChains.insertAt(chain, i);
     checkSuspendOnAddEffectChain_l(chain);
@@ -8165,7 +8199,9 @@ size_t AudioFlinger::PlaybackThread::removeEffectChain_l(const sp<EffectChain>& 
             // detach all active tracks from the chain
             for (size_t i = 0 ; i < mActiveTracks.size() ; ++i) {
                 sp<Track> track = mActiveTracks[i].promote();
-                if (track == 0) continue;
+                if (track == 0) {
+                    continue;
+                }
                 if (session == track->sessionId()) {
                     ALOGV("removeEffectChain_l(): stopping track on chain %p for session Id: %d",
                             chain.get(), session);
@@ -8332,11 +8368,15 @@ status_t AudioFlinger::EffectModule::addHandle(EffectHandle *handle)
     size_t i;
     for (i = 0; i < size; i++) {
         EffectHandle *h = mHandles[i];
-        if (h == NULL || h->destroyed_l()) continue;
+        if (h == NULL || h->destroyed_l()) {
+            continue;
+        }
         // first non destroyed handle is considered in control
         if (controlHandle == NULL)
             controlHandle = h;
-        if (h->priority() <= priority) break;
+        if (h->priority() <= priority) {
+            break;
+        }
     }
     // if inserted in first place, move effect control from previous owner to this handle
     if (i == 0) {
@@ -8361,7 +8401,9 @@ size_t AudioFlinger::EffectModule::removeHandle(EffectHandle *handle)
     size_t size = mHandles.size();
     size_t i;
     for (i = 0; i < size; i++) {
-        if (mHandles[i] == handle) break;
+        if (mHandles[i] == handle) {
+            break;
+        }
     }
     if (i == size) {
         return size;
@@ -9070,8 +9112,12 @@ AudioFlinger::EffectHandle::~EffectHandle()
 status_t AudioFlinger::EffectHandle::enable()
 {
     ALOGV("enable %p", this);
-    if (!mHasControl) return INVALID_OPERATION;
-    if (mEffect == 0) return DEAD_OBJECT;
+    if (!mHasControl) {
+        return INVALID_OPERATION;
+    }
+    if (mEffect == 0) {
+        return DEAD_OBJECT;
+    }
 
     if (mEnabled) {
         return NO_ERROR;
@@ -9102,8 +9148,12 @@ status_t AudioFlinger::EffectHandle::enable()
 status_t AudioFlinger::EffectHandle::disable()
 {
     ALOGV("disable %p", this);
-    if (!mHasControl) return INVALID_OPERATION;
-    if (mEffect == 0) return DEAD_OBJECT;
+    if (!mHasControl) {
+        return INVALID_OPERATION;
+    }
+    if (mEffect == 0) {
+        return DEAD_OBJECT;
+    }
 
     if (!mEnabled) {
         return NO_ERROR;
@@ -9170,8 +9220,12 @@ status_t AudioFlinger::EffectHandle::command(uint32_t cmdCode,
     if (!mHasControl && cmdCode != EFFECT_CMD_GET_PARAM) {
         return INVALID_OPERATION;
     }
-    if (mEffect == 0) return DEAD_OBJECT;
-    if (mClient == 0) return INVALID_OPERATION;
+    if (mEffect == 0) {
+        return DEAD_OBJECT;
+    }
+    if (mClient == 0) {
+        return INVALID_OPERATION;
+    }
 
     // handle commands that are not forwarded transparently to effect engine
     if (cmdCode == EFFECT_CMD_SET_PARAM_COMMIT) {
@@ -9641,7 +9695,9 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
     uint32_t rVol = newRight;
 
     for (size_t i = 0; i < size; i++) {
-        if ((int)i == ctrlIdx) continue;
+        if ((int)i == ctrlIdx) {
+            continue;
+        }
         // this also works for ctrlIdx == -1 when there is no volume controller
         if ((int)i > ctrlIdx) {
             lVol = *left;
