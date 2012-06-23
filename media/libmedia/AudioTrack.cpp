@@ -54,7 +54,9 @@ status_t AudioTrack::getMinFrameCount(
         audio_stream_type_t streamType,
         uint32_t sampleRate)
 {
-    if (frameCount == NULL) return BAD_VALUE;
+    if (frameCount == NULL) {
+        return BAD_VALUE;
+    }
 
     // default to 0 in case of error
     *frameCount = 0;
@@ -553,7 +555,9 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
         return NO_INIT;
     }
     // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-    if (rate == 0 || rate > afSamplingRate*2 ) return BAD_VALUE;
+    if (rate == 0 || rate > afSamplingRate*2 ) {
+        return BAD_VALUE;
+    }
 
     AutoMutex lock(mLock);
     mCblk->sampleRate = rate;
@@ -620,7 +624,9 @@ status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCou
 
 status_t AudioTrack::setMarkerPosition(uint32_t marker)
 {
-    if (mCbf == NULL) return INVALID_OPERATION;
+    if (mCbf == NULL) {
+        return INVALID_OPERATION;
+    }
 
     mMarkerPosition = marker;
     mMarkerReached = false;
@@ -630,7 +636,9 @@ status_t AudioTrack::setMarkerPosition(uint32_t marker)
 
 status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
 {
-    if (marker == NULL) return BAD_VALUE;
+    if (marker == NULL) {
+        return BAD_VALUE;
+    }
 
     *marker = mMarkerPosition;
 
@@ -639,7 +647,9 @@ status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
 
 status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
 {
-    if (mCbf == NULL) return INVALID_OPERATION;
+    if (mCbf == NULL) {
+        return INVALID_OPERATION;
+    }
 
     uint32_t curPosition;
     getPosition(&curPosition);
@@ -651,7 +661,9 @@ status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
 
 status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 {
-    if (updatePeriod == NULL) return BAD_VALUE;
+    if (updatePeriod == NULL) {
+        return BAD_VALUE;
+    }
 
     *updatePeriod = mUpdatePeriod;
 
@@ -660,16 +672,22 @@ status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 
 status_t AudioTrack::setPosition(uint32_t position)
 {
-    if (mIsTimed) return INVALID_OPERATION;
+    if (mIsTimed) {
+        return INVALID_OPERATION;
+    }
 
     AutoMutex lock(mLock);
 
-    if (!stopped_l()) return INVALID_OPERATION;
+    if (!stopped_l()) {
+        return INVALID_OPERATION;
+    }
 
     audio_track_cblk_t* cblk = mCblk;
     Mutex::Autolock _l(cblk->lock);
 
-    if (position > cblk->user) return BAD_VALUE;
+    if (position > cblk->user) {
+        return BAD_VALUE;
+    }
 
     cblk->server = position;
     android_atomic_or(CBLK_FORCEREADY, &cblk->flags);
@@ -679,7 +697,9 @@ status_t AudioTrack::setPosition(uint32_t position)
 
 status_t AudioTrack::getPosition(uint32_t *position)
 {
-    if (position == NULL) return BAD_VALUE;
+    if (position == NULL) {
+        return BAD_VALUE;
+    }
     AutoMutex lock(mLock);
     *position = mFlushed ? 0 : mCblk->server;
 
@@ -690,7 +710,9 @@ status_t AudioTrack::reload()
 {
     AutoMutex lock(mLock);
 
-    if (!stopped_l()) return INVALID_OPERATION;
+    if (!stopped_l()) {
+        return INVALID_OPERATION;
+    }
 
     flush_l();
 
@@ -1060,8 +1082,12 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 ssize_t AudioTrack::write(const void* buffer, size_t userSize)
 {
 
-    if (mSharedBuffer != 0) return INVALID_OPERATION;
-    if (mIsTimed) return INVALID_OPERATION;
+    if (mSharedBuffer != 0) {
+        return INVALID_OPERATION;
+    }
+    if (mIsTimed) {
+        return INVALID_OPERATION;
+    }
 
     if (ssize_t(userSize) < 0) {
         // Sanity-check: user is most-likely passing an error code, and it would
@@ -1098,8 +1124,9 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
         status_t err = obtainBuffer(&audioBuffer, -1);
         if (err < 0) {
             // out of buffers, return #bytes written
-            if (err == status_t(NO_MORE_BUFFERS))
+            if (err == status_t(NO_MORE_BUFFERS)) {
                 break;
+            }
             return ssize_t(err);
         }
 
@@ -1159,8 +1186,9 @@ status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
         cblk = temp;
         cblk->lock.unlock();
 
-        if (result == OK)
+        if (result == OK) {
             result = mAudioTrack->allocateTimedBuffer(size, buffer);
+        }
     }
 
     return result;
@@ -1218,7 +1246,9 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             if (cblk->server == cblk->frameCount) {
                 mCbf(EVENT_BUFFER_END, mUserData, 0);
             }
-            if (mSharedBuffer != 0) return false;
+            if (mSharedBuffer != 0) {
+                return false;
+            }
         }
     }
 
@@ -1275,7 +1305,9 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             }
             break;
         }
-        if (err == status_t(STOPPED)) return false;
+        if (err == status_t(STOPPED)) {
+            return false;
+        }
 
         // Divide buffer size by 2 to take into account the expansion
         // due to 8 to 16 bit conversion: the callback must fill only half
@@ -1298,7 +1330,9 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             break;
         }
 
-        if (writtenSize > reqSize) writtenSize = reqSize;
+        if (writtenSize > reqSize) {
+            writtenSize = reqSize;
+        }
 
         if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
             // 8 to 16 bit conversion, note that source and destination are the same address
