@@ -73,15 +73,10 @@ AudioSource::AudioSource(
             bufCount++;
         }
 
-        AudioRecord::record_flags flags = (AudioRecord::record_flags)
-                        (AudioRecord::RECORD_AGC_ENABLE |
-                         AudioRecord::RECORD_NS_ENABLE  |
-                         AudioRecord::RECORD_IIR_ENABLE);
         mRecord = new AudioRecord(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
                     bufCount * frameCount,
-                    flags,
                     AudioRecordCallbackFunction,
                     this,
                     frameCount);

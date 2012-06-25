@@ -89,7 +89,6 @@ AudioRecord::AudioRecord(
         audio_format_t format,
         uint32_t channelMask,
         int frameCount,
-        record_flags flags,
         callback_t cbf,
         void* user,
         int notificationFrames,
@@ -98,7 +97,7 @@ AudioRecord::AudioRecord(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask,
-            frameCount, flags, cbf, user, notificationFrames, sessionId);
+            frameCount, cbf, user, notificationFrames, sessionId);
 }
 
 AudioRecord::~AudioRecord()
@@ -124,7 +123,6 @@ status_t AudioRecord::set(
         audio_format_t format,
         uint32_t channelMask,
         int frameCount,
-        record_flags flags,
         callback_t cbf,
         void* user,
         int notificationFrames,
@@ -174,7 +172,7 @@ status_t AudioRecord::set(
                                                     sampleRate,
                                                     format,
                                                     channelMask,
-                                                    (audio_in_acoustics_t)flags,
+                                                    (audio_in_acoustics_t) 0,
                                                     mSessionId);
     if (input == 0) {
         ALOGE("Could not get audio input for record source %d", inputSource);
@@ -229,7 +227,6 @@ status_t AudioRecord::set(
     mNewPosition = 0;
     mUpdatePeriod = 0;
     mInputSource = inputSource;
-    mFlags = flags;
     mInput = input;
     AudioSystem::acquireAudioSessionId(mSessionId);
 
@@ -613,7 +610,7 @@ audio_io_handle_t AudioRecord::getInput_l()
                                 mCblk->sampleRate,
                                 mFormat,
                                 mChannelMask,
-                                (audio_in_acoustics_t)mFlags,
+                                (audio_in_acoustics_t) 0,
                                 mSessionId);
     return mInput;
 }

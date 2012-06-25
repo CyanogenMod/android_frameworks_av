@@ -136,8 +136,6 @@ public:
      * channelMask:        Channel mask: see audio_channels_t.
      * frameCount:         Total size of track PCM buffer in frames. This defines the
      *                     latency of the track.
-     * flags:              A bitmask of acoustic values from enum record_flags.  It enables
-     *                     AGC, NS, and IIR.
      * cbf:                Callback function. If not null, this function is called periodically
      *                     to provide new PCM data.
      * notificationFrames: The callback function is called each time notificationFrames PCM
@@ -145,20 +143,11 @@ public:
      * user                Context for use by the callback receiver.
      */
 
-     // FIXME consider removing this alias and replacing it by audio_in_acoustics_t
-     //       or removing the parameter entirely if it is unused
-     enum record_flags {
-         RECORD_AGC_ENABLE = AUDIO_IN_ACOUSTICS_AGC_ENABLE,
-         RECORD_NS_ENABLE  = AUDIO_IN_ACOUSTICS_NS_ENABLE,
-         RECORD_IIR_ENABLE = AUDIO_IN_ACOUSTICS_TX_IIR_ENABLE,
-     };
-
                         AudioRecord(audio_source_t inputSource,
                                     uint32_t sampleRate = 0,
                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                     uint32_t channelMask = AUDIO_CHANNEL_IN_MONO,
                                     int frameCount      = 0,
-                                    record_flags flags  = (record_flags) 0,
                                     callback_t cbf = NULL,
                                     void* user = NULL,
                                     int notificationFrames = 0,
@@ -184,7 +173,6 @@ public:
                             audio_format_t format = AUDIO_FORMAT_DEFAULT,
                             uint32_t channelMask = AUDIO_CHANNEL_IN_MONO,
                             int frameCount      = 0,
-                            record_flags flags  = (record_flags) 0,
                             callback_t cbf = NULL,
                             void* user = NULL,
                             int notificationFrames = 0,
@@ -389,7 +377,6 @@ private:
     bool                    mMarkerReached;
     uint32_t                mNewPosition;
     uint32_t                mUpdatePeriod;
-    record_flags            mFlags;
     uint32_t                mChannelMask;
     audio_io_handle_t       mInput;
     int                     mSessionId;
