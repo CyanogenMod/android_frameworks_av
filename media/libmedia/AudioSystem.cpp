@@ -625,12 +625,11 @@ audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     uint32_t channels,
-                                    audio_in_acoustics_t acoustics,
                                     int sessionId)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
-    return aps->getInput(inputSource, samplingRate, format, channels, acoustics, sessionId);
+    return aps->getInput(inputSource, samplingRate, format, channels, sessionId);
 }
 
 status_t AudioSystem::startInput(audio_io_handle_t input)
