@@ -79,10 +79,6 @@ public:
             MediaBuffer **buffer, const ReadOptions *options = NULL);
     virtual sp<MetaData> getFormat();
 
-    // Pass the metadata over to the buffer, call when you have the lock
-    void passMetadataBufferLocked(MediaBuffer **buffer);
-    bool checkBufferMatchesSlot(int slot, MediaBuffer *buffer);
-
     // Get / Set the frame rate used for encoding. Default fps = 30
     status_t setFrameRate(int32_t fps) ;
     int32_t getFrameRate( ) const;
@@ -104,9 +100,6 @@ public:
     // setFrameAvailableListener sets the listener object that will be notified
     // when a new frame becomes available.
     void setFrameAvailableListener(const sp<FrameAvailableListener>& listener);
-
-    // getCurrentBuffer returns the buffer associated with the current image.
-    sp<GraphicBuffer> getCurrentBuffer() const;
 
     // dump our state in a String
     void dump(String8& result) const;
@@ -165,11 +158,12 @@ private:
     // reset mCurrentTexture to INVALID_BUFFER_SLOT.
     int mCurrentSlot;
 
-    // mCurrentBuf is the graphic buffer of the current slot to be used by
-    // buffer consumer. It's possible that this buffer is not associated
-    // with any buffer slot, so we must track it separately in order to
-    // properly use IGraphicBufferAlloc::freeAllGraphicBuffersExcept.
-    sp<GraphicBuffer> mCurrentBuf;
+    // mCurrentBuffers is a list of the graphic buffers that are being used by
+    // buffer consumer (i.e. the video encoder). It's possible that these
+    // buffers are not associated with any buffer slots, so we must track them
+    // separately.  Buffers are added to this list in read, and removed from
+    // this list in signalBufferReturned
+    Vector<sp<GraphicBuffer> > mCurrentBuffers;
 
     // mCurrentTimestamp is the timestamp for the current texture. It
     // gets set to mLastQueuedTimestamp each time updateTexImage is called.
