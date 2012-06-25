@@ -39,11 +39,10 @@ public:
     static const int DEFAULT_SAMPLE_RATE = 8000;
 
     /* Events used by AudioRecord callback function (callback_t).
-     *
-     * to keep in sync with frameworks/base/media/java/android/media/AudioRecord.java
+     * Keep in sync with frameworks/base/media/java/android/media/AudioRecord.java NATIVE_EVENT_*.
      */
     enum event_type {
-        EVENT_MORE_DATA = 0,        // Request to reqd more data from PCM buffer.
+        EVENT_MORE_DATA = 0,        // Request to read more data from PCM buffer.
         EVENT_OVERRUN = 1,          // PCM buffer overrun occured.
         EVENT_MARKER = 2,           // Record head is at the specified marker position
                                     // (See setMarkerPosition()).
@@ -65,7 +64,7 @@ public:
         int         channelCount;
         audio_format_t format;
         size_t      frameCount;
-        size_t      size;
+        size_t      size;           // total size in bytes == frameCount * frameSize
         union {
             void*       raw;
             short*      i16;
@@ -126,14 +125,15 @@ public:
      * sampleRate:         Track sampling rate in Hz.
      * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
      *                     16 bits per sample).
-     * channelMask:        Channel mask: see audio_channels_t.
+     * channelMask:        Channel mask.
      * frameCount:         Total size of track PCM buffer in frames. This defines the
      *                     latency of the track.
      * cbf:                Callback function. If not null, this function is called periodically
      *                     to provide new PCM data.
+     * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames are ready in record track output buffer.
-     * user                Context for use by the callback receiver.
+     * sessionId:          Not yet supported.
      */
 
                         AudioRecord(audio_source_t inputSource,
@@ -148,7 +148,7 @@ public:
 
 
     /* Terminates the AudioRecord and unregisters it from AudioFlinger.
-     * Also destroys all resources assotiated with the AudioRecord.
+     * Also destroys all resources associated with the AudioRecord.
      */
                         ~AudioRecord();
 
@@ -186,7 +186,7 @@ public:
      */
             uint32_t     latency() const;
 
-   /* getters, see constructor */
+   /* getters, see constructor and set() */
 
             audio_format_t format() const;
             int         channelCount() const;
@@ -251,7 +251,7 @@ public:
             status_t    getPositionUpdatePeriod(uint32_t *updatePeriod) const;
 
 
-    /* Gets record head position. The position is the  total number of frames
+    /* Gets record head position. The position is the total number of frames
      * recorded since record start.
      *
      * Parameters:
@@ -274,7 +274,7 @@ public:
      */
             audio_io_handle_t    getInput() const;
 
-    /* returns the audio session ID associated to this AudioRecord.
+    /* returns the audio session ID associated with this AudioRecord.
      *
      * Parameters:
      *  none.
@@ -343,35 +343,41 @@ private:
             audio_io_handle_t getInput_l();
             status_t restoreRecord_l(audio_track_cblk_t*& cblk);
 
-    sp<IAudioRecord>        mAudioRecord;
-    sp<IMemory>             mCblkMemory;
     sp<ClientRecordThread>  mClientRecordThread;
     status_t                mReadyToRun;
     mutable Mutex           mLock;
     Condition               mCondition;
 
-    uint32_t                mFrameCount;
+    volatile int32_t        mActive;
 
-    audio_track_cblk_t*     mCblk;
+    // for client callback handler
+    callback_t              mCbf;
+    void*                   mUserData;
+
+    // for notification APIs
+    uint32_t                mNotificationFrames;
+    uint32_t                mRemainingFrames;
+    uint32_t                mMarkerPosition;    // in frames
+    bool                    mMarkerReached;
+    uint32_t                mNewPosition;       // in frames
+    uint32_t                mUpdatePeriod;      // in ms
+
+    // constant after constructor or set()
+    uint32_t                mFrameCount;
     audio_format_t          mFormat;
     uint8_t                 mChannelCount;
     audio_source_t          mInputSource;
     status_t                mStatus;
     uint32_t                mLatency;
-
-    volatile int32_t        mActive;
-
-    callback_t              mCbf;
-    void*                   mUserData;
-    uint32_t                mNotificationFrames;
-    uint32_t                mRemainingFrames;
-    uint32_t                mMarkerPosition;
-    bool                    mMarkerReached;
-    uint32_t                mNewPosition;
-    uint32_t                mUpdatePeriod;
     audio_channel_mask_t    mChannelMask;
-    audio_io_handle_t       mInput;
+    audio_io_handle_t       mInput;                     // returned by AudioSystem::getInput()
     int                     mSessionId;
+
+    // may be changed if IAudioRecord object is re-created
+    sp<IAudioRecord>        mAudioRecord;
+    sp<IMemory>             mCblkMemory;
+    audio_track_cblk_t*     mCblk;
+
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
 };
