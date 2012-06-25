@@ -516,7 +516,7 @@ private:
                                         int *enabled,
                                         status_t *status);
                     void disconnectEffect(const sp< EffectModule>& effect,
-                                          const wp<EffectHandle>& handle,
+                                          EffectHandle *handle,
                                           bool unpinIfLast);
 
                     // return values for hasAudioSession (bit field)
@@ -1511,6 +1511,7 @@ private:
             return mSessionId;
         }
         status_t    setEnabled(bool enabled);
+        status_t    setEnabled_l(bool enabled);
         bool isEnabled() const;
         bool isProcessEnabled() const;
 
@@ -1522,9 +1523,9 @@ private:
         void        setThread(const wp<ThreadBase>& thread) { mThread = thread; }
         const wp<ThreadBase>& thread() { return mThread; }
 
-        status_t addHandle(const sp<EffectHandle>& handle);
-        void disconnect(const wp<EffectHandle>& handle, bool unpinIfLast);
-        size_t removeHandle (const wp<EffectHandle>& handle);
+        status_t addHandle(EffectHandle *handle);
+        size_t disconnect(EffectHandle *handle, bool unpinIfLast);
+        size_t removeHandle(EffectHandle *handle);
 
         effect_descriptor_t& desc() { return mDescriptor; }
         wp<EffectChain>&     chain() { return mChain; }
@@ -1537,10 +1538,13 @@ private:
         void             setSuspended(bool suspended);
         bool             suspended() const;
 
-        sp<EffectHandle> controlHandle();
+        EffectHandle*    controlHandle_l();
 
         bool             isPinned() const { return mPinned; }
         void             unPin() { mPinned = false; }
+        bool             purgeHandles();
+        void             lock() { mLock.lock(); }
+        void             unlock() { mLock.unlock(); }
 
         status_t         dump(int fd, const Vector<String16>& args);
 
@@ -1567,7 +1571,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         effect_handle_t  mEffectInterface; // Effect module C API
         status_t            mStatus;    // initialization status
         effect_state        mState;     // current activation state
-        Vector< wp<EffectHandle> > mHandles;    // list of client handles
+        Vector<EffectHandle *> mHandles;    // list of client handles
                     // First handle in mHandles has highest priority and controls the effect module
         uint32_t mMaxDisableWaitCnt;    // maximum grace period before forcing an effect off after
                                         // sending disable command.
@@ -1625,6 +1629,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         int priority() const { return mPriority; }
         bool hasControl() const { return mHasControl; }
         sp<EffectModule> effect() const { return mEffect; }
+        // destroyed_l() must be called with the associated EffectModule mLock held
+        bool destroyed_l() const { return mDestroyed; }
 
         void dump(char* buffer, size_t size);
 
@@ -1643,6 +1649,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         bool mHasControl;                   // true if this handle is controlling the effect
         bool mEnabled;                      // cached enable state: needed when the effect is
                                             // restored after being suspended
+        bool mDestroyed;                    // Set to true by destructor. Access with EffectModule
+                                            // mLock held
     };
 
     // the EffectChain class represents a group of effects associated to one audio session.
