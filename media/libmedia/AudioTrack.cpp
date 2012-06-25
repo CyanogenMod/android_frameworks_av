@@ -54,6 +54,11 @@ status_t AudioTrack::getMinFrameCount(
         audio_stream_type_t streamType,
         uint32_t sampleRate)
 {
+    if (frameCount == NULL) return BAD_VALUE;
+
+    // default to 0 in case of error
+    *frameCount = 0;
+
     // FIXME merge with similar code in createTrack_l(), except we're missing
     //       some information here that is available in createTrack_l():
     //          audio_io_handle_t output

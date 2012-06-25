@@ -41,6 +41,11 @@ status_t AudioRecord::getMinFrameCount(
         audio_format_t format,
         audio_channel_mask_t channelMask)
 {
+    if (frameCount == NULL) return BAD_VALUE;
+
+    // default to 0 in case of error
+    *frameCount = 0;
+
     size_t size = 0;
     if (AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &size)
             != NO_ERROR) {
