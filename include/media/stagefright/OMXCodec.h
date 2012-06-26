@@ -102,13 +102,17 @@ struct OMXCodec : public MediaSource,
         kOutputBuffersAreUnreadable           = 4096,
     };
 
+    struct CodecNameAndQuirks {
+        String8 mName;
+        uint32_t mQuirks;
+    };
+
     // for use by ACodec
     static void findMatchingCodecs(
             const char *mime,
             bool createEncoder, const char *matchComponentName,
             uint32_t flags,
-            Vector<String8> *matchingCodecs,
-            Vector<uint32_t> *matchingCodecQuirks = NULL);
+            Vector<CodecNameAndQuirks> *matchingCodecNamesAndQuirks);
 
     static uint32_t getComponentQuirks(
             const MediaCodecList *list, size_t index);
