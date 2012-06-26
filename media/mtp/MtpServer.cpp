@@ -931,7 +931,7 @@ MtpResponseCode MtpServer::doSendObject() {
     initialData = ret - MTP_CONTAINER_HEADER_SIZE;
 
     mtp_file_range  mfr;
-    mfr.fd = open(mSendObjectFilePath, O_RDWR | O_CREAT | O_TRUNC);
+    mfr.fd = open(mSendObjectFilePath, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (mfr.fd < 0) {
         result = MTP_RESPONSE_GENERAL_ERROR;
         goto done;

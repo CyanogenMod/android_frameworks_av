@@ -269,7 +269,7 @@ MPEG4Writer::MPEG4Writer(const char *filename)
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1) {
 
-    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR);
+    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd >= 0) {
         mInitCheck = OK;
     }

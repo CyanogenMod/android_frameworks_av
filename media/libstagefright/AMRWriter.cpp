@@ -36,7 +36,7 @@ AMRWriter::AMRWriter(const char *filename)
       mPaused(false),
       mResumed(false) {
 
-    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR);
+    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd >= 0) {
         mInitCheck = OK;
     }

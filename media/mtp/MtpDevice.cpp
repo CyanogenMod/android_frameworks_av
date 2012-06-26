@@ -667,7 +667,7 @@ fail:
 // reads the object's data and writes it to the specified file path
 bool MtpDevice::readObject(MtpObjectHandle handle, const char* destPath, int group, int perm) {
     ALOGD("readObject: %s", destPath);
-    int fd = ::open(destPath, O_RDWR | O_CREAT | O_TRUNC);
+    int fd = ::open(destPath, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (fd < 0) {
         ALOGE("open failed for %s", destPath);
         return false;
