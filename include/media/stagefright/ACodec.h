@@ -91,6 +91,9 @@ private:
     struct ExecutingToIdleState;
     struct IdleToLoadedState;
     struct FlushingState;
+#ifdef QCOM_HARDWARE
+    struct FlushingOutputState;
+#endif
 
     enum {
         kWhatSetup                   = 'setu',
@@ -152,6 +155,9 @@ private:
     sp<ExecutingToIdleState> mExecutingToIdleState;
     sp<IdleToLoadedState> mIdleToLoadedState;
     sp<FlushingState> mFlushingState;
+#ifdef QCOM_HARDWARE
+    sp<FlushingOutputState> mFlushingOutputState;
+#endif
     sp<SkipCutBuffer> mSkipCutBuffer;
 
     AString mComponentName;

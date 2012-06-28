@@ -337,7 +337,32 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(FlushingState);
 };
 
+#ifdef QCOM_HARDWARE
 ////////////////////////////////////////////////////////////////////////////////
+
+struct ACodec::FlushingOutputState : public ACodec::BaseState {
+    FlushingOutputState(ACodec *codec);
+
+protected:
+    virtual PortMode getPortMode(OMX_U32 portIndex);
+    virtual bool onMessageReceived(const sp<AMessage> &msg);
+    virtual void stateEntered();
+
+    virtual bool onOMXEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2);
+
+    virtual void onOutputBufferDrained(const sp<AMessage> &msg);
+    virtual void onInputBufferFilled(const sp<AMessage> &msg);
+
+private:
+    bool mFlushComplete;
+
+    void changeStateIfWeOwnAllBuffers();
+
+    DISALLOW_EVIL_CONSTRUCTORS(FlushingOutputState);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+#endif
 
 ACodec::ACodec()
     : mQuirks(0),
@@ -361,6 +386,9 @@ ACodec::ACodec()
     mExecutingToIdleState = new ExecutingToIdleState(this);
     mIdleToLoadedState = new IdleToLoadedState(this);
     mFlushingState = new FlushingState(this);
+#ifdef QCOM_HARDWARE
+    mFlushingOutputState = new FlushingOutputState(this);
+#endif
 
     mPortEOS[kPortIndexInput] = mPortEOS[kPortIndexOutput] = false;
     mInputEOSResult = OK;
@@ -3599,14 +3627,22 @@ bool ACodec::ExecutingState::onOMXEvent(
             CHECK_EQ(data1, (OMX_U32)kPortIndexOutput);
 
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
+#ifdef QCOM_HARDWARE
+                ALOGV("Flush output port before disable");
+                CHECK_EQ(mCodec->mOMX->sendCommand(
+                        mCodec->mNode, OMX_CommandFlush, kPortIndexOutput),
+                     (status_t)OK);
+
+                mCodec->changeState(mCodec->mFlushingOutputState);
+#else
                 CHECK_EQ(mCodec->mOMX->sendCommand(
                             mCodec->mNode,
                             OMX_CommandPortDisable, kPortIndexOutput),
-                         (status_t)OK);
+                        (status_t)OK);
 
                 mCodec->freeOutputBuffersNotOwnedByComponent();
-
                 mCodec->changeState(mCodec->mOutputPortSettingsChangedState);
+#endif
             } else if (data2 == OMX_IndexConfigCommonOutputCrop) {
                 mCodec->mSentFormat = false;
             } else {
@@ -4017,5 +4053,132 @@ void ACodec::FlushingState::changeStateIfWeOwnAllBuffers() {
         mCodec->changeState(mCodec->mExecutingState);
     }
 }
+
+#ifdef QCOM_HARDWARE
+////////////////////////////////////////////////////////////////////////////////
+
+ACodec::FlushingOutputState::FlushingOutputState(ACodec *codec)
+    : BaseState(codec) {
+}
+
+ACodec::BaseState::PortMode ACodec::FlushingOutputState::getPortMode(OMX_U32 portIndex) {
+    if (portIndex == kPortIndexOutput)
+    {
+        return KEEP_BUFFERS;
+    }
+    return RESUBMIT_BUFFERS;
+}
+
+void ACodec::FlushingOutputState::stateEntered() {
+    ALOGV("[%s] Now Flushing Output Port", mCodec->mComponentName.c_str());
+
+    mFlushComplete = false;
+}
+
+bool ACodec::FlushingOutputState::onMessageReceived(const sp<AMessage> &msg) {
+    bool handled = false;
+
+    switch (msg->what()) {
+        case kWhatShutdown:
+        {
+            mCodec->deferMessage(msg);
+            handled = true;
+            break;
+        }
+
+        case kWhatFlush:
+        {
+            ALOGV("Flush received during port reconfig, deferring it");
+            mCodec->deferMessage(msg);
+            handled = true;
+            break;
+        }
+
+        case kWhatInputBufferFilled:
+        {
+            mCodec->deferMessage(msg);
+            changeStateIfWeOwnAllBuffers();
+            handled = true;
+            break;
+        }
+
+        default:
+            handled = BaseState::onMessageReceived(msg);
+            break;
+    }
+
+    return handled;
+}
+
+bool ACodec::FlushingOutputState::onOMXEvent(
+        OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
+    switch (event) {
+        case OMX_EventCmdComplete:
+        {
+            CHECK_EQ(data1, (OMX_U32)OMX_CommandFlush);
+            CHECK_EQ(data2,(OMX_U32)kPortIndexOutput);
+            ALOGV("FlushingOutputState::onOMXEvent Output port flush complete");
+            mFlushComplete = true;
+            changeStateIfWeOwnAllBuffers();
+            return true;
+        }
+
+        case OMX_EventPortSettingsChanged:
+        {
+            sp<AMessage> msg = new AMessage(kWhatOMXMessage, mCodec->id());
+            msg->setInt32("type", omx_message::EVENT);
+            msg->setPointer("node", mCodec->mNode);
+            msg->setInt32("event", event);
+            msg->setInt32("data1", data1);
+            msg->setInt32("data2", data2);
+
+            ALOGV("[%s] Deferring OMX_EventPortSettingsChanged",
+                 mCodec->mComponentName.c_str());
+
+            mCodec->deferMessage(msg);
+
+            return true;
+        }
+
+        default:
+            return BaseState::onOMXEvent(event, data1, data2);
+    }
+
+    return true;
+}
+
+void ACodec::FlushingOutputState::onOutputBufferDrained(const sp<AMessage> &msg) {
+    BaseState::onOutputBufferDrained(msg);
+
+    changeStateIfWeOwnAllBuffers();
+}
+
+void ACodec::FlushingOutputState::onInputBufferFilled(const sp<AMessage> &msg) {
+    BaseState::onInputBufferFilled(msg);
+
+    changeStateIfWeOwnAllBuffers();
+}
+
+void ACodec::FlushingOutputState::changeStateIfWeOwnAllBuffers() {
+   ALOGV("FlushingOutputState::ChangeState %d",mFlushComplete);
+
+   if (mFlushComplete && mCodec->allYourBuffersAreBelongToUs( kPortIndexOutput )) {
+        ALOGV("FlushingOutputState Sending port disable ");
+        CHECK_EQ(mCodec->mOMX->sendCommand(
+                            mCodec->mNode,
+                            OMX_CommandPortDisable, kPortIndexOutput),
+                         (status_t)OK);
+
+        mCodec->mPortEOS[kPortIndexInput] = false;
+        mCodec->mPortEOS[kPortIndexOutput] = false;
+
+        ALOGV("FlushingOutputState Calling freeOutputBuffersNotOwnedByComponent");
+        mCodec->freeOutputBuffersNotOwnedByComponent();
+
+        ALOGV("FlushingOutputState Change state to port settings changed");
+        mCodec->changeState(mCodec->mOutputPortSettingsChangedState);
+    }
+}
+#endif
 
 }  // namespace android
