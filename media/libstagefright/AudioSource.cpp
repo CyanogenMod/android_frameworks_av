@@ -48,7 +48,8 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
 
 AudioSource::AudioSource(
         audio_source_t inputSource, uint32_t sampleRate, uint32_t channelCount)
-    : mStarted(false),
+    : mRecord(NULL),
+      mStarted(false),
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
       mNumFramesReceived(0),
