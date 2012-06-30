@@ -1483,11 +1483,15 @@ M4OSA_ERR VideoEditor3gpReader_getNextStreamHandler(M4OSA_Context context,
                     (int32_t*)&(pVideoStreamHandler->m_videoHeight));
 
                 (*pStreamHandler)  = (M4_StreamHandler*)(pVideoStreamHandler);
-                meta->findInt64(kKeyDuration,
-                    (int64_t*)&(Duration));
-                ((*pStreamHandler)->m_duration) =
-                    (int32_t)((Duration)/1000); // conversion to mS
+                meta->findInt64(kKeyDuration, (int64_t*)&(Duration));
+                ((*pStreamHandler)->m_duration) = (int32_t)((Duration)/1000); // conversion to mS
                 pC->mMaxDuration = ((*pStreamHandler)->m_duration);
+                if (pC->mMaxDuration == 0) {
+                    ALOGE("Video is too short: %lld Us", Duration);
+                    delete pVideoStreamHandler;
+                    pVideoStreamHandler = NULL;
+                    return M4ERR_PARAMETER;
+                }
                 ALOGV("VideoEditor3gpReader_getNextStreamHandler m_duration %d",
                     (*pStreamHandler)->m_duration);
 
