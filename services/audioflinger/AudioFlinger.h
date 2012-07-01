@@ -253,6 +253,7 @@ public:
                                         int listenerSession,
                                         sync_event_callback_t callBack,
                                         void *cookie);
+
 private:
                audio_mode_t getMode() const { return mMode; }
 
@@ -543,6 +544,7 @@ private:
                     // set audio mode to all effect chains
                     void setMode(audio_mode_t mode);
                     // get effect module with corresponding ID on specified audio session
+                    sp<AudioFlinger::EffectModule> getEffect(int sessionId, int effectId);
                     sp<AudioFlinger::EffectModule> getEffect_l(int sessionId, int effectId);
                     // add and effect module. Also creates the effect chain is none exists for
                     // the effects audio session
@@ -1287,6 +1289,8 @@ private:
               // return thread associated with primary hardware device, or NULL
               PlaybackThread *primaryPlaybackThread_l() const;
               uint32_t primaryOutputDevice_l() const;
+
+              sp<PlaybackThread> getEffectThread_l(int sessionId, int EffectId);
 
     // server side of the client's IAudioTrack
     class TrackHandle : public android::BnAudioTrack {

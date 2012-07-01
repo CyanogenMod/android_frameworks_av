@@ -1106,6 +1106,20 @@ void AudioFlinger::removeClient_l(pid_t pid)
     mClients.removeItem(pid);
 }
 
+// getEffectThread_l() must be called with AudioFlinger::mLock held
+sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, int EffectId)
+{
+    sp<PlaybackThread> thread;
+
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        if (mPlaybackThreads.valueAt(i)->getEffect(sessionId, EffectId) != 0) {
+            ALOG_ASSERT(thread == 0);
+            thread = mPlaybackThreads.valueAt(i);
+        }
+    }
+
+    return thread;
+}
 
 // ----------------------------------------------------------------------------
 
@@ -4677,6 +4691,47 @@ status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+        sp<AudioFlinger> af = mClient->audioFlinger();
+
+        Mutex::Autolock _l(af->mLock);
+
+        sp<PlaybackThread> srcThread = af->getEffectThread_l(AUDIO_SESSION_OUTPUT_MIX, EffectId);
+        if (srcThread == 0) {
+            return INVALID_OPERATION;
+        }
+
+        if (EffectId != 0 && playbackThread != srcThread.get()) {
+            Mutex::Autolock _dl(playbackThread->mLock);
+            Mutex::Autolock _sl(srcThread->mLock);
+            sp<EffectChain> chain = srcThread->getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
+            if (chain == 0) {
+                return INVALID_OPERATION;
+            }
+
+            sp<EffectModule> effect = chain->getEffectFromId_l(EffectId);
+            if (effect == 0) {
+                return INVALID_OPERATION;
+            }
+            srcThread->removeEffect_l(effect);
+            playbackThread->addEffect_l(effect);
+            // removeEffect_l() has stopped the effect if it was active so it must be restarted
+            if (effect->state() == EffectModule::ACTIVE ||
+                    effect->state() == EffectModule::STOPPING) {
+                effect->start();
+            }
+
+            sp<EffectChain> dstChain = effect->chain().promote();
+            if (dstChain == 0) {
+                srcThread->addEffect_l(effect);
+                return INVALID_OPERATION;
+            }
+            AudioSystem::unregisterEffect(effect->id());
+            AudioSystem::registerEffect(&effect->desc(),
+                                        srcThread->id(),
+                                        dstChain->strategy(),
+                                        AUDIO_SESSION_OUTPUT_MIX,
+                                        effect->id());
+        }
         status = playbackThread->attachAuxEffect(this, EffectId);
     }
     return status;
@@ -7633,6 +7688,12 @@ Exit:
         *status = lStatus;
     }
     return handle;
+}
+
+sp<AudioFlinger::EffectModule> AudioFlinger::ThreadBase::getEffect(int sessionId, int effectId)
+{
+    Mutex::Autolock _l(mLock);
+    return getEffect_l(sessionId, effectId);
 }
 
 sp<AudioFlinger::EffectModule> AudioFlinger::ThreadBase::getEffect_l(int sessionId, int effectId)
