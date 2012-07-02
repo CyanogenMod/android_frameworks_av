@@ -2508,9 +2508,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
     // MIXER
     nsecs_t lastWarning = 0;
-if (mType == MIXER) {
-    longStandbyExit = false;
-}
 
     // DUPLICATING
     // FIXME could this be made local to while loop?
@@ -2634,11 +2631,6 @@ if (mType == MIXER) {
                     ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
                             ns2ms(delta), mNumDelayedWrites, this);
                     lastWarning = now;
-                }
-                // FIXME this is broken: longStandbyExit should be handled out of the if() and with
-                // a different threshold. Or completely removed for what it is worth anyway...
-                if (mStandby) {
-                    longStandbyExit = true;
                 }
             }
 }
@@ -2847,11 +2839,10 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
         } else {
             sleepTime = idleSleepTime;
         }
-    } else if (mBytesWritten != 0 ||
-               (mMixerStatus == MIXER_TRACKS_ENABLED && longStandbyExit)) {
+    } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
         memset (mMixBuffer, 0, mixBufferSize);
         sleepTime = 0;
-        ALOGV_IF((mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED && longStandbyExit)), "anticipated start");
+        ALOGV_IF((mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED)), "anticipated start");
     }
     // TODO add standby time extension fct of effect tail
 }
