@@ -107,7 +107,7 @@ public:
      static status_t getMinFrameCount(int* frameCount,
                                       uint32_t sampleRate,
                                       audio_format_t format,
-                                      int channelCount);
+                                      audio_channel_mask_t channelMask);
 
     /* Constructs an uninitialized AudioRecord. No connection with
      * AudioFlinger takes place.

@@ -39,18 +39,18 @@ status_t AudioRecord::getMinFrameCount(
         int* frameCount,
         uint32_t sampleRate,
         audio_format_t format,
-        int channelCount)
+        audio_channel_mask_t channelMask)
 {
     size_t size = 0;
-    if (AudioSystem::getInputBufferSize(sampleRate, format, channelCount, &size)
+    if (AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &size)
             != NO_ERROR) {
         ALOGE("AudioSystem could not query the input buffer size.");
         return NO_INIT;
     }
 
     if (size == 0) {
-        ALOGE("Unsupported configuration: sampleRate %d, format %d, channelCount %d",
-            sampleRate, format, channelCount);
+        ALOGE("Unsupported configuration: sampleRate %d, format %d, channelMask %#x",
+            sampleRate, format, channelMask);
         return BAD_VALUE;
     }
 
@@ -58,6 +58,7 @@ status_t AudioRecord::getMinFrameCount(
     size <<= 1;
 
     if (audio_is_linear_pcm(format)) {
+        int channelCount = popcount(channelMask);
         size /= channelCount * audio_bytes_per_sample(format);
     }
 

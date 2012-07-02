@@ -41,7 +41,7 @@ DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSyst
 // Cached values for recording queries, all protected by gLock
 uint32_t AudioSystem::gPrevInSamplingRate = 16000;
 audio_format_t AudioSystem::gPrevInFormat = AUDIO_FORMAT_PCM_16_BIT;
-int AudioSystem::gPrevInChannelCount = 1;
+audio_channel_mask_t AudioSystem::gPrevInChannelMask = AUDIO_CHANNEL_IN_MONO;
 size_t AudioSystem::gInBuffSize = 0;
 
 
@@ -334,25 +334,25 @@ status_t AudioSystem::getLatency(audio_io_handle_t output,
     return NO_ERROR;
 }
 
-status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount,
-    size_t* buffSize)
+status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+        audio_channel_mask_t channelMask, size_t* buffSize)
 {
     gLock.lock();
     // Do we have a stale gInBufferSize or are we requesting the input buffer size for new values
     size_t inBuffSize = gInBuffSize;
     if ((inBuffSize == 0) || (sampleRate != gPrevInSamplingRate) || (format != gPrevInFormat)
-        || (channelCount != gPrevInChannelCount)) {
+        || (channelMask != gPrevInChannelMask)) {
         gLock.unlock();
         const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
         if (af == 0) {
             return PERMISSION_DENIED;
         }
-        inBuffSize = af->getInputBufferSize(sampleRate, format, channelCount);
+        inBuffSize = af->getInputBufferSize(sampleRate, format, channelMask);
         gLock.lock();
         // save the request params
         gPrevInSamplingRate = sampleRate;
         gPrevInFormat = format;
-        gPrevInChannelCount = channelCount;
+        gPrevInChannelMask = channelMask;
 
         gInBuffSize = inBuffSize;
     }

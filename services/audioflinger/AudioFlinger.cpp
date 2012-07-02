@@ -964,7 +964,8 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
     return String8("");
 }
 
-size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const
+size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+        audio_channel_mask_t channelMask) const
 {
     status_t ret = initCheck();
     if (ret != NO_ERROR) {
@@ -975,7 +976,7 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
     mHardwareStatus = AUDIO_HW_GET_INPUT_BUFFER_SIZE;
     struct audio_config config = {
         sample_rate: sampleRate,
-        channel_mask: audio_channel_in_mask_from_count(channelCount),
+        channel_mask: channelMask,
         format: format,
     };
     size_t size = mPrimaryHardwareDev->get_input_buffer_size(mPrimaryHardwareDev, &config);

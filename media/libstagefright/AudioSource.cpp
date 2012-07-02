@@ -62,7 +62,7 @@ AudioSource::AudioSource(
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
                                            sampleRate,
                                            AUDIO_FORMAT_PCM_16_BIT,
-                                           channelCount);
+                                           audio_channel_in_mask_from_count(channelCount));
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size

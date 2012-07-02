@@ -110,8 +110,8 @@ public:
 
     static bool routedToA2dpOutput(audio_stream_type_t streamType);
 
-    static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount,
-        size_t* buffSize);
+    static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+        audio_channel_mask_t channelMask, size_t* buffSize);
 
     static status_t setVoiceVolume(float volume);
 
@@ -276,7 +276,7 @@ private:
     // previous parameters for recording buffer size queries
     static uint32_t gPrevInSamplingRate;
     static audio_format_t gPrevInFormat;
-    static int gPrevInChannelCount;
+    static audio_channel_mask_t gPrevInChannelMask;
 
     static sp<IAudioPolicyService> gAudioPolicyService;
 

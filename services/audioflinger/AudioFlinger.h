@@ -91,7 +91,7 @@ public:
                                 audio_stream_type_t streamType,
                                 uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 IAudioFlinger::track_flags_t flags,
                                 const sp<IMemory>& sharedBuffer,
@@ -105,7 +105,7 @@ public:
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 IAudioFlinger::track_flags_t flags,
                                 int *sessionId,
@@ -142,7 +142,8 @@ public:
 
     virtual     void        registerClient(const sp<IAudioFlingerClient>& client);
 
-    virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const;
+    virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+                                               audio_channel_mask_t channelMask) const;
 
     virtual audio_io_handle_t openOutput(audio_module_handle_t module,
                                          audio_devices_t *pDevices,

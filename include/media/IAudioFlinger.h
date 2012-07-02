@@ -60,7 +60,7 @@ public:
                                 audio_stream_type_t streamType,
                                 uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 track_flags_t flags,
                                 const sp<IMemory>& sharedBuffer,
@@ -74,7 +74,7 @@ public:
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 track_flags_t flags,
                                 int *sessionId,
@@ -84,7 +84,9 @@ public:
      * and therefore can be cached.
      */
     virtual     uint32_t    sampleRate(audio_io_handle_t output) const = 0;
+#if 0
     virtual     int         channelCount(audio_io_handle_t output) const = 0;
+#endif
     virtual     audio_format_t format(audio_io_handle_t output) const = 0;
     virtual     size_t      frameCount(audio_io_handle_t output) const = 0;
 
@@ -126,7 +128,8 @@ public:
     virtual void registerClient(const sp<IAudioFlingerClient>& client) = 0;
 
     // retrieve the audio recording buffer size
-    virtual size_t getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const = 0;
+    virtual size_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+            audio_channel_mask_t channelMask) const = 0;
 
     virtual audio_io_handle_t openOutput(audio_module_handle_t module,
                                          audio_devices_t *pDevices,
