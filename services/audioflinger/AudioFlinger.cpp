@@ -1127,8 +1127,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mChannelCount(0),
         mFrameSize(1), mFormat(AUDIO_FORMAT_INVALID),
         mParamStatus(NO_ERROR),
-        mStandby(false), mId(id),
-        mDevice(device),
+        mStandby(false), mDevice(device), mId(id),
         mDeathRecipient(new PMDeathRecipient(this))
 {
 }
@@ -3448,7 +3447,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
 
             // forward device change to effects that have requested to be
             // aware of attached audio device.
-            mDevice = (uint32_t)value;
+            mDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(mDevice);
             }
@@ -4036,6 +4035,7 @@ bool AudioFlinger::DuplicatingThread::outputsReady(const SortedVector< sp<Output
             return false;
         }
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+        // see note at standby() declaration
         if (playbackThread->standby() && !playbackThread->isSuspended()) {
             ALOGV("DuplicatingThread output track %p on thread %p Not Ready", outputTracks[i].get(), thread.get());
             return false;
@@ -6474,11 +6474,12 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             // store input device and output device but do not forward output device to audio HAL.
             // Note that status is ignored by the caller for output device
             // (see AudioFlinger::setParameters()
+            audio_devices_t newDevice = mDevice;
             if (value & AUDIO_DEVICE_OUT_ALL) {
-                mDevice &= (uint32_t)~(value & AUDIO_DEVICE_OUT_ALL);
+                newDevice &= (uint32_t)~(value & AUDIO_DEVICE_OUT_ALL);
                 status = BAD_VALUE;
             } else {
-                mDevice &= (uint32_t)~(value & AUDIO_DEVICE_IN_ALL);
+                newDevice &= (uint32_t)~(value & AUDIO_DEVICE_IN_ALL);
                 // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
                 if (mTrack != NULL) {
                     bool suspend = audio_is_bluetooth_sco_device(
@@ -6487,7 +6488,8 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                     setEffectSuspended_l(FX_IID_NS, suspend, mTrack->sessionId());
                 }
             }
-            mDevice |= (uint32_t)value;
+            newDevice |= value;
+            mDevice = newDevice;    // since mDevice is read by other threads, only write to it once
         }
         if (status == NO_ERROR) {
             status = mInput->stream->common.set_parameters(&mInput->stream->common, keyValuePair.string());

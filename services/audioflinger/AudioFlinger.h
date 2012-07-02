@@ -484,13 +484,19 @@ private:
         };
 
         virtual     status_t    initCheck() const = 0;
+
+                    // static externally-visible
                     type_t      type() const { return mType; }
+                    audio_io_handle_t id() const { return mId;}
+
+                    // dynamic externally-visible
                     uint32_t    sampleRate() const { return mSampleRate; }
                     int         channelCount() const { return mChannelCount; }
                     audio_format_t format() const { return mFormat; }
                     // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                     // and returns the normal mix buffer's frame count.  No API for HAL frame count.
                     size_t      frameCount() const { return mNormalFrameCount; }
+
                     void        wakeUp()    { mWaitWorkCV.broadcast(); }
         // Should be "virtual status_t requestExitAndWait()" and override same
         // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
@@ -502,9 +508,11 @@ private:
                     void        sendConfigEvent(int event, int param = 0);
                     void        sendConfigEvent_l(int event, int param = 0);
                     void        processConfigEvents();
-                    audio_io_handle_t id() const { return mId;}
+
+                    // see note at declaration of mStandby and mDevice
                     bool        standby() const { return mStandby; }
-                    uint32_t    device() const { return mDevice; }
+                    audio_devices_t device() const { return mDevice; }
+
         virtual     audio_stream_t* stream() const = 0;
 
                     sp<EffectHandle> createEffect_l(
@@ -647,11 +655,19 @@ private:
                     status_t                mParamStatus;
 
                     Vector<ConfigEvent>     mConfigEvents;
-                    bool                    mStandby;
+
+                    // These fields are written and read by thread itself without lock or barrier,
+                    // and read by other threads without lock or barrier via standby() and device().
+                    // Because of the absence of a lock or barrier, any other thread that reads
+                    // these fields must use the information in isolation, or be prepared to deal
+                    // with possibility that it might be inconsistent with other information.
+                    bool                    mStandby;   // Whether thread is currently in standby.
+                    audio_devices_t         mDevice;    // output device for PlaybackThread
+                                                        // input + output devices for RecordThread
+
                     const audio_io_handle_t mId;
                     Vector< sp<EffectChain> > mEffectChains;
-                    uint32_t                mDevice;    // output device for PlaybackThread
-                                                        // input + output devices for RecordThread
+
                     static const int        kNameLength = 16;   // prctl(PR_SET_NAME) limit
                     char                    mName[kNameLength];
                     sp<IPowerManager>       mPowerManager;
