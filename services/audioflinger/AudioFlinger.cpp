@@ -210,8 +210,9 @@ out:
 AudioFlinger::AudioFlinger()
     : BnAudioFlinger(),
       mPrimaryHardwareDev(NULL),
-      mHardwareStatus(AUDIO_HW_IDLE), // see also onFirstRef()
+      mHardwareStatus(AUDIO_HW_IDLE),
       mMasterVolume(1.0f),
+      mMasterVolumeSW(1.0f),
       mMasterVolumeSupportLvl(MVS_NONE),
       mMasterMute(false),
       mNextUniqueId(1),
@@ -241,9 +242,6 @@ void AudioFlinger::onFirstRef()
     }
 
     mMode = AUDIO_MODE_NORMAL;
-    mMasterVolumeSW = 1.0;
-    mMasterVolume   = 1.0;
-    mHardwareStatus = AUDIO_HW_IDLE;
 }
 
 AudioFlinger::~AudioFlinger()
