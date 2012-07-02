@@ -1560,8 +1560,8 @@ private:
 mutable Mutex               mLock;      // mutex for process, commands and handles list protection
         wp<ThreadBase>      mThread;    // parent thread
         wp<EffectChain>     mChain;     // parent effect chain
-        int                 mId;        // this instance unique ID
-        int                 mSessionId; // audio session ID
+        const int           mId;        // this instance unique ID
+        const int           mSessionId; // audio session ID
         effect_descriptor_t mDescriptor;// effect descriptor received from effect engine
         effect_config_t     mConfig;    // input and output audio configuration
         effect_handle_t  mEffectInterface; // Effect module C API

@@ -7992,8 +7992,15 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
                                         effect_descriptor_t *desc,
                                         int id,
                                         int sessionId)
-    : mThread(thread), mChain(chain), mId(id), mSessionId(sessionId), mEffectInterface(NULL),
-      mStatus(NO_INIT), mState(IDLE), mSuspended(false)
+    : mPinned(sessionId > AUDIO_SESSION_OUTPUT_MIX),
+      mThread(thread), mChain(chain), mId(id), mSessionId(sessionId),
+      // mDescriptor is set below
+      // mConfig is set by configure() and not used before then
+      mEffectInterface(NULL),
+      mStatus(NO_INIT), mState(IDLE),
+      // mMaxDisableWaitCnt is set by configure() and not used before then
+      // mDisableWaitCnt is set by process() and updateState() and not used before then
+      mSuspended(false)
 {
     ALOGV("Constructor %p", this);
     int lStatus;
@@ -8015,9 +8022,6 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
         goto Error;
     }
 
-    if (mSessionId > AUDIO_SESSION_OUTPUT_MIX) {
-        mPinned = true;
-    }
     ALOGV("Constructor success name %s, Interface %p", mDescriptor.name, mEffectInterface);
     return;
 Error:
