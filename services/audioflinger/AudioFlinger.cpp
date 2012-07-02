@@ -4696,11 +4696,8 @@ status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
         Mutex::Autolock _l(af->mLock);
 
         sp<PlaybackThread> srcThread = af->getEffectThread_l(AUDIO_SESSION_OUTPUT_MIX, EffectId);
-        if (srcThread == 0) {
-            return INVALID_OPERATION;
-        }
 
-        if (EffectId != 0 && playbackThread != srcThread.get()) {
+        if (EffectId != 0 && srcThread != 0 && playbackThread != srcThread.get()) {
             Mutex::Autolock _dl(playbackThread->mLock);
             Mutex::Autolock _sl(srcThread->mLock);
             sp<EffectChain> chain = srcThread->getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
