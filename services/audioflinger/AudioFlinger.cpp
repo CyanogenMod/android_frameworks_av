@@ -3594,7 +3594,7 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
                     }
                     break;
                 }
-                ALOG_ASSERT(actual <= count);
+                ALOG_ASSERT(actual <= (ssize_t)count);
                 write(teeFd, buffer, actual * channelCount * sizeof(short));
                 total += actual;
             }
@@ -7168,20 +7168,14 @@ void AudioFlinger::purgeStaleEffects_l() {
             }
         }
         if (!found) {
+            Mutex::Autolock _l (t->mLock);
             // remove all effects from the chain
             while (ec->mEffects.size()) {
                 sp<EffectModule> effect = ec->mEffects[0];
                 effect->unPin();
-                Mutex::Autolock _l (t->mLock);
                 t->removeEffect_l(effect);
-                for (size_t j = 0; j < effect->mHandles.size(); j++) {
-                    sp<EffectHandle> handle = effect->mHandles[j].promote();
-                    if (handle != 0) {
-                        handle->mEffect.clear();
-                        if (handle->mHasControl && handle->mEnabled) {
-                            t->checkSuspendOnEffectEnabled_l(effect, false, effect->sessionId());
-                        }
-                    }
+                if (effect->purgeHandles()) {
+                    t->checkSuspendOnEffectEnabled_l(effect, false, effect->sessionId());
                 }
                 AudioSystem::unregisterEffect(effect->id());
             }
@@ -7652,7 +7646,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         }
         // create effect handle and connect it to effect module
         handle = new EffectHandle(effect, client, effectClient, priority);
-        lStatus = effect->addHandle(handle);
+        lStatus = effect->addHandle(handle.get());
         if (enabled != NULL) {
             *enabled = (int)effect->isEnabled();
         }
@@ -7792,7 +7786,7 @@ void AudioFlinger::ThreadBase::setMode(audio_mode_t mode)
 }
 
 void AudioFlinger::ThreadBase::disconnectEffect(const sp<EffectModule>& effect,
-                                                    const wp<EffectHandle>& handle,
+                                                    EffectHandle *handle,
                                                     bool unpinIfLast) {
 
     Mutex::Autolock _l(mLock);
@@ -8041,38 +8035,41 @@ AudioFlinger::EffectModule::~EffectModule()
     }
 }
 
-status_t AudioFlinger::EffectModule::addHandle(const sp<EffectHandle>& handle)
+status_t AudioFlinger::EffectModule::addHandle(EffectHandle *handle)
 {
     status_t status;
 
     Mutex::Autolock _l(mLock);
     int priority = handle->priority();
     size_t size = mHandles.size();
-    sp<EffectHandle> h;
+    EffectHandle *controlHandle = NULL;
     size_t i;
     for (i = 0; i < size; i++) {
-        h = mHandles[i].promote();
-        if (h == 0) continue;
+        EffectHandle *h = mHandles[i];
+        if (h == NULL || h->destroyed_l()) continue;
+        // first non destroyed handle is considered in control
+        if (controlHandle == NULL)
+            controlHandle = h;
         if (h->priority() <= priority) break;
     }
     // if inserted in first place, move effect control from previous owner to this handle
     if (i == 0) {
         bool enabled = false;
-        if (h != 0) {
-            enabled = h->enabled();
-            h->setControl(false/*hasControl*/, true /*signal*/, enabled /*enabled*/);
+        if (controlHandle != NULL) {
+            enabled = controlHandle->enabled();
+            controlHandle->setControl(false/*hasControl*/, true /*signal*/, enabled /*enabled*/);
         }
         handle->setControl(true /*hasControl*/, false /*signal*/, enabled /*enabled*/);
         status = NO_ERROR;
     } else {
         status = ALREADY_EXISTS;
     }
-    ALOGV("addHandle() %p added handle %p in position %d", this, handle.get(), i);
+    ALOGV("addHandle() %p added handle %p in position %d", this, handle, i);
     mHandles.insertAt(handle, i);
     return status;
 }
 
-size_t AudioFlinger::EffectModule::removeHandle(const wp<EffectHandle>& handle)
+size_t AudioFlinger::EffectModule::removeHandle(EffectHandle *handle)
 {
     Mutex::Autolock _l(mLock);
     size_t size = mHandles.size();
@@ -8083,43 +8080,44 @@ size_t AudioFlinger::EffectModule::removeHandle(const wp<EffectHandle>& handle)
     if (i == size) {
         return size;
     }
-    ALOGV("removeHandle() %p removed handle %p in position %d", this, handle.unsafe_get(), i);
+    ALOGV("removeHandle() %p removed handle %p in position %d", this, handle, i);
 
-    bool enabled = false;
-    EffectHandle *hdl = handle.unsafe_get();
-    if (hdl != NULL) {
-        ALOGV("removeHandle() unsafe_get OK");
-        enabled = hdl->enabled();
-    }
     mHandles.removeAt(i);
-    size = mHandles.size();
     // if removed from first place, move effect control from this handle to next in line
-    if (i == 0 && size != 0) {
-        sp<EffectHandle> h = mHandles[0].promote();
-        if (h != 0) {
-            h->setControl(true /*hasControl*/, true /*signal*/ , enabled /*enabled*/);
+    if (i == 0) {
+        EffectHandle *h = controlHandle_l();
+        if (h != NULL) {
+            h->setControl(true /*hasControl*/, true /*signal*/ , handle->enabled() /*enabled*/);
         }
     }
 
     // Prevent calls to process() and other functions on effect interface from now on.
     // The effect engine will be released by the destructor when the last strong reference on
     // this object is released which can happen after next process is called.
-    if (size == 0 && !mPinned) {
+    if (mHandles.size() == 0 && !mPinned) {
         mState = DESTROYED;
     }
 
     return size;
 }
 
-sp<AudioFlinger::EffectHandle> AudioFlinger::EffectModule::controlHandle()
+// must be called with EffectModule::mLock held
+AudioFlinger::EffectHandle *AudioFlinger::EffectModule::controlHandle_l()
 {
-    Mutex::Autolock _l(mLock);
-    return mHandles.size() != 0 ? mHandles[0].promote() : 0;
+    // the first valid handle in the list has control over the module
+    for (size_t i = 0; i < mHandles.size(); i++) {
+        EffectHandle *h = mHandles[i];
+        if (h != NULL && !h->destroyed_l()) {
+            return h;
+        }
+    }
+
+    return NULL;
 }
 
-void AudioFlinger::EffectModule::disconnect(const wp<EffectHandle>& handle, bool unpinIfLast)
+size_t AudioFlinger::EffectModule::disconnect(EffectHandle *handle, bool unpinIfLast)
 {
-    ALOGV("disconnect() %p handle %p", this, handle.unsafe_get());
+    ALOGV("disconnect() %p handle %p", this, handle);
     // keep a strong reference on this EffectModule to avoid calling the
     // destructor before we exit
     sp<EffectModule> keep(this);
@@ -8129,6 +8127,7 @@ void AudioFlinger::EffectModule::disconnect(const wp<EffectHandle>& handle, bool
             thread->disconnectEffect(keep, handle, unpinIfLast);
         }
     }
+    return mHandles.size();
 }
 
 void AudioFlinger::EffectModule::updateState() {
@@ -8438,8 +8437,8 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
     if (cmdCode != EFFECT_CMD_GET_PARAM && status == NO_ERROR) {
         uint32_t size = (replySize == NULL) ? 0 : *replySize;
         for (size_t i = 1; i < mHandles.size(); i++) {
-            sp<EffectHandle> h = mHandles[i].promote();
-            if (h != 0) {
+            EffectHandle *h = mHandles[i];
+            if (h != NULL && !h->destroyed_l()) {
                 h->commandExecuted(cmdCode, cmdSize, pCmdData, size, pReplyData);
             }
         }
@@ -8449,8 +8448,14 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
 
 status_t AudioFlinger::EffectModule::setEnabled(bool enabled)
 {
-
     Mutex::Autolock _l(mLock);
+    return setEnabled_l(enabled);
+}
+
+// must be called with EffectModule::mLock held
+status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
+{
+
     ALOGV("setEnabled %p enabled %d", this, enabled);
 
     if (enabled != isEnabled()) {
@@ -8485,8 +8490,8 @@ status_t AudioFlinger::EffectModule::setEnabled(bool enabled)
             return NO_ERROR; // simply ignore as we are being destroyed
         }
         for (size_t i = 1; i < mHandles.size(); i++) {
-            sp<EffectHandle> h = mHandles[i].promote();
-            if (h != 0) {
+            EffectHandle *h = mHandles[i];
+            if (h != NULL && !h->destroyed_l()) {
                 h->setEnabled(enabled);
             }
         }
@@ -8635,6 +8640,22 @@ bool AudioFlinger::EffectModule::suspended() const
     return mSuspended;
 }
 
+bool AudioFlinger::EffectModule::purgeHandles()
+{
+    bool enabled = false;
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mHandles.size(); i++) {
+        EffectHandle *handle = mHandles[i];
+        if (handle != NULL && !handle->destroyed_l()) {
+            handle->effect().clear();
+            if (handle->hasControl()) {
+                enabled = handle->enabled();
+            }
+        }
+    }
+    return enabled;
+}
+
 status_t AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
@@ -8701,8 +8722,8 @@ status_t AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
     result.append(buffer);
     result.append("\t\t\tPid   Priority Ctrl Locked client server\n");
     for (size_t i = 0; i < mHandles.size(); ++i) {
-        sp<EffectHandle> handle = mHandles[i].promote();
-        if (handle != 0) {
+        EffectHandle *handle = mHandles[i];
+        if (handle != NULL && !handle->destroyed_l()) {
             handle->dump(buffer, SIZE);
             result.append(buffer);
         }
@@ -8732,7 +8753,7 @@ AudioFlinger::EffectHandle::EffectHandle(const sp<EffectModule>& effect,
                                         int32_t priority)
     : BnEffect(),
     mEffect(effect), mEffectClient(effectClient), mClient(client), mCblk(NULL),
-    mPriority(priority), mHasControl(false), mEnabled(false)
+    mPriority(priority), mHasControl(false), mEnabled(false), mDestroyed(false)
 {
     ALOGV("constructor %p", this);
 
@@ -8757,8 +8778,15 @@ AudioFlinger::EffectHandle::EffectHandle(const sp<EffectModule>& effect,
 AudioFlinger::EffectHandle::~EffectHandle()
 {
     ALOGV("Destructor %p", this);
+
+    if (mEffect == 0) {
+        mDestroyed = true;
+        return;
+    }
+    mEffect->lock();
+    mDestroyed = true;
+    mEffect->unlock();
     disconnect(false);
-    ALOGV("Destructor DONE %p", this);
 }
 
 status_t AudioFlinger::EffectHandle::enable()
@@ -8829,9 +8857,8 @@ void AudioFlinger::EffectHandle::disconnect(bool unpinIfLast)
     if (mEffect == 0) {
         return;
     }
-    mEffect->disconnect(this, unpinIfLast);
-
-    if (mHasControl && mEnabled) {
+    // restore suspended effects if the disconnected handle was enabled and the last one.
+    if ((mEffect->disconnect(this, unpinIfLast) == 0) && mEnabled) {
         sp<ThreadBase> thread = mEffect->thread().promote();
         if (thread != 0) {
             thread->checkSuspendOnEffectEnabled(mEffect, false, mEffect->sessionId());
@@ -9414,10 +9441,12 @@ void AudioFlinger::EffectChain::setEffectSuspended_l(
                 sp<EffectModule> effect = desc->mEffect.promote();
                 if (effect != 0) {
                     effect->setSuspended(false);
-                    sp<EffectHandle> handle = effect->controlHandle();
-                    if (handle != 0) {
-                        effect->setEnabled(handle->enabled());
+                    effect->lock();
+                    EffectHandle *handle = effect->controlHandle_l();
+                    if (handle != NULL && !handle->destroyed_l()) {
+                        effect->setEnabled_l(handle->enabled());
                     }
+                    effect->unlock();
                 }
                 desc->mEffect.clear();
             }
