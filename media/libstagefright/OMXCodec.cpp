@@ -259,6 +259,10 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
+    if (list->codecHasQuirk(
+                index, "requies-loaded-to-idle-after-allocation")) {
+      quirks |= kRequiresLoadedToIdleAfterAllocation;
+    }
 
     return quirks;
 }
@@ -829,8 +833,10 @@ void OMXCodec::setVideoInputFormat(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
     CHECK_EQ(err, (status_t)OK);
 
-    def.nBufferSize = getFrameSize(colorFormat,
-            stride > 0? stride: -stride, sliceHeight);
+    if (strncmp(mComponentName, "OMX.qcom", 8)) {
+        def.nBufferSize = getFrameSize(colorFormat,
+                  stride > 0? stride: -stride, sliceHeight);
+    }
 
     CHECK_EQ((int)def.eDomain, (int)OMX_PortDomainVideo);
 
@@ -2903,6 +2909,10 @@ void OMXCodec::drainInputBuffers() {
 
             if (info->mStatus != OWNED_BY_US) {
                 continue;
+            }
+
+            if (mIsEncoder && mIsVideo && (i == 4)) { //BIG TBD - move this to component
+                break;
             }
 
             if (!drainInputBuffer(info)) {

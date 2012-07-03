@@ -618,7 +618,9 @@ void CameraService::Client::setPreviewCallbackFlag(int callback_flag) {
 // start preview mode
 status_t CameraService::Client::startPreview() {
     LOG1("startPreview (pid %d)", getCallingPid());
+#ifdef QCOM_HARDWARE
     enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+#endif
     return startCameraMode(CAMERA_PREVIEW_MODE);
 }
 
@@ -794,7 +796,9 @@ status_t CameraService::Client::cancelAutoFocus() {
 
 // take a picture - image is returned in callback
 status_t CameraService::Client::takePicture(int msgType) {
+#ifdef QCOM_HARDWARE
     char prop[PROPERTY_VALUE_MAX];
+#endif
     LOG1("takePicture (pid %d): 0x%x", getCallingPid(), msgType);
 
     Mutex::Autolock iLock(mICameraLock);
@@ -929,12 +933,14 @@ status_t CameraService::Client::sendCommand(int32_t cmd, int32_t arg1, int32_t a
         // If mHardware is 0, checkPidAndHardware will return error.
         return OK;
     }
+#ifdef QCOM_HARDWARE
     else if (cmd == CAMERA_CMD_HISTOGRAM_ON ) {
         enableMsgType(CAMERA_MSG_STATS_DATA);
     }
     else if (cmd ==  CAMERA_CMD_HISTOGRAM_OFF) {
         disableMsgType(CAMERA_MSG_STATS_DATA);
     }
+#endif
 
 
     return mHardware->sendCommand(cmd, arg1, arg2);
