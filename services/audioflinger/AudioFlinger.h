@@ -270,7 +270,7 @@ private:
     // RefBase
     virtual     void        onFirstRef();
 
-    audio_hw_device_t*      findSuitableHwDev_l(audio_module_handle_t module, uint32_t devices);
+    audio_hw_device_t*      findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices);
     void                    purgeStaleEffects_l();
 
     // standby delay for MIXER and DUPLICATING playback threads is read from property
@@ -352,7 +352,7 @@ private:
             RECORD              // Thread class is RecordThread
         };
 
-        ThreadBase (const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id, uint32_t device, type_t type);
+        ThreadBase (const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id, audio_devices_t device, type_t type);
         virtual             ~ThreadBase();
 
         status_t dumpBase(int fd, const Vector<String16>& args);
@@ -963,7 +963,7 @@ private:
         };  // end of OutputTrack
 
         PlaybackThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                        audio_io_handle_t id, uint32_t device, type_t type);
+                        audio_io_handle_t id, audio_devices_t device, type_t type);
         virtual             ~PlaybackThread();
 
                     status_t    dump(int fd, const Vector<String16>& args);
@@ -1185,7 +1185,7 @@ public:
         MixerThread (const sp<AudioFlinger>& audioFlinger,
                      AudioStreamOut* output,
                      audio_io_handle_t id,
-                     uint32_t device,
+                     audio_devices_t device,
                      type_t type = MIXER);
         virtual             ~MixerThread();
 
@@ -1240,7 +1240,7 @@ public:
     public:
 
         DirectOutputThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                            audio_io_handle_t id, uint32_t device);
+                            audio_io_handle_t id, audio_devices_t device);
         virtual                 ~DirectOutputThread();
 
         // Thread virtuals
@@ -1329,7 +1329,7 @@ private:
                                      bool reRegister);
               // return thread associated with primary hardware device, or NULL
               PlaybackThread *primaryPlaybackThread_l() const;
-              uint32_t primaryOutputDevice_l() const;
+              audio_devices_t primaryOutputDevice_l() const;
 
               sp<PlaybackThread> getEffectThread_l(int sessionId, int EffectId);
 
@@ -1407,7 +1407,7 @@ private:
                         uint32_t sampleRate,
                         audio_channel_mask_t channelMask,
                         audio_io_handle_t id,
-                        uint32_t device);
+                        audio_devices_t device);
                 virtual     ~RecordThread();
 
         // Thread
@@ -1575,7 +1575,7 @@ private:
         effect_descriptor_t& desc() { return mDescriptor; }
         wp<EffectChain>&     chain() { return mChain; }
 
-        status_t         setDevice(uint32_t device);
+        status_t         setDevice(audio_devices_t device);
         status_t         setVolume(uint32_t *left, uint32_t *right, bool controller);
         status_t         setMode(audio_mode_t mode);
         status_t         start();
@@ -1738,7 +1738,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         sp<EffectModule> getEffectFromId_l(int id);
         sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
         bool setVolume_l(uint32_t *left, uint32_t *right);
-        void setDevice_l(uint32_t device);
+        void setDevice_l(audio_devices_t device);
         void setMode_l(audio_mode_t mode);
 
         void setInBuffer(int16_t *buffer, bool ownsBuffer = false) {

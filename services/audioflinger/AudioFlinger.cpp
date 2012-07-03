@@ -273,7 +273,7 @@ static const char * const audio_interfaces[] = {
 };
 #define ARRAY_SIZE(x) (sizeof((x))/sizeof(((x)[0])))
 
-audio_hw_device_t* AudioFlinger::findSuitableHwDev_l(audio_module_handle_t module, uint32_t devices)
+audio_hw_device_t* AudioFlinger::findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices)
 {
     // if module is 0, the request comes from an old policy manager and we should load
     // well known modules
@@ -873,8 +873,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
                     sp<RecordThread> thread = mRecordThreads.valueAt(i);
                     RecordThread::RecordTrack *track = thread->track();
                     if (track != NULL) {
-                        audio_devices_t device = (audio_devices_t)(
-                                thread->device() & AUDIO_DEVICE_IN_ALL);
+                        audio_devices_t device = thread->device() & AUDIO_DEVICE_IN_ALL;
                         bool suspend = audio_is_bluetooth_sco_device(device) && btNrecIsOff;
                         thread->setEffectSuspended(FX_IID_AEC,
                                                    suspend,
@@ -1116,7 +1115,7 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, 
 // ----------------------------------------------------------------------------
 
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
-        uint32_t device, type_t type)
+        audio_devices_t device, type_t type)
     :   Thread(false),
         mType(type),
         mAudioFlinger(audioFlinger), mSampleRate(0), mFrameCount(0), mNormalFrameCount(0),
@@ -1500,7 +1499,7 @@ void AudioFlinger::ThreadBase::checkSuspendOnEffectEnabled_l(const sp<EffectModu
 AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinger,
                                              AudioStreamOut* output,
                                              audio_io_handle_t id,
-                                             uint32_t device,
+                                             audio_devices_t device,
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, type),
         mMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
@@ -2181,7 +2180,7 @@ void AudioFlinger::PlaybackThread::threadLoop_removeTracks(const Vector< sp<Trac
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-        audio_io_handle_t id, uint32_t device, type_t type)
+        audio_io_handle_t id, audio_devices_t device, type_t type)
     :   PlaybackThread(audioFlinger, output, id, device, type),
         // mAudioMixer below
         // mFastMixer below
@@ -2190,7 +2189,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mPipeSink below
         // mNormalSink below
 {
-    ALOGV("MixerThread() id=%d device=%d type=%d", id, device, type);
+    ALOGV("MixerThread() id=%d device=%#x type=%d", id, device, type);
     ALOGV("mSampleRate=%d, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
             "mFrameCount=%d, mNormalFrameCount=%d",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
@@ -3427,7 +3426,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                     params |= IMediaPlayerService::kBatteryDataSpeakerOn;
                 }
 
-                int deviceWithoutSpeaker
+                audio_devices_t deviceWithoutSpeaker
                     = AUDIO_DEVICE_OUT_ALL & ~AUDIO_DEVICE_OUT_SPEAKER;
                 // check if any other device (except speaker) is on
                 if (value & deviceWithoutSpeaker ) {
@@ -3611,7 +3610,7 @@ void AudioFlinger::MixerThread::cacheParameters_l()
 
 // ----------------------------------------------------------------------------
 AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& audioFlinger,
-        AudioStreamOut* output, audio_io_handle_t id, uint32_t device)
+        AudioStreamOut* output, audio_io_handle_t id, audio_devices_t device)
     :   PlaybackThread(audioFlinger, output, id, device, DIRECT)
         // mLeftVolFloat, mRightVolFloat
 {
@@ -5900,7 +5899,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          uint32_t sampleRate,
                                          audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
-                                         uint32_t device) :
+                                         audio_devices_t device) :
     ThreadBase(audioFlinger, id, device, RECORD),
     mInput(input), mTrack(NULL), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
@@ -6179,8 +6178,8 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
 
         mTrack = track.get();
         // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
-        bool suspend = audio_is_bluetooth_sco_device(
-                (audio_devices_t)(mDevice & AUDIO_DEVICE_IN_ALL)) && mAudioFlinger->btNrecIsOff();
+        bool suspend = audio_is_bluetooth_sco_device(mDevice & AUDIO_DEVICE_IN_ALL) &&
+                        mAudioFlinger->btNrecIsOff();
         setEffectSuspended_l(FX_IID_AEC, suspend, sessionId);
         setEffectSuspended_l(FX_IID_NS, suspend, sessionId);
     }
@@ -6725,7 +6724,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
     ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %d, Channels %x, flags %x",
               module,
-              (pDevices != NULL) ? (int)*pDevices : 0,
+              (pDevices != NULL) ? *pDevices : 0,
               config.sample_rate,
               config.format,
               config.channel_mask,
@@ -6985,7 +6984,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         // Start record thread
         // RecorThread require both input and output device indication to forward to audio
         // pre processing modules
-        uint32_t device = (*pDevices) | primaryOutputDevice_l();
+        audio_devices_t device = (*pDevices) | primaryOutputDevice_l();
         thread = new RecordThread(this,
                                   input,
                                   reqSamplingRate,
@@ -7195,7 +7194,7 @@ AudioFlinger::PlaybackThread *AudioFlinger::primaryPlaybackThread_l() const
     return NULL;
 }
 
-uint32_t AudioFlinger::primaryOutputDevice_l() const
+audio_devices_t AudioFlinger::primaryOutputDevice_l() const
 {
     PlaybackThread *thread = primaryPlaybackThread_l();
 
@@ -8534,14 +8533,14 @@ status_t AudioFlinger::EffectModule::setVolume(uint32_t *left, uint32_t *right, 
     return status;
 }
 
-status_t AudioFlinger::EffectModule::setDevice(uint32_t device)
+status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
 {
     Mutex::Autolock _l(mLock);
     status_t status = NO_ERROR;
     if (device && (mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
         // audio pre processing modules on RecordThread can receive both output and
         // input device indication in the same call
-        uint32_t dev = device & AUDIO_DEVICE_OUT_ALL;
+        audio_devices_t dev = device & AUDIO_DEVICE_OUT_ALL;
         if (dev) {
             status_t cmdStatus;
             uint32_t size = sizeof(status_t);
@@ -9258,7 +9257,7 @@ size_t AudioFlinger::EffectChain::removeEffect_l(const sp<EffectModule>& effect)
 }
 
 // setDevice_l() must be called with PlaybackThread::mLock held
-void AudioFlinger::EffectChain::setDevice_l(uint32_t device)
+void AudioFlinger::EffectChain::setDevice_l(audio_devices_t device)
 {
     size_t size = mEffects.size();
     for (size_t i = 0; i < size; i++) {
