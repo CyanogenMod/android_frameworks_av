@@ -83,13 +83,7 @@
 #include "PipeReader.h"
 #include "SourceAudioBufferProvider.h"
 
-#ifdef HAVE_REQUEST_PRIORITY
 #include "SchedulingPolicyService.h"
-#endif
-
-#ifdef SOAKER
-#include "Soaker.h"
-#endif
 
 // ----------------------------------------------------------------------------
 
@@ -1805,7 +1799,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         }
     }
 
-#ifdef HAVE_REQUEST_PRIORITY
     if ((flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
         pid_t callingPid = IPCThreadState::self()->getCallingPid();
         // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
@@ -1816,7 +1809,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                     1, callingPid, tid, err);
         }
     }
-#endif
 
     lStatus = NO_ERROR;
 
@@ -2196,9 +2188,6 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         audio_io_handle_t id, uint32_t device, type_t type)
     :   PlaybackThread(audioFlinger, output, id, device, type),
         // mAudioMixer below
-#ifdef SOAKER
-        mSoaker(NULL),
-#endif
         // mFastMixer below
         mFastMixerFutex(0)
         // mOutputSink below
@@ -2268,13 +2257,6 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         mTeeSource = teeSource;
 #endif
 
-#ifdef SOAKER
-        // create a soaker as workaround for governor issues
-        mSoaker = new Soaker();
-        // FIXME Soaker should only run when needed, i.e. when FastMixer is not in COLD_IDLE
-        mSoaker->run("Soaker", PRIORITY_LOWEST);
-#endif
-
         // create fast mixer and configure it initially with just one fast track for our submix
         mFastMixer = new FastMixer();
         FastMixerStateQueue *sq = mFastMixer->sq();
@@ -2306,14 +2288,12 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 
         // start the fast mixer
         mFastMixer->run("FastMixer", PRIORITY_URGENT_AUDIO);
-#ifdef HAVE_REQUEST_PRIORITY
         pid_t tid = mFastMixer->getTid();
         int err = requestPriority(getpid_cached, tid, 2);
         if (err != 0) {
             ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
                     2, getpid_cached, tid, err);
         }
-#endif
 
 #ifdef AUDIO_WATCHDOG
         // create and start the watchdog
@@ -2371,12 +2351,6 @@ AudioFlinger::MixerThread::~MixerThread()
         delete fastTrack->mBufferProvider;
         sq->end(false /*didModify*/);
         delete mFastMixer;
-#ifdef SOAKER
-        if (mSoaker != NULL) {
-            mSoaker->requestExitAndWait();
-        }
-        delete mSoaker;
-#endif
         if (mAudioWatchdog != 0) {
             mAudioWatchdog->requestExit();
             mAudioWatchdog->requestExitAndWait();
