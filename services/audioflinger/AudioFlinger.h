@@ -381,7 +381,7 @@ private:
                                         const sp<Client>& client,
                                         uint32_t sampleRate,
                                         audio_format_t format,
-                                        uint32_t channelMask,
+                                        audio_channel_mask_t channelMask,
                                         int frameCount,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId);
@@ -413,7 +413,7 @@ private:
 
             int channelCount() const { return mChannelCount; }
 
-            uint32_t channelMask() const { return mChannelMask; }
+            audio_channel_mask_t channelMask() const { return mChannelMask; }
 
             int sampleRate() const; // FIXME inline after cblk sr moved
 
@@ -463,7 +463,7 @@ private:
             bool                mStepServerFailed;
             const int           mSessionId;
             uint8_t             mChannelCount;
-            uint32_t            mChannelMask;
+            audio_channel_mask_t mChannelMask;
             Vector < sp<SyncEvent> >mSyncEvents;
         };
 
@@ -499,6 +499,7 @@ private:
                     // dynamic externally-visible
                     uint32_t    sampleRate() const { return mSampleRate; }
                     int         channelCount() const { return mChannelCount; }
+                    audio_channel_mask_t channelMask() const { return mChannelMask; }
                     audio_format_t format() const { return mFormat; }
                     // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                     // and returns the normal mix buffer's frame count.  No API for HAL frame count.
@@ -633,7 +634,7 @@ private:
                     uint32_t                mSampleRate;
                     size_t                  mFrameCount;       // output HAL, direct output, record
                     size_t                  mNormalFrameCount; // normal mixer and effects
-                    uint32_t                mChannelMask;
+                    audio_channel_mask_t    mChannelMask;
                     uint16_t                mChannelCount;
                     size_t                  mFrameSize;
                     audio_format_t          mFormat;
@@ -715,7 +716,7 @@ private:
                                         audio_stream_type_t streamType,
                                         uint32_t sampleRate,
                                         audio_format_t format,
-                                        uint32_t channelMask,
+                                        audio_channel_mask_t channelMask,
                                         int frameCount,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId,
@@ -839,7 +840,7 @@ private:
                                          audio_stream_type_t streamType,
                                          uint32_t sampleRate,
                                          audio_format_t format,
-                                         uint32_t channelMask,
+                                         audio_channel_mask_t channelMask,
                                          int frameCount,
                                          const sp<IMemory>& sharedBuffer,
                                          int sessionId);
@@ -882,7 +883,7 @@ private:
                        audio_stream_type_t streamType,
                        uint32_t sampleRate,
                        audio_format_t format,
-                       uint32_t channelMask,
+                       audio_channel_mask_t channelMask,
                        int frameCount,
                        const sp<IMemory>& sharedBuffer,
                        int sessionId);
@@ -931,7 +932,7 @@ private:
                                         DuplicatingThread *sourceThread,
                                         uint32_t sampleRate,
                                         audio_format_t format,
-                                        uint32_t channelMask,
+                                        audio_channel_mask_t channelMask,
                                         int frameCount);
             virtual             ~OutputTrack();
 
@@ -1010,7 +1011,7 @@ public:
                                     audio_stream_type_t streamType,
                                     uint32_t sampleRate,
                                     audio_format_t format,
-                                    uint32_t channelMask,
+                                    audio_channel_mask_t channelMask,
                                     int frameCount,
                                     const sp<IMemory>& sharedBuffer,
                                     int sessionId,
@@ -1355,7 +1356,7 @@ private:
                                         const sp<Client>& client,
                                         uint32_t sampleRate,
                                         audio_format_t format,
-                                        uint32_t channelMask,
+                                        audio_channel_mask_t channelMask,
                                         int frameCount,
                                         int sessionId);
             virtual             ~RecordTrack();
@@ -1386,7 +1387,7 @@ private:
                 RecordThread(const sp<AudioFlinger>& audioFlinger,
                         AudioStreamIn *input,
                         uint32_t sampleRate,
-                        uint32_t channels,
+                        audio_channel_mask_t channelMask,
                         audio_io_handle_t id,
                         uint32_t device);
                 virtual     ~RecordThread();
@@ -1403,7 +1404,7 @@ private:
                         const sp<AudioFlinger::Client>& client,
                         uint32_t sampleRate,
                         audio_format_t format,
-                        int channelMask,
+                        audio_channel_mask_t channelMask,
                         int frameCount,
                         int sessionId,
                         status_t *status);

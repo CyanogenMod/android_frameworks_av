@@ -223,7 +223,7 @@ audio_policy_forced_cfg_t AudioPolicyService::getForceUse(audio_policy_force_use
 audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     uint32_t samplingRate,
                                     audio_format_t format,
-                                    uint32_t channels,
+                                    audio_channel_mask_t channelMask,
                                     audio_output_flags_t flags)
 {
     if (mpAudioPolicy == NULL) {
@@ -231,7 +231,7 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
     }
     ALOGV("getOutput() tid %d", gettid());
     Mutex::Autolock _l(mLock);
-    return mpAudioPolicy->get_output(mpAudioPolicy, stream, samplingRate, format, channels, flags);
+    return mpAudioPolicy->get_output(mpAudioPolicy, stream, samplingRate, format, channelMask, flags);
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -271,7 +271,7 @@ void AudioPolicyService::releaseOutput(audio_io_handle_t output)
 audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
-                                    uint32_t channels,
+                                    audio_channel_mask_t channelMask,
                                     int audioSession)
 {
     if (mpAudioPolicy == NULL) {
@@ -284,7 +284,7 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
-                                                       format, channels, (audio_in_acoustics_t) 0);
+                                                       format, channelMask, (audio_in_acoustics_t) 0);
 
     if (input == 0) {
         return input;

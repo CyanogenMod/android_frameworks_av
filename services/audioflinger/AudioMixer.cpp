@@ -412,7 +412,7 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
     case TRACK:
         switch (param) {
         case CHANNEL_MASK: {
-            uint32_t mask = (uint32_t)value;
+            audio_channel_mask_t mask = (audio_channel_mask_t) value;
             if (track.channelMask != mask) {
                 uint32_t channelCount = popcount(mask);
                 ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);

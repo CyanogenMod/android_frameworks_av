@@ -51,7 +51,7 @@ public:
     virtual audio_io_handle_t getOutput(audio_stream_type_t stream,
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                        uint32_t channels = 0,
+                                        audio_channel_mask_t channelMask = 0,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE) = 0;
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
@@ -63,7 +63,7 @@ public:
     virtual audio_io_handle_t getInput(audio_source_t inputSource,
                                     uint32_t samplingRate = 0,
                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    uint32_t channels = 0,
+                                    audio_channel_mask_t channelMask = 0,
                                     int audioSession = 0) = 0;
     virtual status_t startInput(audio_io_handle_t input) = 0;
     virtual status_t stopInput(audio_io_handle_t input) = 0;

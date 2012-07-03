@@ -123,7 +123,7 @@ public:
                                         audio_stream_type_t stream,
                                         uint32_t samplingRate,
                                         audio_format_t format,
-                                        uint32_t channels,
+                                        audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags)
     {
         Parcel data, reply;
@@ -131,7 +131,7 @@ public:
         data.writeInt32(static_cast <uint32_t>(stream));
         data.writeInt32(samplingRate);
         data.writeInt32(static_cast <uint32_t>(format));
-        data.writeInt32(channels);
+        data.writeInt32(channelMask);
         data.writeInt32(static_cast <uint32_t>(flags));
         remote()->transact(GET_OUTPUT, data, &reply);
         return static_cast <audio_io_handle_t> (reply.readInt32());
@@ -175,7 +175,7 @@ public:
                                     audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
-                                    uint32_t channels,
+                                    audio_channel_mask_t channelMask,
                                     int audioSession)
     {
         Parcel data, reply;
@@ -183,7 +183,7 @@ public:
         data.writeInt32((int32_t) inputSource);
         data.writeInt32(samplingRate);
         data.writeInt32(static_cast <uint32_t>(format));
-        data.writeInt32(channels);
+        data.writeInt32(channelMask);
         data.writeInt32(audioSession);
         remote()->transact(GET_INPUT, data, &reply);
         return static_cast <audio_io_handle_t> (reply.readInt32());
@@ -415,14 +415,14 @@ status_t BnAudioPolicyService::onTransact(
                     static_cast <audio_stream_type_t>(data.readInt32());
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
-            uint32_t channels = data.readInt32();
+            audio_channel_mask_t channelMask = data.readInt32();
             audio_output_flags_t flags =
                     static_cast <audio_output_flags_t>(data.readInt32());
 
             audio_io_handle_t output = getOutput(stream,
                                                  samplingRate,
                                                  format,
-                                                 channels,
+                                                 channelMask,
                                                  flags);
             reply->writeInt32(static_cast <int>(output));
             return NO_ERROR;
@@ -462,12 +462,12 @@ status_t BnAudioPolicyService::onTransact(
             audio_source_t inputSource = (audio_source_t) data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
-            uint32_t channels = data.readInt32();
+            audio_channel_mask_t channelMask = data.readInt32();
             int audioSession = data.readInt32();
             audio_io_handle_t input = getInput(inputSource,
                                                samplingRate,
                                                format,
-                                               channels,
+                                               channelMask,
                                                audioSession);
             reply->writeInt32(static_cast <int>(input));
             return NO_ERROR;

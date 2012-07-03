@@ -188,7 +188,7 @@ public:
     static audio_io_handle_t getOutput(audio_stream_type_t stream,
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                        uint32_t channels = AUDIO_CHANNEL_OUT_STEREO,
+                                        audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
@@ -200,7 +200,7 @@ public:
     static audio_io_handle_t getInput(audio_source_t inputSource,
                                     uint32_t samplingRate = 0,
                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    uint32_t channels = AUDIO_CHANNEL_IN_MONO,
+                                    audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
                                     int sessionId = 0);
     static status_t startInput(audio_io_handle_t input);
     static status_t stopInput(audio_io_handle_t input);

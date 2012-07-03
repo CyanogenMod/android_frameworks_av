@@ -432,7 +432,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         IAudioFlinger::track_flags_t flags,
         const sp<IMemory>& sharedBuffer,
@@ -1652,7 +1652,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         const sp<IMemory>& sharedBuffer,
         int sessionId,
@@ -1707,7 +1707,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
-                "mFrameCount=%d format=%d isLinear=%d channelMask=%d sampleRate=%d mSampleRate=%d "
+                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%d mSampleRate=%d "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
                 isTimed, sharedBuffer.get(), frameCount, mFrameCount, format,
                 audio_is_linear_pcm(format),
@@ -2192,7 +2192,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mNormalSink below
 {
     ALOGV("MixerThread() id=%d device=%d type=%d", id, device, type);
-    ALOGV("mSampleRate=%d, mChannelMask=%d, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
+    ALOGV("mSampleRate=%d, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
             "mFrameCount=%d, mNormalFrameCount=%d",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
             mNormalFrameCount);
@@ -3466,7 +3466,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                 readOutputParameters();
                 mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
-                    int name = getTrackName_l((audio_channel_mask_t)mTracks[i]->mChannelMask);
+                    int name = getTrackName_l(mTracks[i]->mChannelMask);
                     if (name < 0) break;
                     mTracks[i]->mName = name;
                     // limit track sample rate to 2 x new output sample rate
@@ -4061,7 +4061,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             const sp<Client>& client,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId)
@@ -4236,7 +4236,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             audio_stream_type_t streamType,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
@@ -4262,7 +4262,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
         mCblk->frameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) : sizeof(uint8_t);
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
-        mName = thread->getTrackName_l((audio_channel_mask_t)channelMask);
+        mName = thread->getTrackName_l(channelMask);
         mCblk->mName = mName;
         if (mName < 0) {
             ALOGE("no more track names available");
@@ -4781,7 +4781,7 @@ AudioFlinger::PlaybackThread::TimedTrack::create(
             audio_stream_type_t streamType,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId) {
@@ -4799,7 +4799,7 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             audio_stream_type_t streamType,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId)
@@ -5294,7 +5294,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             const sp<Client>& client,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount,
             int sessionId)
     :   TrackBase(thread, client, sampleRate, format,
@@ -5406,7 +5406,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             DuplicatingThread *sourceThread,
             uint32_t sampleRate,
             audio_format_t format,
-            uint32_t channelMask,
+            audio_channel_mask_t channelMask,
             int frameCount)
     :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
                 NULL, 0, IAudioFlinger::TRACK_DEFAULT),
@@ -5794,7 +5794,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         audio_io_handle_t input,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         IAudioFlinger::track_flags_t flags,
         int *sessionId,
@@ -5899,13 +5899,13 @@ status_t AudioFlinger::RecordHandle::onTransact(
 AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          AudioStreamIn *input,
                                          uint32_t sampleRate,
-                                         uint32_t channels,
+                                         audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
                                          uint32_t device) :
     ThreadBase(audioFlinger, id, device, RECORD),
     mInput(input), mTrack(NULL), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
-    mReqChannelCount(popcount(channels)),
+    mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
     // (but might be better to also clear here for dump?)
@@ -6149,7 +6149,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         const sp<AudioFlinger::Client>& client,
         uint32_t sampleRate,
         audio_format_t format,
-        int channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         int sessionId,
         status_t *status)
@@ -6929,7 +6929,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                           audio_devices_t *pDevices,
                                           uint32_t *pSamplingRate,
                                           audio_format_t *pFormat,
-                                          uint32_t *pChannelMask)
+                                          audio_channel_mask_t *pChannelMask)
 {
     status_t status;
     RecordThread *thread = NULL;
@@ -6972,7 +6972,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
         (config.sample_rate <= 2 * reqSamplingRate) &&
         (popcount(config.channel_mask) <= FCC_2) && (popcount(reqChannels) <= FCC_2)) {
-        ALOGV("openInput() reopening with proposed sampling rate and channels");
+        ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
         status = inHwDev->open_input_stream(inHwDev, id, *pDevices, &config, &inStream);
     }
@@ -8193,7 +8193,6 @@ void AudioFlinger::EffectModule::reset_l()
 
 status_t AudioFlinger::EffectModule::configure()
 {
-    uint32_t channels;
     if (mEffectInterface == NULL) {
         return NO_INIT;
     }
@@ -8204,18 +8203,14 @@ status_t AudioFlinger::EffectModule::configure()
     }
 
     // TODO: handle configuration of effects replacing track process
-    if (thread->channelCount() == 1) {
-        channels = AUDIO_CHANNEL_OUT_MONO;
-    } else {
-        channels = AUDIO_CHANNEL_OUT_STEREO;
-    }
+    audio_channel_mask_t channelMask = thread->channelMask();
 
     if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_AUXILIARY) {
         mConfig.inputCfg.channels = AUDIO_CHANNEL_OUT_MONO;
     } else {
-        mConfig.inputCfg.channels = channels;
+        mConfig.inputCfg.channels = channelMask;
     }
-    mConfig.outputCfg.channels = channels;
+    mConfig.outputCfg.channels = channelMask;
     mConfig.inputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
     mConfig.outputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
     mConfig.inputCfg.samplingRate = thread->sampleRate();
