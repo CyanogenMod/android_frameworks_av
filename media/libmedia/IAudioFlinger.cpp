@@ -135,7 +135,7 @@ public:
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
-                                uint32_t channelMask,
+                                audio_channel_mask_t channelMask,
                                 int frameCount,
                                 track_flags_t flags,
                                 pid_t tid,

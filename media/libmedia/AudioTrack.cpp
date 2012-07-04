@@ -103,7 +103,7 @@ AudioTrack::AudioTrack(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        int channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         audio_output_flags_t flags,
         callback_t cbf,
@@ -136,7 +136,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
-    mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format, channelMask,
+    mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format,
+            (audio_channel_mask_t) channelMask,
             frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId);
 }
@@ -145,7 +146,7 @@ AudioTrack::AudioTrack(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        int channelMask,
+        audio_channel_mask_t channelMask,
         const sp<IMemory>& sharedBuffer,
         audio_output_flags_t flags,
         callback_t cbf,
@@ -186,7 +187,7 @@ status_t AudioTrack::set(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        int channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         audio_output_flags_t flags,
         callback_t cbf,
@@ -252,7 +253,7 @@ status_t AudioTrack::set(
     }
 
     if (!audio_is_output_channel(channelMask)) {
-        ALOGE("Invalid channel mask");
+        ALOGE("Invalid channel mask %#x", channelMask);
         return BAD_VALUE;
     }
     uint32_t channelCount = popcount(channelMask);
@@ -286,7 +287,7 @@ status_t AudioTrack::set(
     status_t status = createTrack_l(streamType,
                                   sampleRate,
                                   format,
-                                  (uint32_t)channelMask,
+                                  channelMask,
                                   frameCount,
                                   flags,
                                   sharedBuffer,
@@ -304,7 +305,7 @@ status_t AudioTrack::set(
 
     mStreamType = streamType;
     mFormat = format;
-    mChannelMask = (uint32_t)channelMask;
+    mChannelMask = channelMask;
     mChannelCount = channelCount;
     mSharedBuffer = sharedBuffer;
     mMuted = false;
@@ -749,7 +750,7 @@ status_t AudioTrack::createTrack_l(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        uint32_t channelMask,
+        audio_channel_mask_t channelMask,
         int frameCount,
         audio_output_flags_t flags,
         const sp<IMemory>& sharedBuffer,
