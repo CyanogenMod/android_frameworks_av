@@ -168,6 +168,12 @@ static const enum {
 static uint32_t gScreenState; // incremented by 2 when screen state changes, bit 0 == 1 means "off"
                               // AudioFlinger::setParameters() updates, other threads read w/o lock
 
+#ifdef HAS_SAMSUNG_VOLUME_BUG
+float gPrevMusicStreamVolume = 0;
+bool gMusicStreamIsMuted = false;
+bool gMusicStreamNeedsPrevVolume = false;
+#endif
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -3167,9 +3173,42 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     track->setPaused();
                 }
             } else {
+#ifdef HAS_SAMSUNG_VOLUME_BUG
+                if (track->streamType() == AUDIO_STREAM_MUSIC && !track->isMuted() && !track->isPausing()) {
+                    if(mStreamTypes[AUDIO_STREAM_MUSIC].volume > 0 && !gMusicStreamNeedsPrevVolume) {
+                        gPrevMusicStreamVolume = mStreamTypes[AUDIO_STREAM_MUSIC].volume;
+                        ALOGV("Stored volume = %f", gPrevMusicStreamVolume);
+                    } else {
+                        gMusicStreamIsMuted = true;
+                    }
+                } else if (track->streamType() == AUDIO_STREAM_MUSIC && (track->isMuted() || track->isPausing())) {
+                    gMusicStreamIsMuted = true;
+                }
 
+                if (track->streamType() == AUDIO_STREAM_NOTIFICATION && gMusicStreamIsMuted) {
+                    ALOGV("Music stream needs volume restore!");
+                    ALOGV("gPrevMusicStreamVolume = %f", gPrevMusicStreamVolume);
+                    gMusicStreamNeedsPrevVolume = true;
+                }
+#endif
                 // read original volumes with volume control
                 float typeVolume = mStreamTypes[track->streamType()].volume;
+
+#ifdef HAS_SAMSUNG_VOLUME_BUG
+                if (track->streamType() == AUDIO_STREAM_MUSIC && typeVolume > 0 && !track->isMuted() &&
+                        !track->isPausing() && gMusicStreamNeedsPrevVolume) {
+                    ALOGI("Restoring last known good volume value on music stream!");
+                    ALOGI("gPrevMusicStreamVolume = %f", gPrevMusicStreamVolume);
+                    mStreamTypes[AUDIO_STREAM_MUSIC].volume = gPrevMusicStreamVolume;
+                    typeVolume = gPrevMusicStreamVolume;
+                    gMusicStreamIsMuted = false;
+                    gMusicStreamNeedsPrevVolume = false;
+                } else if (track->streamType() == AUDIO_STREAM_MUSIC && typeVolume > 0
+                        && !track->isMuted() && !track->isPausing()) {
+                    gMusicStreamIsMuted = false;
+                }
+#endif
+
                 float v = masterVolume * typeVolume;
                 uint32_t vlr = cblk->getVolumeLR();
                 vl = vlr & 0xFFFF;
