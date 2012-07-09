@@ -2513,7 +2513,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
             // put audio hardware into standby after short delay
             if (CC_UNLIKELY((!mActiveTracks.size() && systemTime() > standbyTime) ||
-                        mSuspended > 0)) {
+                        isSuspended())) {
                 if (!mStandby) {
 
                     threadLoop_standby();
@@ -2567,7 +2567,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             threadLoop_sleepTime();
         }
 
-        if (mSuspended > 0) {
+        if (isSuspended()) {
             sleepTime = suspendSleepTimeUs();
         }
 
@@ -2752,7 +2752,7 @@ void AudioFlinger::MixerThread::threadLoop_standby()
 // shared by MIXER and DIRECT, overridden by DUPLICATING
 void AudioFlinger::PlaybackThread::threadLoop_standby()
 {
-    ALOGV("Audio hardware entering standby, mixer %p, suspend count %u", this, mSuspended);
+    ALOGV("Audio hardware entering standby, mixer %p, suspend count %d", this, mSuspended);
     mOutput->stream->common.standby(&mOutput->stream->common);
 }
 

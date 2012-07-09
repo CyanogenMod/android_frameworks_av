@@ -1023,9 +1023,19 @@ public:
                     AudioStreamOut* clearOutput();
                     virtual audio_stream_t* stream() const;
 
-                    void        suspend() { mSuspended++; }
-                    void        restore() { if (mSuspended > 0) mSuspended--; }
-                    bool        isSuspended() const { return (mSuspended > 0); }
+                    // a very large number of suspend() will eventually wraparound, but unlikely
+                    void        suspend() { (void) android_atomic_inc(&mSuspended); }
+                    void        restore()
+                                    {
+                                        // if restore() is done without suspend(), get back into
+                                        // range so that the next suspend() will operate correctly
+                                        if (android_atomic_dec(&mSuspended) <= 0) {
+                                            android_atomic_release_store(0, &mSuspended);
+                                        }
+                                    }
+                    bool        isSuspended() const
+                                    { return android_atomic_acquire_load(&mSuspended) > 0; }
+
         virtual     String8     getParameters(const String8& keys);
         virtual     void        audioConfigChanged_l(int event, int param = 0);
                     status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
@@ -1050,7 +1060,14 @@ public:
 
     protected:
         int16_t*                        mMixBuffer;
-        uint32_t                        mSuspended;     // suspend count, > 0 means suspended
+
+        // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
+        // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
+        // concurrent use of both of them, so Audio Policy Service suspends one of the threads to
+        // workaround that restriction.
+        // 'volatile' means accessed via atomic operations and no lock.
+        volatile int32_t                mSuspended;
+
         int                             mBytesWritten;
     private:
         // mMasterMute is in both PlaybackThread and in AudioFlinger.  When a
