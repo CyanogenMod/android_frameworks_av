@@ -1735,12 +1735,12 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
         void incTrackCnt() { android_atomic_inc(&mTrackCnt); }
         void decTrackCnt() { android_atomic_dec(&mTrackCnt); }
-        int32_t trackCnt() const { return mTrackCnt;}
+        int32_t trackCnt() const { return android_atomic_acquire_load(&mTrackCnt); }
 
         void incActiveTrackCnt() { android_atomic_inc(&mActiveTrackCnt);
                                    mTailBufferCount = mMaxTailBuffers; }
         void decActiveTrackCnt() { android_atomic_dec(&mActiveTrackCnt); }
-        int32_t activeTrackCnt() const { return mActiveTrackCnt;}
+        int32_t activeTrackCnt() const { return android_atomic_acquire_load(&mActiveTrackCnt); }
 
         uint32_t strategy() const { return mStrategy; }
         void setStrategy(uint32_t strategy)
@@ -1792,8 +1792,11 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         int mSessionId;             // audio session ID
         int16_t *mInBuffer;         // chain input buffer
         int16_t *mOutBuffer;        // chain output buffer
-        volatile int32_t mActiveTrackCnt;  // number of active tracks connected
-        volatile int32_t mTrackCnt;        // number of tracks connected
+
+        // 'volatile' here means these are accessed with atomic operations instead of mutex
+        volatile int32_t mActiveTrackCnt;    // number of active tracks connected
+        volatile int32_t mTrackCnt;          // number of tracks connected
+
         int32_t mTailBufferCount;   // current effect tail buffer count
         int32_t mMaxTailBuffers;    // maximum effect tail buffers
         bool mOwnInBuffer;          // true if the chain owns its input buffer
