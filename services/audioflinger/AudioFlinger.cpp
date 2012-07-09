@@ -1382,8 +1382,8 @@ void AudioFlinger::ThreadBase::checkSuspendOnAddEffectChain_l(const sp<EffectCha
         return;
     }
 
-    KeyedVector <int, sp<SuspendedSessionDesc> > sessionEffects =
-            mSuspendedSessions.editValueAt(index);
+    const KeyedVector <int, sp<SuspendedSessionDesc> >& sessionEffects =
+            mSuspendedSessions.valueAt(index);
 
     for (size_t i = 0; i < sessionEffects.size(); i++) {
         sp<SuspendedSessionDesc> desc = sessionEffects.valueAt(i);
@@ -1409,7 +1409,7 @@ void AudioFlinger::ThreadBase::updateSuspendedSessions_l(const effect_uuid_t *ty
 
     if (suspend) {
         if (index >= 0) {
-            sessionEffects = mSuspendedSessions.editValueAt(index);
+            sessionEffects = mSuspendedSessions.valueAt(index);
         } else {
             mSuspendedSessions.add(sessionId, sessionEffects);
         }
@@ -1417,7 +1417,7 @@ void AudioFlinger::ThreadBase::updateSuspendedSessions_l(const effect_uuid_t *ty
         if (index < 0) {
             return;
         }
-        sessionEffects = mSuspendedSessions.editValueAt(index);
+        sessionEffects = mSuspendedSessions.valueAt(index);
     }
 
 

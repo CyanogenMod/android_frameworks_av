@@ -615,7 +615,7 @@ private:
                     void        releaseWakeLock_l();
                     void setEffectSuspended_l(const effect_uuid_t *type,
                                               bool suspend,
-                                              int sessionId = AUDIO_SESSION_OUTPUT_MIX);
+                                              int sessionId);
                     // updated mSuspendedSessions when an effect suspended or restored
                     void        updateSuspendedSessions_l(const effect_uuid_t *type,
                                                           bool suspend,
