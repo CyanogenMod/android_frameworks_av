@@ -55,6 +55,16 @@ struct NuPlayer : public AHandler {
     // Will notify the driver through "notifySeekComplete" once finished.
     void seekToAsync(int64_t seekTimeUs);
 
+#ifdef QCOM_HARDWARE
+    status_t prepareAsync();
+    status_t getParameter(int key, Parcel *reply);
+    status_t setParameter(int key, const Parcel &request);
+
+public:
+    struct DASHHTTPLiveSource;
+    struct WFDSource;
+#endif
+
 protected:
     virtual ~NuPlayer();
 
@@ -84,6 +94,8 @@ private:
         kWhatSeek                       = 'seek',
         kWhatPause                      = 'paus',
         kWhatResume                     = 'rsme',
+        kWhatPrepareAsync               = 'pras',
+        kWhatIsPrepareDone              = 'prdn',
     };
 
     wp<NuPlayerDriver> mDriver;
@@ -128,6 +140,25 @@ private:
     int64_t mVideoLateByUs;
     int64_t mNumFramesTotal, mNumFramesDropped;
 
+#ifdef QCOM_HARDWARE
+    bool mPauseIndication;
+#endif
+
+    Mutex mLock;
+
+    enum NuSourceType {
+        kHttpLiveSource = 0,
+        kHttpDashSource,
+        kRtspSource,
+        kStreamingSource,
+        kWfdSource,
+        kGenericSource,
+        kDefaultSource
+    };
+#ifdef QCOM_HARDWARE
+    NuSourceType mSourceType;
+#endif
+
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
     status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
@@ -144,6 +175,12 @@ private:
     void finishReset();
     void postScanSources();
 
+#ifdef QCOM_HARDWARE
+    sp<Source> LoadCreateSource(const char * uri, const KeyedVector<String8,
+                                 String8> *headers, bool uidValid, uid_t uid, NuSourceType srcTyp);
+
+    void postIsPrepareDone();
+#endif
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };
 

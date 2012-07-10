@@ -2902,7 +2902,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
     free(pTmpData);
 
 #ifdef FILE_DUMP
-    FILE *fp = fopen("/sdcard/Input/test_rgb.raw", "wb");
+    FILE *fp = fopen("/sdcard/test_rgb.raw", "ab");
     if(fp == NULL)
         ALOGE("Errors file can not be created");
     else {
@@ -2923,17 +2923,32 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
         yuvPlane[0].u_topleft = 0;
         yuvPlane[0].pac_data = (M4VIFI_UInt8*)M4OSA_32bitAlignedMalloc(yuvPlane[0].u_height * yuvPlane[0].u_width * 1.5, M4VS, (M4OSA_Char*)"imageClip YUV data");
 
+#ifdef QCOM_HARDWARE
+        M4VIFI_UInt8 *plane1;
+        M4VIFI_UInt8 *plane2;
+        plane1 = (M4VIFI_UInt8*)(yuvPlane[0].pac_data + height*width);
+        plane2 = plane1 + (height/2*width/2);
+#endif
+
         yuvPlane[1].u_height = yuvPlane[0].u_height >>1;
         yuvPlane[1].u_width = yuvPlane[0].u_width >> 1;
         yuvPlane[1].u_stride = yuvPlane[1].u_width;
         yuvPlane[1].u_topleft = 0;
+#ifdef QCOM_HARDWARE
+        yuvPlane[1].pac_data = plane1;
+#else
         yuvPlane[1].pac_data = (M4VIFI_UInt8*)(yuvPlane[0].pac_data + yuvPlane[0].u_height * yuvPlane[0].u_width);
+#endif
 
         yuvPlane[2].u_height = yuvPlane[0].u_height >>1;
         yuvPlane[2].u_width = yuvPlane[0].u_width >> 1;
         yuvPlane[2].u_stride = yuvPlane[2].u_width;
         yuvPlane[2].u_topleft = 0;
+#ifdef QCOM_HARDWARE
+        yuvPlane[2].pac_data = plane2;
+#else
         yuvPlane[2].pac_data = (M4VIFI_UInt8*)(yuvPlane[1].pac_data + yuvPlane[1].u_height * yuvPlane[1].u_width);
+#endif
 
 
         err = M4VIFI_RGB888toYUV420(M4OSA_NULL, &rgbPlane, yuvPlane);
@@ -2946,7 +2961,7 @@ M4OSA_ERR LvGetImageThumbNail(const char *fileName, M4OSA_UInt32 height, M4OSA_U
 
         //ALOGE("RGB to YUV done");
 #ifdef FILE_DUMP
-        FILE *fp1 = fopen("/sdcard/Input/test_yuv.raw", "wb");
+        FILE *fp1 = fopen("/sdcard/test_yuv.raw", "ab");
         if(fp1 == NULL)
             ALOGE("Errors file can not be created");
         else {

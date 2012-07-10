@@ -27,6 +27,7 @@
 #include <media/stagefright/MetaData.h>
 #include "VideoEditorTools.h"
 
+//#define PREVIEW_DEBUG 1
 #define CHECK_EGL_ERROR CHECK(EGL_SUCCESS == eglGetError())
 #define CHECK_GL_ERROR CHECK(GLenum(GL_NO_ERROR) == glGetError())
 
@@ -102,7 +103,11 @@ static const char fSrcNegative[] =
     "void main() {\n"
     "  vec4 rgb = texture2D(texSampler, texCoords);\n"
     "  vec4 yuv = rgb2yuv * rgb;\n"
+#ifdef QCOM_HARDWARE
+    "  yuv = vec4(255.0 - yuv.x, yuv.y, yuv.z, yuv.w);\n"
+#else
     "  yuv = vec4(255.0 - yuv.x, yuv.y, yuv.z, 1.0);\n"
+#endif
     "  gl_FragColor = yuv2rgb * yuv;\n"
     "}\n";
 
@@ -398,6 +403,10 @@ void NativeWindowRenderer::queueExternalBuffer(ANativeWindow* anw,
             HAL_PIXEL_FORMAT_YV12);
     native_window_set_usage(anw, GRALLOC_USAGE_SW_WRITE_OFTEN);
 
+#ifdef QCOM_HARDWARE
+    native_window_set_buffer_count(anw, 3);
+#endif
+
     ANativeWindowBuffer* anb;
     anw->dequeueBuffer(anw, &anb);
     CHECK(anb != NULL);
@@ -409,6 +418,17 @@ void NativeWindowRenderer::queueExternalBuffer(ANativeWindow* anw,
     uint8_t* img = NULL;
     buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
     copyI420Buffer(buffer, img, width, height, buf->getStride());
+
+#if PREVIEW_DEBUG
+    FILE *fp1 = fopen("/sdcard/pre_test_yuv.raw", "ab");
+    if(fp1 == NULL)
+        LOGE("Errors file can not be created");
+    else {
+        fwrite(img, buf->getWidth() * buf->getHeight()* 3/2, 1, fp1);
+        fclose(fp1);
+    }
+#endif
+
     buf->unlock();
     CHECK(NO_ERROR == anw->queueBuffer(anw, buf->getNativeBuffer()));
 }

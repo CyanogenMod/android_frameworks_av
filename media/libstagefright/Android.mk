@@ -62,6 +62,12 @@ LOCAL_SRC_FILES:=                         \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
 
+
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+LOCAL_SRC_FILES+=                         \
+        ExtendedExtractor.cpp
+endif
+
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
@@ -70,6 +76,8 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
+        $(TOP)/hardware/qcom/display/libgralloc \
+        $(TOP)/hardware/qcom/media/mm-core/inc
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \

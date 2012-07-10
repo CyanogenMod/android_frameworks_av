@@ -50,8 +50,7 @@ Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 
 #ifdef QCOM_HARDWARE
 #include <gralloc_priv.h>
-
-static const int OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka = 0x7FA30C03;
+#include <OMX_QCOMExtns.h>
 #endif
 
 namespace android {
@@ -324,6 +323,10 @@ sp<MediaSource> OMXCodec::Create(
             && requiresSecureBuffers) {
         flags |= kIgnoreCodecSpecificData;
         flags |= kUseSecureInputBuffers;
+#ifdef QCOM_HARDWARE
+        flags |= kEnableGrallocUsageProtected;
+        flags |= kEnableGrallocUsagePrivateCPBuffer;
+#endif
     }
 
     const char *mime;
@@ -438,7 +441,29 @@ status_t OMXCodec::parseAVCCodecSpecificData(
     // CHECK((ptr[5] >> 5) == 7);  // reserved
 
     size_t numSeqParameterSets = ptr[5] & 31;
-
+#ifdef QCOM_HARDWARE
+    uint16_t spsSize = (((uint16_t)ptr[6]) << 8)
+      + (uint16_t)(ptr[7]);
+    CODEC_LOGV("numSeqParameterSets = %d , spsSize = %d",
+               numSeqParameterSets,spsSize);
+    SpsInfo info;
+    if (parseSps(spsSize, ptr + 9, &info) == OK) {
+        mSPSParsed = true;
+        CODEC_LOGV("SPS parsed");
+        if (info.mInterlaced) {
+            //mInterlaceFormatDetected = true; //Enable when Interlace is supported
+            mUseArbitraryMode = true;
+            CODEC_LOGI("Interlace format detected");
+        } else {
+            CODEC_LOGI("Non-Interlaced format detected");
+        }
+    }
+    else {
+      CODEC_LOGI("ParseSPS could not find if content is interlaced");
+      mSPSParsed = false;
+      //mInterlaceFormatDetected = false; //Enable when Interlace is supported
+    }
+#endif
     ptr += 6;
     size -= 6;
 
@@ -501,6 +526,18 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         uint32_t type;
         const void *data;
         size_t size;
+#ifdef QCOM_HARDWARE
+        const char *mime_type;
+
+        if (!strncasecmp(mMIME, "video/", 6)) {
+            int32_t arbitraryMode = 1;
+            bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
+            if (success) {
+                mUseArbitraryMode = arbitraryMode ? true : false;
+            }
+        }
+#endif
+
         if (meta->findData(kKeyESDS, &type, &data, &size)) {
             ESDS esds((const char *)data, size);
             CHECK_EQ(esds.InitCheck(), (status_t)OK);
@@ -519,7 +556,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             status_t err;
             if ((err = parseAVCCodecSpecificData(
                             data, size, &profile, &level)) != OK) {
-                ALOGE("Malformed AVC codec specific data.");
+                CODEC_LOGE("Malformed AVC codec specific data.");
                 return err;
             }
 
@@ -581,6 +618,26 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
     }
 
     if (!strncasecmp(mMIME, "video/", 6)) {
+#ifdef QCOM_HARDWARE
+        if (mThumbnailMode) {
+            ALOGV("Enabling thumbnail mode.");
+            QOMX_ENABLETYPE enableType;
+            OMX_INDEXTYPE indexType;
+
+            status_t err = mOMX->getExtensionIndex(
+                mNode, OMX_QCOM_INDEX_PARAM_VIDEO_SYNCFRAMEDECODINGMODE, &indexType);
+
+            CHECK_EQ(err, (status_t)OK);
+
+            enableType.bEnable = OMX_TRUE;
+
+            err = mOMX->setParameter(
+                    mNode, indexType, &enableType, sizeof(enableType));
+            CHECK_EQ(err, (status_t)OK);
+
+            ALOGV("Thumbnail mode enabled.");
+        }
+#endif
 
         if (mIsEncoder) {
             setVideoInputFormat(mMIME, meta);
@@ -595,6 +652,42 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             if (err != OK) {
                 return err;
             }
+#ifdef QCOM_HARDWARE
+            if (mUseArbitraryMode) {
+                CODEC_LOGI("Decoder should be in arbitrary mode");
+                // Is it required to set OMX_QCOM_FramePacking_Arbitrary ??
+            }
+            else{
+                CODEC_LOGI("Enable frame by frame mode");
+                OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
+                portFmt.nPortIndex = kPortIndexInput;
+                portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
+                err = mOMX->setParameter(
+                        mNode, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn, (void *)&portFmt, sizeof(portFmt));
+                if(err != OK) {
+                    ALOGW("Failed to set frame packing format on component");
+                }
+            }
+
+            // Enable timestamp reordering only for AVI/mpeg4 and vc1 clips
+            const char *fileFormat;
+            success = meta->findCString(kKeyFileFormat, &fileFormat);
+            if (!strcmp(mComponentName, "OMX.qcom.video.decoder.vc1") ||
+                    (success && !strncmp(fileFormat, "video/avi", 9) &&
+                    !strcmp(mComponentName, "OMX.qcom.video.decoder.mpeg4"))) {
+                CODEC_LOGI("Enabling timestamp reordering");
+                QOMX_INDEXTIMESTAMPREORDER reorder;
+                InitOMXParams(&reorder);
+                reorder.nPortIndex = kPortIndexOutput;
+                reorder.bEnable = OMX_TRUE;
+                err = mOMX->setParameter(
+                        mNode, (OMX_INDEXTYPE)OMX_QcomIndexParamEnableTimeStampReorder,
+                        (void *)&reorder, sizeof(reorder));
+                if(err != OK) {
+                    ALOGW("Failed to enable timestamp reordering");
+                }
+            }
+#endif
         }
     }
 
@@ -1281,6 +1374,7 @@ status_t OMXCodec::setVideoOutputFormat(
                || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar
 #ifdef QCOM_HARDWARE
+               || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420PackedSemiPlanar32m4ka
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka
 #endif
                );
@@ -1387,6 +1481,9 @@ OMXCodec::OMXCodec(
       mState(LOADED),
       mInitialBufferSubmit(true),
       mSignalledEOS(false),
+#ifdef QCOM_HARDWARE
+      mFinalStatus(OK),
+#endif
       mNoMoreOutputData(false),
       mOutputPortSettingsHaveChanged(false),
       mSeekTimeUs(-1),
@@ -1399,7 +1496,17 @@ OMXCodec::OMXCodec(
       mNativeWindow(
               (!strncmp(componentName, "OMX.google.", 11)
               || !strcmp(componentName, "OMX.Nvidia.mpeg2v.decode"))
-                        ? NULL : nativeWindow) {
+                        ? NULL : nativeWindow)
+#ifdef QCOM_HARDWARE
+      ,mThumbnailMode(false),
+      mSPSParsed(false),
+      mUseArbitraryMode(true) 
+#endif
+{
+
+#ifdef QCOM_HARDWARE
+    parseFlags();
+#endif
     mPortStatus[kPortIndexInput] = ENABLED;
     mPortStatus[kPortIndexOutput] = ENABLED;
 
@@ -1524,6 +1631,8 @@ status_t OMXCodec::init() {
 
     err = allocateBuffers();
     if (err != (status_t)OK) {
+        CODEC_LOGE("Allocate Buffer failed - error = %d", err);
+        setState(ERROR);
         return err;
     }
 
@@ -1565,7 +1674,11 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         return allocateOutputBuffersFromNativeWindow();
     }
 
-    if ((mFlags & kEnableGrallocUsageProtected) && portIndex == kPortIndexOutput) {
+    if ((mFlags & kEnableGrallocUsageProtected) &&
+#ifdef QCOM_HARDWARE
+        (mFlags & kEnableGrallocUsagePrivateCPBuffer) &&
+#endif
+        portIndex == kPortIndexOutput) {
         ALOGE("protected output buffers must be stent to an ANativeWindow");
         return PERMISSION_DENIED;
     }
@@ -1754,6 +1867,9 @@ status_t OMXCodec::applyRotation() {
 status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     // Get the number of buffers needed.
     OMX_PARAM_PORTDEFINITIONTYPE def;
+#ifdef QCOM_HARDWARE
+    int format;
+#endif
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
 
@@ -1767,11 +1883,15 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
             def.format.video.eColorFormat);
+#ifdef QCOM_HARDWARE
+    format = def.format.video.eColorFormat;
+    if(def.format.video.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar)
+      format = HAL_PIXEL_FORMAT_YCrCb_420_SP;
 
 #ifdef QCOM_ICS_COMPAT
-    int format = (def.format.video.eColorFormat ==
-                  OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka)?
-                 HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED : def.format.video.eColorFormat;
+    if(def.format.video.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka)
+      format = HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED;
+#endif
 #endif
 
 #ifndef EXYNOS4_ENHANCEMENTS
@@ -1779,7 +1899,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
-#ifdef QCOM_ICS_COMPAT
+#ifdef QCOM_HARDWARE
             format
 #else
             def.format.video.eColorFormat
@@ -1849,6 +1969,12 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     if (mFlags & kEnableGrallocUsageProtected) {
         usage |= GRALLOC_USAGE_PROTECTED;
     }
+
+#ifdef QCOM_HARDWARE
+    if(mFlags & kEnableGrallocUsagePrivateCPBuffer) {
+       usage |= GRALLOC_USAGE_PRIVATE_CP_BUFFER;
+    }
+#endif
 
 #ifdef S3D_SUPPORT
     //Check whether S3D rendering in HDMI needed
@@ -1963,7 +2089,6 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         info.mMem = NULL;
         info.mMediaBuffer = new MediaBuffer(graphicBuffer);
         info.mMediaBuffer->setObserver(this);
-        mPortBuffers[kPortIndexOutput].push(info);
 
         IOMX::buffer_id bufferId;
         err = mOMX->useGraphicBuffer(mNode, kPortIndexOutput, graphicBuffer,
@@ -1971,9 +2096,15 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         if (err != 0) {
             CODEC_LOGE("registering GraphicBuffer with OMX IL component "
                     "failed: %d", err);
+#ifdef QCOM_HARDWARE
+            info.mMediaBuffer->setObserver(NULL);
+            info.mMediaBuffer->release();
+            info.mMediaBuffer = NULL;
+#endif
             break;
         }
 
+        mPortBuffers[kPortIndexOutput].push(info);
         mPortBuffers[kPortIndexOutput].editItemAt(i).mBuffer = bufferId;
 
         CODEC_LOGV("registered graphic buffer with ID %p (pointer = %p)",
@@ -2222,8 +2353,14 @@ int64_t OMXCodec::getDecodingTimeUs() {
 
 void OMXCodec::on_message(const omx_message &msg) {
     if (mState == ERROR) {
-        ALOGW("Dropping OMX message - we're in ERROR state.");
-        return;
+        /*
+         * only drop EVENT messages, EBD and FBD are still
+         * processed for bookkeeping purposes
+         */
+        if (msg.type == omx_message::EVENT) {
+            ALOGW("Dropping OMX EVENT message - we're in ERROR state.");
+            return;
+        }
     }
 
     switch (msg.type) {
@@ -2539,6 +2676,11 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
             CODEC_LOGV("OMX_EventPortSettingsChanged(port=%ld, data2=0x%08lx)",
                        data1, data2);
 
+            if (mState != EXECUTING) {
+                CODEC_LOGE("Ignore PortSettingsChanged event");
+                break;
+            }
+
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
                 // There is no need to check whether mFilledBuffers is empty or not
                 // when the OMX_EventPortSettingsChanged is not meant for reallocating
@@ -2807,7 +2949,10 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 mPortStatus[kPortIndexOutput] = ENABLED;
 
                 if ((mFlags & kEnableGrallocUsageProtected) &&
-                        mNativeWindow != NULL) {
+#ifdef QCOM_HARDWARE
+                    (mFlags & kEnableGrallocUsagePrivateCPBuffer) &&
+#endif
+                    mNativeWindow != NULL) {
                     // We push enough 1x1 blank buffers to ensure that one of
                     // them has made it to the display.  This allows the OMX
                     // component teardown to zero out any protected buffers
@@ -3018,16 +3163,27 @@ void OMXCodec::fillOutputBuffers() {
     // end-of-output-stream. If we own all input buffers and also own
     // all output buffers and we already signalled end-of-input-stream,
     // the end-of-output-stream is implied.
-    if (mSignalledEOS
+
+#ifdef QCOM_HARDWARE
+    // NOTE: Thumbnail mode needs a call to fillOutputBuffer in order
+    // to get the decoded frame from the component. Currently,
+    // thumbnail mode calls emptyBuffer with an EOS flag on its first
+    // frame and sets mSignalledEOS to true, so without the check for
+    // !mThumbnailMode, fillOutputBuffer will never be called.
+    if (!mThumbnailMode) {
+#endif
+        if (mSignalledEOS
             && countBuffersWeOwn(mPortBuffers[kPortIndexInput])
                 == mPortBuffers[kPortIndexInput].size()
             && countBuffersWeOwn(mPortBuffers[kPortIndexOutput])
                 == mPortBuffers[kPortIndexOutput].size()) {
-        mNoMoreOutputData = true;
-        mBufferFilled.signal();
-
-        return;
+            mNoMoreOutputData = true;
+            mBufferFilled.signal();
+            return;
+        }
+#ifdef QCOM_HARDWARE
     }
+#endif
 
     Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexOutput];
     for (size_t i = 0; i < buffers->size(); ++i) {
@@ -3364,6 +3520,20 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
     if (signalEOS) {
         flags |= OMX_BUFFERFLAG_EOS;
+#ifdef QCOM_HARDWARE
+    } else if (mThumbnailMode) {
+        // Because we don't get an EOS after getting the first frame, we
+        // need to notify the component with OMX_BUFFERFLAG_EOS, set
+        // mNoMoreOutputData to false so fillOutputBuffer gets called on
+        // the first output buffer (see comment in fillOutputBuffer), and
+        // mSignalledEOS must be true so drainInputBuffer is not executed
+        // on extra frames. Setting mFinalStatus to ERROR_END_OF_STREAM as
+        // we dont want to return OK and NULL buffer in read.
+        flags |= OMX_BUFFERFLAG_EOS;
+        mNoMoreOutputData = false;
+        mSignalledEOS = true;
+        mFinalStatus = ERROR_END_OF_STREAM;
+#endif
     } else {
         mNoMoreOutputData = false;
     }
@@ -4726,6 +4896,12 @@ status_t OMXCodec::pause() {
 
     return OK;
 }
+
+#ifdef QCOM_HARDWARE
+void OMXCodec::parseFlags() {
+    mThumbnailMode = ((mFlags & kEnableThumbnailMode) ? true : false);
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

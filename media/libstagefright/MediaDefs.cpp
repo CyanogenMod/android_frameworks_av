@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,13 +50,27 @@ const char *MEDIA_MIMETYPE_CONTAINER_MPEG2TS = "video/mp2ts";
 const char *MEDIA_MIMETYPE_CONTAINER_AVI = "video/avi";
 const char *MEDIA_MIMETYPE_CONTAINER_MPEG2PS = "video/mp2p";
 const char *MEDIA_MIMETYPE_CONTAINER_WVM = "video/wvm";
-const char *MEDIA_MIMETYPE_CONTAINER_ASF = "video/asf";
-const char *MEDIA_MIMETYPE_VIDEO_WMV  = "video/wmv9";
-const char *MEDIA_MIMETYPE_AUDIO_WMA = "audio/wma";
 const char *MEDIA_MIMETYPE_AUDIO_WMAPRO = "audio/wmapro";
 const char *MEDIA_MIMETYPE_AUDIO_WMALSL = "audio/wmalsl";
 
 const char *MEDIA_MIMETYPE_TEXT_3GPP = "text/3gpp-tt";
 const char *MEDIA_MIMETYPE_TEXT_SUBRIP = "application/x-subrip";
+
+const char *MEDIA_MIMETYPE_AUDIO_EVRC = "audio/evrc";
+
+const char *MEDIA_MIMETYPE_VIDEO_WMV = "video/x-ms-wmv";
+const char *MEDIA_MIMETYPE_AUDIO_WMA = "audio/x-ms-wma";
+const char *MEDIA_MIMETYPE_CONTAINER_ASF = "video/x-ms-asf";
+const char *MEDIA_MIMETYPE_VIDEO_DIVX = "video/divx";
+const char *MEDIA_MIMETYPE_AUDIO_AC3 = "audio/ac3";
+const char *MEDIA_MIMETYPE_CONTAINER_AAC = "audio/aac";
+const char *MEDIA_MIMETYPE_CONTAINER_QCP = "audio/vnd.qcelp";
+const char *MEDIA_MIMETYPE_VIDEO_DIVX311 = "video/divx311";
+const char *MEDIA_MIMETYPE_VIDEO_DIVX4 = "video/divx4";
+
+const char *MEDIA_MIMETYPE_CONTAINER_MPEG2 = "video/mp2";
+
+const char *MEDIA_MIMETYPE_CONTAINER_3G2 = "video/3g2";
+const char *MEDIA_MIMETYPE_AUDIO_DTS = "audio/dts";
 
 }  // namespace android

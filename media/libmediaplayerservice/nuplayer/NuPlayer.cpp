@@ -17,7 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NuPlayer"
 #include <utils/Log.h>
-
+#include <dlfcn.h>  // for dlopen/dlclose
 #include "NuPlayer.h"
 
 #include "HTTPLiveSource.h"
@@ -63,7 +63,12 @@ NuPlayer::NuPlayer()
       mSkipRenderingVideoUntilMediaTimeUs(-1ll),
       mVideoLateByUs(0ll),
       mNumFramesTotal(0ll),
-      mNumFramesDropped(0ll) {
+      mNumFramesDropped(0ll)
+#ifdef QCOM_HARDWARE
+      ,mPauseIndication(false),
+      mSourceType(kDefaultSource) 
+#endif
+{
 }
 
 NuPlayer::~NuPlayer() {
@@ -82,6 +87,9 @@ void NuPlayer::setDataSource(const sp<IStreamSource> &source) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
     msg->setObject("source", new StreamingSource(source));
+#ifdef QCOM_HARDWARE
+    mSourceType = kStreamingSource;
+#endif
     msg->post();
 }
 
@@ -108,10 +116,31 @@ void NuPlayer::setDataSource(
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
         source = new HTTPLiveSource(url, headers, mUIDValid, mUID);
+#ifdef QCOM_HARDWARE
+        mSourceType = kHttpLiveSource;
+#endif
     } else if (!strncasecmp(url, "rtsp://", 7)) {
         source = new RTSPSource(url, headers, mUIDValid, mUID);
-    } else {
+#ifdef QCOM_HARDWARE
+        mSourceType = kRtspSource;
+    } else if (!strncasecmp(url, "http://", 7) &&
+	    (strlen(url) >= 4 && !strcasecmp(".mpd", &url[strlen(url) - 4]))) {
+           /* Load the DASH HTTP Live source librery here */
+           ALOGV("NuPlayer setDataSource url sting %s",url);
+           source = LoadCreateSource(url, headers, mUIDValid, mUID,kHttpDashSource);
+           if (source != NULL) {
+              mSourceType = kHttpDashSource;
+              msg->setObject("source", source);
+           } else {
+             ALOGE("Error creating DASH source");
+             //return UNKNOWN_ERROR;
+           }
+#endif
+	} else {
         source = new GenericSource(url, headers, mUIDValid, mUID);
+#ifdef QCOM_HARDWARE
+        mSourceType = kGenericSource;
+#endif
     }
 
     msg->setObject("source", source);
@@ -122,6 +151,9 @@ void NuPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
     sp<Source> source = new GenericSource(fd, offset, length);
+#ifdef QCOM_HARDWARE
+    mSourceType = kGenericSource;
+#endif
     msg->setObject("source", source);
     msg->post();
 }
@@ -172,6 +204,9 @@ bool NuPlayer::IsFlushingState(FlushStatus state, bool *needShutdown) {
             return true;
 
         case FLUSHING_DECODER_SHUTDOWN:
+#ifdef QCOM_HARDWARE
+        case SHUTTING_DOWN_DECODER:
+#endif
             if (needShutdown != NULL) {
                 *needShutdown = true;
             }
@@ -246,43 +281,56 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatScanSources:
         {
-            int32_t generation;
-            CHECK(msg->findInt32("generation", &generation));
-            if (generation != mScanSourcesGeneration) {
-                // Drop obsolete msg.
-                break;
-            }
-
-            mScanSourcesPending = false;
-
-            ALOGV("scanning sources haveAudio=%d, haveVideo=%d",
-                 mAudioDecoder != NULL, mVideoDecoder != NULL);
-
-            instantiateDecoder(false, &mVideoDecoder);
-
-            if (mAudioSink != NULL) {
-                instantiateDecoder(true, &mAudioDecoder);
-            }
-
-            status_t err;
-            if ((err = mSource->feedMoreTSData()) != OK) {
-                if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
-                    // We're not currently decoding anything (no audio or
-                    // video tracks found) and we just ran out of input data.
-
-                    if (err == ERROR_END_OF_STREAM) {
-                        notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
-                    } else {
-                        notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
-                    }
+#ifdef QCOM_HARDWARE
+            if (!mPauseIndication) {
+#endif
+                int32_t generation;
+                CHECK(msg->findInt32("generation", &generation));
+                if (generation != mScanSourcesGeneration) {
+                    // Drop obsolete msg.
+                    break;
                 }
-                break;
-            }
 
-            if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
-                msg->post(100000ll);
-                mScanSourcesPending = true;
+                mScanSourcesPending = false;
+
+                ALOGV("scanning sources haveAudio=%d, haveVideo=%d",
+                     mAudioDecoder != NULL, mVideoDecoder != NULL);
+
+                if(mNativeWindow != NULL) {
+                    instantiateDecoder(false, &mVideoDecoder);
+                }
+
+                if (mAudioSink != NULL) {
+                    instantiateDecoder(true, &mAudioDecoder);
+                }
+
+                status_t err;
+                if ((err = mSource->feedMoreTSData()) != OK) {
+                    if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
+                        // We're not currently decoding anything (no audio or
+                        // video tracks found) and we just ran out of input data.
+
+                        if (err == ERROR_END_OF_STREAM) {
+                            notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
+                        } else {
+                            notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+                        }
+                    }
+                    break;
+                }
+
+#ifdef QCOM_HARDWARE
+                if ((mAudioDecoder == NULL && mAudioSink != NULL) ||
+                    (mVideoDecoder == NULL && mNativeWindow != NULL)) {
+#else
+                if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
+#endif
+                    msg->post(100000ll);
+                    mScanSourcesPending = true;
+                }
+#ifdef QCOM_HARDWARE
             }
+#endif
             break;
         }
 
@@ -320,6 +368,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                 mRenderer->queueEOS(audio, err);
             } else if (what == ACodec::kWhatFlushCompleted) {
+#ifdef QCOM_HARDWARE
+                Mutex::Autolock autoLock(mLock);
+#endif
                 bool needShutdown;
 
                 if (audio) {
@@ -488,6 +539,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     sp<NuPlayerDriver> driver = mDriver.promote();
                     if (driver != NULL) {
                         driver->notifyPosition(positionUs);
+#ifdef QCOM_HARDWARE
+                        //Notify rendering position used for HLS
+                        mSource->notifyRenderingPosition(positionUs);
+#endif
 
                         driver->notifyFrameStats(
                                 mNumFramesTotal, mNumFramesDropped);
@@ -512,6 +567,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatReset:
         {
             ALOGV("kWhatReset");
+#ifdef QCOM_HARDWARE
+            Mutex::Autolock autoLock(mLock);
+#endif
 
             if (mRenderer != NULL) {
                 // There's an edge case where the renderer owns all output
@@ -524,8 +582,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     mRenderer->resume();
                 }
             }
-
+#ifdef QCOM_HARDWARE
+            if ( (mAudioDecoder != NULL && IsFlushingState(mFlushingAudio)) ||
+                 (mVideoDecoder != NULL && IsFlushingState(mFlushingVideo)) ) {
+#else
             if (mFlushingAudio != NONE || mFlushingVideo != NONE) {
+#endif
+
                 // We're currently flushing, postpone the reset until that's
                 // completed.
 
@@ -557,18 +620,73 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSeek:
         {
-            int64_t seekTimeUs;
+            Mutex::Autolock autoLock(mLock);
+            int64_t seekTimeUs = -1, newSeekTime = -1;
+            status_t nRet = OK;
             CHECK(msg->findInt64("seekTimeUs", &seekTimeUs));
 
-            ALOGV("kWhatSeek seekTimeUs=%lld us (%.2f secs)",
+            ALOGW("kWhatSeek seekTimeUs=%lld us (%.2f secs)",
                  seekTimeUs, seekTimeUs / 1E6);
 
-            mSource->seekTo(seekTimeUs);
+            nRet = mSource->seekTo(seekTimeUs);
+#ifdef QCOM_HARDWARE
+            if (mSourceType == kHttpLiveSource) {
+                mSource->getNewSeekTime(&newSeekTime);
+                ALOGV("newSeekTime %lld", newSeekTime);
+            }
+            else if ( (mSourceType == kHttpDashSource) && (nRet == OK)) // if seek success then flush the audio,video decoder and renderer
+            {
+                mTimeDiscontinuityPending = true;
+                if( (mVideoDecoder != NULL) &&
+                    (mFlushingVideo == NONE || mFlushingVideo == AWAITING_DISCONTINUITY) ) {
+                    flushDecoder( false, true ); // flush video, shutdown
+                }
 
+               if( (mAudioDecoder != NULL) &&
+                   (mFlushingAudio == NONE|| mFlushingAudio == AWAITING_DISCONTINUITY) )
+               {
+                   flushDecoder( true, true );  // flush audio,  shutdown
+               }
+               if( mAudioDecoder == NULL ) {
+                   ALOGV("Audio is not there, set it to shutdown");
+                   mFlushingAudio = SHUT_DOWN;
+               }
+               if( mVideoDecoder == NULL ) {
+                   ALOGV("Video is not there, set it to shutdown");
+                   mFlushingVideo = SHUT_DOWN;
+               }
+               // get the new seeked position
+               newSeekTime = seekTimeUs;
+               ALOGV("newSeekTime %lld", newSeekTime);
+            }
+            if( (newSeekTime >= 0 ) && (mSourceType != kHttpDashSource)) {
+               mTimeDiscontinuityPending = true;
+               if( (mAudioDecoder != NULL) &&
+                   (mFlushingAudio == NONE || mFlushingAudio == AWAITING_DISCONTINUITY) ) {
+                  flushDecoder( true, true );
+               }
+               if( (mVideoDecoder != NULL) &&
+                   (mFlushingVideo == NONE || mFlushingVideo == AWAITING_DISCONTINUITY) ) {
+                  flushDecoder( false, true );
+               }
+               if( mAudioDecoder == NULL ) {
+                   ALOGV("Audio is not there, set it to shutdown");
+                   mFlushingAudio = SHUT_DOWN;
+
+               }
+               if( mVideoDecoder == NULL ) {
+                   ALOGV("Video is not there, set it to shutdown");
+                   mFlushingVideo = SHUT_DOWN;
+               }
+            }
+#endif
             if (mDriver != NULL) {
                 sp<NuPlayerDriver> driver = mDriver.promote();
                 if (driver != NULL) {
                     driver->notifySeekComplete();
+                    if( newSeekTime >= 0 ) {
+                        driver->notifyPosition( newSeekTime );
+                     }
                 }
             }
 
@@ -579,6 +697,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             CHECK(mRenderer != NULL);
             mRenderer->pause();
+#ifdef QCOM_HARDWARE
+            mPauseIndication = true;
+#endif
             break;
         }
 
@@ -586,8 +707,40 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             CHECK(mRenderer != NULL);
             mRenderer->resume();
+#ifdef QCOM_HARDWARE
+            mPauseIndication = false;
+            if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
+                mScanSourcesPending = false;
+                postScanSources();
+            }
+#endif
             break;
         }
+
+#ifdef QCOM_HARDWARE
+        case kWhatPrepareAsync:
+            if (mSource == NULL)
+            {
+                ALOGE("Source is null in prepareAsync\n");
+                break;
+            }
+            mSource->prepareAsync();
+            postIsPrepareDone();
+            break;
+
+        case kWhatIsPrepareDone:
+            if (mSource == NULL)
+            {
+                ALOGE("Source is null when checking for prepare done\n");
+                break;
+            }
+            if (mSource->isPrepareDone()) {
+                notifyListener(MEDIA_PREPARED, 0, 0);
+            } else {
+                msg->post(100000ll);
+            }
+            break;
+#endif
 
         default:
             TRESPASS();
@@ -596,11 +749,29 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::finishFlushIfPossible() {
+#ifdef QCOM_HARDWARE
+    //If reset was postponed after one of the streams is flushed, complete it now
+    if (mResetPostponed) {
+        ALOGV("finishFlushIfPossible Handle reset postpone ");
+        if ((mAudioDecoder != NULL) &&
+            (mFlushingAudio == NONE || mFlushingAudio == AWAITING_DISCONTINUITY )) {
+           flushDecoder( true, true );
+        }
+        if ((mVideoDecoder != NULL) &&
+            (mFlushingVideo == NONE || mFlushingVideo == AWAITING_DISCONTINUITY )) {
+           flushDecoder( false, true );
+        }
+    }
+#endif
+
+    //Check if both audio & video are flushed
     if (mFlushingAudio != FLUSHED && mFlushingAudio != SHUT_DOWN) {
+        ALOGV("Dont finish flush, audio is in state %d ", mFlushingAudio);
         return;
     }
 
     if (mFlushingVideo != FLUSHED && mFlushingVideo != SHUT_DOWN) {
+        ALOGV("Dont finish flush, video is in state %d ", mFlushingVideo);
         return;
     }
 
@@ -612,10 +783,12 @@ void NuPlayer::finishFlushIfPossible() {
     }
 
     if (mAudioDecoder != NULL) {
+        ALOGV("Resume Audio after flush");
         mAudioDecoder->signalResume();
     }
 
     if (mVideoDecoder != NULL) {
+        ALOGV("Resume Video after flush");
         mVideoDecoder->signalResume();
     }
 
@@ -630,7 +803,9 @@ void NuPlayer::finishFlushIfPossible() {
     } else if (mResetPostponed) {
         (new AMessage(kWhatReset, id()))->post();
         mResetPostponed = false;
+        ALOGV("Handle reset postpone");
     } else if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
+        ALOGV("Start scanning for sources after shutdown");
         postScanSources();
     }
 }
@@ -694,6 +869,19 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
                        new Decoder(notify, mNativeWindow);
     looper()->registerHandler(*decoder);
 
+#ifdef QCOM_HARDWARE
+    if (mSourceType == kHttpLiveSource || mSourceType == kHttpDashSource){
+        //Set flushing state to none
+        Mutex::Autolock autoLock(mLock);
+        if( audio ) {
+            mFlushingAudio = NONE;
+        } else {
+            mFlushingVideo = NONE;
+
+        }
+    }
+#endif
+
     (*decoder)->configure(meta);
 
     int64_t durationUs;
@@ -711,11 +899,15 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
-    if ((audio && IsFlushingState(mFlushingAudio))
+    {
+        Mutex::Autolock autoLock(mLock);
+
+        if ((audio && IsFlushingState(mFlushingAudio))
             || (!audio && IsFlushingState(mFlushingVideo))) {
-        reply->setInt32("err", INFO_DISCONTINUITY);
-        reply->post();
-        return OK;
+            reply->setInt32("err", INFO_DISCONTINUITY);
+            reply->post();
+            return OK;
+        }
     }
 
     sp<ABuffer> accessUnit;
@@ -739,7 +931,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
                 bool timeChange = (type & ATSParser::DISCONTINUITY_TIME) != 0;
 
-                ALOGI("%s discontinuity (formatChange=%d, time=%d)",
+                ALOGW("%s discontinuity (formatChange=%d, time=%d)",
                      audio ? "audio" : "video", formatChange, timeChange);
 
                 if (audio) {
@@ -755,7 +947,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                         int64_t resumeAtMediaTimeUs;
                         if (extra->findInt64(
                                     "resume-at-mediatimeUs", &resumeAtMediaTimeUs)) {
-                            ALOGI("suppressing rendering of %s until %lld us",
+                            ALOGW("suppressing rendering of %s until %lld us",
                                     audio ? "audio" : "video", resumeAtMediaTimeUs);
 
                             if (audio) {
@@ -830,6 +1022,7 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
+    Mutex::Autolock autoLock(mLock);
     if (IsFlushingState(audio ? mFlushingAudio : mFlushingVideo)) {
         // We're currently attempting to flush the decoder, in order
         // to complete this, the decoder wants all its buffers back,
@@ -925,4 +1118,135 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     }
 }
 
+#ifdef QCOM_HARDWARE
+sp<NuPlayer::Source>
+    NuPlayer::LoadCreateSource(const char * uri, const KeyedVector<String8,String8> *headers,
+                               bool uidValid, uid_t uid, NuSourceType srcTyp)
+{
+   const char* STREAMING_SOURCE_LIB = "libmmipstreamaal.so";
+   const char* DASH_HTTP_LIVE_CREATE_SOURCE = "CreateDashHttpLiveSource";
+   const char* WFD_CREATE_SOURCE = "CreateWFDSource";
+
+   void* pStreamingSourceLib = NULL;
+
+   typedef NuPlayer::Source* (*SourceFactory)(const char * uri, const KeyedVector<String8, String8> *headers, bool uidValid, uid_t uid);
+
+   /* Open librery */
+   pStreamingSourceLib = ::dlopen(STREAMING_SOURCE_LIB, RTLD_LAZY);
+
+   if (pStreamingSourceLib == NULL) {
+       return NULL;
+   }
+
+   SourceFactory StreamingSourcePtr;
+
+   if(srcTyp == kHttpDashSource) {
+
+       /* Get the entry level symbol which gets us the pointer to DASH HTTP Live Source object */
+       StreamingSourcePtr = (SourceFactory) dlsym(pStreamingSourceLib, DASH_HTTP_LIVE_CREATE_SOURCE);
+   } else if (srcTyp == kWfdSource){
+
+       /* Get the entry level symbol which gets us the pointer to WFD Source object */
+       StreamingSourcePtr = (SourceFactory) dlsym(pStreamingSourceLib, WFD_CREATE_SOURCE);
+
+   }
+
+   if (StreamingSourcePtr == NULL) {
+       return NULL;
+   }
+
+    /*Get the Streaming (DASH\WFD) Source object, which will be used to communicate with Source (DASH\WFD) */
+    sp<NuPlayer::Source> StreamingSource = StreamingSourcePtr(uri, headers, uidValid, uid);
+
+    if(StreamingSource==NULL) {
+        return NULL;
+    }
+
+
+    return StreamingSource;
+}
+
+status_t NuPlayer::prepareAsync() // only for DASH
+{
+    if (mSourceType == kHttpDashSource) {
+        sp<AMessage> msg = new AMessage(kWhatPrepareAsync, id());
+        if (msg == NULL)
+        {
+            ALOGE("Out of memory, AMessage is null for kWhatPrepareAsync\n");
+            return NO_MEMORY;
+        }
+        msg->post();
+    }
+    return OK;
+}
+
+status_t NuPlayer::getParameter(int key, Parcel *reply)
+{
+    void * data_8;
+    void * data_16;
+    size_t data_8_Size;
+    size_t data_16_Size;
+
+    status_t err = OK;
+    if (key == 8002) {
+
+        if (mSource == NULL)
+        {
+            ALOGE("Source is NULL in getParameter\n");
+            return UNKNOWN_ERROR;
+        }
+        err = mSource->getParameter(key, &data_8, &data_8_Size);
+        if (err != OK)
+        {
+            ALOGE("source getParameter returned error: %d\n",err);
+            return err;
+        }
+
+        data_16_Size = data_8_Size * sizeof(char16_t);
+        data_16 = malloc(data_16_Size);
+        if (data_16 == NULL)
+        {
+            ALOGE("Out of memory in getParameter\n");
+            return NO_MEMORY;
+        }
+
+        utf8_to_utf16_no_null_terminator((uint8_t *)data_8, data_8_Size, (char16_t *) data_16);
+        err = reply->writeString16((char16_t *)data_16, data_8_Size);
+        free(data_16);
+    }
+    return err;
+}
+
+status_t NuPlayer::setParameter(int key, const Parcel &request)
+{
+    status_t err = OK;
+    if (key == 8002) {
+
+        size_t len = 0;
+        const char16_t* str = request.readString16Inplace(&len);
+        void * data = malloc(len + 1);
+        if (data == NULL)
+        {
+            ALOGE("Out of memory in setParameter\n");
+            return NO_MEMORY;
+        }
+
+        utf16_to_utf8(str, len, (char*) data);
+        err = mSource->setParameter(key, data, len);
+        free(data);
+    }
+    return err;
+}
+
+void NuPlayer::postIsPrepareDone()
+{
+    sp<AMessage> msg = new AMessage(kWhatIsPrepareDone, id());
+    if (msg == NULL)
+    {
+        ALOGE("Out of memory, AMessage is null for kWhatIsPrepareDone\n");
+        return;
+    }
+    msg->post();
+}
+#endif
 }  // namespace android
