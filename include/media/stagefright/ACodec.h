@@ -87,6 +87,7 @@ private:
     struct ExecutingToIdleState;
     struct IdleToLoadedState;
     struct FlushingState;
+    struct FlushingOutputState;
 
     enum {
         kWhatSetup                   = 'setu',
@@ -251,6 +252,7 @@ private:
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
             status_t internalError = UNKNOWN_ERROR);
 
+    sp<FlushingOutputState> mFlushingOutputState;
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };
 
