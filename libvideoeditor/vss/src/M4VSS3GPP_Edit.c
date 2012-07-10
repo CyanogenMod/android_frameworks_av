@@ -963,6 +963,7 @@ M4OSA_ERR M4VSS3GPP_editOpen( M4VSS3GPP_EditContext pContext,
     /* Set output video profile and level */
     pC->ewc.outputVideoProfile = pC->xVSS.outputVideoProfile;
     pC->ewc.outputVideoLevel = pC->xVSS.outputVideoLevel;
+    pC->ewc.uiVideoBitrate = pC->pClipList[pSettings->uiMasterClip].ClipProperties.uiVideoBitrate;
 
     switch(pC->xVSS.outputVideoFormat) {
         case M4VIDEOEDITING_kH263:
