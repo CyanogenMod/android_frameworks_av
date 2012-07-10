@@ -42,6 +42,30 @@ public:
 
     virtual ~AudioPlayer();
 
+#ifdef QCOM_HARDWARE
+    // Caller retains ownership of "source".
+    virtual void setSource(const sp<MediaSource> &source);
+
+    // Return time in us.
+    int64_t getRealTimeUs();
+
+    virtual status_t start(bool sourceAlreadyStarted = false);
+
+    virtual void pause(bool playPendingSamples = false);
+    virtual void resume();
+
+    // Returns the timestamp of the last buffer played (in us).
+    virtual int64_t getMediaTimeUs();
+
+    // Returns true iff a mapping is established, i.e. the AudioPlayer
+    // has played at least one frame of audio.
+    virtual bool getMediaTimeMapping(int64_t *realtime_us, int64_t *mediatime_us);
+
+    virtual status_t seekTo(int64_t time_us);
+
+    virtual bool isSeeking();
+    virtual bool reachedEOS(status_t *finalStatus);
+#else
     // Caller retains ownership of "source".
     void setSource(const sp<MediaSource> &source);
 
@@ -64,6 +88,7 @@ public:
 
     bool isSeeking();
     bool reachedEOS(status_t *finalStatus);
+#endif
 
     status_t setPlaybackRatePermille(int32_t ratePermille);
 

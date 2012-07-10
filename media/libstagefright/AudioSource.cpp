@@ -86,8 +86,11 @@ AudioSource::AudioSource(
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size
+#ifdef QCOM_HARDWARE
+        int frameCount = mMaxBufferSize / sizeof(int16_t) / channelCount;
+#else
         int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
-
+#endif
         // make sure that the AudioRecord total buffer size is large enough
         int bufCount = 2;
         while ((bufCount * frameCount) < minFrameCount) {
@@ -102,7 +105,7 @@ AudioSource::AudioSource(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
 #ifdef QCOM_HARDWARE
-                    4 * kMaxBufferSize / sizeof(int16_t), /* Enable ping-pong buffers */
+                    4 * mMaxBufferSize / sizeof(int16_t), /* Enable ping-pong buffers */
 #else
                     bufCount * frameCount,
 #endif

@@ -242,6 +242,19 @@ status_t ChromiumHTTPDataSource::getSize(off64_t *size) {
     return OK;
 }
 
+#ifdef QCOM_HARDWARE
+status_t ChromiumHTTPDataSource::getCurrentOffset(off64_t *size) {
+    Mutex::Autolock autoLock(mLock);
+
+     if(mCurrentOffset < 0) {
+        return ERROR_UNSUPPORTED;
+     }
+    *size = mCurrentOffset;
+    return OK;
+
+}
+#endif
+
 uint32_t ChromiumHTTPDataSource::flags() {
     return kWantsPrefetching | kIsHTTPBasedSource;
 }

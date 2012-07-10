@@ -110,15 +110,23 @@ status_t NuPlayerDriver::prepare() {
 status_t NuPlayerDriver::prepareAsync() {
 #ifdef QCOM_HARDWARE
     status_t err = UNKNOWN_ERROR;
-    if (mPlayer != NULL)
-    {
+    if (mPlayer != NULL) {
         err = mPlayer->prepareAsync();
+    }
+
+    if (err == OK) {
+        err = prepare();
+        notifyListener(MEDIA_PREPARED);
+    } else if (err == -EWOULDBLOCK) {
+        // this case only happens for DASH
+        return OK;
     }
 #else
     status_t err = prepare();
 
     notifyListener(MEDIA_PREPARED);
 #endif
+
     return err;
 }
 

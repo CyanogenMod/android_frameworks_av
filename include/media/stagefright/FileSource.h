@@ -38,6 +38,10 @@ public:
 
     virtual status_t getSize(off64_t *size);
 
+#ifdef QCOM_HARDWARE
+    virtual status_t getCurrentOffset(off64_t *size);
+#endif
+
     virtual sp<DecryptHandle> DrmInitialization(const char *mime);
 
     virtual void getDrmInfo(sp<DecryptHandle> &handle, DrmManagerClient **client);

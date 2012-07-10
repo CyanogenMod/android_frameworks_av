@@ -1,6 +1,12 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    ifeq ($(TARGET_BOARD_PLATFORM),msm8960)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
+endif
+
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 ifeq ($(TARGET_SOC),exynos4210)
@@ -71,6 +77,11 @@ ifeq ($(BOARD_HAVE_QCOM_FM),true)
 LOCAL_SRC_FILES+=                         \
         FMA2DPWriter.cpp
 endif
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/libalsa-intf
+    LOCAL_SHARED_LIBRARIES += libalsa-intf
+endif
 endif
 
 LOCAL_C_INCLUDES:= \
@@ -118,6 +129,9 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_httplive \
         libstagefright_id3 \
         libFLAC \
+
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+endif
 
 ifneq ($(TARGET_BUILD_PDK), true)
 LOCAL_STATIC_LIBRARIES += \

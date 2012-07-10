@@ -127,6 +127,12 @@ status_t FileSource::getSize(off64_t *size) {
     return OK;
 }
 
+#ifdef QCOM_HARDWARE
+status_t FileSource::getCurrentOffset(off64_t *size) {
+    return getSize(size);
+}
+#endif
+
 sp<DecryptHandle> FileSource::DrmInitialization(const char *mime) {
     if (mDrmManagerClient == NULL) {
         mDrmManagerClient = new DrmManagerClient();
