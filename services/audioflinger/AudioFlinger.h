@@ -356,7 +356,7 @@ private:
             RECORD              // Thread class is RecordThread
         };
 
-        ThreadBase (const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
+        ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
                     audio_devices_t outDevice, audio_devices_t inDevice, type_t type);
         virtual             ~ThreadBase();
 
@@ -810,6 +810,7 @@ private:
 
         // implement FastMixerState::VolumeProvider interface
             virtual uint32_t    getVolumeLR();
+
             virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
         protected:
@@ -986,7 +987,7 @@ private:
         class OutputTrack : public Track {
         public:
 
-            class Buffer: public AudioBufferProvider::Buffer {
+            class Buffer : public AudioBufferProvider::Buffer {
             public:
                 int16_t *mBuffer;
             };
@@ -1025,8 +1026,8 @@ private:
             DuplicatingThread* const mSourceThread; // for waitTimeMs() in write()
         };  // end of OutputTrack
 
-        PlaybackThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                        audio_io_handle_t id, audio_devices_t device, type_t type);
+        PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                       audio_io_handle_t id, audio_devices_t device, type_t type);
         virtual             ~PlaybackThread();
 
                     void        dump(int fd, const Vector<String16>& args);
@@ -1248,11 +1249,11 @@ public:
 
     class MixerThread : public PlaybackThread {
     public:
-        MixerThread (const sp<AudioFlinger>& audioFlinger,
-                     AudioStreamOut* output,
-                     audio_io_handle_t id,
-                     audio_devices_t device,
-                     type_t type = MIXER);
+        MixerThread(const sp<AudioFlinger>& audioFlinger,
+                    AudioStreamOut* output,
+                    audio_io_handle_t id,
+                    audio_devices_t device,
+                    type_t type = MIXER);
         virtual             ~MixerThread();
 
         // Thread virtuals
@@ -1305,8 +1306,8 @@ public:
     class DirectOutputThread : public PlaybackThread {
     public:
 
-        DirectOutputThread (const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                            audio_io_handle_t id, audio_devices_t device);
+        DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                           audio_io_handle_t id, audio_devices_t device);
         virtual                 ~DirectOutputThread();
 
         // Thread virtuals
@@ -1339,8 +1340,8 @@ private:
 
     class DuplicatingThread : public MixerThread {
     public:
-        DuplicatingThread (const sp<AudioFlinger>& audioFlinger, MixerThread* mainThread,
-                           audio_io_handle_t id);
+        DuplicatingThread(const sp<AudioFlinger>& audioFlinger, MixerThread* mainThread,
+                          audio_io_handle_t id);
         virtual                 ~DuplicatingThread();
 
         // Thread virtuals
@@ -1607,7 +1608,7 @@ private:
     // ramping when effects are activated/deactivated.
     // When controlling an auxiliary effect, the EffectModule also provides an input buffer used by
     // the attached track(s) to accumulate their auxiliary channel.
-    class EffectModule: public RefBase {
+    class EffectModule : public RefBase {
     public:
         EffectModule(ThreadBase *thread,
                         const wp<AudioFlinger::EffectChain>& chain,
@@ -1798,7 +1799,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     // are insert only. The EffectChain maintains an ordered list of effect module, the order corresponding
     // in the effect process order. When attached to a track (session ID != 0), it also provide it's own
     // input buffer used by the track as accumulation buffer.
-    class EffectChain: public RefBase {
+    class EffectChain : public RefBase {
     public:
         EffectChain(const wp<ThreadBase>& wThread, int sessionId);
         EffectChain(ThreadBase *thread, int sessionId);
