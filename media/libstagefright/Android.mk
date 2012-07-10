@@ -61,6 +61,7 @@ LOCAL_SRC_FILES:=                         \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
+        ExtendedExtractor.cpp             \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
@@ -70,6 +71,8 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
+        $(TOP)/hardware/qcom/display/libgralloc \
+        $(TOP)/hardware/qcom/media/mm-core/inc
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
@@ -123,6 +126,7 @@ LOCAL_SHARED_LIBRARIES += \
         libdl
 
 LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Werror
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
         LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/display/libgralloc

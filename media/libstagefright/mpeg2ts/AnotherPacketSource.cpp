@@ -43,7 +43,13 @@ AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
 }
 
 void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
+    Mutex::Autolock autoLock(mLock);
     CHECK(mFormat == NULL);
+    mFormat = meta;
+}
+
+void AnotherPacketSource::updateFormat(const sp<MetaData> &meta) {
+    Mutex::Autolock autoLock(mLock);
     mFormat = meta;
 }
 
@@ -150,10 +156,23 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     mCondition.signal();
 }
 
+int AnotherPacketSource::getQueueSize() {
+    return mBuffers.size();
+}
+
 void AnotherPacketSource::queueDiscontinuity(
         ATSParser::DiscontinuityType type,
         const sp<AMessage> &extra) {
     Mutex::Autolock autoLock(mLock);
+
+    if (type == ATSParser::DISCONTINUITY_TS_PLAYER_SEEK ||
+        type == ATSParser::DISCONTINUITY_HLS_PLAYER_SEEK) {
+        ALOGI("Flushing all Access units for seek");
+        mBuffers.clear();
+        mEOSResult = OK;
+        mCondition.signal();
+        return;
+    }
 
     // Leave only discontinuities in the queue.
     List<sp<ABuffer> >::iterator it = mBuffers.begin();

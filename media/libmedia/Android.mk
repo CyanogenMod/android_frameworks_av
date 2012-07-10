@@ -9,6 +9,21 @@ LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)
 
+
+ifeq ($(BOARD_USES_SRS_TRUEMEDIA),true)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= AudioParameter.cpp
+LOCAL_MODULE:= libaudioparameter
+LOCAL_MODULE_TAGS := optional
+LOCAL_SHARED_LIBRARIES := libutils
+
+include $(BUILD_SHARED_LIBRARY)
+
+endif
+
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
