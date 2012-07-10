@@ -41,7 +41,8 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/vss/mcs/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/native/include/media/editor \
-    $(TOP)/frameworks/native/include/media/openmax
+    $(TOP)/frameworks/native/include/media/openmax \
+    $(TOP)/hardware/qcom/media/mm-core/inc
 
 LOCAL_SHARED_LIBRARIES :=     \
     libcutils                 \
@@ -54,6 +55,7 @@ LOCAL_SHARED_LIBRARIES :=     \
     libgui                    \
     libvideoeditor_osal       \
     libvideoeditorplayer      \
+    libdl
 
 LOCAL_CFLAGS += \
 
