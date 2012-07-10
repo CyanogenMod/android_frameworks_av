@@ -1658,7 +1658,11 @@ status_t StagefrightRecorder::reset() {
     mAudioChannels = 1;
     mAudioBitRate  = 12200;
     mInterleaveDurationUs = 0;
+#ifdef QCOM_HARDWARE
+    mIFramesIntervalSec = 2;
+#else
     mIFramesIntervalSec = 1;
+#endif
     mAudioSourceNode = 0;
     mUse64BitFileOffset = false;
     mMovieTimeScale  = -1;

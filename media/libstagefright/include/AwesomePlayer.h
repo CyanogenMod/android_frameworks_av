@@ -299,6 +299,17 @@ private:
         ASSIGN
     };
     void modifyFlags(unsigned value, FlagMode mode);
+    void logStatistics();
+    void logFirstFrame();
+    void logSeek();
+    void logPause();
+    void logCatchUp(int64_t ts, int64_t clock, int64_t delta);
+    void logLate(int64_t ts, int64_t clock, int64_t delta);
+    void logOnTime(int64_t ts, int64_t clock, int64_t delta);
+    void logSyncLoss();
+    int64_t getTimeOfDayUs();
+    bool mVeryFirstFrame;
+    bool mStatistics;
 
     struct TrackStat {
         String8 mMIME;
@@ -324,6 +335,23 @@ private:
         int32_t mVideoHeight;
         uint32_t mFlags;
         Vector<TrackStat> mTracks;
+
+        int64_t mConsecutiveFramesDropped;
+        uint32_t mCatchupTimeStart;
+        uint32_t mNumTimesSyncLoss;
+        uint32_t mMaxEarlyDelta;
+        uint32_t mMaxLateDelta;
+        uint32_t mMaxTimeSyncLoss;
+        uint64_t mTotalFrames;
+        int64_t mFirstFrameLatencyStartUs; //first frame latency start
+        int64_t mLastFrame;
+        int64_t mLastFrameUs;
+        double mFPSSumUs;
+        int64_t mStatisticsFrames;
+        bool mVeryFirstFrame;
+        int64_t mTotalTime;
+        int64_t mFirstFrameTime;
+
     } mStats;
 
     status_t setVideoScalingMode(int32_t mode);

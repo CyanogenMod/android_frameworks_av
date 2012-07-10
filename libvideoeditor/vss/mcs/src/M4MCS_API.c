@@ -5854,6 +5854,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
     /**
      * Limit the video bitrate according to encoder profile
      * and level */
+#ifndef QCOM_HARDWARE
     err = M4MCS_intLimitBitratePerCodecProfileLevel(&EncParams);
     if (M4NO_ERROR != err) {
         M4OSA_TRACE1_1(
@@ -5861,7 +5862,7 @@ static M4OSA_ERR M4MCS_intPrepareVideoEncoder( M4MCS_InternalContext *pC )
              0x%x", err);
         return err;
     }
-
+#endif
     /**
     * Create video encoder */
     err = pC->pVideoEncoderGlobalFcts->pFctInit(&pC->pViEncCtxt,

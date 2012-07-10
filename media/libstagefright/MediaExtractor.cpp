@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +30,7 @@
 #include "include/WVMExtractor.h"
 #include "include/FLACExtractor.h"
 #include "include/AACExtractor.h"
+#include "include/ExtendedExtractor.h"
 
 #include "matroska/MatroskaExtractor.h"
 
@@ -125,6 +127,22 @@ sp<MediaExtractor> MediaExtractor::Create(
            ret->setDrmFlag(false);
        }
     }
+
+#ifdef QCOM_HARDWARE
+    //If default extractor created, then pass them
+    if (ret){
+        return ret;
+    }
+
+    //Create Extended Extractor only if default extractor are not selected
+    ALOGV("Using ExtendedExtractor\n");
+    sp<MediaExtractor> retextParser =  ExtendedExtractor::CreateExtractor(source, mime);
+
+    if (retextParser != NULL){
+        return retextParser;
+    }
+#endif
+
 
     return ret;
 }

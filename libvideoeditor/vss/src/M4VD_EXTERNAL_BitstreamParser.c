@@ -41,6 +41,9 @@ static codeProfileLevel mpeg4ProfileLevelTable[] = {
     {0x03, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level3},
     {0x04, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level4a},
     {0x05, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level5},
+#ifdef QCOM_HARDWARE
+    {0x06, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level5},
+#endif
     {0x08, OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level0},
     {0x11, OMX_VIDEO_MPEG4ProfileSimpleScalable,OMX_VIDEO_MPEG4Level1},
     {0x12, OMX_VIDEO_MPEG4ProfileSimpleScalable,OMX_VIDEO_MPEG4Level2},

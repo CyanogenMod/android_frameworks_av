@@ -47,6 +47,9 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaDefs.h>
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/ColorConverter.h>
+#endif
 
 #define VIDEOEDITOR_VIDEC_SHELL_VER_MAJOR     0
 #define VIDEOEDITOR_VIDEC_SHELL_VER_MINOR     0

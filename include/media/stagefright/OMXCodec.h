@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*--------------------------------------------------------------------------
+Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+--------------------------------------------------------------------------*/
+
 #ifndef OMX_CODEC_H_
 
 #define OMX_CODEC_H_
@@ -60,6 +64,13 @@ struct OMXCodec : public MediaSource,
 
         // Secure decoding mode
         kUseSecureInputBuffers = 256,
+#ifdef QCOM_HARDWARE
+        kEnableThumbnailMode = 512,
+
+        kEnableGrallocUsagePrivateCPBuffer = 16384,
+
+        kUseMinBufferCount = 32768,
+#endif
     };
     static sp<MediaSource> Create(
             const sp<IOMX> &omx,
@@ -228,6 +239,12 @@ private:
     // a video encoder.
     List<int64_t> mDecodingTimeList;
 
+#ifdef QCOM_HARDWARE
+    bool mThumbnailMode;
+    bool mSPSParsed;
+    bool mUseArbitraryMode;
+#endif
+
     OMXCodec(const sp<IOMX> &omx, IOMX::node_id node,
              uint32_t quirks, uint32_t flags,
              bool isEncoder, const char *mime, const char *componentName,
@@ -349,6 +366,9 @@ private:
 
     int64_t getDecodingTimeUs();
 
+#ifdef QCOM_HARDWARE
+    void parseFlags();
+#endif
     status_t parseAVCCodecSpecificData(
             const void *data, size_t size,
             unsigned *profile, unsigned *level);

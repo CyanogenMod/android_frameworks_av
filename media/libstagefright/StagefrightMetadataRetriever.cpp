@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*--------------------------------------------------------------------------
+Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+--------------------------------------------------------------------------*/
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "StagefrightMetadataRetriever"
 #include <utils/Log.h>
@@ -28,6 +32,7 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/MediaDefs.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -210,7 +215,7 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
 
     sp<MetaData> meta = decoder->getFormat();
 
-    int32_t width, height;
+    int32_t width, height, frame_width_rounded;
     CHECK(meta->findInt32(kKeyWidth, &width));
     CHECK(meta->findInt32(kKeyHeight, &height));
 
@@ -233,7 +238,28 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
     frame->mHeight = crop_bottom - crop_top + 1;
     frame->mDisplayWidth = frame->mWidth;
     frame->mDisplayHeight = frame->mHeight;
+#ifndef QCOM_HARDWARE
     frame->mSize = frame->mWidth * frame->mHeight * 2;
+#else
+
+    int32_t srcFormat;
+    CHECK(meta->findInt32(kKeyColorFormat, &srcFormat));
+
+    frame_width_rounded = frame->mWidth;
+    switch (srcFormat) {
+        case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
+        case OMX_COLOR_FormatYUV420SemiPlanar:
+        case OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka:
+            {
+                frame_width_rounded = ((frame->mWidth + 3)/4)*4;
+                break;
+            }
+        default:
+            break;
+    }
+
+    frame->mSize = frame_width_rounded * frame->mHeight * 2;
+#endif
     frame->mData = new uint8_t[frame->mSize];
     frame->mRotationAngle = rotationAngle;
 
@@ -245,8 +271,10 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
         frame->mDisplayHeight = displayHeight;
     }
 
+#ifndef QCOM_HARDWARE
     int32_t srcFormat;
     CHECK(meta->findInt32(kKeyColorFormat, &srcFormat));
+#endif
 
     ColorConverter converter(
             (OMX_COLOR_FORMATTYPE)srcFormat, OMX_COLOR_Format16bitRGB565);
@@ -345,19 +373,66 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
         memcpy(mAlbumArt->mData, data, dataSize);
     }
 
+#ifndef QCOM_HARDWARE
     VideoFrame *frame =
         extractVideoFrameWithCodecFlags(
                 &mClient, trackMeta, source, OMXCodec::kPreferSoftwareCodecs,
                 timeUs, option);
+#else
+    const char *mime;
+    bool success = trackMeta->findCString(kKeyMIMEType, &mime);
+    CHECK(success);
+    VideoFrame *frame = NULL;
 
+    /* TBD!
+    if ((!strcmp(mime, MEDIA_MIMETYPE_VIDEO_DIVX))||
+            (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_DIVX311))||
+            (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_DIVX4))||
+            (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_WMV)))
+    {
+        ALOGV("Software codec is not being used for %s clips for thumbnail ",
+            mime);
+    } else {*/
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("debug.thumbnail.disablesw", value, NULL) &&
+            atoi(value)) {
+            ALOGE("Dont use sw decoder for thumbnail");
+        }
+        else {
+            frame = extractVideoFrameWithCodecFlags(
+                &mClient, trackMeta, source, OMXCodec::kSoftwareCodecsOnly,
+                timeUs, option);
+            if (frame == NULL){
+                // remake source to ensure its stopped before we start it
+                source.clear();
+                source = mExtractor->getTrack(i);
+                if (source.get() == NULL) {
+                    ALOGV("unable to instantiate video track.");
+                    return NULL;
+                }
+            }
+        }
+//    }
+#endif
     if (frame == NULL) {
         ALOGV("Software decoder failed to extract thumbnail, "
              "trying hardware decoder.");
 
-        frame = extractVideoFrameWithCodecFlags(&mClient, trackMeta, source, 0,
-                        timeUs, option);
+        int32_t flags = 0;
+#ifdef QCOM_HARDWARE
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("ro.board.platform", value, "0")
+            && (!strncmp(value, "msm8660", sizeof("msm8660") - 1) ||
+                !strncmp(value, "msm8960", sizeof("msm8960") - 1) ||
+                !strncmp(value, "msm7x27a", sizeof("msm7x27a") - 1) ||
+                !strncmp(value, "msm7630", sizeof("msm7630") - 1) )) {
+            flags |= OMXCodec::kEnableThumbnailMode | OMXCodec::kHardwareCodecsOnly;
+        }
+#endif
+        frame = extractVideoFrameWithCodecFlags(&mClient, trackMeta,
+                    source, flags,
+                    timeUs, option);
     }
-
     return frame;
 }
 

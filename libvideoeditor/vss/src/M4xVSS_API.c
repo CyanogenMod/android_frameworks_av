@@ -2441,11 +2441,26 @@ M4OSA_ERR M4xVSS_SendCommand( M4OSA_Context pContext,
              * to be transcoded(do not do compress domain trim).
              * Also for MPEG4 fomart, always do transcoding since HW encoder
              * may use different time scale value than the input clip*/
+
+#ifdef QCOM_HARDWARE
+            /*If there is clip with begin cut time and MPEG4, then let it encode
+              via the M4MCS path first. Null encoding leads to corruption - because
+              in Null encoding, say we have a begin cut time of 100ms, then it will
+              decode upto 100ms, encode the 100th ms frame and just copy the rest
+              from the reader and write to the intermediate file, resulting in
+              corruption. Instead now this change will make it encode from 100 all
+              the way to the end of clip.
+            */
+           if ((fileProperties.uiVideoProfile >
+                     xVSS_context->pSettings->xVSS.outputVideoProfile)
+               || ((fileProperties.VideoStreamType == M4VIDEOEDITING_kMPEG4) && (xVSS_context->pSettings->pClipList[i]->uiBeginCutTime > 0))) {
+#else
            if ((fileProperties.uiVideoProfile >
                      xVSS_context->pSettings->xVSS.outputVideoProfile) ||
                 (fileProperties.uiVideoLevel >
                      xVSS_context->pSettings->xVSS.outputVideoLevel) ||
                 (fileProperties.VideoStreamType == M4VIDEOEDITING_kMPEG4)) {
+#endif
                /* Set bTranscodingRequired to TRUE to indicate the video will be
                 * transcoded in MCS. */
                xVSS_context->pSettings->pClipList[i]->bTranscodingRequired =
