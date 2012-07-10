@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +33,7 @@
 #include "include/FLACExtractor.h"
 #include "include/AACExtractor.h"
 #include "include/WVMExtractor.h"
+#include "include/ExtendedExtractor.h"
 
 #include "matroska/MatroskaExtractor.h"
 
@@ -39,6 +41,9 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
+
+#include <media/stagefright/MediaDefs.h>
+
 #include <utils/String8.h>
 
 #include <cutils/properties.h>
@@ -68,24 +73,56 @@ status_t DataSource::getSize(off64_t *size) {
 
 Mutex DataSource::gSnifferMutex;
 List<DataSource::SnifferFunc> DataSource::gSniffers;
+List<DataSource::SnifferFunc>::iterator DataSource::extendedSnifferPosition;
 
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
+
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
-
     Mutex::Autolock autoLock(gSnifferMutex);
     for (List<SnifferFunc>::iterator it = gSniffers.begin();
          it != gSniffers.end(); ++it) {
+
+        //Dont call the first sniffer from extended extarctor
+        if(it == extendedSnifferPosition)
+            continue;
+
         String8 newMimeType;
-        float newConfidence;
+        float newConfidence = 0.0;
         sp<AMessage> newMeta;
         if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
                 *mimeType = newMimeType;
                 *confidence = newConfidence;
                 *meta = newMeta;
+                if(*confidence >= 0.6f) {
+
+                    ALOGV("Ignore other Sniffers - confidence = %f , mimeType = %s",*confidence,mimeType->string());
+
+                    char value[PROPERTY_VALUE_MAX];
+                    if( (!strcasecmp((*mimeType).string(), MEDIA_MIMETYPE_CONTAINER_MPEG4)) &&
+                        (property_get("mmp.enable.3g2", value, NULL)) &&
+                        (!strcasecmp(value, "true") || !strcmp(value, "1"))) {
+
+                        //Incase of mimeType MPEG4 call the extended parser sniffer to check
+                        //if this is fragmented or not.
+                        ALOGV("calling Extended Sniff if mimeType = %s ",(*mimeType).string());
+                        String8 tmpMimeType;
+                        float tmpConfidence = 0.0 ;
+                        sp<AMessage> tmpMeta;
+                        (*extendedSnifferPosition)(this, &tmpMimeType, &tmpConfidence, &tmpMeta);
+                        if (tmpConfidence > *confidence) {
+                            *mimeType = tmpMimeType;
+                            *confidence = tmpConfidence;
+                            *meta = tmpMeta;
+                            ALOGV("Confidence of Extended sniffer greater than previous sniffer ");
+                        }
+                    }
+
+                    break;
+                }
             }
         }
     }
@@ -94,7 +131,7 @@ bool DataSource::sniff(
 }
 
 // static
-void DataSource::RegisterSniffer(SnifferFunc func) {
+void DataSource::RegisterSniffer(SnifferFunc func, bool isExtendedExtractor) {
     Mutex::Autolock autoLock(gSnifferMutex);
 
     for (List<SnifferFunc>::iterator it = gSniffers.begin();
@@ -105,6 +142,11 @@ void DataSource::RegisterSniffer(SnifferFunc func) {
     }
 
     gSniffers.push_back(func);
+
+    if(isExtendedExtractor) {
+        extendedSnifferPosition = gSniffers.end();
+        extendedSnifferPosition--;
+    }
 }
 
 // static
@@ -120,6 +162,7 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer(SniffAAC);
     RegisterSniffer(SniffMPEG2PS);
     RegisterSniffer(SniffWVM);
+    ExtendedExtractor::RegisterSniffers();
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)

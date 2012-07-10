@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*--------------------------------------------------------------------------
+Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+--------------------------------------------------------------------------*/
+
 #ifndef UTILS_H_
 
 #define UTILS_H_
@@ -42,6 +46,20 @@ struct MetaData;
 struct AMessage;
 status_t convertMetaDataToMessage(
         const sp<MetaData> &meta, sp<AMessage> *format);
+
+#ifdef QCOM_HARDWARE
+typedef struct {
+    uint8_t mProfile;
+    uint8_t mLevel;
+    int32_t mHeightInMBs;
+    int32_t mWidthInMBs;
+    int32_t mNumRefFrames;
+    int32_t mInterlaced;
+} SpsInfo;
+
+status_t
+parseSps(uint16_t naluSize,const uint8_t *encodedBytes, SpsInfo *info);
+#endif
 
 }  // namespace android
 

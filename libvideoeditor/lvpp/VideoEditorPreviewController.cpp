@@ -1004,7 +1004,13 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
         ALOGV("preparePlayer: setImageClipProperties");
     }
 
-    pController->mVePlayer[playerInstance]->prepare();
+    err = pController->mVePlayer[playerInstance]->prepare();
+#ifdef QCOM_HARDWARE
+    if (err != M4NO_ERROR) {
+        ALOGE("preparePlayer returning error : %d\n",err);
+        return err;
+    }
+#endif
     ALOGV("preparePlayer: prepared");
 
     if(pController->mClipList[index]->uiBeginCutTime > 0) {
@@ -1087,7 +1093,17 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
              pController->mClipList[pController->mCurrentClipNumber]->uiEndCutTime
               - pController->mFirstPreviewClipBeginTime;
 
-            preparePlayer((void*)pController, pController->mCurrentPlayer, index);
+            int error = preparePlayer((void*)pController, pController->mCurrentPlayer, index);
+            if (error != OK) {
+#ifdef QCOM_HARDWARE
+                int info = MEDIA_ERROR_UNKNOWN;
+                ALOGE("MEDIA_ERROR; error (%d, %d)", info, error);
+                if(pController->mJniCallback != NULL) {
+                    pController->mJniCallback(pController->mJniCookie,
+                     MSG_TYPE_PLAYER_ERROR, &info);
+                }
+#endif
+            }
         }
         else {
             pController->mCurrentPlayedDuration +=
@@ -1129,8 +1145,18 @@ M4OSA_ERR VideoEditorPreviewController::threadProc(M4OSA_Void* param) {
     } else if ((pController->mPlayerState == VePlayerBusy) && (pController->mPrepareReqest)) {
         // Prepare the player here
         pController->mPrepareReqest = M4OSA_FALSE;
-        preparePlayer((void*)pController, pController->mCurrentPlayer,
+        int error = preparePlayer((void*)pController, pController->mCurrentPlayer,
             pController->mCurrentClipNumber+1);
+        if (error != OK) {
+#ifdef QCOM_HARDWARE
+            int info = MEDIA_ERROR_UNKNOWN;
+            ALOGE("MEDIA_ERROR; error (%d, %d)", info, error);
+            if(pController->mJniCallback != NULL) {
+                pController->mJniCallback(pController->mJniCookie,
+                 MSG_TYPE_PLAYER_ERROR, &info);
+            }
+#endif
+        }
         if (pController->mSemThreadWait != NULL) {
             err = M4OSA_semaphoreWait(pController->mSemThreadWait,
                 M4OSA_WAIT_FOREVER);
