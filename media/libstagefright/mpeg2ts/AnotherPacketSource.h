@@ -57,6 +57,7 @@ struct AnotherPacketSource : public MediaSource {
     void signalEOS(status_t result);
 
     status_t dequeueAccessUnit(sp<ABuffer> *buffer);
+    void updateFormat(const sp<MetaData> &meta);
 
 protected:
     virtual ~AnotherPacketSource();

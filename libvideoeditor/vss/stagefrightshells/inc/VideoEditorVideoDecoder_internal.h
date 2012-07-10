@@ -47,6 +47,7 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/ColorConverter.h>
 
 #define VIDEOEDITOR_VIDEC_SHELL_VER_MAJOR     0
 #define VIDEOEDITOR_VIDEC_SHELL_VER_MINOR     0

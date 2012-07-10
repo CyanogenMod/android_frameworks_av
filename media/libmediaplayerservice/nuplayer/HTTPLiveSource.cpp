@@ -42,7 +42,9 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
       mUID(uid),
       mFlags(0),
       mFinalResult(OK),
-      mOffset(0) {
+      mOffset(0),
+      mCurrentPlayingTime(-1),
+      mNewSeekTime(-1) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -103,7 +105,7 @@ status_t NuPlayer::HTTPLiveSource::feedMoreTSData() {
     sp<LiveDataSource> source =
         static_cast<LiveDataSource *>(mLiveSession->getDataSource().get());
 
-    for (int32_t i = 0; i < 50; ++i) {
+    for (int32_t i = 0; i < 300; ++i) {
         char buffer[188];
         ssize_t n = source->readAtNonBlocking(mOffset, buffer, sizeof(buffer));
 
@@ -175,14 +177,40 @@ status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
     while (!mTSParser->PTSTimeDeltaEstablished() && feedMoreTSData() == OK) {
         usleep(100000);
     }
+    if( mFinalResult != OK  ) {
+        if( mFinalResult == ERROR_END_OF_STREAM ) {
+            ALOGW("Allow seek even though all ts segments are downloaded");
+            mFinalResult = OK;
+        } else {
+            ALOGW("Error state %d, Ignore this seek", mFinalResult);
+            return mFinalResult;
+        }
+    }
 
-    mLiveSession->seekTo(seekTimeUs);
+    int64_t newSeekTime = -1;
+    mLiveSession->setCurrentPlayingTime(mCurrentPlayingTime);
+
+    mLiveSession->seekTo(seekTimeUs, &newSeekTime);
+    if( newSeekTime >= 0 ) {
+       mTSParser->signalDiscontinuity( ATSParser::DISCONTINUITY_HLS_PLAYER_SEEK, NULL);
+    }
+
+    mNewSeekTime = newSeekTime;
 
     return OK;
 }
 
+void NuPlayer::HTTPLiveSource::notifyRenderingPosition(int64_t currentPLayTime) {
+     mCurrentPlayingTime = currentPLayTime;
+}
+
 bool NuPlayer::HTTPLiveSource::isSeekable() {
     return mLiveSession->isSeekable();
+}
+
+status_t NuPlayer::HTTPLiveSource::getNewSeekTime(int64_t *newSeek) {
+    *newSeek = mNewSeekTime;
+    return OK;
 }
 
 }  // namespace android
