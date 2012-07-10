@@ -32,9 +32,11 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDefs.h>
+
 /********************
  *   DEFINITIONS    *
  ********************/
+
 #define MAX_DEC_BUFFERS 10
 
 /********************
@@ -849,7 +851,6 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
     pDecShellContext->m_pVideoStreamhandler->m_videoWidth  = width;
     pDecShellContext->m_pVideoStreamhandler->m_videoHeight = height;
     frameSize = (width * height * 3) / 2;
-
     // Configure the buffer pool
     if( M4OSA_NULL != pDecShellContext->m_pDecBufferPool ) {
         ALOGV("VideoDecoder_configureFromMetadata : reset the buffer pool");
@@ -860,8 +861,7 @@ M4OSA_ERR VideoEditorVideoDecoder_configureFromMetadata(M4OSA_Context pContext,
         MAX_DEC_BUFFERS, (M4OSA_Char*)"VIDEOEDITOR_DecodedBufferPool");
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
     err = VIDEOEDITOR_BUFFER_initPoolBuffers(pDecShellContext->m_pDecBufferPool,
-                frameSize + pDecShellContext->mGivenWidth * 2);
-
+                    frameSize);
     VIDEOEDITOR_CHECK(M4NO_ERROR == err, err);
 
 cleanUp:
@@ -888,7 +888,9 @@ M4OSA_ERR VideoEditorVideoDecoder_destroy(M4OSA_Context pContext) {
     VIDEOEDITOR_CHECK(M4OSA_NULL != pContext, M4ERR_PARAMETER);
 
     // Release the color converter
-    delete pDecShellContext->mI420ColorConverter;
+    if (pDecShellContext->mI420ColorConverter) {
+        delete pDecShellContext->mI420ColorConverter;
+    }
 
     // Destroy the graph
     if( pDecShellContext->mVideoDecoder != NULL ) {
@@ -1037,7 +1039,6 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
     VIDEOEDITOR_CHECK(NULL != pDecShellContext->mVideoDecoder.get(),
         M4ERR_SF_DECODER_RSRC_FAIL);
 
-
     // Get the output color format
     success = pDecShellContext->mVideoDecoder->getFormat()->findInt32(
         kKeyColorFormat, &colorFormat);
@@ -1049,7 +1050,6 @@ M4OSA_ERR VideoEditorVideoDecoder_create(M4OSA_Context *pContext,
     pDecShellContext->mVideoDecoder->getFormat()->setInt32(kKeyHeight,
         pDecShellContext->m_pVideoStreamhandler->m_videoHeight);
 
-    // Get the color converter
     pDecShellContext->mI420ColorConverter = new I420ColorConverter;
     if (pDecShellContext->mI420ColorConverter->isLoaded()) {
         decoderOutput = pDecShellContext->mI420ColorConverter->getDecoderOutputFormat();
@@ -1082,6 +1082,7 @@ cleanUp:
         ALOGV("VideoEditorVideoDecoder_create ERROR 0x%X", err);
     }
     ALOGV("VideoEditorVideoDecoder_create : DONE");
+
     return err;
 }
 
@@ -1494,11 +1495,11 @@ static M4OSA_ERR copyBufferToQueue(
     // Color convert or copy from the given MediaBuffer to our buffer
     if (pDecShellContext->mI420ColorConverter) {
         if (pDecShellContext->mI420ColorConverter->convertDecoderOutputToI420(
-            (uint8_t *)pDecoderBuffer->data(),// ?? + pDecoderBuffer->range_offset(),   // decoderBits
-            pDecShellContext->mGivenWidth,  // decoderWidth
-            pDecShellContext->mGivenHeight,  // decoderHeight
-            pDecShellContext->mCropRect,  // decoderRect
-            tmpDecBuffer->pData /* dstBits */) < 0) {
+                    (uint8_t *)pDecoderBuffer->data() + pDecoderBuffer->range_offset(),   // decoderBits
+                    pDecShellContext->mGivenWidth,  // decoderWidth
+                    pDecShellContext->mGivenHeight,  // decoderHeight
+                    pDecShellContext->mCropRect,  // decoderRect
+                    tmpDecBuffer->pData /* dstBits */) < 0) {
             ALOGE("convertDecoderOutputToI420 failed");
             lerr = M4ERR_NOT_IMPLEMENTED;
         }
@@ -1555,7 +1556,11 @@ static M4OSA_ERR copyBufferToQueue(
         }
     } else {
         ALOGE("VideoDecoder_decode: unexpected color format 0x%X",
-            pDecShellContext->decOuputColorFormat);
+                pDecShellContext->decOuputColorFormat);
+        if (pDecoderBuffer != NULL) {
+            pDecoderBuffer->release();
+            pDecoderBuffer = NULL;
+        }
         lerr = M4ERR_PARAMETER;
     }
 
