@@ -76,12 +76,12 @@ status_t TimedTextDriver::start() {
             return OK;
         case PAUSED:
             mPlayer->start();
-            break;
+            mState = PLAYING;
+            return OK;
         default:
             TRESPASS();
     }
-    mState = PLAYING;
-    return OK;
+    return UNKNOWN_ERROR;
 }
 
 // TODO: Test if pause() works properly.
@@ -95,14 +95,31 @@ status_t TimedTextDriver::pause() {
             return INVALID_OPERATION;
         case PLAYING:
             mPlayer->pause();
-            break;
+            mState = PAUSED;
+            return OK;
         case PAUSED:
             return OK;
         default:
             TRESPASS();
     }
-    mState = PAUSED;
-    return OK;
+    return UNKNOWN_ERROR;
+}
+
+status_t TimedTextDriver::resume() {
+    Mutex::Autolock autoLock(mLock);
+    switch (mState) {
+        case UNINITIALIZED:
+            return INVALID_OPERATION;
+        case PLAYING:
+            return OK;
+        case PAUSED:
+            mPlayer->resume();
+            mState = PLAYING;
+            return OK;
+        default:
+            TRESPASS();
+    }
+    return UNKNOWN_ERROR;
 }
 
 status_t TimedTextDriver::selectTrack(size_t index) {

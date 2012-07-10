@@ -54,12 +54,16 @@ TimedTextPlayer::~TimedTextPlayer() {
 
 void TimedTextPlayer::start() {
     sp<AMessage> msg = new AMessage(kWhatSeek, id());
-    msg->setInt64("seekTimeUs", -1);
+    msg->setInt64("seekTimeUs", kInvalidTimeUs);
     msg->post();
 }
 
 void TimedTextPlayer::pause() {
     (new AMessage(kWhatPause, id()))->post();
+}
+
+void TimedTextPlayer::resume() {
+    (new AMessage(kWhatResume, id()))->post();
 }
 
 void TimedTextPlayer::seekToAsync(int64_t timeUs) {
@@ -80,7 +84,17 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mSendSubtitleGeneration++;
             break;
         }
+        case kWhatResume: {
+            doRead();
+            break;
+        }
         case kWhatRetryRead: {
+            int32_t generation = -1;
+            CHECK(msg->findInt32("generation", &generation));
+            if (generation != mSendSubtitleGeneration) {
+                // Drop obsolete msg.
+                break;
+            }
             int64_t seekTimeUs;
             int seekMode;
             if (msg->findInt64("seekTimeUs", &seekTimeUs) &&
@@ -96,9 +110,12 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
         case kWhatSeek: {
-            int64_t seekTimeUs = 0;
+            mSendSubtitleGeneration++;
+            int64_t seekTimeUs = kInvalidTimeUs;
+            // Clear a displayed timed text before seeking.
+            notifyListener();
             msg->findInt64("seekTimeUs", &seekTimeUs);
-            if (seekTimeUs < 0) {
+            if (seekTimeUs == kInvalidTimeUs) {
                 sp<MediaPlayerBase> listener = mListener.promote();
                 if (listener != NULL) {
                     int32_t positionMs = 0;
@@ -113,8 +130,8 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             int32_t generation;
             CHECK(msg->findInt32("generation", &generation));
             if (generation != mSendSubtitleGeneration) {
-              // Drop obsolete msg.
-              break;
+                // Drop obsolete msg.
+                break;
             }
             // If current time doesn't reach to the fire time,
             // re-post the message with the adjusted delay time.
@@ -178,12 +195,14 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
     if (err == WOULD_BLOCK) {
         sp<AMessage> msg = new AMessage(kWhatRetryRead, id());
         if (options != NULL) {
-            int64_t seekTimeUs;
-            MediaSource::ReadOptions::SeekMode seekMode;
+            int64_t seekTimeUs = kInvalidTimeUs;
+            MediaSource::ReadOptions::SeekMode seekMode =
+                MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC;
             CHECK(options->getSeekTo(&seekTimeUs, &seekMode));
             msg->setInt64("seekTimeUs", seekTimeUs);
             msg->setInt32("seekMode", seekMode);
         }
+        msg->setInt32("generation", mSendSubtitleGeneration);
         msg->post(kWaitTimeUsToRetryRead);
         return;
     } else if (err != OK) {
