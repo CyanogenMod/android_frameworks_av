@@ -37,7 +37,7 @@ public:
     /* After it's created the track is not active. Call start() to
      * make it active.
      */
-    virtual status_t    start(int event, int triggerSession) = 0;
+    virtual status_t    start(int /*AudioSystem::sync_event_t*/ event, int triggerSession) = 0;
 
     /* Stop a track. If set, the callback will cease being called and
      * obtainBuffer will return an error. Buffers that are already released

@@ -388,8 +388,8 @@ private:
                                         int sessionId);
             virtual             ~TrackBase();
 
-            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
-                                     int triggerSession = 0) = 0;
+            virtual status_t    start(AudioSystem::sync_event_t event,
+                                     int triggerSession) = 0;
             virtual void        stop() = 0;
                     sp<IMemory> getCblk() const { return mCblkMemory; }
                     audio_track_cblk_t* cblk() const { return mCblk; }
@@ -1378,8 +1378,7 @@ private:
                                         int sessionId);
             virtual             ~RecordTrack();
 
-            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
-                                     int triggerSession = 0);
+            virtual status_t    start(AudioSystem::sync_event_t event, int triggerSession);
             virtual void        stop();
 
                     // clear the buffer overflow flag
@@ -1498,7 +1497,7 @@ private:
         RecordHandle(const sp<RecordThread::RecordTrack>& recordTrack);
         virtual             ~RecordHandle();
         virtual sp<IMemory> getCblk() const;
-        virtual status_t    start(int event, int triggerSession);
+        virtual status_t    start(int /*AudioSystem::sync_event_t*/ event, int triggerSession);
         virtual void        stop();
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
