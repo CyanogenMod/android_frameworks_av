@@ -1,7 +1,7 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
-** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+** Copyright (c) 2012 Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@
 
 #include <media/IAudioFlinger.h>
 #include <media/IAudioFlingerClient.h>
+#include <media/IDirectTrack.h>
+#include <media/IDirectTrackClient.h>
 #include <media/IAudioTrack.h>
 #include <media/IAudioRecord.h>
 #include <media/AudioSystem.h>
@@ -99,6 +101,15 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
+                                status_t *status);
+    virtual sp<IDirectTrack> createDirectTrack(
+                                pid_t pid,
+                                uint32_t sampleRate,
+                                uint32_t channelMask,
+                                audio_io_handle_t output,
+                                int *sessionId,
+                                IDirectTrackClient* client,
+                                audio_stream_type_t streamType,
                                 status_t *status);
 
     virtual sp<IAudioRecord> openRecord(
@@ -342,6 +353,7 @@ private:
     class EffectModule;
     class EffectHandle;
     class EffectChain;
+    struct AudioSessionDescriptor;
     struct AudioStreamOut;
     struct AudioStreamIn;
 
@@ -387,6 +399,7 @@ private:
                                         audio_format_t format,
                                         uint32_t channelMask,
                                         int frameCount,
+                                        uint32_t flags,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId);
             virtual             ~TrackBase();
@@ -458,6 +471,7 @@ private:
                                 // support dynamic rates, the current value is in control block
             const audio_format_t mFormat;
             bool                mStepServerFailed;
+            uint32_t            mFlags;
             const int           mSessionId;
             uint8_t             mChannelCount;
             uint32_t            mChannelMask;
@@ -1297,6 +1311,33 @@ private:
               sp<PlaybackThread> getEffectThread_l(int sessionId, int EffectId);
 
     // server side of the client's IAudioTrack
+    class DirectAudioTrack : public android::BnDirectTrack,
+                             public AudioEventObserver
+         {
+    public:
+                            DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
+                                             int output, AudioSessionDescriptor *outputDesc,
+                                             IDirectTrackClient* client);
+        virtual             ~DirectAudioTrack();
+        virtual status_t    start();
+        virtual void        stop();
+        virtual void        flush();
+        virtual void        mute(bool);
+        virtual void        pause();
+        virtual ssize_t     write(const void *buffer, size_t bytes);
+        virtual void        setVolume(float left, float right);
+        virtual int64_t     getTimeStamp();
+        virtual void        postEOS(int64_t delayUs);
+
+        virtual status_t    onTransact(
+            uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
+    private:
+        sp<AudioFlinger> mAudioFlinger;
+        IDirectTrackClient* mClient;
+        AudioSessionDescriptor *mOutputDesc;
+        int  mOutput;
+        bool mIsPaused;
+    };
     class TrackHandle : public android::BnAudioTrack {
     public:
                             TrackHandle(const sp<PlaybackThread::Track>& track);
@@ -1338,6 +1379,7 @@ private:
                                         audio_format_t format,
                                         uint32_t channelMask,
                                         int frameCount,
+                                        uint32_t flags,
                                         int sessionId);
             virtual             ~RecordTrack();
 
@@ -1386,6 +1428,7 @@ private:
                         audio_format_t format,
                         int channelMask,
                         int frameCount,
+                        uint32_t flags,
                         int sessionId,
                         status_t *status);
 
@@ -1435,9 +1478,6 @@ private:
                 const int                           mReqChannelCount;
                 const uint32_t                      mReqSampleRate;
                 ssize_t                             mBytesRead;
-#ifdef QCOM_HARDWARE
-                int16_t                             mInputSource;
-#endif
                 // sync event triggering actual audio capture. Frames read before this event will
                 // be dropped and therefore not read by the application.
                 sp<SyncEvent>                       mSyncStartEvent;
@@ -1445,6 +1485,7 @@ private:
                 // when < 0, maximum frames to drop before starting capture even if sync event is
                 // not received
                 ssize_t                             mFramestoDrop;
+                int16_t                             mInputSource;
     };
 
     // server side of the client's IAudioRecord
@@ -1734,6 +1775,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         void clearInputBuffer();
 
         status_t dump(int fd, const Vector<String16>& args);
+        bool isForLPATrack() {return mIsForLPATrack; }
+        void setLPAFlag(bool flag) {mIsForLPATrack = flag;}
 
     protected:
         friend class AudioFlinger;  // for mThread, mEffects
@@ -1779,6 +1822,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         uint32_t mNewLeftVolume;       // new volume on left channel
         uint32_t mNewRightVolume;      // new volume on right channel
         uint32_t mStrategy; // strategy for this effect chain
+        bool     mIsForLPATrack;
         // mSuspendedEffects lists all effects currently suspended in the chain.
         // Use effect type UUID timelow field as key. There is no real risk of identical
         // timeLow fields among effect type UUIDs.
@@ -1804,6 +1848,18 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
         AudioStreamIn(audio_hw_device_t *dev, audio_stream_in_t *in) :
             hwDev(dev), stream(in) {}
+    };
+
+    struct AudioSessionDescriptor {
+        bool    mActive;
+        int     mStreamType;
+        float   mVolumeLeft;
+        float   mVolumeRight;
+        audio_hw_device_t   *hwDev;
+        audio_stream_out_t  *stream;
+
+        AudioSessionDescriptor(audio_hw_device_t *dev, audio_stream_out_t *out) :
+            hwDev(dev), stream(out) {}
     };
 
     // for mAudioSessionRefs only
@@ -1906,10 +1962,12 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
+                DefaultKeyedVector<audio_io_handle_t, AudioSessionDescriptor *> mDirectAudioTracks;
 
                 // protected by mLock
                 Vector<AudioSessionRef*> mAudioSessionRefs;
-
+                sp<EffectChain> mLPAEffectChain;
+                int         mLPASessionId;
                 float       masterVolume_l() const;
                 float       masterVolumeSW_l() const  { return mMasterVolumeSW; }
                 bool        masterMute_l() const    { return mMasterMute; }

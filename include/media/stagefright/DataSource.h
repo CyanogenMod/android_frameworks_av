@@ -59,6 +59,8 @@ public:
     // May return ERROR_UNSUPPORTED.
     virtual status_t getSize(off64_t *size);
 
+    virtual status_t getCurrentOffset(off64_t *size);
+
     virtual uint32_t flags() {
         return 0;
     }

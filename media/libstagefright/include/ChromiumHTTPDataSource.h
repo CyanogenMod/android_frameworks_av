@@ -40,7 +40,11 @@ struct ChromiumHTTPDataSource : public HTTPBase {
     virtual status_t initCheck() const;
 
     virtual ssize_t readAt(off64_t offset, void *data, size_t size);
+
     virtual status_t getSize(off64_t *size);
+
+    virtual status_t getCurrentOffset(off64_t *size);
+
     virtual uint32_t flags();
 
     virtual sp<DecryptHandle> DrmInitialization(const char *mime);

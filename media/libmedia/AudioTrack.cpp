@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -18,7 +19,6 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioTrack"
-
 #include <stdint.h>
 #include <sys/types.h>
 #include <limits.h>
@@ -122,7 +122,9 @@ AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mAudioFlinger(NULL),
+      mObserver(NULL)
 {
 }
 
@@ -140,7 +142,9 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mAudioFlinger(NULL),
+      mObserver(NULL)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -161,7 +165,9 @@ AudioTrack::AudioTrack(
         int sessionId)
     : mStatus(NO_INIT),
       mIsTimed(false),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT),
+      mAudioFlinger(NULL),
+      mObserver(NULL)
 {
     mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format, channelMask,
             frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
@@ -182,7 +188,9 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mAudioFlinger(NULL),
+      mObserver(NULL)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
@@ -203,9 +211,16 @@ AudioTrack::~AudioTrack()
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
-        mAudioTrack.clear();
+        if (mAudioTrack != 0) {
+            mAudioTrack.clear();
+            AudioSystem::releaseAudioSessionId(mSessionId);
+        }
+
+        if (mDirectTrack != 0) {
+            mDirectTrack.clear();
+        }
         IPCThreadState::self()->flushCommands();
-        AudioSystem::releaseAudioSessionId(mSessionId);
+
     }
 }
 
@@ -278,12 +293,22 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
+    if ((streamType == AUDIO_STREAM_VOICE_CALL)
+         && (channelMask == AUDIO_CHANNEL_OUT_MONO)
+         && ((sampleRate == 8000 || sampleRate == 16000)))
+    {
+        ALOGD("Turn on Direct Output for VOIP RX");
+        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_VOIP_RX|AUDIO_OUTPUT_FLAG_DIRECT);
+    }
+
+
     if (!audio_is_output_channel(channelMask)) {
         ALOGE("Invalid channel mask");
         return BAD_VALUE;
     }
     uint32_t channelCount = popcount(channelMask);
 
+    ALOGV("AudioTrack getOutput streamType %d, sampleRate %d, format %d, channelMask %d, flags %x", streamType, sampleRate, format, channelMask, flags);
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
                                     sampleRate, format, channelMask,
@@ -304,46 +329,74 @@ status_t AudioTrack::set(
     mFlags = flags;
     mCbf = cbf;
 
-    if (cbf != NULL) {
-        mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
-        mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
-    }
-
-    // create the IAudioTrack
-    status_t status = createTrack_l(streamType,
-                                  sampleRate,
-                                  format,
-                                  (uint32_t)channelMask,
-                                  frameCount,
-                                  flags,
-                                  sharedBuffer,
-                                  output);
-
-    if (status != NO_ERROR) {
-        if (mAudioTrackThread != 0) {
-            mAudioTrackThread->requestExit();
-            mAudioTrackThread.clear();
+    if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL) {
+        ALOGV("Creating Direct Track");
+        const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+        if (audioFlinger == 0) {
+            ALOGE("Could not get audioflinger");
+            return NO_INIT;
         }
-        return status;
+        mAudioFlinger = audioFlinger;
+        status_t status;
+        mAudioDirectOutput = output;
+        mDirectTrack = audioFlinger->createDirectTrack( getpid(),
+                                                        sampleRate,
+                                                        channelMask,
+                                                        mAudioDirectOutput,
+                                                        &mSessionId,
+                                                        this,
+                                                        streamType,
+                                                        &status);
+        if(status != NO_ERROR) {
+            ALOGE("createDirectTrack returned with status %d", status);
+        }
+        mAudioTrack = NULL;
+        mSharedBuffer = NULL;
     }
+    else {
+        if (cbf != NULL) {
+            mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
+            mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
+        }
+        // create the IAudioTrack
+        status_t status = createTrack_l(streamType,
+                                      sampleRate,
+                                      format,
+                                      (uint32_t)channelMask,
+                                      frameCount,
+                                      flags,
+                                      sharedBuffer,
+                                      output);
 
+        if (status != NO_ERROR) {
+            if (mAudioTrackThread != 0) {
+                mAudioTrackThread->requestExit();
+                mAudioTrackThread.clear();
+            }
+            return status;
+        }
+        AudioSystem::acquireAudioSessionId(mSessionId);
+        mAudioDirectOutput = -1;
+        mDirectTrack = NULL;
+        mSharedBuffer = sharedBuffer;
+    }
+    mUserData = user;
     mStatus = NO_ERROR;
-
     mStreamType = streamType;
     mFormat = format;
     mChannelMask = (uint32_t)channelMask;
     mChannelCount = channelCount;
-    mSharedBuffer = sharedBuffer;
+
     mMuted = false;
     mActive = false;
-    mUserData = user;
+
     mLoopCount = 0;
     mMarkerPosition = 0;
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
     mFlushed = false;
-    AudioSystem::acquireAudioSessionId(mSessionId);
+
     mRestoreStatus = NO_ERROR;
     return NO_ERROR;
 }
@@ -357,6 +410,9 @@ status_t AudioTrack::initCheck() const
 
 uint32_t AudioTrack::latency() const
 {
+    if(mAudioDirectOutput != -1) {
+        return mAudioFlinger->latency(mAudioDirectOutput);
+    }
     return mLatency;
 }
 
@@ -377,15 +433,26 @@ int AudioTrack::channelCount() const
 
 uint32_t AudioTrack::frameCount() const
 {
+    if(mAudioDirectOutput != -1) {
+        return mAudioFlinger->frameCount(mAudioDirectOutput);
+    }
     return mCblk->frameCount;
 }
 
 size_t AudioTrack::frameSize() const
 {
-    if (audio_is_linear_pcm(mFormat)) {
-        return channelCount()*audio_bytes_per_sample(mFormat);
+    if ((audio_stream_type_t)mStreamType == AUDIO_STREAM_VOICE_CALL) {
+       if (audio_is_linear_pcm(mFormat)) {
+          return channelCount()*audio_bytes_per_sample(mFormat);
+       } else {
+          return channelCount()*sizeof(int16_t);
+       }
     } else {
-        return sizeof(uint8_t);
+        if (audio_is_linear_pcm(mFormat)) {
+            return channelCount()*audio_bytes_per_sample(mFormat);
+        } else {
+            return sizeof(uint8_t);
+        }
     }
 }
 
@@ -398,6 +465,14 @@ sp<IMemory>& AudioTrack::sharedBuffer()
 
 void AudioTrack::start()
 {
+    if (mDirectTrack != NULL) {
+        if(mActive == 0) {
+            mActive = 1;
+            mDirectTrack->start();
+        }
+        return;
+    }
+
     sp<AudioTrackThread> t = mAudioTrackThread;
     status_t status = NO_ERROR;
 
@@ -462,25 +537,30 @@ void AudioTrack::stop()
 
     AutoMutex lock(mLock);
     if (mActive) {
-        mActive = false;
-        mCblk->cv.signal();
-        mAudioTrack->stop();
-        // Cancel loops (If we are in the middle of a loop, playback
-        // would not stop until loopCount reaches 0).
-        setLoop_l(0, 0, 0);
-        // the playback head position will reset to 0, so if a marker is set, we need
-        // to activate it again
-        mMarkerReached = false;
-        // Force flush if a shared buffer is used otherwise audioflinger
-        // will not stop before end of buffer is reached.
-        if (mSharedBuffer != 0) {
-            flush_l();
-        }
-        if (t != 0) {
-            t->pause();
-        } else {
-            setpriority(PRIO_PROCESS, 0, mPreviousPriority);
-            set_sched_policy(0, mPreviousSchedulingGroup);
+        if(mDirectTrack != NULL) {
+		    mActive = false;
+            mDirectTrack->stop();
+        } else if (mAudioTrack != NULL) {
+            mActive = false;
+            mCblk->cv.signal();
+            mAudioTrack->stop();
+            // Cancel loops (If we are in the middle of a loop, playback
+            // would not stop until loopCount reaches 0).
+            setLoop_l(0, 0, 0);
+            // the playback head position will reset to 0, so if a marker is set, we need
+            // to activate it again
+            mMarkerReached = false;
+            // Force flush if a shared buffer is used otherwise audioflinger
+            // will not stop before end of buffer is reached.
+            if (mSharedBuffer != 0) {
+                flush_l();
+            }
+            if (t != 0) {
+                t->pause();
+            } else {
+                setpriority(PRIO_PROCESS, 0, mPreviousPriority);
+                set_sched_policy(0, mPreviousSchedulingGroup);
+            }
         }
     }
 
@@ -495,7 +575,11 @@ bool AudioTrack::stopped() const
 void AudioTrack::flush()
 {
     AutoMutex lock(mLock);
-    flush_l();
+    if(mDirectTrack != NULL) {
+        mDirectTrack->flush();
+    } else {
+        flush_l();
+    }
 }
 
 // must be called with mLock held
@@ -523,14 +607,23 @@ void AudioTrack::pause()
     AutoMutex lock(mLock);
     if (mActive) {
         mActive = false;
-        mCblk->cv.signal();
-        mAudioTrack->pause();
+        if(mDirectTrack != NULL) {
+            ALOGV("mDirectTrack pause");
+            mDirectTrack->pause();
+        } else {
+            mCblk->cv.signal();
+            mAudioTrack->pause();
+        }
     }
 }
 
 void AudioTrack::mute(bool e)
 {
-    mAudioTrack->mute(e);
+    if(mDirectTrack != NULL) {
+        mDirectTrack->mute(e);
+    } else {
+        mAudioTrack->mute(e);
+    }
     mMuted = e;
 }
 
@@ -548,8 +641,12 @@ status_t AudioTrack::setVolume(float left, float right)
     AutoMutex lock(mLock);
     mVolume[LEFT] = left;
     mVolume[RIGHT] = right;
-
-    mCblk->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
+    if(mDirectTrack != NULL) {
+        ALOGV("mDirectTrack->setVolume(left = %f , right = %f)", left,right);
+        mDirectTrack->setVolume(left, right);
+    } else {
+        mCblk->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
+    }
 
     return NO_ERROR;
 }
@@ -566,6 +663,9 @@ void AudioTrack::getVolume(float* left, float* right) const
 
 status_t AudioTrack::setAuxEffectSendLevel(float level)
 {
+    if (mDirectTrack != NULL) {
+        return NO_ERROR;
+    }
     ALOGV("setAuxEffectSendLevel(%f)", level);
     if (level < 0.0f || level > 1.0f) {
         return BAD_VALUE;
@@ -612,6 +712,9 @@ uint32_t AudioTrack::getSampleRate() const
     }
 
     AutoMutex lock(mLock);
+    if(mAudioDirectOutput != -1) {
+        return mAudioFlinger->sampleRate(mAudioDirectOutput);
+    }
     return mCblk->sampleRate;
 }
 
@@ -1097,7 +1200,13 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 
 ssize_t AudioTrack::write(const void* buffer, size_t userSize)
 {
-
+    if (mDirectTrack != NULL) {
+        if (!mActive) {
+            mActive = true;
+        }
+        mDirectTrack->write(buffer,userSize);
+        return userSize;
+    }
     if (mSharedBuffer != 0) return INVALID_OPERATION;
     if (mIsTimed) return INVALID_OPERATION;
 
@@ -1474,6 +1583,21 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);
     result.append(buffer);
     ::write(fd, result.string(), result.size());
+    return NO_ERROR;
+}
+
+void AudioTrack::notify(int msg) {
+    if (msg == EVENT_UNDERRUN) {
+        ALOGV("Posting event underrun to Audio Sink.");
+        mCbf(EVENT_UNDERRUN, mUserData, 0);
+    }
+}
+
+status_t AudioTrack::getTimeStamp(uint64_t *tstamp) {
+    if (mDirectTrack != NULL) {
+        *tstamp = mDirectTrack->getTimeStamp();
+        ALOGV("Timestamp %lld ", *tstamp);
+    }
     return NO_ERROR;
 }
 

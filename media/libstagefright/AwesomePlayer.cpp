@@ -42,6 +42,12 @@ Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
+#ifndef NON_QCOM_TARGET
+#include <media/stagefright/LPAPlayer.h>
+#ifdef USE_TUNNEL_MODE
+#include <media/stagefright/TunnelPlayer.h>
+#endif
+#endif
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -70,6 +76,7 @@ static const size_t kHighWaterMarkBytes = 200000;
 static int64_t kVideoEarlyMarginUs = -10000LL;   //50 ms
 static int64_t kVideoLateMarginUs = 100000LL;  //100 ms
 static int64_t kVideoTooLateMarginUs = 500000LL;
+int AwesomePlayer::mTunnelAliveAP = 0;
 
 struct AwesomeEvent : public TimedEventQueue::Event {
     AwesomeEvent(
@@ -641,6 +648,16 @@ void AwesomePlayer::reset_l() {
 
     mWatchForAudioSeekComplete = false;
     mWatchForAudioEOS = false;
+    // Disable Tunnel Mode Audio
+    if (mIsTunnelAudio) {
+      if(mTunnelAliveAP > 0) {
+           mTunnelAliveAP--;
+           ALOGE("mTunnelAliveAP = %d", mTunnelAliveAP);
+       }
+    }
+    mIsTunnelAudio = false;
+
+
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
@@ -655,13 +672,13 @@ void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
 
 bool AwesomePlayer::getBitrate(int64_t *bitrate) {
     off64_t size;
-    if (mDurationUs >= 0 && mCachedSource != NULL
+    if (mDurationUs > 0 && mCachedSource != NULL
             && mCachedSource->getSize(&size) == OK) {
         *bitrate = size * 8000000ll / mDurationUs;  // in bits/sec
         return true;
     }
 
-    if (mBitrate >= 0) {
+    if (mBitrate > 0) {
         *bitrate = mBitrate;
         return true;
     }
@@ -749,7 +766,10 @@ void AwesomePlayer::onBufferingUpdate() {
                 size_t cachedSize = mCachedSource->cachedSize();
                 int64_t cachedDurationUs = cachedSize * 8000000ll / bitrate;
 
-                int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
+                int percentage = 100.0;
+                if(mDurationUs > 0) {
+                    percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
+                }
                 if (percentage > 100) {
                     percentage = 100;
 #ifdef QCOM_HARDWARE
@@ -807,7 +827,10 @@ void AwesomePlayer::onBufferingUpdate() {
                 finishAsyncPrepare_l();
             }
         } else {
-            int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
+            int percentage = 100.0;
+            if(mDurationUs > 0) {
+                percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
+            }
             if (percentage > 100) {
                 percentage = 100;
 #ifdef QCOM_HARDWARE
@@ -945,6 +968,9 @@ status_t AwesomePlayer::play() {
 }
 
 status_t AwesomePlayer::play_l() {
+    int mpqAudioObjetcsAlive = 0;
+    int tunnelObjectsAlive = 0;
+    int is_mpq = 0;
     modifyFlags(SEEK_PREVIEW, CLEAR);
 
     if (mFlags & PLAYING) {
@@ -972,6 +998,11 @@ status_t AwesomePlayer::play_l() {
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
             if (mAudioSink != NULL) {
+                sp<MetaData> format = mAudioTrack->getFormat();
+                const char *mime;
+                bool success = format->findCString(kKeyMIMEType, &mime);
+                CHECK(success);
+
                 bool allowDeepBuffering;
                 int64_t cachedDurationUs;
                 bool eos;
@@ -983,8 +1014,57 @@ status_t AwesomePlayer::play_l() {
                 } else {
                     allowDeepBuffering = false;
                 }
+#ifndef NON_QCOM_TARGET
+#ifdef USE_TUNNEL_MODE
+                // Create tunnel player if tunnel mode is enabled
+                ALOGE("Trying to create tunnel player mIsTunnelAudio %d, LPAPlayer::objectsAlive %d,\
+                        (mAudioPlayer == NULL) %d",mIsTunnelAudio,LPAPlayer::objectsAlive, (mAudioPlayer == NULL));
 
-                mAudioPlayer = new AudioPlayer(mAudioSink, allowDeepBuffering, this);
+                if(mIsTunnelAudio && (mAudioPlayer == NULL) &&
+                        (LPAPlayer::objectsAlive == 0)) {
+                    ALOGD("Tunnel player created for  mime %s duration %lld\n",\
+                        mime, mDurationUs);
+                    bool initCheck =  false;
+                    if(mVideoSource != NULL) {
+                        // The parameter true is to inform tunnel player that
+                        // clip is audio video
+                        mAudioPlayer = new TunnelPlayer(mAudioSink, initCheck,
+                                this, true);
+                    }
+                    else {
+                        mAudioPlayer = new TunnelPlayer(mAudioSink, initCheck,
+                                this);
+                    }
+                    if(!initCheck) {
+                        ALOGE("deleting Tunnel Player - initCheck failed");
+                        delete mAudioPlayer;
+                        mAudioPlayer = NULL;
+                    }
+                }
+                tunnelObjectsAlive = (TunnelPlayer::mTunnelObjectsAlive);
+#endif
+                char lpaDecode[128];
+                property_get("lpa.decode",lpaDecode,"0");
+                if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) && tunnelObjectsAlive==0 )
+                {
+                    ALOGV("LPAPlayer::getObjectsAlive() %d",LPAPlayer::objectsAlive);
+                    if ( mDurationUs > 60000000
+                         && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
+                         && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL) {
+                        ALOGE("LPAPlayer created, LPA MODE detected mime %s duration %lld", mime, mDurationUs);
+                        bool initCheck =  false;
+                        mAudioPlayer = new LPAPlayer(mAudioSink, initCheck, this);
+                        if(!initCheck) {
+                             delete mAudioPlayer;
+                             mAudioPlayer = NULL;
+                        }
+                    }
+                }
+#endif
+                if(mAudioPlayer == NULL) {
+                    ALOGV("AudioPlayer created, Non-LPA mode mime %s duration %lld\n", mime, durationUs);
+                    mAudioPlayer = new AudioPlayer(mAudioSink, allowDeepBuffering, this);
+                }
                 mAudioPlayer->setSource(mAudioSource);
 
                 mTimeSource = mAudioPlayer;
@@ -1002,11 +1082,15 @@ status_t AwesomePlayer::play_l() {
         if (mVideoSource == NULL) {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
-
-            status_t err = startAudioPlayer_l(
-                    false /* sendErrorNotification */);
+            bool sendErrorNotification = false;
+            if(mIsTunnelAudio) {
+                // For tunnel Audio error has to be posted to the client
+                sendErrorNotification = true;
+            }
+            status_t err = startAudioPlayer_l(sendErrorNotification);
 
             if (err != OK) {
+                ALOGE("deleting Audio Player - start failed");
                 delete mAudioPlayer;
                 mAudioPlayer = NULL;
 
@@ -1499,8 +1583,43 @@ status_t AwesomePlayer::initAudioDecoder() {
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
+#ifndef NON_QCOM_TARGET
+#ifdef USE_TUNNEL_MODE
+    char tunnelDecode[128];
+    property_get("tunnel.decode",tunnelDecode,"0");
+    // Enable tunnel mode for mp3 and aac and if the clip is not aac adif
+    // and if no other tunnel mode instances aare running.
 
-    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+    ALOGD("Tunnel Mime Type: %s, object alive = %d, mTunnelAliveAP = %d",\
+            mime, (TunnelPlayer::mTunnelObjectsAlive), mTunnelAliveAP);
+
+    if(((strcmp("true",tunnelDecode) == 0)||(atoi(tunnelDecode))) &&
+            (TunnelPlayer::mTunnelObjectsAlive == 0) &&
+            mTunnelAliveAP == 0 &&
+            ((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) ||
+            (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC)))) {
+
+        if(mVideoSource != NULL) {
+           char tunnelAVDecode[128];
+           property_get("tunnel.audiovideo.decode",tunnelAVDecode,"0");
+           if(((strncmp("true", tunnelAVDecode, 4) == 0)||(atoi(tunnelAVDecode)))) {
+               ALOGD("Enable Tunnel Mode for A-V playback");
+               mIsTunnelAudio = true;
+               mTunnelAliveAP++;
+           }
+        }
+        else {
+            ALOGI("Tunnel Mode Audio Enabled");
+            mIsTunnelAudio = true;
+            mTunnelAliveAP++;
+        }
+    }
+    else
+       ALOGE("Normal Audio Playback");
+#endif
+#endif
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW) || mIsTunnelAudio) {
+        ALOGD("Set Audio Track as Audio Source");
         mAudioSource = mAudioTrack;
     } else {
         mAudioSource = OMXCodec::Create(
@@ -1513,7 +1632,7 @@ status_t AwesomePlayer::initAudioDecoder() {
         int64_t durationUs;
         if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
             Mutex::Autolock autoLock(mMiscStateLock);
-            if (mDurationUs < 0 || durationUs > mDurationUs) {
+            if (mDurationUs < 0 || (durationUs > mDurationUs)) {
                 mDurationUs = durationUs;
             }
         }
@@ -1610,7 +1729,7 @@ status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
         int64_t durationUs;
         if (mVideoTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
             Mutex::Autolock autoLock(mMiscStateLock);
-            if (mDurationUs < 0 || durationUs > mDurationUs) {
+            if (mDurationUs < 0 || (durationUs > mDurationUs)) {
                 mDurationUs = durationUs;
             }
         }

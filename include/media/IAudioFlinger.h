@@ -25,6 +25,8 @@
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
+#include <media/IDirectTrack.h>
+#include <media/IDirectTrackClient.h>
 #include <media/IAudioTrack.h>
 #include <media/IAudioRecord.h>
 #include <media/IAudioFlingerClient.h>
@@ -68,6 +70,19 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
+                                status_t *status) = 0;
+
+    /* create a direct audio track and registers it with AudioFlinger.
+     * return null if the track cannot be created.
+     */
+    virtual sp<IDirectTrack> createDirectTrack(
+                                pid_t pid,
+                                uint32_t sampleRate,
+                                uint32_t channelMask,
+                                audio_io_handle_t output,
+                                int *sessionId,
+                                IDirectTrackClient* client,
+                                audio_stream_type_t streamType,
                                 status_t *status) = 0;
 
     virtual sp<IAudioRecord> openRecord(
