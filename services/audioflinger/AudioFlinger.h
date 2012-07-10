@@ -417,6 +417,13 @@ private:
 
             int sampleRate() const; // FIXME inline after cblk sr moved
 
+            // Return a pointer to the start of a contiguous slice of the track buffer.
+            // Parameter 'offset' is the requested start position, expressed in
+            // monotonically increasing frame units relative to the track epoch.
+            // Parameter 'frames' is the requested length, also in frame units.
+            // Always returns non-NULL.  It is the caller's responsibility to
+            // verify that this will be successful; the result of calling this
+            // function with invalid 'offset' or 'frames' is undefined.
             void* getBuffer(uint32_t offset, uint32_t frames) const;
 
             bool isStopped() const {
