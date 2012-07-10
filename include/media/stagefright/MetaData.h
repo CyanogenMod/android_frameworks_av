@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*--------------------------------------------------------------------------
+Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+--------------------------------------------------------------------------*/
 
 #ifndef META_DATA_H_
 
@@ -154,6 +157,11 @@ enum {
     kKeyCryptoKey         = 'cryK',  // uint8_t[16]
     kKeyCryptoIV          = 'cryI',  // uint8_t[16]
     kKeyCryptoMode        = 'cryM',  // int32_t
+
+#ifdef QCOM_HARDWARE
+    //Extractor sets this
+    kKeyUseArbitraryMode  = 'ArbM'  //bool (int32_t)
+#endif
 };
 
 enum {

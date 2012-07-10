@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*--------------------------------------------------------------------------
+Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+--------------------------------------------------------------------------*/
+
 #define LOG_TAG "MPEG4Extractor"
 #include <utils/Log.h>
 
@@ -1253,8 +1257,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             char buffer[23];
             if (chunk_data_size != 7 &&
                 chunk_data_size != 23) {
-                ALOGE("Incorrect D263 box size %lld", chunk_data_size);
-                return ERROR_MALFORMED;
+                ALOGW("Incorrect D263 box size %lld, skipping this atom", chunk_data_size);
+                *offset += chunk_size;
+                break;
             }
 
             if (mDataSource->readAt(
@@ -1922,6 +1927,10 @@ MPEG4Source::MPEG4Source(
         // The number of bytes used to encode the length of a NAL unit.
         mNALLengthSize = 1 + (ptr[4] & 3);
     }
+
+    //MPEG4 extractor can give complete frames,
+    //set arbitrary mode to false
+    format->setInt32(kKeyUseArbitraryMode, 0);
 }
 
 MPEG4Source::~MPEG4Source() {
