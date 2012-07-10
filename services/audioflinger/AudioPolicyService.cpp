@@ -780,7 +780,6 @@ void AudioPolicyService::AudioCommandThread::startToneCommand(ToneGenerator::ton
     data->mType = type;
     data->mStream = stream;
     command->mParam = (void *)data;
-    command->mWaitStatus = false;
     Mutex::Autolock _l(mLock);
     insertCommand_l(command);
     ALOGV("AudioCommandThread() adding tone start type %d, stream %d", type, stream);
@@ -792,7 +791,6 @@ void AudioPolicyService::AudioCommandThread::stopToneCommand()
     AudioCommand *command = new AudioCommand();
     command->mCommand = STOP_TONE;
     command->mParam = NULL;
-    command->mWaitStatus = false;
     Mutex::Autolock _l(mLock);
     insertCommand_l(command);
     ALOGV("AudioCommandThread() adding tone stop");
@@ -813,11 +811,6 @@ status_t AudioPolicyService::AudioCommandThread::volumeCommand(audio_stream_type
     data->mVolume = volume;
     data->mIO = output;
     command->mParam = data;
-    if (delayMs == 0) {
-        command->mWaitStatus = true;
-    } else {
-        command->mWaitStatus = false;
-    }
     Mutex::Autolock _l(mLock);
     insertCommand_l(command, delayMs);
     ALOGV("AudioCommandThread() adding set volume stream %d, volume %f, output %d",
@@ -843,11 +836,6 @@ status_t AudioPolicyService::AudioCommandThread::parametersCommand(audio_io_hand
     data->mIO = ioHandle;
     data->mKeyValuePairs = String8(keyValuePairs);
     command->mParam = data;
-    if (delayMs == 0) {
-        command->mWaitStatus = true;
-    } else {
-        command->mWaitStatus = false;
-    }
     Mutex::Autolock _l(mLock);
     insertCommand_l(command, delayMs);
     ALOGV("AudioCommandThread() adding set parameter string %s, io %d ,delay %d",
@@ -870,11 +858,6 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
     VoiceVolumeData *data = new VoiceVolumeData();
     data->mVolume = volume;
     command->mParam = data;
-    if (delayMs == 0) {
-        command->mWaitStatus = true;
-    } else {
-        command->mWaitStatus = false;
-    }
     Mutex::Autolock _l(mLock);
     insertCommand_l(command, delayMs);
     ALOGV("AudioCommandThread() adding set voice volume volume %f", volume);
@@ -893,6 +876,7 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
     ssize_t i;  // not size_t because i will count down to -1
     Vector <AudioCommand *> removedCommands;
 
+    nsecs_t time = 0;
     command->mTime = systemTime() + milliseconds(delayMs);
 
     // acquire wake lock to make sure delayed commands are processed
@@ -938,6 +922,7 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
             } else {
                 data2->mKeyValuePairs = param2.toString();
             }
+            time = command2->mTime;
         } break;
 
         case SET_VOLUME: {
@@ -948,6 +933,7 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
             ALOGV("Filtering out volume command on output %d for stream %d",
                     data->mIO, data->mStream);
             removedCommands.add(command2);
+            time = command2->mTime;
         } break;
         case START_TONE:
         case STOP_TONE:
@@ -968,6 +954,17 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
         }
     }
     removedCommands.clear();
+
+    // wait for status only if delay is 0 and command time was not modified above
+    if (delayMs == 0 && time == 0) {
+        command->mWaitStatus = true;
+    } else {
+        command->mWaitStatus = false;
+    }
+    // update command time if modified above
+    if (time != 0) {
+        command->mTime = time;
+    }
 
     // insert command at the right place according to its time stamp
     ALOGV("inserting command: %d at index %d, num commands %d",
