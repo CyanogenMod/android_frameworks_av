@@ -70,6 +70,25 @@ private:
     status_t extractAndAppendLocalDescriptions(
             int64_t timeUs, const AString &text, Parcel *parcel);
 
+    // Compares the time range of the subtitle at index to the given timeUs.
+    // The time range of the subtitle to match with given timeUs is extended to
+    // [endTimeUs of the previous subtitle, endTimeUs of current subtitle).
+    //
+    // This compare function is used to find a next subtitle when read() is
+    // called with seek options. Note that timeUs within gap ranges, such as
+    // [200, 300) in the below example, will be matched to the closest future
+    // subtitle, [300, 400).
+    //
+    // For instance, assuming there are 3 subtitles in mTextVector,
+    // 0: [100, 200)      ----> [0, 200)
+    // 1: [300, 400)      ----> [200, 400)
+    // 2: [500, 600)      ----> [400, 600)
+    // If the 'index' parameter contains 1, this function
+    // returns 0, if timeUs is in [200, 400)
+    // returns -1, if timeUs >= 400,
+    // returns 1, if timeUs < 200.
+    int compareExtendedRangeAndTime(size_t index, int64_t timeUs);
+
     DISALLOW_EVIL_CONSTRUCTORS(TimedTextSRTSource);
 };
 
