@@ -127,6 +127,10 @@ status_t FileSource::getSize(off64_t *size) {
     return OK;
 }
 
+status_t FileSource::getCurrentOffset(off64_t *size) {
+    return getSize(size);
+}
+
 sp<DecryptHandle> FileSource::DrmInitialization(const char *mime) {
     if (mDrmManagerClient == NULL) {
         mDrmManagerClient = new DrmManagerClient();

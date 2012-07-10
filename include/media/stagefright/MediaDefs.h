@@ -43,6 +43,7 @@ extern const char *MEDIA_MIMETYPE_AUDIO_G711_MLAW;
 extern const char *MEDIA_MIMETYPE_AUDIO_RAW;
 extern const char *MEDIA_MIMETYPE_AUDIO_FLAC;
 extern const char *MEDIA_MIMETYPE_AUDIO_AAC_ADTS;
+extern const char *MEDIA_MIMETYPE_AUDIO_DTS;
 
 extern const char *MEDIA_MIMETYPE_CONTAINER_MPEG4;
 extern const char *MEDIA_MIMETYPE_CONTAINER_WAV;
@@ -65,6 +66,7 @@ extern const char *MEDIA_MIMETYPE_AUDIO_WMA;
 extern const char *MEDIA_MIMETYPE_CONTAINER_ASF;
 extern const char *MEDIA_MIMETYPE_VIDEO_DIVX;
 extern const char *MEDIA_MIMETYPE_AUDIO_AC3;
+extern const char *MEDIA_MIMETYPE_AUDIO_EAC3;
 extern const char *MEDIA_MIMETYPE_CONTAINER_AAC;
 extern const char *MEDIA_MIMETYPE_CONTAINER_QCP;
 extern const char *MEDIA_MIMETYPE_VIDEO_DIVX311;
