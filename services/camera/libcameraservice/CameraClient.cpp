@@ -445,9 +445,9 @@ void CameraClient::stopRecording() {
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
 
-    mCameraService->playSound(CameraService::SOUND_RECORDING);
     disableMsgType(CAMERA_MSG_VIDEO_FRAME);
     mHardware->stopRecording();
+    mCameraService->playSound(CameraService::SOUND_RECORDING);
 
     mPreviewBuffer.clear();
 }
