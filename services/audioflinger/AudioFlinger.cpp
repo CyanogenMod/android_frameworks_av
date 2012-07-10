@@ -6109,7 +6109,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                     }
                 }
-                mActiveTrack->overflow();
+                mActiveTrack->clearOverflow();
             }
             // client isn't retrieving buffers fast enough
             else {

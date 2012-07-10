@@ -1365,7 +1365,9 @@ private:
                                      int triggerSession = 0);
             virtual void        stop();
 
-                    bool        overflow() { bool tmp = mOverflow; mOverflow = false; return tmp; }
+                    // clear the buffer overflow flag
+                    void        clearOverflow() { mOverflow = false; }
+                    // set the buffer overflow flag and return previous value
                     bool        setOverflow() { bool tmp = mOverflow; mOverflow = true; return tmp; }
 
                     void        dump(char* buffer, size_t size);
@@ -1380,9 +1382,8 @@ private:
             virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts = kInvalidPTS);
             // releaseBuffer() not overridden
 
-            bool                mOverflow;
+            bool                mOverflow;  // overflow on most recent attempt to fill client buffer
         };
-
 
                 RecordThread(const sp<AudioFlinger>& audioFlinger,
                         AudioStreamIn *input,
