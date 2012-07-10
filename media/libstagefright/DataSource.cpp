@@ -69,6 +69,14 @@ status_t DataSource::getSize(off64_t *size) {
     return ERROR_UNSUPPORTED;
 }
 
+#ifdef QCOM_HARDWARE
+status_t DataSource::getCurrentOffset(off64_t *size) {
+    *size = 0;
+
+    return ERROR_UNSUPPORTED;
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Mutex DataSource::gSnifferMutex;

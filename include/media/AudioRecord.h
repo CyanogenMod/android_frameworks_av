@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012 Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -360,6 +360,9 @@ private:
                                 audio_format_t format,
                                 uint32_t channelMask,
                                 int frameCount,
+#ifdef QCOM_HARDWARE
+                                uint32_t flags,
+#endif
                                 audio_io_handle_t input);
             audio_io_handle_t getInput_l();
             status_t restoreRecord_l(audio_track_cblk_t*& cblk);

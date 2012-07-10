@@ -255,6 +255,12 @@ status_t NuCachedSource2::getSize(off64_t *size) {
     return mSource->getSize(size);
 }
 
+#ifdef QCOM_HARDWARE
+status_t NuCachedSource2::getCurrentOffset(off64_t *size) {
+    return mSource->getCurrentOffset(size);
+}
+#endif
+
 uint32_t NuCachedSource2::flags() {
     // Remove HTTP related flags since NuCachedSource2 is not HTTP-based.
     uint32_t flags = mSource->flags() & ~(kWantsPrefetching | kIsHTTPBasedSource);

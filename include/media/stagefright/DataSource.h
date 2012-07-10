@@ -59,6 +59,10 @@ public:
     // May return ERROR_UNSUPPORTED.
     virtual status_t getSize(off64_t *size);
 
+#ifdef QCOM_HARDWARE
+    virtual status_t getCurrentOffset(off64_t *size);
+#endif
+
     virtual uint32_t flags() {
         return 0;
     }

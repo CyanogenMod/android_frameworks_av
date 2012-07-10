@@ -1176,6 +1176,9 @@ status_t NuPlayer::prepareAsync() // only for DASH
             return NO_MEMORY;
         }
         msg->post();
+#ifdef QCOM_HARDWARE
+        return -EWOULDBLOCK;
+#endif
     }
     return OK;
 }
