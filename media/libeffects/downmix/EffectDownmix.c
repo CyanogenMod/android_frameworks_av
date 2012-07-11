@@ -434,7 +434,8 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         memcpy(pReplyData, pCmdData, sizeof(effect_param_t) + sizeof(int32_t));
         ALOGV("Downmix_Command EFFECT_CMD_GET_PARAM param %d, replySize %d",
                 *(int32_t *)rep->data, rep->vsize);
-        rep->status = Downmix_getParameter(pDownmixer, *(int32_t *)rep->data, &rep->vsize,
+	int32_t rep_data; memcpy(&rep_data, rep->data, sizeof(int32_t));
+        rep->status = Downmix_getParameter(pDownmixer, rep_data /* *(int32_t *)rep->data */, &rep->vsize,
                 rep->data + sizeof(int32_t));
         *replySize = sizeof(effect_param_t) + sizeof(int32_t) + rep->vsize;
         break;
@@ -447,7 +448,8 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
             return -EINVAL;
         }
         effect_param_t *cmd = (effect_param_t *) pCmdData;
-        *(int *)pReplyData = Downmix_setParameter(pDownmixer, *(int32_t *)cmd->data,
+	int32_t cmd_data; memcpy(&cmd_data, cmd->data, sizeof(int32_t));
+        *(int *)pReplyData = Downmix_setParameter(pDownmixer, cmd_data /* *(int32_t *)cmd->data*/,
                 cmd->vsize, cmd->data + sizeof(int32_t));
         break;
 
