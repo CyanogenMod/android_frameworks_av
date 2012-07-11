@@ -48,7 +48,7 @@ public:
     enum {
         TRACK_DEFAULT = 0,  // client requests a default AudioTrack
         TRACK_TIMED   = 1,  // client requests a TimedAudioTrack
-        TRACK_FAST    = 2,  // client requests a fast AudioTrack
+        TRACK_FAST    = 2,  // client requests a fast AudioTrack or AudioRecord
     };
     typedef uint32_t track_flags_t;
 
@@ -77,6 +77,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 int frameCount,
                                 track_flags_t flags,
+                                pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
                                 status_t *status) = 0;
 

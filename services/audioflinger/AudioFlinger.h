@@ -108,6 +108,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 int frameCount,
                                 IAudioFlinger::track_flags_t flags,
+                                pid_t tid,
                                 int *sessionId,
                                 status_t *status);
 
@@ -1407,6 +1408,8 @@ private:
                         audio_channel_mask_t channelMask,
                         int frameCount,
                         int sessionId,
+                        IAudioFlinger::track_flags_t flags,
+                        pid_t tid,
                         status_t *status);
 
                 status_t    start(RecordTrack* recordTrack,

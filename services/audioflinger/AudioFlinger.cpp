@@ -5793,6 +5793,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         audio_channel_mask_t channelMask,
         int frameCount,
         IAudioFlinger::track_flags_t flags,
+        pid_t tid,
         int *sessionId,
         status_t *status)
 {
@@ -5831,13 +5832,8 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             }
         }
         // create new record track. The record track uses one track in mHardwareMixerThread by convention.
-        recordTrack = thread->createRecordTrack_l(client,
-                                                sampleRate,
-                                                format,
-                                                channelMask,
-                                                frameCount,
-                                                lSessionId,
-                                                &lStatus);
+        recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
+                                                  frameCount, lSessionId, flags, tid, &lStatus);
     }
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the Client
@@ -6148,6 +6144,8 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         audio_channel_mask_t channelMask,
         int frameCount,
         int sessionId,
+        IAudioFlinger::track_flags_t flags,
+        pid_t tid,
         status_t *status)
 {
     sp<RecordTrack> track;
@@ -6158,6 +6156,8 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         ALOGE("Audio driver not initialized.");
         goto Exit;
     }
+
+    // FIXME use flags and tid similar to createTrack_l()
 
     { // scope for mLock
         Mutex::Autolock _l(mLock);

@@ -452,11 +452,15 @@ status_t AudioRecord::openRecord_l(
         return NO_INIT;
     }
 
+    pid_t tid = -1;
+    // FIXME see similar logic at AudioTrack
+
     sp<IAudioRecord> record = audioFlinger->openRecord(getpid(), input,
                                                        sampleRate, format,
                                                        channelMask,
                                                        frameCount,
                                                        IAudioFlinger::TRACK_DEFAULT,
+                                                       tid,
                                                        &mSessionId,
                                                        &status);
 
