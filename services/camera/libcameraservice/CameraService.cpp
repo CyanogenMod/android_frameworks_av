@@ -36,7 +36,7 @@
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
-
+#include <system/camera.h>
 #include "CameraService.h"
 #include "CameraHardwareInterface.h"
 
@@ -304,8 +304,18 @@ void CameraService::loadSound() {
     LOG1("CameraService::loadSound ref=%d", mSoundRef);
     if (mSoundRef++) return;
 
-    mSoundPlayer[SOUND_SHUTTER] = newMediaPlayer("/system/media/audio/ui/camera_click.ogg");
-    mSoundPlayer[SOUND_RECORDING] = newMediaPlayer("/system/media/audio/ui/VideoRecord.ogg");
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.camera.shutter.disable", value, "0");
+    int disableSound = atoi(value);
+
+    if(!disableSound) {
+        mSoundPlayer[SOUND_SHUTTER] = newMediaPlayer("/system/media/audio/ui/camera_click.ogg");
+        mSoundPlayer[SOUND_RECORDING] = newMediaPlayer("/system/media/audio/ui/VideoRecord.ogg");
+    }
+    else {
+        mSoundPlayer[SOUND_SHUTTER] = NULL;
+        mSoundPlayer[SOUND_RECORDING] = NULL;
+    }
 }
 
 void CameraService::releaseSound() {
@@ -357,8 +367,11 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
                             (void *)cameraId);
 
     // Enable zoom, error, focus, and metadata messages by default
-    enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS |
-                  CAMERA_MSG_PREVIEW_METADATA | CAMERA_MSG_FOCUS_MOVE);
+    enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS
+#ifndef QCOM_HARDWARE
+                  CAMERA_MSG_PREVIEW_METADATA
+#endif
+                  );
 
     // Callback is disabled by default
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
@@ -366,6 +379,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     mPlayShutterSound = true;
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
+    mFaceDetection = false;
     LOG1("Client::Client X (pid %d, id %d)", callingPid, cameraId);
 }
 
@@ -515,9 +529,14 @@ void CameraService::Client::disconnect() {
 
     // Release the held ANativeWindow resources.
     if (mPreviewWindow != 0) {
+#ifdef QCOM_HARDWARE
+        mHardware->setPreviewWindow(0);
+#endif
         disconnectWindow(mPreviewWindow);
         mPreviewWindow = 0;
+#ifndef QCOM_HARDWARE
         mHardware->setPreviewWindow(mPreviewWindow);
+#endif
     }
     mHardware.clear();
 
@@ -558,7 +577,11 @@ status_t CameraService::Client::setPreviewWindow(const sp<IBinder>& binder,
             native_window_set_buffers_transform(window.get(), mOrientation);
             result = mHardware->setPreviewWindow(window);
         }
+#ifdef QCOM_HARDWARE
+    } else {
+        result = mHardware->setPreviewWindow(window);
     }
+#endif
 
     if (result == NO_ERROR) {
         // Everything has succeeded.  Disconnect the old window and remember the
@@ -619,7 +642,9 @@ void CameraService::Client::setPreviewCallbackFlag(int callback_flag) {
 status_t CameraService::Client::startPreview() {
     LOG1("startPreview (pid %d)", getCallingPid());
 #ifdef QCOM_HARDWARE
-    enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+    if (mFaceDetection) {
+      enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+    }
 #endif
     return startCameraMode(CAMERA_PREVIEW_MODE);
 }
@@ -708,7 +733,7 @@ status_t CameraService::Client::startRecordingMode() {
 void CameraService::Client::stopPreview() {
     LOG1("stopPreview (pid %d)", getCallingPid());
 #ifdef QCOM_HARDWARE
-    disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+	disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 #endif
     Mutex::Autolock iLock(mICameraLock);
     Mutex::Autolock lock(mLock);
@@ -836,6 +861,7 @@ status_t CameraService::Client::takePicture(int msgType) {
     if (!mburstCnt) {
         mburstCnt = mHardware->getParameters().getInt("num-snaps-per-shutter");
     }
+    if(mburstCnt <= 0) mburstCnt = 1;
 #endif
 
     return mHardware->takePicture();
@@ -932,16 +958,20 @@ status_t CameraService::Client::sendCommand(int32_t cmd, int32_t arg1, int32_t a
     } else if (cmd == CAMERA_CMD_PING) {
         // If mHardware is 0, checkPidAndHardware will return error.
         return OK;
-    }
 #ifdef QCOM_HARDWARE
-    else if (cmd == CAMERA_CMD_HISTOGRAM_ON ) {
+    } else if (cmd == CAMERA_CMD_HISTOGRAM_ON ) {
         enableMsgType(CAMERA_MSG_STATS_DATA);
     }
     else if (cmd ==  CAMERA_CMD_HISTOGRAM_OFF) {
         disableMsgType(CAMERA_MSG_STATS_DATA);
+    } else if (cmd ==   CAMERA_CMD_START_FACE_DETECTION) {
+      mFaceDetection = true;
+      enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+    } else if (cmd ==   CAMERA_CMD_STOP_FACE_DETECTION) {
+      mFaceDetection = false;
+      disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
     }
 #endif
-
 
     return mHardware->sendCommand(cmd, arg1, arg2);
 }
@@ -1072,7 +1102,7 @@ void CameraService::Client::dataCallback(int32_t msgType,
     if (!client->lockIfMessageWanted(msgType)) return;
     if (dataPtr == 0 && metadata == NULL) {
         ALOGE("Null data returned in data callback");
-        client->handleGenericNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
+        client->handleGenericNotify(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0);
         return;
     }
 
@@ -1213,6 +1243,11 @@ void CameraService::Client::handleCompressedPicture(const sp<IMemory>& mem) {
     if (!mburstCnt) {
         LOG1("mburstCnt = %d", mburstCnt);
         disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+#ifdef QCOM_HARDWARE
+        if (mFaceDetection) {
+          enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+        }
+#endif
     }
     sp<ICameraClient> c = mCameraClient;
     mLock.unlock();
