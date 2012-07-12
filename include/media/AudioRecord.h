@@ -72,12 +72,6 @@ public:
         };
     };
 
-    /* These are static methods to control the system-wide AudioFlinger
-     * only privileged processes can have access to them
-     */
-
-//    static status_t setMasterMute(bool mute);
-
     /* As a convenience, if a callback is supplied, a handler thread
      * is automatically created with the appropriate priority. This thread
      * invokes the callback when a new buffer becomes ready or an overrun condition occurs.
@@ -330,7 +324,6 @@ private:
         friend class AudioRecord;
         virtual bool        threadLoop();
         virtual status_t    readyToRun();
-        virtual void        onFirstRef() {}
         AudioRecord& mReceiver;
     };
 
