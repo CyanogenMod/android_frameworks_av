@@ -126,6 +126,7 @@ public:
     // necessary to check returned status before using the returned values.
     static status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
+    // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
     static unsigned int  getInputFramesLost(audio_io_handle_t ioHandle);
 
     static int newAudioSessionId();

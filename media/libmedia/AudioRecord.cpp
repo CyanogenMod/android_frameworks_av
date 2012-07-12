@@ -432,10 +432,8 @@ status_t AudioRecord::getPosition(uint32_t *position) const
 
 unsigned int AudioRecord::getInputFramesLost() const
 {
-    if (mActive)
-        return AudioSystem::getInputFramesLost(mInput);
-    else
-        return 0;
+    // no need to check mActive, because if inactive this will return 0, which is what we want
+    return AudioSystem::getInputFramesLost(mInput);
 }
 
 // -------------------------------------------------------------------------

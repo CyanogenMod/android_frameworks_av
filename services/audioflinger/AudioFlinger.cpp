@@ -978,10 +978,6 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
 
 unsigned int AudioFlinger::getInputFramesLost(audio_io_handle_t ioHandle) const
 {
-    if (ioHandle == 0) {
-        return 0;
-    }
-
     Mutex::Autolock _l(mLock);
 
     RecordThread *recordThread = checkRecordThread_l(ioHandle);
