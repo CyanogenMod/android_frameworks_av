@@ -103,9 +103,10 @@ AudioRecord::~AudioRecord()
         // it is looping on buffer empty condition in obtainBuffer().
         // Otherwise the callback thread will never exit.
         stop();
-        if (mClientRecordThread != 0) {
-            mClientRecordThread->requestExitAndWait();
-            mClientRecordThread.clear();
+        if (mAudioRecordThread != 0) {
+            mAudioRecordThread->requestExit();  // see comment in AudioRecord.h
+            mAudioRecordThread->requestExitAndWait();
+            mAudioRecordThread.clear();
         }
         mAudioRecord.clear();
         IPCThreadState::self()->flushCommands();
@@ -200,7 +201,8 @@ status_t AudioRecord::set(
     }
 
     if (cbf != NULL) {
-        mClientRecordThread = new ClientRecordThread(*this, threadCanCallJava);
+        mAudioRecordThread = new AudioRecordThread(*this, threadCanCallJava);
+        mAudioRecordThread->run("AudioRecord", ANDROID_PRIORITY_AUDIO);
     }
 
     mStatus = NO_ERROR;
@@ -210,7 +212,7 @@ status_t AudioRecord::set(
     mFrameCount = mCblk->frameCount;
     mChannelCount = (uint8_t)channelCount;
     mChannelMask = channelMask;
-    mActive = 0;
+    mActive = false;
     mCbf = cbf;
     mNotificationFrames = notificationFrames;
     mRemainingFrames = notificationFrames;
@@ -274,18 +276,9 @@ audio_source_t AudioRecord::inputSource() const
 status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 {
     status_t ret = NO_ERROR;
-    sp<ClientRecordThread> t = mClientRecordThread;
+    sp<AudioRecordThread> t = mAudioRecordThread;
 
     ALOGV("start, sync event %d trigger session %d", event, triggerSession);
-
-    if (t != 0) {
-        if (t->exitPending()) {
-            if (t->requestExitAndWait() == WOULD_BLOCK) {
-                ALOGE("AudioRecord::start called from thread");
-                return WOULD_BLOCK;
-            }
-        }
-    }
 
     AutoMutex lock(mLock);
     // acquire a strong reference on the IAudioRecord and IMemory so that they cannot be destroyed
@@ -293,22 +286,9 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     sp<IAudioRecord> audioRecord = mAudioRecord;
     sp<IMemory> iMem = mCblkMemory;
     audio_track_cblk_t* cblk = mCblk;
-    if (mActive == 0) {
-        mActive = 1;
 
-        pid_t tid;
-        if (t != 0) {
-            mReadyToRun = WOULD_BLOCK;
-            t->run("AudioRecord", ANDROID_PRIORITY_AUDIO);
-            tid = t->getTid();  // pid_t is unknown until run()
-            ALOGV("getTid=%d", tid);
-            if (tid == -1) {
-                tid = 0;
-            }
-            // thread blocks in readyToRun()
-        } else {
-            tid = 0;    // not gettid()
-        }
+    if (!mActive) {
+        mActive = true;
 
         cblk->lock.lock();
         if (!(cblk->flags & CBLK_INVALID_MSK)) {
@@ -330,19 +310,14 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
                                             AudioSystem::kSyncRecordStartTimeOutMs;
             cblk->waitTimeMs = 0;
             if (t != 0) {
-                // thread unblocks in readyToRun() and returns NO_ERROR
-                mReadyToRun = NO_ERROR;
-                mCondition.signal();
+                t->resume();
             } else {
                 mPreviousPriority = getpriority(PRIO_PROCESS, 0);
                 get_sched_policy(0, &mPreviousSchedulingGroup);
                 androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
             }
         } else {
-            mActive = 0;
-            // thread unblocks in readyToRun() and returns NO_INIT
-            mReadyToRun = NO_INIT;
-            mCondition.signal();
+            mActive = false;
         }
     }
 
@@ -351,20 +326,20 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 
 status_t AudioRecord::stop()
 {
-    sp<ClientRecordThread> t = mClientRecordThread;
+    sp<AudioRecordThread> t = mAudioRecordThread;
 
     ALOGV("stop");
 
     AutoMutex lock(mLock);
-    if (mActive == 1) {
-        mActive = 0;
+    if (mActive) {
+        mActive = false;
         mCblk->cv.signal();
         mAudioRecord->stop();
         // the record head position will reset to 0, so if a marker is set, we need
         // to activate it again
         mMarkerReached = false;
         if (t != 0) {
-            t->requestExit();
+            t->pause();
         } else {
             setpriority(PRIO_PROCESS, 0, mPreviousPriority);
             set_sched_policy(0, mPreviousSchedulingGroup);
@@ -376,6 +351,7 @@ status_t AudioRecord::stop()
 
 bool AudioRecord::stopped() const
 {
+    AutoMutex lock(mLock);
     return !mActive;
 }
 
@@ -493,7 +469,7 @@ status_t AudioRecord::openRecord_l(
 status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
 {
     AutoMutex lock(mLock);
-    int active;
+    bool active;
     status_t result = NO_ERROR;
     audio_track_cblk_t* cblk = mCblk;
     uint32_t framesReq = audioBuffer->frameCount;
@@ -522,7 +498,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                 result = cblk->cv.waitRelative(cblk->lock, milliseconds(waitTimeMs));
                 cblk->lock.unlock();
                 mLock.lock();
-                if (mActive == 0) {
+                if (!mActive) {
                     return status_t(STOPPED);
                 }
                 cblk->lock.lock();
@@ -671,7 +647,7 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
 
 // -------------------------------------------------------------------------
 
-bool AudioRecord::processAudioBuffer(const sp<ClientRecordThread>& thread)
+bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 {
     Buffer audioBuffer;
     uint32_t frames = mRemainingFrames;
@@ -683,6 +659,7 @@ bool AudioRecord::processAudioBuffer(const sp<ClientRecordThread>& thread)
     sp<IAudioRecord> audioRecord = mAudioRecord;
     sp<IMemory> iMem = mCblkMemory;
     audio_track_cblk_t* cblk = mCblk;
+    bool active = mActive;
     mLock.unlock();
 
     // Manage marker callback
@@ -741,7 +718,9 @@ bool AudioRecord::processAudioBuffer(const sp<ClientRecordThread>& thread)
 
 
     // Manage overrun callback
-    if (mActive && (cblk->framesAvailable() == 0)) {
+    if (active && (cblk->framesAvailable() == 0)) {
+        // The value of active is stale, but we are almost sure to be active here because
+        // otherwise we would have exited when obtainBuffer returned STOPPED earlier.
         ALOGV("Overrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
         if (!(android_atomic_or(CBLK_UNDERRUN_ON, &cblk->flags) & CBLK_UNDERRUN_MSK)) {
             mCbf(EVENT_OVERRUN, mUserData, 0);
@@ -798,7 +777,7 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& cblk)
             result = NO_ERROR;
             cblk->lock.unlock();
         }
-        if (result != NO_ERROR || mActive == 0) {
+        if (result != NO_ERROR || !mActive) {
             result = status_t(STOPPED);
         }
     }
@@ -818,23 +797,51 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& cblk)
 
 // =========================================================================
 
-AudioRecord::ClientRecordThread::ClientRecordThread(AudioRecord& receiver, bool bCanCallJava)
-    : Thread(bCanCallJava), mReceiver(receiver)
+AudioRecord::AudioRecordThread::AudioRecordThread(AudioRecord& receiver, bool bCanCallJava)
+    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true)
 {
 }
 
-bool AudioRecord::ClientRecordThread::threadLoop()
+AudioRecord::AudioRecordThread::~AudioRecordThread()
 {
-    return mReceiver.processAudioBuffer(this);
 }
 
-status_t AudioRecord::ClientRecordThread::readyToRun()
+bool AudioRecord::AudioRecordThread::threadLoop()
 {
-    AutoMutex(mReceiver.mLock);
-    while (mReceiver.mReadyToRun == WOULD_BLOCK) {
-        mReceiver.mCondition.wait(mReceiver.mLock);
+    {
+        AutoMutex _l(mMyLock);
+        if (mPaused) {
+            mMyCond.wait(mMyLock);
+            // caller will check for exitPending()
+            return true;
+        }
     }
-    return mReceiver.mReadyToRun;
+    if (!mReceiver.processAudioBuffer(this)) {
+        pause();
+    }
+    return true;
+}
+
+void AudioRecord::AudioRecordThread::requestExit()
+{
+    // must be in this order to avoid a race condition
+    Thread::requestExit();
+    resume();
+}
+
+void AudioRecord::AudioRecordThread::pause()
+{
+    AutoMutex _l(mMyLock);
+    mPaused = true;
+}
+
+void AudioRecord::AudioRecordThread::resume()
+{
+    AutoMutex _l(mMyLock);
+    if (mPaused) {
+        mPaused = false;
+        mMyCond.signal();
+    }
 }
 
 // -------------------------------------------------------------------------

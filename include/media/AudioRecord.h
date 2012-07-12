@@ -316,18 +316,31 @@ private:
             AudioRecord& operator = (const AudioRecord& other);
 
     /* a small internal class to handle the callback */
-    class ClientRecordThread : public Thread
+    class AudioRecordThread : public Thread
     {
     public:
-        ClientRecordThread(AudioRecord& receiver, bool bCanCallJava = false);
+        AudioRecordThread(AudioRecord& receiver, bool bCanCallJava = false);
+
+        // Do not call Thread::requestExitAndWait() without first calling requestExit().
+        // Thread::requestExitAndWait() is not virtual, and the implementation doesn't do enough.
+        virtual void        requestExit();
+
+                void        pause();    // suspend thread from execution at next loop boundary
+                void        resume();   // allow thread to execute, if not requested to exit
+
     private:
         friend class AudioRecord;
         virtual bool        threadLoop();
-        virtual status_t    readyToRun();
         AudioRecord& mReceiver;
+        virtual ~AudioRecordThread();
+        Mutex               mMyLock;    // Thread::mLock is private
+        Condition           mMyCond;    // Thread::mThreadExitedCondition is private
+        bool                mPaused;    // whether thread is currently paused
     };
 
-            bool processAudioBuffer(const sp<ClientRecordThread>& thread);
+            // body of AudioRecordThread::threadLoop()
+            bool processAudioBuffer(const sp<AudioRecordThread>& thread);
+
             status_t openRecord_l(uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
@@ -336,12 +349,10 @@ private:
             audio_io_handle_t getInput_l();
             status_t restoreRecord_l(audio_track_cblk_t*& cblk);
 
-    sp<ClientRecordThread>  mClientRecordThread;
-    status_t                mReadyToRun;
+    sp<AudioRecordThread>   mAudioRecordThread;
     mutable Mutex           mLock;
-    Condition               mCondition;
 
-    volatile int32_t        mActive;
+    bool                    mActive;            // protected by mLock
 
     // for client callback handler
     callback_t              mCbf;
