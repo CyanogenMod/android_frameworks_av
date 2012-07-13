@@ -142,8 +142,6 @@ private:
     private:
         friend class Visualizer;
         virtual bool        threadLoop();
-        virtual status_t    readyToRun();
-        virtual void        onFirstRef();
         Visualizer& mReceiver;
         Mutex       mLock;
         uint32_t mSleepTimeUs;

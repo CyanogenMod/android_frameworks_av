@@ -353,13 +353,4 @@ bool Visualizer::CaptureThread::threadLoop()
     return false;
 }
 
-status_t Visualizer::CaptureThread::readyToRun()
-{
-    return NO_ERROR;
-}
-
-void Visualizer::CaptureThread::onFirstRef()
-{
-}
-
 }; // namespace android

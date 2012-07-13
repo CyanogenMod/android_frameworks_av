@@ -472,8 +472,6 @@ protected:
     private:
         friend class AudioTrack;
         virtual bool        threadLoop();
-        virtual status_t    readyToRun();
-        virtual void        onFirstRef();
         AudioTrack& mReceiver;
         ~AudioTrackThread();
         Mutex               mMyLock;    // Thread::mLock is private

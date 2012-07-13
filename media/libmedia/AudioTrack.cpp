@@ -1472,15 +1472,6 @@ bool AudioTrack::AudioTrackThread::threadLoop()
     return true;
 }
 
-status_t AudioTrack::AudioTrackThread::readyToRun()
-{
-    return NO_ERROR;
-}
-
-void AudioTrack::AudioTrackThread::onFirstRef()
-{
-}
-
 void AudioTrack::AudioTrackThread::requestExit()
 {
     // must be in this order to avoid a race condition
