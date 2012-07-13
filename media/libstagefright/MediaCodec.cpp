@@ -1118,7 +1118,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if ((mState != STARTED && mState != FLUSHING)
-                    || (mFlags & kFlagStickyError)) {
+                    || (mFlags & kFlagStickyError)
+                    || mOutputFormat == NULL) {
                 sp<AMessage> response = new AMessage;
                 response->setInt32("err", INVALID_OPERATION);
 
