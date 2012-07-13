@@ -1346,7 +1346,7 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         AString *errorDetailMsg;
         CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
 
-        status_t err = mCrypto->decrypt(
+        ssize_t result = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
                 key,
                 iv,
@@ -1357,11 +1357,11 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
                 info->mData->base(),
                 errorDetailMsg);
 
-        if (err != OK) {
-            return err;
+        if (result < 0) {
+            return result;
         }
 
-        info->mData->setRange(0, size);
+        info->mData->setRange(0, result);
     }
 
     reply->setBuffer("buffer", info->mData);
