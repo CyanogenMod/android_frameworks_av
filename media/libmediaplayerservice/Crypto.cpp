@@ -141,7 +141,7 @@ bool Crypto::requiresSecureDecoderComponent(const char *mime) const {
     return mPlugin->requiresSecureDecoderComponent(mime);
 }
 
-status_t Crypto::decrypt(
+ssize_t Crypto::decrypt(
         bool secure,
         const uint8_t key[16],
         const uint8_t iv[16],
