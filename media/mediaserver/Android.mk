@@ -16,10 +16,10 @@ ifeq ($(BOARD_USE_YAMAHAPLAYER),true)
     LOCAL_SHARED_LIBRARIES += libmediayamahaservice
 endif
 
-ifeq ($(BOARD_USE_SECTVOUT),true)
-    LOCAL_CFLAGS += -DSECTVOUT
-	LOCAL_SHARED_LIBRARIES += libTVOut
-endif
+#ifeq ($(BOARD_USE_SECTVOUT),true)
+#    LOCAL_CFLAGS += -DSECTVOUT
+#	LOCAL_SHARED_LIBRARIES += libTVOut
+#endif
 
 # FIXME The duplicate audioflinger is temporary
 LOCAL_C_INCLUDES := \
