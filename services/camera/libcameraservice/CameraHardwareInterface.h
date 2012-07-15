@@ -26,6 +26,9 @@
 #include <camera/CameraParameters.h>
 #include <system/window.h>
 #include <hardware/camera.h>
+#ifdef BOARD_USE_SAMSUNG_V4L2_ION
+#include <binder/MemoryHeapBaseIon.h>
+#endif
 
 namespace android {
 
@@ -494,7 +497,11 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
+#ifdef BOARD_USE_SAMSUNG_V4L2_ION
+            mHeap = new MemoryHeapBaseIon(fd, buf_size * num_buffers);
+#else
             mHeap = new MemoryHeapBase(fd, buf_size * num_buffers);
+#endif
             commonInitialization();
         }
 
@@ -502,7 +509,11 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
+#ifdef BOARD_USE_SAMSUNG_V4L2_ION
+            mHeap = new MemoryHeapBaseIon(buf_size * num_buffers);
+#else
             mHeap = new MemoryHeapBase(buf_size * num_buffers);
+#endif
             commonInitialization();
         }
 
