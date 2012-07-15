@@ -3,6 +3,14 @@ include $(CLEAR_VARS)
 
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
+ifeq ($(TARGET_SOC),exynos4210)
+LOCAL_CFLAGS += -DCONFIG_MFC_FPS
+endif
+
+ifeq ($(TARGET_SOC),exynos4x12)
+LOCAL_CFLAGS += -DCONFIG_MFC_FPS
+endif
+
 LOCAL_SRC_FILES:=                         \
         ACodec.cpp                        \
         AACExtractor.cpp                  \
@@ -118,6 +126,65 @@ LOCAL_CFLAGS += -Wno-multichar
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
         LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/display/libgralloc
+endif
+
+ifeq ($(filter-out exynos4 exynos5,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_CFLAGS += -DSAMSUNG_ANDROID_PATCH
+endif
+
+ifeq ($(TARGET_BOARD_PLATFORM), exynos4)
+LOCAL_C_INCLUDES += $(TOP)/hardware/samsung/exynos4/hal/include
+endif
+
+ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
+# Include native color format header path
+LOCAL_C_INCLUDES += $(TARGET_HAL_PATH)/include
+
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+endif
+
+ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
+# Add native color format patch definition
+LOCAL_CFLAGS += -DNATIVE_COLOR_FORMAT_PATCH
+
+endif # ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
+
+ifeq ($(BOARD_USE_SAMSUNG_V4L2_ION), true)
+LOCAL_CFLAGS += -DBOARD_USE_SAMSUNG_V4L2_ION
+endif
+
+ifeq ($(TARGET_BOARD_PLATFORM), exynos4)
+ifeq ($(BOARD_USE_SAMSUNG_V4L2_ION), false)
+ifeq ($(BOARD_USE_S3D_SUPPORT), true)
+LOCAL_CFLAGS += -DS3D_SUPPORT
+endif
+endif
+endif
+
+ifeq ($(TARGET_BOARD_PLATFORM), exynos5)
+ifeq ($(BOARD_USE_S3D_SUPPORT), true)
+LOCAL_CFLAGS += -DS3D_SUPPORT
+endif
+endif
+
+ifeq ($(filter-out s5pc110 s5pv210,$(TARGET_SOC)),)
+ifeq ($(BOARD_USE_V4L2), false)
+ifeq ($(BOARD_USE_S3D_SUPPORT), true)
+LOCAL_CFLAGS += -DS3D_SUPPORT
+endif
+endif
+endif
+
+ifeq ($(TARGET_SOC),exynos4x12)
+LOCAL_CFLAGS += -DSAMSUNG_EXYNOS4x12
+endif
+
+ifeq ($(TARGET_SOC),exynos5250)
+LOCAL_CFLAGS += -DSAMSUNG_EXYNOS5250
+endif
+
+ifeq ($(BOARD_USES_HDMI),true)
+LOCAL_CFLAGS += -DBOARD_USES_HDMI
 endif
 
 LOCAL_MODULE:= libstagefright
