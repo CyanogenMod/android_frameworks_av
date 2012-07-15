@@ -1543,6 +1543,10 @@ static int aps_set_voice_volume(void *service, float volume, int delay_ms)
 namespace {
     struct audio_policy_service_ops aps_ops = {
         open_output           : aps_open_output,
+#ifdef QCOM_ICS_LPA_COMPAT
+        open_session          : NULL,
+        close_session         : NULL,
+#endif
         open_duplicate_output : aps_open_dup_output,
         close_output          : aps_close_output,
         suspend_output        : aps_suspend_output,
