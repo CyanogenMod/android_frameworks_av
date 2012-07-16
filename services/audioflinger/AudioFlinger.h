@@ -1432,7 +1432,11 @@ private:
                 status_t    start(RecordTrack* recordTrack,
                                   AudioSystem::sync_event_t event,
                                   int triggerSession);
-                void        stop(RecordTrack* recordTrack);
+
+                // ask the thread to stop the specified track, and
+                // return true if the caller should then do it's part of the stopping process
+                bool        stop_l(RecordTrack* recordTrack);
+
                 void        dump(int fd, const Vector<String16>& args);
                 AudioStreamIn* clearInput();
                 virtual audio_stream_t* stream() const;

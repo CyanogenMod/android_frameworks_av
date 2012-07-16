@@ -5362,11 +5362,18 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
-        recordThread->stop(this);
-        TrackBase::reset();
-        // Force overrun condition to avoid false overrun callback until first data is
-        // read from buffer
-        android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
+        recordThread->mLock.lock();
+        bool doStop = recordThread->stop_l(this);
+        if (doStop) {
+            TrackBase::reset();
+            // Force overrun condition to avoid false overrun callback until first data is
+            // read from buffer
+            android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
+        }
+        recordThread->mLock.unlock();
+        if (doStop) {
+            AudioSystem::stopInput(recordThread->id());
+        }
     }
 }
 
@@ -6278,27 +6285,23 @@ void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event
     }
 }
 
-void AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
+bool AudioFlinger::RecordThread::stop_l(RecordThread::RecordTrack* recordTrack) {
     ALOGV("RecordThread::stop");
-    sp<ThreadBase> strongMe = this;
-    {
-        AutoMutex lock(mLock);
-        if (mActiveTrack != 0 && recordTrack == mActiveTrack.get()) {
-            mActiveTrack->mState = TrackBase::PAUSING;
-            // do not wait for mStartStopCond if exiting
-            if (exitPending()) {
-                return;
-            }
-            mStartStopCond.wait(mLock);
-            // if we have been restarted, recordTrack == mActiveTrack.get() here
-            if (exitPending() || mActiveTrack == 0 || recordTrack != mActiveTrack.get()) {
-                mLock.unlock();
-                AudioSystem::stopInput(mId);
-                mLock.lock();
-                ALOGV("Record stopped OK");
-            }
-        }
+    if (recordTrack != mActiveTrack.get() || recordTrack->mState == TrackBase::PAUSING) {
+        return false;
     }
+    recordTrack->mState = TrackBase::PAUSING;
+    // do not wait for mStartStopCond if exiting
+    if (exitPending()) {
+        return true;
+    }
+    mStartStopCond.wait(mLock);
+    // if we have been restarted, recordTrack == mActiveTrack.get() here
+    if (exitPending() || recordTrack != mActiveTrack.get()) {
+        ALOGV("Record stopped OK");
+        return true;
+    }
+    return false;
 }
 
 bool AudioFlinger::RecordThread::isValidSyncEvent(const sp<SyncEvent>& event)
