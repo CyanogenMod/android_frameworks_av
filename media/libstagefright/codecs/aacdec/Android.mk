@@ -1,6 +1,10 @@
 LOCAL_PATH:= $(call my-dir)
 
-AAC_LIBRARY = fraunhofer
+ifneq ($(TARGET_BOARD_PLATFORM),msm7x27)
+AAC_LIBRARY = "fraunhofer"
+else
+AAC_LIBRARY = ""
+endif
 
 ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(CLEAR_VARS)

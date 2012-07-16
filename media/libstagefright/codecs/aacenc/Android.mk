@@ -2,7 +2,11 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
-AAC_LIBRARY = fraunhofer
+ifneq ($(TARGET_BOARD_PLATFORM),msm7x27)
+AAC_LIBRARY = "fraunhofer"
+else
+AAC_LIBRARY = ""
+endif
 
 LOCAL_SRC_FILES := basic_op/basicop2.c basic_op/oper_32b.c
 
