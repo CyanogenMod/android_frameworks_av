@@ -6120,9 +6120,12 @@ bool AudioFlinger::RecordThread::threadLoop()
     if (!mStandby) {
         mInput->stream->common.standby(&mInput->stream->common);
     }
-    mActiveTrack.clear();
 
-    mStartStopCond.broadcast();
+    {
+        Mutex::Autolock _l(mLock);
+        mActiveTrack.clear();
+        mStartStopCond.broadcast();
+    }
 
     releaseWakeLock();
 
@@ -6298,7 +6301,7 @@ void AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
             }
             mStartStopCond.wait(mLock);
             // if we have been restarted, recordTrack == mActiveTrack.get() here
-            if (mActiveTrack == 0 || recordTrack != mActiveTrack.get()) {
+            if (exitPending() || mActiveTrack == 0 || recordTrack != mActiveTrack.get()) {
                 mLock.unlock();
                 AudioSystem::stopInput(mId);
                 mLock.lock();
