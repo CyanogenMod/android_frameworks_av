@@ -324,7 +324,7 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     return ret;
 }
 
-status_t AudioRecord::stop()
+void AudioRecord::stop()
 {
     sp<AudioRecordThread> t = mAudioRecordThread;
 
@@ -345,8 +345,6 @@ status_t AudioRecord::stop()
             set_sched_policy(0, mPreviousSchedulingGroup);
         }
     }
-
-    return NO_ERROR;
 }
 
 bool AudioRecord::stopped() const

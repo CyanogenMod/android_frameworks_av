@@ -201,7 +201,7 @@ public:
      * obtainBuffer returns STOPPED. Note that obtainBuffer() still works
      * and will fill up buffers until the pool is exhausted.
      */
-            status_t    stop();
+            void        stop();
             bool        stopped() const;
 
     /* get sample rate for this record track
