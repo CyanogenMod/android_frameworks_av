@@ -868,16 +868,19 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             if (mBtNrecIsOff != btNrecIsOff) {
                 for (size_t i = 0; i < mRecordThreads.size(); i++) {
                     sp<RecordThread> thread = mRecordThreads.valueAt(i);
-                    RecordThread::RecordTrack *track = thread->track();
-                    if (track != NULL) {
-                        audio_devices_t device = thread->device() & AUDIO_DEVICE_IN_ALL;
-                        bool suspend = audio_is_bluetooth_sco_device(device) && btNrecIsOff;
+                    audio_devices_t device = thread->device() & AUDIO_DEVICE_IN_ALL;
+                    bool suspend = audio_is_bluetooth_sco_device(device) && btNrecIsOff;
+                    // collect all of the thread's session IDs
+                    KeyedVector<int, bool> ids = thread->sessionIds();
+                    // suspend effects associated with those session IDs
+                    for (size_t j = 0; j < ids.size(); ++j) {
+                        int sessionId = ids.keyAt(j);
                         thread->setEffectSuspended(FX_IID_AEC,
                                                    suspend,
-                                                   track->sessionId());
+                                                   sessionId);
                         thread->setEffectSuspended(FX_IID_NS,
                                                    suspend,
-                                                   track->sessionId());
+                                                   sessionId);
                     }
                 }
                 mBtNrecIsOff = btNrecIsOff;
@@ -4277,11 +4280,6 @@ AudioFlinger::PlaybackThread::Track::Track(
 AudioFlinger::PlaybackThread::Track::~Track()
 {
     ALOGV("PlaybackThread::Track destructor");
-    sp<ThreadBase> thread = mThread.promote();
-    if (thread != 0) {
-        Mutex::Autolock _l(thread->mLock);
-        mState = TERMINATED;
-    }
 }
 
 void AudioFlinger::PlaybackThread::Track::destroy()
@@ -5301,10 +5299,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
 
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
 {
-    sp<ThreadBase> thread = mThread.promote();
-    if (thread != 0) {
-        AudioSystem::releaseInput(thread->id());
-    }
+    ALOGV("%s", __func__);
 }
 
 // AudioBufferProvider interface
@@ -5375,6 +5370,11 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
             AudioSystem::stopInput(recordThread->id());
         }
     }
+}
+
+/*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
+{
+    result.append("   Clien Fmt Chn mask   Session Buf  S SRate  Serv     User\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
@@ -5861,6 +5861,7 @@ AudioFlinger::RecordHandle::RecordHandle(const sp<AudioFlinger::RecordThread::Re
 
 AudioFlinger::RecordHandle::~RecordHandle() {
     stop_nonvirtual();
+    mRecordTrack->destroy();
 }
 
 sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
@@ -5896,7 +5897,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          audio_io_handle_t id,
                                          audio_devices_t device) :
     ThreadBase(audioFlinger, id, device, RECORD),
-    mInput(input), mTrack(NULL), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
+    mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
@@ -5980,6 +5981,9 @@ bool AudioFlinger::RecordThread::threadLoop()
                         mStartStopCond.broadcast();
                     }
                     mStandby = false;
+                } else if (mActiveTrack->mState == TrackBase::TERMINATED) {
+                    removeTrack_l(mActiveTrack);
+                    mActiveTrack.clear();
                 }
             }
             lockEffectChains_l(effectChains);
@@ -6168,8 +6172,8 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
             lStatus = NO_MEMORY;
             goto Exit;
         }
+        mTracks.add(track);
 
-        mTrack = track.get();
         // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
         bool suspend = audio_is_bluetooth_sco_device(mDevice & AUDIO_DEVICE_IN_ALL) &&
                         mAudioFlinger->btNrecIsOff();
@@ -6320,16 +6324,63 @@ status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
         return BAD_VALUE;
     }
 
+    int eventSession = event->triggerSession();
+    status_t ret = NAME_NOT_FOUND;
+
     Mutex::Autolock _l(mLock);
 
-    if (mTrack != NULL && event->triggerSession() == mTrack->sessionId()) {
-        mTrack->setSyncEvent(event);
-        return NO_ERROR;
+    for (size_t i = 0; i < mTracks.size(); i++) {
+        sp<RecordTrack> track = mTracks[i];
+        if (eventSession == track->sessionId()) {
+            track->setSyncEvent(event);
+            ret = NO_ERROR;
+        }
     }
-    return NAME_NOT_FOUND;
+    return ret;
+}
+
+void AudioFlinger::RecordThread::RecordTrack::destroy()
+{
+    // see comments at AudioFlinger::PlaybackThread::Track::destroy()
+    sp<RecordTrack> keep(this);
+    {
+        sp<ThreadBase> thread = mThread.promote();
+        if (thread != 0) {
+            if (mState == ACTIVE || mState == RESUMING) {
+                AudioSystem::stopInput(thread->id());
+            }
+            AudioSystem::releaseInput(thread->id());
+            Mutex::Autolock _l(thread->mLock);
+            RecordThread *recordThread = (RecordThread *) thread.get();
+            recordThread->destroyTrack_l(this);
+        }
+    }
+}
+
+// destroyTrack_l() must be called with ThreadBase::mLock held
+void AudioFlinger::RecordThread::destroyTrack_l(const sp<RecordTrack>& track)
+{
+    track->mState = TrackBase::TERMINATED;
+    // active tracks are removed by threadLoop()
+    if (mActiveTrack != track) {
+        removeTrack_l(track);
+    }
+}
+
+void AudioFlinger::RecordThread::removeTrack_l(const sp<RecordTrack>& track)
+{
+    mTracks.remove(track);
+    // need anything related to effects here?
 }
 
 void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
+{
+    dumpInternals(fd, args);
+    dumpTracks(fd, args);
+    dumpEffectChains(fd, args);
+}
+
+void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -6339,11 +6390,6 @@ void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
     result.append(buffer);
 
     if (mActiveTrack != 0) {
-        result.append("Active Track:\n");
-        result.append("   Clien Fmt Chn mask   Session Buf  S SRate  Serv     User\n");
-        mActiveTrack->dump(buffer, SIZE);
-        result.append(buffer);
-
         snprintf(buffer, SIZE, "In index: %d\n", mRsmpInIndex);
         result.append(buffer);
         snprintf(buffer, SIZE, "In size: %d\n", mInputBytes);
@@ -6354,15 +6400,41 @@ void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
         result.append(buffer);
         snprintf(buffer, SIZE, "Out sample rate: %d\n", mReqSampleRate);
         result.append(buffer);
-
-
     } else {
-        result.append("No record client\n");
+        result.append("No active record client\n");
     }
+
     write(fd, result.string(), result.size());
 
     dumpBase(fd, args);
-    dumpEffectChains(fd, args);
+}
+
+void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args)
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    String8 result;
+
+    snprintf(buffer, SIZE, "Input thread %p tracks\n", this);
+    result.append(buffer);
+    RecordTrack::appendDumpHeader(result);
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        sp<RecordTrack> track = mTracks[i];
+        if (track != 0) {
+            track->dump(buffer, SIZE);
+            result.append(buffer);
+        }
+    }
+
+    if (mActiveTrack != 0) {
+        snprintf(buffer, SIZE, "\nInput thread %p active tracks\n", this);
+        result.append(buffer);
+        RecordTrack::appendDumpHeader(result);
+        mActiveTrack->dump(buffer, SIZE);
+        result.append(buffer);
+
+    }
+    write(fd, result.string(), result.size());
 }
 
 // AudioBufferProvider interface
@@ -6462,11 +6534,14 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             } else {
                 newDevice &= ~(value & AUDIO_DEVICE_IN_ALL);
                 // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
-                if (mTrack != NULL) {
+                if (mTracks.size() > 0) {
                     bool suspend = audio_is_bluetooth_sco_device(
                             (audio_devices_t)value) && mAudioFlinger->btNrecIsOff();
-                    setEffectSuspended_l(FX_IID_AEC, suspend, mTrack->sessionId());
-                    setEffectSuspended_l(FX_IID_NS, suspend, mTrack->sessionId());
+                    for (size_t i = 0; i < mTracks.size(); i++) {
+                        sp<RecordTrack> track = mTracks[i];
+                        setEffectSuspended_l(FX_IID_AEC, suspend, track->sessionId());
+                        setEffectSuspended_l(FX_IID_NS, suspend, track->sessionId());
+                    }
                 }
             }
             newDevice |= value;
@@ -6605,17 +6680,28 @@ uint32_t AudioFlinger::RecordThread::hasAudioSession(int sessionId)
         result = EFFECT_SESSION;
     }
 
-    if (mTrack != NULL && sessionId == mTrack->sessionId()) {
-        result |= TRACK_SESSION;
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        if (sessionId == mTracks[i]->sessionId()) {
+            result |= TRACK_SESSION;
+            break;
+        }
     }
 
     return result;
 }
 
-AudioFlinger::RecordThread::RecordTrack* AudioFlinger::RecordThread::track()
+KeyedVector<int, bool> AudioFlinger::RecordThread::sessionIds()
 {
+    KeyedVector<int, bool> ids;
     Mutex::Autolock _l(mLock);
-    return mTrack;
+    for (size_t j = 0; j < mTracks.size(); ++j) {
+        sp<RecordThread::RecordTrack> track = mTracks[j];
+        int sessionId = track->sessionId();
+        if (ids.indexOfKey(sessionId) < 0) {
+            ids.add(sessionId, true);
+        }
+    }
+    return ids;
 }
 
 AudioFlinger::AudioStreamIn* AudioFlinger::RecordThread::clearInput()
