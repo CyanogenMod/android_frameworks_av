@@ -115,6 +115,9 @@ private:
 
     bool mDisconnectAtHighwatermark;
 
+#ifdef QCOM_HARDWARE
+    bool mIsDownloadComplete;
+#endif
     void onMessageReceived(const sp<AMessage> &msg);
     void onFetch();
     void onRead(const sp<AMessage> &msg);

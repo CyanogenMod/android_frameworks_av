@@ -194,7 +194,11 @@ NuCachedSource2::NuCachedSource2(
       mHighwaterThresholdBytes(kDefaultHighWaterThreshold),
       mLowwaterThresholdBytes(kDefaultLowWaterThreshold),
       mKeepAliveIntervalUs(kDefaultKeepAliveIntervalUs),
-      mDisconnectAtHighwatermark(disconnectAtHighwatermark) {
+      mDisconnectAtHighwatermark(disconnectAtHighwatermark)
+#ifdef QCOM_HARDWARE
+      ,mIsDownloadComplete(false)
+#endif
+{
     // We are NOT going to support disconnect-at-highwatermark indefinitely
     // and we are not guaranteeing support for client-specified cache
     // parameters. Both of these are temporary measures to solve a specific
@@ -345,6 +349,9 @@ void NuCachedSource2::onFetch() {
     if (mFinalStatus != OK && mNumRetriesLeft == 0) {
         ALOGV("EOS reached, done prefetching for now");
         mFetching = false;
+#ifdef QCOM_HARDWARE
+        mIsDownloadComplete = true;
+#endif
     }
 
     bool keepAlive =
@@ -387,7 +394,15 @@ void NuCachedSource2::onFetch() {
             delayUs = 0;
         }
     } else {
+#ifdef QCOM_HARDWARE
+        if(mIsDownloadComplete) {
+            return;
+        } else {
+            delayUs = 100000ll;
+        }
+#else
         delayUs = 100000ll;
+#endif
     }
 
     (new AMessage(kWhatFetchMore, mReflector->id()))->post(delayUs);
@@ -534,7 +549,12 @@ ssize_t NuCachedSource2::readInternal(off64_t offset, void *data, size_t size) {
                 false, // ignoreLowWaterThreshold
                 true); // force
     }
-
+#ifdef QCOM_HARDWARE
+    if (mFetching && mIsDownloadComplete) {
+        mIsDownloadComplete = false;
+        (new AMessage(kWhatFetchMore, mReflector->id()))->post();
+    }
+#endif
     if (offset < mCacheOffset
             || offset >= (off64_t)(mCacheOffset + mCache->totalSize())) {
         static const off64_t kPadding = 256 * 1024;
@@ -602,6 +622,12 @@ void NuCachedSource2::resumeFetchingIfNecessary() {
     Mutex::Autolock autoLock(mLock);
 
     restartPrefetcherIfNecessary_l(true /* ignore low water threshold */);
+#ifdef QCOM_HARDWARE
+    if(mFetching && mIsDownloadComplete) {
+        mIsDownloadComplete = false;
+        (new AMessage(kWhatFetchMore, mReflector->id()))->post();
+    }
+#endif
 }
 
 sp<DecryptHandle> NuCachedSource2::DrmInitialization(const char* mime) {

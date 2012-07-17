@@ -354,6 +354,10 @@ private:
 
     } mStats;
 
+#ifdef QCOM_HARDWARE
+    bool mBufferingDone;
+#endif
+
     status_t setVideoScalingMode(int32_t mode);
     status_t setVideoScalingMode_l(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
