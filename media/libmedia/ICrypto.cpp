@@ -91,7 +91,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
         return reply.readInt32() != 0;
     }
 
-    virtual status_t decrypt(
+    virtual ssize_t decrypt(
             bool secure,
             const uint8_t key[16],
             const uint8_t iv[16],
@@ -136,21 +136,17 @@ struct BpCrypto : public BpInterface<ICrypto> {
 
         remote()->transact(DECRYPT, data, &reply);
 
-        status_t result = reply.readInt32();
+        ssize_t result = reply.readInt32();
 
         if (result >= ERROR_DRM_VENDOR_MIN && result <= ERROR_DRM_VENDOR_MAX) {
             errorDetailMsg->setTo(reply.readCString());
         }
 
-        if (result != OK) {
-            return result;
+        if (!secure && result >= 0) {
+            reply.read(dstPtr, result);
         }
 
-        if (!secure) {
-            reply.read(dstPtr, totalSize);
-        }
-
-        return OK;
+        return result;
     }
 
 private:
@@ -259,8 +255,7 @@ status_t BnCrypto::onTransact(
             }
 
             AString errorDetailMsg;
-
-            status_t err = decrypt(
+            ssize_t result = decrypt(
                     secure,
                     key,
                     iv,
@@ -270,18 +265,18 @@ status_t BnCrypto::onTransact(
                     dstPtr,
                     &errorDetailMsg);
 
-            reply->writeInt32(err);
+            reply->writeInt32(result);
 
-            if (err >= ERROR_DRM_VENDOR_MIN
-                    && err <= ERROR_DRM_VENDOR_MAX) {
+            if (result >= ERROR_DRM_VENDOR_MIN
+                && result <= ERROR_DRM_VENDOR_MAX) {
                 reply->writeCString(errorDetailMsg.c_str());
             }
 
             if (!secure) {
-                if (err == OK) {
-                    reply->write(dstPtr, totalSize);
+                if (result >= 0) {
+                    CHECK_LE(result, static_cast<ssize_t>(totalSize));
+                    reply->write(dstPtr, result);
                 }
-
                 free(dstPtr);
                 dstPtr = NULL;
             }
