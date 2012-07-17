@@ -219,7 +219,8 @@ AwesomePlayer::AwesomePlayer()
       mLastVideoTimeUs(-1),
       mFrameDurationUs(kInitFrameDurationUs),
       mTextDriver(NULL),
-      mIsFirstFrameAfterResume(false) {
+      mIsFirstFrameAfterResume(false),
+      mBufferingDone(false) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
     DataSource::RegisterDefaultSniffers();
@@ -561,6 +562,9 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
 void AwesomePlayer::reset() {
     Mutex::Autolock autoLock(mLock);
+    if (mConnectingDataSource != NULL) {
+        mConnectingDataSource->disconnect();
+    }
     reset_l();
 }
 
@@ -788,6 +792,8 @@ void AwesomePlayer::onBufferingUpdate() {
 
         if (eos) {
             if (finalStatus == ERROR_END_OF_STREAM) {
+                ALOGV("End of Streaming, EOS Reached, Buffering is at 100 percent");
+                mBufferingDone = true;
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, 100);
             }
             if (mFlags & PREPARING) {
@@ -803,6 +809,8 @@ void AwesomePlayer::onBufferingUpdate() {
                 int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
                 if (percentage > 100) {
                     percentage = 100;
+                    ALOGV("Cache at 100%, Buffering Done ");
+                    mBufferingDone = true;
                 }
 
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, percentage);
@@ -844,6 +852,7 @@ void AwesomePlayer::onBufferingUpdate() {
         if (eos) {
             if (finalStatus == ERROR_END_OF_STREAM) {
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, 100);
+                mBufferingDone = true;
             }
             if (mFlags & PREPARING) {
                 ALOGV("cache has reached EOS, prepare is done.");
@@ -853,6 +862,7 @@ void AwesomePlayer::onBufferingUpdate() {
             int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
             if (percentage > 100) {
                 percentage = 100;
+                mBufferingDone = true;
             }
 
             notifyListener_l(MEDIA_BUFFERING_UPDATE, percentage);
@@ -888,7 +898,9 @@ void AwesomePlayer::onBufferingUpdate() {
         }
     }
 
-    postBufferingEvent_l();
+    if (!mBufferingDone) {
+        postBufferingEvent_l();
+    }
 }
 
 void AwesomePlayer::sendCacheStats() {
@@ -1535,6 +1547,7 @@ status_t AwesomePlayer::seekTo_l(int64_t timeUs) {
     if (mFlags & CACHE_UNDERRUN) {
         modifyFlags(CACHE_UNDERRUN, CLEAR);
         play_l();
+        notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
     }
 
     if ((mFlags & PLAYING) && mVideoSource != NULL && (mFlags & VIDEO_AT_EOS)) {
