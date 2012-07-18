@@ -42,6 +42,7 @@
 
 namespace android {
 
+static const int64_t kMinStreamableFileSizeInBytes = 5 * 1024 * 1024;
 static const int64_t kMax32BitFileSize = 0x007fffffffLL;
 static const uint8_t kNalUnitTypeSeqParamSet = 0x07;
 static const uint8_t kNalUnitTypePicParamSet = 0x08;
@@ -487,8 +488,16 @@ status_t MPEG4Writer::start(MetaData *param) {
     CHECK_GT(mTimeScale, 0);
     ALOGV("movie time scale: %d", mTimeScale);
 
-    mStreamableFile = true;
-    mWriteMoovBoxToMemory = false;
+    /*
+     * When the requested file size limit is small, the priority
+     * is to meet the file size limit requirement, rather than
+     * to make the file streamable.
+     */
+    mStreamableFile =
+        (mMaxFileSizeLimitBytes != 0 &&
+         mMaxFileSizeLimitBytes >= kMinStreamableFileSizeInBytes);
+
+    mWriteMoovBoxToMemory = mStreamableFile;
     mMoovBoxBuffer = NULL;
     mMoovBoxBufferOffset = 0;
 
@@ -504,11 +513,16 @@ status_t MPEG4Writer::start(MetaData *param) {
         mEstimatedMoovBoxSize = estimateMoovBoxSize(bitRate);
     }
     CHECK_GE(mEstimatedMoovBoxSize, 8);
-    lseek64(mFd, mFreeBoxOffset, SEEK_SET);
-    writeInt32(mEstimatedMoovBoxSize);
-    write("free", 4);
+    if (mStreamableFile) {
+        // Reserve a 'free' box only for streamable file
+        lseek64(mFd, mFreeBoxOffset, SEEK_SET);
+        writeInt32(mEstimatedMoovBoxSize);
+        write("free", 4);
+        mMdatOffset = mFreeBoxOffset + mEstimatedMoovBoxSize;
+    } else {
+        mMdatOffset = mOffset;
+    }
 
-    mMdatOffset = mFreeBoxOffset + mEstimatedMoovBoxSize;
     mOffset = mMdatOffset;
     lseek64(mFd, mMdatOffset, SEEK_SET);
     if (mUse32BitOffset) {
@@ -689,7 +703,7 @@ status_t MPEG4Writer::reset() {
     lseek64(mFd, mOffset, SEEK_SET);
 
     const off64_t moovOffset = mOffset;
-    mWriteMoovBoxToMemory = true;
+    mWriteMoovBoxToMemory = mStreamableFile;
     mMoovBoxBuffer = (uint8_t *) malloc(mEstimatedMoovBoxSize);
     mMoovBoxBufferOffset = 0;
     CHECK(mMoovBoxBuffer != NULL);
@@ -1062,6 +1076,10 @@ bool MPEG4Writer::exceedsFileSizeLimit() {
         nTotalBytesEstimate += (*it)->getEstimatedTrackSizeBytes();
     }
 
+    if (!mStreamableFile) {
+        // Add 1024 bytes as error tolerance
+        return nTotalBytesEstimate + 1024 >= mMaxFileSizeLimitBytes;
+    }
     // Be conservative in the estimate: do not exceed 95% of
     // the target file limit. For small target file size limit, though,
     // this will not help.
