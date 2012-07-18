@@ -275,7 +275,7 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
     if (list->codecHasQuirk(
                 index, "avoid-memcopy-input-recording-frames")) {
       quirks |= kAvoidMemcopyInputRecordingFrames;
@@ -285,9 +285,9 @@ uint32_t OMXCodec::getComponentQuirks(
       quirks |= kInputBufferSizesAreBogus;
     }
 #endif
-
     return quirks;
 }
+
 
 // static
 bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
@@ -368,6 +368,23 @@ sp<MediaSource> OMXCodec::Create(
         }
 
         ALOGV("Attempting to allocate OMX node '%s'", componentName);
+
+#ifdef OMAP_COMPAT
+        if (!strcmp(componentName, "OMX.TI.Video.Decoder")) {
+            int32_t width, height;
+            bool success = meta->findInt32(kKeyWidth, &width);
+            success = success && meta->findInt32(kKeyHeight, &height);
+            CHECK(success);
+            // We need this for 720p video without AVC profile
+            // Not a good solution, but ..
+            if (width*height > 412800) {  //860*480
+               componentName = "OMX.TI.720P.Decoder";
+               ALOGE("Format exceed the decoder's capabilities. %d", width*height);
+               continue;
+            }
+        }
+#endif
+
 
         if (!createEncoder
                 && (quirks & kOutputBuffersAreUnreadable)
@@ -524,6 +541,17 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CODEC_LOGI(
                     "AVC profile = %u (%s), level = %u",
                     profile, AVCProfileToString(profile), level);
+
+            if (!strcmp(mComponentName, "OMX.TI.Video.Decoder")
+                && (profile != kAVCProfileBaseline || level > 31)) {
+                // This stream exceeds the decoder's capabilities. The decoder
+                // does not handle this gracefully and would clobber the heap
+                // and wreak havoc instead...
+
+                ALOGE("Profile and/or level exceed the decoder's capabilities.");
+                return ERROR_UNSUPPORTED;
+            }
+
         } else if (meta->findData(kKeyVorbisInfo, &type, &data, &size)) {
             addCodecSpecificData(data, size);
 
@@ -606,6 +634,12 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
     int32_t maxInputSize;
     if (meta->findInt32(kKeyMaxInputSize, &maxInputSize)) {
         setMinBufferSize(kPortIndexInput, (OMX_U32)maxInputSize);
+    }
+
+    if (!strcmp(mComponentName, "OMX.TI.AMR.encode")
+        || !strcmp(mComponentName, "OMX.TI.WBAMR.encode")
+        || !strcmp(mComponentName, "OMX.TI.AAC.encode")) {
+        setMinBufferSize(kPortIndexOutput, 8192); // XXX
     }
 
     initOutputFormat(meta);
@@ -809,6 +843,10 @@ status_t OMXCodec::findTargetColorFormat(
     int32_t targetColorFormat;
     if (meta->findInt32(kKeyColorFormat, &targetColorFormat)) {
         *colorFormat = (OMX_COLOR_FORMATTYPE) targetColorFormat;
+    } else {
+        if (!strcasecmp("OMX.TI.Video.encoder", mComponentName)) {
+            *colorFormat = OMX_COLOR_FormatYCbYCr;
+        }
     }
 
     // Check whether the target color format is supported.
@@ -1449,6 +1487,9 @@ OMXCodec::OMXCodec(
       mPaused(false),
       mNativeWindow(
               (!strncmp(componentName, "OMX.google.", 11)
+#ifdef OMAP_COMPAT
+              || !strncmp(componentName, "OMX.TI.", 7)
+#endif
               || !strcmp(componentName, "OMX.Nvidia.mpeg2v.decode"))
                         ? NULL : nativeWindow) {
     mPortStatus[kPortIndexInput] = ENABLED;
@@ -3400,6 +3441,13 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
     }
 
     info->mStatus = OWNED_BY_COMPONENT;
+
+    // This component does not ever signal the EOS flag on output buffers,
+    // Thanks for nothing.
+    if (mSignalledEOS && !strcmp(mComponentName, "OMX.TI.Video.encoder")) {
+        mNoMoreOutputData = true;
+        mBufferFilled.signal();
+    }
 
     return true;
 }
