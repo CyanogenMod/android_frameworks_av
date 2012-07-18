@@ -7940,7 +7940,7 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
                                         int sessionId)
     : mPinned(sessionId > AUDIO_SESSION_OUTPUT_MIX),
       mThread(thread), mChain(chain), mId(id), mSessionId(sessionId),
-      // mDescriptor is set below
+      mDescriptor(*desc),
       // mConfig is set by configure() and not used before then
       mEffectInterface(NULL),
       mStatus(NO_INIT), mState(IDLE),
@@ -7950,11 +7950,6 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
 {
     ALOGV("Constructor %p", this);
     int lStatus;
-    if (thread == NULL) {
-        return;
-    }
-
-    memcpy(&mDescriptor, desc, sizeof(effect_descriptor_t));
 
     // create effect engine from effect factory
     mStatus = EffectCreate(&desc->uuid, sessionId, thread->id(), &mEffectInterface);
