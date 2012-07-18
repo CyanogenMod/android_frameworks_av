@@ -299,7 +299,7 @@ audio_hw_device_t* AudioFlinger::findSuitableHwDev_l(audio_module_handle_t modul
     return NULL;
 }
 
-status_t AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -322,11 +322,10 @@ status_t AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
         result.append(buffer);
     }
     write(fd, result.string(), result.size());
-    return NO_ERROR;
 }
 
 
-status_t AudioFlinger::dumpInternals(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpInternals(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -339,10 +338,9 @@ status_t AudioFlinger::dumpInternals(int fd, const Vector<String16>& args)
                             (uint32_t)(mStandbyTimeInNsecs / 1000000));
     result.append(buffer);
     write(fd, result.string(), result.size());
-    return NO_ERROR;
 }
 
-status_t AudioFlinger::dumpPermissionDenial(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpPermissionDenial(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -353,7 +351,6 @@ status_t AudioFlinger::dumpPermissionDenial(int fd, const Vector<String16>& args
             IPCThreadState::self()->getCallingUid());
     result.append(buffer);
     write(fd, result.string(), result.size());
-    return NO_ERROR;
 }
 
 static bool tryLock(Mutex& mutex)
@@ -1216,7 +1213,7 @@ void AudioFlinger::ThreadBase::processConfigEvents()
     mLock.unlock();
 }
 
-status_t AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
+void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1273,10 +1270,9 @@ status_t AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args
     if (locked) {
         mLock.unlock();
     }
-    return NO_ERROR;
 }
 
-status_t AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String16>& args)
+void AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1291,7 +1287,6 @@ status_t AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String1
             chain->dump(fd, args);
         }
     }
-    return NO_ERROR;
 }
 
 void AudioFlinger::ThreadBase::acquireWakeLock()
@@ -1539,15 +1534,14 @@ AudioFlinger::PlaybackThread::~PlaybackThread()
     delete [] mMixBuffer;
 }
 
-status_t AudioFlinger::PlaybackThread::dump(int fd, const Vector<String16>& args)
+void AudioFlinger::PlaybackThread::dump(int fd, const Vector<String16>& args)
 {
     dumpInternals(fd, args);
     dumpTracks(fd, args);
     dumpEffectChains(fd, args);
-    return NO_ERROR;
 }
 
-status_t AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& args)
+void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1595,11 +1589,9 @@ status_t AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>
     FastTrackUnderruns underruns = getFastTrackUnderruns(0);
     fdprintf(fd, "Normal mixer raw underrun counters: partial=%u empty=%u\n",
             underruns.mBitFields.mPartial, underruns.mBitFields.mEmpty);
-
-    return NO_ERROR;
 }
 
-status_t AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
+void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1623,8 +1615,6 @@ status_t AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String
     fdprintf(fd, "Fast track availMask=%#x\n", mFastTrackAvailMask);
 
     dumpBase(fd, args);
-
-    return NO_ERROR;
 }
 
 // Thread virtuals
@@ -3498,7 +3488,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
     return reconfig;
 }
 
-status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& args)
+void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3583,8 +3573,6 @@ status_t AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>
         AudioWatchdogDump wdCopy = mAudioWatchdogDump;
         wdCopy.dump(fd);
     }
-
-    return NO_ERROR;
 }
 
 uint32_t AudioFlinger::MixerThread::idleSleepTimeUs() const
@@ -6340,7 +6328,7 @@ status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
     return NAME_NOT_FOUND;
 }
 
-status_t AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
+void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -6374,8 +6362,6 @@ status_t AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
 
     dumpBase(fd, args);
     dumpEffectChains(fd, args);
-
-    return NO_ERROR;
 }
 
 // AudioBufferProvider interface
@@ -8625,7 +8611,7 @@ bool AudioFlinger::EffectModule::purgeHandles()
     return enabled;
 }
 
-status_t AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
+void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -8705,8 +8691,6 @@ status_t AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
     if (locked) {
         mLock.unlock();
     }
-
-    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------
@@ -9332,7 +9316,7 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
     return hasControl;
 }
 
-status_t AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
+void AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -9366,8 +9350,6 @@ status_t AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
     if (locked) {
         mLock.unlock();
     }
-
-    return NO_ERROR;
 }
 
 // must be called with ThreadBase::mLock held

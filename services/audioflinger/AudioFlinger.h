@@ -277,10 +277,10 @@ private:
     // ro.audio.flinger_standbytime_ms or defaults to kDefaultStandbyTimeInNsecs
     static nsecs_t          mStandbyTimeInNsecs;
 
-    // Internal dump utilites.
-    status_t dumpPermissionDenial(int fd, const Vector<String16>& args);
-    status_t dumpClients(int fd, const Vector<String16>& args);
-    status_t dumpInternals(int fd, const Vector<String16>& args);
+    // Internal dump utilities.
+    void dumpPermissionDenial(int fd, const Vector<String16>& args);
+    void dumpClients(int fd, const Vector<String16>& args);
+    void dumpInternals(int fd, const Vector<String16>& args);
 
     // --- Client ---
     class Client : public RefBase {
@@ -355,8 +355,8 @@ private:
         ThreadBase (const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id, audio_devices_t device, type_t type);
         virtual             ~ThreadBase();
 
-        status_t dumpBase(int fd, const Vector<String16>& args);
-        status_t dumpEffectChains(int fd, const Vector<String16>& args);
+        void dumpBase(int fd, const Vector<String16>& args);
+        void dumpEffectChains(int fd, const Vector<String16>& args);
 
         void clearPowerManager();
 
@@ -966,7 +966,7 @@ private:
                         audio_io_handle_t id, audio_devices_t device, type_t type);
         virtual             ~PlaybackThread();
 
-                    status_t    dump(int fd, const Vector<String16>& args);
+                    void        dump(int fd, const Vector<String16>& args);
 
         // Thread virtuals
         virtual     status_t    readyToRun();
@@ -1115,8 +1115,8 @@ public:
 
         void        readOutputParameters();
 
-        virtual status_t    dumpInternals(int fd, const Vector<String16>& args);
-        status_t    dumpTracks(int fd, const Vector<String16>& args);
+        virtual void dumpInternals(int fd, const Vector<String16>& args);
+        void        dumpTracks(int fd, const Vector<String16>& args);
 
         SortedVector< sp<Track> >       mTracks;
         // mStreamTypes[] uses 1 additional stream type internally for the OutputTrack used by DuplicatingThread
@@ -1192,7 +1192,7 @@ public:
         // Thread virtuals
 
         virtual     bool        checkForNewParameters_l();
-        virtual     status_t    dumpInternals(int fd, const Vector<String16>& args);
+        virtual     void        dumpInternals(int fd, const Vector<String16>& args);
 
     protected:
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
@@ -1433,7 +1433,7 @@ private:
                                   AudioSystem::sync_event_t event,
                                   int triggerSession);
                 void        stop(RecordTrack* recordTrack);
-                status_t    dump(int fd, const Vector<String16>& args);
+                void        dump(int fd, const Vector<String16>& args);
                 AudioStreamIn* clearInput();
                 virtual audio_stream_t* stream() const;
 
@@ -1591,7 +1591,7 @@ private:
         void             lock() { mLock.lock(); }
         void             unlock() { mLock.unlock(); }
 
-        status_t         dump(int fd, const Vector<String16>& args);
+        void             dump(int fd, const Vector<String16>& args);
 
     protected:
         friend class AudioFlinger;      // for mHandles
@@ -1779,7 +1779,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
         void clearInputBuffer();
 
-        status_t dump(int fd, const Vector<String16>& args);
+        void dump(int fd, const Vector<String16>& args);
 
     protected:
         friend class AudioFlinger;  // for mThread, mEffects
