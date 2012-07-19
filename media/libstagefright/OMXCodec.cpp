@@ -550,7 +550,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CODEC_LOGI(
                     "AVC profile = %u (%s), level = %u",
                     profile, AVCProfileToString(profile), level);
-
+#ifdef OMAP_COMPAT
             if (!strcmp(mComponentName, "OMX.TI.Video.Decoder")
                 && (profile != kAVCProfileBaseline || level > 31)) {
                 // This stream exceeds the decoder's capabilities. The decoder
@@ -560,7 +560,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 ALOGE("Profile and/or level exceed the decoder's capabilities.");
                 return ERROR_UNSUPPORTED;
             }
-
+#endif
         } else if (meta->findData(kKeyVorbisInfo, &type, &data, &size)) {
             addCodecSpecificData(data, size);
 
@@ -852,10 +852,6 @@ status_t OMXCodec::findTargetColorFormat(
     int32_t targetColorFormat;
     if (meta->findInt32(kKeyColorFormat, &targetColorFormat)) {
         *colorFormat = (OMX_COLOR_FORMATTYPE) targetColorFormat;
-    } else {
-        if (!strcasecmp("OMX.TI.Video.encoder", mComponentName)) {
-            *colorFormat = OMX_COLOR_FormatYCbYCr;
-        }
     }
 
     // Check whether the target color format is supported.
@@ -2303,7 +2299,7 @@ void OMXCodec::on_message(const omx_message &msg) {
 
             // Buffer could not be released until empty buffer done is called.
             if (info->mMediaBuffer != NULL) {
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
                 if (mIsEncoder &&
                     (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
                     // If zero-copy mode is enabled this will send the
@@ -3289,7 +3285,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         }
 
         bool releaseBuffer = true;
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
         if (mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
             CHECK(mOMXLivesLocally && offset == 0);
 
@@ -3368,7 +3364,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 #endif // USE_SAMSUNG_COLORFORMAT
         }
 
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
 	}
 #endif
 
@@ -3466,13 +3462,6 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
     }
 
     info->mStatus = OWNED_BY_COMPONENT;
-
-    // This component does not ever signal the EOS flag on output buffers,
-    // Thanks for nothing.
-    if (mSignalledEOS && !strcmp(mComponentName, "OMX.TI.Video.encoder")) {
-        mNoMoreOutputData = true;
-        mBufferFilled.signal();
-    }
 
     return true;
 }
@@ -4816,7 +4805,7 @@ status_t OMXCodec::pause() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
 void OMXCodec::restorePatchedDataPointer(BufferInfo *info) {
     CHECK(mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames));
     CHECK(mOMXLivesLocally);
