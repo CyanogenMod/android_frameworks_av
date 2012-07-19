@@ -351,6 +351,15 @@ sp<MediaSource> OMXCodec::Create(
         uint32_t quirks = matchingCodecQuirks[i];
         const char *componentName = componentNameBase;
 
+        // kPreferSoftwareCodecs causes matchingCodecs[] to get sorted
+        // (at the end of findMatchingCodecs) while matchingCodecQuirks[]
+        // remains in original order.
+        // Prevent mismatch between codec and quirks in such case, otherwise
+        // a sw codec could end up using quirks of some hw codec.
+        if (flags & kPreferSoftwareCodecs) {
+            findCodecQuirks(componentName, &quirks);
+        }
+
         AString tmp;
         if (flags & kUseSecureInputBuffers) {
             tmp = componentNameBase;
