@@ -128,6 +128,12 @@ private:
     bool dropBufferWhileFlushing(bool audio, const sp<AMessage> &msg);
     void syncQueuesDone();
 
+    // for qualcomm statistics profiling
+  public:
+    void registerStats(sp<NuPlayerStats> stats);
+  private:
+    sp<NuPlayerStats> mStats;
+
     DISALLOW_EVIL_CONSTRUCTORS(Renderer);
 };
 

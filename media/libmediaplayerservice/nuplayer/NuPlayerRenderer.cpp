@@ -51,10 +51,16 @@ NuPlayer::Renderer::Renderer(
       mWasPaused(false),
 #endif
       mLastPositionUpdateUs(-1ll),
-      mVideoLateByUs(0ll) {
+      mVideoLateByUs(0ll),
+      mStats(NULL) {
 }
 
 NuPlayer::Renderer::~Renderer() {
+    if(mStats != NULL) {
+        mStats->logStatistics();
+        mStats->logSyncLoss();
+        mStats = NULL;
+    }
 }
 
 void NuPlayer::Renderer::queueBuffer(
@@ -387,19 +393,30 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         return;
     }
 
+    if(mStats != NULL) {
+        mStats->logFps();
+    }
+
     int64_t mediaTimeUs;
     CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
     int64_t realTimeUs = mediaTimeUs - mAnchorTimeMediaUs + mAnchorTimeRealUs;
-    mVideoLateByUs = ALooper::GetNowUs() - realTimeUs;
+    int64_t nowUs = ALooper::GetNowUs();
+    mVideoLateByUs = nowUs - realTimeUs;
 
     bool tooLate = (mVideoLateByUs > 40000);
 
     if (tooLate) {
         ALOGV("video late by %lld us (%.2f secs)",
              mVideoLateByUs, mVideoLateByUs / 1E6);
+        if(mStats != NULL) {
+            mStats->recordLate(realTimeUs,nowUs,mVideoLateByUs,mAnchorTimeRealUs);
+        }
     } else {
         ALOGV("rendering video at media time %.2f secs", mediaTimeUs / 1E6);
+        if(mStats != NULL) {
+            mStats->recordOnTime(realTimeUs,nowUs,mVideoLateByUs);
+        }
     }
 
     entry->mNotifyConsumed->setInt32("render", !tooLate);
@@ -558,6 +575,9 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
 
         mDrainVideoQueuePending = false;
         ++mVideoQueueGeneration;
+        if(mStats != NULL) {
+            mStats->setVeryFirstFrame(true);
+        }
     }
 
     notifyFlushComplete(audio);
@@ -658,6 +678,18 @@ void NuPlayer::Renderer::onPause() {
     mPaused = true;
 #ifdef QCOM_HARDWARE
     mWasPaused = true;
+
+    if(mStats != NULL) {
+        int64_t positionUs;
+        if(mAnchorTimeRealUs < 0 || mAnchorTimeMediaUs < 0) {
+            positionUs = -1000;
+        } else {
+            int64_t nowUs = ALooper::GetNowUs();
+            positionUs = (nowUs - mAnchorTimeRealUs) + mAnchorTimeMediaUs;
+        }
+
+        mStats->logPause(positionUs);
+    }
 #endif
 }
 
@@ -679,6 +711,13 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue();
     }
+}
+
+void NuPlayer::Renderer::registerStats(sp<NuPlayerStats> stats) {
+    if(mStats != NULL) {
+        mStats = NULL;
+    }
+    mStats = stats;
 }
 
 }  // namespace android

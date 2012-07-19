@@ -95,7 +95,7 @@ status_t NuPlayer::RTSPSource::feedMoreTSData() {
     return mFinalResult;
 }
 
-sp<MetaData> NuPlayer::RTSPSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::RTSPSource::getFormat(int audio) {
     sp<AnotherPacketSource> source = getSource(audio);
 
     if (source == NULL) {
@@ -135,7 +135,7 @@ bool NuPlayer::RTSPSource::haveSufficientDataOnAllTracks() {
 }
 
 status_t NuPlayer::RTSPSource::dequeueAccessUnit(
-        bool audio, sp<ABuffer> *accessUnit) {
+        int audio, sp<ABuffer> *accessUnit) {
     if (mStartingUp) {
         if (!haveSufficientDataOnAllTracks()) {
             return -EWOULDBLOCK;

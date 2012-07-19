@@ -34,6 +34,7 @@
 #include <media/IAudioFlingerClient.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
+#include <hardware/audio.h>
 #include <hardware/audio_policy.h>
 #include <hardware/audio_effect.h>
 #include <media/IEffect.h>
