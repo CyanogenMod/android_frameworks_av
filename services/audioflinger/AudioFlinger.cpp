@@ -6012,18 +6012,12 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 mFormat != AUDIO_FORMAT_PCM_16_BIT) {
                                 memcpy(dst, src, framesIn * mFrameSize);
                             } else {
-                                int16_t *src16 = (int16_t *)src;
-                                int16_t *dst16 = (int16_t *)dst;
                                 if (mChannelCount == 1) {
-                                    while (framesIn--) {
-                                        *dst16++ = *src16;
-                                        *dst16++ = *src16++;
-                                    }
+                                    upmix_to_stereo_i16_from_mono_i16((int16_t *)dst,
+                                            (int16_t *)src, framesIn);
                                 } else {
-                                    while (framesIn--) {
-                                        *dst16++ = (int16_t)(((int32_t)*src16 + (int32_t)*(src16 + 1)) >> 1);
-                                        src16 += 2;
-                                    }
+                                    downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
+                                            (int16_t *)src, framesIn);
                                 }
                             }
                         }
@@ -6064,12 +6058,8 @@ bool AudioFlinger::RecordThread::threadLoop()
                     if (mChannelCount == 2 && mReqChannelCount == 1) {
                         ditherAndClamp(mRsmpOutBuffer, mRsmpOutBuffer, framesOut);
                         // the resampler always outputs stereo samples: do post stereo to mono conversion
-                        int16_t *src = (int16_t *)mRsmpOutBuffer;
-                        int16_t *dst = buffer.i16;
-                        while (framesOut--) {
-                            *dst++ = (int16_t)(((int32_t)*src + (int32_t)*(src + 1)) >> 1);
-                            src += 2;
-                        }
+                        downmix_to_mono_i16_from_stereo_i16(buffer.i16, (int16_t *)mRsmpOutBuffer,
+                                framesOut);
                     } else {
                         ditherAndClamp((int32_t *)buffer.raw, mRsmpOutBuffer, framesOut);
                     }
