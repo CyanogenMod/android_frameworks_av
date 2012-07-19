@@ -606,6 +606,8 @@ public:
     // Raw bayer format used for images, which is 10 bit precision samples
     // stored in 16 bit words. The filter pattern is RGGB.
     static const char PIXEL_FORMAT_BAYER_RGGB[];
+    // Pixel format is not known to the framework
+    static const char PIXEL_FORMAT_ANDROID_OPAQUE[];
 
     // Values for focus mode settings.
     // Auto-focus mode. Applications should call
