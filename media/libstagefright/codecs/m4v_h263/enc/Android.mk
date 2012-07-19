@@ -45,6 +45,7 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
+        frameworks/native/include/media/hardware \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \
         $(LOCAL_PATH)/../common/include \
@@ -64,6 +65,7 @@ LOCAL_SHARED_LIBRARIES := \
         libstagefright_foundation \
         libstagefright_omx \
         libutils \
+        libui
 
 
 LOCAL_MODULE := libstagefright_soft_mpeg4enc

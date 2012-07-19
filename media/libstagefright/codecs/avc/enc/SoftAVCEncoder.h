@@ -45,6 +45,10 @@ struct SoftAVCEncoder : public MediaBufferObserver,
 
     virtual void onQueueFilled(OMX_U32 portIndex);
 
+    // Override SoftOMXComponent methods
+
+    virtual OMX_ERRORTYPE getExtensionIndex(
+            const char *name, OMX_INDEXTYPE *index);
 
     // Implement MediaBufferObserver
     virtual void signalBufferReturned(MediaBuffer *buffer);
@@ -63,6 +67,10 @@ private:
         kNumBuffers = 2,
     };
 
+    enum {
+        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1
+    };
+
     // OMX input buffer's timestamp and flags
     typedef struct {
         int64_t mTimeUs;
@@ -74,6 +82,7 @@ private:
     int32_t  mVideoFrameRate;
     int32_t  mVideoBitRate;
     int32_t  mVideoColorFormat;
+    bool     mStoreMetaDataInBuffers;
     int32_t  mIDRFrameRefreshIntervalInSec;
     AVCProfile mAVCEncProfile;
     AVCLevel   mAVCEncLevel;
@@ -99,6 +108,9 @@ private:
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();
     void releaseOutputBuffers();
+
+    uint8_t* extractGrallocData(void *data, buffer_handle_t *buffer);
+    void releaseGrallocData(buffer_handle_t buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAVCEncoder);
 };

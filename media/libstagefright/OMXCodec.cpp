@@ -301,6 +301,9 @@ sp<MediaSource> OMXCodec::Create(
             &matchingCodecs, &matchingCodecQuirks);
 
     if (matchingCodecs.isEmpty()) {
+        ALOGV("No matching codecs! (mime: %s, createEncoder: %s, "
+                "matchComponentName: %s, flags: 0x%x)",
+                mime, createEncoder ? "true" : "false", matchComponentName, flags);
         return NULL;
     }
 

@@ -43,12 +43,21 @@ struct SoftMPEG4Encoder : public SimpleSoftOMXComponent {
 
     virtual void onQueueFilled(OMX_U32 portIndex);
 
+    // Override SoftOMXComponent methods
+
+    virtual OMX_ERRORTYPE getExtensionIndex(
+            const char *name, OMX_INDEXTYPE *index);
+
 protected:
     virtual ~SoftMPEG4Encoder();
 
 private:
     enum {
         kNumBuffers = 2,
+    };
+
+    enum {
+        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1
     };
 
     // OMX input buffer's timestamp and flags
@@ -63,6 +72,7 @@ private:
     int32_t  mVideoFrameRate;
     int32_t  mVideoBitRate;
     int32_t  mVideoColorFormat;
+    bool     mStoreMetaDataInBuffers;
     int32_t  mIDRFrameRefreshIntervalInSec;
 
     int64_t  mNumInputFrames;
@@ -79,6 +89,9 @@ private:
     OMX_ERRORTYPE initEncParams();
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();
+
+    uint8_t* extractGrallocData(void *data, buffer_handle_t *buffer);
+    void releaseGrallocData(buffer_handle_t buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftMPEG4Encoder);
 };
