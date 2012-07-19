@@ -128,7 +128,7 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
     return OK;
 }
 
-sp<MetaData> NuPlayer::GenericSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::GenericSource::getFormat(int audio) {
     sp<MediaSource> source = audio ? mAudioTrack.mSource : mVideoTrack.mSource;
 
     if (source == NULL) {
@@ -139,7 +139,7 @@ sp<MetaData> NuPlayer::GenericSource::getFormat(bool audio) {
 }
 
 status_t NuPlayer::GenericSource::dequeueAccessUnit(
-        bool audio, sp<ABuffer> *accessUnit) {
+        int audio, sp<ABuffer> *accessUnit) {
     Track *track = audio ? &mAudioTrack : &mVideoTrack;
 
     if (track->mSource == NULL) {

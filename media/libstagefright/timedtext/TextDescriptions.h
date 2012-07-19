@@ -23,8 +23,12 @@
 
 namespace android {
 
+class NuPlayer;
 class TextDescriptions {
 public:
+
+    friend class NuPlayer;
+
     enum {
         IN_BAND_TEXT_3GPP             = 0x01,
         OUT_OF_BAND_TEXT_SRT          = 0x02,
@@ -57,6 +61,10 @@ private:
         KEY_STRUCT_TEXT_POS               = 14, // TextPos
         KEY_STRUCT_JUSTIFICATION          = 15, // Justification
         KEY_STRUCT_TEXT                   = 16, // Text
+        KEY_HEIGHT                        = 17,
+        KEY_WIDTH                         = 18,
+        KEY_DURATION                      = 19,
+        KEY_SUB_ATOM                      = 20,
 
         KEY_GLOBAL_SETTING                = 101,
         KEY_LOCAL_SETTING                 = 102,
@@ -65,6 +73,7 @@ private:
         KEY_FONT_ID                       = 105,
         KEY_FONT_SIZE                     = 106,
         KEY_TEXT_COLOR_RGBA               = 107,
+        KEY_TEXT_EOS                      = 108,
     };
 
     static status_t extractSRTLocalDescriptions(

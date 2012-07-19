@@ -34,10 +34,10 @@ struct NuPlayer::Source : public RefBase {
     // an error or ERROR_END_OF_STREAM if not.
     virtual status_t feedMoreTSData() = 0;
 
-    virtual sp<MetaData> getFormat(bool audio) = 0;
+    virtual sp<MetaData> getFormat(int audio) = 0;
 
     virtual status_t dequeueAccessUnit(
-            bool audio, sp<ABuffer> *accessUnit) = 0;
+            int track, sp<ABuffer> *accessUnit) = 0;
 
     virtual status_t getDuration(int64_t *durationUs) {
         return INVALID_OPERATION;
@@ -73,6 +73,17 @@ struct NuPlayer::Source : public RefBase {
     }
     virtual void notifyRenderingPosition(int64_t nRenderingTS){}
 #endif
+
+    virtual status_t setupSourceData(const sp<AMessage> &msg, int iTrack){
+        return INVALID_OPERATION;
+    }
+    virtual status_t postNextTextSample(sp<ABuffer> accessUnit,const sp<AMessage> &msg,int iTrack) {
+        return INVALID_OPERATION;
+    }
+
+    virtual void pause(){}
+
+    virtual void resume(){}
 
 protected:
     virtual ~Source() {}

@@ -107,7 +107,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
     return OK;
 }
 
-sp<MetaData> NuPlayer::StreamingSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::StreamingSource::getFormat(int audio) {
     ATSParser::SourceType type =
         audio ? ATSParser::AUDIO : ATSParser::VIDEO;
 
@@ -122,7 +122,7 @@ sp<MetaData> NuPlayer::StreamingSource::getFormat(bool audio) {
 }
 
 status_t NuPlayer::StreamingSource::dequeueAccessUnit(
-        bool audio, sp<ABuffer> *accessUnit) {
+        int audio, sp<ABuffer> *accessUnit) {
     ATSParser::SourceType type =
         audio ? ATSParser::AUDIO : ATSParser::VIDEO;
 

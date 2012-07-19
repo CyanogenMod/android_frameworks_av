@@ -21,6 +21,8 @@
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
+#include "NuPlayerStats.h"
+#include <media/stagefright/foundation/ABuffer.h>
 
 namespace android {
 
@@ -79,6 +81,8 @@ private:
     struct RTSPSource;
     struct Source;
     struct StreamingSource;
+    struct RTSPSource;
+    struct MPQHALWrapper;
 
     enum {
         kWhatSetDataSource              = '=DaS',
@@ -89,6 +93,7 @@ private:
         kWhatScanSources                = 'scan',
         kWhatVideoNotify                = 'vidN',
         kWhatAudioNotify                = 'audN',
+        kWhatTextNotify                 = 'texN',
         kWhatRendererNotify             = 'renN',
         kWhatReset                      = 'rset',
         kWhatSeek                       = 'seek',
@@ -96,6 +101,12 @@ private:
         kWhatResume                     = 'rsme',
         kWhatPrepareAsync               = 'pras',
         kWhatIsPrepareDone              = 'prdn',
+        kWhatSourceNotify               = 'snfy',
+    };
+
+    enum {
+        kWhatBufferingStart             = 'bfst',
+        kWhatBufferingEnd               = 'bfen',
     };
 
     wp<NuPlayerDriver> mDriver;
@@ -107,6 +118,7 @@ private:
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
     sp<Decoder> mAudioDecoder;
+    sp<Decoder> mTextDecoder;
     sp<Renderer> mRenderer;
 
     bool mAudioEOS;
@@ -114,6 +126,14 @@ private:
 
     bool mScanSourcesPending;
     int32_t mScanSourcesGeneration;
+    bool mBufferingNotification;
+
+    enum TrackName {
+        kVideo = 0,
+        kAudio,
+        kText,
+        kTrackAll,
+    };
 
     enum FlushStatus {
         NONE,
@@ -123,6 +143,13 @@ private:
         SHUTTING_DOWN_DECODER,
         FLUSHED,
         SHUT_DOWN,
+    };
+
+    enum FrameFlags {
+         TIMED_TEXT_FLAG_FRAME = 0x00,
+         TIMED_TEXT_FLAG_CODEC_CONFIG_FRAME,
+         TIMED_TEXT_FLAG_EOS,
+         TIMED_TEXT_FLAG_END = TIMED_TEXT_FLAG_EOS,
     };
 
     // Once the current flush is complete this indicates whether the
@@ -146,6 +173,10 @@ private:
 
     Mutex mLock;
 
+    char *mTrackName;
+    sp<AMessage> mTextNotify;
+    sp<AMessage> mSourceNotify;
+
     enum NuSourceType {
         kHttpLiveSource = 0,
         kHttpDashSource,
@@ -159,12 +190,12 @@ private:
     NuSourceType mSourceType;
 #endif
 
-    status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
+    status_t instantiateDecoder(int track, sp<Decoder> *decoder);
 
-    status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
+    status_t feedDecoderInputData(int track, const sp<AMessage> &msg);
     void renderBuffer(bool audio, const sp<AMessage> &msg);
 
-    void notifyListener(int msg, int ext1, int ext2);
+    void notifyListener(int msg, int ext1, int ext2, const Parcel *obj=NULL);
 
     void finishFlushIfPossible();
 
@@ -180,7 +211,15 @@ private:
                                  String8> *headers, bool uidValid, uid_t uid, NuSourceType srcTyp);
 
     void postIsPrepareDone();
+
+    // for qualcomm statistics profiling
+    sp<NuPlayerStats> mStats;
 #endif
+
+    void sendTextPacket(sp<ABuffer> accessUnit, status_t err);
+    void getTrackName(int track, char* name);
+    void prepareSource();
+
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };
 

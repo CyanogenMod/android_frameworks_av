@@ -617,6 +617,10 @@ player_type getPlayerType(const char* url)
         return AAH_RX_PLAYER;
     }
 
+    if (!strncasecmp("rtp://", url, 6)) {
+        return NU_PLAYER;
+    }
+
     // use MidiFile for MIDI extensions
     int lenURL = strlen(url);
     for (int i = 0; i < NELEM(FILE_EXTS); ++i) {
@@ -1148,7 +1152,6 @@ status_t MediaPlayerService::Client::setVolume(float leftVolume, float rightVolu
           return NO_ERROR;
       }
     }
-
     return NO_ERROR;
 }
 
@@ -1540,27 +1543,29 @@ status_t MediaPlayerService::AudioOutput::open(
             ALOGE("open() error, can't derive mask for %d audio channels", channelCount);
             return NO_INIT;
         }
-        AudioTrack *t;
+        AudioTrack *audioTrack = NULL;
         CallbackData *newcbd = NULL;
         if (mCallback != NULL) {
             newcbd = new CallbackData(this);
-            t = new AudioTrack(
-                    mStreamType,
-                    sampleRate,
-                    format,
-                    channelMask,
-                    0,
-                    flags,
-                    CallbackWrapper,
-                    newcbd,
-                    0,
-                    mSessionId);
-            if ((t == 0) || (t->initCheck() != NO_ERROR)) {
+            audioTrack = new AudioTrack(
+                             mStreamType,
+                             sampleRate,
+                             format,
+                             channelMask,
+                             0,
+                             flags,
+                             CallbackWrapper,
+                             newcbd,
+                             0,
+                             mSessionId);
+            if ((audioTrack == 0) || (audioTrack->initCheck() != NO_ERROR)) {
                 ALOGE("Unable to create audio track");
-                delete t;
+                delete audioTrack;
                 delete newcbd;
                 return NO_INIT;
             }
+        } else {
+            ALOGE("no callback supplied");
         }
 
         if (mRecycledTrack) {
@@ -1577,12 +1582,19 @@ status_t MediaPlayerService::AudioOutput::open(
             mCallbackData = NULL;
             close();
         }
+
+        if (audioTrack == NULL) {
+            ALOGE("audioTrack is NULL");
+            //ALOGE("audioTrack is NULL, return NO_INIT;");
+            //return NO_INIT;
+        }
+
         ALOGV("setVolume");
         mCallbackData = newcbd;
-        t->setVolume(mLeftVolume, mRightVolume);
+        audioTrack->setVolume(mLeftVolume, mRightVolume);
         mSampleRateHz = sampleRate;
         mFlags = flags;
-        mTrack = t;
+        mTrack = audioTrack;
         return NO_ERROR;
     }
 #endif
