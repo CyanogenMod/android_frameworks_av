@@ -24,6 +24,7 @@
 #include <cutils/properties.h>
 #include <gui/SurfaceTextureClient.h>
 #include <gui/Surface.h>
+#include <media/hardware/MetadataBufferType.h>
 
 #include <math.h>
 
@@ -611,7 +612,21 @@ bool Camera2Client::previewEnabled() {
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    return BAD_VALUE;
+    switch (mState) {
+        case RECORD:
+        case VIDEO_SNAPSHOT:
+            ALOGE("%s: Camera %d: Can't be called in state %s",
+                    __FUNCTION__, mCameraId, getStateName(mState));
+            return INVALID_OPERATION;
+        default:
+            // OK
+            break;
+    }
+    Mutex::Autolock pl(mParamsLock);
+
+    mParameters.storeMetadataInBuffers = enabled;
+
+    return OK;
 }
 
 status_t Camera2Client::startRecording() {
@@ -639,6 +654,13 @@ status_t Camera2Client::startRecording() {
     };
 
     Mutex::Autolock pl(mParamsLock);
+
+    if (!mParameters.storeMetadataInBuffers) {
+        ALOGE("%s: Camera %d: Recording only supported in metadata mode, but "
+                "non-metadata recording mode requested!", __FUNCTION__,
+                mCameraId);
+        return INVALID_OPERATION;
+    }
 
     res = updateRecordingStream();
     if (res != OK) {
@@ -730,6 +752,7 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     // Make sure this is for the current heap
     ssize_t offset;
     size_t size;
+    status_t res;
     sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
     if (heap->getHeapID() != mRecordingHeap->mHeap->getHeapID()) {
         ALOGW("%s: Camera %d: Mismatched heap ID, ignoring release "
@@ -737,6 +760,24 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
                 heap->getHeapID(), mRecordingHeap->mHeap->getHeapID());
         return;
     }
+    uint8_t *data = (uint8_t*)heap->getBase() + offset;
+    uint32_t type = *(uint32_t*)data;
+    if (type != kMetadataBufferTypeGrallocSource) {
+        ALOGE("%s: Camera %d: Recording frame type invalid (got %x, expected %x)",
+                __FUNCTION__, mCameraId, type, kMetadataBufferTypeGrallocSource);
+        return;
+    }
+    buffer_handle_t imgBuffer = *(buffer_handle_t*)(data + 4);
+    ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__, mCameraId,
+            imgBuffer, *(uint32_t*)(data + 4));
+    res = mRecordingConsumer->freeBuffer(imgBuffer);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to free recording frame (buffer_handle_t: %p):"
+                "%s (%d)",
+                __FUNCTION__, mCameraId, imgBuffer, strerror(-res), res);
+        return;
+    }
+
     mRecordingHeapFree++;
 }
 
@@ -1519,30 +1560,21 @@ void Camera2Client::onRecordingFrameAvailable() {
             discardData = true;
         }
 
-        CpuConsumer::LockedBuffer imgBuffer;
-        res = mRecordingConsumer->lockNextBuffer(&imgBuffer);
+        buffer_handle_t imgBuffer;
+        res = mRecordingConsumer->getNextBuffer(&imgBuffer, &timestamp);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return;
         }
 
-        if (imgBuffer.format != (int)kRecordingFormat) {
-            ALOGE("%s: Camera %d: Unexpected recording format: %x",
-                    __FUNCTION__, mCameraId, imgBuffer.format);
-            discardData = true;
-        }
-
         if (discardData) {
-            mRecordingConsumer->unlockBuffer(imgBuffer);
+            mRecordingConsumer->freeBuffer(imgBuffer);
             return;
         }
 
-        size_t bufferSize = imgBuffer.width * imgBuffer.height * 3 / 2;
-
-        if (mRecordingHeap == 0 ||
-                bufferSize >
-                mRecordingHeap->mHeap->getSize() / kRecordingHeapCount) {
+        if (mRecordingHeap == 0) {
+            const size_t bufferSize = 4 + sizeof(buffer_handle_t);
             ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
                     "size %d bytes", __FUNCTION__, mCameraId,
                     kRecordingHeapCount, bufferSize);
@@ -1560,22 +1592,20 @@ void Camera2Client::onRecordingFrameAvailable() {
             if (mRecordingHeap->mHeap->getSize() == 0) {
                 ALOGE("%s: Camera %d: Unable to allocate memory for recording",
                         __FUNCTION__, mCameraId);
-                mRecordingConsumer->unlockBuffer(imgBuffer);
+                mRecordingConsumer->freeBuffer(imgBuffer);
                 return;
             }
             mRecordingHeapHead = 0;
             mRecordingHeapFree = kRecordingHeapCount;
         }
 
-        // TODO: Optimize this to avoid memcopy
         if ( mRecordingHeapFree == 0) {
             ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
                     __FUNCTION__, mCameraId);
-            mRecordingConsumer->unlockBuffer(imgBuffer);
+            mRecordingConsumer->freeBuffer(imgBuffer);
             return;
         }
         heapIdx = mRecordingHeapHead;
-        timestamp = imgBuffer.timestamp;
         mRecordingHeapHead = (mRecordingHeapHead + 1) % kRecordingHeapCount;
         mRecordingHeapFree--;
 
@@ -1588,10 +1618,12 @@ void Camera2Client::onRecordingFrameAvailable() {
                 mRecordingHeap->mBuffers[heapIdx]->getMemory(&offset,
                         &size);
 
-        memcpy((uint8_t*)heap->getBase() + offset, imgBuffer.data, size);
-
-        mRecordingConsumer->unlockBuffer(imgBuffer);
-
+        uint8_t *data = (uint8_t*)heap->getBase() + offset;
+        uint32_t type = kMetadataBufferTypeGrallocSource;
+        memcpy(data, &type, 4);
+        memcpy(data + 4, &imgBuffer, sizeof(buffer_handle_t));
+        ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
+                __FUNCTION__, mCameraId, imgBuffer, *(uint32_t*)(data + 4));
         currentClient = mCameraClient;
     }
     // Call outside mICameraLock to allow re-entrancy from notification
@@ -2306,7 +2338,7 @@ status_t Camera2Client::buildDefaultParameters() {
             0);
 
     params.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
-            formatEnumToString(kRecordingFormat));
+            CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE);
 
     params.set(CameraParameters::KEY_RECORDING_HINT,
             CameraParameters::FALSE);
@@ -2328,6 +2360,9 @@ status_t Camera2Client::buildDefaultParameters() {
         params.set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
                 CameraParameters::FALSE);
     }
+
+    // Always use metadata mode for recording
+    mParameters.storeMetadataInBuffers = true;
 
     mParamsFlattened = params.flatten();
 
@@ -2580,7 +2615,7 @@ status_t Camera2Client::updateRecordingStream() {
 
     if (mRecordingConsumer == 0) {
         // Create CPU buffer queue endpoint
-        mRecordingConsumer = new CpuConsumer(1);
+        mRecordingConsumer = new MediaConsumer(4);
         mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
         mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
         mRecordingWindow = new SurfaceTextureClient(
@@ -2615,7 +2650,7 @@ status_t Camera2Client::updateRecordingStream() {
     if (mRecordingStreamId == NO_STREAM) {
         res = mDevice->createStream(mRecordingWindow,
                 mParameters.videoWidth, mParameters.videoHeight,
-                kRecordingFormat, 0, &mRecordingStreamId);
+                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0, &mRecordingStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for recording: "
                     "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
