@@ -67,6 +67,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
 status_t Camera2Client::initialize(camera_module_t *module)
 {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     status_t res;
 
     res = mDevice->initialize(module);
@@ -320,6 +321,7 @@ const char* Camera2Client::getStateName(State state) {
 
 void Camera2Client::disconnect() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
 
     if (mDevice == 0) return;
@@ -348,7 +350,7 @@ void Camera2Client::disconnect() {
 
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     ATRACE_CALL();
-
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
 
     if (mClientPid != 0 && getCallingPid() != mClientPid) {
@@ -366,6 +368,7 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
 
 status_t Camera2Client::lock() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     ALOGV("%s: Camera %d: Lock call from pid %d; current client pid %d",
             __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
@@ -386,6 +389,7 @@ status_t Camera2Client::lock() {
 
 status_t Camera2Client::unlock() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     ALOGV("%s: Camera %d: Unlock call from pid %d; current client pid %d",
             __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
@@ -406,6 +410,7 @@ status_t Camera2Client::unlock() {
 status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
 
     sp<IBinder> binder;
@@ -421,6 +426,7 @@ status_t Camera2Client::setPreviewDisplay(
 status_t Camera2Client::setPreviewTexture(
         const sp<ISurfaceTexture>& surfaceTexture) {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
 
     sp<IBinder> binder;
@@ -438,6 +444,8 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
     status_t res;
 
     if (binder == mPreviewSurface) {
+        ALOGV("%s: Camera %d: New window is same as old window",
+                __FUNCTION__, mCameraId);
         return NO_ERROR;
     }
 
@@ -495,6 +503,7 @@ void Camera2Client::setPreviewCallbackFlag(int flag) {
 
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     return startPreviewLocked();
 }
@@ -561,6 +570,7 @@ status_t Camera2Client::startPreviewLocked() {
 
 void Camera2Client::stopPreview() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     stopPreviewLocked();
 }
@@ -605,6 +615,7 @@ status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
 
 status_t Camera2Client::startRecording() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     switch (mState) {
@@ -674,6 +685,7 @@ status_t Camera2Client::startRecording() {
 
 void Camera2Client::stopRecording() {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     switch (mState) {
@@ -848,6 +860,7 @@ status_t Camera2Client::takePicture(int msgType) {
 
 status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     Mutex::Autolock pl(mParamsLock);
     status_t res;
@@ -2335,6 +2348,9 @@ status_t Camera2Client::updatePreviewStream() {
         }
         if (currentWidth != (uint32_t)mParameters.previewWidth ||
                 currentHeight != (uint32_t)mParameters.previewHeight) {
+            ALOGV("%s: Camera %d: Preview size switch: %d x %d -> %d x %d",
+                    __FUNCTION__, mCameraId, currentWidth, currentHeight,
+                    mParameters.previewWidth, mParameters.previewHeight);
             res = mDevice->waitUntilDrained();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Error waiting for preview to drain: "
