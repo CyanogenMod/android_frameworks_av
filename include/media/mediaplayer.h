@@ -99,6 +99,8 @@ enum media_info_type {
     // The player was started because it was used as the next player for another
     // player, which just completed playback
     MEDIA_INFO_STARTED_AS_NEXT = 2,
+    // The player just pushed the very first video frame for rendering
+    MEDIA_INFO_RENDERING_START = 3,
     // 7xx
     // The video is too complex for the decoder: it can't decode frames fast
     // enough. Possibly only the audio plays fine at this stage.

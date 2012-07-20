@@ -166,6 +166,7 @@ private:
     sp<MediaSource> mVideoTrack;
     sp<MediaSource> mVideoSource;
     sp<AwesomeRenderer> mVideoRenderer;
+    bool mVideoRenderingStarted;
     bool mVideoRendererIsPreview;
 
     ssize_t mActiveAudioTrackIndex;

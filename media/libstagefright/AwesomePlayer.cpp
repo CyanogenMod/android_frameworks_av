@@ -183,6 +183,7 @@ AwesomePlayer::AwesomePlayer()
     : mQueueStarted(false),
       mUIDValid(false),
       mTimeSource(NULL),
+      mVideoRenderingStarted(false),
       mVideoRendererIsPreview(false),
       mAudioPlayer(NULL),
       mDisplayWidth(0),
@@ -468,6 +469,7 @@ void AwesomePlayer::reset() {
 }
 
 void AwesomePlayer::reset_l() {
+    mVideoRenderingStarted = false;
     mActiveAudioTrackIndex = -1;
     mDisplayWidth = 0;
     mDisplayHeight = 0;
@@ -1805,6 +1807,11 @@ void AwesomePlayer::onVideoEvent() {
     if (mVideoRenderer != NULL) {
         mSinceLastDropped++;
         mVideoRenderer->render(mVideoBuffer);
+        if (!mVideoRenderingStarted) {
+            mVideoRenderingStarted = true;
+            notifyListener_l(MEDIA_INFO, MEDIA_INFO_RENDERING_START);
+        }
+
     }
 
     mVideoBuffer->release();
