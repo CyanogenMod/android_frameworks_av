@@ -21,6 +21,7 @@
 #include <media/stagefright/MediaExtractor.h>
 
 #include <utils/Vector.h>
+#include "include/APE.h"
 
 namespace android {
 
@@ -43,6 +44,8 @@ protected:
 private:
     sp<DataSource> mDataSource;
     sp<MetaData> mMeta;
+    APE ape;
+    sp<MetaData> mApeMeta;
     status_t mInitCheck;
 
     Vector<uint64_t> mOffsetVector;
