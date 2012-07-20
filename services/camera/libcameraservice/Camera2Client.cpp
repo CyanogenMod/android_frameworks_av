@@ -338,6 +338,11 @@ void Camera2Client::disconnect() {
         mCaptureStreamId = NO_STREAM;
     }
 
+    if (mRecordingStreamId != NO_STREAM) {
+        mDevice->deleteStream(mRecordingStreamId);
+        mRecordingStreamId = NO_STREAM;
+    }
+
     CameraService::Client::disconnect();
 }
 
@@ -1492,10 +1497,12 @@ void Camera2Client::onRecordingFrameAvailable() {
     {
         Mutex::Autolock icl(mICameraLock);
         // TODO: Signal errors here upstream
+        bool discardData = false;
         if (mState != RECORD && mState != VIDEO_SNAPSHOT) {
-            ALOGE("%s: Camera %d: Recording image buffer produced unexpectedly!",
+            ALOGV("%s: Camera %d: Discarding recording image buffers received after "
+                    "recording done",
                     __FUNCTION__, mCameraId);
-            return;
+            discardData = true;
         }
 
         CpuConsumer::LockedBuffer imgBuffer;
@@ -1509,9 +1516,14 @@ void Camera2Client::onRecordingFrameAvailable() {
         if (imgBuffer.format != (int)kRecordingFormat) {
             ALOGE("%s: Camera %d: Unexpected recording format: %x",
                     __FUNCTION__, mCameraId, imgBuffer.format);
+            discardData = true;
+        }
+
+        if (discardData) {
             mRecordingConsumer->unlockBuffer(imgBuffer);
             return;
         }
+
         size_t bufferSize = imgBuffer.width * imgBuffer.height * 3 / 2;
 
         if (mRecordingHeap == 0 ||
