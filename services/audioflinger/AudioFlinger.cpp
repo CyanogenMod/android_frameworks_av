@@ -219,6 +219,8 @@ AudioFlinger::AudioFlinger()
       mMasterVolumeSW(1.0f),
       mMasterVolumeSupportLvl(MVS_NONE),
       mMasterMute(false),
+      mMasterMuteSW(false),
+      mMasterMuteSupportLvl(MMS_NONE),
       mNextUniqueId(1),
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
@@ -699,16 +701,40 @@ bool AudioFlinger::getMicMute() const
 
 status_t AudioFlinger::setMasterMute(bool muted)
 {
+    status_t ret = initCheck();
+    if (ret != NO_ERROR) {
+        return ret;
+    }
+
     // check calling permissions
     if (!settingsAllowed()) {
         return PERMISSION_DENIED;
     }
 
+    bool swmm = muted;
+
+    // when hw supports master mute, don't mute in sw mixer
+    if (MMS_NONE != mMasterMuteSupportLvl) {
+        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+            AutoMutex lock(mHardwareLock);
+            audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+
+            mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
+            if (NULL != dev->set_master_mute) {
+                dev->set_master_mute(dev, muted);
+            }
+            mHardwareStatus = AUDIO_HW_IDLE;
+        }
+
+        swmm = false;
+    }
+
     Mutex::Autolock _l(mLock);
     // This is an optimization, so PlaybackThread doesn't have to look at the one from AudioFlinger
-    mMasterMute = muted;
+    mMasterMute   = muted;
+    mMasterMuteSW = swmm;
     for (size_t i = 0; i < mPlaybackThreads.size(); i++)
-        mPlaybackThreads.valueAt(i)->setMasterMute(muted);
+        mPlaybackThreads.valueAt(i)->setMasterMute(swmm);
 
     return NO_ERROR;
 }
@@ -731,6 +757,12 @@ bool AudioFlinger::masterMute() const
     return masterMute_l();
 }
 
+bool AudioFlinger::masterMuteSW() const
+{
+    Mutex::Autolock _l(mLock);
+    return masterMuteSW_l();
+}
+
 float AudioFlinger::masterVolume_l() const
 {
     if (MVS_FULL == mMasterVolumeSupportLvl) {
@@ -748,6 +780,24 @@ float AudioFlinger::masterVolume_l() const
     }
 
     return mMasterVolume;
+}
+
+bool AudioFlinger::masterMute_l() const
+{
+    if (MMS_FULL == mMasterMuteSupportLvl) {
+        bool ret_val;
+        AutoMutex lock(mHardwareLock);
+
+        mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
+        assert(NULL != mPrimaryHardwareDev);
+        assert(NULL != mPrimaryHardwareDev->get_master_mute);
+
+        mPrimaryHardwareDev->get_master_mute(mPrimaryHardwareDev, &ret_val);
+        mHardwareStatus = AUDIO_HW_IDLE;
+        return ret_val;
+    }
+
+     return mMasterMute;
 }
 
 status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
@@ -1500,7 +1550,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
         // Assumes constructor is called by AudioFlinger with it's mLock held,
         // but it would be safer to explicitly pass initial masterMute as parameter
-        mMasterMute(audioFlinger->masterMute_l()),
+        mMasterMute(audioFlinger->masterMuteSW_l()),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
         // Assumes constructor is called by AudioFlinger with it's mLock held,
@@ -6777,10 +6827,13 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             mHardwareStatus = AUDIO_HW_SET_MODE;
             outHwDev->set_mode(outHwDev, mMode);
 
-            // Determine the level of master volume support the primary audio HAL has,
-            // and set the initial master volume at the same time.
+            // Determine the level of master volume/master mute support the primary
+            // audio HAL has, and set the initial master volume/mute state at the same
+            // time.
             float initialVolume = 1.0;
+            bool initialMute = false;
             mMasterVolumeSupportLvl = MVS_NONE;
+            mMasterMuteSupportLvl = MMS_NONE;
 
             mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
             if ((NULL != outHwDev->get_master_volume) &&
@@ -6796,20 +6849,44 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                 (NO_ERROR != outHwDev->set_master_volume(outHwDev, initialVolume))) {
                 mMasterVolumeSupportLvl = MVS_NONE;
             }
-            // now that we have a primary device, initialize master volume on other devices
+
+            mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
+            if ((NULL != outHwDev->get_master_mute) &&
+                (NO_ERROR == outHwDev->get_master_mute(outHwDev, &initialMute))) {
+                mMasterMuteSupportLvl = MMS_FULL;
+            } else {
+                mMasterMuteSupportLvl = MMS_SETONLY;
+                initialMute = 0;
+            }
+
+            mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
+            if ((NULL == outHwDev->set_master_mute) ||
+                (NO_ERROR != outHwDev->set_master_mute(outHwDev, initialMute))) {
+                mMasterMuteSupportLvl = MMS_NONE;
+            }
+
+            // now that we have a primary device, initialize master volume/mute
+            // on other devices
             for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
                 audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
 
                 if ((dev != mPrimaryHardwareDev) &&
                     (NULL != dev->set_master_volume)) {
+                    mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
                     dev->set_master_volume(dev, initialVolume);
                 }
+
+                if (NULL != dev->set_master_mute) {
+                    mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
+                    dev->set_master_mute(dev, initialMute);
+                }
             }
+
             mHardwareStatus = AUDIO_HW_IDLE;
-            mMasterVolumeSW = (MVS_NONE == mMasterVolumeSupportLvl)
-                                    ? initialVolume
-                                    : 1.0;
+            mMasterVolumeSW = initialVolume;
             mMasterVolume   = initialVolume;
+            mMasterMuteSW   = initialMute;
+            mMasterMute     = initialMute;
         }
         return id;
     }
