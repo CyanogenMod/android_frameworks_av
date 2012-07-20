@@ -136,7 +136,8 @@ AACExtractor::AACExtractor(
         const sp<DataSource> &source, const sp<AMessage> &_meta)
     : mDataSource(source),
       mInitCheck(NO_INIT),
-      mFrameDurationUs(0) {
+      mFrameDurationUs(0),
+      mApeMeta(new MetaData) {
     sp<AMessage> meta = _meta;
 
     if (meta == NULL) {
@@ -170,9 +171,23 @@ AACExtractor::AACExtractor(
     off64_t streamSize, numFrames = 0;
     size_t frameSize = 0;
     int64_t duration = 0;
+    uint8_t apeTag[8];
 
     if (mDataSource->getSize(&streamSize) == OK) {
          while (offset < streamSize) {
+            mDataSource->readAt(offset, &apeTag, 8);
+            if (ape.isAPE(apeTag)) {
+                size_t apeSize = 0;
+                mDataSource->readAt(offset + 8 + 4, &apeSize, 1);
+
+                if (ape.parceAPE(source, offset, &apeSize, mApeMeta) == false) {
+                    break;
+                }
+
+                mOffsetVector.push(offset);
+                offset += apeSize;
+                continue;
+            }
             if ((frameSize = getAdtsFrameLength(source, offset, NULL)) == 0) {
                 break;
             }
@@ -196,15 +211,13 @@ AACExtractor::~AACExtractor() {
 }
 
 sp<MetaData> AACExtractor::getMetaData() {
-    sp<MetaData> meta = new MetaData;
 
     if (mInitCheck != OK) {
-        return meta;
+        return mApeMeta;
     }
+    mApeMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC_ADTS);
 
-    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC_ADTS);
-
-    return meta;
+    return mApeMeta;
 }
 
 size_t AACExtractor::countTracks() {
