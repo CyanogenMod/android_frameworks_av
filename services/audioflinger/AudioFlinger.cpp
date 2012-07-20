@@ -8056,7 +8056,7 @@ size_t AudioFlinger::EffectModule::removeHandle(EffectHandle *handle)
         mState = DESTROYED;
     }
 
-    return size;
+    return mHandles.size();
 }
 
 // must be called with EffectModule::mLock held
