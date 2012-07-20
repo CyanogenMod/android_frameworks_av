@@ -355,7 +355,6 @@ bool AudioRecord::stopped() const
 
 uint32_t AudioRecord::getSampleRate() const
 {
-    AutoMutex lock(mLock);
     return mCblk->sampleRate;
 }
 
@@ -363,6 +362,7 @@ status_t AudioRecord::setMarkerPosition(uint32_t marker)
 {
     if (mCbf == NULL) return INVALID_OPERATION;
 
+    AutoMutex lock(mLock);
     mMarkerPosition = marker;
     mMarkerReached = false;
 
@@ -373,6 +373,7 @@ status_t AudioRecord::getMarkerPosition(uint32_t *marker) const
 {
     if (marker == NULL) return BAD_VALUE;
 
+    AutoMutex lock(mLock);
     *marker = mMarkerPosition;
 
     return NO_ERROR;
@@ -384,6 +385,8 @@ status_t AudioRecord::setPositionUpdatePeriod(uint32_t updatePeriod)
 
     uint32_t curPosition;
     getPosition(&curPosition);
+
+    AutoMutex lock(mLock);
     mNewPosition = curPosition + updatePeriod;
     mUpdatePeriod = updatePeriod;
 
@@ -394,6 +397,7 @@ status_t AudioRecord::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 {
     if (updatePeriod == NULL) return BAD_VALUE;
 
+    AutoMutex lock(mLock);
     *updatePeriod = mUpdatePeriod;
 
     return NO_ERROR;
@@ -434,6 +438,7 @@ status_t AudioRecord::openRecord_l(
     pid_t tid = -1;
     // FIXME see similar logic at AudioTrack
 
+    int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(getpid(), input,
                                                        sampleRate, format,
                                                        channelMask,
@@ -442,6 +447,8 @@ status_t AudioRecord::openRecord_l(
                                                        tid,
                                                        &mSessionId,
                                                        &status);
+    ALOGE_IF(originalSessionId != 0 && mSessionId != originalSessionId,
+            "session ID changed from %d to %d", originalSessionId, mSessionId);
 
     if (record == 0) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
@@ -587,6 +594,7 @@ audio_io_handle_t AudioRecord::getInput_l()
 
 int AudioRecord::getSessionId() const
 {
+    // no lock needed because session ID doesn't change after first set()
     return mSessionId;
 }
 
@@ -658,22 +666,31 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
     sp<IMemory> iMem = mCblkMemory;
     audio_track_cblk_t* cblk = mCblk;
     bool active = mActive;
+    uint32_t markerPosition = mMarkerPosition;
+    uint32_t newPosition = mNewPosition;
+    uint32_t user = cblk->user;
+    // determine whether a marker callback will be needed, while locked
+    bool needMarker = !mMarkerReached && (mMarkerPosition > 0) && (user >= mMarkerPosition);
+    if (needMarker) {
+        mMarkerReached = true;
+    }
+    // determine the number of new position callback(s) that will be needed, while locked
+    uint32_t updatePeriod = mUpdatePeriod;
+    uint32_t needNewPos = updatePeriod > 0 && user >= newPosition ?
+            ((user - newPosition) / updatePeriod) + 1 : 0;
+    mNewPosition = newPosition + updatePeriod * needNewPos;
     mLock.unlock();
 
-    // Manage marker callback
-    if (!mMarkerReached && (mMarkerPosition > 0)) {
-        if (cblk->user >= mMarkerPosition) {
-            mCbf(EVENT_MARKER, mUserData, (void *)&mMarkerPosition);
-            mMarkerReached = true;
-        }
+    // perform marker callback, while unlocked
+    if (needMarker) {
+        mCbf(EVENT_MARKER, mUserData, &markerPosition);
     }
 
-    // Manage new position callback
-    if (mUpdatePeriod > 0) {
-        while (cblk->user >= mNewPosition) {
-            mCbf(EVENT_NEW_POS, mUserData, (void *)&mNewPosition);
-            mNewPosition += mUpdatePeriod;
-        }
+    // perform new position callback(s), while unlocked
+    for (; needNewPos > 0; --needNewPos) {
+        uint32_t temp = newPosition;
+        mCbf(EVENT_NEW_POS, mUserData, &temp);
+        newPosition += updatePeriod;
     }
 
     do {
@@ -721,7 +738,7 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
         // otherwise we would have exited when obtainBuffer returned STOPPED earlier.
         ALOGV("Overrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
         if (!(android_atomic_or(CBLK_UNDERRUN_ON, &cblk->flags) & CBLK_UNDERRUN_MSK)) {
-            mCbf(EVENT_OVERRUN, mUserData, 0);
+            mCbf(EVENT_OVERRUN, mUserData, NULL);
         }
     }
 

@@ -84,8 +84,8 @@ public:
      *          more bytes than indicated by 'size' field and update 'size' if less bytes are
      *          read.
      *          - EVENT_OVERRUN: unused.
-     *          - EVENT_MARKER: pointer to an uin32_t containing the marker position in frames.
-     *          - EVENT_NEW_POS: pointer to an uin32_t containing the new position in frames.
+     *          - EVENT_MARKER: pointer to const uint32_t containing the marker position in frames.
+     *          - EVENT_NEW_POS: pointer to const uint32_t containing the new position in frames.
      */
 
     typedef void (*callback_t)(int event, void* user, void *info);
