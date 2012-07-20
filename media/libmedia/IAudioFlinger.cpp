@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -70,6 +71,9 @@ enum {
     GET_EFFECT_DESCRIPTOR,
     CREATE_EFFECT,
     MOVE_EFFECTS,
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+    SET_FM_VOLUME,
+#endif
     LOAD_HW_MODULE
 };
 
@@ -674,6 +678,17 @@ public:
         return reply.readInt32();
     }
 
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+    virtual status_t setFmVolume(float volume)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeFloat(volume);
+        remote()->transact(SET_FM_VOLUME, data, &reply);
+        return reply.readInt32();
+    }
+#endif
+
     virtual audio_module_handle_t loadHwModule(const char *name)
     {
         Parcel data, reply;
@@ -1032,6 +1047,14 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(moveEffects(session, srcOutput, dstOutput));
             return NO_ERROR;
         } break;
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+        case SET_FM_VOLUME: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            float volume = data.readFloat();
+            reply->writeInt32( setFmVolume(volume) );
+            return NO_ERROR;
+        } break;
+#endif
         case LOAD_HW_MODULE: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32(loadHwModule(data.readCString()));

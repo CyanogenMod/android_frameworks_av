@@ -114,6 +114,9 @@ public:
         size_t* buffSize);
 
     static status_t setVoiceVolume(float volume);
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+    static status_t setFmVolume(float volume);
+#endif
 
     // return the number of audio frames written by AudioFlinger to audio HAL and
     // audio dsp to DAC since the output on which the specified stream is playing

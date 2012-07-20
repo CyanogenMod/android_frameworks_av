@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -183,6 +184,9 @@ public:
                                     audio_io_handle_t dstOutput) = 0;
 
     virtual audio_module_handle_t loadHwModule(const char *name) = 0;
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+    virtual status_t setFmVolume(float volume) = 0;
+#endif
 };
 
 

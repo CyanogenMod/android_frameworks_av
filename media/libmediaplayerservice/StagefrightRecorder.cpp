@@ -29,6 +29,9 @@
 #include <media/stagefright/AudioSource.h>
 #include <media/stagefright/AMRWriter.h>
 #include <media/stagefright/AACWriter.h>
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+#include <media/stagefright/FMA2DPWriter.h>
+#endif
 #include <media/stagefright/CameraSource.h>
 #include <media/stagefright/CameraSourceTimeLapse.h>
 #include <media/stagefright/MPEG2TSWriter.h>
@@ -747,6 +750,10 @@ status_t StagefrightRecorder::start() {
     }
 
     status_t status = OK;
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+    if(AUDIO_SOURCE_FM_RX_A2DP == mAudioSource)
+        return startFMA2DPWriter();
+#endif
 
     switch (mOutputFormat) {
         case OUTPUT_FORMAT_DEFAULT:
@@ -939,6 +946,23 @@ status_t StagefrightRecorder::startRawAudioRecording() {
 
     return OK;
 }
+
+#if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
+status_t StagefrightRecorder::startFMA2DPWriter() {
+    /* FM soc outputs at 48k */
+    mSampleRate = 48000;
+    mAudioChannels = 2;
+
+    sp<MetaData> meta = new MetaData;
+    meta->setInt32(kKeyChannelCount, mAudioChannels);
+    meta->setInt32(kKeySampleRate, mSampleRate);
+
+    mWriter = new FMA2DPWriter();
+    mWriter->setListener(mListener);
+    mWriter->start(meta.get());
+    return OK;
+}
+#endif
 
 status_t StagefrightRecorder::startRTPRecording() {
     CHECK_EQ(mOutputFormat, OUTPUT_FORMAT_RTP_AVP);
