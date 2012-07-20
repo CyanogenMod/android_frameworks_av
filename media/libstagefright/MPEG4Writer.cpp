@@ -91,7 +91,6 @@ private:
     int64_t mMaxChunkDurationUs;
 
     bool mIsRealTimeRecording;
-    int64_t mMaxTimeStampUs;
     int64_t mEstimatedTrackSizeBytes;
     int64_t mMdatSizeBytes;
     int32_t mTimeScale;
@@ -333,6 +332,10 @@ status_t MPEG4Writer::Track::dump(
     result.append(buffer);
     snprintf(buffer, SIZE, "       reached EOS: %s\n",
             mReachedEOS? "true": "false");
+    result.append(buffer);
+    snprintf(buffer, SIZE, "       frames encoded : %d\n", mNumSamples);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "       duration encoded : %lld us\n", mTrackDurationUs);
     result.append(buffer);
     ::write(fd, result.string(), result.size());
     return OK;
@@ -1147,6 +1150,7 @@ MPEG4Writer::Track::Track(
       mStarted(false),
       mTrackId(trackId),
       mTrackDurationUs(0),
+      mNumSamples(0),
       mEstimatedTrackSizeBytes(0),
       mSamplesHaveSameSize(true),
       mCodecSpecificData(NULL),
