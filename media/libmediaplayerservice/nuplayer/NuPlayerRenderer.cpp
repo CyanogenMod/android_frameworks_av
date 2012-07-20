@@ -47,6 +47,7 @@ NuPlayer::Renderer::Renderer(
       mHasVideo(false),
       mSyncQueues(false),
       mPaused(false),
+      mVideoRenderingStarted(false),
       mLastPositionUpdateUs(-1ll),
       mVideoLateByUs(0ll) {
 }
@@ -387,7 +388,18 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
     mVideoQueue.erase(mVideoQueue.begin());
     entry = NULL;
 
+    if (!mVideoRenderingStarted) {
+        mVideoRenderingStarted = true;
+        notifyVideoRenderingStart();
+    }
+
     notifyPosition();
+}
+
+void NuPlayer::Renderer::notifyVideoRenderingStart() {
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatVideoRenderingStart);
+    notify->post();
 }
 
 void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult) {
