@@ -21,6 +21,7 @@
 #include <media/stagefright/MediaExtractor.h>
 
 #include <utils/Vector.h>
+#include "include/APE.h"
 
 namespace android {
 
@@ -47,6 +48,9 @@ private:
 
     Vector<uint64_t> mOffsetVector;
     int64_t mFrameDurationUs;
+
+    APE ape;
+    sp<MetaData> mApeMeta;
 
     AACExtractor(const AACExtractor &);
     AACExtractor &operator=(const AACExtractor &);
