@@ -710,7 +710,6 @@ void AwesomePlayer::onBufferingUpdate() {
                              kHighWaterMarkBytes);
                         modifyFlags(CACHE_UNDERRUN, CLEAR);
                         play_l();
-                        notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
                     } else if (mFlags & PREPARING) {
                         ALOGV("cache has filled up (> %d), prepare is done",
                              kHighWaterMarkBytes);
@@ -770,7 +769,6 @@ void AwesomePlayer::onBufferingUpdate() {
                           cachedDurationUs / 1E6);
                     play_l();
                 }
-                notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
             } else if (mFlags & PREPARING) {
                 ALOGV("cache has filled up (%.2f secs), prepare is done",
                      cachedDurationUs / 1E6);
@@ -2626,6 +2624,9 @@ void AwesomePlayer::modifyFlags(unsigned value, FlagMode mode) {
             mFlags |= value;
             break;
         case CLEAR:
+            if ((value & CACHE_UNDERRUN) && (mFlags & CACHE_UNDERRUN)) {
+                notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_END);
+            }
             mFlags &= ~value;
             break;
         case ASSIGN:
