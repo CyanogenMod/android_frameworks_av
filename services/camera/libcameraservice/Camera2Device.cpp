@@ -146,7 +146,7 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
 }
 
 camera_metadata_t *Camera2Device::info() {
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGVV("%s: E", __FUNCTION__);
 
     return mDeviceInfo;
 }
@@ -268,7 +268,7 @@ status_t Camera2Device::createDefaultRequest(int templateId,
 status_t Camera2Device::waitUntilDrained() {
     static const uint32_t kSleepTime = 50000; // 50 ms
     static const uint32_t kMaxSleepTime = 10000000; // 10 s
-
+    ALOGV("%s: E", __FUNCTION__);
     if (mRequestQueue.getBufferCount() ==
             CAMERA2_REQUEST_QUEUE_IS_BOTTOMLESS) return INVALID_OPERATION;
 
@@ -642,6 +642,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format, size_t size) {
     status_t res;
+    ALOGV("%s: E", __FUNCTION__);
 
     if (mState != RELEASED) return INVALID_OPERATION;
     if (consumer == NULL) {
