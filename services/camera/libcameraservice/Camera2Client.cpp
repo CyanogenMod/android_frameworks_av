@@ -592,6 +592,7 @@ void Camera2Client::stopPreviewLocked() {
             // TODO: Handle record stop here
         case PREVIEW:
             mDevice->setStreamingRequest(NULL);
+            mDevice->waitUntilDrained();
         case WAITING_FOR_PREVIEW_WINDOW:
             mState = STOPPED;
             break;
