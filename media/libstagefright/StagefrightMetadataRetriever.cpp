@@ -285,7 +285,11 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
                 width, height,
                 crop_left, crop_top, crop_right, crop_bottom,
                 frame->mData,
+#ifdef QCOM_HARDWARE
+                frame_width_rounded,
+#else
                 frame->mWidth,
+#endif
                 frame->mHeight,
                 0, 0, frame->mWidth - 1, frame->mHeight - 1);
     } else {
