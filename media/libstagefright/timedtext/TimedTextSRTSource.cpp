@@ -79,6 +79,10 @@ status_t TimedTextSRTSource::read(
     return OK;
 }
 
+sp<MetaData> TimedTextSRTSource::getFormat() {
+    return mMetaData;
+}
+
 status_t TimedTextSRTSource::scanFile() {
     off64_t offset = 0;
     int64_t startTimeUs;
@@ -155,18 +159,16 @@ status_t TimedTextSRTSource::getNextSubtitleInfo(
     while (needMoreData) {
         if ((err = readNextLine(offset, &data)) != OK) {
             if (err == ERROR_END_OF_STREAM) {
-                needMoreData = false;
+                break;
             } else {
                 return err;
             }
         }
 
-        if (needMoreData) {
-            data.trim();
-            if (data.empty()) {
-                // it's an empty line used to separate two subtitles
-                needMoreData = false;
-            }
+        data.trim();
+        if (data.empty()) {
+            // it's an empty line used to separate two subtitles
+            needMoreData = false;
         }
     }
     info->textLen = *offset - info->offset;
@@ -221,35 +223,24 @@ status_t TimedTextSRTSource::getText(
     if (options != NULL && options->getSeekTo(&seekTimeUs, &mode)) {
         int64_t lastEndTimeUs =
                 mTextVector.valueAt(mTextVector.size() - 1).endTimeUs;
-        int64_t firstStartTimeUs = mTextVector.keyAt(0);
-        if (seekTimeUs < 0 || seekTimeUs > lastEndTimeUs) {
+        if (seekTimeUs < 0) {
             return ERROR_OUT_OF_RANGE;
-        } else if (seekTimeUs < firstStartTimeUs) {
-            mIndex = 0;
+        } else if (seekTimeUs >= lastEndTimeUs) {
+            return ERROR_END_OF_STREAM;
         } else {
             // binary search
             size_t low = 0;
             size_t high = mTextVector.size() - 1;
             size_t mid = 0;
-            int64_t currTimeUs;
 
             while (low <= high) {
                 mid = low + (high - low)/2;
-                currTimeUs = mTextVector.keyAt(mid);
-                const int64_t diffTime = currTimeUs - seekTimeUs;
-
-                if (diffTime == 0) {
+                int diff = compareExtendedRangeAndTime(mid, seekTimeUs);
+                if (diff == 0) {
                     break;
-                } else if (diffTime < 0) {
+                } else if (diff < 0) {
                     low = mid + 1;
                 } else {
-                    if ((high == mid + 1)
-                        && (seekTimeUs < mTextVector.keyAt(high))) {
-                        break;
-                    }
-                    if (mid < 1) {
-                        break;
-                    }
                     high = mid - 1;
                 }
             }
@@ -260,6 +251,7 @@ status_t TimedTextSRTSource::getText(
     if (mIndex >= mTextVector.size()) {
         return ERROR_END_OF_STREAM;
     }
+
     const TextInfo &info = mTextVector.valueAt(mIndex);
     *startTimeUs = mTextVector.keyAt(mIndex);
     *endTimeUs = info.endTimeUs;
@@ -289,8 +281,18 @@ status_t TimedTextSRTSource::extractAndAppendLocalDescriptions(
     return OK;
 }
 
-sp<MetaData> TimedTextSRTSource::getFormat() {
-    return mMetaData;
+int TimedTextSRTSource::compareExtendedRangeAndTime(size_t index, int64_t timeUs) {
+    CHECK_LT(index, mTextVector.size());
+    int64_t endTimeUs = mTextVector.valueAt(index).endTimeUs;
+    int64_t startTimeUs = (index > 0) ?
+            mTextVector.valueAt(index - 1).endTimeUs : 0;
+    if (timeUs >= startTimeUs && timeUs < endTimeUs) {
+        return 0;
+    } else if (endTimeUs <= timeUs) {
+        return -1;
+    } else {
+        return 1;
+    }
 }
 
 }  // namespace android
