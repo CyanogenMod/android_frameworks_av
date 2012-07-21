@@ -497,8 +497,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     }
                 }
             } else if (what == Renderer::kWhatFlushComplete) {
-                CHECK_EQ(what, (int32_t)Renderer::kWhatFlushComplete);
-
                 int32_t audio;
                 CHECK(msg->findInt32("audio", &audio));
 
