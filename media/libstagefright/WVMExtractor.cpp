@@ -79,7 +79,7 @@ bool WVMExtractor::getVendorLibHandle()
     }
 
     if (gVendorLibHandle == NULL) {
-        ALOGE("Failed to open libwvm.so");
+        ALOGW("Failed to open libwvm.so");
     }
 
     return gVendorLibHandle != NULL;
