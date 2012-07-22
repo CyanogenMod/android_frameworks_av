@@ -48,8 +48,12 @@ const char *MEDIA_MIMETYPE_CONTAINER_MATROSKA = "video/x-matroska";
 const char *MEDIA_MIMETYPE_CONTAINER_MPEG2TS = "video/mp2ts";
 const char *MEDIA_MIMETYPE_CONTAINER_AVI = "video/avi";
 const char *MEDIA_MIMETYPE_CONTAINER_MPEG2PS = "video/mp2p";
-
 const char *MEDIA_MIMETYPE_CONTAINER_WVM = "video/wvm";
+const char *MEDIA_MIMETYPE_CONTAINER_ASF = "video/asf";
+const char *MEDIA_MIMETYPE_VIDEO_WMV  = "video/wmv9";
+const char *MEDIA_MIMETYPE_AUDIO_WMA = "audio/wma";
+const char *MEDIA_MIMETYPE_AUDIO_WMAPRO = "audio/wmapro";
+const char *MEDIA_MIMETYPE_AUDIO_WMALSL = "audio/wmalsl";
 
 const char *MEDIA_MIMETYPE_TEXT_3GPP = "text/3gpp-tt";
 const char *MEDIA_MIMETYPE_TEXT_SUBRIP = "application/x-subrip";
