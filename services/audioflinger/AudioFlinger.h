@@ -1465,6 +1465,12 @@ private:
     private:
                 void clearSyncStartEvent();
 
+                // Enter standby if not already in standby, and set mStandby flag
+                void standby();
+
+                // Call the HAL standby method unconditionally, and don't change mStandby flag
+                void inputStandBy();
+
                 AudioStreamIn                       *mInput;
                 RecordTrack*                        mTrack;
                 sp<RecordTrack>                     mActiveTrack;

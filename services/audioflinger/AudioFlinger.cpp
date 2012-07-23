@@ -5936,6 +5936,7 @@ bool AudioFlinger::RecordThread::threadLoop()
 
     nsecs_t lastWarning = 0;
 
+    inputStandBy();
     acquireWakeLock();
 
     // start recording
@@ -5947,10 +5948,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             Mutex::Autolock _l(mLock);
             checkForNewParameters_l();
             if (mActiveTrack == 0 && mConfigEvents.isEmpty()) {
-                if (!mStandby) {
-                    mInput->stream->common.standby(&mInput->stream->common);
-                    mStandby = true;
-                }
+                standby();
 
                 if (exitPending()) break;
 
@@ -5964,10 +5962,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             }
             if (mActiveTrack != 0) {
                 if (mActiveTrack->mState == TrackBase::PAUSING) {
-                    if (!mStandby) {
-                        mInput->stream->common.standby(&mInput->stream->common);
-                        mStandby = true;
-                    }
+                    standby();
                     mActiveTrack.clear();
                     mStartStopCond.broadcast();
                 } else if (mActiveTrack->mState == TrackBase::RESUMING) {
@@ -6042,7 +6037,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 if (mActiveTrack->mState == TrackBase::ACTIVE) {
                                     // Force input into standby so that it tries to
                                     // recover at next read attempt
-                                    mInput->stream->common.standby(&mInput->stream->common);
+                                    inputStandBy();
                                     usleep(kRecordThreadSleepUs);
                                 }
                                 mRsmpInIndex = mFrameCount;
@@ -6114,9 +6109,7 @@ bool AudioFlinger::RecordThread::threadLoop()
         effectChains.clear();
     }
 
-    if (!mStandby) {
-        mInput->stream->common.standby(&mInput->stream->common);
-    }
+    standby();
 
     {
         Mutex::Autolock _l(mLock);
@@ -6130,6 +6123,18 @@ bool AudioFlinger::RecordThread::threadLoop()
     return false;
 }
 
+void AudioFlinger::RecordThread::standby()
+{
+    if (!mStandby) {
+        inputStandBy();
+        mStandby = true;
+    }
+}
+
+void AudioFlinger::RecordThread::inputStandBy()
+{
+    mInput->stream->common.standby(&mInput->stream->common);
+}
 
 sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createRecordTrack_l(
         const sp<AudioFlinger::Client>& client,
@@ -6374,7 +6379,7 @@ status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* 
             if (mActiveTrack->mState == TrackBase::ACTIVE) {
                 // Force input into standby so that it tries to
                 // recover at next read attempt
-                mInput->stream->common.standby(&mInput->stream->common);
+                inputStandBy();
                 usleep(kRecordThreadSleepUs);
             }
             buffer->raw = NULL;
@@ -6470,7 +6475,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
         if (status == NO_ERROR) {
             status = mInput->stream->common.set_parameters(&mInput->stream->common, keyValuePair.string());
             if (status == INVALID_OPERATION) {
-                mInput->stream->common.standby(&mInput->stream->common);
+                inputStandBy();
                 status = mInput->stream->common.set_parameters(&mInput->stream->common,
                         keyValuePair.string());
             }
@@ -6978,8 +6983,6 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
         if (pFormat != NULL) *pFormat = config.format;
         if (pChannelMask != NULL) *pChannelMask = reqChannels;
-
-        input->stream->common.standby(&input->stream->common);
 
         // notify client processes of the new input creation
         thread->audioConfigChanged_l(AudioSystem::INPUT_OPENED);
