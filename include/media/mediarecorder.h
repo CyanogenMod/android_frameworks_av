@@ -1,5 +1,6 @@
 /*
  ** Copyright (C) 2008 The Android Open Source Project
+ ** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -67,6 +68,8 @@ enum output_format {
     /* H.264/AAC data encapsulated in MPEG2/TS */
     OUTPUT_FORMAT_MPEG2TS = 8,
 
+    OUTPUT_FORMAT_QCP = 9, // QCP file format
+
     OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
 };
 
@@ -77,6 +80,8 @@ enum audio_encoder {
     AUDIO_ENCODER_AAC = 3,
     AUDIO_ENCODER_HE_AAC = 4,
     AUDIO_ENCODER_AAC_ELD = 5,
+    AUDIO_ENCODER_EVRC = 6,
+    AUDIO_ENCODER_QCELP = 7,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };

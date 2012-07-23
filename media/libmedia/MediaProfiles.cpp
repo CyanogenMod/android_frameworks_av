@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2010, The Android Open Source Project
+** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -804,6 +805,7 @@ MediaProfiles::createDefaultCamcorderProfiles(MediaProfiles *profiles)
 MediaProfiles::createDefaultAudioEncoders(MediaProfiles *profiles)
 {
     profiles->mAudioEncoders.add(createDefaultAmrNBEncoderCap());
+    profiles->mAudioEncoders.add(createDefaultAacEncoderCap());
 }
 
 /*static*/ void
@@ -836,6 +838,13 @@ MediaProfiles::createDefaultAmrNBEncoderCap()
 {
     return new MediaProfiles::AudioEncoderCap(
         AUDIO_ENCODER_AMR_NB, 5525, 12200, 8000, 8000, 1, 1);
+}
+
+/*static*/ MediaProfiles::AudioEncoderCap*
+MediaProfiles::createDefaultAacEncoderCap()
+{
+    return new MediaProfiles::AudioEncoderCap(
+        AUDIO_ENCODER_AAC, 64000, 156000, 8000, 48000, 1, 2);
 }
 
 /*static*/ void
