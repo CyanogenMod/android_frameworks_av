@@ -648,11 +648,13 @@ private:
         return native_window_set_crop(a, &crop);
     }
 
+#ifndef ICS_CAMERA_BLOB
     static int __set_timestamp(struct preview_stream_ops *w,
                                int64_t timestamp) {
         ANativeWindow *a = anw(w);
         return native_window_set_buffers_timestamp(a, timestamp);
     }
+#endif
 
     static int __set_usage(struct preview_stream_ops* w, int usage)
     {
@@ -683,7 +685,9 @@ private:
         mHalPreviewWindow.nw.set_buffer_count = __set_buffer_count;
         mHalPreviewWindow.nw.set_buffers_geometry = __set_buffers_geometry;
         mHalPreviewWindow.nw.set_crop = __set_crop;
+#ifndef ICS_CAMERA_BLOB
         mHalPreviewWindow.nw.set_timestamp = __set_timestamp;
+#endif
         mHalPreviewWindow.nw.set_usage = __set_usage;
         mHalPreviewWindow.nw.set_swap_interval = __set_swap_interval;
 
