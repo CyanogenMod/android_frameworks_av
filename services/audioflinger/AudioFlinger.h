@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -1434,6 +1435,9 @@ private:
                 const int                           mReqChannelCount;
                 const uint32_t                      mReqSampleRate;
                 ssize_t                             mBytesRead;
+#ifdef QCOM_HARDWARE
+                int16_t                             mInputSource;
+#endif
                 // sync event triggering actual audio capture. Frames read before this event will
                 // be dropped and therefore not read by the application.
                 sp<SyncEvent>                       mSyncStartEvent;

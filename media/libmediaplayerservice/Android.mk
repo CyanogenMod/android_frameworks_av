@@ -45,6 +45,11 @@ LOCAL_C_INCLUDES :=                                               \
 	$(TOP)/frameworks/native/include/media/openmax                  \
 	$(TOP)/external/tremolo/Tremolo                                 \
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+    LOCAL_STATIC_LIBRARIES += libmedia_helper
+	LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include/media
+endif
+
 LOCAL_MODULE:= libmediaplayerservice
 
 include $(BUILD_SHARED_LIBRARY)

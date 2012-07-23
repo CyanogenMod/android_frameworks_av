@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -392,6 +393,9 @@ private:
     record_flags            mFlags;
     uint32_t                mChannelMask;
     audio_io_handle_t       mInput;
+#ifdef QCOM_HARDWARE
+    bool                    mFirstread;
+#endif
     int                     mSessionId;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;

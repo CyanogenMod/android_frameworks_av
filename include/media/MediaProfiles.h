@@ -1,6 +1,7 @@
 /*
  **
  ** Copyright 2010, The Android Open Source Project.
+ ** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -461,6 +462,9 @@ private:
     static VideoEncoderCap* createDefaultH263VideoEncoderCap();
     static VideoEncoderCap* createDefaultM4vVideoEncoderCap();
     static AudioEncoderCap* createDefaultAmrNBEncoderCap();
+#ifdef QCOM_HARDWARE
+    static AudioEncoderCap* createDefaultAacEncoderCap();
+#endif
 
     static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
 
