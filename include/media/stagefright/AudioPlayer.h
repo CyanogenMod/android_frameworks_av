@@ -14,12 +14,34 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2012 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 #ifndef AUDIO_PLAYER_H_
 
 #define AUDIO_PLAYER_H_
 
+#ifdef DOLBY_UDC_MULTICHANNEL
+#include "include/TimedEventQueue.h"
+#endif // DOLBY_UDC_MULTICHANNEL
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/TimeSource.h>
@@ -120,6 +142,14 @@ private:
 
     void reset();
 
+#ifdef DOLBY_UDC_MULTICHANNEL
+    void onPortSettingsChangedEvent();
+    TimedEventQueue mQueue;
+    bool mQueueStarted;
+    sp<TimedEventQueue::Event> mPortSettingsChangedEvent;
+    bool mPortSettingsChangedEventPending;
+    int reOpenSink(int numChannels, int channelMask);
+#endif // DOLBY_UDC_MULTICHANNEL
     uint32_t getNumFramesPendingPlayout() const;
 
     AudioPlayer(const AudioPlayer &);
