@@ -216,11 +216,7 @@ AudioFlinger::AudioFlinger()
       mPrimaryHardwareDev(NULL),
       mHardwareStatus(AUDIO_HW_IDLE),
       mMasterVolume(1.0f),
-      mMasterVolumeSW(1.0f),
-      mMasterVolumeSupportLvl(MVS_NONE),
       mMasterMute(false),
-      mMasterMuteSW(false),
-      mMasterMuteSupportLvl(MMS_NONE),
       mNextUniqueId(1),
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
@@ -275,7 +271,9 @@ static const char * const audio_interfaces[] = {
 };
 #define ARRAY_SIZE(x) (sizeof((x))/sizeof(((x)[0])))
 
-audio_hw_device_t* AudioFlinger::findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices)
+AudioFlinger::AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
+        audio_module_handle_t module,
+        audio_devices_t devices)
 {
     // if module is 0, the request comes from an old policy manager and we should load
     // well known modules
@@ -286,16 +284,17 @@ audio_hw_device_t* AudioFlinger::findSuitableHwDev_l(audio_module_handle_t modul
         }
     } else {
         // check a match for the requested module handle
-        AudioHwDevice *audioHwdevice = mAudioHwDevs.valueFor(module);
-        if (audioHwdevice != NULL) {
-            return audioHwdevice->hwDevice();
+        AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(module);
+        if (audioHwDevice != NULL) {
+            return audioHwDevice;
         }
     }
     // then try to find a module supporting the requested device.
     for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+        AudioHwDevice *audioHwDevice = mAudioHwDevs.valueAt(i);
+        audio_hw_device_t *dev = audioHwDevice->hwDevice();
         if ((dev->get_supported_devices(dev) & devices) == devices)
-            return dev;
+            return audioHwDevice;
     }
 
     return NULL;
@@ -604,30 +603,27 @@ status_t AudioFlinger::setMasterVolume(float value)
         return PERMISSION_DENIED;
     }
 
-    float swmv = value;
-
     Mutex::Autolock _l(mLock);
+    mMasterVolume = value;
 
-    // when hw supports master volume, don't scale in sw mixer
-    if (MVS_NONE != mMasterVolumeSupportLvl) {
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-            AutoMutex lock(mHardwareLock);
-            audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+    // Set master volume in the HALs which support it.
+    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+        AutoMutex lock(mHardwareLock);
+        AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
 
-            mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
-            if (NULL != dev->set_master_volume) {
-                dev->set_master_volume(dev, value);
-            }
-            mHardwareStatus = AUDIO_HW_IDLE;
+        mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
+        if (dev->canSetMasterVolume()) {
+            dev->hwDevice()->set_master_volume(dev->hwDevice(), value);
         }
-
-        swmv = 1.0;
+        mHardwareStatus = AUDIO_HW_IDLE;
     }
 
-    mMasterVolume   = value;
-    mMasterVolumeSW = swmv;
+    // Now set the master volume in each playback thread.  Playback threads
+    // assigned to HALs which do not have master volume support will apply
+    // master volume during the mix operation.  Threads with HALs which do
+    // support master volume will simply ignore the setting.
     for (size_t i = 0; i < mPlaybackThreads.size(); i++)
-        mPlaybackThreads.valueAt(i)->setMasterVolume(swmv);
+        mPlaybackThreads.valueAt(i)->setMasterVolume(value);
 
     return NO_ERROR;
 }
@@ -650,8 +646,9 @@ status_t AudioFlinger::setMode(audio_mode_t mode)
 
     { // scope for the lock
         AutoMutex lock(mHardwareLock);
+        audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
         mHardwareStatus = AUDIO_HW_SET_MODE;
-        ret = mPrimaryHardwareDev->set_mode(mPrimaryHardwareDev, mode);
+        ret = dev->set_mode(dev, mode);
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 
@@ -678,8 +675,9 @@ status_t AudioFlinger::setMicMute(bool state)
     }
 
     AutoMutex lock(mHardwareLock);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     mHardwareStatus = AUDIO_HW_SET_MIC_MUTE;
-    ret = mPrimaryHardwareDev->set_mic_mute(mPrimaryHardwareDev, state);
+    ret = dev->set_mic_mute(dev, state);
     mHardwareStatus = AUDIO_HW_IDLE;
     return ret;
 }
@@ -693,8 +691,9 @@ bool AudioFlinger::getMicMute() const
 
     bool state = AUDIO_MODE_INVALID;
     AutoMutex lock(mHardwareLock);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     mHardwareStatus = AUDIO_HW_GET_MIC_MUTE;
-    mPrimaryHardwareDev->get_mic_mute(mPrimaryHardwareDev, &state);
+    dev->get_mic_mute(dev, &state);
     mHardwareStatus = AUDIO_HW_IDLE;
     return state;
 }
@@ -711,30 +710,27 @@ status_t AudioFlinger::setMasterMute(bool muted)
         return PERMISSION_DENIED;
     }
 
-    bool swmm = muted;
+    Mutex::Autolock _l(mLock);
+    mMasterMute = muted;
 
-    // when hw supports master mute, don't mute in sw mixer
-    if (MMS_NONE != mMasterMuteSupportLvl) {
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-            AutoMutex lock(mHardwareLock);
-            audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+    // Set master mute in the HALs which support it.
+    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+        AutoMutex lock(mHardwareLock);
+        AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
 
-            mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
-            if (NULL != dev->set_master_mute) {
-                dev->set_master_mute(dev, muted);
-            }
-            mHardwareStatus = AUDIO_HW_IDLE;
+        mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
+        if (dev->canSetMasterMute()) {
+            dev->hwDevice()->set_master_mute(dev->hwDevice(), muted);
         }
-
-        swmm = false;
+        mHardwareStatus = AUDIO_HW_IDLE;
     }
 
-    Mutex::Autolock _l(mLock);
-    // This is an optimization, so PlaybackThread doesn't have to look at the one from AudioFlinger
-    mMasterMute   = muted;
-    mMasterMuteSW = swmm;
+    // Now set the master mute in each playback thread.  Playback threads
+    // assigned to HALs which do not have master mute support will apply master
+    // mute during the mix operation.  Threads with HALs which do support master
+    // mute will simply ignore the setting.
     for (size_t i = 0; i < mPlaybackThreads.size(); i++)
-        mPlaybackThreads.valueAt(i)->setMasterMute(swmm);
+        mPlaybackThreads.valueAt(i)->setMasterMute(muted);
 
     return NO_ERROR;
 }
@@ -745,59 +741,20 @@ float AudioFlinger::masterVolume() const
     return masterVolume_l();
 }
 
-float AudioFlinger::masterVolumeSW() const
-{
-    Mutex::Autolock _l(mLock);
-    return masterVolumeSW_l();
-}
-
 bool AudioFlinger::masterMute() const
 {
     Mutex::Autolock _l(mLock);
     return masterMute_l();
 }
 
-bool AudioFlinger::masterMuteSW() const
-{
-    Mutex::Autolock _l(mLock);
-    return masterMuteSW_l();
-}
-
 float AudioFlinger::masterVolume_l() const
 {
-    if (MVS_FULL == mMasterVolumeSupportLvl) {
-        float ret_val;
-        AutoMutex lock(mHardwareLock);
-
-        mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
-        ALOG_ASSERT((NULL != mPrimaryHardwareDev) &&
-                    (NULL != mPrimaryHardwareDev->get_master_volume),
-                "can't get master volume");
-
-        mPrimaryHardwareDev->get_master_volume(mPrimaryHardwareDev, &ret_val);
-        mHardwareStatus = AUDIO_HW_IDLE;
-        return ret_val;
-    }
-
     return mMasterVolume;
 }
 
 bool AudioFlinger::masterMute_l() const
 {
-    if (MMS_FULL == mMasterMuteSupportLvl) {
-        bool ret_val;
-        AutoMutex lock(mHardwareLock);
-
-        mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
-        assert(NULL != mPrimaryHardwareDev);
-        assert(NULL != mPrimaryHardwareDev->get_master_mute);
-
-        mPrimaryHardwareDev->get_master_mute(mPrimaryHardwareDev, &ret_val);
-        mHardwareStatus = AUDIO_HW_IDLE;
-        return ret_val;
-    }
-
-     return mMasterMute;
+    return mMasterMute;
 }
 
 status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
@@ -1020,7 +977,8 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
         channel_mask: channelMask,
         format: format,
     };
-    size_t size = mPrimaryHardwareDev->get_input_buffer_size(mPrimaryHardwareDev, &config);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+    size_t size = dev->get_input_buffer_size(dev, &config);
     mHardwareStatus = AUDIO_HW_IDLE;
     return size;
 }
@@ -1049,8 +1007,9 @@ status_t AudioFlinger::setVoiceVolume(float value)
     }
 
     AutoMutex lock(mHardwareLock);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     mHardwareStatus = AUDIO_HW_SET_VOICE_VOLUME;
-    ret = mPrimaryHardwareDev->set_voice_volume(mPrimaryHardwareDev, value);
+    ret = dev->set_voice_volume(dev, value);
     mHardwareStatus = AUDIO_HW_IDLE;
 
     return ret;
@@ -1548,14 +1507,8 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, type),
         mMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
-        // Assumes constructor is called by AudioFlinger with it's mLock held,
-        // but it would be safer to explicitly pass initial masterMute as parameter
-        mMasterMute(audioFlinger->masterMuteSW_l()),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
-        // Assumes constructor is called by AudioFlinger with it's mLock held,
-        // but it would be safer to explicitly pass initial masterVolume as parameter
-        mMasterVolume(audioFlinger->masterVolumeSW_l()),
         mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
         mMixerStatus(MIXER_IDLE),
         mMixerStatusIgnoringFastTracks(MIXER_IDLE),
@@ -1565,6 +1518,25 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
 {
     snprintf(mName, kNameLength, "AudioOut_%X", id);
+
+    // Assumes constructor is called by AudioFlinger with it's mLock held, but
+    // it would be safer to explicitly pass initial masterVolume/masterMute as
+    // parameter.
+    //
+    // If the HAL we are using has support for master volume or master mute,
+    // then do not attenuate or mute during mixing (just leave the volume at 1.0
+    // and the mute set to false).
+    mMasterVolume = audioFlinger->masterVolume_l();
+    mMasterMute = audioFlinger->masterMute_l();
+    if (mOutput && mOutput->audioHwDev) {
+        if (mOutput->audioHwDev->canSetMasterVolume()) {
+            mMasterVolume = 1.0;
+        }
+
+        if (mOutput->audioHwDev->canSetMasterMute()) {
+            mMasterMute = false;
+        }
+    }
 
     readOutputParameters();
 
@@ -1885,13 +1857,25 @@ uint32_t AudioFlinger::PlaybackThread::latency_l() const
 void AudioFlinger::PlaybackThread::setMasterVolume(float value)
 {
     Mutex::Autolock _l(mLock);
-    mMasterVolume = value;
+    // Don't apply master volume in SW if our HAL can do it for us.
+    if (mOutput && mOutput->audioHwDev &&
+        mOutput->audioHwDev->canSetMasterVolume()) {
+        mMasterVolume = 1.0;
+    } else {
+        mMasterVolume = value;
+    }
 }
 
 void AudioFlinger::PlaybackThread::setMasterMute(bool muted)
 {
     Mutex::Autolock _l(mLock);
-    setMasterMute_l(muted);
+    // Don't apply master mute in SW if our HAL can do it for us.
+    if (mOutput && mOutput->audioHwDev &&
+        mOutput->audioHwDev->canSetMasterMute()) {
+        mMasterMute = false;
+    } else {
+        mMasterMute = muted;
+    }
 }
 
 void AudioFlinger::PlaybackThread::setStreamVolume(audio_stream_type_t stream, float value)
@@ -6723,16 +6707,52 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
         return 0;
     }
 
-    if ((mMasterVolumeSupportLvl != MVS_NONE) &&
-        (NULL != dev->set_master_volume)) {
+    // Check and cache this HAL's level of support for master mute and master
+    // volume.  If this is the first HAL opened, and it supports the get
+    // methods, use the initial values provided by the HAL as the current
+    // master mute and volume settings.
+
+    AudioHwDevice::Flags flags = static_cast<AudioHwDevice::Flags>(0);
+    {  // scope for auto-lock pattern
         AutoMutex lock(mHardwareLock);
+
+        if (0 == mAudioHwDevs.size()) {
+            mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
+            if (NULL != dev->get_master_volume) {
+                float mv;
+                if (OK == dev->get_master_volume(dev, &mv)) {
+                    mMasterVolume = mv;
+                }
+            }
+
+            mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
+            if (NULL != dev->get_master_mute) {
+                bool mm;
+                if (OK == dev->get_master_mute(dev, &mm)) {
+                    mMasterMute = mm;
+                }
+            }
+        }
+
         mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
-        dev->set_master_volume(dev, mMasterVolume);
+        if ((NULL != dev->set_master_volume) &&
+            (OK == dev->set_master_volume(dev, mMasterVolume))) {
+            flags = static_cast<AudioHwDevice::Flags>(flags |
+                    AudioHwDevice::AHWD_CAN_SET_MASTER_VOLUME);
+        }
+
+        mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
+        if ((NULL != dev->set_master_mute) &&
+            (OK == dev->set_master_mute(dev, mMasterMute))) {
+            flags = static_cast<AudioHwDevice::Flags>(flags |
+                    AudioHwDevice::AHWD_CAN_SET_MASTER_MUTE);
+        }
+
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 
     audio_module_handle_t handle = nextUniqueId();
-    mAudioHwDevs.add(handle, new AudioHwDevice(name, dev));
+    mAudioHwDevs.add(handle, new AudioHwDevice(name, dev, flags));
 
     ALOGI("loadHwModule() Loaded %s audio interface from %s (%s) handle %d",
           name, dev->common.module->name, dev->common.module->id, handle);
@@ -6757,7 +6777,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         format: pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT,
     };
     audio_stream_out_t *outStream = NULL;
-    audio_hw_device_t *outHwDev;
+    AudioHwDevice *outHwDev;
 
     ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %d, Channels %x, flags %x",
               module,
@@ -6777,11 +6797,12 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     if (outHwDev == NULL)
         return 0;
 
+    audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
     audio_io_handle_t id = nextUniqueId();
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
 
-    status = outHwDev->open_output_stream(outHwDev,
+    status = hwDevHal->open_output_stream(hwDevHal,
                                           id,
                                           *pDevices,
                                           (audio_output_flags_t)flags,
@@ -6825,68 +6846,8 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_MODE;
-            outHwDev->set_mode(outHwDev, mMode);
-
-            // Determine the level of master volume/master mute support the primary
-            // audio HAL has, and set the initial master volume/mute state at the same
-            // time.
-            float initialVolume = 1.0;
-            bool initialMute = false;
-            mMasterVolumeSupportLvl = MVS_NONE;
-            mMasterMuteSupportLvl = MMS_NONE;
-
-            mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
-            if ((NULL != outHwDev->get_master_volume) &&
-                (NO_ERROR == outHwDev->get_master_volume(outHwDev, &initialVolume))) {
-                mMasterVolumeSupportLvl = MVS_FULL;
-            } else {
-                mMasterVolumeSupportLvl = MVS_SETONLY;
-                initialVolume = 1.0;
-            }
-
-            mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
-            if ((NULL == outHwDev->set_master_volume) ||
-                (NO_ERROR != outHwDev->set_master_volume(outHwDev, initialVolume))) {
-                mMasterVolumeSupportLvl = MVS_NONE;
-            }
-
-            mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
-            if ((NULL != outHwDev->get_master_mute) &&
-                (NO_ERROR == outHwDev->get_master_mute(outHwDev, &initialMute))) {
-                mMasterMuteSupportLvl = MMS_FULL;
-            } else {
-                mMasterMuteSupportLvl = MMS_SETONLY;
-                initialMute = 0;
-            }
-
-            mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
-            if ((NULL == outHwDev->set_master_mute) ||
-                (NO_ERROR != outHwDev->set_master_mute(outHwDev, initialMute))) {
-                mMasterMuteSupportLvl = MMS_NONE;
-            }
-
-            // now that we have a primary device, initialize master volume/mute
-            // on other devices
-            for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-                audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
-
-                if ((dev != mPrimaryHardwareDev) &&
-                    (NULL != dev->set_master_volume)) {
-                    mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
-                    dev->set_master_volume(dev, initialVolume);
-                }
-
-                if (NULL != dev->set_master_mute) {
-                    mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
-                    dev->set_master_mute(dev, initialMute);
-                }
-            }
-
+            hwDevHal->set_mode(hwDevHal, mMode);
             mHardwareStatus = AUDIO_HW_IDLE;
-            mMasterVolumeSW = initialVolume;
-            mMasterVolume   = initialVolume;
-            mMasterMuteSW   = initialMute;
-            mMasterMute     = initialMute;
         }
         return id;
     }
@@ -6953,7 +6914,7 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
         AudioStreamOut *out = thread->clearOutput();
         ALOG_ASSERT(out != NULL, "out shouldn't be NULL");
         // from now on thread->mOutput is NULL
-        out->hwDev->close_output_stream(out->hwDev, out->stream);
+        out->hwDev()->close_output_stream(out->hwDev(), out->stream);
         delete out;
     }
     return NO_ERROR;
@@ -7007,7 +6968,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_format_t reqFormat = config.format;
     audio_channel_mask_t reqChannels = config.channel_mask;
     audio_stream_in_t *inStream = NULL;
-    audio_hw_device_t *inHwDev;
+    AudioHwDevice *inHwDev;
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;
@@ -7019,9 +6980,10 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     if (inHwDev == NULL)
         return 0;
 
+    audio_hw_device_t *inHwHal = inHwDev->hwDevice();
     audio_io_handle_t id = nextUniqueId();
 
-    status = inHwDev->open_input_stream(inHwDev, id, *pDevices, &config,
+    status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config,
                                         &inStream);
     ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %d, Channels %x, status %d",
             inStream,
@@ -7039,7 +7001,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         (popcount(config.channel_mask) <= FCC_2) && (popcount(reqChannels) <= FCC_2)) {
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
-        status = inHwDev->open_input_stream(inHwDev, id, *pDevices, &config, &inStream);
+        status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config, &inStream);
     }
 
     if (status == NO_ERROR && inStream != NULL) {
@@ -7097,7 +7059,7 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
     AudioStreamIn *in = thread->clearInput();
     ALOG_ASSERT(in != NULL, "in shouldn't be NULL");
     // from now on thread->mInput is NULL
-    in->hwDev->close_input_stream(in->hwDev, in->stream);
+    in->hwDev()->close_input_stream(in->hwDev(), in->stream);
     delete in;
 
     return NO_ERROR;
@@ -7249,7 +7211,7 @@ AudioFlinger::PlaybackThread *AudioFlinger::primaryPlaybackThread_l() const
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
         AudioStreamOut *output = thread->getOutput();
-        if (output != NULL && output->hwDev == mPrimaryHardwareDev) {
+        if (output != NULL && output->audioHwDev == mPrimaryHardwareDev) {
             return thread;
         }
     }

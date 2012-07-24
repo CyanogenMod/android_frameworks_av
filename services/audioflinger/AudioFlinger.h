@@ -122,9 +122,7 @@ public:
     virtual     status_t    setMasterMute(bool muted);
 
     virtual     float       masterVolume() const;
-    virtual     float       masterVolumeSW() const;
     virtual     bool        masterMute() const;
-    virtual     bool        masterMuteSW() const;
 
     virtual     status_t    setStreamVolume(audio_stream_type_t stream, float value,
                                             audio_io_handle_t output);
@@ -258,6 +256,8 @@ public:
                                         void *cookie);
 
 private:
+    class AudioHwDevice;    // fwd declaration for findSuitableHwDev_l
+
                audio_mode_t getMode() const { return mMode; }
 
                 bool        btNrecIsOff() const { return mBtNrecIsOff; }
@@ -271,7 +271,7 @@ private:
     // RefBase
     virtual     void        onFirstRef();
 
-    audio_hw_device_t*      findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices);
+    AudioHwDevice*          findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices);
     void                    purgeStaleEffects_l();
 
     // standby delay for MIXER and DUPLICATING playback threads is read from property
@@ -1845,24 +1845,59 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
     };
 
+    class AudioHwDevice {
+    public:
+        enum Flags {
+            AHWD_CAN_SET_MASTER_VOLUME  = 0x1,
+            AHWD_CAN_SET_MASTER_MUTE    = 0x2,
+        };
+
+        AudioHwDevice(const char *moduleName,
+                      audio_hw_device_t *hwDevice,
+                      Flags flags)
+            : mModuleName(strdup(moduleName))
+            , mHwDevice(hwDevice)
+            , mFlags(flags) { }
+        /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
+
+        bool canSetMasterVolume() const {
+            return (0 != (mFlags & AHWD_CAN_SET_MASTER_VOLUME));
+        }
+
+        bool canSetMasterMute() const {
+            return (0 != (mFlags & AHWD_CAN_SET_MASTER_MUTE));
+        }
+
+        const char *moduleName() const { return mModuleName; }
+        audio_hw_device_t *hwDevice() const { return mHwDevice; }
+    private:
+        const char * const mModuleName;
+        audio_hw_device_t * const mHwDevice;
+        Flags mFlags;
+    };
+
     // AudioStreamOut and AudioStreamIn are immutable, so their fields are const.
     // For emphasis, we could also make all pointers to them be "const *",
     // but that would clutter the code unnecessarily.
 
     struct AudioStreamOut {
-        audio_hw_device_t*  const hwDev;
+        AudioHwDevice* const audioHwDev;
         audio_stream_out_t* const stream;
 
-        AudioStreamOut(audio_hw_device_t *dev, audio_stream_out_t *out) :
-            hwDev(dev), stream(out) {}
+        audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
+
+        AudioStreamOut(AudioHwDevice *dev, audio_stream_out_t *out) :
+            audioHwDev(dev), stream(out) {}
     };
 
     struct AudioStreamIn {
-        audio_hw_device_t* const hwDev;
+        AudioHwDevice* const audioHwDev;
         audio_stream_in_t* const stream;
 
-        AudioStreamIn(audio_hw_device_t *dev, audio_stream_in_t *in) :
-            hwDev(dev), stream(in) {}
+        audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
+
+        AudioStreamIn(AudioHwDevice *dev, audio_stream_in_t *in) :
+            audioHwDev(dev), stream(in) {}
     };
 
     // for mAudioSessionRefs only
@@ -1874,62 +1909,6 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         int         mCnt;
     };
 
-    enum master_volume_support {
-        // MVS_NONE:
-        // Audio HAL has no support for master volume, either setting or
-        // getting.  All master volume control must be implemented in SW by the
-        // AudioFlinger mixing core.
-        MVS_NONE,
-
-        // MVS_SETONLY:
-        // Audio HAL has support for setting master volume, but not for getting
-        // master volume (original HAL design did not include a getter).
-        // AudioFlinger needs to keep track of the last set master volume in
-        // addition to needing to set an initial, default, master volume at HAL
-        // load time.
-        MVS_SETONLY,
-
-        // MVS_FULL:
-        // Audio HAL has support both for setting and getting master volume.
-        // AudioFlinger should send all set and get master volume requests
-        // directly to the HAL.
-        MVS_FULL,
-    };
-
-    enum master_mute_support {
-        // MMS_NONE:
-        // Audio HAL has no support for master mute, either setting or getting.
-        // All master mute control must be implemented in SW by the
-        // AudioFlinger mixing core.
-        MMS_NONE,
-
-        // MMS_SETONLY:
-        // Audio HAL has support for setting master mute, but not for getting
-        // master mute.  AudioFlinger needs to keep track of the last set
-        // master mute in addition to needing to set an initial, default,
-        // master mute at HAL load time.
-        MMS_SETONLY,
-
-        // MMS_FULL:
-        // Audio HAL has support both for setting and getting master mute.
-        // AudioFlinger should send all set and get master mute requests
-        // directly to the HAL.
-        MMS_FULL,
-    };
-
-    class AudioHwDevice {
-    public:
-        AudioHwDevice(const char *moduleName, audio_hw_device_t *hwDevice) :
-            mModuleName(strdup(moduleName)), mHwDevice(hwDevice){}
-        /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
-
-        const char *moduleName() const { return mModuleName; }
-        audio_hw_device_t *hwDevice() const { return mHwDevice; }
-    private:
-        const char * const mModuleName;
-        audio_hw_device_t * const mHwDevice;
-    };
-
     mutable     Mutex                               mLock;
 
                 DefaultKeyedVector< pid_t, wp<Client> >     mClients;   // see ~Client()
@@ -1939,7 +1918,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 // always take mLock before mHardwareLock
 
                 // These two fields are immutable after onFirstRef(), so no lock needed to access
-                audio_hw_device_t*                  mPrimaryHardwareDev; // mAudioHwDevs[0] or NULL
+                AudioHwDevice*                      mPrimaryHardwareDev; // mAudioHwDevs[0] or NULL
                 DefaultKeyedVector<audio_module_handle_t, AudioHwDevice*>  mAudioHwDevs;
 
     // for dump, indicates which hardware operation is currently in progress (but not stream ops)
@@ -1975,12 +1954,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
                 // both are protected by mLock
                 float                               mMasterVolume;
-                float                               mMasterVolumeSW;
-                master_volume_support               mMasterVolumeSupportLvl;
-
                 bool                                mMasterMute;
-                bool                                mMasterMuteSW;
-                master_mute_support                 mMasterMuteSupportLvl;
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
@@ -1993,9 +1967,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 Vector<AudioSessionRef*> mAudioSessionRefs;
 
                 float       masterVolume_l() const;
-                float       masterVolumeSW_l() const  { return mMasterVolumeSW; }
                 bool        masterMute_l() const;
-                bool        masterMuteSW_l() const    { return mMasterMuteSW; }
                 audio_module_handle_t loadHwModule_l(const char *name);
 
                 Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
