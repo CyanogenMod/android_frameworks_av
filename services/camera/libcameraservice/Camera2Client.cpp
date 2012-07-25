@@ -769,7 +769,7 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     }
     buffer_handle_t imgBuffer = *(buffer_handle_t*)(data + 4);
     ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__, mCameraId,
-            imgBuffer, *(uint32_t*)(data + 4));
+            imgBuffer);
     res = mRecordingConsumer->freeBuffer(imgBuffer);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to free recording frame (buffer_handle_t: %p):"
@@ -1623,7 +1623,7 @@ void Camera2Client::onRecordingFrameAvailable() {
         memcpy(data, &type, 4);
         memcpy(data + 4, &imgBuffer, sizeof(buffer_handle_t));
         ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
-                __FUNCTION__, mCameraId, imgBuffer, *(uint32_t*)(data + 4));
+                __FUNCTION__, mCameraId, imgBuffer);
         currentClient = mCameraClient;
     }
     // Call outside mICameraLock to allow re-entrancy from notification
@@ -2615,7 +2615,7 @@ status_t Camera2Client::updateRecordingStream() {
 
     if (mRecordingConsumer == 0) {
         // Create CPU buffer queue endpoint
-        mRecordingConsumer = new MediaConsumer(4);
+        mRecordingConsumer = new MediaConsumer(kRecordingHeapCount);
         mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
         mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
         mRecordingWindow = new SurfaceTextureClient(

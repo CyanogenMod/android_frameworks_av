@@ -238,8 +238,9 @@ private:
     sp<Camera2Heap> mRecordingHeap;
 
     // TODO: This needs to be queried from somewhere, or the BufferQueue needs
-    // to be passed all the way to stagefright
-    static const size_t kRecordingHeapCount = 4;
+    // to be passed all the way to stagefright. Right now, set to a large number
+    // to avoid starvation of the video encoders.
+    static const size_t kRecordingHeapCount = 8;
     size_t mRecordingHeapHead, mRecordingHeapFree;
     // Handle new recording image buffers
     void onRecordingFrameAvailable();
