@@ -23,6 +23,7 @@
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
+#include "MediaConsumer.h"
 
 namespace android {
 
@@ -170,6 +171,8 @@ private:
 
         bool recordingHint;
         bool videoStabilization;
+
+        bool storeMetadataInBuffers;
     } mParameters;
 
     /** Camera device-related private members */
@@ -219,11 +222,11 @@ private:
     /* Recording related members */
 
     int mRecordingStreamId;
-    sp<CpuConsumer>    mRecordingConsumer;
+    sp<MediaConsumer>    mRecordingConsumer;
     sp<ANativeWindow>  mRecordingWindow;
     // Simple listener that forwards frame available notifications from
     // a CPU consumer to the recording notification
-    class RecordingWaiter: public CpuConsumer::FrameAvailableListener {
+    class RecordingWaiter: public MediaConsumer::FrameAvailableListener {
       public:
         RecordingWaiter(Camera2Client *parent) : mParent(parent) {}
         void onFrameAvailable() { mParent->onRecordingFrameAvailable(); }
@@ -237,7 +240,6 @@ private:
     // TODO: This needs to be queried from somewhere, or the BufferQueue needs
     // to be passed all the way to stagefright
     static const size_t kRecordingHeapCount = 4;
-    static const uint32_t kRecordingFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
     size_t mRecordingHeapHead, mRecordingHeapFree;
     // Handle new recording image buffers
     void onRecordingFrameAvailable();
