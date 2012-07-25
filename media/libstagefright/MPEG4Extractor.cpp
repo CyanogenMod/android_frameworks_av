@@ -245,6 +245,9 @@ static const char *FourCC2MIME(uint32_t fourcc) {
         case FOURCC('s', 'a', 'w', 'b'):
             return MEDIA_MIMETYPE_AUDIO_AMR_WB;
 
+        case FOURCC('.', 'm', 'p', '3'):
+            return MEDIA_MIMETYPE_AUDIO_MPEG;
+
         case FOURCC('m', 'p', '4', 'v'):
             return MEDIA_MIMETYPE_VIDEO_MPEG4;
 
@@ -920,6 +923,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('m', 'p', '4', 'a'):
         case FOURCC('s', 'a', 'm', 'r'):
         case FOURCC('s', 'a', 'w', 'b'):
+        case FOURCC('.', 'm', 'p', '3'):
         {
             uint8_t buffer[8 + 20];
             if (chunk_data_size < (ssize_t)sizeof(buffer)) {
@@ -1794,11 +1798,15 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
     }
 
     if (objectTypeIndication  == 0x6b) {
+#if !defined(OMAP_ENHANCEMENT) && !defined(OMAP_COMPAT)
         // The media subtype is MP3 audio
         // Our software MP3 audio decoder may not be able to handle
         // packetized MP3 audio; for now, lets just return ERROR_UNSUPPORTED
         ALOGE("MP3 track in MP4/3GPP file is not supported");
         return ERROR_UNSUPPORTED;
+#endif
+        mLastTrack->meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
+        return OK;
     }
 
     const uint8_t *csd;
