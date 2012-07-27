@@ -822,12 +822,14 @@ bool SniffFLAC(
 {
     // first 4 is the signature word
     // second 4 is the sizeof STREAMINFO
+    // 1st bit of 2nd 4 bytes represent whether last block of metadata or not
     // 042 is the mandatory STREAMINFO
     // no need to read rest of the header, as a premature EOF will be caught later
     uint8_t header[4+4];
     if (source->readAt(0, header, sizeof(header)) != sizeof(header)
-            || memcmp("fLaC\0\0\0\042", header, 4+4))
-    {
+            || memcmp("fLaC", header, 4)
+            || !(header[4] == 0x80 || header[4] == 0x00)
+            || memcmp("\0\0\042", header + 5, 3))    {
         return false;
     }
 
