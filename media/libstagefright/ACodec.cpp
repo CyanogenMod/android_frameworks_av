@@ -37,6 +37,10 @@
 #include "sec_format.h"
 #endif
 
+#ifdef EXYNOS4_ENHANCEMENTS
+#include "csc.h"
+#endif
+
 namespace android {
 
 template<class T>
@@ -532,7 +536,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
 
 #ifdef EXYNOS4_ENHANCEMENTS
     OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
-    setNativeWindowColorFormat(eNativeColorFormat);
+    eNativeColorFormat = (OMX_COLOR_FORMATTYPE)omx_2_hal_pixel_format(def.format.video.eColorFormat);
 
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
@@ -687,25 +691,6 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
 
     return err;
 }
-
-#ifdef EXYNOS4_ENHANCEMENTS
-void ACodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat)
-{
-    // In case of Samsung decoders, we set proper native color format for the Native Window
-    if (!strcasecmp(mComponentName.c_str(), "OMX.SEC.AVC.Decoder")
-        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.FP.AVC.Decoder")) {
-        switch (eNativeColorFormat) {
-            case OMX_COLOR_FormatYUV420SemiPlanar:
-                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP;
-                break;
-            case OMX_COLOR_FormatYUV420Planar:
-            default:
-                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_P;
-                break;
-        }
-    }
-}
-#endif
 
 status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);

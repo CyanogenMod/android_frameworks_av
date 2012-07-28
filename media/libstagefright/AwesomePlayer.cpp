@@ -1666,6 +1666,20 @@ status_t AwesomePlayer::initAudioDecoder() {
                     ) {
         ALOGD("Set Audio Track as Audio Source");
         mAudioSource = mAudioTrack;
+#ifdef USE_ALP_AUDIO
+    } else if (mVideoTrack == NULL && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
+        mAudioSource = OMXCodec::Create(
+            mClient.interface(), mAudioTrack->getFormat(),
+            false, // createEncoder
+            mAudioTrack,
+            "OMX.Exynos.MP3.Decoder");
+        if (mAudioSource == NULL) {
+            mAudioSource = OMXCodec::Create(
+                mClient.interface(), mAudioTrack->getFormat(),
+                false, // createEncoder
+                mAudioTrack);
+        }
+#endif
     } else {
 #ifdef QCOM_HARDWARE
         int64_t durationUs;
@@ -2185,6 +2199,11 @@ void AwesomePlayer::onVideoEvent() {
             }
             postVideoEvent_l(kVideoEarlyMarginUs - latenessUs);
 #else
+#ifdef EXYNOS4_ENHANCEMENTS
+            if (latenessUs > -20000)
+                postVideoEvent_l(-latenessUs-10000);
+            else
+#endif
             postVideoEvent_l(10000);
 #endif
             return;

@@ -26,6 +26,7 @@
 #include <camera/CameraParameters.h>
 #include <system/window.h>
 #include <hardware/camera.h>
+
 #ifdef BOARD_USE_SAMSUNG_V4L2_ION
 #include <binder/MemoryHeapBaseIon.h>
 #endif

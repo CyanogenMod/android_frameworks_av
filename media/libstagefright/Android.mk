@@ -165,51 +165,23 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
     endif
 endif
 
+ifeq ($(BOARD_USE_ALP_AUDIO), true)
+LOCAL_CFLAGS += -DUSE_ALP_AUDIO
+endif
+
 ifeq ($(filter-out exynos4 exynos5,$(TARGET_BOARD_PLATFORM)),)
 LOCAL_CFLAGS += -DSAMSUNG_ANDROID_PATCH
+LOCAL_CFLAGS += -DUSE_WMV_CODEC
+LOCAL_CFLAGS += -DEXYNOS4_ENHANCEMENTS
 endif
 
 ifeq ($(TARGET_BOARD_PLATFORM), exynos4)
 LOCAL_C_INCLUDES += $(TOP)/hardware/samsung/exynos4/hal/include
+LOCAL_STATIC_LIBRARIES += libcsc_helper
 endif
-
-ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
-# Include native color format header path
-LOCAL_C_INCLUDES += $(TARGET_HAL_PATH)/include
-
-LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
-endif
-
-ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
-# Add native color format patch definition
-LOCAL_CFLAGS += -DNATIVE_COLOR_FORMAT_PATCH
-
-endif # ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
 
 ifeq ($(BOARD_USE_SAMSUNG_V4L2_ION), true)
 LOCAL_CFLAGS += -DBOARD_USE_SAMSUNG_V4L2_ION
-endif
-
-ifeq ($(TARGET_BOARD_PLATFORM), exynos4)
-ifeq ($(BOARD_USE_SAMSUNG_V4L2_ION), false)
-ifeq ($(BOARD_USE_S3D_SUPPORT), true)
-LOCAL_CFLAGS += -DS3D_SUPPORT
-endif
-endif
-endif
-
-ifeq ($(TARGET_BOARD_PLATFORM), exynos5)
-ifeq ($(BOARD_USE_S3D_SUPPORT), true)
-LOCAL_CFLAGS += -DS3D_SUPPORT
-endif
-endif
-
-ifeq ($(filter-out s5pc110 s5pv210,$(TARGET_SOC)),)
-ifeq ($(BOARD_USE_V4L2), false)
-ifeq ($(BOARD_USE_S3D_SUPPORT), true)
-LOCAL_CFLAGS += -DS3D_SUPPORT
-endif
-endif
 endif
 
 ifeq ($(TARGET_SOC),exynos4x12)
@@ -222,6 +194,10 @@ endif
 
 ifeq ($(BOARD_USES_HDMI),true)
 LOCAL_CFLAGS += -DBOARD_USES_HDMI
+endif
+
+ifeq ($(filter-out exynos5,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_CFLAGS += -DSAMSUNG_ANDROID_PATCH
 endif
 
 LOCAL_MODULE:= libstagefright

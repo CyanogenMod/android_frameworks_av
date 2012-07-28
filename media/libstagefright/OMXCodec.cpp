@@ -55,29 +55,13 @@ Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 #include <QOMX_AudioExtensions.h>
 #include <OMX_QCOMExtns.h>
 #endif
+#ifdef EXYNOS4_ENHANCEMENTS
+#include "exynos_format.h"
+#include "csc.h"
+#include "Exynos_OMX_Def.h"
+#endif
 
 namespace android {
-
-#ifdef EXYNOS4_ENHANCEMENTS
-static const int OMX_SEC_COLOR_FormatNV12TPhysicalAddress = 0x7F000001;
-static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
-static const int OMX_SEC_COLOR_FormatNV12LVirtualAddress = 0x7F000003;
-static const int OMX_SEC_COLOR_FormatNV12Tiled = 0x7FC00002;
-#ifdef S3D_SUPPORT
-static const int OMX_SEC_COLOR_FormatNV12Tiled_SBS_LR = 0x7FC00003;
-static const int OMX_SEC_COLOR_FormatNV12Tiled_SBS_RL = 0x7FC00004;
-static const int OMX_SEC_COLOR_FormatNV12Tiled_TB_LR = 0x7FC00005;
-static const int OMX_SEC_COLOR_FormatNV12Tiled_TB_RL = 0x7FC00006;
-static const int OMX_SEC_COLOR_FormatYUV420SemiPlanar_SBS_LR = 0x7FC00007;
-static const int OMX_SEC_COLOR_FormatYUV420SemiPlanar_SBS_RL = 0x7FC00008;
-static const int OMX_SEC_COLOR_FormatYUV420SemiPlanar_TB_LR = 0x7FC00009;
-static const int OMX_SEC_COLOR_FormatYUV420SemiPlanar_TB_RL = 0x7FC0000A;
-static const int OMX_SEC_COLOR_FormatYUV420Planar_SBS_LR = 0x7FC0000B;
-static const int OMX_SEC_COLOR_FormatYUV420Planar_SBS_RL = 0x7FC0000C;
-static const int OMX_SEC_COLOR_FormatYUV420Planar_TB_LR = 0x7FC0000D;
-static const int OMX_SEC_COLOR_FormatYUV420Planar_TB_RL = 0x7FC0000E;
-#endif
-#endif
 
 // Treat time out as an error if we have not received any output
 // buffers after 3 seconds.
@@ -306,6 +290,21 @@ uint32_t OMXCodec::getComponentQuirks(
         quirks |= kRequiresWMAProComponent;
     }
 #endif
+#ifdef USE_ALP_AUDIO
+    /*
+     * Exynos Mp3 decoder needs the following quirks.
+     *
+     * kSupportsMultipleFramesPerInputBuffer :
+     *         To coalesce as much as SRP's input buffer size
+     * kNeedsFlushBeforeDisable :
+     *         Flush is necessary before port is disabled.
+     */
+    if (!strcmp("OMX.Exynos.MP3.Decoder", list->getCodecName(index))) {
+        quirks |= kSupportsMultipleFramesPerInputBuffer;
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+#endif
+
     return quirks;
 }
 
@@ -732,6 +731,17 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
         setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
     }
+#ifdef USE_WMA_CODEC
+    else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_WMA, mMIME)) {
+        CHECK(!mIsEncoder);
+
+        int32_t numChannels, sampleRate;
+        CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
+        CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+
+        setWMAFormat(kPortIndexInput, sampleRate, numChannels);
+    }
+#endif
 
     if (!strncasecmp(mMIME, "video/", 6)) {
 #ifdef QCOM_HARDWARE
@@ -982,7 +992,6 @@ status_t OMXCodec::setVideoPortFormatType(
 #define ALIGN_TO_8KB(x)   ((((x) + (1 << 13) - 1) >> 13) << 13)
 #define ALIGN_TO_32B(x)   ((((x) + (1 <<  5) - 1) >>  5) <<  5)
 #define ALIGN_TO_128B(x)  ((((x) + (1 <<  7) - 1) >>  7) <<  7)
-#define ALIGN(x, a)       (((x) + (a) - 1) & ~((a) - 1))
 #endif
 
 static size_t getFrameSize(
@@ -1004,21 +1013,7 @@ static size_t getFrameSize(
         * this part in the future
         */
         case OMX_COLOR_FormatAndroidOpaque:
-#ifdef EXYNOS4_ENHANCEMENTS
-        case OMX_SEC_COLOR_FormatNV12TPhysicalAddress:
-        case OMX_SEC_COLOR_FormatNV12LPhysicalAddress:
-#endif
             return (width * height * 3) / 2;
-
-#ifdef EXYNOS4_ENHANCEMENTS
-        case OMX_SEC_COLOR_FormatNV12LVirtualAddress:
-            return ALIGN((ALIGN(width, 16) * ALIGN(height, 16)), 2048) + ALIGN((ALIGN(width, 16) * ALIGN(height >> 1, 8)), 2048);
-
-        case OMX_SEC_COLOR_FormatNV12Tiled:
-            static unsigned int frameBufferYSise = ALIGN_TO_8KB(ALIGN_TO_128B(width) * ALIGN_TO_32B(height));
-            static unsigned int frameBufferUVSise = ALIGN_TO_8KB(ALIGN_TO_128B(width) * ALIGN_TO_32B(height/2));
-            return (frameBufferYSise + frameBufferUVSise);
-#endif
 
         default:
             CHECK(!"Should not be here. Unsupported color format.");
@@ -1111,6 +1106,11 @@ void OMXCodec::setVideoInputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)){
         compressionFormat = OMX_VIDEO_CodingMPEG2;
 #endif
+#ifdef USE_WMV_CODEC
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
+        compressionFormat = OMX_VIDEO_CodingWMV;
+#endif
+        
     } else {
         ALOGE("Not a supported video mime type: %s", mime);
         CHECK(!"Should not be here. Not a supported video mime type.");
@@ -1543,6 +1543,9 @@ status_t OMXCodec::setVideoOutputFormat(
         compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)){
         compressionFormat = OMX_VIDEO_CodingWMV;
+#ifdef USE_WMV_CODEC
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
+        compressionFormat = OMX_VIDEO_CodingWMV;
 #endif
     } else {
         ALOGE("Not a supported video mime type: %s", mime);
@@ -1585,7 +1588,8 @@ status_t OMXCodec::setVideoOutputFormat(
 #endif
                );
 
-        if (!strncmp("OMX.SEC.", mComponentName, 8)) {
+        if (   !strncmp("OMX.SEC.", mComponentName, 8)
+            || !strncmp("OMX.Exynos.", mComponentName, 11)) {
             if (mNativeWindow == NULL) {
                 format.eColorFormat = OMX_COLOR_FormatYUV420Planar;
             } else {
@@ -1707,7 +1711,7 @@ OMXCodec::OMXCodec(
       ,mThumbnailMode(false),
       mSPSParsed(false),
       mUseArbitraryMode(true),
-      mNumBFrames(0) 
+      mNumBFrames(0)
 #endif
 {
 
@@ -1774,6 +1778,13 @@ void OMXCodec::setComponentRole(
             "audio_decoder.ac3", NULL },
         { MEDIA_MIMETYPE_VIDEO_DIVX311,
             "video_decoder.divx", NULL },
+#ifdef USE_WMV_CODEC
+        { MEDIA_MIMETYPE_VIDEO_WMV,
+            "video_decoder.wmv", "video_decoder.wmv" },
+#endif
+#ifdef USE_WMA_CODEC
+        { MEDIA_MIMETYPE_AUDIO_WMA,
+            "audio_decoder.wma", "audio_encoder.wma" },
 #endif
     };
 
@@ -2112,6 +2123,12 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
 
+#if defined(BOARD_USES_HDMI)
+    OMX_CONFIG_RECTTYPE rect;
+    InitOMXParams(&rect);
+    rect.nPortIndex = kPortIndexOutput;
+#endif
+
     status_t err = mOMX->getParameter(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
     if (err != OK) {
@@ -2132,8 +2149,25 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
       format = HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED;
 #endif
 #endif
+#ifdef EXYNOS4_ENHANCEMENTS
+    // HACK : carrotsm.lee
+#if defined(BOARD_USES_HDMI)
+    err = mOMX->getConfig(
+            mNode, OMX_IndexConfigCommonOutputCrop,
+            &rect, sizeof(rect));
+#endif
 
+    err = native_window_set_scaling_mode(mNativeWindow.get(),
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+
+    if (err != OK) {
+        return err;
+    }
+#endif
 #ifndef EXYNOS4_ENHANCEMENTS
+    OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
+    eNativeColorFormat = (OMX_COLOR_FORMATTYPE)omx_2_hal_pixel_format(def.format.video.eColorFormat);
+
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
 #ifdef QCOM_ICS_DECODERS
@@ -2183,12 +2217,18 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         eColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_P;
         break;
     }
+    setNativeWindowColorFormat(eNativeColorFormat);
 
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
-            eColorFormat);
+            def.format.video.eColorFormat);
+#endif
+#if defined(BOARD_USES_HDMI)
+    if (mNativeWindow != NULL) {
+         initNativeWindowCrop();
+    }
 #endif
 
     if (err != 0) {
@@ -2245,6 +2285,45 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         break;
     default:
         break;
+#ifdef USE_S3D_SUPPORT
+    if (!strcmp(mComponentName, "OMX.Exynos.AVC.Decoder")) {
+        OMX_INDEXTYPE index;
+        status_t err =
+            mOMX->getExtensionIndex(
+                    mNode,
+                    "OMX.SEC.index.S3DMode",
+                    &index);
+
+        if (err != OK) {
+            ALOGE("getExtensionIndex('OMX.SEC.index.S3DMode') "
+                       "returned error 0x%08x", err);
+            return err;
+        }
+
+        OMX_U32 S3Dmode = OMX_TRUE;
+        err = mOMX->getConfig(mNode, index, &S3Dmode, sizeof(S3Dmode));
+
+        if (err != OK) {
+            ALOGE("getConfig('OMX.SEC.index.S3DMode') "
+                       "returned error 0x%08x", err);
+            return err;
+        }
+
+        switch (S3Dmode) {
+        case OMX_SEC_FPARGMT_SIDE_BY_SIDE:
+            usage |= GRALLOC_USAGE_PRIVATE_SBS_LR;
+            break;
+        case OMX_SEC_FPARGMT_TOP_BOTTOM:
+            usage |= GRALLOC_USAGE_PRIVATE_TB_LR;
+            break;
+        //Following Frame packing modes are not supported
+        case OMX_SEC_FPARGMT_CHECKERBRD_INTERL:
+        case OMX_SEC_FPARGMT_COLUMN_INTERL:
+        case OMX_SEC_FPARGMT_ROW_INTERL:
+        case OMX_SEC_FPARGMT_TEMPORAL_INTERL:
+        default:
+            break;
+        }
     }
 #endif
 
@@ -2273,6 +2352,17 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
                                         | GRALLOC_USAGE_HW_ION | GRALLOC_USAGE_HWC_HWOVERLAY);
 #else
+#ifdef EXYNOS4_ENHANCEMENTS
+    if (mFlags & kUseSecureInputBuffers) {
+        err = native_window_set_usage(
+            mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+            | GRALLOC_USAGE_HWC_HWOVERLAY);
+    } else {
+        err = native_window_set_usage(
+            mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+            | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY);
+    }
+#else
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
 #endif
@@ -2289,6 +2379,11 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
                 strerror(-err), -err);
         return err;
     }
+
+#if defined(BOARD_USES_HDMI) && (defined(SAMSUNG_EXYNOS4x12) || defined(SAMSUNG_EXYNOS5250))
+    // To resolve HDMI tearing problem.
+    minUndequeuedBufs = minUndequeuedBufs + 2;
+#endif
 
     // XXX: Is this the right logic to use?  It's not clear to me what the OMX
     // buffer counts refer to - how do they account for the renderer holding on
@@ -3138,6 +3233,16 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
                     // We implicitly resume pulling on our upstream source.
                     mPaused = false;
 
+#ifdef USE_ALP_AUDIO
+                    /*
+                     * This value has to be initialized when playing repeatedly
+                     * a very short file in Music application by repeat settings.
+                     * The file is short enough to gather all input frames
+                     * to one input buffer at once.
+                     */
+                    mNoMoreOutputData = false;
+#endif
+
                     drainInputBuffers();
                     fillOutputBuffers();
                 }
@@ -3464,14 +3569,20 @@ void OMXCodec::fillOutputBuffers() {
                 == mPortBuffers[kPortIndexInput].size()
             && countBuffersWeOwn(mPortBuffers[kPortIndexOutput])
                 == mPortBuffers[kPortIndexOutput].size()) {
+#ifdef USE_ALP_AUDIO
+            /* Exynos mp3 decoder should be finished by EOS flag in output buffer. */
+            /* Do not apply this workaround */
+            if (strcmp(mComponentName, "OMX.Exynos.MP3.Decoder") != 0) {
+#endif
             mNoMoreOutputData = true;
             mBufferFilled.signal();
             return;
         }
-#ifdef QCOM_HARDWARE
-    }
+#if defined QCOM_HARDWARE || defined USE_ALP_AUDIO
+   }
 #endif
 
+    
     Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexOutput];
     for (size_t i = 0; i < buffers->size(); ++i) {
         BufferInfo *info = &buffers->editItemAt(i);
@@ -3482,10 +3593,10 @@ void OMXCodec::fillOutputBuffers() {
 }
 
 void OMXCodec::drainInputBuffers() {
-    CHECK(mState == EXECUTING || 
+    CHECK(mState == EXECUTING ||
 #ifdef QCOM_HARDWARE
           mState == FLUSHING ||
-#endif 
+#endif
           mState == RECONFIGURING);
 
     if (mFlags & kUseSecureInputBuffers) {
@@ -3721,41 +3832,11 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
                 CHECK(info->mMediaBuffer == NULL);
                 info->mMediaBuffer = srcBuffer;
             } else {
-                OMX_PARAM_PORTDEFINITIONTYPE def;
-                InitOMXParams(&def);
-                def.nPortIndex = kPortIndexInput;
-
-                status_t err = mOMX->getParameter(mNode, OMX_IndexParamPortDefinition,
-                                                  &def, sizeof(def));
-                CHECK_EQ(err, (status_t)OK);
-
-                if (def.eDomain == OMX_PortDomainVideo) {
-                    OMX_VIDEO_PORTDEFINITIONTYPE *videoDef = &def.format.video;
-                    switch (videoDef->eColorFormat) {
-#ifdef EXYNOS4_ENHANCEMENTS
-                    case OMX_SEC_COLOR_FormatNV12LVirtualAddress: {
-                        CHECK(srcBuffer->data() != NULL);
-                        void *pSharedMem = (void *)(srcBuffer->data());
-                        memcpy((uint8_t *)info->mData + offset,
-                                (const void *)&pSharedMem, sizeof(void *));
-                        break;
-                    }
-#endif
-                    default:
-                        CHECK(srcBuffer->data() != NULL);
-                        memcpy((uint8_t *)info->mData + offset,
-                                (const uint8_t *)srcBuffer->data()
-                                    + srcBuffer->range_offset(),
-                                srcBuffer->range_length());
-                        break;
-                    }
-                } else {
-                    CHECK(srcBuffer->data() != NULL);
-                    memcpy((uint8_t *)info->mData + offset,
-                            (const uint8_t *)srcBuffer->data()
-                                + srcBuffer->range_offset(),
-                            srcBuffer->range_length());
-                }
+                CHECK(srcBuffer->data() != NULL);
+                memcpy((uint8_t *)info->mData + offset,
+                        (const uint8_t *)srcBuffer->data()
+                            + srcBuffer->range_offset(),
+                        srcBuffer->range_length());
             }
         }
 
@@ -3800,12 +3881,22 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
             break;
         }
 
+#ifdef USE_ALP_AUDIO
+        /*
+         * In ALP mode, 250ms restriction is not required.
+         * SRP driver must have enough frames for the size of its input buffer.
+         */
+        if (strcmp(mComponentName, "OMX.Exynos.MP3.Decoder") != 0) {
+#endif
         int64_t coalescedDurationUs = lastBufferTimeUs - timestampUs;
 
         if (coalescedDurationUs > 250000ll) {
             // Don't coalesce more than 250ms worth of encoded data at once.
             break;
         }
+#ifdef USE_ALP_AUDIO
+        }
+#endif
     }
 
     if (n > 1) {
@@ -3860,7 +3951,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
     // This component does not ever signal the EOS flag on output buffers,
     // Thanks for nothing.
-    if (mSignalledEOS && (!strcmp(mComponentName, "OMX.TI.Video.encoder") || 
+    if (mSignalledEOS && (!strcmp(mComponentName, "OMX.TI.Video.encoder") ||
                           !strcmp(mComponentName, "OMX.TI.720P.Encoder"))) {
         mNoMoreOutputData = true;
         mBufferFilled.signal();
@@ -4353,6 +4444,47 @@ status_t OMXCodec::setWMAFormat(const sp<MetaData> &meta)
         }
         return err;
     }
+}
+#endif
+#ifdef USE_WMA_CODEC
+void OMXCodec::setWMAFormat(
+        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels) {
+
+    /* port definition */
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    InitOMXParams(&def);
+    def.nPortIndex = portIndex;
+    status_t err = mOMX->getParameter(
+            mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+    CHECK_EQ(err, (status_t)OK);
+    def.format.audio.eEncoding = OMX_AUDIO_CodingPCM;
+    CHECK_EQ(mOMX->setParameter(mNode, OMX_IndexParamPortDefinition,
+            &def, sizeof(def)), (status_t)OK);
+
+    /* pcm param */
+    OMX_AUDIO_PARAM_PCMMODETYPE pcmParams;
+    InitOMXParams(&pcmParams);
+    pcmParams.nPortIndex = portIndex;
+
+    err = mOMX->getParameter(
+            mNode, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+
+    CHECK_EQ(err, (status_t)OK);
+
+    pcmParams.nChannels = numChannels;
+    pcmParams.eNumData = OMX_NumericalDataSigned;
+    pcmParams.bInterleaved = OMX_TRUE;
+    pcmParams.nBitPerSample = 16;
+    pcmParams.nSamplingRate = sampleRate;
+    pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
+
+    CHECK_EQ(getOMXChannelMapping(
+                numChannels, pcmParams.eChannelMapping), (status_t)OK);
+
+    err = mOMX->setParameter(
+            mNode, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+
+    CHECK_EQ(err, (status_t)OK);
 }
 #endif
 void OMXCodec::setG711Format(int32_t numChannels) {
@@ -4937,23 +5069,12 @@ static const char *colorFormatString(OMX_COLOR_FORMATTYPE type) {
 
     if (type == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar) {
         return "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar";
-    }
-#ifdef EXYNOS4_ENHANCEMENTS
-    if (type == OMX_SEC_COLOR_FormatNV12TPhysicalAddress) {
-        return "OMX_SEC_COLOR_FormatNV12TPhysicalAddress";
-    }
-    if (type == OMX_SEC_COLOR_FormatNV12LPhysicalAddress) {
-        return "OMX_SEC_COLOR_FormatNV12LPhysicalAddress";
-    }
-    if (type == OMX_SEC_COLOR_FormatNV12LVirtualAddress) {
-        return "OMX_SEC_COLOR_FormatNV12LVirtualAddress";
-    }
-    if (type == OMX_SEC_COLOR_FormatNV12Tiled) {
-        return "OMX_SEC_COLOR_FormatNV12Tiled";
-    }
-#endif
-    else if (type == OMX_QCOM_COLOR_FormatYVU420SemiPlanar) {
+    } else if (type == OMX_QCOM_COLOR_FormatYVU420SemiPlanar) {
         return "OMX_QCOM_COLOR_FormatYVU420SemiPlanar";
+#ifdef EXYNOS4_ENHANCEMENTS
+    } else if (type == OMX_SEC_COLOR_FormatNV12Tiled) {
+        return "OMX_SEC_COLOR_FormatNV12Tiled";
+#endif
     } else if (type < 0 || (size_t)type >= numNames) {
         return "UNKNOWN";
     } else {
