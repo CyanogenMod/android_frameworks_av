@@ -169,8 +169,8 @@ static const int kPriorityFastMixer = 3;
 // for the track.  The client then sub-divides this into smaller buffers for its use.
 // Currently the client uses double-buffering by default, but doesn't tell us about that.
 // So for now we just assume that client is double-buffered.
-// FIXME It would be better for client to tell us whether it wants double-buffering or N-buffering,
-// so we could allocate the right amount of memory.
+// FIXME It would be better for client to tell AudioFlinger whether it wants double-buffering or
+// N-buffering, so AudioFlinger could allocate the right amount of memory.
 // See the client's minBufCount and mNotificationFramesAct calculations for details.
 static const int kFastTrackMultiplier = 2;
 
@@ -258,11 +258,11 @@ void AudioFlinger::onFirstRef()
 AudioFlinger::~AudioFlinger()
 {
     while (!mRecordThreads.isEmpty()) {
-        // closeInput() will remove first entry from mRecordThreads
+        // closeInput_nonvirtual() will remove specified entry from mRecordThreads
         closeInput_nonvirtual(mRecordThreads.keyAt(0));
     }
     while (!mPlaybackThreads.isEmpty()) {
-        // closeOutput() will remove first entry from mPlaybackThreads
+        // closeOutput_nonvirtual() will remove specified entry from mPlaybackThreads
         closeOutput_nonvirtual(mPlaybackThreads.keyAt(0));
     }
 
@@ -1134,7 +1134,7 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, 
 
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
         audio_devices_t device, type_t type)
-    :   Thread(false),
+    :   Thread(false /*canCallJava*/),
         mType(type),
         mAudioFlinger(audioFlinger), mSampleRate(0), mFrameCount(0), mNormalFrameCount(0),
         // mChannelMask
@@ -1142,6 +1142,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mFrameSize(1), mFormat(AUDIO_FORMAT_INVALID),
         mParamStatus(NO_ERROR),
         mStandby(false), mDevice(device), mId(id),
+        // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this))
 {
 }
@@ -6097,7 +6098,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                     if (mChannelCount == 1 && mReqChannelCount == 1) {
                         framesOut >>= 1;
                     }
-                    mResampler->resample(mRsmpOutBuffer, framesOut, this);
+                    mResampler->resample(mRsmpOutBuffer, framesOut, this /* AudioBufferProvider* */);
                     // ditherAndClamp() works as long as all buffers returned by mActiveTrack->getNextBuffer()
                     // are 32 bit aligned which should be always true.
                     if (mChannelCount == 2 && mReqChannelCount == 1) {
