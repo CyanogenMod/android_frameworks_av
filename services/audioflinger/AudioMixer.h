@@ -188,11 +188,9 @@ private:
 
         // 16-byte boundary
 
-        uint64_t    localTimeFreq;
-
         DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
 
-        int32_t     padding;
+        int32_t     padding[3];
 
         // 16-byte boundary
 
@@ -274,6 +272,10 @@ private:
 
     static int64_t calculateOutputPTS(const track_t& t, int64_t basePTS,
                                       int outputFrameIndex);
+
+    static uint64_t         sLocalTimeFreq;
+    static pthread_once_t   sOnceControl;
+    static void             sInitRoutine();
 };
 
 // ----------------------------------------------------------------------------
