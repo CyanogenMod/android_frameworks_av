@@ -120,7 +120,7 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
 
     result.appendFormat("    Static camera information metadata:\n");
     write(fd, result.string(), result.size());
-    dump_camera_metadata(mDeviceInfo, fd, 2);
+    dump_indented_camera_metadata(mDeviceInfo, fd, 2, 6);
 
     result = "    Request queue contents:\n";
     write(fd, result.string(), result.size());
@@ -487,7 +487,7 @@ status_t Camera2Device::MetadataQueue::dump(int fd,
              r != mStreamSlot.end(); r++) {
             result = String8::format("       Stream slot buffer %d:\n", i);
             write(fd, result.string(), result.size());
-            dump_camera_metadata(*r, fd, 2);
+            dump_indented_camera_metadata(*r, fd, 2, 10);
             i++;
         }
     }
@@ -502,7 +502,7 @@ status_t Camera2Device::MetadataQueue::dump(int fd,
              r != mEntries.end(); r++) {
             result = String8::format("       Queue entry %d:\n", i);
             write(fd, result.string(), result.size());
-            dump_camera_metadata(*r, fd, 2);
+            dump_indented_camera_metadata(*r, fd, 2, 10);
             i++;
         }
     }

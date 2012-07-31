@@ -276,7 +276,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     if (mPreviewRequest != NULL) {
         result.append("    Preview request:\n");
         write(fd, result.string(), result.size());
-        dump_camera_metadata(mPreviewRequest, fd, 2);
+        dump_indented_camera_metadata(mPreviewRequest, fd, 2, 6);
     } else {
         result.append("    Preview request: undefined\n");
         write(fd, result.string(), result.size());
@@ -285,9 +285,18 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     if (mCaptureRequest != NULL) {
         result = "    Capture request:\n";
         write(fd, result.string(), result.size());
-        dump_camera_metadata(mCaptureRequest, fd, 2);
+        dump_indented_camera_metadata(mCaptureRequest, fd, 2, 6);
     } else {
         result = "    Capture request: undefined\n";
+        write(fd, result.string(), result.size());
+    }
+
+    if (mRecordingRequest != NULL) {
+        result = "    Recording request:\n";
+        write(fd, result.string(), result.size());
+        dump_indented_camera_metadata(mRecordingRequest, fd, 2, 6);
+    } else {
+        result = "    Recording request: undefined\n";
         write(fd, result.string(), result.size());
     }
 

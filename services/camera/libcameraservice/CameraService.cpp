@@ -472,7 +472,8 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                 if (deviceVersion >= CAMERA_DEVICE_API_VERSION_2_0) {
                     result.appendFormat("  Device static metadata:\n");
                     write(fd, result.string(), result.size());
-                    dump_camera_metadata(info.static_camera_characteristics, fd, 2);
+                    dump_indented_camera_metadata(info.static_camera_characteristics,
+                            fd, 2, 4);
                 } else {
                     write(fd, result.string(), result.size());
                 }
