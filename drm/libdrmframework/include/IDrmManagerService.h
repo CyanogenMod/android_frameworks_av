@@ -109,7 +109,7 @@ public:
     virtual status_t saveRights(int uniqueId, const DrmRights& drmRights,
             const String8& rightsPath, const String8& contentPath) = 0;
 
-    virtual String8 getOriginalMimeType(int uniqueId, const String8& path) = 0;
+    virtual String8 getOriginalMimeType(int uniqueId, const String8& path, int fd) = 0;
 
     virtual int getDrmObjectType(
             int uniqueId, const String8& path, const String8& mimeType) = 0;
@@ -200,7 +200,7 @@ public:
     virtual status_t saveRights(int uniqueId, const DrmRights& drmRights,
             const String8& rightsPath, const String8& contentPath);
 
-    virtual String8 getOriginalMimeType(int uniqueId, const String8& path);
+    virtual String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     virtual int getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
 

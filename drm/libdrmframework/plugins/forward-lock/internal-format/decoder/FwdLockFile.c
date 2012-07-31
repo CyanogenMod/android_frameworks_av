@@ -293,20 +293,6 @@ int FwdLockFile_attach(int fileDesc) {
     return (sessionId >= 0) ? 0 : -1;
 }
 
-int FwdLockFile_open(const char *pFilename) {
-    int fileDesc = open(pFilename, O_RDONLY);
-    if (fileDesc < 0) {
-        ALOGE("failed to open file '%s': %s", pFilename, strerror(errno));
-        return fileDesc;
-    }
-
-    if (FwdLockFile_attach(fileDesc) < 0) {
-        (void)close(fileDesc);
-        fileDesc = -1;
-    }
-    return fileDesc;
-}
-
 ssize_t FwdLockFile_read(int fileDesc, void *pBuffer, size_t numBytes) {
     ssize_t numBytesRead;
     int sessionId = FwdLockFile_FindSession(fileDesc);

@@ -125,9 +125,9 @@ status_t DrmManagerService::saveRights(
     return mDrmManager->saveRights(uniqueId, drmRights, rightsPath, contentPath);
 }
 
-String8 DrmManagerService::getOriginalMimeType(int uniqueId, const String8& path) {
+String8 DrmManagerService::getOriginalMimeType(int uniqueId, const String8& path, int fd) {
     ALOGV("Entering getOriginalMimeType");
-    return mDrmManager->getOriginalMimeType(uniqueId, path);
+    return mDrmManager->getOriginalMimeType(uniqueId, path, fd);
 }
 
 int DrmManagerService::getDrmObjectType(

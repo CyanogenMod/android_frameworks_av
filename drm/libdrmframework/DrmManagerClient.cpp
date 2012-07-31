@@ -64,8 +64,8 @@ status_t DrmManagerClient::saveRights(
     return mDrmManagerClientImpl->saveRights(mUniqueId, drmRights, rightsPath, contentPath);
 }
 
-String8 DrmManagerClient::getOriginalMimeType(const String8& path) {
-    return mDrmManagerClientImpl->getOriginalMimeType(mUniqueId, path);
+String8 DrmManagerClient::getOriginalMimeType(const String8& path, int fd) {
+    return mDrmManagerClientImpl->getOriginalMimeType(mUniqueId, path, fd);
 }
 
 int DrmManagerClient::getDrmObjectType(const String8& path, const String8& mimeType) {

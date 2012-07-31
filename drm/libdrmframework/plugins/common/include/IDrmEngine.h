@@ -165,11 +165,12 @@ public:
      * Retrieves the mime type embedded inside the original content
      *
      * @param[in] uniqueId Unique identifier for a session
-     * @param[in] path Path of the protected content
+     * @param[in] path Path of the content or null.
+     * @param[in] fd File descriptor of the protected content
      * @return String8
      *     Returns mime-type of the original content, such as "video/mpeg"
      */
-    virtual String8 getOriginalMimeType(int uniqueId, const String8& path) = 0;
+    virtual String8 getOriginalMimeType(int uniqueId, const String8& path, int fd) = 0;
 
     /**
      * Retrieves the type of the protected object (content, rights, etc..)
