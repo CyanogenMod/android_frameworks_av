@@ -103,7 +103,7 @@ private:
         // @arg value must be in network byte order
         // @arg pos location the value must be in.
         void set(const TYPE& value, uint32_t pos) {
-            CHECK_LT(pos, mTotalNumTableEntries);
+            CHECK_LT(pos, mTotalNumTableEntries * mEntryCapacity);
 
             typename List<TYPE *>::iterator it = mTableEntryList.begin();
             uint32_t iterations = (pos / (mElementCapacity * mEntryCapacity));
@@ -122,7 +122,7 @@ private:
         // @arg pos location the value must be in.
         // @return true if a value is found.
         bool get(TYPE& value, uint32_t pos) const {
-            if (pos >= mTotalNumTableEntries) {
+            if (pos >= mTotalNumTableEntries * mEntryCapacity) {
                 return false;
             }
 
