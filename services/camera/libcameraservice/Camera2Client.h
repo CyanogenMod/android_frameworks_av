@@ -89,7 +89,7 @@ private:
     // Ensures serialization between incoming ICamera calls
     mutable Mutex mICameraLock;
 
-    // The following must be called with mICamaeraLock already locked
+    // The following must be called with mICameraLock already locked
 
     status_t setPreviewWindowLocked(const sp<IBinder>& binder,
             sp<ANativeWindow> window);
@@ -97,9 +97,6 @@ private:
     void stopPreviewLocked();
     status_t startPreviewLocked();
 
-    // Mutex that must be locked before accessing mParameters, mParamsFlattened
-    mutable Mutex mParamsLock;
-    String8 mParamsFlattened;
     // Current camera state; this is the contents of the CameraParameters object
     // in a more-efficient format. The enum values are mostly based off the
     // corresponding camera2 enums, not the camera1 strings. A few are defined
@@ -173,6 +170,59 @@ private:
         bool videoStabilization;
 
         bool storeMetadataInBuffers;
+
+        String8 paramsFlattened;
+    };
+
+    class LockedParameters {
+      public:
+        class Key {
+          public:
+            Key(LockedParameters &p):
+                    mParameters(p.mParameters),
+                    mLockedParameters(p) {
+                mLockedParameters.mLock.lock();
+            }
+
+            ~Key() {
+                mLockedParameters.mLock.unlock();
+            }
+            Parameters &mParameters;
+          private:
+            // Disallow copying, default construction
+            Key();
+            Key(const Key &);
+            Key &operator=(const Key &);
+            LockedParameters &mLockedParameters;
+        };
+        class ReadKey {
+          public:
+            ReadKey(const LockedParameters &p):
+                    mParameters(p.mParameters),
+                    mLockedParameters(p) {
+                mLockedParameters.mLock.lock();
+            }
+
+            ~ReadKey() {
+                mLockedParameters.mLock.unlock();
+            }
+            const Parameters &mParameters;
+          private:
+            // Disallow copying, default construction
+            ReadKey();
+            ReadKey(const ReadKey &);
+            ReadKey &operator=(const ReadKey &);
+            const LockedParameters &mLockedParameters;
+        };
+
+        // Only use for dumping or other debugging
+        const Parameters &unsafeUnlock() {
+            return mParameters;
+        }
+      private:
+        Parameters mParameters;
+        mutable Mutex mLock;
+
     } mParameters;
 
     /** Camera device-related private members */
@@ -190,10 +240,9 @@ private:
     camera_metadata_t *mPreviewRequest;
     sp<IBinder> mPreviewSurface;
     sp<ANativeWindow> mPreviewWindow;
-    // Update preview request based on mParameters
-    status_t updatePreviewRequest();
-    // Update preview stream based on mParameters
-    status_t updatePreviewStream();
+
+    status_t updatePreviewRequest(const Parameters &params);
+    status_t updatePreviewStream(const Parameters &params);
 
     /* Still image capture related members */
 
@@ -214,10 +263,9 @@ private:
     sp<Camera2Heap>    mCaptureHeap;
     // Handle captured image buffers
     void onCaptureAvailable();
-    // Update capture request based on mParameters
-    status_t updateCaptureRequest();
-    // Update capture stream based on mParameters
-    status_t updateCaptureStream();
+
+    status_t updateCaptureRequest(const Parameters &params);
+    status_t updateCaptureStream(const Parameters &params);
 
     /* Recording related members */
 
@@ -244,10 +292,9 @@ private:
     size_t mRecordingHeapHead, mRecordingHeapFree;
     // Handle new recording image buffers
     void onRecordingFrameAvailable();
-    // Update recording request based on mParameters
-    status_t updateRecordingRequest();
-    // Update recording stream based on mParameters
-    status_t updateRecordingStream();
+
+    status_t updateRecordingRequest(const Parameters &params);
+    status_t updateRecordingStream(const Parameters &params);
 
     /** Camera2Device instance wrapping HAL2 entry */
 
@@ -293,7 +340,7 @@ private:
     status_t buildDefaultParameters();
 
     // Update parameters all requests use, based on mParameters
-    status_t updateRequestCommon(camera_metadata_t *request);
+    status_t updateRequestCommon(camera_metadata_t *request, const Parameters &params);
 
     // Update specific metadata entry with new values. Adds entry if it does not
     // exist, which will invalidate sorting
