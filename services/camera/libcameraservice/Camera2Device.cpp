@@ -777,8 +777,10 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         }
 
         buffers[bufferIdx] = anwBuffers[bufferIdx]->handle;
+        ALOGV("%s: Buffer %p allocated", __FUNCTION__, (void*)(buffers[bufferIdx]));
     }
 
+    ALOGV("%s: Registering %d buffers with camera HAL", __FUNCTION__, mTotalBuffers);
     res = mDevice->ops->register_stream_buffers(mDevice,
             mId,
             mTotalBuffers,
@@ -791,6 +793,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
 
 cleanUpBuffers:
+    ALOGV("%s: Cleaning up %d buffers", __FUNCTION__, bufferIdx);
     for (uint32_t i = 0; i < bufferIdx; i++) {
         res = mConsumerInterface->cancelBuffer(mConsumerInterface.get(),
                 anwBuffers[i], -1);
@@ -881,12 +884,16 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
     ANativeWindow *a = toANW(w);
     ANativeWindowBuffer* anb;
     res = native_window_dequeue_buffer_and_wait(a, &anb);
-    if (res != OK) return res;
+    if (res != OK) {
+        ALOGE("Stream %d dequeue: Error from native_window: %s (%d)", stream->mId,
+                strerror(-res), res);
+        return res;
+    }
 
     *buffer = &(anb->handle);
     stream->mActiveBuffers++;
 
-    ALOGVV("%s: Buffer %p", __FUNCTION__, *buffer);
+    ALOGVV("Stream %d dequeue: Buffer %p dequeued", stream->mId, (void*)(**buffer));
     return res;
 }
 
@@ -895,8 +902,8 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
-    ALOGVV("%s: Stream %d: Buffer %p captured at %lld ns",
-            __FUNCTION__, stream->mId, buffer, timestamp);
+    ALOGVV("Stream %d enqueue: Buffer %p captured at %lld ns",
+            stream->mId, (void*)(*buffer), timestamp);
     int state = stream->mState;
     if (state != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
@@ -926,6 +933,8 @@ int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
+    ALOGVV("Stream %d cancel: Buffer %p",
+            stream->mId, (void*)(*buffer));
     if (stream->mState != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, stream->mState);
         return INVALID_OPERATION;
