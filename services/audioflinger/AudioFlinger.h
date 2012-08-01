@@ -1381,11 +1381,14 @@ private:
             virtual status_t    start(AudioSystem::sync_event_t event, int triggerSession);
             virtual void        stop();
 
+                    void        destroy();
+
                     // clear the buffer overflow flag
                     void        clearOverflow() { mOverflow = false; }
                     // set the buffer overflow flag and return previous value
                     bool        setOverflow() { bool tmp = mOverflow; mOverflow = true; return tmp; }
 
+            static  void        appendDumpHeader(String8& result);
                     void        dump(char* buffer, size_t size);
 
         private:
@@ -1408,6 +1411,13 @@ private:
                         audio_io_handle_t id,
                         audio_devices_t device);
                 virtual     ~RecordThread();
+
+        // no addTrack_l ?
+        void        destroyTrack_l(const sp<RecordTrack>& track);
+        void        removeTrack_l(const sp<RecordTrack>& track);
+
+        void        dumpInternals(int fd, const Vector<String16>& args);
+        void        dumpTracks(int fd, const Vector<String16>& args);
 
         // Thread
         virtual bool        threadLoop();
@@ -1453,7 +1463,11 @@ private:
         virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
         virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
         virtual uint32_t hasAudioSession(int sessionId);
-                RecordTrack* track();
+
+                // Return the set of unique session IDs across all tracks.
+                // The keys are the session IDs, and the associated values are meaningless.
+                // FIXME replace by Set [and implement Bag/Multiset for other uses].
+                KeyedVector<int, bool> sessionIds();
 
         virtual status_t setSyncEvent(const sp<SyncEvent>& event);
         virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
@@ -1471,7 +1485,9 @@ private:
                 void inputStandBy();
 
                 AudioStreamIn                       *mInput;
-                RecordTrack*                        mTrack;
+                SortedVector < sp<RecordTrack> >    mTracks;
+                // mActiveTrack has dual roles:  it indicates the current active track, and
+                // is used together with mStartStopCond to indicate start()/stop() progress
                 sp<RecordTrack>                     mActiveTrack;
                 Condition                           mStartStopCond;
                 AudioResampler                      *mResampler;
