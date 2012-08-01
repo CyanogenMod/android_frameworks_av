@@ -137,6 +137,7 @@ protected:
 
     int32_t  mCameraFlags;
     Size     mVideoSize;
+    int32_t  mNumInputBuffers;
     int32_t  mVideoFrameRate;
     int32_t  mColorFormat;
     status_t mInitCheck;

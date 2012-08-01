@@ -619,6 +619,9 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         return OK;
     } else if (cmd == CAMERA_CMD_PLAY_RECORDING_SOUND) {
         mCameraService->playSound(CameraService::SOUND_RECORDING);
+    } else if (cmd == CAMERA_CMD_SET_VIDEO_BUFFER_COUNT) {
+        // Silently ignore this command
+        return INVALID_OPERATION;
     } else if (cmd == CAMERA_CMD_PING) {
         // If mHardware is 0, checkPidAndHardware will return error.
         return OK;
