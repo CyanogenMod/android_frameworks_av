@@ -3181,7 +3181,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             }
 
             //ALOGV("track %d u=%08x, s=%08x [NOT READY] on thread %p", name, cblk->user, cblk->server, this);
-            if ((track->sharedBuffer() != 0) || track->isTerminated() ||
+            if ((track->sharedBuffer() != 0) ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
@@ -3201,8 +3201,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 track->mUnderrunCount++;
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
-                if (--(track->mRetryCount) <= 0) {
-                    ALOGV("BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
+                if (--(track->mRetryCount) <= 0 || track->isTerminated()) {
+                    ALOGV_IF(track->mRetryCount <= 0, "BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
@@ -3701,7 +3701,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             }
 
             //ALOGV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
-            if ((track->sharedBuffer() != 0) || track->isTerminated() ||
+            if ((track->sharedBuffer() != 0) ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
@@ -3719,8 +3719,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             } else {
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
-                if (--(track->mRetryCount) <= 0) {
-                    ALOGV("BUFFER TIMEOUT: remove(%d) from active list", track->name());
+                if (--(track->mRetryCount) <= 0 || track->isTerminated()) {
+                    ALOGV_IF(track->mRetryCount <= 0, "BUFFER TIMEOUT: remove(%d) from active list", track->name());
                     trackToRemove = track;
                 } else {
                     mixerStatus = MIXER_TRACKS_ENABLED;
