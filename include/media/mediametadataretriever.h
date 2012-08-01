@@ -55,6 +55,7 @@ enum {
     METADATA_KEY_TIMED_TEXT_LANGUAGES      = 21,
     METADATA_KEY_IS_DRM          = 22,
     METADATA_KEY_LOCATION        = 23,
+    METADATA_KEY_VIDEO_ROTATION  = 24,
 
     // Add more here...
 };
