@@ -18,6 +18,7 @@
 #define LOG_TAG "TimedTextPlayer"
 #include <utils/Log.h>
 
+#include <limits.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
@@ -30,8 +31,12 @@
 
 namespace android {
 
+// Event should be fired a bit earlier considering the processing time till
+// application actually gets the notification message.
 static const int64_t kAdjustmentProcessingTimeUs = 100000ll;
+static const int64_t kMaxDelayUs = 5000000ll;
 static const int64_t kWaitTimeUsToRetryRead = 100000ll;
+static const int64_t kInvalidTimeUs = INT_MIN;
 
 TimedTextPlayer::TimedTextPlayer(const wp<MediaPlayerBase> &listener)
     : mListener(listener),
@@ -111,6 +116,17 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
               // Drop obsolete msg.
               break;
             }
+            // If current time doesn't reach to the fire time,
+            // re-post the message with the adjusted delay time.
+            int64_t fireTimeUs = kInvalidTimeUs;
+            if (msg->findInt64("fireTimeUs", &fireTimeUs)) {
+                // TODO: check if fireTimeUs is not kInvalidTimeUs.
+                int64_t delayUs = delayUsFromCurrentTime(fireTimeUs);
+                if (delayUs > 0) {
+                    msg->post(delayUs);
+                    break;
+                }
+            }
             sp<RefBase> obj;
             if (msg->findObject("subtitle", &obj)) {
                 sp<ParcelEvent> parcelEvent;
@@ -185,23 +201,7 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
 }
 
 void TimedTextPlayer::postTextEvent(const sp<ParcelEvent>& parcel, int64_t timeUs) {
-    sp<MediaPlayerBase> listener = mListener.promote();
-    if (listener != NULL) {
-        int64_t positionUs, delayUs;
-        int32_t positionMs = 0;
-        listener->getCurrentPosition(&positionMs);
-        positionUs = positionMs * 1000ll;
-
-        if (timeUs <= positionUs + kAdjustmentProcessingTimeUs) {
-            delayUs = 0;
-        } else {
-            delayUs = timeUs - positionUs - kAdjustmentProcessingTimeUs;
-        }
-        postTextEventDelayUs(parcel, delayUs);
-    }
-}
-
-void TimedTextPlayer::postTextEventDelayUs(const sp<ParcelEvent>& parcel, int64_t delayUs) {
+    int64_t delayUs = delayUsFromCurrentTime(timeUs);
     sp<MediaPlayerBase> listener = mListener.promote();
     if (listener != NULL) {
         sp<AMessage> msg = new AMessage(kWhatSendSubtitle, id());
@@ -209,7 +209,29 @@ void TimedTextPlayer::postTextEventDelayUs(const sp<ParcelEvent>& parcel, int64_
         if (parcel != NULL) {
             msg->setObject("subtitle", parcel);
         }
+        msg->setInt64("fireTimeUs", timeUs);
         msg->post(delayUs);
+    }
+}
+
+int64_t TimedTextPlayer::delayUsFromCurrentTime(int64_t fireTimeUs) {
+    sp<MediaPlayerBase> listener = mListener.promote();
+    if (listener == NULL) {
+        // TODO: it may be better to return kInvalidTimeUs
+        return 0;
+    }
+    int32_t positionMs = 0;
+    listener->getCurrentPosition(&positionMs);
+    int64_t positionUs = positionMs * 1000ll;
+
+    if (fireTimeUs <= positionUs + kAdjustmentProcessingTimeUs) {
+        return 0;
+    } else {
+        int64_t delayUs = fireTimeUs - positionUs - kAdjustmentProcessingTimeUs;
+        if (delayUs > kMaxDelayUs) {
+            return kMaxDelayUs;
+        }
+        return delayUs;
     }
 }
 
