@@ -517,7 +517,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             if (mPendingSyncEvents[i]->triggerSession() == lSessionId) {
                 if (thread->isValidSyncEvent(mPendingSyncEvents[i])) {
                     if (lStatus == NO_ERROR) {
-                        track->setSyncEvent(mPendingSyncEvents[i]);
+                        (void) track->setSyncEvent(mPendingSyncEvents[i]);
                     } else {
                         mPendingSyncEvents[i]->cancel();
                     }
@@ -2179,7 +2179,7 @@ status_t AudioFlinger::PlaybackThread::setSyncEvent(const sp<SyncEvent>& event)
     for (size_t i = 0; i < mTracks.size(); ++i) {
         sp<Track> track = mTracks[i];
         if (event->triggerSession() == track->sessionId()) {
-            track->setSyncEvent(event);
+            (void) track->setSyncEvent(event);
             return NO_ERROR;
         }
     }
@@ -4797,7 +4797,7 @@ status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& 
         event->cancel();
         return INVALID_OPERATION;
     }
-    TrackBase::setSyncEvent(event);
+    (void) TrackBase::setSyncEvent(event);
     return NO_ERROR;
 }
 
@@ -6377,7 +6377,7 @@ status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
     for (size_t i = 0; i < mTracks.size(); i++) {
         sp<RecordTrack> track = mTracks[i];
         if (eventSession == track->sessionId()) {
-            track->setSyncEvent(event);
+            (void) track->setSyncEvent(event);
             ret = NO_ERROR;
         }
     }
