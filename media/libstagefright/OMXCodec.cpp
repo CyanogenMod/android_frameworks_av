@@ -3623,11 +3623,6 @@ status_t OMXCodec::start(MetaData *meta) {
         }
         params->setInt64(kKeyTime, startTimeUs);
     }
-    status_t err = mSource->start(params.get());
-
-    if (err != OK) {
-        return err;
-    }
 
     mCodecSpecificDataIndex = 0;
     mInitialBufferSubmit = true;
@@ -3640,6 +3635,23 @@ status_t OMXCodec::start(MetaData *meta) {
     mFilledBuffers.clear();
     mPaused = false;
 
+    status_t err;
+    if (mIsEncoder) {
+        // Calling init() before starting its source so that we can configure,
+        // if supported, the source to use exactly the same number of input
+        // buffers as requested by the encoder.
+        if ((err = init()) != OK) {
+            return err;
+        }
+
+        params->setInt32(kKeyNumBuffers, mPortBuffers[kPortIndexInput].size());
+        return mSource->start(params.get());
+    }
+
+    // Decoder case
+    if ((err = mSource->start(params.get())) != OK) {
+        return err;
+    }
     return init();
 }
 
