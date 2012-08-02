@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -241,7 +242,11 @@ status_t SampleTable::setSampleToChunkParams(
             return ERROR_IO;
         }
 
-        CHECK(U32_AT(buffer) >= 1);  // chunk index is 1 based in the spec.
+        //CHECK(U32_AT(buffer) >= 1);  // chunk index is 1 based in the spec.
+        if(U32_AT(buffer) <= 0) {
+            ALOGE("Non Standard Chunk index\n");
+            return ERROR_MALFORMED;
+        }
 
         // We want the chunk index to be 0-based.
         mSampleToChunkEntries[i].startChunk = U32_AT(buffer) - 1;
