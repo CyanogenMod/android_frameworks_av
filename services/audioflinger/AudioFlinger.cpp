@@ -6359,6 +6359,7 @@ bool AudioFlinger::RecordThread::isValidSyncEvent(const sp<SyncEvent>& event) co
 
 status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
 {
+#if 0   // This branch is currently dead code, but is preserved in case it will be needed in future
     if (!isValidSyncEvent(event)) {
         return BAD_VALUE;
     }
@@ -6376,6 +6377,9 @@ status_t AudioFlinger::RecordThread::setSyncEvent(const sp<SyncEvent>& event)
         }
     }
     return ret;
+#else
+    return BAD_VALUE;
+#endif
 }
 
 void AudioFlinger::RecordThread::RecordTrack::destroy()
