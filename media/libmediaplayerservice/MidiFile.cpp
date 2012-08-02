@@ -1,6 +1,7 @@
 /* MidiFile.cpp
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2012, Code Aurora Forum. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -484,6 +485,8 @@ int MidiFile::render() {
         // ALOGV("MidiFile::render - updating state");
         EAS_GetLocation(mEasData, mEasHandle, &mPlayTime);
         EAS_State(mEasData, mEasHandle, &mState);
+        if((mDuration > 0) && (mPlayTime >= mDuration))
+            mState = EAS_STATE_STOPPED;
         mMutex.unlock();
 
         // create audio output track if necessary
