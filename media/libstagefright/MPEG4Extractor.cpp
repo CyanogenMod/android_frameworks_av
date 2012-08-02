@@ -253,14 +253,14 @@ static const char *FourCC2MIME(uint32_t fourcc) {
         case FOURCC('m', 'p', '4', 'a'):
             return MEDIA_MIMETYPE_AUDIO_AAC;
 
+        case FOURCC('.', 'm', 'p', '3'):
+            return MEDIA_MIMETYPE_AUDIO_MPEG;
+
         case FOURCC('s', 'a', 'm', 'r'):
             return MEDIA_MIMETYPE_AUDIO_AMR_NB;
 
         case FOURCC('s', 'a', 'w', 'b'):
             return MEDIA_MIMETYPE_AUDIO_AMR_WB;
-
-        case FOURCC('.', 'm', 'p', '3'):
-            return MEDIA_MIMETYPE_AUDIO_MPEG;
 
         case FOURCC('m', 'p', '4', 'v'):
             return MEDIA_MIMETYPE_VIDEO_MPEG4;
@@ -1042,9 +1042,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         }
 
         case FOURCC('m', 'p', '4', 'a'):
+        case FOURCC('.', 'm', 'p', '3'):
         case FOURCC('s', 'a', 'm', 'r'):
         case FOURCC('s', 'a', 'w', 'b'):
-        case FOURCC('.', 'm', 'p', '3'):
 #ifdef QCOM_HARDWARE
         case FOURCC('s', 'e', 'v', 'c'):
         case FOURCC('s', 'q', 'c', 'p'):
@@ -1088,8 +1088,14 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             mLastTrack->meta->setInt32(kKeyChannelCount, num_channels);
             mLastTrack->meta->setInt32(kKeySampleRate, sample_rate);
 
-            off64_t stop_offset = *offset + chunk_size;
-            *offset = data_offset + sizeof(buffer);
+            off_t stop_offset = *offset + chunk_size;
+            if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MPEG,
+                        FourCC2MIME(chunk_type))) {
+               // ESD is not required in mp3
+               *offset = stop_offset;
+            } else {
+               *offset = data_offset + sizeof(buffer);
+            }
             while (*offset < stop_offset) {
                 status_t err = parseChunk(offset, depth + 1);
                 if (err != OK) {
@@ -1957,7 +1963,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
     }
 
     if (objectTypeIndication  == 0x6b) {
-#if !defined(OMAP_ENHANCEMENT) && !defined(OMAP_COMPAT)
+#if !defined(OMAP_ENHANCEMENT) && !defined(OMAP_COMPAT) && !defined(QCOM_HARDWARE)
         // The media subtype is MP3 audio
         // Our software MP3 audio decoder may not be able to handle
         // packetized MP3 audio; for now, lets just return ERROR_UNSUPPORTED
