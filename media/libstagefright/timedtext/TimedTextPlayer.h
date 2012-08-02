@@ -40,6 +40,7 @@ public:
 
     void start();
     void pause();
+    void resume();
     void seekToAsync(int64_t timeUs);
     void setDataSource(sp<TimedTextSource> source);
 
@@ -50,6 +51,7 @@ private:
     enum {
         kWhatPause = 'paus',
         kWhatSeek = 'seek',
+        kWhatResume = 'resm',
         kWhatRetryRead = 'read',
         kWhatSendSubtitle = 'send',
         kWhatSetSource = 'ssrc',

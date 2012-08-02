@@ -40,6 +40,7 @@ public:
 
     status_t start();
     status_t pause();
+    status_t resume();
     status_t selectTrack(size_t index);
     status_t unselectTrack(size_t index);
 
