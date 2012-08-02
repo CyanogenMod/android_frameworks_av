@@ -50,8 +50,9 @@ protected:
 private:
     enum {
         kWhatPause = 'paus',
-        kWhatSeek = 'seek',
         kWhatResume = 'resm',
+        kWhatStart = 'strt',
+        kWhatSeek = 'seek',
         kWhatRetryRead = 'read',
         kWhatSendSubtitle = 'send',
         kWhatSetSource = 'ssrc',
@@ -64,6 +65,8 @@ private:
 
     wp<MediaPlayerBase> mListener;
     sp<TimedTextSource> mSource;
+    int64_t mPendingSeekTimeUs;
+    bool mPaused;
     int32_t mSendSubtitleGeneration;
 
     void doSeekAndRead(int64_t seekTimeUs);
