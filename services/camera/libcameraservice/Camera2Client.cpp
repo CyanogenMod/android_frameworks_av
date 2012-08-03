@@ -354,7 +354,7 @@ void Camera2Client::disconnect() {
 
     if (mDevice == 0) return;
 
-    stopPreviewLocked();
+    stopPreviewL();
 
     mDevice->waitUntilDrained();
 
@@ -453,7 +453,7 @@ status_t Camera2Client::setPreviewDisplay(
         window = surface;
     }
 
-    return setPreviewWindowLocked(binder,window);
+    return setPreviewWindowL(binder,window);
 }
 
 status_t Camera2Client::setPreviewTexture(
@@ -470,10 +470,10 @@ status_t Camera2Client::setPreviewTexture(
         binder = surfaceTexture->asBinder();
         window = new SurfaceTextureClient(surfaceTexture);
     }
-    return setPreviewWindowLocked(binder, window);
+    return setPreviewWindowL(binder, window);
 }
 
-status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
+status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
         sp<ANativeWindow> window) {
     ATRACE_CALL();
     status_t res;
@@ -525,7 +525,7 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
     mPreviewWindow = window;
 
     if (mState == WAITING_FOR_PREVIEW_WINDOW) {
-        return startPreviewLocked();
+        return startPreviewL();
     }
 
     return OK;
@@ -544,10 +544,10 @@ status_t Camera2Client::startPreview() {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
-    return startPreviewLocked();
+    return startPreviewL();
 }
 
-status_t Camera2Client::startPreviewLocked() {
+status_t Camera2Client::startPreviewL() {
     ATRACE_CALL();
     status_t res;
     if (mState >= PREVIEW) {
@@ -613,10 +613,10 @@ void Camera2Client::stopPreview() {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return;
-    stopPreviewLocked();
+    stopPreviewL();
 }
 
-void Camera2Client::stopPreviewLocked() {
+void Camera2Client::stopPreviewL() {
     ATRACE_CALL();
     switch (mState) {
         case DISCONNECTED:
@@ -684,7 +684,7 @@ status_t Camera2Client::startRecording() {
 
     switch (mState) {
         case STOPPED:
-            res = startPreviewLocked();
+            res = startPreviewL();
             if (res != OK) return res;
             break;
         case PREVIEW:
@@ -1523,56 +1523,137 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ALOGV("%s: Camera %d: Command %d (%d, %d)", __FUNCTION__, mCameraId,
             cmd, arg1, arg2);
 
-    if (cmd == CAMERA_CMD_SET_DISPLAY_ORIENTATION) {
-        LockedParameters::Key k(mParameters);
-        int transform = degToTransform(arg1,
-                mCameraFacing == CAMERA_FACING_FRONT);
-        if (transform == -1) {
-            ALOGE("%s: Camera %d: Error setting %d as display orientation value",
-                    __FUNCTION__, mCameraId, arg1);
+    switch (cmd) {
+        case CAMERA_CMD_START_SMOOTH_ZOOM:
+            return commandStartSmoothZoomL();
+        case CAMERA_CMD_STOP_SMOOTH_ZOOM:
+            return commandStopSmoothZoomL();
+        case CAMERA_CMD_SET_DISPLAY_ORIENTATION:
+            return commandSetDisplayOrientationL(arg1);
+        case CAMERA_CMD_ENABLE_SHUTTER_SOUND:
+            return commandEnableShutterSoundL(arg1 == 1);
+        case CAMERA_CMD_PLAY_RECORDING_SOUND:
+            return commandPlayRecordingSoundL();
+        case CAMERA_CMD_START_FACE_DETECTION:
+            return commandStartFaceDetectionL(arg1);
+        case CAMERA_CMD_STOP_FACE_DETECTION:
+            return commandStopFaceDetectionL();
+        case CAMERA_CMD_ENABLE_FOCUS_MOVE_MSG:
+            return commandEnableFocusMoveMsgL(arg1 == 1);
+        case CAMERA_CMD_PING:
+            return commandPingL();
+        case CAMERA_CMD_SET_VIDEO_BUFFER_COUNT:
+            return commandSetVideoBufferCountL(arg1);
+        default:
+            ALOGE("%s: Unknown command %d (arguments %d, %d)",
+                    __FUNCTION__, cmd, arg1, arg2);
             return BAD_VALUE;
-        }
-        if (transform != k.mParameters.previewTransform &&
-                mPreviewStreamId != NO_STREAM) {
-            mDevice->setStreamTransform(mPreviewStreamId, transform);
-        }
-        k.mParameters.previewTransform = transform;
-        return OK;
-    } else if (cmd == CAMERA_CMD_PING) {
-        // Always ping back if access is proper and device is alive
-        if (mState != DISCONNECTED) {
-            return OK;
-        } else {
-            return NO_INIT;
-        }
-    } else if (cmd == CAMERA_CMD_SET_VIDEO_BUFFER_COUNT) {
-        if (recordingEnabled()) {
-            ALOGE("%s: Camera %d: Error setting video buffer count after "
-                    "recording was started", __FUNCTION__, mCameraId);
-            return INVALID_OPERATION;
-        }
+    }
+}
 
-        // 32 is the current upper limit on the video buffer count for BufferQueue
-        if (arg1 <= 0 || arg1 > 32) {
-            ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
-                    __FUNCTION__, mCameraId, arg1);
-            return BAD_VALUE;
-        }
+status_t Camera2Client::commandStartSmoothZoomL() {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return OK;
+}
 
-        // Need to reallocate memory for heap
-        if (mRecordingHeapCount != arg1) {
-            if  (mRecordingHeap != 0) {
-                mRecordingHeap.clear();
-                mRecordingHeap = NULL;
-            }
-            mRecordingHeapCount = arg1;
-        }
+status_t Camera2Client::commandStopSmoothZoomL() {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return OK;
+}
 
+status_t Camera2Client::commandSetDisplayOrientationL(int degrees) {
+    LockedParameters::Key k(mParameters);
+    int transform = degToTransform(degrees,
+            mCameraFacing == CAMERA_FACING_FRONT);
+    if (transform == -1) {
+        ALOGE("%s: Camera %d: Error setting %d as display orientation value",
+                __FUNCTION__, mCameraId, degrees);
+        return BAD_VALUE;
+    }
+    if (transform != k.mParameters.previewTransform &&
+            mPreviewStreamId != NO_STREAM) {
+        mDevice->setStreamTransform(mPreviewStreamId, transform);
+    }
+    k.mParameters.previewTransform = transform;
+    return OK;
+}
+
+status_t Camera2Client::commandEnableShutterSoundL(bool enable) {
+    LockedParameters::Key k(mParameters);
+    if (enable) {
+        k.mParameters.playShutterSound = true;
         return OK;
     }
 
-    ALOGE("%s: Camera %d: Unimplemented command %d (%d, %d)", __FUNCTION__,
-            mCameraId, cmd, arg1, arg2);
+    // Disabling shutter sound may not be allowed. In that case only
+    // allow the mediaserver process to disable the sound.
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.camera.sound.forced", value, "0");
+    if (strncmp(value, "0", 2) != 0) {
+        // Disabling shutter sound is not allowed. Deny if the current
+        // process is not mediaserver.
+        if (getCallingPid() != getpid()) {
+            ALOGE("Failed to disable shutter sound. Permission denied (pid %d)",
+                    getCallingPid());
+            return PERMISSION_DENIED;
+        }
+    }
+
+    k.mParameters.playShutterSound = false;
+    return OK;
+}
+
+status_t Camera2Client::commandPlayRecordingSoundL() {
+    mCameraService->playSound(CameraService::SOUND_RECORDING);
+    return OK;
+}
+
+status_t Camera2Client::commandStartFaceDetectionL(int type) {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return OK;
+}
+
+status_t Camera2Client::commandStopFaceDetectionL() {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return OK;
+}
+
+status_t Camera2Client::commandEnableFocusMoveMsgL(bool enable) {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return OK;
+}
+
+status_t Camera2Client::commandPingL() {
+    // Always ping back if access is proper and device is alive
+    if (mState != DISCONNECTED) {
+        return OK;
+    } else {
+        return NO_INIT;
+    }
+}
+
+status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
+    if (recordingEnabled()) {
+        ALOGE("%s: Camera %d: Error setting video buffer count after "
+                "recording was started", __FUNCTION__, mCameraId);
+        return INVALID_OPERATION;
+    }
+
+    // 32 is the current upper limit on the video buffer count for BufferQueue
+    if (count > 32) {
+        ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
+                __FUNCTION__, mCameraId, count);
+        return BAD_VALUE;
+    }
+
+    // Need to reallocate memory for heap
+    if (mRecordingHeapCount != count) {
+        if  (mRecordingHeap != 0) {
+            mRecordingHeap.clear();
+            mRecordingHeap = NULL;
+        }
+        mRecordingHeapCount = count;
+    }
 
     return OK;
 }
@@ -2458,8 +2539,10 @@ status_t Camera2Client::buildDefaultParameters() {
                 CameraParameters::FALSE);
     }
 
-    // Always use metadata mode for recording
+    // Set up initial state for non-Camera.Parameters state variables
+
     k.mParameters.storeMetadataInBuffers = true;
+    k.mParameters.playShutterSound = true;
 
     k.mParameters.paramsFlattened = params.flatten();
 

@@ -86,16 +86,28 @@ private:
     /** ICamera interface-related private members */
 
     // Mutex that must be locked by methods implementing the ICamera interface.
-    // Ensures serialization between incoming ICamera calls
+    // Ensures serialization between incoming ICamera calls. All methods below
+    // that append 'L' to the name assume that mICameraLock is locked when
+    // they're called
     mutable Mutex mICameraLock;
 
-    // The following must be called with mICameraLock already locked
-
-    status_t setPreviewWindowLocked(const sp<IBinder>& binder,
+    status_t setPreviewWindowL(const sp<IBinder>& binder,
             sp<ANativeWindow> window);
 
-    void stopPreviewLocked();
-    status_t startPreviewLocked();
+    void stopPreviewL();
+    status_t startPreviewL();
+
+    // Individual commands for sendCommand()
+    status_t commandStartSmoothZoomL();
+    status_t commandStopSmoothZoomL();
+    status_t commandSetDisplayOrientationL(int degrees);
+    status_t commandEnableShutterSoundL(bool enable);
+    status_t commandPlayRecordingSoundL();
+    status_t commandStartFaceDetectionL(int type);
+    status_t commandStopFaceDetectionL();
+    status_t commandEnableFocusMoveMsgL(bool enable);
+    status_t commandPingL();
+    status_t commandSetVideoBufferCountL(size_t count);
 
     // Current camera state; this is the contents of the CameraParameters object
     // in a more-efficient format. The enum values are mostly based off the
@@ -169,9 +181,12 @@ private:
         bool recordingHint;
         bool videoStabilization;
 
-        bool storeMetadataInBuffers;
-
         String8 paramsFlattened;
+
+        // These parameters are also part of the camera API-visible state, but not directly
+        // listed in Camera.Parameters
+        bool storeMetadataInBuffers;
+        bool playShutterSound;
     };
 
     class LockedParameters {
