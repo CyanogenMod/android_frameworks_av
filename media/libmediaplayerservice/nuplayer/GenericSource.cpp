@@ -128,7 +128,7 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
     return OK;
 }
 
-sp<MetaData> NuPlayer::GenericSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::GenericSource::getFormatMeta(bool audio) {
     sp<MediaSource> source = audio ? mAudioTrack.mSource : mVideoTrack.mSource;
 
     if (source == NULL) {

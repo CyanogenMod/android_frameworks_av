@@ -60,14 +60,16 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
+public:
+    struct NuPlayerStreamListener;
+    struct Source;
+
 private:
     struct Decoder;
     struct GenericSource;
     struct HTTPLiveSource;
-    struct NuPlayerStreamListener;
     struct Renderer;
     struct RTSPSource;
-    struct Source;
     struct StreamingSource;
 
     enum {

@@ -81,7 +81,7 @@ void NuPlayer::HTTPLiveSource::start() {
     mTSParser = new ATSParser;
 }
 
-sp<MetaData> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
+sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
     ATSParser::SourceType type =
         audio ? ATSParser::AUDIO : ATSParser::VIDEO;
 

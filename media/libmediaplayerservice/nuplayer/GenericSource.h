@@ -43,7 +43,6 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t feedMoreTSData();
 
-    virtual sp<MetaData> getFormat(bool audio);
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
     virtual status_t getDuration(int64_t *durationUs);
@@ -52,6 +51,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
 protected:
     virtual ~GenericSource();
+
+    virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
     struct Track {
