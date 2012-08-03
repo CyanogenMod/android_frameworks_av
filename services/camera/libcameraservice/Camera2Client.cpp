@@ -2350,7 +2350,7 @@ status_t Camera2Client::buildDefaultParameters() {
     if (!exposureCompensationStep.count) return NO_INIT;
 
     params.setFloat(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,
-            exposureCompensationStep.data.r[0].numerator /
+            (float)exposureCompensationStep.data.r[0].numerator /
             exposureCompensationStep.data.r[0].denominator);
 
     k.mParameters.autoExposureLock = false;
