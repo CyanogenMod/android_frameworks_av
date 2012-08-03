@@ -58,7 +58,8 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mCaptureStreamId(NO_STREAM),
         mCaptureRequest(NULL),
         mRecordingStreamId(NO_STREAM),
-        mRecordingRequest(NULL)
+        mRecordingRequest(NULL),
+        mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
     ATRACE_CALL();
 
@@ -1544,6 +1545,30 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         } else {
             return NO_INIT;
         }
+    } else if (cmd == CAMERA_CMD_SET_VIDEO_BUFFER_COUNT) {
+        if (recordingEnabled()) {
+            ALOGE("%s: Camera %d: Error setting video buffer count after "
+                    "recording was started", __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+        }
+
+        // 32 is the current upper limit on the video buffer count for BufferQueue
+        if (arg1 <= 0 || arg1 > 32) {
+            ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
+                    __FUNCTION__, mCameraId, arg1);
+            return BAD_VALUE;
+        }
+
+        // Need to reallocate memory for heap
+        if (mRecordingHeapCount != arg1) {
+            if  (mRecordingHeap != 0) {
+                mRecordingHeap.clear();
+                mRecordingHeap = NULL;
+            }
+            mRecordingHeapCount = arg1;
+        }
+
+        return OK;
     }
 
     ALOGE("%s: Camera %d: Unimplemented command %d (%d, %d)", __FUNCTION__,
@@ -1649,17 +1674,17 @@ void Camera2Client::onRecordingFrameAvailable() {
             const size_t bufferSize = 4 + sizeof(buffer_handle_t);
             ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
                     "size %d bytes", __FUNCTION__, mCameraId,
-                    kRecordingHeapCount, bufferSize);
+                    mRecordingHeapCount, bufferSize);
             if (mRecordingHeap != 0) {
                 ALOGV("%s: Camera %d: Previous heap has size %d "
                         "(new will be %d) bytes", __FUNCTION__, mCameraId,
                         mRecordingHeap->mHeap->getSize(),
-                        bufferSize * kRecordingHeapCount);
+                        bufferSize * mRecordingHeapCount);
             }
             // Need to allocate memory for heap
             mRecordingHeap.clear();
 
-            mRecordingHeap = new Camera2Heap(bufferSize, kRecordingHeapCount,
+            mRecordingHeap = new Camera2Heap(bufferSize, mRecordingHeapCount,
                     "Camera2Client::RecordingHeap");
             if (mRecordingHeap->mHeap->getSize() == 0) {
                 ALOGE("%s: Camera %d: Unable to allocate memory for recording",
@@ -1668,7 +1693,7 @@ void Camera2Client::onRecordingFrameAvailable() {
                 return;
             }
             mRecordingHeapHead = 0;
-            mRecordingHeapFree = kRecordingHeapCount;
+            mRecordingHeapFree = mRecordingHeapCount;
         }
 
         if ( mRecordingHeapFree == 0) {
@@ -1678,7 +1703,7 @@ void Camera2Client::onRecordingFrameAvailable() {
             return;
         }
         heapIdx = mRecordingHeapHead;
-        mRecordingHeapHead = (mRecordingHeapHead + 1) % kRecordingHeapCount;
+        mRecordingHeapHead = (mRecordingHeapHead + 1) % mRecordingHeapCount;
         mRecordingHeapFree--;
 
         ALOGV("%s: Camera %d: Timestamp %lld",
@@ -2688,7 +2713,7 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
 
     if (mRecordingConsumer == 0) {
         // Create CPU buffer queue endpoint
-        mRecordingConsumer = new MediaConsumer(kRecordingHeapCount);
+        mRecordingConsumer = new MediaConsumer(mRecordingHeapCount);
         mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
         mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
         mRecordingWindow = new SurfaceTextureClient(

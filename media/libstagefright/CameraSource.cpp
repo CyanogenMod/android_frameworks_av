@@ -155,6 +155,7 @@ CameraSource::CameraSource(
     const sp<Surface>& surface,
     bool storeMetaDataInVideoBuffers)
     : mCameraFlags(0),
+      mNumInputBuffers(0),
       mVideoFrameRate(-1),
       mCamera(0),
       mSurface(surface),
@@ -571,6 +572,18 @@ void CameraSource::startCameraRecording() {
     // camera and recording is started by the applications. The applications
     // will connect to the camera in ICameraRecordingProxy::startRecording.
     int64_t token = IPCThreadState::self()->clearCallingIdentity();
+    if (mNumInputBuffers > 0) {
+        status_t err = mCamera->sendCommand(
+            CAMERA_CMD_SET_VIDEO_BUFFER_COUNT, mNumInputBuffers, 0);
+
+        // This could happen for CameraHAL1 clients; thus the failure is
+        // not a fatal error
+        if (err != OK) {
+            ALOGW("Failed to set video buffer count to %d due to %d",
+                mNumInputBuffers, err);
+        }
+    }
+
     if (mCameraFlags & FLAGS_HOT_CAMERA) {
         mCamera->unlock();
         mCamera.clear();
@@ -599,9 +612,18 @@ status_t CameraSource::start(MetaData *meta) {
     }
 
     mStartTimeUs = 0;
-    int64_t startTimeUs;
-    if (meta && meta->findInt64(kKeyTime, &startTimeUs)) {
-        mStartTimeUs = startTimeUs;
+    mNumInputBuffers = 0;
+    if (meta) {
+        int64_t startTimeUs;
+        if (meta->findInt64(kKeyTime, &startTimeUs)) {
+            mStartTimeUs = startTimeUs;
+        }
+
+        int32_t nBuffers;
+        if (meta->findInt32(kKeyNumBuffers, &nBuffers)) {
+            CHECK_GT(nBuffers, 0);
+            mNumInputBuffers = nBuffers;
+        }
     }
 
     startCameraRecording();
