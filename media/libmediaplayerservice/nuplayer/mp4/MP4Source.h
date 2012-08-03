@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,41 +14,39 @@
  * limitations under the License.
  */
 
-#ifndef STREAMING_SOURCE_H_
+#ifndef MP4_SOURCE_H
+#define MP4_SOURCE_H
 
-#define STREAMING_SOURCE_H_
-
-#include "NuPlayer.h"
 #include "NuPlayerSource.h"
 
 namespace android {
 
-struct ABuffer;
-struct ATSParser;
+struct Parser;
 
-struct NuPlayer::StreamingSource : public NuPlayer::Source {
-    StreamingSource(const sp<IStreamSource> &source);
+struct MP4Source : public NuPlayer::Source {
+    MP4Source(const sp<IStreamSource> &source);
 
     virtual void start();
 
     virtual status_t feedMoreTSData();
 
-    virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
+    virtual sp<AMessage> getFormat(bool audio);
+
+    virtual status_t dequeueAccessUnit(
+            bool audio, sp<ABuffer> *accessUnit);
 
 protected:
-    virtual ~StreamingSource();
-
-    virtual sp<MetaData> getFormatMeta(bool audio);
+    virtual ~MP4Source();
 
 private:
     sp<IStreamSource> mSource;
-    status_t mFinalResult;
-    sp<NuPlayerStreamListener> mStreamListener;
-    sp<ATSParser> mTSParser;
+    sp<ALooper> mLooper;
+    sp<Parser> mParser;
+    bool mEOS;
 
-    DISALLOW_EVIL_CONSTRUCTORS(StreamingSource);
+    DISALLOW_EVIL_CONSTRUCTORS(MP4Source);
 };
 
 }  // namespace android
 
-#endif  // STREAMING_SOURCE_H_
+#endif // MP4_SOURCE_H

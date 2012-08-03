@@ -25,6 +25,7 @@
 #include "AString.h"
 
 #include <binder/Parcel.h>
+#include <media/stagefright/foundation/hexdump.h>
 
 namespace android {
 
@@ -399,9 +400,20 @@ AString AMessage::debugString(int32_t indent) const {
                         "RefBase *%s = %p", item.mName, item.u.refValue);
                 break;
             case kTypeBuffer:
-                tmp = StringPrintf(
-                        "ABuffer *%s = %p", item.mName, item.u.refValue);
+            {
+                sp<ABuffer> buffer = static_cast<ABuffer *>(item.u.refValue);
+
+                if (buffer != NULL && buffer->size() <= 64) {
+                    tmp = StringPrintf("Buffer %s = {\n", item.mName);
+                    hexdump(buffer->data(), buffer->size(), indent + 4, &tmp);
+                    appendIndent(&tmp, indent + 2);
+                    tmp.append("}");
+                } else {
+                    tmp = StringPrintf(
+                            "Buffer *%s = %p", item.mName, buffer.get());
+                }
                 break;
+            }
             case kTypeMessage:
                 tmp = StringPrintf(
                         "AMessage %s = %s",

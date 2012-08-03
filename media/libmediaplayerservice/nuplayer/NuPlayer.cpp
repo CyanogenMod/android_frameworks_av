@@ -28,9 +28,11 @@
 #include "RTSPSource.h"
 #include "StreamingSource.h"
 #include "GenericSource.h"
+#include "mp4/MP4Source.h"
 
 #include "ATSParser.h"
 
+#include <cutils/properties.h> // for property_get
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -42,6 +44,9 @@
 #include <gui/ISurfaceTexture.h>
 
 #include "avc_utils.h"
+
+#include "ESDS.h"
+#include <media/stagefright/Utils.h>
 
 namespace android {
 
@@ -81,7 +86,14 @@ void NuPlayer::setDriver(const wp<NuPlayerDriver> &driver) {
 void NuPlayer::setDataSource(const sp<IStreamSource> &source) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
-    msg->setObject("source", new StreamingSource(source));
+    char prop[PROPERTY_VALUE_MAX];
+    if (property_get("media.stagefright.use-mp4source", prop, NULL)
+            && (!strcmp(prop, "1") || !strcasecmp(prop, "true"))) {
+        msg->setObject("source", new MP4Source(source));
+    } else {
+        msg->setObject("source", new StreamingSource(source));
+    }
+
     msg->post();
 }
 
@@ -677,16 +689,16 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         return OK;
     }
 
-    sp<MetaData> meta = mSource->getFormat(audio);
+    sp<AMessage> format = mSource->getFormat(audio);
 
-    if (meta == NULL) {
+    if (format == NULL) {
         return -EWOULDBLOCK;
     }
 
     if (!audio) {
-        const char *mime;
-        CHECK(meta->findCString(kKeyMIMEType, &mime));
-        mVideoIsAVC = !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime);
+        AString mime;
+        CHECK(format->findString("mime", &mime));
+        mVideoIsAVC = !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime.c_str());
     }
 
     sp<AMessage> notify =
@@ -697,7 +709,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
                        new Decoder(notify, mNativeWindow);
     looper()->registerHandler(*decoder);
 
-    (*decoder)->configure(meta);
+    (*decoder)->configure(format);
 
     int64_t durationUs;
     if (mDriver != NULL && mSource->getDuration(&durationUs) == OK) {
@@ -926,6 +938,21 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
                 : FLUSHED;
         }
     }
+}
+
+sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
+    sp<MetaData> meta = getFormatMeta(audio);
+
+    if (meta == NULL) {
+        return NULL;
+    }
+
+    sp<AMessage> msg = new AMessage;
+
+    if(convertMetaDataToMessage(meta, &msg) == OK) {
+        return msg;
+    }
+    return NULL;
 }
 
 }  // namespace android
