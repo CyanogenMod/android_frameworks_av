@@ -37,7 +37,6 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
 
     virtual status_t feedMoreTSData();
 
-    virtual sp<MetaData> getFormat(bool audio);
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
     virtual status_t getDuration(int64_t *durationUs);
@@ -46,6 +45,8 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
 
 protected:
     virtual ~HTTPLiveSource();
+
+    virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
     enum Flags {

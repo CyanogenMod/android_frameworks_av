@@ -29,12 +29,24 @@
 
 namespace android {
 
-void hexdump(const void *_data, size_t size) {
+static void appendIndent(AString *s, int32_t indent) {
+    static const char kWhitespace[] =
+        "                                        "
+        "                                        ";
+
+    CHECK_LT((size_t)indent, sizeof(kWhitespace));
+
+    s->append(kWhitespace, indent);
+}
+
+void hexdump(const void *_data, size_t size, size_t indent, AString *appendTo) {
     const uint8_t *data = (const uint8_t *)_data;
 
     size_t offset = 0;
     while (offset < size) {
         AString line;
+
+        appendIndent(&line, indent);
 
         char tmp[32];
         sprintf(tmp, "%08lx:  ", (unsigned long)offset);
@@ -67,7 +79,12 @@ void hexdump(const void *_data, size_t size) {
             }
         }
 
-        ALOGI("%s", line.c_str());
+        if (appendTo != NULL) {
+            appendTo->append(line);
+            appendTo->append("\n");
+        } else {
+            ALOGI("%s", line.c_str());
+        }
 
         offset += 16;
     }
