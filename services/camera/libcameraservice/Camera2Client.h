@@ -72,7 +72,7 @@ public:
 
 private:
     enum State {
-        NOT_INITIALIZED,
+        DISCONNECTED,
         STOPPED,
         WAITING_FOR_PREVIEW_WINDOW,
         PREVIEW,
@@ -301,6 +301,9 @@ private:
     sp<Camera2Device> mDevice;
 
     /** Utility members */
+
+    // Verify that caller is the owner of the camera
+    status_t checkPid(const char *checkLocation) const;
 
     // Utility class for managing a set of IMemory blocks
     class Camera2Heap : public RefBase {

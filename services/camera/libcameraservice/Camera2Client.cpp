@@ -52,7 +52,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int clientPid):
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
-        mState(NOT_INITIALIZED),
+        mState(DISCONNECTED),
         mPreviewStreamId(NO_STREAM),
         mPreviewRequest(NULL),
         mCaptureStreamId(NO_STREAM),
@@ -63,6 +63,15 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
     ATRACE_CALL();
 
     mDevice = new Camera2Device(cameraId);
+}
+
+status_t Camera2Client::checkPid(const char* checkLocation) const {
+    int callingPid = getCallingPid();
+    if (callingPid == mClientPid) return NO_ERROR;
+
+    ALOGE("%s: attempt to use a locked camera from a different process"
+            " (old pid %d, new pid %d)", checkLocation, mClientPid, callingPid);
+    return PERMISSION_DENIED;
 }
 
 status_t Camera2Client::initialize(camera_module_t *module)
@@ -103,6 +112,8 @@ Camera2Client::~Camera2Client() {
 
     mDestructionStarted = true;
 
+    // Rewrite mClientPid to allow shutdown by CameraService
+    mClientPid = getCallingPid();
     disconnect();
 
 }
@@ -317,7 +328,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 const char* Camera2Client::getStateName(State state) {
 #define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
     switch(state) {
-        CASE_ENUM_TO_CHAR(NOT_INITIALIZED)
+        CASE_ENUM_TO_CHAR(DISCONNECTED)
         CASE_ENUM_TO_CHAR(STOPPED)
         CASE_ENUM_TO_CHAR(WAITING_FOR_PREVIEW_WINDOW)
         CASE_ENUM_TO_CHAR(PREVIEW)
@@ -337,6 +348,8 @@ void Camera2Client::disconnect() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
 
     if (mDevice == 0) return;
 
@@ -358,6 +371,9 @@ void Camera2Client::disconnect() {
         mDevice->deleteStream(mRecordingStreamId);
         mRecordingStreamId = NO_STREAM;
     }
+
+    mDevice.clear();
+    mState = DISCONNECTED;
 
     CameraService::Client::disconnect();
 }
@@ -426,6 +442,8 @@ status_t Camera2Client::setPreviewDisplay(
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -442,6 +460,8 @@ status_t Camera2Client::setPreviewTexture(
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -464,7 +484,7 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
     }
 
     switch (mState) {
-        case NOT_INITIALIZED:
+        case DISCONNECTED:
         case RECORD:
         case STILL_CAPTURE:
         case VIDEO_SNAPSHOT:
@@ -513,12 +533,16 @@ status_t Camera2Client::setPreviewWindowLocked(const sp<IBinder>& binder,
 void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
 }
 
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
     return startPreviewLocked();
 }
 
@@ -586,13 +610,15 @@ void Camera2Client::stopPreview() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
     stopPreviewLocked();
 }
 
 void Camera2Client::stopPreviewLocked() {
     ATRACE_CALL();
     switch (mState) {
-        case NOT_INITIALIZED:
+        case DISCONNECTED:
             ALOGE("%s: Camera %d: Call before initialized",
                     __FUNCTION__, mCameraId);
             break;
@@ -619,12 +645,18 @@ void Camera2Client::stopPreviewLocked() {
 bool Camera2Client::previewEnabled() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return false;
+
     return mState == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
     switch (mState) {
         case RECORD:
         case VIDEO_SNAPSHOT:
@@ -647,6 +679,8 @@ status_t Camera2Client::startRecording() {
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
     switch (mState) {
         case STOPPED:
             res = startPreviewLocked();
@@ -724,6 +758,8 @@ void Camera2Client::stopRecording() {
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
+
     switch (mState) {
         case RECORD:
             // OK to stop
@@ -756,16 +792,19 @@ void Camera2Client::stopRecording() {
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    if ( checkPid(__FUNCTION__) != OK) return false;
+
     return (mState == RECORD || mState == VIDEO_SNAPSHOT);
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( checkPid(__FUNCTION__) != OK) return;
     // Make sure this is for the current heap
     ssize_t offset;
     size_t size;
-    status_t res;
     sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
     if (heap->getHeapID() != mRecordingHeap->mHeap->getHeapID()) {
         ALOGW("%s: Camera %d: Mismatched heap ID, ignoring release "
@@ -797,12 +836,18 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
 status_t Camera2Client::autoFocus() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
     return OK;
 }
 
 status_t Camera2Client::cancelAutoFocus() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
     return OK;
 }
 
@@ -810,9 +855,10 @@ status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
     status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     switch (mState) {
-        case NOT_INITIALIZED:
+        case DISCONNECTED:
         case STOPPED:
         case WAITING_FOR_PREVIEW_WINDOW:
             ALOGE("%s: Camera %d: Cannot take picture without preview enabled",
@@ -917,8 +963,10 @@ status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
-    LockedParameters::Key k(mParameters);
     status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    LockedParameters::Key k(mParameters);
 
     CameraParameters newParams(params);
 
@@ -1457,6 +1505,7 @@ status_t Camera2Client::setParameters(const String8& params) {
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    if ( checkPid(__FUNCTION__) != OK) return String8();
 
     LockedParameters::ReadKey k(mParameters);
 
@@ -1467,6 +1516,8 @@ String8 Camera2Client::getParameters() const {
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     ALOGV("%s: Camera %d: Command %d (%d, %d)", __FUNCTION__, mCameraId,
             cmd, arg1, arg2);
@@ -1486,6 +1537,13 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         }
         k.mParameters.previewTransform = transform;
         return OK;
+    } else if (cmd == CAMERA_CMD_PING) {
+        // Always ping back if access is proper and device is alive
+        if (mState != DISCONNECTED) {
+            return OK;
+        } else {
+            return NO_INIT;
+        }
     }
 
     ALOGE("%s: Camera %d: Unimplemented command %d (%d, %d)", __FUNCTION__,
