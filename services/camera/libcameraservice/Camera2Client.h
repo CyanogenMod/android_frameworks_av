@@ -200,6 +200,11 @@ private:
         // listed in Camera.Parameters
         bool storeMetadataInBuffers;
         bool playShutterSound;
+        bool enableFocusMoveMessages;
+
+        int afTriggerCounter;
+        int currentAfTriggerId;
+        bool afInMotion;
     };
 
     class LockedParameters {
@@ -313,9 +318,6 @@ private:
     camera_metadata_t *mRecordingRequest;
     sp<Camera2Heap> mRecordingHeap;
 
-    // TODO: This needs to be queried from somewhere, or the BufferQueue needs
-    // to be passed all the way to stagefright. Right now, set to a large number
-    // to avoid starvation of the video encoders.
     static const size_t kDefaultRecordingHeapCount = 8;
     size_t mRecordingHeapCount;
     size_t mRecordingHeapHead, mRecordingHeapFree;
@@ -324,6 +326,10 @@ private:
 
     status_t updateRecordingRequest(const Parameters &params);
     status_t updateRecordingStream(const Parameters &params);
+
+    /** Notification-related members */
+
+    bool mAfInMotion;
 
     /** Camera2Device instance wrapping HAL2 entry */
 
