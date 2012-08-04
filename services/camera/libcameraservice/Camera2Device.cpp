@@ -109,6 +109,8 @@ status_t Camera2Device::initialize(camera_module_t *module)
         return res;
     }
 
+    setNotifyCallback(NULL);
+
     return OK;
 }
 
@@ -284,6 +286,57 @@ status_t Camera2Device::waitUntilDrained() {
         }
     }
     return OK;
+}
+
+status_t Camera2Device::setNotifyCallback(NotificationListener *listener) {
+    status_t res;
+    res = mDevice->ops->set_notify_callback(mDevice, notificationCallback,
+            reinterpret_cast<void*>(listener) );
+    if (res != OK) {
+        ALOGE("%s: Unable to set notification callback!", __FUNCTION__);
+    }
+    return res;
+}
+
+void Camera2Device::notificationCallback(int32_t msg_type,
+        int32_t ext1,
+        int32_t ext2,
+        int32_t ext3,
+        void *user) {
+    NotificationListener *listener = reinterpret_cast<NotificationListener*>(user);
+    ALOGV("%s: Notification %d, arguments %d, %d, %d", __FUNCTION__, msg_type,
+            ext1, ext2, ext3);
+    if (listener != NULL) {
+        switch (msg_type) {
+            case CAMERA2_MSG_ERROR:
+                listener->notifyError(ext1, ext2, ext3);
+                break;
+            case CAMERA2_MSG_SHUTTER: {
+                nsecs_t timestamp = (nsecs_t)ext2 | ((nsecs_t)(ext3) << 32 );
+                listener->notifyShutter(ext1, timestamp);
+                break;
+            }
+            case CAMERA2_MSG_AUTOFOCUS:
+                listener->notifyAutoFocus(ext1, ext2);
+                break;
+            case CAMERA2_MSG_AUTOEXPOSURE:
+                listener->notifyAutoExposure(ext1, ext2);
+                break;
+            case CAMERA2_MSG_AUTOWB:
+                listener->notifyAutoWhitebalance(ext1, ext2);
+                break;
+            default:
+                ALOGE("%s: Unknown notification %d (arguments %d, %d, %d)!",
+                        __FUNCTION__, msg_type, ext1, ext2, ext3);
+        }
+    }
+}
+
+/**
+ * Camera2Device::NotificationListener
+ */
+
+Camera2Device::NotificationListener::~NotificationListener() {
 }
 
 /**
