@@ -31,10 +31,12 @@ namespace android {
  * Implements the android.hardware.camera API on top of
  * camera device HAL version 2.
  */
-class Camera2Client : public CameraService::Client
+class Camera2Client : public CameraService::Client,
+                      public Camera2Device::NotificationListener
 {
 public:
     // ICamera interface (see ICamera for details)
+
     virtual void            disconnect();
     virtual status_t        connect(const sp<ICameraClient>& client);
     virtual status_t        lock();
@@ -59,16 +61,25 @@ public:
     virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
 
     // Interface used by CameraService
+
     Camera2Client(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
             int cameraId,
             int cameraFacing,
             int clientPid);
-    ~Camera2Client();
+    virtual ~Camera2Client();
 
     status_t initialize(camera_module_t *module);
 
     virtual status_t dump(int fd, const Vector<String16>& args);
+
+    // Interface used by CameraDevice
+
+    virtual void notifyError(int errorCode, int arg1, int arg2);
+    virtual void notifyShutter(int frameNumber, nsecs_t timestamp);
+    virtual void notifyAutoFocus(uint8_t newState, int triggerId);
+    virtual void notifyAutoExposure(uint8_t newState, int triggerId);
+    virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
 private:
     enum State {
@@ -389,6 +400,7 @@ private:
 
     // Map from camera orientation + facing to gralloc transform enum
     static int degToTransform(int degrees, bool mirror);
+
 };
 
 }; // namespace android
