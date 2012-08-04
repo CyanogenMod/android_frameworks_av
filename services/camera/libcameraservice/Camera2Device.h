@@ -102,6 +102,27 @@ class Camera2Device : public virtual RefBase {
      */
     status_t waitUntilDrained();
 
+    /**
+     * Abstract class for HAL notification listeners
+     */
+    class NotificationListener {
+      public:
+        // Refer to the Camera2 HAL definition for notification definitions
+        virtual void notifyError(int errorCode, int arg1, int arg2) = 0;
+        virtual void notifyShutter(int frameNumber, nsecs_t timestamp) = 0;
+        virtual void notifyAutoFocus(uint8_t newState, int triggerId) = 0;
+        virtual void notifyAutoExposure(uint8_t newState, int triggerId) = 0;
+        virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId) = 0;
+      protected:
+        virtual ~NotificationListener();
+    };
+
+    /**
+     * Connect HAL notifications to a listener. Overwrites previous
+     * listener. Set to NULL to stop receiving notifications.
+     */
+    status_t setNotifyCallback(NotificationListener *listener);
+
   private:
 
     const int mId;
@@ -281,6 +302,13 @@ class Camera2Device : public virtual RefBase {
 
     typedef List<sp<StreamAdapter> > StreamList;
     StreamList mStreams;
+
+    // Receives HAL notifications and routes them to the NotificationListener
+    static void notificationCallback(int32_t msg_type,
+            int32_t ext1,
+            int32_t ext2,
+            int32_t ext3,
+            void *user);
 
 }; // class Camera2Device
 

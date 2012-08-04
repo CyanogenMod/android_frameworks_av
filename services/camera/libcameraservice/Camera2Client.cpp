@@ -116,7 +116,6 @@ Camera2Client::~Camera2Client() {
     // Rewrite mClientPid to allow shutdown by CameraService
     mClientPid = getCallingPid();
     disconnect();
-
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
@@ -1659,6 +1658,30 @@ status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
 }
 
 /** Device-related methods */
+
+void Camera2Client::notifyError(int errorCode, int arg1, int arg2) {
+    ALOGE("Error condition %d reported by HAL, arguments %d, %d", errorCode, arg1, arg2);
+}
+
+void Camera2Client::notifyShutter(int frameNumber, nsecs_t timestamp) {
+    ALOGV("%s: Shutter notification for frame %d at time %lld", __FUNCTION__,
+            frameNumber, timestamp);
+}
+
+void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
+    ALOGV("%s: Autofocus state now %d, last trigger %d",
+            __FUNCTION__, newState, triggerId);
+}
+
+void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
+    ALOGV("%s: Autoexposure state now %d, last trigger %d",
+            __FUNCTION__, newState, triggerId);
+}
+
+void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
+    ALOGV("%s: Auto-whitebalance state now %d, last trigger %d",
+            __FUNCTION__, newState, triggerId);
+}
 
 void Camera2Client::onCaptureAvailable() {
     ATRACE_CALL();
