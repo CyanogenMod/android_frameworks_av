@@ -792,7 +792,14 @@ void Camera2Client::stopRecording() {
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+
     if ( checkPid(__FUNCTION__) != OK) return false;
+
+    return recordingEnabledL();
+}
+
+bool Camera2Client::recordingEnabledL() {
+    ATRACE_CALL();
 
     return (mState == RECORD || mState == VIDEO_SNAPSHOT);
 }
@@ -1632,7 +1639,7 @@ status_t Camera2Client::commandPingL() {
 }
 
 status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
-    if (recordingEnabled()) {
+    if (recordingEnabledL()) {
         ALOGE("%s: Camera %d: Error setting video buffer count after "
                 "recording was started", __FUNCTION__, mCameraId);
         return INVALID_OPERATION;

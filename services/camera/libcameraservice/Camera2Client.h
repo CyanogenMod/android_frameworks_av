@@ -108,6 +108,8 @@ private:
     void stopPreviewL();
     status_t startPreviewL();
 
+    bool recordingEnabledL();
+
     // Individual commands for sendCommand()
     status_t commandStartSmoothZoomL();
     status_t commandStopSmoothZoomL();
