@@ -33,9 +33,6 @@
 
 namespace android {
 
-extern sp<MediaPlayerBase> createAAH_TXPlayer();
-extern sp<MediaPlayerBase> createAAH_RXPlayer();
-
 Mutex MediaPlayerFactory::sLock;
 MediaPlayerFactory::tFactoryMap MediaPlayerFactory::sFactoryMap;
 bool MediaPlayerFactory::sInitComplete = false;
@@ -325,63 +322,6 @@ class TestPlayerFactory : public MediaPlayerFactory::IFactory {
     }
 };
 
-class AAH_RX_PlayerFactory : public MediaPlayerFactory::IFactory {
-  public:
-    virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                               const char* url,
-                               float curScore) {
-        static const float kOurScore = 0.6;
-
-        if (kOurScore <= curScore)
-            return 0.0;
-
-        if (!strncasecmp("aahRX://", url, 8)) {
-            return kOurScore;
-        }
-
-        return 0.0;
-    }
-
-    virtual sp<MediaPlayerBase> createPlayer() {
-        ALOGV(" create A@H RX Player");
-        return createAAH_RXPlayer();
-    }
-};
-
-class AAH_TX_PlayerFactory : public MediaPlayerFactory::IFactory {
-  public:
-    virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                               const char* url,
-                               float curScore) {
-        return checkRetransmitEndpoint(client) ? 1.1 : 0.0;
-    }
-
-    virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                               int fd,
-                               int64_t offset,
-                               int64_t length,
-                               float curScore) {
-        return checkRetransmitEndpoint(client) ? 1.1 : 0.0;
-    }
-
-    virtual sp<MediaPlayerBase> createPlayer() {
-        ALOGV(" create A@H TX Player");
-        return createAAH_TXPlayer();
-    }
-
-  private:
-    bool checkRetransmitEndpoint(const sp<IMediaPlayer>& client) {
-        if (client == NULL)
-            return false;
-
-        struct sockaddr_in junk;
-        if (OK != client->getRetransmitEndpoint(&junk))
-            return false;
-
-        return true;
-    }
-};
-
 void MediaPlayerFactory::registerBuiltinFactories() {
     Mutex::Autolock lock_(&sLock);
 
@@ -392,11 +332,6 @@ void MediaPlayerFactory::registerBuiltinFactories() {
     registerFactory_l(new NuPlayerFactory(), NU_PLAYER);
     registerFactory_l(new SonivoxPlayerFactory(), SONIVOX_PLAYER);
     registerFactory_l(new TestPlayerFactory(), TEST_PLAYER);
-
-    // TODO: remove this once AAH players have been relocated from
-    // framework/base and into vendor/google_devices/phantasm
-    registerFactory_l(new AAH_RX_PlayerFactory(), AAH_RX_PLAYER);
-    registerFactory_l(new AAH_TX_PlayerFactory(), AAH_TX_PLAYER);
 
     sInitComplete = true;
 }
