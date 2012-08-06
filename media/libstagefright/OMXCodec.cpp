@@ -1747,6 +1747,10 @@ OMXCodec::~OMXCodec() {
     CHECK_EQ(err, (status_t)OK);
 
     mNode = NULL;
+#ifdef QCOM_HARDWARE
+    releaseMediaBuffersOn(kPortIndexOutput);
+    releaseMediaBuffersOn(kPortIndexInput);
+#endif
     setState(DEAD);
 
     clearCodecSpecificData();
@@ -1788,6 +1792,15 @@ status_t OMXCodec::init() {
         mAsyncCompletion.wait(mLock);
     }
 
+#ifdef QCOM_HARDWARE
+    /*
+     * If the native window is valid, we need to do the extra work of
+     * cancelling buffers back.
+     */
+    if (mState == ERROR) {
+        flushBuffersOnError();
+    }
+#endif
     return mState == ERROR ? UNKNOWN_ERROR : OK;
 }
 
@@ -4386,6 +4399,9 @@ status_t OMXCodec::stop() {
     }
 
     bool isError = false;
+#ifdef QCOM_HARDWARE
+    bool forceFlush = false;
+#endif
     switch (mState) {
         case LOADED:
             break;
@@ -4414,6 +4430,9 @@ status_t OMXCodec::stop() {
                 CHECK_EQ(err, (status_t)OK);
 
                 if (state != OMX_StateExecuting) {
+#ifdef QCOM_HARDWARE
+                    forceFlush = true;
+#endif
                     break;
                 }
                 // else fall through to the idling code
@@ -4469,7 +4488,11 @@ status_t OMXCodec::stop() {
             while (mState != LOADED && mState != ERROR) {
                 mAsyncCompletion.wait(mLock);
             }
-
+#ifdef QCOM_HARDWARE
+            if (mState == ERROR) {
+                forceFlush = true;
+            }
+#endif
             if (isError) {
                 // We were in the ERROR state coming in, so restore that now
                 // that we've idled the OMX component.
@@ -4485,7 +4508,9 @@ status_t OMXCodec::stop() {
             break;
         }
     }
-
+#ifdef QCOM_HARDWARE
+    if (forceFlush) flushBuffersOnError();
+#endif
     if (mLeftOverBuffer) {
         mLeftOverBuffer->release();
         mLeftOverBuffer = NULL;
@@ -5570,4 +5595,102 @@ status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]) {
     return OK;
 }
 
+#ifdef QCOM_HARDWARE
+status_t OMXCodec::releaseMediaBuffersOn(OMX_U32 portIndex) {
+    if (mPortBuffers[portIndex].size() == 0) {
+        return OK;
+    }
+
+    if (mState != ERROR) {
+        CODEC_LOGE("assertion failure, needs to be investigated why %s "
+              " buffers are still pending",
+              portIndex == kPortIndexOutput ? "output" : "input");
+        //CHECK(!"shouldn't be here");
+    }
+
+    Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
+
+    for (size_t i = buffers->size(); i-- > 0;) {
+        BufferInfo *info = &buffers->editItemAt(i);
+        if (info->mMediaBuffer) {
+            CHECK_EQ(portIndex, (OMX_U32)kPortIndexOutput);
+            info->mMediaBuffer->setObserver(NULL);
+
+            // Make sure nobody but us owns this buffer at this point.
+            CHECK_EQ(info->mMediaBuffer->refcount(), 0);
+
+            info->mMediaBuffer->release();
+            info->mMediaBuffer = NULL;
+        }
+        buffers->removeAt(i);
+    }
+    return OK;
+}
+
+/*
+ * Last resort to flush buffers and additionally cancel all native window buffers.
+ *
+ * lock _must_ be acquired in caller
+ */
+status_t OMXCodec::flushBuffersOnError() {
+    if (mState != ERROR) {
+        return INVALID_OPERATION;
+    }
+
+    OMX_STATETYPE state = OMX_StateInvalid;
+    status_t err = mOMX->getState(mNode, &state);
+    CHECK_EQ(err, (status_t)OK); //component is alive
+
+    mPortStatus[kPortIndexOutput] = ENABLED;
+    mPortStatus[kPortIndexInput] = ENABLED;
+
+    setState(EXECUTING_TO_IDLE);
+
+    flushPortAsync(kPortIndexOutput);
+    flushPortAsync(kPortIndexInput);
+
+    size_t kRetries = 15;
+
+    bool outputBuffersPending =
+        countBuffersWeOwn(mPortBuffers[kPortIndexOutput]) !=
+        mPortBuffers[kPortIndexOutput].size();
+
+    bool inputBuffersPending =
+        countBuffersWeOwn(mPortBuffers[kPortIndexInput]) !=
+        mPortBuffers[kPortIndexInput].size();
+
+    setState(ERROR); //drop all except EBD/FBD
+    while ((outputBuffersPending || inputBuffersPending) && --kRetries) {
+        mLock.unlock();
+        usleep(10000);
+        mLock.lock();
+
+        outputBuffersPending =
+            countBuffersWeOwn(mPortBuffers[kPortIndexOutput]) !=
+            mPortBuffers[kPortIndexOutput].size();
+
+        inputBuffersPending =
+            countBuffersWeOwn(mPortBuffers[kPortIndexInput]) !=
+            mPortBuffers[kPortIndexInput].size();
+    }
+
+    if (inputBuffersPending || outputBuffersPending) {
+        ALOGE("Timed out waiting for all input/output buffers to be returned, "
+              "there might be a leak");
+    }
+
+    //additional work for native buffers
+    if (mNativeWindow != NULL) {
+        Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexOutput];
+        for (size_t i = 0; i < buffers->size(); ++i) {
+            BufferInfo *info = &buffers->editItemAt(i);
+            if (info->mStatus == OWNED_BY_US) {
+                cancelBufferToNativeWindow(info);
+            }
+        }
+    }
+
+    return OK;
+}
+#endif
 }  // namespace android
