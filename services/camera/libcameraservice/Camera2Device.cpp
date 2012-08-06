@@ -117,20 +117,27 @@ status_t Camera2Device::initialize(camera_module_t *module)
 status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
 
     String8 result;
+    int detailLevel = 0;
+    int n = args.size();
+    String16 detailOption("-d");
+    for (int i = 0; i + 1 < n; i++) {
+        if (args[i] == detailOption) {
+            String8 levelStr(args[i+1]);
+            detailLevel = atoi(levelStr.string());
+        }
+    }
 
-    result.appendFormat("  Camera2Device[%d] dump:\n", mId);
+    result.appendFormat("  Camera2Device[%d] dump (detail level %d):\n", mId);
 
-    result.appendFormat("    Static camera information metadata:\n");
-    write(fd, result.string(), result.size());
-    dump_indented_camera_metadata(mDeviceInfo, fd, 2, 6);
+    if (detailLevel > 0) {
+        result = "    Request queue contents:\n";
+        write(fd, result.string(), result.size());
+        mRequestQueue.dump(fd, args);
 
-    result = "    Request queue contents:\n";
-    write(fd, result.string(), result.size());
-    mRequestQueue.dump(fd, args);
-
-    result = "    Frame queue contents:\n";
-    write(fd, result.string(), result.size());
-    mFrameQueue.dump(fd, args);
+        result = "    Frame queue contents:\n";
+        write(fd, result.string(), result.size());
+        mFrameQueue.dump(fd, args);
+    }
 
     result = "    Active streams:\n";
     write(fd, result.string(), result.size());
