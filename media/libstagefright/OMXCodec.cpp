@@ -3227,9 +3227,11 @@ void OMXCodec::drainInputBuffers() {
                 continue;
             }
 
+#ifdef QCOM_HARDWARE
             if (mIsEncoder && mIsVideo && (i == 4)) { //BIG TBD - move this to component
                 break;
             }
+#endif
 
             if (!drainInputBuffer(info)) {
                 break;
