@@ -1368,7 +1368,7 @@ int CameraService::Client::getOrientation(int degrees, bool mirror) {
         } else if (degrees == 180) {  // FLIP_H and ROT_180
             return HAL_TRANSFORM_FLIP_V;
         } else if (degrees == 270) {  // FLIP_H and ROT_270
-            return HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_ROT_90;
+            return HAL_TRANSFORM_FLIP_H | HAL_TRANSFORM_ROT_90;
         }
     }
     ALOGE("Invalid setDisplayOrientation degrees=%d", degrees);
