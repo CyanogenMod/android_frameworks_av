@@ -515,7 +515,10 @@ static const char *GetURLForMime(const char *mime) {
 
 static sp<MediaSource> CreateSourceForMime(const char *mime) {
     const char *url = GetURLForMime(mime);
-    CHECK(url != NULL);
+
+    if (url == NULL) {
+        return NULL;
+    }
 
     sp<MediaExtractor> extractor = CreateExtractorFromURI(url);
 
@@ -571,13 +574,21 @@ status_t Harness::testSeek(
     const char *mime = GetMimeFromComponentRole(componentRole);
 
     if (!mime) {
-        ALOGI("Cannot perform seek test with this componentRole (%s)",
-             componentRole);
+        printf("  * Cannot perform seek test with this componentRole (%s)\n",
+               componentRole);
 
         return OK;
     }
 
     sp<MediaSource> source = CreateSourceForMime(mime);
+
+    if (source == NULL) {
+        printf("  * Unable to open test content for type '%s', "
+               "skipping test of componentRole %s\n",
+               mime, componentRole);
+
+        return OK;
+    }
 
     sp<MediaSource> seekSource = CreateSourceForMime(mime);
     if (source == NULL || seekSource == NULL) {
