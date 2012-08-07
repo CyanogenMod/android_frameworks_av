@@ -98,9 +98,8 @@ struct OMXCodec : public MediaSource,
         kDecoderLiesAboutNumberOfChannels     = 256,
         kInputBufferSizesAreBogus             = 512,
         kSupportsMultipleFramesPerInputBuffer = 1024,
-        kAvoidMemcopyInputRecordingFrames     = 2048,
-        kRequiresLargerEncoderOutputBuffer    = 4096,
-        kOutputBuffersAreUnreadable           = 8192,
+        kRequiresLargerEncoderOutputBuffer    = 2048,
+        kOutputBuffersAreUnreadable           = 4096,
     };
 
     // for use by ACodec
@@ -341,8 +340,6 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
-
-    void restorePatchedDataPointer(BufferInfo *info);
 
     status_t applyRotation();
     status_t waitForBufferFilled_l();

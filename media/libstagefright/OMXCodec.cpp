@@ -2091,13 +2091,6 @@ void OMXCodec::on_message(const omx_message &msg) {
 
             // Buffer could not be released until empty buffer done is called.
             if (info->mMediaBuffer != NULL) {
-                if (mIsEncoder &&
-                    (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
-                    // If zero-copy mode is enabled this will send the
-                    // input buffer back to the upstream source.
-                    restorePatchedDataPointer(info);
-                }
-
                 info->mMediaBuffer->release();
                 info->mMediaBuffer = NULL;
             }
@@ -3070,39 +3063,24 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         }
 
         bool releaseBuffer = true;
-        if (mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
-            CHECK(mOMXLivesLocally && offset == 0);
-
-            OMX_BUFFERHEADERTYPE *header =
-                (OMX_BUFFERHEADERTYPE *)info->mBuffer;
-
-            CHECK(header->pBuffer == info->mData);
-
-            header->pBuffer =
-                (OMX_U8 *)srcBuffer->data() + srcBuffer->range_offset();
-
-            releaseBuffer = false;
-            info->mMediaBuffer = srcBuffer;
-        } else {
-            if (mFlags & kStoreMetaDataInVideoBuffers) {
+        if (mFlags & kStoreMetaDataInVideoBuffers) {
                 releaseBuffer = false;
                 info->mMediaBuffer = srcBuffer;
-            }
+        }
 
-            if (mFlags & kUseSecureInputBuffers) {
+        if (mFlags & kUseSecureInputBuffers) {
                 // Data in "info" is already provided at this time.
 
                 releaseBuffer = false;
 
                 CHECK(info->mMediaBuffer == NULL);
                 info->mMediaBuffer = srcBuffer;
-            } else {
-                CHECK(srcBuffer->data() != NULL) ;
-                memcpy((uint8_t *)info->mData + offset,
-                        (const uint8_t *)srcBuffer->data()
-                            + srcBuffer->range_offset(),
-                        srcBuffer->range_length());
-            }
+        } else {
+            CHECK(srcBuffer->data() != NULL) ;
+            memcpy((uint8_t *)info->mData + offset,
+                    (const uint8_t *)srcBuffer->data()
+                        + srcBuffer->range_offset(),
+                    srcBuffer->range_length());
         }
 
         int64_t lastBufferTimeUs;
@@ -4606,14 +4584,6 @@ status_t QueryCodecs(
         const char *mimeType, bool queryDecoders,
         Vector<CodecCapabilities> *results) {
     return QueryCodecs(omx, mimeType, queryDecoders, false /*hwCodecOnly*/, results);
-}
-
-void OMXCodec::restorePatchedDataPointer(BufferInfo *info) {
-    CHECK(mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames));
-    CHECK(mOMXLivesLocally);
-
-    OMX_BUFFERHEADERTYPE *header = (OMX_BUFFERHEADERTYPE *)info->mBuffer;
-    header->pBuffer = (OMX_U8 *)info->mData;
 }
 
 // These are supposed be equivalent to the logic in
