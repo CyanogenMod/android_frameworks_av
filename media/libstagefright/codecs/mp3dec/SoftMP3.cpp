@@ -191,10 +191,19 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
             inInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inHeader);
 
-            // pad the end of the stream with 529 samples, since that many samples
-            // were trimmed off the beginning when decoding started
-            outHeader->nFilledLen = kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
-            memset(outHeader->pBuffer, 0, outHeader->nFilledLen);
+            if (!mIsFirst) {
+                // pad the end of the stream with 529 samples, since that many samples
+                // were trimmed off the beginning when decoding started
+                outHeader->nFilledLen =
+                    kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
+
+                memset(outHeader->pBuffer, 0, outHeader->nFilledLen);
+            } else {
+                // Since we never discarded frames from the start, we won't have
+                // to add any padding at the end either.
+                outHeader->nFilledLen = 0;
+            }
+
             outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
             outQueue.erase(outQueue.begin());
@@ -260,8 +269,11 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
             // The decoder delay is 529 samples, so trim that many samples off
             // the start of the first output buffer. This essentially makes this
             // decoder have zero delay, which the rest of the pipeline assumes.
-            outHeader->nOffset = kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
-            outHeader->nFilledLen = mConfig->outputFrameSize * sizeof(int16_t) - outHeader->nOffset;
+            outHeader->nOffset =
+                kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
+
+            outHeader->nFilledLen =
+                mConfig->outputFrameSize * sizeof(int16_t) - outHeader->nOffset;
         } else {
             outHeader->nOffset = 0;
             outHeader->nFilledLen = mConfig->outputFrameSize * sizeof(int16_t);
