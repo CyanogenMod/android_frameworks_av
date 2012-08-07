@@ -2886,20 +2886,21 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     sp<IOMX> omx = client.interface();
 
-    Vector<String8> matchingCodecs;
-    Vector<uint32_t> matchingCodecQuirks;
+    Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
     AString mime;
 
     AString componentName;
     uint32_t quirks;
     if (msg->findString("componentName", &componentName)) {
-        matchingCodecs.push_back(String8(componentName.c_str()));
+        ssize_t index = matchingCodecs.add();
+        OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);
+        entry->mName = String8(componentName.c_str());
 
-        if (!OMXCodec::findCodecQuirks(componentName.c_str(), &quirks)) {
-            quirks = 0;
+        if (!OMXCodec::findCodecQuirks(
+                    componentName.c_str(), &entry->mQuirks)) {
+            entry->mQuirks = 0;
         }
-        matchingCodecQuirks.push_back(quirks);
     } else {
         CHECK(msg->findString("mime", &mime));
 
@@ -2913,8 +2914,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 encoder, // createEncoder
                 NULL,  // matchComponentName
                 0,     // flags
-                &matchingCodecs,
-                &matchingCodecQuirks);
+                &matchingCodecs);
     }
 
     sp<CodecObserver> observer = new CodecObserver;
@@ -2922,8 +2922,8 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     for (size_t matchIndex = 0; matchIndex < matchingCodecs.size();
             ++matchIndex) {
-        componentName = matchingCodecs.itemAt(matchIndex).string();
-        quirks = matchingCodecQuirks.itemAt(matchIndex);
+        componentName = matchingCodecs.itemAt(matchIndex).mName.string();
+        quirks = matchingCodecs.itemAt(matchIndex).mQuirks;
 
         pid_t tid = androidGetTid();
         int prevPriority = androidGetThreadPriority(tid);

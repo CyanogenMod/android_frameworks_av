@@ -147,12 +147,13 @@ static bool IsSoftwareCodec(const char *componentName) {
 // A sort order in which OMX software codecs are first, followed
 // by other (non-OMX) software codecs, followed by everything else.
 static int CompareSoftwareCodecsFirst(
-        const String8 *elem1, const String8 *elem2) {
-    bool isOMX1 = !strncmp(elem1->string(), "OMX.", 4);
-    bool isOMX2 = !strncmp(elem2->string(), "OMX.", 4);
+        const OMXCodec::CodecNameAndQuirks *elem1,
+        const OMXCodec::CodecNameAndQuirks *elem2) {
+    bool isOMX1 = !strncmp(elem1->mName.string(), "OMX.", 4);
+    bool isOMX2 = !strncmp(elem2->mName.string(), "OMX.", 4);
 
-    bool isSoftwareCodec1 = IsSoftwareCodec(elem1->string());
-    bool isSoftwareCodec2 = IsSoftwareCodec(elem2->string());
+    bool isSoftwareCodec1 = IsSoftwareCodec(elem1->mName.string());
+    bool isSoftwareCodec2 = IsSoftwareCodec(elem2->mName.string());
 
     if (isSoftwareCodec1) {
         if (!isSoftwareCodec2) { return -1; }
@@ -182,13 +183,8 @@ void OMXCodec::findMatchingCodecs(
         const char *mime,
         bool createEncoder, const char *matchComponentName,
         uint32_t flags,
-        Vector<String8> *matchingCodecs,
-        Vector<uint32_t> *matchingCodecQuirks) {
+        Vector<CodecNameAndQuirks> *matchingCodecs) {
     matchingCodecs->clear();
-
-    if (matchingCodecQuirks) {
-        matchingCodecQuirks->clear();
-    }
 
     const MediaCodecList *list = MediaCodecList::getInstance();
     if (list == NULL) {
@@ -221,11 +217,13 @@ void OMXCodec::findMatchingCodecs(
             ((flags & kHardwareCodecsOnly) &&  !IsSoftwareCodec(componentName)) ||
             (!(flags & (kSoftwareCodecsOnly | kHardwareCodecsOnly)))) {
 
-            matchingCodecs->push(String8(componentName));
+            ssize_t index = matchingCodecs->add();
+            CodecNameAndQuirks *entry = &matchingCodecs->editItemAt(index);
+            entry->mName = String8(componentName);
+            entry->mQuirks = getComponentQuirks(list, matchIndex);
 
-            if (matchingCodecQuirks) {
-                matchingCodecQuirks->push(getComponentQuirks(list, matchIndex));
-            }
+            ALOGV("matching '%s' quirks 0x%08x",
+                  entry->mName.string(), entry->mQuirks);
         }
     }
 
@@ -294,11 +292,9 @@ sp<MediaSource> OMXCodec::Create(
     bool success = meta->findCString(kKeyMIMEType, &mime);
     CHECK(success);
 
-    Vector<String8> matchingCodecs;
-    Vector<uint32_t> matchingCodecQuirks;
+    Vector<CodecNameAndQuirks> matchingCodecs;
     findMatchingCodecs(
-            mime, createEncoder, matchComponentName, flags,
-            &matchingCodecs, &matchingCodecQuirks);
+            mime, createEncoder, matchComponentName, flags, &matchingCodecs);
 
     if (matchingCodecs.isEmpty()) {
         ALOGV("No matching codecs! (mime: %s, createEncoder: %s, "
@@ -311,8 +307,8 @@ sp<MediaSource> OMXCodec::Create(
     IOMX::node_id node = 0;
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
-        const char *componentNameBase = matchingCodecs[i].string();
-        uint32_t quirks = matchingCodecQuirks[i];
+        const char *componentNameBase = matchingCodecs[i].mName.string();
+        uint32_t quirks = matchingCodecs[i].mQuirks;
         const char *componentName = componentNameBase;
 
         AString tmp;
@@ -572,6 +568,8 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
     if ((mFlags & kClientNeedsFramebuffer)
             && !strncmp(mComponentName, "OMX.SEC.", 8)) {
+        // This appears to no longer be needed???
+
         OMX_INDEXTYPE index;
 
         status_t err =
@@ -4489,7 +4487,7 @@ status_t QueryCodecs(
         const sp<IOMX> &omx,
         const char *mime, bool queryDecoders, bool hwCodecOnly,
         Vector<CodecCapabilities> *results) {
-    Vector<String8> matchingCodecs;
+    Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
     results->clear();
 
     OMXCodec::findMatchingCodecs(mime,
@@ -4499,7 +4497,7 @@ status_t QueryCodecs(
             &matchingCodecs);
 
     for (size_t c = 0; c < matchingCodecs.size(); c++) {
-        const char *componentName = matchingCodecs.itemAt(c).string();
+        const char *componentName = matchingCodecs.itemAt(c).mName.string();
 
         results->push();
         CodecCapabilities *caps = &results->editItemAt(results->size() - 1);
