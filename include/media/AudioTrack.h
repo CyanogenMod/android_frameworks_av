@@ -473,7 +473,7 @@ protected:
         friend class AudioTrack;
         virtual bool        threadLoop();
         AudioTrack& mReceiver;
-        virtual ~AudioTrackThread();
+        ~AudioTrackThread();
         Mutex               mMyLock;    // Thread::mLock is private
         Condition           mMyCond;    // Thread::mThreadExitedCondition is private
         bool                mPaused;    // whether thread is currently paused
