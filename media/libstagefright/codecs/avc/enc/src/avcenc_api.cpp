@@ -610,32 +610,32 @@ OSCL_EXPORT_REF void    PVAVCCleanUpEncoder(AVCHandle *avcHandle)
 
         if (encvid->functionPointer != NULL)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->functionPointer);
+            avcHandle->CBAVC_Free(userData, encvid->functionPointer);
         }
 
         if (encvid->min_cost)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->min_cost);
+            avcHandle->CBAVC_Free(userData, encvid->min_cost);
         }
 
         if (encvid->intraSearch)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->intraSearch);
+            avcHandle->CBAVC_Free(userData, encvid->intraSearch);
         }
 
         if (encvid->mot16x16)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->mot16x16);
+            avcHandle->CBAVC_Free(userData, encvid->mot16x16);
         }
 
         if (encvid->rateCtrl)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->rateCtrl);
+            avcHandle->CBAVC_Free(userData, encvid->rateCtrl);
         }
 
         if (encvid->overrunBuffer)
         {
-            avcHandle->CBAVC_Free(userData, (int)encvid->overrunBuffer);
+            avcHandle->CBAVC_Free(userData, encvid->overrunBuffer);
         }
 
         video = encvid->common;
@@ -643,45 +643,45 @@ OSCL_EXPORT_REF void    PVAVCCleanUpEncoder(AVCHandle *avcHandle)
         {
             if (video->MbToSliceGroupMap)
             {
-                avcHandle->CBAVC_Free(userData, (int)video->MbToSliceGroupMap);
+                avcHandle->CBAVC_Free(userData, video->MbToSliceGroupMap);
             }
             if (video->mblock != NULL)
             {
-                avcHandle->CBAVC_Free(userData, (int)video->mblock);
+                avcHandle->CBAVC_Free(userData, video->mblock);
             }
             if (video->decPicBuf != NULL)
             {
                 CleanUpDPB(avcHandle, video);
-                avcHandle->CBAVC_Free(userData, (int)video->decPicBuf);
+                avcHandle->CBAVC_Free(userData, video->decPicBuf);
             }
             if (video->sliceHdr != NULL)
             {
-                avcHandle->CBAVC_Free(userData, (int)video->sliceHdr);
+                avcHandle->CBAVC_Free(userData, video->sliceHdr);
             }
             if (video->currPicParams != NULL)
             {
                 if (video->currPicParams->slice_group_id)
                 {
-                    avcHandle->CBAVC_Free(userData, (int)video->currPicParams->slice_group_id);
+                    avcHandle->CBAVC_Free(userData, video->currPicParams->slice_group_id);
                 }
 
-                avcHandle->CBAVC_Free(userData, (int)video->currPicParams);
+                avcHandle->CBAVC_Free(userData, video->currPicParams);
             }
             if (video->currSeqParams != NULL)
             {
-                avcHandle->CBAVC_Free(userData, (int)video->currSeqParams);
+                avcHandle->CBAVC_Free(userData, video->currSeqParams);
             }
             if (encvid->bitstream != NULL)
             {
-                avcHandle->CBAVC_Free(userData, (int)encvid->bitstream);
+                avcHandle->CBAVC_Free(userData, encvid->bitstream);
             }
             if (video != NULL)
             {
-                avcHandle->CBAVC_Free(userData, (int)video);
+                avcHandle->CBAVC_Free(userData, video);
             }
         }
 
-        avcHandle->CBAVC_Free(userData, (int)encvid);
+        avcHandle->CBAVC_Free(userData, encvid);
 
         avcHandle->AVCObject = NULL;
     }
