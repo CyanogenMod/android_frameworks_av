@@ -296,9 +296,9 @@ __asm__ volatile("LDR   %0, [%1], #16": "=&r"(x12), "=r"(blk));
 #if (NUMBER==3)
             goto         LOOP_SAD3;
 #elif (NUMBER==2)
-goto         LOOP_SAD2;
+            goto         LOOP_SAD2;
 #elif (NUMBER==1)
-goto         LOOP_SAD1;
+            goto         LOOP_SAD1;
 #endif
         }
 
