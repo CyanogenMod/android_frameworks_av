@@ -124,6 +124,7 @@ public:
     virtual     float       masterVolume() const;
     virtual     float       masterVolumeSW() const;
     virtual     bool        masterMute() const;
+    virtual     bool        masterMuteSW() const;
 
     virtual     status_t    setStreamVolume(audio_stream_type_t stream, float value,
                                             audio_io_handle_t output);
@@ -1911,6 +1912,27 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         MVS_FULL,
     };
 
+    enum master_mute_support {
+        // MMS_NONE:
+        // Audio HAL has no support for master mute, either setting or getting.
+        // All master mute control must be implemented in SW by the
+        // AudioFlinger mixing core.
+        MMS_NONE,
+
+        // MMS_SETONLY:
+        // Audio HAL has support for setting master mute, but not for getting
+        // master mute.  AudioFlinger needs to keep track of the last set
+        // master mute in addition to needing to set an initial, default,
+        // master mute at HAL load time.
+        MMS_SETONLY,
+
+        // MMS_FULL:
+        // Audio HAL has support both for setting and getting master mute.
+        // AudioFlinger should send all set and get master mute requests
+        // directly to the HAL.
+        MMS_FULL,
+    };
+
     class AudioHwDevice {
     public:
         AudioHwDevice(const char *moduleName, audio_hw_device_t *hwDevice) :
@@ -1957,6 +1979,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         AUDIO_HW_GET_INPUT_BUFFER_SIZE, // get_input_buffer_size
         AUDIO_HW_GET_MASTER_VOLUME,     // get_master_volume
         AUDIO_HW_GET_PARAMETER,         // get_parameters
+        AUDIO_HW_SET_MASTER_MUTE,       // set_master_mute
+        AUDIO_HW_GET_MASTER_MUTE,       // get_master_mute
     };
 
     mutable     hardware_call_state                 mHardwareStatus;    // for dump only
@@ -1969,7 +1993,10 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 float                               mMasterVolume;
                 float                               mMasterVolumeSW;
                 master_volume_support               mMasterVolumeSupportLvl;
+
                 bool                                mMasterMute;
+                bool                                mMasterMuteSW;
+                master_mute_support                 mMasterMuteSupportLvl;
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
@@ -1983,7 +2010,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
                 float       masterVolume_l() const;
                 float       masterVolumeSW_l() const  { return mMasterVolumeSW; }
-                bool        masterMute_l() const    { return mMasterMute; }
+                bool        masterMute_l() const;
+                bool        masterMuteSW_l() const    { return mMasterMuteSW; }
                 audio_module_handle_t loadHwModule_l(const char *name);
 
                 Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
