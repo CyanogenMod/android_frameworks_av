@@ -222,8 +222,8 @@ bool FastMixer::threadLoop()
                     mixBuffer = new short[frameCount * 2];
                     periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
                     underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
-                    overrunNs = (frameCount * 250000000LL) / sampleRate;    // 0.25
-                    forceNs = (frameCount * 750000000LL) / sampleRate;      // 0.75
+                    overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
+                    forceNs = (frameCount * 950000000LL) / sampleRate;      // 0.95
                     warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
                 } else {
                     periodNs = 0;
