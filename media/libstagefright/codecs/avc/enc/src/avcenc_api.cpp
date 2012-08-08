@@ -77,7 +77,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     }
 
     encvid = (AVCEncObject*) avcHandle->AVCObject;
-    memset(encvid, 0, sizeof(AVCEncObject)); /* reset everything */
 
     encvid->enc_state = AVCEnc_Initializing;
 
@@ -90,7 +89,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     }
 
     video = encvid->common;
-    memset(video, 0, sizeof(AVCCommonObj));
 
     /* allocate bitstream structure */
     encvid->bitstream = (AVCEncBitstream*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCEncBitstream), DEFAULT_ATTR);
@@ -106,7 +104,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(video->currSeqParams, 0, sizeof(AVCSeqParamSet));
 
     /* allocate picture parameter set structure */
     video->currPicParams = (AVCPicParamSet*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCPicParamSet), DEFAULT_ATTR);
@@ -114,7 +111,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(video->currPicParams, 0, sizeof(AVCPicParamSet));
 
     /* allocate slice header structure */
     video->sliceHdr = (AVCSliceHeader*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCSliceHeader), DEFAULT_ATTR);
@@ -122,7 +118,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(video->sliceHdr, 0, sizeof(AVCSliceHeader));
 
     /* allocate encoded picture buffer structure*/
     video->decPicBuf = (AVCDecPicBuffer*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCDecPicBuffer), DEFAULT_ATTR);
@@ -130,7 +125,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(video->decPicBuf, 0, sizeof(AVCDecPicBuffer));
 
     /* allocate rate control structure */
     encvid->rateCtrl = (AVCRateControl*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCRateControl), DEFAULT_ATTR);
@@ -138,7 +132,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(encvid->rateCtrl, 0, sizeof(AVCRateControl));
 
     /* reset frame list, not really needed */
     video->currPic = NULL;
@@ -194,7 +187,6 @@ OSCL_EXPORT_REF AVCEnc_Status PVAVCEncInitialize(AVCHandle *avcHandle, AVCEncPar
     {
         return AVCENC_MEMORY_FAIL;
     }
-    memset(encvid->mot16x16, 0, sizeof(AVCMV)*framesize);
 
     encvid->intraSearch = (uint8*) avcHandle->CBAVC_Malloc(userData, sizeof(uint8) * framesize, DEFAULT_ATTR);
     if (encvid->intraSearch == NULL)
