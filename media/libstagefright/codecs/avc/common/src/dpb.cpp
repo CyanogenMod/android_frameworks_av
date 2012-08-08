@@ -152,7 +152,7 @@ OSCL_EXPORT_REF AVCStatus AVCConfigureSequence(AVCHandle *avcHandle, AVCCommonOb
         framesize = (FrameHeightInMbs * PicWidthInMbs);
         if (video->mblock)
         {
-            avcHandle->CBAVC_Free(userData, (uint32)video->mblock);
+            avcHandle->CBAVC_Free(userData, video->mblock);
             video->mblock = NULL;
         }
         video->mblock = (AVCMacroblock*) avcHandle->CBAVC_Malloc(userData, sizeof(AVCMacroblock) * framesize, DEFAULT_ATTR);
@@ -187,7 +187,7 @@ OSCL_EXPORT_REF AVCStatus AVCConfigureSequence(AVCHandle *avcHandle, AVCCommonOb
 
         if (video->MbToSliceGroupMap)
         {
-            avcHandle->CBAVC_Free(userData, (uint32)video->MbToSliceGroupMap);
+            avcHandle->CBAVC_Free(userData, video->MbToSliceGroupMap);
             video->MbToSliceGroupMap = NULL;
         }
         video->MbToSliceGroupMap = (int*) avcHandle->CBAVC_Malloc(userData, sizeof(uint) * PicSizeInMapUnits * 2, 7/*DEFAULT_ATTR*/);
@@ -212,14 +212,14 @@ OSCL_EXPORT_REF AVCStatus CleanUpDPB(AVCHandle *avcHandle, AVCCommonObj *video)
     {
         if (dpb->fs[ii] != NULL)
         {
-            avcHandle->CBAVC_Free(userData, (int)dpb->fs[ii]);
+            avcHandle->CBAVC_Free(userData, dpb->fs[ii]);
             dpb->fs[ii] = NULL;
         }
     }
 #ifndef PV_MEMORY_POOL
     if (dpb->decoded_picture_buffer)
     {
-        avcHandle->CBAVC_Free(userData, (int)dpb->decoded_picture_buffer);
+        avcHandle->CBAVC_Free(userData, dpb->decoded_picture_buffer);
         dpb->decoded_picture_buffer = NULL;
     }
 #endif
