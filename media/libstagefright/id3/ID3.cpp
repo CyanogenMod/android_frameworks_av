@@ -743,7 +743,8 @@ static size_t StringSize(const uint8_t *start, uint8_t encoding) {
         n += 2;
     }
 
-    return n;
+    // Add size of null termination.
+    return n + 2;
 }
 
 const void *
