@@ -213,7 +213,7 @@ typedef void (*FuctionType_FrameUnbind)(void *userData, int);
     memory usage.
 \param "size" "Size of requested memory in bytes."
 \param "attribute" "Some value specifying types, priority, etc. of the memory."
-\return "The address of the allocated memory"
+\return "The address of the allocated, zero-initialized memory"
 */
 typedef void* (*FunctionType_Malloc)(void *userData, int32 size, int attribute);
 
