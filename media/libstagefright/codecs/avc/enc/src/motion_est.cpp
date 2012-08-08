@@ -176,7 +176,7 @@ void CleanMotionSearchModule(AVCHandle *avcHandle)
 
     if (encvid->mvbits_array)
     {
-        avcHandle->CBAVC_Free(avcHandle->userData, (int)(encvid->mvbits_array));
+        avcHandle->CBAVC_Free(avcHandle->userData, encvid->mvbits_array);
         encvid->mvbits = NULL;
     }
 
