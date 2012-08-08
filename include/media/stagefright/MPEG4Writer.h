@@ -186,6 +186,8 @@ private:
     void release();
     status_t reset();
 
+    static uint32_t getMpeg4Time();
+
     MPEG4Writer(const MPEG4Writer &);
     MPEG4Writer &operator=(const MPEG4Writer &);
 };
