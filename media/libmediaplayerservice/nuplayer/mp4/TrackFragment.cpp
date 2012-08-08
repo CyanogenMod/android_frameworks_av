@@ -217,6 +217,9 @@ static void setU32At(uint8_t *ptr, uint32_t x) {
 }
 
 void Parser::StaticTrackFragment::fixSampleToChunkTableIfNecessary() {
+    if (mSampleToChunk == NULL) {
+        return;
+    }
     uint32_t entryCount = U32_AT(mSampleToChunk->data() + 4);
     uint32_t totalSamples = 0;
     for (uint32_t i = 0; i < entryCount; ++i) {
@@ -251,7 +254,7 @@ status_t Parser::StaticTrackFragment::signalCompletion() {
 
     mSampleToChunkIndex = 0;
 
-    mSampleToChunkRemaining =
+    mSampleToChunkRemaining = (mSampleToChunk == NULL) ? 0 :
         U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex + 4);
 
     updateSampleInfo();
@@ -328,7 +331,11 @@ status_t Parser::StaticTrackFragment::parseSampleToChunk(
 
     uint32_t entryCount = parser->readU32(offset + 4);
 
-    if (entryCount == 0 || offset + 8 + entryCount * 12 != size) {
+    if (entryCount == 0) {
+        return OK;
+    }
+
+    if (offset + 8 + entryCount * 12 != size) {
         return ERROR_MALFORMED;
     }
 
