@@ -128,7 +128,8 @@ ssize_t NBAIO_Sink::writeVia(writeVia_t via, size_t total, void *user, size_t bl
 }
 
 // This is a default implementation; it is expected that subclasses will optimize this.
-ssize_t NBAIO_Source::readVia(readVia_t via, size_t total, void *user, size_t block)
+ssize_t NBAIO_Source::readVia(readVia_t via, size_t total, void *user,
+                              int64_t readPTS, size_t block)
 {
     if (!mNegotiated) {
         return (ssize_t) NEGOTIATE;
@@ -147,11 +148,11 @@ ssize_t NBAIO_Source::readVia(readVia_t via, size_t total, void *user, size_t bl
         if (count > block) {
             count = block;
         }
-        ssize_t ret = read(buffer, count);
+        ssize_t ret = read(buffer, count, readPTS);
         if (ret > 0) {
             ALOG_ASSERT((size_t) ret <= count);
             size_t maxRet = ret;
-            ret = via(user, buffer, maxRet);
+            ret = via(user, buffer, maxRet, readPTS);
             if (ret > 0) {
                 ALOG_ASSERT((size_t) ret <= maxRet);
                 accumulator += ret;

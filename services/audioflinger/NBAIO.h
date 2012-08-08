@@ -26,6 +26,7 @@
 
 #include <limits.h>
 #include <stdlib.h>
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -74,7 +75,8 @@ unsigned Format_channelCount(NBAIO_Format format);
 
 // Callbacks used by NBAIO_Sink::writeVia() and NBAIO_Source::readVia() below.
 typedef ssize_t (*writeVia_t)(void *user, void *buffer, size_t count);
-typedef ssize_t (*readVia_t)(void *user, const void *buffer, size_t count);
+typedef ssize_t (*readVia_t)(void *user, const void *buffer,
+                             size_t count, int64_t readPTS);
 
 // Abstract class (interface) representing a data port.
 class NBAIO_Port : public RefBase {
@@ -198,6 +200,21 @@ public:
     //  < 0     status_t error occurred prior to the first frame transfer during this callback.
     virtual ssize_t writeVia(writeVia_t via, size_t total, void *user, size_t block = 0);
 
+    // Get the time (on the LocalTime timeline) at which the first frame of audio of the next write
+    // operation to this sink will be eventually rendered by the HAL.
+    // Inputs:
+    //  ts      A pointer pointing to the int64_t which will hold the result.
+    // Return value:
+    //  OK      Everything went well, *ts holds the time at which the first audio frame of the next
+    //          write operation will be rendered, or AudioBufferProvider::kInvalidPTS if this sink
+    //          does not know the answer for some reason.  Sinks which eventually lead to a HAL
+    //          which implements get_next_write_timestamp may return Invalid temporarily if the DMA
+    //          output of the audio driver has not started yet.  Sinks which lead to a HAL which
+    //          does not implement get_next_write_timestamp, or which don't lead to a HAL at all,
+    //          will always return kInvalidPTS.
+    //  <other> Something unexpected happened internally.  Check the logs and start debugging.
+    virtual status_t getNextWriteTimestamp(int64_t *ts) { return INVALID_OPERATION; }
+
 protected:
     NBAIO_Sink(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }
     virtual ~NBAIO_Sink() { }
@@ -238,6 +255,8 @@ public:
     // Inputs:
     //  buffer  Non-NULL destination buffer owned by consumer.
     //  count   Maximum number of frames to transfer.
+    //  readPTS The presentation time (on the LocalTime timeline) for which data
+    //          is being requested, or kInvalidPTS if not known.
     // Return value:
     //  > 0     Number of frames successfully transferred prior to first error.
     //  = 0     Count was zero.
@@ -247,7 +266,7 @@ public:
     //  WOULD_BLOCK No frames can be transferred without blocking.
     //  OVERRUN     read() has not been called frequently enough, or with enough frames to keep up.
     //              One or more frames were lost due to overrun, try again to read more recent data.
-    virtual ssize_t read(void *buffer, size_t count) = 0;
+    virtual ssize_t read(void *buffer, size_t count, int64_t readPTS) = 0;
 
     // Transfer data from source using a series of callbacks.  More suitable for zero-fill,
     // synthesis, and non-contiguous transfers (e.g. circular buffer or readv).
@@ -256,6 +275,8 @@ public:
     //  total   Estimate of the number of frames the consumer desires.  This is an estimate,
     //          and it can consume a different number of frames during the series of callbacks.
     //  user    Arbitrary void * reserved for data consumer.
+    //  readPTS The presentation time (on the LocalTime timeline) for which data
+    //          is being requested, or kInvalidPTS if not known.
     //  block   Number of frames per block, that is a suggested value for 'count' in each callback.
     //          Zero means no preference.  This parameter is a hint only, and may be ignored.
     // Return value:
@@ -278,7 +299,8 @@ public:
     //  > 0     Number of frames successfully transferred during this callback prior to first error.
     //  = 0     Count was zero.
     //  < 0     status_t error occurred prior to the first frame transfer during this callback.
-    virtual ssize_t readVia(readVia_t via, size_t total, void *user, size_t block = 0);
+    virtual ssize_t readVia(readVia_t via, size_t total, void *user,
+                            int64_t readPTS, size_t block = 0);
 
 protected:
     NBAIO_Source(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }

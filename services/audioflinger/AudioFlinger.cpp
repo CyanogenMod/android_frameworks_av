@@ -2791,9 +2791,10 @@ void AudioFlinger::MixerThread::threadLoop_mix()
     int64_t pts;
     status_t status = INVALID_OPERATION;
 
-    if (NULL != mOutput->stream->get_next_write_timestamp) {
-        status = mOutput->stream->get_next_write_timestamp(
-                mOutput->stream, &pts);
+    if (mNormalSink != 0) {
+        status = mNormalSink->getNextWriteTimestamp(&pts);
+    } else {
+        status = mOutputSink->getNextWriteTimestamp(&pts);
     }
 
     if (status != NO_ERROR) {
@@ -3579,7 +3580,8 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
 #define TEE_SINK_READ 1024
                 short buffer[TEE_SINK_READ * FCC_2];
                 size_t count = TEE_SINK_READ;
-                ssize_t actual = teeSource->read(buffer, count);
+                ssize_t actual = teeSource->read(buffer, count,
+                        AudioBufferProvider::kInvalidPTS);
                 bool wasFirstRead = firstRead;
                 firstRead = false;
                 if (actual <= 0) {
