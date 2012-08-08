@@ -53,6 +53,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
 {
     M4OSA_ERR lerr = M4NO_ERROR;
     VIDEOEDITOR_BUFFER_Pool* pool;
+    M4OSA_UInt32 index;
 
     ALOGV("VIDEOEDITOR_BUFFER_allocatePool : ppool = 0x%x nbBuffers = %d ",
         ppool, nbBuffers);
@@ -77,6 +78,11 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
     {
         lerr = M4ERR_ALLOC;
         goto VIDEOEDITOR_BUFFER_allocatePool_Cleanup;
+    }
+
+    for (index = 0; index < nbBuffers; index++)
+    {
+        pool->pNXPBuffer[index].pData = M4OSA_NULL;
     }
 
     ALOGV("VIDEOEDITOR_BUFFER_allocatePool : Allocating Pool name buffer");
