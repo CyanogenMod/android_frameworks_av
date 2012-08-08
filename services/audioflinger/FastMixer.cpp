@@ -399,8 +399,13 @@ bool FastMixer::threadLoop()
                 ftDump->mUnderruns = underruns;
                 ftDump->mFramesReady = framesReady;
             }
+
+            int64_t pts;
+            if (outputSink == NULL || (OK != outputSink->getNextWriteTimestamp(&pts)))
+                pts = AudioBufferProvider::kInvalidPTS;
+
             // process() is CPU-bound
-            mixer->process(AudioBufferProvider::kInvalidPTS);
+            mixer->process(pts);
             mixBufferState = MIXED;
         } else if (mixBufferState == MIXED) {
             mixBufferState = UNDEFINED;
