@@ -190,7 +190,6 @@ AVCEnc_Status InitRateControlModule(AVCHandle *avcHandle)
         {
             goto CLEANUP_RC;
         }
-        memset(rateCtrl->pMP, 0, sizeof(MultiPass));
         rateCtrl->pMP->encoded_frames = -1; /* forget about the very first I frame */
 
         /* RDInfo **pRDSamples */
@@ -207,7 +206,6 @@ AVCEnc_Status InitRateControlModule(AVCHandle *avcHandle)
             {
                 goto CLEANUP_RC;
             }
-            for (j = 0; j < 32; j++)    memset(&(rateCtrl->pMP->pRDSamples[i][j]), 0, sizeof(RDInfo));
         }
         rateCtrl->pMP->frameRange = (int)(rateCtrl->frame_rate * 1.0); /* 1.0s time frame*/
         rateCtrl->pMP->frameRange = AVC_MAX(rateCtrl->pMP->frameRange, 5);
