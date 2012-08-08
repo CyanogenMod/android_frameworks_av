@@ -65,7 +65,7 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
         mSize = buffer->frameCount;
     }
     // read from source
-    ssize_t actual = mSource->read(mAllocated, buffer->frameCount);
+    ssize_t actual = mSource->read(mAllocated, buffer->frameCount, pts);
     if (actual > 0) {
         ALOG_ASSERT((size_t) actual <= buffer->frameCount);
         mOffset = 0;

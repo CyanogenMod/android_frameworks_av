@@ -47,6 +47,11 @@ public:
 
     virtual ssize_t write(const void *buffer, size_t count);
 
+    // AudioStreamOutSink wraps a HAL's output stream.  Its
+    // getNextWriteTimestamp method is simply a passthru to the HAL's underlying
+    // implementation of GNWT (if any)
+    virtual status_t getNextWriteTimestamp(int64_t *timestamp);
+
     // NBAIO_Sink end
 
 #if 0   // until necessary
