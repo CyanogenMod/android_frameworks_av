@@ -1790,14 +1790,13 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
                 }
         }
     }
-    if (sendCompletedMessage) {
-        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
-    }
     if (sendMovingMessage) {
         mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
                 afInMotion ? 1 : 0, 0);
     }
-
+    if (sendCompletedMessage) {
+        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
+    }
 }
 
 void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
