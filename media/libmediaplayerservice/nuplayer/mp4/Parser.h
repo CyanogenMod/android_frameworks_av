@@ -157,6 +157,8 @@ private:
 
     uint32_t mCurrentTrackID;
 
+    status_t mFinalResult;
+
     TrackFragmentHeaderInfo mTrackFragmentHeaderInfo;
 
     status_t onProceed();
