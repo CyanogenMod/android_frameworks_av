@@ -24,6 +24,7 @@
 #include <media/stagefright/Utils.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/hexdump.h>
 
 namespace android {
 
@@ -79,6 +80,7 @@ bool Parser::DynamicTrackFragment::complete() const {
 Parser::StaticTrackFragment::StaticTrackFragment()
     : mSampleIndex(0),
       mSampleCount(0),
+      mChunkIndex(0),
       mSampleToChunkIndex(-1),
       mSampleToChunkRemaining(0),
       mPrevChunkIndex(0xffffffff),
@@ -149,37 +151,31 @@ void Parser::StaticTrackFragment::updateSampleInfo() {
     mSampleInfo.mSampleDescIndex =
         U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex + 8);
 
-    uint32_t chunkIndex =
-        U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex);
-
-    CHECK_GE(chunkIndex, 1);
-    --chunkIndex;
-
-    if (chunkIndex != mPrevChunkIndex) {
-        mPrevChunkIndex = chunkIndex;
+    if (mChunkIndex != mPrevChunkIndex) {
+        mPrevChunkIndex = mChunkIndex;
 
         if (mChunkOffsets != NULL) {
             uint32_t entryCount = U32_AT(mChunkOffsets->data() + 4);
 
-            if (chunkIndex >= entryCount) {
+            if (mChunkIndex >= entryCount) {
                 mSampleIndex = mSampleCount;
                 return;
             }
 
             mNextSampleOffset =
-                U32_AT(mChunkOffsets->data() + 8 + 4 * chunkIndex);
+                U32_AT(mChunkOffsets->data() + 8 + 4 * mChunkIndex);
         } else {
             CHECK(mChunkOffsets64 != NULL);
 
             uint32_t entryCount = U32_AT(mChunkOffsets64->data() + 4);
 
-            if (chunkIndex >= entryCount) {
+            if (mChunkIndex >= entryCount) {
                 mSampleIndex = mSampleCount;
                 return;
             }
 
             mNextSampleOffset =
-                U64_AT(mChunkOffsets64->data() + 8 + 8 * chunkIndex);
+                U64_AT(mChunkOffsets64->data() + 8 + 8 * mChunkIndex);
         }
     }
 
@@ -194,14 +190,25 @@ void Parser::StaticTrackFragment::advance() {
 
     ++mSampleIndex;
     if (--mSampleToChunkRemaining == 0) {
+        ++mChunkIndex;
+
         uint32_t entryCount = U32_AT(mSampleToChunk->data() + 4);
 
-        if ((uint32_t)(mSampleToChunkIndex + 1) == entryCount) {
-            mSampleIndex = mSampleCount;  // EOS.
-            return;
+        // If this is the last entry in the sample to chunk table, we will
+        // stay on this entry.
+        if ((uint32_t)(mSampleToChunkIndex + 1) < entryCount) {
+            uint32_t nextChunkIndex =
+                U32_AT(mSampleToChunk->data() + 8 + 12 * (mSampleToChunkIndex + 1));
+
+            CHECK_GE(nextChunkIndex, 1u);
+            --nextChunkIndex;
+
+            if (mChunkIndex >= nextChunkIndex) {
+                CHECK_EQ(mChunkIndex, nextChunkIndex);
+                ++mSampleToChunkIndex;
+            }
         }
 
-        ++mSampleToChunkIndex;
         mSampleToChunkRemaining =
             U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex + 4);
     }
@@ -216,46 +223,13 @@ static void setU32At(uint8_t *ptr, uint32_t x) {
     ptr[3] = x & 0xff;
 }
 
-void Parser::StaticTrackFragment::fixSampleToChunkTableIfNecessary() {
-    if (mSampleToChunk == NULL) {
-        return;
-    }
-    uint32_t entryCount = U32_AT(mSampleToChunk->data() + 4);
-    uint32_t totalSamples = 0;
-    for (uint32_t i = 0; i < entryCount; ++i) {
-        totalSamples += U32_AT(mSampleToChunk->data() + 8 + 12 * i + 4);
-    }
-
-    if (totalSamples < mSampleCount) {
-        // Some samples are not accounted for in the sample-to-chunk
-        // data. Fabricate an extra chunk adjacent to the last one
-        // in the table with the same sample desription index.
-
-        ALOGW("Faking an extra sample-to-chunk entry for %d samples.",
-              mSampleCount - totalSamples);
-
-        uint32_t lastChunkIndex =
-            U32_AT(mSampleToChunk->data() + 8 + 12 * (entryCount - 1));
-
-        uint32_t lastSampleDescriptionIndex =
-            U32_AT(mSampleToChunk->data() + 8 + 12 * (entryCount - 1) + 8);
-
-        uint8_t *ptr = mSampleToChunk->data() + 8 + 12 * entryCount;
-
-        setU32At(ptr, lastChunkIndex + 1);
-        setU32At(ptr + 4, mSampleCount - totalSamples);
-        setU32At(ptr + 8, lastSampleDescriptionIndex);
-        setU32At(mSampleToChunk->data() + 4, entryCount + 1);
-    }
-}
-
 status_t Parser::StaticTrackFragment::signalCompletion() {
-    fixSampleToChunkTableIfNecessary();
-
     mSampleToChunkIndex = 0;
 
-    mSampleToChunkRemaining = (mSampleToChunk == NULL) ? 0 :
-        U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex + 4);
+    mSampleToChunkRemaining =
+        (mSampleToChunk == NULL)
+            ? 0
+            : U32_AT(mSampleToChunk->data() + 8 + 12 * mSampleToChunkIndex + 4);
 
     updateSampleInfo();
 
@@ -339,7 +313,7 @@ status_t Parser::StaticTrackFragment::parseSampleToChunk(
         return ERROR_MALFORMED;
     }
 
-    parser->copyBuffer(&mSampleToChunk, offset, size, 12 /* extra */);
+    parser->copyBuffer(&mSampleToChunk, offset, size);
 
     return OK;
 }
