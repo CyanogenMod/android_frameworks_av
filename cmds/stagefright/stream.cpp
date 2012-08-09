@@ -349,7 +349,10 @@ int main(int argc, char **argv) {
 
     size_t len = strlen(argv[1]);
     if ((!usemp4 && len >= 3 && !strcasecmp(".ts", &argv[1][len - 3])) ||
-        (usemp4 && len >= 4 && !strcasecmp(".mp4", &argv[1][len - 4]))) {
+        (usemp4 && len >= 4 &&
+         (!strcasecmp(".mp4", &argv[1][len - 4])
+            || !strcasecmp(".3gp", &argv[1][len- 4])
+            || !strcasecmp(".3g2", &argv[1][len- 4])))) {
         int fd = open(argv[1], O_RDONLY);
 
         if (fd < 0) {

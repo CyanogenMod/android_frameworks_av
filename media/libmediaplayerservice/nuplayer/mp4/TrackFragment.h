@@ -96,6 +96,7 @@ protected:
 private:
     size_t mSampleIndex;
     size_t mSampleCount;
+    uint32_t mChunkIndex;
 
     SampleInfo mSampleInfo;
 
@@ -112,7 +113,6 @@ private:
     uint64_t mNextSampleOffset;
 
     void updateSampleInfo();
-    void fixSampleToChunkTableIfNecessary();
 
     DISALLOW_EVIL_CONSTRUCTORS(StaticTrackFragment);
 };
