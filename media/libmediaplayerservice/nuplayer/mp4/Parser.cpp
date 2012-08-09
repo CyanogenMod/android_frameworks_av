@@ -271,6 +271,19 @@ void Parser::onMessageReceived(const sp<AMessage> &msg) {
             mBuffer->setRange(0, mBuffer->size());
 
             size_t maxBytesToRead = mBuffer->capacity() - mBuffer->size();
+
+            if (maxBytesToRead < needed) {
+                ALOGI("resizing buffer.");
+
+                sp<ABuffer> newBuffer =
+                    new ABuffer((mBuffer->size() + needed + 1023) & ~1023);
+                memcpy(newBuffer->data(), mBuffer->data(), mBuffer->size());
+                newBuffer->setRange(0, mBuffer->size());
+
+                mBuffer = newBuffer;
+                maxBytesToRead = mBuffer->capacity() - mBuffer->size();
+            }
+
             CHECK_GE(maxBytesToRead, needed);
 
             ssize_t n = mSource->readAt(
@@ -1023,6 +1036,11 @@ status_t Parser::parseVisualSampleEntry(
         case FOURCC('m', 'p', '4', 'v'):
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_MPEG4);
             break;
+        case FOURCC('s', '2', '6', '3'):
+        case FOURCC('h', '2', '6', '3'):
+        case FOURCC('H', '2', '6', '3'):
+            format->setString("mime", MEDIA_MIMETYPE_VIDEO_H263);
+            break;
         default:
             format->setString("mime", "application/octet-stream");
             break;
@@ -1062,11 +1080,13 @@ status_t Parser::parseAudioSampleEntry(
         case FOURCC('m', 'p', '4', 'a'):
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             break;
+
         case FOURCC('s', 'a', 'm', 'r'):
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AMR_NB);
             format->setInt32("channel-count", 1);
             format->setInt32("sample-rate", 8000);
             break;
+
         case FOURCC('s', 'a', 'w', 'b'):
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AMR_WB);
             format->setInt32("channel-count", 1);
