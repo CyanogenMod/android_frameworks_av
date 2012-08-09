@@ -245,36 +245,6 @@ FwdLockConv_Status_t FwdLockConv_ConvertOpenFile(int inputFileDesc,
                                                  FwdLockConv_LSeekFunc_t *fpLSeekFunc,
                                                  off64_t *pErrorPos);
 
-/**
- * Converts an OMA DRM v1 Forward Lock file to the internal Forward Lock file format in pull mode.
- *
- * @param[in] pInputFilename A reference to the input filename.
- * @param[in] pOutputFilename A reference to the output filename.
- * @param[out] pErrorPos
- *   The file position where the error occurred, in the case of a syntax error. May be NULL.
- *
- * @return A status code.
- * @retval FwdLockConv_Status_OK
- * @retval FwdLockConv_Status_InvalidArgument
- * @retval FwdLockConv_Status_OutOfMemory
- * @retval FwdLockConv_Status_FileNotFound
- * @retval FwdLockConv_Status_FileCreationFailed
- * @retval FwdLockConv_Status_FileReadError
- * @retval FwdLockConv_Status_FileWriteError
- * @retval FwdLockConv_Status_FileSeekError
- * @retval FwdLockConv_Status_SyntaxError
- * @retval FwdLockConv_Status_UnsupportedFileFormat
- * @retval FwdLockConv_Status_UnsupportedContentTransferEncoding
- * @retval FwdLockConv_Status_RandomNumberGenerationFailed
- * @retval FwdLockConv_Status_KeyEncryptionFailed
- * @retval FwdLockConv_Status_DataEncryptionFailed
- * @retval FwdLockConv_Status_IntegrityProtectionFailed
- * @retval FwdLockConv_Status_TooManySessions
- */
-FwdLockConv_Status_t FwdLockConv_ConvertFile(const char *pInputFilename,
-                                             const char *pOutputFilename,
-                                             off64_t *pErrorPos);
-
 #ifdef __cplusplus
 }
 #endif
