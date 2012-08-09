@@ -1314,34 +1314,3 @@ FwdLockConv_Status_t FwdLockConv_ConvertOpenFile(int inputFileDesc,
     }
     return status;
 }
-
-FwdLockConv_Status_t FwdLockConv_ConvertFile(const char *pInputFilename,
-                                             const char *pOutputFilename,
-                                             off64_t *pErrorPos) {
-    FwdLockConv_Status_t status;
-    if (pErrorPos != NULL) {
-        *pErrorPos = INVALID_OFFSET;
-    }
-    if (pInputFilename == NULL || pOutputFilename == NULL) {
-        status = FwdLockConv_Status_InvalidArgument;
-    } else {
-        int inputFileDesc = open(pInputFilename, O_RDONLY);
-        if (inputFileDesc < 0) {
-            status = FwdLockConv_Status_FileNotFound;
-        } else {
-            int outputFileDesc = open(pOutputFilename, O_CREAT | O_TRUNC | O_WRONLY,
-                                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            if (outputFileDesc < 0) {
-                status = FwdLockConv_Status_FileCreationFailed;
-            } else {
-                status = FwdLockConv_ConvertOpenFile(inputFileDesc, read, outputFileDesc, write,
-                                                     lseek64, pErrorPos);
-                if (close(outputFileDesc) == 0 && status != FwdLockConv_Status_OK) {
-                    remove(pOutputFilename);
-                }
-            }
-            (void)close(inputFileDesc);
-        }
-    }
-    return status;
-}
