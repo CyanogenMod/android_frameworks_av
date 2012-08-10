@@ -304,6 +304,7 @@ status_t AACWriter::threadFunc() {
     int64_t previousPausedDurationUs = 0;
     int64_t maxTimestampUs = 0;
     status_t err = OK;
+    bool stoppedPrematurely = true;
 
     prctl(PR_SET_NAME, (unsigned long)"AACWriterThread", 0, 0, 0);
 
@@ -372,6 +373,18 @@ status_t AACWriter::threadFunc() {
 
         buffer->release();
         buffer = NULL;
+
+        if (err != OK) {
+            break;
+        }
+
+        if (stoppedPrematurely) {
+            stoppedPrematurely = false;
+        }
+    }
+
+    if ((err == OK || err == ERROR_END_OF_STREAM) && stoppedPrematurely) {
+        err = ERROR_MALFORMED;
     }
 
     close(mFd);

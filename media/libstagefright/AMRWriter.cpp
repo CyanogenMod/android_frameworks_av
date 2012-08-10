@@ -254,11 +254,14 @@ status_t AMRWriter::threadFunc() {
         if (n < (ssize_t)buffer->range_length()) {
             buffer->release();
             buffer = NULL;
-
+            err = ERROR_IO;
             break;
         }
 
-        // XXX: How to tell it is stopped prematurely?
+        if (err != OK) {
+            break;
+        }
+
         if (stoppedPrematurely) {
             stoppedPrematurely = false;
         }
@@ -267,8 +270,8 @@ status_t AMRWriter::threadFunc() {
         buffer = NULL;
     }
 
-    if (stoppedPrematurely) {
-        notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_TRACK_INFO_COMPLETION_STATUS, UNKNOWN_ERROR);
+    if ((err == OK || err == ERROR_END_OF_STREAM) && stoppedPrematurely) {
+        err = ERROR_MALFORMED;
     }
 
     close(mFd);
