@@ -28,6 +28,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+#include <arpa/inet.h>
 
 #include "include/ESDS.h"
 
@@ -508,6 +509,8 @@ MPEG2TSWriter::MPEG2TSWriter(
 void MPEG2TSWriter::init() {
     CHECK(mFile != NULL || mWriteFunc != NULL);
 
+    initCrcTable();
+
     mLooper = new ALooper;
     mLooper->setName("MPEG2TSWriter");
 
@@ -735,13 +738,16 @@ void MPEG2TSWriter::writeProgramAssociationTable() {
     };
 
     sp<ABuffer> buffer = new ABuffer(188);
-    memset(buffer->data(), 0, buffer->size());
+    memset(buffer->data(), 0xff, buffer->size());
     memcpy(buffer->data(), kData, sizeof(kData));
 
     if (++mPATContinuityCounter == 16) {
         mPATContinuityCounter = 0;
     }
     buffer->data()[3] |= mPATContinuityCounter;
+
+    uint32_t crc = htonl(crc32(&buffer->data()[5], 12));
+    memcpy(&buffer->data()[17], &crc, sizeof(crc));
 
     CHECK_EQ(internalWrite(buffer->data(), buffer->size()), buffer->size());
 }
@@ -789,7 +795,7 @@ void MPEG2TSWriter::writeProgramMap() {
     };
 
     sp<ABuffer> buffer = new ABuffer(188);
-    memset(buffer->data(), 0, buffer->size());
+    memset(buffer->data(), 0xff, buffer->size());
     memcpy(buffer->data(), kData, sizeof(kData));
 
     if (++mPMTContinuityCounter == 16) {
@@ -816,10 +822,8 @@ void MPEG2TSWriter::writeProgramMap() {
         *ptr++ = 0x00;
     }
 
-    *ptr++ = 0x00;
-    *ptr++ = 0x00;
-    *ptr++ = 0x00;
-    *ptr++ = 0x00;
+    uint32_t crc = htonl(crc32(&buffer->data()[5], 12+mSources.size()*5));
+    memcpy(&buffer->data()[17+mSources.size()*5], &crc, sizeof(crc));
 
     CHECK_EQ(internalWrite(buffer->data(), buffer->size()), buffer->size());
 }
@@ -964,6 +968,33 @@ void MPEG2TSWriter::writeTS() {
 
         mNumTSPacketsBeforeMeta = mNumTSPacketsWritten + 2500;
     }
+}
+
+void MPEG2TSWriter::initCrcTable() {
+    uint32_t poly = 0x04C11DB7;
+
+    for (int i = 0; i < 256; i++) {
+        uint32_t crc = i << 24;
+        for (int j = 0; j < 8; j++) {
+            crc = (crc << 1) ^ ((crc & 0x80000000) ? (poly) : 0);
+        }
+        mCrcTable[i] = crc;
+    }
+}
+
+/**
+ * Compute CRC32 checksum for buffer starting at offset start and for length
+ * bytes.
+ */
+uint32_t MPEG2TSWriter::crc32(const uint8_t *p_start, size_t length) {
+    uint32_t crc = 0xFFFFFFFF;
+    const uint8_t *p;
+
+    for (p = p_start; p < p_start + length; p++) {
+        crc = (crc << 8) ^ mCrcTable[((crc >> 24) ^ *p) & 0xFF];
+    }
+
+    return crc;
 }
 
 ssize_t MPEG2TSWriter::internalWrite(const void *data, size_t size) {
