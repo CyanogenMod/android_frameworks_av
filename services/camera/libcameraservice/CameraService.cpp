@@ -369,7 +369,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     // Enable zoom, error, focus, and metadata messages by default
     enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS
 #ifndef QCOM_HARDWARE
-                  CAMERA_MSG_PREVIEW_METADATA
+                  | CAMERA_MSG_PREVIEW_METADATA
 #endif
                   );
 
@@ -580,8 +580,8 @@ status_t CameraService::Client::setPreviewWindow(const sp<IBinder>& binder,
 #ifdef QCOM_HARDWARE
     } else {
         result = mHardware->setPreviewWindow(window);
-    }
 #endif
+    }
 
     if (result == NO_ERROR) {
         // Everything has succeeded.  Disconnect the old window and remember the
@@ -970,8 +970,8 @@ status_t CameraService::Client::sendCommand(int32_t cmd, int32_t arg1, int32_t a
     } else if (cmd ==   CAMERA_CMD_STOP_FACE_DETECTION) {
       mFaceDetection = false;
       disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
-    }
 #endif
+    }
 
     return mHardware->sendCommand(cmd, arg1, arg2);
 }
