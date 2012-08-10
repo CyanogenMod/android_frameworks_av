@@ -88,6 +88,8 @@ status_t Camera2Client::initialize(camera_module_t *module)
         return NO_INIT;
     }
 
+    res = mDevice->setNotifyCallback(this);
+
     res = buildDefaultParameters();
     if (res != OK) {
         ALOGE("%s: Camera %d: unable to build defaults: %s (%d)",
@@ -846,6 +848,15 @@ status_t Camera2Client::autoFocus() {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
+    int triggerId;
+    {
+        LockedParameters::Key k(mParameters);
+        k.mParameters.currentAfTriggerId = ++k.mParameters.afTriggerCounter;
+        triggerId = k.mParameters.currentAfTriggerId;
+    }
+
+    mDevice->triggerAutofocus(triggerId);
+
     return OK;
 }
 
@@ -854,6 +865,14 @@ status_t Camera2Client::cancelAutoFocus() {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    int triggerId;
+    {
+        LockedParameters::Key k(mParameters);
+        triggerId = ++k.mParameters.afTriggerCounter;
+    }
+
+    mDevice->triggerCancelAutofocus(triggerId);
 
     return OK;
 }
@@ -1453,6 +1472,9 @@ status_t Camera2Client::setParameters(const String8& params) {
     k.mParameters.sceneMode = sceneMode;
 
     k.mParameters.flashMode = flashMode;
+    if (focusMode != k.mParameters.focusMode) {
+        k.mParameters.currentAfTriggerId = -1;
+    }
     k.mParameters.focusMode = focusMode;
 
     k.mParameters.focusingAreas = focusingAreas;
@@ -1625,7 +1647,9 @@ status_t Camera2Client::commandStopFaceDetectionL() {
 }
 
 status_t Camera2Client::commandEnableFocusMoveMsgL(bool enable) {
-    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    LockedParameters::Key k(mParameters);
+    k.mParameters.enableFocusMoveMessages = enable;
+
     return OK;
 }
 
@@ -1678,6 +1702,102 @@ void Camera2Client::notifyShutter(int frameNumber, nsecs_t timestamp) {
 void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
     ALOGV("%s: Autofocus state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
+    bool sendCompletedMessage = false;
+    bool sendMovingMessage = false;
+
+    bool success = false;
+    bool afInMotion = false;
+    {
+        LockedParameters::Key k(mParameters);
+        switch (k.mParameters.focusMode) {
+            case Parameters::FOCUS_MODE_AUTO:
+            case Parameters::FOCUS_MODE_MACRO:
+                // Don't send notifications upstream if they're not for the current AF
+                // trigger. For example, if cancel was called in between, or if we
+                // already sent a notification about this AF call.
+                if (triggerId != k.mParameters.currentAfTriggerId) break;
+                switch (newState) {
+                    case ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED:
+                        success = true;
+                        // no break
+                    case ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED:
+                        sendCompletedMessage = true;
+                        k.mParameters.currentAfTriggerId = -1;
+                        break;
+                    case ANDROID_CONTROL_AF_STATE_ACTIVE_SCAN:
+                        // Just starting focusing, ignore
+                        break;
+                    case ANDROID_CONTROL_AF_STATE_INACTIVE:
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_SCAN:
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED:
+                    default:
+                        // Unexpected in AUTO/MACRO mode
+                        ALOGE("%s: Unexpected AF state transition in AUTO/MACRO mode: %d",
+                                __FUNCTION__, newState);
+                        break;
+                }
+                break;
+            case Parameters::FOCUS_MODE_CONTINUOUS_VIDEO:
+            case Parameters::FOCUS_MODE_CONTINUOUS_PICTURE:
+                switch (newState) {
+                    case ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED:
+                        success = true;
+                        // no break
+                    case ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED:
+                        // Don't send notifications upstream if they're not for
+                        // the current AF trigger. For example, if cancel was
+                        // called in between, or if we already sent a
+                        // notification about this AF call.
+                        // Send both a 'AF done' callback and a 'AF move' callback
+                        if (triggerId != k.mParameters.currentAfTriggerId) break;
+                        sendCompletedMessage = true;
+                        afInMotion = false;
+                        if (k.mParameters.enableFocusMoveMessages &&
+                                k.mParameters.afInMotion) {
+                            sendMovingMessage = true;
+                        }
+                        k.mParameters.currentAfTriggerId = -1;
+                        break;
+                    case ANDROID_CONTROL_AF_STATE_INACTIVE:
+                        // Cancel was called, or we switched state; care if
+                        // currently moving
+                        afInMotion = false;
+                        if (k.mParameters.enableFocusMoveMessages &&
+                                k.mParameters.afInMotion) {
+                            sendMovingMessage = true;
+                        }
+                        break;
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_SCAN:
+                        // Start passive scan, inform upstream
+                        afInMotion = true;
+                        // no break
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED:
+                        // Stop passive scan, inform upstream
+                        if (k.mParameters.enableFocusMoveMessages) {
+                            sendMovingMessage = true;
+                        }
+                        break;
+                }
+                k.mParameters.afInMotion = afInMotion;
+                break;
+            case Parameters::FOCUS_MODE_EDOF:
+            case Parameters::FOCUS_MODE_INFINITY:
+            case Parameters::FOCUS_MODE_FIXED:
+            default:
+                if (newState != ANDROID_CONTROL_AF_STATE_INACTIVE) {
+                    ALOGE("%s: Unexpected AF state change %d (ID %d) in focus mode %d",
+                          __FUNCTION__, newState, triggerId, k.mParameters.focusMode);
+                }
+        }
+    }
+    if (sendCompletedMessage) {
+        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
+    }
+    if (sendMovingMessage) {
+        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
+                afInMotion ? 1 : 0, 0);
+    }
+
 }
 
 void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
@@ -2394,9 +2514,7 @@ status_t Camera2Client::buildDefaultParameters() {
         k.mParameters.focusMode = Parameters::FOCUS_MODE_AUTO;
         params.set(CameraParameters::KEY_FOCUS_MODE,
                 CameraParameters::FOCUS_MODE_AUTO);
-        String8 supportedFocusModes(CameraParameters::FOCUS_MODE_FIXED);
-        supportedFocusModes = supportedFocusModes + "," +
-            CameraParameters::FOCUS_MODE_INFINITY;
+        String8 supportedFocusModes(CameraParameters::FOCUS_MODE_INFINITY);
         bool addComma = true;
 
         for (size_t i=0; i < availableAfModes.count; i++) {
@@ -2573,6 +2691,8 @@ status_t Camera2Client::buildDefaultParameters() {
 
     k.mParameters.storeMetadataInBuffers = true;
     k.mParameters.playShutterSound = true;
+    k.mParameters.afTriggerCounter = 0;
+    k.mParameters.currentAfTriggerId = -1;
 
     k.mParameters.paramsFlattened = params.flatten();
 

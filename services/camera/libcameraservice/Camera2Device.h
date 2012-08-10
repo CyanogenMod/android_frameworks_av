@@ -123,6 +123,27 @@ class Camera2Device : public virtual RefBase {
      */
     status_t setNotifyCallback(NotificationListener *listener);
 
+    /**
+     * Trigger auto-focus. The latest ID used in a trigger autofocus or cancel
+     * autofocus call will be returned by the HAL in all subsequent AF
+     * notifications.
+     */
+    status_t triggerAutofocus(uint32_t id);
+
+    /**
+     * Cancel auto-focus. The latest ID used in a trigger autofocus/cancel
+     * autofocus call will be returned by the HAL in all subsequent AF
+     * notifications.
+     */
+    status_t triggerCancelAutofocus(uint32_t id);
+
+    /**
+     * Trigger pre-capture metering. The latest ID used in a trigger pre-capture
+     * call will be returned by the HAL in all subsequent AE and AWB
+     * notifications.
+     */
+    status_t triggerPrecaptureMetering(uint32_t id);
+
   private:
 
     const int mId;
