@@ -982,11 +982,13 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
     if (err != OK) {
         ALOGE("%s: Error queueing buffer to native window: %s (%d)",
                 __FUNCTION__, strerror(-err), err);
+        return err;
     }
+
     stream->mActiveBuffers--;
     stream->mFrameCount++;
     stream->mLastTimestamp = timestamp;
-    return err;
+    return OK;
 }
 
 int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
@@ -999,10 +1001,18 @@ int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, stream->mState);
         return INVALID_OPERATION;
     }
-    stream->mActiveBuffers--;
+
     ANativeWindow *a = toANW(w);
-    return a->cancelBuffer(a,
+    int err = a->cancelBuffer(a,
             container_of(buffer, ANativeWindowBuffer, handle), -1);
+    if (err != OK) {
+        ALOGE("%s: Error canceling buffer to native window: %s (%d)",
+                __FUNCTION__, strerror(-err), err);
+        return err;
+    }
+
+    stream->mActiveBuffers--;
+    return OK;
 }
 
 int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,
