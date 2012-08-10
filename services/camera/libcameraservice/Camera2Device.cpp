@@ -339,6 +339,42 @@ void Camera2Device::notificationCallback(int32_t msg_type,
     }
 }
 
+status_t Camera2Device::triggerAutofocus(uint32_t id) {
+    status_t res;
+    ALOGV("%s: Triggering autofocus, id %d", __FUNCTION__, id);
+    res = mDevice->ops->trigger_action(mDevice,
+            CAMERA2_TRIGGER_AUTOFOCUS, id, 0);
+    if (res != OK) {
+        ALOGE("%s: Error triggering autofocus (id %d)",
+                __FUNCTION__, id);
+    }
+    return res;
+}
+
+status_t Camera2Device::triggerCancelAutofocus(uint32_t id) {
+    status_t res;
+    ALOGV("%s: Canceling autofocus, id %d", __FUNCTION__, id);
+    res = mDevice->ops->trigger_action(mDevice,
+            CAMERA2_TRIGGER_CANCEL_AUTOFOCUS, id, 0);
+    if (res != OK) {
+        ALOGE("%s: Error canceling autofocus (id %d)",
+                __FUNCTION__, id);
+    }
+    return res;
+}
+
+status_t Camera2Device::triggerPrecaptureMetering(uint32_t id) {
+    status_t res;
+    ALOGV("%s: Triggering precapture metering, id %d", __FUNCTION__, id);
+    res = mDevice->ops->trigger_action(mDevice,
+            CAMERA2_TRIGGER_PRECAPTURE_METERING, id, 0);
+    if (res != OK) {
+        ALOGE("%s: Error triggering precapture metering (id %d)",
+                __FUNCTION__, id);
+    }
+    return res;
+}
+
 /**
  * Camera2Device::NotificationListener
  */
