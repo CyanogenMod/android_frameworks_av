@@ -471,7 +471,9 @@ MPEG2TSWriter::MPEG2TSWriter(int fd)
       mStarted(false),
       mNumSourcesDone(0),
       mNumTSPacketsWritten(0),
-      mNumTSPacketsBeforeMeta(0) {
+      mNumTSPacketsBeforeMeta(0),
+      mPATContinuityCounter(0),
+      mPMTContinuityCounter(0) {
     init();
 }
 
@@ -482,7 +484,9 @@ MPEG2TSWriter::MPEG2TSWriter(const char *filename)
       mStarted(false),
       mNumSourcesDone(0),
       mNumTSPacketsWritten(0),
-      mNumTSPacketsBeforeMeta(0) {
+      mNumTSPacketsBeforeMeta(0),
+      mPATContinuityCounter(0),
+      mPMTContinuityCounter(0) {
     init();
 }
 
@@ -495,7 +499,9 @@ MPEG2TSWriter::MPEG2TSWriter(
       mStarted(false),
       mNumSourcesDone(0),
       mNumTSPacketsWritten(0),
-      mNumTSPacketsBeforeMeta(0) {
+      mNumTSPacketsBeforeMeta(0),
+      mPATContinuityCounter(0),
+      mPMTContinuityCounter(0) {
     init();
 }
 
@@ -732,8 +738,10 @@ void MPEG2TSWriter::writeProgramAssociationTable() {
     memset(buffer->data(), 0, buffer->size());
     memcpy(buffer->data(), kData, sizeof(kData));
 
-    static const unsigned kContinuityCounter = 5;
-    buffer->data()[3] |= kContinuityCounter;
+    if (++mPATContinuityCounter == 16) {
+        mPATContinuityCounter = 0;
+    }
+    buffer->data()[3] |= mPATContinuityCounter;
 
     CHECK_EQ(internalWrite(buffer->data(), buffer->size()), buffer->size());
 }
@@ -784,8 +792,10 @@ void MPEG2TSWriter::writeProgramMap() {
     memset(buffer->data(), 0, buffer->size());
     memcpy(buffer->data(), kData, sizeof(kData));
 
-    static const unsigned kContinuityCounter = 5;
-    buffer->data()[3] |= kContinuityCounter;
+    if (++mPMTContinuityCounter == 16) {
+        mPMTContinuityCounter = 0;
+    }
+    buffer->data()[3] |= mPMTContinuityCounter;
 
     size_t section_length = 5 * mSources.size() + 4 + 9;
     buffer->data()[6] |= section_length >> 8;
