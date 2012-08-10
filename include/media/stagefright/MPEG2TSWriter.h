@@ -69,6 +69,8 @@ private:
 
     int64_t mNumTSPacketsWritten;
     int64_t mNumTSPacketsBeforeMeta;
+    int mPATContinuityCounter;
+    int mPMTContinuityCounter;
 
     void init();
 
