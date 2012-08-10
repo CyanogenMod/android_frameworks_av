@@ -127,7 +127,8 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
         }
     }
 
-    result.appendFormat("  Camera2Device[%d] dump (detail level %d):\n", mId);
+    result.appendFormat("  Camera2Device[%d] dump (detail level %d):\n",
+            mId, detailLevel);
 
     if (detailLevel > 0) {
         result = "    Request queue contents:\n";
