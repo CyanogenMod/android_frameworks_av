@@ -1,6 +1,10 @@
 LOCAL_PATH:= $(call my-dir)
 
+ifeq ($(ARCH_ARM_HAVE_ARMV7A),true)
 AAC_LIBRARY = fraunhofer
+else
+AAC_LIBRARY = pv
+endif
 
 ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(CLEAR_VARS)
