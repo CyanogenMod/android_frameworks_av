@@ -815,7 +815,9 @@ void parseVorbisComment(
                             &comment[tagLen + 1],
                             commentLength - tagLen - 1);
                 } else if (kMap[j].mKey == kKeyAutoLoop) {
-                    if (!strcasecmp(&comment[tagLen + 1], "true")) {
+                    if (!strcasecmp(&comment[tagLen + 1], "false")) {
+                        fileMeta->setInt32(kKeyAutoLoop, false);
+                    } else {
                         fileMeta->setInt32(kKeyAutoLoop, true);
                     }
                 } else {
