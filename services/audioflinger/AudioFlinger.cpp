@@ -165,6 +165,15 @@ static uint32_t gScreenState; // incremented by 2 when screen state changes, bit
 static const int kPriorityAudioApp = 2;
 static const int kPriorityFastMixer = 3;
 
+// IAudioFlinger::createTrack() reports back to client the total size of shared memory area
+// for the track.  The client then sub-divides this into smaller buffers for its use.
+// Currently the client uses double-buffering by default, but doesn't tell us about that.
+// So for now we just assume that client is double-buffered.
+// FIXME It would be better for client to tell us whether it wants double-buffering or N-buffering,
+// so we could allocate the right amount of memory.
+// See the client's minBufCount and mNotificationFramesAct calculations for details.
+static const int kFastTrackMultiplier = 2;
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -1693,7 +1702,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               (
                 (tid != -1) &&
                 ((frameCount == 0) ||
-                (frameCount >= (int) (mFrameCount * 2))) // * 2 is due to SRC jitter, see below
+                (frameCount >= (int) (mFrameCount * kFastTrackMultiplier)))
               )
             ) &&
             // PCM data
@@ -1714,7 +1723,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         ) {
         // if frameCount not specified, then it defaults to fast mixer (HAL) frame count
         if (frameCount == 0) {
-            frameCount = mFrameCount * 2;   // FIXME * 2 is due to SRC jitter, should be computed
+            frameCount = mFrameCount * kFastTrackMultiplier;
         }
         ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
