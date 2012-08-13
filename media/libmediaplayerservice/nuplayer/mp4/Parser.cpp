@@ -239,7 +239,7 @@ void Parser::onMessageReceived(const sp<AMessage> &msg) {
             mBuffer = new ABuffer(512 * 1024);
             mBuffer->setRange(0, 0);
 
-            enter(0, 0);
+            enter(0ll, 0, 0);
 
             (new AMessage(kWhatProceed, id()))->post();
             break;
@@ -529,7 +529,7 @@ status_t Parser::onProceed() {
         ALOGV("%sentering box of type '%s'",
                 IndentString(mStack.size()), Fourcc2String(type));
 
-        enter(type, size - offset);
+        enter(mBufferPos - offset, type, size - offset);
     } else {
         if (!fitsContainer(size)) {
             return -EINVAL;
@@ -819,8 +819,9 @@ status_t Parser::need(size_t size) {
     return -EAGAIN;
 }
 
-void Parser::enter(uint32_t type, uint64_t size) {
+void Parser::enter(off64_t offset, uint32_t type, uint64_t size) {
     Container container;
+    container.mOffset = offset;
     container.mType = type;
     container.mExtendsToEOF = (size == 0);
     container.mBytesRemaining = size;
@@ -1484,13 +1485,18 @@ status_t Parser::parseTrackFragmentHeader(
     }
 
     if (!(flags & TrackFragmentHeaderInfo::kBaseDataOffsetPresent)) {
-        CHECK(!mStack.isEmpty());
+        // This should point to the position of the first byte of the
+        // enclosing 'moof' container for the first track and
+        // the end of the data of the preceding fragment for subsequent
+        // tracks.
 
-        // This should point to the start of the data inside the 'mdat' box
-        // following the current 'moof' box.
+        CHECK_GE(mStack.size(), 2u);
 
         mTrackFragmentHeaderInfo.mBaseDataOffset =
-            mBufferPos + mStack.itemAt(mStack.size() - 1).mBytesRemaining + 8;
+            mStack.itemAt(mStack.size() - 2).mOffset;
+
+        // XXX TODO: This does not do the right thing for the 2nd and
+        // subsequent tracks yet.
     }
 
     mTrackFragmentHeaderInfo.mDataOffset =
