@@ -1028,8 +1028,9 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
-    ALOGVV("Stream %d enqueue: Buffer %p captured at %lld ns",
-            stream->mId, (void*)(*buffer), timestamp);
+    stream->mFrameCount++;
+    ALOGVV("Stream %d enqueue: Frame %d (%p) captured at %lld ns",
+            stream->mId, mFrameCount, (void*)(*buffer), timestamp);
     int state = stream->mState;
     if (state != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
@@ -1037,6 +1038,7 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
     }
     ANativeWindow *a = toANW(w);
     status_t err;
+
     err = native_window_set_buffers_timestamp(a, timestamp);
     if (err != OK) {
         ALOGE("%s: Error setting timestamp on native window: %s (%d)",
@@ -1052,7 +1054,6 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
     }
 
     stream->mActiveBuffers--;
-    stream->mFrameCount++;
     stream->mLastTimestamp = timestamp;
     return OK;
 }

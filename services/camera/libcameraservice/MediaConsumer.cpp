@@ -81,6 +81,7 @@ status_t MediaConsumer::getNextBuffer(buffer_handle_t *buffer, nsecs_t *timestam
 
     if (!buffer) return BAD_VALUE;
     if (mCurrentLockedBuffers == mMaxLockedBuffers) {
+        MC_LOGV("Too many buffers (max %d)", mCurrentLockedBuffers);
         return INVALID_OPERATION;
     }
 
@@ -91,6 +92,7 @@ status_t MediaConsumer::getNextBuffer(buffer_handle_t *buffer, nsecs_t *timestam
     err = mBufferQueue->acquireBuffer(&b);
     if (err != OK) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
+            MC_LOGV("No buffer available");
             return BAD_VALUE;
         } else {
             MC_LOGE("Error acquiring buffer: %s (%d)", strerror(err), err);
@@ -117,7 +119,7 @@ status_t MediaConsumer::getNextBuffer(buffer_handle_t *buffer, nsecs_t *timestam
     *timestamp = b.mTimestamp;
 
     mCurrentLockedBuffers++;
-
+    MC_LOGV("getNextBuffer: %d buffers in use", mCurrentLockedBuffers);
     return OK;
 }
 
@@ -143,8 +145,8 @@ status_t MediaConsumer::freeBuffer(buffer_handle_t buffer) {
                 buf);
         return err;
     }
-
     mCurrentLockedBuffers--;
+    MC_LOGV("freeBuffer: %d buffers in use", mCurrentLockedBuffers);
 
     return OK;
 }
