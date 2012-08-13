@@ -2097,7 +2097,7 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     return mOutput->stream->get_render_position(mOutput->stream, dspFrames);
 }
 
-uint32_t AudioFlinger::PlaybackThread::hasAudioSession(int sessionId)
+uint32_t AudioFlinger::PlaybackThread::hasAudioSession(int sessionId) const
 {
     Mutex::Autolock _l(mLock);
     uint32_t result = 0;
@@ -2187,7 +2187,7 @@ status_t AudioFlinger::PlaybackThread::setSyncEvent(const sp<SyncEvent>& event)
     return NAME_NOT_FOUND;
 }
 
-bool AudioFlinger::PlaybackThread::isValidSyncEvent(const sp<SyncEvent>& event)
+bool AudioFlinger::PlaybackThread::isValidSyncEvent(const sp<SyncEvent>& event) const
 {
     return event->type() == AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE;
 }
@@ -6352,7 +6352,7 @@ bool AudioFlinger::RecordThread::stop_l(RecordThread::RecordTrack* recordTrack) 
     return false;
 }
 
-bool AudioFlinger::RecordThread::isValidSyncEvent(const sp<SyncEvent>& event)
+bool AudioFlinger::RecordThread::isValidSyncEvent(const sp<SyncEvent>& event) const
 {
     return false;
 }
@@ -6711,7 +6711,7 @@ unsigned int AudioFlinger::RecordThread::getInputFramesLost()
     return mInput->stream->get_input_frames_lost(mInput->stream);
 }
 
-uint32_t AudioFlinger::RecordThread::hasAudioSession(int sessionId)
+uint32_t AudioFlinger::RecordThread::hasAudioSession(int sessionId) const
 {
     Mutex::Autolock _l(mLock);
     uint32_t result = 0;
@@ -6729,7 +6729,7 @@ uint32_t AudioFlinger::RecordThread::hasAudioSession(int sessionId)
     return result;
 }
 
-KeyedVector<int, bool> AudioFlinger::RecordThread::sessionIds()
+KeyedVector<int, bool> AudioFlinger::RecordThread::sessionIds() const
 {
     KeyedVector<int, bool> ids;
     Mutex::Autolock _l(mLock);
@@ -7854,7 +7854,7 @@ sp<AudioFlinger::EffectChain> AudioFlinger::ThreadBase::getEffectChain(int sessi
     return getEffectChain_l(sessionId);
 }
 
-sp<AudioFlinger::EffectChain> AudioFlinger::ThreadBase::getEffectChain_l(int sessionId)
+sp<AudioFlinger::EffectChain> AudioFlinger::ThreadBase::getEffectChain_l(int sessionId) const
 {
     size_t size = mEffectChains.size();
     for (size_t i = 0; i < size; i++) {
