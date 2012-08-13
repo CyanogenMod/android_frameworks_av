@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:=               \
     ActivityManager.cpp         \
     Crypto.cpp                  \
     MediaRecorderClient.cpp     \
+    MediaPlayerFactory.cpp      \
     MediaPlayerService.cpp      \
     MetadataRetrieverClient.cpp \
     TestPlayerStub.cpp          \
@@ -31,8 +32,7 @@ LOCAL_SHARED_LIBRARIES :=     		\
 	libstagefright_omx    			\
 	libstagefright_foundation       \
 	libgui                          \
-	libdl                           \
-	libaah_rtp
+	libdl
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_nuplayer                 \
