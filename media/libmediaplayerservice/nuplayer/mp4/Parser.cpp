@@ -144,7 +144,8 @@ struct FileSource : public Parser::Source {
 
 Parser::Parser()
     : mBufferPos(0),
-      mSuspended(false) {
+      mSuspended(false),
+      mFinalResult(OK) {
 }
 
 Parser::~Parser() {
@@ -292,6 +293,13 @@ void Parser::onMessageReceived(const sp<AMessage> &msg) {
 
             if (n < (ssize_t)needed) {
                 ALOGI("%s", "Reached EOF");
+                if (n < 0) {
+                    mFinalResult = n;
+                } else if (n == 0) {
+                    mFinalResult = ERROR_END_OF_STREAM;
+                } else {
+                    mFinalResult = ERROR_IO;
+                }
             } else {
                 mBuffer->setRange(0, mBuffer->size() + n);
                 (new AMessage(kWhatProceed, id()))->post();
@@ -593,6 +601,10 @@ status_t Parser::getSample(
         TrackInfo *info, sp<TrackFragment> *fragment, SampleInfo *sampleInfo) {
     for (;;) {
         if (info->mFragments.empty()) {
+            if (mFinalResult != OK) {
+                return mFinalResult;
+            }
+
             resumeIfNecessary();
             return -EWOULDBLOCK;
         }
