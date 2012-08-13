@@ -17,7 +17,8 @@ armVCM4P10_DecodeCoeffsToPair:
     SUB      sp,sp,#0x40
     LDR      r10,[r0,#0]
     LDR      r12,[r1,#0]
-    LDR      r6, =armVCM4P10_CAVLCCoeffTokenTables
+    LDR      r6, .LarmVCM4P10_CAVLCCoeffTokenTables
+P0: ADD      r6, pc
     LDR      r4,[sp,#0x68]
     LDRB     r9,[r10,#2]
     LDRB     r8,[r10,#1]
@@ -131,7 +132,8 @@ L0x184:
     LSRS     r8,r7,#1
     RSBCS    r8,r8,#0
     STRH     r8,[r2],#2
-    LDR      r9, =armVCM4P10_SuffixToLevel
+    LDR      r9, .LarmVCM4P10_SuffixToLevel
+P1: ADD      r9, pc
     LDRSB    r8,[r9,r4]
     TEQ      r4,#0
     MOVEQ    r4,#1
@@ -148,8 +150,9 @@ L0x1b8:
     SUB      lr,lr,#1
     BEQ      L0x2b0
     TEQ      r8,#4
-    LDREQ    r6, =(armVCM4P10_CAVLCTotalZeros2x2Tables - 4)
-    LDRNE    r6, =(armVCM4P10_CAVLCTotalZeroTables - 4)
+    LDREQ    r6, .LarmVCM4P10_CAVLCTotalZeros2x2Tables
+    LDRNE    r6, .LarmVCM4P10_CAVLCTotalZeroTables
+P2: ADD      r6, pc
     LDR      r6,[r6,r5,LSL #2]
     LSLS     r8,r11,r12
     MOVS     r7,#0x1e
@@ -175,7 +178,8 @@ L0x224:
     BIC      r7,r8,#0xf000
     CMP      r7,#0x10
     BGE      L0x33c
-    LDR      r3, =(armVCM4P10_CAVLCRunBeforeTables - 4)
+    LDR      r3, .LarmVCM4P10_CAVLCRunBeforeTables
+P3: ADD      r3, pc
     ADD      r4,sp,#0x2c
     MOVS     r1,r7
     ADD      lr,lr,r1
@@ -228,8 +232,9 @@ L0x2bc:
     LDR      r3,[sp,#8]
     LDR      r0,[r3,#0]
     TEQ      r8,#4
-    LDREQ    r6, =armVCM4P10_ZigZag_2x2
-    LDRNE    r6, =armVCM4P10_ZigZag_4x4
+    LDREQ    r6, .LarmVCM4P10_ZigZag_2x2
+    LDRNE    r6, .LarmVCM4P10_ZigZag_4x4
+P4: ADD      r6, pc
 L0x2ec:
     LDRB     r9,[r4],#1
     LDRB     r8,[r6,lr]
@@ -268,5 +273,19 @@ L0x35c:
     POP      {r4-r12,pc}
     .endfunc
 
-    .end
+.LarmVCM4P10_CAVLCCoeffTokenTables:
+    .word   armVCM4P10_CAVLCCoeffTokenTables-(P0+8)
+.LarmVCM4P10_SuffixToLevel:
+    .word   armVCM4P10_SuffixToLevel-(P1+8)
+.LarmVCM4P10_CAVLCTotalZeros2x2Tables:
+    .word   (armVCM4P10_CAVLCTotalZeros2x2Tables - 4)-(P2+8)
+.LarmVCM4P10_CAVLCTotalZeroTables:
+    .word   (armVCM4P10_CAVLCTotalZeroTables - 4)-(P2+8)
+.LarmVCM4P10_CAVLCRunBeforeTables:
+    .word   (armVCM4P10_CAVLCRunBeforeTables - 4)-(P3+8)
+.LarmVCM4P10_ZigZag_2x2:
+    .word   armVCM4P10_ZigZag_2x2-(P4+8)
+.LarmVCM4P10_ZigZag_4x4:
+    .word   armVCM4P10_ZigZag_4x4-(P4+8)
 
+    .end
