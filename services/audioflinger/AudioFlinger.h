@@ -233,8 +233,8 @@ public:
         virtual ~SyncEvent() {}
 
         void trigger() { Mutex::Autolock _l(mLock); if (mCallback) mCallback(this); }
-        bool isCancelled() { Mutex::Autolock _l(mLock); return (mCallback == NULL); }
-        void cancel() {Mutex::Autolock _l(mLock); mCallback = NULL; }
+        bool isCancelled() const { Mutex::Autolock _l(mLock); return (mCallback == NULL); }
+        void cancel() { Mutex::Autolock _l(mLock); mCallback = NULL; }
         AudioSystem::sync_event_t type() const { return mType; }
         int triggerSession() const { return mTriggerSession; }
         int listenerSession() const { return mListenerSession; }
@@ -246,7 +246,7 @@ public:
           const int mListenerSession;
           sync_event_callback_t mCallback;
           void * const mCookie;
-          Mutex mLock;
+          mutable Mutex mLock;
     };
 
     sp<SyncEvent> createSyncEvent(AudioSystem::sync_event_t type,
@@ -547,7 +547,7 @@ private:
                     // get effect chain corresponding to session Id.
                     sp<EffectChain> getEffectChain(int sessionId);
                     // same as getEffectChain() but must be called with ThreadBase mutex locked
-                    sp<EffectChain> getEffectChain_l(int sessionId);
+                    sp<EffectChain> getEffectChain_l(int sessionId) const;
                     // add an effect chain to the chain list (mEffectChains)
         virtual     status_t addEffectChain_l(const sp<EffectChain>& chain) = 0;
                     // remove an effect chain from the chain list (mEffectChains)
@@ -574,7 +574,7 @@ private:
         virtual     void detachAuxEffect_l(int effectId) {}
                     // returns either EFFECT_SESSION if effects on this audio session exist in one
                     // chain, or TRACK_SESSION if tracks on this audio session exist, or both
-                    virtual uint32_t hasAudioSession(int sessionId) = 0;
+                    virtual uint32_t hasAudioSession(int sessionId) const = 0;
                     // the value returned by default implementation is not important as the
                     // strategy is only meaningful for PlaybackThread which implements this method
                     virtual uint32_t getStrategyForSession_l(int sessionId) { return 0; }
@@ -594,7 +594,7 @@ private:
                                                        int sessionId = AUDIO_SESSION_OUTPUT_MIX);
 
                     virtual status_t    setSyncEvent(const sp<SyncEvent>& event) = 0;
-                    virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) = 0;
+                    virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) const = 0;
 
 
         mutable     Mutex                   mLock;
@@ -1050,12 +1050,12 @@ public:
 
                     virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
                     virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
-                    virtual uint32_t hasAudioSession(int sessionId);
+                    virtual uint32_t hasAudioSession(int sessionId) const;
                     virtual uint32_t getStrategyForSession_l(int sessionId);
 
 
                     virtual status_t setSyncEvent(const sp<SyncEvent>& event);
-                    virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
+                    virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
                             void     invalidateTracks(audio_stream_type_t streamType);
 
 
@@ -1463,15 +1463,15 @@ private:
 
         virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
         virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
-        virtual uint32_t hasAudioSession(int sessionId);
+        virtual uint32_t hasAudioSession(int sessionId) const;
 
                 // Return the set of unique session IDs across all tracks.
                 // The keys are the session IDs, and the associated values are meaningless.
                 // FIXME replace by Set [and implement Bag/Multiset for other uses].
-                KeyedVector<int, bool> sessionIds();
+                KeyedVector<int, bool> sessionIds() const;
 
         virtual status_t setSyncEvent(const sp<SyncEvent>& event);
-        virtual bool     isValidSyncEvent(const sp<SyncEvent>& event);
+        virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
 
         static void syncStartEventCallback(const wp<SyncEvent>& event);
                void handleSyncStartEvent(const sp<SyncEvent>& event);
