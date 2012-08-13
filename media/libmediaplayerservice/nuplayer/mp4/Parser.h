@@ -71,6 +71,7 @@ private:
     };
 
     struct Container {
+        uint64_t mOffset;
         uint64_t mBytesRemaining;
         uint32_t mType;
         bool mExtendsToEOF;
@@ -164,7 +165,7 @@ private:
     status_t onProceed();
     status_t onDequeueAccessUnit(size_t trackIndex, sp<ABuffer> *accessUnit);
 
-    void enter(uint32_t type, uint64_t size);
+    void enter(off64_t offset, uint32_t type, uint64_t size);
 
     uint16_t readU16(size_t offset);
     uint32_t readU32(size_t offset);
