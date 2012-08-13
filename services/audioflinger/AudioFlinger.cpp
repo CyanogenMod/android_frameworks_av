@@ -2189,13 +2189,7 @@ status_t AudioFlinger::PlaybackThread::setSyncEvent(const sp<SyncEvent>& event)
 
 bool AudioFlinger::PlaybackThread::isValidSyncEvent(const sp<SyncEvent>& event)
 {
-    switch (event->type()) {
-    case AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE:
-        return true;
-    default:
-        break;
-    }
-    return false;
+    return event->type() == AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE;
 }
 
 void AudioFlinger::PlaybackThread::threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove)
