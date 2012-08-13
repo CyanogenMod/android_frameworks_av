@@ -299,7 +299,6 @@ public:
 private:
 
     class Client : public BnMediaPlayer {
-
         // IMediaPlayer interface
         virtual void            disconnect();
         virtual status_t        setVideoSurfaceTexture(
@@ -326,6 +325,7 @@ private:
         virtual status_t        setParameter(int key, const Parcel &request);
         virtual status_t        getParameter(int key, Parcel *reply);
         virtual status_t        setRetransmitEndpoint(const struct sockaddr_in* endpoint);
+        virtual status_t        getRetransmitEndpoint(struct sockaddr_in* endpoint);
         virtual status_t        setNextPlayer(const sp<IMediaPlayer>& player);
 
         sp<MediaPlayerBase>     createPlayer(player_type playerType);
@@ -341,10 +341,6 @@ private:
         sp<MediaPlayerBase>     setDataSource_pre(player_type playerType);
         void                    setDataSource_post(const sp<MediaPlayerBase>& p,
                                                    status_t status);
-
-        player_type             getPlayerType(int fd, int64_t offset, int64_t length);
-        player_type             getPlayerType(const char* url);
-        player_type             getPlayerType(const sp<IStreamSource> &source);
 
         static  void            notify(void* cookie, int msg,
                                        int ext1, int ext2, const Parcel *obj);

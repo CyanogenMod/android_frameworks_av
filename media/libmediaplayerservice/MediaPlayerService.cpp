@@ -43,7 +43,6 @@
 #include <utils/String8.h>
 #include <utils/SystemClock.h>
 #include <utils/Vector.h>
-#include <cutils/properties.h>
 
 #include <media/MediaPlayerInterface.h>
 #include <media/mediarecorder.h>
@@ -61,6 +60,7 @@
 #include "MediaRecorderClient.h"
 #include "MediaPlayerService.h"
 #include "MetadataRetrieverClient.h"
+#include "MediaPlayerFactory.h"
 
 #include "MidiFile.h"
 #include "TestPlayerStub.h"
@@ -70,11 +70,6 @@
 #include <OMX.h>
 
 #include "Crypto.h"
-
-namespace android {
-sp<MediaPlayerBase> createAAH_TXPlayer();
-sp<MediaPlayerBase> createAAH_RXPlayer();
-}
 
 namespace {
 using android::media::Metadata;
@@ -194,22 +189,6 @@ static bool checkPermission(const char* permissionString) {
     return ok;
 }
 
-// TODO: Temp hack until we can register players
-typedef struct {
-    const char *extension;
-    const player_type playertype;
-} extmap;
-extmap FILE_EXTS [] =  {
-        {".mid", SONIVOX_PLAYER},
-        {".midi", SONIVOX_PLAYER},
-        {".smf", SONIVOX_PLAYER},
-        {".xmf", SONIVOX_PLAYER},
-        {".imy", SONIVOX_PLAYER},
-        {".rtttl", SONIVOX_PLAYER},
-        {".rtx", SONIVOX_PLAYER},
-        {".ota", SONIVOX_PLAYER},
-};
-
 // TODO: Find real cause of Audio/Video delay in PV framework and remove this workaround
 /* static */ int MediaPlayerService::AudioOutput::mMinBufferCount = 4;
 /* static */ bool MediaPlayerService::AudioOutput::mIsOnEmulator = false;
@@ -232,6 +211,8 @@ MediaPlayerService::MediaPlayerService()
     }
     // speaker is on by default
     mBatteryAudio.deviceOn[SPEAKER] = 1;
+
+    MediaPlayerFactory::registerBuiltinFactories();
 }
 
 MediaPlayerService::~MediaPlayerService()
@@ -545,174 +526,6 @@ void MediaPlayerService::Client::disconnect()
     IPCThreadState::self()->flushCommands();
 }
 
-static player_type getDefaultPlayerType() {
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.use-nuplayer", value, NULL)
-            && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        return NU_PLAYER;
-    }
-
-    return STAGEFRIGHT_PLAYER;
-}
-
-player_type getPlayerType(int fd, int64_t offset, int64_t length)
-{
-    char buf[20];
-    lseek(fd, offset, SEEK_SET);
-    read(fd, buf, sizeof(buf));
-    lseek(fd, offset, SEEK_SET);
-
-    long ident = *((long*)buf);
-
-    // Ogg vorbis?
-    if (ident == 0x5367674f) // 'OggS'
-        return STAGEFRIGHT_PLAYER;
-
-    // Some kind of MIDI?
-    EAS_DATA_HANDLE easdata;
-    if (EAS_Init(&easdata) == EAS_SUCCESS) {
-        EAS_FILE locator;
-        locator.path = NULL;
-        locator.fd = fd;
-        locator.offset = offset;
-        locator.length = length;
-        EAS_HANDLE  eashandle;
-        if (EAS_OpenFile(easdata, &locator, &eashandle) == EAS_SUCCESS) {
-            EAS_CloseFile(easdata, eashandle);
-            EAS_Shutdown(easdata);
-            return SONIVOX_PLAYER;
-        }
-        EAS_Shutdown(easdata);
-    }
-
-    return getDefaultPlayerType();
-}
-
-player_type getPlayerType(const char* url)
-{
-    if (TestPlayerStub::canBeUsed(url)) {
-        return TEST_PLAYER;
-    }
-
-    if (!strncasecmp("http://", url, 7)
-            || !strncasecmp("https://", url, 8)) {
-        size_t len = strlen(url);
-        if (len >= 5 && !strcasecmp(".m3u8", &url[len - 5])) {
-            return NU_PLAYER;
-        }
-
-        if (strstr(url,"m3u8")) {
-            return NU_PLAYER;
-        }
-    }
-
-    if (!strncasecmp("rtsp://", url, 7)) {
-        return NU_PLAYER;
-    }
-
-    if (!strncasecmp("aahRX://", url, 8)) {
-        return AAH_RX_PLAYER;
-    }
-
-    // use MidiFile for MIDI extensions
-    int lenURL = strlen(url);
-    for (int i = 0; i < NELEM(FILE_EXTS); ++i) {
-        int len = strlen(FILE_EXTS[i].extension);
-        int start = lenURL - len;
-        if (start > 0) {
-            if (!strncasecmp(url + start, FILE_EXTS[i].extension, len)) {
-                return FILE_EXTS[i].playertype;
-            }
-        }
-    }
-
-    return getDefaultPlayerType();
-}
-
-player_type MediaPlayerService::Client::getPlayerType(int fd,
-                                                      int64_t offset,
-                                                      int64_t length)
-{
-    // Until re-transmit functionality is added to the existing core android
-    // players, we use the special AAH TX player whenever we were configured
-    // for retransmission.
-    if (mRetransmitEndpointValid) {
-        return AAH_TX_PLAYER;
-    }
-
-    return android::getPlayerType(fd, offset, length);
-}
-
-player_type MediaPlayerService::Client::getPlayerType(const char* url)
-{
-    // Until re-transmit functionality is added to the existing core android
-    // players, we use the special AAH TX player whenever we were configured
-    // for retransmission.
-    if (mRetransmitEndpointValid) {
-        return AAH_TX_PLAYER;
-    }
-
-    return android::getPlayerType(url);
-}
-
-player_type MediaPlayerService::Client::getPlayerType(
-        const sp<IStreamSource> &source) {
-    // Until re-transmit functionality is added to the existing core android
-    // players, we use the special AAH TX player whenever we were configured
-    // for retransmission.
-    if (mRetransmitEndpointValid) {
-        return AAH_TX_PLAYER;
-    }
-
-    return NU_PLAYER;
-}
-
-static sp<MediaPlayerBase> createPlayer(player_type playerType, void* cookie,
-        notify_callback_f notifyFunc)
-{
-    sp<MediaPlayerBase> p;
-    switch (playerType) {
-        case SONIVOX_PLAYER:
-            ALOGV(" create MidiFile");
-            p = new MidiFile();
-            break;
-        case STAGEFRIGHT_PLAYER:
-            ALOGV(" create StagefrightPlayer");
-            p = new StagefrightPlayer;
-            break;
-        case NU_PLAYER:
-            ALOGV(" create NuPlayer");
-            p = new NuPlayerDriver;
-            break;
-        case TEST_PLAYER:
-            ALOGV("Create Test Player stub");
-            p = new TestPlayerStub();
-            break;
-        case AAH_RX_PLAYER:
-            ALOGV(" create A@H RX Player");
-            p = createAAH_RXPlayer();
-            break;
-        case AAH_TX_PLAYER:
-            ALOGV(" create A@H TX Player");
-            p = createAAH_TXPlayer();
-            break;
-        default:
-            ALOGE("Unknown player type: %d", playerType);
-            return NULL;
-    }
-    if (p != NULL) {
-        if (p->initCheck() == NO_ERROR) {
-            p->setNotifyCallback(cookie, notifyFunc);
-        } else {
-            p.clear();
-        }
-    }
-    if (p == NULL) {
-        ALOGE("Failed to create player object");
-    }
-    return p;
-}
-
 sp<MediaPlayerBase> MediaPlayerService::Client::createPlayer(player_type playerType)
 {
     // determine if we have the right player type
@@ -722,7 +535,7 @@ sp<MediaPlayerBase> MediaPlayerService::Client::createPlayer(player_type playerT
         p.clear();
     }
     if (p == NULL) {
-        p = android::createPlayer(playerType, this, notify);
+        p = MediaPlayerFactory::createPlayer(playerType, this, notify);
     }
 
     if (p != NULL) {
@@ -805,7 +618,7 @@ status_t MediaPlayerService::Client::setDataSource(
         close(fd);
         return mStatus;
     } else {
-        player_type playerType = getPlayerType(url);
+        player_type playerType = MediaPlayerFactory::getPlayerType(this, url);
         sp<MediaPlayerBase> p = setDataSource_pre(playerType);
         if (p == NULL) {
             return NO_INIT;
@@ -842,10 +655,10 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
         ALOGV("calculated length = %lld", length);
     }
 
-    // Until re-transmit functionality is added to the existing core android
-    // players, we use the special AAH TX player whenever we were configured for
-    // retransmission.
-    player_type playerType = getPlayerType(fd, offset, length);
+    player_type playerType = MediaPlayerFactory::getPlayerType(this,
+                                                               fd,
+                                                               offset,
+                                                               length);
     sp<MediaPlayerBase> p = setDataSource_pre(playerType);
     if (p == NULL) {
         return NO_INIT;
@@ -859,10 +672,7 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
 status_t MediaPlayerService::Client::setDataSource(
         const sp<IStreamSource> &source) {
     // create the right type of player
-    // Until re-transmit functionality is added to the existing core android
-    // players, we use the special AAH TX player whenever we were configured for
-    // retransmission.
-    player_type playerType = getPlayerType(source);
+    player_type playerType = MediaPlayerFactory::getPlayerType(this, source);
     sp<MediaPlayerBase> p = setDataSource_pre(playerType);
     if (p == NULL) {
         return NO_INIT;
@@ -1209,6 +1019,25 @@ status_t MediaPlayerService::Client::setRetransmitEndpoint(
     return NO_ERROR;
 }
 
+status_t MediaPlayerService::Client::getRetransmitEndpoint(
+        struct sockaddr_in* endpoint)
+{
+    if (NULL == endpoint)
+        return BAD_VALUE;
+
+    sp<MediaPlayerBase> p = getPlayer();
+
+    if (p != NULL)
+        return p->getRetransmitEndpoint(endpoint);
+
+    if (!mRetransmitEndpointValid)
+        return NO_INIT;
+
+    *endpoint = mRetransmitEndpoint;
+
+    return NO_ERROR;
+}
+
 void MediaPlayerService::Client::notify(
         void* cookie, int msg, int ext1, int ext2, const Parcel *obj)
 {
@@ -1315,12 +1144,13 @@ sp<IMemory> MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, i
         return mem;
     }
 
-    player_type playerType = getPlayerType(url);
+    player_type playerType =
+        MediaPlayerFactory::getPlayerType(NULL /* client */, url);
     ALOGV("player type = %d", playerType);
 
     // create the right type of player
     sp<AudioCache> cache = new AudioCache(url);
-    player = android::createPlayer(playerType, cache.get(), cache->notify);
+    player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
     if (player == NULL) goto Exit;
     if (player->hardwareOutput()) goto Exit;
 
@@ -1362,12 +1192,15 @@ sp<IMemory> MediaPlayerService::decode(int fd, int64_t offset, int64_t length, u
     sp<MemoryBase> mem;
     sp<MediaPlayerBase> player;
 
-    player_type playerType = getPlayerType(fd, offset, length);
+    player_type playerType = MediaPlayerFactory::getPlayerType(NULL /* client */,
+                                                               fd,
+                                                               offset,
+                                                               length);
     ALOGV("player type = %d", playerType);
 
     // create the right type of player
     sp<AudioCache> cache = new AudioCache("decode_fd");
-    player = android::createPlayer(playerType, cache.get(), cache->notify);
+    player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
     if (player == NULL) goto Exit;
     if (player->hardwareOutput()) goto Exit;
 
