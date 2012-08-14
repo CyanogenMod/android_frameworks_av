@@ -26,6 +26,8 @@
 
 #define FILEREAD_MAX_LAYERS 2
 
+#define DRC_DEFAULT_REF_LEVEL 108   /* 108*0.25dB = -27 dB below full scale (typical for movies) */
+
 namespace android {
 
 template<class T>
@@ -110,6 +112,9 @@ status_t SoftAAC2::initDecoder() {
         }
     }
     mIsFirst = true;
+    // the decoder will bypass all DRC processing during decode unless any of the DRC parameters
+    //  is set, so here we just reset the DRC reference level to its default value.
+    aacDecoder_SetParam(mAACDecoder, AAC_DRC_REFERENCE_LEVEL, DRC_DEFAULT_REF_LEVEL);
     return status;
 }
 
