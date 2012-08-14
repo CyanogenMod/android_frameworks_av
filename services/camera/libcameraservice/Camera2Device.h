@@ -124,6 +124,27 @@ class Camera2Device : public virtual RefBase {
     status_t setNotifyCallback(NotificationListener *listener);
 
     /**
+     * Abstract class for HAL frame available notifications
+     */
+    class FrameListener {
+      public:
+        virtual void onNewFrameAvailable() = 0;
+      protected:
+        virtual ~FrameListener();
+    };
+
+    /**
+     * Set a frame listener to be notified about new frames.
+     */
+    status_t setFrameListener(FrameListener *listener);
+
+    /**
+     * Get next metadata frame from the frame queue. Returns NULL if the queue
+     * is empty; caller takes ownership of the metadata buffer.
+     */
+    status_t getNextFrame(camera_metadata_t **frame);
+
+    /**
      * Trigger auto-focus. The latest ID used in a trigger autofocus or cancel
      * autofocus call will be returned by the HAL in all subsequent AF
      * notifications.
@@ -180,6 +201,7 @@ class Camera2Device : public virtual RefBase {
         status_t dequeue(camera_metadata_t **buf, bool incrementCount = true);
         int      getBufferCount();
         status_t waitForBuffer(nsecs_t timeout);
+        status_t setListener(FrameListener *listener);
 
         // Set repeating buffer(s); if the queue is empty on a dequeue call, the
         // queue copies the contents of the stream slot into the queue, and then
@@ -208,6 +230,7 @@ class Camera2Device : public virtual RefBase {
         List<camera_metadata_t*> mStreamSlot;
 
         bool mSignalConsumer;
+        FrameListener *mListener;
 
         static MetadataQueue* getInstance(
             const camera2_frame_queue_dst_ops_t *q);

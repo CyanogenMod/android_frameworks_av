@@ -31,8 +31,10 @@ namespace android {
  * Implements the android.hardware.camera API on top of
  * camera device HAL version 2.
  */
-class Camera2Client : public CameraService::Client,
-                      public Camera2Device::NotificationListener
+class Camera2Client :
+        public CameraService::Client,
+        public Camera2Device::NotificationListener,
+        public Camera2Device::FrameListener
 {
 public:
     // ICamera interface (see ICamera for details)
@@ -81,6 +83,7 @@ public:
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
+    virtual void onNewFrameAvailable();
 private:
     enum State {
         DISCONNECTED,
@@ -101,6 +104,11 @@ private:
     // that append 'L' to the name assume that mICameraLock is locked when
     // they're called
     mutable Mutex mICameraLock;
+
+    // Mutex that must be locked by methods accessing the base Client's
+    // mCameraClient ICameraClient interface member, for sending notifications
+    // up to the camera user
+    mutable Mutex mICameraClientLock;
 
     status_t setPreviewWindowL(const sp<IBinder>& binder,
             sp<ANativeWindow> window);
@@ -200,13 +208,16 @@ private:
         // listed in Camera.Parameters
         bool storeMetadataInBuffers;
         bool playShutterSound;
-        bool enableFocusMoveMessages;
+        bool enableFaceDetect;
 
+        bool enableFocusMoveMessages;
         int afTriggerCounter;
         int currentAfTriggerId;
         bool afInMotion;
     };
 
+    // This class encapsulates the Parameters class so that it can only be accessed
+    // by constructing a Key object, which locks the LockedParameter's mutex.
     class LockedParameters {
       public:
         class Key {
@@ -258,14 +269,31 @@ private:
 
     } mParameters;
 
+    // Static device information; this is a subset of the information
+    // available through the staticInfo() method, used for frequently-accessed
+    // values or values that have to be calculated from the static information.
+    struct DeviceInfo {
+        int32_t arrayWidth;
+        int32_t arrayHeight;
+        uint8_t bestFaceDetectMode;
+        int32_t maxFaces;
+    };
+    const DeviceInfo *mDeviceInfo;
+
     /** Camera device-related private members */
 
     class Camera2Heap;
+
+    status_t updateRequests(const Parameters &params);
 
     // Number of zoom steps to simulate
     static const unsigned int NUM_ZOOM_STEPS = 10;
     // Used with stream IDs
     static const int NO_STREAM = -1;
+
+    /* Output frame metadata processing methods */
+
+    status_t processFrameFaceDetect(camera_metadata_t *frame);
 
     /* Preview related members */
 
@@ -373,12 +401,20 @@ private:
     camera_metadata_entry_t staticInfo(uint32_t tag,
             size_t minCount=0, size_t maxCount=0);
 
+    // Extract frequently-used camera static information into mDeviceInfo
+    status_t buildDeviceInfo();
     // Convert static camera info from a camera2 device to the
     // old API parameter map.
     status_t buildDefaultParameters();
 
     // Update parameters all requests use, based on mParameters
     status_t updateRequestCommon(camera_metadata_t *request, const Parameters &params);
+
+    // Map from sensor active array pixel coordinates to normalized camera parameter coordinates
+    // The former are (0,0)-(array width - 1, array height - 1), the latter from
+    // (-1000,-1000)-(1000,1000)
+    int arrayXToNormalized(int width) const;
+    int arrayYToNormalized(int height) const;
 
     // Update specific metadata entry with new values. Adds entry if it does not
     // exist, which will invalidate sorting
