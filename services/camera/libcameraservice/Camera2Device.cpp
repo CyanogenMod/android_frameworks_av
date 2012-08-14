@@ -340,6 +340,14 @@ void Camera2Device::notificationCallback(int32_t msg_type,
     }
 }
 
+status_t Camera2Device::setFrameListener(FrameListener *listener) {
+    return mFrameQueue.setListener(listener);
+}
+
+status_t Camera2Device::getNextFrame(camera_metadata_t **frame) {
+    return mFrameQueue.dequeue(frame);
+}
+
 status_t Camera2Device::triggerAutofocus(uint32_t id) {
     status_t res;
     ALOGV("%s: Triggering autofocus, id %d", __FUNCTION__, id);
@@ -384,6 +392,13 @@ Camera2Device::NotificationListener::~NotificationListener() {
 }
 
 /**
+ * Camera2Device::FrameListener
+ */
+
+Camera2Device::FrameListener::~FrameListener() {
+}
+
+/**
  * Camera2Device::MetadataQueue
  */
 
@@ -392,7 +407,8 @@ Camera2Device::MetadataQueue::MetadataQueue():
             mFrameCount(0),
             mCount(0),
             mStreamSlotCount(0),
-            mSignalConsumer(true)
+            mSignalConsumer(true),
+            mListener(NULL)
 {
     camera2_request_queue_src_ops::dequeue_request = consumer_dequeue;
     camera2_request_queue_src_ops::request_count = consumer_buffer_count;
@@ -510,6 +526,12 @@ status_t Camera2Device::MetadataQueue::waitForBuffer(nsecs_t timeout)
     return OK;
 }
 
+status_t Camera2Device::MetadataQueue::setListener(FrameListener *listener) {
+    Mutex::Autolock l(mMutex);
+    mListener = listener;
+    return OK;
+}
+
 status_t Camera2Device::MetadataQueue::setStreamSlot(camera_metadata_t *buf)
 {
     ALOGV("%s: E", __FUNCTION__);
@@ -620,6 +642,13 @@ status_t Camera2Device::MetadataQueue::signalConsumerLocked() {
         mMutex.unlock();
         ALOGV("%s: Signaling consumer", __FUNCTION__);
         res = mDevice->ops->notify_request_queue_not_empty(mDevice);
+        mMutex.lock();
+    }
+    if (mListener != NULL) {
+        FrameListener *listener = mListener;
+        mMutex.unlock();
+        ALOGVV("%s: Signaling listener", __FUNCTION__);
+        listener->onNewFrameAvailable();
         mMutex.lock();
     }
     return res;

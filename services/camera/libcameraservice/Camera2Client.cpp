@@ -53,6 +53,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
         mState(DISCONNECTED),
+        mDeviceInfo(NULL),
         mPreviewStreamId(NO_STREAM),
         mPreviewRequest(NULL),
         mCaptureStreamId(NO_STREAM),
@@ -89,7 +90,9 @@ status_t Camera2Client::initialize(camera_module_t *module)
     }
 
     res = mDevice->setNotifyCallback(this);
+    res = mDevice->setFrameListener(this);
 
+    res = buildDeviceInfo();
     res = buildDefaultParameters();
     if (res != OK) {
         ALOGE("%s: Camera %d: unable to build defaults: %s (%d)",
@@ -377,6 +380,11 @@ void Camera2Client::disconnect() {
     mDevice.clear();
     mState = DISCONNECTED;
 
+    if (mDeviceInfo != NULL) {
+        delete mDeviceInfo;
+        mDeviceInfo = NULL;
+    }
+
     CameraService::Client::disconnect();
 }
 
@@ -393,6 +401,8 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     }
 
     mClientPid = getCallingPid();
+
+    Mutex::Autolock iccl(mICameraClientLock);
     mCameraClient = client;
 
     return OK;
@@ -429,6 +439,8 @@ status_t Camera2Client::unlock() {
     // TODO: Check for uninterruptable conditions
 
     if (mClientPid == getCallingPid()) {
+        Mutex::Autolock iccl(mICameraClientLock);
+
         mClientPid = 0;
         mCameraClient.clear();
         return OK;
@@ -637,6 +649,7 @@ void Camera2Client::stopPreviewL() {
             mDevice->waitUntilDrained();
         case WAITING_FOR_PREVIEW_WINDOW:
             mState = STOPPED;
+            commandStopFaceDetectionL();
             break;
         default:
             ALOGE("%s: Camera %d: Unknown state %d", __FUNCTION__, mCameraId,
@@ -901,21 +914,26 @@ status_t Camera2Client::takePicture(int msgType) {
             return INVALID_OPERATION;
     }
 
-    LockedParameters::Key k(mParameters);
 
-    res = updateCaptureStream(k.mParameters);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
+    ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
-    if (mCaptureRequest == NULL) {
-        res = updateCaptureRequest(k.mParameters);
+    {
+        LockedParameters::Key k(mParameters);
+
+        res = updateCaptureStream(k.mParameters);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Can't create still image capture request: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
+        }
+
+        if (mCaptureRequest == NULL) {
+            res = updateCaptureRequest(k.mParameters);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't create still image capture request: "
+                        "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
         }
     }
 
@@ -972,6 +990,12 @@ status_t Camera2Client::takePicture(int msgType) {
     switch (mState) {
         case PREVIEW:
             mState = STILL_CAPTURE;
+            res = commandStopFaceDetectionL();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
+                        __FUNCTION__, mCameraId);
+                return res;
+            }
             break;
         case RECORD:
             mState = VIDEO_SNAPSHOT;
@@ -1490,45 +1514,11 @@ status_t Camera2Client::setParameters(const String8& params) {
     k.mParameters.recordingHint = recordingHint;
     k.mParameters.videoStabilization = videoStabilization;
 
-    res = updatePreviewRequest(k.mParameters);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update preview request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-    res = updateCaptureRequest(k.mParameters);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update capture request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-
-    res = updateRecordingRequest(k.mParameters);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-
-    if (mState == PREVIEW) {
-        res = mDevice->setStreamingRequest(mPreviewRequest);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error streaming new preview request: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    } else if (mState == RECORD || mState == VIDEO_SNAPSHOT) {
-        res = mDevice->setStreamingRequest(mRecordingRequest);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error streaming new record request: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
     k.mParameters.paramsFlattened = params;
 
-    return OK;
+    res = updateRequests(k.mParameters);
+
+    return res;
 }
 
 String8 Camera2Client::getParameters() const {
@@ -1637,13 +1627,55 @@ status_t Camera2Client::commandPlayRecordingSoundL() {
 }
 
 status_t Camera2Client::commandStartFaceDetectionL(int type) {
-    ALOGE("%s: Unimplemented!", __FUNCTION__);
-    return OK;
+    ALOGV("%s: Camera %d: Starting face detection",
+          __FUNCTION__, mCameraId);
+    status_t res;
+    switch (mState) {
+        case DISCONNECTED:
+        case STOPPED:
+        case WAITING_FOR_PREVIEW_WINDOW:
+        case STILL_CAPTURE:
+            ALOGE("%s: Camera %d: Cannot start face detection without preview active",
+                    __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+        case PREVIEW:
+        case RECORD:
+        case VIDEO_SNAPSHOT:
+            // Good to go for starting face detect
+            break;
+    }
+    // Ignoring type
+    if (mDeviceInfo->bestFaceDetectMode == ANDROID_STATS_FACE_DETECTION_OFF) {
+        ALOGE("%s: Camera %d: Face detection not supported",
+                __FUNCTION__, mCameraId);
+        return INVALID_OPERATION;
+    }
+
+    LockedParameters::Key k(mParameters);
+    if (k.mParameters.enableFaceDetect) return OK;
+
+    k.mParameters.enableFaceDetect = true;
+
+    res = updateRequests(k.mParameters);
+
+    return res;
 }
 
 status_t Camera2Client::commandStopFaceDetectionL() {
-    ALOGE("%s: Unimplemented!", __FUNCTION__);
-    return OK;
+    status_t res = OK;
+    ALOGV("%s: Camera %d: Stopping face detection",
+          __FUNCTION__, mCameraId);
+
+    LockedParameters::Key k(mParameters);
+    if (!k.mParameters.enableFaceDetect) return OK;
+
+    k.mParameters.enableFaceDetect = false;
+
+    if (mState == PREVIEW || mState == RECORD || mState == VIDEO_SNAPSHOT) {
+        res = updateRequests(k.mParameters);
+    }
+
+    return res;
 }
 
 status_t Camera2Client::commandEnableFocusMoveMsgL(bool enable) {
@@ -1791,11 +1823,17 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
         }
     }
     if (sendMovingMessage) {
-        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
-                afInMotion ? 1 : 0, 0);
+        Mutex::Autolock iccl(mICameraClientLock);
+        if (mCameraClient != 0) {
+            mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
+                    afInMotion ? 1 : 0, 0);
+        }
     }
     if (sendCompletedMessage) {
-        mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
+        Mutex::Autolock iccl(mICameraClientLock);
+        if (mCameraClient != 0) {
+            mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
+        }
     }
 }
 
@@ -1808,6 +1846,149 @@ void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
     ALOGV("%s: Auto-whitebalance state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
 }
+
+void Camera2Client::onNewFrameAvailable() {
+    status_t res;
+    camera_metadata_t *frame = NULL;
+    do {
+        res = mDevice->getNextFrame(&frame);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return;
+        }
+        if (frame != NULL) {
+            camera_metadata_entry_t entry;
+            res = find_camera_metadata_entry(frame, ANDROID_REQUEST_FRAME_COUNT,
+                    &entry);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+                break;
+            }
+
+            res = processFrameFaceDetect(frame);
+            if (res != OK) break;
+
+            free_camera_metadata(frame);
+        }
+    } while (frame != NULL);
+
+    if (frame != NULL) {
+        free_camera_metadata(frame);
+    }
+    return;
+}
+
+status_t Camera2Client::processFrameFaceDetect(camera_metadata_t *frame) {
+    status_t res;
+    camera_metadata_entry_t entry;
+    bool enableFaceDetect;
+    {
+        LockedParameters::Key k(mParameters);
+        enableFaceDetect = k.mParameters.enableFaceDetect;
+    }
+    res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_DETECT_MODE,
+            &entry);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Error reading face mode: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+    uint8_t faceDetectMode = entry.data.u8[0];
+
+    if (enableFaceDetect && faceDetectMode != ANDROID_STATS_FACE_DETECTION_OFF) {
+        res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_RECTANGLES,
+                &entry);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error reading face rectangles: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        camera_frame_metadata metadata;
+        metadata.number_of_faces = entry.count / 4;
+        if (metadata.number_of_faces >
+                mDeviceInfo->maxFaces) {
+            ALOGE("%s: Camera %d: More faces than expected! (Got %d, max %d)",
+                    __FUNCTION__, mCameraId,
+                    metadata.number_of_faces, mDeviceInfo->maxFaces);
+            return res;
+        }
+        int32_t *faceRects = entry.data.i32;
+
+        res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_SCORES,
+                &entry);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error reading face scores: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        uint8_t *faceScores = entry.data.u8;
+
+        int32_t *faceLandmarks = NULL;
+        int32_t *faceIds = NULL;
+
+        if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
+            res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_LANDMARKS,
+                    &entry);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Error reading face landmarks: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
+            faceLandmarks = entry.data.i32;
+
+            res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_IDS,
+                    &entry);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Error reading face IDs: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
+            faceIds = entry.data.i32;
+        }
+
+        Vector<camera_face_t> faces;
+        faces.setCapacity(metadata.number_of_faces);
+
+        for (int i = 0; i < metadata.number_of_faces; i++) {
+            camera_face_t face;
+
+            face.rect[0] = arrayXToNormalized(faceRects[i*4 + 0]);
+            face.rect[1] = arrayYToNormalized(faceRects[i*4 + 1]);
+            face.rect[2] = arrayXToNormalized(faceRects[i*4 + 2]);
+            face.rect[3] = arrayYToNormalized(faceRects[i*4 + 3]);
+
+            face.score = faceScores[i];
+            if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
+                face.id = faceIds[i];
+                face.left_eye[0] = arrayXToNormalized(faceLandmarks[i*6 + 0]);
+                face.left_eye[1] = arrayYToNormalized(faceLandmarks[i*6 + 1]);
+                face.right_eye[0] = arrayXToNormalized(faceLandmarks[i*6 + 2]);
+                face.right_eye[1] = arrayYToNormalized(faceLandmarks[i*6 + 3]);
+                face.mouth[0] = arrayXToNormalized(faceLandmarks[i*6 + 4]);
+                face.mouth[1] = arrayYToNormalized(faceLandmarks[i*6 + 5]);
+            } else {
+                face.id = 0;
+                face.left_eye[0] = face.left_eye[1] = -2000;
+                face.right_eye[0] = face.right_eye[1] = -2000;
+                face.mouth[0] = face.mouth[1] = -2000;
+            }
+            faces.push_back(face);
+        }
+
+        metadata.faces = faces.editArray();
+        {
+            Mutex::Autolock iccl(mICameraClientLock);
+            if (mCameraClient != NULL) {
+                mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
+                        NULL, &metadata);
+            }
+        }
+    }
+    return OK;
+}
+
 
 void Camera2Client::onCaptureAvailable() {
     ATRACE_CALL();
@@ -1849,7 +2030,6 @@ void Camera2Client::onCaptureAvailable() {
 
         mCaptureConsumer->unlockBuffer(imgBuffer);
 
-        currentClient = mCameraClient;
         switch (mState) {
             case STILL_CAPTURE:
                 mState = STOPPED;
@@ -1862,6 +2042,9 @@ void Camera2Client::onCaptureAvailable() {
                         mCameraId, mState);
                 break;
         }
+
+        Mutex::Autolock iccl(mICameraClientLock);
+        currentClient = mCameraClient;
     }
     // Call outside mICameraLock to allow re-entrancy from notification
     if (currentClient != 0) {
@@ -1951,6 +2134,7 @@ void Camera2Client::onRecordingFrameAvailable() {
         memcpy(data + 4, &imgBuffer, sizeof(buffer_handle_t));
         ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
                 __FUNCTION__, mCameraId, imgBuffer);
+        Mutex::Autolock iccl(mICameraClientLock);
         currentClient = mCameraClient;
     }
     // Call outside mICameraLock to allow re-entrancy from notification
@@ -1997,6 +2181,56 @@ camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
 
 /** Utility methods */
 
+status_t Camera2Client::buildDeviceInfo() {
+    if (mDeviceInfo != NULL) {
+        delete mDeviceInfo;
+    }
+    DeviceInfo *deviceInfo = new DeviceInfo;
+    mDeviceInfo = deviceInfo;
+
+    camera_metadata_entry_t activeArraySize =
+        staticInfo(ANDROID_SENSOR_ACTIVE_ARRAY_SIZE, 2, 2);
+    if (!activeArraySize.count) return NO_INIT;
+    deviceInfo->arrayWidth = activeArraySize.data.i32[0];
+    deviceInfo->arrayHeight = activeArraySize.data.i32[1];
+
+    camera_metadata_entry_t availableFaceDetectModes =
+        staticInfo(ANDROID_STATS_AVAILABLE_FACE_DETECT_MODES);
+    if (!availableFaceDetectModes.count) return NO_INIT;
+
+    deviceInfo->bestFaceDetectMode =
+        ANDROID_STATS_FACE_DETECTION_OFF;
+    for (size_t i = 0 ; i < availableFaceDetectModes.count; i++) {
+        switch (availableFaceDetectModes.data.u8[i]) {
+            case ANDROID_STATS_FACE_DETECTION_OFF:
+                break;
+            case ANDROID_STATS_FACE_DETECTION_SIMPLE:
+                if (deviceInfo->bestFaceDetectMode !=
+                        ANDROID_STATS_FACE_DETECTION_FULL) {
+                    deviceInfo->bestFaceDetectMode =
+                        ANDROID_STATS_FACE_DETECTION_SIMPLE;
+                }
+                break;
+            case ANDROID_STATS_FACE_DETECTION_FULL:
+                deviceInfo->bestFaceDetectMode =
+                    ANDROID_STATS_FACE_DETECTION_FULL;
+                break;
+            default:
+                ALOGE("%s: Camera %d: Unknown face detect mode %d:",
+                        __FUNCTION__, mCameraId,
+                        availableFaceDetectModes.data.u8[i]);
+                return NO_INIT;
+        }
+    }
+
+    camera_metadata_entry_t maxFacesDetected =
+        staticInfo(ANDROID_STATS_MAX_FACE_COUNT, 1, 1);
+    if (!maxFacesDetected.count) return NO_INIT;
+
+    deviceInfo->maxFaces = maxFacesDetected.data.i32[0];
+
+    return OK;
+}
 
 status_t Camera2Client::buildDefaultParameters() {
     ATRACE_CALL();
@@ -2655,10 +2889,8 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_FOCUS_DISTANCES,
             "Infinity,Infinity,Infinity");
 
-    camera_metadata_entry_t maxFacesDetected =
-        staticInfo(ANDROID_STATS_MAX_FACE_COUNT, 1, 1);
     params.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_HW,
-            maxFacesDetected.data.i32[0]);
+            mDeviceInfo->maxFaces);
     params.set(CameraParameters::KEY_MAX_NUM_DETECTED_FACES_SW,
             0);
 
@@ -2690,12 +2922,54 @@ status_t Camera2Client::buildDefaultParameters() {
 
     k.mParameters.storeMetadataInBuffers = true;
     k.mParameters.playShutterSound = true;
+    k.mParameters.enableFaceDetect = false;
     k.mParameters.afTriggerCounter = 0;
     k.mParameters.currentAfTriggerId = -1;
 
     k.mParameters.paramsFlattened = params.flatten();
 
     return OK;
+}
+
+status_t Camera2Client::updateRequests(const Parameters &params) {
+    status_t res;
+
+    res = updatePreviewRequest(params);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update preview request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+    res = updateCaptureRequest(params);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update capture request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    res = updateRecordingRequest(params);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    if (mState == PREVIEW) {
+        res = mDevice->setStreamingRequest(mPreviewRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error streaming new preview request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    } else if (mState == RECORD || mState == VIDEO_SNAPSHOT) {
+        res = mDevice->setStreamingRequest(mRecordingRequest);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error streaming new record request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+    return res;
 }
 
 status_t Camera2Client::updatePreviewStream(const Parameters &params) {
@@ -3126,22 +3400,18 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
             (NUM_ZOOM_STEPS-1);
     float zoomRatio = 1 + zoomIncrement * params.zoom;
 
-    camera_metadata_entry_t activePixelArraySize =
-            staticInfo(ANDROID_SENSOR_ACTIVE_ARRAY_SIZE, 2, 2);
-    int32_t arrayWidth = activePixelArraySize.data.i32[0];
-    int32_t arrayHeight = activePixelArraySize.data.i32[1];
     float zoomLeft, zoomTop, zoomWidth, zoomHeight;
     if (params.previewWidth >= params.previewHeight) {
-        zoomWidth =  arrayWidth / zoomRatio;
+        zoomWidth =  mDeviceInfo->arrayWidth / zoomRatio;
         zoomHeight = zoomWidth *
                 params.previewHeight / params.previewWidth;
     } else {
-        zoomHeight = arrayHeight / zoomRatio;
+        zoomHeight = mDeviceInfo->arrayHeight / zoomRatio;
         zoomWidth = zoomHeight *
                 params.previewWidth / params.previewHeight;
     }
-    zoomLeft = (arrayWidth - zoomWidth) / 2;
-    zoomTop = (arrayHeight - zoomHeight) / 2;
+    zoomLeft = (mDeviceInfo->arrayWidth - zoomWidth) / 2;
+    zoomTop = (mDeviceInfo->arrayHeight - zoomHeight) / 2;
 
     int32_t cropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
     res = updateEntry(request,
@@ -3158,7 +3428,23 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
             &vstabMode, 1);
     if (res != OK) return res;
 
+    uint8_t faceDetectMode = params.enableFaceDetect ?
+            mDeviceInfo->bestFaceDetectMode :
+            (uint8_t)ANDROID_STATS_FACE_DETECTION_OFF;
+    res = updateEntry(request,
+            ANDROID_STATS_FACE_DETECT_MODE,
+            &faceDetectMode, 1);
+    if (res != OK) return res;
+
     return OK;
+}
+
+int Camera2Client::arrayXToNormalized(int width) const {
+    return width * 2000 / (mDeviceInfo->arrayWidth - 1) - 1000;
+}
+
+int Camera2Client::arrayYToNormalized(int height) const {
+    return height * 2000 / (mDeviceInfo->arrayHeight - 1) - 1000;
 }
 
 status_t Camera2Client::updateEntry(camera_metadata_t *buffer,
@@ -3476,5 +3762,6 @@ int Camera2Client::degToTransform(int degrees, bool mirror) {
     ALOGE("%s: Bad input: %d", __FUNCTION__, degrees);
     return -1;
 }
+
 
 } // namespace android
