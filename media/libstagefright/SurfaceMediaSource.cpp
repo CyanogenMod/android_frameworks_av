@@ -45,6 +45,9 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mNumFramesReceived(0),
     mNumFramesEncoded(0),
     mFirstFrameTimestamp(0)
+#ifdef QCOM_HARDWARE
+    ,mFirstBufferReleased(true)
+#endif
 {
     ALOGV("SurfaceMediaSource::SurfaceMediaSource");
 
@@ -80,7 +83,13 @@ SurfaceMediaSource::~SurfaceMediaSource() {
     ALOGV("SurfaceMediaSource::~SurfaceMediaSource");
     if (!mStopped) {
         reset();
+#ifdef QCOM_HARDWARE
+    } else {
+        Mutex::Autolock lock(mMutex);
+        releaseBuffers();
+#endif
     }
+
 }
 
 nsecs_t SurfaceMediaSource::getTimestamp() {
@@ -155,6 +164,9 @@ status_t SurfaceMediaSource::reset()
     mStopped = true;
 
     mFrameAvailableCondition.signal();
+#ifdef QCOM_HARDWARE
+    releaseBuffers();
+#endif
     mBufferQueue->consumerDisconnect();
 
     return OK;
@@ -372,12 +384,25 @@ void SurfaceMediaSource::onBuffersReleased() {
     ALOGV("onBuffersReleased");
 
     Mutex::Autolock lock(mMutex);
+#ifdef QCOM_HARDWARE
+    if (!mFirstBufferReleased) {
+#endif
+        mFrameAvailableCondition.signal();
+        mStopped = true;
+#ifdef QCOM_HARDWARE
+    } else {
+        mFirstBufferReleased = false;
+    }
+    if (!mStopped) {
+        releaseBuffers();
+    }
+}
 
-    mFrameAvailableCondition.signal();
-    mStopped = true;
-
+void SurfaceMediaSource::releaseBuffers() {
+    ALOGV("releaseBuffers");
+#endif
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
-       mBufferSlot[i] = 0;
+        mBufferSlot[i] = 0;
     }
 }
 

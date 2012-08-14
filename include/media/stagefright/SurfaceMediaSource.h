@@ -204,8 +204,17 @@ private:
     // is a frame available for dequeuing
     Condition mFrameAvailableCondition;
 
+#ifdef QCOM_HARDWARE
+    // onBufferReleased is called twice, first on setBufferCount, second on disconnect
+    // Do not stop recording on the first call
+    bool mFirstBufferReleased;
+#endif
+
     status_t reset();
 
+#ifdef QCOM_HARDWARE
+    void releaseBuffers();
+#endif
     // Avoid copying and equating and default constructor
     DISALLOW_IMPLICIT_CONSTRUCTORS(SurfaceMediaSource);
 };
