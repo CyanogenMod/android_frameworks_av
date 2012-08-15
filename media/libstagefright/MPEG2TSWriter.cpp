@@ -836,7 +836,7 @@ void MPEG2TSWriter::writeAccessUnit(
     // transport_priority = b0
     // PID = b0 0001 1110 ???? (13 bits) [0x1e0 + 1 + sourceIndex]
     // transport_scrambling_control = b00
-    // adaptation_field_control = b01 (no adaptation field, payload only)
+    // adaptation_field_control = b??
     // continuity_counter = b????
     // -- payload follows
     // packet_startcode_prefix = 0x000001
@@ -866,7 +866,7 @@ void MPEG2TSWriter::writeAccessUnit(
     // the first fragment of "buffer" follows
 
     sp<ABuffer> buffer = new ABuffer(188);
-    memset(buffer->data(), 0, buffer->size());
+    memset(buffer->data(), 0xff, buffer->size());
 
     const unsigned PID = 0x1e0 + sourceIndex + 1;
 
@@ -884,6 +884,7 @@ void MPEG2TSWriter::writeAccessUnit(
     uint32_t PTS = (timeUs * 9ll) / 100ll;
 
     size_t PES_packet_length = accessUnit->size() + 8;
+    bool padding = (accessUnit->size() < (188 - 18));
 
     if (PES_packet_length >= 65536) {
         // This really should only happen for video.
@@ -897,7 +898,15 @@ void MPEG2TSWriter::writeAccessUnit(
     *ptr++ = 0x47;
     *ptr++ = 0x40 | (PID >> 8);
     *ptr++ = PID & 0xff;
-    *ptr++ = 0x10 | continuity_counter;
+    *ptr++ = (padding ? 0x30 : 0x10) | continuity_counter;
+    if (padding) {
+        int paddingSize = 188 - accessUnit->size() - 18;
+        *ptr++ = paddingSize - 1;
+        if (paddingSize >= 2) {
+            *ptr++ = 0x00;
+            ptr += paddingSize - 2;
+        }
+    }
     *ptr++ = 0x00;
     *ptr++ = 0x00;
     *ptr++ = 0x01;
@@ -925,6 +934,7 @@ void MPEG2TSWriter::writeAccessUnit(
 
     size_t offset = copy;
     while (offset < accessUnit->size()) {
+        bool lastAccessUnit = ((accessUnit->size() - offset) < 183);
         // for subsequent fragments of "buffer":
         // 0x47
         // transport_error_indicator = b0
@@ -932,11 +942,11 @@ void MPEG2TSWriter::writeAccessUnit(
         // transport_priority = b0
         // PID = b0 0001 1110 ???? (13 bits) [0x1e0 + 1 + sourceIndex]
         // transport_scrambling_control = b00
-        // adaptation_field_control = b01 (no adaptation field, payload only)
+        // adaptation_field_control = b??
         // continuity_counter = b????
         // the fragment of "buffer" follows.
 
-        memset(buffer->data(), 0, buffer->size());
+        memset(buffer->data(), 0xff, buffer->size());
 
         const unsigned continuity_counter =
             mSources.editItemAt(sourceIndex)->incrementContinuityCounter();
@@ -945,7 +955,18 @@ void MPEG2TSWriter::writeAccessUnit(
         *ptr++ = 0x47;
         *ptr++ = 0x00 | (PID >> 8);
         *ptr++ = PID & 0xff;
-        *ptr++ = 0x10 | continuity_counter;
+        *ptr++ = (lastAccessUnit ? 0x30 : 0x10) | continuity_counter;
+
+        if (lastAccessUnit) {
+            // Pad packet using an adaptation field
+            // Adaptation header all to 0 execpt size
+            uint8_t paddingSize = (uint8_t)184 - (accessUnit->size() - offset);
+            *ptr++ = paddingSize - 1;
+            if (paddingSize >= 2) {
+                *ptr++ = 0x00;
+                ptr += paddingSize - 2;
+            }
+        }
 
         size_t sizeLeft = buffer->data() + buffer->size() - ptr;
         size_t copy = accessUnit->size() - offset;
