@@ -175,12 +175,15 @@ class StagefrightPlayerFactory :
                                int64_t offset,
                                int64_t length,
                                float curScore) {
-        char buf[20];
+        union {
+            char buf[20];
+            long bufl[20/sizeof(long)];
+        };
         lseek(fd, offset, SEEK_SET);
         read(fd, buf, sizeof(buf));
         lseek(fd, offset, SEEK_SET);
 
-        long ident = *((long*)buf);
+        const long ident = bufl[0];
 
         // Ogg vorbis?
         if (ident == 0x5367674f) // 'OggS'

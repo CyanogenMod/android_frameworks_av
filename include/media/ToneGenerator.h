@@ -23,6 +23,10 @@
 #include <media/AudioSystem.h>
 #include <media/AudioTrack.h>
 
+#if __cplusplus < 201103L && !defined(__GXX_EXPERIMENTAL_CXX0X__) && !defined(constexpr)
+#define constexpr const
+#endif
+
 namespace android {
 
 class ToneGenerator {
@@ -204,10 +208,10 @@ private:
 
     static const unsigned char sToneMappingTable[NUM_REGIONS-1][NUM_SUP_TONES];
 
-    static const unsigned int TONEGEN_MAX_WAVES = 3;     // Maximun number of sine waves in a tone segment
-    static const unsigned int TONEGEN_MAX_SEGMENTS = 12;  // Maximun number of segments in a tone descriptor
-    static const unsigned int TONEGEN_INF = 0xFFFFFFFF;  // Represents infinite time duration
-    static const float TONEGEN_GAIN = 0.9;  // Default gain passed to  WaveGenerator().
+    static constexpr unsigned int TONEGEN_MAX_WAVES = 3;     // Maximun number of sine waves in a tone segment
+    static constexpr unsigned int TONEGEN_MAX_SEGMENTS = 12;  // Maximun number of segments in a tone descriptor
+    static constexpr unsigned int TONEGEN_INF = 0xFFFFFFFF;  // Represents infinite time duration
+    static constexpr float TONEGEN_GAIN = 0.9;  // Default gain passed to  WaveGenerator().
 
     // ToneDescriptor class contains all parameters needed to generate a tone:
     //    - The array waveFreq[]:
@@ -296,9 +300,9 @@ private:
                 unsigned int command);
 
     private:
-        static const short GEN_AMP = 32000;  // amplitude of generator
-        static const short S_Q14 = 14;  // shift for Q14
-        static const short S_Q15 = 15;  // shift for Q15
+        static constexpr short GEN_AMP = 32000;  // amplitude of generator
+        static constexpr short S_Q14 = 14;  // shift for Q14
+        static constexpr short S_Q15 = 15;  // shift for Q15
 
         short mA1_Q14;  // Q14 coefficient
         // delay line of full amplitude generator
