@@ -43,7 +43,7 @@
 pvmp3_mdct_18:
         stmfd    sp!,{r4-r11,lr}
         mov      r7,r2
-        ldr      r2,table
+        adr      r2,constdata$1
         mov      r6,r1
         add      r3,r2,#0x24
         add      r12,r3,#0x44
@@ -321,8 +321,6 @@ Loop_2:
         smull    r2,r1,r0,r1
         str      r1,[r6,#0x3c]
         ldmfd    sp!,{r4-r11,pc}
-table:
-        .word      constdata$1
 
 @------------------------------------------------------------------------------
 
