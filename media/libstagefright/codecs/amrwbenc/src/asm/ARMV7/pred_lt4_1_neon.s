@@ -40,7 +40,9 @@ pred_lt4_asm:
           ADDLT         r2, r2, #4                                @ frac += UP_SAMP
           SUBLT         r4, r4, #2                                @ x--
 
-          LDR           r11, Lable1
+          ADR           r8, Lable1
+          LDR           r11, [r8]
+          ADD           r11, r8
           RSB           r2, r2, #3                                @ k = UP_SAMP - 1 - frac
           MOV           r8, #0                                    @ j = 0
 	  ADD           r11, r11, r2, LSL #6                      @ get inter4_2[k][]
@@ -94,7 +96,7 @@ pred_lt4_end:
           LDMFD   	r13!, {r4 - r12, r15}
 
 Lable1:
-          .word   	inter4_2
+          .word   	inter4_2-Lable1
           @ENDFUNC
           .END
 
