@@ -16,7 +16,10 @@
  * -------------------------------------------------------------------
  */
 
-#if defined(__GNUC__) && defined(__arm__) /* ARM GNU COMPILER  */
+/* Intentionally not using the gcc asm version, since it (if fixed so
+ * as to not crash - the current register constraints are faulty) is
+ * slightly slower than the plain C version on modern GCC versions. */
+#if !defined(__CC_ARM) /* Generic C version */
 
 #if (NUMBER==3)
 __inline int32 sad_mb_offset3(uint8 *ref, uint8 *blk, int lx, int dmin)
