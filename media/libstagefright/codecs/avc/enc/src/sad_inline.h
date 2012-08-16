@@ -23,7 +23,10 @@ extern "C"
 {
 #endif
 
-#if defined(__GNUC__) && defined(__arm__) /* ARM GNU COMPILER  */
+/* Intentionally not using the gcc asm version, since it (if fixed so
+ * as to not crash - the current register constraints are faulty) is
+ * slightly slower than the plain C version on modern GCC versions. */
+#if !defined(__CC_ARM) /* Generic C version */
 
     __inline int32 SUB_SAD(int32 sad, int32 tmp, int32 tmp2)
     {
