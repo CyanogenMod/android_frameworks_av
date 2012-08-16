@@ -43,7 +43,9 @@ Filt_6k_7k_asm:
           MOV     		r2, #30                     @ L_FIR - 1
           BL      		voAWB_Copy                   @ memcpy(x, mem, (L_FIR - 1)<<1)
 
-          LDR     		r10, Lable1                 @ get fir_7k address
+          ADR    		r3, Lable1                  @ get fir_7k address
+          LDR   		r10, [r3]
+          ADD   		r10, r3
 
           MOV           	r14, #0
           MOV                   r3, r8                      @ change myMemCopy to Copy, due to Copy will change r3 content
@@ -178,7 +180,7 @@ Filt_6k_7k_end:
           LDMFD   		r13!, {r4 - r12, r15}
 
 Lable1:
-          .word   		fir_6k_7k
+          .word   		fir_6k_7k-Lable1
           @ENDFUNC
           .END
 
