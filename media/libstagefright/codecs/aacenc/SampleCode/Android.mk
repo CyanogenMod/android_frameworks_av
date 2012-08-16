@@ -5,8 +5,6 @@ LOCAL_SRC_FILES := \
     AAC_E_SAMPLES.c \
     ../../common/cmnMemory.c
 
-LOCAL_CFLAGS += $(VO_CFLAGS)
-
 LOCAL_MODULE_TAGS := debug
 
 LOCAL_MODULE := AACEncTest
