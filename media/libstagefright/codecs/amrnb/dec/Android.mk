@@ -42,8 +42,7 @@ LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \
-        $(LOCAL_PATH)/../common/include \
-        $(LOCAL_PATH)/../common
+        $(LOCAL_PATH)/../common/include
 
 LOCAL_CFLAGS := \
         -DOSCL_UNUSED_ARG= -DOSCL_IMPORT_REF=
@@ -66,7 +65,6 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/src \
         $(LOCAL_PATH)/include \
         $(LOCAL_PATH)/../common/include \
-        $(LOCAL_PATH)/../common
 
 LOCAL_CFLAGS := -DOSCL_IMPORT_REF=
 
