@@ -1654,10 +1654,31 @@ status_t AwesomePlayer::initAudioDecoder() {
         ALOGD("Set Audio Track as Audio Source");
         mAudioSource = mAudioTrack;
     } else {
+#ifdef QCOM_HARDWARE
+        int64_t durationUs;
+        uint32_t flags = 0;
+        char lpaDecode[128];
+        property_get("lpa.decode",lpaDecode,"0");
+        if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
+            if (mDurationUs < 0 || durationUs > mDurationUs) {
+                mDurationUs = durationUs;
+            }
+        }
+        if ( mDurationUs > 60000000
+             && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
+             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)) {
+
+            flags |= OMXCodec::kSoftwareCodecsOnly;
+        }
+#endif
         mAudioSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
+#ifdef QCOM_HARDWARE
+                mAudioTrack, NULL, flags,NULL);
+#else
                 mAudioTrack);
+#endif
     }
 
     if (mAudioSource != NULL) {
