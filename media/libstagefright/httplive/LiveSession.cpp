@@ -167,11 +167,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         headers = NULL;
     }
 
-    if (!(mFlags & kFlagIncognito)) {
-        ALOGI("onConnect '%s'", url.c_str());
-    } else {
-        ALOGI("onConnect <URL suppressed>");
-    }
+    ALOGI("onConnect <URL suppressed>");
 
     mMasterURL = url;
 
