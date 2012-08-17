@@ -210,6 +210,8 @@ status_t ExtendedWriter::threadFunc() {
     int64_t maxTimestampUs = 0;
     status_t err = OK;
 
+    pid_t tid  = gettid();
+    androidSetThreadPriority(tid, ANDROID_PRIORITY_AUDIO);
     prctl(PR_SET_NAME, (unsigned long)"ExtendedWriter", 0, 0, 0);
     while (!mDone) {
         MediaBuffer *buffer;
