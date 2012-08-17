@@ -86,7 +86,6 @@ terms listed above has been obtained from the copyright holder.
 ----------------------------------------------------------------------------*/
 
 #include "gsm_amr_typedefs.h"
-#include "pvamrnbdecoder_api.h"
 #include "frame_type_3gpp.h"
 
 /*--------------------------------------------------------------------------*/
