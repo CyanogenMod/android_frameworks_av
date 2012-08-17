@@ -1302,7 +1302,8 @@ status_t Camera2Client::setParameters(const String8& params) {
     // SCENE_MODE
     int sceneMode = sceneModeStringToEnum(
         newParams.get(CameraParameters::KEY_SCENE_MODE) );
-    if (sceneMode != k.mParameters.sceneMode) {
+    if (sceneMode != k.mParameters.sceneMode &&
+            sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) {
         camera_metadata_entry_t availableSceneModes =
             staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
         for (i = 0; i < availableSceneModes.count; i++) {
