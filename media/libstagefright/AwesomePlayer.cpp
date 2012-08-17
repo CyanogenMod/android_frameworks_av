@@ -281,11 +281,7 @@ status_t AwesomePlayer::setDataSource_l(
         }
     }
 
-    if (!(mFlags & INCOGNITO)) {
-        ALOGI("setDataSource_l('%s')", mUri.string());
-    } else {
-        ALOGI("setDataSource_l(URL suppressed)");
-    }
+    ALOGI("setDataSource_l(URL suppressed)");
 
     // The actual work will be done during preparation in the call to
     // ::finishSetDataSource_l to avoid blocking the calling thread in
@@ -2582,7 +2578,7 @@ status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
 
     fprintf(out, " AwesomePlayer\n");
     if (mStats.mFd < 0) {
-        fprintf(out, "  URI(%s)", mStats.mURI.string());
+        fprintf(out, "  URI(suppressed)");
     } else {
         fprintf(out, "  fd(%d)", mStats.mFd);
     }
