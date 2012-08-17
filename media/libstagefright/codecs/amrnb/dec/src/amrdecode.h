@@ -106,7 +106,6 @@ terms listed above has been obtained from the copyright holder.
 #include    "typedef.h"
 #include    "mode.h"
 #include    "frame_type_3gpp.h"
-#include    "pvamrnbdecoder_api.h"
 
 /*--------------------------------------------------------------------------*/
 #ifdef __cplusplus
