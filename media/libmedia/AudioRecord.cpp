@@ -858,11 +858,13 @@ bool AudioRecord::processAudioBuffer(const sp<ClientRecordThread>& thread)
         frames -= audioBuffer.frameCount;
 
         releaseBuffer(&audioBuffer);
+#ifdef QCOM_HARDWARE
         if(!mFirstread)
         {
            mFirstread = true;
            break;
         }
+#endif
 
     } while (frames);
 
