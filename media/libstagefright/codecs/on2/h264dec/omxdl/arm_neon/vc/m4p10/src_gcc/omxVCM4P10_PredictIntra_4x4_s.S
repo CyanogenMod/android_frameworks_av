@@ -9,27 +9,27 @@
     .arm
     .fpu neon
 
-    .section .rodata
+    .text
     .align 4
 
 armVCM4P10_pSwitchTable4x4:
-    .word OMX_VC_4x4_VERT,     OMX_VC_4x4_HOR
-    .word OMX_VC_4x4_DC,       OMX_VC_4x4_DIAG_DL
-    .word OMX_VC_4x4_DIAG_DR,  OMX_VC_4x4_VR
-    .word OMX_VC_4x4_HD,       OMX_VC_4x4_VL
-    .word OMX_VC_4x4_HU
-
-    .text
+    .word OMX_VC_4x4_VERT-(P0+8),     OMX_VC_4x4_HOR-(P0+8)
+    .word OMX_VC_4x4_DC-(P0+8),       OMX_VC_4x4_DIAG_DL-(P0+8)
+    .word OMX_VC_4x4_DIAG_DR-(P0+8),  OMX_VC_4x4_VR-(P0+8)
+    .word OMX_VC_4x4_HD-(P0+8),       OMX_VC_4x4_VL-(P0+8)
+    .word OMX_VC_4x4_HU-(P0+8)
 
     .global omxVCM4P10_PredictIntra_4x4
     .func   omxVCM4P10_PredictIntra_4x4
 omxVCM4P10_PredictIntra_4x4:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d12}
-    LDR      r8, =armVCM4P10_pSwitchTable4x4
+    ADR      r8, armVCM4P10_pSwitchTable4x4
     LDRD     r6,r7,[sp,#0x58]
     LDRD     r4,r5,[sp,#0x50]
-    LDR      pc,[r8,r6,LSL #2]
+    LDR      r8,[r8,r6,LSL #2]
+P0: ADD      pc, r8
+
 OMX_VC_4x4_HOR:
     ADD      r9,r0,r4
     ADD      r10,r4,r4
@@ -258,4 +258,3 @@ L0x348:
     .endfunc
 
     .end
-

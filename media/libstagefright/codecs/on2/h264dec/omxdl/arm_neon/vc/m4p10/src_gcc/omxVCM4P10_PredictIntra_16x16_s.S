@@ -9,7 +9,7 @@
     .arm
     .fpu neon
 
-    .section .rodata
+    .text
     .align 4
 ;//-------------------------------------------------------
 ;// This table for implementing switch case of C in asm by
@@ -17,9 +17,8 @@
 ;//-------------------------------------------------------
 
 armVCM4P10_pIndexTable16x16:
-    .word  OMX_VC_16X16_VERT, OMX_VC_16X16_HOR
-    .word  OMX_VC_16X16_DC,   OMX_VC_16X16_PLANE
-
+    .word  OMX_VC_16X16_VERT-(P0+8), OMX_VC_16X16_HOR-(P0+8)
+    .word  OMX_VC_16X16_DC-(P0+8),   OMX_VC_16X16_PLANE-(P0+8)
 
 
 armVCM4P10_MultiplierTable16x16:
@@ -27,20 +26,20 @@ armVCM4P10_MultiplierTable16x16:
     .hword   0,  1,  2,  3,  4,  5,  6,  7
     .hword   8,  9, 10, 11, 12, 13, 14, 15
 
-    .text
 
     .global omxVCM4P10_PredictIntra_16x16
     .func   omxVCM4P10_PredictIntra_16x16
 omxVCM4P10_PredictIntra_16x16:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d15}
-    LDR      r9, =armVCM4P10_pIndexTable16x16
+    ADR      r9, armVCM4P10_pIndexTable16x16
     LDR      r6,[sp,#0x70]
     LDR      r4,[sp,#0x68]
     LDR      r5,[sp,#0x6c]
     LDR      r7,[sp,#0x74]
     MOV      r12,#0x10
-    LDR      pc,[r9,r6,LSL #2]
+    LDR      r9,[r9,r6,LSL #2]
+P0: ADD      pc,r9
 OMX_VC_16X16_VERT:
     VLD1.8   {d0,d1},[r1]
     ADD      r8,r3,r5
@@ -162,7 +161,7 @@ L0x198:
     VPOP     {d8-d15}
     POP      {r4-r12,pc}
 OMX_VC_16X16_PLANE:
-    LDR      r9, =armVCM4P10_MultiplierTable16x16
+    ADR      r9, armVCM4P10_MultiplierTable16x16
     VLD1.8   {d0,d1},[r1]
     VLD1.8   {d4[0]},[r2]
     ADD      r8,r0,r4
