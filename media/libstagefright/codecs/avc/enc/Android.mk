@@ -49,7 +49,6 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../common
 
 LOCAL_CFLAGS := \
-    -D__arm__ \
     -DOSCL_IMPORT_REF= -DOSCL_UNUSED_ARG= -DOSCL_EXPORT_REF=
 
 
