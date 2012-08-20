@@ -52,10 +52,11 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int clientPid):
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
-        mState(DISCONNECTED),
         mDeviceInfo(NULL),
         mPreviewStreamId(NO_STREAM),
         mPreviewRequest(NULL),
+        mCallbackStreamId(NO_STREAM),
+        mCallbackHeapId(0),
         mCaptureStreamId(NO_STREAM),
         mCaptureRequest(NULL),
         mRecordingStreamId(NO_STREAM),
@@ -65,6 +66,9 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
     ATRACE_CALL();
 
     mDevice = new Camera2Device(cameraId);
+
+    LockedParameters::Key k(mParameters);
+    k.mParameters.state = DISCONNECTED;
 }
 
 status_t Camera2Client::checkPid(const char* checkLocation) const {
@@ -107,8 +111,6 @@ status_t Camera2Client::initialize(camera_module_t *module)
         ALOGD("%s", k.mParameters.paramsFlattened.string());
     }
 
-    mState = STOPPED;
-
     return OK;
 }
 
@@ -134,7 +136,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
     const Parameters& p = mParameters.unsafeUnlock();
 
-    result.append(getStateName(mState));
+    result.append(getStateName(p.state));
 
     result.append("\n  Current parameters:\n");
     result.appendFormat("    Preview size: %d x %d\n",
@@ -360,8 +362,6 @@ void Camera2Client::disconnect() {
 
     stopPreviewL();
 
-    mDevice->waitUntilDrained();
-
     if (mPreviewStreamId != NO_STREAM) {
         mDevice->deleteStream(mPreviewStreamId);
         mPreviewStreamId = NO_STREAM;
@@ -377,8 +377,14 @@ void Camera2Client::disconnect() {
         mRecordingStreamId = NO_STREAM;
     }
 
+    if (mCallbackStreamId != NO_STREAM) {
+        mDevice->deleteStream(mCallbackStreamId);
+        mCallbackStreamId = NO_STREAM;
+    }
+
     mDevice.clear();
-    mState = DISCONNECTED;
+    LockedParameters::Key k(mParameters);
+    k.mParameters.state = DISCONNECTED;
 
     if (mDeviceInfo != NULL) {
         delete mDeviceInfo;
@@ -404,6 +410,9 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
 
     Mutex::Autolock iccl(mICameraClientLock);
     mCameraClient = client;
+
+    LockedParameters::Key k(mParameters);
+    k.mParameters.state = STOPPED;
 
     return OK;
 }
@@ -497,13 +506,14 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
         return NO_ERROR;
     }
 
-    switch (mState) {
+    LockedParameters::Key k(mParameters);
+    switch (k.mParameters.state) {
         case DISCONNECTED:
         case RECORD:
         case STILL_CAPTURE:
         case VIDEO_SNAPSHOT:
             ALOGE("%s: Camera %d: Cannot set preview display while in state %s",
-                    __FUNCTION__, mCameraId, getStateName(mState));
+                    __FUNCTION__, mCameraId, getStateName(k.mParameters.state));
             return INVALID_OPERATION;
         case STOPPED:
         case WAITING_FOR_PREVIEW_WINDOW:
@@ -514,7 +524,7 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             // TODO: Optimize this so that we don't wait for old stream to drain
             // before spinning up new stream
             mDevice->setStreamingRequest(NULL);
-            mState = WAITING_FOR_PREVIEW_WINDOW;
+            k.mParameters.state = WAITING_FOR_PREVIEW_WINDOW;
             break;
     }
 
@@ -537,8 +547,8 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
     mPreviewSurface = binder;
     mPreviewWindow = window;
 
-    if (mState == WAITING_FOR_PREVIEW_WINDOW) {
-        return startPreviewL();
+    if (k.mParameters.state == WAITING_FOR_PREVIEW_WINDOW) {
+        return startPreviewL(k.mParameters, false);
     }
 
     return OK;
@@ -546,9 +556,40 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
 
 void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
+    ALOGV("%s: Camera %d: Flag 0x%x", __FUNCTION__, mCameraId, flag);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
-    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
+    if ( checkPid(__FUNCTION__) != OK) return;
+
+    LockedParameters::Key k(mParameters);
+    setPreviewCallbackFlagL(k.mParameters, flag);
+}
+
+void Camera2Client::setPreviewCallbackFlagL(Parameters &params, int flag) {
+    status_t res = OK;
+    if (flag & CAMERA_FRAME_CALLBACK_FLAG_ONE_SHOT_MASK) {
+        ALOGV("%s: setting oneshot", __FUNCTION__);
+        params.previewCallbackOneShot = true;
+    }
+    if (params.previewCallbackFlags != (uint32_t)flag) {
+        params.previewCallbackFlags = flag;
+        switch(params.state) {
+        case PREVIEW:
+            res = startPreviewL(params, true);
+            break;
+        case RECORD:
+        case VIDEO_SNAPSHOT:
+            res = startRecordingL(params, true);
+            break;
+        default:
+            break;
+        }
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to refresh request in state %s",
+                    __FUNCTION__, mCameraId, getStateName(params.state));
+        }
+    }
+
 }
 
 status_t Camera2Client::startPreview() {
@@ -557,35 +598,44 @@ status_t Camera2Client::startPreview() {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
-    return startPreviewL();
+    LockedParameters::Key k(mParameters);
+    return startPreviewL(k.mParameters, false);
 }
 
-status_t Camera2Client::startPreviewL() {
+status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     ATRACE_CALL();
     status_t res;
-    if (mState >= PREVIEW) {
+    if (params.state >= PREVIEW && !restart) {
         ALOGE("%s: Can't start preview in state %s",
-                __FUNCTION__, getStateName(mState));
+                __FUNCTION__, getStateName(params.state));
         return INVALID_OPERATION;
     }
 
     if (mPreviewWindow == 0) {
-        mState = WAITING_FOR_PREVIEW_WINDOW;
+        params.state = WAITING_FOR_PREVIEW_WINDOW;
         return OK;
     }
-    mState = STOPPED;
+    params.state = STOPPED;
 
-    LockedParameters::Key k(mParameters);
-
-    res = updatePreviewStream(k.mParameters);
+    res = updatePreviewStream(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update preview stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+    bool callbacksEnabled = params.previewCallbackFlags &
+        CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
+    if (callbacksEnabled) {
+        res = updateCallbackStream(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update callback stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
 
     if (mPreviewRequest == NULL) {
-        res = updatePreviewRequest(k.mParameters);
+        res = updatePreviewRequest(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -593,9 +643,17 @@ status_t Camera2Client::startPreviewL() {
         }
     }
 
-    res = updateEntry(mPreviewRequest,
-            ANDROID_REQUEST_OUTPUT_STREAMS,
-            &mPreviewStreamId, 1);
+    if (callbacksEnabled) {
+        uint8_t outputStreams[2] =
+                { mPreviewStreamId, mCallbackStreamId };
+        res = updateEntry(mPreviewRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                outputStreams, 2);
+    } else {
+        res = updateEntry(mPreviewRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                &mPreviewStreamId, 1);
+    }
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -615,7 +673,7 @@ status_t Camera2Client::startPreviewL() {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    mState = PREVIEW;
+    params.state = PREVIEW;
 
     return OK;
 }
@@ -631,7 +689,13 @@ void Camera2Client::stopPreview() {
 
 void Camera2Client::stopPreviewL() {
     ATRACE_CALL();
-    switch (mState) {
+    State state;
+    {
+        LockedParameters::Key k(mParameters);
+        state = k.mParameters.state;
+    }
+
+    switch (state) {
         case DISCONNECTED:
             ALOGE("%s: Camera %d: Call before initialized",
                     __FUNCTION__, mCameraId);
@@ -643,17 +707,20 @@ void Camera2Client::stopPreviewL() {
                     __FUNCTION__, mCameraId);
             break;
         case RECORD:
-            // TODO: Handle record stop here
+            // no break - identical to preview
         case PREVIEW:
             mDevice->setStreamingRequest(NULL);
             mDevice->waitUntilDrained();
-        case WAITING_FOR_PREVIEW_WINDOW:
-            mState = STOPPED;
-            commandStopFaceDetectionL();
+            // no break
+        case WAITING_FOR_PREVIEW_WINDOW: {
+            LockedParameters::Key k(mParameters);
+            k.mParameters.state = STOPPED;
+            commandStopFaceDetectionL(k.mParameters);
             break;
+        }
         default:
             ALOGE("%s: Camera %d: Unknown state %d", __FUNCTION__, mCameraId,
-                    mState);
+                    state);
     }
 }
 
@@ -663,7 +730,8 @@ bool Camera2Client::previewEnabled() {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return false;
 
-    return mState == PREVIEW;
+    LockedParameters::Key k(mParameters);
+    return k.mParameters.state == PREVIEW;
 }
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
@@ -672,17 +740,17 @@ status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    switch (mState) {
+    LockedParameters::Key k(mParameters);
+    switch (k.mParameters.state) {
         case RECORD:
         case VIDEO_SNAPSHOT:
             ALOGE("%s: Camera %d: Can't be called in state %s",
-                    __FUNCTION__, mCameraId, getStateName(mState));
+                    __FUNCTION__, mCameraId, getStateName(k.mParameters.state));
             return INVALID_OPERATION;
         default:
             // OK
             break;
     }
-    LockedParameters::Key k(mParameters);
 
     k.mParameters.storeMetadataInBuffers = enabled;
 
@@ -695,10 +763,16 @@ status_t Camera2Client::startRecording() {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+    LockedParameters::Key k(mParameters);
 
-    switch (mState) {
+    return startRecordingL(k.mParameters, false);
+}
+
+status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
+    status_t res;
+    switch (params.state) {
         case STOPPED:
-            res = startPreviewL();
+            res = startPreviewL(params, false);
             if (res != OK) return res;
             break;
         case PREVIEW:
@@ -706,33 +780,42 @@ status_t Camera2Client::startRecording() {
             break;
         case RECORD:
         case VIDEO_SNAPSHOT:
-            // OK to call this when recording is already on
-            return OK;
+            // OK to call this when recording is already on, just skip unless
+            // we're looking to restart
+            if (!restart) return OK;
             break;
         default:
             ALOGE("%s: Camera %d: Can't start recording in state %s",
-                    __FUNCTION__, mCameraId, getStateName(mState));
+                    __FUNCTION__, mCameraId, getStateName(params.state));
             return INVALID_OPERATION;
     };
 
-    LockedParameters::Key k(mParameters);
-
-    if (!k.mParameters.storeMetadataInBuffers) {
+    if (!params.storeMetadataInBuffers) {
         ALOGE("%s: Camera %d: Recording only supported in metadata mode, but "
                 "non-metadata recording mode requested!", __FUNCTION__,
                 mCameraId);
         return INVALID_OPERATION;
     }
 
-    res = updateRecordingStream(k.mParameters);
+    res = updateRecordingStream(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+    bool callbacksEnabled = params.previewCallbackFlags &
+        CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
+    if (callbacksEnabled) {
+        res = updateCallbackStream(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update callback stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
 
     if (mRecordingRequest == NULL) {
-        res = updateRecordingRequest(k.mParameters);
+        res = updateRecordingRequest(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create recording request: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -740,10 +823,18 @@ status_t Camera2Client::startRecording() {
         }
     }
 
-    uint8_t outputStreams[2] = { mPreviewStreamId, mRecordingStreamId };
-    res = updateEntry(mRecordingRequest,
-            ANDROID_REQUEST_OUTPUT_STREAMS,
-            outputStreams, 2);
+    if (callbacksEnabled) {
+        uint8_t outputStreams[3] =
+                { mPreviewStreamId, mRecordingStreamId, mCallbackStreamId };
+        res = updateEntry(mRecordingRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                outputStreams, 3);
+    } else {
+        uint8_t outputStreams[2] = { mPreviewStreamId, mRecordingStreamId };
+        res = updateEntry(mRecordingRequest,
+                ANDROID_REQUEST_OUTPUT_STREAMS,
+                outputStreams, 2);
+    }
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up recording request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -763,7 +854,9 @@ status_t Camera2Client::startRecording() {
                 strerror(-res), res);
         return res;
     }
-    mState = RECORD;
+    if (params.state < RECORD) {
+        params.state = RECORD;
+    }
 
     return OK;
 }
@@ -772,10 +865,12 @@ void Camera2Client::stopRecording() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
+    LockedParameters::Key k(mParameters);
+
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return;
 
-    switch (mState) {
+    switch (k.mParameters.state) {
         case RECORD:
             // OK to stop
             break;
@@ -785,7 +880,7 @@ void Camera2Client::stopRecording() {
         case VIDEO_SNAPSHOT:
         default:
             ALOGE("%s: Camera %d: Can't stop recording in state %s",
-                    __FUNCTION__, mCameraId, getStateName(mState));
+                    __FUNCTION__, mCameraId, getStateName(k.mParameters.state));
             return;
     };
 
@@ -801,7 +896,7 @@ void Camera2Client::stopRecording() {
     // TODO: Should recording heap be freed? Can't do it yet since requests
     // could still be in flight.
 
-    mState = PREVIEW;
+    k.mParameters.state = PREVIEW;
 }
 
 bool Camera2Client::recordingEnabled() {
@@ -815,8 +910,9 @@ bool Camera2Client::recordingEnabled() {
 
 bool Camera2Client::recordingEnabledL() {
     ATRACE_CALL();
+    LockedParameters::Key k(mParameters);
 
-    return (mState == RECORD || mState == VIDEO_SNAPSHOT);
+    return (k.mParameters.state == RECORD || k.mParameters.state == VIDEO_SNAPSHOT);
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
@@ -896,7 +992,8 @@ status_t Camera2Client::takePicture(int msgType) {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    switch (mState) {
+    LockedParameters::Key k(mParameters);
+    switch (k.mParameters.state) {
         case DISCONNECTED:
         case STOPPED:
         case WAITING_FOR_PREVIEW_WINDOW:
@@ -914,41 +1011,61 @@ status_t Camera2Client::takePicture(int msgType) {
             return INVALID_OPERATION;
     }
 
-
     ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
-    {
-        LockedParameters::Key k(mParameters);
+    res = updateCaptureStream(k.mParameters);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
 
-        res = updateCaptureStream(k.mParameters);
+    if (mCaptureRequest == NULL) {
+        res = updateCaptureRequest(k.mParameters);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+            ALOGE("%s: Camera %d: Can't create still image capture request: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
-        }
-
-        if (mCaptureRequest == NULL) {
-            res = updateCaptureRequest(k.mParameters);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Can't create still image capture request: "
-                        "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-                return res;
-            }
         }
     }
 
     camera_metadata_entry_t outputStreams;
-    if (mState == PREVIEW) {
-        uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
-        res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                &streamIds, 2);
-    } else if (mState == RECORD) {
-        uint8_t streamIds[3] = { mPreviewStreamId, mRecordingStreamId,
-                                 mCaptureStreamId };
-        res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                &streamIds, 3);
-    }
 
+    bool callbacksEnabled = k.mParameters.previewCallbackFlags &
+            CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
+    bool recordingEnabled = (k.mParameters.state == RECORD);
+
+    int streamSwitch = (callbacksEnabled ? 0x2 : 0x0) +
+            (recordingEnabled ? 0x1 : 0x0);
+    switch ( streamSwitch ) {
+        case 0: { // No recording, callbacks
+            uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
+            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                    &streamIds, 2);
+            break;
+        }
+        case 1: { // Recording
+            uint8_t streamIds[3] = { mPreviewStreamId, mRecordingStreamId,
+                                     mCaptureStreamId };
+            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                    &streamIds, 3);
+            break;
+        }
+        case 2: { // Callbacks
+            uint8_t streamIds[3] = { mPreviewStreamId, mCallbackStreamId,
+                                     mCaptureStreamId };
+            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                    &streamIds, 3);
+            break;
+        }
+        case 3: { // Both
+            uint8_t streamIds[4] = { mPreviewStreamId, mCallbackStreamId,
+                                     mRecordingStreamId, mCaptureStreamId };
+            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
+                    &streamIds, 4);
+            break;
+        }
+    };
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up still image capture request: "
                 "%s (%d)",
@@ -969,7 +1086,7 @@ status_t Camera2Client::takePicture(int msgType) {
         return NO_MEMORY;
     }
 
-    if (mState == PREVIEW) {
+    if (k.mParameters.state == PREVIEW) {
         res = mDevice->setStreamingRequest(NULL);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
@@ -987,10 +1104,10 @@ status_t Camera2Client::takePicture(int msgType) {
         return res;
     }
 
-    switch (mState) {
+    switch (k.mParameters.state) {
         case PREVIEW:
-            mState = STILL_CAPTURE;
-            res = commandStopFaceDetectionL();
+            k.mParameters.state = STILL_CAPTURE;
+            res = commandStopFaceDetectionL(k.mParameters);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
                         __FUNCTION__, mCameraId);
@@ -998,7 +1115,7 @@ status_t Camera2Client::takePicture(int msgType) {
             }
             break;
         case RECORD:
-            mState = VIDEO_SNAPSHOT;
+            k.mParameters.state = VIDEO_SNAPSHOT;
             break;
         default:
             ALOGE("%s: Camera %d: Unknown state for still capture!",
@@ -1034,7 +1151,7 @@ status_t Camera2Client::setParameters(const String8& params) {
 
     if (previewWidth != k.mParameters.previewWidth ||
             previewHeight != k.mParameters.previewHeight) {
-        if (mState >= PREVIEW) {
+        if (k.mParameters.state >= PREVIEW) {
             ALOGE("%s: Preview size cannot be updated when preview "
                     "is active! (Currently %d x %d, requested %d x %d",
                     __FUNCTION__,
@@ -1084,7 +1201,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     // PREVIEW_FORMAT
     int previewFormat = formatStringToEnum(newParams.getPreviewFormat());
     if (previewFormat != k.mParameters.previewFormat) {
-        if (mState >= PREVIEW) {
+        if (k.mParameters.state >= PREVIEW) {
             ALOGE("%s: Preview format cannot be updated when preview "
                     "is active!", __FUNCTION__);
             return BAD_VALUE;
@@ -1436,7 +1553,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     newParams.getVideoSize(&videoWidth, &videoHeight);
     if (videoWidth != k.mParameters.videoWidth ||
             videoHeight != k.mParameters.videoHeight) {
-        if (mState == RECORD) {
+        if (k.mParameters.state == RECORD) {
             ALOGE("%s: Video size cannot be updated when recording is active!",
                     __FUNCTION__);
             return BAD_VALUE;
@@ -1555,8 +1672,10 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
             return commandPlayRecordingSoundL();
         case CAMERA_CMD_START_FACE_DETECTION:
             return commandStartFaceDetectionL(arg1);
-        case CAMERA_CMD_STOP_FACE_DETECTION:
-            return commandStopFaceDetectionL();
+        case CAMERA_CMD_STOP_FACE_DETECTION: {
+            LockedParameters::Key k(mParameters);
+            return commandStopFaceDetectionL(k.mParameters);
+        }
         case CAMERA_CMD_ENABLE_FOCUS_MOVE_MSG:
             return commandEnableFocusMoveMsgL(arg1 == 1);
         case CAMERA_CMD_PING:
@@ -1631,7 +1750,8 @@ status_t Camera2Client::commandStartFaceDetectionL(int type) {
     ALOGV("%s: Camera %d: Starting face detection",
           __FUNCTION__, mCameraId);
     status_t res;
-    switch (mState) {
+    LockedParameters::Key k(mParameters);
+    switch (k.mParameters.state) {
         case DISCONNECTED:
         case STOPPED:
         case WAITING_FOR_PREVIEW_WINDOW:
@@ -1651,8 +1771,6 @@ status_t Camera2Client::commandStartFaceDetectionL(int type) {
                 __FUNCTION__, mCameraId);
         return INVALID_OPERATION;
     }
-
-    LockedParameters::Key k(mParameters);
     if (k.mParameters.enableFaceDetect) return OK;
 
     k.mParameters.enableFaceDetect = true;
@@ -1662,18 +1780,18 @@ status_t Camera2Client::commandStartFaceDetectionL(int type) {
     return res;
 }
 
-status_t Camera2Client::commandStopFaceDetectionL() {
+status_t Camera2Client::commandStopFaceDetectionL(Parameters &params) {
     status_t res = OK;
     ALOGV("%s: Camera %d: Stopping face detection",
           __FUNCTION__, mCameraId);
 
-    LockedParameters::Key k(mParameters);
-    if (!k.mParameters.enableFaceDetect) return OK;
+    if (!params.enableFaceDetect) return OK;
 
-    k.mParameters.enableFaceDetect = false;
+    params.enableFaceDetect = false;
 
-    if (mState == PREVIEW || mState == RECORD || mState == VIDEO_SNAPSHOT) {
-        res = updateRequests(k.mParameters);
+    if (params.state == PREVIEW || params.state == RECORD ||
+            params.state == VIDEO_SNAPSHOT) {
+        res = updateRequests(params);
     }
 
     return res;
@@ -1688,7 +1806,8 @@ status_t Camera2Client::commandEnableFocusMoveMsgL(bool enable) {
 
 status_t Camera2Client::commandPingL() {
     // Always ping back if access is proper and device is alive
-    if (mState != DISCONNECTED) {
+    LockedParameters::Key k(mParameters);
+    if (k.mParameters.state != DISCONNECTED) {
         return OK;
     } else {
         return NO_INIT;
@@ -1990,28 +2109,155 @@ status_t Camera2Client::processFrameFaceDetect(camera_metadata_t *frame) {
     return OK;
 }
 
+void Camera2Client::onCallbackAvailable() {
+    ATRACE_CALL();
+    status_t res;
+    ALOGV("%s: Camera %d: Preview callback available", __FUNCTION__, mCameraId);
+
+    int callbackHeapId;
+    sp<Camera2Heap> callbackHeap;
+    size_t heapIdx;
+
+    CpuConsumer::LockedBuffer imgBuffer;
+    ALOGV("%s: Getting buffer", __FUNCTION__);
+    res = mCallbackConsumer->lockNextBuffer(&imgBuffer);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Error receiving next callback buffer: "
+                "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+        return;
+    }
+
+    {
+        LockedParameters::Key k(mParameters);
+
+        if ( k.mParameters.state != PREVIEW && k.mParameters.state != RECORD
+                && k.mParameters.state != VIDEO_SNAPSHOT) {
+            ALOGV("%s: Camera %d: No longer streaming",
+                    __FUNCTION__, mCameraId);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+
+        if (! (k.mParameters.previewCallbackFlags &
+                CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK) ) {
+            ALOGV("%s: No longer enabled, dropping", __FUNCTION__);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+        if ((k.mParameters.previewCallbackFlags &
+                        CAMERA_FRAME_CALLBACK_FLAG_ONE_SHOT_MASK) &&
+                !k.mParameters.previewCallbackOneShot) {
+            ALOGV("%s: One shot mode, already sent, dropping", __FUNCTION__);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+
+        if (imgBuffer.format != k.mParameters.previewFormat) {
+            ALOGE("%s: Camera %d: Unexpected format for callback: "
+                    "%x, expected %x", __FUNCTION__, mCameraId,
+                    imgBuffer.format, k.mParameters.previewFormat);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+
+        size_t bufferSize = calculateBufferSize(imgBuffer.width, imgBuffer.height,
+                imgBuffer.format, imgBuffer.stride);
+        size_t currentBufferSize = (mCallbackHeap == 0) ?
+                0 : (mCallbackHeap->mHeap->getSize() / kCallbackHeapCount);
+        if (bufferSize != currentBufferSize) {
+            mCallbackHeap.clear();
+            mCallbackHeap = new Camera2Heap(bufferSize, kCallbackHeapCount,
+                    "Camera2Client::CallbackHeap");
+            if (mCallbackHeap->mHeap->getSize() == 0) {
+                ALOGE("%s: Camera %d: Unable to allocate memory for callbacks",
+                        __FUNCTION__, mCameraId);
+                mCallbackConsumer->unlockBuffer(imgBuffer);
+                return;
+            }
+
+            mCallbackHeapHead = 0;
+            mCallbackHeapFree = kCallbackHeapCount;
+            mCallbackHeapId++;
+        }
+
+        if (mCallbackHeapFree == 0) {
+            ALOGE("%s: Camera %d: No free callback buffers, dropping frame",
+                    __FUNCTION__, mCameraId);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return;
+        }
+        heapIdx = mCallbackHeapHead;
+        callbackHeap = mCallbackHeap;
+        callbackHeapId = mCallbackHeapId;
+
+        mCallbackHeapHead = (mCallbackHeapHead + 1) & kCallbackHeapCount;
+        mCallbackHeapFree--;
+
+        // TODO: Get rid of this memcpy by passing the gralloc queue all the way
+        // to app
+
+        ssize_t offset;
+        size_t size;
+        sp<IMemoryHeap> heap =
+            mCallbackHeap->mBuffers[heapIdx]->getMemory(&offset,
+                    &size);
+        uint8_t *data = (uint8_t*)heap->getBase() + offset;
+        memcpy(data, imgBuffer.data, bufferSize);
+
+        ALOGV("%s: Freeing buffer", __FUNCTION__);
+        mCallbackConsumer->unlockBuffer(imgBuffer);
+
+        // In one-shot mode, stop sending callbacks after the first one
+        if (k.mParameters.previewCallbackFlags &
+                CAMERA_FRAME_CALLBACK_FLAG_ONE_SHOT_MASK) {
+            ALOGV("%s: clearing oneshot", __FUNCTION__);
+            k.mParameters.previewCallbackOneShot = false;
+        }
+    }
+
+    // Call outside parameter lock to allow re-entrancy from notification
+    {
+        Mutex::Autolock iccl(mICameraClientLock);
+        if (mCameraClient != 0) {
+            ALOGV("%s: Camera %d: Invoking client data callback",
+                    __FUNCTION__, mCameraId);
+            mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
+                    callbackHeap->mBuffers[heapIdx], NULL);
+        }
+    }
+
+    LockedParameters::Key k(mParameters);
+    // Only increment free if we're still using the same heap
+    if (mCallbackHeapId == callbackHeapId) {
+        mCallbackHeapFree++;
+    }
+
+    ALOGV("%s: exit", __FUNCTION__);
+}
 
 void Camera2Client::onCaptureAvailable() {
     ATRACE_CALL();
     status_t res;
-    sp<ICameraClient> currentClient;
+    sp<Camera2Heap> captureHeap;
     ALOGV("%s: Camera %d: Still capture available", __FUNCTION__, mCameraId);
 
-    CpuConsumer::LockedBuffer imgBuffer;
     {
-        Mutex::Autolock icl(mICameraLock);
-
-        // TODO: Signal errors here upstream
-        if (mState != STILL_CAPTURE && mState != VIDEO_SNAPSHOT) {
-            ALOGE("%s: Camera %d: Still image produced unexpectedly!",
-                    __FUNCTION__, mCameraId);
-            return;
-        }
+        LockedParameters::Key k(mParameters);
+        CpuConsumer::LockedBuffer imgBuffer;
 
         res = mCaptureConsumer->lockNextBuffer(&imgBuffer);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error receiving still image buffer: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
+            return;
+        }
+
+        // TODO: Signal errors here upstream
+        if (k.mParameters.state != STILL_CAPTURE &&
+                k.mParameters.state != VIDEO_SNAPSHOT) {
+            ALOGE("%s: Camera %d: Still image produced unexpectedly!",
+                    __FUNCTION__, mCameraId);
+            mCaptureConsumer->unlockBuffer(imgBuffer);
             return;
         }
 
@@ -2031,45 +2277,37 @@ void Camera2Client::onCaptureAvailable() {
 
         mCaptureConsumer->unlockBuffer(imgBuffer);
 
-        switch (mState) {
+        switch (k.mParameters.state) {
             case STILL_CAPTURE:
-                mState = STOPPED;
+                k.mParameters.state = STOPPED;
                 break;
             case VIDEO_SNAPSHOT:
-                mState = RECORD;
+                k.mParameters.state = RECORD;
                 break;
             default:
                 ALOGE("%s: Camera %d: Unexpected state %d", __FUNCTION__,
-                        mCameraId, mState);
+                        mCameraId, k.mParameters.state);
                 break;
         }
 
-        Mutex::Autolock iccl(mICameraClientLock);
-        currentClient = mCameraClient;
+        captureHeap = mCaptureHeap;
     }
-    // Call outside mICameraLock to allow re-entrancy from notification
-    if (currentClient != 0) {
-        currentClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
-                mCaptureHeap->mBuffers[0], NULL);
+    // Call outside parameter locks to allow re-entrancy from notification
+    Mutex::Autolock iccl(mICameraClientLock);
+    if (mCameraClient != 0) {
+        mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
+                captureHeap->mBuffers[0], NULL);
     }
 }
 
 void Camera2Client::onRecordingFrameAvailable() {
     ATRACE_CALL();
     status_t res;
-    sp<ICameraClient> currentClient;
+    sp<Camera2Heap> recordingHeap;
     size_t heapIdx = 0;
     nsecs_t timestamp;
     {
-        Mutex::Autolock icl(mICameraLock);
-        // TODO: Signal errors here upstream
-        bool discardData = false;
-        if (mState != RECORD && mState != VIDEO_SNAPSHOT) {
-            ALOGV("%s: Camera %d: Discarding recording image buffers received after "
-                    "recording done",
-                    __FUNCTION__, mCameraId);
-            discardData = true;
-        }
+        LockedParameters::Key k(mParameters);
 
         buffer_handle_t imgBuffer;
         res = mRecordingConsumer->getNextBuffer(&imgBuffer, &timestamp);
@@ -2079,7 +2317,15 @@ void Camera2Client::onRecordingFrameAvailable() {
             return;
         }
 
-        if (discardData) {
+        mRecordingFrameCount++;
+        ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
+
+        // TODO: Signal errors here upstream
+        if (k.mParameters.state != RECORD &&
+                k.mParameters.state != VIDEO_SNAPSHOT) {
+            ALOGV("%s: Camera %d: Discarding recording image buffers received after "
+                    "recording done",
+                    __FUNCTION__, mCameraId);
             mRecordingConsumer->freeBuffer(imgBuffer);
             return;
         }
@@ -2089,14 +2335,6 @@ void Camera2Client::onRecordingFrameAvailable() {
             ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
                     "size %d bytes", __FUNCTION__, mCameraId,
                     mRecordingHeapCount, bufferSize);
-            if (mRecordingHeap != 0) {
-                ALOGV("%s: Camera %d: Previous heap has size %d "
-                        "(new will be %d) bytes", __FUNCTION__, mCameraId,
-                        mRecordingHeap->mHeap->getSize(),
-                        bufferSize * mRecordingHeapCount);
-            }
-            // Need to allocate memory for heap
-            mRecordingHeap.clear();
 
             mRecordingHeap = new Camera2Heap(bufferSize, mRecordingHeapCount,
                     "Camera2Client::RecordingHeap");
@@ -2116,6 +2354,7 @@ void Camera2Client::onRecordingFrameAvailable() {
             mRecordingConsumer->freeBuffer(imgBuffer);
             return;
         }
+
         heapIdx = mRecordingHeapHead;
         mRecordingHeapHead = (mRecordingHeapHead + 1) % mRecordingHeapCount;
         mRecordingHeapFree--;
@@ -2135,14 +2374,15 @@ void Camera2Client::onRecordingFrameAvailable() {
         memcpy(data + 4, &imgBuffer, sizeof(buffer_handle_t));
         ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
                 __FUNCTION__, mCameraId, imgBuffer);
-        Mutex::Autolock iccl(mICameraClientLock);
-        currentClient = mCameraClient;
+        recordingHeap = mRecordingHeap;
     }
-    // Call outside mICameraLock to allow re-entrancy from notification
-    if (currentClient != 0) {
-        currentClient->dataCallbackTimestamp(timestamp,
+
+    // Call outside locked parameters to allow re-entrancy from notification
+    Mutex::Autolock iccl(mICameraClientLock);
+    if (mCameraClient != 0) {
+        mCameraClient->dataCallbackTimestamp(timestamp,
                 CAMERA_MSG_VIDEO_FRAME,
-                mRecordingHeap->mBuffers[heapIdx]);
+                recordingHeap->mBuffers[heapIdx]);
     }
 }
 
@@ -2924,8 +3164,14 @@ status_t Camera2Client::buildDefaultParameters() {
     k.mParameters.storeMetadataInBuffers = true;
     k.mParameters.playShutterSound = true;
     k.mParameters.enableFaceDetect = false;
+
+    k.mParameters.enableFocusMoveMessages = false;
     k.mParameters.afTriggerCounter = 0;
     k.mParameters.currentAfTriggerId = -1;
+
+    k.mParameters.previewCallbackFlags = 0;
+
+    k.mParameters.state = STOPPED;
 
     k.mParameters.paramsFlattened = params.flatten();
 
@@ -2955,14 +3201,14 @@ status_t Camera2Client::updateRequests(const Parameters &params) {
         return res;
     }
 
-    if (mState == PREVIEW) {
+    if (params.state == PREVIEW) {
         res = mDevice->setStreamingRequest(mPreviewRequest);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error streaming new preview request: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
-    } else if (mState == RECORD || mState == VIDEO_SNAPSHOT) {
+    } else if (params.state == RECORD || params.state == VIDEO_SNAPSHOT) {
         res = mDevice->setStreamingRequest(mRecordingRequest);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error streaming new record request: %s (%d)",
@@ -3055,6 +3301,64 @@ status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
 
     return OK;
 }
+
+status_t Camera2Client::updateCallbackStream(const Parameters &params) {
+    status_t res;
+
+    if (mCallbackConsumer == 0) {
+        // Create CPU buffer queue endpoint
+        mCallbackConsumer = new CpuConsumer(kCallbackHeapCount);
+        mCallbackWaiter = new CallbackWaiter(this);
+        mCallbackConsumer->setFrameAvailableListener(mCallbackWaiter);
+        mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
+        mCallbackWindow = new SurfaceTextureClient(
+            mCallbackConsumer->getProducerInterface());
+    }
+
+    if (mCallbackStreamId != NO_STREAM) {
+        // Check if stream parameters have to change
+        uint32_t currentWidth, currentHeight, currentFormat;
+        res = mDevice->getStreamInfo(mCallbackStreamId,
+                &currentWidth, &currentHeight, &currentFormat);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error querying callback output stream info: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        if (currentWidth != (uint32_t)params.previewWidth ||
+                currentHeight != (uint32_t)params.previewHeight ||
+                currentFormat != (uint32_t)params.previewFormat) {
+            // Since size should only change while preview is not running,
+            // assuming that all existing use of old callback stream is
+            // completed.
+            res = mDevice->deleteStream(mCallbackStreamId);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete old output stream "
+                        "for callbacks: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
+            mCallbackStreamId = NO_STREAM;
+        }
+    }
+
+    if (mCallbackStreamId == NO_STREAM) {
+        ALOGV("Creating callback stream: %d %d format 0x%x",
+                params.previewWidth, params.previewHeight,
+                params.previewFormat);
+        res = mDevice->createStream(mCallbackWindow,
+                params.previewWidth, params.previewHeight,
+                params.previewFormat, 0, &mCallbackStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't create output stream for callbacks: "
+                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    return OK;
+}
+
 
 status_t Camera2Client::updateCaptureStream(const Parameters &params) {
     ATRACE_CALL();
@@ -3219,8 +3523,10 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
     status_t res;
 
     if (mRecordingConsumer == 0) {
-        // Create CPU buffer queue endpoint
-        mRecordingConsumer = new MediaConsumer(mRecordingHeapCount);
+        // Create CPU buffer queue endpoint. We need one more buffer here so that we can
+        // always acquire and free a buffer when the heap is full; otherwise the consumer
+        // will have buffers in flight we'll never clear out.
+        mRecordingConsumer = new MediaConsumer(mRecordingHeapCount + 1);
         mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
         mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
         mRecordingWindow = new SurfaceTextureClient(
@@ -3253,6 +3559,7 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
     }
 
     if (mRecordingStreamId == NO_STREAM) {
+        mRecordingFrameCount = 0;
         res = mDevice->createStream(mRecordingWindow,
                 params.videoWidth, params.videoHeight,
                 CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0, &mRecordingStreamId);
@@ -3764,5 +4071,32 @@ int Camera2Client::degToTransform(int degrees, bool mirror) {
     return -1;
 }
 
+size_t Camera2Client::calculateBufferSize(int width, int height,
+        int format, int stride) {
+    switch (format) {
+        case HAL_PIXEL_FORMAT_YCbCr_422_SP: // NV16
+            return width * height * 2;
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP: // NV21
+            return width * height * 3 / 2;
+        case HAL_PIXEL_FORMAT_YCbCr_422_I: // YUY2
+            return width * height * 2;
+        case HAL_PIXEL_FORMAT_YV12: {      // YV12
+            size_t ySize = stride * height;
+            size_t uvStride = (stride / 2 + 0xF) & ~0x10;
+            size_t uvSize = uvStride * height / 2;
+            return ySize + uvSize * 2;
+        }
+        case HAL_PIXEL_FORMAT_RGB_565:
+            return width * height * 2;
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            return width * height * 4;
+        case HAL_PIXEL_FORMAT_RAW_SENSOR:
+            return width * height * 2;
+        default:
+            ALOGE("%s: Unknown preview format: %x",
+                    __FUNCTION__,  format);
+            return 0;
+    }
+}
 
 } // namespace android

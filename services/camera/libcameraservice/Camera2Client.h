@@ -93,8 +93,7 @@ private:
         RECORD,
         STILL_CAPTURE,
         VIDEO_SNAPSHOT
-    } mState;
-
+    };
     static const char *getStateName(State state);
 
     /** ICamera interface-related private members */
@@ -110,13 +109,14 @@ private:
     // up to the camera user
     mutable Mutex mICameraClientLock;
 
+    class Parameters;
+
     status_t setPreviewWindowL(const sp<IBinder>& binder,
             sp<ANativeWindow> window);
-
-    void stopPreviewL();
-    status_t startPreviewL();
-
-    bool recordingEnabledL();
+    status_t startPreviewL(Parameters &params, bool restart);
+    void     stopPreviewL();
+    status_t startRecordingL(Parameters &params, bool restart);
+    bool     recordingEnabledL();
 
     // Individual commands for sendCommand()
     status_t commandStartSmoothZoomL();
@@ -125,7 +125,7 @@ private:
     status_t commandEnableShutterSoundL(bool enable);
     status_t commandPlayRecordingSoundL();
     status_t commandStartFaceDetectionL(int type);
-    status_t commandStopFaceDetectionL();
+    status_t commandStopFaceDetectionL(Parameters &params);
     status_t commandEnableFocusMoveMsgL(bool enable);
     status_t commandPingL();
     status_t commandSetVideoBufferCountL(size_t count);
@@ -214,6 +214,12 @@ private:
         int afTriggerCounter;
         int currentAfTriggerId;
         bool afInMotion;
+
+        uint32_t previewCallbackFlags;
+        bool previewCallbackOneShot;
+
+        // Overall camera state
+        State state;
     };
 
     // This class encapsulates the Parameters class so that it can only be accessed
@@ -284,6 +290,7 @@ private:
 
     class Camera2Heap;
 
+    void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(const Parameters &params);
 
     // Number of zoom steps to simulate
@@ -304,6 +311,30 @@ private:
 
     status_t updatePreviewRequest(const Parameters &params);
     status_t updatePreviewStream(const Parameters &params);
+
+    /** Preview callback related members */
+
+    int mCallbackStreamId;
+    static const size_t kCallbackHeapCount = 6;
+    sp<CpuConsumer>    mCallbackConsumer;
+    sp<ANativeWindow>  mCallbackWindow;
+    // Simple listener that forwards frame available notifications from
+    // a CPU consumer to the callback notification
+    class CallbackWaiter: public CpuConsumer::FrameAvailableListener {
+      public:
+        CallbackWaiter(Camera2Client *parent) : mParent(parent) {}
+        void onFrameAvailable() { mParent->onCallbackAvailable(); }
+      private:
+        Camera2Client *mParent;
+    };
+    sp<CallbackWaiter>  mCallbackWaiter;
+    sp<Camera2Heap>     mCallbackHeap;
+    int mCallbackHeapId;
+    size_t mCallbackHeapHead, mCallbackHeapFree;
+    // Handle callback image buffers
+    void onCallbackAvailable();
+
+    status_t updateCallbackStream(const Parameters &params);
 
     /* Still image capture related members */
 
@@ -331,6 +362,7 @@ private:
     /* Recording related members */
 
     int mRecordingStreamId;
+    int mRecordingFrameCount;
     sp<MediaConsumer>    mRecordingConsumer;
     sp<ANativeWindow>  mRecordingWindow;
     // Simple listener that forwards frame available notifications from
@@ -445,6 +477,8 @@ private:
     // Map from camera orientation + facing to gralloc transform enum
     static int degToTransform(int degrees, bool mirror);
 
+    static size_t calculateBufferSize(int width, int height,
+            int format, int stride);
 };
 
 }; // namespace android
