@@ -52,6 +52,7 @@
 #endif
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
+#include <media/stagefright/FMRadioSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
@@ -2315,6 +2316,13 @@ status_t AwesomePlayer::finishSetDataSource_l() {
                 ALOGI("Prepare cancelled while waiting for initial cache fill.");
                 return UNKNOWN_ERROR;
             }
+        }
+    } else if (!strncasecmp("fmradio://rx", mUri.string(), 12)) {
+        sniffedMIME = MEDIA_MIMETYPE_AUDIO_RAW;
+        dataSource = new FMRadioSource();
+        status_t err = dataSource->initCheck();
+        if (err != OK) {
+            return err;
         }
     } else {
         dataSource = DataSource::CreateFromURI(mUri.string(), &mUriHeaders);

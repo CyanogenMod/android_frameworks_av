@@ -24,6 +24,7 @@ LOCAL_SRC_FILES:=                         \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
         FileSource.cpp                    \
+        FMRadioSource.cpp                 \
         FLACExtractor.cpp                 \
         FragmentedMP4Extractor.cpp        \
         HTTPBase.cpp                      \
@@ -45,6 +46,7 @@ LOCAL_SRC_FILES:=                         \
         OMXClient.cpp                     \
         OMXCodec.cpp                      \
         OggExtractor.cpp                  \
+        PCMExtractor.cpp                  \
         SampleIterator.cpp                \
         SampleTable.cpp                   \
         SkipCutBuffer.cpp                 \
