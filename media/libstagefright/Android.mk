@@ -24,6 +24,7 @@ LOCAL_SRC_FILES:=                         \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
         FileSource.cpp                    \
+        FMRadioSource.cpp                 \
         FLACExtractor.cpp                 \
         FragmentedMP4Extractor.cpp        \
         HTTPBase.cpp                      \
@@ -76,6 +77,11 @@ LOCAL_CPPFLAGS += -DUSE_TI_CUSTOM_DOMX
 else
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
 endif
+
+ifeq ($(BOARD_USES_STE_FMRADIO),true)
+LOCAL_SRC_FILES += \
+        FMRadioSource.cpp                 \
+        PCMExtractor.cpp                  \
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES += \
