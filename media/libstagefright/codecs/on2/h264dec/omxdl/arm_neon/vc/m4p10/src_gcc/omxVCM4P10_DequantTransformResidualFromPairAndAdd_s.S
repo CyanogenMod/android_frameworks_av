@@ -26,9 +26,12 @@ omxVCM4P10_DequantTransformResidualFromPairAndAdd:
     MOV      r1,r4
     BL       armVCM4P10_UnpackBlock4x4  ;//
     LDR      r1,[sp,#0x60]
-    LDR      r11, =armVCM4P10_QPModuloTable
-    LDR      r10, =armVCM4P10_QPDivTable
-    LDR      r2,  =armVCM4P10_VMatrixU16
+    LDR      r11, .LarmVCM4P10_QPModuloTable
+P0: ADD      r11, pc
+    LDR      r10, .LarmVCM4P10_QPDivTable
+P1: ADD      r10, pc
+    LDR      r2, .LarmVCM4P10_VMatrixU16
+P2: ADD      r2, pc
     LDRSB    r12,[r11,r1]
     LDRSB    lr,[r10,r1]
     LDR      r10, =0x3020504
@@ -114,6 +117,13 @@ L0x130:
     VPOP     {d8-d9}
     POP      {r4-r12,pc}
     .endfunc
+
+.LarmVCM4P10_QPModuloTable:
+    .word   armVCM4P10_QPModuloTable-(P0+8)
+.LarmVCM4P10_QPDivTable:
+    .word   armVCM4P10_QPDivTable-(P1+8)
+.LarmVCM4P10_VMatrixU16:
+    .word   armVCM4P10_VMatrixU16-(P2+8)
 
     .end
 

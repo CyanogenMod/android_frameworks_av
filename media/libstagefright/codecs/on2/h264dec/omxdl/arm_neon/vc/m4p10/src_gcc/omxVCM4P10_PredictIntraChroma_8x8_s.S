@@ -8,31 +8,31 @@
 
     .arm
     .fpu neon
-    .section .rodata
+    .text
     .align 4
 
 armVCM4P10_pIndexTable8x8:
-    .word  OMX_VC_CHROMA_DC,     OMX_VC_CHROMA_HOR
-    .word  OMX_VC_CHROMA_VERT,   OMX_VC_CHROMA_PLANE
+    .word  OMX_VC_CHROMA_DC-(P0+8),    OMX_VC_CHROMA_HOR-(P0+8)
+    .word  OMX_VC_CHROMA_VERT-(P0+8),  OMX_VC_CHROMA_PLANE-(P0+8)
 
 armVCM4P10_MultiplierTableChroma8x8:
     .hword   3, 2, 1,4
     .hword  -3,-2,-1,0
     .hword   1, 2, 3,4
 
-
-    .text
     .global omxVCM4P10_PredictIntraChroma_8x8
     .func   omxVCM4P10_PredictIntraChroma_8x8
 omxVCM4P10_PredictIntraChroma_8x8:
     PUSH     {r4-r10,lr}
     VPUSH    {d8-d15}
-    LDR      r8, =armVCM4P10_pIndexTable8x8
+    ADR      r8, armVCM4P10_pIndexTable8x8
     LDR      r6,[sp,#0x68]
     LDR      r4,[sp,#0x60]
     LDR      r5,[sp,#0x64]
     LDR      r7,[sp,#0x6c]
-    LDR      pc,[r8,r6,LSL #2]
+    LDR      r8,[r8,r6,LSL #2]
+P0: ADD      pc,r8
+
 OMX_VC_CHROMA_DC:
     TST      r7,#2
     BEQ      L0xe8
@@ -151,7 +151,7 @@ OMX_VC_CHROMA_PLANE:
     VSUBL.U8 q7,d3,d2
     VSHR.U64 d3,d3,#8
     VSUBL.U8 q6,d3,d1
-    LDR      r2, =armVCM4P10_MultiplierTableChroma8x8
+    ADR      r2, armVCM4P10_MultiplierTableChroma8x8
     VSHL.I64 d4,d4,#16
     VEXT.8   d9,d4,d6,#2
     VLD1.16  {d10},[r2]!
