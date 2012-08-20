@@ -32,8 +32,10 @@ unpackLoop:
     beq     unpackLoop
     ldmia   r1, {r3, r4}
     str     r9, [r0, #0]
-    ldr     r5, =armVCM4P10_QPDivTable
-    ldr     r6, =armVCM4P10_VMatrixQPModTable
+    ldr     r5, .LarmVCM4P10_QPDivTable
+P0: add     r5, pc
+    ldr     r6, .LarmVCM4P10_VMatrixQPModTable
+P1: add     r6, pc
     saddsubx        r3, r3, r3
     saddsubx        r4, r4, r4
     ldrsb   r9, [r5, r2]
@@ -50,5 +52,10 @@ unpackLoop:
     mov     r0, #0
     pop     {r4-r10, pc}
     .endfunc
+
+.LarmVCM4P10_QPDivTable:
+    .word armVCM4P10_QPDivTable-(P0+8)
+.LarmVCM4P10_VMatrixQPModTable:
+    .word armVCM4P10_VMatrixQPModTable-(P1+8)
 
     .end
