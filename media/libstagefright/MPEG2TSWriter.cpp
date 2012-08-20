@@ -934,7 +934,7 @@ void MPEG2TSWriter::writeAccessUnit(
 
     size_t offset = copy;
     while (offset < accessUnit->size()) {
-        bool lastAccessUnit = ((accessUnit->size() - offset) < 183);
+        bool lastAccessUnit = ((accessUnit->size() - offset) < 184);
         // for subsequent fragments of "buffer":
         // 0x47
         // transport_error_indicator = b0
