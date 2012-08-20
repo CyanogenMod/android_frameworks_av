@@ -68,6 +68,12 @@ LOCAL_SRC_FILES:=                         \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
 
+ifeq ($(BOARD_USES_STE_FMRADIO),true)
+LOCAL_SRC_FILES+=                         \
+        FMRadioSource.cpp                 \
+        PCMExtractor.cpp
+endif
+
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES+=                         \
         ExtendedExtractor.cpp             \
