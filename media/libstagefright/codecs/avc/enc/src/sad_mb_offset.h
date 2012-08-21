@@ -230,7 +230,7 @@ __inline int32 sad_mb_offset1(uint8 *ref, uint8 *blk, int lx, int dmin)
     x4 = x5 = 0;
     x8 = 16; //<<===========*******
 
-__asm__ volatile("MVN	%0, #0xFF0000": "=r"(x6));
+    __asm__ volatile("MVN       %0, #0xFF0000": "=r"(x6));
 
 #if (NUMBER==3)
 LOOP_SAD3:
@@ -239,7 +239,7 @@ LOOP_SAD2:
 #elif (NUMBER==1)
 LOOP_SAD1:
 #endif
-__asm__ volatile("BIC  %0, %0, #3": "=r"(ref));
+    __asm__ volatile("BIC  %0, %0, #3": "=r"(ref));
     /****** process 8 pixels ******/
     x11 = *((int32*)(ref + 12));
     x12 = *((int32*)(ref + 16));
@@ -247,11 +247,32 @@ __asm__ volatile("BIC  %0, %0, #3": "=r"(ref));
     x14 = *((int32*)(blk + 12));
 
 #if (SHIFT==8)
-__asm__ volatile("MVN   %0, %0, lsr #8\n\tBIC   %0, %0, %1,lsl #24\n\tMVN   %1, %1,lsr #8\n\tBIC   %1, %1, %2,lsl #24": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #8\n\t"
+        "BIC   %0, %0, %1, lsl #24\n\t"
+        "MVN   %1, %1, lsr #8\n\t"
+        "BIC   %1, %1, %2, lsl #24"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #elif (SHIFT==16)
-__asm__ volatile("MVN   %0, %0, lsr #16\n\tBIC   %0, %0, %1,lsl #16\n\tMVN   %1, %1,lsr #16\n\tBIC   %1, %1, %2,lsl #16": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #16\n\t"
+        "BIC   %0, %0, %1, lsl #16\n\t"
+        "MVN   %1, %1, lsr #16\n\t"
+        "BIC   %1, %1, %2, lsl #16"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #elif (SHIFT==24)
-__asm__ volatile("MVN   %0, %0, lsr #24\n\tBIC   %0, %0, %1,lsl #8\n\tMVN   %1, %1,lsr #24\n\tBIC   %1, %1, %2,lsl #8": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #24\n\t"
+        "BIC   %0, %0, %1, lsl #8\n\t"
+        "MVN   %1, %1, lsr #24\n\t"
+        "BIC   %1, %1, %2, lsl #8"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #endif
 
     x12 = *((int32*)(blk + 8));
@@ -271,13 +292,34 @@ __asm__ volatile("MVN   %0, %0, lsr #24\n\tBIC   %0, %0, %1,lsl #8\n\tMVN   %1, 
     x14 = *((int32*)(blk + 4));
 
 #if (SHIFT==8)
-__asm__ volatile("MVN   %0, %0, lsr #8\n\tBIC   %0, %0, %1,lsl #24\n\tMVN   %1, %1,lsr #8\n\tBIC   %1, %1, %2,lsl #24": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #8\n\t"
+        "BIC   %0, %0, %1, lsl #24\n\t"
+        "MVN   %1, %1, lsr #8\n\t"
+        "BIC   %1, %1, %2, lsl #24"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #elif (SHIFT==16)
-__asm__ volatile("MVN   %0, %0, lsr #16\n\tBIC   %0, %0, %1,lsl #16\n\tMVN   %1, %1,lsr #16\n\tBIC   %1, %1, %2,lsl #16": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #16\n\t"
+        "BIC   %0, %0, %1, lsl #16\n\t"
+        "MVN   %1, %1, lsr #16\n\t"
+        "BIC   %1, %1, %2, lsl #16"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #elif (SHIFT==24)
-__asm__ volatile("MVN   %0, %0, lsr #24\n\tBIC   %0, %0, %1,lsl #8\n\tMVN   %1, %1,lsr #24\n\tBIC   %1, %1, %2,lsl #8": "=&r"(x10), "=&r"(x11): "r"(x12));
+    __asm__ volatile(
+        "MVN   %0, %0, lsr #24\n\t"
+        "BIC   %0, %0, %1, lsl #8\n\t"
+        "MVN   %1, %1, lsr #24\n\t"
+        "BIC   %1, %1, %2, lsl #8"
+        : "=&r"(x10), "=&r"(x11)
+        : "r"(x12)
+    );
 #endif
-__asm__ volatile("LDR   %0, [%1], #16": "=&r"(x12), "=r"(blk));
+    __asm__ volatile("LDR   %0, [%1], #16": "=&r"(x12), "=r"(blk));
 
     /* process x11 & x14 */
     x11 = sad_4pixelN(x11, x14, x9);
