@@ -24,8 +24,7 @@ extern "C"
 {
 #endif
 
-/* Intentionally not using the gcc asm version, since it (if fixed so
- * as to not crash - the current register constraints are faulty) is
+/* Intentionally not using the gcc asm version, since it is
  * slightly slower than the plain C version on modern GCC versions. */
 #if !defined(__CC_ARM) /* Generic C version */
 
