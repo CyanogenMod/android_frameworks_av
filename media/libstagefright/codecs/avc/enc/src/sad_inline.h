@@ -347,8 +347,8 @@ SadMBOffset1:
             "rsbs       %1, %1, %2\n\t"
             "rsbmi      %1, %1, #0\n\t"
             "add        %0, %0, %1"
-            : "=r"(sad)
-            : "r"(tmp), "r"(tmp2)
+            : "+r"(sad), "+r"(tmp)
+            : "r"(tmp2)
         );
         return sad;
     }
@@ -366,7 +366,7 @@ SadMBOffset1:
             "RSB        %1, %1, %1, lsl #8\n\t"
             "ADD        %0, %0, %1, asr #7\n\t"
             "EOR        %0, %0, %1, asr #7"
-            : "=r"(src1), "=&r"(x7)
+            : "+r"(src1), "=&r"(x7)
             : "r"(src2), "r"(mask)
         );
 
@@ -385,7 +385,7 @@ SadMBOffset1:
             "RSB        %1, %1, %1, lsl #8\n\t"
             "SUB        %0, %0, %1, asr #7\n\t"
             "EOR        %0, %0, %1, asr #7"
-            : "=r"(src1), "=&r"(x7)
+            : "+r"(src1), "=&r"(x7)
             : "r"(src2), "r"(mask)
         );
 
@@ -399,7 +399,7 @@ SadMBOffset1:
     "SBC   %0, %0, %3\n\t"                             \
     "BIC   %3, %4, %3\n\t"                             \
     "ADD   %2, %2, %3, lsr #8"                         \
-    : "=&r" (x5), "=&r" (x10), "=&r" (x4), "=&r" (x11) \
+    : "+r" (x5), "+r" (x10), "+r" (x4), "+r" (x11)     \
     : "r" (x6)                                         \
     );
 
@@ -467,10 +467,10 @@ LOOP_SAD0:
 
         /****** process 8 pixels ******/
         x11 = *((int32*)(ref + 4));
-        __asm__ volatile("LDR   %0, [%1], %2": "=&r"(x10), "=r"(ref): "r"(lx));
+        __asm__ volatile("LDR   %0, [%1], %2": "=&r"(x10), "+r"(ref): "r"(lx));
         //x10 = *((int32*)ref); ref+=lx;
         x14 = *((int32*)(blk + 4));
-        __asm__ volatile("LDR   %0, [%1], #16": "=&r"(x12), "=r"(blk));
+        __asm__ volatile("LDR   %0, [%1], #16": "=&r"(x12), "+r"(blk));
 
         /* process x11 & x14 */
         x11 = sad_4pixel(x11, x14, x9);
