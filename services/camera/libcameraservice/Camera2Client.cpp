@@ -2010,7 +2010,11 @@ status_t Camera2Client::processFrameFaceDetect(camera_metadata_t *frame) {
     }
     res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_DETECT_MODE,
             &entry);
-    if (res != OK) {
+    // TODO: Remove this check once things are more compliant. For now, assume that
+    // if we can't find the face detect mode, then it's probably not working.
+    if (res == NAME_NOT_FOUND) {
+        return OK;
+    } else if (res != OK) {
         ALOGE("%s: Camera %d: Error reading face mode: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
