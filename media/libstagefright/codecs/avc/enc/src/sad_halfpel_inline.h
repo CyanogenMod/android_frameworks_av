@@ -81,7 +81,7 @@ extern "C"
             "rsbs       %1, %1, %2, asr #1\n\t"
             "rsbmi      %1, %1, #0\n\t"
             "add        %0, %0, %1"
-            : "=r"(sad), "=r"(tmp)
+            : "+r"(sad), "+r"(tmp)
             : "r"(tmp2)
         );
 
@@ -94,7 +94,7 @@ extern "C"
             "rsbs       %1, %2, %1, asr #2\n\t"
             "rsbmi      %1, %1, #0\n\t"
             "add        %0, %0, %1"
-            : "=r"(sad), "=r"(tmp)
+            : "+r"(sad), "+r"(tmp)
             : "r"(tmp2)
         );
 
