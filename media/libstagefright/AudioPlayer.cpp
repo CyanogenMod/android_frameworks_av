@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +50,9 @@ AudioPlayer::AudioPlayer(
       mReachedEOS(false),
       mFinalStatus(OK),
       mStarted(false),
+#ifdef QCOM_HARDWARE
+      mSourcePaused(false),
+#endif
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
@@ -75,6 +79,9 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     status_t err;
     if (!sourceAlreadyStarted) {
+#ifdef QCOM_HARDWARE
+        mSourcePaused = false;
+#endif
         err = mSource->start();
 
         if (err != OK) {
@@ -214,11 +221,23 @@ void AudioPlayer::pause(bool playPendingSamples) {
 
         mPinnedTimeUs = ALooper::GetNowUs();
     }
+#ifdef QCOM_HARDWARE
+    CHECK(mSource != NULL);
+    if (mSource->pause() == OK) {
+        mSourcePaused = true;
+    }
+#endif
 }
 
 void AudioPlayer::resume() {
     CHECK(mStarted);
-
+#ifdef QCOM_HARDWARE
+    CHECK(mSource != NULL);
+    if (mSourcePaused == true) {
+        mSourcePaused = false;
+        mSource->start();
+    }
+#endif
     if (mAudioSink.get() != NULL) {
         mAudioSink->start();
     } else {
@@ -254,6 +273,9 @@ void AudioPlayer::reset() {
         mInputBuffer = NULL;
     }
 
+#ifdef QCOM_HARDWARE
+    mSourcePaused = false;
+#endif
     mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
