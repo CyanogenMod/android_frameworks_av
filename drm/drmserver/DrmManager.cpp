@@ -266,12 +266,12 @@ status_t DrmManager::saveRights(int uniqueId, const DrmRights& drmRights,
     return result;
 }
 
-String8 DrmManager::getOriginalMimeType(int uniqueId, const String8& path) {
+String8 DrmManager::getOriginalMimeType(int uniqueId, const String8& path, int fd) {
     Mutex::Autolock _l(mLock);
     const String8 plugInId = getSupportedPlugInIdFromPath(uniqueId, path);
     if (EMPTY_STRING != plugInId) {
         IDrmEngine& rDrmEngine = mPlugInManager.getPlugIn(plugInId);
-        return rDrmEngine.getOriginalMimeType(uniqueId, path);
+        return rDrmEngine.getOriginalMimeType(uniqueId, path, fd);
     }
     return EMPTY_STRING;
 }

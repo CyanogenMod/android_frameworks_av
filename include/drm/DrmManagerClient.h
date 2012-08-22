@@ -279,10 +279,11 @@ public:
      * Retrieves the mime type embedded inside the original content
      *
      * @param[in] path the path of the protected content
+     * @param[in] fd the file descriptor of the protected content
      * @return String8
      *     Returns mime-type of the original content, such as "video/mpeg"
      */
-    String8 getOriginalMimeType(const String8& path);
+    String8 getOriginalMimeType(const String8& path, int fd);
 
     /**
      * Retrieves the type of the protected object (content, rights, etc..)

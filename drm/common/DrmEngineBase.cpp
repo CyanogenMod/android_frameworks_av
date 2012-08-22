@@ -66,8 +66,8 @@ DrmInfo* DrmEngineBase::acquireDrmInfo(int uniqueId, const DrmInfoRequest* drmIn
     return onAcquireDrmInfo(uniqueId, drmInfoRequest);
 }
 
-String8 DrmEngineBase::getOriginalMimeType(int uniqueId, const String8& path) {
-    return onGetOriginalMimeType(uniqueId, path);
+String8 DrmEngineBase::getOriginalMimeType(int uniqueId, const String8& path, int fd) {
+    return onGetOriginalMimeType(uniqueId, path, fd);
 }
 
 int DrmEngineBase::getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType) {

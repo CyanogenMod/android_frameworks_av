@@ -36,16 +36,6 @@ extern "C" {
 int FwdLockFile_attach(int fileDesc);
 
 /**
- * Opens a Forward Lock file for reading.
- *
- * @param[in] pFilename A reference to a filename.
- *
- * @return A file descriptor.
- * @retval -1 Failure.
- */
-int FwdLockFile_open(const char *pFilename);
-
-/**
  * Reads the specified number of bytes from an open Forward Lock file.
  *
  * @param[in] fileDesc The file descriptor of an open Forward Lock file.
