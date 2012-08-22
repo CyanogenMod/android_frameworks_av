@@ -23,7 +23,7 @@
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
-#include "MediaConsumer.h"
+#include <gui/BufferItemConsumer.h>
 
 namespace android {
 
@@ -363,11 +363,11 @@ private:
 
     int mRecordingStreamId;
     int mRecordingFrameCount;
-    sp<MediaConsumer>    mRecordingConsumer;
+    sp<BufferItemConsumer>    mRecordingConsumer;
     sp<ANativeWindow>  mRecordingWindow;
     // Simple listener that forwards frame available notifications from
     // a CPU consumer to the recording notification
-    class RecordingWaiter: public MediaConsumer::FrameAvailableListener {
+    class RecordingWaiter: public BufferItemConsumer::FrameAvailableListener {
       public:
         RecordingWaiter(Camera2Client *parent) : mParent(parent) {}
         void onFrameAvailable() { mParent->onRecordingFrameAvailable(); }
@@ -380,6 +380,7 @@ private:
 
     static const size_t kDefaultRecordingHeapCount = 8;
     size_t mRecordingHeapCount;
+    Vector<BufferItemConsumer::BufferItem> mRecordingBuffers;
     size_t mRecordingHeapHead, mRecordingHeapFree;
     // Handle new recording image buffers
     void onRecordingFrameAvailable();
@@ -442,9 +443,9 @@ private:
     // Update parameters all requests use, based on mParameters
     status_t updateRequestCommon(camera_metadata_t *request, const Parameters &params);
 
-    // Map from sensor active array pixel coordinates to normalized camera parameter coordinates
-    // The former are (0,0)-(array width - 1, array height - 1), the latter from
-    // (-1000,-1000)-(1000,1000)
+    // Map from sensor active array pixel coordinates to normalized camera
+    // parameter coordinates. The former are (0,0)-(array width - 1, array height
+    // - 1), the latter from (-1000,-1000)-(1000,1000)
     int arrayXToNormalized(int width) const;
     int arrayYToNormalized(int height) const;
 
