@@ -1864,6 +1864,10 @@ bool OMXCodec::isIntermediateState(State state) {
         || state == IDLE_TO_EXECUTING
         || state == EXECUTING_TO_IDLE
         || state == IDLE_TO_LOADED
+#ifdef QCOM_HARDWARE
+        || state == PAUSING
+        || state == FLUSHING
+#endif
         || state == RECONFIGURING;
 }
 
@@ -3140,6 +3144,18 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
             break;
         }
 
+#ifdef QCOM_HARDWARE
+        case OMX_StatePause:
+        {
+           CODEC_LOGV("Now paused.");
+
+           CHECK_EQ(mState, PAUSING);
+
+           setState(PAUSED);
+           break;
+        }
+#endif
+
         case OMX_StateInvalid:
         {
             setState(ERROR);
@@ -3254,7 +3270,11 @@ void OMXCodec::onPortSettingsChanged(OMX_U32 portIndex) {
 
 bool OMXCodec::flushPortAsync(OMX_U32 portIndex) {
     CHECK(mState == EXECUTING || mState == RECONFIGURING
+#ifdef QCOM_HARDWARE
+            || mState == EXECUTING_TO_IDLE || mState == FLUSHING);
+#else
             || mState == EXECUTING_TO_IDLE);
+#endif
 
 #ifdef QCOM_HARDWARE
     if (portIndex == (OMX_U32) -1 ) {
@@ -3313,7 +3333,11 @@ status_t OMXCodec::enablePortAsync(OMX_U32 portIndex) {
 }
 
 void OMXCodec::fillOutputBuffers() {
+#ifdef QCOM_HARDWARE
+    CHECK(mState == EXECUTING || mState == FLUSHING);
+#else
     CHECK_EQ((int)mState, (int)EXECUTING);
+#endif
 
     // This is a workaround for some decoders not properly reporting
     // end-of-output-stream. If we own all input buffers and also own
@@ -3351,7 +3375,11 @@ void OMXCodec::fillOutputBuffers() {
 }
 
 void OMXCodec::drainInputBuffers() {
+#ifdef QCOM_HARDWARE
+    CHECK(mState == EXECUTING || mState == RECONFIGURING || mState == FLUSHING);
+#else
     CHECK(mState == EXECUTING || mState == RECONFIGURING);
+#endif
 
     if (mFlags & kUseSecureInputBuffers) {
         Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexInput];
@@ -4331,7 +4359,32 @@ void OMXCodec::clearCodecSpecificData() {
 }
 
 status_t OMXCodec::start(MetaData *meta) {
+    CODEC_LOGV("OMXCodec::start ");
     Mutex::Autolock autoLock(mLock);
+
+#ifdef QCOM_HARDWARE
+    if(mPaused) {
+        if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+            while (isIntermediateState(mState)) {
+                mAsyncCompletion.wait(mLock);
+            }
+            CHECK_EQ(mState, (status_t)PAUSED);
+            status_t err = mOMX->sendCommand(mNode,
+            OMX_CommandStateSet, OMX_StateExecuting);
+            CHECK_EQ(err, (status_t)OK);
+            setState(IDLE_TO_EXECUTING);
+            mPaused = false;
+            while (mState != EXECUTING && mState != ERROR) {
+                mAsyncCompletion.wait(mLock);
+            }
+            drainInputBuffers();
+            return mState == ERROR ? UNKNOWN_ERROR : OK;
+        } else {   // SW Codec
+            mPaused = false;
+            return OK;
+        }
+    }
+#endif
 
     if (mState != LOADED) {
         CODEC_LOGE("called start in the unexpected state: %d", mState);
@@ -4443,6 +4496,9 @@ status_t OMXCodec::stopOmxComponent_l() {
             isError = true;
         }
 
+#ifdef QCOM_HARDWARE
+        case PAUSED:
+#endif
         case EXECUTING:
         {
             setState(EXECUTING_TO_IDLE);
@@ -4583,8 +4639,8 @@ status_t OMXCodec::read(
         mFilledBuffers.clear();
 
         CHECK_EQ((int)mState, (int)EXECUTING);
-
 #ifdef QCOM_HARDWARE
+        setState(FLUSHING);
         //DSP supports flushing of ports simultaneously. Flushing individual port is not supported.
 
         if(mQuirks & kRequiresGlobalFlush) {
@@ -4643,6 +4699,13 @@ status_t OMXCodec::read(
     if (mState == ERROR) {
         return UNKNOWN_ERROR;
     }
+
+#ifdef QCOM_HARDWARE
+    if(seeking) {
+        CHECK_EQ((int)mState, (int)FLUSHING);
+        setState(EXECUTING);
+    }
+#endif
 
     if (mFilledBuffers.empty()) {
         return mSignalledEOS ? mFinalStatus : ERROR_END_OF_STREAM;
@@ -5337,11 +5400,40 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
 }
 
 status_t OMXCodec::pause() {
+#ifdef QCOM_HARDWARE
+   CODEC_LOGV("pause mState=%d", mState);
+
+   Mutex::Autolock autoLock(mLock);
+
+   if (mState != EXECUTING) {
+       return UNKNOWN_ERROR;
+   }
+
+   while (isIntermediateState(mState)) {
+       mAsyncCompletion.wait(mLock);
+   }
+   if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+       status_t err = mOMX->sendCommand(mNode,
+           OMX_CommandStateSet, OMX_StatePause);
+       CHECK_EQ(err, (status_t)OK);
+       setState(PAUSING);
+
+       mPaused = true;
+       while (mState != PAUSED && mState != ERROR) {
+           mAsyncCompletion.wait(mLock);
+       }
+       return mState == ERROR ? UNKNOWN_ERROR : OK;
+   } else {
+       mPaused = true;
+       return OK;
+   }
+#else
     Mutex::Autolock autoLock(mLock);
 
     mPaused = true;
 
     return OK;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
