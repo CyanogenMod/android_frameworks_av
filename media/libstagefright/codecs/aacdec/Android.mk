@@ -35,6 +35,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
   include $(BUILD_SHARED_LIBRARY)
 
 else # pv
+  include $(CLEAR_VARS)
 
   LOCAL_SRC_FILES := \
           analysis_sub_band.cpp \
