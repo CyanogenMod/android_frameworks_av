@@ -920,6 +920,9 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( checkPid(__FUNCTION__) != OK) return;
+
+    LockedParameters::Key k(mParameters);
+
     // Make sure this is for the current heap
     ssize_t offset;
     size_t size;
@@ -937,16 +940,36 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
                 __FUNCTION__, mCameraId, type, kMetadataBufferTypeGrallocSource);
         return;
     }
-    buffer_handle_t imgBuffer = *(buffer_handle_t*)(data + 4);
+
+    // Release the buffer back to the recording queue
+
+    buffer_handle_t imgHandle = *(buffer_handle_t*)(data + 4);
+
+    size_t itemIndex;
+    for (itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
+        const BufferItemConsumer::BufferItem item = mRecordingBuffers[itemIndex];
+        if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT &&
+                item.mGraphicBuffer->handle == imgHandle) {
+            break;
+        }
+    }
+    if (itemIndex == mRecordingBuffers.size()) {
+        ALOGE("%s: Camera %d: Can't find buffer_handle_t %p in list of "
+                "outstanding buffers", __FUNCTION__, mCameraId, imgHandle);
+        return;
+    }
+
     ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__, mCameraId,
-            imgBuffer);
-    res = mRecordingConsumer->freeBuffer(imgBuffer);
+            imgHandle);
+
+    res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to free recording frame (buffer_handle_t: %p):"
                 "%s (%d)",
-                __FUNCTION__, mCameraId, imgBuffer, strerror(-res), res);
+                __FUNCTION__, mCameraId, imgHandle, strerror(-res), res);
         return;
     }
+    mRecordingBuffers.replaceAt(itemIndex);
 
     mRecordingHeapFree++;
 }
@@ -2313,13 +2336,14 @@ void Camera2Client::onRecordingFrameAvailable() {
     {
         LockedParameters::Key k(mParameters);
 
-        buffer_handle_t imgBuffer;
-        res = mRecordingConsumer->getNextBuffer(&imgBuffer, &timestamp);
+        BufferItemConsumer::BufferItem imgBuffer;
+        res = mRecordingConsumer->acquireBuffer(&imgBuffer);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return;
         }
+        timestamp = imgBuffer.mTimestamp;
 
         mRecordingFrameCount++;
         ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
@@ -2330,7 +2354,7 @@ void Camera2Client::onRecordingFrameAvailable() {
             ALOGV("%s: Camera %d: Discarding recording image buffers received after "
                     "recording done",
                     __FUNCTION__, mCameraId);
-            mRecordingConsumer->freeBuffer(imgBuffer);
+            mRecordingConsumer->releaseBuffer(imgBuffer);
             return;
         }
 
@@ -2345,9 +2369,20 @@ void Camera2Client::onRecordingFrameAvailable() {
             if (mRecordingHeap->mHeap->getSize() == 0) {
                 ALOGE("%s: Camera %d: Unable to allocate memory for recording",
                         __FUNCTION__, mCameraId);
-                mRecordingConsumer->freeBuffer(imgBuffer);
+                mRecordingConsumer->releaseBuffer(imgBuffer);
                 return;
             }
+            for (size_t i = 0; i < mRecordingBuffers.size(); i++) {
+                if (mRecordingBuffers[i].mBuf !=
+                        BufferItemConsumer::INVALID_BUFFER_SLOT) {
+                    ALOGE("%s: Camera %d: Non-empty recording buffers list!",
+                            __FUNCTION__, mCameraId);
+                }
+            }
+            mRecordingBuffers.clear();
+            mRecordingBuffers.setCapacity(mRecordingHeapCount);
+            mRecordingBuffers.insertAt(0, mRecordingHeapCount);
+
             mRecordingHeapHead = 0;
             mRecordingHeapFree = mRecordingHeapCount;
         }
@@ -2355,7 +2390,7 @@ void Camera2Client::onRecordingFrameAvailable() {
         if ( mRecordingHeapFree == 0) {
             ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
                     __FUNCTION__, mCameraId);
-            mRecordingConsumer->freeBuffer(imgBuffer);
+            mRecordingConsumer->releaseBuffer(imgBuffer);
             return;
         }
 
@@ -2374,10 +2409,11 @@ void Camera2Client::onRecordingFrameAvailable() {
 
         uint8_t *data = (uint8_t*)heap->getBase() + offset;
         uint32_t type = kMetadataBufferTypeGrallocSource;
-        memcpy(data, &type, 4);
-        memcpy(data + 4, &imgBuffer, sizeof(buffer_handle_t));
+        *((uint32_t*)data) = type;
+        *((buffer_handle_t*)(data + 4)) = imgBuffer.mGraphicBuffer->handle;
         ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
-                __FUNCTION__, mCameraId, imgBuffer);
+                __FUNCTION__, mCameraId, imgBuffer.mGraphicBuffer->handle);
+        mRecordingBuffers.replaceAt(imgBuffer, heapIdx);
         recordingHeap = mRecordingHeap;
     }
 
@@ -3530,7 +3566,10 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
         // always acquire and free a buffer when the heap is full; otherwise the consumer
         // will have buffers in flight we'll never clear out.
-        mRecordingConsumer = new MediaConsumer(mRecordingHeapCount + 1);
+        mRecordingConsumer = new BufferItemConsumer(
+                GRALLOC_USAGE_HW_VIDEO_ENCODER,
+                mRecordingHeapCount + 1,
+                true);
         mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
         mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
         mRecordingWindow = new SurfaceTextureClient(
