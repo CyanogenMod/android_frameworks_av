@@ -72,7 +72,7 @@ public:
     status_t saveRights(int uniqueId, const DrmRights& drmRights,
             const String8& rightsPath, const String8& contentPath);
 
-    String8 getOriginalMimeType(int uniqueId, const String8& path);
+    String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     int getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
 

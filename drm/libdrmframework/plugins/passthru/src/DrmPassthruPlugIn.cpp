@@ -163,7 +163,7 @@ bool DrmPassthruPlugIn::onCanHandle(int uniqueId, const String8& path) {
     return (String8(".passthru") == extension);
 }
 
-String8 DrmPassthruPlugIn::onGetOriginalMimeType(int uniqueId, const String8& path) {
+String8 DrmPassthruPlugIn::onGetOriginalMimeType(int uniqueId, const String8& path, int fd) {
     ALOGV("DrmPassthruPlugIn::onGetOriginalMimeType() : %d", uniqueId);
     return String8("video/passthru");
 }
