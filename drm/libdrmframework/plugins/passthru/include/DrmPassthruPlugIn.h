@@ -47,7 +47,7 @@ protected:
 
     DrmInfo* onAcquireDrmInfo(int uniqueId, const DrmInfoRequest* drmInfoRequest);
 
-    String8 onGetOriginalMimeType(int uniqueId, const String8& path);
+    String8 onGetOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     int onGetDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
 

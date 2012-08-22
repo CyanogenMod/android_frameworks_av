@@ -53,7 +53,7 @@ public:
 
     DrmInfo* acquireDrmInfo(int uniqueId, const DrmInfoRequest* drmInfoRequest);
 
-    String8 getOriginalMimeType(int uniqueId, const String8& path);
+    String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     int getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
 
@@ -222,10 +222,11 @@ protected:
      *
      * @param[in] uniqueId Unique identifier for a session
      * @param[in] path Path of the protected content
+     * @param[in] fd descriptor of the protected content as a file source
      * @return String8
      *     Returns mime-type of the original content, such as "video/mpeg"
      */
-    virtual String8 onGetOriginalMimeType(int uniqueId, const String8& path) = 0;
+    virtual String8 onGetOriginalMimeType(int uniqueId, const String8& path, int fd) = 0;
 
     /**
      * Retrieves the type of the protected object (content, rights, etc..)

@@ -147,10 +147,10 @@ status_t DrmManagerClientImpl::saveRights(int uniqueId, const DrmRights& drmRigh
 }
 
 String8 DrmManagerClientImpl::getOriginalMimeType(
-        int uniqueId, const String8& path) {
+        int uniqueId, const String8& path, int fd) {
     String8 mimeType = EMPTY_STRING;
     if (EMPTY_STRING != path) {
-        mimeType = getDrmManagerService()->getOriginalMimeType(uniqueId, path);
+        mimeType = getDrmManagerService()->getOriginalMimeType(uniqueId, path, fd);
     }
     return mimeType;
 }

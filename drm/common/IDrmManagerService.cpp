@@ -368,13 +368,18 @@ status_t BpDrmManagerService::saveRights(
     return reply.readInt32();
 }
 
-String8 BpDrmManagerService::getOriginalMimeType(int uniqueId, const String8& path) {
+String8 BpDrmManagerService::getOriginalMimeType(int uniqueId, const String8& path, int fd) {
     ALOGV("Get Original MimeType");
     Parcel data, reply;
 
     data.writeInterfaceToken(IDrmManagerService::getInterfaceDescriptor());
     data.writeInt32(uniqueId);
     data.writeString8(path);
+    int32_t isFdValid = (fd >= 0);
+    data.writeInt32(isFdValid);
+    if (isFdValid) {
+        data.writeFileDescriptor(fd);
+    }
 
     remote()->transact(GET_ORIGINAL_MIMETYPE, data, &reply);
     return reply.readString8();
@@ -1067,7 +1072,12 @@ status_t BnDrmManagerService::onTransact(
 
         const int uniqueId = data.readInt32();
         const String8 path = data.readString8();
-        const String8 originalMimeType = getOriginalMimeType(uniqueId, path);
+        const int32_t isFdValid = data.readInt32();
+        int fd = -1;
+        if (isFdValid) {
+            fd = data.readFileDescriptor();
+        }
+        const String8 originalMimeType = getOriginalMimeType(uniqueId, path, fd);
 
         reply->writeString8(originalMimeType);
         return DRM_NO_ERROR;

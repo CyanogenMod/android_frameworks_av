@@ -309,12 +309,15 @@ bool FwdLockEngine::onValidateAction(int uniqueId,
     return (onCheckRightsStatus(uniqueId, path, action) == RightsStatus::RIGHTS_VALID);
 }
 
-String8 FwdLockEngine::onGetOriginalMimeType(int uniqueId, const String8& path) {
+String8 FwdLockEngine::onGetOriginalMimeType(int uniqueId, const String8& path, int fd) {
     LOG_VERBOSE("FwdLockEngine::onGetOriginalMimeType");
     String8 mimeString = String8("");
-    int fileDesc = FwdLockFile_open(path.string());
+    int fileDesc = dup(fd);
 
     if (-1 < fileDesc) {
+        if (FwdLockFile_attach(fileDesc) < 0) {
+            return mimeString;
+        }
         const char* pMimeType = FwdLockFile_GetContentType(fileDesc);
 
         if (NULL != pMimeType) {

@@ -148,10 +148,11 @@ public:
      *
      * @param[in] uniqueId Unique identifier for a session
      * @param[in] path the path of the protected content
+     * @param[in] fd the file descriptor of the protected content
      * @return String8
      *     Returns mime-type of the original content, such as "video/mpeg"
      */
-    String8 getOriginalMimeType(int uniqueId, const String8& path);
+    String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     /**
      * Retrieves the type of the protected object (content, rights, etc..)
