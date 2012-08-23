@@ -51,6 +51,14 @@ LOCAL_SHARED_LIBRARIES := \
     libdl \
     libpowermanager
 
+# SRS Processing
+ifeq ($(strip $(BOARD_USES_SRS_TRUEMEDIA)),true)
+LOCAL_SHARED_LIBRARIES += libsrsprocessing
+LOCAL_CFLAGS += -DSRS_PROCESSING
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-effects
+endif
+# SRS Processing
+
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \
     libcpustats \
