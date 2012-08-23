@@ -192,8 +192,8 @@ status_t WAVExtractor::init() {
 
             mNumChannels = U16_LE_AT(&formatSpec[2]);
             if (mWaveFormat != WAVE_FORMAT_EXTENSIBLE) {
-                if (mNumChannels != 1 && mNumChannels != 2) {
-                    ALOGW("More than 2 channels (%d) in non-WAVE_EXT, unknown channel mask",
+                if (mNumChannels != 1 && mNumChannels != 2 && mNumChannels != 4) {
+                    ALOGW("More than 4 channels (%d) in non-WAVE_EXT, unknown channel mask",
                             mNumChannels);
                 }
             } else {
@@ -271,6 +271,10 @@ status_t WAVExtractor::init() {
             if (mValidFormat) {
                 mDataOffset = offset;
                 mDataSize = chunkSize;
+                off64_t dataSourceSize = 0;
+
+                if (OK == mDataSource->getSize(&dataSourceSize) && mDataSize > (dataSourceSize - offset))
+                    mDataSize = dataSourceSize - offset;
 
                 mTrackMeta = new MetaData;
 
