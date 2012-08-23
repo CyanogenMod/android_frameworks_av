@@ -87,31 +87,35 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"timelapse720p", CAMCORDER_QUALITY_TIME_LAPSE_720P},
     {"timelapse1080p", CAMCORDER_QUALITY_TIME_LAPSE_1080P},
     {"timelapseqvga", CAMCORDER_QUALITY_TIME_LAPSE_QVGA},
+    {"timelapsevga", CAMCORDER_QUALITY_TIME_LAPSE_VGA},
+    {"timelapsewvga", CAMCORDER_QUALITY_TIME_LAPSE_WVGA},
+    {"timelapsefwvga", CAMCORDER_QUALITY_TIME_LAPSE_FWVGA},
+    {"timelapsewqvga", CAMCORDER_QUALITY_TIME_LAPSE_WQVGA},
 };
 
 /*static*/ void
 MediaProfiles::logVideoCodec(const MediaProfiles::VideoCodec& codec)
 {
-    ALOGV("video codec:");
-    ALOGV("codec = %d", codec.mCodec);
-    ALOGV("bit rate: %d", codec.mBitRate);
-    ALOGV("frame width: %d", codec.mFrameWidth);
-    ALOGV("frame height: %d", codec.mFrameHeight);
-    ALOGV("frame rate: %d", codec.mFrameRate);
+ALOGV("video codec:");
+ALOGV("codec = %d", codec.mCodec);
+ALOGV("bit rate: %d", codec.mBitRate);
+ALOGV("frame width: %d", codec.mFrameWidth);
+ALOGV("frame height: %d", codec.mFrameHeight);
+ALOGV("frame rate: %d", codec.mFrameRate);
 }
 
 /*static*/ void
 MediaProfiles::logAudioCodec(const MediaProfiles::AudioCodec& codec)
 {
-    ALOGV("audio codec:");
-    ALOGV("codec = %d", codec.mCodec);
-    ALOGV("bit rate: %d", codec.mBitRate);
-    ALOGV("sample rate: %d", codec.mSampleRate);
-    ALOGV("number of channels: %d", codec.mChannels);
+ALOGV("audio codec:");
+ALOGV("codec = %d", codec.mCodec);
+ALOGV("bit rate: %d", codec.mBitRate);
+ALOGV("sample rate: %d", codec.mSampleRate);
+ALOGV("number of channels: %d", codec.mChannels);
 }
 
 /*static*/ void
-MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap)
+    MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap)
 {
     ALOGV("video encoder cap:");
     ALOGV("codec = %d", cap.mCodec);

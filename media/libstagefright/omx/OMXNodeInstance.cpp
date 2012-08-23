@@ -599,15 +599,20 @@ status_t OMXNodeInstance::freeBuffer(
         OMX_U32 portIndex, OMX::buffer_id buffer) {
     Mutex::Autolock autoLock(mLock);
 
-    removeActiveBuffer(portIndex, buffer);
-
     OMX_BUFFERHEADERTYPE *header = (OMX_BUFFERHEADERTYPE *)buffer;
     BufferMeta *buffer_meta = static_cast<BufferMeta *>(header->pAppPrivate);
 
     OMX_ERRORTYPE err = OMX_FreeBuffer(mHandle, portIndex, header);
 
-    delete buffer_meta;
-    buffer_meta = NULL;
+    if (err != OMX_ErrorNone) {
+        ALOGW("OMX_FreeBuffer failed w/ err %x, do not remove from active buffer list", err);
+    } else {
+        ALOGI("OMX_FreeBuffer for buffer header %p successful", header);
+        removeActiveBuffer(portIndex, buffer);
+
+        delete buffer_meta;
+        buffer_meta = NULL;
+    }
 
     return StatusFromOMXError(err);
 }
