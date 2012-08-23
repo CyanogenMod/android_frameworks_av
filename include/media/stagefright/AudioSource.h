@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,6 +105,19 @@ private:
 
     AudioSource(const AudioSource &);
     AudioSource &operator=(const AudioSource &);
+
+#ifdef QCOM_HARDWARE
+    //additions for tunnel source
+public:
+    AudioSource(
+        audio_source_t inputSource, const sp<MetaData>& meta );
+
+private:
+    audio_format_t mFormat;
+    String8 mMime;
+    int32_t mMaxBufferSize;
+    int64_t bufferDurationUs( ssize_t n );
+#endif
 };
 
 }  // namespace android
