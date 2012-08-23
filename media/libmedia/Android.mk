@@ -10,7 +10,7 @@ LOCAL_MODULE_TAGS := optional
 include $(BUILD_STATIC_LIBRARY)
 
 
-ifeq ($(BOARD_USES_SRS_TRUEMEDIA),true)
+#ifeq ($(BOARD_USES_SRS_TRUEMEDIA),true)
 
 include $(CLEAR_VARS)
 
@@ -21,7 +21,7 @@ LOCAL_SHARED_LIBRARIES := libutils
 
 include $(BUILD_SHARED_LIBRARY)
 
-endif
+#endif
 
 
 include $(CLEAR_VARS)
