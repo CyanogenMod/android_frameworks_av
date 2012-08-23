@@ -337,6 +337,9 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             outHeader->nFilledLen =
                     mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
             outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+            outHeader->nTimeStamp =
+                mAnchorTimeUs
+                    + (mNumSamplesOutput * 1000000ll) / mStreamInfo->sampleRate;
 
             outQueue.erase(outQueue.begin());
             outInfo->mOwnedByUs = false;
