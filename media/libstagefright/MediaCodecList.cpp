@@ -28,6 +28,10 @@
 
 #include <libexpat/expat.h>
 
+#ifdef QCOM_HARDWARE
+#include "include/QCUtilityClass.h"
+#endif
+
 namespace android {
 
 static Mutex sInitMutex;
@@ -64,6 +68,14 @@ MediaCodecList::MediaCodecList()
 
         addMediaCodec(
                 false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
+
+#ifdef QCOM_HARDWARE
+        Vector<AString> QcomAACQuirks;
+        QcomAACQuirks.push(AString("requires-allocate-on-input-ports"));
+        QcomAACQuirks.push(AString("requires-allocate-on-output-ports"));
+        QCUtilityClass::helper_addMediaCodec(mCodecInfos, mTypes, false, "OMX.qcom.audio.decoder.multiaac",
+            "audio/mp4a-latm", QCUtilityClass::helper_getCodecSpecificQuirks(mCodecQuirks, QcomAACQuirks));
+#endif
     }
 
 #if 0
