@@ -33,8 +33,7 @@ namespace android {
  */
 class Camera2Client :
         public CameraService::Client,
-        public Camera2Device::NotificationListener,
-        public Camera2Device::FrameListener
+        public Camera2Device::NotificationListener
 {
 public:
     // ICamera interface (see ICamera for details)
@@ -82,8 +81,6 @@ public:
     virtual void notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
-
-    virtual void onNewFrameAvailable();
 
 private:
     enum State {
@@ -299,9 +296,29 @@ private:
     // Used with stream IDs
     static const int NO_STREAM = -1;
 
-    /* Output frame metadata processing methods */
+    /* Output frame metadata processing thread.  This thread waits for new
+     * frames from the device, and analyzes them as necessary.
+     */
+    class FrameProcessor: public Thread {
+      public:
+        FrameProcessor(wp<Camera2Client> client);
+        ~FrameProcessor();
 
-    status_t processFrameFaceDetect(const CameraMetadata &frame);
+        void dump(int fd, const Vector<String16>& args);
+      private:
+        static const nsecs_t kWaitDuration = 10000000; // 10 ms
+        wp<Camera2Client> mClient;
+
+        virtual bool threadLoop();
+
+        void processNewFrames(sp<Camera2Client> &client);
+        status_t processFaceDetect(const CameraMetadata &frame,
+                sp<Camera2Client> &client);
+
+        CameraMetadata mLastFrame;
+    };
+
+    sp<FrameProcessor> mFrameProcessor;
 
     /* Preview related members */
 
