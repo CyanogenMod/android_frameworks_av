@@ -557,7 +557,9 @@ LVM_ReturnStatus_en LVM_GetInstanceHandle(LVM_Handle_t           *phInstance,
      */
     pInstance->Params.OperatingMode    = LVM_MODE_OFF;
     pInstance->Params.SampleRate       = LVM_FS_8000;
-    pInstance->Params.SourceFormat     = LVM_MONO;
+//  FIXME: Workaround to avoid reset of headroom parameters on first call to LVM_Process.
+//    pInstance->Params.SourceFormat     = LVM_MONO;
+    pInstance->Params.SourceFormat     = LVM_STEREO;
     pInstance->Params.SpeakerType      = LVM_HEADPHONES;
     pInstance->Params.VC_EffectLevel   = 0;
     pInstance->Params.VC_Balance       = 0;
