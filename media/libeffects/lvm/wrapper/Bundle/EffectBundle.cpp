@@ -698,10 +698,10 @@ int LvmBundle_init(EffectContext *pContext){
     /* Set the headroom parameters */
     HeadroomBandDef[0].Limit_Low          = 20;
     HeadroomBandDef[0].Limit_High         = 4999;
-    HeadroomBandDef[0].Headroom_Offset    = 3;
+    HeadroomBandDef[0].Headroom_Offset    = 0;
     HeadroomBandDef[1].Limit_Low          = 5000;
     HeadroomBandDef[1].Limit_High         = 24000;
-    HeadroomBandDef[1].Headroom_Offset    = 4;
+    HeadroomBandDef[1].Headroom_Offset    = 0;
     HeadroomParams.pHeadroomDefinition    = &HeadroomBandDef[0];
     HeadroomParams.Headroom_OperatingMode = LVM_HEADROOM_ON;
     HeadroomParams.NHeadroomBands         = 2;
