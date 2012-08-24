@@ -756,8 +756,8 @@ void AwesomePlayer::onBufferingUpdate() {
                       cachedDurationUs / 1E6);
                 pause_l();
                 ensureCacheIsFetching_l();
-                sendCacheStats();
             }
+            sendCacheStats();
             notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
         } else if (eos || cachedDurationUs > kHighWaterMarkUs) {
             if (mFlags & CACHE_UNDERRUN) {
@@ -780,9 +780,14 @@ void AwesomePlayer::onBufferingUpdate() {
 
 void AwesomePlayer::sendCacheStats() {
     sp<MediaPlayerBase> listener = mListener.promote();
-    if (listener != NULL && mCachedSource != NULL) {
+    if (listener != NULL) {
         int32_t kbps = 0;
-        status_t err = mCachedSource->getEstimatedBandwidthKbps(&kbps);
+        status_t err = UNKNOWN_ERROR;
+        if (mCachedSource != NULL) {
+            err = mCachedSource->getEstimatedBandwidthKbps(&kbps);
+        } else if (mWVMExtractor != NULL) {
+            err = mWVMExtractor->getEstimatedBandwidthKbps(&kbps);
+        }
         if (err == OK) {
             listener->sendEvent(
                 MEDIA_INFO, MEDIA_INFO_NETWORK_BANDWIDTH, kbps);

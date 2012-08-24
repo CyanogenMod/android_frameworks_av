@@ -121,6 +121,15 @@ int64_t WVMExtractor::getCachedDurationUs(status_t *finalStatus) {
     return mImpl->getCachedDurationUs(finalStatus);
 }
 
+status_t WVMExtractor::getEstimatedBandwidthKbps(int32_t *kbps) {
+    if (mImpl == NULL) {
+        return UNKNOWN_ERROR;
+    }
+
+    return mImpl->getEstimatedBandwidthKbps(kbps);
+}
+
+
 void WVMExtractor::setAdaptiveStreamingMode(bool adaptive) {
     if (mImpl != NULL) {
         mImpl->setAdaptiveStreamingMode(adaptive);
