@@ -902,8 +902,8 @@ void MatroskaExtractor::findThumbnails() {
                 ++j;
 
                 size_t blockSize = 0;
-                for (int i = 0; i < iter.block()->GetFrameCount(); ++i) {
-                    blockSize += iter.block()->GetFrame(i).len;
+                for (int k = 0; k < iter.block()->GetFrameCount(); ++k) {
+                    blockSize += iter.block()->GetFrame(k).len;
                 }
 
                 if (blockSize > maxBlockSize) {
