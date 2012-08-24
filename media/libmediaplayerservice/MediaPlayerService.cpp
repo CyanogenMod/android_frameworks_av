@@ -1046,7 +1046,8 @@ void MediaPlayerService::Client::notify(
     {
         Mutex::Autolock l(client->mLock);
         if (msg == MEDIA_PLAYBACK_COMPLETE && client->mNextClient != NULL) {
-            client->mAudioOutput->switchToNextOutput();
+            if (client->mAudioOutput != NULL)
+                client->mAudioOutput->switchToNextOutput();
             client->mNextClient->start();
             client->mNextClient->mClient->notify(MEDIA_INFO, MEDIA_INFO_STARTED_AS_NEXT, 0, obj);
         }
