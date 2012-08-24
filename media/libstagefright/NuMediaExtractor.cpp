@@ -134,18 +134,28 @@ status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
 
     sp<FileSource> fileSource = new FileSource(dup(fd), offset, size);
 
-    status_t err = fileSource->initCheck();
+    return setDataSource(fileSource);
+}
+
+status_t NuMediaExtractor::setDataSource(const sp<DataSource> &source) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mImpl != NULL) {
+        return -EINVAL;
+    }
+
+    status_t err = source->initCheck();
     if (err != OK) {
         return err;
     }
 
-    mImpl = MediaExtractor::Create(fileSource);
+    mImpl = MediaExtractor::Create(source);
 
     if (mImpl == NULL) {
         return ERROR_UNSUPPORTED;
     }
 
-    mDataSource = fileSource;
+    mDataSource = source;
 
     updateDurationAndBitrate();
 
