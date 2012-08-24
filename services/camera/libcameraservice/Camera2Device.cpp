@@ -155,25 +155,28 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
     return res;
 }
 
-camera_metadata_t *Camera2Device::info() {
+const CameraMetadata& Camera2Device::info() const {
     ALOGVV("%s: E", __FUNCTION__);
 
     return mDeviceInfo;
 }
 
-status_t Camera2Device::capture(camera_metadata_t* request) {
+status_t Camera2Device::capture(CameraMetadata &request) {
     ALOGV("%s: E", __FUNCTION__);
 
-    mRequestQueue.enqueue(request);
+    mRequestQueue.enqueue(request.release());
     return OK;
 }
 
 
-status_t Camera2Device::setStreamingRequest(camera_metadata_t* request) {
+status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
     ALOGV("%s: E", __FUNCTION__);
+    CameraMetadata streamRequest(request);
+    return mRequestQueue.setStreamSlot(streamRequest.release());
+}
 
-    mRequestQueue.setStreamSlot(request);
-    return OK;
+status_t Camera2Device::clearStreamingRequest() {
+    return mRequestQueue.setStreamSlot(NULL);
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
@@ -269,10 +272,14 @@ status_t Camera2Device::deleteStream(int id) {
 }
 
 status_t Camera2Device::createDefaultRequest(int templateId,
-        camera_metadata_t **request) {
+        CameraMetadata *request) {
+    status_t err;
     ALOGV("%s: E", __FUNCTION__);
-    return mDevice->ops->construct_default_request(
-        mDevice, templateId, request);
+    camera_metadata_t *rawRequest;
+    err = mDevice->ops->construct_default_request(
+        mDevice, templateId, &rawRequest);
+    request->acquire(rawRequest);
+    return err;
 }
 
 status_t Camera2Device::waitUntilDrained() {
@@ -344,8 +351,16 @@ status_t Camera2Device::setFrameListener(FrameListener *listener) {
     return mFrameQueue.setListener(listener);
 }
 
-status_t Camera2Device::getNextFrame(camera_metadata_t **frame) {
-    return mFrameQueue.dequeue(frame);
+status_t Camera2Device::getNextFrame(CameraMetadata *frame) {
+    status_t res;
+    camera_metadata_t *rawFrame;
+    res = mFrameQueue.dequeue(&rawFrame);
+    if (rawFrame  == NULL) {
+        return NOT_ENOUGH_DATA;
+    } else if (res == OK) {
+        frame->acquire(rawFrame);
+    }
+    return res;
 }
 
 status_t Camera2Device::triggerAutofocus(uint32_t id) {

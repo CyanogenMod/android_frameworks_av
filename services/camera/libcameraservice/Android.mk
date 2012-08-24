@@ -10,7 +10,8 @@ LOCAL_SRC_FILES:=               \
     CameraService.cpp \
     CameraClient.cpp \
     Camera2Client.cpp \
-    Camera2Device.cpp
+    Camera2Device.cpp \
+    CameraMetadata.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
