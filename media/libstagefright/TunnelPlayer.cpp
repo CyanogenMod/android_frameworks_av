@@ -460,14 +460,16 @@ size_t TunnelPlayer::AudioSinkCallback(
 }
 
 void TunnelPlayer::reset() {
+
     mReachedEOS = true;
+
+    // make sure Decoder thread has exited
+    requestAndWaitForExtractorThreadExit();
+
     // Close the audiosink after all the threads exited to make sure
     mAudioSink->stop();
     mAudioSink->close();
     //TODO: Release Wake lock
-
-    // make sure Decoder thread has exited
-    requestAndWaitForExtractorThreadExit();
 
     // Make sure to release any buffer we hold onto so that the
     // source is able to stop().
@@ -555,7 +557,9 @@ void TunnelPlayer::extractorThreadEntry() {
             ALOGV("Fillbuffer started");
             bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE);
             ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
-            mAudioSink->write(local_buf, bytesWritten);
+            if(!killExtractorThread) {
+                mAudioSink->write(local_buf, bytesWritten);
+            }
         }
     }
 
@@ -741,7 +745,7 @@ void TunnelPlayer::requestAndWaitForExtractorThreadExit() {
 
     if (!extractorThreadAlive)
         return;
-    extractorThread = true;
+    killExtractorThread = true;
     pthread_cond_signal(&extractor_cv);
     pthread_join(extractorThread,NULL);
     ALOGD("Extractor thread killed");

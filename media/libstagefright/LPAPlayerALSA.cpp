@@ -466,15 +466,15 @@ void LPAPlayer::reset() {
 
     // Close the audiosink after all the threads exited to make sure
     mReachedEOS = true;
-    mAudioSink->stop();
-    mAudioSink->close();
-    mAudioSink.clear();
     //TODO: Release Wake lock
 
     // make sure Decoder thread has exited
     requestAndWaitForDecoderThreadExit();
     requestAndWaitForA2DPNotificationThreadExit();
 
+    mAudioSink->stop();
+    mAudioSink->close();
+    mAudioSink.clear();
     // Make sure to release any buffer we hold onto so that the
     // source is able to stop().
     if (mFirstBuffer != NULL) {
@@ -562,7 +562,10 @@ void LPAPlayer::decoderThreadEntry() {
             //TODO: Add memset
             bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE);
             ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
-            mAudioSink->write(local_buf, bytesWritten);
+
+            if(!killDecoderThread) {
+                mAudioSink->write(local_buf, bytesWritten);
+            }
         }
     }
 
