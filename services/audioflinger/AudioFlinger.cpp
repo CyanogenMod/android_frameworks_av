@@ -5678,7 +5678,9 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                 mCblk->frameSize = sizeof(int8_t);
             }
         }
+#ifdef QCOM_HARDWARE
     }
+#endif
 }
 
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
