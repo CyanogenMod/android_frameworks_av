@@ -1441,7 +1441,9 @@ private:
                         audio_format_t format,
                         int channelMask,
                         int frameCount,
+#ifdef QCOM_HARDWARE
                         uint32_t flags,
+#endif
                         int sessionId,
                         status_t *status);
 

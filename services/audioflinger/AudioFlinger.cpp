@@ -6559,11 +6559,11 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 ((int)mChannelCount == mReqChannelCount ||
 #ifdef QCOM_HARDWARE
                                   ((mFormat != AUDIO_FORMAT_PCM_16_BIT) &&
-                                  ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION)))
+                                  ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION))))
 #else
-                                  ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT)
+                                  ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT)))
 #endif
-                                        ) {
+                                        {
                                                 mBytesRead = mInput->stream->read(mInput->stream, buffer.raw, mInputBytes);
 #ifdef QCOM_HARDWARE
                                 if( mBytesRead >= 0 ){
