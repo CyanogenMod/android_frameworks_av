@@ -1388,6 +1388,7 @@ status_t StagefrightRecorder::setupMediaSource(
 // width and height and framerate.
 // TODO: This could go in a static function inside SurfaceMediaSource
 // similar to that in CameraSource
+
 status_t StagefrightRecorder::setupSurfaceMediaSource() {
     status_t err = OK;
     mSurfaceMediaSource = new SurfaceMediaSource(mVideoWidth, mVideoHeight);
@@ -1434,9 +1435,24 @@ status_t StagefrightRecorder::setupCameraSource(
                 mTimeBetweenTimeLapseFrameCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
+// This detects whether or not the camera supports storing the metadata
+// in the video buffers. If it does, then nothing changes. However if it
+// doesn't, then the in will not store the metadata in the video buffers.
+#ifdef QCOM_HARDWARE
+		bool useMeta = true;
+	    char value[PROPERTY_VALUE_MAX];
+	    if (property_get("debug.camcorder.disablemeta", value, NULL) &&
+	        atoi(value)) {
+	        useMeta = false;
+	    }
+#endif
         *cameraSource = CameraSource::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId, videoSize, mFrameRate,
-                mPreviewSurface, true /*storeMetaDataInVideoBuffers*/);
+                mCamera, mCameraProxy, mCameraId, videoSize, mFrameRate, mPreviewSurface,
+#ifdef QCOM_HARDWARE
+                useMeta /*storeMetaDataInVideoBuffers*/);
+#else
+                true /*storeMetaDataInVideoBuffers*/);
+#endif
     }
     mCamera.clear();
     mCameraProxy.clear();
@@ -1464,6 +1480,7 @@ status_t StagefrightRecorder::setupCameraSource(
     CHECK(mFrameRate != -1);
 
     mIsMetaDataStoredInVideoBuffers =
+		!useMeta ? false :
         (*cameraSource)->isMetaDataStoredInVideoBuffers();
 
     return OK;
@@ -1530,6 +1547,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     char value[PROPERTY_VALUE_MAX];
 #endif
     if (mIsMetaDataStoredInVideoBuffers) {
+        ALOGW("Camera source supports metadata mode, create OMXCodec for metadata");
         encoder_flags |= OMXCodec::kHardwareCodecsOnly;
         encoder_flags |= OMXCodec::kStoreMetaDataInVideoBuffers;
 #ifdef QCOM_HARDWARE
