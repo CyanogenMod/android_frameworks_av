@@ -1408,12 +1408,14 @@ status_t StagefrightRecorder::setupSurfaceMediaSource() {
     CHECK(mFrameRate != -1);
 
     mIsMetaDataStoredInVideoBuffers =
+        !useMeta ? false :
         mSurfaceMediaSource->isMetaDataStoredInVideoBuffers();
     return err;
 }
 
 status_t StagefrightRecorder::setupCameraSource(
         sp<CameraSource> *cameraSource) {
+    bool useMeta = true;
     status_t err = OK;
     if ((err = checkVideoEncoderCapabilities()) != OK) {
         return err;
@@ -1434,9 +1436,30 @@ status_t StagefrightRecorder::setupCameraSource(
                 mTimeBetweenTimeLapseFrameCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
+<<<<<<< HEAD
+#ifdef QCOM_HARDWARE
+        bool useMeta = true;
+=======
+        bool useMeta = true;
+#ifdef QCOM_HARDWARE
+>>>>>>> 21084f01a1b37429d29dccf7ada3ba6586940422
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("debug.camcorder.disablemeta", value, NULL) &&
+            atoi(value)) {
+            useMeta = false;
+        }
+#endif
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, videoSize, mFrameRate,
+<<<<<<< HEAD
+#ifdef QCOM_HARDWARE
+                mPreviewSurface, useMeta);
+#else
                 mPreviewSurface, true /*storeMetaDataInVideoBuffers*/);
+#endif
+=======
+                mPreviewSurface, useMeta /*storeMetaDataInVideoBuffers*/);
+>>>>>>> 21084f01a1b37429d29dccf7ada3ba6586940422
     }
     mCamera.clear();
     mCameraProxy.clear();
@@ -1530,6 +1553,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     char value[PROPERTY_VALUE_MAX];
 #endif
     if (mIsMetaDataStoredInVideoBuffers) {
+        ALOGW("Camera source supports metadata mode, create OMXCodec for metadata");
         encoder_flags |= OMXCodec::kHardwareCodecsOnly;
         encoder_flags |= OMXCodec::kStoreMetaDataInVideoBuffers;
 #ifdef QCOM_HARDWARE
