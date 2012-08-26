@@ -6561,7 +6561,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                   ((mFormat != AUDIO_FORMAT_PCM_16_BIT) &&
                                   ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION)))
 #else
-                                  ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT)
+                                  ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT))
 #endif
                                         ) {
                                                 mBytesRead = mInput->stream->read(mInput->stream, buffer.raw, mInputBytes);
