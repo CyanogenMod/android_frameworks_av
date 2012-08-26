@@ -560,6 +560,13 @@ status_t CameraService::Client::setPreviewWindow(const sp<IBinder>& binder,
         return NO_ERROR;
     }
 
+#ifdef QCOM_HARDWARE
+    // We've raised the max on QCOM targets, but use less for camera.
+    if (window != 0) {
+        result = native_window_set_min_undequeued_buffer_count(window.get(), 2);
+    }
+#endif
+
     if (window != 0) {
         result = native_window_api_connect(window.get(), NATIVE_WINDOW_API_CAMERA);
         if (result != NO_ERROR) {
