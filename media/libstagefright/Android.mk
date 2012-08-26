@@ -71,14 +71,15 @@ LOCAL_SRC_FILES:=                         \
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES+=                         \
         ExtendedExtractor.cpp             \
-        ExtendedWriter.cpp
+        ExtendedWriter.cpp                \
+        LPAPlayerALSA.cpp                 \
+        TunnelPlayer.cpp
 
 ifeq ($(BOARD_HAVE_QCOM_FM),true)
 LOCAL_SRC_FILES+=                         \
         FMA2DPWriter.cpp
 endif
 ifeq ($(BOARD_USES_ALSA_AUDIO),true)
-    LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/libalsa-intf
     LOCAL_SHARED_LIBRARIES += libalsa-intf
 endif
