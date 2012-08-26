@@ -1414,6 +1414,9 @@ status_t StagefrightRecorder::setupSurfaceMediaSource() {
 
 status_t StagefrightRecorder::setupCameraSource(
         sp<CameraSource> *cameraSource) {
+#ifdef
+    bool useMeta = true;
+#endif
     status_t err = OK;
     if ((err = checkVideoEncoderCapabilities()) != OK) {
         return err;
@@ -1464,6 +1467,9 @@ status_t StagefrightRecorder::setupCameraSource(
     CHECK(mFrameRate != -1);
 
     mIsMetaDataStoredInVideoBuffers =
+#ifdef QCOM_HARDWARE
+    !useMeta ? false :
+#endif
         (*cameraSource)->isMetaDataStoredInVideoBuffers();
 
     return OK;
