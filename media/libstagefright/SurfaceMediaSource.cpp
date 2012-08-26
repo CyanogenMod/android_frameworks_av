@@ -46,7 +46,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mNumFramesEncoded(0),
     mFirstFrameTimestamp(0)
 {
-    ALOGV("SurfaceMediaSource::SurfaceMediaSource");
+    ALOGV("SurfaceMediaSource");
 
     if (bufferWidth == 0 || bufferHeight == 0) {
         ALOGE("Invalid dimensions %dx%d", bufferWidth, bufferHeight);
@@ -77,21 +77,19 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
 }
 
 SurfaceMediaSource::~SurfaceMediaSource() {
-    ALOGV("SurfaceMediaSource::~SurfaceMediaSource");
-    if (!mStopped) {
-        reset();
-    }
+    ALOGV("~SurfaceMediaSource");
+    CHECK(mStopped == true);
 }
 
 nsecs_t SurfaceMediaSource::getTimestamp() {
-    ALOGV("SurfaceMediaSource::getTimestamp");
+    ALOGV("getTimestamp");
     Mutex::Autolock lock(mMutex);
     return mCurrentTimestamp;
 }
 
 void SurfaceMediaSource::setFrameAvailableListener(
         const sp<FrameAvailableListener>& listener) {
-    ALOGV("SurfaceMediaSource::setFrameAvailableListener");
+    ALOGV("setFrameAvailableListener");
     Mutex::Autolock lock(mMutex);
     mFrameAvailableListener = listener;
 }
@@ -113,6 +111,7 @@ void SurfaceMediaSource::dump(String8& result, const char* prefix,
 
 status_t SurfaceMediaSource::setFrameRate(int32_t fps)
 {
+    ALOGV("setFrameRate");
     Mutex::Autolock lock(mMutex);
     const int MAX_FRAME_RATE = 60;
     if (fps < 0 || fps > MAX_FRAME_RATE) {
@@ -128,13 +127,14 @@ bool SurfaceMediaSource::isMetaDataStoredInVideoBuffers() const {
 }
 
 int32_t SurfaceMediaSource::getFrameRate( ) const {
+    ALOGV("getFrameRate");
     Mutex::Autolock lock(mMutex);
     return mFrameRate;
 }
 
 status_t SurfaceMediaSource::start(MetaData *params)
 {
-    ALOGV("started!");
+    ALOGV("start");
 
     mStartTimeNs = 0;
     int64_t startTimeUs;
@@ -146,18 +146,15 @@ status_t SurfaceMediaSource::start(MetaData *params)
 }
 
 
-status_t SurfaceMediaSource::reset()
+status_t SurfaceMediaSource::stop()
 {
-    ALOGV("Reset");
-
+    ALOGV("stop");
     Mutex::Autolock lock(mMutex);
-    // TODO: Add waiting on mFrameCompletedCondition here?
+
     mStopped = true;
-
     mFrameAvailableCondition.signal();
-    mBufferQueue->consumerDisconnect();
 
-    return OK;
+    return mBufferQueue->consumerDisconnect();
 }
 
 sp<MetaData> SurfaceMediaSource::getFormat()
@@ -376,7 +373,6 @@ void SurfaceMediaSource::onBuffersReleased() {
     Mutex::Autolock lock(mMutex);
 
     mFrameAvailableCondition.signal();
-    mStopped = true;
 
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
        mBufferSlot[i] = 0;
