@@ -19,7 +19,7 @@
 
 #include "Camera2Device.h"
 #include "CameraService.h"
-#include "camera/CameraParameters.h"
+#include "camera2/Parameters.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
@@ -83,17 +83,6 @@ public:
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
 private:
-    enum State {
-        DISCONNECTED,
-        STOPPED,
-        WAITING_FOR_PREVIEW_WINDOW,
-        PREVIEW,
-        RECORD,
-        STILL_CAPTURE,
-        VIDEO_SNAPSHOT
-    };
-    static const char *getStateName(State state);
-
     /** ICamera interface-related private members */
 
     // Mutex that must be locked by methods implementing the ICamera interface.
@@ -107,7 +96,8 @@ private:
     // up to the camera user
     mutable Mutex mICameraClientLock;
 
-    class Parameters;
+    typedef camera2::Parameters Parameters;
+    typedef camera2::CameraMetadata CameraMetadata;
 
     status_t setPreviewWindowL(const sp<IBinder>& binder,
             sp<ANativeWindow> window);
@@ -128,161 +118,8 @@ private:
     status_t commandPingL();
     status_t commandSetVideoBufferCountL(size_t count);
 
-    // Current camera state; this is the contents of the CameraParameters object
-    // in a more-efficient format. The enum values are mostly based off the
-    // corresponding camera2 enums, not the camera1 strings. A few are defined
-    // here if they don't cleanly map to camera2 values.
-    struct Parameters {
-        int previewWidth, previewHeight;
-        int32_t previewFpsRange[2];
-        int previewFps; // deprecated, here only for tracking changes
-        int previewFormat;
-
-        int previewTransform; // set by CAMERA_CMD_SET_DISPLAY_ORIENTATION
-
-        int pictureWidth, pictureHeight;
-
-        int32_t jpegThumbSize[2];
-        int32_t jpegQuality, jpegThumbQuality;
-        int32_t jpegRotation;
-
-        bool gpsEnabled;
-        double gpsCoordinates[3];
-        int64_t gpsTimestamp;
-        String8 gpsProcessingMethod;
-
-        uint8_t wbMode;
-        uint8_t effectMode;
-        uint8_t antibandingMode;
-        uint8_t sceneMode;
-
-        enum flashMode_t {
-            FLASH_MODE_OFF = 0,
-            FLASH_MODE_AUTO,
-            FLASH_MODE_ON,
-            FLASH_MODE_TORCH,
-            FLASH_MODE_RED_EYE = ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE,
-            FLASH_MODE_INVALID = -1
-        } flashMode;
-
-        enum focusMode_t {
-            FOCUS_MODE_AUTO = ANDROID_CONTROL_AF_AUTO,
-            FOCUS_MODE_MACRO = ANDROID_CONTROL_AF_MACRO,
-            FOCUS_MODE_CONTINUOUS_VIDEO = ANDROID_CONTROL_AF_CONTINUOUS_VIDEO,
-            FOCUS_MODE_CONTINUOUS_PICTURE =
-                ANDROID_CONTROL_AF_CONTINUOUS_PICTURE,
-            FOCUS_MODE_EDOF = ANDROID_CONTROL_AF_EDOF,
-            FOCUS_MODE_INFINITY,
-            FOCUS_MODE_FIXED,
-            FOCUS_MODE_INVALID = -1
-        } focusMode;
-
-        struct Area {
-            int left, top, right, bottom;
-            int weight;
-            Area() {}
-            Area(int left, int top, int right, int bottom, int weight):
-                    left(left), top(top), right(right), bottom(bottom),
-                    weight(weight) {}
-        };
-        Vector<Area> focusingAreas;
-
-        int32_t exposureCompensation;
-        bool autoExposureLock;
-        bool autoWhiteBalanceLock;
-
-        Vector<Area> meteringAreas;
-
-        int zoom;
-
-        int videoWidth, videoHeight;
-
-        bool recordingHint;
-        bool videoStabilization;
-
-        String8 paramsFlattened;
-
-        // These parameters are also part of the camera API-visible state, but not directly
-        // listed in Camera.Parameters
-        bool storeMetadataInBuffers;
-        bool playShutterSound;
-        bool enableFaceDetect;
-
-        bool enableFocusMoveMessages;
-        int afTriggerCounter;
-        int currentAfTriggerId;
-        bool afInMotion;
-
-        uint32_t previewCallbackFlags;
-        bool previewCallbackOneShot;
-
-        // Overall camera state
-        State state;
-    };
-
-    // This class encapsulates the Parameters class so that it can only be accessed
-    // by constructing a Key object, which locks the LockedParameter's mutex.
-    class LockedParameters {
-      public:
-        class Key {
-          public:
-            Key(LockedParameters &p):
-                    mParameters(p.mParameters),
-                    mLockedParameters(p) {
-                mLockedParameters.mLock.lock();
-            }
-
-            ~Key() {
-                mLockedParameters.mLock.unlock();
-            }
-            Parameters &mParameters;
-          private:
-            // Disallow copying, default construction
-            Key();
-            Key(const Key &);
-            Key &operator=(const Key &);
-            LockedParameters &mLockedParameters;
-        };
-        class ReadKey {
-          public:
-            ReadKey(const LockedParameters &p):
-                    mParameters(p.mParameters),
-                    mLockedParameters(p) {
-                mLockedParameters.mLock.lock();
-            }
-
-            ~ReadKey() {
-                mLockedParameters.mLock.unlock();
-            }
-            const Parameters &mParameters;
-          private:
-            // Disallow copying, default construction
-            ReadKey();
-            ReadKey(const ReadKey &);
-            ReadKey &operator=(const ReadKey &);
-            const LockedParameters &mLockedParameters;
-        };
-
-        // Only use for dumping or other debugging
-        const Parameters &unsafeUnlock() {
-            return mParameters;
-        }
-      private:
-        Parameters mParameters;
-        mutable Mutex mLock;
-
-    } mParameters;
-
-    // Static device information; this is a subset of the information
-    // available through the staticInfo() method, used for frequently-accessed
-    // values or values that have to be calculated from the static information.
-    struct DeviceInfo {
-        int32_t arrayWidth;
-        int32_t arrayHeight;
-        uint8_t bestFaceDetectMode;
-        int32_t maxFaces;
-    };
-    const DeviceInfo *mDeviceInfo;
+    // Current camera device configuration
+    camera2::SharedParameters mParameters;
 
     /** Camera device-related private members */
 
@@ -291,8 +128,6 @@ private:
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(const Parameters &params);
 
-    // Number of zoom steps to simulate
-    static const unsigned int NUM_ZOOM_STEPS = 10;
     // Used with stream IDs
     static const int NO_STREAM = -1;
 
@@ -445,21 +280,8 @@ private:
         sp<MemoryBase> *mBuffers;
     };
 
-    // Get values for static camera info entry. min/maxCount are used for error
-    // checking the number of values in the entry. 0 for max/minCount means to
-    // do no bounds check in that direction. In case of error, the entry data
-    // pointer is null and the count is 0.
-    camera_metadata_ro_entry_t staticInfo(uint32_t tag,
-            size_t minCount=0, size_t maxCount=0) const;
-
-    // Extract frequently-used camera static information into mDeviceInfo
-    status_t buildDeviceInfo();
-    // Convert static camera info from a camera2 device to the
-    // old API parameter map.
-    status_t buildDefaultParameters();
-
     // Update parameters all requests use, based on mParameters
-    status_t updateRequestCommon(CameraMetadata *request, const Parameters &params);
+    status_t updateRequestCommon(CameraMetadata *request, const Parameters &params) const;
 
     // Map from sensor active array pixel coordinates to normalized camera
     // parameter coordinates. The former are (0,0)-(array width - 1, array height
@@ -469,24 +291,6 @@ private:
     int arrayXToNormalized(int width) const;
     int arrayYToNormalized(int height) const;
 
-    // Convert camera1 preview format string to camera2 enum
-    static int formatStringToEnum(const char *format);
-    static const char *formatEnumToString(int format);
-
-    static int wbModeStringToEnum(const char *wbMode);
-    static int effectModeStringToEnum(const char *effectMode);
-    static int abModeStringToEnum(const char *abMode);
-    static int sceneModeStringToEnum(const char *sceneMode);
-    static Parameters::flashMode_t flashModeStringToEnum(const char *flashMode);
-    static Parameters::focusMode_t focusModeStringToEnum(const char *focusMode);
-    static status_t parseAreas(const char *areasCStr,
-            Vector<Parameters::Area> *areas);
-    static status_t validateAreas(const Vector<Parameters::Area> &areas,
-                                  size_t maxRegions);
-    static bool boolFromString(const char *boolStr);
-
-    // Map from camera orientation + facing to gralloc transform enum
-    static int degToTransform(int degrees, bool mirror);
 
     static size_t calculateBufferSize(int width, int height,
             int format, int stride);
