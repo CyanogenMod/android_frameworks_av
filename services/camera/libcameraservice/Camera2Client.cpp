@@ -61,6 +61,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
     ATRACE_CALL();
+    ALOGV("%s: Created client for camera %d", __FUNCTION__, cameraId);
 
     mDevice = new Camera2Device(cameraId);
 
@@ -80,8 +81,13 @@ status_t Camera2Client::checkPid(const char* checkLocation) const {
 status_t Camera2Client::initialize(camera_module_t *module)
 {
     ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGV("%s: Initializing client for camera %d", __FUNCTION__, mCameraId);
     status_t res;
+
+    mFrameProcessor = new FrameProcessor(this);
+    String8 frameThreadName = String8::format("Camera2Client[%d]::FrameProcessor",
+            mCameraId);
+    mFrameProcessor->run(frameThreadName.string());
 
     res = mDevice->initialize(module);
     if (res != OK) {
@@ -91,7 +97,6 @@ status_t Camera2Client::initialize(camera_module_t *module)
     }
 
     res = mDevice->setNotifyCallback(this);
-    res = mDevice->setFrameListener(this);
 
     res = buildDeviceInfo();
     res = buildDefaultParameters();
@@ -113,13 +118,16 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
 Camera2Client::~Camera2Client() {
     ATRACE_CALL();
-    ALOGV("%s: Camera %d: Shutting down", __FUNCTION__, mCameraId);
+    ALOGV("%s: Camera %d: Shutting down client.", __FUNCTION__, mCameraId);
 
     mDestructionStarted = true;
 
     // Rewrite mClientPid to allow shutdown by CameraService
     mClientPid = getCallingPid();
     disconnect();
+
+    mFrameProcessor->requestExit();
+    ALOGV("%s: Camera %d: Shutdown complete", __FUNCTION__, mCameraId);
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
@@ -314,6 +322,8 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         result = "    Recording request: undefined\n";
         write(fd, result.string(), result.size());
     }
+
+    mFrameProcessor->dump(fd, args);
 
     result = "  Device dump:\n";
     write(fd, result.string(), result.size());
@@ -1986,36 +1996,76 @@ void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
             __FUNCTION__, newState, triggerId);
 }
 
-void Camera2Client::onNewFrameAvailable() {
+Camera2Client::FrameProcessor::FrameProcessor(wp<Camera2Client> client):
+        Thread(false), mClient(client) {
+}
+
+Camera2Client::FrameProcessor::~FrameProcessor() {
+    ALOGV("%s: Exit", __FUNCTION__);
+}
+
+void Camera2Client::FrameProcessor::dump(int fd, const Vector<String16>& args) {
+    String8 result("    Latest received frame:\n");
+    write(fd, result.string(), result.size());
+    mLastFrame.dump(fd, 2, 6);
+}
+
+bool Camera2Client::FrameProcessor::threadLoop() {
+    status_t res;
+
+    sp<Camera2Device> device;
+    {
+        sp<Camera2Client> client = mClient.promote();
+        if (client == 0) return false;
+        device = client->mDevice;
+    }
+
+    res = device->waitForNextFrame(kWaitDuration);
+    if (res == OK) {
+        sp<Camera2Client> client = mClient.promote();
+        if (client == 0) return false;
+        processNewFrames(client);
+    } else if (res != TIMED_OUT) {
+        ALOGE("Camera2Client::FrameProcessor: Error waiting for new "
+                "frames: %s (%d)", strerror(-res), res);
+    }
+
+    return true;
+}
+
+void Camera2Client::FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
     status_t res;
     CameraMetadata frame;
-    while ( (res = mDevice->getNextFrame(&frame)) == OK) {
+    while ( (res = client->mDevice->getNextFrame(&frame)) == OK) {
         camera_metadata_entry_t entry;
         entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+                    __FUNCTION__, client->mCameraId, strerror(-res), res);
             break;
         }
 
-        res = processFrameFaceDetect(frame);
+        res = processFaceDetect(frame, client);
         if (res != OK) break;
+
+        mLastFrame.acquire(frame);
     }
     if (res != NOT_ENOUGH_DATA) {
         ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
+                __FUNCTION__, client->mCameraId, strerror(-res), res);
         return;
     }
 
     return;
 }
 
-status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
+status_t Camera2Client::FrameProcessor::processFaceDetect(
+    const CameraMetadata &frame, sp<Camera2Client> &client) {
     status_t res;
     camera_metadata_ro_entry_t entry;
     bool enableFaceDetect;
     {
-        LockedParameters::Key k(mParameters);
+        LockedParameters::Key k(client->mParameters);
         enableFaceDetect = k.mParameters.enableFaceDetect;
     }
     entry = frame.find(ANDROID_STATS_FACE_DETECT_MODE);
@@ -2031,16 +2081,16 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
         entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Unable to read face rectangles",
-                    __FUNCTION__, mCameraId);
+                    __FUNCTION__, client->mCameraId);
             return res;
         }
         camera_frame_metadata metadata;
         metadata.number_of_faces = entry.count / 4;
         if (metadata.number_of_faces >
-                mDeviceInfo->maxFaces) {
+                client->mDeviceInfo->maxFaces) {
             ALOGE("%s: Camera %d: More faces than expected! (Got %d, max %d)",
-                    __FUNCTION__, mCameraId,
-                    metadata.number_of_faces, mDeviceInfo->maxFaces);
+                    __FUNCTION__, client->mCameraId,
+                    metadata.number_of_faces, client->mDeviceInfo->maxFaces);
             return res;
         }
         const int32_t *faceRects = entry.data.i32;
@@ -2048,7 +2098,7 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
         entry = frame.find(ANDROID_STATS_FACE_SCORES);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Unable to read face scores",
-                    __FUNCTION__, mCameraId);
+                    __FUNCTION__, client->mCameraId);
             return res;
         }
         const uint8_t *faceScores = entry.data.u8;
@@ -2060,7 +2110,7 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
             entry = frame.find(ANDROID_STATS_FACE_LANDMARKS);
             if (entry.count == 0) {
                 ALOGE("%s: Camera %d: Unable to read face landmarks",
-                        __FUNCTION__, mCameraId);
+                        __FUNCTION__, client->mCameraId);
                 return res;
             }
             faceLandmarks = entry.data.i32;
@@ -2069,7 +2119,7 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
 
             if (entry.count == 0) {
                 ALOGE("%s: Camera %d: Unable to read face IDs",
-                        __FUNCTION__, mCameraId);
+                        __FUNCTION__, client->mCameraId);
                 return res;
             }
             faceIds = entry.data.i32;
@@ -2081,20 +2131,26 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
         for (int i = 0; i < metadata.number_of_faces; i++) {
             camera_face_t face;
 
-            face.rect[0] = arrayXToNormalized(faceRects[i*4 + 0]);
-            face.rect[1] = arrayYToNormalized(faceRects[i*4 + 1]);
-            face.rect[2] = arrayXToNormalized(faceRects[i*4 + 2]);
-            face.rect[3] = arrayYToNormalized(faceRects[i*4 + 3]);
+            face.rect[0] = client->arrayXToNormalized(faceRects[i*4 + 0]);
+            face.rect[1] = client->arrayYToNormalized(faceRects[i*4 + 1]);
+            face.rect[2] = client->arrayXToNormalized(faceRects[i*4 + 2]);
+            face.rect[3] = client->arrayYToNormalized(faceRects[i*4 + 3]);
 
             face.score = faceScores[i];
             if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
                 face.id = faceIds[i];
-                face.left_eye[0] = arrayXToNormalized(faceLandmarks[i*6 + 0]);
-                face.left_eye[1] = arrayYToNormalized(faceLandmarks[i*6 + 1]);
-                face.right_eye[0] = arrayXToNormalized(faceLandmarks[i*6 + 2]);
-                face.right_eye[1] = arrayYToNormalized(faceLandmarks[i*6 + 3]);
-                face.mouth[0] = arrayXToNormalized(faceLandmarks[i*6 + 4]);
-                face.mouth[1] = arrayYToNormalized(faceLandmarks[i*6 + 5]);
+                face.left_eye[0] =
+                        client->arrayXToNormalized(faceLandmarks[i*6 + 0]);
+                face.left_eye[1] =
+                        client->arrayYToNormalized(faceLandmarks[i*6 + 1]);
+                face.right_eye[0] =
+                        client->arrayXToNormalized(faceLandmarks[i*6 + 2]);
+                face.right_eye[1] =
+                        client->arrayYToNormalized(faceLandmarks[i*6 + 3]);
+                face.mouth[0] =
+                        client->arrayXToNormalized(faceLandmarks[i*6 + 4]);
+                face.mouth[1] =
+                        client->arrayYToNormalized(faceLandmarks[i*6 + 5]);
             } else {
                 face.id = 0;
                 face.left_eye[0] = face.left_eye[1] = -2000;
@@ -2106,9 +2162,9 @@ status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
 
         metadata.faces = faces.editArray();
         {
-            Mutex::Autolock iccl(mICameraClientLock);
-            if (mCameraClient != NULL) {
-                mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
+            Mutex::Autolock iccl(client->mICameraClientLock);
+            if (client->mCameraClient != NULL) {
+                client->mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
                         NULL, &metadata);
             }
         }
