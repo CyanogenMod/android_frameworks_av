@@ -354,6 +354,8 @@ private:
             const void *data, size_t size,
             unsigned *profile, unsigned *level);
 
+    status_t stopOmxComponent_l();
+
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
 };
