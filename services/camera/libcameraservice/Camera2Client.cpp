@@ -54,13 +54,10 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
                 cameraId, cameraFacing, clientPid),
         mDeviceInfo(NULL),
         mPreviewStreamId(NO_STREAM),
-        mPreviewRequest(NULL),
         mCallbackStreamId(NO_STREAM),
         mCallbackHeapId(0),
         mCaptureStreamId(NO_STREAM),
-        mCaptureRequest(NULL),
         mRecordingStreamId(NO_STREAM),
-        mRecordingRequest(NULL),
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
     ATRACE_CALL();
@@ -291,28 +288,28 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     result.appendFormat("    Recording stream ID: %d\n", mRecordingStreamId);
 
     result.append("  Current requests:\n");
-    if (mPreviewRequest != NULL) {
+    if (mPreviewRequest.entryCount() != 0) {
         result.append("    Preview request:\n");
         write(fd, result.string(), result.size());
-        dump_indented_camera_metadata(mPreviewRequest, fd, 2, 6);
+        mPreviewRequest.dump(fd, 2, 6);
     } else {
         result.append("    Preview request: undefined\n");
         write(fd, result.string(), result.size());
     }
 
-    if (mCaptureRequest != NULL) {
+    if (mCaptureRequest.entryCount() != 0) {
         result = "    Capture request:\n";
         write(fd, result.string(), result.size());
-        dump_indented_camera_metadata(mCaptureRequest, fd, 2, 6);
+        mCaptureRequest.dump(fd, 2, 6);
     } else {
         result = "    Capture request: undefined\n";
         write(fd, result.string(), result.size());
     }
 
-    if (mRecordingRequest != NULL) {
+    if (mRecordingRequest.entryCount() != 0) {
         result = "    Recording request:\n";
         write(fd, result.string(), result.size());
-        dump_indented_camera_metadata(mRecordingRequest, fd, 2, 6);
+        mRecordingRequest.dump(fd, 2, 6);
     } else {
         result = "    Recording request: undefined\n";
         write(fd, result.string(), result.size());
@@ -523,7 +520,7 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             // Already running preview - need to stop and create a new stream
             // TODO: Optimize this so that we don't wait for old stream to drain
             // before spinning up new stream
-            mDevice->setStreamingRequest(NULL);
+            mDevice->clearStreamingRequest();
             k.mParameters.state = WAITING_FOR_PREVIEW_WINDOW;
             break;
     }
@@ -634,7 +631,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         }
     }
 
-    if (mPreviewRequest == NULL) {
+    if (mPreviewRequest.entryCount() == 0) {
         res = updatePreviewRequest(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
@@ -646,20 +643,21 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     if (callbacksEnabled) {
         uint8_t outputStreams[2] =
                 { mPreviewStreamId, mCallbackStreamId };
-        res = updateEntry(mPreviewRequest,
+        res = mPreviewRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 2);
     } else {
-        res = updateEntry(mPreviewRequest,
+        uint8_t outputStreams[1] = { mPreviewStreamId };
+        res = mPreviewRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
-                &mPreviewStreamId, 1);
+                outputStreams, 1);
     }
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = sort_camera_metadata(mPreviewRequest);
+    res = mPreviewRequest.sort();
     if (res != OK) {
         ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -709,7 +707,7 @@ void Camera2Client::stopPreviewL() {
         case RECORD:
             // no break - identical to preview
         case PREVIEW:
-            mDevice->setStreamingRequest(NULL);
+            mDevice->clearStreamingRequest();
             mDevice->waitUntilDrained();
             // no break
         case WAITING_FOR_PREVIEW_WINDOW: {
@@ -814,7 +812,7 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         }
     }
 
-    if (mRecordingRequest == NULL) {
+    if (mRecordingRequest.entryCount() == 0) {
         res = updateRecordingRequest(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create recording request: %s (%d)",
@@ -826,12 +824,12 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     if (callbacksEnabled) {
         uint8_t outputStreams[3] =
                 { mPreviewStreamId, mRecordingStreamId, mCallbackStreamId };
-        res = updateEntry(mRecordingRequest,
+        res = mRecordingRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 3);
     } else {
         uint8_t outputStreams[2] = { mPreviewStreamId, mRecordingStreamId };
-        res = updateEntry(mRecordingRequest,
+        res = mRecordingRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 2);
     }
@@ -840,7 +838,7 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = sort_camera_metadata(mRecordingRequest);
+    res = mRecordingRequest.sort();
     if (res != OK) {
         ALOGE("%s: Camera %d: Error sorting recording request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1043,7 +1041,7 @@ status_t Camera2Client::takePicture(int msgType) {
         return res;
     }
 
-    if (mCaptureRequest == NULL) {
+    if (mCaptureRequest.entryCount() == 0) {
         res = updateCaptureRequest(k.mParameters);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create still image capture request: "
@@ -1051,8 +1049,6 @@ status_t Camera2Client::takePicture(int msgType) {
             return res;
         }
     }
-
-    camera_metadata_entry_t outputStreams;
 
     bool callbacksEnabled = k.mParameters.previewCallbackFlags &
             CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
@@ -1063,29 +1059,29 @@ status_t Camera2Client::takePicture(int msgType) {
     switch ( streamSwitch ) {
         case 0: { // No recording, callbacks
             uint8_t streamIds[2] = { mPreviewStreamId, mCaptureStreamId };
-            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                    &streamIds, 2);
+            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
+                    streamIds, 2);
             break;
         }
         case 1: { // Recording
             uint8_t streamIds[3] = { mPreviewStreamId, mRecordingStreamId,
                                      mCaptureStreamId };
-            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                    &streamIds, 3);
+            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
+                    streamIds, 3);
             break;
         }
         case 2: { // Callbacks
             uint8_t streamIds[3] = { mPreviewStreamId, mCallbackStreamId,
                                      mCaptureStreamId };
-            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                    &streamIds, 3);
+            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
+                    streamIds, 3);
             break;
         }
         case 3: { // Both
             uint8_t streamIds[4] = { mPreviewStreamId, mCallbackStreamId,
                                      mRecordingStreamId, mCaptureStreamId };
-            res = updateEntry(mCaptureRequest, ANDROID_REQUEST_OUTPUT_STREAMS,
-                    &streamIds, 4);
+            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
+                    streamIds, 4);
             break;
         }
     };
@@ -1095,22 +1091,22 @@ status_t Camera2Client::takePicture(int msgType) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = sort_camera_metadata(mCaptureRequest);
+    res = mCaptureRequest.sort();
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to sort capture request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
-    camera_metadata_t *captureCopy = clone_camera_metadata(mCaptureRequest);
-    if (captureCopy == NULL) {
+    CameraMetadata captureCopy = mCaptureRequest;
+    if (captureCopy.entryCount() == 0) {
         ALOGE("%s: Camera %d: Unable to copy capture request for HAL device",
                 __FUNCTION__, mCameraId);
         return NO_MEMORY;
     }
 
     if (k.mParameters.state == PREVIEW) {
-        res = mDevice->setStreamingRequest(NULL);
+        res = mDevice->clearStreamingRequest();
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
                     "%s (%d)",
@@ -1182,7 +1178,7 @@ status_t Camera2Client::setParameters(const String8& params) {
                     previewWidth, previewHeight);
             return BAD_VALUE;
         }
-        camera_metadata_entry_t availablePreviewSizes =
+        camera_metadata_ro_entry_t availablePreviewSizes =
             staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES);
         for (i = 0; i < availablePreviewSizes.count; i += 2 ) {
             if (availablePreviewSizes.data.i32[i] == previewWidth &&
@@ -1203,7 +1199,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     if (previewFpsRange[0] != k.mParameters.previewFpsRange[0] ||
             previewFpsRange[1] != k.mParameters.previewFpsRange[1]) {
         fpsRangeChanged = true;
-        camera_metadata_entry_t availablePreviewFpsRanges =
+        camera_metadata_ro_entry_t availablePreviewFpsRanges =
             staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
         for (i = 0; i < availablePreviewFpsRanges.count; i += 2) {
             if ((availablePreviewFpsRanges.data.i32[i] ==
@@ -1229,7 +1225,7 @@ status_t Camera2Client::setParameters(const String8& params) {
                     "is active!", __FUNCTION__);
             return BAD_VALUE;
         }
-        camera_metadata_entry_t availableFormats =
+        camera_metadata_ro_entry_t availableFormats =
             staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
         for (i = 0; i < availableFormats.count; i++) {
             if (availableFormats.data.i32[i] == previewFormat) break;
@@ -1247,7 +1243,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     if (!fpsRangeChanged) {
         previewFps = newParams.getPreviewFrameRate();
         if (previewFps != k.mParameters.previewFps) {
-            camera_metadata_entry_t availableFrameRates =
+            camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
             for (i = 0; i < availableFrameRates.count; i+=2) {
                 if (availableFrameRates.data.i32[i] == previewFps) break;
@@ -1267,7 +1263,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     newParams.getPictureSize(&pictureWidth, &pictureHeight);
     if (pictureWidth == k.mParameters.pictureWidth ||
             pictureHeight == k.mParameters.pictureHeight) {
-        camera_metadata_entry_t availablePictureSizes =
+        camera_metadata_ro_entry_t availablePictureSizes =
             staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
         for (i = 0; i < availablePictureSizes.count; i+=2) {
             if (availablePictureSizes.data.i32[i] == pictureWidth &&
@@ -1288,7 +1284,7 @@ status_t Camera2Client::setParameters(const String8& params) {
             newParams.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
     if (jpegThumbSize[0] != k.mParameters.jpegThumbSize[0] ||
             jpegThumbSize[1] != k.mParameters.jpegThumbSize[1]) {
-        camera_metadata_entry_t availableJpegThumbSizes =
+        camera_metadata_ro_entry_t availableJpegThumbSizes =
             staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES);
         for (i = 0; i < availableJpegThumbSizes.count; i+=2) {
             if (availableJpegThumbSizes.data.i32[i] == jpegThumbSize[0] &&
@@ -1392,7 +1388,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     int wbMode = wbModeStringToEnum(
         newParams.get(CameraParameters::KEY_WHITE_BALANCE) );
     if (wbMode != k.mParameters.wbMode) {
-        camera_metadata_entry_t availableWbModes =
+        camera_metadata_ro_entry_t availableWbModes =
             staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
         for (i = 0; i < availableWbModes.count; i++) {
             if (wbMode == availableWbModes.data.u8[i]) break;
@@ -1409,7 +1405,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     int effectMode = effectModeStringToEnum(
         newParams.get(CameraParameters::KEY_EFFECT) );
     if (effectMode != k.mParameters.effectMode) {
-        camera_metadata_entry_t availableEffectModes =
+        camera_metadata_ro_entry_t availableEffectModes =
             staticInfo(ANDROID_CONTROL_AVAILABLE_EFFECTS);
         for (i = 0; i < availableEffectModes.count; i++) {
             if (effectMode == availableEffectModes.data.u8[i]) break;
@@ -1426,7 +1422,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     int antibandingMode = abModeStringToEnum(
         newParams.get(CameraParameters::KEY_ANTIBANDING) );
     if (antibandingMode != k.mParameters.antibandingMode) {
-        camera_metadata_entry_t availableAbModes =
+        camera_metadata_ro_entry_t availableAbModes =
             staticInfo(ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES);
         for (i = 0; i < availableAbModes.count; i++) {
             if (antibandingMode == availableAbModes.data.u8[i]) break;
@@ -1444,7 +1440,7 @@ status_t Camera2Client::setParameters(const String8& params) {
         newParams.get(CameraParameters::KEY_SCENE_MODE) );
     if (sceneMode != k.mParameters.sceneMode &&
             sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) {
-        camera_metadata_entry_t availableSceneModes =
+        camera_metadata_ro_entry_t availableSceneModes =
             staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
         for (i = 0; i < availableSceneModes.count; i++) {
             if (sceneMode == availableSceneModes.data.u8[i]) break;
@@ -1461,7 +1457,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     Parameters::flashMode_t flashMode = flashModeStringToEnum(
         newParams.get(CameraParameters::KEY_FLASH_MODE) );
     if (flashMode != k.mParameters.flashMode) {
-        camera_metadata_entry_t flashAvailable =
+        camera_metadata_ro_entry_t flashAvailable =
             staticInfo(ANDROID_FLASH_AVAILABLE, 1, 1);
         if (!flashAvailable.data.u8[0] &&
                 flashMode != Parameters::FLASH_MODE_OFF) {
@@ -1470,7 +1466,7 @@ status_t Camera2Client::setParameters(const String8& params) {
                     newParams.get(CameraParameters::KEY_FLASH_MODE));
             return BAD_VALUE;
         } else if (flashMode == Parameters::FLASH_MODE_RED_EYE) {
-            camera_metadata_entry_t availableAeModes =
+            camera_metadata_ro_entry_t availableAeModes =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES);
             for (i = 0; i < availableAeModes.count; i++) {
                 if (flashMode == availableAeModes.data.u8[i]) break;
@@ -1494,7 +1490,7 @@ status_t Camera2Client::setParameters(const String8& params) {
         newParams.get(CameraParameters::KEY_FOCUS_MODE));
     if (focusMode != k.mParameters.focusMode) {
         if (focusMode != Parameters::FOCUS_MODE_FIXED) {
-            camera_metadata_entry_t minFocusDistance =
+            camera_metadata_ro_entry_t minFocusDistance =
                 staticInfo(ANDROID_LENS_MINIMUM_FOCUS_DISTANCE);
             if (minFocusDistance.data.f[0] == 0) {
                 ALOGE("%s: Requested focus mode \"%s\" is not available: "
@@ -1503,7 +1499,7 @@ status_t Camera2Client::setParameters(const String8& params) {
                         newParams.get(CameraParameters::KEY_FOCUS_MODE));
                 return BAD_VALUE;
             } else if (focusMode != Parameters::FOCUS_MODE_INFINITY) {
-                camera_metadata_entry_t availableFocusModes =
+                camera_metadata_ro_entry_t availableFocusModes =
                     staticInfo(ANDROID_CONTROL_AF_AVAILABLE_MODES);
                 for (i = 0; i < availableFocusModes.count; i++) {
                     if (focusMode == availableFocusModes.data.u8[i]) break;
@@ -1534,7 +1530,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     // EXPOSURE_COMPENSATION
     int exposureCompensation =
         newParams.getInt(CameraParameters::KEY_EXPOSURE_COMPENSATION);
-    camera_metadata_entry_t exposureCompensationRange =
+    camera_metadata_ro_entry_t exposureCompensationRange =
         staticInfo(ANDROID_CONTROL_AE_EXP_COMPENSATION_RANGE);
     if (exposureCompensation < exposureCompensationRange.data.i32[0] ||
             exposureCompensation > exposureCompensationRange.data.i32[1]) {
@@ -1581,7 +1577,7 @@ status_t Camera2Client::setParameters(const String8& params) {
                     __FUNCTION__);
             return BAD_VALUE;
         }
-        camera_metadata_entry_t availableVideoSizes =
+        camera_metadata_ro_entry_t availableVideoSizes =
             staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES);
         for (i = 0; i < availableVideoSizes.count; i += 2 ) {
             if (availableVideoSizes.data.i32[i] == videoWidth &&
@@ -1601,7 +1597,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     // VIDEO_STABILIZATION
     bool videoStabilization = boolFromString(
         newParams.get(CameraParameters::KEY_VIDEO_STABILIZATION) );
-    camera_metadata_entry_t availableVideoStabilizationModes =
+    camera_metadata_ro_entry_t availableVideoStabilizationModes =
         staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
     if (videoStabilization && availableVideoStabilizationModes.count == 1) {
         ALOGE("%s: Video stabilization not supported", __FUNCTION__);
@@ -1992,64 +1988,50 @@ void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
 
 void Camera2Client::onNewFrameAvailable() {
     status_t res;
-    camera_metadata_t *frame = NULL;
-    do {
-        res = mDevice->getNextFrame(&frame);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
+    CameraMetadata frame;
+    while ( (res = mDevice->getNextFrame(&frame)) == OK) {
+        camera_metadata_entry_t entry;
+        entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
-            return;
+            break;
         }
-        if (frame != NULL) {
-            camera_metadata_entry_t entry;
-            res = find_camera_metadata_entry(frame, ANDROID_REQUEST_FRAME_COUNT,
-                    &entry);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
-                break;
-            }
 
-            res = processFrameFaceDetect(frame);
-            if (res != OK) break;
-
-            free_camera_metadata(frame);
-        }
-    } while (frame != NULL);
-
-    if (frame != NULL) {
-        free_camera_metadata(frame);
+        res = processFrameFaceDetect(frame);
+        if (res != OK) break;
     }
+    if (res != NOT_ENOUGH_DATA) {
+        ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return;
+    }
+
     return;
 }
 
-status_t Camera2Client::processFrameFaceDetect(camera_metadata_t *frame) {
+status_t Camera2Client::processFrameFaceDetect(const CameraMetadata &frame) {
     status_t res;
-    camera_metadata_entry_t entry;
+    camera_metadata_ro_entry_t entry;
     bool enableFaceDetect;
     {
         LockedParameters::Key k(mParameters);
         enableFaceDetect = k.mParameters.enableFaceDetect;
     }
-    res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_DETECT_MODE,
-            &entry);
-    // TODO: Remove this check once things are more compliant. For now, assume that
-    // if we can't find the face detect mode, then it's probably not working.
-    if (res == NAME_NOT_FOUND) {
+    entry = frame.find(ANDROID_STATS_FACE_DETECT_MODE);
+
+    // TODO: This should be an error once implementations are compliant
+    if (entry.count == 0) {
         return OK;
-    } else if (res != OK) {
-        ALOGE("%s: Camera %d: Error reading face mode: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
     }
+
     uint8_t faceDetectMode = entry.data.u8[0];
 
     if (enableFaceDetect && faceDetectMode != ANDROID_STATS_FACE_DETECTION_OFF) {
-        res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_RECTANGLES,
-                &entry);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error reading face rectangles: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+        entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: Unable to read face rectangles",
+                    __FUNCTION__, mCameraId);
             return res;
         }
         camera_frame_metadata metadata;
@@ -2061,35 +2043,33 @@ status_t Camera2Client::processFrameFaceDetect(camera_metadata_t *frame) {
                     metadata.number_of_faces, mDeviceInfo->maxFaces);
             return res;
         }
-        int32_t *faceRects = entry.data.i32;
+        const int32_t *faceRects = entry.data.i32;
 
-        res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_SCORES,
-                &entry);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error reading face scores: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+        entry = frame.find(ANDROID_STATS_FACE_SCORES);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: Unable to read face scores",
+                    __FUNCTION__, mCameraId);
             return res;
         }
-        uint8_t *faceScores = entry.data.u8;
+        const uint8_t *faceScores = entry.data.u8;
 
-        int32_t *faceLandmarks = NULL;
-        int32_t *faceIds = NULL;
+        const int32_t *faceLandmarks = NULL;
+        const int32_t *faceIds = NULL;
 
         if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
-            res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_LANDMARKS,
-                    &entry);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Error reading face landmarks: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
+            entry = frame.find(ANDROID_STATS_FACE_LANDMARKS);
+            if (entry.count == 0) {
+                ALOGE("%s: Camera %d: Unable to read face landmarks",
+                        __FUNCTION__, mCameraId);
                 return res;
             }
             faceLandmarks = entry.data.i32;
 
-            res = find_camera_metadata_entry(frame, ANDROID_STATS_FACE_IDS,
-                    &entry);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Error reading face IDs: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
+            entry = frame.find(ANDROID_STATS_FACE_IDS);
+
+            if (entry.count == 0) {
+                ALOGE("%s: Camera %d: Unable to read face IDs",
+                        __FUNCTION__, mCameraId);
                 return res;
             }
             faceIds = entry.data.i32;
@@ -2426,23 +2406,19 @@ void Camera2Client::onRecordingFrameAvailable() {
     }
 }
 
-camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
-        size_t minCount, size_t maxCount) {
+camera_metadata_ro_entry_t Camera2Client::staticInfo(uint32_t tag,
+        size_t minCount, size_t maxCount) const {
     status_t res;
-    camera_metadata_entry_t entry;
-    res = find_camera_metadata_entry(mDevice->info(),
-            tag,
-            &entry);
-    if (CC_UNLIKELY( res != OK )) {
+    camera_metadata_ro_entry_t entry = mDevice->info().find(tag);
+
+    if (CC_UNLIKELY( entry.count == 0 )) {
         const char* tagSection = get_camera_metadata_section_name(tag);
         if (tagSection == NULL) tagSection = "<unknown>";
         const char* tagName = get_camera_metadata_tag_name(tag);
         if (tagName == NULL) tagName = "<unknown>";
 
-        ALOGE("Error finding static metadata entry '%s.%s' (%x): %s (%d)",
-                tagSection, tagName, tag, strerror(-res), res);
-        entry.count = 0;
-        entry.data.u8 = NULL;
+        ALOGE("Error finding static metadata entry '%s.%s' (%x)",
+                tagSection, tagName, tag);
     } else if (CC_UNLIKELY(
             (minCount != 0 && entry.count < minCount) ||
             (maxCount != 0 && entry.count > maxCount) ) ) {
@@ -2453,8 +2429,6 @@ camera_metadata_entry_t Camera2Client::staticInfo(uint32_t tag,
         ALOGE("Malformed static metadata entry '%s.%s' (%x):"
                 "Expected between %d and %d values, but got %d values",
                 tagSection, tagName, tag, minCount, maxCount, entry.count);
-        entry.count = 0;
-        entry.data.u8 = NULL;
     }
 
     return entry;
@@ -2469,13 +2443,13 @@ status_t Camera2Client::buildDeviceInfo() {
     DeviceInfo *deviceInfo = new DeviceInfo;
     mDeviceInfo = deviceInfo;
 
-    camera_metadata_entry_t activeArraySize =
+    camera_metadata_ro_entry_t activeArraySize =
         staticInfo(ANDROID_SENSOR_ACTIVE_ARRAY_SIZE, 2, 2);
     if (!activeArraySize.count) return NO_INIT;
     deviceInfo->arrayWidth = activeArraySize.data.i32[0];
     deviceInfo->arrayHeight = activeArraySize.data.i32[1];
 
-    camera_metadata_entry_t availableFaceDetectModes =
+    camera_metadata_ro_entry_t availableFaceDetectModes =
         staticInfo(ANDROID_STATS_AVAILABLE_FACE_DETECT_MODES);
     if (!availableFaceDetectModes.count) return NO_INIT;
 
@@ -2504,7 +2478,7 @@ status_t Camera2Client::buildDeviceInfo() {
         }
     }
 
-    camera_metadata_entry_t maxFacesDetected =
+    camera_metadata_ro_entry_t maxFacesDetected =
         staticInfo(ANDROID_STATS_MAX_FACE_COUNT, 1, 1);
     if (!maxFacesDetected.count) return NO_INIT;
 
@@ -2520,7 +2494,7 @@ status_t Camera2Client::buildDefaultParameters() {
     status_t res;
     CameraParameters params;
 
-    camera_metadata_entry_t availableProcessedSizes =
+    camera_metadata_ro_entry_t availableProcessedSizes =
         staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, 2);
     if (!availableProcessedSizes.count) return NO_INIT;
 
@@ -2549,7 +2523,7 @@ status_t Camera2Client::buildDefaultParameters() {
                 supportedPreviewSizes);
     }
 
-    camera_metadata_entry_t availableFpsRanges =
+    camera_metadata_ro_entry_t availableFpsRanges =
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
     if (!availableFpsRanges.count) return NO_INIT;
 
@@ -2580,7 +2554,7 @@ status_t Camera2Client::buildDefaultParameters() {
     k.mParameters.previewTransform = degToTransform(0,
             mCameraFacing == CAMERA_FACING_FRONT);
 
-    camera_metadata_entry_t availableFormats =
+    camera_metadata_ro_entry_t availableFormats =
         staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
 
     {
@@ -2648,7 +2622,7 @@ status_t Camera2Client::buildDefaultParameters() {
                 supportedPreviewFrameRates);
     }
 
-    camera_metadata_entry_t availableJpegSizes =
+    camera_metadata_ro_entry_t availableJpegSizes =
         staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES, 2);
     if (!availableJpegSizes.count) return NO_INIT;
 
@@ -2675,7 +2649,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,
             CameraParameters::PIXEL_FORMAT_JPEG);
 
-    camera_metadata_entry_t availableJpegThumbnailSizes =
+    camera_metadata_ro_entry_t availableJpegThumbnailSizes =
         staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES, 2);
     if (!availableJpegThumbnailSizes.count) return NO_INIT;
 
@@ -2718,7 +2692,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_WHITE_BALANCE,
             CameraParameters::WHITE_BALANCE_AUTO);
 
-    camera_metadata_entry_t availableWhiteBalanceModes =
+    camera_metadata_ro_entry_t availableWhiteBalanceModes =
         staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
     {
         String8 supportedWhiteBalance;
@@ -2779,7 +2753,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_EFFECT,
             CameraParameters::EFFECT_NONE);
 
-    camera_metadata_entry_t availableEffects =
+    camera_metadata_ro_entry_t availableEffects =
         staticInfo(ANDROID_CONTROL_AVAILABLE_EFFECTS);
     if (!availableEffects.count) return NO_INIT;
     {
@@ -2839,7 +2813,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_ANTIBANDING,
             CameraParameters::ANTIBANDING_AUTO);
 
-    camera_metadata_entry_t availableAntibandingModes =
+    camera_metadata_ro_entry_t availableAntibandingModes =
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES);
     if (!availableAntibandingModes.count) return NO_INIT;
     {
@@ -2881,7 +2855,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_SCENE_MODE,
             CameraParameters::SCENE_MODE_AUTO);
 
-    camera_metadata_entry_t availableSceneModes =
+    camera_metadata_ro_entry_t availableSceneModes =
         staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
     if (!availableSceneModes.count) return NO_INIT;
     {
@@ -2973,11 +2947,11 @@ status_t Camera2Client::buildDefaultParameters() {
         }
     }
 
-    camera_metadata_entry_t flashAvailable =
+    camera_metadata_ro_entry_t flashAvailable =
         staticInfo(ANDROID_FLASH_AVAILABLE, 1, 1);
     if (!flashAvailable.count) return NO_INIT;
 
-    camera_metadata_entry_t availableAeModes =
+    camera_metadata_ro_entry_t availableAeModes =
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES);
     if (!availableAeModes.count) return NO_INIT;
 
@@ -3009,11 +2983,11 @@ status_t Camera2Client::buildDefaultParameters() {
                 CameraParameters::FLASH_MODE_OFF);
     }
 
-    camera_metadata_entry_t minFocusDistance =
+    camera_metadata_ro_entry_t minFocusDistance =
         staticInfo(ANDROID_LENS_MINIMUM_FOCUS_DISTANCE, 1, 1);
     if (!minFocusDistance.count) return NO_INIT;
 
-    camera_metadata_entry_t availableAfModes =
+    camera_metadata_ro_entry_t availableAfModes =
         staticInfo(ANDROID_CONTROL_AF_AVAILABLE_MODES);
     if (!availableAfModes.count) return NO_INIT;
 
@@ -3070,7 +3044,7 @@ status_t Camera2Client::buildDefaultParameters() {
                 supportedFocusModes);
     }
 
-    camera_metadata_entry_t max3aRegions =
+    camera_metadata_ro_entry_t max3aRegions =
         staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1);
     if (!max3aRegions.count) return NO_INIT;
 
@@ -3081,14 +3055,14 @@ status_t Camera2Client::buildDefaultParameters() {
     k.mParameters.focusingAreas.clear();
     k.mParameters.focusingAreas.add(Parameters::Area(0,0,0,0,0));
 
-    camera_metadata_entry_t availableFocalLengths =
+    camera_metadata_ro_entry_t availableFocalLengths =
         staticInfo(ANDROID_LENS_AVAILABLE_FOCAL_LENGTHS);
     if (!availableFocalLengths.count) return NO_INIT;
 
     float minFocalLength = availableFocalLengths.data.f[0];
     params.setFloat(CameraParameters::KEY_FOCAL_LENGTH, minFocalLength);
 
-    camera_metadata_entry_t sensorSize =
+    camera_metadata_ro_entry_t sensorSize =
         staticInfo(ANDROID_SENSOR_PHYSICAL_SIZE, 2, 2);
     if (!sensorSize.count) return NO_INIT;
 
@@ -3104,7 +3078,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_EXPOSURE_COMPENSATION,
                 k.mParameters.exposureCompensation);
 
-    camera_metadata_entry_t exposureCompensationRange =
+    camera_metadata_ro_entry_t exposureCompensationRange =
         staticInfo(ANDROID_CONTROL_AE_EXP_COMPENSATION_RANGE, 2, 2);
     if (!exposureCompensationRange.count) return NO_INIT;
 
@@ -3113,7 +3087,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,
             exposureCompensationRange.data.i32[0]);
 
-    camera_metadata_entry_t exposureCompensationStep =
+    camera_metadata_ro_entry_t exposureCompensationStep =
         staticInfo(ANDROID_CONTROL_AE_EXP_COMPENSATION_STEP, 1, 1);
     if (!exposureCompensationStep.count) return NO_INIT;
 
@@ -3143,7 +3117,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_ZOOM, k.mParameters.zoom);
     params.set(CameraParameters::KEY_MAX_ZOOM, NUM_ZOOM_STEPS - 1);
 
-    camera_metadata_entry_t maxDigitalZoom =
+    camera_metadata_ro_entry_t maxDigitalZoom =
         staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM, 1, 1);
     if (!maxDigitalZoom.count) return NO_INIT;
 
@@ -3187,7 +3161,7 @@ status_t Camera2Client::buildDefaultParameters() {
     params.set(CameraParameters::KEY_VIDEO_STABILIZATION,
             CameraParameters::FALSE);
 
-    camera_metadata_entry_t availableVideoStabilizationModes =
+    camera_metadata_ro_entry_t availableVideoStabilizationModes =
         staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
     if (!availableVideoStabilizationModes.count) return NO_INIT;
 
@@ -3321,7 +3295,7 @@ status_t Camera2Client::updatePreviewStream(const Parameters &params) {
 status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
-    if (mPreviewRequest == NULL) {
+    if (mPreviewRequest.entryCount() == 0) {
         res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
                 &mPreviewRequest);
         if (res != OK) {
@@ -3331,7 +3305,7 @@ status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
         }
     }
 
-    res = updateRequestCommon(mPreviewRequest, params);
+    res = updateRequestCommon(&mPreviewRequest, params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of preview "
                 "request: %s (%d)", __FUNCTION__, mCameraId,
@@ -3404,7 +3378,7 @@ status_t Camera2Client::updateCaptureStream(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
     // Find out buffer size for JPEG
-    camera_metadata_entry_t maxJpegSize =
+    camera_metadata_ro_entry_t maxJpegSize =
             staticInfo(ANDROID_JPEG_MAX_SIZE);
     if (maxJpegSize.count == 0) {
         ALOGE("%s: Camera %d: Can't find ANDROID_JPEG_MAX_SIZE!",
@@ -3471,7 +3445,7 @@ status_t Camera2Client::updateCaptureStream(const Parameters &params) {
 status_t Camera2Client::updateCaptureRequest(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
-    if (mCaptureRequest == NULL) {
+    if (mCaptureRequest.entryCount() == 0) {
         res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_STILL_CAPTURE,
                 &mCaptureRequest);
         if (res != OK) {
@@ -3481,7 +3455,7 @@ status_t Camera2Client::updateCaptureRequest(const Parameters &params) {
         }
     }
 
-    res = updateRequestCommon(mCaptureRequest, params);
+    res = updateRequestCommon(&mCaptureRequest, params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of capture "
                 "request: %s (%d)", __FUNCTION__, mCameraId,
@@ -3489,46 +3463,39 @@ status_t Camera2Client::updateCaptureRequest(const Parameters &params) {
         return res;
     }
 
-    res = updateEntry(mCaptureRequest,
-            ANDROID_JPEG_THUMBNAIL_SIZE,
+    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_SIZE,
             params.jpegThumbSize, 2);
     if (res != OK) return res;
-    res = updateEntry(mCaptureRequest,
-            ANDROID_JPEG_THUMBNAIL_QUALITY,
+    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_QUALITY,
             &params.jpegThumbQuality, 1);
     if (res != OK) return res;
-    res = updateEntry(mCaptureRequest,
-            ANDROID_JPEG_QUALITY,
+    res = mCaptureRequest.update(ANDROID_JPEG_QUALITY,
             &params.jpegQuality, 1);
     if (res != OK) return res;
-    res = updateEntry(mCaptureRequest,
+    res = mCaptureRequest.update(
             ANDROID_JPEG_ORIENTATION,
             &params.jpegRotation, 1);
     if (res != OK) return res;
 
     if (params.gpsEnabled) {
-        res = updateEntry(mCaptureRequest,
+        res = mCaptureRequest.update(
                 ANDROID_JPEG_GPS_COORDINATES,
                 params.gpsCoordinates, 3);
         if (res != OK) return res;
-        res = updateEntry(mCaptureRequest,
+        res = mCaptureRequest.update(
                 ANDROID_JPEG_GPS_TIMESTAMP,
                 &params.gpsTimestamp, 1);
         if (res != OK) return res;
-        res = updateEntry(mCaptureRequest,
+        res = mCaptureRequest.update(
                 ANDROID_JPEG_GPS_PROCESSING_METHOD,
-                params.gpsProcessingMethod.string(),
-                params.gpsProcessingMethod.size());
+                params.gpsProcessingMethod);
         if (res != OK) return res;
     } else {
-        res = deleteEntry(mCaptureRequest,
-                ANDROID_JPEG_GPS_COORDINATES);
+        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_COORDINATES);
         if (res != OK) return res;
-        res = deleteEntry(mCaptureRequest,
-                ANDROID_JPEG_GPS_TIMESTAMP);
+        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_TIMESTAMP);
         if (res != OK) return res;
-        res = deleteEntry(mCaptureRequest,
-                ANDROID_JPEG_GPS_PROCESSING_METHOD);
+        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_PROCESSING_METHOD);
         if (res != OK) return res;
     }
 
@@ -3538,7 +3505,7 @@ status_t Camera2Client::updateCaptureRequest(const Parameters &params) {
 status_t Camera2Client::updateRecordingRequest(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
-    if (mRecordingRequest == NULL) {
+    if (mRecordingRequest.entryCount() == 0) {
         res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_VIDEO_RECORD,
                 &mRecordingRequest);
         if (res != OK) {
@@ -3548,7 +3515,7 @@ status_t Camera2Client::updateRecordingRequest(const Parameters &params) {
         }
     }
 
-    res = updateRequestCommon(mRecordingRequest, params);
+    res = updateRequestCommon(&mRecordingRequest, params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of recording "
                 "request: %s (%d)", __FUNCTION__, mCameraId,
@@ -3616,36 +3583,34 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
     return OK;
 }
 
-status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
+status_t Camera2Client::updateRequestCommon(CameraMetadata *request,
         const Parameters &params) {
     ATRACE_CALL();
     status_t res;
-    res = updateEntry(request,
-            ANDROID_CONTROL_AE_TARGET_FPS_RANGE, params.previewFpsRange, 2);
+    res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
+            params.previewFpsRange, 2);
     if (res != OK) return res;
 
     uint8_t wbMode = params.autoWhiteBalanceLock ?
-            ANDROID_CONTROL_AWB_LOCKED : params.wbMode;
-    res = updateEntry(request,
-            ANDROID_CONTROL_AWB_MODE, &wbMode, 1);
+            (uint8_t)ANDROID_CONTROL_AWB_LOCKED : params.wbMode;
+    res = request->update(ANDROID_CONTROL_AWB_MODE,
+            &wbMode, 1);
     if (res != OK) return res;
-    res = updateEntry(request,
-            ANDROID_CONTROL_EFFECT_MODE, &params.effectMode, 1);
+    res = request->update(ANDROID_CONTROL_EFFECT_MODE,
+            &params.effectMode, 1);
     if (res != OK) return res;
-    res = updateEntry(request,
-            ANDROID_CONTROL_AE_ANTIBANDING_MODE,
+    res = request->update(ANDROID_CONTROL_AE_ANTIBANDING_MODE,
             &params.antibandingMode, 1);
     if (res != OK) return res;
 
     uint8_t controlMode =
             (params.sceneMode == ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ?
             ANDROID_CONTROL_AUTO : ANDROID_CONTROL_USE_SCENE_MODE;
-    res = updateEntry(request,
-            ANDROID_CONTROL_MODE, &controlMode, 1);
+    res = request->update(ANDROID_CONTROL_MODE,
+            &controlMode, 1);
     if (res != OK) return res;
     if (controlMode == ANDROID_CONTROL_USE_SCENE_MODE) {
-        res = updateEntry(request,
-                ANDROID_CONTROL_SCENE_MODE,
+        res = request->update(ANDROID_CONTROL_SCENE_MODE,
                 &params.sceneMode, 1);
         if (res != OK) return res;
     }
@@ -3672,11 +3637,11 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
     }
     if (params.autoExposureLock) aeMode = ANDROID_CONTROL_AE_LOCKED;
 
-    res = updateEntry(request,
-            ANDROID_FLASH_MODE, &flashMode, 1);
+    res = request->update(ANDROID_FLASH_MODE,
+            &flashMode, 1);
     if (res != OK) return res;
-    res = updateEntry(request,
-            ANDROID_CONTROL_AE_MODE, &aeMode, 1);
+    res = request->update(ANDROID_CONTROL_AE_MODE,
+            &aeMode, 1);
     if (res != OK) return res;
 
     float focusDistance = 0; // infinity focus in diopters
@@ -3698,11 +3663,11 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
                     mCameraId, params.focusMode);
             return BAD_VALUE;
     }
-    res = updateEntry(request,
-            ANDROID_LENS_FOCUS_DISTANCE, &focusDistance, 1);
+    res = request->update(ANDROID_LENS_FOCUS_DISTANCE,
+            &focusDistance, 1);
     if (res != OK) return res;
-    res = updateEntry(request,
-            ANDROID_CONTROL_AF_MODE, &focusMode, 1);
+    res = request->update(ANDROID_CONTROL_AF_MODE,
+            &focusMode, 1);
     if (res != OK) return res;
 
     size_t focusingAreasSize = params.focusingAreas.size() * 5;
@@ -3714,13 +3679,12 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
         focusingAreas[i + 3] = params.focusingAreas[i].bottom;
         focusingAreas[i + 4] = params.focusingAreas[i].weight;
     }
-    res = updateEntry(request,
-            ANDROID_CONTROL_AF_REGIONS, focusingAreas,focusingAreasSize);
+    res = request->update(ANDROID_CONTROL_AF_REGIONS,
+            focusingAreas,focusingAreasSize);
     if (res != OK) return res;
     delete[] focusingAreas;
 
-    res = updateEntry(request,
-            ANDROID_CONTROL_AE_EXP_COMPENSATION,
+    res = request->update(ANDROID_CONTROL_AE_EXP_COMPENSATION,
             &params.exposureCompensation, 1);
     if (res != OK) return res;
 
@@ -3733,19 +3697,19 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
         meteringAreas[i + 3] = params.meteringAreas[i].bottom;
         meteringAreas[i + 4] = params.meteringAreas[i].weight;
     }
-    res = updateEntry(request,
-            ANDROID_CONTROL_AE_REGIONS, meteringAreas, meteringAreasSize);
+    res = request->update(ANDROID_CONTROL_AE_REGIONS,
+            meteringAreas, meteringAreasSize);
     if (res != OK) return res;
 
-    res = updateEntry(request,
-            ANDROID_CONTROL_AWB_REGIONS, meteringAreas, meteringAreasSize);
+    res = request->update(ANDROID_CONTROL_AWB_REGIONS,
+            meteringAreas, meteringAreasSize);
     if (res != OK) return res;
     delete[] meteringAreas;
 
     // Need to convert zoom index into a crop rectangle. The rectangle is
     // chosen to maximize its area on the sensor
 
-    camera_metadata_entry_t maxDigitalZoom =
+    camera_metadata_ro_entry_t maxDigitalZoom =
             staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
     float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
             (NUM_ZOOM_STEPS-1);
@@ -3765,8 +3729,8 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
     zoomTop = (mDeviceInfo->arrayHeight - zoomHeight) / 2;
 
     int32_t cropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
-    res = updateEntry(request,
-            ANDROID_SCALER_CROP_REGION, cropRegion, 3);
+    res = request->update(ANDROID_SCALER_CROP_REGION,
+            cropRegion, 3);
     if (res != OK) return res;
 
     // TODO: Decide how to map recordingHint, or whether just to ignore it
@@ -3774,16 +3738,14 @@ status_t Camera2Client::updateRequestCommon(camera_metadata_t *request,
     uint8_t vstabMode = params.videoStabilization ?
             ANDROID_CONTROL_VIDEO_STABILIZATION_ON :
             ANDROID_CONTROL_VIDEO_STABILIZATION_OFF;
-    res = updateEntry(request,
-            ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
+    res = request->update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
             &vstabMode, 1);
     if (res != OK) return res;
 
     uint8_t faceDetectMode = params.enableFaceDetect ?
             mDeviceInfo->bestFaceDetectMode :
             (uint8_t)ANDROID_STATS_FACE_DETECTION_OFF;
-    res = updateEntry(request,
-            ANDROID_STATS_FACE_DETECT_MODE,
+    res = request->update(ANDROID_STATS_FACE_DETECT_MODE,
             &faceDetectMode, 1);
     if (res != OK) return res;
 
@@ -3796,50 +3758,6 @@ int Camera2Client::arrayXToNormalized(int width) const {
 
 int Camera2Client::arrayYToNormalized(int height) const {
     return height * 2000 / (mDeviceInfo->arrayHeight - 1) - 1000;
-}
-
-status_t Camera2Client::updateEntry(camera_metadata_t *buffer,
-        uint32_t tag, const void *data, size_t data_count) {
-    camera_metadata_entry_t entry;
-    status_t res;
-    res = find_camera_metadata_entry(buffer, tag, &entry);
-    if (res == NAME_NOT_FOUND) {
-        res = add_camera_metadata_entry(buffer,
-                tag, data, data_count);
-    } else if (res == OK) {
-        res = update_camera_metadata_entry(buffer,
-                entry.index, data, data_count, NULL);
-    }
-
-    if (res != OK) {
-        ALOGE("%s: Unable to update metadata entry %s.%s (%x): %s (%d)",
-                __FUNCTION__, get_camera_metadata_section_name(tag),
-                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
-    }
-    return res;
-}
-
-status_t Camera2Client::deleteEntry(camera_metadata_t *buffer, uint32_t tag) {
-    camera_metadata_entry_t entry;
-    status_t res;
-    res = find_camera_metadata_entry(buffer, tag, &entry);
-    if (res == NAME_NOT_FOUND) {
-        return OK;
-    } else if (res != OK) {
-        ALOGE("%s: Error looking for entry %s.%s (%x): %s %d",
-                __FUNCTION__,
-                get_camera_metadata_section_name(tag),
-                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
-        return res;
-    }
-    res = delete_camera_metadata_entry(buffer, entry.index);
-    if (res != OK) {
-        ALOGE("%s: Error deleting entry %s.%s (%x): %s %d",
-                __FUNCTION__,
-                get_camera_metadata_section_name(tag),
-                get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
-    }
-    return res;
 }
 
 int Camera2Client::formatStringToEnum(const char *format) {

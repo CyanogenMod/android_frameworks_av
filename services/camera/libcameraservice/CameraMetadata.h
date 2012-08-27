@@ -1,0 +1,166 @@
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ANDROID_SERVERS_CAMERA_METADATA_CPP
+#define ANDROID_SERVERS_CAMERA_METADATA_CPP
+
+#include "system/camera_metadata.h"
+#include <utils/String8.h>
+#include <utils/Vector.h>
+
+namespace android {
+
+/**
+ * A convenience wrapper around the C-based camera_metadata_t library.
+ */
+class CameraMetadata {
+  public:
+    /** Creates an empty object; best used when expecting to acquire contents
+     * from elsewhere */
+    CameraMetadata();
+    /** Creates an object with space for entryCapacity entries, with
+     * dataCapacity extra storage */
+    CameraMetadata(size_t entryCapacity, size_t dataCapacity = 10);
+
+    ~CameraMetadata();
+
+    /** Takes ownership of passed-in buffer */
+    CameraMetadata(camera_metadata_t *buffer);
+    /** Clones the metadata */
+    CameraMetadata(const CameraMetadata &other);
+
+    /**
+     * Assignment clones metadata buffer.
+     */
+    CameraMetadata &operator=(const CameraMetadata &other);
+    CameraMetadata &operator=(const camera_metadata_t *buffer);
+
+    /**
+     * Release a raw metadata buffer to the caller. After this call,
+     * CameraMetadata no longer references the buffer, and the caller takes
+     * responsibility for freeing the raw metadata buffer (using
+     * free_camera_metadata()), or for handing it to another CameraMetadata
+     * instance.
+     */
+    camera_metadata_t* release();
+
+    /**
+     * Clear the metadata buffer and free all storage used by it
+     */
+    void clear();
+
+    /**
+     * Acquire a raw metadata buffer from the caller. After this call,
+     * the caller no longer owns the raw buffer, and must not free or manipulate it.
+     * If CameraMetadata already contains metadata, it is freed.
+     */
+    void acquire(camera_metadata_t* buffer);
+
+    /**
+     * Acquires raw buffer from other CameraMetadata object. After the call, the argument
+     * object no longer has any metadata.
+     */
+    void acquire(CameraMetadata &other);
+
+    /**
+     * Append metadata from another CameraMetadata object.
+     */
+    status_t append(const CameraMetadata &other);
+
+    /**
+     * Number of metadata entries.
+     */
+    size_t entryCount() const;
+
+    /**
+     * Sort metadata buffer for faster find
+     */
+    status_t sort();
+
+    /**
+     * Update metadata entry. Will create entry if it doesn't exist already, and
+     * will reallocate the buffer if insufficient space exists. Overloaded for
+     * the various types of valid data.
+     */
+    status_t update(uint32_t tag,
+            const uint8_t *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const int32_t *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const float *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const int64_t *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const double *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const camera_metadata_rational_t *data, size_t data_count);
+    status_t update(uint32_t tag,
+            const String8 &string);
+
+    template<typename T>
+    status_t update(uint32_t tag, Vector<T> data) {
+        return update(tag, data.array(), data.size());
+    }
+
+    /**
+     * Get metadata entry by tag id
+     */
+    camera_metadata_entry find(uint32_t tag);
+
+    /**
+     * Get metadata entry by tag id, with no editing
+     */
+    camera_metadata_ro_entry find(uint32_t tag) const;
+
+    /**
+     * Delete metadata entry by tag
+     */
+    status_t erase(uint32_t tag);
+
+    /**
+     * Dump contents into FD for debugging. The verbosity levels are
+     * 0: Tag entry information only, no data values
+     * 1: Level 0 plus at most 16 data values per entry
+     * 2: All information
+     *
+     * The indentation parameter sets the number of spaces to add to the start
+     * each line of output.
+     */
+    void dump(int fd, int verbosity = 1, int indentation = 0) const;
+
+  private:
+    camera_metadata_t *mBuffer;
+
+    /**
+     * Check if tag has a given type
+     */
+    status_t checkType(uint32_t tag, uint8_t expectedType);
+
+    /**
+     * Base update entry method
+     */
+    status_t update(uint32_t tag, const void *data, size_t data_count);
+
+    /**
+     * Resize metadata buffer if needed by reallocating it and copying it over.
+     */
+    status_t resizeIfNeeded(size_t extraEntries, size_t extraData);
+
+};
+
+}; // namespace android
+
+#endif
