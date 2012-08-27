@@ -1561,7 +1561,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     Vector<Parameters::Area> meteringAreas;
     res = parseAreas(newParams.get(CameraParameters::KEY_METERING_AREAS),
             &meteringAreas);
-    if (res == OK) res = validateAreas(focusingAreas, max3aRegions);
+    if (res == OK) res = validateAreas(meteringAreas, max3aRegions);
     if (res != OK) {
         ALOGE("%s: Requested metering areas are malformed: %s",
                 __FUNCTION__,
@@ -3729,10 +3729,17 @@ status_t Camera2Client::updateRequestCommon(CameraMetadata *request,
     size_t focusingAreasSize = params.focusingAreas.size() * 5;
     int32_t *focusingAreas = new int32_t[focusingAreasSize];
     for (size_t i = 0; i < focusingAreasSize; i += 5) {
-        focusingAreas[i + 0] = params.focusingAreas[i].left;
-        focusingAreas[i + 1] = params.focusingAreas[i].top;
-        focusingAreas[i + 2] = params.focusingAreas[i].right;
-        focusingAreas[i + 3] = params.focusingAreas[i].bottom;
+        if (params.focusingAreas[i].weight != 0) {
+            focusingAreas[i + 0] = normalizedXToArray(params.focusingAreas[i].left);
+            focusingAreas[i + 1] = normalizedYToArray(params.focusingAreas[i].top);
+            focusingAreas[i + 2] = normalizedXToArray(params.focusingAreas[i].right);
+            focusingAreas[i + 3] = normalizedYToArray(params.focusingAreas[i].bottom);
+        } else {
+            focusingAreas[i + 0] = 0;
+            focusingAreas[i + 1] = 0;
+            focusingAreas[i + 2] = 0;
+            focusingAreas[i + 3] = 0;
+        }
         focusingAreas[i + 4] = params.focusingAreas[i].weight;
     }
     res = request->update(ANDROID_CONTROL_AF_REGIONS,
@@ -3747,10 +3754,21 @@ status_t Camera2Client::updateRequestCommon(CameraMetadata *request,
     size_t meteringAreasSize = params.meteringAreas.size() * 5;
     int32_t *meteringAreas = new int32_t[meteringAreasSize];
     for (size_t i = 0; i < meteringAreasSize; i += 5) {
-        meteringAreas[i + 0] = params.meteringAreas[i].left;
-        meteringAreas[i + 1] = params.meteringAreas[i].top;
-        meteringAreas[i + 2] = params.meteringAreas[i].right;
-        meteringAreas[i + 3] = params.meteringAreas[i].bottom;
+        if (params.meteringAreas[i].weight != 0) {
+            meteringAreas[i + 0] =
+                normalizedXToArray(params.meteringAreas[i].left);
+            meteringAreas[i + 1] =
+                normalizedYToArray(params.meteringAreas[i].top);
+            meteringAreas[i + 2] =
+                normalizedXToArray(params.meteringAreas[i].right);
+            meteringAreas[i + 3] =
+                normalizedYToArray(params.meteringAreas[i].bottom);
+        } else {
+            meteringAreas[i + 0] = 0;
+            meteringAreas[i + 1] = 0;
+            meteringAreas[i + 2] = 0;
+            meteringAreas[i + 3] = 0;
+        }
         meteringAreas[i + 4] = params.meteringAreas[i].weight;
     }
     res = request->update(ANDROID_CONTROL_AE_REGIONS,
@@ -3806,6 +3824,14 @@ status_t Camera2Client::updateRequestCommon(CameraMetadata *request,
     if (res != OK) return res;
 
     return OK;
+}
+
+int Camera2Client::normalizedXToArray(int x) const {
+    return (x + 1000) * (mDeviceInfo->arrayWidth - 1) / 2000;
+}
+
+int Camera2Client::normalizedYToArray(int y) const {
+    return (y + 1000) * (mDeviceInfo->arrayHeight - 1) / 2000;
 }
 
 int Camera2Client::arrayXToNormalized(int width) const {
@@ -4099,7 +4125,7 @@ size_t Camera2Client::calculateBufferSize(int width, int height,
             return width * height * 2;
         case HAL_PIXEL_FORMAT_YV12: {      // YV12
             size_t ySize = stride * height;
-            size_t uvStride = (stride / 2 + 0xF) & ~0x10;
+            size_t uvStride = (stride / 2 + 0xF) & ~0xF;
             size_t uvSize = uvStride * height / 2;
             return ySize + uvSize * 2;
         }
