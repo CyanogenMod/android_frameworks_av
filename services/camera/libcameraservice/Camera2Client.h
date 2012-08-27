@@ -84,6 +84,7 @@ public:
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
     virtual void onNewFrameAvailable();
+
 private:
     enum State {
         DISCONNECTED,
@@ -153,10 +154,10 @@ private:
         int64_t gpsTimestamp;
         String8 gpsProcessingMethod;
 
-        int wbMode;
-        int effectMode;
-        int antibandingMode;
-        int sceneMode;
+        uint8_t wbMode;
+        uint8_t effectMode;
+        uint8_t antibandingMode;
+        uint8_t sceneMode;
 
         enum flashMode_t {
             FLASH_MODE_OFF = 0,
@@ -300,12 +301,12 @@ private:
 
     /* Output frame metadata processing methods */
 
-    status_t processFrameFaceDetect(camera_metadata_t *frame);
+    status_t processFrameFaceDetect(const CameraMetadata &frame);
 
     /* Preview related members */
 
     int mPreviewStreamId;
-    camera_metadata_t *mPreviewRequest;
+    CameraMetadata mPreviewRequest;
     sp<IBinder> mPreviewSurface;
     sp<ANativeWindow> mPreviewWindow;
 
@@ -351,7 +352,7 @@ private:
         Camera2Client *mParent;
     };
     sp<CaptureWaiter>  mCaptureWaiter;
-    camera_metadata_t *mCaptureRequest;
+    CameraMetadata mCaptureRequest;
     sp<Camera2Heap>    mCaptureHeap;
     // Handle captured image buffers
     void onCaptureAvailable();
@@ -375,7 +376,7 @@ private:
         Camera2Client *mParent;
     };
     sp<RecordingWaiter>  mRecordingWaiter;
-    camera_metadata_t *mRecordingRequest;
+    CameraMetadata mRecordingRequest;
     sp<Camera2Heap> mRecordingHeap;
 
     static const size_t kDefaultRecordingHeapCount = 8;
@@ -431,8 +432,8 @@ private:
     // checking the number of values in the entry. 0 for max/minCount means to
     // do no bounds check in that direction. In case of error, the entry data
     // pointer is null and the count is 0.
-    camera_metadata_entry_t staticInfo(uint32_t tag,
-            size_t minCount=0, size_t maxCount=0);
+    camera_metadata_ro_entry_t staticInfo(uint32_t tag,
+            size_t minCount=0, size_t maxCount=0) const;
 
     // Extract frequently-used camera static information into mDeviceInfo
     status_t buildDeviceInfo();
@@ -441,23 +442,13 @@ private:
     status_t buildDefaultParameters();
 
     // Update parameters all requests use, based on mParameters
-    status_t updateRequestCommon(camera_metadata_t *request, const Parameters &params);
+    status_t updateRequestCommon(CameraMetadata *request, const Parameters &params);
 
     // Map from sensor active array pixel coordinates to normalized camera
     // parameter coordinates. The former are (0,0)-(array width - 1, array height
     // - 1), the latter from (-1000,-1000)-(1000,1000)
     int arrayXToNormalized(int width) const;
     int arrayYToNormalized(int height) const;
-
-    // Update specific metadata entry with new values. Adds entry if it does not
-    // exist, which will invalidate sorting
-    static status_t updateEntry(camera_metadata_t *buffer,
-            uint32_t tag, const void *data, size_t data_count);
-
-    // Remove metadata entry. Will invalidate sorting. If entry does not exist,
-    // does nothing.
-    static status_t deleteEntry(camera_metadata_t *buffer,
-            uint32_t tag);
 
     // Convert camera1 preview format string to camera2 enum
     static int formatStringToEnum(const char *format);

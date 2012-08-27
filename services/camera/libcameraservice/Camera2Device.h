@@ -27,6 +27,7 @@
 #include <utils/Vector.h>
 
 #include "hardware/camera2.h"
+#include "CameraMetadata.h"
 
 namespace android {
 
@@ -41,21 +42,26 @@ class Camera2Device : public virtual RefBase {
     status_t dump(int fd, const Vector<String16>& args);
 
     /**
-     * Get a pointer to the device's static characteristics metadata buffer
+     * The device's static characteristics metadata buffer
      */
-    camera_metadata_t* info();
+    const CameraMetadata& info() const;
 
     /**
      * Submit request for capture. The Camera2Device takes ownership of the
      * passed-in buffer.
      */
-    status_t capture(camera_metadata_t *request);
+    status_t capture(CameraMetadata &request);
 
     /**
      * Submit request for streaming. The Camera2Device makes a copy of the
      * passed-in buffer and the caller retains ownership.
      */
-    status_t setStreamingRequest(camera_metadata_t *request);
+    status_t setStreamingRequest(const CameraMetadata &request);
+
+    /**
+     * Clear the streaming request slot.
+     */
+    status_t clearStreamingRequest();
 
     /**
      * Create an output stream of the requested size and format.
@@ -92,8 +98,7 @@ class Camera2Device : public virtual RefBase {
      * Create a metadata buffer with fields that the HAL device believes are
      * best for the given use case
      */
-    status_t createDefaultRequest(int templateId,
-            camera_metadata_t **request);
+    status_t createDefaultRequest(int templateId, CameraMetadata *request);
 
     /**
      * Wait until all requests have been processed. Returns INVALID_OPERATION if
@@ -142,7 +147,7 @@ class Camera2Device : public virtual RefBase {
      * Get next metadata frame from the frame queue. Returns NULL if the queue
      * is empty; caller takes ownership of the metadata buffer.
      */
-    status_t getNextFrame(camera_metadata_t **frame);
+    status_t getNextFrame(CameraMetadata *frame);
 
     /**
      * Trigger auto-focus. The latest ID used in a trigger autofocus or cancel
@@ -170,7 +175,7 @@ class Camera2Device : public virtual RefBase {
     const int mId;
     camera2_device_t *mDevice;
 
-    camera_metadata_t *mDeviceInfo;
+    CameraMetadata mDeviceInfo;
     vendor_tag_query_ops_t *mVendorTagOps;
 
     /**
