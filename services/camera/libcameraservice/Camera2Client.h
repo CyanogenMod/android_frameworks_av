@@ -464,6 +464,8 @@ private:
     // Map from sensor active array pixel coordinates to normalized camera
     // parameter coordinates. The former are (0,0)-(array width - 1, array height
     // - 1), the latter from (-1000,-1000)-(1000,1000)
+    int normalizedXToArray(int x) const;
+    int normalizedYToArray(int y) const;
     int arrayXToNormalized(int width) const;
     int arrayYToNormalized(int height) const;
 
