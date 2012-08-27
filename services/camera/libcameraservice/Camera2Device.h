@@ -129,19 +129,10 @@ class Camera2Device : public virtual RefBase {
     status_t setNotifyCallback(NotificationListener *listener);
 
     /**
-     * Abstract class for HAL frame available notifications
+     * Wait for a new frame to be produced, with timeout in nanoseconds.
+     * Returns TIMED_OUT when no frame produced within the specified duration
      */
-    class FrameListener {
-      public:
-        virtual void onNewFrameAvailable() = 0;
-      protected:
-        virtual ~FrameListener();
-    };
-
-    /**
-     * Set a frame listener to be notified about new frames.
-     */
-    status_t setFrameListener(FrameListener *listener);
+    status_t waitForNextFrame(nsecs_t timeout);
 
     /**
      * Get next metadata frame from the frame queue. Returns NULL if the queue
@@ -206,7 +197,6 @@ class Camera2Device : public virtual RefBase {
         status_t dequeue(camera_metadata_t **buf, bool incrementCount = true);
         int      getBufferCount();
         status_t waitForBuffer(nsecs_t timeout);
-        status_t setListener(FrameListener *listener);
 
         // Set repeating buffer(s); if the queue is empty on a dequeue call, the
         // queue copies the contents of the stream slot into the queue, and then
@@ -235,7 +225,6 @@ class Camera2Device : public virtual RefBase {
         List<camera_metadata_t*> mStreamSlot;
 
         bool mSignalConsumer;
-        FrameListener *mListener;
 
         static MetadataQueue* getInstance(
             const camera2_frame_queue_dst_ops_t *q);
