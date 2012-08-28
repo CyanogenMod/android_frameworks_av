@@ -93,6 +93,10 @@ struct StreamSource : public FragmentedMP4Parser::Source {
         return total;
     }
 
+    bool isSeekable() {
+        return false;
+    }
+
 private:
     sp<NuPlayer::NuPlayerStreamListener> mListener;
     off64_t mPosition;

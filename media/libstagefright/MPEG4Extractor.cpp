@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
 #define LOG_TAG "MPEG4Extractor"
 #include <utils/Log.h>
 
@@ -408,7 +409,7 @@ char* MPEG4Extractor::getDrmTrackInfo(size_t trackID, int *len) {
 }
 
 // Reads an encoded integer 7 bits at a time until it encounters the high bit clear.
-int32_t readSize(off64_t offset,
+static int32_t readSize(off64_t offset,
         const sp<DataSource> DataSource, uint8_t *numOfBytes) {
     uint32_t size = 0;
     uint8_t data;
