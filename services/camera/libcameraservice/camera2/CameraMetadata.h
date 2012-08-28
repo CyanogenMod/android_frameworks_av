@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SERVERS_CAMERA_METADATA_CPP
-#define ANDROID_SERVERS_CAMERA_METADATA_CPP
+#ifndef ANDROID_SERVERS_CAMERA_CAMERA2METADATA_CPP
+#define ANDROID_SERVERS_CAMERA_CAMERA2METADATA_CPP
 
 #include "system/camera_metadata.h"
 #include <utils/String8.h>
 #include <utils/Vector.h>
 
 namespace android {
+namespace camera2 {
 
 /**
  * A convenience wrapper around the C-based camera_metadata_t library.
@@ -161,6 +162,7 @@ class CameraMetadata {
 
 };
 
+}; // namespace camera2
 }; // namespace android
 
 #endif
