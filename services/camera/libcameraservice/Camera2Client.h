@@ -22,6 +22,7 @@
 #include "camera2/Parameters.h"
 #include "camera2/FrameProcessor.h"
 #include "camera2/CaptureProcessor.h"
+#include "camera2/CallbackProcessor.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
@@ -178,27 +179,7 @@ private:
 
     /** Preview callback related members */
 
-    int mCallbackStreamId;
-    static const size_t kCallbackHeapCount = 6;
-    sp<CpuConsumer>    mCallbackConsumer;
-    sp<ANativeWindow>  mCallbackWindow;
-    // Simple listener that forwards frame available notifications from
-    // a CPU consumer to the callback notification
-    class CallbackWaiter: public CpuConsumer::FrameAvailableListener {
-      public:
-        CallbackWaiter(Camera2Client *parent) : mParent(parent) {}
-        void onFrameAvailable() { mParent->onCallbackAvailable(); }
-      private:
-        Camera2Client *mParent;
-    };
-    sp<CallbackWaiter>  mCallbackWaiter;
-    sp<camera2::Camera2Heap>     mCallbackHeap;
-    int mCallbackHeapId;
-    size_t mCallbackHeapHead, mCallbackHeapFree;
-    // Handle callback image buffers
-    void onCallbackAvailable();
-
-    status_t updateCallbackStream(const Parameters &params);
+    sp<camera2::CallbackProcessor> mCallbackProcessor;
 
     /* Still image capture related members */
 
