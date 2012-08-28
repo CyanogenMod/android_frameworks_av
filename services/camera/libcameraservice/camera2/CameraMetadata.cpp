@@ -22,6 +22,7 @@
 
 namespace android {
 
+namespace camera2 {
 CameraMetadata::CameraMetadata() :
         mBuffer(NULL) {
 }
@@ -287,4 +288,5 @@ status_t CameraMetadata::resizeIfNeeded(size_t extraEntries, size_t extraData) {
     return OK;
 }
 
+}; // namespace camera2
 }; // namespace android
