@@ -298,7 +298,9 @@ void NuCachedSource2::fetchInternal() {
 
         Mutex::Autolock autoLock(mLock);
 
-        if (err == ERROR_UNSUPPORTED) {
+        if (err == ERROR_UNSUPPORTED || err == -EPIPE) {
+            // These are errors that are not likely to go away even if we
+            // retry, i.e. the server doesn't support range requests or similar.
             mNumRetriesLeft = 0;
             return;
         } else if (err != OK) {
@@ -317,8 +319,14 @@ void NuCachedSource2::fetchInternal() {
     Mutex::Autolock autoLock(mLock);
 
     if (n < 0) {
-        ALOGE("source returned error %ld, %d retries left", n, mNumRetriesLeft);
         mFinalStatus = n;
+        if (n == ERROR_UNSUPPORTED || n == -EPIPE) {
+            // These are errors that are not likely to go away even if we
+            // retry, i.e. the server doesn't support range requests or similar.
+            mNumRetriesLeft = 0;
+        }
+
+        ALOGE("source returned error %ld, %d retries left", n, mNumRetriesLeft);
         mCache->releasePage(page);
     } else if (n == 0) {
         ALOGI("ERROR_END_OF_STREAM");
