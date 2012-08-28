@@ -297,6 +297,8 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "requires-wma-pro-component")) {
         quirks |= kRequiresWMAProComponent;
     }
+#else
+//      quirks |= kRequiresLargerEncoderOutputBuffer;
 #endif
     return quirks;
 }
@@ -3371,6 +3373,9 @@ void OMXCodec::drainInputBuffers() {
             }
         }
     } else {
+#ifdef QCOM_HARDWARE
+        size_t CAMERA_BUFFERS = 4;
+#endif
         Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexInput];
         for (size_t i = 0; i < buffers->size(); ++i) {
             BufferInfo *info = &buffers->editItemAt(i);
@@ -3380,7 +3385,7 @@ void OMXCodec::drainInputBuffers() {
             }
 
 #ifdef QCOM_HARDWARE
-            if (mIsEncoder && mIsVideo && (i == 4)) { //BIG TBD - move this to component
+            if (mIsEncoder && mIsVideo && (i == CAMERA_BUFFERS)) {
                 break;
             }
 #endif
