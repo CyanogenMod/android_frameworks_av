@@ -156,7 +156,7 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
     return res;
 }
 
-const CameraMetadata& Camera2Device::info() const {
+const camera2::CameraMetadata& Camera2Device::info() const {
     ALOGVV("%s: E", __FUNCTION__);
 
     return mDeviceInfo;
