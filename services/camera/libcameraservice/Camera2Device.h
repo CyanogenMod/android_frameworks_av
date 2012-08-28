@@ -27,12 +27,14 @@
 #include <utils/Vector.h>
 
 #include "hardware/camera2.h"
-#include "CameraMetadata.h"
+#include "camera2/CameraMetadata.h"
 
 namespace android {
 
 class Camera2Device : public virtual RefBase {
   public:
+    typedef camera2::CameraMetadata CameraMetadata;
+
     Camera2Device(int id);
 
     ~Camera2Device();
