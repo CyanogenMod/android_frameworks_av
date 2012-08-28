@@ -18,8 +18,8 @@
 #define LOG_TAG "FragmentedMP4Parser"
 #include <utils/Log.h>
 
-#include "include/FragmentedMP4Parser.h"
 #include "include/ESDS.h"
+#include "include/FragmentedMP4Parser.h"
 #include "TrackFragment.h"
 
 
@@ -30,6 +30,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
+
 
 namespace android {
 
@@ -121,6 +122,8 @@ const FragmentedMP4Parser::DispatchEntry FragmentedMP4Parser::kDispatchTable[] =
     },
 
     { FOURCC('m', 'f', 'r', 'a'), 0, NULL },
+
+    { FOURCC('s', 'i', 'd', 'x'), 0, &FragmentedMP4Parser::parseSegmentIndex },
 };
 
 struct FileSource : public FragmentedMP4Parser::Source {
@@ -134,15 +137,92 @@ struct FileSource : public FragmentedMP4Parser::Source {
         return fread(data, 1, size, mFile);
     }
 
+    virtual bool isSeekable() {
+        return true;
+    }
+
     private:
     FILE *mFile;
 
     DISALLOW_EVIL_CONSTRUCTORS(FileSource);
 };
 
+struct ReadTracker : public RefBase {
+    ReadTracker(off64_t size) {
+        allocSize = 1 + size / 8192; // 1 bit per kilobyte
+        bitmap = (char*) calloc(1, allocSize);
+    }
+    virtual ~ReadTracker() {
+        dumpToLog();
+        free(bitmap);
+    }
+    void mark(off64_t offset, size_t size) {
+        int firstbit = offset / 1024;
+        int lastbit = (offset + size - 1) / 1024;
+        for (int i = firstbit; i <= lastbit; i++) {
+            bitmap[i/8] |= (0x80 >> (i & 7));
+        }
+    }
+
+ private:
+    void dumpToLog() {
+        // 96 chars per line, each char represents one kilobyte, 1 kb per bit
+        int numlines = allocSize / 12;
+        char buf[97];
+        char *cur = bitmap;
+        for (int i = 0; i < numlines; i++ && cur) {
+            for (int j = 0; j < 12; j++) {
+                for (int k = 0; k < 8; k++) {
+                    buf[(j * 8) + k] = (*cur & (0x80 >> k)) ? 'X' : '.';
+                }
+                cur++;
+            }
+            buf[96] = '\0';
+            ALOGI("%5dk: %s", i * 96, buf);
+        }
+    }
+
+    size_t allocSize;
+    char *bitmap;
+};
+
+struct DataSourceSource : public FragmentedMP4Parser::Source {
+    DataSourceSource(sp<DataSource> &source)
+        : mDataSource(source) {
+            CHECK(mDataSource != NULL);
+#if 0
+            off64_t size;
+            if (source->getSize(&size) == OK) {
+                mReadTracker = new ReadTracker(size);
+            } else {
+                ALOGE("couldn't get data source size");
+            }
+#endif
+        }
+
+    virtual ssize_t readAt(off64_t offset, void *data, size_t size) {
+        if (mReadTracker != NULL) {
+            mReadTracker->mark(offset, size);
+        }
+        return mDataSource->readAt(offset, data, size);
+    }
+
+    virtual bool isSeekable() {
+        return true;
+    }
+
+    private:
+    sp<DataSource> mDataSource;
+    sp<ReadTracker> mReadTracker;
+
+    DISALLOW_EVIL_CONSTRUCTORS(DataSourceSource);
+};
+
 FragmentedMP4Parser::FragmentedMP4Parser()
     : mBufferPos(0),
       mSuspended(false),
+      mDoneWithMoov(false),
+      mFirstMoofOffset(0),
       mFinalResult(OK) {
 }
 
@@ -153,54 +233,142 @@ void FragmentedMP4Parser::start(const char *filename) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
     msg->setObject("source", new FileSource(filename));
     msg->post();
+    ALOGV("Parser::start(%s)", filename);
 }
 
 void FragmentedMP4Parser::start(const sp<Source> &source) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
     msg->setObject("source", source);
     msg->post();
+    ALOGV("Parser::start(Source)");
 }
 
-sp<AMessage> FragmentedMP4Parser::getFormat(bool audio) {
-    sp<AMessage> msg = new AMessage(kWhatGetFormat, id());
-    msg->setInt32("audio", audio);
+void FragmentedMP4Parser::start(sp<DataSource> &source) {
+    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    msg->setObject("source", new DataSourceSource(source));
+    msg->post();
+    ALOGV("Parser::start(DataSource)");
+}
+
+sp<AMessage> FragmentedMP4Parser::getFormat(bool audio, bool synchronous) {
+
+    while (true) {
+        bool moovDone = mDoneWithMoov;
+        sp<AMessage> msg = new AMessage(kWhatGetFormat, id());
+        msg->setInt32("audio", audio);
+
+        sp<AMessage> response;
+        status_t err = msg->postAndAwaitResponse(&response);
+
+        if (err != OK) {
+            ALOGV("getFormat post failed: %d", err);
+            return NULL;
+        }
+
+        if (response->findInt32("err", &err) && err != OK) {
+            if (synchronous && err == -EWOULDBLOCK && !moovDone) {
+                resumeIfNecessary();
+                ALOGV("@getFormat parser not ready yet, retrying");
+                usleep(10000);
+                continue;
+            }
+            ALOGV("getFormat failed: %d", err);
+            return NULL;
+        }
+
+        sp<AMessage> format;
+        CHECK(response->findMessage("format", &format));
+
+        ALOGV("returning format %s", format->debugString().c_str());
+        return format;
+    }
+}
+
+status_t FragmentedMP4Parser::seekTo(bool wantAudio, int64_t timeUs) {
+    sp<AMessage> msg = new AMessage(kWhatSeekTo, id());
+    msg->setInt32("audio", wantAudio);
+    msg->setInt64("position", timeUs);
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
-
-    if (err != OK) {
-        return NULL;
-    }
-
-    if (response->findInt32("err", &err) && err != OK) {
-        return NULL;
-    }
-
-    sp<AMessage> format;
-    CHECK(response->findMessage("format", &format));
-
-    ALOGV("returning format %s", format->debugString().c_str());
-    return format;
+    return err;
 }
 
-status_t FragmentedMP4Parser::dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit) {
-    sp<AMessage> msg = new AMessage(kWhatDequeueAccessUnit, id());
-    msg->setInt32("audio", audio);
-
-    sp<AMessage> response;
-    status_t err = msg->postAndAwaitResponse(&response);
-
-    if (err != OK) {
-        return err;
+bool FragmentedMP4Parser::isSeekable() const {
+    while (mFirstMoofOffset == 0 && mFinalResult == OK) {
+        usleep(10000);
     }
-
-    if (response->findInt32("err", &err) && err != OK) {
-        return err;
+    bool seekable = mSource->isSeekable();
+    for (size_t i = 0; seekable && i < mTracks.size(); i++) {
+        const TrackInfo *info = &mTracks.valueAt(i);
+        seekable &= !info->mSidx.empty();
     }
+    return seekable;
+}
 
-    CHECK(response->findBuffer("accessUnit", accessUnit));
+status_t FragmentedMP4Parser::onSeekTo(bool wantAudio, int64_t position) {
+    status_t err = -EINVAL;
+    ssize_t trackIndex = findTrack(wantAudio);
+    if (trackIndex < 0) {
+        err = trackIndex;
+    } else {
+        TrackInfo *info = &mTracks.editValueAt(trackIndex);
 
-    return OK;
+        int numSidxEntries = info->mSidx.size();
+        int64_t totalTime = 0;
+        off_t totalOffset = mFirstMoofOffset;
+        for (int i = 0; i < numSidxEntries; i++) {
+            const SidxEntry *se = &info->mSidx[i];
+            totalTime += se->mDurationUs;
+            if (totalTime > position) {
+                mBuffer->setRange(0,0);
+                mBufferPos = totalOffset;
+                if (mFinalResult == ERROR_END_OF_STREAM) {
+                    mFinalResult = OK;
+                    mSuspended = true; // force resume
+                    resumeIfNecessary();
+                }
+                info->mFragments.clear();
+                info->mDecodingTime = position * info->mMediaTimeScale / 1000000ll;
+                return OK;
+            }
+            totalOffset += se->mSize;
+        }
+    }
+    ALOGV("seekTo out of range");
+    return err;
+}
+
+status_t FragmentedMP4Parser::dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit,
+                                                bool synchronous) {
+
+    while (true) {
+        sp<AMessage> msg = new AMessage(kWhatDequeueAccessUnit, id());
+        msg->setInt32("audio", audio);
+
+        sp<AMessage> response;
+        status_t err = msg->postAndAwaitResponse(&response);
+
+        if (err != OK) {
+            ALOGV("dequeue fail 1: %d", err);
+            return err;
+        }
+
+        if (response->findInt32("err", &err) && err != OK) {
+            if (synchronous && err == -EWOULDBLOCK) {
+                resumeIfNecessary();
+                ALOGV("Parser not ready yet, retrying");
+                usleep(10000);
+                continue;
+            }
+            ALOGV("dequeue fail 2: %d, %d", err, synchronous);
+            return err;
+        }
+
+        CHECK(response->findBuffer("accessUnit", accessUnit));
+
+        return OK;
+    }
 }
 
 ssize_t FragmentedMP4Parser::findTrack(bool wantAudio) const {
@@ -272,7 +440,7 @@ void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
             size_t maxBytesToRead = mBuffer->capacity() - mBuffer->size();
 
             if (maxBytesToRead < needed) {
-                ALOGI("resizing buffer.");
+                ALOGV("resizing buffer.");
 
                 sp<ABuffer> newBuffer =
                     new ABuffer((mBuffer->size() + needed + 1023) & ~1023);
@@ -290,7 +458,7 @@ void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
                     mBuffer->data() + mBuffer->size(), needed);
 
             if (n < (ssize_t)needed) {
-                ALOGI("%s", "Reached EOF");
+                ALOGV("Reached EOF when reading %d @ %d + %d", needed, mBufferPos, mBuffer->size());
                 if (n < 0) {
                     mFinalResult = n;
                 } else if (n == 0) {
@@ -321,8 +489,16 @@ void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
             } else {
                 TrackInfo *info = &mTracks.editValueAt(trackIndex);
 
+                sp<AMessage> format = info->mSampleDescs.itemAt(0).mFormat;
+                if (info->mSidxDuration) {
+                    format->setInt64("durationUs", info->mSidxDuration);
+                } else {
+                    // this is probably going to be zero. Oh well...
+                    format->setInt64("durationUs",
+                                     1000000ll * info->mDuration / info->mMediaTimeScale);
+                }
                 response->setMessage(
-                        "format", info->mSampleDescs.itemAt(0).mFormat);
+                        "format", format);
 
                 err = OK;
             }
@@ -366,6 +542,30 @@ void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSeekTo:
+        {
+            ALOGV("kWhatSeekTo");
+            int32_t wantAudio;
+            CHECK(msg->findInt32("audio", &wantAudio));
+            int64_t position;
+            CHECK(msg->findInt64("position", &position));
+
+            status_t err = -EWOULDBLOCK;
+            sp<AMessage> response = new AMessage;
+
+            ssize_t trackIndex = findTrack(wantAudio);
+
+            if (trackIndex < 0) {
+                err = trackIndex;
+            } else {
+                err = onSeekTo(wantAudio, position);
+            }
+            response->setInt32("err", err);
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            response->postReply(replyID);
+            break;
+        }
         default:
             TRESPASS();
     }
@@ -429,6 +629,12 @@ status_t FragmentedMP4Parser::onProceed() {
     if ((i < kNumDispatchers && kDispatchTable[i].mHandler == 0)
             || isSampleEntryBox || ptype == FOURCC('i', 'l', 's', 't')) {
         // This is a container box.
+        if (type == FOURCC('m', 'o', 'o', 'f')) {
+            if (mFirstMoofOffset == 0) {
+                ALOGV("first moof @ %08x", mBufferPos + offset);
+                mFirstMoofOffset = mBufferPos + offset - 8; // point at the size
+            }
+        }
         if (type == FOURCC('m', 'e', 't', 'a')) {
             if ((err = need(offset + 4)) < OK) {
                 return err;
@@ -589,7 +795,7 @@ void FragmentedMP4Parser::resumeIfNecessary() {
         return;
     }
 
-    ALOGI("resuming.");
+    ALOGV("resuming.");
 
     mSuspended = false;
     (new AMessage(kWhatProceed, id()))->post();
@@ -647,7 +853,7 @@ status_t FragmentedMP4Parser::onDequeueAccessUnit(
 
         int cmp = CompareSampleLocation(sampleInfo, mdatInfo);
 
-        if (cmp < 0) {
+        if (cmp < 0 && !mSource->isSeekable()) {
             return -EPIPE;
         } else if (cmp == 0) {
             if (i > 0) {
@@ -669,6 +875,8 @@ status_t FragmentedMP4Parser::onDequeueAccessUnit(
         size_t numDroppable = 0;
         bool done = false;
 
+        // XXX FIXME: if one of the tracks is not advanced (e.g. if you play an audio+video
+        // file with sf2), then mMediaData will not be pruned and keeps growing
         for (size_t i = 0; !done && i < mMediaData.size(); ++i) {
             const MediaDataInfo &mdatInfo = mMediaData.itemAt(i);
 
@@ -896,6 +1104,8 @@ void FragmentedMP4Parser::skip(off_t distance) {
 
                     static_cast<DynamicTrackFragment *>(
                             fragment.get())->signalCompletion();
+                } else if (container->mType == FOURCC('m', 'o', 'o', 'v')) {
+                    mDoneWithMoov = true;
                 }
 
                 container = NULL;
@@ -953,6 +1163,10 @@ status_t FragmentedMP4Parser::parseTrackHeader(
     TrackInfo *info = editTrack(trackID, true /* createIfNecessary */);
     info->mFlags = flags;
     info->mDuration = duration;
+    if (info->mDuration == 0xffffffff) {
+        // ffmpeg sets this to -1, which is incorrect.
+        info->mDuration = 0;
+    }
 
     info->mStaticFragment = new StaticTrackFragment;
 
@@ -1363,10 +1577,97 @@ status_t FragmentedMP4Parser::parseMediaData(
     info->mOffset = mBufferPos + offset;
 
     if (mMediaData.size() > 10) {
-        ALOGI("suspending for now.");
+        ALOGV("suspending for now.");
         mSuspended = true;
     }
 
+    return OK;
+}
+
+status_t FragmentedMP4Parser::parseSegmentIndex(
+        uint32_t type, size_t offset, uint64_t size) {
+    ALOGV("sidx box type %d, offset %d, size %d", type, int(offset), int(size));
+//    AString sidxstr;
+//    hexdump(mBuffer->data() + offset, size, 0 /* indent */, &sidxstr);
+//    ALOGV("raw sidx:");
+//    ALOGV("%s", sidxstr.c_str());
+    if (offset + 12 > size) {
+        return -EINVAL;
+    }
+
+    uint32_t flags = readU32(offset);
+
+    uint32_t version = flags >> 24;
+    flags &= 0xffffff;
+
+    ALOGV("sidx version %d", version);
+
+    uint32_t referenceId = readU32(offset + 4);
+    uint32_t timeScale = readU32(offset + 8);
+    ALOGV("sidx refid/timescale: %d/%d", referenceId, timeScale);
+
+    uint64_t earliestPresentationTime;
+    uint64_t firstOffset;
+
+    offset += 12;
+
+    if (version == 0) {
+        if (offset + 8 > size) {
+            return -EINVAL;
+        }
+        earliestPresentationTime = readU32(offset);
+        firstOffset = readU32(offset + 4);
+        offset += 8;
+    } else {
+        if (offset + 16 > size) {
+            return -EINVAL;
+        }
+        earliestPresentationTime = readU64(offset);
+        firstOffset = readU64(offset + 8);
+        offset += 16;
+    }
+    ALOGV("sidx pres/off: %Ld/%Ld", earliestPresentationTime, firstOffset);
+
+    if (offset + 4 > size) {
+        return -EINVAL;
+    }
+    if (readU16(offset) != 0) { // reserved
+        return -EINVAL;
+    }
+    int32_t referenceCount = readU16(offset + 2);
+    offset += 4;
+    ALOGV("refcount: %d", referenceCount);
+
+    if (offset + referenceCount * 12 > size) {
+        return -EINVAL;
+    }
+
+    TrackInfo *info = editTrack(mCurrentTrackID);
+    uint64_t total_duration = 0;
+    for (int i = 0; i < referenceCount; i++) {
+        uint32_t d1 = readU32(offset);
+        uint32_t d2 = readU32(offset + 4);
+        uint32_t d3 = readU32(offset + 8);
+
+        if (d1 & 0x80000000) {
+            ALOGW("sub-sidx boxes not supported yet");
+        }
+        bool sap = d3 & 0x80000000;
+        bool saptype = d3 >> 28;
+        if (!sap || saptype > 2) {
+            ALOGW("not a stream access point, or unsupported type");
+        }
+        total_duration += d2;
+        offset += 12;
+        ALOGV(" item %d, %08x %08x %08x", i, d1, d2, d3);
+        SidxEntry se;
+        se.mSize = d1 & 0x7fffffff;
+        se.mDurationUs = 1000000LL * d2 / timeScale;
+        info->mSidx.add(se);
+    }
+
+    info->mSidxDuration = total_duration * 1000000 / timeScale;
+    ALOGV("duration: %lld", info->mSidxDuration);
     return OK;
 }
 
@@ -1407,6 +1708,7 @@ FragmentedMP4Parser::TrackInfo *FragmentedMP4Parser::editTrack(
     info.mTrackID = trackID;
     info.mFlags = 0;
     info.mDuration = 0xffffffff;
+    info.mSidxDuration = 0;
     info.mMediaTimeScale = 0;
     info.mMediaHandlerType = 0;
     info.mDefaultSampleDescriptionIndex = 0;
