@@ -21,6 +21,7 @@
 #include "CameraService.h"
 #include "camera2/Parameters.h"
 #include "camera2/FrameProcessor.h"
+#include "camera2/CaptureProcessor.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
@@ -37,7 +38,9 @@ class Camera2Client :
         public Camera2Device::NotificationListener
 {
 public:
-    // ICamera interface (see ICamera for details)
+    /**
+     * ICamera interface (see ICamera for details)
+     */
 
     virtual void            disconnect();
     virtual status_t        connect(const sp<ICameraClient>& client);
@@ -62,7 +65,9 @@ public:
     virtual String8         getParameters() const;
     virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
 
-    // Interface used by CameraService
+    /**
+     * Interface used by CameraService
+     */
 
     Camera2Client(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
@@ -75,7 +80,9 @@ public:
 
     virtual status_t dump(int fd, const Vector<String16>& args);
 
-    // Interface used by CameraDevice
+    /**
+     * Interface used by Camera2Device
+     */
 
     virtual void notifyError(int errorCode, int arg1, int arg2);
     virtual void notifyShutter(int frameNumber, nsecs_t timestamp);
@@ -83,7 +90,9 @@ public:
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
-    // Interface used by independent components of Camera2Client.
+    /**
+     * Interface used by independent components of Camera2Client.
+     */
 
     int getCameraId();
     const sp<Camera2Device>& getCameraDevice();
@@ -102,12 +111,16 @@ public:
           private:
             SharedCameraClient &mSharedClient;
         };
+        SharedCameraClient(const sp<ICameraClient>& client);
         SharedCameraClient& operator=(const sp<ICameraClient>& client);
         void clear();
       private:
         sp<ICameraClient> mCameraClient;
         mutable Mutex mCameraClientLock;
     } mSharedCameraClient;
+
+    static size_t calculateBufferSize(int width, int height,
+            int format, int stride);
 
 private:
     /** ICamera interface-related private members */
@@ -145,8 +158,6 @@ private:
 
     /** Camera device-related private members */
 
-    class Camera2Heap;
-
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(const Parameters &params);
 
@@ -181,7 +192,7 @@ private:
         Camera2Client *mParent;
     };
     sp<CallbackWaiter>  mCallbackWaiter;
-    sp<Camera2Heap>     mCallbackHeap;
+    sp<camera2::Camera2Heap>     mCallbackHeap;
     int mCallbackHeapId;
     size_t mCallbackHeapHead, mCallbackHeapFree;
     // Handle callback image buffers
@@ -191,26 +202,9 @@ private:
 
     /* Still image capture related members */
 
-    int mCaptureStreamId;
-    sp<CpuConsumer>    mCaptureConsumer;
-    sp<ANativeWindow>  mCaptureWindow;
-    // Simple listener that forwards frame available notifications from
-    // a CPU consumer to the capture notification
-    class CaptureWaiter: public CpuConsumer::FrameAvailableListener {
-      public:
-        CaptureWaiter(Camera2Client *parent) : mParent(parent) {}
-        void onFrameAvailable() { mParent->onCaptureAvailable(); }
-      private:
-        Camera2Client *mParent;
-    };
-    sp<CaptureWaiter>  mCaptureWaiter;
+    sp<camera2::CaptureProcessor> mCaptureProcessor;
     CameraMetadata mCaptureRequest;
-    sp<Camera2Heap>    mCaptureHeap;
-    // Handle captured image buffers
-    void onCaptureAvailable();
-
     status_t updateCaptureRequest(const Parameters &params);
-    status_t updateCaptureStream(const Parameters &params);
 
     /* Recording related members */
 
@@ -229,7 +223,7 @@ private:
     };
     sp<RecordingWaiter>  mRecordingWaiter;
     CameraMetadata mRecordingRequest;
-    sp<Camera2Heap> mRecordingHeap;
+    sp<camera2::Camera2Heap> mRecordingHeap;
 
     static const size_t kDefaultRecordingHeapCount = 8;
     size_t mRecordingHeapCount;
@@ -254,32 +248,6 @@ private:
     // Verify that caller is the owner of the camera
     status_t checkPid(const char *checkLocation) const;
 
-    // Utility class for managing a set of IMemory blocks
-    class Camera2Heap : public RefBase {
-    public:
-        Camera2Heap(size_t buf_size, uint_t num_buffers = 1,
-                const char *name = NULL) :
-                         mBufSize(buf_size),
-                         mNumBufs(num_buffers) {
-            mHeap = new MemoryHeapBase(buf_size * num_buffers, 0, name);
-            mBuffers = new sp<MemoryBase>[mNumBufs];
-            for (uint_t i = 0; i < mNumBufs; i++)
-                mBuffers[i] = new MemoryBase(mHeap,
-                                             i * mBufSize,
-                                             mBufSize);
-        }
-
-        virtual ~Camera2Heap()
-        {
-            delete [] mBuffers;
-        }
-
-        size_t mBufSize;
-        uint_t mNumBufs;
-        sp<MemoryHeapBase> mHeap;
-        sp<MemoryBase> *mBuffers;
-    };
-
     // Update parameters all requests use, based on mParameters
     status_t updateRequestCommon(CameraMetadata *request, const Parameters &params) const;
 
@@ -291,9 +259,6 @@ private:
     int arrayXToNormalized(int width) const;
     int arrayYToNormalized(int height) const;
 
-
-    static size_t calculateBufferSize(int width, int height,
-            int format, int stride);
 };
 
 }; // namespace android
