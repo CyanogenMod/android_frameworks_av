@@ -33,6 +33,10 @@
 
 #include <private/gui/ComposerService.h>
 
+#ifdef QCOM_HARDWARE
+#include <gralloc_priv.h>
+#endif
+
 namespace android {
 
 SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeight) :
@@ -59,6 +63,9 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
     mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
+#ifdef CAMERA_MM_HEAP
+            GRALLOC_USAGE_PRIVATE_MM_HEAP | GRALLOC_USAGE_PRIVATE_UNCACHED |
+#endif
             GRALLOC_USAGE_HW_TEXTURE);
 
     sp<ISurfaceComposer> composer(ComposerService::getComposerService());

@@ -154,7 +154,10 @@ LOCAL_SHARED_LIBRARIES += \
 LOCAL_CFLAGS += -Wno-multichar
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-        LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/display/libgralloc
+    LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/display/libgralloc
+    ifeq ($(BOARD_CAMERA_USE_MM_HEAP),true)
+        LOCAL_CFLAGS += -DCAMERA_MM_HEAP
+    endif
 endif
 
 ifeq ($(filter-out exynos4 exynos5,$(TARGET_BOARD_PLATFORM)),)
