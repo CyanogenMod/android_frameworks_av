@@ -34,6 +34,7 @@
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/NuMediaExtractor.h>
+#include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <ui/DisplayInfo.h>
 
@@ -379,8 +380,10 @@ int main(int argc, char **argv) {
         composerClient = new SurfaceComposerClient;
         CHECK_EQ(composerClient->initCheck(), (status_t)OK);
 
+        sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
+                ISurfaceComposer::eDisplayIdMain));
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(0, &info);
+        SurfaceComposerClient::getDisplayInfo(display, &info);
         ssize_t displayWidth = info.w;
         ssize_t displayHeight = info.h;
 
@@ -388,7 +391,6 @@ int main(int argc, char **argv) {
 
         control = composerClient->createSurface(
                 String8("A Surface"),
-                0,
                 displayWidth,
                 displayHeight,
                 PIXEL_FORMAT_RGB_565,
