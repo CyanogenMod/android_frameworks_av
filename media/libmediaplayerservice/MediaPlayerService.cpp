@@ -70,6 +70,7 @@
 #include <OMX.h>
 
 #include "Crypto.h"
+#include "RemoteDisplay.h"
 
 namespace {
 using android::media::Metadata;
@@ -276,6 +277,28 @@ sp<IOMX> MediaPlayerService::getOMX() {
 
 sp<ICrypto> MediaPlayerService::makeCrypto() {
     return new Crypto;
+}
+
+status_t MediaPlayerService::enableRemoteDisplay(bool enable) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (enable && mRemoteDisplay == NULL) {
+        mRemoteDisplay = new RemoteDisplay;
+
+        status_t err = mRemoteDisplay->start();
+
+        if (err != OK) {
+            mRemoteDisplay.clear();
+            return err;
+        }
+
+        return OK;
+    } else if (!enable && mRemoteDisplay != NULL) {
+        mRemoteDisplay->stop();
+        mRemoteDisplay.clear();
+    }
+
+    return OK;
 }
 
 status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& args) const
