@@ -419,6 +419,8 @@ void MPEG2TSWriter::SourceInfo::onMessageReceived(const sp<AMessage> &msg) {
                     } else {
                         postAVCFrame(buffer);
                     }
+                } else {
+                    readMore();
                 }
 
                 buffer->release();
