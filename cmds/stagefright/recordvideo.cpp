@@ -285,6 +285,7 @@ int main(int argc, char **argv) {
     int64_t start = systemTime();
     CHECK_EQ((status_t)OK, writer->start());
     while (!writer->reachedEOS()) {
+        usleep(100000);
     }
     err = writer->stop();
     int64_t end = systemTime();
