@@ -157,6 +157,9 @@ public:
 
     virtual     void        registerClient(const sp<IAudioFlingerClient>& client);
 
+#ifdef QCOM_HARDWARE
+    virtual status_t deregisterClient(const sp<IAudioFlingerClient>& client);
+#endif
     virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format, int channelCount) const;
 
     virtual audio_io_handle_t openOutput(audio_module_handle_t module,
@@ -327,7 +330,11 @@ private:
     public:
                             NotificationClient(const sp<AudioFlinger>& audioFlinger,
                                                 const sp<IAudioFlingerClient>& client,
+#ifdef QCOM_HARDWARE
+                                                sp<IBinder> binder);
+#else
                                                 pid_t pid);
+#endif
         virtual             ~NotificationClient();
 
                 sp<IAudioFlingerClient> audioFlingerClient() const { return mAudioFlingerClient; }
@@ -340,7 +347,11 @@ private:
                             NotificationClient& operator = (const NotificationClient&);
 
         const sp<AudioFlinger>  mAudioFlinger;
+#ifdef QCOM_HARDWARE
+        sp<IBinder>             mBinder;
+#else
         const pid_t             mPid;
+#endif
         const sp<IAudioFlingerClient> mAudioFlingerClient;
     };
 
@@ -1373,7 +1384,11 @@ private:
     };
 
                 void        removeClient_l(pid_t pid);
+#ifdef QCOM_HARDWARE
+                void        removeNotificationClient(sp<IBinder> binder);
+#else
                 void        removeNotificationClient(pid_t pid);
+#endif
 
 
     // record thread
@@ -1981,12 +1996,17 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
+#ifdef QCOM_HARDWARE
+                DefaultKeyedVector< sp<IBinder>, sp<NotificationClient> >    mNotificationClients;
+#else
                 DefaultKeyedVector< pid_t, sp<NotificationClient> >    mNotificationClients;
+#endif
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
 #ifdef QCOM_HARDWARE
                 DefaultKeyedVector<audio_io_handle_t, AudioSessionDescriptor *> mDirectAudioTracks;
+                int                                 mA2DPHandle; // Handle to notify A2DP connection status
 #endif
 
                 // protected by mLock
