@@ -1520,6 +1520,16 @@ status_t StagefrightRecorder::setupCameraSource(
     Size videoSize;
     videoSize.width = mVideoWidth;
     videoSize.height = mVideoHeight;
+
+    bool useMeta = encoderSupportsCameraSourceMetaDataMode;
+#ifdef QCOM_HARDWARE
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("debug.camcorder.disablemeta", value, NULL) &&
+        atoi(value)) {
+        useMeta = false;
+    }
+#endif
+
     if (mCaptureTimeLapse) {
         if (mTimeBetweenTimeLapseFrameCaptureUs < 0) {
             ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
@@ -1531,13 +1541,13 @@ status_t StagefrightRecorder::setupCameraSource(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate, mPreviewSurface,
                 mTimeBetweenTimeLapseFrameCaptureUs,
-                encoderSupportsCameraSourceMetaDataMode);
+                useMeta);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate,
-                mPreviewSurface, encoderSupportsCameraSourceMetaDataMode);
+                mPreviewSurface, useMeta);
     }
     mCamera.clear();
     mCameraProxy.clear();
