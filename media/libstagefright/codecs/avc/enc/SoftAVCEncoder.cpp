@@ -871,7 +871,13 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 portIndex) {
         CHECK(encoderStatus == AVCENC_SUCCESS || encoderStatus == AVCENC_NEW_IDR);
         dataLength = outHeader->nAllocLen;  // Reset the output buffer length
         if (inHeader->nFilledLen > 0) {
+            if (outHeader->nAllocLen >= 4) {
+                memcpy(outPtr, "\x00\x00\x00\x01", 4);
+                outPtr += 4;
+                dataLength -= 4;
+            }
             encoderStatus = PVAVCEncodeNAL(mHandle, outPtr, &dataLength, &type);
+            dataLength = outPtr + dataLength - outHeader->pBuffer;
             if (encoderStatus == AVCENC_SUCCESS) {
                 CHECK(NULL == PVAVCEncGetOverrunBuffer(mHandle));
             } else if (encoderStatus == AVCENC_PICTURE_READY) {
