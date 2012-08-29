@@ -38,6 +38,7 @@ enum {
     CREATE_METADATA_RETRIEVER,
     GET_OMX,
     MAKE_CRYPTO,
+    ENABLE_REMOTE_DISPLAY,
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA
 };
@@ -118,6 +119,14 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(MAKE_CRYPTO, data, &reply);
         return interface_cast<ICrypto>(reply.readStrongBinder());
+    }
+
+    virtual status_t enableRemoteDisplay(bool enable) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        data.writeInt32(enable);
+        remote()->transact(ENABLE_REMOTE_DISPLAY, data, &reply);
+        return reply.readInt32();
     }
 
     virtual void addBatteryData(uint32_t params) {
@@ -204,6 +213,12 @@ status_t BnMediaPlayerService::onTransact(
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<ICrypto> crypto = makeCrypto();
             reply->writeStrongBinder(crypto->asBinder());
+            return NO_ERROR;
+        } break;
+        case ENABLE_REMOTE_DISPLAY: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            bool enable = data.readInt32();
+            reply->writeInt32(enableRemoteDisplay(enable));
             return NO_ERROR;
         } break;
         case ADD_BATTERY_DATA: {

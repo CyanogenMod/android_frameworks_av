@@ -861,6 +861,20 @@ status_t ACodec::configureCodec(
         return INVALID_OPERATION;
     }
 
+    int32_t storeMeta;
+    if (encoder
+            && msg->findInt32("store-metadata-in-buffers", &storeMeta)
+            && storeMeta != 0) {
+        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE);
+
+        if (err != OK) {
+            ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                  mComponentName.c_str(), err);
+
+            return err;
+        }
+    }
+
     if (!strncasecmp(mime, "video/", 6)) {
         if (encoder) {
             err = setupVideoEncoder(mime, msg);
@@ -2424,6 +2438,21 @@ bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_COMPONENT);
     info->mStatus = BufferInfo::OWNED_BY_US;
 
+    const sp<AMessage> &bufferMeta = info->mData->meta();
+    void *mediaBuffer;
+    if (bufferMeta->findPointer("mediaBuffer", &mediaBuffer)
+            && mediaBuffer != NULL) {
+        // We're in "store-metadata-in-buffers" mode, the underlying
+        // OMX component had access to data that's implicitly refcounted
+        // by this "mediaBuffer" object. Now that the OMX component has
+        // told us that it's done with the input buffer, we can decrement
+        // the mediaBuffer's reference count.
+        ((MediaBuffer *)mediaBuffer)->release();
+        mediaBuffer = NULL;
+
+        bufferMeta->setPointer("mediaBuffer", NULL);
+    }
+
     PortMode mode = getPortMode(kPortIndexInput);
 
     switch (mode) {
@@ -2531,10 +2560,10 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 }
 
                 if (buffer != info->mData) {
-                    if (0 && !(flags & OMX_BUFFERFLAG_CODECCONFIG)) {
-                        ALOGV("[%s] Needs to copy input data.",
-                             mCodec->mComponentName.c_str());
-                    }
+                    ALOGV("[%s] Needs to copy input data for buffer %p. (%p != %p)",
+                         mCodec->mComponentName.c_str(),
+                         bufferID,
+                         buffer.get(), info->mData.get());
 
                     CHECK_LE(buffer->size(), info->mData->capacity());
                     memcpy(info->mData->data(), buffer->data(), buffer->size());
@@ -2547,9 +2576,21 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                     ALOGV("[%s] calling emptyBuffer %p w/ EOS",
                          mCodec->mComponentName.c_str(), bufferID);
                 } else {
+#if TRACK_BUFFER_TIMING
+                    ALOGI("[%s] calling emptyBuffer %p w/ time %lld us",
+                         mCodec->mComponentName.c_str(), bufferID, timeUs);
+#else
                     ALOGV("[%s] calling emptyBuffer %p w/ time %lld us",
                          mCodec->mComponentName.c_str(), bufferID, timeUs);
+#endif
                 }
+
+#if TRACK_BUFFER_TIMING
+                ACodec::BufferStats stats;
+                stats.mEmptyBufferTimeUs = ALooper::GetNowUs();
+                stats.mFillBufferDoneTimeUs = -1ll;
+                mCodec->mBufferStats.add(timeUs, stats);
+#endif
 
                 CHECK_EQ(mCodec->mOMX->emptyBuffer(
                             mCodec->mNode,
@@ -2647,6 +2688,22 @@ bool ACodec::BaseState::onOMXFillBufferDone(
          mCodec->mComponentName.c_str(), bufferID, timeUs, flags);
 
     ssize_t index;
+
+#if TRACK_BUFFER_TIMING
+    index = mCodec->mBufferStats.indexOfKey(timeUs);
+    if (index >= 0) {
+        ACodec::BufferStats *stats = &mCodec->mBufferStats.editValueAt(index);
+        stats->mFillBufferDoneTimeUs = ALooper::GetNowUs();
+
+        ALOGI("frame PTS %lld: %lld",
+                timeUs,
+                stats->mFillBufferDoneTimeUs - stats->mEmptyBufferTimeUs);
+
+        mCodec->mBufferStats.removeItemsAt(index);
+        stats = NULL;
+    }
+#endif
+
     BufferInfo *info =
         mCodec->findBufferByID(kPortIndexOutput, bufferID, &index);
 
@@ -2891,7 +2948,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     AString mime;
 
     AString componentName;
-    uint32_t quirks;
+    uint32_t quirks = 0;
     if (msg->findString("componentName", &componentName)) {
         ssize_t index = matchingCodecs.add();
         OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);

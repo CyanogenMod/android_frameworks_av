@@ -42,6 +42,7 @@ class IMediaRecorder;
 class IMediaMetadataRetriever;
 class IOMX;
 class MediaRecorderClient;
+struct RemoteDisplay;
 
 #define CALLBACK_ANTAGONIZER 0
 #if CALLBACK_ANTAGONIZER
@@ -247,6 +248,7 @@ public:
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
     virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
+    virtual status_t            enableRemoteDisplay(bool enable);
 
     virtual status_t            dump(int fd, const Vector<String16>& args);
 
@@ -423,6 +425,7 @@ private:
                 int32_t                     mNextConnId;
                 sp<IOMX>                    mOMX;
                 sp<ICrypto>                 mCrypto;
+                sp<RemoteDisplay>           mRemoteDisplay;
 };
 
 // ----------------------------------------------------------------------------
