@@ -19,7 +19,7 @@
 
 #include <cutils/compiler.h>
 #include <utils/Log.h>
-#include "PipeReader.h"
+#include <media/nbaio/PipeReader.h>
 
 namespace android {
 

@@ -18,8 +18,8 @@
 #define ANDROID_AUDIO_FAST_MIXER_STATE_H
 
 #include <system/audio.h>
-#include "ExtendedAudioBufferProvider.h"
-#include "NBAIO.h"
+#include <media/ExtendedAudioBufferProvider.h>
+#include <media/nbaio/NBAIO.h>
 
 namespace android {
 

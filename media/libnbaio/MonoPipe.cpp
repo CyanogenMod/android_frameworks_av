@@ -23,9 +23,9 @@
 #include <utils/LinearTransform.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
-#include "AudioBufferProvider.h"
-#include "MonoPipe.h"
-#include "roundup.h"
+#include <media/AudioBufferProvider.h>
+#include <media/nbaio/MonoPipe.h>
+#include <media/nbaio/roundup.h>
 
 
 namespace android {

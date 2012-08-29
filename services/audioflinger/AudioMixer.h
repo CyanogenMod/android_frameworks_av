@@ -23,7 +23,7 @@
 
 #include <utils/threads.h>
 
-#include "AudioBufferProvider.h"
+#include <media/AudioBufferProvider.h>
 #include "AudioResampler.h"
 
 #include <audio_effects/effect_downmix.h>
