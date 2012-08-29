@@ -600,7 +600,7 @@ bool GetMPEGAudioFrameSize(
 
             bitrate = kBitrateV2[bitrate_index - 1];
             if (out_num_samples) {
-                *out_num_samples = 576;
+                *out_num_samples = (layer == 1 /* L3 */) ? 576 : 1152;
             }
         }
 
@@ -612,7 +612,8 @@ bool GetMPEGAudioFrameSize(
             *frame_size = 144000 * bitrate / sampling_rate + padding;
         } else {
             // V2 or V2.5
-            *frame_size = 72000 * bitrate / sampling_rate + padding;
+            size_t tmp = (layer == 1 /* L3 */) ? 72000 : 144000;
+            *frame_size = tmp * bitrate / sampling_rate + padding;
         }
     }
 
