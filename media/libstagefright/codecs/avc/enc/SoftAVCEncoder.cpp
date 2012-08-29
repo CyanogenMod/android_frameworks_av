@@ -849,6 +849,9 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 portIndex) {
         mInputBufferInfoVec.erase(mInputBufferInfoVec.begin());
         outHeader->nTimeStamp = inputBufInfo->mTimeUs;
         outHeader->nFlags |= (inputBufInfo->mFlags | OMX_BUFFERFLAG_ENDOFFRAME);
+        if (mSawInputEOS) {
+            outHeader->nFlags |= OMX_BUFFERFLAG_EOS;
+        }
         outHeader->nFilledLen = dataLength;
         outInfo->mOwnedByUs = false;
         notifyFillBufferDone(outHeader);
