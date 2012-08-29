@@ -909,12 +909,12 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 portIndex) {
         outQueue.erase(outQueue.begin());
         CHECK(!mInputBufferInfoVec.empty());
         InputBufferInfo *inputBufInfo = mInputBufferInfoVec.begin();
-        mInputBufferInfoVec.erase(mInputBufferInfoVec.begin());
         outHeader->nTimeStamp = inputBufInfo->mTimeUs;
         outHeader->nFlags |= (inputBufInfo->mFlags | OMX_BUFFERFLAG_ENDOFFRAME);
         outHeader->nFilledLen = dataLength;
         outInfo->mOwnedByUs = false;
         notifyFillBufferDone(outHeader);
+        mInputBufferInfoVec.erase(mInputBufferInfoVec.begin());
     }
 }
 
