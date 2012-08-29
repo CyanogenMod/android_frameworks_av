@@ -229,8 +229,6 @@ WifiDisplaySource::PlaybackSession::~PlaybackSession() {
     sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
     CHECK(service != NULL);
 
-    service->connectDisplay(NULL);
-
     if (mSerializer != NULL) {
         mSerializer->stop();
 
@@ -242,6 +240,8 @@ WifiDisplaySource::PlaybackSession::~PlaybackSession() {
         mSerializerLooper->stop();
         mSerializerLooper.clear();
     }
+
+    service->connectDisplay(NULL);
 
     if (mRTCPSessionID != 0) {
         mNetSession->destroySession(mRTCPSessionID);
