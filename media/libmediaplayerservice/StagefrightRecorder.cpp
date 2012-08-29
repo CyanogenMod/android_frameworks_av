@@ -175,7 +175,11 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
         mSampleRate = mSampleRate ? mSampleRate : 48000;
         mAudioChannels = mAudioChannels ? mAudioChannels : 2;
         mAudioBitRate = mAudioBitRate ? mAudioBitRate : 156000;
-    } else{
+    } else if(mAudioEncoder == AUDIO_ENCODER_AMR_WB) {
+        mSampleRate = 16000;
+        mAudioChannels = 1;
+        mAudioBitRate = 23850;
+    } else {
         mSampleRate = mSampleRate ? mSampleRate : 8000;
         mAudioChannels = mAudioChannels ? mAudioChannels : 1;
         mAudioBitRate = mAudioBitRate ? mAudioBitRate : 12200;
@@ -930,6 +934,11 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     sp<MediaSource> audioEncoder =
         OMXCodec::Create(client.interface(), encMeta,
                          true /* createEncoder */, audioSource);
+#ifdef QCOM_HARDWARE
+    if (mAudioSourceNode != NULL) {
+        mAudioSourceNode.clear();
+    }
+#endif
     mAudioSourceNode = audioSource;
 
     return audioEncoder;
@@ -1792,7 +1801,12 @@ status_t StagefrightRecorder::stop() {
         ::close(mOutputFd);
         mOutputFd = -1;
     }
-
+#ifdef QCOM_HARDWARE
+    if (mAudioSourceNode != NULL) {
+        mAudioSourceNode.clear();
+        mAudioSourceNode = NULL;
+    }
+#endif
     if (mStarted) {
         mStarted = false;
 
