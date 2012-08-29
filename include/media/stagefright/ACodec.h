@@ -25,6 +25,8 @@
 #include <media/stagefright/SkipCutBuffer.h>
 #include <OMX_Audio.h>
 
+#define TRACK_BUFFER_TIMING     0
+
 namespace android {
 
 struct ABuffer;
@@ -126,6 +128,15 @@ private:
         sp<ABuffer> mData;
         sp<GraphicBuffer> mGraphicBuffer;
     };
+
+#if TRACK_BUFFER_TIMING
+    struct BufferStats {
+        int64_t mEmptyBufferTimeUs;
+        int64_t mFillBufferDoneTimeUs;
+    };
+
+    KeyedVector<int64_t, BufferStats> mBufferStats;
+#endif
 
     sp<AMessage> mNotify;
 
