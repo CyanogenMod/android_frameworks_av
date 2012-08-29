@@ -21,6 +21,8 @@
 
 namespace android {
 
+// Encapsulates an "HTTP/RTSP style" response, i.e. a status line,
+// key/value pairs making up the headers and an optional body/content.
 struct ParsedMessage : public RefBase {
     static sp<ParsedMessage> Parse(
             const char *data, size_t size, bool noMoreData, size_t *length);
