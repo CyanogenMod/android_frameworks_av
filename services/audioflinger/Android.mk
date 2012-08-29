@@ -13,32 +13,6 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := \
-    AudioBufferProviderSource.cpp   \
-    AudioStreamOutSink.cpp          \
-    AudioStreamInSource.cpp         \
-    NBAIO.cpp                       \
-    MonoPipe.cpp                    \
-    MonoPipeReader.cpp              \
-    Pipe.cpp                        \
-    PipeReader.cpp                  \
-    roundup.c                       \
-    SourceAudioBufferProvider.cpp
-
-# libsndfile license is incompatible; uncomment to use for local debug only
-#LOCAL_SRC_FILES += LibsndfileSink.cpp LibsndfileSource.cpp
-#LOCAL_C_INCLUDES += path/to/libsndfile/src
-#LOCAL_STATIC_LIBRARIES += libsndfile
-
-# uncomment for systrace
-# LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_AUDIO
-
-LOCAL_MODULE := libnbaio
-
-include $(BUILD_STATIC_LIBRARY)
-
-include $(CLEAR_VARS)
-
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     AudioMixer.cpp.arm          \
@@ -66,6 +40,7 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libmedia \
     libmedia_native \
+    libnbaio \
     libhardware \
     libhardware_legacy \
     libeffects \
@@ -74,7 +49,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \
-    libnbaio \
     libcpustats \
     libmedia_helper
 

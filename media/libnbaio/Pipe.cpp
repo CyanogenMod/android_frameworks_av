@@ -20,8 +20,8 @@
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <utils/Log.h>
-#include "Pipe.h"
-#include "roundup.h"
+#include <media/nbaio/Pipe.h>
+#include <media/nbaio/roundup.h>
 
 namespace android {
 

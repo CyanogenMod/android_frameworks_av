@@ -45,10 +45,10 @@
 #include <hardware/audio.h>
 #include <hardware/audio_policy.h>
 
-#include "AudioBufferProvider.h"
-#include "ExtendedAudioBufferProvider.h"
+#include <media/AudioBufferProvider.h>
+#include <media/ExtendedAudioBufferProvider.h>
 #include "FastMixer.h"
-#include "NBAIO.h"
+#include <media/nbaio/NBAIO.h>
 #include "AudioWatchdog.h"
 
 #include <powermanager/IPowerManager.h>

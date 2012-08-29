@@ -18,7 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
-#include "SourceAudioBufferProvider.h"
+#include <media/nbaio/SourceAudioBufferProvider.h>
 
 namespace android {
 

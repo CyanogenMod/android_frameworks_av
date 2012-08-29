@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "AudioBufferProvider.h"
+#include <media/AudioBufferProvider.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
