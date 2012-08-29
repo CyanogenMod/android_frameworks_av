@@ -27,6 +27,8 @@ namespace android {
 
 struct AMessage;
 
+// Helper class to manage a number of live sockets (datagram and stream-based)
+// on a single thread. Clients are notified about activity through AMessages.
 struct ANetworkSession : public RefBase {
     ANetworkSession();
 
