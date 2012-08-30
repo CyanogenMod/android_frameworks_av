@@ -32,6 +32,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/hexdump.h>
+#include <media/stagefright/AudioSource.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -644,6 +645,32 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     sp<Converter> converter =
         new Converter(notify, mCodecLooper, format);
 
+    looper()->registerHandler(converter);
+
+    mTracks.add(index, new Track(converter));
+#endif
+
+#if 0
+    sp<AudioSource> audioSource = new AudioSource(
+            AUDIO_SOURCE_MIC,
+            48000 /* sampleRate */,
+            2 /* channelCount */);  // XXX AUDIO_CHANNEL_IN_STEREO?
+
+    CHECK_EQ((status_t)OK, audioSource->initCheck());
+
+    audioSource->setUseLooperTime(true);
+
+    index = mSerializer->addSource(audioSource);
+    CHECK_GE(index, 0);
+
+    sp<AMessage> audioFormat;
+    err = convertMetaDataToMessage(audioSource->getFormat(), &audioFormat);
+    CHECK_EQ(err, (status_t)OK);
+
+    sp<AMessage> audioNotify = new AMessage(kWhatConverterNotify, id());
+    audioNotify->setSize("trackIndex", index);
+
+    converter = new Converter(audioNotify, mCodecLooper, audioFormat);
     looper()->registerHandler(converter);
 
     mTracks.add(index, new Track(converter));
