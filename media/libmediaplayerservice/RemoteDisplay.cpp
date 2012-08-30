@@ -32,13 +32,11 @@ RemoteDisplay::RemoteDisplay()
 RemoteDisplay::~RemoteDisplay() {
 }
 
-status_t RemoteDisplay::start() {
+status_t RemoteDisplay::start(const char *iface) {
     mNetSession->start();
     mLooper->start();
 
-    // XXX replace with 8554 for bcom dongle (it doesn't respect the
-    // default port or the one advertised in the wfd IE).
-    mSource->start(WifiDisplaySource::kWifiDisplayDefaultPort);
+    mSource->start(iface);
 
     return OK;
 }
