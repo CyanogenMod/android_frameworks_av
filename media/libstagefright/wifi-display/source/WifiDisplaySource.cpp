@@ -116,8 +116,6 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                     err = mNetSession->createRTSPServer(
                             addr, port, notify, &mSessionID);
-
-                    ALOGI("createRTSPServer returned err %d", err);
                 } else {
                     err = -EINVAL;
                 }
@@ -154,7 +152,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                     mNetSession->destroySession(sessionID);
 
-                    mClientIPs.removeItem(sessionID);
+                    mClientInfos.removeItem(sessionID);
                     break;
                 }
 
@@ -167,10 +165,11 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findString("client-ip", &info.mRemoteIP));
                     CHECK(msg->findString("server-ip", &info.mLocalIP));
                     CHECK(msg->findInt32("server-port", &info.mLocalPort));
+                    info.mPlaybackSessionID = -1;
 
                     ALOGI("We now have a client (%d) connected.", sessionID);
 
-                    mClientIPs.add(sessionID, info);
+                    mClientInfos.add(sessionID, info);
 
                     status_t err = sendM1(sessionID);
                     CHECK_EQ(err, (status_t)OK);
@@ -284,6 +283,20 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatKeepAlive:
+        {
+            int32_t sessionID;
+            CHECK(msg->findInt32("sessionID", &sessionID));
+
+            if (mClientInfos.indexOfKey(sessionID) < 0) {
+                // Obsolete event, client is already gone.
+                break;
+            }
+
+            sendM16(sessionID);
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -366,7 +379,7 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     //   max-hres (none or 2 byte)
     //   max-vres (none or 2 byte)
 
-    const ClientInfo &info = mClientIPs.valueFor(sessionID);
+    const ClientInfo &info = mClientInfos.valueFor(sessionID);
 
     AString body = StringPrintf(
         "wfd_video_formats: "
@@ -419,6 +432,31 @@ status_t WifiDisplaySource::sendM5(int32_t sessionID) {
 
     registerResponseHandler(
             sessionID, mNextCSeq, &WifiDisplaySource::onReceiveM5Response);
+
+    ++mNextCSeq;
+
+    return OK;
+}
+
+status_t WifiDisplaySource::sendM16(int32_t sessionID) {
+    AString request = "GET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
+    AppendCommonResponse(&request, mNextCSeq);
+
+    const ClientInfo &info = mClientInfos.valueFor(sessionID);
+    request.append(StringPrintf("Session: %d\r\n", info.mPlaybackSessionID));
+
+    request.append("Content-Length: 0\r\n");
+    request.append("\r\n");
+
+    status_t err =
+        mNetSession->sendRequest(sessionID, request.c_str(), request.size());
+
+    if (err != OK) {
+        return err;
+    }
+
+    registerResponseHandler(
+            sessionID, mNextCSeq, &WifiDisplaySource::onReceiveM16Response);
 
     ++mNextCSeq;
 
@@ -481,6 +519,22 @@ status_t WifiDisplaySource::onReceiveM5Response(
     return OK;
 }
 
+status_t WifiDisplaySource::onReceiveM16Response(
+        int32_t sessionID, const sp<ParsedMessage> &msg) {
+    // If only the response was required to include a "Session:" header...
+
+    const ClientInfo &info = mClientInfos.valueFor(sessionID);
+
+    ssize_t index = mPlaybackSessions.indexOfKey(info.mPlaybackSessionID);
+    if (index >= 0) {
+        mPlaybackSessions.valueAt(index)->updateLiveness();
+
+        scheduleKeepAlive(sessionID);
+    }
+
+    return OK;
+}
+
 void WifiDisplaySource::scheduleReaper() {
     if (mReaperPending) {
         return;
@@ -488,6 +542,16 @@ void WifiDisplaySource::scheduleReaper() {
 
     mReaperPending = true;
     (new AMessage(kWhatReapDeadClients, id()))->post(kReaperIntervalUs);
+}
+
+void WifiDisplaySource::scheduleKeepAlive(int32_t sessionID) {
+    // We need to send updates at least 5 secs before the timeout is set to
+    // expire, make sure the timeout is greater than 5 secs to begin with.
+    CHECK_GT(kPlaybackSessionTimeoutUs, 5000000ll);
+
+    sp<AMessage> msg = new AMessage(kWhatKeepAlive, id());
+    msg->setInt32("sessionID", sessionID);
+    msg->post(kPlaybackSessionTimeoutUs - 5000000ll);
 }
 
 void WifiDisplaySource::onReceiveClientData(const sp<AMessage> &msg) {
@@ -637,6 +701,14 @@ void WifiDisplaySource::onSetupRequest(
         int32_t sessionID,
         int32_t cseq,
         const sp<ParsedMessage> &data) {
+    ClientInfo *info = &mClientInfos.editValueFor(sessionID);
+    if (info->mPlaybackSessionID != -1) {
+        // We only support a single playback session per client.
+        // This is due to the reversed keep-alive design in the wfd specs...
+        sendErrorResponse(sessionID, "400 Bad Request", cseq);
+        return;
+    }
+
     AString transport;
     if (!data->findString("transport", &transport)) {
         sendErrorResponse(sessionID, "400 Bad Request", cseq);
@@ -713,10 +785,8 @@ void WifiDisplaySource::onSetupRequest(
         return;
     }
 
-    const ClientInfo &info = mClientIPs.valueFor(sessionID);
-
     status_t err = playbackSession->init(
-            info.mRemoteIP.c_str(),
+            info->mRemoteIP.c_str(),
             clientRtp,
             clientRtcp,
             useInterleavedTCP);
@@ -738,6 +808,8 @@ void WifiDisplaySource::onSetupRequest(
     }
 
     mPlaybackSessions.add(playbackSessionID, playbackSession);
+
+    info->mPlaybackSessionID = playbackSessionID;
 
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
@@ -770,10 +842,8 @@ void WifiDisplaySource::onSetupRequest(
     err = mNetSession->sendRequest(sessionID, response.c_str());
     CHECK_EQ(err, (status_t)OK);
 
-#if 0
-    // XXX the dongle does not currently send keep-alives.
     scheduleReaper();
-#endif
+    scheduleKeepAlive(sessionID);
 }
 
 void WifiDisplaySource::onPlayRequest(
@@ -948,6 +1018,11 @@ void WifiDisplaySource::sendErrorResponse(
 int32_t WifiDisplaySource::makeUniquePlaybackSessionID() const {
     for (;;) {
         int32_t playbackSessionID = rand();
+
+        if (playbackSessionID == -1) {
+            // reserved.
+            continue;
+        }
 
         for (size_t i = 0; i < mPlaybackSessions.size(); ++i) {
             if (mPlaybackSessions.keyAt(i) == playbackSessionID) {
