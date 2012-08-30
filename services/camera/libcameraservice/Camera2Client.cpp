@@ -646,7 +646,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             return res;
         }
     }
-    if (params.zslMode) {
+    if (params.zslMode && !params.recordingHint) {
         res = mZslProcessor->updateStream(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to update ZSL stream: %s (%d)",
@@ -655,10 +655,45 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         }
     }
 
-    if (mPreviewRequest.entryCount() == 0) {
-        res = updatePreviewRequest(params);
+    CameraMetadata *request;
+    if (!params.recordingHint) {
+        if (mPreviewRequest.entryCount() == 0) {
+            res = updatePreviewRequest(params);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
+        }
+        request = &mPreviewRequest;
+    } else {
+        // With recording hint set, we're going to be operating under the
+        // assumption that the user will record video. To optimize recording
+        // startup time, create the necessary output streams for recording and
+        // video snapshot now if they don't already exist.
+        if (mRecordingRequest.entryCount() == 0) {
+            res = updateRecordingRequest(params);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to create recording preview "
+                        "request: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+                return res;
+            }
+        }
+        request = &mRecordingRequest;
+
+        res = updateRecordingStream(params);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
+            ALOGE("%s: Camera %d: Unable to pre-configure recording "
+                    "stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+
+        res = mJpegProcessor->updateStream(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't pre-configure still image "
+                    "stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
@@ -670,11 +705,11 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     if (callbacksEnabled) {
         outputStreams.push(getCallbackStreamId());
     }
-    if (params.zslMode) {
+    if (params.zslMode && !params.recordingHint) {
         outputStreams.push(getZslStreamId());
     }
 
-    res = mPreviewRequest.update(
+    res = request->update(
         ANDROID_REQUEST_OUTPUT_STREAMS,
         outputStreams);
 
@@ -683,14 +718,14 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = mPreviewRequest.sort();
+    res = request->sort();
     if (res != OK) {
         ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
-    res = mDevice->setStreamingRequest(mPreviewRequest);
+    res = mDevice->setStreamingRequest(*request);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
                 "%s (%d)",
@@ -921,19 +956,11 @@ void Camera2Client::stopRecording() {
 
     mCameraService->playSound(CameraService::SOUND_RECORDING);
 
-    // Back to preview. Since record can only be reached through preview,
-    // all preview stream setup should be up to date.
-    res = mDevice->setStreamingRequest(mPreviewRequest);
+    res = startPreviewL(l.mParameters, true);
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to switch back to preview request: "
-                "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-        return;
+        ALOGE("%s: Camera %d: Unable to return to preview",
+                __FUNCTION__, mCameraId);
     }
-
-    // TODO: Should recording heap be freed? Can't do it yet since requests
-    // could still be in flight.
-
-    l.mParameters.state = Parameters::PREVIEW;
 }
 
 bool Camera2Client::recordingEnabled() {
@@ -1627,7 +1654,7 @@ void Camera2Client::onRecordingFrameAvailable() {
 
 /** Utility methods */
 
-status_t Camera2Client::updateRequests(const Parameters &params) {
+status_t Camera2Client::updateRequests(Parameters &params) {
     status_t res;
 
     res = updatePreviewRequest(params);
@@ -1644,7 +1671,7 @@ status_t Camera2Client::updateRequests(const Parameters &params) {
     }
 
     if (params.state == Parameters::PREVIEW) {
-        res = mDevice->setStreamingRequest(mPreviewRequest);
+        res = startPreviewL(params, true);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error streaming new preview request: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
