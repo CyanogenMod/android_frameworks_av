@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#include "roundup.h"
+#ifndef ANDROID_EXTENDED_AUDIO_BUFFER_PROVIDER_H
+#define ANDROID_EXTENDED_AUDIO_BUFFER_PROVIDER_H
 
-unsigned roundup(unsigned v)
-{
-    // __builtin_clz is undefined for zero input
-    if (v == 0) {
-        v = 1;
-    }
-    int lz = __builtin_clz((int) v);
-    unsigned rounded = ((unsigned) 0x80000000) >> lz;
-    // 0x800000001 and higher are actually rounded _down_ to prevent overflow
-    if (v > rounded && lz > 0) {
-        rounded <<= 1;
-    }
-    return rounded;
-}
+#include <media/AudioBufferProvider.h>
+
+namespace android {
+
+class ExtendedAudioBufferProvider : public AudioBufferProvider {
+public:
+    virtual size_t  framesReady() const = 0;  // see description at AudioFlinger.h
+};
+
+}   // namespace android
+
+#endif  // ANDROID_EXTENDED_AUDIO_BUFFER_PROVIDER_H

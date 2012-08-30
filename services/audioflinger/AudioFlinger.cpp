@@ -76,12 +76,12 @@
 #include "FastMixer.h"
 
 // NBAIO implementations
-#include "AudioStreamOutSink.h"
-#include "MonoPipe.h"
-#include "MonoPipeReader.h"
-#include "Pipe.h"
-#include "PipeReader.h"
-#include "SourceAudioBufferProvider.h"
+#include <media/nbaio/AudioStreamOutSink.h>
+#include <media/nbaio/MonoPipe.h>
+#include <media/nbaio/MonoPipeReader.h>
+#include <media/nbaio/Pipe.h>
+#include <media/nbaio/PipeReader.h>
+#include <media/nbaio/SourceAudioBufferProvider.h>
 
 #include "SchedulingPolicyService.h"
 

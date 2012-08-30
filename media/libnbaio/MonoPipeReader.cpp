@@ -19,7 +19,7 @@
 
 #include <cutils/compiler.h>
 #include <utils/Log.h>
-#include "MonoPipeReader.h"
+#include <media/nbaio/MonoPipeReader.h>
 
 namespace android {
 
