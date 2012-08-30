@@ -19,7 +19,7 @@
 
 #include <utils/Errors.h>
 #include <utils/Log.h>
-#include "LibsndfileSink.h"
+#include <media/nbaio/LibsndfileSink.h>
 
 namespace android {
 

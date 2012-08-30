@@ -18,7 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
-#include "AudioStreamOutSink.h"
+#include <media/nbaio/AudioStreamOutSink.h>
 
 namespace android {
 
