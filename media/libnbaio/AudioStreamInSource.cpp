@@ -19,7 +19,7 @@
 
 #include <cutils/compiler.h>
 #include <utils/Log.h>
-#include "AudioStreamInSource.h"
+#include <media/nbaio/AudioStreamInSource.h>
 
 namespace android {
 
