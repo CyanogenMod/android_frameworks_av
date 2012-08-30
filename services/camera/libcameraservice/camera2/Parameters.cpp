@@ -18,6 +18,9 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <utils/Log.h>
+#include <utils/Trace.h>
+
 #include <math.h>
 #include <stdlib.h>
 
@@ -738,8 +741,10 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     enableFaceDetect = false;
 
     enableFocusMoveMessages = false;
-    afTriggerCounter = 0;
+    afTriggerCounter = 1;
     currentAfTriggerId = -1;
+
+    precaptureTriggerCounter = 1;
 
     previewCallbackFlags = 0;
 
@@ -1314,6 +1319,202 @@ status_t Parameters::set(const String8& params) {
 
     validatedParams.paramsFlattened = params;
     *this = validatedParams;
+
+    return OK;
+}
+
+status_t Parameters::updateRequest(CameraMetadata *request) const {
+    ATRACE_CALL();
+    status_t res;
+
+    uint8_t metadataMode = ANDROID_REQUEST_METADATA_FULL;
+    res = request->update(ANDROID_REQUEST_METADATA_MODE,
+            &metadataMode, 1);
+    if (res != OK) return res;
+
+    res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
+            previewFpsRange, 2);
+    if (res != OK) return res;
+
+    uint8_t reqWbMode = autoWhiteBalanceLock ?
+            (uint8_t)ANDROID_CONTROL_AWB_LOCKED : wbMode;
+    res = request->update(ANDROID_CONTROL_AWB_MODE,
+            &reqWbMode, 1);
+    if (res != OK) return res;
+    res = request->update(ANDROID_CONTROL_EFFECT_MODE,
+            &effectMode, 1);
+    if (res != OK) return res;
+    res = request->update(ANDROID_CONTROL_AE_ANTIBANDING_MODE,
+            &antibandingMode, 1);
+    if (res != OK) return res;
+
+    uint8_t reqControlMode =
+            (sceneMode == ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ?
+            ANDROID_CONTROL_AUTO : ANDROID_CONTROL_USE_SCENE_MODE;
+    res = request->update(ANDROID_CONTROL_MODE,
+            &reqControlMode, 1);
+    if (res != OK) return res;
+    if (reqControlMode == ANDROID_CONTROL_USE_SCENE_MODE) {
+        res = request->update(ANDROID_CONTROL_SCENE_MODE,
+                &sceneMode, 1);
+        if (res != OK) return res;
+    }
+
+    uint8_t reqFlashMode = ANDROID_FLASH_OFF;
+    uint8_t reqAeMode;
+    switch (flashMode) {
+        case Parameters::FLASH_MODE_OFF:
+            reqAeMode = ANDROID_CONTROL_AE_ON; break;
+        case Parameters::FLASH_MODE_AUTO:
+            reqAeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH; break;
+        case Parameters::FLASH_MODE_ON:
+            reqAeMode = ANDROID_CONTROL_AE_ON_ALWAYS_FLASH; break;
+        case Parameters::FLASH_MODE_TORCH:
+            reqAeMode = ANDROID_CONTROL_AE_ON;
+            reqFlashMode = ANDROID_FLASH_TORCH;
+            break;
+        case Parameters::FLASH_MODE_RED_EYE:
+            reqAeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE; break;
+        default:
+            ALOGE("%s: Camera %d: Unknown flash mode %d", __FUNCTION__,
+                    cameraId, flashMode);
+            return BAD_VALUE;
+    }
+    if (autoExposureLock) reqAeMode = ANDROID_CONTROL_AE_LOCKED;
+
+    res = request->update(ANDROID_FLASH_MODE,
+            &reqFlashMode, 1);
+    if (res != OK) return res;
+    res = request->update(ANDROID_CONTROL_AE_MODE,
+            &reqAeMode, 1);
+    if (res != OK) return res;
+
+    float reqFocusDistance = 0; // infinity focus in diopters
+    uint8_t reqFocusMode;
+    switch (focusMode) {
+        case Parameters::FOCUS_MODE_AUTO:
+        case Parameters::FOCUS_MODE_MACRO:
+        case Parameters::FOCUS_MODE_CONTINUOUS_VIDEO:
+        case Parameters::FOCUS_MODE_CONTINUOUS_PICTURE:
+        case Parameters::FOCUS_MODE_EDOF:
+            reqFocusMode = focusMode;
+            break;
+        case Parameters::FOCUS_MODE_INFINITY:
+        case Parameters::FOCUS_MODE_FIXED:
+            reqFocusMode = ANDROID_CONTROL_AF_OFF;
+            break;
+        default:
+            ALOGE("%s: Camera %d: Unknown focus mode %d", __FUNCTION__,
+                    cameraId, focusMode);
+            return BAD_VALUE;
+    }
+    res = request->update(ANDROID_LENS_FOCUS_DISTANCE,
+            &reqFocusDistance, 1);
+    if (res != OK) return res;
+    res = request->update(ANDROID_CONTROL_AF_MODE,
+            &reqFocusMode, 1);
+    if (res != OK) return res;
+
+    size_t reqFocusingAreasSize = focusingAreas.size() * 5;
+    int32_t *reqFocusingAreas = new int32_t[reqFocusingAreasSize];
+    for (size_t i = 0; i < reqFocusingAreasSize; i += 5) {
+        if (focusingAreas[i].weight != 0) {
+            reqFocusingAreas[i + 0] =
+                    normalizedXToArray(focusingAreas[i].left);
+            reqFocusingAreas[i + 1] =
+                    normalizedYToArray(focusingAreas[i].top);
+            reqFocusingAreas[i + 2] =
+                    normalizedXToArray(focusingAreas[i].right);
+            reqFocusingAreas[i + 3] =
+                    normalizedYToArray(focusingAreas[i].bottom);
+        } else {
+            reqFocusingAreas[i + 0] = 0;
+            reqFocusingAreas[i + 1] = 0;
+            reqFocusingAreas[i + 2] = 0;
+            reqFocusingAreas[i + 3] = 0;
+        }
+        reqFocusingAreas[i + 4] = focusingAreas[i].weight;
+    }
+    res = request->update(ANDROID_CONTROL_AF_REGIONS,
+            reqFocusingAreas, reqFocusingAreasSize);
+    if (res != OK) return res;
+    delete[] reqFocusingAreas;
+
+    res = request->update(ANDROID_CONTROL_AE_EXP_COMPENSATION,
+            &exposureCompensation, 1);
+    if (res != OK) return res;
+
+    size_t reqMeteringAreasSize = meteringAreas.size() * 5;
+    int32_t *reqMeteringAreas = new int32_t[reqMeteringAreasSize];
+    for (size_t i = 0; i < reqMeteringAreasSize; i += 5) {
+        if (meteringAreas[i].weight != 0) {
+            reqMeteringAreas[i + 0] =
+                normalizedXToArray(meteringAreas[i].left);
+            reqMeteringAreas[i + 1] =
+                normalizedYToArray(meteringAreas[i].top);
+            reqMeteringAreas[i + 2] =
+                normalizedXToArray(meteringAreas[i].right);
+            reqMeteringAreas[i + 3] =
+                normalizedYToArray(meteringAreas[i].bottom);
+        } else {
+            reqMeteringAreas[i + 0] = 0;
+            reqMeteringAreas[i + 1] = 0;
+            reqMeteringAreas[i + 2] = 0;
+            reqMeteringAreas[i + 3] = 0;
+        }
+        reqMeteringAreas[i + 4] = meteringAreas[i].weight;
+    }
+    res = request->update(ANDROID_CONTROL_AE_REGIONS,
+            reqMeteringAreas, reqMeteringAreasSize);
+    if (res != OK) return res;
+
+    res = request->update(ANDROID_CONTROL_AWB_REGIONS,
+            reqMeteringAreas, reqMeteringAreasSize);
+    if (res != OK) return res;
+    delete[] reqMeteringAreas;
+
+    // Need to convert zoom index into a crop rectangle. The rectangle is
+    // chosen to maximize its area on the sensor
+
+    camera_metadata_ro_entry_t maxDigitalZoom =
+            staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
+    float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
+            (NUM_ZOOM_STEPS-1);
+    float zoomRatio = 1 + zoomIncrement * zoom;
+
+    float zoomLeft, zoomTop, zoomWidth, zoomHeight;
+    if (previewWidth >= previewHeight) {
+        zoomWidth =  fastInfo.arrayWidth / zoomRatio;
+        zoomHeight = zoomWidth *
+                previewHeight / previewWidth;
+    } else {
+        zoomHeight = fastInfo.arrayHeight / zoomRatio;
+        zoomWidth = zoomHeight *
+                previewWidth / previewHeight;
+    }
+    zoomLeft = (fastInfo.arrayWidth - zoomWidth) / 2;
+    zoomTop = (fastInfo.arrayHeight - zoomHeight) / 2;
+
+    int32_t reqCropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
+    res = request->update(ANDROID_SCALER_CROP_REGION,
+            reqCropRegion, 3);
+    if (res != OK) return res;
+
+    // TODO: Decide how to map recordingHint, or whether just to ignore it
+
+    uint8_t reqVstabMode = videoStabilization ?
+            ANDROID_CONTROL_VIDEO_STABILIZATION_ON :
+            ANDROID_CONTROL_VIDEO_STABILIZATION_OFF;
+    res = request->update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
+            &reqVstabMode, 1);
+    if (res != OK) return res;
+
+    uint8_t reqFaceDetectMode = enableFaceDetect ?
+            fastInfo.bestFaceDetectMode :
+            (uint8_t)ANDROID_STATS_FACE_DETECTION_OFF;
+    res = request->update(ANDROID_STATS_FACE_DETECT_MODE,
+            &reqFaceDetectMode, 1);
+    if (res != OK) return res;
 
     return OK;
 }
