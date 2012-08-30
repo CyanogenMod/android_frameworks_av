@@ -26,6 +26,8 @@ struct ABuffer;
 struct Serializer;
 struct TSPacketizer;
 
+#define LOG_TRANSPORT_STREAM    0
+
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
 struct WifiDisplaySource::PlaybackSession : public AHandler {
@@ -110,6 +112,10 @@ private:
 
     List<sp<ABuffer> > mHistory;
     size_t mHistoryLength;
+
+#if LOG_TRANSPORT_STREAM
+    FILE *mLogFile;
+#endif
 
     void onSendSR();
     void addSR(const sp<ABuffer> &buffer);
