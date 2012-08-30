@@ -19,7 +19,7 @@
 
 #include <cutils/compiler.h>
 #include <utils/Log.h>
-#include "AudioBufferProviderSource.h"
+#include <media/nbaio/AudioBufferProviderSource.h>
 
 namespace android {
 
