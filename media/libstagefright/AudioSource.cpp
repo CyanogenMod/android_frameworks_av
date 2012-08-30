@@ -24,6 +24,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 #include <cutils/properties.h>
 #include <stdlib.h>
 
@@ -33,7 +34,7 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
     AudioSource *source = (AudioSource *) user;
     switch (event) {
         case AudioRecord::EVENT_MORE_DATA: {
-            source->dataCallbackTimestamp(*((AudioRecord::Buffer *) info), systemTime() / 1000);
+            source->dataCallback(*((AudioRecord::Buffer *) info));
             break;
         }
         case AudioRecord::EVENT_OVERRUN: {
@@ -53,7 +54,8 @@ AudioSource::AudioSource(
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
       mNumFramesReceived(0),
-      mNumClientOwnedBuffers(0) {
+      mNumClientOwnedBuffers(0),
+      mUseLooperTime(false) {
 
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
     CHECK(channelCount == 1 || channelCount == 2);
@@ -98,6 +100,12 @@ AudioSource::~AudioSource() {
 
 status_t AudioSource::initCheck() const {
     return mInitCheck;
+}
+
+void AudioSource::setUseLooperTime(bool useLooperTime) {
+    CHECK(!mStarted);
+
+    mUseLooperTime = useLooperTime;
 }
 
 status_t AudioSource::start(MetaData *params) {
@@ -271,8 +279,10 @@ void AudioSource::signalBufferReturned(MediaBuffer *buffer) {
     return;
 }
 
-status_t AudioSource::dataCallbackTimestamp(
-        const AudioRecord::Buffer& audioBuffer, int64_t timeUs) {
+status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
+    int64_t timeUs =
+        mUseLooperTime ? ALooper::GetNowUs() : (systemTime() / 1000ll);
+
     ALOGV("dataCallbackTimestamp: %lld us", timeUs);
     Mutex::Autolock autoLock(mLock);
     if (!mStarted) {
@@ -290,12 +300,15 @@ status_t AudioSource::dataCallbackTimestamp(
     if (mNumFramesReceived == 0 && mPrevSampleTimeUs == 0) {
         mInitialReadTimeUs = timeUs;
         // Initial delay
-        if (mStartTimeUs > 0) {
+        if (mUseLooperTime) {
+            mStartTimeUs = timeUs;
+        } else if (mStartTimeUs > 0) {
             mStartTimeUs = timeUs - mStartTimeUs;
         } else {
             // Assume latency is constant.
             mStartTimeUs += mRecord->latency() * 1000;
         }
+
         mPrevSampleTimeUs = mStartTimeUs;
     }
 
