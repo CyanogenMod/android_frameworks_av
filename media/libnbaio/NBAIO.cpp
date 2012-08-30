@@ -18,7 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
-#include "NBAIO.h"
+#include <media/nbaio/NBAIO.h>
 
 namespace android {
 

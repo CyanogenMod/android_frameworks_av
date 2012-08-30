@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <media/stagefright/MediaSource.h>
-#include "AudioBufferProvider.h"
+#include <media/AudioBufferProvider.h>
 #include "AudioResampler.h"
 
 namespace android {
