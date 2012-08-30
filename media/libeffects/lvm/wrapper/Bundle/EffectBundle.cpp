@@ -1011,6 +1011,8 @@ int Effect_setConfig(EffectContext *pContext, effect_config_t *pConfig){
         LVM_ERROR_CHECK(LvmStatus, "LVM_GetControlParameters", "Effect_setConfig")
         if(LvmStatus != LVM_SUCCESS) return -EINVAL;
 
+        ActiveParams.SampleRate = SampleRate;
+
         LvmStatus = LVM_SetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
 
         LVM_ERROR_CHECK(LvmStatus, "LVM_SetControlParameters", "Effect_setConfig")
