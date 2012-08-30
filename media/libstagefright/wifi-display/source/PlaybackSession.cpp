@@ -625,7 +625,7 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     ssize_t index = mSerializer->addSource(source);
 #else
     ssize_t index = mSerializer->addSource(
-            new RepeaterSource(source, 55.0 /* rateHz */));
+            new RepeaterSource(source, 30.0 /* rateHz */));
 #endif
 
     CHECK_GE(index, 0);

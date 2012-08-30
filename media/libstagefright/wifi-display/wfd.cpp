@@ -32,7 +32,7 @@
 
 namespace android {
 
-static void enableDisableRemoteDisplay(bool enable) {
+static void enableDisableRemoteDisplay(const char *iface) {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.player"));
 
@@ -41,7 +41,7 @@ static void enableDisableRemoteDisplay(bool enable) {
 
     CHECK(service.get() != NULL);
 
-    service->enableRemoteDisplay(enable);
+    service->enableRemoteDisplay(iface);
 }
 
 }  // namespace android
@@ -53,7 +53,7 @@ static void usage(const char *me) {
             "           %s -c host[:port]\tconnect to wifi source\n"
             "           -u uri        \tconnect to an rtsp uri\n"
 #endif
-            "           -e            \tenable remote display\n"
+            "           -e ip[:port]       \tenable remote display\n"
             "           -d            \tdisable remote display\n",
             me);
 }
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     AString uri;
 
     int res;
-    while ((res = getopt(argc, argv, "hc:l:u:ed")) >= 0) {
+    while ((res = getopt(argc, argv, "hc:l:u:e:d")) >= 0) {
         switch (res) {
 #if SUPPORT_SINK
             case 'c':
@@ -103,9 +103,15 @@ int main(int argc, char **argv) {
 #endif
 
             case 'e':
+            {
+                enableDisableRemoteDisplay(optarg);
+                exit(0);
+                break;
+            }
+
             case 'd':
             {
-                enableDisableRemoteDisplay(res == 'e');
+                enableDisableRemoteDisplay(NULL);
                 exit(0);
                 break;
             }

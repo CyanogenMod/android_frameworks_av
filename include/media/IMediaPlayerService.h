@@ -50,7 +50,11 @@ public:
     virtual sp<IOMX>            getOMX() = 0;
     virtual sp<ICrypto>         makeCrypto() = 0;
 
-    virtual status_t enableRemoteDisplay(bool enable) = 0;
+    // If iface == NULL, disable remote display, otherwise
+    // iface should be of the form "x.x.x.x:y", i.e. ip address
+    // of the local interface to bind to and the port number
+    // to listen on.
+    virtual status_t enableRemoteDisplay(const char *iface) = 0;
 
     // codecs and audio devices usage tracking for the battery app
     enum BatteryDataBits {
