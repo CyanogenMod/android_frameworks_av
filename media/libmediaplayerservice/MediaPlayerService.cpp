@@ -279,13 +279,17 @@ sp<ICrypto> MediaPlayerService::makeCrypto() {
     return new Crypto;
 }
 
-status_t MediaPlayerService::enableRemoteDisplay(bool enable) {
+status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
     Mutex::Autolock autoLock(mLock);
 
-    if (enable && mRemoteDisplay == NULL) {
+    if (iface != NULL) {
+        if (mRemoteDisplay != NULL) {
+            return INVALID_OPERATION;
+        }
+
         mRemoteDisplay = new RemoteDisplay;
 
-        status_t err = mRemoteDisplay->start();
+        status_t err = mRemoteDisplay->start(iface);
 
         if (err != OK) {
             mRemoteDisplay.clear();
@@ -293,7 +297,9 @@ status_t MediaPlayerService::enableRemoteDisplay(bool enable) {
         }
 
         return OK;
-    } else if (!enable && mRemoteDisplay != NULL) {
+    }
+
+    if (mRemoteDisplay != NULL) {
         mRemoteDisplay->stop();
         mRemoteDisplay.clear();
     }

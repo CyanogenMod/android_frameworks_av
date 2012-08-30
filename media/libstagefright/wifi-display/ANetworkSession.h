@@ -23,6 +23,8 @@
 #include <utils/RefBase.h>
 #include <utils/Thread.h>
 
+#include <netinet/in.h>
+
 namespace android {
 
 struct AMessage;
@@ -40,7 +42,8 @@ struct ANetworkSession : public RefBase {
             int32_t *sessionID);
 
     status_t createRTSPServer(
-            unsigned port, const sp<AMessage> &notify, int32_t *sessionID);
+            const struct in_addr &addr, unsigned port,
+            const sp<AMessage> &notify, int32_t *sessionID);
 
     status_t createUDPSession(
             unsigned localPort, const sp<AMessage> &notify, int32_t *sessionID);
@@ -92,6 +95,7 @@ private:
     };
     status_t createClientOrServer(
             Mode mode,
+            const struct in_addr *addr,
             unsigned port,
             const char *remoteHost,
             unsigned remotePort,

@@ -31,7 +31,7 @@ struct WifiDisplaySource;
 struct RemoteDisplay : public RefBase {
     RemoteDisplay();
 
-    status_t start();
+    status_t start(const char *iface);
     status_t stop();
 
 protected:
