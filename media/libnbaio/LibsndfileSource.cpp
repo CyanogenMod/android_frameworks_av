@@ -19,7 +19,7 @@
 
 #include <utils/Errors.h>
 #include <utils/Log.h>
-#include "LibsndfileSource.h"
+#include <media/nbaio/LibsndfileSource.h>
 
 namespace android {
 
