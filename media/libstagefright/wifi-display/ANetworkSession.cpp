@@ -537,6 +537,7 @@ status_t ANetworkSession::createRTSPClient(
         int32_t *sessionID) {
     return createClientOrServer(
             kModeCreateRTSPClient,
+            NULL /* addr */,
             0 /* port */,
             host,
             port,
@@ -545,9 +546,11 @@ status_t ANetworkSession::createRTSPClient(
 }
 
 status_t ANetworkSession::createRTSPServer(
-        unsigned port, const sp<AMessage> &notify, int32_t *sessionID) {
+        const struct in_addr &addr, unsigned port,
+        const sp<AMessage> &notify, int32_t *sessionID) {
     return createClientOrServer(
             kModeCreateRTSPServer,
+            &addr,
             port,
             NULL /* remoteHost */,
             0 /* remotePort */,
@@ -568,6 +571,7 @@ status_t ANetworkSession::createUDPSession(
         int32_t *sessionID) {
     return createClientOrServer(
             kModeCreateUDPSession,
+            NULL /* addr */,
             localPort,
             remoteHost,
             remotePort,
@@ -608,6 +612,7 @@ status_t ANetworkSession::MakeSocketNonBlocking(int s) {
 
 status_t ANetworkSession::createClientOrServer(
         Mode mode,
+        const struct in_addr *localAddr,
         unsigned port,
         const char *remoteHost,
         unsigned remotePort,
@@ -677,8 +682,11 @@ status_t ANetworkSession::createClientOrServer(
 
         addr.sin_addr.s_addr = *(in_addr_t *)ent->h_addr;
         addr.sin_port = htons(remotePort);
+    } else if (localAddr != NULL) {
+        addr.sin_addr = *localAddr;
+        addr.sin_port = htons(port);
     } else {
-        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port = htons(port);
     }
 

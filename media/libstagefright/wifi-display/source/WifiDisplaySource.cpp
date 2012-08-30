@@ -27,6 +27,9 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
 namespace android {
 
 WifiDisplaySource::WifiDisplaySource(const sp<ANetworkSession> &netSession)
@@ -39,9 +42,9 @@ WifiDisplaySource::WifiDisplaySource(const sp<ANetworkSession> &netSession)
 WifiDisplaySource::~WifiDisplaySource() {
 }
 
-status_t WifiDisplaySource::start(int32_t port) {
+status_t WifiDisplaySource::start(const char *iface) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
-    msg->setInt32("port", port);
+    msg->setString("iface", iface);
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
@@ -81,13 +84,44 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            int32_t port;
-            CHECK(msg->findInt32("port", &port));
+            AString iface;
+            CHECK(msg->findString("iface", &iface));
 
-            sp<AMessage> notify = new AMessage(kWhatRTSPNotify, id());
+            status_t err = OK;
 
-            status_t err = mNetSession->createRTSPServer(
-                    port, notify, &mSessionID);
+            ssize_t colonPos = iface.find(":");
+
+            unsigned long port;
+
+            if (colonPos >= 0) {
+                const char *s = iface.c_str() + colonPos + 1;
+
+                char *end;
+                port = strtoul(s, &end, 10);
+
+                if (end == s || *end != '\0' || port > 65535) {
+                    err = -EINVAL;
+                } else {
+                    iface.erase(colonPos, iface.size() - colonPos);
+                }
+            } else {
+                port = kWifiDisplayDefaultPort;
+            }
+
+            struct in_addr addr;
+
+            if (err == OK) {
+                if (inet_aton(iface.c_str(), &addr) != 0) {
+                    sp<AMessage> notify = new AMessage(kWhatRTSPNotify, id());
+
+                    err = mNetSession->createRTSPServer(
+                            addr, port, notify, &mSessionID);
+
+                    ALOGI("createRTSPServer returned err %d", err);
+                } else {
+                    err = -EINVAL;
+                }
+            }
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
