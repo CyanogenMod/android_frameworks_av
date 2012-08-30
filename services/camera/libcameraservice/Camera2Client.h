@@ -21,7 +21,9 @@
 #include "CameraService.h"
 #include "camera2/Parameters.h"
 #include "camera2/FrameProcessor.h"
-#include "camera2/CaptureProcessor.h"
+#include "camera2/JpegProcessor.h"
+#include "camera2/ZslProcessor.h"
+#include "camera2/CaptureSequencer.h"
 #include "camera2/CallbackProcessor.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
@@ -95,9 +97,19 @@ public:
      * Interface used by independent components of Camera2Client.
      */
 
-    int getCameraId();
+    int getCameraId() const;
     const sp<Camera2Device>& getCameraDevice();
     camera2::SharedParameters& getParameters();
+
+    int getPreviewStreamId() const;
+    int getCaptureStreamId() const;
+    int getCallbackStreamId() const;
+    int getRecordingStreamId() const;
+    int getZslStreamId() const;
+
+    status_t registerFrameListener(int32_t id,
+            wp<camera2::FrameProcessor::FilteredListener> listener);
+    status_t removeFrameListener(int32_t id);
 
     // Simple class to ensure that access to ICameraClient is serialized by
     // requiring mCameraClientLock to be locked before access to mCameraClient
@@ -122,6 +134,10 @@ public:
 
     static size_t calculateBufferSize(int width, int height,
             int format, int stride);
+
+    static const int32_t kPreviewRequestId = 1000;
+    static const int32_t kRecordRequestId  = 2000;
+    static const int32_t kFirstCaptureRequestId = 3000;
 
 private:
     /** ICamera interface-related private members */
@@ -183,9 +199,9 @@ private:
 
     /* Still image capture related members */
 
-    sp<camera2::CaptureProcessor> mCaptureProcessor;
-    CameraMetadata mCaptureRequest;
-    status_t updateCaptureRequest(const Parameters &params);
+    sp<camera2::CaptureSequencer> mCaptureSequencer;
+    sp<camera2::JpegProcessor> mJpegProcessor;
+    sp<camera2::ZslProcessor> mZslProcessor;
 
     /* Recording related members */
 
@@ -228,18 +244,6 @@ private:
 
     // Verify that caller is the owner of the camera
     status_t checkPid(const char *checkLocation) const;
-
-    // Update parameters all requests use, based on mParameters
-    status_t updateRequestCommon(CameraMetadata *request, const Parameters &params) const;
-
-    // Map from sensor active array pixel coordinates to normalized camera
-    // parameter coordinates. The former are (0,0)-(array width - 1, array height
-    // - 1), the latter from (-1000,-1000)-(1000,1000)
-    int normalizedXToArray(int x) const;
-    int normalizedYToArray(int y) const;
-    int arrayXToNormalized(int width) const;
-    int arrayYToNormalized(int height) const;
-
 };
 
 }; // namespace android

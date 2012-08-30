@@ -36,6 +36,19 @@ FrameProcessor::~FrameProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
 }
 
+status_t FrameProcessor::registerListener(int32_t id,
+        wp<FilteredListener> listener) {
+    Mutex::Autolock l(mInputMutex);
+    ALOGV("%s: Registering listener for frame id %d",
+            __FUNCTION__, id);
+    return mListeners.replaceValueFor(id, listener);
+}
+
+status_t FrameProcessor::removeListener(int32_t id) {
+    Mutex::Autolock l(mInputMutex);
+    return mListeners.removeItem(id);
+}
+
 void FrameProcessor::dump(int fd, const Vector<String16>& args) {
     String8 result("    Latest received frame:\n");
     write(fd, result.string(), result.size());
@@ -50,6 +63,7 @@ bool FrameProcessor::threadLoop() {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return false;
         device = client->getCameraDevice();
+        if (device == 0) return false;
     }
 
     res = device->waitForNextFrame(kWaitDuration);
@@ -67,20 +81,28 @@ bool FrameProcessor::threadLoop() {
 
 void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
     status_t res;
+    ATRACE_CALL();
     CameraMetadata frame;
     while ( (res = client->getCameraDevice()->getNextFrame(&frame)) == OK) {
         camera_metadata_entry_t entry;
+
         entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
         if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
-                    __FUNCTION__, client->getCameraId(), strerror(-res), res);
+            ALOGE("%s: Camera %d: Error reading frame number",
+                    __FUNCTION__, client->getCameraId());
             break;
         }
 
         res = processFaceDetect(frame, client);
         if (res != OK) break;
 
-        mLastFrame.acquire(frame);
+        // Must be last - listener can take ownership of frame
+        res = processListener(frame, client);
+        if (res != OK) break;
+
+        if (!frame.isEmpty()) {
+            mLastFrame.acquire(frame);
+        }
     }
     if (res != NOT_ENOUGH_DATA) {
         ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
@@ -91,9 +113,43 @@ void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
     return;
 }
 
-status_t FrameProcessor::processFaceDetect(
-    const CameraMetadata &frame, sp<Camera2Client> &client) {
+status_t FrameProcessor::processListener(CameraMetadata &frame,
+        sp<Camera2Client> &client) {
     status_t res;
+    ATRACE_CALL();
+    camera_metadata_entry_t entry;
+
+    entry = frame.find(ANDROID_REQUEST_ID);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: Error reading frame id",
+                __FUNCTION__, client->getCameraId());
+        return BAD_VALUE;
+    }
+    int32_t frameId = entry.data.i32[0];
+    ALOGV("%s: Got frame with ID %d", __FUNCTION__, frameId);
+
+    sp<FilteredListener> listener;
+    {
+        Mutex::Autolock l(mInputMutex);
+        ssize_t listenerIndex = mListeners.indexOfKey(frameId);
+        if (listenerIndex != NAME_NOT_FOUND) {
+            listener = mListeners[listenerIndex].promote();
+            if (listener == 0) {
+                mListeners.removeItemsAt(listenerIndex, 1);
+            }
+        }
+    }
+
+    if (listener != 0) {
+        listener->onFrameAvailable(frameId, frame);
+    }
+    return OK;
+}
+
+status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
+        sp<Camera2Client> &client) {
+    status_t res;
+    ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
     bool enableFaceDetect;
     int maxFaces;
@@ -208,7 +264,6 @@ status_t FrameProcessor::processFaceDetect(
     }
     return OK;
 }
-
 
 }; // namespace camera2
 }; // namespace android

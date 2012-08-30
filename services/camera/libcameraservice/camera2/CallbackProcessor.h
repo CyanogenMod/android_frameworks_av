@@ -48,7 +48,7 @@ class CallbackProcessor:
     status_t deleteStream();
     int getStreamId() const;
 
-    void dump(int fd, const Vector<String16>& args);
+    void dump(int fd, const Vector<String16>& args) const;
   private:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
     wp<Camera2Client> mClient;
