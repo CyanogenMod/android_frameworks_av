@@ -33,7 +33,7 @@ struct WifiDisplaySource : public AHandler {
 
     WifiDisplaySource(const sp<ANetworkSession> &netSession);
 
-    status_t start(int32_t port);
+    status_t start(const char *iface);
     status_t stop();
 
 protected:
