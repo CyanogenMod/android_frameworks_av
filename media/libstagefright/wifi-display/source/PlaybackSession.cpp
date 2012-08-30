@@ -132,8 +132,16 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mNumSRsSent(0),
       mSendSRPending(false),
       mFirstPacketTimeUs(-1ll),
-      mHistoryLength(0) {
+      mHistoryLength(0)
+#if LOG_TRANSPORT_STREAM
+      ,mLogFile(NULL)
+#endif
+{
     mTSQueue->setRange(0, 12);
+
+#if LOG_TRANSPORT_STREAM
+    mLogFile = fopen("/system/etc/log.ts", "wb");
+#endif
 }
 
 status_t WifiDisplaySource::PlaybackSession::init(
@@ -215,6 +223,13 @@ status_t WifiDisplaySource::PlaybackSession::init(
 }
 
 WifiDisplaySource::PlaybackSession::~PlaybackSession() {
+#if LOG_TRANSPORT_STREAM
+    if (mLogFile != NULL) {
+        fclose(mLogFile);
+        mLogFile = NULL;
+    }
+#endif
+
     mTracks.clear();
 
     if (mCodecLooper != NULL) {
@@ -470,6 +485,12 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                                 true /* timeDiscontinuity */,
                                 lastTSPacket /* flush */);
                     }
+
+#if LOG_TRANSPORT_STREAM
+                    if (mLogFile != NULL) {
+                        fwrite(packets->data(), 1, packets->size(), mLogFile);
+                    }
+#endif
                 }
             } else if (what == Converter::kWhatEOS) {
                 CHECK_EQ(what, Converter::kWhatEOS);
