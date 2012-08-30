@@ -208,7 +208,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::PIXEL_FORMAT_JPEG);
 
     camera_metadata_ro_entry_t availableJpegThumbnailSizes =
-        staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES, 2);
+        staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES, 4);
     if (!availableJpegThumbnailSizes.count) return NO_INIT;
 
     // TODO: Pick default thumbnail size sensibly
