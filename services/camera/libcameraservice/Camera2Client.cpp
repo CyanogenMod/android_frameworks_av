@@ -393,8 +393,8 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
 
     mClientPid = getCallingPid();
 
-    Mutex::Autolock iccl(mICameraClientLock);
     mCameraClient = client;
+    mSharedCameraClient = client;
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::STOPPED;
@@ -433,10 +433,9 @@ status_t Camera2Client::unlock() {
     // TODO: Check for uninterruptable conditions
 
     if (mClientPid == getCallingPid()) {
-        Mutex::Autolock iccl(mICameraClientLock);
-
         mClientPid = 0;
         mCameraClient.clear();
+        mSharedCameraClient.clear();
         return OK;
     }
 
@@ -1457,22 +1456,25 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
             case Parameters::FOCUS_MODE_FIXED:
             default:
                 if (newState != ANDROID_CONTROL_AF_STATE_INACTIVE) {
-                    ALOGE("%s: Unexpected AF state change %d (ID %d) in focus mode %d",
-                          __FUNCTION__, newState, triggerId, l.mParameters.focusMode);
+                    ALOGE("%s: Unexpected AF state change %d "
+                            "(ID %d) in focus mode %d",
+                          __FUNCTION__, newState, triggerId,
+                            l.mParameters.focusMode);
                 }
         }
     }
     if (sendMovingMessage) {
-        Mutex::Autolock iccl(mICameraClientLock);
-        if (mCameraClient != 0) {
-            mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
+        SharedCameraClient::Lock l(mSharedCameraClient);
+        if (l.mCameraClient != 0) {
+            l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
                     afInMotion ? 1 : 0, 0);
         }
     }
     if (sendCompletedMessage) {
-        Mutex::Autolock iccl(mICameraClientLock);
-        if (mCameraClient != 0) {
-            mCameraClient->notifyCallback(CAMERA_MSG_FOCUS, success ? 1 : 0, 0);
+        SharedCameraClient::Lock l(mSharedCameraClient);
+        if (l.mCameraClient != 0) {
+            l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS,
+                    success ? 1 : 0, 0);
         }
     }
 }
@@ -1487,185 +1489,38 @@ void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
             __FUNCTION__, newState, triggerId);
 }
 
-Camera2Client::FrameProcessor::FrameProcessor(wp<Camera2Client> client):
-        Thread(false), mClient(client) {
+int Camera2Client::getCameraId() {
+    return mCameraId;
 }
 
-Camera2Client::FrameProcessor::~FrameProcessor() {
-    ALOGV("%s: Exit", __FUNCTION__);
+const sp<Camera2Device>& Camera2Client::getCameraDevice() {
+    return mDevice;
 }
 
-void Camera2Client::FrameProcessor::dump(int fd, const Vector<String16>& args) {
-    String8 result("    Latest received frame:\n");
-    write(fd, result.string(), result.size());
-    mLastFrame.dump(fd, 2, 6);
+camera2::SharedParameters& Camera2Client::getParameters() {
+    return mParameters;
 }
 
-bool Camera2Client::FrameProcessor::threadLoop() {
-    status_t res;
-
-    sp<Camera2Device> device;
-    {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        device = client->mDevice;
-    }
-
-    res = device->waitForNextFrame(kWaitDuration);
-    if (res == OK) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        processNewFrames(client);
-    } else if (res != TIMED_OUT) {
-        ALOGE("Camera2Client::FrameProcessor: Error waiting for new "
-                "frames: %s (%d)", strerror(-res), res);
-    }
-
-    return true;
+Camera2Client::SharedCameraClient::Lock::Lock(SharedCameraClient &client):
+        mCameraClient(client.mCameraClient),
+        mSharedClient(client) {
+    mSharedClient.mCameraClientLock.lock();
 }
 
-void Camera2Client::FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
-    status_t res;
-    CameraMetadata frame;
-    while ( (res = client->mDevice->getNextFrame(&frame)) == OK) {
-        camera_metadata_entry_t entry;
-        entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
-        if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Error reading frame number: %s (%d)",
-                    __FUNCTION__, client->mCameraId, strerror(-res), res);
-            break;
-        }
-
-        res = processFaceDetect(frame, client);
-        if (res != OK) break;
-
-        mLastFrame.acquire(frame);
-    }
-    if (res != NOT_ENOUGH_DATA) {
-        ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
-                __FUNCTION__, client->mCameraId, strerror(-res), res);
-        return;
-    }
-
-    return;
+Camera2Client::SharedCameraClient::Lock::~Lock() {
+    mSharedClient.mCameraClientLock.unlock();
 }
 
-status_t Camera2Client::FrameProcessor::processFaceDetect(
-    const CameraMetadata &frame, sp<Camera2Client> &client) {
-    status_t res;
-    camera_metadata_ro_entry_t entry;
-    bool enableFaceDetect;
-    int maxFaces;
-    {
-        SharedParameters::Lock l(client->mParameters);
-        enableFaceDetect = l.mParameters.enableFaceDetect;
-    }
-    entry = frame.find(ANDROID_STATS_FACE_DETECT_MODE);
+Camera2Client::SharedCameraClient& Camera2Client::SharedCameraClient::operator=(
+        const sp<ICameraClient>&client) {
+    Mutex::Autolock l(mCameraClientLock);
+    mCameraClient = client;
+    return *this;
+}
 
-    // TODO: This should be an error once implementations are compliant
-    if (entry.count == 0) {
-        return OK;
-    }
-
-    uint8_t faceDetectMode = entry.data.u8[0];
-
-    camera_frame_metadata metadata;
-    Vector<camera_face_t> faces;
-    metadata.number_of_faces = 0;
-
-    if (enableFaceDetect && faceDetectMode != ANDROID_STATS_FACE_DETECTION_OFF) {
-        SharedParameters::Lock l(client->mParameters);
-        entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
-        if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Unable to read face rectangles",
-                    __FUNCTION__, client->mCameraId);
-            return res;
-        }
-        metadata.number_of_faces = entry.count / 4;
-        if (metadata.number_of_faces >
-                l.mParameters.fastInfo.maxFaces) {
-            ALOGE("%s: Camera %d: More faces than expected! (Got %d, max %d)",
-                    __FUNCTION__, client->mCameraId,
-                    metadata.number_of_faces, l.mParameters.fastInfo.maxFaces);
-            return res;
-        }
-        const int32_t *faceRects = entry.data.i32;
-
-        entry = frame.find(ANDROID_STATS_FACE_SCORES);
-        if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Unable to read face scores",
-                    __FUNCTION__, client->mCameraId);
-            return res;
-        }
-        const uint8_t *faceScores = entry.data.u8;
-
-        const int32_t *faceLandmarks = NULL;
-        const int32_t *faceIds = NULL;
-
-        if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
-            entry = frame.find(ANDROID_STATS_FACE_LANDMARKS);
-            if (entry.count == 0) {
-                ALOGE("%s: Camera %d: Unable to read face landmarks",
-                        __FUNCTION__, client->mCameraId);
-                return res;
-            }
-            faceLandmarks = entry.data.i32;
-
-            entry = frame.find(ANDROID_STATS_FACE_IDS);
-
-            if (entry.count == 0) {
-                ALOGE("%s: Camera %d: Unable to read face IDs",
-                        __FUNCTION__, client->mCameraId);
-                return res;
-            }
-            faceIds = entry.data.i32;
-        }
-
-        faces.setCapacity(metadata.number_of_faces);
-
-        for (int i = 0; i < metadata.number_of_faces; i++) {
-            camera_face_t face;
-
-            face.rect[0] = l.mParameters.arrayXToNormalized(faceRects[i*4 + 0]);
-            face.rect[1] = l.mParameters.arrayYToNormalized(faceRects[i*4 + 1]);
-            face.rect[2] = l.mParameters.arrayXToNormalized(faceRects[i*4 + 2]);
-            face.rect[3] = l.mParameters.arrayYToNormalized(faceRects[i*4 + 3]);
-
-            face.score = faceScores[i];
-            if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
-                face.id = faceIds[i];
-                face.left_eye[0] =
-                        l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 0]);
-                face.left_eye[1] =
-                        l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 1]);
-                face.right_eye[0] =
-                        l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 2]);
-                face.right_eye[1] =
-                        l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 3]);
-                face.mouth[0] =
-                        l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 4]);
-                face.mouth[1] =
-                        l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 5]);
-            } else {
-                face.id = 0;
-                face.left_eye[0] = face.left_eye[1] = -2000;
-                face.right_eye[0] = face.right_eye[1] = -2000;
-                face.mouth[0] = face.mouth[1] = -2000;
-            }
-            faces.push_back(face);
-        }
-
-        metadata.faces = faces.editArray();
-    }
-
-    if (metadata.number_of_faces != 0) {
-        Mutex::Autolock iccl(client->mICameraClientLock);
-        if (client->mCameraClient != NULL) {
-            client->mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
-                    NULL, &metadata);
-        }
-    }
-    return OK;
+void Camera2Client::SharedCameraClient::clear() {
+    Mutex::Autolock l(mCameraClientLock);
+    mCameraClient.clear();
 }
 
 void Camera2Client::onCallbackAvailable() {
@@ -1777,11 +1632,11 @@ void Camera2Client::onCallbackAvailable() {
 
     // Call outside parameter lock to allow re-entrancy from notification
     {
-        Mutex::Autolock iccl(mICameraClientLock);
-        if (mCameraClient != 0) {
+        SharedCameraClient::Lock l(mSharedCameraClient);
+        if (l.mCameraClient != 0) {
             ALOGV("%s: Camera %d: Invoking client data callback",
                     __FUNCTION__, mCameraId);
-            mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
+            l.mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
                     callbackHeap->mBuffers[heapIdx], NULL);
         }
     }
@@ -1853,9 +1708,9 @@ void Camera2Client::onCaptureAvailable() {
         captureHeap = mCaptureHeap;
     }
     // Call outside parameter locks to allow re-entrancy from notification
-    Mutex::Autolock iccl(mICameraClientLock);
-    if (mCameraClient != 0) {
-        mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
+    SharedCameraClient::Lock l(mSharedCameraClient);
+    if (l.mCameraClient != 0) {
+        l.mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
                 captureHeap->mBuffers[0], NULL);
     }
 }
@@ -1951,9 +1806,9 @@ void Camera2Client::onRecordingFrameAvailable() {
     }
 
     // Call outside locked parameters to allow re-entrancy from notification
-    Mutex::Autolock iccl(mICameraClientLock);
-    if (mCameraClient != 0) {
-        mCameraClient->dataCallbackTimestamp(timestamp,
+    SharedCameraClient::Lock l(mSharedCameraClient);
+    if (l.mCameraClient != 0) {
+        l.mCameraClient->dataCallbackTimestamp(timestamp,
                 CAMERA_MSG_VIDEO_FRAME,
                 recordingHeap->mBuffers[heapIdx]);
     }
