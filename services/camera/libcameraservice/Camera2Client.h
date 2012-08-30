@@ -20,6 +20,7 @@
 #include "Camera2Device.h"
 #include "CameraService.h"
 #include "camera2/Parameters.h"
+#include "camera2/FrameProcessor.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>
@@ -82,6 +83,32 @@ public:
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
+    // Interface used by independent components of Camera2Client.
+
+    int getCameraId();
+    const sp<Camera2Device>& getCameraDevice();
+    camera2::SharedParameters& getParameters();
+
+    // Simple class to ensure that access to ICameraClient is serialized by
+    // requiring mCameraClientLock to be locked before access to mCameraClient
+    // is possible.
+    class SharedCameraClient {
+      public:
+        class Lock {
+          public:
+            Lock(SharedCameraClient &client);
+            ~Lock();
+            sp<ICameraClient> &mCameraClient;
+          private:
+            SharedCameraClient &mSharedClient;
+        };
+        SharedCameraClient& operator=(const sp<ICameraClient>& client);
+        void clear();
+      private:
+        sp<ICameraClient> mCameraClient;
+        mutable Mutex mCameraClientLock;
+    } mSharedCameraClient;
+
 private:
     /** ICamera interface-related private members */
 
@@ -90,11 +117,6 @@ private:
     // that append 'L' to the name assume that mICameraLock is locked when
     // they're called
     mutable Mutex mICameraLock;
-
-    // Mutex that must be locked by methods accessing the base Client's
-    // mCameraClient ICameraClient interface member, for sending notifications
-    // up to the camera user
-    mutable Mutex mICameraClientLock;
 
     typedef camera2::Parameters Parameters;
     typedef camera2::CameraMetadata CameraMetadata;
@@ -131,29 +153,7 @@ private:
     // Used with stream IDs
     static const int NO_STREAM = -1;
 
-    /* Output frame metadata processing thread.  This thread waits for new
-     * frames from the device, and analyzes them as necessary.
-     */
-    class FrameProcessor: public Thread {
-      public:
-        FrameProcessor(wp<Camera2Client> client);
-        ~FrameProcessor();
-
-        void dump(int fd, const Vector<String16>& args);
-      private:
-        static const nsecs_t kWaitDuration = 10000000; // 10 ms
-        wp<Camera2Client> mClient;
-
-        virtual bool threadLoop();
-
-        void processNewFrames(sp<Camera2Client> &client);
-        status_t processFaceDetect(const CameraMetadata &frame,
-                sp<Camera2Client> &client);
-
-        CameraMetadata mLastFrame;
-    };
-
-    sp<FrameProcessor> mFrameProcessor;
+    sp<camera2::FrameProcessor> mFrameProcessor;
 
     /* Preview related members */
 
