@@ -109,7 +109,12 @@ status_t Camera2Device::initialize(camera_module_t *module)
                 __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
-
+    res = set_camera_metadata_vendor_tag_ops(mVendorTagOps);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to set tag ops: %s (%d)",
+            __FUNCTION__, mId, strerror(-res), res);
+        return res;
+    }
     setNotifyCallback(NULL);
 
     return OK;
