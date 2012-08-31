@@ -21,7 +21,7 @@
 
 namespace android {
 
-struct Parser;
+struct FragmentedMP4Parser;
 
 struct MP4Source : public NuPlayer::Source {
     MP4Source(const sp<IStreamSource> &source);
@@ -41,7 +41,7 @@ protected:
 private:
     sp<IStreamSource> mSource;
     sp<ALooper> mLooper;
-    sp<Parser> mParser;
+    sp<FragmentedMP4Parser> mParser;
     bool mEOS;
 
     DISALLOW_EVIL_CONSTRUCTORS(MP4Source);

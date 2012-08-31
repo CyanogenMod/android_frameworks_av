@@ -18,11 +18,11 @@
 
 #define TRACK_FRAGMENT_H_
 
-#include "Parser.h"
+#include "include/FragmentedMP4Parser.h"
 
 namespace android {
 
-struct Parser::TrackFragment : public RefBase {
+struct FragmentedMP4Parser::TrackFragment : public RefBase {
     TrackFragment() {}
 
     virtual status_t getSample(SampleInfo *info) = 0;
@@ -38,7 +38,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(TrackFragment);
 };
 
-struct Parser::DynamicTrackFragment : public Parser::TrackFragment {
+struct FragmentedMP4Parser::DynamicTrackFragment : public FragmentedMP4Parser::TrackFragment {
     DynamicTrackFragment();
 
     virtual status_t getSample(SampleInfo *info);
@@ -66,7 +66,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(DynamicTrackFragment);
 };
 
-struct Parser::StaticTrackFragment : public Parser::TrackFragment {
+struct FragmentedMP4Parser::StaticTrackFragment : public FragmentedMP4Parser::TrackFragment {
     StaticTrackFragment();
 
     virtual status_t getSample(SampleInfo *info);
@@ -76,19 +76,19 @@ struct Parser::StaticTrackFragment : public Parser::TrackFragment {
     virtual bool complete() const;
 
     status_t parseSampleSizes(
-            Parser *parser, uint32_t type, size_t offset, uint64_t size);
+            FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size);
 
     status_t parseCompactSampleSizes(
-            Parser *parser, uint32_t type, size_t offset, uint64_t size);
+            FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size);
 
     status_t parseSampleToChunk(
-            Parser *parser, uint32_t type, size_t offset, uint64_t size);
+            FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size);
 
     status_t parseChunkOffsets(
-            Parser *parser, uint32_t type, size_t offset, uint64_t size);
+            FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size);
 
     status_t parseChunkOffsets64(
-            Parser *parser, uint32_t type, size_t offset, uint64_t size);
+            FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size);
 
 protected:
     virtual ~StaticTrackFragment();
