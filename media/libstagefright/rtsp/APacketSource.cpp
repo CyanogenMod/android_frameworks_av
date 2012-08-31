@@ -566,6 +566,8 @@ APacketSource::APacketSource(
                 codecSpecificData->data(), codecSpecificData->size());
     } else if (ARawAudioAssembler::Supports(desc.c_str())) {
         ARawAudioAssembler::MakeFormat(desc.c_str(), mFormat);
+    } else if (!strncasecmp("MP2T/", desc.c_str(), 5)) {
+        mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_CONTAINER_MPEG2TS);
     } else {
         mInitCheck = ERROR_UNSUPPORTED;
     }

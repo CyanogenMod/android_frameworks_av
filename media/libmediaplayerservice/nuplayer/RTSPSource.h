@@ -20,6 +20,8 @@
 
 #include "NuPlayerSource.h"
 
+#include "ATSParser.h"
+
 #include <media/stagefright/foundation/AHandlerReflector.h>
 
 namespace android {
@@ -98,6 +100,8 @@ private:
     Vector<TrackInfo> mTracks;
     sp<AnotherPacketSource> mAudioTrack;
     sp<AnotherPacketSource> mVideoTrack;
+
+    sp<ATSParser> mTSParser;
 
     int32_t mSeekGeneration;
 
