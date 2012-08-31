@@ -37,6 +37,7 @@ enum {
     SET_LISTENER = IBinder::FIRST_CALL_TRANSACTION,
     SET_BUFFERS,
     ON_BUFFER_AVAILABLE,
+    FLAGS,
 
     // IStreamListener
     QUEUE_BUFFER,
@@ -72,6 +73,14 @@ struct BpStreamSource : public BpInterface<IStreamSource> {
         remote()->transact(
                 ON_BUFFER_AVAILABLE, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    virtual uint32_t flags() const {
+        Parcel data, reply;
+        data.writeInterfaceToken(IStreamSource::getInterfaceDescriptor());
+        remote()->transact(FLAGS, data, &reply);
+
+        return reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(StreamSource, "android.hardware.IStreamSource");
@@ -106,6 +115,13 @@ status_t BnStreamSource::onTransact(
         {
             CHECK_INTERFACE(IStreamSource, data, reply);
             onBufferAvailable(static_cast<size_t>(data.readInt32()));
+            break;
+        }
+
+        case FLAGS:
+        {
+            CHECK_INTERFACE(IStreamSource, data, reply);
+            reply->writeInt32(this->flags());
             break;
         }
 
