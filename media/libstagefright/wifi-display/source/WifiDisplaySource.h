@@ -49,6 +49,7 @@ private:
         kWhatStop,
         kWhatReapDeadClients,
         kWhatPlaybackSessionNotify,
+        kWhatKeepAlive,
     };
 
     struct ResponseID {
@@ -79,8 +80,10 @@ private:
         AString mRemoteIP;
         AString mLocalIP;
         int32_t mLocalPort;
+        int32_t mPlaybackSessionID;
     };
-    KeyedVector<int32_t, ClientInfo> mClientIPs;
+    // by sessionID.
+    KeyedVector<int32_t, ClientInfo> mClientInfos;
 
     bool mReaperPending;
 
@@ -94,6 +97,7 @@ private:
     status_t sendM3(int32_t sessionID);
     status_t sendM4(int32_t sessionID);
     status_t sendM5(int32_t sessionID);
+    status_t sendM16(int32_t sessionID);
 
     status_t onReceiveM1Response(
             int32_t sessionID, const sp<ParsedMessage> &msg);
@@ -105,6 +109,9 @@ private:
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
     status_t onReceiveM5Response(
+            int32_t sessionID, const sp<ParsedMessage> &msg);
+
+    status_t onReceiveM16Response(
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
     void registerResponseHandler(
@@ -161,6 +168,7 @@ private:
             AString *response, int32_t cseq, int32_t playbackSessionID = -1ll);
 
     void scheduleReaper();
+    void scheduleKeepAlive(int32_t sessionID);
 
     int32_t makeUniquePlaybackSessionID() const;
 
