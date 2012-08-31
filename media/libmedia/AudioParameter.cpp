@@ -37,6 +37,7 @@ const char * const AudioParameter::keyScreenState = AUDIO_PARAMETER_KEY_SCREEN_S
 const char * const AudioParameter::keyHandleFm = AUDIO_PARAMETER_KEY_HANDLE_FM;
 const char * const AudioParameter::keyVoipCheck = AUDIO_PARAMETER_KEY_VOIP_CHECK;
 const char * const AudioParameter::keyFluenceType = AUDIO_PARAMETER_KEY_FLUENCE_TYPE;
+const char * const AudioParameter::keyHandleA2dpDevice = AUDIO_PARAMETER_KEY_HANDLE_A2DP_DEVICE;
 #endif
 
 AudioParameter::AudioParameter(const String8& keyValuePairs)
