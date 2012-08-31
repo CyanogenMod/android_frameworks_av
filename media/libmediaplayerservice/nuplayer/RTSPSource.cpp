@@ -23,6 +23,7 @@
 #include "AnotherPacketSource.h"
 #include "MyHandler.h"
 
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 
 namespace android {
@@ -159,6 +160,13 @@ status_t NuPlayer::RTSPSource::dequeueAccessUnit(
 }
 
 sp<AnotherPacketSource> NuPlayer::RTSPSource::getSource(bool audio) {
+    if (mTSParser != NULL) {
+        sp<MediaSource> source = mTSParser->getSource(
+                audio ? ATSParser::AUDIO : ATSParser::VIDEO);
+
+        return static_cast<AnotherPacketSource *>(source.get());
+    }
+
     return audio ? mAudioTrack : mVideoTrack;
 }
 
@@ -255,7 +263,12 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         {
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
-            CHECK_LT(trackIndex, mTracks.size());
+
+            if (mTSParser == NULL) {
+                CHECK_LT(trackIndex, mTracks.size());
+            } else {
+                CHECK_EQ(trackIndex, 0u);
+            }
 
             sp<ABuffer> accessUnit;
             CHECK(msg->findBuffer("accessUnit", &accessUnit));
@@ -264,6 +277,37 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             if (accessUnit->meta()->findInt32("damaged", &damaged)
                     && damaged) {
                 ALOGI("dropping damaged access unit.");
+                break;
+            }
+
+            if (mTSParser != NULL) {
+                size_t offset = 0;
+                status_t err = OK;
+                while (offset + 188 <= accessUnit->size()) {
+                    err = mTSParser->feedTSPacket(
+                            accessUnit->data() + offset, 188);
+                    if (err != OK) {
+                        break;
+                    }
+
+                    offset += 188;
+                }
+
+                if (offset < accessUnit->size()) {
+                    err = ERROR_MALFORMED;
+                }
+
+                if (err != OK) {
+                    sp<AnotherPacketSource> source = getSource(false /* audio */);
+                    if (source != NULL) {
+                        source->signalEOS(err);
+                    }
+
+                    source = getSource(true /* audio */);
+                    if (source != NULL) {
+                        source->signalEOS(err);
+                    }
+                }
                 break;
             }
 
@@ -296,13 +340,27 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
         case MyHandler::kWhatEOS:
         {
-            size_t trackIndex;
-            CHECK(msg->findSize("trackIndex", &trackIndex));
-            CHECK_LT(trackIndex, mTracks.size());
-
             int32_t finalResult;
             CHECK(msg->findInt32("finalResult", &finalResult));
             CHECK_NE(finalResult, (status_t)OK);
+
+            if (mTSParser != NULL) {
+                sp<AnotherPacketSource> source = getSource(false /* audio */);
+                if (source != NULL) {
+                    source->signalEOS(finalResult);
+                }
+
+                source = getSource(true /* audio */);
+                if (source != NULL) {
+                    source->signalEOS(finalResult);
+                }
+
+                return;
+            }
+
+            size_t trackIndex;
+            CHECK(msg->findSize("trackIndex", &trackIndex));
+            CHECK_LT(trackIndex, mTracks.size());
 
             TrackInfo *info = &mTracks.editItemAt(trackIndex);
             sp<AnotherPacketSource> source = info->mSource;
@@ -363,6 +421,14 @@ void NuPlayer::RTSPSource::onConnected() {
 
         const char *mime;
         CHECK(format->findCString(kKeyMIMEType, &mime));
+
+        if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) {
+            // Very special case for MPEG2 Transport Streams.
+            CHECK_EQ(numTracks, 1u);
+
+            mTSParser = new ATSParser;
+            return;
+        }
 
         bool isAudio = !strncasecmp(mime, "audio/", 6);
         bool isVideo = !strncasecmp(mime, "video/", 6);
