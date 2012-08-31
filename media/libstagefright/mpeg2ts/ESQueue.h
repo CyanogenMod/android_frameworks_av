@@ -36,7 +36,12 @@ struct ElementaryStreamQueue {
         MPEG_VIDEO,
         MPEG4_VIDEO,
     };
-    ElementaryStreamQueue(Mode mode);
+
+    enum Flags {
+        // Data appended to the queue is always at access unit boundaries.
+        kFlag_AlignedData = 1,
+    };
+    ElementaryStreamQueue(Mode mode, uint32_t flags = 0);
 
     status_t appendData(const void *data, size_t size, int64_t timeUs);
     void clear(bool clearFormat);
@@ -52,6 +57,7 @@ private:
     };
 
     Mode mMode;
+    uint32_t mFlags;
 
     sp<ABuffer> mBuffer;
     List<RangeInfo> mRangeInfos;
