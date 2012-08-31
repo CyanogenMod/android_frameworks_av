@@ -23,6 +23,7 @@
 #include "AAMRAssembler.h"
 #include "AAVCAssembler.h"
 #include "AH263Assembler.h"
+#include "AMPEG2TSAssembler.h"
 #include "AMPEG4AudioAssembler.h"
 #include "AMPEG4ElementaryAssembler.h"
 #include "ARawAudioAssembler.h"
@@ -73,6 +74,8 @@ ARTPSource::ARTPSource(
         mIssueFIRRequests = true;
     } else if (ARawAudioAssembler::Supports(desc.c_str())) {
         mAssembler = new ARawAudioAssembler(notify, desc.c_str(), params);
+    } else if (!strncasecmp(desc.c_str(), "MP2T/", 5)) {
+        mAssembler = new AMPEG2TSAssembler(notify, desc.c_str(), params);
     } else {
         TRESPASS();
     }
