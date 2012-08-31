@@ -52,7 +52,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
         ALOGE("Invalid dimensions %dx%d", bufferWidth, bufferHeight);
     }
 
-    mBufferQueue = new BufferQueue(true, MIN_UNDEQUEUED_BUFFERS);
+    mBufferQueue = new BufferQueue(true);
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
     mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
@@ -136,10 +136,32 @@ status_t SurfaceMediaSource::start(MetaData *params)
 {
     ALOGV("start");
 
+    Mutex::Autolock lock(mMutex);
+
     mStartTimeNs = 0;
     int64_t startTimeUs;
-    if (params && params->findInt64(kKeyTime, &startTimeUs)) {
-        mStartTimeNs = startTimeUs * 1000;
+    int32_t bufferCount = 0;
+    if (params) {
+        if (params->findInt64(kKeyTime, &startTimeUs)) {
+            mStartTimeNs = startTimeUs * 1000;
+        }
+
+        if (!params->findInt32(kKeyNumBuffers, &bufferCount)) {
+            ALOGE("Failed to find the advertised buffer count");
+            return UNKNOWN_ERROR;
+        }
+
+        if (bufferCount <= 1) {
+            ALOGE("bufferCount %d is too small", bufferCount);
+            return BAD_VALUE;
+        }
+    }
+
+    if (bufferCount != 0) {
+        status_t err = mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
+        if (err != OK) {
+            return err;
+        }
     }
 
     return OK;
