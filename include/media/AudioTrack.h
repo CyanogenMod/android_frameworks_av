@@ -547,7 +547,7 @@ public:
     status_t allocateTimedBuffer(size_t size, sp<IMemory>* buffer);
 
     /* queue a buffer obtained via allocateTimedBuffer for playback at the
-       given timestamp.  PTS units a microseconds on the media time timeline.
+       given timestamp.  PTS units are microseconds on the media time timeline.
        The media time transform (set with setMediaTimeTransform) set by the
        audio producer will handle converting from media time to local time
        (perhaps going through the common time timeline in the case of
