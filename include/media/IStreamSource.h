@@ -33,6 +33,12 @@ struct IStreamSource : public IInterface {
     virtual void setBuffers(const Vector<sp<IMemory> > &buffers) = 0;
 
     virtual void onBufferAvailable(size_t index) = 0;
+
+    enum {
+        // Video PES packets contain exactly one (aligned) access unit.
+        kFlagAlignedVideoData = 1,
+    };
+    virtual uint32_t flags() const { return 0; }
 };
 
 struct IStreamListener : public IInterface {
