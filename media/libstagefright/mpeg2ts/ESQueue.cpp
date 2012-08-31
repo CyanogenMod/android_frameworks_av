@@ -33,8 +33,9 @@
 
 namespace android {
 
-ElementaryStreamQueue::ElementaryStreamQueue(Mode mode)
-    : mMode(mode) {
+ElementaryStreamQueue::ElementaryStreamQueue(Mode mode, uint32_t flags)
+    : mMode(mode),
+      mFlags(flags) {
 }
 
 sp<MetaData> ElementaryStreamQueue::getFormat() {
@@ -289,6 +290,31 @@ status_t ElementaryStreamQueue::appendData(
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
+    if ((mFlags & kFlag_AlignedData) && mMode == H264) {
+        if (mRangeInfos.empty()) {
+            return NULL;
+        }
+
+        RangeInfo info = *mRangeInfos.begin();
+        mRangeInfos.erase(mRangeInfos.begin());
+
+        sp<ABuffer> accessUnit = new ABuffer(info.mLength);
+        memcpy(accessUnit->data(), mBuffer->data(), info.mLength);
+        accessUnit->meta()->setInt64("timeUs", info.mTimestampUs);
+
+        memmove(mBuffer->data(),
+                mBuffer->data() + info.mLength,
+                mBuffer->size() - info.mLength);
+
+        mBuffer->setRange(0, mBuffer->size() - info.mLength);
+
+        if (mFormat == NULL) {
+            mFormat = MakeAVCCodecSpecificData(accessUnit);
+        }
+
+        return accessUnit;
+    }
+
     switch (mMode) {
         case H264:
             return dequeueAccessUnitH264();
@@ -436,8 +462,8 @@ struct NALPosition {
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     const uint8_t *data = mBuffer->data();
-    size_t size = mBuffer->size();
 
+    size_t size = mBuffer->size();
     Vector<NALPosition> nals;
 
     size_t totalSize = 0;
