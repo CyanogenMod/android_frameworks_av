@@ -28,15 +28,15 @@
 
 namespace android {
 
-Parser::DynamicTrackFragment::DynamicTrackFragment()
+FragmentedMP4Parser::DynamicTrackFragment::DynamicTrackFragment()
     : mComplete(false),
       mSampleIndex(0) {
 }
 
-Parser::DynamicTrackFragment::~DynamicTrackFragment() {
+FragmentedMP4Parser::DynamicTrackFragment::~DynamicTrackFragment() {
 }
 
-status_t Parser::DynamicTrackFragment::getSample(SampleInfo *info) {
+status_t FragmentedMP4Parser::DynamicTrackFragment::getSample(SampleInfo *info) {
     if (mSampleIndex >= mSamples.size()) {
         return mComplete ? ERROR_END_OF_STREAM : -EWOULDBLOCK;
     }
@@ -46,11 +46,11 @@ status_t Parser::DynamicTrackFragment::getSample(SampleInfo *info) {
     return OK;
 }
 
-void Parser::DynamicTrackFragment::advance() {
+void FragmentedMP4Parser::DynamicTrackFragment::advance() {
     ++mSampleIndex;
 }
 
-void Parser::DynamicTrackFragment::addSample(
+void FragmentedMP4Parser::DynamicTrackFragment::addSample(
         off64_t dataOffset, size_t sampleSize,
         uint32_t presentationTime,
         size_t sampleDescIndex,
@@ -65,19 +65,19 @@ void Parser::DynamicTrackFragment::addSample(
     sampleInfo->mFlags = flags;
 }
 
-status_t Parser::DynamicTrackFragment::signalCompletion() {
+status_t FragmentedMP4Parser::DynamicTrackFragment::signalCompletion() {
     mComplete = true;
 
     return OK;
 }
 
-bool Parser::DynamicTrackFragment::complete() const {
+bool FragmentedMP4Parser::DynamicTrackFragment::complete() const {
     return mComplete;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Parser::StaticTrackFragment::StaticTrackFragment()
+FragmentedMP4Parser::StaticTrackFragment::StaticTrackFragment()
     : mSampleIndex(0),
       mSampleCount(0),
       mChunkIndex(0),
@@ -87,10 +87,10 @@ Parser::StaticTrackFragment::StaticTrackFragment()
       mNextSampleOffset(0) {
 }
 
-Parser::StaticTrackFragment::~StaticTrackFragment() {
+FragmentedMP4Parser::StaticTrackFragment::~StaticTrackFragment() {
 }
 
-status_t Parser::StaticTrackFragment::getSample(SampleInfo *info) {
+status_t FragmentedMP4Parser::StaticTrackFragment::getSample(SampleInfo *info) {
     if (mSampleIndex >= mSampleCount) {
         return ERROR_END_OF_STREAM;
     }
@@ -104,7 +104,7 @@ status_t Parser::StaticTrackFragment::getSample(SampleInfo *info) {
     return OK;
 }
 
-void Parser::StaticTrackFragment::updateSampleInfo() {
+void FragmentedMP4Parser::StaticTrackFragment::updateSampleInfo() {
     if (mSampleIndex >= mSampleCount) {
         return;
     }
@@ -185,7 +185,7 @@ void Parser::StaticTrackFragment::updateSampleInfo() {
     mSampleInfo.mFlags = 0;
 }
 
-void Parser::StaticTrackFragment::advance() {
+void FragmentedMP4Parser::StaticTrackFragment::advance() {
     mNextSampleOffset += mSampleInfo.mSize;
 
     ++mSampleIndex;
@@ -223,7 +223,7 @@ static void setU32At(uint8_t *ptr, uint32_t x) {
     ptr[3] = x & 0xff;
 }
 
-status_t Parser::StaticTrackFragment::signalCompletion() {
+status_t FragmentedMP4Parser::StaticTrackFragment::signalCompletion() {
     mSampleToChunkIndex = 0;
 
     mSampleToChunkRemaining =
@@ -236,12 +236,12 @@ status_t Parser::StaticTrackFragment::signalCompletion() {
     return OK;
 }
 
-bool Parser::StaticTrackFragment::complete() const {
+bool FragmentedMP4Parser::StaticTrackFragment::complete() const {
     return true;
 }
 
-status_t Parser::StaticTrackFragment::parseSampleSizes(
-        Parser *parser, uint32_t type, size_t offset, uint64_t size) {
+status_t FragmentedMP4Parser::StaticTrackFragment::parseSampleSizes(
+        FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size) {
     if (offset + 12 > size) {
         return ERROR_MALFORMED;
     }
@@ -264,8 +264,8 @@ status_t Parser::StaticTrackFragment::parseSampleSizes(
     return OK;
 }
 
-status_t Parser::StaticTrackFragment::parseCompactSampleSizes(
-        Parser *parser, uint32_t type, size_t offset, uint64_t size) {
+status_t FragmentedMP4Parser::StaticTrackFragment::parseCompactSampleSizes(
+        FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size) {
     if (offset + 12 > size) {
         return ERROR_MALFORMED;
     }
@@ -293,8 +293,8 @@ status_t Parser::StaticTrackFragment::parseCompactSampleSizes(
     return OK;
 }
 
-status_t Parser::StaticTrackFragment::parseSampleToChunk(
-        Parser *parser, uint32_t type, size_t offset, uint64_t size) {
+status_t FragmentedMP4Parser::StaticTrackFragment::parseSampleToChunk(
+        FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return ERROR_MALFORMED;
     }
@@ -318,8 +318,8 @@ status_t Parser::StaticTrackFragment::parseSampleToChunk(
     return OK;
 }
 
-status_t Parser::StaticTrackFragment::parseChunkOffsets(
-        Parser *parser, uint32_t type, size_t offset, uint64_t size) {
+status_t FragmentedMP4Parser::StaticTrackFragment::parseChunkOffsets(
+        FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return ERROR_MALFORMED;
     }
@@ -339,8 +339,8 @@ status_t Parser::StaticTrackFragment::parseChunkOffsets(
     return OK;
 }
 
-status_t Parser::StaticTrackFragment::parseChunkOffsets64(
-        Parser *parser, uint32_t type, size_t offset, uint64_t size) {
+status_t FragmentedMP4Parser::StaticTrackFragment::parseChunkOffsets64(
+        FragmentedMP4Parser *parser, uint32_t type, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return ERROR_MALFORMED;
     }
