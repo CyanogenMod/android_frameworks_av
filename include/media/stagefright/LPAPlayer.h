@@ -45,6 +45,12 @@ public:
         SEEK_COMPLETE
     };
 
+    enum {
+        TRACK_DIRECT,
+        TRACK_REGULAR,
+        TRACK_NONE
+    };
+
     LPAPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink, bool &initCheck,
                 AwesomePlayer *audioObserver = NULL);
 
@@ -89,7 +95,7 @@ private:
     size_t mFrameSize;
     int64_t mNumFramesPlayed;
     int64_t mNumFramesPlayedSysTimeUs;
-
+    int64_t mNumA2DPBytesPlayed;
     void clearPowerManager();
 
     class PMDeathRecipient : public IBinder::DeathRecipient {
@@ -141,6 +147,7 @@ private:
 
     pthread_mutex_t decoder_mutex;
 
+    pthread_mutex_t audio_sink_setup_mutex;
 
     pthread_mutex_t a2dp_notification_mutex;
 
@@ -223,6 +230,7 @@ private:
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     AwesomePlayer *mObserver;
+    int mTrackType;
 
     static size_t AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
@@ -242,6 +250,12 @@ private:
     int64_t getRealTimeUsLocked();
 
     void reset();
+
+    status_t setupAudioSink();
+    static size_t AudioCallback(
+        MediaPlayerBase::AudioSink *audioSink,
+        void *buffer, size_t size, void *cookie);
+    size_t AudioCallback(void *cookie, void *data, size_t size);
 
     LPAPlayer(const LPAPlayer &);
     LPAPlayer &operator=(const LPAPlayer &);
