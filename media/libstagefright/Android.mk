@@ -72,8 +72,13 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES+=                         \
         ExtendedExtractor.cpp             \
         ExtendedWriter.cpp                \
-        LPAPlayerALSA.cpp                 \
         TunnelPlayer.cpp
+
+ifeq ($(TARGET_BOARD_PLATFORM),msm8960)
+   LOCAL_SRC_FILES += LPAPlayerALSA.cpp
+else
+   LOCAL_SRC_FILES += LPAPlayer.cpp
+endif
 
 ifeq ($(BOARD_HAVE_QCOM_FM),true)
 LOCAL_SRC_FILES+=                         \
