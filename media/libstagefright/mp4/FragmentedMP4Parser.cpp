@@ -15,13 +15,13 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "Parser"
+#define LOG_TAG "FragmentedMP4Parser"
 #include <utils/Log.h>
 
-#include "Parser.h"
+#include "include/FragmentedMP4Parser.h"
+#include "include/ESDS.h"
 #include "TrackFragment.h"
 
-#include "ESDS.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -30,8 +30,6 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
-
-#include "../NuPlayerStreamListener.h"
 
 namespace android {
 
@@ -52,7 +50,7 @@ static const char *IndentString(size_t n) {
 }
 
 // static
-const Parser::DispatchEntry Parser::kDispatchTable[] = {
+const FragmentedMP4Parser::DispatchEntry FragmentedMP4Parser::kDispatchTable[] = {
     { FOURCC('m', 'o', 'o', 'v'), 0, NULL },
     { FOURCC('t', 'r', 'a', 'k'), FOURCC('m', 'o', 'o', 'v'), NULL },
     { FOURCC('u', 'd', 't', 'a'), FOURCC('t', 'r', 'a', 'k'), NULL },
@@ -61,24 +59,24 @@ const Parser::DispatchEntry Parser::kDispatchTable[] = {
     { FOURCC('i', 'l', 's', 't'), FOURCC('m', 'e', 't', 'a'), NULL },
 
     { FOURCC('t', 'k', 'h', 'd'), FOURCC('t', 'r', 'a', 'k'),
-        &Parser::parseTrackHeader
+        &FragmentedMP4Parser::parseTrackHeader
     },
 
     { FOURCC('m', 'v', 'e', 'x'), FOURCC('m', 'o', 'o', 'v'), NULL },
 
     { FOURCC('t', 'r', 'e', 'x'), FOURCC('m', 'v', 'e', 'x'),
-        &Parser::parseTrackExtends
+        &FragmentedMP4Parser::parseTrackExtends
     },
 
     { FOURCC('e', 'd', 't', 's'), FOURCC('t', 'r', 'a', 'k'), NULL },
     { FOURCC('m', 'd', 'i', 'a'), FOURCC('t', 'r', 'a', 'k'), NULL },
 
     { FOURCC('m', 'd', 'h', 'd'), FOURCC('m', 'd', 'i', 'a'),
-        &Parser::parseMediaHeader
+        &FragmentedMP4Parser::parseMediaHeader
     },
 
     { FOURCC('h', 'd', 'l', 'r'), FOURCC('m', 'd', 'i', 'a'),
-        &Parser::parseMediaHandler
+        &FragmentedMP4Parser::parseMediaHandler
     },
 
     { FOURCC('m', 'i', 'n', 'f'), FOURCC('m', 'd', 'i', 'a'), NULL },
@@ -87,45 +85,45 @@ const Parser::DispatchEntry Parser::kDispatchTable[] = {
     { FOURCC('s', 't', 's', 'd'), FOURCC('s', 't', 'b', 'l'), NULL },
 
     { FOURCC('s', 't', 's', 'z'), FOURCC('s', 't', 'b', 'l'),
-        &Parser::parseSampleSizes },
+        &FragmentedMP4Parser::parseSampleSizes },
 
     { FOURCC('s', 't', 'z', '2'), FOURCC('s', 't', 'b', 'l'),
-        &Parser::parseCompactSampleSizes },
+        &FragmentedMP4Parser::parseCompactSampleSizes },
 
     { FOURCC('s', 't', 's', 'c'), FOURCC('s', 't', 'b', 'l'),
-        &Parser::parseSampleToChunk },
+        &FragmentedMP4Parser::parseSampleToChunk },
 
     { FOURCC('s', 't', 'c', 'o'), FOURCC('s', 't', 'b', 'l'),
-        &Parser::parseChunkOffsets },
+        &FragmentedMP4Parser::parseChunkOffsets },
 
     { FOURCC('c', 'o', '6', '4'), FOURCC('s', 't', 'b', 'l'),
-        &Parser::parseChunkOffsets64 },
+        &FragmentedMP4Parser::parseChunkOffsets64 },
 
     { FOURCC('a', 'v', 'c', 'C'), FOURCC('a', 'v', 'c', '1'),
-        &Parser::parseAVCCodecSpecificData },
+        &FragmentedMP4Parser::parseAVCCodecSpecificData },
 
     { FOURCC('e', 's', 'd', 's'), FOURCC('m', 'p', '4', 'a'),
-        &Parser::parseESDSCodecSpecificData },
+        &FragmentedMP4Parser::parseESDSCodecSpecificData },
 
     { FOURCC('e', 's', 'd', 's'), FOURCC('m', 'p', '4', 'v'),
-        &Parser::parseESDSCodecSpecificData },
+        &FragmentedMP4Parser::parseESDSCodecSpecificData },
 
-    { FOURCC('m', 'd', 'a', 't'), 0, &Parser::parseMediaData },
+    { FOURCC('m', 'd', 'a', 't'), 0, &FragmentedMP4Parser::parseMediaData },
 
     { FOURCC('m', 'o', 'o', 'f'), 0, NULL },
     { FOURCC('t', 'r', 'a', 'f'), FOURCC('m', 'o', 'o', 'f'), NULL },
 
     { FOURCC('t', 'f', 'h', 'd'), FOURCC('t', 'r', 'a', 'f'),
-        &Parser::parseTrackFragmentHeader
+        &FragmentedMP4Parser::parseTrackFragmentHeader
     },
     { FOURCC('t', 'r', 'u', 'n'), FOURCC('t', 'r', 'a', 'f'),
-        &Parser::parseTrackFragmentRun
+        &FragmentedMP4Parser::parseTrackFragmentRun
     },
 
     { FOURCC('m', 'f', 'r', 'a'), 0, NULL },
 };
 
-struct FileSource : public Parser::Source {
+struct FileSource : public FragmentedMP4Parser::Source {
     FileSource(const char *filename)
         : mFile(fopen(filename, "rb")) {
             CHECK(mFile != NULL);
@@ -142,28 +140,28 @@ struct FileSource : public Parser::Source {
     DISALLOW_EVIL_CONSTRUCTORS(FileSource);
 };
 
-Parser::Parser()
+FragmentedMP4Parser::FragmentedMP4Parser()
     : mBufferPos(0),
       mSuspended(false),
       mFinalResult(OK) {
 }
 
-Parser::~Parser() {
+FragmentedMP4Parser::~FragmentedMP4Parser() {
 }
 
-void Parser::start(const char *filename) {
+void FragmentedMP4Parser::start(const char *filename) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
     msg->setObject("source", new FileSource(filename));
     msg->post();
 }
 
-void Parser::start(const sp<Source> &source) {
+void FragmentedMP4Parser::start(const sp<Source> &source) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
     msg->setObject("source", source);
     msg->post();
 }
 
-sp<AMessage> Parser::getFormat(bool audio) {
+sp<AMessage> FragmentedMP4Parser::getFormat(bool audio) {
     sp<AMessage> msg = new AMessage(kWhatGetFormat, id());
     msg->setInt32("audio", audio);
 
@@ -185,7 +183,7 @@ sp<AMessage> Parser::getFormat(bool audio) {
     return format;
 }
 
-status_t Parser::dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit) {
+status_t FragmentedMP4Parser::dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit) {
     sp<AMessage> msg = new AMessage(kWhatDequeueAccessUnit, id());
     msg->setInt32("audio", audio);
 
@@ -205,7 +203,7 @@ status_t Parser::dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit) {
     return OK;
 }
 
-ssize_t Parser::findTrack(bool wantAudio) const {
+ssize_t FragmentedMP4Parser::findTrack(bool wantAudio) const {
     for (size_t i = 0; i < mTracks.size(); ++i) {
         const TrackInfo *info = &mTracks.valueAt(i);
 
@@ -227,7 +225,7 @@ ssize_t Parser::findTrack(bool wantAudio) const {
     return -EWOULDBLOCK;
 }
 
-void Parser::onMessageReceived(const sp<AMessage> &msg) {
+void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStart:
         {
@@ -373,7 +371,7 @@ void Parser::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-status_t Parser::onProceed() {
+status_t FragmentedMP4Parser::onProceed() {
     status_t err;
 
     if ((err = need(8)) != OK) {
@@ -565,7 +563,7 @@ status_t Parser::onProceed() {
 }
 
 // static
-int Parser::CompareSampleLocation(
+int FragmentedMP4Parser::CompareSampleLocation(
         const SampleInfo &sample, const MediaDataInfo &mdatInfo) {
     if (sample.mOffset + sample.mSize < mdatInfo.mOffset) {
         return -1;
@@ -586,7 +584,7 @@ int Parser::CompareSampleLocation(
     return 0;
 }
 
-void Parser::resumeIfNecessary() {
+void FragmentedMP4Parser::resumeIfNecessary() {
     if (!mSuspended) {
         return;
     }
@@ -597,7 +595,7 @@ void Parser::resumeIfNecessary() {
     (new AMessage(kWhatProceed, id()))->post();
 }
 
-status_t Parser::getSample(
+status_t FragmentedMP4Parser::getSample(
         TrackInfo *info, sp<TrackFragment> *fragment, SampleInfo *sampleInfo) {
     for (;;) {
         if (info->mFragments.empty()) {
@@ -625,7 +623,7 @@ status_t Parser::getSample(
     }
 }
 
-status_t Parser::onDequeueAccessUnit(
+status_t FragmentedMP4Parser::onDequeueAccessUnit(
         size_t trackIndex, sp<ABuffer> *accessUnit) {
     TrackInfo *info = &mTracks.editValueAt(trackIndex);
 
@@ -730,7 +728,7 @@ static size_t parseNALSize(size_t nalLengthSize, const uint8_t *data) {
     return 0;
 }
 
-status_t Parser::makeAccessUnit(
+status_t FragmentedMP4Parser::makeAccessUnit(
         TrackInfo *info,
         const SampleInfo &sample,
         const MediaDataInfo &mdatInfo,
@@ -801,7 +799,7 @@ status_t Parser::makeAccessUnit(
     return OK;
 }
 
-status_t Parser::need(size_t size) {
+status_t FragmentedMP4Parser::need(size_t size) {
     if (!fitsContainer(size)) {
         return -EINVAL;
     }
@@ -819,7 +817,7 @@ status_t Parser::need(size_t size) {
     return -EAGAIN;
 }
 
-void Parser::enter(off64_t offset, uint32_t type, uint64_t size) {
+void FragmentedMP4Parser::enter(off64_t offset, uint32_t type, uint64_t size) {
     Container container;
     container.mOffset = offset;
     container.mType = type;
@@ -829,32 +827,32 @@ void Parser::enter(off64_t offset, uint32_t type, uint64_t size) {
     mStack.push(container);
 }
 
-bool Parser::fitsContainer(uint64_t size) const {
+bool FragmentedMP4Parser::fitsContainer(uint64_t size) const {
     CHECK(!mStack.isEmpty());
     const Container &container = mStack.itemAt(mStack.size() - 1);
 
     return container.mExtendsToEOF || size <= container.mBytesRemaining;
 }
 
-uint16_t Parser::readU16(size_t offset) {
+uint16_t FragmentedMP4Parser::readU16(size_t offset) {
     CHECK_LE(offset + 2, mBuffer->size());
 
     const uint8_t *ptr = mBuffer->data() + offset;
     return (ptr[0] << 8) | ptr[1];
 }
 
-uint32_t Parser::readU32(size_t offset) {
+uint32_t FragmentedMP4Parser::readU32(size_t offset) {
     CHECK_LE(offset + 4, mBuffer->size());
 
     const uint8_t *ptr = mBuffer->data() + offset;
     return (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
 }
 
-uint64_t Parser::readU64(size_t offset) {
+uint64_t FragmentedMP4Parser::readU64(size_t offset) {
     return (((uint64_t)readU32(offset)) << 32) | readU32(offset + 4);
 }
 
-void Parser::skip(off_t distance) {
+void FragmentedMP4Parser::skip(off_t distance) {
     CHECK(!mStack.isEmpty());
     for (size_t i = mStack.size(); i-- > 0;) {
         Container *container = &mStack.editItemAt(i);
@@ -916,7 +914,7 @@ void Parser::skip(off_t distance) {
     mBufferPos += distance;
 }
 
-status_t Parser::parseTrackHeader(
+status_t FragmentedMP4Parser::parseTrackHeader(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 4 > size) {
         return -EINVAL;
@@ -963,7 +961,7 @@ status_t Parser::parseTrackHeader(
     return OK;
 }
 
-status_t Parser::parseMediaHeader(
+status_t FragmentedMP4Parser::parseMediaHeader(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 4 > size) {
         return -EINVAL;
@@ -996,7 +994,7 @@ status_t Parser::parseMediaHeader(
     return OK;
 }
 
-status_t Parser::parseMediaHandler(
+status_t FragmentedMP4Parser::parseMediaHandler(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 12 > size) {
         return -EINVAL;
@@ -1024,7 +1022,7 @@ status_t Parser::parseMediaHandler(
     return OK;
 }
 
-status_t Parser::parseVisualSampleEntry(
+status_t FragmentedMP4Parser::parseVisualSampleEntry(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 78 > size) {
         return -EINVAL;
@@ -1067,7 +1065,7 @@ status_t Parser::parseVisualSampleEntry(
     return OK;
 }
 
-status_t Parser::parseAudioSampleEntry(
+status_t FragmentedMP4Parser::parseAudioSampleEntry(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 28 > size) {
         return -EINVAL;
@@ -1133,37 +1131,37 @@ static void addCodecSpecificData(
     format->setBuffer(StringPrintf("csd-%d", index).c_str(), csd);
 }
 
-status_t Parser::parseSampleSizes(
+status_t FragmentedMP4Parser::parseSampleSizes(
         uint32_t type, size_t offset, uint64_t size) {
     return editTrack(mCurrentTrackID)->mStaticFragment->parseSampleSizes(
             this, type, offset, size);
 }
 
-status_t Parser::parseCompactSampleSizes(
+status_t FragmentedMP4Parser::parseCompactSampleSizes(
         uint32_t type, size_t offset, uint64_t size) {
     return editTrack(mCurrentTrackID)->mStaticFragment->parseCompactSampleSizes(
             this, type, offset, size);
 }
 
-status_t Parser::parseSampleToChunk(
+status_t FragmentedMP4Parser::parseSampleToChunk(
         uint32_t type, size_t offset, uint64_t size) {
     return editTrack(mCurrentTrackID)->mStaticFragment->parseSampleToChunk(
             this, type, offset, size);
 }
 
-status_t Parser::parseChunkOffsets(
+status_t FragmentedMP4Parser::parseChunkOffsets(
         uint32_t type, size_t offset, uint64_t size) {
     return editTrack(mCurrentTrackID)->mStaticFragment->parseChunkOffsets(
             this, type, offset, size);
 }
 
-status_t Parser::parseChunkOffsets64(
+status_t FragmentedMP4Parser::parseChunkOffsets64(
         uint32_t type, size_t offset, uint64_t size) {
     return editTrack(mCurrentTrackID)->mStaticFragment->parseChunkOffsets64(
             this, type, offset, size);
 }
 
-status_t Parser::parseAVCCodecSpecificData(
+status_t FragmentedMP4Parser::parseAVCCodecSpecificData(
         uint32_t type, size_t offset, uint64_t size) {
     TrackInfo *trackInfo = editTrack(mCurrentTrackID);
 
@@ -1246,7 +1244,7 @@ status_t Parser::parseAVCCodecSpecificData(
     return OK;
 }
 
-status_t Parser::parseESDSCodecSpecificData(
+status_t FragmentedMP4Parser::parseESDSCodecSpecificData(
         uint32_t type, size_t offset, uint64_t size) {
     TrackInfo *trackInfo = editTrack(mCurrentTrackID);
 
@@ -1351,7 +1349,7 @@ status_t Parser::parseESDSCodecSpecificData(
     return OK;
 }
 
-status_t Parser::parseMediaData(
+status_t FragmentedMP4Parser::parseMediaData(
         uint32_t type, size_t offset, uint64_t size) {
     ALOGV("skipping 'mdat' chunk at offsets 0x%08lx-0x%08llx.",
           mBufferPos + offset, mBufferPos + size);
@@ -1372,7 +1370,7 @@ status_t Parser::parseMediaData(
     return OK;
 }
 
-status_t Parser::parseTrackExtends(
+status_t FragmentedMP4Parser::parseTrackExtends(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 24 > size) {
         return -EINVAL;
@@ -1393,7 +1391,7 @@ status_t Parser::parseTrackExtends(
     return OK;
 }
 
-Parser::TrackInfo *Parser::editTrack(
+FragmentedMP4Parser::TrackInfo *FragmentedMP4Parser::editTrack(
         uint32_t trackID, bool createIfNecessary) {
     ssize_t i = mTracks.indexOfKey(trackID);
 
@@ -1422,7 +1420,7 @@ Parser::TrackInfo *Parser::editTrack(
     return &mTracks.editValueAt(mTracks.indexOfKey(trackID));
 }
 
-status_t Parser::parseTrackFragmentHeader(
+status_t FragmentedMP4Parser::parseTrackFragmentHeader(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return -EINVAL;
@@ -1512,7 +1510,7 @@ status_t Parser::parseTrackFragmentHeader(
     return OK;
 }
 
-status_t Parser::parseTrackFragmentRun(
+status_t FragmentedMP4Parser::parseTrackFragmentRun(
         uint32_t type, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return -EINVAL;
@@ -1670,7 +1668,7 @@ status_t Parser::parseTrackFragmentRun(
     return OK;
 }
 
-void Parser::copyBuffer(
+void FragmentedMP4Parser::copyBuffer(
         sp<ABuffer> *dst, size_t offset, uint64_t size, size_t extra) const {
     sp<ABuffer> buf = new ABuffer(size + extra);
     memcpy(buf->data(), mBuffer->data() + offset, size);

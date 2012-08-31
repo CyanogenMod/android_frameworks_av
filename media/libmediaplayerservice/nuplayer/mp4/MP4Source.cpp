@@ -16,7 +16,7 @@
 
 #include "MP4Source.h"
 
-#include "Parser.h"
+#include "FragmentedMP4Parser.h"
 #include "../NuPlayerStreamListener.h"
 
 #include <media/IStreamSource.h>
@@ -26,7 +26,7 @@
 
 namespace android {
 
-struct StreamSource : public Parser::Source {
+struct StreamSource : public FragmentedMP4Parser::Source {
     StreamSource(const sp<IStreamSource> &source)
         : mListener(new NuPlayer::NuPlayerStreamListener(source, 0)),
           mPosition(0) {
@@ -103,7 +103,7 @@ private:
 MP4Source::MP4Source(const sp<IStreamSource> &source)
     : mSource(source),
       mLooper(new ALooper),
-      mParser(new Parser),
+      mParser(new FragmentedMP4Parser),
       mEOS(false) {
     mLooper->registerHandler(mParser);
 }
