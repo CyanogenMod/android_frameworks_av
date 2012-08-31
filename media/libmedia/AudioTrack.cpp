@@ -1144,7 +1144,7 @@ status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
 
     // If the track is not invalid already, try to allocate a buffer.  alloc
     // fails indicating that the server is dead, flag the track as invalid so
-    // we can attempt to restore in in just a bit.
+    // we can attempt to restore in just a bit.
     if (!(mCblk->flags & CBLK_INVALID_MSK)) {
         result = mAudioTrack->allocateTimedBuffer(size, buffer);
         if (result == DEAD_OBJECT) {
