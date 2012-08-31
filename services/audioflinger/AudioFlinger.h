@@ -454,8 +454,9 @@ private:
             /*const*/ sp<Client> mClient;   // see explanation at ~TrackBase() why not const
             sp<IMemory>         mCblkMemory;
             audio_track_cblk_t* mCblk;
-            void*               mBuffer;
-            void*               mBufferEnd;
+            void*               mBuffer;    // start of track buffer, typically in shared memory
+            void*               mBufferEnd; // &mBuffer[mFrameCount * frameSize], where frameSize
+                                            //   is based on mChannelCount and 16-bit samples
             uint32_t            mFrameCount;
             // we don't really need a lock for these
             track_state         mState;
@@ -1364,6 +1365,7 @@ private:
 
     // record thread
     class RecordThread : public ThreadBase, public AudioBufferProvider
+                            // derives from AudioBufferProvider interface for use by resampler
     {
     public:
 
@@ -1420,7 +1422,7 @@ private:
         void        dumpInternals(int fd, const Vector<String16>& args);
         void        dumpTracks(int fd, const Vector<String16>& args);
 
-        // Thread
+        // Thread virtuals
         virtual bool        threadLoop();
         virtual status_t    readyToRun();
 
@@ -1968,9 +1970,10 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 DefaultKeyedVector< audio_io_handle_t, sp<PlaybackThread> >  mPlaybackThreads;
                 stream_type_t                       mStreamTypes[AUDIO_STREAM_CNT];
 
-                // both are protected by mLock
+                // member variables below are protected by mLock
                 float                               mMasterVolume;
                 bool                                mMasterMute;
+                // end of variables protected by mLock
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
