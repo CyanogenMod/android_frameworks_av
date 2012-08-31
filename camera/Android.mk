@@ -22,6 +22,10 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 	LOCAL_CFLAGS += -DQCOM_HARDWARE
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM),msm7k)
+        LOCAL_CFLAGS += -DQCOM_HARDWARE
+endif
+
 
 LOCAL_MODULE:= libcamera_client
 
