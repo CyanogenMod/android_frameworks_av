@@ -25,7 +25,7 @@ namespace android {
 
 struct ABuffer;
 
-struct Parser : public AHandler {
+struct FragmentedMP4Parser : public AHandler {
     struct Source : public RefBase {
         Source() {}
 
@@ -38,7 +38,7 @@ struct Parser : public AHandler {
         DISALLOW_EVIL_CONSTRUCTORS(Source);
     };
 
-    Parser();
+    FragmentedMP4Parser();
 
     void start(const char *filename);
     void start(const sp<Source> &source);
@@ -49,7 +49,7 @@ struct Parser : public AHandler {
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 protected:
-    virtual ~Parser();
+    virtual ~FragmentedMP4Parser();
 
 private:
     enum {
@@ -67,7 +67,7 @@ private:
     struct DispatchEntry {
         uint32_t mType;
         uint32_t mParentType;
-        status_t (Parser::*mHandler)(uint32_t, size_t, uint64_t);
+        status_t (FragmentedMP4Parser::*mHandler)(uint32_t, size_t, uint64_t);
     };
 
     struct Container {
@@ -246,7 +246,7 @@ private:
             sp<ABuffer> *dst,
             size_t offset, uint64_t size, size_t extra = 0) const;
 
-    DISALLOW_EVIL_CONSTRUCTORS(Parser);
+    DISALLOW_EVIL_CONSTRUCTORS(FragmentedMP4Parser);
 };
 
 }  // namespace android
