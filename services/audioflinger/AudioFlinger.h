@@ -674,6 +674,7 @@ private:
                     bool                    mStandby;   // Whether thread is currently in standby.
                     audio_devices_t         mDevice;    // output device for PlaybackThread
                                                         // input + output devices for RecordThread
+                    audio_source_t          mAudioSource; // (see audio.h, audio_source_t)
 
                     const audio_io_handle_t mId;
                     Vector< sp<EffectChain> > mEffectChains;
@@ -1606,6 +1607,7 @@ private:
         status_t         setDevice(audio_devices_t device);
         status_t         setVolume(uint32_t *left, uint32_t *right, bool controller);
         status_t         setMode(audio_mode_t mode);
+        status_t         setAudioSource(audio_source_t source);
         status_t         start();
         status_t         stop();
         void             setSuspended(bool suspended);
@@ -1768,6 +1770,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         bool setVolume_l(uint32_t *left, uint32_t *right);
         void setDevice_l(audio_devices_t device);
         void setMode_l(audio_mode_t mode);
+        void setAudioSource_l(audio_source_t source);
 
         void setInBuffer(int16_t *buffer, bool ownsBuffer = false) {
             mInBuffer = buffer;
