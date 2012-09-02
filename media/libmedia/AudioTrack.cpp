@@ -920,6 +920,11 @@ int AudioTrack::getSessionId() const
     return mSessionId;
 }
 
+extern "C" int _ZNK7android10AudioTrack12getSessionIdEv();
+extern "C" int _ZN7android10AudioTrack12getSessionIdEv() {
+    return _ZNK7android10AudioTrack12getSessionIdEv();
+}
+
 status_t AudioTrack::attachAuxEffect(int effectId)
 {
     ALOGV("attachAuxEffect(%d)", effectId);
