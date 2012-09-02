@@ -616,7 +616,9 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
         track = dynamic_cast<IDirectTrack *>(directTrack);
         AudioEventObserver* obv = dynamic_cast<AudioEventObserver *>(directTrack);
         ALOGE("setting observer mOutputDesc track %p, obv %p", track.get(), obv);
+#ifndef ICS_AUDIO_BLOB
         desc->stream->set_observer(desc->stream, reinterpret_cast<void *>(obv));
+#endif
     } else {
         lStatus = BAD_VALUE;
     }
@@ -6084,6 +6086,7 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
     : BnDirectTrack(), mIsPaused(false), mAudioFlinger(audioFlinger), mOutput(output), mOutputDesc(outputDesc),
       mClient(client)
 {
+
 #ifdef SRS_PROCESSING
     LOGD("SRS_Processing - DirectAudioTrack - OutNotify_Init: %p TID %d\n", this, gettid());
     SRS_Processing::ProcessOutNotify(SRS_Processing::AUTO, this, true);
@@ -6101,7 +6104,9 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
 status_t AudioFlinger::DirectAudioTrack::start() {
     if(mIsPaused) {
         mIsPaused = false;
+#ifndef ICS_AUDIO_BLOB
         mOutputDesc->stream->start(mOutputDesc->stream);
+#endif
     }
     mOutputDesc->mActive = true;
     AudioSystem::startOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
@@ -6110,14 +6115,18 @@ status_t AudioFlinger::DirectAudioTrack::start() {
 
 void AudioFlinger::DirectAudioTrack::stop() {
     mOutputDesc->mActive = false;
+#ifndef ICS_AUDIO_BLOB
     mOutputDesc->stream->stop(mOutputDesc->stream);
+#endif
     AudioSystem::stopOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
 }
 
 void AudioFlinger::DirectAudioTrack::pause() {
     if(!mIsPaused) {
         mIsPaused = true;
+#ifndef ICS_AUDIO_BLOB
         mOutputDesc->stream->pause(mOutputDesc->stream);
+#endif
         mOutputDesc->mActive = false;
         AudioSystem::stopOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
     }
@@ -6129,7 +6138,9 @@ ssize_t AudioFlinger::DirectAudioTrack::write(const void *buffer, size_t size) {
 }
 
 void AudioFlinger::DirectAudioTrack::flush() {
+#ifndef ICS_AUDIO_BLOB
     mOutputDesc->stream->flush(mOutputDesc->stream);
+#endif
 }
 
 void AudioFlinger::DirectAudioTrack::mute(bool muted) {
@@ -6142,7 +6153,9 @@ void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
 
 int64_t AudioFlinger::DirectAudioTrack::getTimeStamp() {
     int64_t time;
+#ifndef ICS_AUDIO_BLOB
     mOutputDesc->stream->get_next_write_timestamp(mOutputDesc->stream, &time);
+#endif
     ALOGV("Timestamp %lld",time);
     return time;
 }
