@@ -616,7 +616,9 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
         track = dynamic_cast<IDirectTrack *>(directTrack);
         AudioEventObserver* obv = dynamic_cast<AudioEventObserver *>(directTrack);
         ALOGE("setting observer mOutputDesc track %p, obv %p", track.get(), obv);
+#ifndef ICS_AUDIO_BLOB
         desc->stream->set_observer(desc->stream, reinterpret_cast<void *>(obv));
+#endif
     } else {
         lStatus = BAD_VALUE;
     }
@@ -6077,7 +6079,7 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who)
 
 // ----------------------------------------------------------------------------
 
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE ) && !defined(ICS_AUDIO_BLOB)
 AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
                                                  int output, AudioSessionDescriptor *outputDesc,
                                                  IDirectTrackClient* client)
