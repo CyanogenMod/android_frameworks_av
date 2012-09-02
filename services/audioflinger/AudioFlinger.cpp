@@ -6077,7 +6077,8 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who)
 
 // ----------------------------------------------------------------------------
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_HARDWARE 
+#ifndef DICS_AUDIO_BLOB
 AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
                                                  int output, AudioSessionDescriptor *outputDesc,
                                                  IDirectTrackClient* client)
@@ -6157,6 +6158,7 @@ status_t AudioFlinger::DirectAudioTrack::onTransact(
 {
     return BnDirectTrack::onTransact(code, data, reply, flags);
 }
+#endif
 #endif
 
 // ----------------------------------------------------------------------------
