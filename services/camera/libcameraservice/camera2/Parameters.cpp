@@ -1336,11 +1336,15 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             previewFpsRange, 2);
     if (res != OK) return res;
 
-    uint8_t reqWbMode = autoWhiteBalanceLock ?
-            (uint8_t)ANDROID_CONTROL_AWB_LOCKED : wbMode;
     res = request->update(ANDROID_CONTROL_AWB_MODE,
-            &reqWbMode, 1);
+            &wbMode, 1);
     if (res != OK) return res;
+
+    uint8_t reqWbLock = autoWhiteBalanceLock ?
+            ANDROID_CONTROL_AWB_LOCK_ON : ANDROID_CONTROL_AWB_LOCK_OFF;
+    res = request->update(ANDROID_CONTROL_AWB_LOCK,
+            &reqWbLock, 1);
+
     res = request->update(ANDROID_CONTROL_EFFECT_MODE,
             &effectMode, 1);
     if (res != OK) return res;
@@ -1380,14 +1384,17 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
                     cameraId, flashMode);
             return BAD_VALUE;
     }
-    if (autoExposureLock) reqAeMode = ANDROID_CONTROL_AE_LOCKED;
-
     res = request->update(ANDROID_FLASH_MODE,
             &reqFlashMode, 1);
     if (res != OK) return res;
     res = request->update(ANDROID_CONTROL_AE_MODE,
             &reqAeMode, 1);
     if (res != OK) return res;
+
+    uint8_t reqAeLock = autoExposureLock ?
+            ANDROID_CONTROL_AE_LOCK_ON : ANDROID_CONTROL_AE_LOCK_OFF;
+    res = request->update(ANDROID_CONTROL_AE_LOCK,
+            &reqAeLock, 1);
 
     float reqFocusDistance = 0; // infinity focus in diopters
     uint8_t reqFocusMode;
