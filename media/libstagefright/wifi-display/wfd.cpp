@@ -18,11 +18,8 @@
 #define LOG_TAG "wfd"
 #include <utils/Log.h>
 
-#define SUPPORT_SINK    0
-
-#if SUPPORT_SINK
 #include "sink/WifiDisplaySink.h"
-#endif
+#include "source/WifiDisplaySource.h"
 
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
@@ -49,10 +46,8 @@ static void enableDisableRemoteDisplay(const char *iface) {
 static void usage(const char *me) {
     fprintf(stderr,
             "usage:\n"
-#if SUPPORT_SINK
             "           %s -c host[:port]\tconnect to wifi source\n"
             "           -u uri        \tconnect to an rtsp uri\n"
-#endif
             "           -e ip[:port]       \tenable remote display\n"
             "           -d            \tdisable remote display\n",
             me);
@@ -72,7 +67,6 @@ int main(int argc, char **argv) {
     int res;
     while ((res = getopt(argc, argv, "hc:l:u:e:d")) >= 0) {
         switch (res) {
-#if SUPPORT_SINK
             case 'c':
             {
                 const char *colonPos = strrchr(optarg, ':');
@@ -100,7 +94,6 @@ int main(int argc, char **argv) {
                 uri = optarg;
                 break;
             }
-#endif
 
             case 'e':
             {
@@ -124,7 +117,6 @@ int main(int argc, char **argv) {
         }
     }
 
-#if SUPPORT_SINK
     if (connectToPort < 0 && uri.empty()) {
         fprintf(stderr,
                 "You need to select either source host or uri.\n");
@@ -154,7 +146,6 @@ int main(int argc, char **argv) {
     }
 
     looper->start(true /* runOnCallingThread */);
-#endif
 
     return 0;
 }

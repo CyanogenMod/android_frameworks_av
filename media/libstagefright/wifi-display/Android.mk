@@ -5,6 +5,10 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
         ANetworkSession.cpp             \
         ParsedMessage.cpp               \
+        sink/LinearRegression.cpp       \
+        sink/RTPSink.cpp                \
+        sink/TunnelRenderer.cpp         \
+        sink/WifiDisplaySink.cpp        \
         source/Converter.cpp            \
         source/PlaybackSession.cpp      \
         source/RepeaterSource.cpp       \
