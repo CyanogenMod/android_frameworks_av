@@ -293,8 +293,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
-            if (mAudioDecoder == NULL && mAudioSink != NULL ||
-                mVideoDecoder == NULL && mNativeWindow != NULL) {
+            if ((mAudioDecoder == NULL && mAudioSink != NULL)
+                    || (mVideoDecoder == NULL && mNativeWindow != NULL)) {
                 msg->post(100000ll);
                 mScanSourcesPending = true;
             }
