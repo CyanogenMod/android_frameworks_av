@@ -38,6 +38,7 @@ struct ATSParser : public RefBase {
         DISCONTINUITY_TIME              = 1,
         DISCONTINUITY_AUDIO_FORMAT      = 2,
         DISCONTINUITY_VIDEO_FORMAT      = 4,
+        DISCONTINUITY_ABSOLUTE_TIME     = 8,
 
         DISCONTINUITY_SEEK              = DISCONTINUITY_TIME,
 
@@ -54,7 +55,9 @@ struct ATSParser : public RefBase {
         // If this flag is _not_ specified, the first PTS encountered in a
         // program of this stream will be assumed to correspond to media time 0
         // instead.
-        TS_TIMESTAMPS_ARE_ABSOLUTE = 1
+        TS_TIMESTAMPS_ARE_ABSOLUTE = 1,
+        // Video PES packets contain exactly one (aligned) access unit.
+        ALIGNED_VIDEO_DATA         = 2,
     };
 
     ATSParser(uint32_t flags = 0);
@@ -100,16 +103,28 @@ private:
     // Keyed by PID
     KeyedVector<unsigned, sp<PSISection> > mPSISections;
 
+    int64_t mAbsoluteTimeAnchorUs;
+
+    size_t mNumTSPacketsParsed;
+
     void parseProgramAssociationTable(ABitReader *br);
     void parseProgramMap(ABitReader *br);
     void parsePES(ABitReader *br);
 
     status_t parsePID(
         ABitReader *br, unsigned PID,
+        unsigned continuity_counter,
         unsigned payload_unit_start_indicator);
 
-    void parseAdaptationField(ABitReader *br);
+    void parseAdaptationField(ABitReader *br, unsigned PID);
     status_t parseTS(ABitReader *br);
+
+    void updatePCR(unsigned PID, uint64_t PCR, size_t byteOffsetFromStart);
+
+    uint64_t mPCR[2];
+    size_t mPCRBytes[2];
+    int64_t mSystemTimeUs[2];
+    size_t mNumPCRs;
 
     DISALLOW_EVIL_CONSTRUCTORS(ATSParser);
 };
