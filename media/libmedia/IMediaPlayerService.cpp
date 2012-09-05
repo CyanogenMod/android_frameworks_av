@@ -24,9 +24,12 @@
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
 #include <media/IOMX.h>
+#include <media/IRemoteDisplay.h>
+#include <media/IRemoteDisplayClient.h>
 #include <media/IStreamSource.h>
 
 #include <utils/Errors.h>  // for status_t
+#include <utils/String8.h>
 
 namespace android {
 
@@ -40,7 +43,8 @@ enum {
     MAKE_CRYPTO,
     ENABLE_REMOTE_DISPLAY,
     ADD_BATTERY_DATA,
-    PULL_BATTERY_DATA
+    PULL_BATTERY_DATA,
+    LISTEN_FOR_REMOTE_DISPLAY,
 };
 
 class BpMediaPlayerService: public BpInterface<IMediaPlayerService>
@@ -148,6 +152,17 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         return remote()->transact(PULL_BATTERY_DATA, data, reply);
     }
+
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
+            const String8& iface)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        data.writeStrongBinder(client->asBinder());
+        data.writeString8(iface);
+        remote()->transact(LISTEN_FOR_REMOTE_DISPLAY, data, &reply);
+        return interface_cast<IRemoteDisplay>(reply.readStrongBinder());
+    }
 };
 
 IMPLEMENT_META_INTERFACE(MediaPlayerService, "android.media.IMediaPlayerService");
@@ -240,6 +255,15 @@ status_t BnMediaPlayerService::onTransact(
         case PULL_BATTERY_DATA: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             pullBatteryData(reply);
+            return NO_ERROR;
+        } break;
+        case LISTEN_FOR_REMOTE_DISPLAY: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IRemoteDisplayClient> client(
+                    interface_cast<IRemoteDisplayClient>(data.readStrongBinder()));
+            String8 iface(data.readString8());
+            sp<IRemoteDisplay> display(listenForRemoteDisplay(client, iface));
+            reply->writeStrongBinder(display->asBinder());
             return NO_ERROR;
         } break;
         default:

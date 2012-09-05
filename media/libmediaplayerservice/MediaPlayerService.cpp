@@ -44,6 +44,8 @@
 #include <utils/SystemClock.h>
 #include <utils/Vector.h>
 
+#include <media/IRemoteDisplay.h>
+#include <media/IRemoteDisplayClient.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/mediarecorder.h>
 #include <media/MediaMetadataRetrieverInterface.h>
@@ -277,6 +279,12 @@ sp<IOMX> MediaPlayerService::getOMX() {
 
 sp<ICrypto> MediaPlayerService::makeCrypto() {
     return new Crypto;
+}
+
+sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
+        const sp<IRemoteDisplayClient>& client, const String8& iface) {
+    // TODO: implement me!
+    return NULL;
 }
 
 status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
