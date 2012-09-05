@@ -20,17 +20,18 @@
 #include "include/chromium_http_stub.h"
 #endif
 
-#include "include/MP3Extractor.h"
-#include "include/MPEG4Extractor.h"
-#include "include/WAVExtractor.h"
-#include "include/OggExtractor.h"
-#include "include/MPEG2PSExtractor.h"
-#include "include/MPEG2TSExtractor.h"
-#include "include/NuCachedSource2.h"
-#include "include/HTTPBase.h"
+#include "include/AACExtractor.h"
 #include "include/DRMExtractor.h"
 #include "include/FLACExtractor.h"
-#include "include/AACExtractor.h"
+#include "include/FragmentedMP4Extractor.h"
+#include "include/HTTPBase.h"
+#include "include/MP3Extractor.h"
+#include "include/MPEG2PSExtractor.h"
+#include "include/MPEG2TSExtractor.h"
+#include "include/MPEG4Extractor.h"
+#include "include/NuCachedSource2.h"
+#include "include/OggExtractor.h"
+#include "include/WAVExtractor.h"
 #include "include/WVMExtractor.h"
 
 #include "matroska/MatroskaExtractor.h"
@@ -110,6 +111,7 @@ void DataSource::RegisterSniffer(SnifferFunc func) {
 // static
 void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer(SniffMPEG4);
+    RegisterSniffer(SniffFragmentedMP4);
     RegisterSniffer(SniffMatroska);
     RegisterSniffer(SniffOgg);
     RegisterSniffer(SniffWAV);

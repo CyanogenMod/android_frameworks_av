@@ -19,6 +19,7 @@
 #define PARSER_H_
 
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/DataSource.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -30,6 +31,7 @@ struct FragmentedMP4Parser : public AHandler {
         Source() {}
 
         virtual ssize_t readAt(off64_t offset, void *data, size_t size) = 0;
+        virtual bool isSeekable() = 0;
 
         protected:
         virtual ~Source() {}
@@ -42,9 +44,12 @@ struct FragmentedMP4Parser : public AHandler {
 
     void start(const char *filename);
     void start(const sp<Source> &source);
+    void start(sp<DataSource> &source);
 
-    sp<AMessage> getFormat(bool audio);
-    status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
+    sp<AMessage> getFormat(bool audio, bool synchronous = false);
+    status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit, bool synchronous = false);
+    status_t seekTo(bool audio, int64_t timeUs);
+    bool isSeekable() const;
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
@@ -58,6 +63,7 @@ private:
         kWhatReadMore,
         kWhatGetFormat,
         kWhatDequeueAccessUnit,
+        kWhatSeekTo,
     };
 
     struct TrackFragment;
@@ -97,6 +103,11 @@ private:
         off64_t mOffset;
     };
 
+    struct SidxEntry {
+        size_t mSize;
+        uint32_t mDurationUs;
+    };
+
     struct TrackInfo {
         enum Flags {
             kTrackEnabled     = 0x01,
@@ -107,6 +118,7 @@ private:
         uint32_t mTrackID;
         uint32_t mFlags;
         uint32_t mDuration;  // This is the duration in terms of movie timescale!
+        uint64_t mSidxDuration; // usec, from sidx box, which can use a different timescale
 
         uint32_t mMediaTimeScale;
 
@@ -121,6 +133,7 @@ private:
 
         uint32_t mDecodingTime;
 
+        Vector<SidxEntry> mSidx;
         sp<StaticTrackFragment> mStaticFragment;
         List<sp<TrackFragment> > mFragments;
     };
@@ -151,6 +164,8 @@ private:
     sp<Source> mSource;
     off_t mBufferPos;
     bool mSuspended;
+    bool mDoneWithMoov;
+    off_t mFirstMoofOffset; // used as the starting point for offsets calculated from the sidx box
     sp<ABuffer> mBuffer;
     Vector<Container> mStack;
     KeyedVector<uint32_t, TrackInfo> mTracks;  // TrackInfo by trackID
@@ -164,6 +179,7 @@ private:
 
     status_t onProceed();
     status_t onDequeueAccessUnit(size_t trackIndex, sp<ABuffer> *accessUnit);
+    status_t onSeekTo(bool wantAudio, int64_t position);
 
     void enter(off64_t offset, uint32_t type, uint64_t size);
 
@@ -220,6 +236,9 @@ private:
             uint32_t type, size_t offset, uint64_t size);
 
     status_t parseMediaData(
+            uint32_t type, size_t offset, uint64_t size);
+
+    status_t parseSegmentIndex(
             uint32_t type, size_t offset, uint64_t size);
 
     TrackInfo *editTrack(uint32_t trackID, bool createIfNecessary = false);
