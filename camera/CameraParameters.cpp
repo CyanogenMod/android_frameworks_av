@@ -235,6 +235,7 @@ const char CameraParameters::SCENE_MODE_FLOWERS[] = "flowers";
 const char CameraParameters::SCENE_MODE_BARCODE[] = "barcode";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::SCENE_MODE_AR[] = "AR";
+const char CameraParameters::SCENE_MODE_OFF[] = "off";
 
 // Values for auto scene detection settings.
 const char CameraParameters::SCENE_DETECT_OFF[] = "off";
@@ -268,6 +269,7 @@ const char CameraParameters::FOCUS_MODE_EDOF[] = "edof";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO[] = "continuous-video";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE[] = "continuous-picture";
 #if defined(QCOM_HARDWARE)
+const char CameraParameters::FOCUS_MODE_CONTINUOUS_CAMERA[] = "continuous-camera";
 const char CameraParameters::FOCUS_MODE_NORMAL[] = "normal";
 
 
@@ -585,6 +587,11 @@ static void parseSizesList(const char *sizesStr, Vector<Size> &sizes)
         }
         sizeStartPtr++;
     }
+}
+
+void CameraParameters::setPostviewSize(int width, int height)
+{
+    // dummy
 }
 
 void CameraParameters::setPreviewSize(int width, int height)
