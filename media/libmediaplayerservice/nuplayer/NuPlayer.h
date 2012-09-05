@@ -55,6 +55,8 @@ struct NuPlayer : public AHandler {
     // Will notify the driver through "notifySeekComplete" once finished.
     void seekToAsync(int64_t seekTimeUs);
 
+    status_t setVideoScalingMode(int32_t mode);
+
 protected:
     virtual ~NuPlayer();
 
@@ -129,6 +131,8 @@ private:
 
     int64_t mVideoLateByUs;
     int64_t mNumFramesTotal, mNumFramesDropped;
+
+    int32_t mVideoScalingMode;
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
