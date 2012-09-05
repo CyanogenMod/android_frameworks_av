@@ -167,6 +167,10 @@ status_t SurfaceMediaSource::start(MetaData *params)
     return OK;
 }
 
+status_t SurfaceMediaSource::setMaxAcquiredBufferCount(size_t count) {
+    return mBufferQueue->setMaxAcquiredBufferCount(count);
+}
+
 
 status_t SurfaceMediaSource::stop()
 {

@@ -600,27 +600,6 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     // sp<SurfaceMediaSource> source = new SurfaceMediaSource(info.w, info.h);
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(720, 1280);
 
-    sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
-    sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
-    CHECK(service != NULL);
-
-    service->connectDisplay(source->getBufferQueue());
-
-#if 0
-    {
-        ALOGI("reading buffer");
-
-        CHECK_EQ((status_t)OK, source->start());
-        MediaBuffer *mbuf;
-        CHECK_EQ((status_t)OK, source->read(&mbuf));
-        mbuf->release();
-        mbuf = NULL;
-
-        ALOGI("got buffer");
-    }
-#endif
-
 #if 0
     ssize_t index = mSerializer->addSource(source);
 #else
@@ -644,10 +623,25 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
 
     sp<Converter> converter =
         new Converter(notify, mCodecLooper, format);
+    CHECK_EQ(converter->initCheck(), (status_t)OK);
+
+    size_t numInputBuffers = converter->getInputBufferCount();
+    ALOGI("numInputBuffers to the encoder is %d", numInputBuffers);
 
     looper()->registerHandler(converter);
 
     mTracks.add(index, new Track(converter));
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
+    sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
+    CHECK(service != NULL);
+
+    // Add one reference to account for the serializer.
+    err = source->setMaxAcquiredBufferCount(numInputBuffers + 1);
+    CHECK_EQ(err, (status_t)OK);
+
+    service->connectDisplay(source->getBufferQueue());
 #endif
 
 #if 0
