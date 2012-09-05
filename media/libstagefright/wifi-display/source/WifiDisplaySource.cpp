@@ -22,6 +22,9 @@
 #include "PlaybackSession.h"
 #include "ParsedMessage.h"
 
+#include <gui/ISurfaceTexture.h>
+
+#include <media/IRemoteDisplayClient.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -32,8 +35,11 @@
 
 namespace android {
 
-WifiDisplaySource::WifiDisplaySource(const sp<ANetworkSession> &netSession)
+WifiDisplaySource::WifiDisplaySource(
+        const sp<ANetworkSession> &netSession,
+        const sp<IRemoteDisplayClient> &client)
     : mNetSession(netSession),
+      mClient(client),
       mSessionID(0),
       mReaperPending(false),
       mNextCSeq(1) {
@@ -199,6 +205,10 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                 looper()->unregisterHandler(playbackSession->id());
                 mPlaybackSessions.removeItemsAt(i);
+            }
+
+            if (mClient != NULL) {
+                mClient->onDisplayDisconnected();
             }
 
             status_t err = OK;
@@ -768,7 +778,8 @@ void WifiDisplaySource::onSetupRequest(
     notify->setInt32("sessionID", sessionID);
 
     sp<PlaybackSession> playbackSession =
-        new PlaybackSession(mNetSession, notify);
+        new PlaybackSession(
+                mNetSession, notify, mClient == NULL /* legacyMode */);
 
     looper()->registerHandler(playbackSession);
 
@@ -869,6 +880,14 @@ void WifiDisplaySource::onPlayRequest(
 
     err = mNetSession->sendRequest(sessionID, response.c_str());
     CHECK_EQ(err, (status_t)OK);
+
+    if (mClient != NULL) {
+        mClient->onDisplayConnected(
+                playbackSession->getSurfaceTexture(),
+                playbackSession->width(),
+                playbackSession->height(),
+                0 /* flags */);
+    }
 }
 
 void WifiDisplaySource::onPauseRequest(

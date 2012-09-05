@@ -18,6 +18,7 @@
 
 #define REMOTE_DISPLAY_H_
 
+#include <media/IRemoteDisplay.h>
 #include <media/stagefright/foundation/ABase.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -26,20 +27,18 @@ namespace android {
 
 struct ALooper;
 struct ANetworkSession;
+struct IRemoteDisplayClient;
 struct WifiDisplaySource;
 
-struct RemoteDisplay : public RefBase {
-    RemoteDisplay();
+struct RemoteDisplay : public BnRemoteDisplay {
+    RemoteDisplay(const sp<IRemoteDisplayClient> &client, const char *iface);
 
-    status_t start(const char *iface);
-    status_t stop();
+    virtual status_t disconnect();
 
 protected:
     virtual ~RemoteDisplay();
 
 private:
-    status_t mInitCheck;
-
     sp<ALooper> mNetLooper;
     sp<ALooper> mLooper;
     sp<ANetworkSession> mNetSession;
