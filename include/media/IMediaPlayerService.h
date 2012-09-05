@@ -34,6 +34,8 @@ namespace android {
 struct ICrypto;
 class IMediaRecorder;
 class IOMX;
+class IRemoteDisplay;
+class IRemoteDisplayClient;
 struct IStreamSource;
 
 class IMediaPlayerService: public IInterface
@@ -49,6 +51,16 @@ public:
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat) = 0;
     virtual sp<IOMX>            getOMX() = 0;
     virtual sp<ICrypto>         makeCrypto() = 0;
+
+    // Connects to a remote display.
+    // 'iface' specifies the address of the local interface on which to listen for
+    // a connection from the remote display as an ip address and port number
+    // of the form "x.x.x.x:y".  The media server should call back into the provided remote
+    // display client when display connection, disconnection or errors occur.
+    // The assumption is that at most one remote display will be connected to the
+    // provided interface at a time.
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
+            const String8& iface) = 0;
 
     // If iface == NULL, disable remote display, otherwise
     // iface should be of the form "x.x.x.x:y", i.e. ip address
