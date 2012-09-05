@@ -15,11 +15,6 @@
  */
 
 #include "include/DRMExtractor.h"
-#include "include/AMRExtractor.h"
-#include "include/MP3Extractor.h"
-#include "include/MPEG4Extractor.h"
-#include "include/WAVExtractor.h"
-#include "include/OggExtractor.h"
 
 #include <arpa/inet.h>
 #include <utils/String8.h>
