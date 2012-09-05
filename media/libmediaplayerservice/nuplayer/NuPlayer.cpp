@@ -68,7 +68,8 @@ NuPlayer::NuPlayer()
       mSkipRenderingVideoUntilMediaTimeUs(-1ll),
       mVideoLateByUs(0ll),
       mNumFramesTotal(0ll),
-      mNumFramesDropped(0ll) {
+      mNumFramesDropped(0ll),
+      mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -217,6 +218,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findObject("native-window", &obj));
 
             mNativeWindow = static_cast<NativeWindowWrapper *>(obj.get());
+
+            // XXX - ignore error from setVideoScalingMode for now
+            setVideoScalingMode(mVideoScalingMode);
             break;
         }
 
@@ -953,6 +957,20 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
         return msg;
     }
     return NULL;
+}
+
+status_t NuPlayer::setVideoScalingMode(int32_t mode) {
+    mVideoScalingMode = mode;
+    if (mNativeWindow != NULL) {
+        status_t ret = native_window_set_scaling_mode(
+                mNativeWindow->getNativeWindow().get(), mVideoScalingMode);
+        if (ret != OK) {
+            ALOGE("Failed to set scaling mode (%d): %s",
+                -ret, strerror(-ret));
+            return ret;
+        }
+    }
+    return OK;
 }
 
 }  // namespace android
