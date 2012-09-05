@@ -113,9 +113,11 @@ void WifiDisplaySource::PlaybackSession::Track::setPacketizerTrackIndex(size_t i
 
 WifiDisplaySource::PlaybackSession::PlaybackSession(
         const sp<ANetworkSession> &netSession,
-        const sp<AMessage> &notify)
+        const sp<AMessage> &notify,
+        bool legacyMode)
     : mNetSession(netSession),
       mNotify(notify),
+      mLegacyMode(legacyMode),
       mLastLifesignUs(),
       mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
       mPrevTimeUs(-1ll),
@@ -240,11 +242,6 @@ WifiDisplaySource::PlaybackSession::~PlaybackSession() {
 
     mPacketizer.clear();
 
-    sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
-    sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
-    CHECK(service != NULL);
-
     if (mSerializer != NULL) {
         mSerializer->stop();
 
@@ -257,7 +254,14 @@ WifiDisplaySource::PlaybackSession::~PlaybackSession() {
         mSerializerLooper.clear();
     }
 
-    service->connectDisplay(NULL);
+    if (mLegacyMode) {
+        sp<IServiceManager> sm = defaultServiceManager();
+        sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
+        sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
+        CHECK(service != NULL);
+
+        service->connectDisplay(NULL);
+    }
 
     if (mRTCPSessionID != 0) {
         mNetSession->destroySession(mRTCPSessionID);
@@ -598,7 +602,7 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     SurfaceComposerClient::getDisplayInfo(0, &info);
 
     // sp<SurfaceMediaSource> source = new SurfaceMediaSource(info.w, info.h);
-    sp<SurfaceMediaSource> source = new SurfaceMediaSource(720, 1280);
+    sp<SurfaceMediaSource> source = new SurfaceMediaSource(width(), height());
 
 #if 0
     ssize_t index = mSerializer->addSource(source);
@@ -641,7 +645,11 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     err = source->setMaxAcquiredBufferCount(numInputBuffers + 1);
     CHECK_EQ(err, (status_t)OK);
 
-    service->connectDisplay(source->getBufferQueue());
+    mBufferQueue = source->getBufferQueue();
+
+    if (mLegacyMode) {
+        service->connectDisplay(mBufferQueue);
+    }
 #endif
 
 #if 0
@@ -671,6 +679,18 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
 #endif
 
     return OK;
+}
+
+sp<ISurfaceTexture> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
+    return mBufferQueue;
+}
+
+int32_t WifiDisplaySource::PlaybackSession::width() const {
+    return 720;
+}
+
+int32_t WifiDisplaySource::PlaybackSession::height() const {
+    return 1280;
 }
 
 void WifiDisplaySource::PlaybackSession::scheduleSendSR() {

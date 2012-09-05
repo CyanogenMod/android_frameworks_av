@@ -24,6 +24,7 @@
 
 namespace android {
 
+struct IRemoteDisplayClient;
 struct ParsedMessage;
 
 // Represents the RTSP server acting as a wifi display source.
@@ -31,7 +32,9 @@ struct ParsedMessage;
 struct WifiDisplaySource : public AHandler {
     static const unsigned kWifiDisplayDefaultPort = 7236;
 
-    WifiDisplaySource(const sp<ANetworkSession> &netSession);
+    WifiDisplaySource(
+            const sp<ANetworkSession> &netSession,
+            const sp<IRemoteDisplayClient> &client);
 
     status_t start(const char *iface);
     status_t stop();
@@ -74,6 +77,7 @@ private:
         kPlaybackSessionTimeoutSecs * 1000000ll;
 
     sp<ANetworkSession> mNetSession;
+    sp<IRemoteDisplayClient> mClient;
     int32_t mSessionID;
 
     struct ClientInfo {

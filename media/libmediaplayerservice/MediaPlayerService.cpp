@@ -283,8 +283,7 @@ sp<ICrypto> MediaPlayerService::makeCrypto() {
 
 sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
         const sp<IRemoteDisplayClient>& client, const String8& iface) {
-    // TODO: implement me!
-    return NULL;
+    return new RemoteDisplay(client, iface.string());;
 }
 
 status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
@@ -295,20 +294,12 @@ status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
             return INVALID_OPERATION;
         }
 
-        mRemoteDisplay = new RemoteDisplay;
-
-        status_t err = mRemoteDisplay->start(iface);
-
-        if (err != OK) {
-            mRemoteDisplay.clear();
-            return err;
-        }
-
+        mRemoteDisplay = new RemoteDisplay(NULL /* client */, iface);
         return OK;
     }
 
     if (mRemoteDisplay != NULL) {
-        mRemoteDisplay->stop();
+        mRemoteDisplay->disconnect();
         mRemoteDisplay.clear();
     }
 
