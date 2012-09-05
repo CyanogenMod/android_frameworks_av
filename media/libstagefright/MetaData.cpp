@@ -22,6 +22,8 @@
 #include <string.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AString.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MetaData.h>
 
 namespace android {
@@ -318,6 +320,12 @@ String8 MetaData::typed_data::asString() const {
 
         default:
             out = String8::format("(unknown type %d, size %d)", mType, mSize);
+            if (mSize <= 48) { // if it's less than three lines of hex data, dump it
+                AString foo;
+                hexdump(data, mSize, 0, &foo);
+                out.append("\n");
+                out.append(foo.c_str());
+            }
             break;
     }
     return out;
