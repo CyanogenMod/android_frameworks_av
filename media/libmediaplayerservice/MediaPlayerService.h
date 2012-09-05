@@ -41,6 +41,8 @@ class AudioTrack;
 class IMediaRecorder;
 class IMediaMetadataRetriever;
 class IOMX;
+class IRemoteDisplay;
+class IRemoteDisplayClient;
 class MediaRecorderClient;
 struct RemoteDisplay;
 
@@ -248,6 +250,9 @@ public:
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
     virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
+
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
+            const String8& iface);
     virtual status_t            enableRemoteDisplay(const char *iface);
 
     virtual status_t            dump(int fd, const Vector<String16>& args);
