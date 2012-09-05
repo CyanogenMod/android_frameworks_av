@@ -6587,7 +6587,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                   ((mFormat != AUDIO_FORMAT_PCM_16_BIT) &&
                                   ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION))))
 #else
-                                  ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT)))
+                                  mFormat != AUDIO_FORMAT_PCM_16_BIT))
 #endif
                                         {
                                                 mBytesRead = mInput->stream->read(mInput->stream, buffer.raw, mInputBytes);
@@ -7375,8 +7375,9 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         if (pChannelMask != NULL) *pChannelMask = config.channel_mask;
 #ifdef QCOM_HARDWARE
         if (thread != NULL) {
-            if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
 #endif
+            if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
+
             // notify client processes of the new output creation
             thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
 #ifdef QCOM_HARDWARE

@@ -214,12 +214,13 @@ AudioTrack::~AudioTrack()
         // it is looping on buffer full condition in obtainBuffer().
         // Otherwise the callback thread will never exit.
         stop();
-#ifdef QCOM_HARDWARE
+
         if (mAudioTrackThread != 0) {
             mAudioTrackThread->requestExit();   // see comment in AudioTrack.h
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
+#ifdef QCOM_HARDWARE
         if (mAudioTrack != 0) {
             mAudioTrack.clear();
             AudioSystem::releaseAudioSessionId(mSessionId);
