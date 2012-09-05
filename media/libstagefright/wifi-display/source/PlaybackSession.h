@@ -23,6 +23,8 @@
 namespace android {
 
 struct ABuffer;
+struct BufferQueue;
+struct ISurfaceTexture;
 struct Serializer;
 struct TSPacketizer;
 
@@ -32,7 +34,9 @@ struct TSPacketizer;
 // display.
 struct WifiDisplaySource::PlaybackSession : public AHandler {
     PlaybackSession(
-            const sp<ANetworkSession> &netSession, const sp<AMessage> &notify);
+            const sp<ANetworkSession> &netSession,
+            const sp<AMessage> &notify,
+            bool legacyMode);
 
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
@@ -45,6 +49,10 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
 
     status_t play();
     status_t pause();
+
+    sp<ISurfaceTexture> getSurfaceTexture();
+    int32_t width() const;
+    int32_t height() const;
 
     enum {
         kWhatSessionDead,
@@ -73,6 +81,7 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
+    bool mLegacyMode;
 
     int64_t mLastLifesignUs;
 
@@ -80,6 +89,7 @@ private:
     sp<Serializer> mSerializer;
     sp<TSPacketizer> mPacketizer;
     sp<ALooper> mCodecLooper;
+    sp<BufferQueue> mBufferQueue;
 
     KeyedVector<size_t, sp<Track> > mTracks;
 
