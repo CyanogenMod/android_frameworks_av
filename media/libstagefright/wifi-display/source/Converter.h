@@ -36,6 +36,8 @@ struct Converter : public AHandler {
 
     status_t initCheck() const;
 
+    size_t getInputBufferCount() const;
+
     sp<AMessage> getOutputFormat() const;
 
     void feedAccessUnit(const sp<ABuffer> &accessUnit);

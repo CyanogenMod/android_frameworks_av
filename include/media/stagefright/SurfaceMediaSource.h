@@ -111,6 +111,9 @@ public:
 
     sp<BufferQueue> getBufferQueue() const { return mBufferQueue; }
 
+    // To be called before start()
+    status_t setMaxAcquiredBufferCount(size_t count);
+
 protected:
 
     // Implementation of the BufferQueue::ConsumerListener interface.  These
