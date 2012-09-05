@@ -54,6 +54,10 @@ status_t Converter::initCheck() const {
     return mInitCheck;
 }
 
+size_t Converter::getInputBufferCount() const {
+    return mEncoderInputBuffers.size();
+}
+
 sp<AMessage> Converter::getOutputFormat() const {
     return mOutputFormat;
 }
