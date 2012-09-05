@@ -259,7 +259,29 @@ player_type NuPlayerDriver::playerType() {
 }
 
 status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
-    return INVALID_OPERATION;
+    if (reply == NULL) {
+        ALOGE("reply is a NULL pointer");
+        return BAD_VALUE;
+    }
+
+    int32_t methodId;
+    status_t ret = request.readInt32(&methodId);
+    if (ret != OK) {
+        ALOGE("Failed to retrieve the requested method to invoke");
+        return ret;
+    }
+
+    switch (methodId) {
+        case INVOKE_ID_SET_VIDEO_SCALING_MODE:
+        {
+            int mode = request.readInt32();
+            return mPlayer->setVideoScalingMode(mode);
+        }
+        default:
+        {
+            return INVALID_OPERATION;
+        }
+    }
 }
 
 void NuPlayerDriver::setAudioSink(const sp<AudioSink> &audioSink) {
