@@ -589,10 +589,12 @@ static void parseSizesList(const char *sizesStr, Vector<Size> &sizes)
     }
 }
 
+#ifdef QCOM_HARDWARE
 void CameraParameters::setPostviewSize(int width, int height)
 {
     // dummy
 }
+#endif
 
 void CameraParameters::setPreviewSize(int width, int height)
 {
