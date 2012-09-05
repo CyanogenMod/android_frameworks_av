@@ -19,29 +19,27 @@
 #include "ANetworkSession.h"
 #include "source/WifiDisplaySource.h"
 
+#include <media/IRemoteDisplayClient.h>
+
 namespace android {
 
-RemoteDisplay::RemoteDisplay()
-    : mInitCheck(NO_INIT),
-      mLooper(new ALooper),
+RemoteDisplay::RemoteDisplay(
+        const sp<IRemoteDisplayClient> &client, const char *iface)
+    : mLooper(new ALooper),
       mNetSession(new ANetworkSession),
-      mSource(new WifiDisplaySource(mNetSession)) {
+      mSource(new WifiDisplaySource(mNetSession, client)) {
     mLooper->registerHandler(mSource);
+
+    mNetSession->start();
+    mLooper->start();
+
+    mSource->start(iface);
 }
 
 RemoteDisplay::~RemoteDisplay() {
 }
 
-status_t RemoteDisplay::start(const char *iface) {
-    mNetSession->start();
-    mLooper->start();
-
-    mSource->start(iface);
-
-    return OK;
-}
-
-status_t RemoteDisplay::stop() {
+status_t RemoteDisplay::disconnect() {
     mSource->stop();
 
     mLooper->stop();
@@ -51,4 +49,3 @@ status_t RemoteDisplay::stop() {
 }
 
 }  // namespace android
-
