@@ -2331,10 +2331,19 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         cancelEnd = def.nBufferCountActual;
     }
 
-    for (OMX_U32 i = cancelStart; i < cancelEnd; i++) {
-        BufferInfo *info = &mPortBuffers[kPortIndexOutput].editItemAt(i);
-        cancelBufferToNativeWindow(info);
+#ifdef QCOM_HARDWARE
+    if (err != 0 &&
+        ((mState == LOADED) || (mState == LOADED_TO_IDLE))) {
+        freeBuffersOnPort(kPortIndexOutput);
+    } else {
+#endif
+        for (OMX_U32 i = cancelStart; i < cancelEnd; i++) {
+            BufferInfo *info = &mPortBuffers[kPortIndexOutput].editItemAt(i);
+            cancelBufferToNativeWindow(info);
+        }
+#ifdef QCOM_HARDWARE
     }
+#endif
 
     return err;
 }
