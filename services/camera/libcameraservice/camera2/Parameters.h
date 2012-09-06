@@ -109,6 +109,12 @@ struct Parameters {
     bool recordingHint;
     bool videoStabilization;
 
+    enum lightFxMode_t {
+        LIGHTFX_NONE = 0,
+        LIGHTFX_LOWLIGHT,
+        LIGHTFX_HDR
+    } lightFx;
+
     String8 paramsFlattened;
 
     // These parameters are also part of the camera API-visible state, but not
@@ -198,6 +204,7 @@ struct Parameters {
     static int sceneModeStringToEnum(const char *sceneMode);
     static flashMode_t flashModeStringToEnum(const char *flashMode);
     static focusMode_t focusModeStringToEnum(const char *focusMode);
+    static lightFxMode_t lightFxStringToEnum(const char *lightFxMode);
     static status_t parseAreas(const char *areasCStr,
             Vector<Area> *areas);
     static status_t validateAreas(const Vector<Area> &areas,
