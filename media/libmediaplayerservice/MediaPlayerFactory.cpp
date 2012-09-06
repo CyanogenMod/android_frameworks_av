@@ -246,6 +246,7 @@ class SonivoxPlayerFactory : public MediaPlayerFactory::IFactory {
                                                  ".midi",
                                                  ".smf",
                                                  ".xmf",
+                                                 ".mxmf",
                                                  ".imy",
                                                  ".rtttl",
                                                  ".rtx",
