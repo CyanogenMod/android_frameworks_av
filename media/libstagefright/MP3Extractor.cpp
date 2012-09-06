@@ -228,6 +228,7 @@ protected:
     virtual ~MP3Source();
 
 private:
+    static const size_t kMaxFrameSize;
     sp<MetaData> mMeta;
     sp<DataSource> mDataSource;
     off64_t mFirstFramePos;
@@ -405,6 +406,13 @@ sp<MetaData> MP3Extractor::getTrackMetaData(size_t index, uint32_t flags) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// The theoretical maximum frame size for an MPEG audio stream should occur
+// while playing a Layer 2, MPEGv2.5 audio stream at 160kbps (with padding).
+// The size of this frame should be...
+// ((1152 samples/frame * 160000 bits/sec) /
+//  (8000 samples/sec * 8 bits/byte)) + 1 padding byte/frame = 2881 bytes/frame.
+// Set our max frame size to the nearest power of 2 above this size (aka, 4kB)
+const size_t MP3Source::kMaxFrameSize = (1 << 12); /* 4096 bytes */
 MP3Source::MP3Source(
         const sp<MetaData> &meta, const sp<DataSource> &source,
         off64_t first_frame_pos, uint32_t fixed_header,
@@ -433,7 +441,6 @@ status_t MP3Source::start(MetaData *) {
 
     mGroup = new MediaBufferGroup;
 
-    const size_t kMaxFrameSize = 32768;
     mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
 
     mCurrentPos = mFirstFramePos;
