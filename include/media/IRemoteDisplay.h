@@ -39,10 +39,8 @@ class IRemoteDisplay : public IInterface
 public:
     DECLARE_META_INTERFACE(RemoteDisplay);
 
-    // Disconnects the remote display.
-    // The remote display should respond back to the IRemoteDisplayClient with an
-    // onDisplayDisconnected() event when the disconnection is complete.
-    virtual status_t disconnect() = 0;
+    // Disconnects the remote display and stops listening for new connections.
+    virtual status_t dispose() = 0;
 };
 
 
