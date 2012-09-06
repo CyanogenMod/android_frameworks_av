@@ -95,7 +95,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
     msg->findPointer("headers", (void **)&headers);
 
     if (!(mFlags & kFlagIncognito)) {
-        ALOGI("onLoad '%s'", url.c_str());
+        ALOGV("onLoad '%s'", url.c_str());
     } else {
         ALOGI("onLoad <URL suppressed>");
     }
