@@ -33,7 +33,7 @@ struct WifiDisplaySource;
 struct RemoteDisplay : public BnRemoteDisplay {
     RemoteDisplay(const sp<IRemoteDisplayClient> &client, const char *iface);
 
-    virtual status_t disconnect();
+    virtual status_t dispose();
 
 protected:
     virtual ~RemoteDisplay();
