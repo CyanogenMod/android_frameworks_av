@@ -40,9 +40,9 @@ public:
 
     enum {
         // Error: An unknown / generic error occurred.
-        kErrorUnknown = 0,
+        kDisplayErrorUnknown = 1,
         // Error: The connection was dropped unexpectedly.
-        kErrorConnectionDropped = 1,
+        kDisplayErrorConnectionDropped = 2,
     };
 
     // Indicates that the remote display has been connected successfully.
@@ -52,7 +52,8 @@ public:
             uint32_t width, uint32_t height, uint32_t flags) = 0; // one-way
 
     // Indicates that the remote display has been disconnected normally.
-    // This method should only be called once the client has called 'disconnect()'.
+    // This method should only be called once the client has called 'dispose()'
+    // on the IRemoteDisplay.
     // It is currently an error for the display to disconnect for any other reason.
     virtual void onDisplayDisconnected() = 0; // one-way
 
