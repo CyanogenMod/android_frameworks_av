@@ -42,6 +42,7 @@ JpegProcessor::JpegProcessor(
 
 JpegProcessor::~JpegProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
+    deleteStream();
 }
 
 void JpegProcessor::onFrameAvailable() {
@@ -142,6 +143,11 @@ status_t JpegProcessor::deleteStream() {
         sp<Camera2Device> device = client->getCameraDevice();
 
         device->deleteStream(mCaptureStreamId);
+
+        mCaptureHeap.clear();
+        mCaptureWindow.clear();
+        mCaptureConsumer.clear();
+
         mCaptureStreamId = NO_STREAM;
     }
     return OK;
