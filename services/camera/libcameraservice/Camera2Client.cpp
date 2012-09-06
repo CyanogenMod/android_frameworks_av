@@ -59,12 +59,21 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
     ATRACE_CALL();
-    ALOGV("%s: Created client for camera %d", __FUNCTION__, cameraId);
+    ALOGI("Camera %d: Opened", cameraId);
 
     mDevice = new Camera2Device(cameraId);
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("camera.zsl_mode", value, "0");
+    if (!strcmp(value,"1")) {
+        ALOGI("Camera %d: Enabling ZSL mode", cameraId);
+        l.mParameters.zslMode = true;
+    } else {
+        l.mParameters.zslMode = false;
+    }
 }
 
 status_t Camera2Client::checkPid(const char* checkLocation) const {
@@ -100,20 +109,32 @@ status_t Camera2Client::initialize(camera_module_t *module)
         return NO_INIT;
     }
 
-    mFrameProcessor = new FrameProcessor(this);
-    String8 frameThreadName = String8::format("Camera2Client[%d]::FrameProcessor",
-            mCameraId);
-    mFrameProcessor->run(frameThreadName.string());
+    String8 threadName;
 
-    mCaptureProcessor = new CaptureProcessor(this);
-    String8 captureThreadName =
-            String8::format("Camera2Client[%d]::CaptureProcessor", mCameraId);
-    mCaptureProcessor->run(captureThreadName.string());
+    mFrameProcessor = new FrameProcessor(this);
+    threadName = String8::format("Camera2Client[%d]::FrameProcessor",
+            mCameraId);
+    mFrameProcessor->run(threadName.string());
+
+    mCaptureSequencer = new CaptureSequencer(this);
+    threadName = String8::format("Camera2Client[%d]::CaptureSequencer",
+            mCameraId);
+    mCaptureSequencer->run(threadName.string());
+
+    mJpegProcessor = new JpegProcessor(this, mCaptureSequencer);
+    threadName = String8::format("Camera2Client[%d]::JpegProcessor",
+            mCameraId);
+    mJpegProcessor->run(threadName.string());
+
+    mZslProcessor = new ZslProcessor(this, mCaptureSequencer);
+    threadName = String8::format("Camera2Client[%d]::ZslProcessor",
+            mCameraId);
+    mZslProcessor->run(threadName.string());
 
     mCallbackProcessor = new CallbackProcessor(this);
-    String8 callbackThreadName =
-            String8::format("Camera2Client[%d]::CallbackProcessor", mCameraId);
-    mCallbackProcessor->run(callbackThreadName.string());
+    threadName = String8::format("Camera2Client[%d]::CallbackProcessor",
+            mCameraId);
+    mCallbackProcessor->run(threadName.string());
 
     if (gLogLevel >= 1) {
         ALOGD("%s: Default parameters converted from camera %d:", __FUNCTION__,
@@ -126,7 +147,7 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
 Camera2Client::~Camera2Client() {
     ATRACE_CALL();
-    ALOGV("%s: Camera %d: Shutting down client.", __FUNCTION__, mCameraId);
+    ALOGV("Camera %d: Shutting down", mCameraId);
 
     mDestructionStarted = true;
 
@@ -135,7 +156,7 @@ Camera2Client::~Camera2Client() {
     disconnect();
 
     mFrameProcessor->requestExit();
-    ALOGV("%s: Camera %d: Shutdown complete", __FUNCTION__, mCameraId);
+    ALOGI("Camera %d: Closed", mCameraId);
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
@@ -299,10 +320,12 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
             p.videoStabilization ? "enabled" : "disabled");
 
     result.append("  Current streams:\n");
-    result.appendFormat("    Preview stream ID: %d\n", mPreviewStreamId);
+    result.appendFormat("    Preview stream ID: %d\n",
+            getPreviewStreamId());
     result.appendFormat("    Capture stream ID: %d\n",
-            mCaptureProcessor->getStreamId());
-    result.appendFormat("    Recording stream ID: %d\n", mRecordingStreamId);
+            getCaptureStreamId());
+    result.appendFormat("    Recording stream ID: %d\n",
+            getRecordingStreamId());
 
     result.append("  Current requests:\n");
     if (mPreviewRequest.entryCount() != 0) {
@@ -314,15 +337,6 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         write(fd, result.string(), result.size());
     }
 
-    if (mCaptureRequest.entryCount() != 0) {
-        result = "    Capture request:\n";
-        write(fd, result.string(), result.size());
-        mCaptureRequest.dump(fd, 2, 6);
-    } else {
-        result = "    Capture request: undefined\n";
-        write(fd, result.string(), result.size());
-    }
-
     if (mRecordingRequest.entryCount() != 0) {
         result = "    Recording request:\n";
         write(fd, result.string(), result.size());
@@ -331,6 +345,8 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         result = "    Recording request: undefined\n";
         write(fd, result.string(), result.size());
     }
+
+    mCaptureSequencer->dump(fd, args);
 
     mFrameProcessor->dump(fd, args);
 
@@ -366,7 +382,7 @@ void Camera2Client::disconnect() {
         mPreviewStreamId = NO_STREAM;
     }
 
-    mCaptureProcessor->deleteStream();
+    mJpegProcessor->deleteStream();
 
     if (mRecordingStreamId != NO_STREAM) {
         mDevice->deleteStream(mRecordingStreamId);
@@ -623,6 +639,14 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             return res;
         }
     }
+    if (params.zslMode) {
+        res = mZslProcessor->updateStream(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update ZSL stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
 
     if (mPreviewRequest.entryCount() == 0) {
         res = updatePreviewRequest(params);
@@ -633,18 +657,20 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         }
     }
 
+    Vector<uint8_t> outputStreams;
+    outputStreams.push(getPreviewStreamId());
+
     if (callbacksEnabled) {
-        uint8_t outputStreams[2] =
-                { mPreviewStreamId, mCallbackProcessor->getStreamId() };
-        res = mPreviewRequest.update(
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                outputStreams, 2);
-    } else {
-        uint8_t outputStreams[1] = { mPreviewStreamId };
-        res = mPreviewRequest.update(
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                outputStreams, 1);
+        outputStreams.push(getCallbackStreamId());
     }
+    if (params.zslMode) {
+        outputStreams.push(getZslStreamId());
+    }
+
+    res = mPreviewRequest.update(
+        ANDROID_REQUEST_OUTPUT_STREAMS,
+        outputStreams);
+
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -817,14 +843,19 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     }
 
     if (callbacksEnabled) {
-        uint8_t outputStreams[3] =
-                { mPreviewStreamId, mRecordingStreamId,
-                  mCallbackProcessor->getStreamId() };
+        uint8_t outputStreams[3] ={
+            getPreviewStreamId(),
+            getRecordingStreamId(),
+            getCallbackStreamId()
+        };
         res = mRecordingRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 3);
     } else {
-        uint8_t outputStreams[2] = { mPreviewStreamId, mRecordingStreamId };
+        uint8_t outputStreams[2] = {
+            getPreviewStreamId(),
+            getRecordingStreamId()
+        };
         res = mRecordingRequest.update(
                 ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 2);
@@ -1020,8 +1051,18 @@ status_t Camera2Client::takePicture(int msgType) {
                     __FUNCTION__, mCameraId);
             return INVALID_OPERATION;
         case Parameters::PREVIEW:
-        case Parameters::RECORD:
             // Good to go for takePicture
+            res = commandStopFaceDetectionL(l.mParameters);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
+                        __FUNCTION__, mCameraId);
+                return res;
+            }
+            l.mParameters.state = Parameters::STILL_CAPTURE;
+            break;
+        case Parameters::RECORD:
+            // Good to go for video snapshot
+            l.mParameters.state = Parameters::VIDEO_SNAPSHOT;
             break;
         case Parameters::STILL_CAPTURE:
         case Parameters::VIDEO_SNAPSHOT:
@@ -1032,130 +1073,20 @@ status_t Camera2Client::takePicture(int msgType) {
 
     ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
-    res = mCaptureProcessor->updateStream(l.mParameters);
+    res = mJpegProcessor->updateStream(l.mParameters);
     if (res != OK) {
         ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
-    if (mCaptureRequest.entryCount() == 0) {
-        res = updateCaptureRequest(l.mParameters);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't create still image capture request: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    bool callbacksEnabled = l.mParameters.previewCallbackFlags &
-            CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
-    bool recordingEnabled = (l.mParameters.state == Parameters::RECORD);
-
-    int captureStreamId = mCaptureProcessor->getStreamId();
-
-    int streamSwitch = (callbacksEnabled ? 0x2 : 0x0) +
-            (recordingEnabled ? 0x1 : 0x0);
-    switch ( streamSwitch ) {
-        case 0: { // No recording, callbacks
-            uint8_t streamIds[2] = {
-                mPreviewStreamId,
-                captureStreamId
-            };
-            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
-                    streamIds, 2);
-            break;
-        }
-        case 1: { // Recording
-            uint8_t streamIds[3] = {
-                mPreviewStreamId,
-                mRecordingStreamId,
-                captureStreamId
-            };
-            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
-                    streamIds, 3);
-            break;
-        }
-        case 2: { // Callbacks
-            uint8_t streamIds[3] = {
-                mPreviewStreamId,
-                mCallbackProcessor->getStreamId(),
-                captureStreamId
-            };
-            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
-                    streamIds, 3);
-            break;
-        }
-        case 3: { // Both
-            uint8_t streamIds[4] = {
-                mPreviewStreamId,
-                mCallbackProcessor->getStreamId(),
-                mRecordingStreamId,
-                captureStreamId
-            };
-            res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
-                    streamIds, 4);
-            break;
-        }
-    };
+    res = mCaptureSequencer->startCapture();
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set up still image capture request: "
-                "%s (%d)",
+        ALOGE("%s: Camera %d: Unable to start capture: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-    res = mCaptureRequest.sort();
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to sort capture request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
     }
 
-    CameraMetadata captureCopy = mCaptureRequest;
-    if (captureCopy.entryCount() == 0) {
-        ALOGE("%s: Camera %d: Unable to copy capture request for HAL device",
-                __FUNCTION__, mCameraId);
-        return NO_MEMORY;
-    }
-
-    if (l.mParameters.state == Parameters::PREVIEW) {
-        res = mDevice->clearStreamingRequest();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
-                    "%s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-    // TODO: Capture should be atomic with setStreamingRequest here
-    res = mDevice->capture(captureCopy);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to submit still image capture request: "
-                "%s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-
-    switch (l.mParameters.state) {
-        case Parameters::PREVIEW:
-            l.mParameters.state = Parameters::STILL_CAPTURE;
-            res = commandStopFaceDetectionL(l.mParameters);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
-                        __FUNCTION__, mCameraId);
-                return res;
-            }
-            break;
-        case Parameters::RECORD:
-            l.mParameters.state = Parameters::VIDEO_SNAPSHOT;
-            break;
-        default:
-            ALOGE("%s: Camera %d: Unknown state for still capture!",
-                    __FUNCTION__, mCameraId);
-            return INVALID_OPERATION;
-    }
-
-    return OK;
+    return res;
 }
 
 status_t Camera2Client::setParameters(const String8& params) {
@@ -1501,6 +1432,7 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
 void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
     ALOGV("%s: Autoexposure state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
+    mCaptureSequencer->notifyAutoExposure(newState, triggerId);
 }
 
 void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
@@ -1508,7 +1440,7 @@ void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
             __FUNCTION__, newState, triggerId);
 }
 
-int Camera2Client::getCameraId() {
+int Camera2Client::getCameraId() const {
     return mCameraId;
 }
 
@@ -1518,6 +1450,35 @@ const sp<Camera2Device>& Camera2Client::getCameraDevice() {
 
 camera2::SharedParameters& Camera2Client::getParameters() {
     return mParameters;
+}
+
+int Camera2Client::getPreviewStreamId() const {
+    return mPreviewStreamId;
+}
+
+int Camera2Client::getCaptureStreamId() const {
+    return mJpegProcessor->getStreamId();
+}
+
+int Camera2Client::getCallbackStreamId() const {
+    return mCallbackProcessor->getStreamId();
+}
+
+int Camera2Client::getRecordingStreamId() const {
+    return mRecordingStreamId;
+}
+
+int Camera2Client::getZslStreamId() const {
+    return mZslProcessor->getStreamId();
+}
+
+status_t Camera2Client::registerFrameListener(int32_t id,
+        wp<camera2::FrameProcessor::FilteredListener> listener) {
+    return mFrameProcessor->registerListener(id, listener);
+}
+
+status_t Camera2Client::removeFrameListener(int32_t id) {
+    return mFrameProcessor->removeListener(id);
 }
 
 Camera2Client::SharedCameraClient::Lock::Lock(SharedCameraClient &client):
@@ -1545,6 +1506,10 @@ void Camera2Client::SharedCameraClient::clear() {
     Mutex::Autolock l(mCameraClientLock);
     mCameraClient.clear();
 }
+
+const int32_t Camera2Client::kPreviewRequestId;
+const int32_t Camera2Client::kRecordRequestId;
+const int32_t Camera2Client::kFirstCaptureRequestId;
 
 void Camera2Client::onRecordingFrameAvailable() {
     ATRACE_CALL();
@@ -1656,13 +1621,6 @@ status_t Camera2Client::updateRequests(const Parameters &params) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = updateCaptureRequest(params);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update capture request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-
     res = updateRecordingRequest(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
@@ -1761,7 +1719,7 @@ status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
         }
     }
 
-    res = updateRequestCommon(&mPreviewRequest, params);
+    res = params.updateRequest(&mPreviewRequest);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of preview "
                 "request: %s (%d)", __FUNCTION__, mCameraId,
@@ -1769,65 +1727,8 @@ status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
         return res;
     }
 
-    return OK;
-}
-
-status_t Camera2Client::updateCaptureRequest(const Parameters &params) {
-    ATRACE_CALL();
-    status_t res;
-    if (mCaptureRequest.entryCount() == 0) {
-        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_STILL_CAPTURE,
-                &mCaptureRequest);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create default still image request:"
-                    " %s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    res = updateRequestCommon(&mCaptureRequest, params);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update common entries of capture "
-                "request: %s (%d)", __FUNCTION__, mCameraId,
-                strerror(-res), res);
-        return res;
-    }
-
-    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_SIZE,
-            params.jpegThumbSize, 2);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_QUALITY,
-            &params.jpegThumbQuality, 1);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(ANDROID_JPEG_QUALITY,
-            &params.jpegQuality, 1);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(
-            ANDROID_JPEG_ORIENTATION,
-            &params.jpegRotation, 1);
-    if (res != OK) return res;
-
-    if (params.gpsEnabled) {
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_COORDINATES,
-                params.gpsCoordinates, 3);
-        if (res != OK) return res;
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_TIMESTAMP,
-                &params.gpsTimestamp, 1);
-        if (res != OK) return res;
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_PROCESSING_METHOD,
-                params.gpsProcessingMethod);
-        if (res != OK) return res;
-    } else {
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_COORDINATES);
-        if (res != OK) return res;
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_TIMESTAMP);
-        if (res != OK) return res;
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_PROCESSING_METHOD);
-        if (res != OK) return res;
-    }
+    res = mPreviewRequest.update(ANDROID_REQUEST_ID,
+            &kPreviewRequestId, 1);
 
     return OK;
 }
@@ -1845,7 +1746,7 @@ status_t Camera2Client::updateRecordingRequest(const Parameters &params) {
         }
     }
 
-    res = updateRequestCommon(&mRecordingRequest, params);
+    res = params.updateRequest(&mRecordingRequest);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of recording "
                 "request: %s (%d)", __FUNCTION__, mCameraId,
@@ -1909,197 +1810,6 @@ status_t Camera2Client::updateRecordingStream(const Parameters &params) {
             return res;
         }
     }
-
-    return OK;
-}
-
-status_t Camera2Client::updateRequestCommon(CameraMetadata *request,
-        const Parameters &params) const {
-    ATRACE_CALL();
-    status_t res;
-    res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
-            params.previewFpsRange, 2);
-    if (res != OK) return res;
-
-    uint8_t wbMode = params.autoWhiteBalanceLock ?
-            (uint8_t)ANDROID_CONTROL_AWB_LOCKED : params.wbMode;
-    res = request->update(ANDROID_CONTROL_AWB_MODE,
-            &wbMode, 1);
-    if (res != OK) return res;
-    res = request->update(ANDROID_CONTROL_EFFECT_MODE,
-            &params.effectMode, 1);
-    if (res != OK) return res;
-    res = request->update(ANDROID_CONTROL_AE_ANTIBANDING_MODE,
-            &params.antibandingMode, 1);
-    if (res != OK) return res;
-
-    uint8_t controlMode =
-            (params.sceneMode == ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ?
-            ANDROID_CONTROL_AUTO : ANDROID_CONTROL_USE_SCENE_MODE;
-    res = request->update(ANDROID_CONTROL_MODE,
-            &controlMode, 1);
-    if (res != OK) return res;
-    if (controlMode == ANDROID_CONTROL_USE_SCENE_MODE) {
-        res = request->update(ANDROID_CONTROL_SCENE_MODE,
-                &params.sceneMode, 1);
-        if (res != OK) return res;
-    }
-
-    uint8_t flashMode = ANDROID_FLASH_OFF;
-    uint8_t aeMode;
-    switch (params.flashMode) {
-        case Parameters::FLASH_MODE_OFF:
-            aeMode = ANDROID_CONTROL_AE_ON; break;
-        case Parameters::FLASH_MODE_AUTO:
-            aeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH; break;
-        case Parameters::FLASH_MODE_ON:
-            aeMode = ANDROID_CONTROL_AE_ON_ALWAYS_FLASH; break;
-        case Parameters::FLASH_MODE_TORCH:
-            aeMode = ANDROID_CONTROL_AE_ON;
-            flashMode = ANDROID_FLASH_TORCH;
-            break;
-        case Parameters::FLASH_MODE_RED_EYE:
-            aeMode = ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE; break;
-        default:
-            ALOGE("%s: Camera %d: Unknown flash mode %d", __FUNCTION__,
-                    mCameraId, params.flashMode);
-            return BAD_VALUE;
-    }
-    if (params.autoExposureLock) aeMode = ANDROID_CONTROL_AE_LOCKED;
-
-    res = request->update(ANDROID_FLASH_MODE,
-            &flashMode, 1);
-    if (res != OK) return res;
-    res = request->update(ANDROID_CONTROL_AE_MODE,
-            &aeMode, 1);
-    if (res != OK) return res;
-
-    float focusDistance = 0; // infinity focus in diopters
-    uint8_t focusMode;
-    switch (params.focusMode) {
-        case Parameters::FOCUS_MODE_AUTO:
-        case Parameters::FOCUS_MODE_MACRO:
-        case Parameters::FOCUS_MODE_CONTINUOUS_VIDEO:
-        case Parameters::FOCUS_MODE_CONTINUOUS_PICTURE:
-        case Parameters::FOCUS_MODE_EDOF:
-            focusMode = params.focusMode;
-            break;
-        case Parameters::FOCUS_MODE_INFINITY:
-        case Parameters::FOCUS_MODE_FIXED:
-            focusMode = ANDROID_CONTROL_AF_OFF;
-            break;
-        default:
-            ALOGE("%s: Camera %d: Unknown focus mode %d", __FUNCTION__,
-                    mCameraId, params.focusMode);
-            return BAD_VALUE;
-    }
-    res = request->update(ANDROID_LENS_FOCUS_DISTANCE,
-            &focusDistance, 1);
-    if (res != OK) return res;
-    res = request->update(ANDROID_CONTROL_AF_MODE,
-            &focusMode, 1);
-    if (res != OK) return res;
-
-    size_t focusingAreasSize = params.focusingAreas.size() * 5;
-    int32_t *focusingAreas = new int32_t[focusingAreasSize];
-    for (size_t i = 0; i < focusingAreasSize; i += 5) {
-        if (params.focusingAreas[i].weight != 0) {
-            focusingAreas[i + 0] =
-                    params.normalizedXToArray(params.focusingAreas[i].left);
-            focusingAreas[i + 1] =
-                    params.normalizedYToArray(params.focusingAreas[i].top);
-            focusingAreas[i + 2] =
-                    params.normalizedXToArray(params.focusingAreas[i].right);
-            focusingAreas[i + 3] =
-                    params.normalizedYToArray(params.focusingAreas[i].bottom);
-        } else {
-            focusingAreas[i + 0] = 0;
-            focusingAreas[i + 1] = 0;
-            focusingAreas[i + 2] = 0;
-            focusingAreas[i + 3] = 0;
-        }
-        focusingAreas[i + 4] = params.focusingAreas[i].weight;
-    }
-    res = request->update(ANDROID_CONTROL_AF_REGIONS,
-            focusingAreas,focusingAreasSize);
-    if (res != OK) return res;
-    delete[] focusingAreas;
-
-    res = request->update(ANDROID_CONTROL_AE_EXP_COMPENSATION,
-            &params.exposureCompensation, 1);
-    if (res != OK) return res;
-
-    size_t meteringAreasSize = params.meteringAreas.size() * 5;
-    int32_t *meteringAreas = new int32_t[meteringAreasSize];
-    for (size_t i = 0; i < meteringAreasSize; i += 5) {
-        if (params.meteringAreas[i].weight != 0) {
-            meteringAreas[i + 0] =
-                params.normalizedXToArray(params.meteringAreas[i].left);
-            meteringAreas[i + 1] =
-                params.normalizedYToArray(params.meteringAreas[i].top);
-            meteringAreas[i + 2] =
-                params.normalizedXToArray(params.meteringAreas[i].right);
-            meteringAreas[i + 3] =
-                params.normalizedYToArray(params.meteringAreas[i].bottom);
-        } else {
-            meteringAreas[i + 0] = 0;
-            meteringAreas[i + 1] = 0;
-            meteringAreas[i + 2] = 0;
-            meteringAreas[i + 3] = 0;
-        }
-        meteringAreas[i + 4] = params.meteringAreas[i].weight;
-    }
-    res = request->update(ANDROID_CONTROL_AE_REGIONS,
-            meteringAreas, meteringAreasSize);
-    if (res != OK) return res;
-
-    res = request->update(ANDROID_CONTROL_AWB_REGIONS,
-            meteringAreas, meteringAreasSize);
-    if (res != OK) return res;
-    delete[] meteringAreas;
-
-    // Need to convert zoom index into a crop rectangle. The rectangle is
-    // chosen to maximize its area on the sensor
-
-    camera_metadata_ro_entry_t maxDigitalZoom =
-            mParameters.staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
-    float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
-            (params.NUM_ZOOM_STEPS-1);
-    float zoomRatio = 1 + zoomIncrement * params.zoom;
-
-    float zoomLeft, zoomTop, zoomWidth, zoomHeight;
-    if (params.previewWidth >= params.previewHeight) {
-        zoomWidth =  params.fastInfo.arrayWidth / zoomRatio;
-        zoomHeight = zoomWidth *
-                params.previewHeight / params.previewWidth;
-    } else {
-        zoomHeight = params.fastInfo.arrayHeight / zoomRatio;
-        zoomWidth = zoomHeight *
-                params.previewWidth / params.previewHeight;
-    }
-    zoomLeft = (params.fastInfo.arrayWidth - zoomWidth) / 2;
-    zoomTop = (params.fastInfo.arrayHeight - zoomHeight) / 2;
-
-    int32_t cropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
-    res = request->update(ANDROID_SCALER_CROP_REGION,
-            cropRegion, 3);
-    if (res != OK) return res;
-
-    // TODO: Decide how to map recordingHint, or whether just to ignore it
-
-    uint8_t vstabMode = params.videoStabilization ?
-            ANDROID_CONTROL_VIDEO_STABILIZATION_ON :
-            ANDROID_CONTROL_VIDEO_STABILIZATION_OFF;
-    res = request->update(ANDROID_CONTROL_VIDEO_STABILIZATION_MODE,
-            &vstabMode, 1);
-    if (res != OK) return res;
-
-    uint8_t faceDetectMode = params.enableFaceDetect ?
-            params.fastInfo.bestFaceDetectMode :
-            (uint8_t)ANDROID_STATS_FACE_DETECTION_OFF;
-    res = request->update(ANDROID_STATS_FACE_DETECT_MODE,
-            &faceDetectMode, 1);
-    if (res != OK) return res;
 
     return OK;
 }

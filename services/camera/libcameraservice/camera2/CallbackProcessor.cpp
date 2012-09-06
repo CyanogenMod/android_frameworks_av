@@ -136,7 +136,7 @@ int CallbackProcessor::getStreamId() const {
     return mCallbackStreamId;
 }
 
-void CallbackProcessor::dump(int fd, const Vector<String16>& args) {
+void CallbackProcessor::dump(int fd, const Vector<String16>& args) const {
 }
 
 bool CallbackProcessor::threadLoop() {

@@ -80,6 +80,12 @@ class Camera2Device : public virtual RefBase {
             int *id);
 
     /**
+     * Create an input reprocess stream that uses buffers from an existing
+     * output stream.
+     */
+    status_t createReprocessStreamFromStream(int outputId, int *id);
+
+    /**
      * Get information about a given stream.
      */
     status_t getStreamInfo(int id,
@@ -95,6 +101,12 @@ class Camera2Device : public virtual RefBase {
      * reference that stream.
      */
     status_t deleteStream(int id);
+
+    /**
+     * Delete reprocess stream. Must not be called if there are requests in
+     * flight which reference that stream.
+     */
+    status_t deleteReprocessStream(int id);
 
     /**
      * Create a metadata buffer with fields that the HAL device believes are
@@ -162,6 +174,21 @@ class Camera2Device : public virtual RefBase {
      * notifications.
      */
     status_t triggerPrecaptureMetering(uint32_t id);
+
+    /**
+     * Abstract interface for clients that want to listen to reprocess buffer
+     * release events
+     */
+    struct BufferReleasedListener: public virtual RefBase {
+        virtual void onBufferReleased(buffer_handle_t *handle) = 0;
+    };
+
+    /**
+     * Push a buffer to be reprocessed into a reprocessing stream, and
+     * provide a listener to call once the buffer is returned by the HAL
+     */
+    status_t pushReprocessBuffer(int reprocessStreamId,
+            buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
   private:
 
@@ -342,6 +369,86 @@ class Camera2Device : public virtual RefBase {
 
     typedef List<sp<StreamAdapter> > StreamList;
     StreamList mStreams;
+
+    /**
+     * Adapter from an ANativeWindow interface to camera2 device stream ops.
+     * Also takes care of allocating/deallocating stream in device interface
+     */
+    class ReprocessStreamAdapter: public camera2_stream_in_ops, public virtual RefBase {
+      public:
+        ReprocessStreamAdapter(camera2_device_t *d);
+
+        ~ReprocessStreamAdapter();
+
+        /**
+         * Create a HAL device reprocess stream based on an existing output stream.
+         */
+        status_t connectToDevice(const sp<StreamAdapter> &outputStream);
+
+        status_t release();
+
+        /**
+         * Push buffer into stream for reprocessing. Takes ownership until it notifies
+         * that the buffer has been released
+         */
+        status_t pushIntoStream(buffer_handle_t *handle,
+                const wp<BufferReleasedListener> &releaseListener);
+
+        /**
+         * Get stream parameters.
+         * Only valid after a successful connectToDevice call.
+         */
+        int      getId() const     { return mId; }
+        uint32_t getWidth() const  { return mWidth; }
+        uint32_t getHeight() const { return mHeight; }
+        uint32_t getFormat() const { return mFormat; }
+
+        // Dump stream information
+        status_t dump(int fd, const Vector<String16>& args);
+
+      private:
+        enum {
+            ERROR = -1,
+            RELEASED = 0,
+            ACTIVE
+        } mState;
+
+        sp<ANativeWindow> mConsumerInterface;
+        wp<StreamAdapter> mBaseStream;
+
+        struct QueueEntry {
+            buffer_handle_t *handle;
+            wp<BufferReleasedListener> releaseListener;
+        };
+
+        List<QueueEntry> mQueue;
+
+        List<QueueEntry> mInFlightQueue;
+
+        camera2_device_t *mDevice;
+
+        uint32_t mId;
+        uint32_t mWidth;
+        uint32_t mHeight;
+        uint32_t mFormat;
+
+        /** Debugging information */
+        uint32_t mActiveBuffers;
+        uint32_t mFrameCount;
+        int64_t  mLastTimestamp;
+
+        const camera2_stream_in_ops *getStreamOps();
+
+        static int acquire_buffer(const camera2_stream_in_ops_t *w,
+                buffer_handle_t** buffer);
+
+        static int release_buffer(const camera2_stream_in_ops_t* w,
+                buffer_handle_t* buffer);
+
+    }; // class ReprocessStreamAdapter
+
+    typedef List<sp<ReprocessStreamAdapter> > ReprocessStreamList;
+    ReprocessStreamList mReprocessStreams;
 
     // Receives HAL notifications and routes them to the NotificationListener
     static void notificationCallback(int32_t msg_type,

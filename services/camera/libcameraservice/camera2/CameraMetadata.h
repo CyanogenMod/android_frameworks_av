@@ -87,6 +87,11 @@ class CameraMetadata {
     size_t entryCount() const;
 
     /**
+     * Is the buffer empty (no entires)
+     */
+    bool isEmpty() const;
+
+    /**
      * Sort metadata buffer for faster find
      */
     status_t sort();
