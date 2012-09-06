@@ -93,9 +93,10 @@ private:
     int32_t mSampleRate;
     int64_t mLatencyUs;
     size_t mFrameSize;
+    int64_t mTimeStarted;
+    int64_t mTimePlayed;
     int64_t mNumFramesPlayed;
     int64_t mNumFramesPlayedSysTimeUs;
-    int64_t mNumA2DPBytesPlayed;
     void clearPowerManager();
 
     class PMDeathRecipient : public IBinder::DeathRecipient {
