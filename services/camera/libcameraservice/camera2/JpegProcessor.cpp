@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Client::CaptureProcessor"
+#define LOG_TAG "Camera2Client::JpegProcessor"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
-#include "CaptureProcessor.h"
+#include "JpegProcessor.h"
 #include <gui/SurfaceTextureClient.h>
 #include "../Camera2Device.h"
 #include "../Camera2Client.h"
@@ -30,18 +30,21 @@
 namespace android {
 namespace camera2 {
 
-CaptureProcessor::CaptureProcessor(wp<Camera2Client> client):
+JpegProcessor::JpegProcessor(
+    wp<Camera2Client> client,
+    wp<CaptureSequencer> sequencer):
         Thread(false),
         mClient(client),
+        mSequencer(sequencer),
         mCaptureAvailable(false),
         mCaptureStreamId(NO_STREAM) {
 }
 
-CaptureProcessor::~CaptureProcessor() {
+JpegProcessor::~JpegProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
 }
 
-void CaptureProcessor::onFrameAvailable() {
+void JpegProcessor::onFrameAvailable() {
     Mutex::Autolock l(mInputMutex);
     if (!mCaptureAvailable) {
         mCaptureAvailable = true;
@@ -49,7 +52,7 @@ void CaptureProcessor::onFrameAvailable() {
     }
 }
 
-status_t CaptureProcessor::updateStream(const Parameters &params) {
+status_t JpegProcessor::updateStream(const Parameters &params) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
     status_t res;
@@ -127,7 +130,7 @@ status_t CaptureProcessor::updateStream(const Parameters &params) {
     return OK;
 }
 
-status_t CaptureProcessor::deleteStream() {
+status_t JpegProcessor::deleteStream() {
     ATRACE_CALL();
     status_t res;
 
@@ -144,15 +147,15 @@ status_t CaptureProcessor::deleteStream() {
     return OK;
 }
 
-int CaptureProcessor::getStreamId() const {
+int JpegProcessor::getStreamId() const {
     Mutex::Autolock l(mInputMutex);
     return mCaptureStreamId;
 }
 
-void CaptureProcessor::dump(int fd, const Vector<String16>& args) {
+void JpegProcessor::dump(int fd, const Vector<String16>& args) const {
 }
 
-bool CaptureProcessor::threadLoop() {
+bool JpegProcessor::threadLoop() {
     status_t res;
 
     {
@@ -174,7 +177,7 @@ bool CaptureProcessor::threadLoop() {
     return true;
 }
 
-status_t CaptureProcessor::processNewCapture(sp<Camera2Client> &client) {
+status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     ATRACE_CALL();
     status_t res;
     sp<Camera2Heap> captureHeap;
@@ -200,10 +203,7 @@ status_t CaptureProcessor::processNewCapture(sp<Camera2Client> &client) {
 
         switch (l.mParameters.state) {
             case Parameters::STILL_CAPTURE:
-                l.mParameters.state = Parameters::STOPPED;
-                break;
             case Parameters::VIDEO_SNAPSHOT:
-                l.mParameters.state = Parameters::RECORD;
                 break;
             default:
                 ALOGE("%s: Camera %d: Still image produced unexpectedly "
@@ -222,6 +222,11 @@ status_t CaptureProcessor::processNewCapture(sp<Camera2Client> &client) {
                 HAL_PIXEL_FORMAT_BLOB);
         mCaptureConsumer->unlockBuffer(imgBuffer);
         return OK;
+    }
+
+    sp<CaptureSequencer> sequencer = mSequencer.promote();
+    if (sequencer != 0) {
+        sequencer->onCaptureAvailable(imgBuffer.timestamp);
     }
 
     // TODO: Optimize this to avoid memcopy

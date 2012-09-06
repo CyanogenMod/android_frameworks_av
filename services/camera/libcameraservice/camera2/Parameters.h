@@ -29,12 +29,17 @@
 namespace android {
 namespace camera2 {
 
-// Current camera state; this is the full state of the Camera under the old
-// camera API (contents of the CameraParameters object in a more-efficient
-// format, plus other state). The enum values are mostly based off the
-// corresponding camera2 enums, not the camera1 strings. A few are defined here
-// if they don't cleanly map to camera2 values.
+/**
+ * Current camera state; this is the full state of the Camera under the old
+ * camera API (contents of the CameraParameters object in a more-efficient
+ * format, plus other state). The enum values are mostly based off the
+ * corresponding camera2 enums, not the camera1 strings. A few are defined here
+ * if they don't cleanly map to camera2 values.
+ */
 struct Parameters {
+    /**
+     * Parameters and other state
+     */
     int cameraId;
     int cameraFacing;
 
@@ -117,8 +122,12 @@ struct Parameters {
     int currentAfTriggerId;
     bool afInMotion;
 
+    int precaptureTriggerCounter;
+
     uint32_t previewCallbackFlags;
     bool previewCallbackOneShot;
+
+    bool zslMode;
 
     // Overall camera state
     enum State {
@@ -149,7 +158,9 @@ struct Parameters {
         int32_t maxFaces;
     } fastInfo;
 
-    // Parameter manipulation and setup methods
+    /**
+     * Parameter manipulation and setup methods
+     */
 
     Parameters(int cameraId, int cameraFacing);
     ~Parameters();
@@ -169,6 +180,9 @@ struct Parameters {
 
     // Validate and update camera parameters based on new settings
     status_t set(const String8 &params);
+
+    // Update passed-in request for common parameters
+    status_t updateRequest(CameraMetadata *request) const;
 
     // Static methods for debugging and converting between camera1 and camera2
     // parameters

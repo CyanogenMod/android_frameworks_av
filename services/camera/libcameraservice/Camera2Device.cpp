@@ -206,6 +206,42 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
     return OK;
 }
 
+status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
+    status_t res;
+    ALOGV("%s: E", __FUNCTION__);
+
+    bool found = false;
+    StreamList::iterator streamI;
+    for (streamI = mStreams.begin();
+         streamI != mStreams.end(); streamI++) {
+        if ((*streamI)->getId() == outputId) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Output stream %d doesn't exist; can't create "
+                "reprocess stream from it!", __FUNCTION__, mId, outputId);
+        return BAD_VALUE;
+    }
+
+    sp<ReprocessStreamAdapter> stream = new ReprocessStreamAdapter(mDevice);
+
+    res = stream->connectToDevice((*streamI));
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to create reprocessing stream from "\
+                "stream %d: %s (%d)", __FUNCTION__, mId, outputId,
+                strerror(-res), res);
+        return res;
+    }
+
+    *id = stream->getId();
+
+    mReprocessStreams.push_back(stream);
+    return OK;
+}
+
+
 status_t Camera2Device::getStreamInfo(int id,
         uint32_t *width, uint32_t *height, uint32_t *format) {
     ALOGV("%s: E", __FUNCTION__);
@@ -276,6 +312,33 @@ status_t Camera2Device::deleteStream(int id) {
     }
     return OK;
 }
+
+status_t Camera2Device::deleteReprocessStream(int id) {
+    ALOGV("%s: E", __FUNCTION__);
+    bool found = false;
+    for (ReprocessStreamList::iterator streamI = mReprocessStreams.begin();
+         streamI != mReprocessStreams.end(); streamI++) {
+        if ((*streamI)->getId() == id) {
+            status_t res = (*streamI)->release();
+            if (res != OK) {
+                ALOGE("%s: Unable to release reprocess stream %d from "
+                        "HAL device: %s (%d)", __FUNCTION__, id,
+                        strerror(-res), res);
+                return res;
+            }
+            mReprocessStreams.erase(streamI);
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Unable to find stream %d to delete",
+                __FUNCTION__, mId, id);
+        return BAD_VALUE;
+    }
+    return OK;
+}
+
 
 status_t Camera2Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
@@ -401,6 +464,32 @@ status_t Camera2Device::triggerPrecaptureMetering(uint32_t id) {
     if (res != OK) {
         ALOGE("%s: Error triggering precapture metering (id %d)",
                 __FUNCTION__, id);
+    }
+    return res;
+}
+
+status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
+        buffer_handle_t *buffer, wp<BufferReleasedListener> listener) {
+    ALOGV("%s: E", __FUNCTION__);
+    bool found = false;
+    status_t res = OK;
+    for (ReprocessStreamList::iterator streamI = mReprocessStreams.begin();
+         streamI != mReprocessStreams.end(); streamI++) {
+        if ((*streamI)->getId() == reprocessStreamId) {
+            res = (*streamI)->pushIntoStream(buffer, listener);
+            if (res != OK) {
+                ALOGE("%s: Unable to push buffer to reprocess stream %d: %s (%d)",
+                        __FUNCTION__, reprocessStreamId, strerror(-res), res);
+                return res;
+            }
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        ALOGE("%s: Camera %d: Unable to find reprocess stream %d",
+                __FUNCTION__, mId, reprocessStreamId);
+        res = BAD_VALUE;
     }
     return res;
 }
@@ -903,7 +992,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         }
 
         buffers[bufferIdx] = anwBuffers[bufferIdx]->handle;
-        ALOGV("%s: Buffer %p allocated", __FUNCTION__, (void*)(buffers[bufferIdx]));
+        ALOGV("%s: Buffer %p allocated", __FUNCTION__, (void*)buffers[bufferIdx]);
     }
 
     ALOGV("%s: Registering %d buffers with camera HAL", __FUNCTION__, mTotalBuffers);
@@ -1094,5 +1183,198 @@ int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,
     return native_window_set_crop(a, &crop);
 }
 
+/**
+ * Camera2Device::ReprocessStreamAdapter
+ */
+
+#ifndef container_of
+#define container_of(ptr, type, member) \
+    (type *)((char*)(ptr) - offsetof(type, member))
+#endif
+
+Camera2Device::ReprocessStreamAdapter::ReprocessStreamAdapter(camera2_device_t *d):
+        mState(RELEASED),
+        mDevice(d),
+        mId(-1),
+        mWidth(0), mHeight(0), mFormat(0),
+        mActiveBuffers(0),
+        mFrameCount(0)
+{
+    camera2_stream_in_ops::acquire_buffer = acquire_buffer;
+    camera2_stream_in_ops::release_buffer = release_buffer;
+}
+
+Camera2Device::ReprocessStreamAdapter::~ReprocessStreamAdapter() {
+    if (mState != RELEASED) {
+        release();
+    }
+}
+
+status_t Camera2Device::ReprocessStreamAdapter::connectToDevice(
+        const sp<StreamAdapter> &outputStream) {
+    status_t res;
+    ALOGV("%s: E", __FUNCTION__);
+
+    if (mState != RELEASED) return INVALID_OPERATION;
+    if (outputStream == NULL) {
+        ALOGE("%s: Null base stream passed to reprocess stream adapter",
+                __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    mBaseStream = outputStream;
+    mWidth = outputStream->getWidth();
+    mHeight = outputStream->getHeight();
+    mFormat = outputStream->getFormat();
+
+    ALOGV("%s: New reprocess stream parameters %d x %d, format 0x%x",
+            __FUNCTION__, mWidth, mHeight, mFormat);
+
+    // Allocate device-side stream interface
+
+    uint32_t id;
+    res = mDevice->ops->allocate_reprocess_stream_from_stream(mDevice,
+            outputStream->getId(), getStreamOps(),
+            &id);
+    if (res != OK) {
+        ALOGE("%s: Device reprocess stream allocation failed: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    ALOGV("%s: Allocated reprocess stream id %d based on stream %d",
+            __FUNCTION__, id, outputStream->getId());
+
+    mId = id;
+
+    mState = ACTIVE;
+
+    return OK;
+}
+
+status_t Camera2Device::ReprocessStreamAdapter::release() {
+    status_t res;
+    ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
+    if (mState >= ACTIVE) {
+        res = mDevice->ops->release_reprocess_stream(mDevice, mId);
+        if (res != OK) {
+            ALOGE("%s: Unable to release stream %d",
+                    __FUNCTION__, mId);
+            return res;
+        }
+    }
+
+    List<QueueEntry>::iterator s;
+    for (s = mQueue.begin(); s != mQueue.end(); s++) {
+        sp<BufferReleasedListener> listener = s->releaseListener.promote();
+        if (listener != 0) listener->onBufferReleased(s->handle);
+    }
+    for (s = mInFlightQueue.begin(); s != mInFlightQueue.end(); s++) {
+        sp<BufferReleasedListener> listener = s->releaseListener.promote();
+        if (listener != 0) listener->onBufferReleased(s->handle);
+    }
+    mQueue.clear();
+    mInFlightQueue.clear();
+
+    mState = RELEASED;
+    return OK;
+}
+
+status_t Camera2Device::ReprocessStreamAdapter::pushIntoStream(
+    buffer_handle_t *handle, const wp<BufferReleasedListener> &releaseListener) {
+    // TODO: Some error checking here would be nice
+    ALOGV("%s: Pushing buffer %p to stream", __FUNCTION__, (void*)(*handle));
+
+    QueueEntry entry;
+    entry.handle = handle;
+    entry.releaseListener = releaseListener;
+    mQueue.push_back(entry);
+    return OK;
+}
+
+status_t Camera2Device::ReprocessStreamAdapter::dump(int fd,
+        const Vector<String16>& args) {
+    String8 result =
+            String8::format("      Reprocess stream %d: %d x %d, fmt 0x%x\n",
+                    mId, mWidth, mHeight, mFormat);
+    result.appendFormat("        acquired buffers: %d\n",
+            mActiveBuffers);
+    result.appendFormat("        frame count: %d\n",
+            mFrameCount);
+    write(fd, result.string(), result.size());
+    return OK;
+}
+
+const camera2_stream_in_ops *Camera2Device::ReprocessStreamAdapter::getStreamOps() {
+    return static_cast<camera2_stream_in_ops *>(this);
+}
+
+int Camera2Device::ReprocessStreamAdapter::acquire_buffer(
+    const camera2_stream_in_ops_t *w,
+        buffer_handle_t** buffer) {
+    int res;
+    ReprocessStreamAdapter* stream =
+            const_cast<ReprocessStreamAdapter*>(
+                static_cast<const ReprocessStreamAdapter*>(w));
+    if (stream->mState != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, stream->mState);
+        return INVALID_OPERATION;
+    }
+
+    if (stream->mQueue.empty()) {
+        *buffer = NULL;
+        return OK;
+    }
+
+    QueueEntry &entry = *(stream->mQueue.begin());
+
+    *buffer = entry.handle;
+
+    stream->mInFlightQueue.push_back(entry);
+    stream->mQueue.erase(stream->mQueue.begin());
+
+    stream->mActiveBuffers++;
+
+    ALOGV("Stream %d acquire: Buffer %p acquired", stream->mId,
+            (void*)(**buffer));
+    return OK;
+}
+
+int Camera2Device::ReprocessStreamAdapter::release_buffer(
+    const camera2_stream_in_ops_t* w,
+    buffer_handle_t* buffer) {
+    ReprocessStreamAdapter *stream =
+            const_cast<ReprocessStreamAdapter*>(
+                static_cast<const ReprocessStreamAdapter*>(w) );
+    stream->mFrameCount++;
+    ALOGV("Reprocess stream %d release: Frame %d (%p)",
+            stream->mId, stream->mFrameCount, (void*)*buffer);
+    int state = stream->mState;
+    if (state != ACTIVE) {
+        ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
+        return INVALID_OPERATION;
+    }
+    stream->mActiveBuffers--;
+
+    List<QueueEntry>::iterator s;
+    for (s = stream->mInFlightQueue.begin(); s != stream->mInFlightQueue.end(); s++) {
+        if ( s->handle == buffer ) break;
+    }
+    if (s == stream->mInFlightQueue.end()) {
+        ALOGE("%s: Can't find buffer %p in in-flight list!", __FUNCTION__,
+                buffer);
+        return INVALID_OPERATION;
+    }
+
+    sp<BufferReleasedListener> listener = s->releaseListener.promote();
+    if (listener != 0) {
+        listener->onBufferReleased(s->handle);
+    } else {
+        ALOGE("%s: Can't free buffer - missing listener", __FUNCTION__);
+    }
+    stream->mInFlightQueue.erase(s);
+
+    return OK;
+}
 
 }; // namespace android

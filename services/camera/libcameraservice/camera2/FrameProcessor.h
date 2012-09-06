@@ -20,6 +20,7 @@
 #include <utils/Thread.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
+#include <utils/KeyedVector.h>
 #include "CameraMetadata.h"
 
 namespace android {
@@ -36,6 +37,17 @@ class FrameProcessor: public Thread {
     FrameProcessor(wp<Camera2Client> client);
     ~FrameProcessor();
 
+    struct FilteredListener: virtual public RefBase {
+        // Listener may take ownership of frame
+        virtual void onFrameAvailable(int32_t frameId, CameraMetadata &frame) = 0;
+    };
+
+    // Register a listener for a specific frame ID (android.request.id).
+    // De-registers any existing listeners for that ID
+    status_t registerListener(int32_t id, wp<FilteredListener> listener);
+
+    status_t removeListener(int32_t id);
+
     void dump(int fd, const Vector<String16>& args);
   private:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
@@ -43,8 +55,15 @@ class FrameProcessor: public Thread {
 
     virtual bool threadLoop();
 
+    Mutex mInputMutex;
+    KeyedVector<int32_t, wp<FilteredListener> > mListeners;
+
     void processNewFrames(sp<Camera2Client> &client);
+
     status_t processFaceDetect(const CameraMetadata &frame,
+            sp<Camera2Client> &client);
+
+    status_t processListener(CameraMetadata &frame,
             sp<Camera2Client> &client);
 
     CameraMetadata mLastFrame;
