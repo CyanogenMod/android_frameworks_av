@@ -22,7 +22,7 @@
 namespace android {
 
 enum {
-    DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
+    DISPOSE = IBinder::FIRST_CALL_TRANSACTION,
 };
 
 class BpRemoteDisplay: public BpInterface<IRemoteDisplay>
@@ -33,11 +33,11 @@ public:
     {
     }
 
-    status_t disconnect()
+    status_t dispose()
     {
         Parcel data, reply;
         data.writeInterfaceToken(IRemoteDisplay::getInterfaceDescriptor());
-        remote()->transact(DISCONNECT, data, &reply);
+        remote()->transact(DISPOSE, data, &reply);
         return reply.readInt32();
     }
 };
@@ -50,9 +50,9 @@ status_t BnRemoteDisplay::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
     switch (code) {
-        case DISCONNECT: {
+        case DISPOSE: {
             CHECK_INTERFACE(IRemoteDisplay, data, reply);
-            reply->writeInt32(disconnect());
+            reply->writeInt32(dispose());
             return NO_ERROR;
         }
         default:
