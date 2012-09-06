@@ -1030,7 +1030,7 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
     stream->mFrameCount++;
     ALOGVV("Stream %d enqueue: Frame %d (%p) captured at %lld ns",
-            stream->mId, mFrameCount, (void*)(*buffer), timestamp);
+            stream->mId, stream->mFrameCount, (void*)(*buffer), timestamp);
     int state = stream->mState;
     if (state != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
