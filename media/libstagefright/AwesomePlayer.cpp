@@ -1873,6 +1873,9 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
 void AwesomePlayer::onVideoEvent() {
     ATRACE_CALL();
     Mutex::Autolock autoLock(mLock);
+#ifdef QCOM_HARDWARE
+    int mAudioSourcePaused = false;
+#endif
     if (!mVideoEventPending) {
         // The event has been cancelled in reset_l() but had already
         // been scheduled for execution at that time.
@@ -1927,6 +1930,9 @@ void AwesomePlayer::onVideoEvent() {
                 modifyFlags(AUDIO_RUNNING, CLEAR);
             }
             mAudioSource->pause();
+#ifdef QCOM_HARDWARE
+            mAudioSourcePaused = true;
+#endif
         }
     }
 
@@ -1968,6 +1974,12 @@ void AwesomePlayer::onVideoEvent() {
                 }
                 finishSeekIfNecessary(-1);
 
+#ifdef QCOM_HARDWARE
+                if (mAudioSourcePaused) {
+                    mAudioSource->start();
+                    mAudioSourcePaused = false;
+                }
+#endif
                 if (mAudioPlayer != NULL
                         && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
                     startAudioPlayer_l();
@@ -2027,6 +2039,12 @@ void AwesomePlayer::onVideoEvent() {
     SeekType wasSeeking = mSeeking;
     finishSeekIfNecessary(timeUs);
 
+#ifdef QCOM_HARDWARE
+    if (mAudioSourcePaused) {
+        mAudioSource->start();
+        mAudioSourcePaused = false;
+    }
+#endif
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
         status_t err = startAudioPlayer_l();
         if (err != OK) {
