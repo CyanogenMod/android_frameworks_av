@@ -451,7 +451,11 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
     }
 
     if (!haveAudio && !haveVideo) {
-        return UNKNOWN_ERROR;
+        if (mWVMExtractor != NULL) {
+            return mWVMExtractor->getError();
+        } else {
+            return UNKNOWN_ERROR;
+        }
     }
 
     mExtractorFlags = extractor->flags();
