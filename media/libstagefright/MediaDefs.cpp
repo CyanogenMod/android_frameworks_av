@@ -42,7 +42,7 @@ const char *MEDIA_MIMETYPE_AUDIO_FLAC = "audio/flac";
 const char *MEDIA_MIMETYPE_AUDIO_AAC_ADTS = "audio/aac-adts";
 
 const char *MEDIA_MIMETYPE_CONTAINER_MPEG4 = "video/mp4";
-const char *MEDIA_MIMETYPE_CONTAINER_WAV = "audio/wav";
+const char *MEDIA_MIMETYPE_CONTAINER_WAV = "audio/x-wav";
 const char *MEDIA_MIMETYPE_CONTAINER_OGG = "application/ogg";
 const char *MEDIA_MIMETYPE_CONTAINER_MATROSKA = "video/x-matroska";
 const char *MEDIA_MIMETYPE_CONTAINER_MPEG2TS = "video/mp2ts";
