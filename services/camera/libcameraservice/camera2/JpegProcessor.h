@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SERVERS_CAMERA_CAMERA2_CAPTUREPROCESSOR_H
-#define ANDROID_SERVERS_CAMERA_CAMERA2_CAPTUREPROCESSOR_H
+#ifndef ANDROID_SERVERS_CAMERA_CAMERA2_JPEGPROCESSOR_H
+#define ANDROID_SERVERS_CAMERA_CAMERA2_JPEGPROCESSOR_H
 
 #include <utils/Thread.h>
 #include <utils/String16.h>
@@ -33,14 +33,16 @@ class Camera2Client;
 
 namespace camera2 {
 
+class CaptureSequencer;
+
 /***
  * Still image capture output image processing
  */
-class CaptureProcessor:
+class JpegProcessor:
             public Thread, public CpuConsumer::FrameAvailableListener {
   public:
-    CaptureProcessor(wp<Camera2Client> client);
-    ~CaptureProcessor();
+    JpegProcessor(wp<Camera2Client> client, wp<CaptureSequencer> sequencer);
+    ~JpegProcessor();
 
     void onFrameAvailable();
 
@@ -48,10 +50,11 @@ class CaptureProcessor:
     status_t deleteStream();
     int getStreamId() const;
 
-    void dump(int fd, const Vector<String16>& args);
+    void dump(int fd, const Vector<String16>& args) const;
   private:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
     wp<Camera2Client> mClient;
+    wp<CaptureSequencer> mSequencer;
 
     mutable Mutex mInputMutex;
     bool mCaptureAvailable;

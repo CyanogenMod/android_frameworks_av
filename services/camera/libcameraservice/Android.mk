@@ -14,8 +14,10 @@ LOCAL_SRC_FILES:=               \
     camera2/CameraMetadata.cpp \
     camera2/Parameters.cpp \
     camera2/FrameProcessor.cpp \
-    camera2/CaptureProcessor.cpp \
-    camera2/CallbackProcessor.cpp
+    camera2/JpegProcessor.cpp \
+    camera2/CallbackProcessor.cpp \
+    camera2/ZslProcessor.cpp \
+    camera2/CaptureSequencer.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
