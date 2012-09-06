@@ -39,7 +39,7 @@ RemoteDisplay::RemoteDisplay(
 RemoteDisplay::~RemoteDisplay() {
 }
 
-status_t RemoteDisplay::disconnect() {
+status_t RemoteDisplay::dispose() {
     mSource->stop();
 
     mLooper->stop();

@@ -283,7 +283,7 @@ sp<ICrypto> MediaPlayerService::makeCrypto() {
 
 sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
         const sp<IRemoteDisplayClient>& client, const String8& iface) {
-    return new RemoteDisplay(client, iface.string());;
+    return new RemoteDisplay(client, iface.string());
 }
 
 status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
@@ -299,7 +299,7 @@ status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
     }
 
     if (mRemoteDisplay != NULL) {
-        mRemoteDisplay->disconnect();
+        mRemoteDisplay->dispose();
         mRemoteDisplay.clear();
     }
 
