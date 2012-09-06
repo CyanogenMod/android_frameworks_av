@@ -922,14 +922,21 @@ status_t MediaPlayerService::Client::setNextPlayer(const sp<IMediaPlayer>& playe
     Mutex::Autolock l(mLock);
     sp<Client> c = static_cast<Client*>(player.get());
     mNextClient = c;
-    if (mAudioOutput != NULL && c != NULL) {
-        mAudioOutput->setNextOutput(c->mAudioOutput);
-    } else {
-        ALOGE("no current audio output");
+
+    if (c != NULL) {
+        if (mAudioOutput != NULL) {
+            mAudioOutput->setNextOutput(c->mAudioOutput);
+        } else if ((mPlayer != NULL) && !mPlayer->hardwareOutput()) {
+            ALOGE("no current audio output");
+        }
+
+        if ((mPlayer != NULL) && (mNextClient->getPlayer() != NULL)) {
+            mPlayer->setNextPlayer(mNextClient->getPlayer());
+        }
     }
+
     return OK;
 }
-
 
 status_t MediaPlayerService::Client::seekTo(int msec)
 {
