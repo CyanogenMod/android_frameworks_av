@@ -106,7 +106,7 @@ sp<MetaData> WAVExtractor::getMetaData() {
         return meta;
     }
 
-    meta->setCString(kKeyMIMEType, "audio/x-wav");
+    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_CONTAINER_WAV);
 
     return meta;
 }
@@ -509,4 +509,3 @@ bool SniffWAV(
 }
 
 }  // namespace android
-
