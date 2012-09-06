@@ -84,6 +84,10 @@ size_t CameraMetadata::entryCount() const {
             get_camera_metadata_entry_count(mBuffer);
 }
 
+bool CameraMetadata::isEmpty() const {
+    return entryCount() == 0;
+}
+
 status_t CameraMetadata::sort() {
     return sort_camera_metadata(mBuffer);
 }
