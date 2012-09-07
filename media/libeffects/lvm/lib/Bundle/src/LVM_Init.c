@@ -557,9 +557,7 @@ LVM_ReturnStatus_en LVM_GetInstanceHandle(LVM_Handle_t           *phInstance,
      */
     pInstance->Params.OperatingMode    = LVM_MODE_OFF;
     pInstance->Params.SampleRate       = LVM_FS_8000;
-//  FIXME: Workaround to avoid reset of headroom parameters on first call to LVM_Process.
-//    pInstance->Params.SourceFormat     = LVM_MONO;
-    pInstance->Params.SourceFormat     = LVM_STEREO;
+    pInstance->Params.SourceFormat     = LVM_MONO;
     pInstance->Params.SpeakerType      = LVM_HEADPHONES;
     pInstance->Params.VC_EffectLevel   = 0;
     pInstance->Params.VC_Balance       = 0;
@@ -963,6 +961,7 @@ LVM_ReturnStatus_en LVM_ClearAudioBuffers(LVM_Handle_t  hInstance)
     LVM_InstParams_t        InstParams;                                 /* Instance parameters */
     LVM_ControlParams_t     Params;                                     /* Control Parameters */
     LVM_Instance_t          *pInstance  = (LVM_Instance_t  *)hInstance; /* Pointer to Instance */
+    LVM_HeadroomParams_t    HeadroomParams;
 
 
     if(hInstance == LVM_NULL){
@@ -971,6 +970,9 @@ LVM_ReturnStatus_en LVM_ClearAudioBuffers(LVM_Handle_t  hInstance)
 
     /* Save the control parameters */ /* coverity[unchecked_value] */ /* Do not check return value internal function calls */
     LVM_GetControlParameters(hInstance, &Params);
+
+    /*Save the headroom parameters*/
+    LVM_GetHeadroomParams(hInstance, &HeadroomParams);
 
     /*  Retrieve allocated buffers in memtab */
     LVM_GetMemoryTable(hInstance, &MemTab,  LVM_NULL);
@@ -985,6 +987,9 @@ LVM_ReturnStatus_en LVM_ClearAudioBuffers(LVM_Handle_t  hInstance)
 
     /* Restore control parameters */ /* coverity[unchecked_value] */ /* Do not check return value internal function calls */
     LVM_SetControlParameters(hInstance, &Params);
+
+    /*Restore the headroom parameters*/
+    LVM_SetHeadroomParams(hInstance, &HeadroomParams);
 
     /* DC removal filter */
     DC_2I_D16_TRC_WRA_01_Init(&pInstance->DC_RemovalInstance);
