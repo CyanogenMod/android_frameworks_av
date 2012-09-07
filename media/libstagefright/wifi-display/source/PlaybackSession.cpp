@@ -42,7 +42,6 @@
 #include <media/stagefright/MPEG2TSWriter.h>
 #include <media/stagefright/SurfaceMediaSource.h>
 #include <media/stagefright/Utils.h>
-#include <ui/DisplayInfo.h>
 
 #include <OMX_IVCommon.h>
 
@@ -598,10 +597,6 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     mCodecLooper = new ALooper;
     mCodecLooper->start();
 
-    DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(0, &info);
-
-    // sp<SurfaceMediaSource> source = new SurfaceMediaSource(info.w, info.h);
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(width(), height());
 
 #if 0
@@ -642,7 +637,8 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     CHECK(service != NULL);
 
     // Add one reference to account for the serializer.
-    err = source->setMaxAcquiredBufferCount(numInputBuffers + 1);
+    // Add another one for unknown reasons.
+    err = source->setMaxAcquiredBufferCount(numInputBuffers + 2);
     CHECK_EQ(err, (status_t)OK);
 
     mBufferQueue = source->getBufferQueue();
@@ -650,7 +646,6 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     if (mLegacyMode) {
         service->connectDisplay(mBufferQueue);
     }
-#endif
 
 #if 0
     sp<AudioSource> audioSource = new AudioSource(
@@ -658,24 +653,27 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
             48000 /* sampleRate */,
             2 /* channelCount */);  // XXX AUDIO_CHANNEL_IN_STEREO?
 
-    CHECK_EQ((status_t)OK, audioSource->initCheck());
+    if (audioSource->initCheck() == OK) {
+        audioSource->setUseLooperTime(true);
 
-    audioSource->setUseLooperTime(true);
+        index = mSerializer->addSource(audioSource);
+        CHECK_GE(index, 0);
 
-    index = mSerializer->addSource(audioSource);
-    CHECK_GE(index, 0);
+        sp<AMessage> audioFormat;
+        err = convertMetaDataToMessage(audioSource->getFormat(), &audioFormat);
+        CHECK_EQ(err, (status_t)OK);
 
-    sp<AMessage> audioFormat;
-    err = convertMetaDataToMessage(audioSource->getFormat(), &audioFormat);
-    CHECK_EQ(err, (status_t)OK);
+        sp<AMessage> audioNotify = new AMessage(kWhatConverterNotify, id());
+        audioNotify->setSize("trackIndex", index);
 
-    sp<AMessage> audioNotify = new AMessage(kWhatConverterNotify, id());
-    audioNotify->setSize("trackIndex", index);
+        converter = new Converter(audioNotify, mCodecLooper, audioFormat);
+        looper()->registerHandler(converter);
 
-    converter = new Converter(audioNotify, mCodecLooper, audioFormat);
-    looper()->registerHandler(converter);
-
-    mTracks.add(index, new Track(converter));
+        mTracks.add(index, new Track(converter));
+    } else {
+        ALOGW("Unable to instantiate audio source");
+    }
+#endif
 #endif
 
     return OK;
@@ -686,11 +684,11 @@ sp<ISurfaceTexture> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
 }
 
 int32_t WifiDisplaySource::PlaybackSession::width() const {
-    return 720;
+    return mLegacyMode ? 720 : 1280;
 }
 
 int32_t WifiDisplaySource::PlaybackSession::height() const {
-    return 1280;
+    return mLegacyMode ? 1280 : 720;
 }
 
 void WifiDisplaySource::PlaybackSession::scheduleSendSR() {
