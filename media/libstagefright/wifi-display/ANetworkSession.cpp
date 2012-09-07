@@ -428,8 +428,10 @@ status_t ANetworkSession::Session::writeMore() {
     status_t err = OK;
 
     if (n > 0) {
+#if 0
         ALOGI("out:");
         hexdump(mOutBuffer.c_str(), n);
+#endif
 
         mOutBuffer.erase(0, n);
     } else if (n < 0) {
