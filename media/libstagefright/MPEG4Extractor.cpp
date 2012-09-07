@@ -1665,15 +1665,26 @@ status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
                     mLastCommentData.setTo((const char *)buffer + 8);
                     break;
             }
-            if (mLastCommentMean == "com.apple.iTunes"
-                    && mLastCommentName == "iTunSMPB"
-                    && mLastCommentData.length() != 0) {
-                int32_t delay, padding;
-                if (sscanf(mLastCommentData,
-                           " %*x %x %x %*x", &delay, &padding) == 2) {
-                    mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
-                    mLastTrack->meta->setInt32(kKeyEncoderPadding, padding);
+
+            // Once we have a set of mean/name/data info, go ahead and process
+            // it to see if its something we are interested in.  Whether or not
+            // were are interested in the specific tag, make sure to clear out
+            // the set so we can be ready to process another tuple should one
+            // show up later in the file.
+            if ((mLastCommentMean.length() != 0) &&
+                (mLastCommentName.length() != 0) &&
+                (mLastCommentData.length() != 0)) {
+
+                if (mLastCommentMean == "com.apple.iTunes"
+                        && mLastCommentName == "iTunSMPB") {
+                    int32_t delay, padding;
+                    if (sscanf(mLastCommentData,
+                               " %*x %x %x %*x", &delay, &padding) == 2) {
+                        mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
+                        mLastTrack->meta->setInt32(kKeyEncoderPadding, padding);
+                    }
                 }
+
                 mLastCommentMean.clear();
                 mLastCommentName.clear();
                 mLastCommentData.clear();
