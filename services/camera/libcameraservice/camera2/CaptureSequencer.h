@@ -33,6 +33,7 @@ class Camera2Client;
 namespace camera2 {
 
 class ZslProcessor;
+class BurstCapture;
 
 /**
  * Manages the still image capture process for
@@ -96,6 +97,7 @@ class CaptureSequencer:
 
     wp<Camera2Client> mClient;
     wp<ZslProcessor> mZslProcessor;
+    sp<BurstCapture> mBurstCapture;
 
     enum CaptureState {
         IDLE,
@@ -107,6 +109,8 @@ class CaptureSequencer:
         STANDARD_PRECAPTURE_WAIT,
         STANDARD_CAPTURE,
         STANDARD_CAPTURE_WAIT,
+        BURST_CAPTURE_START,
+        BURST_CAPTURE_WAIT,
         DONE,
         ERROR,
         NUM_CAPTURE_STATES
@@ -139,6 +143,9 @@ class CaptureSequencer:
     CaptureState manageStandardPrecaptureWait(sp<Camera2Client> &client);
     CaptureState manageStandardCapture(sp<Camera2Client> &client);
     CaptureState manageStandardCaptureWait(sp<Camera2Client> &client);
+
+    CaptureState manageBurstCaptureStart(sp<Camera2Client> &client);
+    CaptureState manageBurstCaptureWait(sp<Camera2Client> &client);
 
     CaptureState manageDone(sp<Camera2Client> &client);
 
