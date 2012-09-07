@@ -388,6 +388,10 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
+    if (l.mParameters.playShutterSound) {
+        client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
+    }
+
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
 }
