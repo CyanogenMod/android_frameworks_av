@@ -1141,7 +1141,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mChannelCount(0),
         mFrameSize(1), mFormat(AUDIO_FORMAT_INVALID),
         mParamStatus(NO_ERROR),
-        mStandby(false), mDevice(device), mId(id),
+        mStandby(false), mDevice(device), mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this))
 {
@@ -6591,6 +6591,15 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             newDevice |= value;
             mDevice = newDevice;    // since mDevice is read by other threads, only write to it once
         }
+        if (param.getInt(String8(AudioParameter::keyInputSource), value) == NO_ERROR &&
+                mAudioSource != (audio_source_t)value) {
+            // forward device change to effects that have requested to be
+            // aware of attached audio device.
+            for (size_t i = 0; i < mEffectChains.size(); i++) {
+                mEffectChains[i]->setAudioSource_l((audio_source_t)value);
+            }
+            mAudioSource = (audio_source_t)value;
+        }
         if (status == NO_ERROR) {
             status = mInput->stream->common.set_parameters(&mInput->stream->common, keyValuePair.string());
             if (status == INVALID_OPERATION) {
@@ -7737,6 +7746,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 
             effect->setDevice(mDevice);
             effect->setMode(mAudioFlinger->getMode());
+            effect->setAudioSource(mAudioSource);
         }
         // create effect handle and connect it to effect module
         handle = new EffectHandle(effect, client, effectClient, priority);
@@ -7814,6 +7824,7 @@ status_t AudioFlinger::ThreadBase::addEffect_l(const sp<EffectModule>& effect)
 
     effect->setDevice(mDevice);
     effect->setMode(mAudioFlinger->getMode());
+    effect->setAudioSource(mAudioSource);
     return NO_ERROR;
 }
 
@@ -8712,6 +8723,22 @@ status_t AudioFlinger::EffectModule::setMode(audio_mode_t mode)
     return status;
 }
 
+status_t AudioFlinger::EffectModule::setAudioSource(audio_source_t source)
+{
+    Mutex::Autolock _l(mLock);
+    status_t status = NO_ERROR;
+    if ((mDescriptor.flags & EFFECT_FLAG_AUDIO_SOURCE_MASK) == EFFECT_FLAG_AUDIO_SOURCE_IND) {
+        uint32_t size = 0;
+        status = (*mEffectInterface)->command(mEffectInterface,
+                                              EFFECT_CMD_SET_AUDIO_SOURCE,
+                                              sizeof(audio_source_t),
+                                              &source,
+                                              &size,
+                                              NULL);
+    }
+    return status;
+}
+
 void AudioFlinger::EffectModule::setSuspended(bool suspended)
 {
     Mutex::Autolock _l(mLock);
@@ -9384,6 +9411,15 @@ void AudioFlinger::EffectChain::setMode_l(audio_mode_t mode)
     size_t size = mEffects.size();
     for (size_t i = 0; i < size; i++) {
         mEffects[i]->setMode(mode);
+    }
+}
+
+// setAudioSource_l() must be called with PlaybackThread::mLock held
+void AudioFlinger::EffectChain::setAudioSource_l(audio_source_t source)
+{
+    size_t size = mEffects.size();
+    for (size_t i = 0; i < size; i++) {
+        mEffects[i]->setAudioSource(source);
     }
 }
 
