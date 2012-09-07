@@ -177,7 +177,7 @@ status_t AudioRecord::set(
 
     // validate framecount
     int minFrameCount = 0;
-    status_t status = getMinFrameCount(&minFrameCount, sampleRate, format, channelCount);
+    status_t status = getMinFrameCount(&minFrameCount, sampleRate, format, channelMask);
     if (status != NO_ERROR) {
         return status;
     }
