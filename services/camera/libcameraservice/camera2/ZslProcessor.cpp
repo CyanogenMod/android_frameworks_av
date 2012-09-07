@@ -58,6 +58,7 @@ ZslProcessor::ZslProcessor(
 
 ZslProcessor::~ZslProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
+    deleteStream();
 }
 
 void ZslProcessor::onFrameAvailable() {
@@ -191,6 +192,10 @@ status_t ZslProcessor::deleteStream() {
         device->deleteStream(mZslReprocessStreamId);
         mZslReprocessStreamId = NO_STREAM;
         device->deleteStream(mZslStreamId);
+
+        mZslWindow.clear();
+        mZslConsumer.clear();
+
         mZslStreamId = NO_STREAM;
     }
     return OK;
