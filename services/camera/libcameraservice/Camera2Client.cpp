@@ -816,6 +816,8 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         return INVALID_OPERATION;
     }
 
+    mCameraService->playSound(CameraService::SOUND_RECORDING);
+
     res = updateRecordingStream(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
@@ -909,6 +911,8 @@ void Camera2Client::stopRecording() {
                     Parameters::getStateName(l.mParameters.state));
             return;
     };
+
+    mCameraService->playSound(CameraService::SOUND_RECORDING);
 
     // Back to preview. Since record can only be reached through preview,
     // all preview stream setup should be up to date.
@@ -1446,6 +1450,10 @@ int Camera2Client::getCameraId() const {
 
 const sp<Camera2Device>& Camera2Client::getCameraDevice() {
     return mDevice;
+}
+
+const sp<CameraService>& Camera2Client::getCameraService() {
+    return mCameraService;
 }
 
 camera2::SharedParameters& Camera2Client::getParameters() {
