@@ -26,6 +26,7 @@
 #include <gui/Surface.h>
 #include <media/hardware/MetadataBufferType.h>
 #include "camera2/Parameters.h"
+#include "Camera2Client.h"
 
 #define ALOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define ALOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
