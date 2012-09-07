@@ -146,6 +146,7 @@ public:
         STREAM_CONFIG_CHANGED,
 #ifdef QCOM_HARDWARE
         A2DP_OUTPUT_STATE,
+        EFFECT_CONFIG_CHANGED,
 #endif
         NUM_CONFIG_EVENTS
     };
