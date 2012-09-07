@@ -99,6 +99,7 @@ public:
 
     int getCameraId() const;
     const sp<Camera2Device>& getCameraDevice();
+    const sp<CameraService>& getCameraService();
     camera2::SharedParameters& getParameters();
 
     int getPreviewStreamId() const;
