@@ -546,12 +546,8 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         if (mIsEncoder) {
             setVideoInputFormat(mMIME, meta);
         } else {
-            int32_t width, height;
-            bool success = meta->findInt32(kKeyWidth, &width);
-            success = success && meta->findInt32(kKeyHeight, &height);
-            CHECK(success);
             status_t err = setVideoOutputFormat(
-                    mMIME, width, height);
+                    mMIME, meta);
 
             if (err != OK) {
                 return err;
@@ -1172,7 +1168,13 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
 }
 
 status_t OMXCodec::setVideoOutputFormat(
-        const char *mime, OMX_U32 width, OMX_U32 height) {
+        const char *mime, const sp<MetaData>& meta) {
+
+    int32_t width, height;
+    bool success = meta->findInt32(kKeyWidth, &width);
+    success = success && meta->findInt32(kKeyHeight, &height);
+    CHECK(success);
+
     CODEC_LOGV("setVideoOutputFormat width=%ld, height=%ld", width, height);
 
     OMX_VIDEO_CODINGTYPE compressionFormat = OMX_VIDEO_CodingUnused;
@@ -1217,6 +1219,26 @@ status_t OMXCodec::setVideoOutputFormat(
                || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka);
+
+        int32_t colorFormat;
+        if (meta->findInt32(kKeyColorFormat, &colorFormat)
+                && colorFormat != OMX_COLOR_FormatUnused
+                && colorFormat != format.eColorFormat) {
+
+            while (OMX_ErrorNoMore != err) {
+                format.nIndex++;
+                err = mOMX->getParameter(
+                        mNode, OMX_IndexParamVideoPortFormat,
+                            &format, sizeof(format));
+                if (format.eColorFormat == colorFormat) {
+                    break;
+                }
+            }
+            if (format.eColorFormat != colorFormat) {
+                CODEC_LOGE("Color format %d is not supported", colorFormat);
+                return ERROR_UNSUPPORTED;
+            }
+        }
 
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamVideoPortFormat,
