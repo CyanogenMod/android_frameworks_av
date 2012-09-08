@@ -1249,6 +1249,12 @@ status_t AVIExtractor::getSampleIndexAtTime(
         return OK;
     }
 
+    // Only video track should be considered for Sync samples
+    if (track.mKind != Track::VIDEO) {
+        *sampleIndex = closestSampleIndex;
+        return OK;
+    }
+
     ssize_t prevSyncSampleIndex = closestSampleIndex;
     while (prevSyncSampleIndex >= 0) {
         const SampleInfo &info =
