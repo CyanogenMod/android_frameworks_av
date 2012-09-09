@@ -407,7 +407,6 @@ void LPAPlayer::pause(bool playPendingSamples) {
             } else {
             if (mAudioSink.get() != NULL) {
                 mAudioSink->pause();
-                mAudioSink->flush();
             }
         }
     }
