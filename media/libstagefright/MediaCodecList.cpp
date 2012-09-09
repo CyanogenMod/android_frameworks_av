@@ -26,7 +26,7 @@
 #include <media/stagefright/OMXCodec.h>
 #include <utils/threads.h>
 
-#include <expat.h>
+#include <libexpat/expat.h>
 
 namespace android {
 

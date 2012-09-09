@@ -64,7 +64,6 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, graphics corecg) \
     $(TOP)/frameworks/native/include/media/openmax \
     external/icu4c/common \
-    external/expat/lib \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
