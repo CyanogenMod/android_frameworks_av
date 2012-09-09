@@ -612,6 +612,20 @@ FastMixerDumpState::~FastMixerDumpState()
 {
 }
 
+// helper function called by qsort()
+static int compare_uint32_t(const void *pa, const void *pb)
+{
+    uint32_t a = *(const uint32_t *)pa;
+    uint32_t b = *(const uint32_t *)pb;
+    if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 void FastMixerDumpState::dump(int fd)
 {
     if (mCommand == FastMixerState::INITIAL) {
@@ -674,10 +688,18 @@ void FastMixerDumpState::dump(int fd)
     CentralTendencyStatistics kHz, loadMHz;
     uint32_t previousCpukHz = 0;
 #endif
+    // Assuming a normal distribution for cycle times, three standard deviations on either side of
+    // the mean account for 99.73% of the population.  So if we take each tail to be 1/1000 of the
+    // sample set, we get 99.8% combined, or close to three standard deviations.
+    static const uint32_t kTailDenominator = 1000;
+    uint32_t *tail = n >= kTailDenominator ? new uint32_t[n] : NULL;
     // loop over all the samples
-    for (; n > 0; --n) {
+    for (uint32_t j = 0; j < n; ++j) {
         size_t i = oldestClosed++ & (kSamplingN - 1);
         uint32_t wallNs = mMonotonicNs[i];
+        if (tail != NULL) {
+            tail[j] = wallNs;
+        }
         wall.sample(wallNs);
         uint32_t sampleLoadNs = mLoadNs[i];
         loadNs.sample(sampleLoadNs);
@@ -711,6 +733,23 @@ void FastMixerDumpState::dump(int fd)
                  "    mean=%.1f min=%.1f max=%.1f stddev=%.1f\n",
                  loadMHz.mean(), loadMHz.minimum(), loadMHz.maximum(), loadMHz.stddev());
 #endif
+    if (tail != NULL) {
+        qsort(tail, n, sizeof(uint32_t), compare_uint32_t);
+        // assume same number of tail samples on each side, left and right
+        uint32_t count = n / kTailDenominator;
+        CentralTendencyStatistics left, right;
+        for (uint32_t i = 0; i < count; ++i) {
+            left.sample(tail[i]);
+            right.sample(tail[n - (i + 1)]);
+        }
+        fdprintf(fd, "Distribution of mix cycle times in ms for the tails (> ~3 stddev outliers):\n"
+                     "  left tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n"
+                     "  right tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
+                     left.mean()*1e-6, left.minimum()*1e-6, left.maximum()*1e-6, left.stddev()*1e-6,
+                     right.mean()*1e-6, right.minimum()*1e-6, right.maximum()*1e-6,
+                     right.stddev()*1e-6);
+        delete[] tail;
+    }
 #endif
     // The active track mask and track states are updated non-atomically.
     // So if we relied on isActive to decide whether to display,
