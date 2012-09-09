@@ -27,6 +27,7 @@
 #define FILEREAD_MAX_LAYERS 2
 
 #define DRC_DEFAULT_REF_LEVEL 108   /* 108*0.25dB = -27 dB below full scale (typical for movies) */
+#define MAX_CHANNEL_COUNT     6     /* maximum number of audio channels that can be decoded      */
 
 namespace android {
 
@@ -87,7 +88,7 @@ void SoftAAC2::initPorts() {
     def.eDir = OMX_DirOutput;
     def.nBufferCountMin = kNumOutputBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = 8192 * 2;
+    def.nBufferSize = 4096 * MAX_CHANNEL_COUNT;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
