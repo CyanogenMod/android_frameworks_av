@@ -1664,8 +1664,7 @@ status_t AwesomePlayer::initAudioDecoder() {
                 mDurationUs = durationUs;
             }
         }
-        if ( mDurationUs > 60000000
-             && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
+        if ((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
              && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)) {
 
             flags |= OMXCodec::kSoftwareCodecsOnly;
