@@ -299,6 +299,10 @@ extern "C" int EffectCreate(const effect_uuid_t *uuid,
         pContext->pBundledContext->SamplesToExitCountBb     = 0;
         pContext->pBundledContext->SamplesToExitCountEq     = 0;
 
+        for (int i = 0; i < FIVEBAND_NUMBANDS; i++) {
+            pContext->pBundledContext->bandGaindB[i] = EQNB_5BandSoftPresets[i];
+        }
+
         ALOGV("\tEffectCreate - Calling LvmBundle_init");
         ret = LvmBundle_init(pContext);
 
@@ -1194,6 +1198,56 @@ void VirtualizerSetStrength(EffectContext *pContext, uint32_t strength){
     //ALOGV("\tVirtualizerSetStrength Succesfully called LVM_SetControlParameters\n\n");
 }    /* end setStrength */
 
+
+//----------------------------------------------------------------------------
+// EqualizerLimitBandLevels()
+//----------------------------------------------------------------------------
+// Purpose: limit all EQ band gains to a value less than MAX_BAND_GAIN_DB while
+//          preserving the relative band levels.
+//
+// Inputs:
+//  pContext:   effect engine context
+//
+// Outputs:
+//
+//----------------------------------------------------------------------------
+void EqualizerLimitBandLevels(EffectContext *pContext) {
+    LVM_ControlParams_t     ActiveParams;              /* Current control Parameters */
+    LVM_ReturnStatus_en     LvmStatus=LVM_SUCCESS;     /* Function call status */
+    LVM_EQNB_BandDef_t      *BandDef;
+
+    /* Get the current settings */
+    LvmStatus = LVM_GetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
+    LVM_ERROR_CHECK(LvmStatus, "LVM_GetControlParameters", "EqualizerLimitBandLevels")
+    //ALOGV("\tEqualizerLimitBandLevels Succesfully returned from LVM_GetControlParameters\n");
+    //ALOGV("\tEqualizerLimitBandLevels just Got -> %d\n",
+    //          ActiveParams.pEQNB_BandDefinition[band].Gain);
+
+    int gainCorrection = 0;
+    for (int i = 0; i < FIVEBAND_NUMBANDS; i++) {
+        int level = pContext->pBundledContext->bandGaindB[i] + ActiveParams.VC_EffectLevel;
+        if (level > MAX_BAND_GAIN_DB) {
+            int correction = MAX_BAND_GAIN_DB -level;
+            if (correction < gainCorrection) {
+                gainCorrection = correction;
+            }
+        }
+    }
+
+    /* Set local EQ parameters */
+    BandDef = ActiveParams.pEQNB_BandDefinition;
+    for (int i=0; i < FIVEBAND_NUMBANDS; i++) {
+        ActiveParams.pEQNB_BandDefinition[i].Gain = pContext->pBundledContext->bandGaindB[i] +
+                gainCorrection;
+    }
+    /* Activate the initial settings */
+    LvmStatus = LVM_SetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
+    LVM_ERROR_CHECK(LvmStatus, "LVM_SetControlParameters", "EqualizerLimitBandLevels")
+    //ALOGV("\tEqualizerLimitBandLevels just Set -> %d\n",
+    //          ActiveParams.pEQNB_BandDefinition[band].Gain);
+}
+
+
 //----------------------------------------------------------------------------
 // EqualizerGetBandLevel()
 //----------------------------------------------------------------------------
@@ -1207,23 +1261,8 @@ void VirtualizerSetStrength(EffectContext *pContext, uint32_t strength){
 //
 //----------------------------------------------------------------------------
 int32_t EqualizerGetBandLevel(EffectContext *pContext, int32_t band){
-
-    int32_t Gain =0;
-    LVM_ControlParams_t     ActiveParams;                           /* Current control Parameters */
-    LVM_ReturnStatus_en     LvmStatus = LVM_SUCCESS;                /* Function call status */
-    LVM_EQNB_BandDef_t      *BandDef;
-    /* Get the current settings */
-    LvmStatus = LVM_GetControlParameters(pContext->pBundledContext->hInstance,
-                                         &ActiveParams);
-
-    LVM_ERROR_CHECK(LvmStatus, "LVM_GetControlParameters", "EqualizerGetBandLevel")
-
-    BandDef = ActiveParams.pEQNB_BandDefinition;
-    Gain    = (int32_t)BandDef[band].Gain*100;    // Convert to millibels
-
-    //ALOGV("\tEqualizerGetBandLevel -> %d\n", Gain );
-    //ALOGV("\tEqualizerGetBandLevel Succesfully returned from LVM_GetControlParameters\n");
-    return Gain;
+    //ALOGV("\tEqualizerGetBandLevel -> %d\n", pContext->pBundledContext->bandGaindB[band] );
+    return pContext->pBundledContext->bandGaindB[band] * 100;
 }
 
 //----------------------------------------------------------------------------
@@ -1248,30 +1287,12 @@ void EqualizerSetBandLevel(EffectContext *pContext, int band, short Gain){
         gainRounded = (int)((Gain-50)/100);
     }
     //ALOGV("\tEqualizerSetBandLevel(%d)->(%d)", Gain, gainRounded);
-
-
-    LVM_ControlParams_t     ActiveParams;              /* Current control Parameters */
-    LVM_ReturnStatus_en     LvmStatus=LVM_SUCCESS;     /* Function call status */
-    LVM_EQNB_BandDef_t      *BandDef;
-
-    /* Get the current settings */
-    LvmStatus = LVM_GetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
-    LVM_ERROR_CHECK(LvmStatus, "LVM_GetControlParameters", "EqualizerSetBandLevel")
-    //ALOGV("\tEqualizerSetBandLevel Succesfully returned from LVM_GetControlParameters\n");
-    //ALOGV("\tEqualizerSetBandLevel just Got -> %d\n",ActiveParams.pEQNB_BandDefinition[band].Gain);
-
-    /* Set local EQ parameters */
-    BandDef = ActiveParams.pEQNB_BandDefinition;
-    ActiveParams.pEQNB_BandDefinition[band].Gain = gainRounded;
-
-    /* Activate the initial settings */
-    LvmStatus = LVM_SetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
-    LVM_ERROR_CHECK(LvmStatus, "LVM_SetControlParameters", "EqualizerSetBandLevel")
-    //ALOGV("\tEqualizerSetBandLevel just Set -> %d\n",ActiveParams.pEQNB_BandDefinition[band].Gain);
-
+    pContext->pBundledContext->bandGaindB[band] = gainRounded;
     pContext->pBundledContext->CurPreset = PRESET_CUSTOM;
-    return;
+
+    EqualizerLimitBandLevels(pContext);
 }
+
 //----------------------------------------------------------------------------
 // EqualizerGetCentreFrequency()
 //----------------------------------------------------------------------------
@@ -1410,12 +1431,14 @@ void EqualizerSetPreset(EffectContext *pContext, int preset){
     {
         ActiveParams.pEQNB_BandDefinition[i].Frequency = EQNB_5BandPresetsFrequencies[i];
         ActiveParams.pEQNB_BandDefinition[i].QFactor   = EQNB_5BandPresetsQFactors[i];
-        ActiveParams.pEQNB_BandDefinition[i].Gain
-        = EQNB_5BandSoftPresets[i + preset * FIVEBAND_NUMBANDS];
+        pContext->pBundledContext->bandGaindB[i] =
+                EQNB_5BandSoftPresets[i + preset * FIVEBAND_NUMBANDS];
     }
     /* Activate the new settings */
     LvmStatus = LVM_SetControlParameters(pContext->pBundledContext->hInstance, &ActiveParams);
     LVM_ERROR_CHECK(LvmStatus, "LVM_SetControlParameters", "EqualizerSetPreset")
+
+    EqualizerLimitBandLevels(pContext);
 
     //ALOGV("\tEqualizerSetPreset Succesfully called LVM_SetControlParameters\n");
     return;
@@ -1494,6 +1517,9 @@ int VolumeSetVolumeLevel(EffectContext *pContext, int16_t level){
         ALOGV("\tLVM_VOLUME: Disabling Smoothing for first volume change to remove spikes/clicks");
         pContext->pBundledContext->firstVolume = LVM_FALSE;
     }
+
+    EqualizerLimitBandLevels(pContext);
+
     return 0;
 }    /* end VolumeSetVolumeLevel */
 
