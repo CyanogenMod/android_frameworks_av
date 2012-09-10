@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <media/stagefright/foundation/ABitReader.h>
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
@@ -1426,18 +1427,15 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             if (mFileMetaData != NULL) {
                 ALOGV("chunk_data_size = %lld and data_offset = %lld",
                         chunk_data_size, data_offset);
-                uint8_t *buffer = new uint8_t[chunk_data_size + 1];
+                sp<ABuffer> buffer = new ABuffer(chunk_data_size + 1);
                 if (mDataSource->readAt(
-                    data_offset, buffer, chunk_data_size) != (ssize_t)chunk_data_size) {
-                    delete[] buffer;
-                    buffer = NULL;
-
+                    data_offset, buffer->data(), chunk_data_size) != (ssize_t)chunk_data_size) {
                     return ERROR_IO;
                 }
                 const int kSkipBytesOfDataBox = 16;
                 mFileMetaData->setData(
                     kKeyAlbumArt, MetaData::TYPE_NONE,
-                    buffer + kSkipBytesOfDataBox, chunk_data_size - kSkipBytesOfDataBox);
+                    buffer->data() + kSkipBytesOfDataBox, chunk_data_size - kSkipBytesOfDataBox);
             }
 
             *offset += chunk_size;
