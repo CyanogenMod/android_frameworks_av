@@ -1553,6 +1553,8 @@ const char* Parameters::getStateName(State state) {
 
 int Parameters::formatStringToEnum(const char *format) {
     return
+        !format ?
+            HAL_PIXEL_FORMAT_YCrCb_420_SP :
         !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV422SP) ?
             HAL_PIXEL_FORMAT_YCbCr_422_SP : // NV16
         !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV420SP) ?
@@ -1606,6 +1608,8 @@ const char* Parameters::formatEnumToString(int format) {
 
 int Parameters::wbModeStringToEnum(const char *wbMode) {
     return
+        !wbMode ?
+            ANDROID_CONTROL_AWB_AUTO :
         !strcmp(wbMode, CameraParameters::WHITE_BALANCE_AUTO) ?
             ANDROID_CONTROL_AWB_AUTO :
         !strcmp(wbMode, CameraParameters::WHITE_BALANCE_INCANDESCENT) ?
@@ -1627,6 +1631,8 @@ int Parameters::wbModeStringToEnum(const char *wbMode) {
 
 int Parameters::effectModeStringToEnum(const char *effectMode) {
     return
+        !effectMode ?
+            ANDROID_CONTROL_EFFECT_OFF :
         !strcmp(effectMode, CameraParameters::EFFECT_NONE) ?
             ANDROID_CONTROL_EFFECT_OFF :
         !strcmp(effectMode, CameraParameters::EFFECT_MONO) ?
@@ -1650,6 +1656,8 @@ int Parameters::effectModeStringToEnum(const char *effectMode) {
 
 int Parameters::abModeStringToEnum(const char *abMode) {
     return
+        !abMode ?
+            ANDROID_CONTROL_AE_ANTIBANDING_AUTO :
         !strcmp(abMode, CameraParameters::ANTIBANDING_AUTO) ?
             ANDROID_CONTROL_AE_ANTIBANDING_AUTO :
         !strcmp(abMode, CameraParameters::ANTIBANDING_OFF) ?
@@ -1663,6 +1671,8 @@ int Parameters::abModeStringToEnum(const char *abMode) {
 
 int Parameters::sceneModeStringToEnum(const char *sceneMode) {
     return
+        !sceneMode ?
+            ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_AUTO) ?
             ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_ACTION) ?
@@ -1701,6 +1711,8 @@ int Parameters::sceneModeStringToEnum(const char *sceneMode) {
 Parameters::Parameters::flashMode_t Parameters::flashModeStringToEnum(
         const char *flashMode) {
     return
+        !flashMode ?
+            Parameters::FLASH_MODE_INVALID :
         !strcmp(flashMode, CameraParameters::FLASH_MODE_OFF) ?
             Parameters::FLASH_MODE_OFF :
         !strcmp(flashMode, CameraParameters::FLASH_MODE_AUTO) ?
@@ -1717,6 +1729,8 @@ Parameters::Parameters::flashMode_t Parameters::flashModeStringToEnum(
 Parameters::Parameters::focusMode_t Parameters::focusModeStringToEnum(
         const char *focusMode) {
     return
+        !focusMode ?
+            Parameters::FOCUS_MODE_INVALID :
         !strcmp(focusMode, CameraParameters::FOCUS_MODE_AUTO) ?
             Parameters::FOCUS_MODE_AUTO :
         !strcmp(focusMode, CameraParameters::FOCUS_MODE_INFINITY) ?
@@ -1737,6 +1751,8 @@ Parameters::Parameters::focusMode_t Parameters::focusModeStringToEnum(
 Parameters::Parameters::lightFxMode_t Parameters::lightFxStringToEnum(
         const char *lightFxMode) {
     return
+        !lightFxMode ?
+            Parameters::LIGHTFX_NONE :
         !strcmp(lightFxMode, CameraParameters::LIGHTFX_LOWLIGHT) ?
             Parameters::LIGHTFX_LOWLIGHT :
         !strcmp(lightFxMode, CameraParameters::LIGHTFX_HDR) ?
