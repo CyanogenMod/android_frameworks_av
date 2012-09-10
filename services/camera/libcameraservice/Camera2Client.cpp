@@ -681,13 +681,8 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         }
         request = &mRecordingRequest;
 
-        res = updateRecordingStream(params);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to pre-configure recording "
-                    "stream: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
+        // TODO: Re-enable recording stream creation/update here once issues are
+        // resolved
 
         res = mJpegProcessor->updateStream(params);
         if (res != OK) {
