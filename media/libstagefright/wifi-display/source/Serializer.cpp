@@ -275,14 +275,7 @@ status_t Serializer::onStart() {
     }
 
     if (err == OK) {
-#if 0
         schedulePoll();
-#else
-        // XXX the dongle doesn't appear to have setup the RTP connection
-        // fully at the time PLAY is called. We have to delay sending data
-        // for a little bit.
-        schedulePoll(500000ll);
-#endif
     }
 
     return err;
