@@ -1360,17 +1360,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             &antibandingMode, 1);
     if (res != OK) return res;
 
-    uint8_t reqControlMode =
-            (sceneMode == ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ?
-            ANDROID_CONTROL_AUTO : ANDROID_CONTROL_USE_SCENE_MODE;
+    // android.hardware.Camera requires that when face detect is enabled, the
+    // camera is in a face-priority mode. HAL2 splits this into separate parts
+    // (face detection statistics and face priority scene mode). Map from other
+    // to the other.
+    uint8_t reqControlMode = ANDROID_CONTROL_AUTO;
+    if (enableFaceDetect || sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) {
+        reqControlMode = ANDROID_CONTROL_USE_SCENE_MODE;
+    }
     res = request->update(ANDROID_CONTROL_MODE,
             &reqControlMode, 1);
     if (res != OK) return res;
-    if (reqControlMode == ANDROID_CONTROL_USE_SCENE_MODE) {
-        res = request->update(ANDROID_CONTROL_SCENE_MODE,
-                &sceneMode, 1);
-        if (res != OK) return res;
-    }
+
+    uint8_t reqSceneMode = enableFaceDetect ?
+            (uint8_t)ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY : sceneMode;
+    res = request->update(ANDROID_CONTROL_SCENE_MODE,
+            &reqSceneMode, 1);
+    if (res != OK) return res;
 
     uint8_t reqFlashMode = ANDROID_FLASH_OFF;
     uint8_t reqAeMode;
@@ -1514,8 +1520,6 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     res = request->update(ANDROID_SCALER_CROP_REGION,
             reqCropRegion, 3);
     if (res != OK) return res;
-
-    // TODO: Decide how to map recordingHint, or whether just to ignore it
 
     uint8_t reqVstabMode = videoStabilization ?
             ANDROID_CONTROL_VIDEO_STABILIZATION_ON :
