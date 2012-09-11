@@ -647,11 +647,10 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
         service->connectDisplay(mBufferQueue);
     }
 
-#if 0
     sp<AudioSource> audioSource = new AudioSource(
-            AUDIO_SOURCE_MIC,
+            AUDIO_SOURCE_REMOTE_SUBMIX,
             48000 /* sampleRate */,
-            2 /* channelCount */);  // XXX AUDIO_CHANNEL_IN_STEREO?
+            2 /* channelCount */);
 
     if (audioSource->initCheck() == OK) {
         audioSource->setUseLooperTime(true);
@@ -670,10 +669,11 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
         looper()->registerHandler(converter);
 
         mTracks.add(index, new Track(converter));
+
+        ALOGI("Successfully instantiated audio source.");
     } else {
         ALOGW("Unable to instantiate audio source");
     }
-#endif
 #endif
 
     return OK;
