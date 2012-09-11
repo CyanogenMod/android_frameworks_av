@@ -177,7 +177,7 @@ private:
     /** Camera device-related private members */
 
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
-    status_t updateRequests(const Parameters &params);
+    status_t updateRequests(Parameters &params);
 
     // Used with stream IDs
     static const int NO_STREAM = -1;
