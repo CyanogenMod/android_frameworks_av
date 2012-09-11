@@ -331,11 +331,15 @@ status_t ANetworkSession::Session::readMore() {
         notify->post();
 
 #if 1
-        // XXX The dongle sends the wrong content length header on a
+        // XXX The (old) dongle sends the wrong content length header on a
         // SET_PARAMETER request that signals a "wfd_idr_request".
         // (17 instead of 19).
         const char *content = msg->getContent();
-        if (content && !memcmp(content, "wfd_idr_request\r\n", 17)) {
+        if (content
+                && !memcmp(content, "wfd_idr_request\r\n", 17)
+                && length >= 19
+                && mInBuffer.c_str()[length] == '\r'
+                && mInBuffer.c_str()[length + 1] == '\n') {
             length += 2;
         }
 #endif
