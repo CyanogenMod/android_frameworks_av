@@ -637,8 +637,8 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     CHECK(service != NULL);
 
     // Add one reference to account for the serializer.
-    // Add another one for unknown reasons.
-    err = source->setMaxAcquiredBufferCount(numInputBuffers + 2);
+    // Add another two for unknown reasons.
+    err = source->setMaxAcquiredBufferCount(31 /* numInputBuffers + 1 */);
     CHECK_EQ(err, (status_t)OK);
 
     mBufferQueue = source->getBufferQueue();
