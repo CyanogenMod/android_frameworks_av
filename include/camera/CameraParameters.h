@@ -597,6 +597,10 @@ public:
     // Applications are looking for a barcode. Camera driver will be optimized
     // for barcode reading.
     static const char SCENE_MODE_BARCODE[];
+    // A high-dynamic range mode. In this mode, the HAL module will use a
+    // capture strategy that extends the dynamic range of the captured
+    // image in some fashion. Only the final image is returned.
+    static const char SCENE_MODE_HDR[];
 
     // Pixel color formats for KEY_PREVIEW_FORMAT, KEY_PICTURE_FORMAT,
     // and KEY_VIDEO_FRAME_FORMAT
