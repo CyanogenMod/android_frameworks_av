@@ -45,31 +45,3 @@ LOCAL_C_INCLUDES := bionic/libc/private
 LOCAL_SHARED_LIBRARIES := libutils libcutils libusbhost libbinder
 
 include $(BUILD_SHARED_LIBRARY)
-
-ifeq ($(HOST_OS),linux)
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:=                                       \
-                  MtpDataPacket.cpp                     \
-                  MtpDebug.cpp                          \
-                  MtpDevice.cpp                         \
-                  MtpEventPacket.cpp                    \
-                  MtpDeviceInfo.cpp                     \
-                  MtpObjectInfo.cpp                     \
-                  MtpPacket.cpp                         \
-                  MtpProperty.cpp                       \
-                  MtpRequestPacket.cpp                  \
-                  MtpResponsePacket.cpp                 \
-                  MtpStorageInfo.cpp                    \
-                  MtpStringBuffer.cpp                   \
-                  MtpStorage.cpp                        \
-                  MtpUtils.cpp                          \
-
-LOCAL_MODULE:= libmtp
-
-LOCAL_CFLAGS := -DMTP_HOST
-
-include $(BUILD_HOST_STATIC_LIBRARY)
-
-endif
