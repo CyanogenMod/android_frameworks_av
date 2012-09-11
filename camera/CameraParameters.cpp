@@ -118,9 +118,11 @@ const char CameraParameters::KEY_ZOOM_SUPPORTED[] = "zoom-supported";
 const char CameraParameters::KEY_SMOOTH_ZOOM_SUPPORTED[] = "smooth-zoom-supported";
 const char CameraParameters::KEY_FOCUS_DISTANCES[] = "focus-distances";
 const char CameraParameters::KEY_VIDEO_FRAME_FORMAT[] = "video-frame-format";
-#ifdef QCOM_HARDWARE
-const char CameraParameters::KEY_ISO_MODE[] = "iso";
+#if defined(QCOM_HARDWARE) || defined(EXYNOS4X12_ENHANCEMENTS)
 const char CameraParameters::KEY_SUPPORTED_ISO_MODES[] = "iso-values";
+const char CameraParameters::KEY_ISO_MODE[] = "iso";
+#endif
+#ifdef QCOM_HARDWARE
 const char CameraParameters::KEY_LENSSHADE[] = "lensshade";
 const char CameraParameters::KEY_SUPPORTED_LENSSHADE_MODES[] = "lensshade-values";
 const char CameraParameters::KEY_AUTO_EXPOSURE[] = "auto-exposure";
