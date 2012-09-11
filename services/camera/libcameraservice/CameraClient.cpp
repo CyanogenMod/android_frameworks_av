@@ -608,11 +608,9 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     } else if (cmd == CAMERA_CMD_ENABLE_SHUTTER_SOUND) {
         switch (arg1) {
             case 0:
-                enableShutterSound(false);
-                break;
+                return enableShutterSound(false);
             case 1:
-                enableShutterSound(true);
-                break;
+                return enableShutterSound(true);
             default:
                 return BAD_VALUE;
         }
