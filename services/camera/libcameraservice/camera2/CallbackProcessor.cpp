@@ -39,6 +39,7 @@ CallbackProcessor::CallbackProcessor(wp<Camera2Client> client):
 
 CallbackProcessor::~CallbackProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
+    deleteStream();
 }
 
 void CallbackProcessor::onFrameAvailable() {
@@ -126,6 +127,11 @@ status_t CallbackProcessor::deleteStream() {
         sp<Camera2Device> device = client->getCameraDevice();
 
         device->deleteStream(mCallbackStreamId);
+
+        mCallbackHeap.clear();
+        mCallbackWindow.clear();
+        mCallbackConsumer.clear();
+
         mCallbackStreamId = NO_STREAM;
     }
     return OK;

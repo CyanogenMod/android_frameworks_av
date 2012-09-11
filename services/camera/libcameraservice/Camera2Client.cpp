@@ -156,6 +156,11 @@ Camera2Client::~Camera2Client() {
     disconnect();
 
     mFrameProcessor->requestExit();
+    mCaptureSequencer->requestExit();
+    mJpegProcessor->requestExit();
+    mZslProcessor->requestExit();
+    mCallbackProcessor->requestExit();
+
     ALOGI("Camera %d: Closed", mCameraId);
 }
 
@@ -390,6 +395,8 @@ void Camera2Client::disconnect() {
     }
 
     mCallbackProcessor->deleteStream();
+
+    mZslProcessor->deleteStream();
 
     mDevice.clear();
     SharedParameters::Lock l(mParameters);
