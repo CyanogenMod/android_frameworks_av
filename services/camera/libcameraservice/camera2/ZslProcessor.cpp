@@ -134,7 +134,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
         }
         if (currentWidth != (uint32_t)params.pictureWidth ||
                 currentHeight != (uint32_t)params.pictureHeight) {
-            res = device->deleteStream(mZslReprocessStreamId);
+            res = device->deleteReprocessStream(mZslReprocessStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old reprocess stream "
                         "for ZSL: %s (%d)", __FUNCTION__,
@@ -189,9 +189,22 @@ status_t ZslProcessor::deleteStream() {
         if (client == 0) return OK;
         sp<Camera2Device> device = client->getCameraDevice();
 
-        device->deleteStream(mZslReprocessStreamId);
+        res = device->deleteReprocessStream(mZslReprocessStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Cannot delete ZSL reprocessing stream %d: "
+                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    mZslReprocessStreamId, strerror(-res), res);
+            return res;
+        }
+
         mZslReprocessStreamId = NO_STREAM;
-        device->deleteStream(mZslStreamId);
+        res = device->deleteStream(mZslStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Cannot delete ZSL output stream %d: "
+                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    mZslStreamId, strerror(-res), res);
+            return res;
+        }
 
         mZslWindow.clear();
         mZslConsumer.clear();
