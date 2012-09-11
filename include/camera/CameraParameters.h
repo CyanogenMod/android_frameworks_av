@@ -298,7 +298,7 @@ public:
     // Example value: "42.5". Read only.
     static const char KEY_VERTICAL_VIEW_ANGLE[];
     // Exposure compensation index. 0 means exposure is not adjusted.
-    // Example value: "0" or "5". Read/write.
+    // Example value: "-5" or "5". Read/write.
     static const char KEY_EXPOSURE_COMPENSATION[];
     // The maximum exposure compensation index (>=0).
     // Example value: "6". Read only.
@@ -307,7 +307,7 @@ public:
     // Example value: "-6". Read only.
     static const char KEY_MIN_EXPOSURE_COMPENSATION[];
     // The exposure compensation step. Exposure compensation index multiply by
-    // step eqals to EV. Ex: if exposure compensation index is 6 and step is
+    // step eqals to EV. Ex: if exposure compensation index is -6 and step is
     // 0.3333, EV is -2.
     // Example value: "0.333333333" or "0.5". Read only.
     static const char KEY_EXPOSURE_COMPENSATION_STEP[];
@@ -525,6 +525,10 @@ public:
     // stream and record stabilized videos.
     static const char KEY_VIDEO_STABILIZATION_SUPPORTED[];
 
+    // Supported modes for special effects with light.
+    // Example values: "lowlight,hdr".
+    static const char KEY_LIGHTFX[];
+
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
     static const char TRUE[];
     static const char FALSE[];
@@ -659,6 +663,12 @@ public:
     // To stop continuous focus, applications should change the focus mode to
     // other modes.
     static const char FOCUS_MODE_CONTINUOUS_PICTURE[];
+
+    // Values for light special effects
+    // Low-light enhancement mode
+    static const char LIGHTFX_LOWLIGHT[];
+    // High-dynamic range mode
+    static const char LIGHTFX_HDR[];
 
 private:
     DefaultKeyedVector<String8,String8>    mMap;

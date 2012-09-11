@@ -17,7 +17,9 @@ LOCAL_SRC_FILES:=               \
     camera2/JpegProcessor.cpp \
     camera2/CallbackProcessor.cpp \
     camera2/ZslProcessor.cpp \
-    camera2/CaptureSequencer.cpp \
+    camera2/BurstCapture.cpp \
+    camera2/JpegCompressor.cpp \
+    camera2/CaptureSequencer.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
@@ -30,10 +32,12 @@ LOCAL_SHARED_LIBRARIES:= \
     libgui \
     libhardware \
     libsync \
-    libcamera_metadata
+    libcamera_metadata \
+    libjpeg
 
 LOCAL_C_INCLUDES += \
-    system/media/camera/include
+    system/media/camera/include \
+    external/jpeg
 
 LOCAL_MODULE:= libcameraservice
 
