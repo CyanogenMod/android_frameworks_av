@@ -64,15 +64,6 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("camera.zsl_mode", value, "0");
-    if (!strcmp(value,"1")) {
-        ALOGI("Camera %d: Enabling ZSL mode", cameraId);
-        l.mParameters.zslMode = true;
-    } else {
-        l.mParameters.zslMode = false;
-    }
 }
 
 status_t Camera2Client::checkPid(const char* checkLocation) const {
