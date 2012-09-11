@@ -291,19 +291,20 @@ AudioFlinger::AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
         for (size_t i = 0; i < ARRAY_SIZE(audio_interfaces); i++) {
             loadHwModule_l(audio_interfaces[i]);
         }
+        // then try to find a module supporting the requested device.
+        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+            AudioHwDevice *audioHwDevice = mAudioHwDevs.valueAt(i);
+            audio_hw_device_t *dev = audioHwDevice->hwDevice();
+            if ((dev->get_supported_devices != NULL) &&
+                    (dev->get_supported_devices(dev) & devices) == devices)
+                return audioHwDevice;
+        }
     } else {
         // check a match for the requested module handle
         AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(module);
         if (audioHwDevice != NULL) {
             return audioHwDevice;
         }
-    }
-    // then try to find a module supporting the requested device.
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        AudioHwDevice *audioHwDevice = mAudioHwDevs.valueAt(i);
-        audio_hw_device_t *dev = audioHwDevice->hwDevice();
-        if ((dev->get_supported_devices(dev) & devices) == devices)
-            return audioHwDevice;
     }
 
     return NULL;
@@ -884,7 +885,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             if (mBtNrecIsOff != btNrecIsOff) {
                 for (size_t i = 0; i < mRecordThreads.size(); i++) {
                     sp<RecordThread> thread = mRecordThreads.valueAt(i);
-                    audio_devices_t device = thread->device() & AUDIO_DEVICE_IN_ALL;
+                    audio_devices_t device = thread->inDevice();
                     bool suspend = audio_is_bluetooth_sco_device(device) && btNrecIsOff;
                     // collect all of the thread's session IDs
                     KeyedVector<int, bool> ids = thread->sessionIds();
@@ -1133,7 +1134,7 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, 
 // ----------------------------------------------------------------------------
 
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
-        audio_devices_t device, type_t type)
+        audio_devices_t outDevice, audio_devices_t inDevice, type_t type)
     :   Thread(false /*canCallJava*/),
         mType(type),
         mAudioFlinger(audioFlinger), mSampleRate(0), mFrameCount(0), mNormalFrameCount(0),
@@ -1141,7 +1142,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mChannelCount(0),
         mFrameSize(1), mFormat(AUDIO_FORMAT_INVALID),
         mParamStatus(NO_ERROR),
-        mStandby(false), mDevice(device), mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
+        mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
+        mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this))
 {
@@ -1518,7 +1520,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              audio_io_handle_t id,
                                              audio_devices_t device,
                                              type_t type)
-    :   ThreadBase(audioFlinger, id, device, type),
+    :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
         mMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
@@ -3451,7 +3453,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
 #ifdef ADD_BATTERY_DATA
             // when changing the audio output device, call addBatteryData to notify
             // the change
-            if (mDevice != value) {
+            if (mOutDevice != value) {
                 uint32_t params = 0;
                 // check whether speaker is on
                 if (value & AUDIO_DEVICE_OUT_SPEAKER) {
@@ -3473,9 +3475,9 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
 
             // forward device change to effects that have requested to be
             // aware of attached audio device.
-            mDevice = value;
+            mOutDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
-                mEffectChains[i]->setDevice_l(mDevice);
+                mEffectChains[i]->setDevice_l(mOutDevice);
             }
         }
 
@@ -3930,7 +3932,7 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
 AudioFlinger::DuplicatingThread::DuplicatingThread(const sp<AudioFlinger>& audioFlinger,
         AudioFlinger::MixerThread* mainThread, audio_io_handle_t id)
-    :   MixerThread(audioFlinger, mainThread->getOutput(), id, mainThread->device(), DUPLICATING),
+    :   MixerThread(audioFlinger, mainThread->getOutput(), id, mainThread->outDevice(), DUPLICATING),
         mWaitTimeMs(UINT_MAX)
 {
     addOutputTrack(mainThread);
@@ -5936,7 +5938,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
                                          audio_devices_t device) :
-    ThreadBase(audioFlinger, id, device, RECORD),
+    ThreadBase(audioFlinger, id, AUDIO_DEVICE_NONE, device, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
@@ -6215,7 +6217,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         mTracks.add(track);
 
         // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
-        bool suspend = audio_is_bluetooth_sco_device(mDevice & AUDIO_DEVICE_IN_ALL) &&
+        bool suspend = audio_is_bluetooth_sco_device(mInDevice) &&
                         mAudioFlinger->btNrecIsOff();
         setEffectSuspended_l(FX_IID_AEC, suspend, sessionId);
         setEffectSuspended_l(FX_IID_NS, suspend, sessionId);
@@ -6568,19 +6570,19 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(value);
             }
+
             // store input device and output device but do not forward output device to audio HAL.
             // Note that status is ignored by the caller for output device
             // (see AudioFlinger::setParameters()
-            audio_devices_t newDevice = mDevice;
-            if (value & AUDIO_DEVICE_OUT_ALL) {
-                newDevice &= ~(value & AUDIO_DEVICE_OUT_ALL);
+            if (audio_is_output_devices(value)) {
+                mOutDevice = value;
                 status = BAD_VALUE;
             } else {
-                newDevice &= ~(value & AUDIO_DEVICE_IN_ALL);
+                mInDevice = value;
                 // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
                 if (mTracks.size() > 0) {
-                    bool suspend = audio_is_bluetooth_sco_device(
-                            (audio_devices_t)value) && mAudioFlinger->btNrecIsOff();
+                    bool suspend = audio_is_bluetooth_sco_device(mInDevice) &&
+                                        mAudioFlinger->btNrecIsOff();
                     for (size_t i = 0; i < mTracks.size(); i++) {
                         sp<RecordTrack> track = mTracks[i];
                         setEffectSuspended_l(FX_IID_AEC, suspend, track->sessionId());
@@ -6588,8 +6590,6 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                     }
                 }
             }
-            newDevice |= value;
-            mDevice = newDevice;    // since mDevice is read by other threads, only write to it once
         }
         if (param.getInt(String8(AudioParameter::keyInputSource), value) == NO_ERROR &&
                 mAudioSource != (audio_source_t)value) {
@@ -7331,7 +7331,7 @@ audio_devices_t AudioFlinger::primaryOutputDevice_l() const
         return 0;
     }
 
-    return thread->device();
+    return thread->outDevice();
 }
 
 sp<AudioFlinger::SyncEvent> AudioFlinger::createSyncEvent(AudioSystem::sync_event_t type,
@@ -7744,7 +7744,8 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             }
             effectCreated = true;
 
-            effect->setDevice(mDevice);
+            effect->setDevice(mOutDevice);
+            effect->setDevice(mInDevice);
             effect->setMode(mAudioFlinger->getMode());
             effect->setAudioSource(mAudioSource);
         }
@@ -7822,7 +7823,8 @@ status_t AudioFlinger::ThreadBase::addEffect_l(const sp<EffectModule>& effect)
         return status;
     }
 
-    effect->setDevice(mDevice);
+    effect->setDevice(mOutDevice);
+    effect->setDevice(mInDevice);
     effect->setMode(mAudioFlinger->getMode());
     effect->setAudioSource(mAudioSource);
     return NO_ERROR;
@@ -8661,44 +8663,23 @@ status_t AudioFlinger::EffectModule::setVolume(uint32_t *left, uint32_t *right, 
 
 status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
 {
+    if (device == AUDIO_DEVICE_NONE) {
+        return NO_ERROR;
+    }
+
     Mutex::Autolock _l(mLock);
     status_t status = NO_ERROR;
     if (device && (mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
-        // audio pre processing modules on RecordThread can receive both output and
-        // input device indication in the same call
-        audio_devices_t dev = device & AUDIO_DEVICE_OUT_ALL;
-        if (dev) {
-            status_t cmdStatus;
-            uint32_t size = sizeof(status_t);
-
-            status = (*mEffectInterface)->command(mEffectInterface,
-                                                  EFFECT_CMD_SET_DEVICE,
-                                                  sizeof(uint32_t),
-                                                  &dev,
-                                                  &size,
-                                                  &cmdStatus);
-            if (status == NO_ERROR) {
-                status = cmdStatus;
-            }
-        }
-        dev = device & AUDIO_DEVICE_IN_ALL;
-        if (dev) {
-            status_t cmdStatus;
-            uint32_t size = sizeof(status_t);
-
-            status_t status2 = (*mEffectInterface)->command(mEffectInterface,
-                                                  EFFECT_CMD_SET_INPUT_DEVICE,
-                                                  sizeof(uint32_t),
-                                                  &dev,
-                                                  &size,
-                                                  &cmdStatus);
-            if (status2 == NO_ERROR) {
-                status2 = cmdStatus;
-            }
-            if (status == NO_ERROR) {
-                status = status2;
-            }
-        }
+        status_t cmdStatus;
+        uint32_t size = sizeof(status_t);
+        uint32_t cmd = audio_is_output_devices(device) ? EFFECT_CMD_SET_DEVICE :
+                            EFFECT_CMD_SET_INPUT_DEVICE;
+        status = (*mEffectInterface)->command(mEffectInterface,
+                                              cmd,
+                                              sizeof(uint32_t),
+                                              &device,
+                                              &size,
+                                              &cmdStatus);
     }
     return status;
 }
