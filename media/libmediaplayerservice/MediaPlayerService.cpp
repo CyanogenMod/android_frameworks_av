@@ -283,10 +283,19 @@ sp<ICrypto> MediaPlayerService::makeCrypto() {
 
 sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
         const sp<IRemoteDisplayClient>& client, const String8& iface) {
+    if (!checkPermission("android.permission.CONTROL_WIFI_DISPLAY")) {
+        return NULL;
+    }
+
     return new RemoteDisplay(client, iface.string());
 }
 
+// TODO: delete this method
 status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
+    if (!checkPermission("android.permission.CONTROL_WIFI_DISPLAY")) {
+        return PERMISSION_DENIED;
+    }
+
     Mutex::Autolock autoLock(mLock);
 
     if (iface != NULL) {
