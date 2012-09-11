@@ -90,6 +90,7 @@ const char CameraParameters::KEY_RECORDING_HINT[] = "recording-hint";
 const char CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED[] = "video-snapshot-supported";
 const char CameraParameters::KEY_VIDEO_STABILIZATION[] = "video-stabilization";
 const char CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED[] = "video-stabilization-supported";
+const char CameraParameters::KEY_LIGHTFX[] = "light-fx";
 
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
@@ -165,6 +166,10 @@ const char CameraParameters::FOCUS_MODE_FIXED[] = "fixed";
 const char CameraParameters::FOCUS_MODE_EDOF[] = "edof";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO[] = "continuous-video";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE[] = "continuous-picture";
+
+// Values for light fx settings
+const char CameraParameters::LIGHTFX_LOWLIGHT[] = "low-light";
+const char CameraParameters::LIGHTFX_HDR[] = "high-dynamic-range";
 
 CameraParameters::CameraParameters()
                 : mMap()
