@@ -163,7 +163,7 @@ AudioMixer::~AudioMixer()
     delete [] mState.resampleTemp;
 }
 
-int AudioMixer::getTrackName(audio_channel_mask_t channelMask)
+int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
 {
     uint32_t names = (~mTrackNames) & mConfiguredNames;
     if (names != 0) {
@@ -189,6 +189,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask)
         t->enabled = false;
         t->format = 16;
         t->channelMask = AUDIO_CHANNEL_OUT_STEREO;
+        t->sessionId = sessionId;
         // setBufferProvider(name, AudioBufferProvider *) is required before enable(name)
         t->bufferProvider = NULL;
         t->downmixerBufferProvider = NULL;
@@ -270,7 +271,7 @@ status_t AudioMixer::prepareTrackForDownmix(track_t* pTrack, int trackName)
     }
 
     if (EffectCreate(&dwnmFxDesc.uuid,
-            -2 /*sessionId*/, -2 /*ioId*/,// both not relevant here, using random value
+            pTrack->sessionId /*sessionId*/, -2 /*ioId not relevant here, using random value*/,
             &pDbp->mDownmixHandle/*pHandle*/) != 0) {
         ALOGE("prepareTrackForDownmix(%d) fails: error creating downmixer effect", trackName);
         goto noDownmixForActiveTrack;
