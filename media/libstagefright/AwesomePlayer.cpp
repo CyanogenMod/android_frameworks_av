@@ -1848,6 +1848,10 @@ status_t AwesomePlayer::initAudioDecoder() {
         char lpaDecode[128];
         uint32_t minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
         char minUserDefDuration[PROPERTY_VALUE_MAX];
+#ifdef LEGACY_LPA
+        char audioDecoderOverrideCheck[128];
+        property_get("audio.decoder_override_check",audioDecoderOverrideCheck,"0");
+#endif
         property_get("lpa.decode",lpaDecode,"0");
         property_get("lpa.min_duration",minUserDefDuration,"LPA_MIN_DURATION_USEC_DEFAULT");
         minDurationForLPA = atoi(minUserDefDuration);
@@ -1882,7 +1886,17 @@ status_t AwesomePlayer::initAudioDecoder() {
                 }
             }
             flags |= OMXCodec::kSoftwareCodecsOnly;
+#ifdef LEGACY_LPA
+            LPAPlayer::mLpaInProgress = true;
+#endif
         }
+
+#ifdef LEGACY_LPA
+        if ((LPAPlayer::mLpaInProgress == true) && (strcmp("true",audioDecoderOverrideCheck) == 0)) {
+            flags |= OMXCodec::kSoftwareCodecsOnly;
+        }
+#endif
+
         mAudioSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
