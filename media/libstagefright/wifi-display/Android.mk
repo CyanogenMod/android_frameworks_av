@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:= \
         sink/TunnelRenderer.cpp         \
         sink/WifiDisplaySink.cpp        \
         source/Converter.cpp            \
+        source/MediaPuller.cpp          \
         source/PlaybackSession.cpp      \
         source/RepeaterSource.cpp       \
         source/Serializer.cpp           \

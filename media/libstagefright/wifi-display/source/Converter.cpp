@@ -90,7 +90,7 @@ status_t Converter::initEncoder() {
     if (isAudio) {
         mOutputFormat->setInt32("bitrate", 64000);      // 64 kBit/sec
     } else {
-        mOutputFormat->setInt32("bitrate", 5000000);    // 5Mbit/sec
+        mOutputFormat->setInt32("bitrate", 10000000);    // 10Mbit/sec
         mOutputFormat->setInt32("frame-rate", 60);
         mOutputFormat->setInt32("i-frame-interval", 3);  // Iframes every 3 secs
     }
