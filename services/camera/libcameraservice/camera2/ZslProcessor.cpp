@@ -235,9 +235,19 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
     if (client == 0) return false;
 
     if (mZslQueueTail != mZslQueueHead) {
+        CameraMetadata request;
+        size_t index = mZslQueueTail;
+        while (request.isEmpty() && index != mZslQueueHead) {
+            request = mZslQueue[index].frame;
+            index = (index + 1) % kZslBufferDepth;
+        }
+        if (request.isEmpty()) {
+            ALOGE("No request in ZSL queue to send!");
+            return BAD_VALUE;
+        }
         buffer_handle_t *handle =
-            &(mZslQueue[mZslQueueTail].buffer.mGraphicBuffer->handle);
-        CameraMetadata request = mZslQueue[mZslQueueTail].frame;
+            &(mZslQueue[index].buffer.mGraphicBuffer->handle);
+
         uint8_t requestType = ANDROID_REQUEST_TYPE_REPROCESS;
         res = request.update(ANDROID_REQUEST_TYPE,
                 &requestType, 1);
@@ -306,19 +316,25 @@ bool ZslProcessor::threadLoop() {
 status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
     ATRACE_CALL();
     status_t res;
+
+    ALOGVV("Trying to get next buffer");
+    BufferItemConsumer::BufferItem item;
+    res = mZslConsumer->acquireBuffer(&item);
+    if (res != OK) {
+        if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
+            ALOGE("%s: Camera %d: Error receiving ZSL image buffer: "
+                    "%s (%d)", __FUNCTION__,
+                    client->getCameraId(), strerror(-res), res);
+        } else {
+            ALOGVV("  No buffer");
+        }
+        return res;
+    }
+
     Mutex::Autolock l(mInputMutex);
 
     if (mState == LOCKED) {
-        BufferItemConsumer::BufferItem item;
-        res = mZslConsumer->acquireBuffer(&item);
-        if (res != OK) {
-            if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
-                ALOGE("%s: Camera %d: Error receiving ZSL image buffer: "
-                        "%s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
-            }
-            return res;
-        }
+        ALOGVV("In capture, discarding new ZSL buffers");
         mZslConsumer->releaseBuffer(item);
         return OK;
     }
@@ -326,6 +342,7 @@ status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
     ALOGVV("Got ZSL buffer: head: %d, tail: %d", mZslQueueHead, mZslQueueTail);
 
     if ( (mZslQueueHead + 1) % kZslBufferDepth == mZslQueueTail) {
+        ALOGVV("Releasing oldest buffer");
         mZslConsumer->releaseBuffer(mZslQueue[mZslQueueTail].buffer);
         mZslQueue.replaceAt(mZslQueueTail);
         mZslQueueTail = (mZslQueueTail + 1) % kZslBufferDepth;
@@ -333,20 +350,12 @@ status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
 
     ZslPair &queueHead = mZslQueue.editItemAt(mZslQueueHead);
 
-    res = mZslConsumer->acquireBuffer(&(queueHead.buffer));
-    if (res != OK) {
-        if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
-            ALOGE("%s: Camera %d: Error receiving ZSL image buffer: "
-                    "%s (%d)", __FUNCTION__,
-                    client->getCameraId(), strerror(-res), res);
-        }
-        return res;
-    }
+    queueHead.buffer = item;
     queueHead.frame.release();
 
     mZslQueueHead = (mZslQueueHead + 1) % kZslBufferDepth;
 
-    ALOGVV("  Added buffer, timestamp %lld", queueHead.buffer.mTimestamp);
+    ALOGVV("  Acquired buffer, timestamp %lld", queueHead.buffer.mTimestamp);
 
     findMatchesLocked();
 
@@ -354,9 +363,20 @@ status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
 }
 
 void ZslProcessor::findMatchesLocked() {
+    ALOGVV("Scanning");
     for (size_t i = 0; i < mZslQueue.size(); i++) {
         ZslPair &queueEntry = mZslQueue.editItemAt(i);
         nsecs_t bufferTimestamp = queueEntry.buffer.mTimestamp;
+        IF_ALOGV() {
+            camera_metadata_entry_t entry;
+            nsecs_t frameTimestamp = 0;
+            if (!queueEntry.frame.isEmpty()) {
+                entry = queueEntry.frame.find(ANDROID_SENSOR_TIMESTAMP);
+                frameTimestamp = entry.data.i64[0];
+            }
+            ALOGVV("   %d: b: %lld\tf: %lld", i,
+                    bufferTimestamp, frameTimestamp );
+        }
         if (queueEntry.frame.isEmpty() && bufferTimestamp != 0) {
             // Have buffer, no matching frame. Look for one
             for (size_t j = 0; j < mFrameList.size(); j++) {

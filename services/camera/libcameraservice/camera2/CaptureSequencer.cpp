@@ -253,6 +253,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStart(
 
 CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         sp<Camera2Client> &client) {
+    ALOGV("%s", __FUNCTION__);
     status_t res;
     sp<ZslProcessor> processor = mZslProcessor.promote();
     if (processor == 0) {
@@ -271,7 +272,12 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         return DONE;
     }
     // TODO: Actually select the right thing here.
-    processor->pushToReprocess(mCaptureId);
+    res = processor->pushToReprocess(mCaptureId);
+    if (res != OK) {
+        ALOGW("%s: Camera %d: Failed to use ZSL queue, falling back to standard capture",
+                __FUNCTION__, client->getCameraId());
+        return STANDARD_START;
+    }
 
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
@@ -279,11 +285,13 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
 
 CaptureSequencer::CaptureState CaptureSequencer::manageZslWaiting(
         sp<Camera2Client> &client) {
+    ALOGV("%s", __FUNCTION__);
     return DONE;
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageZslReprocessing(
         sp<Camera2Client> &client) {
+    ALOGV("%s", __FUNCTION__);
     return START;
 }
 
