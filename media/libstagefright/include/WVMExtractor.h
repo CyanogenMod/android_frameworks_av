@@ -33,9 +33,11 @@ public:
     virtual ~WVMLoadableExtractor() {}
 
     virtual int64_t getCachedDurationUs(status_t *finalStatus) = 0;
+    virtual status_t getError() = 0;
     virtual status_t getEstimatedBandwidthKbps(int32_t *kbps) = 0;
     virtual void setAdaptiveStreamingMode(bool adaptive) = 0;
     virtual void setCryptoPluginMode(bool cryptoPluginMode) = 0;
+    virtual void setError(status_t err) = 0;
     virtual void setUID(uid_t uid) = 0;
 };
 
@@ -75,6 +77,10 @@ public:
     void setUID(uid_t uid);
 
     static bool getVendorLibHandle();
+
+    status_t getError();
+
+    void setError(status_t err);
 
 protected:
     virtual ~WVMExtractor();
