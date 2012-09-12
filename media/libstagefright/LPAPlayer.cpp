@@ -54,6 +54,7 @@ static const char   mName[] = "LPAPlayer";
 #define NUM_FDS 2
 namespace android {
 int LPAPlayer::objectsAlive = 0;
+bool LPAPlayer::mLpaInProgress = false;
 
 LPAPlayer::LPAPlayer(
                     const sp<MediaPlayerBase::AudioSink> &audioSink, bool &initCheck,
@@ -84,6 +85,7 @@ mObserver(observer),
 mTrackType(TRACK_NONE){
     ALOGV("LPAPlayer::LPAPlayer() ctor");
     objectsAlive++;
+    mLpaInProgress = true;
     mTimeStarted = 0;
     mTimePlayed = 0;
     numChannels =0;
@@ -117,6 +119,7 @@ LPAPlayer::~LPAPlayer() {
         mAudioFlinger->deregisterClient(AudioFlingerClient);
     }
     objectsAlive--;
+    mLpaInProgress = false;
 
 }
 
