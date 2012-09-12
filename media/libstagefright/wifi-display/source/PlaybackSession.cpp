@@ -785,8 +785,7 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
     }
 
     // Add one reference to account for the serializer.
-    // Add another two for unknown reasons.
-    err = source->setMaxAcquiredBufferCount(15);  // XXX numInputBuffers + 2);
+    err = source->setMaxAcquiredBufferCount(numInputBuffers);
     CHECK_EQ(err, (status_t)OK);
 
     mBufferQueue = source->getBufferQueue();
