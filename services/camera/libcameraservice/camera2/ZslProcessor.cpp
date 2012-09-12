@@ -132,8 +132,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                     client->getCameraId(), strerror(-res), res);
             return res;
         }
-        if (currentWidth != (uint32_t)params.pictureWidth ||
-                currentHeight != (uint32_t)params.pictureHeight) {
+        if (currentWidth != (uint32_t)params.fastInfo.arrayWidth ||
+                currentHeight != (uint32_t)params.fastInfo.arrayHeight) {
             res = device->deleteReprocessStream(mZslReprocessStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old reprocess stream "
@@ -154,8 +154,9 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
 
     if (mZslStreamId == NO_STREAM) {
         // Create stream for HAL production
+        // TODO: Sort out better way to select resolution for ZSL
         res = device->createStream(mZslWindow,
-                params.pictureWidth, params.pictureHeight,
+                params.fastInfo.arrayWidth, params.fastInfo.arrayHeight,
                 HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, 0,
                 &mZslStreamId);
         if (res != OK) {
