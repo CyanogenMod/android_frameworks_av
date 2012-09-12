@@ -20,6 +20,7 @@
 
 #include "Converter.h"
 
+#include <cutils/properties.h>
 #include <gui/SurfaceTextureClient.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -62,6 +63,20 @@ sp<AMessage> Converter::getOutputFormat() const {
     return mOutputFormat;
 }
 
+static int32_t getBitrate(const char *propName, int32_t defaultValue) {
+    char val[PROPERTY_VALUE_MAX];
+    if (property_get(propName, val, NULL)) {
+        char *end;
+        unsigned long x = strtoul(val, &end, 10);
+
+        if (*end == '\0' && end > val && x > 0) {
+            return x;
+        }
+    }
+
+    return defaultValue;
+}
+
 status_t Converter::initEncoder() {
     AString inputMIME;
     CHECK(mInputFormat->findString("mime", &inputMIME));
@@ -87,10 +102,16 @@ status_t Converter::initEncoder() {
     mOutputFormat = mInputFormat->dup();
     mOutputFormat->setString("mime", outputMIME.c_str());
 
+    int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 64000);
+    int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 10000000);
+
+    ALOGI("using audio bitrate of %d bps, video bitrate of %d bps",
+          audioBitrate, videoBitrate);
+
     if (isAudio) {
-        mOutputFormat->setInt32("bitrate", 64000);      // 64 kBit/sec
+        mOutputFormat->setInt32("bitrate", audioBitrate);
     } else {
-        mOutputFormat->setInt32("bitrate", 10000000);    // 10Mbit/sec
+        mOutputFormat->setInt32("bitrate", videoBitrate);
         mOutputFormat->setInt32("frame-rate", 60);
         mOutputFormat->setInt32("i-frame-interval", 3);  // Iframes every 3 secs
     }
