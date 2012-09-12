@@ -38,6 +38,7 @@ status_t RepeaterSource::start(MetaData *params) {
     mFrameCount = 0;
 
     mLooper = new ALooper;
+    mLooper->setName("repeater_looper");
     mLooper->start();
 
     mReflector = new AHandlerReflector<RepeaterSource>(this);
