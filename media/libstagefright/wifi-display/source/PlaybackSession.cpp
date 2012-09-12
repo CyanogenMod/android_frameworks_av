@@ -159,6 +159,8 @@ status_t WifiDisplaySource::PlaybackSession::Track::stop() {
         err = mMediaPuller->stop();
     }
 
+    mConverter.clear();
+
     mStarted = false;
 
     return err;
@@ -288,41 +290,6 @@ WifiDisplaySource::PlaybackSession::~PlaybackSession() {
         mLogFile = NULL;
     }
 #endif
-
-    mTracks.clear();
-
-    mPacketizer.clear();
-
-    if (mSerializer != NULL) {
-        mSerializer->stop();
-
-        looper()->unregisterHandler(mSerializer->id());
-        mSerializer.clear();
-    }
-
-    mTracks.clear();
-
-    if (mSerializerLooper != NULL) {
-        mSerializerLooper->stop();
-        mSerializerLooper.clear();
-    }
-
-    if (mLegacyMode) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
-        sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
-        CHECK(service != NULL);
-
-        service->connectDisplay(NULL);
-    }
-
-    if (mRTCPSessionID != 0) {
-        mNetSession->destroySession(mRTCPSessionID);
-    }
-
-    if (mRTPSessionID != 0) {
-        mNetSession->destroySession(mRTPSessionID);
-    }
 }
 
 int32_t WifiDisplaySource::PlaybackSession::getRTPPort() const {
@@ -365,6 +332,45 @@ status_t WifiDisplaySource::PlaybackSession::play() {
 
 status_t WifiDisplaySource::PlaybackSession::pause() {
     updateLiveness();
+
+    return OK;
+}
+
+status_t WifiDisplaySource::PlaybackSession::destroy() {
+    mTracks.clear();
+
+    mPacketizer.clear();
+
+    if (mSerializer != NULL) {
+        mSerializer->stop();
+
+        looper()->unregisterHandler(mSerializer->id());
+        mSerializer.clear();
+    }
+
+    mTracks.clear();
+
+    if (mSerializerLooper != NULL) {
+        mSerializerLooper->stop();
+        mSerializerLooper.clear();
+    }
+
+    if (mLegacyMode) {
+        sp<IServiceManager> sm = defaultServiceManager();
+        sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
+        sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
+        CHECK(service != NULL);
+
+        service->connectDisplay(NULL);
+    }
+
+    if (mRTCPSessionID != 0) {
+        mNetSession->destroySession(mRTCPSessionID);
+    }
+
+    if (mRTPSessionID != 0) {
+        mNetSession->destroySession(mRTPSessionID);
+    }
 
     return OK;
 }
