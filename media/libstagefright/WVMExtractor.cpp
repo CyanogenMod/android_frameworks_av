@@ -148,6 +148,20 @@ void WVMExtractor::setUID(uid_t uid) {
     }
 }
 
+status_t WVMExtractor::getError() {
+    if (mImpl == NULL) {
+       return UNKNOWN_ERROR;
+    }
+
+    return mImpl->getError();
+}
+
+void WVMExtractor::setError(status_t err) {
+    if (mImpl != NULL) {
+        mImpl->setError(err);
+    }
+}
+
 bool SniffWVM(
     const sp<DataSource> &source, String8 *mimeType, float *confidence,
         sp<AMessage> *) {
