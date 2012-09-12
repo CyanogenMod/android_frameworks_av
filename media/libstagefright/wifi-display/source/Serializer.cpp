@@ -47,6 +47,7 @@ protected:
 
 private:
     sp<MediaSource> mSource;
+    AString mMIME;
 
     bool mStarted;
     status_t mFinalResult;
@@ -62,6 +63,11 @@ Serializer::Track::Track(const sp<MediaSource> &source)
       mFinalResult(OK),
       mBuffer(NULL),
       mBufferTimeUs(-1ll) {
+    const char *mime;
+    sp<MetaData> meta = mSource->getFormat();
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+
+    mMIME = mime;
 }
 
 Serializer::Track::~Track() {
@@ -106,7 +112,12 @@ void Serializer::Track::readBufferIfNecessary() {
         return;
     }
 
+    int64_t nowUs = ALooper::GetNowUs();
     mFinalResult = mSource->read(&mBuffer);
+    int64_t delayUs = ALooper::GetNowUs() - nowUs;
+
+    ALOGV("read on track %s took %lld us, got %d bytes",
+          mMIME.c_str(), delayUs, mBuffer->range_length());
 
     if (mFinalResult != OK) {
         ALOGI("read failed w/ err %d", mFinalResult);
@@ -275,7 +286,8 @@ status_t Serializer::onStart() {
     }
 
     if (err == OK) {
-        schedulePoll();
+        // XXX add a 5 second delay for the client to get ready.
+        schedulePoll(5000000ll);
     }
 
     return err;
