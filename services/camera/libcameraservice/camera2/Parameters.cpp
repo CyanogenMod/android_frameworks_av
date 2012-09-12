@@ -23,6 +23,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <cutils/properties.h>
 
 #include "Parameters.h"
 #include "system/camera.h"
@@ -748,7 +749,14 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     previewCallbackFlags = 0;
 
-    zslMode = false;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("camera.zsl_mode", value, "0");
+    if (!strcmp(value,"1")) {
+        ALOGI("Camera %d: Enabling ZSL mode", cameraId);
+        zslMode = true;
+    } else {
+        zslMode = false;
+    }
 
     lightFx = LIGHTFX_NONE;
 
