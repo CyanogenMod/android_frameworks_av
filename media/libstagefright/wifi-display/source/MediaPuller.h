@@ -49,6 +49,7 @@ private:
     sp<MediaSource> mSource;
     sp<AMessage> mNotify;
     int32_t mPullGeneration;
+    bool mIsAudio;
 
     status_t postSynchronouslyAndReturnError(const sp<AMessage> &msg);
     void schedulePull();
