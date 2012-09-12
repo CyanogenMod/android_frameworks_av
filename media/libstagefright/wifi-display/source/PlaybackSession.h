@@ -127,6 +127,8 @@ private:
     List<sp<ABuffer> > mHistory;
     size_t mHistoryLength;
 
+    uint64_t mTotalBytesSent;
+
 #if LOG_TRANSPORT_STREAM
     FILE *mLogFile;
 #endif
