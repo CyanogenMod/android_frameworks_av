@@ -28,6 +28,7 @@ RemoteDisplay::RemoteDisplay(
     : mLooper(new ALooper),
       mNetSession(new ANetworkSession),
       mSource(new WifiDisplaySource(mNetSession, client)) {
+    mLooper->setName("wfd_looper");
     mLooper->registerHandler(mSource);
 
     mNetSession->start();
