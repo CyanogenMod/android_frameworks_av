@@ -193,7 +193,8 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mNumSRsSent(0),
       mSendSRPending(false),
       mFirstPacketTimeUs(-1ll),
-      mHistoryLength(0)
+      mHistoryLength(0),
+      mTotalBytesSent(0ll)
 #if LOG_TRANSPORT_STREAM
       ,mLogFile(NULL)
 #endif
@@ -1023,6 +1024,14 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
         } else {
             mNetSession->sendRequest(
                     mRTPSessionID, rtp, mTSQueue->size());
+
+            mTotalBytesSent += mTSQueue->size();
+            int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
+
+            if (delayUs > 0ll) {
+                ALOGV("approx. net bandwidth used: %.2f Mbit/sec",
+                        mTotalBytesSent * 8.0 / delayUs);
+            }
         }
 
         mTSQueue->setInt32Data(mRTPSeqNo - 1);
