@@ -327,6 +327,12 @@ status_t MediaCodec::flush() {
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::requestIDRFrame() {
+    (new AMessage(kWhatRequestIDRFrame, id()))->post();
+
+    return OK;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void MediaCodec::cancelPendingDequeueOperations() {
@@ -1130,6 +1136,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> response = new AMessage;
             response->setMessage("format", mOutputFormat);
             response->postReply(replyID);
+            break;
+        }
+
+        case kWhatRequestIDRFrame:
+        {
+            mCodec->signalRequestIDRFrame();
             break;
         }
 
