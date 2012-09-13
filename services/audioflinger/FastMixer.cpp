@@ -281,8 +281,9 @@ bool FastMixer::threadLoop()
                     AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
                     ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
                     if (mixer != NULL) {
-                        // calling getTrackName with default channel mask
-                        name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO);
+                        // calling getTrackName with default channel mask and a random invalid
+                        //   sessionId (no effects here)
+                        name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO, -555);
                         ALOG_ASSERT(name >= 0);
                         fastTrackNames[i] = name;
                         mixer->setBufferProvider(name, bufferProvider);
