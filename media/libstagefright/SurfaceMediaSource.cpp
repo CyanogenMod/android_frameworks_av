@@ -18,8 +18,8 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/SurfaceMediaSource.h>
-#include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/MetaData.h>
 #include <OMX_IVCommon.h>
 #include <MetadataBufferType.h>
 
@@ -39,12 +39,14 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mWidth(bufferWidth),
     mHeight(bufferHeight),
     mCurrentSlot(BufferQueue::INVALID_BUFFER_SLOT),
+    mNumPendingBuffers(0),
     mCurrentTimestamp(0),
     mFrameRate(30),
     mStopped(false),
     mNumFramesReceived(0),
     mNumFramesEncoded(0),
-    mFirstFrameTimestamp(0)
+    mFirstFrameTimestamp(0),
+    mMaxAcquiredBufferCount(4)  // XXX double-check the default
 {
     ALOGV("SurfaceMediaSource");
 
@@ -155,20 +157,32 @@ status_t SurfaceMediaSource::start(MetaData *params)
             ALOGE("bufferCount %d is too small", bufferCount);
             return BAD_VALUE;
         }
+
+        mMaxAcquiredBufferCount = bufferCount;
     }
 
-    if (bufferCount != 0) {
-        status_t err = mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
-        if (err != OK) {
-            return err;
-        }
+    CHECK_GT(mMaxAcquiredBufferCount, 1);
+
+    status_t err =
+        mBufferQueue->setMaxAcquiredBufferCount(mMaxAcquiredBufferCount);
+
+    if (err != OK) {
+        return err;
     }
+
+    mNumPendingBuffers = 0;
 
     return OK;
 }
 
 status_t SurfaceMediaSource::setMaxAcquiredBufferCount(size_t count) {
-    return mBufferQueue->setMaxAcquiredBufferCount(count);
+    ALOGV("setMaxAcquiredBufferCount(%d)", count);
+    Mutex::Autolock lock(mMutex);
+
+    CHECK_GT(count, 1);
+    mMaxAcquiredBufferCount = count;
+
+    return OK;
 }
 
 
@@ -216,9 +230,8 @@ sp<MetaData> SurfaceMediaSource::getFormat()
 // Note: Call only when you have the lock
 static void passMetadataBuffer(MediaBuffer **buffer,
         buffer_handle_t bufferHandle) {
-    // MediaBuffer allocates and owns this data
-    MediaBuffer *tempBuffer = new MediaBuffer(4 + sizeof(buffer_handle_t));
-    char *data = (char *)tempBuffer->data();
+    *buffer = new MediaBuffer(4 + sizeof(buffer_handle_t));
+    char *data = (char *)(*buffer)->data();
     if (data == NULL) {
         ALOGE("Cannot allocate memory for metadata buffer!");
         return;
@@ -226,7 +239,6 @@ static void passMetadataBuffer(MediaBuffer **buffer,
     OMX_U32 type = kMetadataBufferTypeGrallocSource;
     memcpy(data, &type, 4);
     memcpy(data + 4, &bufferHandle, sizeof(buffer_handle_t));
-    *buffer = tempBuffer;
 
     ALOGV("handle = %p, , offset = %d, length = %d",
             bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
@@ -239,6 +251,10 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
     Mutex::Autolock lock(mMutex);
 
     *buffer = NULL;
+
+    while (!mStopped && mNumPendingBuffers == mMaxAcquiredBufferCount) {
+        mMediaBuffersAvailableCondition.wait(mMutex);
+    }
 
     // Update the current buffer info
     // TODO: mCurrentSlot can be made a bufferstate since there
@@ -306,6 +322,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
 
     mNumFramesEncoded++;
     // Pass the data to the MediaBuffer. Pass in only the metadata
+
     passMetadataBuffer(buffer, mBufferSlot[mCurrentSlot]->handle);
 
     (*buffer)->setObserver(this);
@@ -315,6 +332,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
             mNumFramesEncoded, mCurrentTimestamp / 1000,
             mCurrentTimestamp / 1000 - prevTimeStamp / 1000);
 
+    ++mNumPendingBuffers;
 
     return OK;
 }
@@ -371,6 +389,9 @@ void SurfaceMediaSource::signalBufferReturned(MediaBuffer *buffer) {
     if (!foundBuffer) {
         CHECK(!"signalBufferReturned: bogus buffer");
     }
+
+    --mNumPendingBuffers;
+    mMediaBuffersAvailableCondition.broadcast();
 }
 
 // Part of the BufferQueue::ConsumerListener
