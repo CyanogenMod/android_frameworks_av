@@ -3498,7 +3498,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                 readOutputParameters();
                 mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
-                    int name = getTrackName_l(mTracks[i]->mChannelMask);
+                    int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
                     if (name < 0) break;
                     mTracks[i]->mName = name;
                     // limit track sample rate to 2 x new output sample rate

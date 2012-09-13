@@ -1202,7 +1202,7 @@ public:
 
     protected:
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-        virtual     int         getTrackName_l(audio_channel_mask_t channelMask);
+        virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
         virtual     void        deleteTrackName_l(int name);
         virtual     uint32_t    idleSleepTimeUs() const;
         virtual     uint32_t    suspendSleepTimeUs() const;
