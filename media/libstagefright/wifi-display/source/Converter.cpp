@@ -49,6 +49,10 @@ Converter::~Converter() {
         mEncoder->release();
         mEncoder.clear();
     }
+
+    AString mime;
+    CHECK(mInputFormat->findString("mime", &mime));
+    ALOGI("encoder (%s) shut down.", mime.c_str());
 }
 
 status_t Converter::initCheck() const {
