@@ -1063,11 +1063,11 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
         // the config change is always sent from playback or record threads to avoid deadlock
         // with AudioSystem::gLock
         for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-            mPlaybackThreads.valueAt(i)->sendConfigEvent(AudioSystem::OUTPUT_OPENED);
+            mPlaybackThreads.valueAt(i)->sendIoConfigEvent(AudioSystem::OUTPUT_OPENED);
         }
 
         for (size_t i = 0; i < mRecordThreads.size(); i++) {
-            mRecordThreads.valueAt(i)->sendConfigEvent(AudioSystem::INPUT_OPENED);
+            mRecordThreads.valueAt(i)->sendIoConfigEvent(AudioSystem::INPUT_OPENED);
         }
     }
 }
@@ -1202,20 +1202,28 @@ status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
     return status;
 }
 
-void AudioFlinger::ThreadBase::sendConfigEvent(int event, int param)
+void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
 {
     Mutex::Autolock _l(mLock);
-    sendConfigEvent_l(event, param);
+    sendIoConfigEvent_l(event, param);
 }
 
-// sendConfigEvent_l() must be called with ThreadBase::mLock held
-void AudioFlinger::ThreadBase::sendConfigEvent_l(int event, int param)
+// sendIoConfigEvent_l() must be called with ThreadBase::mLock held
+void AudioFlinger::ThreadBase::sendIoConfigEvent_l(int event, int param)
 {
-    ConfigEvent configEvent;
-    configEvent.mEvent = event;
-    configEvent.mParam = param;
-    mConfigEvents.add(configEvent);
-    ALOGV("sendConfigEvent() num events %d event %d, param %d", mConfigEvents.size(), event, param);
+    IoConfigEvent *ioEvent = new IoConfigEvent(event, param);
+    mConfigEvents.add(static_cast<ConfigEvent *>(ioEvent));
+    ALOGV("sendIoConfigEvent() num events %d event %d, param %d", mConfigEvents.size(), event, param);
+    mWaitWorkCV.signal();
+}
+
+// sendPrioConfigEvent_l() must be called with ThreadBase::mLock held
+void AudioFlinger::ThreadBase::sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio)
+{
+    PrioConfigEvent *prioEvent = new PrioConfigEvent(pid, tid, prio);
+    mConfigEvents.add(static_cast<ConfigEvent *>(prioEvent));
+    ALOGV("sendPrioConfigEvent_l() num events %d pid %d, tid %d prio %d",
+          mConfigEvents.size(), pid, tid, prio);
     mWaitWorkCV.signal();
 }
 
@@ -1224,14 +1232,31 @@ void AudioFlinger::ThreadBase::processConfigEvents()
     mLock.lock();
     while (!mConfigEvents.isEmpty()) {
         ALOGV("processConfigEvents() remaining events %d", mConfigEvents.size());
-        ConfigEvent configEvent = mConfigEvents[0];
+        ConfigEvent *event = mConfigEvents[0];
         mConfigEvents.removeAt(0);
         // release mLock before locking AudioFlinger mLock: lock order is always
         // AudioFlinger then ThreadBase to avoid cross deadlock
         mLock.unlock();
-        mAudioFlinger->mLock.lock();
-        audioConfigChanged_l(configEvent.mEvent, configEvent.mParam);
-        mAudioFlinger->mLock.unlock();
+        switch(event->type()) {
+            case CFG_EVENT_PRIO: {
+                PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
+                int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio());
+                if (err != 0) {
+                    ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
+                          prioEvent->prio(), prioEvent->pid(), prioEvent->tid(), err);
+                }
+            } break;
+            case CFG_EVENT_IO: {
+                IoConfigEvent *ioEvent = static_cast<IoConfigEvent *>(event);
+                mAudioFlinger->mLock.lock();
+                audioConfigChanged_l(ioEvent->event(), ioEvent->param());
+                mAudioFlinger->mLock.unlock();
+            } break;
+            default:
+                ALOGE("processConfigEvents() unknown event type %d", event->type());
+                break;
+        }
+        delete event;
         mLock.lock();
     }
     mLock.unlock();
@@ -1281,10 +1306,8 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
 
     snprintf(buffer, SIZE, "\n\nPending config events: \n");
     result.append(buffer);
-    snprintf(buffer, SIZE, " Index event param\n");
-    result.append(buffer);
     for (size_t i = 0; i < mConfigEvents.size(); i++) {
-        snprintf(buffer, SIZE, " %02d    %02d    %d\n", i, mConfigEvents[i].mEvent, mConfigEvents[i].mParam);
+        mConfigEvents[i]->dump(buffer, SIZE);
         result.append(buffer);
     }
     result.append("\n");
@@ -1819,16 +1842,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             chain->setStrategy(AudioSystem::getStrategyForStream(track->streamType()));
             chain->incTrackCnt();
         }
-    }
 
-    if ((flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
-        pid_t callingPid = IPCThreadState::self()->getCallingPid();
-        // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
-        // so ask activity manager to do this on our behalf
-        int err = requestPriority(callingPid, tid, kPriorityAudioApp);
-        if (err != 0) {
-            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    kPriorityAudioApp, callingPid, tid, err);
+        if ((flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+            pid_t callingPid = IPCThreadState::self()->getCallingPid();
+            // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
+            // so ask activity manager to do this on our behalf
+            sendPrioConfigEvent_l(callingPid, tid, kPriorityAudioApp);
         }
     }
 
@@ -3506,7 +3525,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                         mTracks[i]->mCblk->sampleRate = 2 * sampleRate();
                     }
                 }
-                sendConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+                sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
             }
         }
 
@@ -3872,7 +3891,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameters_l()
             }
             if (status == NO_ERROR && reconfig) {
                 readOutputParameters();
-                sendConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+                sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
             }
         }
 
@@ -6625,7 +6644,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                 }
                 if (status == NO_ERROR) {
                     readInputParameters();
-                    sendConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
+                    sendIoConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
                 }
             }
         }
