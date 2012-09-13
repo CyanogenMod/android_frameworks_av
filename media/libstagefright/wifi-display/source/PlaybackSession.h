@@ -25,6 +25,8 @@ namespace android {
 struct ABuffer;
 struct BufferQueue;
 struct ISurfaceTexture;
+struct MediaPuller;
+struct MediaSource;
 struct Serializer;
 struct TSPacketizer;
 
@@ -88,10 +90,10 @@ private:
     sp<ALooper> mSerializerLooper;
     sp<Serializer> mSerializer;
     sp<TSPacketizer> mPacketizer;
-    sp<ALooper> mCodecLooper;
     sp<BufferQueue> mBufferQueue;
 
     KeyedVector<size_t, sp<Track> > mTracks;
+    ssize_t mVideoTrackIndex;
 
     sp<ABuffer> mTSQueue;
     int64_t mPrevTimeUs;
@@ -133,6 +135,16 @@ private:
     static uint64_t GetNowNTP();
 
     status_t setupPacketizer();
+
+    status_t addFakeSources();
+
+    status_t addSource(
+            bool isVideo,
+            const sp<MediaSource> &source,
+            size_t *numInputBuffers);
+
+    status_t addVideoSource();
+    status_t addAudioSource();
 
     ssize_t appendTSData(
             const void *data, size_t size, bool timeDiscontinuity, bool flush);
