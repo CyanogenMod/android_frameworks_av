@@ -5417,12 +5417,12 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("   Clien Fmt Chn mask   Session Buf  S SRate  Serv     User\n");
+    result.append("   Clien Fmt Chn mask   Session Buf  S SRate  Serv     User   FrameCount\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
 {
-    snprintf(buffer, size, "   %05d %03u 0x%08x %05d   %04u %01d %05u  %08x %08x\n",
+    snprintf(buffer, size, "   %05d %03u 0x%08x %05d   %04u %01d %05u  %08x %08x %05d\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
             mChannelMask,
@@ -5431,7 +5431,8 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
             mState,
             mCblk->sampleRate,
             mCblk->server,
-            mCblk->user);
+            mCblk->user,
+            mCblk->frameCount);
 }
 
 
@@ -5983,6 +5984,9 @@ bool AudioFlinger::RecordThread::threadLoop()
     inputStandBy();
     acquireWakeLock();
 
+    // used to verify we've read at least one before evaluating how many bytes were read
+    bool readOnce = false;
+
     // start recording
     while (!exitPending()) {
 
@@ -6013,10 +6017,10 @@ bool AudioFlinger::RecordThread::threadLoop()
                     if (mReqChannelCount != mActiveTrack->channelCount()) {
                         mActiveTrack.clear();
                         mStartStopCond.broadcast();
-                    } else if (mBytesRead != 0) {
+                    } else if (readOnce) {
                         // record start succeeds only if first read from audio input
                         // succeeds
-                        if (mBytesRead > 0) {
+                        if (mBytesRead >= 0) {
                             mActiveTrack->mState = TrackBase::ACTIVE;
                         } else {
                             mActiveTrack.clear();
@@ -6045,6 +6049,7 @@ bool AudioFlinger::RecordThread::threadLoop()
 
             buffer.frameCount = mFrameCount;
             if (CC_LIKELY(mActiveTrack->getNextBuffer(&buffer) == NO_ERROR)) {
+                readOnce = true;
                 size_t framesOut = buffer.frameCount;
                 if (mResampler == NULL) {
                     // no resampling
@@ -6079,9 +6084,10 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mInputBytes);
                                 mRsmpInIndex = 0;
                             }
-                            if (mBytesRead < 0) {
-                                ALOGE("Error reading audio input");
-                                if (mActiveTrack->mState == TrackBase::ACTIVE) {
+                            if (mBytesRead <= 0) {
+                                if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE))
+                                {
+                                    ALOGE("Error reading audio input");
                                     // Force input into standby so that it tries to
                                     // recover at next read attempt
                                     inputStandBy();
