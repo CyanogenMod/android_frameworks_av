@@ -91,7 +91,7 @@ public:
     // For all APIs with "name": TRACK0 <= name < TRACK0 + MAX_NUM_TRACKS
 
     // Allocate a track name.  Returns new track name if successful, -1 on failure.
-    int         getTrackName(audio_channel_mask_t channelMask);
+    int         getTrackName(audio_channel_mask_t channelMask, int sessionId);
 
     // Free an allocated track by name
     void        deleteTrackName(int name);
@@ -190,7 +190,9 @@ private:
 
         DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
 
-        int32_t     padding[3];
+        int32_t     sessionId;
+
+        int32_t     padding[2];
 
         // 16-byte boundary
 
