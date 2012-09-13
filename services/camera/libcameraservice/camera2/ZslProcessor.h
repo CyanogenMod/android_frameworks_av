@@ -93,7 +93,7 @@ class ZslProcessor:
         CameraMetadata frame;
     };
 
-    static const size_t kZslBufferDepth = 3;
+    static const size_t kZslBufferDepth = 4;
     static const size_t kFrameListDepth = kZslBufferDepth * 2;
     Vector<CameraMetadata> mFrameList;
     size_t mFrameListHead;
