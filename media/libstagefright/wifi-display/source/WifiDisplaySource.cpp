@@ -984,6 +984,9 @@ void WifiDisplaySource::onSetParameterRequest(
     }
 #endif
 
+    // XXX check that the parameter is about that.
+    playbackSession->requestIDRFrame();
+
     playbackSession->updateLiveness();
 
     AString response = "RTSP/1.0 200 OK\r\n";

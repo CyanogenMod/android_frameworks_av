@@ -1164,5 +1164,13 @@ status_t WifiDisplaySource::PlaybackSession::parseTSFB(
     return OK;
 }
 
+void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        const sp<Track> &track = mTracks.valueAt(i);
+
+        track->converter()->requestIDRFrame();
+    }
+}
+
 }  // namespace android
 
