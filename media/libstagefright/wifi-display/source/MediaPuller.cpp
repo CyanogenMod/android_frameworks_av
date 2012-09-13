@@ -33,7 +33,13 @@ MediaPuller::MediaPuller(
         const sp<MediaSource> &source, const sp<AMessage> &notify)
     : mSource(source),
       mNotify(notify),
-      mPullGeneration(0) {
+      mPullGeneration(0),
+      mIsAudio(false) {
+    sp<MetaData> meta = source->getFormat();
+    const char *mime;
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+
+    mIsAudio = !strncasecmp(mime, "audio/", 6);
 }
 
 MediaPuller::~MediaPuller() {
@@ -77,7 +83,14 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
                     schedulePull();
                 }
             } else {
+                sp<MetaData> meta = mSource->getFormat();
+                const char *tmp;
+                CHECK(meta->findCString(kKeyMIMEType, &tmp));
+                AString mime = tmp;
+
+                ALOGI("MediaPuller(%s) stopping.", mime.c_str());
                 err = mSource->stop();
+                ALOGI("MediaPuller(%s) stopped.", mime.c_str());
                 ++mPullGeneration;
             }
 
@@ -124,7 +137,15 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
                        mbuf->range_length());
 
                 accessUnit->meta()->setInt64("timeUs", timeUs);
-                accessUnit->meta()->setPointer("mediaBuffer", mbuf);
+
+                if (mIsAudio) {
+                    mbuf->release();
+                    mbuf = NULL;
+                } else {
+                    // video encoder will release MediaBuffer when done
+                    // with underlying data.
+                    accessUnit->meta()->setPointer("mediaBuffer", mbuf);
+                }
 
                 sp<AMessage> notify = mNotify->dup();
 
