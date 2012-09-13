@@ -44,6 +44,8 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
             bool useInterleavedTCP);
 
+    status_t destroy();
+
     int32_t getRTPPort() const;
 
     int64_t getLastLifesignUs() const;

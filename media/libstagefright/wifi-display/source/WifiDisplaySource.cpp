@@ -200,11 +200,14 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             for (size_t i = mPlaybackSessions.size(); i-- > 0;) {
-                const sp<PlaybackSession> &playbackSession =
+                sp<PlaybackSession> playbackSession =
                     mPlaybackSessions.valueAt(i);
 
-                looper()->unregisterHandler(playbackSession->id());
                 mPlaybackSessions.removeItemsAt(i);
+
+                playbackSession->destroy();
+                looper()->unregisterHandler(playbackSession->id());
+                playbackSession.clear();
             }
 
             if (mClient != NULL) {
@@ -454,9 +457,7 @@ status_t WifiDisplaySource::sendM16(int32_t sessionID) {
 
     const ClientInfo &info = mClientInfos.valueFor(sessionID);
     request.append(StringPrintf("Session: %d\r\n", info.mPlaybackSessionID));
-
-    request.append("Content-Length: 0\r\n");
-    request.append("\r\n");
+    request.append("\r\n");  // Empty body
 
     status_t err =
         mNetSession->sendRequest(sessionID, request.c_str(), request.size());
@@ -761,7 +762,7 @@ void WifiDisplaySource::onSetupRequest(
             return;
         }
 #if 1
-    // The LG dongle doesn't specify client_port=xxx apparently.
+    // The older LG dongles doesn't specify client_port=xxx apparently.
     } else if (transport == "RTP/AVP/UDP;unicast") {
         clientRtp = 19000;
         clientRtcp = clientRtp + 1;
@@ -966,19 +967,21 @@ void WifiDisplaySource::onSetParameterRequest(
         int32_t cseq,
         const sp<ParsedMessage> &data) {
     int32_t playbackSessionID;
-#if 0
-    // XXX the dongle does not include a "Session:" header in this request.
     sp<PlaybackSession> playbackSession =
         findPlaybackSession(data, &playbackSessionID);
 
+#if 1
+    // XXX the older dongles do not include a "Session:" header in this request.
+    if (playbackSession == NULL) {
+        CHECK_EQ(mPlaybackSessions.size(), 1u);
+        playbackSessionID = mPlaybackSessions.keyAt(0);
+        playbackSession = mPlaybackSessions.valueAt(0);
+    }
+#else
     if (playbackSession == NULL) {
         sendErrorResponse(sessionID, "454 Session Not Found", cseq);
         return;
     }
-#else
-    CHECK_EQ(mPlaybackSessions.size(), 1u);
-    playbackSessionID = mPlaybackSessions.keyAt(0);
-    sp<PlaybackSession> playbackSession = mPlaybackSessions.valueAt(0);
 #endif
 
     playbackSession->updateLiveness();
