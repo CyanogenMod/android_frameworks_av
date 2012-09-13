@@ -22,6 +22,8 @@
 
 #include <media/stagefright/foundation/AHandler.h>
 
+#include <netinet/in.h>
+
 namespace android {
 
 struct IRemoteDisplayClient;
@@ -78,6 +80,7 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<IRemoteDisplayClient> mClient;
+    struct in_addr mInterfaceAddr;
     int32_t mSessionID;
 
     struct ClientInfo {

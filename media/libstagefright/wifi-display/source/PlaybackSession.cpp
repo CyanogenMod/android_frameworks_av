@@ -46,8 +46,8 @@
 
 #include <OMX_IVCommon.h>
 
-//#define FAKE_VIDEO      1
-#define USE_SERIALIZER  0
+//#define FAKE_VIDEO            1
+#define USE_SERIALIZER          0
 
 namespace android {
 
@@ -171,20 +171,26 @@ status_t WifiDisplaySource::PlaybackSession::Track::stop() {
 WifiDisplaySource::PlaybackSession::PlaybackSession(
         const sp<ANetworkSession> &netSession,
         const sp<AMessage> &notify,
+        const in_addr &interfaceAddr,
         bool legacyMode)
     : mNetSession(netSession),
       mNotify(notify),
+      mInterfaceAddr(interfaceAddr),
       mLegacyMode(legacyMode),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
       mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
       mPrevTimeUs(-1ll),
-      mUseInterleavedTCP(false),
+      mTransportMode(TRANSPORT_UDP),
       mRTPChannel(0),
       mRTCPChannel(0),
       mRTPPort(0),
       mRTPSessionID(0),
       mRTCPSessionID(0),
+      mClientRTPPort(0),
+      mClientRTCPPort(0),
+      mRTPConnected(false),
+      mRTCPConnected(false),
       mRTPSeqNo(0),
       mLastNTPTime(0),
       mLastRTPTime(0),
@@ -208,15 +214,18 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
 
 status_t WifiDisplaySource::PlaybackSession::init(
         const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-        bool useInterleavedTCP) {
+        TransportMode transportMode) {
+    mClientIP = clientIP;
+
     status_t err = setupPacketizer();
 
     if (err != OK) {
         return err;
     }
 
-    if (useInterleavedTCP) {
-        mUseInterleavedTCP = true;
+    mTransportMode = transportMode;
+
+    if (transportMode == TRANSPORT_TCP_INTERLEAVED) {
         mRTPChannel = clientRtp;
         mRTCPChannel = clientRtcp;
         mRTPPort = 0;
@@ -227,9 +236,22 @@ status_t WifiDisplaySource::PlaybackSession::init(
         return OK;
     }
 
-    mUseInterleavedTCP = false;
     mRTPChannel = 0;
     mRTCPChannel = 0;
+
+    if (mTransportMode == TRANSPORT_TCP) {
+        // XXX This is wrong, we need to allocate sockets here, we only
+        // need to do this because the dongles are not establishing their
+        // end until after PLAY instead of before SETUP.
+        mRTPPort = 20000;
+        mRTPSessionID = 0;
+        mRTCPSessionID = 0;
+        mClientRTPPort = clientRtp;
+        mClientRTCPPort = clientRtcp;
+
+        updateLiveness();
+        return OK;
+    }
 
     int serverRtp;
 
@@ -237,9 +259,15 @@ status_t WifiDisplaySource::PlaybackSession::init(
     sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
     for (serverRtp = 15550;; serverRtp += 2) {
         int32_t rtpSession;
-        err = mNetSession->createUDPSession(
-                    serverRtp, clientIP, clientRtp,
-                    rtpNotify, &rtpSession);
+        if (mTransportMode == TRANSPORT_UDP) {
+            err = mNetSession->createUDPSession(
+                        serverRtp, clientIP, clientRtp,
+                        rtpNotify, &rtpSession);
+        } else {
+            err = mNetSession->createTCPDatagramSession(
+                        serverRtp, clientIP, clientRtp,
+                        rtpNotify, &rtpSession);
+        }
 
         if (err != OK) {
             ALOGI("failed to create RTP socket on port %d", serverRtp);
@@ -258,9 +286,15 @@ status_t WifiDisplaySource::PlaybackSession::init(
         }
 
         int32_t rtcpSession;
-        err = mNetSession->createUDPSession(
-                serverRtp + 1, clientIP, clientRtcp,
-                rtcpNotify, &rtcpSession);
+        if (mTransportMode == TRANSPORT_UDP) {
+            err = mNetSession->createUDPSession(
+                    serverRtp + 1, clientIP, clientRtcp,
+                    rtcpNotify, &rtcpSession);
+        } else {
+            err = mNetSession->createTCPDatagramSession(
+                    serverRtp + 1, clientIP, clientRtcp,
+                    rtcpNotify, &rtcpSession);
+        }
 
         if (err == OK) {
             mRTPPort = serverRtp;
@@ -308,6 +342,42 @@ void WifiDisplaySource::PlaybackSession::updateLiveness() {
 status_t WifiDisplaySource::PlaybackSession::play() {
     updateLiveness();
 
+    return OK;
+}
+
+status_t WifiDisplaySource::PlaybackSession::finishPlay() {
+    // XXX Give the dongle 3 secs to bind its sockets.
+    (new AMessage(kWhatFinishPlay, id()))->post(3000000ll);
+    return OK;
+}
+
+status_t WifiDisplaySource::PlaybackSession::onFinishPlay() {
+    if (mTransportMode != TRANSPORT_TCP) {
+        return onFinishPlay2();
+    }
+
+    sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
+
+    status_t err = mNetSession->createTCPDatagramSession(
+                mRTPPort, mClientIP.c_str(), mClientRTPPort,
+                rtpNotify, &mRTPSessionID);
+
+    if (err != OK) {
+        return err;
+    }
+
+    if (mClientRTCPPort >= 0) {
+        sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
+
+        err = mNetSession->createTCPDatagramSession(
+                mRTPPort + 1, mClientIP.c_str(), mClientRTCPPort,
+                rtcpNotify, &mRTCPSessionID);
+    }
+
+    return err;
+}
+
+status_t WifiDisplaySource::PlaybackSession::onFinishPlay2() {
     if (mRTCPSessionID != 0) {
         scheduleSendSR();
     }
@@ -327,6 +397,10 @@ status_t WifiDisplaySource::PlaybackSession::play() {
             return err;
         }
     }
+
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatSessionEstablished);
+    notify->post();
 
     return OK;
 }
@@ -441,6 +515,32 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     status_t err;
                     if (msg->what() == kWhatRTCPNotify) {
                         err = parseRTCP(data);
+                    }
+                    break;
+                }
+
+                case ANetworkSession::kWhatConnected:
+                {
+                    CHECK_EQ(mTransportMode, TRANSPORT_TCP);
+
+                    int32_t sessionID;
+                    CHECK(msg->findInt32("sessionID", &sessionID));
+
+                    if (sessionID == mRTPSessionID) {
+                        CHECK(!mRTPConnected);
+                        mRTPConnected = true;
+                        ALOGI("RTP Session now connected.");
+                    } else if (sessionID == mRTCPSessionID) {
+                        CHECK(!mRTCPConnected);
+                        mRTCPConnected = true;
+                        ALOGI("RTCP Session now connected.");
+                    } else {
+                        TRESPASS();
+                    }
+
+                    if (mRTPConnected
+                            && (mClientRTCPPort < 0 || mRTCPConnected)) {
+                        onFinishPlay2();
                     }
                     break;
                 }
@@ -607,6 +707,12 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
                 ALOGE("converter signaled error %d", err);
             }
+            break;
+        }
+
+        case kWhatFinishPlay:
+        {
+            onFinishPlay();
             break;
         }
 
@@ -956,15 +1062,14 @@ void WifiDisplaySource::PlaybackSession::onSendSR() {
     addSR(buffer);
     addSDES(buffer);
 
-    if (mUseInterleavedTCP) {
+    if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
         sp<AMessage> notify = mNotify->dup();
         notify->setInt32("what", kWhatBinaryData);
         notify->setInt32("channel", mRTCPChannel);
         notify->setBuffer("data", buffer);
         notify->post();
     } else {
-        mNetSession->sendRequest(
-                mRTCPSessionID, buffer->data(), buffer->size());
+        sendPacket(mRTCPSessionID, buffer->data(), buffer->size());
     }
 
     ++mNumSRsSent;
@@ -1011,7 +1116,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
         mLastRTPTime = rtpTime;
         mLastNTPTime = GetNowNTP();
 
-        if (mUseInterleavedTCP) {
+        if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatBinaryData);
 
@@ -1022,8 +1127,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
             notify->setBuffer("data", data);
             notify->post();
         } else {
-            mNetSession->sendRequest(
-                    mRTPSessionID, rtp, mTSQueue->size());
+            sendPacket(mRTPSessionID, rtp, mTSQueue->size());
 
             mTotalBytesSent += mTSQueue->size();
             int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
@@ -1144,8 +1248,7 @@ status_t WifiDisplaySource::PlaybackSession::parseTSFB(
             uint16_t bufferSeqNo = buffer->int32Data() & 0xffff;
 
             if (bufferSeqNo == seqNo) {
-                mNetSession->sendRequest(
-                        mRTPSessionID, buffer->data(), buffer->size());
+                sendPacket(mRTPSessionID, buffer->data(), buffer->size());
 
                 found = true;
                 break;
@@ -1170,6 +1273,11 @@ void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
 
         track->converter()->requestIDRFrame();
     }
+}
+
+status_t WifiDisplaySource::PlaybackSession::sendPacket(
+        int32_t sessionID, const void *data, size_t size) {
+    return mNetSession->sendRequest(sessionID, data, size);
 }
 
 }  // namespace android
