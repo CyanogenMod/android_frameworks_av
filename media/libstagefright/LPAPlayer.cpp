@@ -106,6 +106,60 @@ mTrackType(TRACK_NONE){
 
     initCheck = true;
 
+    //mDeathRecipient = new PMDeathRecipient(this);
+}
+
+void LPAPlayer::acquireWakeLock()
+{
+    /*Mutex::Autolock _l(pmLock);
+
+    if (mPowerManager == 0) {
+        // use checkService() to avoid blocking if power service is not up yet
+        sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("power"));
+        if (binder == 0) {
+            ALOGW("Thread %s cannot connect to the power manager service", mName);
+        } else {
+            mPowerManager = interface_cast<IPowerManager>(binder);
+            binder->linkToDeath(mDeathRecipient);
+        }
+    }
+    if (mPowerManager != 0 && mWakeLockToken == 0) {
+        sp<IBinder> binder = new BBinder();
+        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                                                         binder,
+                                                         String16(mName));
+        if (status == NO_ERROR) {
+            mWakeLockToken = binder;
+        }
+        ALOGV("acquireWakeLock() %s status %d", mName, status);
+    }*/
+}
+
+void LPAPlayer::releaseWakeLock()
+{
+   /*Mutex::Autolock _l(pmLock);
+
+    if (mWakeLockToken != 0) {
+        ALOGV("releaseWakeLock() %s", mName);
+        if (mPowerManager != 0) {
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+        }
+        mWakeLockToken.clear();
+    }*/
+}
+
+void LPAPlayer::clearPowerManager()
+{
+    /*Mutex::Autolock _l(pmLock);
+    releaseWakeLock();
+    mPowerManager.clear();*/
+}
+
+void LPAPlayer::PMDeathRecipient::binderDied(const wp<IBinder>& who)
+{
+    parentClass->clearPowerManager();
+    ALOGW("power manager service died !!!");
 }
 
 LPAPlayer::~LPAPlayer() {
@@ -118,6 +172,11 @@ LPAPlayer::~LPAPlayer() {
     objectsAlive--;
     mLpaInProgress = false;
 
+    releaseWakeLock();
+    if (mPowerManager != 0) {
+        sp<IBinder> binder = mPowerManager->asBinder();
+        binder->unlinkToDeath(mDeathRecipient);
+    }
 }
 
 void LPAPlayer::getAudioFlinger() {
@@ -282,6 +341,10 @@ status_t LPAPlayer::start(bool sourceAlreadyStarted) {
         return err;
     }
 
+    if (!mIsA2DPEnabled) {
+        acquireWakeLock();
+    }
+
     mIsAudioRouted = true;
     mStarted = true;
     mAudioSink->start();
@@ -322,11 +385,11 @@ void LPAPlayer::pause(bool playPendingSamples) {
     mPaused = true;
     if (playPendingSamples) {
         if (!mIsA2DPEnabled) {
-            if (!mPauseEventPending) {
+           /* if (!mPauseEventPending) {
                 ALOGV("Posting an event for Pause timeout");
                 mQueue.postEventWithDelay(mPauseEvent, LPA_PAUSE_TIMEOUT_USEC);
                 mPauseEventPending = true;
-            }
+            }*/
             if (mAudioSink.get() != NULL)
                 mAudioSink->pause();
         }
@@ -337,11 +400,11 @@ void LPAPlayer::pause(bool playPendingSamples) {
         }
     } else {
         if (!mIsA2DPEnabled) {
-            if(!mPauseEventPending) {
+            /*if(!mPauseEventPending) {
                 ALOGV("Posting an event for Pause timeout");
                 mQueue.postEventWithDelay(mPauseEvent, LPA_PAUSE_TIMEOUT_USEC);
                 mPauseEventPending = true;
-            }
+            }*/
             if (mAudioSink.get() != NULL)
                 mAudioSink->pause();
             } else {
@@ -399,11 +462,10 @@ void LPAPlayer::reset() {
     // make sure Decoder thread has exited
     requestAndWaitForDecoderThreadExit();
     requestAndWaitForA2DPNotificationThreadExit();
-    if (mIsAudioRouted) {
-        mAudioSink->stop();
-        mAudioSink->close();
-        mAudioSink.clear();
-    }
+
+    mAudioSink->stop();
+    mAudioSink->close();
+    mAudioSink.clear();
     // Make sure to release any buffer we hold onto so that the
     // source is able to stop().
     if (mFirstBuffer != NULL) {
@@ -709,6 +771,8 @@ void LPAPlayer::onPauseTimeOut() {
         mAudioSink->close();
         mIsAudioRouted = false;
 
+        // 3.) Release Wake Lock
+        releaseWakeLock();
     }
 
 }
