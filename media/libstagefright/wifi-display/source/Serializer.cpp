@@ -286,8 +286,7 @@ status_t Serializer::onStart() {
     }
 
     if (err == OK) {
-        // XXX add a 5 second delay for the client to get ready.
-        schedulePoll(5000000ll);
+        schedulePoll();
     }
 
     return err;

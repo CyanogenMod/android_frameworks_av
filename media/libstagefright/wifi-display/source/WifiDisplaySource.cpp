@@ -31,7 +31,7 @@
 #include <media/stagefright/MediaErrors.h>
 
 #include <arpa/inet.h>
-#include <netinet/in.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -114,14 +114,12 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 port = kWifiDisplayDefaultPort;
             }
 
-            struct in_addr addr;
-
             if (err == OK) {
-                if (inet_aton(iface.c_str(), &addr) != 0) {
+                if (inet_aton(iface.c_str(), &mInterfaceAddr) != 0) {
                     sp<AMessage> notify = new AMessage(kWhatRTSPNotify, id());
 
                     err = mNetSession->createRTSPServer(
-                            addr, port, notify, &mSessionID);
+                            mInterfaceAddr, port, notify, &mSessionID);
                 } else {
                     err = -EINVAL;
                 }
@@ -265,6 +263,14 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                     looper()->unregisterHandler(playbackSession->id());
                     mPlaybackSessions.removeItemsAt(index);
+                } else if (what == PlaybackSession::kWhatSessionEstablished) {
+                    if (mClient != NULL) {
+                        mClient->onDisplayConnected(
+                                playbackSession->getSurfaceTexture(),
+                                playbackSession->width(),
+                                playbackSession->height(),
+                                0 /* flags */);
+                    }
                 } else {
                     CHECK_EQ(what, PlaybackSession::kWhatBinaryData);
 
@@ -394,13 +400,22 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
 
     const ClientInfo &info = mClientInfos.valueFor(sessionID);
 
+    AString transportString = "UDP";
+
+    char val[PROPERTY_VALUE_MAX];
+    if (property_get("media.wfd.enable-tcp", val, NULL)
+            && (!strcasecmp("true", val) || !strcmp("1", val))) {
+        ALOGI("Using TCP transport.");
+        transportString = "TCP";
+    }
+
     AString body = StringPrintf(
         "wfd_video_formats: "
         "30 00 02 02 00000040 00000000 00000000 00 0000 0000 00 none none\r\n"
         "wfd_audio_codecs: AAC 00000001 00\r\n"  // 2 ch AAC 48kHz
         "wfd_presentation_URL: rtsp://%s:%d/wfd1.0/streamid=0 none\r\n"
-        "wfd_client_rtp_ports: RTP/AVP/UDP;unicast 19000 0 mode=play\r\n",
-        info.mLocalIP.c_str(), info.mLocalPort);
+        "wfd_client_rtp_ports: RTP/AVP/%s;unicast 19000 0 mode=play\r\n",
+        info.mLocalIP.c_str(), info.mLocalPort, transportString.c_str());
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
@@ -726,20 +741,40 @@ void WifiDisplaySource::onSetupRequest(
         return;
     }
 
-    bool useInterleavedTCP = false;
+    PlaybackSession::TransportMode transportMode =
+        PlaybackSession::TRANSPORT_UDP;
 
     int clientRtp, clientRtcp;
     if (transport.startsWith("RTP/AVP/TCP;")) {
         AString interleaved;
-        if (!ParsedMessage::GetAttribute(
+        if (ParsedMessage::GetAttribute(
                     transport.c_str(), "interleaved", &interleaved)
-                || sscanf(interleaved.c_str(), "%d-%d",
-                          &clientRtp, &clientRtcp) != 2) {
-            sendErrorResponse(sessionID, "400 Bad Request", cseq);
-            return;
-        }
+                && sscanf(interleaved.c_str(), "%d-%d",
+                          &clientRtp, &clientRtcp) == 2) {
+            transportMode = PlaybackSession::TRANSPORT_TCP_INTERLEAVED;
+        } else {
+            bool badRequest = false;
 
-        useInterleavedTCP = true;
+            AString clientPort;
+            if (!ParsedMessage::GetAttribute(
+                        transport.c_str(), "client_port", &clientPort)) {
+                badRequest = true;
+            } else if (sscanf(clientPort.c_str(), "%d-%d",
+                              &clientRtp, &clientRtcp) == 2) {
+            } else if (sscanf(clientPort.c_str(), "%d", &clientRtp) == 1) {
+                // No RTCP.
+                clientRtcp = -1;
+            } else {
+                badRequest = true;
+            }
+
+            if (badRequest) {
+                sendErrorResponse(sessionID, "400 Bad Request", cseq);
+                return;
+            }
+
+            transportMode = PlaybackSession::TRANSPORT_TCP;
+        }
     } else if (transport.startsWith("RTP/AVP;unicast;")
             || transport.startsWith("RTP/AVP/UDP;unicast;")) {
         bool badRequest = false;
@@ -780,7 +815,8 @@ void WifiDisplaySource::onSetupRequest(
 
     sp<PlaybackSession> playbackSession =
         new PlaybackSession(
-                mNetSession, notify, mClient == NULL /* legacyMode */);
+                mNetSession, notify, mInterfaceAddr,
+                mClient == NULL /* legacyMode */);
 
     looper()->registerHandler(playbackSession);
 
@@ -801,7 +837,7 @@ void WifiDisplaySource::onSetupRequest(
             info->mRemoteIP.c_str(),
             clientRtp,
             clientRtcp,
-            useInterleavedTCP);
+            transportMode);
 
     if (err != OK) {
         looper()->unregisterHandler(playbackSession->id());
@@ -826,7 +862,7 @@ void WifiDisplaySource::onSetupRequest(
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
 
-    if (useInterleavedTCP) {
+    if (transportMode == PlaybackSession::TRANSPORT_TCP_INTERLEAVED) {
         response.append(
                 StringPrintf(
                     "Transport: RTP/AVP/TCP;interleaved=%d-%d;",
@@ -834,17 +870,24 @@ void WifiDisplaySource::onSetupRequest(
     } else {
         int32_t serverRtp = playbackSession->getRTPPort();
 
+        AString transportString = "UDP";
+        if (transportMode == PlaybackSession::TRANSPORT_TCP) {
+            transportString = "TCP";
+        }
+
         if (clientRtcp >= 0) {
             response.append(
                     StringPrintf(
-                        "Transport: RTP/AVP;unicast;client_port=%d-%d;"
+                        "Transport: RTP/AVP/%s;unicast;client_port=%d-%d;"
                         "server_port=%d-%d\r\n",
+                        transportString.c_str(),
                         clientRtp, clientRtcp, serverRtp, serverRtp + 1));
         } else {
             response.append(
                     StringPrintf(
-                        "Transport: RTP/AVP;unicast;client_port=%d;"
+                        "Transport: RTP/AVP/%s;unicast;client_port=%d;"
                         "server_port=%d\r\n",
+                        transportString.c_str(),
                         clientRtp, serverRtp));
         }
     }
@@ -882,13 +925,7 @@ void WifiDisplaySource::onPlayRequest(
     err = mNetSession->sendRequest(sessionID, response.c_str());
     CHECK_EQ(err, (status_t)OK);
 
-    if (mClient != NULL) {
-        mClient->onDisplayConnected(
-                playbackSession->getSurfaceTexture(),
-                playbackSession->width(),
-                playbackSession->height(),
-                0 /* flags */);
-    }
+    playbackSession->finishPlay();
 }
 
 void WifiDisplaySource::onPauseRequest(
