@@ -167,6 +167,8 @@ private:
     // this list in signalBufferReturned
     Vector<sp<GraphicBuffer> > mCurrentBuffers;
 
+    size_t mNumPendingBuffers;
+
     // mCurrentTimestamp is the timestamp for the current texture. It
     // gets set to mLastQueuedTimestamp each time updateTexImage is called.
     int64_t mCurrentTimestamp;
@@ -202,9 +204,13 @@ private:
     // offset timestamps.
     int64_t mStartTimeNs;
 
+    size_t mMaxAcquiredBufferCount;
+
     // mFrameAvailableCondition condition used to indicate whether there
     // is a frame available for dequeuing
     Condition mFrameAvailableCondition;
+
+    Condition mMediaBuffersAvailableCondition;
 
     // Avoid copying and equating and default constructor
     DISALLOW_IMPLICIT_CONSTRUCTORS(SurfaceMediaSource);
