@@ -5984,7 +5984,7 @@ bool AudioFlinger::RecordThread::threadLoop()
     inputStandBy();
     acquireWakeLock();
 
-    // used to verify we've read at least one before evaluating how many bytes were read
+    // used to verify we've read at least once before evaluating how many bytes were read
     bool readOnce = false;
 
     // start recording
@@ -6499,9 +6499,9 @@ status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* 
 
     if (framesReady == 0) {
         mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mInputBytes);
-        if (mBytesRead < 0) {
-            ALOGE("RecordThread::getNextBuffer() Error reading audio input");
-            if (mActiveTrack->mState == TrackBase::ACTIVE) {
+        if (mBytesRead <= 0) {
+            if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE)) {
+                ALOGE("RecordThread::getNextBuffer() Error reading audio input");
                 // Force input into standby so that it tries to
                 // recover at next read attempt
                 inputStandBy();
