@@ -58,6 +58,8 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     int32_t width() const;
     int32_t height() const;
 
+    void requestIDRFrame();
+
     enum {
         kWhatSessionDead,
         kWhatBinaryData,
