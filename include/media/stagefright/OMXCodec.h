@@ -276,7 +276,7 @@ private:
             CodecProfileLevel& profileLevel);
 
     status_t setVideoOutputFormat(
-            const char *mime, OMX_U32 width, OMX_U32 height);
+            const char *mime, const sp<MetaData>& meta);
 
     void setImageOutputFormat(
             OMX_COLOR_FORMATTYPE format, OMX_U32 width, OMX_U32 height);
