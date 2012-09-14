@@ -471,13 +471,62 @@ private:
             Vector < sp<SyncEvent> >mSyncEvents;
         };
 
+        enum {
+            CFG_EVENT_IO,
+            CFG_EVENT_PRIO
+        };
+
         class ConfigEvent {
         public:
-            ConfigEvent() : mEvent(0), mParam(0) {}
+            ConfigEvent(int type) : mType(type) {}
+            virtual ~ConfigEvent() {}
 
-            int mEvent;
-            int mParam;
+                     int type() const { return mType; }
+
+            virtual  void dump(char *buffer, size_t size) = 0;
+
+        private:
+            const int mType;
         };
+
+        class IoConfigEvent : public ConfigEvent {
+        public:
+            IoConfigEvent(int event, int param) :
+                ConfigEvent(CFG_EVENT_IO), mEvent(event), mParam(event) {}
+            virtual ~IoConfigEvent() {}
+
+                    int event() const { return mEvent; }
+                    int param() const { return mParam; }
+
+            virtual  void dump(char *buffer, size_t size) {
+                snprintf(buffer, size, "IO event: event %d, param %d\n", mEvent, mParam);
+            }
+
+        private:
+            const int mEvent;
+            const int mParam;
+        };
+
+        class PrioConfigEvent : public ConfigEvent {
+        public:
+            PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
+                ConfigEvent(CFG_EVENT_PRIO), mPid(pid), mTid(tid), mPrio(prio) {}
+            virtual ~PrioConfigEvent() {}
+
+                    pid_t pid() const { return mPid; }
+                    pid_t tid() const { return mTid; }
+                    int32_t prio() const { return mPrio; }
+
+            virtual  void dump(char *buffer, size_t size) {
+                snprintf(buffer, size, "Prio event: pid %d, tid %d, prio %d\n", mPid, mTid, mPrio);
+            }
+
+        private:
+            const pid_t mPid;
+            const pid_t mTid;
+            const int32_t mPrio;
+        };
+
 
         class PMDeathRecipient : public IBinder::DeathRecipient {
         public:
@@ -516,8 +565,9 @@ private:
         virtual     status_t    setParameters(const String8& keyValuePairs);
         virtual     String8     getParameters(const String8& keys) = 0;
         virtual     void        audioConfigChanged_l(int event, int param = 0) = 0;
-                    void        sendConfigEvent(int event, int param = 0);
-                    void        sendConfigEvent_l(int event, int param = 0);
+                    void        sendIoConfigEvent(int event, int param = 0);
+                    void        sendIoConfigEvent_l(int event, int param = 0);
+                    void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
                     void        processConfigEvents();
 
                     // see note at declaration of mStandby, mOutDevice and mInDevice
@@ -666,7 +716,7 @@ private:
                     Vector<String8>         mNewParameters;
                     status_t                mParamStatus;
 
-                    Vector<ConfigEvent>     mConfigEvents;
+                    Vector<ConfigEvent *>     mConfigEvents;
 
                     // These fields are written and read by thread itself without lock or barrier,
                     // and read by other threads without lock or barrier via standby() , outDevice()
