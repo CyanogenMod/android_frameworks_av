@@ -40,7 +40,15 @@ Converter::Converter(
       mNotify(notify),
       mCodecLooper(codecLooper),
       mInputFormat(format),
+      mIsVideo(false),
       mDoMoreWorkPending(false) {
+    AString mime;
+    CHECK(mInputFormat->findString("mime", &mime));
+
+    if (!strncasecmp("video/", mime.c_str(), 6)) {
+        mIsVideo = true;
+    }
+
     mInitCheck = initEncoder();
 }
 
@@ -202,6 +210,15 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatRequestIDRFrame:
+        {
+            if (mIsVideo) {
+                ALOGI("requesting IDR frame");
+                mEncoder->requestIDRFrame();
+            }
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -304,6 +321,10 @@ status_t Converter::doMoreWork() {
     }
 
     return err;
+}
+
+void Converter::requestIDRFrame() {
+    (new AMessage(kWhatRequestIDRFrame, id()))->post();
 }
 
 }  // namespace android

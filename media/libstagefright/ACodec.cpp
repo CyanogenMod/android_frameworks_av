@@ -34,6 +34,8 @@
 
 #include <OMX_Component.h>
 
+#include "include/avc_utils.h"
+
 namespace android {
 
 template<class T>
@@ -399,6 +401,10 @@ void ACodec::initiateShutdown(bool keepComponentAllocated) {
     sp<AMessage> msg = new AMessage(kWhatShutdown, id());
     msg->setInt32("keepComponentAllocated", keepComponentAllocated);
     msg->post();
+}
+
+void ACodec::signalRequestIDRFrame() {
+    (new AMessage(kWhatRequestIDRFrame, id()))->post();
 }
 
 status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
@@ -2284,6 +2290,24 @@ error:
 ACodec::PortDescription::PortDescription() {
 }
 
+status_t ACodec::requestIDRFrame() {
+    if (!mIsEncoder) {
+        return ERROR_UNSUPPORTED;
+    }
+
+    OMX_CONFIG_INTRAREFRESHVOPTYPE params;
+    InitOMXParams(&params);
+
+    params.nPortIndex = kPortIndexOutput;
+    params.IntraRefreshVOP = OMX_TRUE;
+
+    return mOMX->setConfig(
+            mNode,
+            OMX_IndexConfigVideoIntraVOPRefresh,
+            &params,
+            sizeof(params));
+}
+
 void ACodec::PortDescription::addBuffer(
         IOMX::buffer_id id, const sp<ABuffer> &buffer) {
     mBufferIDs.push_back(id);
@@ -2737,6 +2761,12 @@ bool ACodec::BaseState::onOMXFillBufferDone(
 
             if (mCodec->mNativeWindow == NULL) {
                 info->mData->setRange(rangeOffset, rangeLength);
+
+#if 0
+                if (IsIDR(info->mData)) {
+                    ALOGI("IDR frame");
+                }
+#endif
             }
 
             if (mCodec->mSkipCutBuffer != NULL) {
@@ -3395,6 +3425,17 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatResume:
         {
             resume();
+
+            handled = true;
+            break;
+        }
+
+        case kWhatRequestIDRFrame:
+        {
+            status_t err = mCodec->requestIDRFrame();
+            if (err != OK) {
+                ALOGW("Requesting an IDR frame failed.");
+            }
 
             handled = true;
             break;

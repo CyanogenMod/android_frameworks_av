@@ -43,6 +43,8 @@ struct Converter : public AHandler {
     void feedAccessUnit(const sp<ABuffer> &accessUnit);
     void signalEOS();
 
+    void requestIDRFrame();
+
     enum {
         kWhatAccessUnit,
         kWhatEOS,
@@ -57,13 +59,15 @@ private:
     enum {
         kWhatFeedAccessUnit,
         kWhatInputEOS,
-        kWhatDoMoreWork
+        kWhatDoMoreWork,
+        kWhatRequestIDRFrame,
     };
 
     status_t mInitCheck;
     sp<AMessage> mNotify;
     sp<ALooper> mCodecLooper;
     sp<AMessage> mInputFormat;
+    bool mIsVideo;
     sp<AMessage> mOutputFormat;
 
     sp<MediaCodec> mEncoder;

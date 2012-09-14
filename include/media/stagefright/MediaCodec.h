@@ -106,6 +106,8 @@ struct MediaCodec : public AHandler {
     status_t getInputBuffers(Vector<sp<ABuffer> > *buffers) const;
     status_t getOutputBuffers(Vector<sp<ABuffer> > *buffers) const;
 
+    status_t requestIDRFrame();
+
 protected:
     virtual ~MediaCodec();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -145,6 +147,7 @@ private:
         kWhatDequeueInputTimedOut       = 'dITO',
         kWhatDequeueOutputTimedOut      = 'dOTO',
         kWhatCodecNotify                = 'codc',
+        kWhatRequestIDRFrame            = 'ridr',
     };
 
     enum {
