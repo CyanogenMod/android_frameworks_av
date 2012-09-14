@@ -279,8 +279,7 @@ status_t AudioTrack::set(
     mCbf = cbf;
 
     if (cbf != NULL) {
-        //FIXME ignoring threadCanCallJava to work around track recreation issue
-        mAudioTrackThread = new AudioTrackThread(*this, true /*threadCanCallJava*/);
+        mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
         mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
     }
 
