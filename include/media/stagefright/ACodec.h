@@ -58,6 +58,8 @@ struct ACodec : public AHierarchicalStateMachine {
     void initiateConfigureComponent(const sp<AMessage> &msg);
     void initiateStart();
 
+    void signalRequestIDRFrame();
+
     struct PortDescription : public RefBase {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
@@ -102,6 +104,7 @@ private:
         kWhatAllocateComponent       = 'allo',
         kWhatConfigureComponent      = 'conf',
         kWhatStart                   = 'star',
+        kWhatRequestIDRFrame         = 'ridr',
     };
 
     enum {
@@ -261,6 +264,8 @@ private:
     void signalError(
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
             status_t internalError = UNKNOWN_ERROR);
+
+    status_t requestIDRFrame();
 
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };
