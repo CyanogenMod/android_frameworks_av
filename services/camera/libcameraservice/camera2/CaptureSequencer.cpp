@@ -410,7 +410,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
-    if (l.mParameters.playShutterSound) {
+    if (l.mParameters.playShutterSound &&
+            l.mParameters.state == Parameters::STILL_CAPTURE) {
         client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
     }
 
