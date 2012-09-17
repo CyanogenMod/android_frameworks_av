@@ -59,8 +59,6 @@ public:
 
     // Indicates that a connection could not be established to the remote display
     // or an unrecoverable error occurred and the connection was severed.
-    // The media server should continue listening for connection attempts from the
-    // remote display.
     virtual void onDisplayError(int32_t error) = 0; // one-way
 };
 
