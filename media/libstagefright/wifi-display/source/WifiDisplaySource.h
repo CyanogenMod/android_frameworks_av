@@ -83,22 +83,22 @@ private:
     struct in_addr mInterfaceAddr;
     int32_t mSessionID;
 
+    int32_t mClientSessionID;
+
     struct ClientInfo {
         AString mRemoteIP;
         AString mLocalIP;
         int32_t mLocalPort;
         int32_t mPlaybackSessionID;
+        sp<PlaybackSession> mPlaybackSession;
     };
-    // by sessionID.
-    KeyedVector<int32_t, ClientInfo> mClientInfos;
+    ClientInfo mClientInfo;
 
     bool mReaperPending;
 
     int32_t mNextCSeq;
 
     KeyedVector<ResponseID, HandleRTSPResponseFunc> mResponseHandlers;
-
-    KeyedVector<int32_t, sp<PlaybackSession> > mPlaybackSessions;
 
     status_t sendM1(int32_t sessionID);
     status_t sendM3(int32_t sessionID);
@@ -181,6 +181,12 @@ private:
 
     sp<PlaybackSession> findPlaybackSession(
             const sp<ParsedMessage> &data, int32_t *playbackSessionID) const;
+
+    // Disconnects the current client and shuts down its playback session
+    // (if any). The reason for the disconnection is OK for orderly shutdown
+    // or a nonzero error code.
+    // A listener is notified accordingly.
+    void disconnectClient(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySource);
 };
