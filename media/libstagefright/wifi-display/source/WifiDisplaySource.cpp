@@ -41,6 +41,7 @@ WifiDisplaySource::WifiDisplaySource(
     : mNetSession(netSession),
       mClient(client),
       mSessionID(0),
+      mClientSessionID(0),
       mReaperPending(false),
       mNextCSeq(1) {
 }
@@ -156,7 +157,11 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                     mNetSession->destroySession(sessionID);
 
-                    mClientInfos.removeItem(sessionID);
+                    if (sessionID == mClientSessionID) {
+                        mClientSessionID = -1;
+
+                        disconnectClient(UNKNOWN_ERROR);
+                    }
                     break;
                 }
 
@@ -165,15 +170,31 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     int32_t sessionID;
                     CHECK(msg->findInt32("sessionID", &sessionID));
 
-                    ClientInfo info;
-                    CHECK(msg->findString("client-ip", &info.mRemoteIP));
-                    CHECK(msg->findString("server-ip", &info.mLocalIP));
-                    CHECK(msg->findInt32("server-port", &info.mLocalPort));
-                    info.mPlaybackSessionID = -1;
+                    if (mClientSessionID > 0) {
+                        ALOGW("A client tried to connect, but we already "
+                              "have one.");
+
+                        mNetSession->destroySession(sessionID);
+                        break;
+                    }
+
+                    CHECK(msg->findString("client-ip", &mClientInfo.mRemoteIP));
+                    CHECK(msg->findString("server-ip", &mClientInfo.mLocalIP));
+
+                    if (mClientInfo.mRemoteIP == mClientInfo.mLocalIP) {
+                        // Disallow connections from the local interface
+                        // for security reasons.
+                        mNetSession->destroySession(sessionID);
+                        break;
+                    }
+
+                    CHECK(msg->findInt32(
+                                "server-port", &mClientInfo.mLocalPort));
+                    mClientInfo.mPlaybackSessionID = -1;
+
+                    mClientSessionID = sessionID;
 
                     ALOGI("We now have a client (%d) connected.", sessionID);
-
-                    mClientInfos.add(sessionID, info);
 
                     status_t err = sendM1(sessionID);
                     CHECK_EQ(err, (status_t)OK);
@@ -197,20 +218,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            for (size_t i = mPlaybackSessions.size(); i-- > 0;) {
-                sp<PlaybackSession> playbackSession =
-                    mPlaybackSessions.valueAt(i);
-
-                mPlaybackSessions.removeItemsAt(i);
-
-                playbackSession->destroy();
-                looper()->unregisterHandler(playbackSession->id());
-                playbackSession.clear();
-            }
-
-            if (mClient != NULL) {
-                mClient->onDisplayDisconnected();
-            }
+            disconnectClient(OK);
 
             status_t err = OK;
 
@@ -224,21 +232,17 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
         {
             mReaperPending = false;
 
-            for (size_t i = mPlaybackSessions.size(); i-- > 0;) {
-                const sp<PlaybackSession> &playbackSession =
-                    mPlaybackSessions.valueAt(i);
-
-                if (playbackSession->getLastLifesignUs()
-                        + kPlaybackSessionTimeoutUs < ALooper::GetNowUs()) {
-                    ALOGI("playback session %d timed out, reaping.",
-                            mPlaybackSessions.keyAt(i));
-
-                    looper()->unregisterHandler(playbackSession->id());
-                    mPlaybackSessions.removeItemsAt(i);
-                }
+            if (mClientSessionID == 0
+                    || mClientInfo.mPlaybackSession == NULL) {
+                break;
             }
 
-            if (!mPlaybackSessions.isEmpty()) {
+            if (mClientInfo.mPlaybackSession->getLastLifesignUs()
+                    + kPlaybackSessionTimeoutUs < ALooper::GetNowUs()) {
+                ALOGI("playback session timed out, reaping.");
+
+                disconnectClient(-ETIMEDOUT);
+            } else {
                 scheduleReaper();
             }
             break;
@@ -252,52 +256,44 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
-            ssize_t index = mPlaybackSessions.indexOfKey(playbackSessionID);
-            if (index >= 0) {
-                const sp<PlaybackSession> &playbackSession =
-                    mPlaybackSessions.valueAt(index);
+            if (what == PlaybackSession::kWhatSessionDead) {
+                ALOGI("playback session wants to quit.");
 
-                if (what == PlaybackSession::kWhatSessionDead) {
-                    ALOGI("playback sessions %d wants to quit.",
-                          playbackSessionID);
-
-                    looper()->unregisterHandler(playbackSession->id());
-                    mPlaybackSessions.removeItemsAt(index);
-                } else if (what == PlaybackSession::kWhatSessionEstablished) {
-                    if (mClient != NULL) {
-                        mClient->onDisplayConnected(
-                                playbackSession->getSurfaceTexture(),
-                                playbackSession->width(),
-                                playbackSession->height(),
-                                0 /* flags */);
-                    }
-                } else {
-                    CHECK_EQ(what, PlaybackSession::kWhatBinaryData);
-
-                    int32_t channel;
-                    CHECK(msg->findInt32("channel", &channel));
-
-                    sp<ABuffer> data;
-                    CHECK(msg->findBuffer("data", &data));
-
-                    CHECK_LE(channel, 0xffu);
-                    CHECK_LE(data->size(), 0xffffu);
-
-                    int32_t sessionID;
-                    CHECK(msg->findInt32("sessionID", &sessionID));
-
-                    char header[4];
-                    header[0] = '$';
-                    header[1] = channel;
-                    header[2] = data->size() >> 8;
-                    header[3] = data->size() & 0xff;
-
-                    mNetSession->sendRequest(
-                            sessionID, header, sizeof(header));
-
-                    mNetSession->sendRequest(
-                            sessionID, data->data(), data->size());
+                disconnectClient(UNKNOWN_ERROR);
+            } else if (what == PlaybackSession::kWhatSessionEstablished) {
+                if (mClient != NULL) {
+                    mClient->onDisplayConnected(
+                            mClientInfo.mPlaybackSession->getSurfaceTexture(),
+                            mClientInfo.mPlaybackSession->width(),
+                            mClientInfo.mPlaybackSession->height(),
+                            0 /* flags */);
                 }
+            } else {
+                CHECK_EQ(what, PlaybackSession::kWhatBinaryData);
+
+                int32_t channel;
+                CHECK(msg->findInt32("channel", &channel));
+
+                sp<ABuffer> data;
+                CHECK(msg->findBuffer("data", &data));
+
+                CHECK_LE(channel, 0xffu);
+                CHECK_LE(data->size(), 0xffffu);
+
+                int32_t sessionID;
+                CHECK(msg->findInt32("sessionID", &sessionID));
+
+                char header[4];
+                header[0] = '$';
+                header[1] = channel;
+                header[2] = data->size() >> 8;
+                header[3] = data->size() & 0xff;
+
+                mNetSession->sendRequest(
+                        sessionID, header, sizeof(header));
+
+                mNetSession->sendRequest(
+                        sessionID, data->data(), data->size());
             }
             break;
         }
@@ -307,7 +303,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             int32_t sessionID;
             CHECK(msg->findInt32("sessionID", &sessionID));
 
-            if (mClientInfos.indexOfKey(sessionID) < 0) {
+            if (mClientSessionID != sessionID) {
                 // Obsolete event, client is already gone.
                 break;
             }
@@ -398,7 +394,7 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     //   max-hres (none or 2 byte)
     //   max-vres (none or 2 byte)
 
-    const ClientInfo &info = mClientInfos.valueFor(sessionID);
+    CHECK_EQ(sessionID, mClientSessionID);
 
     AString transportString = "UDP";
 
@@ -415,7 +411,8 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         "wfd_audio_codecs: AAC 00000001 00\r\n"  // 2 ch AAC 48kHz
         "wfd_presentation_URL: rtsp://%s:%d/wfd1.0/streamid=0 none\r\n"
         "wfd_client_rtp_ports: RTP/AVP/%s;unicast 19000 0 mode=play\r\n",
-        info.mLocalIP.c_str(), info.mLocalPort, transportString.c_str());
+        mClientInfo.mLocalIP.c_str(), mClientInfo.mLocalPort,
+        transportString.c_str());
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
@@ -470,8 +467,9 @@ status_t WifiDisplaySource::sendM16(int32_t sessionID) {
     AString request = "GET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
 
-    const ClientInfo &info = mClientInfos.valueFor(sessionID);
-    request.append(StringPrintf("Session: %d\r\n", info.mPlaybackSessionID));
+    CHECK_EQ(sessionID, mClientSessionID);
+    request.append(
+            StringPrintf("Session: %d\r\n", mClientInfo.mPlaybackSessionID));
     request.append("\r\n");  // Empty body
 
     status_t err =
@@ -549,11 +547,10 @@ status_t WifiDisplaySource::onReceiveM16Response(
         int32_t sessionID, const sp<ParsedMessage> &msg) {
     // If only the response was required to include a "Session:" header...
 
-    const ClientInfo &info = mClientInfos.valueFor(sessionID);
+    CHECK_EQ(sessionID, mClientSessionID);
 
-    ssize_t index = mPlaybackSessions.indexOfKey(info.mPlaybackSessionID);
-    if (index >= 0) {
-        mPlaybackSessions.valueAt(index)->updateLiveness();
+    if (mClientInfo.mPlaybackSession != NULL) {
+        mClientInfo.mPlaybackSession->updateLiveness();
 
         scheduleKeepAlive(sessionID);
     }
@@ -727,8 +724,8 @@ void WifiDisplaySource::onSetupRequest(
         int32_t sessionID,
         int32_t cseq,
         const sp<ParsedMessage> &data) {
-    ClientInfo *info = &mClientInfos.editValueFor(sessionID);
-    if (info->mPlaybackSessionID != -1) {
+    CHECK_EQ(sessionID, mClientSessionID);
+    if (mClientInfo.mPlaybackSessionID != -1) {
         // We only support a single playback session per client.
         // This is due to the reversed keep-alive design in the wfd specs...
         sendErrorResponse(sessionID, "400 Bad Request", cseq);
@@ -834,7 +831,7 @@ void WifiDisplaySource::onSetupRequest(
     }
 
     status_t err = playbackSession->init(
-            info->mRemoteIP.c_str(),
+            mClientInfo.mRemoteIP.c_str(),
             clientRtp,
             clientRtcp,
             transportMode);
@@ -855,9 +852,8 @@ void WifiDisplaySource::onSetupRequest(
             return;
     }
 
-    mPlaybackSessions.add(playbackSessionID, playbackSession);
-
-    info->mPlaybackSessionID = playbackSessionID;
+    mClientInfo.mPlaybackSessionID = playbackSessionID;
+    mClientInfo.mPlaybackSession = playbackSession;
 
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
@@ -965,15 +961,15 @@ void WifiDisplaySource::onTeardownRequest(
         return;
     }
 
-    looper()->unregisterHandler(playbackSession->id());
-    mPlaybackSessions.removeItem(playbackSessionID);
-
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
+    response.append("Connection: close\r\n");
     response.append("\r\n");
 
     status_t err = mNetSession->sendRequest(sessionID, response.c_str());
     CHECK_EQ(err, (status_t)OK);
+
+    disconnectClient(UNKNOWN_ERROR);
 }
 
 void WifiDisplaySource::onGetParameterRequest(
@@ -1007,19 +1003,10 @@ void WifiDisplaySource::onSetParameterRequest(
     sp<PlaybackSession> playbackSession =
         findPlaybackSession(data, &playbackSessionID);
 
-#if 1
-    // XXX the older dongles do not include a "Session:" header in this request.
-    if (playbackSession == NULL) {
-        CHECK_EQ(mPlaybackSessions.size(), 1u);
-        playbackSessionID = mPlaybackSessions.keyAt(0);
-        playbackSession = mPlaybackSessions.valueAt(0);
-    }
-#else
     if (playbackSession == NULL) {
         sendErrorResponse(sessionID, "454 Session Not Found", cseq);
         return;
     }
-#endif
 
     // XXX check that the parameter is about that.
     playbackSession->requestIDRFrame();
@@ -1078,37 +1065,42 @@ void WifiDisplaySource::sendErrorResponse(
 }
 
 int32_t WifiDisplaySource::makeUniquePlaybackSessionID() const {
-    for (;;) {
-        int32_t playbackSessionID = rand();
-
-        if (playbackSessionID == -1) {
-            // reserved.
-            continue;
-        }
-
-        for (size_t i = 0; i < mPlaybackSessions.size(); ++i) {
-            if (mPlaybackSessions.keyAt(i) == playbackSessionID) {
-                continue;
-            }
-        }
-
-        return playbackSessionID;
-    }
+    return rand();
 }
 
 sp<WifiDisplaySource::PlaybackSession> WifiDisplaySource::findPlaybackSession(
         const sp<ParsedMessage> &data, int32_t *playbackSessionID) const {
     if (!data->findInt32("session", playbackSessionID)) {
-        *playbackSessionID = 0;
+        // XXX the older dongles do not always include a "Session:" header.
+        *playbackSessionID = mClientInfo.mPlaybackSessionID;
+        return mClientInfo.mPlaybackSession;
+    }
+
+    if (*playbackSessionID != mClientInfo.mPlaybackSessionID) {
         return NULL;
     }
 
-    ssize_t index = mPlaybackSessions.indexOfKey(*playbackSessionID);
-    if (index < 0) {
-        return NULL;
+    return mClientInfo.mPlaybackSession;
+}
+
+void WifiDisplaySource::disconnectClient(status_t err) {
+    if (mClientSessionID != 0) {
+        if (mClientInfo.mPlaybackSession != NULL) {
+            looper()->unregisterHandler(mClientInfo.mPlaybackSession->id());
+            mClientInfo.mPlaybackSession.clear();
+        }
+
+        mNetSession->destroySession(mClientSessionID);
+        mClientSessionID = 0;
     }
 
-    return mPlaybackSessions.valueAt(index);
+    if (mClient != NULL) {
+        if (err != OK) {
+            mClient->onDisplayError(IRemoteDisplayClient::kDisplayErrorUnknown);
+        } else {
+            mClient->onDisplayDisconnected();
+        }
+    }
 }
 
 }  // namespace android
