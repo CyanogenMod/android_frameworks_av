@@ -58,6 +58,19 @@ struct ANetworkSession : public RefBase {
     status_t connectUDPSession(
             int32_t sessionID, const char *remoteHost, unsigned remotePort);
 
+    // passive
+    status_t createTCPDatagramSession(
+            const struct in_addr &addr, unsigned port,
+            const sp<AMessage> &notify, int32_t *sessionID);
+
+    // active
+    status_t createTCPDatagramSession(
+            unsigned localPort,
+            const char *remoteHost,
+            unsigned remotePort,
+            const sp<AMessage> &notify,
+            int32_t *sessionID);
+
     status_t destroySession(int32_t sessionID);
 
     status_t sendRequest(
@@ -90,6 +103,8 @@ private:
 
     enum Mode {
         kModeCreateUDPSession,
+        kModeCreateTCPDatagramSessionPassive,
+        kModeCreateTCPDatagramSessionActive,
         kModeCreateRTSPServer,
         kModeCreateRTSPClient,
     };
