@@ -5730,8 +5730,8 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
     uint8_t channelCount = popcount(channelMask);
 #endif
     if (mCblk != NULL) {
-        ALOGV("RecordTrack constructor, size %d flags %d", (int)mBufferEnd - (int)mBuffer,flags);
 #ifdef QCOM_HARDWARE
+        ALOGV("RecordTrack constructor, size %d flags %d", (int)mBufferEnd - (int)mBuffer,flags);
         if ((audio_source_t)((int16_t)flags) == AUDIO_SOURCE_VOICE_COMMUNICATION) {
              mCblk->frameSize = mChannelCount * sizeof(int16_t);
         } else {
