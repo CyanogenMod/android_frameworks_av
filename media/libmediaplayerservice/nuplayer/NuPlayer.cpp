@@ -961,7 +961,8 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {
     mVideoScalingMode = mode;
-    if (mNativeWindow != NULL) {
+    if (mNativeWindow != NULL
+            && mNativeWindow->getNativeWindow() != NULL) {
         status_t ret = native_window_set_scaling_mode(
                 mNativeWindow->getNativeWindow().get(), mVideoScalingMode);
         if (ret != OK) {
