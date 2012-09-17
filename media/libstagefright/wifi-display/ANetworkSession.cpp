@@ -56,7 +56,8 @@ struct ANetworkSession::Session : public RefBase {
     enum State {
         CONNECTING,
         CONNECTED,
-        LISTENING,
+        LISTENING_RTSP,
+        LISTENING_TCP_DGRAMS,
         DATAGRAM,
     };
 
@@ -69,7 +70,8 @@ struct ANetworkSession::Session : public RefBase {
     int socket() const;
     sp<AMessage> getNotificationMessage() const;
 
-    bool isListening() const;
+    bool isRTSPServer() const;
+    bool isTCPDatagramServer() const;
 
     bool wantsToRead();
     bool wantsToWrite();
@@ -79,12 +81,15 @@ struct ANetworkSession::Session : public RefBase {
 
     status_t sendRequest(const void *data, ssize_t size);
 
+    void setIsRTSPConnection(bool yesno);
+
 protected:
     virtual ~Session();
 
 private:
     int32_t mSessionID;
     State mState;
+    bool mIsRTSPConnection;
     int mSocket;
     sp<AMessage> mNotify;
     bool mSawReceiveFailure, mSawSendFailure;
@@ -123,6 +128,7 @@ ANetworkSession::Session::Session(
         const sp<AMessage> &notify)
     : mSessionID(sessionID),
       mState(state),
+      mIsRTSPConnection(false),
       mSocket(s),
       mNotify(notify),
       mSawReceiveFailure(false),
@@ -184,12 +190,20 @@ int ANetworkSession::Session::socket() const {
     return mSocket;
 }
 
+void ANetworkSession::Session::setIsRTSPConnection(bool yesno) {
+    mIsRTSPConnection = yesno;
+}
+
 sp<AMessage> ANetworkSession::Session::getNotificationMessage() const {
     return mNotify;
 }
 
-bool ANetworkSession::Session::isListening() const {
-    return mState == LISTENING;
+bool ANetworkSession::Session::isRTSPServer() const {
+    return mState == LISTENING_RTSP;
+}
+
+bool ANetworkSession::Session::isTCPDatagramServer() const {
+    return mState == LISTENING_TCP_DGRAMS;
 }
 
 bool ANetworkSession::Session::wantsToRead() {
@@ -284,70 +298,93 @@ status_t ANetworkSession::Session::readMore() {
         err = -ECONNRESET;
     }
 
-    for (;;) {
-        size_t length;
+    if (!mIsRTSPConnection) {
+        // TCP stream carrying 16-bit length-prefixed datagrams.
 
-        if (mInBuffer.size() > 0 && mInBuffer.c_str()[0] == '$') {
-            if (mInBuffer.size() < 4) {
+        while (mInBuffer.size() >= 2) {
+            size_t packetSize = U16_AT((const uint8_t *)mInBuffer.c_str());
+
+            if (mInBuffer.size() < packetSize + 2) {
                 break;
             }
 
-            length = U16_AT((const uint8_t *)mInBuffer.c_str() + 2);
+            sp<ABuffer> packet = new ABuffer(packetSize);
+            memcpy(packet->data(), mInBuffer.c_str() + 2, packetSize);
 
-            if (mInBuffer.size() < 4 + length) {
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("sessionID", mSessionID);
+            notify->setInt32("reason", kWhatDatagram);
+            notify->setBuffer("data", packet);
+            notify->post();
+
+            mInBuffer.erase(0, packetSize + 2);
+        }
+    } else {
+        for (;;) {
+            size_t length;
+
+            if (mInBuffer.size() > 0 && mInBuffer.c_str()[0] == '$') {
+                if (mInBuffer.size() < 4) {
+                    break;
+                }
+
+                length = U16_AT((const uint8_t *)mInBuffer.c_str() + 2);
+
+                if (mInBuffer.size() < 4 + length) {
+                    break;
+                }
+
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("sessionID", mSessionID);
+                notify->setInt32("reason", kWhatBinaryData);
+                notify->setInt32("channel", mInBuffer.c_str()[1]);
+
+                sp<ABuffer> data = new ABuffer(length);
+                memcpy(data->data(), mInBuffer.c_str() + 4, length);
+
+                int64_t nowUs = ALooper::GetNowUs();
+                data->meta()->setInt64("arrivalTimeUs", nowUs);
+
+                notify->setBuffer("data", data);
+                notify->post();
+
+                mInBuffer.erase(0, 4 + length);
+                continue;
+            }
+
+            sp<ParsedMessage> msg =
+                ParsedMessage::Parse(
+                        mInBuffer.c_str(), mInBuffer.size(), err != OK, &length);
+
+            if (msg == NULL) {
                 break;
             }
 
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("sessionID", mSessionID);
-            notify->setInt32("reason", kWhatBinaryData);
-            notify->setInt32("channel", mInBuffer.c_str()[1]);
-
-            sp<ABuffer> data = new ABuffer(length);
-            memcpy(data->data(), mInBuffer.c_str() + 4, length);
-
-            int64_t nowUs = ALooper::GetNowUs();
-            data->meta()->setInt64("arrivalTimeUs", nowUs);
-
-            notify->setBuffer("data", data);
+            notify->setInt32("reason", kWhatData);
+            notify->setObject("data", msg);
             notify->post();
 
-            mInBuffer.erase(0, 4 + length);
-            continue;
-        }
-
-        sp<ParsedMessage> msg =
-            ParsedMessage::Parse(
-                    mInBuffer.c_str(), mInBuffer.size(), err != OK, &length);
-
-        if (msg == NULL) {
-            break;
-        }
-
-        sp<AMessage> notify = mNotify->dup();
-        notify->setInt32("sessionID", mSessionID);
-        notify->setInt32("reason", kWhatData);
-        notify->setObject("data", msg);
-        notify->post();
-
 #if 1
-        // XXX The (old) dongle sends the wrong content length header on a
-        // SET_PARAMETER request that signals a "wfd_idr_request".
-        // (17 instead of 19).
-        const char *content = msg->getContent();
-        if (content
-                && !memcmp(content, "wfd_idr_request\r\n", 17)
-                && length >= 19
-                && mInBuffer.c_str()[length] == '\r'
-                && mInBuffer.c_str()[length + 1] == '\n') {
-            length += 2;
-        }
+            // XXX The (old) dongle sends the wrong content length header on a
+            // SET_PARAMETER request that signals a "wfd_idr_request".
+            // (17 instead of 19).
+            const char *content = msg->getContent();
+            if (content
+                    && !memcmp(content, "wfd_idr_request\r\n", 17)
+                    && length >= 19
+                    && mInBuffer.c_str()[length] == '\r'
+                    && mInBuffer.c_str()[length + 1] == '\n') {
+                length += 2;
+            }
 #endif
 
-        mInBuffer.erase(0, length);
+            mInBuffer.erase(0, length);
 
-        if (err != OK) {
-            break;
+            if (err != OK) {
+                break;
+            }
         }
     }
 
@@ -408,7 +445,7 @@ status_t ANetworkSession::Session::writeMore() {
             notifyError(kWhatError, -err, "Connection failed");
             mSawSendFailure = true;
 
-            return UNKNOWN_ERROR;
+            return -err;
         }
 
         mState = CONNECTED;
@@ -450,6 +487,16 @@ status_t ANetworkSession::Session::writeMore() {
 
 status_t ANetworkSession::Session::sendRequest(const void *data, ssize_t size) {
     CHECK(mState == CONNECTED || mState == DATAGRAM);
+
+    if (mState == CONNECTED && !mIsRTSPConnection) {
+        CHECK_LE(size, 65535);
+
+        uint8_t prefix[2];
+        prefix[0] = size >> 8;
+        prefix[1] = size & 0xff;
+
+        mOutBuffer.append((const char *)prefix, sizeof(prefix));
+    }
 
     mOutBuffer.append(
             (const char *)data,
@@ -585,6 +632,35 @@ status_t ANetworkSession::createUDPSession(
             sessionID);
 }
 
+status_t ANetworkSession::createTCPDatagramSession(
+        const struct in_addr &addr, unsigned port,
+        const sp<AMessage> &notify, int32_t *sessionID) {
+    return createClientOrServer(
+            kModeCreateTCPDatagramSessionPassive,
+            &addr,
+            port,
+            NULL /* remoteHost */,
+            0 /* remotePort */,
+            notify,
+            sessionID);
+}
+
+status_t ANetworkSession::createTCPDatagramSession(
+        unsigned localPort,
+        const char *remoteHost,
+        unsigned remotePort,
+        const sp<AMessage> &notify,
+        int32_t *sessionID) {
+    return createClientOrServer(
+            kModeCreateTCPDatagramSessionActive,
+            NULL /* addr */,
+            localPort,
+            remoteHost,
+            remotePort,
+            notify,
+            sessionID);
+}
+
 status_t ANetworkSession::destroySession(int32_t sessionID) {
     Mutex::Autolock autoLock(mLock);
 
@@ -641,7 +717,8 @@ status_t ANetworkSession::createClientOrServer(
         goto bail;
     }
 
-    if (mode == kModeCreateRTSPServer) {
+    if (mode == kModeCreateRTSPServer
+            || mode == kModeCreateTCPDatagramSessionPassive) {
         const int yes = 1;
         res = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
@@ -679,7 +756,8 @@ status_t ANetworkSession::createClientOrServer(
     memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
     addr.sin_family = AF_INET;
 
-    if (mode == kModeCreateRTSPClient) {
+    if (mode == kModeCreateRTSPClient
+            || mode == kModeCreateTCPDatagramSessionActive) {
         struct hostent *ent= gethostbyname(remoteHost);
         if (ent == NULL) {
             err = -h_errno;
@@ -696,7 +774,17 @@ status_t ANetworkSession::createClientOrServer(
         addr.sin_port = htons(port);
     }
 
-    if (mode == kModeCreateRTSPClient) {
+    if (mode == kModeCreateRTSPClient
+            || mode == kModeCreateTCPDatagramSessionActive) {
+        in_addr_t x = ntohl(addr.sin_addr.s_addr);
+        ALOGI("connecting socket %d to %d.%d.%d.%d:%d",
+              s,
+              (x >> 24),
+              (x >> 16) & 0xff,
+              (x >> 8) & 0xff,
+              x & 0xff,
+              ntohs(addr.sin_port));
+
         res = connect(s, (const struct sockaddr *)&addr, sizeof(addr));
 
         CHECK_LT(res, 0);
@@ -707,7 +795,8 @@ status_t ANetworkSession::createClientOrServer(
         res = bind(s, (const struct sockaddr *)&addr, sizeof(addr));
 
         if (res == 0) {
-            if (mode == kModeCreateRTSPServer) {
+            if (mode == kModeCreateRTSPServer
+                    || mode == kModeCreateTCPDatagramSessionPassive) {
                 res = listen(s, 4);
             } else {
                 CHECK_EQ(mode, kModeCreateUDPSession);
@@ -746,8 +835,16 @@ status_t ANetworkSession::createClientOrServer(
             state = Session::CONNECTING;
             break;
 
+        case kModeCreateTCPDatagramSessionActive:
+            state = Session::CONNECTING;
+            break;
+
+        case kModeCreateTCPDatagramSessionPassive:
+            state = Session::LISTENING_TCP_DGRAMS;
+            break;
+
         case kModeCreateRTSPServer:
-            state = Session::LISTENING;
+            state = Session::LISTENING_RTSP;
             break;
 
         default:
@@ -761,6 +858,12 @@ status_t ANetworkSession::createClientOrServer(
             state,
             s,
             notify);
+
+    if (mode == kModeCreateTCPDatagramSessionActive) {
+        session->setIsRTSPConnection(false);
+    } else if (mode == kModeCreateRTSPClient) {
+        session->setIsRTSPConnection(true);
+    }
 
     mSessions.add(session->sessionID(), session);
 
@@ -797,7 +900,7 @@ status_t ANetworkSession::connectUDPSession(
     remoteAddr.sin_port = htons(remotePort);
 
     status_t err = OK;
-    struct hostent *ent= gethostbyname(remoteHost);
+    struct hostent *ent = gethostbyname(remoteHost);
     if (ent == NULL) {
         err = -h_errno;
     } else {
@@ -932,7 +1035,7 @@ void ANetworkSession::threadLoop() {
             }
 
             if (FD_ISSET(s, &rs)) {
-                if (session->isListening()) {
+                if (session->isRTSPServer() || session->isTCPDatagramServer()) {
                     struct sockaddr_in remoteAddr;
                     socklen_t remoteAddrLen = sizeof(remoteAddr);
 
@@ -968,6 +1071,9 @@ void ANetworkSession::threadLoop() {
                                         Session::CONNECTED,
                                         clientSocket,
                                         session->getNotificationMessage());
+
+                            clientSession->setIsRTSPConnection(
+                                    session->isRTSPServer());
 
                             sessionsToAdd.push_back(clientSession);
                         }
