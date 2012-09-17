@@ -38,11 +38,17 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     PlaybackSession(
             const sp<ANetworkSession> &netSession,
             const sp<AMessage> &notify,
+            const struct in_addr &interfaceAddr,
             bool legacyMode);
 
+    enum TransportMode {
+        TRANSPORT_UDP,
+        TRANSPORT_TCP_INTERLEAVED,
+        TRANSPORT_TCP,
+    };
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-            bool useInterleavedTCP);
+            TransportMode transportMode);
 
     status_t destroy();
 
@@ -52,6 +58,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     void updateLiveness();
 
     status_t play();
+    status_t finishPlay();
     status_t pause();
 
     sp<ISurfaceTexture> getSurfaceTexture();
@@ -63,6 +70,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     enum {
         kWhatSessionDead,
         kWhatBinaryData,
+        kWhatSessionEstablished,
     };
 
 protected:
@@ -79,6 +87,7 @@ private:
         kWhatSerializerNotify,
         kWhatConverterNotify,
         kWhatUpdateSurface,
+        kWhatFinishPlay,
     };
 
     static const int64_t kSendSRIntervalUs = 10000000ll;
@@ -87,6 +96,7 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
+    in_addr mInterfaceAddr;
     bool mLegacyMode;
 
     int64_t mLastLifesignUs;
@@ -102,7 +112,9 @@ private:
     sp<ABuffer> mTSQueue;
     int64_t mPrevTimeUs;
 
-    bool mUseInterleavedTCP;
+    TransportMode mTransportMode;
+
+    AString mClientIP;
 
     // in TCP mode
     int32_t mRTPChannel;
@@ -113,6 +125,10 @@ private:
     int32_t mRTPSessionID;
     int32_t mRTCPSessionID;
 
+    int32_t mClientRTPPort;
+    int32_t mClientRTCPPort;
+    bool mRTPConnected;
+    bool mRTCPConnected;
 
     uint32_t mRTPSeqNo;
 
@@ -159,6 +175,10 @@ private:
 
     status_t parseRTCP(const sp<ABuffer> &buffer);
     status_t parseTSFB(const uint8_t *data, size_t size);
+
+    status_t sendPacket(int32_t sessionID, const void *data, size_t size);
+    status_t onFinishPlay();
+    status_t onFinishPlay2();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };
