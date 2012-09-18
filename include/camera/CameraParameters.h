@@ -580,7 +580,7 @@ public:
     static const char KEY_VIDEO_SNAPSHOT_SUPPORTED[];
     static const char KEY_FULL_VIDEO_SNAP_SUPPORTED[];
 
-#if defined(QCOM_HARDWARE) || defined(EXYNOS4X12_ENHANCEMENTS)
+#if defined(QCOM_HARDWARE) || defined(EXYNOS4X12_ENHANCEMENTS) || defined(HAVE_ISO)
     static const char KEY_SUPPORTED_ISO_MODES[];
     static const char KEY_ISO_MODE[];
 #endif
