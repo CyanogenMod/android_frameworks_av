@@ -750,12 +750,12 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     previewCallbackFlags = 0;
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("camera.zsl_mode", value, "0");
+    property_get("camera.disable_zsl_mode", value, "0");
     if (!strcmp(value,"1")) {
-        ALOGI("Camera %d: Enabling ZSL mode", cameraId);
-        zslMode = true;
-    } else {
+        ALOGI("Camera %d: Disabling ZSL mode", cameraId);
         zslMode = false;
+    } else {
+        zslMode = true;
     }
 
     lightFx = LIGHTFX_NONE;
