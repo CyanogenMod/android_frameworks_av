@@ -110,6 +110,8 @@ class ZslProcessor:
 
     // Match up entries from frame list to buffers in ZSL queue
     void findMatchesLocked();
+
+    void dumpZslQueue(int id) const;
 };
 
 
