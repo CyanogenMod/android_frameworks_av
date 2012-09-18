@@ -220,7 +220,13 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
 
         faces.setCapacity(metadata.number_of_faces);
 
-        for (int i = 0; i < metadata.number_of_faces; i++) {
+        size_t maxFaces = metadata.number_of_faces;
+        for (size_t i = 0; i < maxFaces; i++) {
+            if (faceScores[i] == 0) {
+                metadata.number_of_faces--;
+                continue;
+            }
+
             camera_face_t face;
 
             face.rect[0] = l.mParameters.arrayXToNormalized(faceRects[i*4 + 0]);
