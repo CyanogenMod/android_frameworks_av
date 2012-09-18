@@ -87,12 +87,14 @@ void ZslProcessor::onFrameAvailable(int32_t frameId, CameraMetadata &frame) {
 void ZslProcessor::onBufferReleased(buffer_handle_t *handle) {
     Mutex::Autolock l(mInputMutex);
 
-    buffer_handle_t *expectedHandle =
-            &(mZslQueue[mZslQueueTail].buffer.mGraphicBuffer->handle);
-
-    if (handle != expectedHandle) {
-        ALOGE("%s: Expected buffer %p, got buffer %p",
-                __FUNCTION__, expectedHandle, handle);
+    // Verify that the buffer is in our queue
+    size_t i = 0;
+    for (; i < mZslQueue.size(); i++) {
+        if (&(mZslQueue[i].buffer.mGraphicBuffer->handle) == handle) break;
+    }
+    if (i == mZslQueue.size()) {
+        ALOGW("%s: Released buffer %p not found in queue",
+                __FUNCTION__, handle);
     }
 
     mState = RUNNING;
@@ -232,7 +234,12 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
     status_t res;
     sp<Camera2Client> client = mClient.promote();
 
-    if (client == 0) return false;
+    if (client == 0) return INVALID_OPERATION;
+
+    IF_ALOGV() {
+        dumpZslQueue(-1);
+    }
+
 
     if (mZslQueueTail != mZslQueueHead) {
         CameraMetadata request;
@@ -242,9 +249,26 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
             index = (index + 1) % kZslBufferDepth;
         }
         if (request.isEmpty()) {
-            ALOGE("No request in ZSL queue to send!");
+            ALOGV("%s: ZSL queue has no valid frames to send yet.",
+                  __FUNCTION__);
+            return NOT_ENOUGH_DATA;
+        }
+        // Verify that the frame is reasonable for reprocessing
+
+        camera_metadata_entry_t entry;
+        entry = request.find(ANDROID_CONTROL_AE_STATE);
+        if (entry.count == 0) {
+            ALOGE("%s: ZSL queue frame has no AE state field!",
+                    __FUNCTION__);
             return BAD_VALUE;
         }
+        if (entry.data.u8[0] != ANDROID_CONTROL_AE_STATE_CONVERGED &&
+                entry.data.u8[0] != ANDROID_CONTROL_AE_STATE_LOCKED) {
+            ALOGV("%s: ZSL queue frame AE state is %d, need full capture",
+                    __FUNCTION__, entry.data.u8[0]);
+            return NOT_ENOUGH_DATA;
+        }
+
         buffer_handle_t *handle =
             &(mZslQueue[index].buffer.mGraphicBuffer->handle);
 
@@ -282,13 +306,15 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
 
         mState = LOCKED;
     } else {
-        ALOGE("%s: Nothing to push", __FUNCTION__);
-        return BAD_VALUE;
+        ALOGV("%s: No ZSL buffers yet", __FUNCTION__);
+        return NOT_ENOUGH_DATA;
     }
     return OK;
 }
 
 void ZslProcessor::dump(int fd, const Vector<String16>& args) const {
+    Mutex::Autolock l(mInputMutex);
+    dumpZslQueue(fd);
 }
 
 bool ZslProcessor::threadLoop() {
@@ -410,6 +436,38 @@ void ZslProcessor::findMatchesLocked() {
                 }
             }
         }
+    }
+}
+
+void ZslProcessor::dumpZslQueue(int fd) const {
+    String8 header("ZSL queue contents:");
+    String8 indent("    ");
+    ALOGV("%s", header.string());
+    if (fd != -1) {
+        header = indent + header + "\n";
+        write(fd, header.string(), header.size());
+    }
+    for (size_t i = 0; i < mZslQueue.size(); i++) {
+        const ZslPair &queueEntry = mZslQueue[i];
+        nsecs_t bufferTimestamp = queueEntry.buffer.mTimestamp;
+        camera_metadata_ro_entry_t entry;
+        nsecs_t frameTimestamp = 0;
+        int frameAeState = -1;
+        if (!queueEntry.frame.isEmpty()) {
+            entry = queueEntry.frame.find(ANDROID_SENSOR_TIMESTAMP);
+            if (entry.count > 0) frameTimestamp = entry.data.i64[0];
+            entry = queueEntry.frame.find(ANDROID_CONTROL_AE_STATE);
+            if (entry.count > 0) frameAeState = entry.data.u8[0];
+        }
+        String8 result =
+                String8::format("   %d: b: %lld\tf: %lld, AE state: %d", i,
+                        bufferTimestamp, frameTimestamp, frameAeState);
+        ALOGV("%s", result.string());
+        if (fd != -1) {
+            result = indent + result + "\n";
+            write(fd, result.string(), result.size());
+        }
+
     }
 }
 
