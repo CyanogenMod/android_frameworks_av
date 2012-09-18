@@ -38,7 +38,6 @@ extern "C" {
 #define VOLUME_CUP_LOAD_ARM9E      0      // Expressed in 0.1 MIPS
 #define BUNDLE_MEM_USAGE           25     // Expressed in kB
 //#define LVM_PCM
-#define MAX_BAND_GAIN_DB           4
 
 #ifndef OPENSL_ES_H_
 static const effect_uuid_t SL_IID_VOLUME_ = { 0x09e8ede0, 0xddde, 0x11db, 0xb4f6,
@@ -97,6 +96,7 @@ struct BundledEffectContext{
     LVM_INT16                       *workBuffer;
     int                             frameCount;
     int32_t                         bandGaindB[FIVEBAND_NUMBANDS];
+    int                             volume;
     #ifdef LVM_PCM
     FILE                            *PcmInPtr;
     FILE                            *PcmOutPtr;
