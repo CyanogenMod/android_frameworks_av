@@ -210,6 +210,7 @@ private:
     MediaBuffer *mInputBuffer;
 
     Mutex mLock;
+    Mutex mResumeLock;
 
     bool mSeeking;
     bool mReachedEOS;
