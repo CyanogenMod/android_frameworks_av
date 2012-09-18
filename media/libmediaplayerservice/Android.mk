@@ -9,6 +9,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=               \
     ActivityManager.cpp         \
     Crypto.cpp                  \
+    HDCP.cpp                    \
     MediaPlayerFactory.cpp      \
     MediaPlayerService.cpp      \
     MediaRecorderClient.cpp     \
