@@ -345,6 +345,8 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
     mFrameProcessor->dump(fd, args);
 
+    mZslProcessor->dump(fd, args);
+
     result = "  Device dump:\n";
     write(fd, result.string(), result.size());
 
