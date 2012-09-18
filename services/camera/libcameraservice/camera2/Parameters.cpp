@@ -1380,8 +1380,11 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             &reqControlMode, 1);
     if (res != OK) return res;
 
-    uint8_t reqSceneMode = enableFaceDetect ?
-            (uint8_t)ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY : sceneMode;
+    uint8_t reqSceneMode =
+            (sceneMode !=
+                    (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ? sceneMode :
+            enableFaceDetect ? (uint8_t)ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY :
+            (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
     res = request->update(ANDROID_CONTROL_SCENE_MODE,
             &reqSceneMode, 1);
     if (res != OK) return res;
