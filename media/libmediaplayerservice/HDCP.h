@@ -39,6 +39,9 @@ private:
     HDCPModule *mHDCPModule;
     sp<IHDCPObserver> mObserver;
 
+    static void ObserveWrapper(void *me, int msg, int ext1, int ext2);
+    void observe(int msg, int ext1, int ext2);
+
     DISALLOW_EVIL_CONSTRUCTORS(HDCP);
 };
 
