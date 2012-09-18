@@ -274,8 +274,14 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
     // TODO: Actually select the right thing here.
     res = processor->pushToReprocess(mCaptureId);
     if (res != OK) {
-        ALOGW("%s: Camera %d: Failed to use ZSL queue, falling back to standard capture",
-                __FUNCTION__, client->getCameraId());
+        if (res == NOT_ENOUGH_DATA) {
+            ALOGV("%s: Camera %d: ZSL queue doesn't have good frame, "
+                    "falling back to normal capture", __FUNCTION__,
+                    client->getCameraId());
+        } else {
+            ALOGE("%s: Camera %d: Error in ZSL queue: %s (%d)",
+                    __FUNCTION__, client->getCameraId(), strerror(-res), res);
+        }
         return STANDARD_START;
     }
 
