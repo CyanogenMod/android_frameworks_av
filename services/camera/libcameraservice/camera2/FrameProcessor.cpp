@@ -174,8 +174,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         SharedParameters::Lock l(client->getParameters());
         entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
         if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Unable to read face rectangles",
-                    __FUNCTION__, client->getCameraId());
+            // No faces this frame
             return res;
         }
         metadata.number_of_faces = entry.count / 4;
