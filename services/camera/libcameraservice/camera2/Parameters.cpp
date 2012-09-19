@@ -680,7 +680,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     params.set(CameraParameters::KEY_MAX_ZOOM, NUM_ZOOM_STEPS - 1);
 
     camera_metadata_ro_entry_t maxDigitalZoom =
-        staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM, 1, 1);
+        staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM, /*minCount*/1, /*maxCount*/1);
     if (!maxDigitalZoom.count) return NO_INIT;
 
     {
@@ -1505,29 +1505,8 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     if (res != OK) return res;
     delete[] reqMeteringAreas;
 
-    // Need to convert zoom index into a crop rectangle. The rectangle is
-    // chosen to maximize its area on the sensor
-
-    camera_metadata_ro_entry_t maxDigitalZoom =
-            staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
-    float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
-            (NUM_ZOOM_STEPS-1);
-    float zoomRatio = 1 + zoomIncrement * zoom;
-
-    float zoomLeft, zoomTop, zoomWidth, zoomHeight;
-    if (previewWidth >= previewHeight) {
-        zoomWidth =  fastInfo.arrayWidth / zoomRatio;
-        zoomHeight = zoomWidth *
-                previewHeight / previewWidth;
-    } else {
-        zoomHeight = fastInfo.arrayHeight / zoomRatio;
-        zoomWidth = zoomHeight *
-                previewWidth / previewHeight;
-    }
-    zoomLeft = (fastInfo.arrayWidth - zoomWidth) / 2;
-    zoomTop = (fastInfo.arrayHeight - zoomHeight) / 2;
-
-    int32_t reqCropRegion[3] = { zoomLeft, zoomTop, zoomWidth };
+    CropRegion crop = calculateCropRegion();
+    int32_t reqCropRegion[3] = { crop.left, crop.top, crop.width };
     res = request->update(ANDROID_SCALER_CROP_REGION,
             reqCropRegion, 3);
     if (res != OK) return res;
@@ -1878,6 +1857,111 @@ int Parameters::normalizedXToArray(int x) const {
 
 int Parameters::normalizedYToArray(int y) const {
     return (y + 1000) * (fastInfo.arrayHeight - 1) / 2000;
+}
+
+Parameters::CropRegion Parameters::calculateCropRegion(void) const {
+
+    float zoomLeft, zoomTop, zoomWidth, zoomHeight;
+
+    // Need to convert zoom index into a crop rectangle. The rectangle is
+    // chosen to maximize its area on the sensor
+
+    camera_metadata_ro_entry_t maxDigitalZoom =
+            staticInfo(ANDROID_SCALER_AVAILABLE_MAX_ZOOM);
+    // For each zoom step by how many pixels more do we change the zoom
+    float zoomIncrement = (maxDigitalZoom.data.f[0] - 1) /
+            (NUM_ZOOM_STEPS-1);
+    // The desired activeAreaWidth/cropAreaWidth ratio (or height if h>w)
+    // via interpolating zoom step into a zoom ratio
+    float zoomRatio = 1 + zoomIncrement * zoom;
+    ALOG_ASSERT( (zoomRatio >= 1.f && zoomRatio <= maxDigitalZoom.data.f[0]),
+        "Zoom ratio calculated out of bounds. Expected 1 - %f, actual: %f",
+        maxDigitalZoom.data.f[0], zoomRatio);
+
+    ALOGV("Zoom maxDigital=%f, increment=%f, ratio=%f, previewWidth=%d, "
+          "previewHeight=%d, activeWidth=%d, activeHeight=%d",
+          maxDigitalZoom.data.f[0], zoomIncrement, zoomRatio, previewWidth,
+          previewHeight, fastInfo.arrayWidth, fastInfo.arrayHeight);
+
+    /*
+     * Assumption: On the HAL side each stream buffer calculates its crop
+     * rectangle as follows:
+     *   cropRect = (zoomLeft, zoomRight,
+     *               zoomWidth, zoomHeight * zoomWidth / outputWidth);
+     *
+     * Note that if zoomWidth > bufferWidth, the new cropHeight > zoomHeight
+     *      (we can then get into trouble if the cropHeight > arrayHeight).
+     * By selecting the zoomRatio based on the smallest outputRatio, we
+     * guarantee this will never happen.
+     */
+
+    // Enumerate all possible output sizes, select the one with the smallest
+    // aspect ratio
+    float minOutputWidth, minOutputHeight, minOutputRatio;
+    {
+        float outputSizes[][2] = {
+            { previewWidth,     previewHeight },
+            { videoWidth,       videoHeight },
+            /* don't include jpeg thumbnail size - it's valid for
+               it to be set to (0,0), meaning 'no thumbnail' */
+        //  { jpegThumbSize[0], jpegThumbSize[1] },
+            { pictureWidth,     pictureHeight },
+        };
+
+        minOutputWidth = outputSizes[0][0];
+        minOutputHeight = outputSizes[0][1];
+        minOutputRatio = minOutputWidth / minOutputHeight;
+        for (unsigned int i = 0;
+             i < sizeof(outputSizes) / sizeof(outputSizes[0]);
+             ++i) {
+
+            float outputWidth = outputSizes[i][0];
+            float outputHeight = outputSizes[i][1];
+            float outputRatio = outputWidth / outputHeight;
+
+            if (minOutputRatio > outputRatio) {
+                minOutputRatio = outputRatio;
+                minOutputWidth = outputWidth;
+                minOutputHeight = outputHeight;
+            }
+
+            // and then use this output ratio instead of preview output ratio
+            ALOGV("Enumerating output ratio %f = %f / %f, min is %f",
+                  outputRatio, outputWidth, outputHeight, minOutputRatio);
+        }
+    }
+
+    /* Ensure that the width/height never go out of bounds
+     * by scaling across a diffent dimension if an out-of-bounds
+     * possibility exists.
+     *
+     * e.g. if the previewratio < arrayratio and e.g. zoomratio = 1.0, then by
+     * calculating the zoomWidth from zoomHeight we'll actually get a
+     * zoomheight > arrayheight
+     */
+    float arrayRatio = 1.f * fastInfo.arrayWidth / fastInfo.arrayHeight;
+    if (minOutputRatio >= arrayRatio) {
+        // Adjust the height based on the width
+        zoomWidth =  fastInfo.arrayWidth / zoomRatio;
+        zoomHeight = zoomWidth *
+                minOutputHeight / minOutputWidth;
+
+    } else {
+        // Adjust the width based on the height
+        zoomHeight = fastInfo.arrayHeight / zoomRatio;
+        zoomWidth = zoomHeight *
+                minOutputWidth / minOutputHeight;
+    }
+    // centering the zoom area within the active area
+    zoomLeft = (fastInfo.arrayWidth - zoomWidth) / 2;
+    zoomTop = (fastInfo.arrayHeight - zoomHeight) / 2;
+
+    ALOGV("Crop region calculated (x=%d,y=%d,w=%f,h=%f) for zoom=%d",
+        (int32_t)zoomLeft, (int32_t)zoomTop, zoomWidth, zoomHeight, this->zoom);
+
+
+    CropRegion crop = { zoomLeft, zoomTop, zoomWidth, zoomHeight };
+    return crop;
 }
 
 }; // namespace camera2
