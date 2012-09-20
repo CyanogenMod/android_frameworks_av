@@ -31,7 +31,8 @@ struct MediaSource;
 struct Serializer;
 struct TSPacketizer;
 
-#define LOG_TRANSPORT_STREAM    0
+#define LOG_TRANSPORT_STREAM            0
+#define ENABLE_RETRANSMISSION           0
 
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
@@ -86,6 +87,10 @@ private:
         kWhatSendSR,
         kWhatRTPNotify,
         kWhatRTCPNotify,
+#if ENABLE_RETRANSMISSION
+        kWhatRTPRetransmissionNotify,
+        kWhatRTCPRetransmissionNotify,
+#endif
         kWhatSerializerNotify,
         kWhatConverterNotify,
         kWhatUpdateSurface,
@@ -95,6 +100,10 @@ private:
     static const int64_t kSendSRIntervalUs = 10000000ll;
     static const uint32_t kSourceID = 0xdeadbeef;
     static const size_t kMaxHistoryLength = 128;
+
+#if ENABLE_RETRANSMISSION
+    static const size_t kRetransmissionPortOffset = 120;
+#endif
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
@@ -128,12 +137,20 @@ private:
     int32_t mRTPSessionID;
     int32_t mRTCPSessionID;
 
+#if ENABLE_RETRANSMISSION
+    int32_t mRTPRetransmissionSessionID;
+    int32_t mRTCPRetransmissionSessionID;
+#endif
+
     int32_t mClientRTPPort;
     int32_t mClientRTCPPort;
     bool mRTPConnected;
     bool mRTCPConnected;
 
     uint32_t mRTPSeqNo;
+#if ENABLE_RETRANSMISSION
+    uint32_t mRTPRetransmissionSeqNo;
+#endif
 
     uint64_t mLastNTPTime;
     uint32_t mLastRTPTime;
@@ -177,7 +194,10 @@ private:
     void scheduleSendSR();
 
     status_t parseRTCP(const sp<ABuffer> &buffer);
+
+#if ENABLE_RETRANSMISSION
     status_t parseTSFB(const uint8_t *data, size_t size);
+#endif
 
     status_t sendPacket(int32_t sessionID, const void *data, size_t size);
     status_t onFinishPlay();
