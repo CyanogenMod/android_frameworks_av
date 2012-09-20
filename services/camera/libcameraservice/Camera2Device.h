@@ -40,6 +40,7 @@ class Camera2Device : public virtual RefBase {
     ~Camera2Device();
 
     status_t initialize(camera_module_t *module);
+    status_t disconnect();
 
     status_t dump(int fd, const Vector<String16>& args);
 
@@ -191,7 +192,6 @@ class Camera2Device : public virtual RefBase {
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
   private:
-
     const int mId;
     camera2_device_t *mDevice;
 
