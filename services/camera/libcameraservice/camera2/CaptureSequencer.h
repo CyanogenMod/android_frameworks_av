@@ -17,6 +17,7 @@
 #ifndef ANDROID_SERVERS_CAMERA_CAMERA2_CAPTURESEQUENCER_H
 #define ANDROID_SERVERS_CAMERA_CAMERA2_CAPTURESEQUENCER_H
 
+#include <binder/MemoryBase.h>
 #include <utils/Thread.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
@@ -58,8 +59,8 @@ class CaptureSequencer:
     // Notifications from the frame processor
     virtual void onFrameAvailable(int32_t frameId, CameraMetadata &frame);
 
-    // Notifications from the capture processor
-    void onCaptureAvailable(nsecs_t timestamp);
+    // Notifications from the JPEG processor
+    void onCaptureAvailable(nsecs_t timestamp, sp<MemoryBase> captureBuffer);
 
     void dump(int fd, const Vector<String16>& args);
 
@@ -85,6 +86,7 @@ class CaptureSequencer:
 
     bool mNewCaptureReceived;
     nsecs_t mCaptureTimestamp;
+    sp<MemoryBase> mCaptureBuffer;
     Condition mNewCaptureSignal;
 
     /**
