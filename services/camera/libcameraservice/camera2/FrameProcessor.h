@@ -23,6 +23,8 @@
 #include <utils/KeyedVector.h>
 #include "CameraMetadata.h"
 
+struct camera_frame_metadata;
+
 namespace android {
 
 class Camera2Client;
@@ -67,6 +69,11 @@ class FrameProcessor: public Thread {
             sp<Camera2Client> &client);
 
     CameraMetadata mLastFrame;
+    int mLastFrameNumberOfFaces;
+
+    // Emit FaceDetection event to java if faces changed
+    void callbackFaceDetection(sp<Camera2Client> client,
+                               camera_frame_metadata &metadata);
 };
 
 
