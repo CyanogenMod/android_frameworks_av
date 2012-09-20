@@ -223,6 +223,11 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
                 res = INVALID_OPERATION;
         }
     }
+    sp<ZslProcessor> processor = mZslProcessor.promote();
+    if (processor != 0) {
+        processor->clearZslQueue();
+    }
+
     if (mCaptureBuffer != 0 && res == OK) {
         Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
         ALOGV("%s: Sending still image to client", __FUNCTION__);
