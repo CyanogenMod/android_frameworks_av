@@ -43,7 +43,8 @@ TimedTextDriver::TimedTextDriver(
         const wp<MediaPlayerBase> &listener)
     : mLooper(new ALooper),
       mListener(listener),
-      mState(UNINITIALIZED) {
+      mState(UNINITIALIZED),
+      mCurrentTrackIndex(UINT_MAX) {
     mLooper->setName("TimedTextDriver");
     mLooper->start();
     mPlayer = new TimedTextPlayer(listener);
@@ -57,6 +58,9 @@ TimedTextDriver::~TimedTextDriver() {
 }
 
 status_t TimedTextDriver::selectTrack_l(size_t index) {
+    if (mCurrentTrackIndex == index) {
+        return OK;
+    }
     sp<TimedTextSource> source;
     source = mTextSourceVector.valueFor(index);
     mPlayer->setDataSource(source);
@@ -138,11 +142,12 @@ status_t TimedTextDriver::unselectTrack(size_t index) {
     if (mCurrentTrackIndex != index) {
         return INVALID_OPERATION;
     }
+    mCurrentTrackIndex = UINT_MAX;
     switch (mState) {
         case UNINITIALIZED:
             return INVALID_OPERATION;
         case PLAYING:
-            mPlayer->pause();
+            mPlayer->setDataSource(NULL);
             mState = UNINITIALIZED;
             return OK;
         case PREPARED:
