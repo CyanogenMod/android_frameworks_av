@@ -21,6 +21,7 @@
 #include <binder/Parcel.h>
 #include <binder/IMemory.h>
 #include <media/ICrypto.h>
+#include <media/IHDCP.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
 #include <media/IOMX.h>
@@ -41,6 +42,7 @@ enum {
     CREATE_METADATA_RETRIEVER,
     GET_OMX,
     MAKE_CRYPTO,
+    MAKE_HDCP,
     ENABLE_REMOTE_DISPLAY,
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
@@ -123,6 +125,13 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(MAKE_CRYPTO, data, &reply);
         return interface_cast<ICrypto>(reply.readStrongBinder());
+    }
+
+    virtual sp<IHDCP> makeHDCP() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        remote()->transact(MAKE_HDCP, data, &reply);
+        return interface_cast<IHDCP>(reply.readStrongBinder());
     }
 
     virtual status_t enableRemoteDisplay(const char *iface) {
@@ -235,6 +244,12 @@ status_t BnMediaPlayerService::onTransact(
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<ICrypto> crypto = makeCrypto();
             reply->writeStrongBinder(crypto->asBinder());
+            return NO_ERROR;
+        } break;
+        case MAKE_HDCP: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IHDCP> hdcp = makeHDCP();
+            reply->writeStrongBinder(hdcp->asBinder());
             return NO_ERROR;
         } break;
         case ENABLE_REMOTE_DISPLAY: {
