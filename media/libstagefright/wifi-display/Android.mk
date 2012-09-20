@@ -4,6 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
         ANetworkSession.cpp             \
+        Parameters.cpp                  \
         ParsedMessage.cpp               \
         sink/LinearRegression.cpp       \
         sink/RTPSink.cpp                \

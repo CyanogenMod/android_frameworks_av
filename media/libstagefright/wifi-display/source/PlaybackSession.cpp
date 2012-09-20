@@ -29,6 +29,7 @@
 #include <binder/IServiceManager.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
+#include <media/IHDCP.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -63,6 +64,7 @@ struct WifiDisplaySource::PlaybackSession::Track : public RefBase {
     Track(const sp<AMessage> &format);
 
     sp<AMessage> getFormat();
+    bool isAudio() const;
 
     const sp<Converter> &converter() const;
     ssize_t packetizerTrackIndex() const;
@@ -83,6 +85,9 @@ private:
     sp<AMessage> mFormat;
     bool mStarted;
     ssize_t mPacketizerTrackIndex;
+    bool mIsAudio;
+
+    static bool IsAudioFormat(const sp<AMessage> &format);
 
     DISALLOW_EVIL_CONSTRUCTORS(Track);
 };
@@ -97,16 +102,27 @@ WifiDisplaySource::PlaybackSession::Track::Track(
       mMediaPuller(mediaPuller),
       mConverter(converter),
       mStarted(false),
-      mPacketizerTrackIndex(-1) {
+      mPacketizerTrackIndex(-1),
+      mIsAudio(IsAudioFormat(mConverter->getOutputFormat())) {
 }
 
 WifiDisplaySource::PlaybackSession::Track::Track(const sp<AMessage> &format)
     : mFormat(format),
-      mPacketizerTrackIndex(-1) {
+      mPacketizerTrackIndex(-1),
+      mIsAudio(IsAudioFormat(mFormat)) {
 }
 
 WifiDisplaySource::PlaybackSession::Track::~Track() {
     stop();
+}
+
+// static
+bool WifiDisplaySource::PlaybackSession::Track::IsAudioFormat(
+        const sp<AMessage> &format) {
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+
+    return !strncasecmp(mime.c_str(), "audio/", 6);
 }
 
 sp<AMessage> WifiDisplaySource::PlaybackSession::Track::getFormat() {
@@ -115,6 +131,10 @@ sp<AMessage> WifiDisplaySource::PlaybackSession::Track::getFormat() {
     }
 
     return mConverter->getOutputFormat();
+}
+
+bool WifiDisplaySource::PlaybackSession::Track::isAudio() const {
+    return mIsAudio;
 }
 
 const sp<Converter> &WifiDisplaySource::PlaybackSession::Track::converter() const {
@@ -172,11 +192,13 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
         const sp<ANetworkSession> &netSession,
         const sp<AMessage> &notify,
         const in_addr &interfaceAddr,
-        bool legacyMode)
+        bool legacyMode,
+        const sp<IHDCP> &hdcp)
     : mNetSession(netSession),
       mNotify(notify),
       mInterfaceAddr(interfaceAddr),
       mLegacyMode(legacyMode),
+      mHDCP(hdcp),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
       mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
@@ -644,6 +666,73 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     sp<ABuffer> accessUnit;
                     CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
+                    bool isHDCPEncrypted = false;
+                    uint64_t inputCTR;
+                    uint8_t HDCP_private_data[16];
+                    if (mHDCP != NULL && !track->isAudio()) {
+                        isHDCPEncrypted = true;
+
+                        status_t err = mHDCP->encrypt(
+                                accessUnit->data(), accessUnit->size(),
+                                trackIndex  /* streamCTR */,
+                                &inputCTR,
+                                accessUnit->data());
+
+                        if (err != OK) {
+                            ALOGI("Failed to HDCP-encrypt media data (err %d)",
+                                  err);
+
+                            // Inform WifiDisplaySource of our premature death
+                            // (wish).
+                            sp<AMessage> notify = mNotify->dup();
+                            notify->setInt32("what", kWhatSessionDead);
+                            notify->post();
+                            break;
+                        }
+
+                        HDCP_private_data[0] = 0x00;
+
+                        HDCP_private_data[1] =
+                            (((trackIndex >> 30) & 3) << 1) | 1;
+
+                        HDCP_private_data[2] = (trackIndex >> 22) & 0xff;
+
+                        HDCP_private_data[3] =
+                            (((trackIndex >> 15) & 0x7f) << 1) | 1;
+
+                        HDCP_private_data[4] = (trackIndex >> 7) & 0xff;
+
+                        HDCP_private_data[5] =
+                            ((trackIndex & 0x7f) << 1) | 1;
+
+                        HDCP_private_data[6] = 0x00;
+
+                        HDCP_private_data[7] =
+                            (((inputCTR >> 60) & 0x0f) << 1) | 1;
+
+                        HDCP_private_data[8] = (inputCTR >> 52) & 0xff;
+
+                        HDCP_private_data[9] =
+                            (((inputCTR >> 45) & 0x7f) << 1) | 1;
+
+                        HDCP_private_data[10] = (inputCTR >> 37) & 0xff;
+
+                        HDCP_private_data[11] =
+                            (((inputCTR >> 30) & 0x7f) << 1) | 1;
+
+                        HDCP_private_data[12] = (inputCTR >> 22) & 0xff;
+
+                        HDCP_private_data[13] =
+                            (((inputCTR >> 15) & 0x7f) << 1) | 1;
+
+                        HDCP_private_data[14] = (inputCTR >> 7) & 0xff;
+
+                        HDCP_private_data[15] =
+                            ((inputCTR & 0x7f) << 1) | 1;
+
+                        flags |= TSPacketizer::IS_ENCRYPTED;
+                    }
+
                     int64_t timeUs;
                     CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
 
@@ -654,7 +743,9 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
                     sp<ABuffer> packets;
                     mPacketizer->packetize(
-                            packetizerTrackIndex, accessUnit, &packets, flags);
+                            packetizerTrackIndex, accessUnit, &packets, flags,
+                            isHDCPEncrypted ? NULL : HDCP_private_data,
+                            isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
 
                     for (size_t offset = 0;
                             offset < packets->size(); offset += 188) {
