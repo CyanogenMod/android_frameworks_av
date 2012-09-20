@@ -72,6 +72,7 @@
 #include <OMX.h>
 
 #include "Crypto.h"
+#include "HDCP.h"
 #include "RemoteDisplay.h"
 
 namespace {
@@ -279,6 +280,10 @@ sp<IOMX> MediaPlayerService::getOMX() {
 
 sp<ICrypto> MediaPlayerService::makeCrypto() {
     return new Crypto;
+}
+
+sp<IHDCP> MediaPlayerService::makeHDCP() {
+    return new HDCP;
 }
 
 sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(

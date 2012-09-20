@@ -36,13 +36,16 @@ HDCP::HDCP()
         return;
     }
 
-    typedef HDCPModule *(*CreateHDCPModuleFunc)();
+    typedef HDCPModule *(*CreateHDCPModuleFunc)(
+            void *, HDCPModule::ObserverFunc);
+
     CreateHDCPModuleFunc createHDCPModule =
         (CreateHDCPModuleFunc)dlsym(mLibHandle, "createHDCPModule");
 
     if (createHDCPModule == NULL) {
         ALOGE("Unable to find symbol 'createHDCPModule'.");
-    } else if ((mHDCPModule = createHDCPModule()) == NULL) {
+    } else if ((mHDCPModule = createHDCPModule(
+                    this, &HDCP::ObserveWrapper)) == NULL) {
         ALOGE("createHDCPModule failed.");
     }
 }
@@ -95,6 +98,17 @@ status_t HDCP::encrypt(
     }
 
     return mHDCPModule->encrypt(inData, size, streamCTR, outInputCTR, outData);
+}
+
+// static
+void HDCP::ObserveWrapper(void *me, int msg, int ext1, int ext2) {
+    static_cast<HDCP *>(me)->observe(msg, ext1, ext2);
+}
+
+void HDCP::observe(int msg, int ext1, int ext2) {
+    if (mObserver != NULL) {
+        mObserver->notify(msg, ext1, ext2, NULL /* obj */);
+    }
 }
 
 }  // namespace android
