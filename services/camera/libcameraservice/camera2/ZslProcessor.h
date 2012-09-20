@@ -62,6 +62,7 @@ class ZslProcessor:
     int getReprocessStreamId() const;
 
     status_t pushToReprocess(int32_t requestId);
+    status_t clearZslQueue();
 
     void dump(int fd, const Vector<String16>& args) const;
   private:
@@ -110,6 +111,8 @@ class ZslProcessor:
 
     // Match up entries from frame list to buffers in ZSL queue
     void findMatchesLocked();
+
+    status_t clearZslQueueLocked();
 
     void dumpZslQueue(int id) const;
 };
