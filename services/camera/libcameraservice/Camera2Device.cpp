@@ -38,30 +38,25 @@ Camera2Device::Camera2Device(int id):
 
 Camera2Device::~Camera2Device()
 {
-    ALOGV("%s: Shutting down device for camera %d", __FUNCTION__, mId);
-    if (mDevice) {
-        status_t res;
-        res = mDevice->common.close(&mDevice->common);
-        if (res != OK) {
-            ALOGE("%s: Could not close camera %d: %s (%d)",
-                    __FUNCTION__,
-                    mId, strerror(-res), res);
-        }
-        mDevice = NULL;
-    }
-    ALOGV("%s: Shutdown complete", __FUNCTION__);
+    disconnect();
 }
 
 status_t Camera2Device::initialize(camera_module_t *module)
 {
     ALOGV("%s: Initializing device for camera %d", __FUNCTION__, mId);
+    if (mDevice != NULL) {
+        ALOGE("%s: Already initialized!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
 
     status_t res;
     char name[10];
     snprintf(name, sizeof(name), "%d", mId);
 
+    camera2_device_t *device;
+
     res = module->common.methods->open(&module->common, name,
-            reinterpret_cast<hw_device_t**>(&mDevice));
+            reinterpret_cast<hw_device_t**>(&device));
 
     if (res != OK) {
         ALOGE("%s: Could not open camera %d: %s (%d)", __FUNCTION__,
@@ -69,11 +64,12 @@ status_t Camera2Device::initialize(camera_module_t *module)
         return res;
     }
 
-    if (mDevice->common.version != CAMERA_DEVICE_API_VERSION_2_0) {
+    if (device->common.version != CAMERA_DEVICE_API_VERSION_2_0) {
         ALOGE("%s: Could not open camera %d: "
                 "Camera device is not version %x, reports %x instead",
                 __FUNCTION__, mId, CAMERA_DEVICE_API_VERSION_2_0,
-                mDevice->common.version);
+                device->common.version);
+        device->common.close(&device->common);
         return BAD_VALUE;
     }
 
@@ -81,43 +77,79 @@ status_t Camera2Device::initialize(camera_module_t *module)
     res = module->get_camera_info(mId, &info);
     if (res != OK ) return res;
 
-    if (info.device_version != mDevice->common.version) {
+    if (info.device_version != device->common.version) {
         ALOGE("%s: HAL reporting mismatched camera_info version (%x)"
                 " and device version (%x).", __FUNCTION__,
-                mDevice->common.version, info.device_version);
+                device->common.version, info.device_version);
+        device->common.close(&device->common);
         return BAD_VALUE;
     }
 
-    mDeviceInfo = info.static_camera_characteristics;
-
-    res = mRequestQueue.setConsumerDevice(mDevice);
+    res = mRequestQueue.setConsumerDevice(device);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to connect request queue to device: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
+        device->common.close(&device->common);
         return res;
     }
-    res = mFrameQueue.setProducerDevice(mDevice);
+    res = mFrameQueue.setProducerDevice(device);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to connect frame queue to device: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
+        device->common.close(&device->common);
         return res;
     }
 
-    res = mDevice->ops->get_metadata_vendor_tag_ops(mDevice, &mVendorTagOps);
+    res = device->ops->get_metadata_vendor_tag_ops(device, &mVendorTagOps);
     if (res != OK ) {
         ALOGE("%s: Camera %d: Unable to retrieve tag ops from device: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
+        device->common.close(&device->common);
         return res;
     }
     res = set_camera_metadata_vendor_tag_ops(mVendorTagOps);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set tag ops: %s (%d)",
             __FUNCTION__, mId, strerror(-res), res);
+        device->common.close(&device->common);
         return res;
     }
-    setNotifyCallback(NULL);
+    res = device->ops->set_notify_callback(device, notificationCallback,
+            NULL);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to initialize notification callback!",
+                __FUNCTION__, mId);
+        device->common.close(&device->common);
+        return res;
+    }
+
+    mDeviceInfo = info.static_camera_characteristics;
+    mDevice = device;
 
     return OK;
+}
+
+status_t Camera2Device::disconnect() {
+    status_t res = OK;
+    if (mDevice) {
+        ALOGV("%s: Closing device for camera %d", __FUNCTION__, mId);
+
+        int inProgressCount = mDevice->ops->get_in_progress_count(mDevice);
+        if (inProgressCount > 0) {
+            ALOGW("%s: Closing camera device %d with %d requests in flight!",
+                    __FUNCTION__, mId, inProgressCount);
+        }
+        mStreams.clear();
+        res = mDevice->common.close(&mDevice->common);
+        if (res != OK) {
+            ALOGE("%s: Could not close camera %d: %s (%d)",
+                    __FUNCTION__,
+                    mId, strerror(-res), res);
+        }
+        mDevice = NULL;
+        ALOGV("%s: Shutdown complete", __FUNCTION__);
+    }
+    return res;
 }
 
 status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
@@ -354,7 +386,7 @@ status_t Camera2Device::createDefaultRequest(int templateId,
 status_t Camera2Device::waitUntilDrained() {
     static const uint32_t kSleepTime = 50000; // 50 ms
     static const uint32_t kMaxSleepTime = 10000000; // 10 s
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGV("%s: Camera %d: Starting wait", __FUNCTION__, mId);
     if (mRequestQueue.getBufferCount() ==
             CAMERA2_REQUEST_QUEUE_IS_BOTTOMLESS) return INVALID_OPERATION;
 
@@ -364,11 +396,12 @@ status_t Camera2Device::waitUntilDrained() {
         usleep(kSleepTime);
         totalTime += kSleepTime;
         if (totalTime > kMaxSleepTime) {
-            ALOGE("%s: Waited %d us, requests still in flight", __FUNCTION__,
-                    totalTime);
+            ALOGE("%s: Waited %d us, %d requests still in flight", __FUNCTION__,
+                    mDevice->ops->get_in_progress_count(mDevice), totalTime);
             return TIMED_OUT;
         }
     }
+    ALOGV("%s: Camera %d: HAL is idle", __FUNCTION__, mId);
     return OK;
 }
 
