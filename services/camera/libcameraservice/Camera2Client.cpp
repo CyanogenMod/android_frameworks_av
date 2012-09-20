@@ -137,19 +137,12 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
 Camera2Client::~Camera2Client() {
     ATRACE_CALL();
-    ALOGV("Camera %d: Shutting down", mCameraId);
 
     mDestructionStarted = true;
 
     // Rewrite mClientPid to allow shutdown by CameraService
     mClientPid = getCallingPid();
     disconnect();
-
-    mFrameProcessor->requestExit();
-    mCaptureSequencer->requestExit();
-    mJpegProcessor->requestExit();
-    mZslProcessor->requestExit();
-    mCallbackProcessor->requestExit();
 
     ALOGI("Camera %d: Closed", mCameraId);
 }
@@ -365,14 +358,20 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
 void Camera2Client::disconnect() {
     ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return;
 
     if (mDevice == 0) return;
 
+    ALOGV("Camera %d: Shutting down", mCameraId);
+
     stopPreviewL();
+
+    {
+        SharedParameters::Lock l(mParameters);
+        l.mParameters.state = Parameters::DISCONNECTED;
+    }
 
     if (mPreviewStreamId != NO_STREAM) {
         mDevice->deleteStream(mPreviewStreamId);
@@ -390,9 +389,25 @@ void Camera2Client::disconnect() {
 
     mZslProcessor->deleteStream();
 
+    mFrameProcessor->requestExit();
+    mCaptureSequencer->requestExit();
+    mJpegProcessor->requestExit();
+    mZslProcessor->requestExit();
+    mCallbackProcessor->requestExit();
+
+    ALOGV("Camera %d: Waiting for threads", mCameraId);
+
+    mFrameProcessor->join();
+    mCaptureSequencer->join();
+    mJpegProcessor->join();
+    mZslProcessor->join();
+    mCallbackProcessor->join();
+
+    ALOGV("Camera %d: Disconnecting device", mCameraId);
+
+    mDevice->disconnect();
+
     mDevice.clear();
-    SharedParameters::Lock l(mParameters);
-    l.mParameters.state = Parameters::DISCONNECTED;
 
     CameraService::Client::disconnect();
 }
