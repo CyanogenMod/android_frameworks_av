@@ -209,11 +209,18 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mRTPPort(0),
       mRTPSessionID(0),
       mRTCPSessionID(0),
+#if ENABLE_RETRANSMISSION
+      mRTPRetransmissionSessionID(0),
+      mRTCPRetransmissionSessionID(0),
+#endif
       mClientRTPPort(0),
       mClientRTCPPort(0),
       mRTPConnected(false),
       mRTCPConnected(false),
       mRTPSeqNo(0),
+#if ENABLE_RETRANSMISSION
+      mRTPRetransmissionSeqNo(0),
+#endif
       mLastNTPTime(0),
       mLastRTPTime(0),
       mNumRTPSent(0),
@@ -279,6 +286,15 @@ status_t WifiDisplaySource::PlaybackSession::init(
 
     sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
     sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
+
+#if ENABLE_RETRANSMISSION
+    sp<AMessage> rtpRetransmissionNotify =
+        new AMessage(kWhatRTPRetransmissionNotify, id());
+
+    sp<AMessage> rtcpRetransmissionNotify =
+        new AMessage(kWhatRTCPRetransmissionNotify, id());
+#endif
+
     for (serverRtp = 15550;; serverRtp += 2) {
         int32_t rtpSession;
         if (mTransportMode == TRANSPORT_UDP) {
@@ -296,39 +312,76 @@ status_t WifiDisplaySource::PlaybackSession::init(
             continue;
         }
 
-        if (clientRtcp < 0) {
-            // No RTCP.
+        int32_t rtcpSession = 0;
 
-            mRTPPort = serverRtp;
-            mRTPSessionID = rtpSession;
-            mRTCPSessionID = 0;
+        if (clientRtcp >= 0) {
+            if (mTransportMode == TRANSPORT_UDP) {
+                err = mNetSession->createUDPSession(
+                        serverRtp + 1, clientIP, clientRtcp,
+                        rtcpNotify, &rtcpSession);
+            } else {
+                err = mNetSession->createTCPDatagramSession(
+                        serverRtp + 1, clientIP, clientRtcp,
+                        rtcpNotify, &rtcpSession);
+            }
 
-            ALOGI("rtpSessionId = %d", rtpSession);
-            break;
+            if (err != OK) {
+                ALOGI("failed to create RTCP socket on port %d", serverRtp + 1);
+
+                mNetSession->destroySession(rtpSession);
+                continue;
+            }
         }
 
-        int32_t rtcpSession;
+#if ENABLE_RETRANSMISSION
         if (mTransportMode == TRANSPORT_UDP) {
+            int32_t rtpRetransmissionSession;
+
             err = mNetSession->createUDPSession(
-                    serverRtp + 1, clientIP, clientRtcp,
-                    rtcpNotify, &rtcpSession);
-        } else {
-            err = mNetSession->createTCPDatagramSession(
-                    serverRtp + 1, clientIP, clientRtcp,
-                    rtcpNotify, &rtcpSession);
+                        serverRtp + kRetransmissionPortOffset,
+                        clientIP,
+                        clientRtp + kRetransmissionPortOffset,
+                        rtpRetransmissionNotify,
+                        &rtpRetransmissionSession);
+
+            if (err != OK) {
+                mNetSession->destroySession(rtcpSession);
+                mNetSession->destroySession(rtpSession);
+                continue;
+            }
+
+            CHECK_GE(clientRtcp, 0);
+
+            int32_t rtcpRetransmissionSession;
+            err = mNetSession->createUDPSession(
+                        serverRtp + 1 + kRetransmissionPortOffset,
+                        clientIP,
+                        clientRtp + 1 + kRetransmissionPortOffset,
+                        rtcpRetransmissionNotify,
+                        &rtcpRetransmissionSession);
+
+            if (err != OK) {
+                mNetSession->destroySession(rtpRetransmissionSession);
+                mNetSession->destroySession(rtcpSession);
+                mNetSession->destroySession(rtpSession);
+                continue;
+            }
+
+            mRTPRetransmissionSessionID = rtpRetransmissionSession;
+            mRTCPRetransmissionSessionID = rtcpRetransmissionSession;
+
+            ALOGI("rtpRetransmissionSessionID = %d, "
+                  "rtcpRetransmissionSessionID = %d",
+                  rtpRetransmissionSession, rtcpRetransmissionSession);
         }
+#endif
 
-        if (err == OK) {
-            mRTPPort = serverRtp;
-            mRTPSessionID = rtpSession;
-            mRTCPSessionID = rtcpSession;
+        mRTPPort = serverRtp;
+        mRTPSessionID = rtpSession;
+        mRTCPSessionID = rtcpSession;
 
-            ALOGI("rtpSessionID = %d, rtcpSessionID = %d", rtpSession, rtcpSession);
-            break;
-        }
-
-        ALOGI("failed to create RTCP socket on port %d", serverRtp + 1);
-        mNetSession->destroySession(rtpSession);
+        ALOGI("rtpSessionID = %d, rtcpSessionID = %d", rtpSession, rtcpSession);
+        break;
     }
 
     if (mRTPPort == 0) {
@@ -461,6 +514,16 @@ status_t WifiDisplaySource::PlaybackSession::destroy() {
         service->connectDisplay(NULL);
     }
 
+#if ENABLE_RETRANSMISSION
+    if (mRTCPRetransmissionSessionID != 0) {
+        mNetSession->destroySession(mRTCPRetransmissionSessionID);
+    }
+
+    if (mRTPRetransmissionSessionID != 0) {
+        mNetSession->destroySession(mRTPRetransmissionSessionID);
+    }
+#endif
+
     if (mRTCPSessionID != 0) {
         mNetSession->destroySession(mRTCPSessionID);
     }
@@ -477,6 +540,10 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
     switch (msg->what()) {
         case kWhatRTPNotify:
         case kWhatRTCPNotify:
+#if ENABLE_RETRANSMISSION
+        case kWhatRTPRetransmissionNotify:
+        case kWhatRTCPRetransmissionNotify:
+#endif
         {
             int32_t reason;
             CHECK(msg->findInt32("reason", &reason));
@@ -496,8 +563,11 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     AString detail;
                     CHECK(msg->findString("detail", &detail));
 
-                    if (msg->what() == kWhatRTPNotify
-                            && !errorOccuredDuringSend) {
+                    if ((msg->what() == kWhatRTPNotify
+#if ENABLE_RETRANSMISSION
+                            || msg->what() == kWhatRTPRetransmissionNotify
+#endif
+                        ) && !errorOccuredDuringSend) {
                         // This is ok, we don't expect to receive anything on
                         // the RTP socket.
                         break;
@@ -518,6 +588,13 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     } else if (sessionID == mRTCPSessionID) {
                         mRTCPSessionID = 0;
                     }
+#if ENABLE_RETRANSMISSION
+                    else if (sessionID == mRTPRetransmissionSessionID) {
+                        mRTPRetransmissionSessionID = 0;
+                    } else if (sessionID == mRTCPRetransmissionSessionID) {
+                        mRTCPRetransmissionSessionID = 0;
+                    }
+#endif
 
                     // Inform WifiDisplaySource of our premature death (wish).
                     sp<AMessage> notify = mNotify->dup();
@@ -535,7 +612,12 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     CHECK(msg->findBuffer("data", &data));
 
                     status_t err;
-                    if (msg->what() == kWhatRTCPNotify) {
+                    if (msg->what() == kWhatRTCPNotify
+#if ENABLE_RETRANSMISSION
+                            || msg->what() == kWhatRTCPRetransmissionNotify
+#endif
+                       )
+                    {
                         err = parseRTCP(data);
                     }
                     break;
@@ -1293,9 +1375,11 @@ status_t WifiDisplaySource::PlaybackSession::parseRTCP(
             case 204:  // APP
                 break;
 
+#if ENABLE_RETRANSMISSION
             case 205:  // TSFB (transport layer specific feedback)
                 parseTSFB(data, headerLength);
                 break;
+#endif
 
             case 206:  // PSFB (payload specific feedback)
                 hexdump(data, headerLength);
@@ -1316,6 +1400,7 @@ status_t WifiDisplaySource::PlaybackSession::parseRTCP(
     return OK;
 }
 
+#if ENABLE_RETRANSMISSION
 status_t WifiDisplaySource::PlaybackSession::parseTSFB(
         const uint8_t *data, size_t size) {
     if ((data[0] & 0x1f) != 1) {
@@ -1332,31 +1417,64 @@ status_t WifiDisplaySource::PlaybackSession::parseTSFB(
         uint16_t blp = U16_AT(&data[i + 2]);
 
         List<sp<ABuffer> >::iterator it = mHistory.begin();
-        bool found = false;
+        bool foundSeqNo = false;
         while (it != mHistory.end()) {
             const sp<ABuffer> &buffer = *it;
 
             uint16_t bufferSeqNo = buffer->int32Data() & 0xffff;
 
+            bool retransmit = false;
             if (bufferSeqNo == seqNo) {
-                sendPacket(mRTPSessionID, buffer->data(), buffer->size());
+                retransmit = true;
+            } else if (blp != 0) {
+                for (size_t i = 0; i < 16; ++i) {
+                    if ((blp & (1 << i))
+                        && (bufferSeqNo == ((seqNo + i + 1) & 0xffff))) {
+                        blp &= ~(1 << i);
+                        retransmit = true;
+                    }
+                }
+            }
 
-                found = true;
-                break;
+            if (retransmit) {
+                ALOGI("retransmitting seqNo %d", bufferSeqNo);
+
+                sp<ABuffer> retransRTP = new ABuffer(2 + buffer->size());
+                uint8_t *rtp = retransRTP->data();
+                memcpy(rtp, buffer->data(), 12);
+                rtp[2] = (mRTPRetransmissionSeqNo >> 8) & 0xff;
+                rtp[3] = mRTPRetransmissionSeqNo & 0xff;
+                rtp[12] = (bufferSeqNo >> 8) & 0xff;
+                rtp[13] = bufferSeqNo & 0xff;
+                memcpy(&rtp[14], buffer->data() + 12, buffer->size() - 12);
+
+                ++mRTPRetransmissionSeqNo;
+
+                sendPacket(
+                        mRTPRetransmissionSessionID,
+                        retransRTP->data(), retransRTP->size());
+
+                if (bufferSeqNo == seqNo) {
+                    foundSeqNo = true;
+                }
+
+                if (foundSeqNo && blp == 0) {
+                    break;
+                }
             }
 
             ++it;
         }
 
-        if (found) {
-            ALOGI("retransmitting seqNo %d", seqNo);
-        } else {
-            ALOGI("seqNo %d no longer available", seqNo);
+        if (!foundSeqNo || blp != 0) {
+            ALOGI("Some sequence numbers were no longer available for "
+                  "retransmission");
         }
     }
 
     return OK;
 }
+#endif
 
 void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
     for (size_t i = 0; i < mTracks.size(); ++i) {

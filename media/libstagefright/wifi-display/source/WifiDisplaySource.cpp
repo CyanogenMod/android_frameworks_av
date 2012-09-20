@@ -869,6 +869,7 @@ status_t WifiDisplaySource::onSetupRequest(
         } else if (sscanf(clientPort.c_str(), "%d", &clientRtp) == 1) {
             // No RTCP.
             clientRtcp = -1;
+            clientRtcp = clientRtp + 1;  // XXX
         } else {
             badRequest = true;
         }
