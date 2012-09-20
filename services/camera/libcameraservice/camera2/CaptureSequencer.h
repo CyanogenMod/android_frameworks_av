@@ -155,6 +155,10 @@ class CaptureSequencer:
 
     status_t updateCaptureRequest(const Parameters &params,
             sp<Camera2Client> &client);
+
+    // Emit Shutter/Raw callback to java, and maybe play a shutter sound
+    static void shutterNotifyLocked(const Parameters &params,
+            sp<Camera2Client> client);
 };
 
 }; // namespace camera2
