@@ -250,6 +250,7 @@ public:
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
     virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
+    virtual sp<IHDCP>           makeHDCP();
 
     virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
             const String8& iface);
