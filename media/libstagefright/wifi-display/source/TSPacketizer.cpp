@@ -66,6 +66,8 @@ private:
     AString mMIME;
     Vector<sp<ABuffer> > mCSD;
 
+    bool mAudioLacksATDSHeaders;
+
     DISALLOW_EVIL_CONSTRUCTORS(Track);
 };
 
@@ -76,7 +78,8 @@ TSPacketizer::Track::Track(
       mPID(PID),
       mStreamType(streamType),
       mStreamID(streamID),
-      mContinuityCounter(0) {
+      mContinuityCounter(0),
+      mAudioLacksATDSHeaders(false) {
     CHECK(format->findString("mime", &mMIME));
 
     if (!strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)
@@ -88,6 +91,13 @@ TSPacketizer::Track::Track(
             }
 
             mCSD.push(csd);
+        }
+
+        if (!strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
+            int32_t isADTS;
+            if (!mFormat->findInt32("is-adts", &isADTS) || isADTS == 0) {
+                mAudioLacksATDSHeaders = true;
+            }
         }
     }
 }
@@ -130,16 +140,7 @@ bool TSPacketizer::Track::isH264() const {
 }
 
 bool TSPacketizer::Track::lacksADTSHeader() const {
-    if (strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
-        return false;
-    }
-
-    int32_t isADTS;
-    if (mFormat->findInt32("is-adts", &isADTS) && isADTS != 0) {
-        return false;
-    }
-
-    return true;
+    return mAudioLacksATDSHeaders;
 }
 
 sp<ABuffer> TSPacketizer::Track::prependCSD(
@@ -278,7 +279,8 @@ status_t TSPacketizer::packetize(
         size_t trackIndex,
         const sp<ABuffer> &_accessUnit,
         sp<ABuffer> *packets,
-        uint32_t flags) {
+        uint32_t flags,
+        const uint8_t *PES_private_data, size_t PES_private_data_len) {
     sp<ABuffer> accessUnit = _accessUnit;
 
     packets->clear();
@@ -292,12 +294,13 @@ status_t TSPacketizer::packetize(
 
     const sp<Track> &track = mTracks.itemAt(trackIndex);
 
-    if (track->isH264()) {
+    if (track->isH264() && !(flags & IS_ENCRYPTED)) {
         if (IsIDR(accessUnit)) {
             // prepend codec specific data, i.e. SPS and PPS.
             accessUnit = track->prependCSD(accessUnit);
         }
     } else if (track->lacksADTSHeader()) {
+        CHECK(!(flags & IS_ENCRYPTED));
         accessUnit = track->prependADTSHeader(accessUnit);
     }
 
@@ -336,11 +339,16 @@ status_t TSPacketizer::packetize(
     // reserved = b1
     // the first fragment of "buffer" follows
 
+    size_t PES_packet_length = accessUnit->size() + 8;
+    if (PES_private_data_len > 0) {
+        PES_packet_length += PES_private_data_len + 1;
+    }
+
     size_t numTSPackets;
-    if (accessUnit->size() <= 170) {
+    if (PES_packet_length <= 178) {
         numTSPackets = 1;
     } else {
-        numTSPackets = 1 + ((accessUnit->size() - 170) + 183) / 184;
+        numTSPackets = 1 + ((PES_packet_length - 178) + 183) / 184;
     }
 
     if (flags & EMIT_PAT_AND_PMT) {
@@ -554,8 +562,7 @@ status_t TSPacketizer::packetize(
 
     uint32_t PTS = (timeUs * 9ll) / 100ll;
 
-    size_t PES_packet_length = accessUnit->size() + 8;
-    bool padding = (accessUnit->size() < (188 - 18));
+    bool padding = (PES_packet_length < (188 - 10));
 
     if (PES_packet_length >= 65536) {
         // This really should only happen for video.
@@ -572,7 +579,7 @@ status_t TSPacketizer::packetize(
     *ptr++ = (padding ? 0x30 : 0x10) | track->incrementContinuityCounter();
 
     if (padding) {
-        size_t paddingSize = 188 - 18 - accessUnit->size();
+        size_t paddingSize = 188 - 10 - PES_packet_length;
         *ptr++ = paddingSize - 1;
         if (paddingSize >= 2) {
             *ptr++ = 0x00;
@@ -588,13 +595,22 @@ status_t TSPacketizer::packetize(
     *ptr++ = PES_packet_length >> 8;
     *ptr++ = PES_packet_length & 0xff;
     *ptr++ = 0x84;
-    *ptr++ = 0x80;
-    *ptr++ = 0x05;
+    *ptr++ = (PES_private_data_len > 0) ? 0x81 : 0x80;
+
+    *ptr++ = (PES_private_data_len > 0)
+        ? (1 + PES_private_data_len + 0x05) : 0x05;
+
     *ptr++ = 0x20 | (((PTS >> 30) & 7) << 1) | 1;
     *ptr++ = (PTS >> 22) & 0xff;
     *ptr++ = (((PTS >> 15) & 0x7f) << 1) | 1;
     *ptr++ = (PTS >> 7) & 0xff;
     *ptr++ = ((PTS & 0x7f) << 1) | 1;
+
+    if (PES_private_data_len > 0) {
+        *ptr++ = 0x8e;  // PES_private_data_flag, reserved.
+        memcpy(ptr, PES_private_data, PES_private_data_len);
+        ptr += PES_private_data_len;
+    }
 
     // 18 bytes of TS/PES header leave 188 - 18 = 170 bytes for the payload
 
