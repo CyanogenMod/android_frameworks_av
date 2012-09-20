@@ -230,11 +230,6 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
         return OK;
     }
 
-    sp<CaptureSequencer> sequencer = mSequencer.promote();
-    if (sequencer != 0) {
-        sequencer->onCaptureAvailable(imgBuffer.timestamp);
-    }
-
     // TODO: Optimize this to avoid memcopy
     void* captureMemory = mCaptureHeap->mHeap->getBase();
     size_t size = mCaptureHeap->mHeap->getSize();
@@ -242,16 +237,11 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
 
     mCaptureConsumer->unlockBuffer(imgBuffer);
 
-    captureHeap = mCaptureHeap;
-
-    Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
-    ALOGV("%s: Sending still image to client", __FUNCTION__);
-    if (l.mCameraClient != 0) {
-        l.mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
-                captureHeap->mBuffers[0], NULL);
-    } else {
-        ALOGV("%s: No client!", __FUNCTION__);
+    sp<CaptureSequencer> sequencer = mSequencer.promote();
+    if (sequencer != 0) {
+        sequencer->onCaptureAvailable(imgBuffer.timestamp, mCaptureHeap->mBuffers[0]);
     }
+
     return OK;
 }
 
