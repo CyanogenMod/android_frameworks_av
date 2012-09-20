@@ -97,6 +97,10 @@ void ZslProcessor::onBufferReleased(buffer_handle_t *handle) {
                 __FUNCTION__, handle);
     }
 
+    // Erase entire ZSL queue since we've now completed the capture and preview
+    // is stopped.
+    clearZslQueueLocked();
+
     mState = RUNNING;
 }
 
@@ -240,7 +244,6 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
         dumpZslQueue(-1);
     }
 
-
     if (mZslQueueTail != mZslQueueHead) {
         CameraMetadata request;
         size_t index = mZslQueueTail;
@@ -309,6 +312,26 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
         ALOGV("%s: No ZSL buffers yet", __FUNCTION__);
         return NOT_ENOUGH_DATA;
     }
+    return OK;
+}
+
+status_t ZslProcessor::clearZslQueue() {
+    Mutex::Autolock l(mInputMutex);
+    // If in middle of capture, can't clear out queue
+    if (mState == LOCKED) return OK;
+
+    return clearZslQueueLocked();
+}
+
+status_t ZslProcessor::clearZslQueueLocked() {
+    for (size_t i = 0; i < mZslQueue.size(); i++) {
+        if (mZslQueue[i].buffer.mTimestamp != 0) {
+            mZslConsumer->releaseBuffer(mZslQueue[i].buffer);
+        }
+        mZslQueue.replaceAt(i);
+    }
+    mZslQueueHead = 0;
+    mZslQueueTail = 0;
     return OK;
 }
 
