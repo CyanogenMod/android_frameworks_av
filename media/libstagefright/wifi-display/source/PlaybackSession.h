@@ -24,6 +24,7 @@ namespace android {
 
 struct ABuffer;
 struct BufferQueue;
+struct IHDCP;
 struct ISurfaceTexture;
 struct MediaPuller;
 struct MediaSource;
@@ -39,7 +40,8 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const sp<ANetworkSession> &netSession,
             const sp<AMessage> &notify,
             const struct in_addr &interfaceAddr,
-            bool legacyMode);
+            bool legacyMode,
+            const sp<IHDCP> &hdcp);
 
     enum TransportMode {
         TRANSPORT_UDP,
@@ -98,6 +100,7 @@ private:
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
     bool mLegacyMode;
+    sp<IHDCP> mHDCP;
 
     int64_t mLastLifesignUs;
 
