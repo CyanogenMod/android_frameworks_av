@@ -96,11 +96,13 @@ void CaptureSequencer::onFrameAvailable(int32_t frameId,
     }
 }
 
-void CaptureSequencer::onCaptureAvailable(nsecs_t timestamp) {
+void CaptureSequencer::onCaptureAvailable(nsecs_t timestamp,
+        sp<MemoryBase> captureBuffer) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
     mCaptureTimestamp = timestamp;
+    mCaptureBuffer = captureBuffer;
     if (!mNewCaptureReceived) {
         mNewCaptureReceived = true;
         mNewCaptureSignal.signal();
@@ -195,7 +197,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageIdle(sp<Camera2Client> &c
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &client) {
-    status_t res;
+    status_t res = OK;
     ATRACE_CALL();
     mCaptureId++;
 
@@ -204,20 +206,34 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
         mBusy = false;
     }
 
-    SharedParameters::Lock l(client->getParameters());
-    switch (l.mParameters.state) {
-        case Parameters::STILL_CAPTURE:
-            l.mParameters.state = Parameters::STOPPED;
-            break;
-        case Parameters::VIDEO_SNAPSHOT:
-            l.mParameters.state = Parameters::RECORD;
-            break;
-        default:
-            ALOGE("%s: Camera %d: Still image produced unexpectedly "
-                    "in state %s!",
-                    __FUNCTION__, client->getCameraId(),
-                    Parameters::getStateName(l.mParameters.state));
+    {
+        SharedParameters::Lock l(client->getParameters());
+        switch (l.mParameters.state) {
+            case Parameters::STILL_CAPTURE:
+                l.mParameters.state = Parameters::STOPPED;
+                break;
+            case Parameters::VIDEO_SNAPSHOT:
+                l.mParameters.state = Parameters::RECORD;
+                break;
+            default:
+                ALOGE("%s: Camera %d: Still image produced unexpectedly "
+                        "in state %s!",
+                        __FUNCTION__, client->getCameraId(),
+                        Parameters::getStateName(l.mParameters.state));
+                res = INVALID_OPERATION;
+        }
     }
+    if (mCaptureBuffer != 0 && res == OK) {
+        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
+        ALOGV("%s: Sending still image to client", __FUNCTION__);
+        if (l.mCameraClient != 0) {
+            l.mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
+                    mCaptureBuffer, NULL);
+        } else {
+            ALOGV("%s: No client!", __FUNCTION__);
+        }
+    }
+    mCaptureBuffer.clear();
 
     return IDLE;
 }
