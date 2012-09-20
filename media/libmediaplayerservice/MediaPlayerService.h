@@ -44,7 +44,6 @@ class IOMX;
 class IRemoteDisplay;
 class IRemoteDisplayClient;
 class MediaRecorderClient;
-struct RemoteDisplay;
 
 #define CALLBACK_ANTAGONIZER 0
 #if CALLBACK_ANTAGONIZER
@@ -254,8 +253,6 @@ public:
 
     virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
             const String8& iface);
-    virtual status_t            enableRemoteDisplay(const char *iface);
-
     virtual status_t            dump(int fd, const Vector<String16>& args);
 
             void                removeClient(wp<Client> client);
@@ -431,7 +428,6 @@ private:
                 int32_t                     mNextConnId;
                 sp<IOMX>                    mOMX;
                 sp<ICrypto>                 mCrypto;
-                sp<RemoteDisplay>           mRemoteDisplay;
 };
 
 // ----------------------------------------------------------------------------

@@ -295,31 +295,6 @@ sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
     return new RemoteDisplay(client, iface.string());
 }
 
-// TODO: delete this method
-status_t MediaPlayerService::enableRemoteDisplay(const char *iface) {
-    if (!checkPermission("android.permission.CONTROL_WIFI_DISPLAY")) {
-        return PERMISSION_DENIED;
-    }
-
-    Mutex::Autolock autoLock(mLock);
-
-    if (iface != NULL) {
-        if (mRemoteDisplay != NULL) {
-            return INVALID_OPERATION;
-        }
-
-        mRemoteDisplay = new RemoteDisplay(NULL /* client */, iface);
-        return OK;
-    }
-
-    if (mRemoteDisplay != NULL) {
-        mRemoteDisplay->dispose();
-        mRemoteDisplay.clear();
-    }
-
-    return OK;
-}
-
 status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& args) const
 {
     const size_t SIZE = 256;
