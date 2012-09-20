@@ -285,6 +285,11 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         return STANDARD_START;
     }
 
+    SharedParameters::Lock l(client->getParameters());
+    if (l.mParameters.playShutterSound) {
+        client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
+    }
+
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
 }
