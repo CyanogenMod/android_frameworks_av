@@ -28,7 +28,6 @@ struct IHDCP;
 struct ISurfaceTexture;
 struct MediaPuller;
 struct MediaSource;
-struct Serializer;
 struct TSPacketizer;
 
 #define LOG_TRANSPORT_STREAM            0
@@ -41,7 +40,6 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const sp<ANetworkSession> &netSession,
             const sp<AMessage> &notify,
             const struct in_addr &interfaceAddr,
-            bool legacyMode,
             const sp<IHDCP> &hdcp);
 
     enum TransportMode {
@@ -91,7 +89,7 @@ private:
         kWhatRTPRetransmissionNotify,
         kWhatRTCPRetransmissionNotify,
 #endif
-        kWhatSerializerNotify,
+        kWhatMediaPullerNotify,
         kWhatConverterNotify,
         kWhatUpdateSurface,
         kWhatFinishPlay,
@@ -108,13 +106,10 @@ private:
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
-    bool mLegacyMode;
     sp<IHDCP> mHDCP;
 
     int64_t mLastLifesignUs;
 
-    sp<ALooper> mSerializerLooper;
-    sp<Serializer> mSerializer;
     sp<TSPacketizer> mPacketizer;
     sp<BufferQueue> mBufferQueue;
 
@@ -177,8 +172,6 @@ private:
     static uint64_t GetNowNTP();
 
     status_t setupPacketizer();
-
-    status_t addFakeSources();
 
     status_t addSource(
             bool isVideo,

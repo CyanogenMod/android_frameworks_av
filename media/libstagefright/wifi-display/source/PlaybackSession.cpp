@@ -23,7 +23,6 @@
 #include "Converter.h"
 #include "MediaPuller.h"
 #include "RepeaterSource.h"
-#include "Serializer.h"
 #include "TSPacketizer.h"
 
 #include <binder/IServiceManager.h>
@@ -46,9 +45,6 @@
 #include <media/stagefright/Utils.h>
 
 #include <OMX_IVCommon.h>
-
-//#define FAKE_VIDEO            1
-#define USE_SERIALIZER          0
 
 namespace android {
 
@@ -192,12 +188,10 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
         const sp<ANetworkSession> &netSession,
         const sp<AMessage> &notify,
         const in_addr &interfaceAddr,
-        bool legacyMode,
         const sp<IHDCP> &hdcp)
     : mNetSession(netSession),
       mNotify(notify),
       mInterfaceAddr(interfaceAddr),
-      mLegacyMode(legacyMode),
       mHDCP(hdcp),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
@@ -457,10 +451,6 @@ status_t WifiDisplaySource::PlaybackSession::onFinishPlay2() {
         scheduleSendSR();
     }
 
-    if (mSerializer != NULL) {
-        return mSerializer->start();
-    }
-
     for (size_t i = 0; i < mTracks.size(); ++i) {
         status_t err = mTracks.editValueAt(i)->start();
 
@@ -491,28 +481,7 @@ status_t WifiDisplaySource::PlaybackSession::destroy() {
 
     mPacketizer.clear();
 
-    if (mSerializer != NULL) {
-        mSerializer->stop();
-
-        looper()->unregisterHandler(mSerializer->id());
-        mSerializer.clear();
-    }
-
     mTracks.clear();
-
-    if (mSerializerLooper != NULL) {
-        mSerializerLooper->stop();
-        mSerializerLooper.clear();
-    }
-
-    if (mLegacyMode) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
-        sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
-        CHECK(service != NULL);
-
-        service->connectDisplay(NULL);
-    }
 
 #if ENABLE_RETRANSMISSION
     if (mRTCPRetransmissionSessionID != 0) {
@@ -669,26 +638,19 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             break;
         }
 
-        case kWhatSerializerNotify:
+        case kWhatMediaPullerNotify:
         {
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
-            if (what == Serializer::kWhatEOS) {
+            if (what == MediaPuller::kWhatEOS) {
                 ALOGI("input eos");
 
                 for (size_t i = 0; i < mTracks.size(); ++i) {
-#if FAKE_VIDEO
-                    sp<AMessage> msg = new AMessage(kWhatConverterNotify, id());
-                    msg->setInt32("what", Converter::kWhatEOS);
-                    msg->setSize("trackIndex", i);
-                    msg->post();
-#else
                     mTracks.valueAt(i)->converter()->signalEOS();
-#endif
                 }
             } else {
-                CHECK_EQ(what, Serializer::kWhatAccessUnit);
+                CHECK_EQ(what, MediaPuller::kWhatAccessUnit);
 
                 size_t trackIndex;
                 CHECK(msg->findSize("trackIndex", &trackIndex));
@@ -696,25 +658,8 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 sp<ABuffer> accessUnit;
                 CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
-#if FAKE_VIDEO
-                int64_t timeUs;
-                CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
-
-                void *mbuf;
-                CHECK(accessUnit->meta()->findPointer("mediaBuffer", &mbuf));
-
-                ((MediaBuffer *)mbuf)->release();
-                mbuf = NULL;
-
-                sp<AMessage> msg = new AMessage(kWhatConverterNotify, id());
-                msg->setInt32("what", Converter::kWhatAccessUnit);
-                msg->setSize("trackIndex", trackIndex);
-                msg->setBuffer("accessUnit", accessUnit);
-                msg->post();
-#else
                 mTracks.valueFor(trackIndex)->converter()
                     ->feedAccessUnit(accessUnit);
-#endif
             }
             break;
         }
@@ -861,11 +806,9 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 ssize_t index = mTracks.indexOfKey(trackIndex);
                 CHECK_GE(index, 0);
 
-#if !FAKE_VIDEO
                 const sp<Converter> &converter =
                     mTracks.valueAt(index)->converter();
                 looper()->unregisterHandler(converter->id());
-#endif
 
                 mTracks.removeItemsAt(index);
 
@@ -895,13 +838,8 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 }
 
 status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
-    sp<AMessage> msg = new AMessage(kWhatSerializerNotify, id());
-
     mPacketizer = new TSPacketizer;
 
-#if FAKE_VIDEO
-    return addFakeSources();
-#else
     status_t err = addVideoSource();
 
     if (err != OK) {
@@ -909,85 +847,10 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
     }
 
     return addAudioSource();
-#endif
-}
-
-status_t WifiDisplaySource::PlaybackSession::addFakeSources() {
-#if FAKE_VIDEO
-    mSerializerLooper = new ALooper;
-    mSerializerLooper->setName("serializer_looper");
-    mSerializerLooper->start();
-
-    sp<AMessage> msg = new AMessage(kWhatSerializerNotify, id());
-    mSerializer = new Serializer(
-            true /* throttled */, msg);
-
-    mSerializerLooper->registerHandler(mSerializer);
-
-    DataSource::RegisterDefaultSniffers();
-
-    sp<DataSource> dataSource =
-        DataSource::CreateFromURI(
-                "/system/etc/inception_1500.mp4");
-
-    CHECK(dataSource != NULL);
-
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
-    CHECK(extractor != NULL);
-
-    bool haveAudio = false;
-    bool haveVideo = false;
-    for (size_t i = 0; i < extractor->countTracks(); ++i) {
-        sp<MetaData> meta = extractor->getTrackMetaData(i);
-
-        const char *mime;
-        CHECK(meta->findCString(kKeyMIMEType, &mime));
-
-        bool useTrack = false;
-        if (!strncasecmp(mime, "audio/", 6) && !haveAudio) {
-            useTrack = true;
-            haveAudio = true;
-        } else if (!strncasecmp(mime, "video/", 6) && !haveVideo) {
-            useTrack = true;
-            haveVideo = true;
-        }
-
-        if (!useTrack) {
-            continue;
-        }
-
-        sp<MediaSource> source = extractor->getTrack(i);
-
-        ssize_t index = mSerializer->addSource(source);
-        CHECK_GE(index, 0);
-
-        sp<AMessage> format;
-        status_t err = convertMetaDataToMessage(source->getFormat(), &format);
-        CHECK_EQ(err, (status_t)OK);
-
-        mTracks.add(index, new Track(format));
-    }
-    CHECK(haveAudio || haveVideo);
-#endif
-
-    return OK;
 }
 
 status_t WifiDisplaySource::PlaybackSession::addSource(
         bool isVideo, const sp<MediaSource> &source, size_t *numInputBuffers) {
-#if USE_SERIALIZER
-    if (mSerializer == NULL) {
-        mSerializerLooper = new ALooper;
-        mSerializerLooper->setName("serializer_looper");
-        mSerializerLooper->start();
-
-        sp<AMessage> msg = new AMessage(kWhatSerializerNotify, id());
-        mSerializer = new Serializer(
-                false /* throttled */, msg);
-
-        mSerializerLooper->registerHandler(mSerializer);
-    }
-#else
     sp<ALooper> pullLooper = new ALooper;
     pullLooper->setName("pull_looper");
 
@@ -995,7 +858,6 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
             false /* runOnCallingThread */,
             false /* canCallJava */,
             PRIORITY_DEFAULT);
-#endif
 
     sp<ALooper> codecLooper = new ALooper;
     codecLooper->setName("codec_looper");
@@ -1009,16 +871,12 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     sp<AMessage> notify;
 
-#if USE_SERIALIZER
-    trackIndex = mSerializer->addSource(source);
-#else
     trackIndex = mTracks.size();
 
-    notify = new AMessage(kWhatSerializerNotify, id());
+    notify = new AMessage(kWhatMediaPullerNotify, id());
     notify->setSize("trackIndex", trackIndex);
     sp<MediaPuller> puller = new MediaPuller(source, notify);
     pullLooper->registerHandler(puller);
-#endif
 
     sp<AMessage> format;
     status_t err = convertMetaDataToMessage(source->getFormat(), &format);
@@ -1044,11 +902,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
         *numInputBuffers = converter->getInputBufferCount();
     }
 
-#if USE_SERIALIZER
-    mTracks.add(trackIndex, new Track(NULL, codecLooper, NULL, converter));
-#else
     mTracks.add(trackIndex, new Track(pullLooper, codecLooper, puller, converter));
-#endif
 
     if (isVideo) {
         mVideoTrackIndex = trackIndex;
@@ -1070,20 +924,10 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
         return err;
     }
 
-    // Add one reference to account for the serializer.
     err = source->setMaxAcquiredBufferCount(numInputBuffers);
     CHECK_EQ(err, (status_t)OK);
 
     mBufferQueue = source->getBufferQueue();
-
-    if (mLegacyMode) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder = sm->getService(String16("SurfaceFlinger"));
-        sp<ISurfaceComposer> service = interface_cast<ISurfaceComposer>(binder);
-        CHECK(service != NULL);
-
-        service->connectDisplay(mBufferQueue);
-    }
 
     return OK;
 }
@@ -1111,11 +955,11 @@ sp<ISurfaceTexture> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
 }
 
 int32_t WifiDisplaySource::PlaybackSession::width() const {
-    return mLegacyMode ? 720 : 1280;
+    return 1280;
 }
 
 int32_t WifiDisplaySource::PlaybackSession::height() const {
-    return mLegacyMode ? 1280 : 720;
+    return 720;
 }
 
 void WifiDisplaySource::PlaybackSession::scheduleSendSR() {
