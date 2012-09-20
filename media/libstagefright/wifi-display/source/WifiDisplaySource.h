@@ -26,6 +26,9 @@
 
 namespace android {
 
+#define REQUIRE_HDCP    0
+
+struct IHDCP;
 struct IRemoteDisplayClient;
 struct ParsedMessage;
 
@@ -48,6 +51,10 @@ protected:
 private:
     struct PlaybackSession;
 
+#if REQUIRE_HDCP
+    struct HDCPObserver;
+#endif
+
     enum {
         kWhatStart,
         kWhatRTSPNotify,
@@ -55,6 +62,7 @@ private:
         kWhatReapDeadClients,
         kWhatPlaybackSessionNotify,
         kWhatKeepAlive,
+        kWhatHDCPNotify,
     };
 
     struct ResponseID {
@@ -100,6 +108,18 @@ private:
 
     KeyedVector<ResponseID, HandleRTSPResponseFunc> mResponseHandlers;
 
+#if REQUIRE_HDCP
+    bool mIsHDCP2_0;
+    int32_t mHDCPPort;
+    sp<IHDCP> mHDCP;
+    sp<HDCPObserver> mHDCPObserver;
+
+    bool mHDCPInitializationComplete;
+    bool mSetupTriggerDeferred;
+
+    status_t makeHDCP();
+#endif
+
     status_t sendM1(int32_t sessionID);
     status_t sendM3(int32_t sessionID);
     status_t sendM4(int32_t sessionID);
@@ -124,44 +144,39 @@ private:
     void registerResponseHandler(
             int32_t sessionID, int32_t cseq, HandleRTSPResponseFunc func);
 
-    void onReceiveClientData(const sp<AMessage> &msg);
+    status_t onReceiveClientData(const sp<AMessage> &msg);
 
-    void onDescribeRequest(
+    status_t onOptionsRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onOptionsRequest(
+    status_t onSetupRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onSetupRequest(
+    status_t onPlayRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onPlayRequest(
+    status_t onPauseRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onPauseRequest(
+    status_t onTeardownRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onTeardownRequest(
+    status_t onGetParameterRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
 
-    void onGetParameterRequest(
-            int32_t sessionID,
-            int32_t cseq,
-            const sp<ParsedMessage> &data);
-
-    void onSetParameterRequest(
+    status_t onSetParameterRequest(
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);

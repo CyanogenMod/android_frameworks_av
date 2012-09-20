@@ -40,11 +40,13 @@ struct TSPacketizer : public RefBase {
     enum {
         EMIT_PAT_AND_PMT = 1,
         EMIT_PCR         = 2,
+        IS_ENCRYPTED     = 4,
     };
     status_t packetize(
             size_t trackIndex, const sp<ABuffer> &accessUnit,
             sp<ABuffer> *packets,
-            uint32_t flags);
+            uint32_t flags,
+            const uint8_t *PES_private_data, size_t PES_private_data_len);
 
 protected:
     virtual ~TSPacketizer();
