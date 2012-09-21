@@ -898,7 +898,6 @@ status_t WifiDisplaySource::onSetupRequest(
     sp<PlaybackSession> playbackSession =
         new PlaybackSession(
                 mNetSession, notify, mInterfaceAddr,
-                mClient == NULL,  /* legacyMode */
 #if REQUIRE_HDCP
                 mHDCP
 #else

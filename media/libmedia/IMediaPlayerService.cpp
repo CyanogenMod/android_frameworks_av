@@ -43,7 +43,6 @@ enum {
     GET_OMX,
     MAKE_CRYPTO,
     MAKE_HDCP,
-    ENABLE_REMOTE_DISPLAY,
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
     LISTEN_FOR_REMOTE_DISPLAY,
@@ -132,21 +131,6 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(MAKE_HDCP, data, &reply);
         return interface_cast<IHDCP>(reply.readStrongBinder());
-    }
-
-    virtual status_t enableRemoteDisplay(const char *iface) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-
-        if (iface != NULL) {
-            data.writeInt32(1);
-            data.writeCString(iface);
-        } else {
-            data.writeInt32(0);
-        }
-
-        remote()->transact(ENABLE_REMOTE_DISPLAY, data, &reply);
-        return reply.readInt32();
     }
 
     virtual void addBatteryData(uint32_t params) {
@@ -250,15 +234,6 @@ status_t BnMediaPlayerService::onTransact(
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IHDCP> hdcp = makeHDCP();
             reply->writeStrongBinder(hdcp->asBinder());
-            return NO_ERROR;
-        } break;
-        case ENABLE_REMOTE_DISPLAY: {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            const char *iface = NULL;
-            if (data.readInt32()) {
-                iface = data.readCString();
-            }
-            reply->writeInt32(enableRemoteDisplay(iface));
             return NO_ERROR;
         } break;
         case ADD_BATTERY_DATA: {
