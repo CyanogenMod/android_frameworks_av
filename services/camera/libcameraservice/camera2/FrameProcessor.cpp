@@ -29,7 +29,7 @@ namespace android {
 namespace camera2 {
 
 FrameProcessor::FrameProcessor(wp<Camera2Client> client):
-        Thread(false), mClient(client) {
+        Thread(false), mClient(client), mLastFrameNumberOfFaces(0) {
 }
 
 FrameProcessor::~FrameProcessor() {
@@ -148,7 +148,7 @@ status_t FrameProcessor::processListener(CameraMetadata &frame,
 
 status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         sp<Camera2Client> &client) {
-    status_t res;
+    status_t res = BAD_VALUE;
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
     bool enableFaceDetect;
@@ -175,7 +175,9 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
         if (entry.count == 0) {
             // No faces this frame
-            return res;
+            /* warning: locks SharedCameraClient */
+            callbackFaceDetection(client, metadata);
+            return OK;
         }
         metadata.number_of_faces = entry.count / 4;
         if (metadata.number_of_faces >
@@ -260,14 +262,25 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         metadata.faces = faces.editArray();
     }
 
-    if (metadata.number_of_faces != 0) {
+    /* warning: locks SharedCameraClient */
+    callbackFaceDetection(client, metadata);
+
+    return OK;
+}
+
+void FrameProcessor::callbackFaceDetection(sp<Camera2Client> client,
+                               /*in*/camera_frame_metadata &metadata) {
+
+    /* Filter out repeated 0-face callbacks, but not when the last frame was >0 */
+    if (metadata.number_of_faces != 0 || mLastFrameNumberOfFaces != metadata.number_of_faces) {
         Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
         if (l.mCameraClient != NULL) {
             l.mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
                     NULL, &metadata);
         }
     }
-    return OK;
+
+    mLastFrameNumberOfFaces = metadata.number_of_faces;
 }
 
 }; // namespace camera2
