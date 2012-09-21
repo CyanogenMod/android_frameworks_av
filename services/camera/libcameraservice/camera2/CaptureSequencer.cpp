@@ -263,7 +263,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStart(
         nextState = BURST_CAPTURE_START;
     }
     else if (l.mParameters.zslMode &&
-            l.mParameters.state == Parameters::STILL_CAPTURE) {
+            l.mParameters.state == Parameters::STILL_CAPTURE &&
+            l.mParameters.flashMode != Parameters::FLASH_MODE_ON) {
         nextState = ZSL_START;
     } else {
         nextState = STANDARD_START;
