@@ -822,6 +822,11 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 CHECK(msg->findInt32("err", &err));
 
                 ALOGE("converter signaled error %d", err);
+
+                // Inform WifiDisplaySource of our premature death (wish).
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatSessionDead);
+                notify->post();
             }
             break;
         }
@@ -857,7 +862,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     pullLooper->start(
             false /* runOnCallingThread */,
             false /* canCallJava */,
-            PRIORITY_DEFAULT);
+            PRIORITY_AUDIO);
 
     sp<ALooper> codecLooper = new ALooper;
     codecLooper->setName("codec_looper");
@@ -865,7 +870,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     codecLooper->start(
             false /* runOnCallingThread */,
             false /* canCallJava */,
-            PRIORITY_DEFAULT);
+            PRIORITY_AUDIO);
 
     size_t trackIndex;
 
