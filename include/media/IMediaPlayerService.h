@@ -64,12 +64,6 @@ public:
     virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
             const String8& iface) = 0;
 
-    // If iface == NULL, disable remote display, otherwise
-    // iface should be of the form "x.x.x.x:y", i.e. ip address
-    // of the local interface to bind to and the port number
-    // to listen on.
-    virtual status_t enableRemoteDisplay(const char *iface) = 0;
-
     // codecs and audio devices usage tracking for the battery app
     enum BatteryDataBits {
         // tracking audio codec
