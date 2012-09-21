@@ -310,7 +310,13 @@ DrmInfo* BpDrmManagerService::acquireDrmInfo(int uniqueId, const DrmInfoRequest*
         const String8 key = keyIt.next();
         data.writeString8(key);
         const String8 value = drmInforequest->get(key);
-        data.writeString8((value == String8("")) ? String8("NULL") : value);
+        if (key == String8("FileDescriptorKey")) {
+            int fd = -1;
+            sscanf(value.string(), "FileDescriptor[%d]", &fd);
+            data.writeFileDescriptor(fd);
+        } else {
+            data.writeString8((value == String8("")) ? String8("NULL") : value);
+        }
     }
 
     remote()->transact(ACQUIRE_DRM_INFO, data, &reply);
@@ -1002,8 +1008,15 @@ status_t BnDrmManagerService::onTransact(
         const int size = data.readInt32();
         for (int index = 0; index < size; ++index) {
             const String8 key(data.readString8());
-            const String8 value(data.readString8());
-            drmInfoRequest->put(key, (value == String8("NULL")) ? String8("") : value);
+            if (key == String8("FileDescriptorKey")) {
+                char buffer[16];
+                int fd = data.readFileDescriptor();
+                sprintf(buffer, "%lu", (unsigned long)fd);
+                drmInfoRequest->put(key, String8(buffer));
+            } else {
+                const String8 value(data.readString8());
+                drmInfoRequest->put(key, (value == String8("NULL")) ? String8("") : value);
+            }
         }
 
         DrmInfo* drmInfo = acquireDrmInfo(uniqueId, drmInfoRequest);
@@ -1505,4 +1518,3 @@ status_t BnDrmManagerService::onTransact(
         return BBinder::onTransact(code, data, reply, flags);
     }
 }
-
