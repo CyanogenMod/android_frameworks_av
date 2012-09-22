@@ -660,9 +660,10 @@ public:
 #endif
 
 #ifdef SAMSUNG_CAMERA_HARDWARE
-     static const char KEY_METERING[];
-     static const char KEY_WDR[];
-     static const char KEY_ANTI_SHAKE_MODE[];
+    static const char KEY_ANTI_SHAKE_MODE[];
+    static const char KEY_METERING[];
+    static const char KEY_WDR[];
+    static const char KEY_WEATHER[];
 #endif
 
     // Values for white balance settings.
