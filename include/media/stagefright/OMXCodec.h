@@ -100,6 +100,9 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
+#if defined(OMAP_ENHANCEMENT)
+        kAvoidMemcopyInputRecordingFrames     = 0x20000000,
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -347,6 +350,9 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
+#if defined(OMAP_ENHANCEMENT)
+    void restorePatchedDataPointer(BufferInfo *info);
+#endif
 
     status_t applyRotation();
     status_t waitForBufferFilled_l();

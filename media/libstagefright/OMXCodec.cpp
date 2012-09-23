@@ -271,6 +271,16 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
+#ifdef OMAP_ENHANCEMENT
+    if (list->codecHasQuirk(
+                index, "avoid-memcopy-input-recording-frames")) {
+      quirks |= kAvoidMemcopyInputRecordingFrames;
+    }
+    if (list->codecHasQuirk(
+                index, "input-buffer-sizes-are-bogus")) {
+      quirks |= kInputBufferSizesAreBogus;
+    }
+#endif
 
     return quirks;
 }
@@ -698,6 +708,22 @@ status_t OMXCodec::setVideoPortFormatType(
              portIndex,
              index, format.eCompressionFormat, format.eColorFormat);
 #endif
+
+        if (!strcmp("OMX.TI.Video.encoder", mComponentName) ||
+            !strcmp("OMX.TI.720P.Encoder", mComponentName)) {
+            if (portIndex == kPortIndexInput
+                    && colorFormat == format.eColorFormat) {
+                // eCompressionFormat does not seem right.
+                found = true;
+                break;
+            }
+            if (portIndex == kPortIndexOutput
+                    && compressionFormat == format.eCompressionFormat) {
+                // eColorFormat does not seem right.
+                found = true;
+                break;
+            }
+        }
 
         if (format.eCompressionFormat == compressionFormat
                 && format.eColorFormat == colorFormat) {
@@ -2218,6 +2244,14 @@ void OMXCodec::on_message(const omx_message &msg) {
 
             // Buffer could not be released until empty buffer done is called.
             if (info->mMediaBuffer != NULL) {
+#ifdef OMAP_ENHANCEMENT
+                if (mIsEncoder &&
+                    (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
+                    // If zero-copy mode is enabled this will send the
+                    // input buffer back to the upstream source.
+                    restorePatchedDataPointer(info);
+                }
+#endif
                 info->mMediaBuffer->release();
                 info->mMediaBuffer = NULL;
             }
@@ -3190,6 +3224,23 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         }
 
         bool releaseBuffer = true;
+#ifdef OMAP_ENHANCEMENT
+        if (mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames)) {
+            CHECK(mOMXLivesLocally && offset == 0);
+
+            OMX_BUFFERHEADERTYPE *header =
+                (OMX_BUFFERHEADERTYPE *)info->mBuffer;
+
+            CHECK(header->pBuffer == info->mData);
+
+            header->pBuffer =
+                (OMX_U8 *)srcBuffer->data() + srcBuffer->range_offset();
+
+            releaseBuffer = false;
+            info->mMediaBuffer = srcBuffer;
+        } else {
+#endif
+
         if (mFlags & kStoreMetaDataInVideoBuffers) {
                 releaseBuffer = false;
                 info->mMediaBuffer = srcBuffer;
@@ -3245,6 +3296,10 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
                     srcBuffer->range_length());
 #endif // USE_SAMSUNG_COLORFORMAT
         }
+
+#ifdef OMAP_ENHANCEMENT
+	}
+#endif
 
         int64_t lastBufferTimeUs;
         CHECK(srcBuffer->meta_data()->findInt64(kKeyTime, &lastBufferTimeUs));
@@ -3329,6 +3384,14 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
     if (err != OK) {
         setState(ERROR);
         return false;
+    }
+
+    // This component does not ever signal the EOS flag on output buffers,
+    // Thanks for nothing.
+    if (mSignalledEOS && (!strcmp(mComponentName, "OMX.TI.Video.encoder") || 
+                          !strcmp(mComponentName, "OMX.TI.720P.Encoder"))) {
+        mNoMoreOutputData = true;
+        mBufferFilled.signal();
     }
 
     info->mStatus = OWNED_BY_COMPONENT;
@@ -4675,6 +4738,15 @@ status_t OMXCodec::pause() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef OMAP_ENHANCEMENT
+void OMXCodec::restorePatchedDataPointer(BufferInfo *info) {
+    CHECK(mIsEncoder && (mQuirks & kAvoidMemcopyInputRecordingFrames));
+    CHECK(mOMXLivesLocally);
+
+    OMX_BUFFERHEADERTYPE *header = (OMX_BUFFERHEADERTYPE *)info->mBuffer;
+    header->pBuffer = (OMX_U8 *)info->mData;
+}
+#endif
 status_t QueryCodecs(
         const sp<IOMX> &omx,
         const char *mime, bool queryDecoders, bool hwCodecOnly,
