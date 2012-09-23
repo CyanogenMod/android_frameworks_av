@@ -108,6 +108,9 @@ struct OMXCodec : public MediaSource,
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
         kRequiresWMAProComponent              = 0x40000000, //2^30
 #endif
+#if defined(OMAP_ENHANCEMENT)
+	kAvoidMemcopyInputRecordingFrames     = 0x20000000,
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -368,6 +371,9 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
+#if defined(OMAP_ENHANCEMENT)
+    void restorePatchedDataPointer(BufferInfo *info);
+#endif
 
     status_t applyRotation();
     status_t waitForBufferFilled_l();
