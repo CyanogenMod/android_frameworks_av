@@ -734,9 +734,9 @@ void LPAPlayer::requestAndWaitForDecoderThreadExit() {
 
     if (!decoderThreadAlive)
         return;
-    if(mPaused)
-        mAudioSink->flush();
     killDecoderThread = true;
+    if (!mReachedOutputEOS)
+        mAudioSink->flush();
     pthread_cond_signal(&decoder_cv);
     pthread_join(decoderThread,NULL);
     ALOGV("decoder thread killed");
