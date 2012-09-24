@@ -510,7 +510,7 @@ sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
 sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient;
 
 
-// establish binder interface to AudioFlinger service
+// establish binder interface to AudioPolicy service
 const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
 {
     gLock.lock();
