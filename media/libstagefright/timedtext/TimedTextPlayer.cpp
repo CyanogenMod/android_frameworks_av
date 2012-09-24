@@ -183,11 +183,20 @@ void TimedTextPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
         case kWhatSetSource: {
+            mSendSubtitleGeneration++;
             sp<RefBase> obj;
             msg->findObject("source", &obj);
-            if (obj == NULL) break;
             if (mSource != NULL) {
                 mSource->stop();
+                mSource.clear();
+                mSource = NULL;
+            }
+            // null source means deselect track.
+            if (obj == NULL) {
+                mPendingSeekTimeUs = kInvalidTimeUs;
+                mPaused = false;
+                notifyListener();
+                break;
             }
             mSource = static_cast<TimedTextSource*>(obj.get());
             status_t err = mSource->start();
@@ -217,6 +226,7 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
     int64_t startTimeUs = 0;
     int64_t endTimeUs = 0;
     sp<ParcelEvent> parcelEvent = new ParcelEvent();
+    CHECK(mSource != NULL);
     status_t err = mSource->read(&startTimeUs, &endTimeUs,
                                  &(parcelEvent->parcel), options);
     if (err == WOULD_BLOCK) {
