@@ -454,6 +454,9 @@ bool FastMixer::threadLoop()
             if (oldTsValid) {
                 time_t sec = newTs.tv_sec - oldTs.tv_sec;
                 long nsec = newTs.tv_nsec - oldTs.tv_nsec;
+                ALOGE_IF(sec < 0 || (sec == 0 && nsec < 0),
+                        "clock_gettime(CLOCK_MONOTONIC) failed: was %ld.%09ld but now %ld.%09ld",
+                        oldTs.tv_sec, oldTs.tv_nsec, newTs.tv_sec, newTs.tv_nsec);
                 if (nsec < 0) {
                     --sec;
                     nsec += 1000000000;
