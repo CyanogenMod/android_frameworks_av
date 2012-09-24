@@ -163,6 +163,9 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
         if (nowTsValid && mWriteTsValid) {
             time_t sec = nowTs.tv_sec - mWriteTs.tv_sec;
             long nsec = nowTs.tv_nsec - mWriteTs.tv_nsec;
+            ALOGE_IF(sec < 0 || (sec == 0 && nsec < 0),
+                    "clock_gettime(CLOCK_MONOTONIC) failed: was %ld.%09ld but now %ld.%09ld",
+                    mWriteTs.tv_sec, mWriteTs.tv_nsec, nowTs.tv_sec, nowTs.tv_nsec);
             if (nsec < 0) {
                 --sec;
                 nsec += 1000000000;
