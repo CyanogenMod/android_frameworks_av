@@ -735,6 +735,19 @@ status_t AudioSystem::isStreamActive(audio_stream_type_t stream, bool* state, ui
     return NO_ERROR;
 }
 
+int32_t AudioSystem::getPrimaryOutputSamplingRate()
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return 0;
+    return af->getPrimaryOutputSamplingRate();
+}
+
+int32_t AudioSystem::getPrimaryOutputFrameCount()
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return 0;
+    return af->getPrimaryOutputFrameCount();
+}
 
 void AudioSystem::clearAudioConfigCache()
 {

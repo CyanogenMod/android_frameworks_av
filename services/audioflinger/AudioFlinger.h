@@ -207,6 +207,9 @@ public:
 
     virtual audio_module_handle_t loadHwModule(const char *name);
 
+    virtual int32_t getPrimaryOutputSamplingRate();
+    virtual int32_t getPrimaryOutputFrameCount();
+
     virtual     status_t    onTransact(
                                 uint32_t code,
                                 const Parcel& data,
@@ -555,8 +558,10 @@ private:
                     audio_channel_mask_t channelMask() const { return mChannelMask; }
                     audio_format_t format() const { return mFormat; }
                     // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
-                    // and returns the normal mix buffer's frame count.  No API for HAL frame count.
+                    // and returns the normal mix buffer's frame count.
                     size_t      frameCount() const { return mNormalFrameCount; }
+                    // Return's the HAL's frame count i.e. fast mixer buffer size.
+                    size_t      frameCountHAL() const { return mFrameCount; }
 
         // Should be "virtual status_t requestExitAndWait()" and override same
         // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
