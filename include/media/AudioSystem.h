@@ -234,6 +234,10 @@ public:
 
     static const sp<IAudioPolicyService>& get_audio_policy_service();
 
+    // helpers for android.media.AudioManager.getProperty(), see description there for meaning
+    static int32_t getPrimaryOutputSamplingRate();
+    static int32_t getPrimaryOutputFrameCount();
+
     // ----------------------------------------------------------------------------
 
 private:
