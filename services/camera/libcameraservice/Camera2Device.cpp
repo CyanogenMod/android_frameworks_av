@@ -145,6 +145,7 @@ status_t Camera2Device::disconnect() {
             ALOGW("%s: Closing camera device %d with %d requests in flight!",
                     __FUNCTION__, mId, inProgressCount);
         }
+        mReprocessStreams.clear();
         mStreams.clear();
         res = mDevice->common.close(&mDevice->common);
         if (res != OK) {
