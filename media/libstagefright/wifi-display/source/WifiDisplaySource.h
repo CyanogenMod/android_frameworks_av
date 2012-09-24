@@ -91,6 +91,8 @@ private:
     struct in_addr mInterfaceAddr;
     int32_t mSessionID;
 
+    uint32_t mStopReplyID;
+
     int32_t mClientSessionID;
 
     struct ClientInfo {
@@ -123,7 +125,7 @@ private:
     status_t sendM1(int32_t sessionID);
     status_t sendM3(int32_t sessionID);
     status_t sendM4(int32_t sessionID);
-    status_t sendM5(int32_t sessionID);
+    status_t sendM5(int32_t sessionID, bool requestShutdown);
     status_t sendM16(int32_t sessionID);
 
     status_t onReceiveM1Response(
@@ -202,6 +204,8 @@ private:
     // or a nonzero error code.
     // A listener is notified accordingly.
     void disconnectClient(status_t err);
+
+    void finishStop(uint32_t replyID);
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySource);
 };
