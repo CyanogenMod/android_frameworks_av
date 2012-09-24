@@ -44,6 +44,7 @@ WifiDisplaySource::WifiDisplaySource(
     : mNetSession(netSession),
       mClient(client),
       mSessionID(0),
+      mStopReplyID(0),
       mClientSessionID(0),
       mReaperPending(false),
       mNextCSeq(1)
@@ -232,20 +233,17 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            disconnectClient(OK);
+            if (mSessionID != 0 && mClientSessionID != 0) {
+                status_t err = sendM5(
+                        mClientSessionID, true /* requestShutdown */);
 
-#if REQUIRE_HDCP
-            if (mHDCP != NULL) {
-                mHDCP->shutdownAsync();
-                mHDCP.clear();
+                if (err == OK) {
+                    mStopReplyID = replyID;
+                    break;
+                }
             }
-#endif
 
-            status_t err = OK;
-
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-            response->postReply(replyID);
+            finishStop(replyID);
             break;
         }
 
@@ -352,13 +350,15 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     if (mSetupTriggerDeferred) {
                         mSetupTriggerDeferred = false;
 
-                        sendM5(mClientSessionID);
+                        sendM5(mClientSessionID, false /* requestShutdown */);
                     }
                     break;
                 }
 
                 default:
                 {
+                    ALOGE("HDCP failure, shutting down.");
+
                     disconnectClient(-EACCES);
                     break;
                 }
@@ -499,8 +499,15 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     return OK;
 }
 
-status_t WifiDisplaySource::sendM5(int32_t sessionID) {
-    AString body = "wfd_trigger_method: SETUP\r\n";
+status_t WifiDisplaySource::sendM5(int32_t sessionID, bool requestShutdown) {
+    AString body = "wfd_trigger_method: ";
+    if (requestShutdown) {
+        body.append("TEARDOWN");
+    } else {
+        body.append("SETUP");
+    }
+
+    body.append("\r\n");
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
@@ -639,7 +646,7 @@ status_t WifiDisplaySource::onReceiveM4Response(
     }
 #endif
 
-    return sendM5(sessionID);
+    return sendM5(sessionID, false /* requestShutdown */);
 }
 
 status_t WifiDisplaySource::onReceiveM5Response(
@@ -1073,9 +1080,31 @@ status_t WifiDisplaySource::onTeardownRequest(
         return err;
     }
 
-    disconnectClient(UNKNOWN_ERROR);
+    if (mStopReplyID != 0) {
+        finishStop(mStopReplyID);
+        mStopReplyID = 0;
+    } else {
+        disconnectClient(UNKNOWN_ERROR);
+    }
 
     return OK;
+}
+
+void WifiDisplaySource::finishStop(uint32_t replyID) {
+    disconnectClient(OK);
+
+#if REQUIRE_HDCP
+    if (mHDCP != NULL) {
+        mHDCP->shutdownAsync();
+        mHDCP.clear();
+    }
+#endif
+
+    status_t err = OK;
+
+    sp<AMessage> response = new AMessage;
+    response->setInt32("err", err);
+    response->postReply(replyID);
 }
 
 status_t WifiDisplaySource::onGetParameterRequest(
