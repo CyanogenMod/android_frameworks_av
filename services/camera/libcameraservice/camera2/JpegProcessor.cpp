@@ -18,6 +18,8 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <netinet/in.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -81,9 +83,9 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         mCaptureWindow = new SurfaceTextureClient(
             mCaptureConsumer->getProducerInterface());
         // Create memory for API consumption
-        mCaptureHeap = new Camera2Heap(maxJpegSize.data.i32[0], 1,
+        mCaptureHeap = new MemoryHeapBase(maxJpegSize.data.i32[0], 0,
                                        "Camera2Client::CaptureHeap");
-        if (mCaptureHeap->mHeap->getSize() == 0) {
+        if (mCaptureHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for capture",
                     __FUNCTION__, client->getCameraId());
             return NO_MEMORY;
@@ -230,19 +232,179 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
         return OK;
     }
 
+    // Find size of JPEG image
+    uint8_t *jpegStart; // points to start of buffer in imgBuffer.data
+    size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width, &jpegStart);
+    size_t heapSize = mCaptureHeap->getSize();
+    if (jpegSize == 0) jpegSize = imgBuffer.width;
+    if (jpegSize > heapSize) {
+        ALOGW("%s: JPEG image is larger than expected, truncating "
+                "(got %d, expected at most %d bytes)",
+                __FUNCTION__, jpegSize, heapSize);
+        jpegSize = heapSize;
+    }
+
     // TODO: Optimize this to avoid memcopy
-    void* captureMemory = mCaptureHeap->mHeap->getBase();
-    size_t size = mCaptureHeap->mHeap->getSize();
-    memcpy(captureMemory, imgBuffer.data, size);
+    sp<MemoryBase> captureBuffer = new MemoryBase(mCaptureHeap, 0, jpegSize);
+    void* captureMemory = mCaptureHeap->getBase();
+    memcpy(captureMemory, imgBuffer.data, jpegSize);
 
     mCaptureConsumer->unlockBuffer(imgBuffer);
 
     sp<CaptureSequencer> sequencer = mSequencer.promote();
     if (sequencer != 0) {
-        sequencer->onCaptureAvailable(imgBuffer.timestamp, mCaptureHeap->mBuffers[0]);
+        sequencer->onCaptureAvailable(imgBuffer.timestamp, captureBuffer);
     }
 
     return OK;
+}
+
+/*
+ * JPEG FILE FORMAT OVERVIEW.
+ * http://www.jpeg.org/public/jfif.pdf
+ * (JPEG is the image compression algorithm, actual file format is called JFIF)
+ *
+ * "Markers" are 2-byte patterns used to distinguish parts of JFIF files.  The
+ * first byte is always 0xFF, and the second byte is between 0x01 and 0xFE
+ * (inclusive).  Because every marker begins with the same byte, they are
+ * referred to by the second byte's value.
+ *
+ * JFIF files all begin with the Start of Image (SOI) marker, which is 0xD8.
+ * Following it, "segment" sections begin with other markers, followed by a
+ * 2-byte length (in network byte order), then the segment data.
+ *
+ * For our purposes we will ignore the data, and just use the length to skip to
+ * the next segment.  This is necessary because the data inside segments are
+ * allowed to contain the End of Image marker (0xFF 0xD9), preventing us from
+ * naievely scanning until the end.
+ *
+ * After all the segments are processed, the jpeg compressed image stream begins.
+ * This can be considered an opaque format with one requirement: all 0xFF bytes
+ * in this stream must be followed with a 0x00 byte.  This prevents any of the
+ * image data to be interpreted as a segment.  The only exception to this is at
+ * the end of the image stream there is an End of Image (EOI) marker, which is
+ * 0xFF followed by a non-zero (0xD9) byte.
+ */
+
+const uint8_t MARK = 0xFF; // First byte of marker
+const uint8_t SOI = 0xD8; // Start of Image
+const uint8_t EOI = 0xD9; // End of Image
+const size_t MARKER_LENGTH = 2; // length of a marker
+
+#pragma pack(push)
+#pragma pack(1)
+typedef struct segment {
+    uint8_t marker[MARKER_LENGTH];
+    uint16_t length;
+} segment_t;
+#pragma pack(pop)
+
+/* HELPER FUNCTIONS */
+
+// check for Start of Image marker
+bool checkJpegStart(uint8_t* buf) {
+    return buf[0] == MARK && buf[1] == SOI;
+}
+// check for End of Image marker
+bool checkJpegEnd(uint8_t *buf) {
+    return buf[0] == MARK && buf[1] == EOI;
+}
+// check for arbitrary marker, returns marker type (second byte)
+// returns 0 if no marker found. Note: 0x00 is not a valid marker type
+uint8_t checkJpegMarker(uint8_t *buf) {
+    if (buf[0] == MARK && buf[1] > 0 && buf[1] < 0xFF) {
+        return buf[1];
+    }
+    return 0;
+}
+
+// Return the size of the JPEG, 0 indicates failure
+size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
+                                   size_t maxSize,
+                                   uint8_t** jpegStart) {
+    uint8_t *start;
+    size_t size;
+
+    // First check for JPEG transport header
+    struct camera2_jpeg_blob *blob = (struct camera2_jpeg_blob*)(jpegBuffer);
+    if (blob->jpeg_blob_id == CAMERA2_JPEG_BLOB_ID) {
+        size = blob->jpeg_size;
+        if (size > 0 && size <= maxSize - sizeof(struct camera2_jpeg_blob)) {
+            // Verify SOI and EOI markers
+            uint8_t *start = blob->jpeg_data;
+            size_t offset = size - MARKER_LENGTH;
+            uint8_t *end = blob->jpeg_data + offset;
+            if (checkJpegStart(start) && checkJpegEnd(end)) {
+                ALOGV("Found JPEG transport header, img size %d", size);
+                *jpegStart = start;
+                return size;
+            } else {
+                ALOGW("Found JPEG transport header with bad Image Start/End");
+            }
+        } else {
+            ALOGW("Found JPEG transport header with bad size %d", size);
+        }
+    }
+
+    // Find Start of Image
+    // This lets us handle malformed transport headers by skipping them
+    bool foundStart = false;
+    for (size = 0; size <= sizeof(struct camera2_jpeg_blob); size++) {
+        if ( checkJpegStart(jpegBuffer + size) ) {
+            foundStart = true;
+            start = jpegBuffer + size;
+            maxSize = maxSize - size; // adjust accordingly
+            break;
+        }
+    }
+    if (!foundStart) {
+        ALOGE("Could not find start of JPEG marker");
+        return 0;
+    }
+    if (size != 0) { // Image starts at offset from beginning
+        // We want the jpeg to start at the first byte; so emit warning
+        ALOGW("JPEG Image starts at offset %d", size);
+    }
+
+    // Read JFIF segment markers, skip over segment data
+    size = 0;
+    while (size <= maxSize - MARKER_LENGTH) {
+        segment_t *segment = (segment_t*)(start + size);
+        uint8_t type = checkJpegMarker(segment->marker);
+        if (type == 0) { // invalid marker, no more segments, begin JPEG data
+            ALOGV("JPEG stream found beginning at offset %d", size);
+            break;
+        }
+        if (type == EOI || size > maxSize - sizeof(segment_t)) {
+            ALOGE("Got premature End before JPEG data, offset %d", size);
+            return 0;
+        }
+        size_t length = ntohs(segment->length);
+        ALOGV("JFIF Segment, type %x length %x", type, length);
+        size += length + MARKER_LENGTH;
+    }
+
+    // Find End of Image
+    // Scan JPEG buffer until End of Image (EOI)
+    bool foundEnd = false;
+    for (size; size <= maxSize; size++) {
+        if ( checkJpegEnd(start + size) ) {
+            foundEnd = true;
+            size += MARKER_LENGTH;
+            break;
+        }
+    }
+    if (!foundEnd) {
+        ALOGE("Could not find end of JPEG marker");
+        return 0;
+    }
+
+    if (size > maxSize) {
+        ALOGW("JPEG size %d too large, reducing to maxSize %d", size, maxSize);
+        size = maxSize;
+    }
+    ALOGV("Final JPEG size %d", size);
+    return size;
 }
 
 }; // namespace camera2
