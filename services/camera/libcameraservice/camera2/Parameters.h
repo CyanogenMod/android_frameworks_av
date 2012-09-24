@@ -190,6 +190,15 @@ struct Parameters {
     // Update passed-in request for common parameters
     status_t updateRequest(CameraMetadata *request) const;
 
+    // Calculate the crop region rectangle based on current stream sizes
+    struct CropRegion {
+        float left;
+        float top;
+        float width;
+        float height;
+    };
+    CropRegion calculateCropRegion(void) const;
+
     // Static methods for debugging and converting between camera1 and camera2
     // parameters
 
