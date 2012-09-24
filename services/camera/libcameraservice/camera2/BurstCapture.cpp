@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
-#define LOG_TAG "BurstCapture"
+//#define LOG_NDEBUG 0
+#define LOG_TAG "Camera2-BurstCapture"
 
 #include <utils/Log.h>
 #include <utils/Trace.h>

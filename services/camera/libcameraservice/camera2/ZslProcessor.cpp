@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Client::ZslProcessor"
+#define LOG_TAG "Camera2-ZslProcessor"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 //#define LOG_NNDEBUG 0
