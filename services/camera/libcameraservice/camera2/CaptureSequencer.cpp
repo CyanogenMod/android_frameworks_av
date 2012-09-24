@@ -308,9 +308,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
     }
 
     SharedParameters::Lock l(client->getParameters());
-    if (l.mParameters.playShutterSound) {
-        client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
-    }
+    /* warning: this also locks a SharedCameraClient */
+    shutterNotifyLocked(l.mParameters, client);
 
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
@@ -443,10 +442,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
-    if (l.mParameters.playShutterSound &&
-            l.mParameters.state == Parameters::STILL_CAPTURE) {
-        client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
-    }
+    /* warning: this also locks a SharedCameraClient */
+    shutterNotifyLocked(l.mParameters, client);
 
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
@@ -630,6 +627,32 @@ status_t CaptureSequencer::updateCaptureRequest(const Parameters &params,
     }
 
     return OK;
+}
+
+/*static*/ void CaptureSequencer::shutterNotifyLocked(const Parameters &params,
+            sp<Camera2Client> client) {
+    ATRACE_CALL();
+
+    if (params.state == Parameters::STILL_CAPTURE && params.playShutterSound) {
+        client->getCameraService()->playSound(CameraService::SOUND_SHUTTER);
+    }
+
+    {
+        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
+
+        ALOGV("%s: Notifying of shutter close to client", __FUNCTION__);
+        if (l.mCameraClient != 0) {
+            // ShutterCallback
+            l.mCameraClient->notifyCallback(CAMERA_MSG_SHUTTER,
+                                            /*ext1*/0, /*ext2*/0);
+
+            // RawCallback with null buffer
+            l.mCameraClient->notifyCallback(CAMERA_MSG_RAW_IMAGE_NOTIFY,
+                                            /*ext1*/0, /*ext2*/0);
+        } else {
+            ALOGV("%s: No client!", __FUNCTION__);
+        }
+    }
 }
 
 
