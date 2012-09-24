@@ -67,11 +67,14 @@ class JpegProcessor:
     int mCaptureStreamId;
     sp<CpuConsumer>    mCaptureConsumer;
     sp<ANativeWindow>  mCaptureWindow;
-    sp<Camera2Heap>    mCaptureHeap;
+    sp<MemoryHeapBase>    mCaptureHeap;
 
     virtual bool threadLoop();
 
     status_t processNewCapture(sp<Camera2Client> &client);
+    size_t findJpegSize(uint8_t* jpegBuffer,
+                        size_t maxSize,
+                        uint8_t** jpegStart);
 
 };
 
