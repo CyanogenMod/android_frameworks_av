@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Client::CaptureSequencer"
+#define LOG_TAG "Camera2-CaptureSequencer"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
@@ -169,7 +169,11 @@ bool CaptureSequencer::threadLoop() {
     if (client == 0) return false;
 
     if (mCaptureState < ERROR) {
+        CaptureState oldState = mCaptureState;
         mCaptureState = (this->*kStateManagers[mCaptureState])(client);
+        if (ATRACE_ENABLED() && oldState != mCaptureState) {
+            ATRACE_INT("cam2_capt_state", mCaptureState);
+        }
     } else {
         ALOGE("%s: Bad capture state: %s",
                 __FUNCTION__, kStateNames[mCaptureState]);
@@ -181,7 +185,6 @@ bool CaptureSequencer::threadLoop() {
 
 CaptureSequencer::CaptureState CaptureSequencer::manageIdle(sp<Camera2Client> &client) {
     status_t res;
-    ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
     while (!mStartCapture) {
         res = mStartCaptureSignal.waitRelative(mInputMutex,

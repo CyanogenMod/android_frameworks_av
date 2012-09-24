@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "CameraMetadata"
+#define LOG_TAG "Camera2-Metadata"
 #include <utils/Log.h>
 #include <utils/Errors.h>
 

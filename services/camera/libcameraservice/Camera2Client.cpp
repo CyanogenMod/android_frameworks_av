@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Client"
+#define LOG_TAG "Camera2"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
@@ -102,27 +102,27 @@ status_t Camera2Client::initialize(camera_module_t *module)
     String8 threadName;
 
     mFrameProcessor = new FrameProcessor(this);
-    threadName = String8::format("Camera2Client[%d]::FrameProcessor",
+    threadName = String8::format("C2-%d-FrameProc",
             mCameraId);
     mFrameProcessor->run(threadName.string());
 
     mCaptureSequencer = new CaptureSequencer(this);
-    threadName = String8::format("Camera2Client[%d]::CaptureSequencer",
+    threadName = String8::format("C2-%d-CaptureSeq",
             mCameraId);
     mCaptureSequencer->run(threadName.string());
 
     mJpegProcessor = new JpegProcessor(this, mCaptureSequencer);
-    threadName = String8::format("Camera2Client[%d]::JpegProcessor",
+    threadName = String8::format("C2-%d-JpegProc",
             mCameraId);
     mJpegProcessor->run(threadName.string());
 
     mZslProcessor = new ZslProcessor(this, mCaptureSequencer);
-    threadName = String8::format("Camera2Client[%d]::ZslProcessor",
+    threadName = String8::format("C2-%d-ZslProc",
             mCameraId);
     mZslProcessor->run(threadName.string());
 
     mCallbackProcessor = new CallbackProcessor(this);
-    threadName = String8::format("Camera2Client[%d]::CallbackProcessor",
+    threadName = String8::format("C2-%d-CallbkProc",
             mCameraId);
     mCallbackProcessor->run(threadName.string());
 
