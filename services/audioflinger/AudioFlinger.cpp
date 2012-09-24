@@ -2116,7 +2116,17 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     }
     *halFrames = mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
 
-    return mOutput->stream->get_render_position(mOutput->stream, dspFrames);
+    if (isSuspended()) {
+        // return an estimation of rendered frames when the output is suspended
+        int32_t frames = mBytesWritten - latency_l();
+        if (frames < 0) {
+            frames = 0;
+        }
+        *dspFrames = (uint32_t)frames;
+        return NO_ERROR;
+    } else {
+        return mOutput->stream->get_render_position(mOutput->stream, dspFrames);
+    }
 }
 
 uint32_t AudioFlinger::PlaybackThread::hasAudioSession(int sessionId) const
@@ -2573,7 +2583,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     threadLoop_standby();
 
                     mStandby = true;
-                    mBytesWritten = 0;
                 }
 
                 if (!mActiveTracks.size() && mConfigEvents.isEmpty()) {
@@ -2593,6 +2602,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
                     mMixerStatus = MIXER_IDLE;
                     mMixerStatusIgnoringFastTracks = MIXER_IDLE;
+                    mBytesWritten = 0;
 
                     checkSilentMode_l();
 
@@ -2623,6 +2633,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
         if (isSuspended()) {
             sleepTime = suspendSleepTimeUs();
+            mBytesWritten += mixBufferSize;
         }
 
         // only process effects if we're going to write
