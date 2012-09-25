@@ -876,7 +876,6 @@ status_t WifiDisplaySource::onSetupRequest(
         } else if (sscanf(clientPort.c_str(), "%d", &clientRtp) == 1) {
             // No RTCP.
             clientRtcp = -1;
-            clientRtcp = clientRtp + 1;  // XXX
         } else {
             badRequest = true;
         }
@@ -889,7 +888,7 @@ status_t WifiDisplaySource::onSetupRequest(
     // The older LG dongles doesn't specify client_port=xxx apparently.
     } else if (transport == "RTP/AVP/UDP;unicast") {
         clientRtp = 19000;
-        clientRtcp = clientRtp + 1;
+        clientRtcp = -1;
 #endif
     } else {
         sendErrorResponse(sessionID, "461 Unsupported Transport", cseq);
