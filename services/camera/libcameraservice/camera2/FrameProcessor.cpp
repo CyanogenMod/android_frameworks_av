@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Client::FrameProcessor"
+#define LOG_TAG "Camera2-FrameProcessor"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
@@ -92,6 +92,7 @@ void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
                     __FUNCTION__, client->getCameraId());
             break;
         }
+        ATRACE_INT("cam2_frame", entry.data.i32[0]);
 
         res = processFaceDetect(frame, client);
         if (res != OK) break;
