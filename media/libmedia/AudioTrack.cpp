@@ -1265,9 +1265,6 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
 {
 #ifdef QCOM_HARDWARE
     if (mDirectTrack != NULL) {
-        if (!mActive) {
-            mActive = true;
-        }
         mDirectTrack->write(buffer,userSize);
         return userSize;
     }
