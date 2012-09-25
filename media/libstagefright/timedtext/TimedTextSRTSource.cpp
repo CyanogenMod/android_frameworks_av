@@ -36,6 +36,9 @@ TimedTextSRTSource::TimedTextSRTSource(const sp<DataSource>& dataSource)
         : mSource(dataSource),
           mMetaData(new MetaData),
           mIndex(0) {
+    // TODO: Need to detect the language, because SRT doesn't give language
+    // information explicitly.
+    mMetaData->setCString(kKeyMediaLanguage, "und");
 }
 
 TimedTextSRTSource::~TimedTextSRTSource() {
@@ -46,14 +49,10 @@ status_t TimedTextSRTSource::start() {
     if (err != OK) {
         reset();
     }
-    // TODO: Need to detect the language, because SRT doesn't give language
-    // information explicitly.
-    mMetaData->setCString(kKeyMediaLanguage, "");
     return err;
 }
 
 void TimedTextSRTSource::reset() {
-    mMetaData->clear();
     mTextVector.clear();
     mIndex = 0;
 }
