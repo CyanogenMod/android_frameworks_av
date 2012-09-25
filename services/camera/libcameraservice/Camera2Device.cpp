@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "Camera2Device"
+#define LOG_TAG "Camera2-Device"
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 //#define LOG_NNDEBUG 0  // Per-frame verbose logging
 
@@ -25,6 +26,7 @@
 #endif
 
 #include <utils/Log.h>
+#include <utils/Trace.h>
 #include "Camera2Device.h"
 
 namespace android {
@@ -33,16 +35,19 @@ Camera2Device::Camera2Device(int id):
         mId(id),
         mDevice(NULL)
 {
+    ATRACE_CALL();
     ALOGV("%s: Created device for camera %d", __FUNCTION__, id);
 }
 
 Camera2Device::~Camera2Device()
 {
+    ATRACE_CALL();
     disconnect();
 }
 
 status_t Camera2Device::initialize(camera_module_t *module)
 {
+    ATRACE_CALL();
     ALOGV("%s: Initializing device for camera %d", __FUNCTION__, mId);
     if (mDevice != NULL) {
         ALOGE("%s: Already initialized!", __FUNCTION__);
@@ -130,6 +135,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
 }
 
 status_t Camera2Device::disconnect() {
+    ATRACE_CALL();
     status_t res = OK;
     if (mDevice) {
         ALOGV("%s: Closing device for camera %d", __FUNCTION__, mId);
@@ -153,7 +159,7 @@ status_t Camera2Device::disconnect() {
 }
 
 status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
-
+    ATRACE_CALL();
     String8 result;
     int detailLevel = 0;
     int n = args.size();
@@ -200,6 +206,7 @@ const camera2::CameraMetadata& Camera2Device::info() const {
 }
 
 status_t Camera2Device::capture(CameraMetadata &request) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
 
     mRequestQueue.enqueue(request.release());
@@ -208,17 +215,20 @@ status_t Camera2Device::capture(CameraMetadata &request) {
 
 
 status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     CameraMetadata streamRequest(request);
     return mRequestQueue.setStreamSlot(streamRequest.release());
 }
 
 status_t Camera2Device::clearStreamingRequest() {
+    ATRACE_CALL();
     return mRequestQueue.setStreamSlot(NULL);
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format, size_t size, int *id) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
@@ -239,6 +249,7 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
 }
 
 status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
@@ -276,6 +287,7 @@ status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
 
 status_t Camera2Device::getStreamInfo(int id,
         uint32_t *width, uint32_t *height, uint32_t *format) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
     StreamList::iterator streamI;
@@ -301,6 +313,7 @@ status_t Camera2Device::getStreamInfo(int id,
 
 status_t Camera2Device::setStreamTransform(int id,
         int transform) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
     StreamList::iterator streamI;
@@ -321,6 +334,7 @@ status_t Camera2Device::setStreamTransform(int id,
 }
 
 status_t Camera2Device::deleteStream(int id) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
     for (StreamList::iterator streamI = mStreams.begin();
@@ -346,6 +360,7 @@ status_t Camera2Device::deleteStream(int id) {
 }
 
 status_t Camera2Device::deleteReprocessStream(int id) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
     for (ReprocessStreamList::iterator streamI = mReprocessStreams.begin();
@@ -374,6 +389,7 @@ status_t Camera2Device::deleteReprocessStream(int id) {
 
 status_t Camera2Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
+    ATRACE_CALL();
     status_t err;
     ALOGV("%s: E", __FUNCTION__);
     camera_metadata_t *rawRequest;
@@ -384,6 +400,7 @@ status_t Camera2Device::createDefaultRequest(int templateId,
 }
 
 status_t Camera2Device::waitUntilDrained() {
+    ATRACE_CALL();
     static const uint32_t kSleepTime = 50000; // 50 ms
     static const uint32_t kMaxSleepTime = 10000000; // 10 s
     ALOGV("%s: Camera %d: Starting wait", __FUNCTION__, mId);
@@ -406,6 +423,7 @@ status_t Camera2Device::waitUntilDrained() {
 }
 
 status_t Camera2Device::setNotifyCallback(NotificationListener *listener) {
+    ATRACE_CALL();
     status_t res;
     res = mDevice->ops->set_notify_callback(mDevice, notificationCallback,
             reinterpret_cast<void*>(listener) );
@@ -420,6 +438,7 @@ void Camera2Device::notificationCallback(int32_t msg_type,
         int32_t ext2,
         int32_t ext3,
         void *user) {
+    ATRACE_CALL();
     NotificationListener *listener = reinterpret_cast<NotificationListener*>(user);
     ALOGV("%s: Notification %d, arguments %d, %d, %d", __FUNCTION__, msg_type,
             ext1, ext2, ext3);
@@ -454,6 +473,7 @@ status_t Camera2Device::waitForNextFrame(nsecs_t timeout) {
 }
 
 status_t Camera2Device::getNextFrame(CameraMetadata *frame) {
+    ATRACE_CALL();
     status_t res;
     camera_metadata_t *rawFrame;
     res = mFrameQueue.dequeue(&rawFrame);
@@ -466,6 +486,7 @@ status_t Camera2Device::getNextFrame(CameraMetadata *frame) {
 }
 
 status_t Camera2Device::triggerAutofocus(uint32_t id) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: Triggering autofocus, id %d", __FUNCTION__, id);
     res = mDevice->ops->trigger_action(mDevice,
@@ -478,6 +499,7 @@ status_t Camera2Device::triggerAutofocus(uint32_t id) {
 }
 
 status_t Camera2Device::triggerCancelAutofocus(uint32_t id) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: Canceling autofocus, id %d", __FUNCTION__, id);
     res = mDevice->ops->trigger_action(mDevice,
@@ -490,6 +512,7 @@ status_t Camera2Device::triggerCancelAutofocus(uint32_t id) {
 }
 
 status_t Camera2Device::triggerPrecaptureMetering(uint32_t id) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: Triggering precapture metering, id %d", __FUNCTION__, id);
     res = mDevice->ops->trigger_action(mDevice,
@@ -503,6 +526,7 @@ status_t Camera2Device::triggerPrecaptureMetering(uint32_t id) {
 
 status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
         buffer_handle_t *buffer, wp<BufferReleasedListener> listener) {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
     status_t res = OK;
@@ -545,6 +569,7 @@ Camera2Device::MetadataQueue::MetadataQueue():
             mStreamSlotCount(0),
             mSignalConsumer(true)
 {
+    ATRACE_CALL();
     camera2_request_queue_src_ops::dequeue_request = consumer_dequeue;
     camera2_request_queue_src_ops::request_count = consumer_buffer_count;
     camera2_request_queue_src_ops::free_request = consumer_free;
@@ -555,6 +580,7 @@ Camera2Device::MetadataQueue::MetadataQueue():
 }
 
 Camera2Device::MetadataQueue::~MetadataQueue() {
+    ATRACE_CALL();
     Mutex::Autolock l(mMutex);
     freeBuffers(mEntries.begin(), mEntries.end());
     freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
@@ -562,6 +588,7 @@ Camera2Device::MetadataQueue::~MetadataQueue() {
 
 // Connect to camera2 HAL as consumer (input requests/reprocessing)
 status_t Camera2Device::MetadataQueue::setConsumerDevice(camera2_device_t *d) {
+    ATRACE_CALL();
     status_t res;
     res = d->ops->set_request_queue_src_ops(d,
             this);
@@ -571,6 +598,7 @@ status_t Camera2Device::MetadataQueue::setConsumerDevice(camera2_device_t *d) {
 }
 
 status_t Camera2Device::MetadataQueue::setProducerDevice(camera2_device_t *d) {
+    ATRACE_CALL();
     status_t res;
     res = d->ops->set_frame_queue_dst_ops(d,
             this);
@@ -579,6 +607,7 @@ status_t Camera2Device::MetadataQueue::setProducerDevice(camera2_device_t *d) {
 
 // Real interfaces
 status_t Camera2Device::MetadataQueue::enqueue(camera_metadata_t *buf) {
+    ATRACE_CALL();
     ALOGVV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
 
@@ -589,6 +618,7 @@ status_t Camera2Device::MetadataQueue::enqueue(camera_metadata_t *buf) {
 }
 
 int Camera2Device::MetadataQueue::getBufferCount() {
+    ATRACE_CALL();
     Mutex::Autolock l(mMutex);
     if (mStreamSlotCount > 0) {
         return CAMERA2_REQUEST_QUEUE_IS_BOTTOMLESS;
@@ -599,6 +629,7 @@ int Camera2Device::MetadataQueue::getBufferCount() {
 status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
         bool incrementCount)
 {
+    ATRACE_CALL();
     ALOGVV("%s: E", __FUNCTION__);
     status_t res;
     Mutex::Autolock l(mMutex);
@@ -631,6 +662,7 @@ status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
     mEntries.erase(mEntries.begin());
 
     if (incrementCount) {
+        ATRACE_INT("cam2_request", mFrameCount);
         camera_metadata_entry_t frameCount;
         res = find_camera_metadata_entry(b,
                 ANDROID_REQUEST_FRAME_COUNT,
@@ -663,6 +695,7 @@ status_t Camera2Device::MetadataQueue::waitForBuffer(nsecs_t timeout)
 
 status_t Camera2Device::MetadataQueue::setStreamSlot(camera_metadata_t *buf)
 {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
     if (buf == NULL) {
@@ -694,6 +727,7 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(camera_metadata_t *buf)
 status_t Camera2Device::MetadataQueue::setStreamSlot(
         const List<camera_metadata_t*> &bufs)
 {
+    ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
     status_t res;
@@ -717,6 +751,7 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(
 
 status_t Camera2Device::MetadataQueue::dump(int fd,
         const Vector<String16>& args) {
+    ATRACE_CALL();
     String8 result;
     status_t notLocked;
     notLocked = mMutex.tryLock();
@@ -763,6 +798,7 @@ status_t Camera2Device::MetadataQueue::dump(int fd,
 }
 
 status_t Camera2Device::MetadataQueue::signalConsumerLocked() {
+    ATRACE_CALL();
     status_t res = OK;
     notEmpty.signal();
     if (mSignalConsumer && mDevice != NULL) {
@@ -780,6 +816,7 @@ status_t Camera2Device::MetadataQueue::freeBuffers(
         List<camera_metadata_t*>::iterator start,
         List<camera_metadata_t*>::iterator end)
 {
+    ATRACE_CALL();
     while (start != end) {
         free_camera_metadata(*start);
         start = mStreamSlot.erase(start);
@@ -820,6 +857,7 @@ int Camera2Device::MetadataQueue::consumer_free(
         const camera2_request_queue_src_ops_t *q,
         camera_metadata_t *old_buffer)
 {
+    ATRACE_CALL();
     MetadataQueue *queue = getInstance(q);
     free_camera_metadata(old_buffer);
     return OK;
@@ -830,6 +868,7 @@ int Camera2Device::MetadataQueue::producer_dequeue(
         size_t entries, size_t bytes,
         camera_metadata_t **buffer)
 {
+    ATRACE_CALL();
     camera_metadata_t *new_buffer =
             allocate_camera_metadata(entries, bytes);
     if (new_buffer == NULL) return NO_MEMORY;
@@ -841,6 +880,7 @@ int Camera2Device::MetadataQueue::producer_cancel(
         const camera2_frame_queue_dst_ops_t *q,
         camera_metadata_t *old_buffer)
 {
+    ATRACE_CALL();
     free_camera_metadata(old_buffer);
     return OK;
 }
@@ -881,6 +921,7 @@ Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
 }
 
 Camera2Device::StreamAdapter::~StreamAdapter() {
+    ATRACE_CALL();
     if (mState != RELEASED) {
         release();
     }
@@ -889,6 +930,7 @@ Camera2Device::StreamAdapter::~StreamAdapter() {
 status_t Camera2Device::StreamAdapter::connectToDevice(
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format, size_t size) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
@@ -1057,6 +1099,7 @@ cleanUpBuffers:
 }
 
 status_t Camera2Device::StreamAdapter::release() {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
     if (mState >= ALLOCATED) {
@@ -1082,6 +1125,7 @@ status_t Camera2Device::StreamAdapter::release() {
 }
 
 status_t Camera2Device::StreamAdapter::setTransform(int transform) {
+    ATRACE_CALL();
     status_t res;
     if (mState < CONNECTED) {
         ALOGE("%s: Cannot set transform on unconnected stream", __FUNCTION__);
@@ -1098,6 +1142,7 @@ status_t Camera2Device::StreamAdapter::setTransform(int transform) {
 
 status_t Camera2Device::StreamAdapter::dump(int fd,
         const Vector<String16>& args) {
+    ATRACE_CALL();
     String8 result = String8::format("      Stream %d: %d x %d, format 0x%x\n",
             mId, mWidth, mHeight, mFormat);
     result.appendFormat("        size %d, usage 0x%x, requested format 0x%x\n",
@@ -1121,6 +1166,7 @@ ANativeWindow* Camera2Device::StreamAdapter::toANW(
 
 int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
         buffer_handle_t** buffer) {
+    ATRACE_CALL();
     int res;
     StreamAdapter* stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
@@ -1148,6 +1194,7 @@ int Camera2Device::StreamAdapter::dequeue_buffer(const camera2_stream_ops_t *w,
 int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
         int64_t timestamp,
         buffer_handle_t* buffer) {
+    ATRACE_CALL();
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
     stream->mFrameCount++;
@@ -1182,6 +1229,7 @@ int Camera2Device::StreamAdapter::enqueue_buffer(const camera2_stream_ops_t* w,
 
 int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
         buffer_handle_t* buffer) {
+    ATRACE_CALL();
     StreamAdapter *stream =
             const_cast<StreamAdapter*>(static_cast<const StreamAdapter*>(w));
     ALOGVV("Stream %d cancel: Buffer %p",
@@ -1206,6 +1254,7 @@ int Camera2Device::StreamAdapter::cancel_buffer(const camera2_stream_ops_t* w,
 
 int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,
         int left, int top, int right, int bottom) {
+    ATRACE_CALL();
     int state = static_cast<const StreamAdapter*>(w)->mState;
     if (state != ACTIVE) {
         ALOGE("%s: Called when in bad state: %d", __FUNCTION__, state);
@@ -1233,11 +1282,13 @@ Camera2Device::ReprocessStreamAdapter::ReprocessStreamAdapter(camera2_device_t *
         mActiveBuffers(0),
         mFrameCount(0)
 {
+    ATRACE_CALL();
     camera2_stream_in_ops::acquire_buffer = acquire_buffer;
     camera2_stream_in_ops::release_buffer = release_buffer;
 }
 
 Camera2Device::ReprocessStreamAdapter::~ReprocessStreamAdapter() {
+    ATRACE_CALL();
     if (mState != RELEASED) {
         release();
     }
@@ -1245,6 +1296,7 @@ Camera2Device::ReprocessStreamAdapter::~ReprocessStreamAdapter() {
 
 status_t Camera2Device::ReprocessStreamAdapter::connectToDevice(
         const sp<StreamAdapter> &outputStream) {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
@@ -1286,6 +1338,7 @@ status_t Camera2Device::ReprocessStreamAdapter::connectToDevice(
 }
 
 status_t Camera2Device::ReprocessStreamAdapter::release() {
+    ATRACE_CALL();
     status_t res;
     ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
     if (mState >= ACTIVE) {
@@ -1315,6 +1368,7 @@ status_t Camera2Device::ReprocessStreamAdapter::release() {
 
 status_t Camera2Device::ReprocessStreamAdapter::pushIntoStream(
     buffer_handle_t *handle, const wp<BufferReleasedListener> &releaseListener) {
+    ATRACE_CALL();
     // TODO: Some error checking here would be nice
     ALOGV("%s: Pushing buffer %p to stream", __FUNCTION__, (void*)(*handle));
 
@@ -1327,6 +1381,7 @@ status_t Camera2Device::ReprocessStreamAdapter::pushIntoStream(
 
 status_t Camera2Device::ReprocessStreamAdapter::dump(int fd,
         const Vector<String16>& args) {
+    ATRACE_CALL();
     String8 result =
             String8::format("      Reprocess stream %d: %d x %d, fmt 0x%x\n",
                     mId, mWidth, mHeight, mFormat);
@@ -1345,6 +1400,7 @@ const camera2_stream_in_ops *Camera2Device::ReprocessStreamAdapter::getStreamOps
 int Camera2Device::ReprocessStreamAdapter::acquire_buffer(
     const camera2_stream_in_ops_t *w,
         buffer_handle_t** buffer) {
+    ATRACE_CALL();
     int res;
     ReprocessStreamAdapter* stream =
             const_cast<ReprocessStreamAdapter*>(
@@ -1376,6 +1432,7 @@ int Camera2Device::ReprocessStreamAdapter::acquire_buffer(
 int Camera2Device::ReprocessStreamAdapter::release_buffer(
     const camera2_stream_in_ops_t* w,
     buffer_handle_t* buffer) {
+    ATRACE_CALL();
     ReprocessStreamAdapter *stream =
             const_cast<ReprocessStreamAdapter*>(
                 static_cast<const ReprocessStreamAdapter*>(w) );
