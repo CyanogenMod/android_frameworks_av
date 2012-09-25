@@ -283,14 +283,14 @@ status_t TSPacketizer::packetize(
         const uint8_t *PES_private_data, size_t PES_private_data_len) {
     sp<ABuffer> accessUnit = _accessUnit;
 
+    int64_t timeUs;
+    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
     packets->clear();
 
     if (trackIndex >= mTracks.size()) {
         return -ERANGE;
     }
-
-    int64_t timeUs;
-    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
 
     const sp<Track> &track = mTracks.itemAt(trackIndex);
 
@@ -531,11 +531,7 @@ status_t TSPacketizer::packetize(
         // reserved = b111111
         // program_clock_reference_extension = b?????????
 
-#if 0
         int64_t nowUs = ALooper::GetNowUs();
-#else
-        int64_t nowUs = timeUs;
-#endif
 
         uint64_t PCR = nowUs * 27;  // PCR based on a 27MHz clock
         uint64_t PCR_base = PCR / 300;
@@ -560,7 +556,7 @@ status_t TSPacketizer::packetize(
         packetDataStart += 188;
     }
 
-    uint32_t PTS = (timeUs * 9ll) / 100ll;
+    uint64_t PTS = (timeUs * 9ll) / 100ll;
 
     bool padding = (PES_packet_length < (188 - 10));
 
