@@ -1175,7 +1175,7 @@ void AudioFlinger::ThreadBase::exit()
         //  }
         AutoMutex lock(mLock);
         requestExit();
-        mWaitWorkCV.signal();
+        mWaitWorkCV.broadcast();
     }
     // When Thread::requestExitAndWait is made virtual and this method is renamed to
     // "virtual status_t requestExitAndWait()", replace by "return Thread::requestExitAndWait();"
@@ -6323,7 +6323,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         mActiveTrack->mState = TrackBase::RESUMING;
         // signal thread to start
         ALOGV("Signal record thread");
-        mWaitWorkCV.signal();
+        mWaitWorkCV.broadcast();
         // do not wait for mStartStopCond if exiting
         if (exitPending()) {
             mActiveTrack.clear();
