@@ -1376,8 +1376,8 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
     sp<ABuffer> packets;
     mPacketizer->packetize(
             track->packetizerTrackIndex(), accessUnit, &packets, flags,
-            isHDCPEncrypted ? NULL : HDCP_private_data,
-            isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
+            !isHDCPEncrypted ? NULL : HDCP_private_data,
+            !isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
 
     for (size_t offset = 0;
             offset < packets->size(); offset += 188) {
