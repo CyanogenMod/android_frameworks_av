@@ -205,7 +205,8 @@ private:
     // A listener is notified accordingly.
     void disconnectClient(status_t err);
 
-    void finishStop(uint32_t replyID);
+    void finishStop();
+    void finishStop2();
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySource);
 };
