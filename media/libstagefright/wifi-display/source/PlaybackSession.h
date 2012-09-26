@@ -164,6 +164,8 @@ private:
 
     uint64_t mTotalBytesSent;
 
+    sp<ABuffer> mTempAccessUnit;
+
 #if LOG_TRANSPORT_STREAM
     FILE *mLogFile;
 #endif
