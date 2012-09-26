@@ -6903,6 +6903,24 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
 
 }
 
+// ----------------------------------------------------------------------------
+
+int32_t AudioFlinger::getPrimaryOutputSamplingRate()
+{
+    Mutex::Autolock _l(mLock);
+    PlaybackThread *thread = primaryPlaybackThread_l();
+    return thread != NULL ? thread->sampleRate() : 0;
+}
+
+int32_t AudioFlinger::getPrimaryOutputFrameCount()
+{
+    Mutex::Autolock _l(mLock);
+    PlaybackThread *thread = primaryPlaybackThread_l();
+    return thread != NULL ? thread->frameCountHAL() : 0;
+}
+
+// ----------------------------------------------------------------------------
+
 audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_devices_t *pDevices,
                                            uint32_t *pSamplingRate,
