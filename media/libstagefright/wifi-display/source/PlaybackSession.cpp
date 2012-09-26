@@ -70,6 +70,9 @@ struct WifiDisplaySource::PlaybackSession::Track : public RefBase {
     status_t start();
     status_t stop();
 
+    void queueAccessUnit(const sp<ABuffer> &accessUnit);
+    sp<ABuffer> dequeueAccessUnit();
+
 protected:
     virtual ~Track();
 
@@ -82,6 +85,7 @@ private:
     bool mStarted;
     ssize_t mPacketizerTrackIndex;
     bool mIsAudio;
+    List<sp<ABuffer> > mQueuedAccessUnits;
 
     static bool IsAudioFormat(const sp<AMessage> &format);
 
@@ -182,6 +186,24 @@ status_t WifiDisplaySource::PlaybackSession::Track::stop() {
     return err;
 }
 
+void WifiDisplaySource::PlaybackSession::Track::queueAccessUnit(
+        const sp<ABuffer> &accessUnit) {
+    mQueuedAccessUnits.push_back(accessUnit);
+}
+
+sp<ABuffer> WifiDisplaySource::PlaybackSession::Track::dequeueAccessUnit() {
+    if (mQueuedAccessUnits.empty()) {
+        return NULL;
+    }
+
+    sp<ABuffer> accessUnit = *mQueuedAccessUnits.begin();
+    CHECK(accessUnit != NULL);
+
+    mQueuedAccessUnits.erase(mQueuedAccessUnits.begin());
+
+    return accessUnit;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 WifiDisplaySource::PlaybackSession::PlaybackSession(
@@ -198,6 +220,7 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
       mPrevTimeUs(-1ll),
       mTransportMode(TRANSPORT_UDP),
+      mAllTracksHavePacketizerIndex(false),
       mRTPChannel(0),
       mRTCPChannel(0),
       mRTPPort(0),
@@ -675,129 +698,49 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             if (what == Converter::kWhatAccessUnit) {
                 const sp<Track> &track = mTracks.valueFor(trackIndex);
 
-                uint32_t flags = 0;
-
                 ssize_t packetizerTrackIndex = track->packetizerTrackIndex();
-                if (packetizerTrackIndex < 0) {
-                    flags = TSPacketizer::EMIT_PAT_AND_PMT;
 
+                if (packetizerTrackIndex < 0) {
                     packetizerTrackIndex =
                         mPacketizer->addTrack(track->getFormat());
 
-                    if (packetizerTrackIndex >= 0) {
-                        track->setPacketizerTrackIndex(packetizerTrackIndex);
-                    }
-                }
+                    CHECK_GE(packetizerTrackIndex, 0);
 
-                if (packetizerTrackIndex >= 0) {
-                    sp<ABuffer> accessUnit;
-                    CHECK(msg->findBuffer("accessUnit", &accessUnit));
+                    track->setPacketizerTrackIndex(packetizerTrackIndex);
 
-                    bool isHDCPEncrypted = false;
-                    uint64_t inputCTR;
-                    uint8_t HDCP_private_data[16];
-                    if (mHDCP != NULL && !track->isAudio()) {
-                        isHDCPEncrypted = true;
-
-                        status_t err = mHDCP->encrypt(
-                                accessUnit->data(), accessUnit->size(),
-                                trackIndex  /* streamCTR */,
-                                &inputCTR,
-                                accessUnit->data());
+                    if (allTracksHavePacketizerIndex()) {
+                        status_t err = packetizeQueuedAccessUnits();
 
                         if (err != OK) {
-                            ALOGI("Failed to HDCP-encrypt media data (err %d)",
-                                  err);
-
                             // Inform WifiDisplaySource of our premature death
                             // (wish).
                             sp<AMessage> notify = mNotify->dup();
                             notify->setInt32("what", kWhatSessionDead);
                             notify->post();
+
                             break;
                         }
-
-                        HDCP_private_data[0] = 0x00;
-
-                        HDCP_private_data[1] =
-                            (((trackIndex >> 30) & 3) << 1) | 1;
-
-                        HDCP_private_data[2] = (trackIndex >> 22) & 0xff;
-
-                        HDCP_private_data[3] =
-                            (((trackIndex >> 15) & 0x7f) << 1) | 1;
-
-                        HDCP_private_data[4] = (trackIndex >> 7) & 0xff;
-
-                        HDCP_private_data[5] =
-                            ((trackIndex & 0x7f) << 1) | 1;
-
-                        HDCP_private_data[6] = 0x00;
-
-                        HDCP_private_data[7] =
-                            (((inputCTR >> 60) & 0x0f) << 1) | 1;
-
-                        HDCP_private_data[8] = (inputCTR >> 52) & 0xff;
-
-                        HDCP_private_data[9] =
-                            (((inputCTR >> 45) & 0x7f) << 1) | 1;
-
-                        HDCP_private_data[10] = (inputCTR >> 37) & 0xff;
-
-                        HDCP_private_data[11] =
-                            (((inputCTR >> 30) & 0x7f) << 1) | 1;
-
-                        HDCP_private_data[12] = (inputCTR >> 22) & 0xff;
-
-                        HDCP_private_data[13] =
-                            (((inputCTR >> 15) & 0x7f) << 1) | 1;
-
-                        HDCP_private_data[14] = (inputCTR >> 7) & 0xff;
-
-                        HDCP_private_data[15] =
-                            ((inputCTR & 0x7f) << 1) | 1;
-
-                        flags |= TSPacketizer::IS_ENCRYPTED;
                     }
-
-                    int64_t timeUs;
-                    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
-
-                    if (mPrevTimeUs < 0ll || mPrevTimeUs + 100000ll >= timeUs) {
-                        flags |= TSPacketizer::EMIT_PCR;
-                        mPrevTimeUs = timeUs;
-                    }
-
-                    sp<ABuffer> packets;
-                    mPacketizer->packetize(
-                            packetizerTrackIndex, accessUnit, &packets, flags,
-                            isHDCPEncrypted ? NULL : HDCP_private_data,
-                            isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
-
-                    for (size_t offset = 0;
-                            offset < packets->size(); offset += 188) {
-                        bool lastTSPacket = (offset + 188 >= packets->size());
-
-                        // We're only going to flush video, audio packets are
-                        // much more frequent and would waste all that space
-                        // available in a full sized UDP packet.
-                        bool flush =
-                            lastTSPacket
-                                && ((ssize_t)trackIndex == mVideoTrackIndex);
-
-                        appendTSData(
-                                packets->data() + offset,
-                                188,
-                                true /* timeDiscontinuity */,
-                                flush);
-                    }
-
-#if LOG_TRANSPORT_STREAM
-                    if (mLogFile != NULL) {
-                        fwrite(packets->data(), 1, packets->size(), mLogFile);
-                    }
-#endif
                 }
+
+                sp<ABuffer> accessUnit;
+                CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
+                if (!allTracksHavePacketizerIndex()) {
+                    track->queueAccessUnit(accessUnit);
+                    break;
+                }
+
+                status_t err = packetizeAccessUnit(trackIndex, accessUnit);
+
+                if (err != OK) {
+                    // Inform WifiDisplaySource of our premature death
+                    // (wish).
+                    sp<AMessage> notify = mNotify->dup();
+                    notify->setInt32("what", kWhatSessionDead);
+                    notify->post();
+                }
+                break;
             } else if (what == Converter::kWhatEOS) {
                 CHECK_EQ(what, Converter::kWhatEOS);
 
@@ -1336,6 +1279,158 @@ void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
 status_t WifiDisplaySource::PlaybackSession::sendPacket(
         int32_t sessionID, const void *data, size_t size) {
     return mNetSession->sendRequest(sessionID, data, size);
+}
+
+bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
+    if (mAllTracksHavePacketizerIndex) {
+        return true;
+    }
+
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        if (mTracks.valueAt(i)->packetizerTrackIndex() < 0) {
+            return false;
+        }
+    }
+
+    mAllTracksHavePacketizerIndex = true;
+
+    return true;
+}
+
+status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
+        size_t trackIndex, const sp<ABuffer> &accessUnit) {
+    const sp<Track> &track = mTracks.valueFor(trackIndex);
+
+    uint32_t flags = 0;
+
+    bool isHDCPEncrypted = false;
+    uint64_t inputCTR;
+    uint8_t HDCP_private_data[16];
+    if (mHDCP != NULL && !track->isAudio()) {
+        isHDCPEncrypted = true;
+
+        status_t err = mHDCP->encrypt(
+                accessUnit->data(), accessUnit->size(),
+                trackIndex  /* streamCTR */,
+                &inputCTR,
+                accessUnit->data());
+
+        if (err != OK) {
+            ALOGE("Failed to HDCP-encrypt media data (err %d)",
+                  err);
+
+            return err;
+        }
+
+        HDCP_private_data[0] = 0x00;
+
+        HDCP_private_data[1] =
+            (((trackIndex >> 30) & 3) << 1) | 1;
+
+        HDCP_private_data[2] = (trackIndex >> 22) & 0xff;
+
+        HDCP_private_data[3] =
+            (((trackIndex >> 15) & 0x7f) << 1) | 1;
+
+        HDCP_private_data[4] = (trackIndex >> 7) & 0xff;
+
+        HDCP_private_data[5] =
+            ((trackIndex & 0x7f) << 1) | 1;
+
+        HDCP_private_data[6] = 0x00;
+
+        HDCP_private_data[7] =
+            (((inputCTR >> 60) & 0x0f) << 1) | 1;
+
+        HDCP_private_data[8] = (inputCTR >> 52) & 0xff;
+
+        HDCP_private_data[9] =
+            (((inputCTR >> 45) & 0x7f) << 1) | 1;
+
+        HDCP_private_data[10] = (inputCTR >> 37) & 0xff;
+
+        HDCP_private_data[11] =
+            (((inputCTR >> 30) & 0x7f) << 1) | 1;
+
+        HDCP_private_data[12] = (inputCTR >> 22) & 0xff;
+
+        HDCP_private_data[13] =
+            (((inputCTR >> 15) & 0x7f) << 1) | 1;
+
+        HDCP_private_data[14] = (inputCTR >> 7) & 0xff;
+
+        HDCP_private_data[15] =
+            ((inputCTR & 0x7f) << 1) | 1;
+
+        flags |= TSPacketizer::IS_ENCRYPTED;
+    }
+
+    int64_t timeUs = ALooper::GetNowUs();
+    if (mPrevTimeUs < 0ll || mPrevTimeUs + 100000ll <= timeUs) {
+        flags |= TSPacketizer::EMIT_PCR;
+        flags |= TSPacketizer::EMIT_PAT_AND_PMT;
+
+        mPrevTimeUs = timeUs;
+    }
+
+    sp<ABuffer> packets;
+    mPacketizer->packetize(
+            track->packetizerTrackIndex(), accessUnit, &packets, flags,
+            isHDCPEncrypted ? NULL : HDCP_private_data,
+            isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
+
+    for (size_t offset = 0;
+            offset < packets->size(); offset += 188) {
+        bool lastTSPacket = (offset + 188 >= packets->size());
+
+        // We're only going to flush video, audio packets are
+        // much more frequent and would waste all that space
+        // available in a full sized UDP packet.
+        bool flush =
+            lastTSPacket
+                && ((ssize_t)trackIndex == mVideoTrackIndex);
+
+        appendTSData(
+                packets->data() + offset,
+                188,
+                true /* timeDiscontinuity */,
+                flush);
+    }
+
+#if LOG_TRANSPORT_STREAM
+    if (mLogFile != NULL) {
+        fwrite(packets->data(), 1, packets->size(), mLogFile);
+    }
+#endif
+
+    return OK;
+}
+
+status_t WifiDisplaySource::PlaybackSession::packetizeQueuedAccessUnits() {
+    for (;;) {
+        bool gotMoreData = false;
+        for (size_t i = 0; i < mTracks.size(); ++i) {
+            size_t trackIndex = mTracks.keyAt(i);
+            const sp<Track> &track = mTracks.valueAt(i);
+
+            sp<ABuffer> accessUnit = track->dequeueAccessUnit();
+            if (accessUnit != NULL) {
+                status_t err = packetizeAccessUnit(trackIndex, accessUnit);
+
+                if (err != OK) {
+                    return err;
+                }
+
+                gotMoreData = true;
+            }
+        }
+
+        if (!gotMoreData) {
+            break;
+        }
+    }
+
+    return OK;
 }
 
 }  // namespace android
