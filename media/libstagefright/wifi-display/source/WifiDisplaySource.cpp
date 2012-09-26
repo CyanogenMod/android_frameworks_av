@@ -471,9 +471,11 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     //   use "30 00 02 02 00000040 00000000 00000000 00 0000 0000 00 none none\r\n"
     // For 720p30:
     //   use "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
+    // For 720p24:
+    //   use "78 00 02 02 00008000 00000000 00000000 00 0000 0000 00 none none\r\n"
     AString body = StringPrintf(
         "wfd_video_formats: "
-        "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
+        "78 00 02 02 00008000 00000000 00000000 00 0000 0000 00 none none\r\n"
         "wfd_audio_codecs: AAC 00000001 00\r\n"  // 2 ch AAC 48kHz
         "wfd_presentation_URL: rtsp://%s:%d/wfd1.0/streamid=0 none\r\n"
         "wfd_client_rtp_ports: RTP/AVP/%s;unicast 19000 0 mode=play\r\n",
