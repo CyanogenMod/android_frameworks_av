@@ -230,20 +230,18 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatStop:
         {
-            uint32_t replyID;
-            CHECK(msg->senderAwaitsResponse(&replyID));
+            CHECK(msg->senderAwaitsResponse(&mStopReplyID));
 
             if (mSessionID != 0 && mClientSessionID != 0) {
                 status_t err = sendM5(
                         mClientSessionID, true /* requestShutdown */);
 
                 if (err == OK) {
-                    mStopReplyID = replyID;
                     break;
                 }
             }
 
-            finishStop(replyID);
+            finishStop();
             break;
         }
 
@@ -339,7 +337,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findInt32("ext1", &ext1));
             CHECK(msg->findInt32("ext2", &ext2));
 
-            ALOGV("Saw HDCP notification code %d, ext1 %d, ext2 %d",
+            ALOGI("Saw HDCP notification code %d, ext1 %d, ext2 %d",
                     msgCode, ext1, ext2);
 
             switch (msgCode) {
@@ -352,6 +350,12 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
                         sendM5(mClientSessionID, false /* requestShutdown */);
                     }
+                    break;
+                }
+
+                case HDCPModule::HDCP_SHUTDOWN_COMPLETE:
+                {
+                    finishStop2();
                     break;
                 }
 
@@ -1080,8 +1084,7 @@ status_t WifiDisplaySource::onTeardownRequest(
     }
 
     if (mStopReplyID != 0) {
-        finishStop(mStopReplyID);
-        mStopReplyID = 0;
+        finishStop();
     } else {
         disconnectClient(UNKNOWN_ERROR);
     }
@@ -1089,21 +1092,29 @@ status_t WifiDisplaySource::onTeardownRequest(
     return OK;
 }
 
-void WifiDisplaySource::finishStop(uint32_t replyID) {
+void WifiDisplaySource::finishStop() {
     disconnectClient(OK);
 
 #if REQUIRE_HDCP
     if (mHDCP != NULL) {
         mHDCP->shutdownAsync();
-        mHDCP.clear();
+        return;
     }
+#endif
+
+    finishStop2();
+}
+
+void WifiDisplaySource::finishStop2() {
+#if REQUIRE_HDCP
+    mHDCP.clear();
 #endif
 
     status_t err = OK;
 
     sp<AMessage> response = new AMessage;
     response->setInt32("err", err);
-    response->postReply(replyID);
+    response->postReply(mStopReplyID);
 }
 
 status_t WifiDisplaySource::onGetParameterRequest(
@@ -1195,8 +1206,7 @@ void WifiDisplaySource::sendErrorResponse(
 
     response.append("\r\n");
 
-    status_t err = mNetSession->sendRequest(sessionID, response.c_str());
-    CHECK_EQ(err, (status_t)OK);
+    mNetSession->sendRequest(sessionID, response.c_str());
 }
 
 int32_t WifiDisplaySource::makeUniquePlaybackSessionID() const {
