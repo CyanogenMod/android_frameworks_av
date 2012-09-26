@@ -235,8 +235,11 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     // Find size of JPEG image
     uint8_t *jpegStart; // points to start of buffer in imgBuffer.data
     size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width, &jpegStart);
+    if (jpegSize == 0) { // failed to find size, default to whole buffer
+        jpegStart = imgBuffer.data;
+        jpegSize = imgBuffer.width;
+    }
     size_t heapSize = mCaptureHeap->getSize();
-    if (jpegSize == 0) jpegSize = imgBuffer.width;
     if (jpegSize > heapSize) {
         ALOGW("%s: JPEG image is larger than expected, truncating "
                 "(got %d, expected at most %d bytes)",
@@ -247,7 +250,7 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     // TODO: Optimize this to avoid memcopy
     sp<MemoryBase> captureBuffer = new MemoryBase(mCaptureHeap, 0, jpegSize);
     void* captureMemory = mCaptureHeap->getBase();
-    memcpy(captureMemory, imgBuffer.data, jpegSize);
+    memcpy(captureMemory, jpegStart, jpegSize);
 
     mCaptureConsumer->unlockBuffer(imgBuffer);
 
@@ -403,7 +406,8 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
         ALOGW("JPEG size %d too large, reducing to maxSize %d", size, maxSize);
         size = maxSize;
     }
-    ALOGV("Final JPEG size %d", size);
+    ALOGV("Final JPEG size %d, starting at %p", size, start);
+    *jpegStart = start;
     return size;
 }
 
