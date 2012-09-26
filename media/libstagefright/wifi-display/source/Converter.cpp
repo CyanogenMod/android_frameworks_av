@@ -248,6 +248,8 @@ status_t Converter::feedEncoderInputBuffers() {
         if (buffer != NULL) {
             CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
 
+            ALOGV("in: %s timeUs = %lld us", mIsVideo ? "video" : "audio", timeUs);
+
             memcpy(mEncoderInputBuffers.itemAt(bufferIndex)->data(),
                    buffer->data(),
                    buffer->size());
@@ -298,6 +300,8 @@ status_t Converter::doMoreWork() {
             notify->setInt32("what", kWhatEOS);
             notify->post();
         } else {
+            ALOGV("out: %s timeUs = %lld us", mIsVideo ? "video" : "audio", timeUs);
+
             sp<ABuffer> buffer = new ABuffer(size);
             buffer->meta()->setInt64("timeUs", timeUs);
 
