@@ -863,7 +863,7 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(width(), height());
 
     sp<MediaSource> videoSource =
-            new RepeaterSource(source, 30.0 /* rateHz */);
+            new RepeaterSource(source, 24.0 /* rateHz */);
 
     size_t numInputBuffers;
     status_t err = addSource(true /* isVideo */, videoSource, &numInputBuffers);
