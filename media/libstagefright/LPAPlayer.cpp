@@ -365,9 +365,6 @@ status_t LPAPlayer::seekTo(int64_t time_us) {
     mTimeStarted = 0;
     ALOGV("In seekTo(), mSeekTimeUs %lld",mSeekTimeUs);
     mAudioSink->flush();
-    if (mPaused) {
-        mAudioSink->pause();
-    }
     pthread_cond_signal(&decoder_cv);
     //TODO: Update the mPauseTime
     return OK;
@@ -735,8 +732,7 @@ void LPAPlayer::requestAndWaitForDecoderThreadExit() {
     if (!decoderThreadAlive)
         return;
     killDecoderThread = true;
-    if (!mReachedOutputEOS)
-        mAudioSink->flush();
+    mAudioSink->flush();
     pthread_cond_signal(&decoder_cv);
     pthread_join(decoderThread,NULL);
     ALOGV("decoder thread killed");
