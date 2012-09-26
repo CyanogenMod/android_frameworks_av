@@ -1666,15 +1666,17 @@ status_t AwesomePlayer::initAudioDecoder() {
                 mDurationUs = durationUs;
             }
         }
+        if ((LPAPlayer::mLpaInProgress == true) && (strcmp("true",audioDecoderOverrideCheck) == 0)) {
+            flags |= OMXCodec::kSoftwareCodecsOnly;
+            LPAPlayer::mLpaInProgress = false;
+        }
         if ((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
              && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)) {
 
             flags |= OMXCodec::kSoftwareCodecsOnly;
-            LPAPlayer::mLpaInProgress = true;
-        }
-
-        if ((LPAPlayer::mLpaInProgress == true) && (strcmp("true",audioDecoderOverrideCheck) == 0)) {
-            flags |= OMXCodec::kSoftwareCodecsOnly;
+            if(mDurationUs > 60000000) {
+               LPAPlayer::mLpaInProgress = true;
+            }
         }
 #endif
         mAudioSource = OMXCodec::Create(
