@@ -123,6 +123,8 @@ private:
 
     AString mClientIP;
 
+    bool mAllTracksHavePacketizerIndex;
+
     // in TCP mode
     int32_t mRTPChannel;
     int32_t mRTCPChannel;
@@ -195,6 +197,13 @@ private:
     status_t sendPacket(int32_t sessionID, const void *data, size_t size);
     status_t onFinishPlay();
     status_t onFinishPlay2();
+
+    bool allTracksHavePacketizerIndex();
+
+    status_t packetizeAccessUnit(
+            size_t trackIndex, const sp<ABuffer> &accessUnit);
+
+    status_t packetizeQueuedAccessUnits();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };
