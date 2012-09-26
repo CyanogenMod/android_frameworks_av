@@ -20,6 +20,8 @@
 
 #include <netinet/in.h>
 
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 

@@ -25,11 +25,11 @@
 #include <gui/CpuConsumer.h>
 #include "Parameters.h"
 #include "CameraMetadata.h"
-#include "Camera2Heap.h"
 
 namespace android {
 
 class Camera2Client;
+class MemoryHeapBase;
 
 namespace camera2 {
 
