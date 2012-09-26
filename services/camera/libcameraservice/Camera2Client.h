@@ -21,17 +21,15 @@
 #include "CameraService.h"
 #include "camera2/Parameters.h"
 #include "camera2/FrameProcessor.h"
+#include "camera2/StreamingProcessor.h"
 #include "camera2/JpegProcessor.h"
 #include "camera2/ZslProcessor.h"
 #include "camera2/CaptureSequencer.h"
 #include "camera2/CallbackProcessor.h"
-#include <binder/MemoryBase.h>
-#include <binder/MemoryHeapBase.h>
-#include <gui/CpuConsumer.h>
-#include <gui/BufferItemConsumer.h>
 
 namespace android {
 
+class IMemory;
 /**
  * Implements the android.hardware.camera API on top of
  * camera device HAL version 2.
@@ -184,15 +182,10 @@ private:
 
     sp<camera2::FrameProcessor> mFrameProcessor;
 
-    /* Preview related members */
+    /* Preview/Recording related members */
 
-    int mPreviewStreamId;
-    CameraMetadata mPreviewRequest;
     sp<IBinder> mPreviewSurface;
-    sp<ANativeWindow> mPreviewWindow;
-
-    status_t updatePreviewRequest(const Parameters &params);
-    status_t updatePreviewStream(const Parameters &params);
+    sp<camera2::StreamingProcessor> mStreamingProcessor;
 
     /** Preview callback related members */
 
@@ -203,35 +196,6 @@ private:
     sp<camera2::CaptureSequencer> mCaptureSequencer;
     sp<camera2::JpegProcessor> mJpegProcessor;
     sp<camera2::ZslProcessor> mZslProcessor;
-
-    /* Recording related members */
-
-    int mRecordingStreamId;
-    int mRecordingFrameCount;
-    sp<BufferItemConsumer>    mRecordingConsumer;
-    sp<ANativeWindow>  mRecordingWindow;
-    // Simple listener that forwards frame available notifications from
-    // a CPU consumer to the recording notification
-    class RecordingWaiter: public BufferItemConsumer::FrameAvailableListener {
-      public:
-        RecordingWaiter(Camera2Client *parent) : mParent(parent) {}
-        void onFrameAvailable() { mParent->onRecordingFrameAvailable(); }
-      private:
-        Camera2Client *mParent;
-    };
-    sp<RecordingWaiter>  mRecordingWaiter;
-    CameraMetadata mRecordingRequest;
-    sp<camera2::Camera2Heap> mRecordingHeap;
-
-    static const size_t kDefaultRecordingHeapCount = 8;
-    size_t mRecordingHeapCount;
-    Vector<BufferItemConsumer::BufferItem> mRecordingBuffers;
-    size_t mRecordingHeapHead, mRecordingHeapFree;
-    // Handle new recording image buffers
-    void onRecordingFrameAvailable();
-
-    status_t updateRecordingRequest(const Parameters &params);
-    status_t updateRecordingStream(const Parameters &params);
 
     /** Notification-related members */
 
