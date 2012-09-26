@@ -1297,6 +1297,10 @@ bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
     return true;
 }
 
+static inline size_t MIN(size_t a, size_t b) {
+    return (a < b) ? a : b;
+}
+
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
         size_t trackIndex, const sp<ABuffer> &accessUnit) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
@@ -1309,8 +1313,20 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
     if (mHDCP != NULL && !track->isAudio()) {
         isHDCPEncrypted = true;
 
+#if 0
+        ALOGI("in:");
+        hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
+#endif
+
+        if (mTempAccessUnit == NULL
+                || mTempAccessUnit->capacity() < accessUnit->size()) {
+            mTempAccessUnit = new ABuffer(accessUnit->size());
+        }
+
+        memcpy(mTempAccessUnit->data(), accessUnit->data(), accessUnit->size());
+
         status_t err = mHDCP->encrypt(
-                accessUnit->data(), accessUnit->size(),
+                mTempAccessUnit->data(), mTempAccessUnit->size(),
                 trackIndex  /* streamCTR */,
                 &inputCTR,
                 accessUnit->data());
@@ -1320,6 +1336,12 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
                   err);
 
             return err;
+        } else {
+#if 0
+            ALOGI("out:");
+            hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
+            ALOGI("inputCTR: 0x%016llx", inputCTR);
+#endif
         }
 
         HDCP_private_data[0] = 0x00;
