@@ -1221,8 +1221,11 @@ sp<WifiDisplaySource::PlaybackSession> WifiDisplaySource::findPlaybackSession(
 void WifiDisplaySource::disconnectClient(status_t err) {
     if (mClientSessionID != 0) {
         if (mClientInfo.mPlaybackSession != NULL) {
-            looper()->unregisterHandler(mClientInfo.mPlaybackSession->id());
+            sp<PlaybackSession> playbackSession = mClientInfo.mPlaybackSession;
             mClientInfo.mPlaybackSession.clear();
+
+            playbackSession->destroy();
+            looper()->unregisterHandler(playbackSession->id());
         }
 
         mNetSession->destroySession(mClientSessionID);
