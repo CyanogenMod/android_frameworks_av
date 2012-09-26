@@ -70,7 +70,9 @@ enum {
     GET_EFFECT_DESCRIPTOR,
     CREATE_EFFECT,
     MOVE_EFFECTS,
-    LOAD_HW_MODULE
+    LOAD_HW_MODULE,
+    GET_PRIMARY_OUTPUT_SAMPLING_RATE,
+    GET_PRIMARY_OUTPUT_FRAME_COUNT,
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -687,6 +689,23 @@ public:
         remote()->transact(LOAD_HW_MODULE, data, &reply);
         return (audio_module_handle_t) reply.readInt32();
     }
+
+    virtual int32_t getPrimaryOutputSamplingRate()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        remote()->transact(GET_PRIMARY_OUTPUT_SAMPLING_RATE, data, &reply);
+        return reply.readInt32();
+    }
+
+    virtual int32_t getPrimaryOutputFrameCount()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        remote()->transact(GET_PRIMARY_OUTPUT_FRAME_COUNT, data, &reply);
+        return reply.readInt32();
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1043,6 +1062,16 @@ status_t BnAudioFlinger::onTransact(
         case LOAD_HW_MODULE: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32(loadHwModule(data.readCString()));
+            return NO_ERROR;
+        } break;
+        case GET_PRIMARY_OUTPUT_SAMPLING_RATE: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            reply->writeInt32(getPrimaryOutputSamplingRate());
+            return NO_ERROR;
+        } break;
+        case GET_PRIMARY_OUTPUT_FRAME_COUNT: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            reply->writeInt32(getPrimaryOutputFrameCount());
             return NO_ERROR;
         } break;
         default:
