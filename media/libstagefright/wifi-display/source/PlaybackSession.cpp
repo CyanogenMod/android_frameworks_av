@@ -415,8 +415,8 @@ status_t WifiDisplaySource::PlaybackSession::play() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::finishPlay() {
-    // XXX Give the dongle 3 secs to bind its sockets.
-    (new AMessage(kWhatFinishPlay, id()))->post(3000000ll);
+    // XXX Give the dongle a second to bind its sockets.
+    (new AMessage(kWhatFinishPlay, id()))->post(1000000ll);
     return OK;
 }
 
