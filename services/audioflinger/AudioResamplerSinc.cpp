@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "AudioResamplerSinc"
+//#define LOG_NDEBUG 0
+
 #include <string.h>
 #include "AudioResamplerSinc.h"
+#include <dlfcn.h>
+#include <cutils/properties.h>
+#include <stdlib.h>
+#include <utils/Log.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -56,6 +63,14 @@ const int32_t AudioResamplerSinc::mFirCoefsDown[] = {
         0xffffff09, 0xffffff85, 0xffffffd1, 0xfffffffb, 0x0000000f, 0x00000016, 0x00000015, 0x00000012, 0x0000000d, 0x00000009, 0x00000006, 0x00000003, 0x00000002, 0x00000001, 0x00000000, 0x00000000,
         0x00000000 // this one is needed for lerping the last coefficient
 };
+
+//Define the static variables
+int AudioResamplerSinc::coefsBits;
+int  AudioResamplerSinc::cShift;
+uint32_t  AudioResamplerSinc::cMask;
+int AudioResamplerSinc::pShift;
+uint32_t AudioResamplerSinc::pMask;
+unsigned int AudioResamplerSinc::halfNumCoefs;
 
 // ----------------------------------------------------------------------------
 
@@ -133,7 +148,7 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 // ----------------------------------------------------------------------------
 
 AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
-        int inChannelCount, int32_t sampleRate)
+        int inChannelCount, int32_t sampleRate, int32_t quality)
     : AudioResampler(bitDepth, inChannelCount, sampleRate),
     mState(0)
 {
@@ -153,26 +168,89 @@ AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
      *
      */
 
-    const size_t numCoefs = 2*halfNumCoefs;
-    const size_t stateSize = numCoefs * inChannelCount * 2;
-    mState = new int16_t[stateSize];
-    memset(mState, 0, sizeof(int16_t)*stateSize);
-    mImpulse = mState + (halfNumCoefs-1)*inChannelCount;
-    mRingFull = mImpulse + (numCoefs+1)*inChannelCount;
+    mResampleCoeffLib = NULL;
+    //Intialize the parameters for resampler coefficients
+    //for high quality
+    coefsBits = RESAMPLE_FIR_LERP_INT_BITS;
+    cShift = kNumPhaseBits - coefsBits;
+    cMask  = ((1<< coefsBits)-1) <<  cShift;
+
+    pShift = kNumPhaseBits -  coefsBits - pLerpBits;
+    pMask  = ((1<< pLerpBits)-1) <<  pShift;
+
+    halfNumCoefs = RESAMPLE_FIR_NUM_COEF;
+
+    //Check if qcom highest quality can be used
+    char value[PROPERTY_VALUE_MAX];
+    //Open the dll to get the coefficients for VERY_HIGH_QUALITY
+    if (quality == VERY_HIGH_QUALITY ) {
+        mResampleCoeffLib = dlopen("libaudio-resampler.so", RTLD_NOW);
+        ALOGV("Open libaudio-resampler library = %p",mResampleCoeffLib);
+        if (mResampleCoeffLib == NULL) {
+            ALOGE("Could not open audio-resampler library: %s", dlerror());
+            return;
+        }
+        mReadResampleCoefficients = (readCoefficientsFn)dlsym(mResampleCoeffLib, "readResamplerCoefficients");
+        mReadResampleFirNumCoeff = (readResampleFirNumCoeffFn)dlsym(mResampleCoeffLib, "readResampleFirNumCoeff");
+        mReadResampleFirLerpIntBits = (readResampleFirLerpIntBitsFn)dlsym(mResampleCoeffLib,"readResampleFirLerpIntBits");
+        if (!mReadResampleCoefficients  || !mReadResampleFirNumCoeff || !mReadResampleFirLerpIntBits) {
+            mReadResampleCoefficients = NULL;
+            mReadResampleFirNumCoeff = NULL;
+            mReadResampleFirLerpIntBits = NULL;
+            dlclose(mResampleCoeffLib);
+            mResampleCoeffLib = NULL;
+            ALOGE("Could not find convert symbol: %s", dlerror());
+            return;
+        }
+        // we have 16 coefs samples per zero-crossing
+        coefsBits = mReadResampleFirLerpIntBits();
+        ALOGV("coefsBits = %d",coefsBits);
+        cShift = kNumPhaseBits - coefsBits;
+        cMask  = ((1<<coefsBits)-1) << cShift;
+        pShift = kNumPhaseBits - coefsBits - pLerpBits;
+        pMask  = ((1<<pLerpBits)-1) << pShift;
+        // number of zero-crossing on each side
+        halfNumCoefs = mReadResampleFirNumCoeff();
+        ALOGV("halfNumCoefs = %d",halfNumCoefs);
+    }
 }
+
 
 AudioResamplerSinc::~AudioResamplerSinc()
 {
+    if(mResampleCoeffLib) {
+        ALOGV("close the libaudio-resampler library");
+        dlclose(mResampleCoeffLib);
+        mResampleCoeffLib = NULL;
+        mReadResampleCoefficients = NULL;
+        mReadResampleFirNumCoeff = NULL;
+        mReadResampleFirLerpIntBits = NULL;
+    }
     delete [] mState;
 }
 
 void AudioResamplerSinc::init() {
+
+    const size_t numCoefs = 2*halfNumCoefs;
+    const size_t stateSize = numCoefs * mChannelCount * 2;
+    mState = new int16_t[stateSize];
+    memset(mState, 0, sizeof(int16_t)*stateSize);
+    mImpulse = mState + (halfNumCoefs-1)*mChannelCount;
+    mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider)
 {
-    mFirCoefs = (mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown;
+
+    if(mResampleCoeffLib){
+        ALOGV("get coefficient from libmm-audio resampler library");
+        mFirCoefs =  (mInSampleRate <= mSampleRate) ? mReadResampleCoefficients(true) : mReadResampleCoefficients(false);
+    }
+    else {
+        ALOGV("Use default coefficients");
+        mFirCoefs = (mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown;
+    }
 
     // select the appropriate resampler
     switch (mChannelCount) {
@@ -183,6 +261,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         resample<2>(out, outFrameCount, provider);
         break;
     }
+
 }
 
 
@@ -352,6 +431,5 @@ void AudioResamplerSinc::interpolate(
         r = l = mulAdd(samples[0], sinc, l);
     }
 }
-
 // ----------------------------------------------------------------------------
 }; // namespace android
