@@ -164,8 +164,6 @@ private:
 
     uint64_t mTotalBytesSent;
 
-    sp<ABuffer> mTempAccessUnit;
-
 #if LOG_TRANSPORT_STREAM
     FILE *mLogFile;
 #endif
@@ -203,7 +201,7 @@ private:
     bool allTracksHavePacketizerIndex();
 
     status_t packetizeAccessUnit(
-            size_t trackIndex, const sp<ABuffer> &accessUnit);
+            size_t trackIndex, sp<ABuffer> accessUnit);
 
     status_t packetizeQueuedAccessUnits();
 
