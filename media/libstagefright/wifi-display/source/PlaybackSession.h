@@ -107,6 +107,7 @@ private:
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
+    bool mWeAreDead;
 
     int64_t mLastLifesignUs;
 
@@ -204,6 +205,8 @@ private:
             size_t trackIndex, sp<ABuffer> accessUnit);
 
     status_t packetizeQueuedAccessUnits();
+
+    void notifySessionDead();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };

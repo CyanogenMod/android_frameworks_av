@@ -63,6 +63,7 @@ private:
         kWhatPlaybackSessionNotify,
         kWhatKeepAlive,
         kWhatHDCPNotify,
+        kWhatFinishStop2,
     };
 
     struct ResponseID {
@@ -200,10 +201,8 @@ private:
             const sp<ParsedMessage> &data, int32_t *playbackSessionID) const;
 
     // Disconnects the current client and shuts down its playback session
-    // (if any). The reason for the disconnection is OK for orderly shutdown
-    // or a nonzero error code.
-    // A listener is notified accordingly.
-    void disconnectClient(status_t err);
+    // (if any).
+    void disconnectClient();
 
     void finishStop();
     void finishStop2();
