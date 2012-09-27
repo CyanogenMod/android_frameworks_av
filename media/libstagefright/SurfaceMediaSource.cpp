@@ -193,6 +193,7 @@ status_t SurfaceMediaSource::stop()
 
     mStopped = true;
     mFrameAvailableCondition.signal();
+    mMediaBuffersAvailableCondition.signal();
 
     return mBufferQueue->consumerDisconnect();
 }

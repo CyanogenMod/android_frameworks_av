@@ -153,6 +153,8 @@ void WifiDisplaySource::PlaybackSession::Track::setPacketizerTrackIndex(size_t i
 }
 
 status_t WifiDisplaySource::PlaybackSession::Track::start() {
+    ALOGV("Track::start isAudio=%d", mIsAudio);
+
     if (mStarted) {
         return INVALID_OPERATION;
     }
@@ -171,6 +173,8 @@ status_t WifiDisplaySource::PlaybackSession::Track::start() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::Track::stop() {
+    ALOGV("Track::stop isAudio=%d", mIsAudio);
+
     if (!mStarted) {
         return INVALID_OPERATION;
     }
@@ -217,6 +221,7 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mNotify(notify),
       mInterfaceAddr(interfaceAddr),
       mHDCP(hdcp),
+      mWeAreDead(false),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
       mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
@@ -531,6 +536,10 @@ status_t WifiDisplaySource::PlaybackSession::destroy() {
 
 void WifiDisplaySource::PlaybackSession::onMessageReceived(
         const sp<AMessage> &msg) {
+    if (mWeAreDead) {
+        return;
+    }
+
     switch (msg->what()) {
         case kWhatRTPNotify:
         case kWhatRTCPNotify:
@@ -590,10 +599,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     }
 #endif
 
-                    // Inform WifiDisplaySource of our premature death (wish).
-                    sp<AMessage> notify = mNotify->dup();
-                    notify->setInt32("what", kWhatSessionDead);
-                    notify->post();
+                    notifySessionDead();
                     break;
                 }
 
@@ -714,12 +720,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                         status_t err = packetizeQueuedAccessUnits();
 
                         if (err != OK) {
-                            // Inform WifiDisplaySource of our premature death
-                            // (wish).
-                            sp<AMessage> notify = mNotify->dup();
-                            notify->setInt32("what", kWhatSessionDead);
-                            notify->post();
-
+                            notifySessionDead();
                             break;
                         }
                     }
@@ -736,11 +737,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 status_t err = packetizeAccessUnit(trackIndex, accessUnit);
 
                 if (err != OK) {
-                    // Inform WifiDisplaySource of our premature death
-                    // (wish).
-                    sp<AMessage> notify = mNotify->dup();
-                    notify->setInt32("what", kWhatSessionDead);
-                    notify->post();
+                    notifySessionDead();
                 }
                 break;
             } else if (what == Converter::kWhatEOS) {
@@ -768,10 +765,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
                 ALOGE("converter signaled error %d", err);
 
-                // Inform WifiDisplaySource of our premature death (wish).
-                sp<AMessage> notify = mNotify->dup();
-                notify->setInt32("what", kWhatSessionDead);
-                notify->post();
+                notifySessionDead();
             }
             break;
         }
@@ -1480,6 +1474,15 @@ status_t WifiDisplaySource::PlaybackSession::packetizeQueuedAccessUnits() {
     }
 
     return OK;
+}
+
+void WifiDisplaySource::PlaybackSession::notifySessionDead() {
+    // Inform WifiDisplaySource of our premature death (wish).
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatSessionDead);
+    notify->post();
+
+    mWeAreDead = true;
 }
 
 }  // namespace android

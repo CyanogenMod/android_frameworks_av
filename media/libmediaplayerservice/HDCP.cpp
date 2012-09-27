@@ -51,6 +51,8 @@ HDCP::HDCP()
 }
 
 HDCP::~HDCP() {
+    Mutex::Autolock autoLock(mLock);
+
     if (mHDCPModule != NULL) {
         delete mHDCPModule;
         mHDCPModule = NULL;
@@ -63,6 +65,8 @@ HDCP::~HDCP() {
 }
 
 status_t HDCP::setObserver(const sp<IHDCPObserver> &observer) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mHDCPModule == NULL) {
         return NO_INIT;
     }
@@ -73,6 +77,8 @@ status_t HDCP::setObserver(const sp<IHDCPObserver> &observer) {
 }
 
 status_t HDCP::initAsync(const char *host, unsigned port) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mHDCPModule == NULL) {
         return NO_INIT;
     }
@@ -81,6 +87,8 @@ status_t HDCP::initAsync(const char *host, unsigned port) {
 }
 
 status_t HDCP::shutdownAsync() {
+    Mutex::Autolock autoLock(mLock);
+
     if (mHDCPModule == NULL) {
         return NO_INIT;
     }
@@ -91,6 +99,8 @@ status_t HDCP::shutdownAsync() {
 status_t HDCP::encrypt(
         const void *inData, size_t size, uint32_t streamCTR,
         uint64_t *outInputCTR, void *outData) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mHDCPModule == NULL) {
         *outInputCTR = 0;
 
@@ -106,6 +116,8 @@ void HDCP::ObserveWrapper(void *me, int msg, int ext1, int ext2) {
 }
 
 void HDCP::observe(int msg, int ext1, int ext2) {
+    Mutex::Autolock autoLock(mLock);
+
     if (mObserver != NULL) {
         mObserver->notify(msg, ext1, ext2, NULL /* obj */);
     }
