@@ -125,7 +125,7 @@ status_t Converter::initEncoder() {
     } else {
         mOutputFormat->setInt32("bitrate", videoBitrate);
         mOutputFormat->setInt32("frame-rate", 24);
-        mOutputFormat->setInt32("i-frame-interval", 2);  // Iframes every 2 secs
+        mOutputFormat->setInt32("i-frame-interval", 1);  // Iframes every 1 secs
     }
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
