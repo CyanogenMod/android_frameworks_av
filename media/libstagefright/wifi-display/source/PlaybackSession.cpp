@@ -24,11 +24,13 @@
 #include "MediaPuller.h"
 #include "RepeaterSource.h"
 #include "TSPacketizer.h"
+#include "include/avc_utils.h"
 
 #include <binder/IServiceManager.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <media/IHDCP.h>
+#include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -1302,7 +1304,7 @@ static inline size_t MIN(size_t a, size_t b) {
 }
 
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
-        size_t trackIndex, const sp<ABuffer> &accessUnit) {
+        size_t trackIndex, sp<ABuffer> accessUnit) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
 
     uint32_t flags = 0;
@@ -1318,15 +1320,14 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
         hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
 #endif
 
-        if (mTempAccessUnit == NULL
-                || mTempAccessUnit->capacity() < accessUnit->size()) {
-            mTempAccessUnit = new ABuffer(accessUnit->size());
+        if (IsIDR(accessUnit)) {
+            // XXX remove this once the encoder takes care of this.
+            accessUnit = mPacketizer->prependCSD(
+                    track->packetizerTrackIndex(), accessUnit);
         }
 
-        memcpy(mTempAccessUnit->data(), accessUnit->data(), accessUnit->size());
-
         status_t err = mHDCP->encrypt(
-                mTempAccessUnit->data(), mTempAccessUnit->size(),
+                accessUnit->data(), accessUnit->size(),
                 trackIndex  /* streamCTR */,
                 &inputCTR,
                 accessUnit->data());
@@ -1341,6 +1342,7 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
             ALOGI("out:");
             hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
             ALOGI("inputCTR: 0x%016llx", inputCTR);
+            ALOGI("streamCTR: 0x%08x", trackIndex);
 #endif
         }
 
@@ -1383,6 +1385,31 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
 
         HDCP_private_data[15] =
             ((inputCTR & 0x7f) << 1) | 1;
+
+#if 0
+        ALOGI("HDCP_private_data:");
+        hexdump(HDCP_private_data, sizeof(HDCP_private_data));
+
+        ABitReader br(HDCP_private_data, sizeof(HDCP_private_data));
+        CHECK_EQ(br.getBits(13), 0);
+        CHECK_EQ(br.getBits(2), (trackIndex >> 30) & 3);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), (trackIndex >> 15) & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), trackIndex & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(11), 0);
+        CHECK_EQ(br.getBits(4), (inputCTR >> 60) & 0xf);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), (inputCTR >> 45) & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), (inputCTR >> 30) & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), (inputCTR >> 15) & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+        CHECK_EQ(br.getBits(15), inputCTR & 0x7fff);
+        CHECK_EQ(br.getBits(1), 1u);
+#endif
 
         flags |= TSPacketizer::IS_ENCRYPTED;
     }
