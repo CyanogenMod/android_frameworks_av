@@ -702,5 +702,22 @@ uint32_t TSPacketizer::crc32(const uint8_t *start, size_t size) const {
     return crc;
 }
 
+sp<ABuffer> TSPacketizer::prependCSD(
+        size_t trackIndex, const sp<ABuffer> &accessUnit) const {
+    CHECK_LT(trackIndex, mTracks.size());
+
+    const sp<Track> &track = mTracks.itemAt(trackIndex);
+    CHECK(track->isH264() && IsIDR(accessUnit));
+
+    int64_t timeUs;
+    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
+    sp<ABuffer> accessUnit2 = track->prependCSD(accessUnit);
+
+    accessUnit2->meta()->setInt64("timeUs", timeUs);
+
+    return accessUnit2;
+}
+
 }  // namespace android
 
