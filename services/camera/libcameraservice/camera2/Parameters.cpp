@@ -94,16 +94,16 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
             String8::format("%d,%d",
-                    previewFpsRange[0],
-                    previewFpsRange[1]));
+                    previewFpsRange[0] * kFpsToApiScale,
+                    previewFpsRange[1] * kFpsToApiScale));
 
     {
         String8 supportedPreviewFpsRange;
         for (size_t i=0; i < availableFpsRanges.count; i += 2) {
             if (i != 0) supportedPreviewFpsRange += ",";
             supportedPreviewFpsRange += String8::format("(%d,%d)",
-                    availableFpsRanges.data.i32[i],
-                    availableFpsRanges.data.i32[i+1]);
+                    availableFpsRanges.data.i32[i] * kFpsToApiScale,
+                    availableFpsRanges.data.i32[i+1] * kFpsToApiScale);
         }
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,
                 supportedPreviewFpsRange);
@@ -171,14 +171,14 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     // still have to do something sane for them
 
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
-            previewFpsRange[0]);
+            previewFpsRange[0] * kFpsToApiScale);
 
     {
         String8 supportedPreviewFrameRates;
         for (size_t i=0; i < availableFpsRanges.count; i += 2) {
             if (i != 0) supportedPreviewFrameRates += ",";
             supportedPreviewFrameRates += String8::format("%d",
-                    availableFpsRanges.data.i32[i]);
+                    availableFpsRanges.data.i32[i] * kFpsToApiScale);
         }
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
                 supportedPreviewFrameRates);
@@ -894,6 +894,9 @@ status_t Parameters::set(const String8& params) {
     bool fpsRangeChanged = false;
     newParams.getPreviewFpsRange(&validatedParams.previewFpsRange[0],
             &validatedParams.previewFpsRange[1]);
+    validatedParams.previewFpsRange[0] /= kFpsToApiScale;
+    validatedParams.previewFpsRange[1] /= kFpsToApiScale;
+
     if (validatedParams.previewFpsRange[0] != previewFpsRange[0] ||
             validatedParams.previewFpsRange[1] != previewFpsRange[1]) {
         fpsRangeChanged = true;
@@ -943,7 +946,7 @@ status_t Parameters::set(const String8& params) {
     // Deprecated, only use if the preview fps range is unchanged this time.
     // The single-value FPS is the same as the minimum of the range.
     if (!fpsRangeChanged) {
-        validatedParams.previewFps = newParams.getPreviewFrameRate();
+        validatedParams.previewFps = newParams.getPreviewFrameRate() / kFpsToApiScale;
         if (validatedParams.previewFps != previewFps) {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
