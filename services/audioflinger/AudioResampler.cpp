@@ -23,8 +23,8 @@
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include "AudioResampler.h"
-#if 0
 #include "AudioResamplerSinc.h"
+#if 0
 #include "AudioResamplerCubic.h"
 #endif
 
@@ -106,11 +106,14 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         ALOGV("Create cubic Resampler");
         resampler = new AudioResamplerCubic(bitDepth, inChannelCount, sampleRate);
         break;
-    case HIGH_QUALITY:
-        ALOGV("Create sinc Resampler");
-        resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate);
-        break;
 #endif
+    case HIGH_QUALITY:
+        ALOGV("Create HIGH_QUALITY sinc Resampler");
+        resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate);
+    case VERY_HIGH_QUALITY:
+        ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d",quality);
+        resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate, quality);
+        break;
     }
 
     // initialize resampler

@@ -25,11 +25,16 @@
 
 namespace android {
 
+
+typedef const int32_t * (*readCoefficientsFn)(bool upDownSample);
+typedef int32_t  (*readResampleFirNumCoeffFn)();
+typedef int32_t  (*readResampleFirLerpIntBitsFn)();
+
 // ----------------------------------------------------------------------------
 
 class AudioResamplerSinc : public AudioResampler {
 public:
-    AudioResamplerSinc(int bitDepth, int inChannelCount, int32_t sampleRate);
+    AudioResamplerSinc(int bitDepth, int inChannelCount, int32_t sampleRate, int32_t quality = HIGH_QUALITY);
 
     virtual ~AudioResamplerSinc();
 
@@ -55,6 +60,10 @@ private:
     inline void read(int16_t*& impulse, uint32_t& phaseFraction,
             const int16_t* in, size_t inputIndex);
 
+    readCoefficientsFn mReadResampleCoefficients ;
+    readResampleFirNumCoeffFn mReadResampleFirNumCoeff;
+    readResampleFirLerpIntBitsFn mReadResampleFirLerpIntBits;
+
     int16_t *mState;
     int16_t *mImpulse;
     int16_t *mRingFull;
@@ -63,23 +72,24 @@ private:
     static const int32_t mFirCoefsDown[];
     static const int32_t mFirCoefsUp[];
 
+    void * mResampleCoeffLib;
     // ----------------------------------------------------------------------------
     static const int32_t RESAMPLE_FIR_NUM_COEF       = 8;
     static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 4;
 
     // we have 16 coefs samples per zero-crossing
-    static const int coefsBits = RESAMPLE_FIR_LERP_INT_BITS;        // 4
-    static const int cShift = kNumPhaseBits - coefsBits;            // 26
-    static const uint32_t cMask  = ((1<<coefsBits)-1) << cShift;    // 0xf<<26 = 3c00 0000
+    static int coefsBits;
+    static int cShift;
+    static uint32_t cMask;
 
     // and we use 15 bits to interpolate between these samples
     // this cannot change because the mul below rely on it.
     static const int pLerpBits = 15;
-    static const int pShift = kNumPhaseBits - coefsBits - pLerpBits;    // 11
-    static const uint32_t pMask  = ((1<<pLerpBits)-1) << pShift;    // 0x7fff << 11
+    static int pShift;
+    static uint32_t pMask;
 
     // number of zero-crossing on each side
-    static const unsigned int halfNumCoefs = RESAMPLE_FIR_NUM_COEF;
+    static  unsigned int halfNumCoefs;
 };
 
 // ----------------------------------------------------------------------------
