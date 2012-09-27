@@ -19,6 +19,7 @@
 #define HDCP_H_
 
 #include <media/IHDCP.h>
+#include <utils/Mutex.h>
 
 namespace android {
 
@@ -35,6 +36,8 @@ struct HDCP : public BnHDCP {
             uint64_t *outInputCTR, void *outData);
 
 private:
+    Mutex mLock;
+
     void *mLibHandle;
     HDCPModule *mHDCPModule;
     sp<IHDCPObserver> mObserver;
