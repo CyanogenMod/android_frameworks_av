@@ -597,11 +597,7 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
                 sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
                 // Check if the session ID is already associated with a track
                 uint32_t sessions = t->hasAudioSession(*sessionId);
-                if (sessions & PlaybackThread::TRACK_SESSION) {
-                    ALOGE("There is a track already associated with this session %d", *sessionId);
-                    lStatus = BAD_VALUE;
-                    goto Exit;
-                }
+
                 // check if an effect with same session ID is waiting for a ssession to be created
                 ALOGV("check if an effect with same session ID is waiting for a ssession to be created");
                 if ((mLPAEffectChain == NULL) && (sessions & PlaybackThread::EFFECT_SESSION)) {
@@ -609,17 +605,16 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
                     t->mLock.lock();
                     ALOGV("getting the LPA effect chain and setting LPA flag to true.");
                     mLPAEffectChain = t->getEffectChain_l(*sessionId);
-                    mLPAEffectChain->setLPAFlag(true);
-                    // For LPA, the volume will be applied in DSP. No need for volume
-                    // control in the Effect chain, so setting it to unity.
-                    uint32_t volume = 0x1000000; // Equals to 1.0 in 8.24 format
-                    mLPAEffectChain->setVolume_l(&volume,&volume);
                     t->mLock.unlock();
                 }
             }
             mLPASessionId = *sessionId;
             if (mLPAEffectChain != NULL) {
                 mLPAEffectChain->setLPAFlag(true);
+                // For LPA, the volume will be applied in DSP. No need for volume
+                // control in the Effect chain, so setting it to unity.
+                uint32_t volume = 0x1000000; // Equals to 1.0 in 8.24 format
+                mLPAEffectChain->setVolume_l(&volume,&volume);
             } else {
                 ALOGW("There was no effectChain created for the sessionId(%d)", mLPASessionId);
             }

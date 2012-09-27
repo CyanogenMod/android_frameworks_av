@@ -367,6 +367,7 @@ status_t AudioTrack::set(
                                                         &status);
         if(status != NO_ERROR) {
             ALOGE("createDirectTrack returned with status %d", status);
+            return status;
         }
         mAudioTrack = NULL;
         mSharedBuffer = NULL;
