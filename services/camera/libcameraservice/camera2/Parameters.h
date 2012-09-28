@@ -223,6 +223,8 @@ struct Parameters {
     // Map from camera orientation + facing to gralloc transform enum
     static int degToTransform(int degrees, bool mirror);
 
+    static const int kFpsToApiScale = 1000;
+
     // Transform between (-1000,-1000)-(1000,1000) normalized coords from camera
     // API and HAL2 (0,0)-(activePixelArray.width/height) coordinates
     int arrayXToNormalized(int width) const;
