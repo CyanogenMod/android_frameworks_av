@@ -50,6 +50,8 @@ status_t RepeaterSource::start(MetaData *params) {
 }
 
 status_t RepeaterSource::stop() {
+    ALOGV("stopping");
+
     if (mLooper != NULL) {
         mLooper->stop();
         mLooper.clear();
@@ -57,7 +59,17 @@ status_t RepeaterSource::stop() {
         mReflector.clear();
     }
 
-    return mSource->stop();
+    if (mBuffer != NULL) {
+        ALOGV("releasing mbuf %p", mBuffer);
+        mBuffer->release();
+        mBuffer = NULL;
+    }
+
+    status_t err = mSource->stop();
+
+    ALOGV("stopped");
+
+    return err;
 }
 
 sp<MetaData> RepeaterSource::getFormat() {
@@ -116,6 +128,8 @@ void RepeaterSource::onMessageReceived(const sp<AMessage> &msg) {
         {
             MediaBuffer *buffer;
             status_t err = mSource->read(&buffer);
+
+            ALOGV("read mbuf %p", buffer);
 
             Mutex::Autolock autoLock(mLock);
             if (mBuffer != NULL) {

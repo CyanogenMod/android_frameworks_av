@@ -65,33 +65,20 @@ status_t MediaPuller::start() {
     return postSynchronouslyAndReturnError(new AMessage(kWhatStart, id()));
 }
 
-status_t MediaPuller::stop() {
-    return postSynchronouslyAndReturnError(new AMessage(kWhatStop, id()));
+void MediaPuller::stopAsync(const sp<AMessage> &notify) {
+    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    msg->setMessage("notify", notify);
+    msg->post();
 }
 
 void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStart:
-        case kWhatStop:
         {
-            status_t err;
+            status_t err = mSource->start();
 
-            if (msg->what() == kWhatStart) {
-                err = mSource->start();
-
-                if (err == OK) {
-                    schedulePull();
-                }
-            } else {
-                sp<MetaData> meta = mSource->getFormat();
-                const char *tmp;
-                CHECK(meta->findCString(kKeyMIMEType, &tmp));
-                AString mime = tmp;
-
-                ALOGI("MediaPuller(%s) stopping.", mime.c_str());
-                err = mSource->stop();
-                ALOGI("MediaPuller(%s) stopped.", mime.c_str());
-                ++mPullGeneration;
+            if (err == OK) {
+                schedulePull();
             }
 
             sp<AMessage> response = new AMessage;
@@ -101,6 +88,24 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             response->postReply(replyID);
+            break;
+        }
+
+        case kWhatStop:
+        {
+            sp<MetaData> meta = mSource->getFormat();
+            const char *tmp;
+            CHECK(meta->findCString(kKeyMIMEType, &tmp));
+            AString mime = tmp;
+
+            ALOGI("MediaPuller(%s) stopping.", mime.c_str());
+            mSource->stop();
+            ALOGI("MediaPuller(%s) stopped.", mime.c_str());
+            ++mPullGeneration;
+
+            sp<AMessage> notify;
+            CHECK(msg->findMessage("notify", &notify));
+            notify->post();
             break;
         }
 
@@ -152,6 +157,10 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
                 notify->setInt32("what", kWhatAccessUnit);
                 notify->setBuffer("accessUnit", accessUnit);
                 notify->post();
+
+                if (mbuf != NULL) {
+                    ALOGV("posted mbuf %p", mbuf);
+                }
 
                 schedulePull();
             }

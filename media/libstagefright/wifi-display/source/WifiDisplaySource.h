@@ -200,11 +200,10 @@ private:
     sp<PlaybackSession> findPlaybackSession(
             const sp<ParsedMessage> &data, int32_t *playbackSessionID) const;
 
-    // Disconnects the current client and shuts down its playback session
-    // (if any).
-    void disconnectClient();
-
     void finishStop();
+    void disconnectClientAsync();
+    void disconnectClient2();
+    void finishStopAfterDisconnectingClient();
     void finishStop2();
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySource);
