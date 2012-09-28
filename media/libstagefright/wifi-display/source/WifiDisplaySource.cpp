@@ -1140,9 +1140,11 @@ void WifiDisplaySource::finishStop2() {
     ALOGV("finishStop2");
 
 #if REQUIRE_HDCP
-    mHDCP->setObserver(NULL);
-    mHDCPObserver.clear();
-    mHDCP.clear();
+    if (mHDCP != NULL) {
+        mHDCP->setObserver(NULL);
+        mHDCPObserver.clear();
+        mHDCP.clear();
+    }
 #endif
 
     if (mSessionID != 0) {
