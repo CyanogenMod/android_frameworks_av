@@ -114,7 +114,7 @@ status_t Converter::initEncoder() {
     mOutputFormat = mInputFormat->dup();
     mOutputFormat->setString("mime", outputMIME.c_str());
 
-    int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 64000);
+    int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 128000);
     int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
 
     ALOGI("using audio bitrate of %d bps, video bitrate of %d bps",
