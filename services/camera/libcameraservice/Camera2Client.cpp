@@ -334,6 +334,10 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         result.appendFormat("    useZslFormat\n");
         haveQuirk = true;
     }
+    if (p.quirks.meteringCropRegion) {
+        result.appendFormat("    meteringCropRegion\n");
+        haveQuirk = true;
+    }
     if (!haveQuirk) {
         result.appendFormat("    none\n");
     }
