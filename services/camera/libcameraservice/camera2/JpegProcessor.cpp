@@ -233,10 +233,8 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     }
 
     // Find size of JPEG image
-    uint8_t *jpegStart; // points to start of buffer in imgBuffer.data
-    size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width, &jpegStart);
+    size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width);
     if (jpegSize == 0) { // failed to find size, default to whole buffer
-        jpegStart = imgBuffer.data;
         jpegSize = imgBuffer.width;
     }
     size_t heapSize = mCaptureHeap->getSize();
@@ -250,7 +248,7 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     // TODO: Optimize this to avoid memcopy
     sp<MemoryBase> captureBuffer = new MemoryBase(mCaptureHeap, 0, jpegSize);
     void* captureMemory = mCaptureHeap->getBase();
-    memcpy(captureMemory, jpegStart, jpegSize);
+    memcpy(captureMemory, imgBuffer.data, jpegSize);
 
     mCaptureConsumer->unlockBuffer(imgBuffer);
 
@@ -322,24 +320,20 @@ uint8_t checkJpegMarker(uint8_t *buf) {
 }
 
 // Return the size of the JPEG, 0 indicates failure
-size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
-                                   size_t maxSize,
-                                   uint8_t** jpegStart) {
-    uint8_t *start;
+size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer, size_t maxSize) {
     size_t size;
 
-    // First check for JPEG transport header
-    struct camera2_jpeg_blob *blob = (struct camera2_jpeg_blob*)(jpegBuffer);
+    // First check for JPEG transport header at the end of the buffer
+    uint8_t *header = jpegBuffer + (maxSize - sizeof(struct camera2_jpeg_blob));
+    struct camera2_jpeg_blob *blob = (struct camera2_jpeg_blob*)(header);
     if (blob->jpeg_blob_id == CAMERA2_JPEG_BLOB_ID) {
         size = blob->jpeg_size;
         if (size > 0 && size <= maxSize - sizeof(struct camera2_jpeg_blob)) {
             // Verify SOI and EOI markers
-            uint8_t *start = blob->jpeg_data;
             size_t offset = size - MARKER_LENGTH;
-            uint8_t *end = blob->jpeg_data + offset;
-            if (checkJpegStart(start) && checkJpegEnd(end)) {
+            uint8_t *end = jpegBuffer + offset;
+            if (checkJpegStart(jpegBuffer) && checkJpegEnd(end)) {
                 ALOGV("Found JPEG transport header, img size %d", size);
-                *jpegStart = start;
                 return size;
             } else {
                 ALOGW("Found JPEG transport header with bad Image Start/End");
@@ -349,30 +343,16 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
         }
     }
 
-    // Find Start of Image
-    // This lets us handle malformed transport headers by skipping them
-    bool foundStart = false;
-    for (size = 0; size <= sizeof(struct camera2_jpeg_blob); size++) {
-        if ( checkJpegStart(jpegBuffer + size) ) {
-            foundStart = true;
-            start = jpegBuffer + size;
-            maxSize = maxSize - size; // adjust accordingly
-            break;
-        }
-    }
-    if (!foundStart) {
+    // Check Start of Image
+    if ( !checkJpegStart(jpegBuffer) ) {
         ALOGE("Could not find start of JPEG marker");
         return 0;
-    }
-    if (size != 0) { // Image starts at offset from beginning
-        // We want the jpeg to start at the first byte; so emit warning
-        ALOGW("JPEG Image starts at offset %d", size);
     }
 
     // Read JFIF segment markers, skip over segment data
     size = 0;
     while (size <= maxSize - MARKER_LENGTH) {
-        segment_t *segment = (segment_t*)(start + size);
+        segment_t *segment = (segment_t*)(jpegBuffer + size);
         uint8_t type = checkJpegMarker(segment->marker);
         if (type == 0) { // invalid marker, no more segments, begin JPEG data
             ALOGV("JPEG stream found beginning at offset %d", size);
@@ -390,8 +370,8 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
     // Find End of Image
     // Scan JPEG buffer until End of Image (EOI)
     bool foundEnd = false;
-    for (size; size <= maxSize; size++) {
-        if ( checkJpegEnd(start + size) ) {
+    for (size; size <= maxSize - MARKER_LENGTH; size++) {
+        if ( checkJpegEnd(jpegBuffer + size) ) {
             foundEnd = true;
             size += MARKER_LENGTH;
             break;
@@ -406,8 +386,7 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer,
         ALOGW("JPEG size %d too large, reducing to maxSize %d", size, maxSize);
         size = maxSize;
     }
-    ALOGV("Final JPEG size %d, starting at %p", size, start);
-    *jpegStart = start;
+    ALOGV("Final JPEG size %d", size);
     return size;
 }
 
