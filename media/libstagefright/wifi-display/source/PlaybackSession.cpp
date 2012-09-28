@@ -53,13 +53,16 @@ namespace android {
 static size_t kMaxRTPPacketSize = 1500;
 static size_t kMaxNumTSPacketsPerRTPPacket = (kMaxRTPPacketSize - 12) / 188;
 
-struct WifiDisplaySource::PlaybackSession::Track : public RefBase {
-    Track(const sp<ALooper> &pullLooper,
+struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
+    enum {
+        kWhatStopped,
+    };
+
+    Track(const sp<AMessage> &notify,
+          const sp<ALooper> &pullLooper,
           const sp<ALooper> &codecLooper,
           const sp<MediaPuller> &mediaPuller,
           const sp<Converter> &converter);
-
-    Track(const sp<AMessage> &format);
 
     sp<AMessage> getFormat();
     bool isAudio() const;
@@ -70,20 +73,27 @@ struct WifiDisplaySource::PlaybackSession::Track : public RefBase {
     void setPacketizerTrackIndex(size_t index);
 
     status_t start();
-    status_t stop();
+    void stopAsync();
+
+    bool isStopped() const { return !mStarted; }
 
     void queueAccessUnit(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueAccessUnit();
 
 protected:
+    virtual void onMessageReceived(const sp<AMessage> &msg);
     virtual ~Track();
 
 private:
+    enum {
+        kWhatMediaPullerStopped,
+    };
+
+    sp<AMessage> mNotify;
     sp<ALooper> mPullLooper;
     sp<ALooper> mCodecLooper;
     sp<MediaPuller> mMediaPuller;
     sp<Converter> mConverter;
-    sp<AMessage> mFormat;
     bool mStarted;
     ssize_t mPacketizerTrackIndex;
     bool mIsAudio;
@@ -95,11 +105,13 @@ private:
 };
 
 WifiDisplaySource::PlaybackSession::Track::Track(
+        const sp<AMessage> &notify,
         const sp<ALooper> &pullLooper,
         const sp<ALooper> &codecLooper,
         const sp<MediaPuller> &mediaPuller,
         const sp<Converter> &converter)
-    : mPullLooper(pullLooper),
+    : mNotify(notify),
+      mPullLooper(pullLooper),
       mCodecLooper(codecLooper),
       mMediaPuller(mediaPuller),
       mConverter(converter),
@@ -108,14 +120,8 @@ WifiDisplaySource::PlaybackSession::Track::Track(
       mIsAudio(IsAudioFormat(mConverter->getOutputFormat())) {
 }
 
-WifiDisplaySource::PlaybackSession::Track::Track(const sp<AMessage> &format)
-    : mFormat(format),
-      mPacketizerTrackIndex(-1),
-      mIsAudio(IsAudioFormat(mFormat)) {
-}
-
 WifiDisplaySource::PlaybackSession::Track::~Track() {
-    stop();
+    CHECK(!mStarted);
 }
 
 // static
@@ -128,10 +134,6 @@ bool WifiDisplaySource::PlaybackSession::Track::IsAudioFormat(
 }
 
 sp<AMessage> WifiDisplaySource::PlaybackSession::Track::getFormat() {
-    if (mFormat != NULL) {
-        return mFormat;
-    }
-
     return mConverter->getOutputFormat();
 }
 
@@ -155,9 +157,7 @@ void WifiDisplaySource::PlaybackSession::Track::setPacketizerTrackIndex(size_t i
 status_t WifiDisplaySource::PlaybackSession::Track::start() {
     ALOGV("Track::start isAudio=%d", mIsAudio);
 
-    if (mStarted) {
-        return INVALID_OPERATION;
-    }
+    CHECK(!mStarted);
 
     status_t err = OK;
 
@@ -172,24 +172,40 @@ status_t WifiDisplaySource::PlaybackSession::Track::start() {
     return err;
 }
 
-status_t WifiDisplaySource::PlaybackSession::Track::stop() {
-    ALOGV("Track::stop isAudio=%d", mIsAudio);
+void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
+    ALOGV("Track::stopAsync isAudio=%d", mIsAudio);
 
-    if (!mStarted) {
-        return INVALID_OPERATION;
-    }
+    CHECK(mStarted);
 
-    status_t err = OK;
+    mConverter->shutdownAsync();
+
+    sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, id());
 
     if (mMediaPuller != NULL) {
-        err = mMediaPuller->stop();
+        mMediaPuller->stopAsync(msg);
+    } else {
+        msg->post();
     }
+}
 
-    mConverter.clear();
+void WifiDisplaySource::PlaybackSession::Track::onMessageReceived(
+        const sp<AMessage> &msg) {
+    switch (msg->what()) {
+        case kWhatMediaPullerStopped:
+        {
+            mConverter.clear();
 
-    mStarted = false;
+            mStarted = false;
 
-    return err;
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("what", kWhatStopped);
+            notify->post();
+            break;
+        }
+
+        default:
+            TRESPASS();
+    }
 }
 
 void WifiDisplaySource::PlaybackSession::Track::queueAccessUnit(
@@ -482,15 +498,7 @@ status_t WifiDisplaySource::PlaybackSession::onFinishPlay2() {
     }
 
     for (size_t i = 0; i < mTracks.size(); ++i) {
-        status_t err = mTracks.editValueAt(i)->start();
-
-        if (err != OK) {
-            for (size_t j = 0; j < i; ++j) {
-                mTracks.editValueAt(j)->stop();
-            }
-
-            return err;
-        }
+        CHECK_EQ((status_t)OK, mTracks.editValueAt(i)->start());
     }
 
     sp<AMessage> notify = mNotify->dup();
@@ -506,32 +514,12 @@ status_t WifiDisplaySource::PlaybackSession::pause() {
     return OK;
 }
 
-status_t WifiDisplaySource::PlaybackSession::destroy() {
-    mTracks.clear();
+void WifiDisplaySource::PlaybackSession::destroyAsync() {
+    ALOGI("destroyAsync");
 
-    mPacketizer.clear();
-
-    mTracks.clear();
-
-#if ENABLE_RETRANSMISSION
-    if (mRTCPRetransmissionSessionID != 0) {
-        mNetSession->destroySession(mRTCPRetransmissionSessionID);
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        mTracks.valueAt(i)->stopAsync();
     }
-
-    if (mRTPRetransmissionSessionID != 0) {
-        mNetSession->destroySession(mRTPRetransmissionSessionID);
-    }
-#endif
-
-    if (mRTCPSessionID != 0) {
-        mNetSession->destroySession(mRTCPSessionID);
-    }
-
-    if (mRTPSessionID != 0) {
-        mNetSession->destroySession(mRTPSessionID);
-    }
-
-    return OK;
 }
 
 void WifiDisplaySource::PlaybackSession::onMessageReceived(
@@ -669,32 +657,6 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             break;
         }
 
-        case kWhatMediaPullerNotify:
-        {
-            int32_t what;
-            CHECK(msg->findInt32("what", &what));
-
-            if (what == MediaPuller::kWhatEOS) {
-                ALOGI("input eos");
-
-                for (size_t i = 0; i < mTracks.size(); ++i) {
-                    mTracks.valueAt(i)->converter()->signalEOS();
-                }
-            } else {
-                CHECK_EQ(what, MediaPuller::kWhatAccessUnit);
-
-                size_t trackIndex;
-                CHECK(msg->findSize("trackIndex", &trackIndex));
-
-                sp<ABuffer> accessUnit;
-                CHECK(msg->findBuffer("accessUnit", &accessUnit));
-
-                mTracks.valueFor(trackIndex)->converter()
-                    ->feedAccessUnit(accessUnit);
-            }
-            break;
-        }
-
         case kWhatConverterNotify:
         {
             int32_t what;
@@ -776,6 +738,57 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             break;
         }
 
+        case kWhatTrackNotify:
+        {
+            int32_t what;
+            CHECK(msg->findInt32("what", &what));
+
+            size_t trackIndex;
+            CHECK(msg->findSize("trackIndex", &trackIndex));
+
+            if (what == Track::kWhatStopped) {
+                bool allTracksAreStopped = true;
+                for (size_t i = 0; i < mTracks.size(); ++i) {
+                    const sp<Track> &track = mTracks.valueAt(i);
+                    if (!track->isStopped()) {
+                        allTracksAreStopped = false;
+                        break;
+                    }
+                }
+
+                if (!allTracksAreStopped) {
+                    break;
+                }
+
+                mTracks.clear();
+
+                mPacketizer.clear();
+
+#if ENABLE_RETRANSMISSION
+                if (mRTCPRetransmissionSessionID != 0) {
+                    mNetSession->destroySession(mRTCPRetransmissionSessionID);
+                }
+
+                if (mRTPRetransmissionSessionID != 0) {
+                    mNetSession->destroySession(mRTPRetransmissionSessionID);
+                }
+#endif
+
+                if (mRTCPSessionID != 0) {
+                    mNetSession->destroySession(mRTCPSessionID);
+                }
+
+                if (mRTPSessionID != 0) {
+                    mNetSession->destroySession(mRTPSessionID);
+                }
+
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatSessionDestroyed);
+                notify->post();
+            }
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -817,11 +830,6 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     trackIndex = mTracks.size();
 
-    notify = new AMessage(kWhatMediaPullerNotify, id());
-    notify->setSize("trackIndex", trackIndex);
-    sp<MediaPuller> puller = new MediaPuller(source, notify);
-    pullLooper->registerHandler(puller);
-
     sp<AMessage> format;
     status_t err = convertMetaDataToMessage(source->getFormat(), &format);
     CHECK_EQ(err, (status_t)OK);
@@ -842,11 +850,25 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     looper()->registerHandler(converter);
 
+    notify = new AMessage(Converter::kWhatMediaPullerNotify, converter->id());
+    notify->setSize("trackIndex", trackIndex);
+
+    sp<MediaPuller> puller = new MediaPuller(source, notify);
+    pullLooper->registerHandler(puller);
+
     if (numInputBuffers != NULL) {
         *numInputBuffers = converter->getInputBufferCount();
     }
 
-    mTracks.add(trackIndex, new Track(pullLooper, codecLooper, puller, converter));
+    notify = new AMessage(kWhatTrackNotify, id());
+    notify->setSize("trackIndex", trackIndex);
+
+    sp<Track> track = new Track(
+            notify, pullLooper, codecLooper, puller, converter);
+
+    looper()->registerHandler(track);
+
+    mTracks.add(trackIndex, track);
 
     if (isVideo) {
         mVideoTrackIndex = trackIndex;

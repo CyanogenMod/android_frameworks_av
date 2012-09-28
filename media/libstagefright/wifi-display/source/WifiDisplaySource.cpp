@@ -293,6 +293,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                             mClientInfo.mPlaybackSession->height(),
                             0 /* flags */);
                 }
+            } else if (what == PlaybackSession::kWhatSessionDestroyed) {
+                disconnectClient2();
             } else {
                 CHECK_EQ(what, PlaybackSession::kWhatBinaryData);
 
@@ -1117,6 +1119,12 @@ status_t WifiDisplaySource::onTeardownRequest(
 void WifiDisplaySource::finishStop() {
     ALOGV("finishStop");
 
+    disconnectClientAsync();
+}
+
+void WifiDisplaySource::finishStopAfterDisconnectingClient() {
+    ALOGV("finishStopAfterDisconnectingClient");
+
 #if REQUIRE_HDCP
     if (mHDCP != NULL) {
         ALOGI("Initiating HDCP shutdown.");
@@ -1137,14 +1145,12 @@ void WifiDisplaySource::finishStop2() {
     mHDCP.clear();
 #endif
 
-    disconnectClient();
-
     if (mSessionID != 0) {
         mNetSession->destroySession(mSessionID);
         mSessionID = 0;
     }
 
-    ALOGV("finishStop2 completed.");
+    ALOGI("We're stopped.");
 
     status_t err = OK;
 
@@ -1264,14 +1270,26 @@ sp<WifiDisplaySource::PlaybackSession> WifiDisplaySource::findPlaybackSession(
     return mClientInfo.mPlaybackSession;
 }
 
-void WifiDisplaySource::disconnectClient() {
-    if (mClientInfo.mPlaybackSession != NULL) {
-        sp<PlaybackSession> playbackSession = mClientInfo.mPlaybackSession;
-        mClientInfo.mPlaybackSession.clear();
+void WifiDisplaySource::disconnectClientAsync() {
+    ALOGV("disconnectClient");
 
-        ALOGI("Destroying PlaybackSession");
-        playbackSession->destroy();
-        looper()->unregisterHandler(playbackSession->id());
+    if (mClientInfo.mPlaybackSession == NULL) {
+        disconnectClient2();
+        return;
+    }
+
+    if (mClientInfo.mPlaybackSession != NULL) {
+        ALOGV("Destroying PlaybackSession");
+        mClientInfo.mPlaybackSession->destroyAsync();
+    }
+}
+
+void WifiDisplaySource::disconnectClient2() {
+    ALOGV("disconnectClient2");
+
+    if (mClientInfo.mPlaybackSession != NULL) {
+        looper()->unregisterHandler(mClientInfo.mPlaybackSession->id());
+        mClientInfo.mPlaybackSession.clear();
     }
 
     if (mClientSessionID != 0) {
@@ -1280,6 +1298,8 @@ void WifiDisplaySource::disconnectClient() {
     }
 
     mClient->onDisplayDisconnected();
+
+    finishStopAfterDisconnectingClient();
 }
 
 #if REQUIRE_HDCP

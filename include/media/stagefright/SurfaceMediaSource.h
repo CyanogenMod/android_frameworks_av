@@ -52,6 +52,8 @@ class GraphicBuffer;
 // may be dropped.  It is possible to wait for the buffers to be
 // returned (but not implemented)
 
+#define DEBUG_PENDING_BUFFERS   0
+
 class SurfaceMediaSource : public MediaSource,
                                 public MediaBufferObserver,
                                 protected BufferQueue::ConsumerListener {
@@ -168,6 +170,10 @@ private:
     Vector<sp<GraphicBuffer> > mCurrentBuffers;
 
     size_t mNumPendingBuffers;
+
+#if DEBUG_PENDING_BUFFERS
+    Vector<MediaBuffer *> mPendingBuffers;
+#endif
 
     // mCurrentTimestamp is the timestamp for the current texture. It
     // gets set to mLastQueuedTimestamp each time updateTexImage is called.
