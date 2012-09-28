@@ -33,7 +33,7 @@ struct MediaPuller : public AHandler {
     MediaPuller(const sp<MediaSource> &source, const sp<AMessage> &notify);
 
     status_t start();
-    status_t stop();
+    void stopAsync(const sp<AMessage> &notify);
 
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);

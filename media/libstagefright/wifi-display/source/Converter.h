@@ -51,18 +51,20 @@ struct Converter : public AHandler {
         kWhatError,
     };
 
+    enum {
+        kWhatDoMoreWork,
+        kWhatRequestIDRFrame,
+        kWhatShutdown,
+        kWhatMediaPullerNotify,
+    };
+
+    void shutdownAsync();
+
 protected:
     virtual ~Converter();
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 private:
-    enum {
-        kWhatFeedAccessUnit,
-        kWhatInputEOS,
-        kWhatDoMoreWork,
-        kWhatRequestIDRFrame,
-    };
-
     status_t mInitCheck;
     sp<AMessage> mNotify;
     sp<ALooper> mCodecLooper;

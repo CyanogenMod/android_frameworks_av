@@ -2471,6 +2471,9 @@ bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
         // by this "mediaBuffer" object. Now that the OMX component has
         // told us that it's done with the input buffer, we can decrement
         // the mediaBuffer's reference count.
+
+        ALOGV("releasing mbuf %p", mediaBuffer);
+
         ((MediaBuffer *)mediaBuffer)->release();
         mediaBuffer = NULL;
 
