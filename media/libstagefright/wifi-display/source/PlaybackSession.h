@@ -51,7 +51,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
             TransportMode transportMode);
 
-    status_t destroy();
+    void destroyAsync();
 
     int32_t getRTPPort() const;
 
@@ -72,6 +72,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
         kWhatSessionDead,
         kWhatBinaryData,
         kWhatSessionEstablished,
+        kWhatSessionDestroyed,
     };
 
 protected:
@@ -91,6 +92,7 @@ private:
 #endif
         kWhatMediaPullerNotify,
         kWhatConverterNotify,
+        kWhatTrackNotify,
         kWhatUpdateSurface,
         kWhatFinishPlay,
     };
