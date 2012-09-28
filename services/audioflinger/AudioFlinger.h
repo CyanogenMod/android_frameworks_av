@@ -682,6 +682,8 @@ private:
                     // check if some effects must be suspended when an effect chain is added
                     void checkSuspendOnAddEffectChain_l(const sp<EffectChain>& chain);
 
+        virtual     void        preExit() { }
+
         friend class AudioFlinger;      // for mEffectChains
 
                     const type_t            mType;
@@ -1049,6 +1051,9 @@ protected:
                     // is responsible for clearing or destroying this Vector later on, when it
                     // is safe to do so. That will drop the final ref count and destroy the tracks.
         virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove) = 0;
+
+        // ThreadBase virtuals
+        virtual     void        preExit();
 
 public:
 
