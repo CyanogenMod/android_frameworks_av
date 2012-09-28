@@ -223,6 +223,8 @@ struct Parameters {
     // Map from camera orientation + facing to gralloc transform enum
     static int degToTransform(int degrees, bool mirror);
 
+    // API specifies FPS ranges are done in fixed point integer, with LSB = 0.001.
+    // Note that this doesn't apply to the (deprecated) single FPS value.
     static const int kFpsToApiScale = 1000;
 
     // Transform between (-1000,-1000)-(1000,1000) normalized coords from camera
