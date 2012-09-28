@@ -624,7 +624,13 @@ status_t Camera2Client::startPreview() {
 status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     ATRACE_CALL();
     status_t res;
-    if (params.state >= Parameters::PREVIEW && !restart) {
+    if (params.state == Parameters::PREVIEW && !restart) {
+        // Succeed attempt to re-enter preview state
+        ALOGI("%s: Not starting preview; already in preview state.",
+              __FUNCTION__);
+        return OK;
+    }
+    if (params.state > Parameters::PREVIEW && !restart) {
         ALOGE("%s: Can't start preview in state %s",
                 __FUNCTION__,
                 Parameters::getStateName(params.state));
