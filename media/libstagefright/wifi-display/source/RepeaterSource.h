@@ -33,6 +33,8 @@ private:
     Mutex mLock;
     Condition mCondition;
 
+    bool mStarted;
+
     sp<MediaSource> mSource;
     double mRateHz;
 
