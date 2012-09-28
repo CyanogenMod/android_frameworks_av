@@ -170,15 +170,16 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     // PREVIEW_FRAME_RATE / SUPPORTED_PREVIEW_FRAME_RATES are deprecated, but
     // still have to do something sane for them
 
+    // NOTE: Not scaled like FPS range values are.
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
-            previewFpsRange[0] * kFpsToApiScale);
+            previewFpsRange[0]);
 
     {
         String8 supportedPreviewFrameRates;
         for (size_t i=0; i < availableFpsRanges.count; i += 2) {
             if (i != 0) supportedPreviewFrameRates += ",";
             supportedPreviewFrameRates += String8::format("%d",
-                    availableFpsRanges.data.i32[i] * kFpsToApiScale);
+                    availableFpsRanges.data.i32[i]);
         }
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
                 supportedPreviewFrameRates);
@@ -946,7 +947,7 @@ status_t Parameters::set(const String8& params) {
     // Deprecated, only use if the preview fps range is unchanged this time.
     // The single-value FPS is the same as the minimum of the range.
     if (!fpsRangeChanged) {
-        validatedParams.previewFps = newParams.getPreviewFrameRate() / kFpsToApiScale;
+        validatedParams.previewFps = newParams.getPreviewFrameRate();
         if (validatedParams.previewFps != previewFps) {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
