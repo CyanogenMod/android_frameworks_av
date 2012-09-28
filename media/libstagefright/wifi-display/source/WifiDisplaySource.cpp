@@ -169,9 +169,10 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     mNetSession->destroySession(sessionID);
 
                     if (sessionID == mClientSessionID) {
-                        mClientSessionID = -1;
+                        mClientSessionID = 0;
 
-                        disconnectClient(UNKNOWN_ERROR);
+                        mClient->onDisplayError(
+                                IRemoteDisplayClient::kDisplayErrorUnknown);
                     }
                     break;
                 }
@@ -217,7 +218,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     status_t err = onReceiveClientData(msg);
 
                     if (err != OK) {
-                        disconnectClient(err);
+                        mClient->onDisplayError(
+                                IRemoteDisplayClient::kDisplayErrorUnknown);
                     }
                     break;
                 }
@@ -232,7 +234,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
         {
             CHECK(msg->senderAwaitsResponse(&mStopReplyID));
 
-            if (mSessionID != 0 && mClientSessionID != 0) {
+            if (mClientSessionID != 0
+                    && mClientInfo.mPlaybackSessionID != -1) {
                 status_t err = sendM5(
                         mClientSessionID, true /* requestShutdown */);
 
@@ -258,7 +261,11 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     + kPlaybackSessionTimeoutUs < ALooper::GetNowUs()) {
                 ALOGI("playback session timed out, reaping.");
 
-                disconnectClient(-ETIMEDOUT);
+                mNetSession->destroySession(mClientSessionID);
+                mClientSessionID = 0;
+
+                mClient->onDisplayError(
+                        IRemoteDisplayClient::kDisplayErrorUnknown);
             } else {
                 scheduleReaper();
             }
@@ -276,7 +283,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             if (what == PlaybackSession::kWhatSessionDead) {
                 ALOGI("playback session wants to quit.");
 
-                disconnectClient(UNKNOWN_ERROR);
+                mClient->onDisplayError(
+                        IRemoteDisplayClient::kDisplayErrorUnknown);
             } else if (what == PlaybackSession::kWhatSessionEstablished) {
                 if (mClient != NULL) {
                     mClient->onDisplayConnected(
@@ -354,8 +362,13 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 case HDCPModule::HDCP_SHUTDOWN_COMPLETE:
+                case HDCPModule::HDCP_SHUTDOWN_FAILED:
                 {
-                    finishStop2();
+                    // Ugly hack to make sure that the call to
+                    // HDCPObserver::notify is completely handled before
+                    // we clear the HDCP instance and unload the shared
+                    // library :(
+                    (new AMessage(kWhatFinishStop2, id()))->post(300000ll);
                     break;
                 }
 
@@ -363,10 +376,17 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     ALOGE("HDCP failure, shutting down.");
 
-                    disconnectClient(-EACCES);
+                    mClient->onDisplayError(
+                            IRemoteDisplayClient::kDisplayErrorUnknown);
                     break;
                 }
             }
+            break;
+        }
+
+        case kWhatFinishStop2:
+        {
+            finishStop2();
             break;
         }
 #endif
@@ -508,6 +528,7 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
 status_t WifiDisplaySource::sendM5(int32_t sessionID, bool requestShutdown) {
     AString body = "wfd_trigger_method: ";
     if (requestShutdown) {
+        ALOGI("Sending TEARDOWN trigger.");
         body.append("TEARDOWN");
     } else {
         body.append("SETUP");
@@ -1017,6 +1038,8 @@ status_t WifiDisplaySource::onPlayRequest(
         return ERROR_MALFORMED;
     }
 
+    ALOGI("Received PLAY request.");
+
     status_t err = playbackSession->play();
     CHECK_EQ(err, (status_t)OK);
 
@@ -1065,6 +1088,8 @@ status_t WifiDisplaySource::onTeardownRequest(
         int32_t sessionID,
         int32_t cseq,
         const sp<ParsedMessage> &data) {
+    ALOGI("Received TEARDOWN request.");
+
     int32_t playbackSessionID;
     sp<PlaybackSession> playbackSession =
         findPlaybackSession(data, &playbackSessionID);
@@ -1079,26 +1104,23 @@ status_t WifiDisplaySource::onTeardownRequest(
     response.append("Connection: close\r\n");
     response.append("\r\n");
 
-    status_t err = mNetSession->sendRequest(sessionID, response.c_str());
-
-    if (err != OK) {
-        return err;
-    }
+    mNetSession->sendRequest(sessionID, response.c_str());
 
     if (mStopReplyID != 0) {
         finishStop();
     } else {
-        disconnectClient(UNKNOWN_ERROR);
+        mClient->onDisplayError(IRemoteDisplayClient::kDisplayErrorUnknown);
     }
 
     return OK;
 }
 
 void WifiDisplaySource::finishStop() {
-    disconnectClient(OK);
+    ALOGV("finishStop");
 
 #if REQUIRE_HDCP
     if (mHDCP != NULL) {
+        ALOGI("Initiating HDCP shutdown.");
         mHDCP->shutdownAsync();
         return;
     }
@@ -1108,9 +1130,22 @@ void WifiDisplaySource::finishStop() {
 }
 
 void WifiDisplaySource::finishStop2() {
+    ALOGV("finishStop2");
+
 #if REQUIRE_HDCP
+    mHDCP->setObserver(NULL);
+    mHDCPObserver.clear();
     mHDCP.clear();
 #endif
+
+    disconnectClient();
+
+    if (mSessionID != 0) {
+        mNetSession->destroySession(mSessionID);
+        mSessionID = 0;
+    }
+
+    ALOGV("finishStop2 completed.");
 
     status_t err = OK;
 
@@ -1230,27 +1265,22 @@ sp<WifiDisplaySource::PlaybackSession> WifiDisplaySource::findPlaybackSession(
     return mClientInfo.mPlaybackSession;
 }
 
-void WifiDisplaySource::disconnectClient(status_t err) {
+void WifiDisplaySource::disconnectClient() {
+    if (mClientInfo.mPlaybackSession != NULL) {
+        sp<PlaybackSession> playbackSession = mClientInfo.mPlaybackSession;
+        mClientInfo.mPlaybackSession.clear();
+
+        ALOGI("Destroying PlaybackSession");
+        playbackSession->destroy();
+        looper()->unregisterHandler(playbackSession->id());
+    }
+
     if (mClientSessionID != 0) {
-        if (mClientInfo.mPlaybackSession != NULL) {
-            sp<PlaybackSession> playbackSession = mClientInfo.mPlaybackSession;
-            mClientInfo.mPlaybackSession.clear();
-
-            playbackSession->destroy();
-            looper()->unregisterHandler(playbackSession->id());
-        }
-
         mNetSession->destroySession(mClientSessionID);
         mClientSessionID = 0;
     }
 
-    if (mClient != NULL) {
-        if (err != OK) {
-            mClient->onDisplayError(IRemoteDisplayClient::kDisplayErrorUnknown);
-        } else {
-            mClient->onDisplayDisconnected();
-        }
-    }
+    mClient->onDisplayDisconnected();
 }
 
 #if REQUIRE_HDCP
@@ -1306,7 +1336,7 @@ status_t WifiDisplaySource::makeHDCP() {
         return err;
     }
 
-    ALOGI("initiating HDCP negotiation w/ host %s:%d",
+    ALOGI("Initiating HDCP negotiation w/ host %s:%d",
             mClientInfo.mRemoteIP.c_str(), mHDCPPort);
 
     err = mHDCP->initAsync(mClientInfo.mRemoteIP.c_str(), mHDCPPort);
