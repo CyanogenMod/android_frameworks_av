@@ -846,7 +846,10 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     sp<Converter> converter =
         new Converter(notify, codecLooper, format);
-    CHECK_EQ(converter->initCheck(), (status_t)OK);
+
+    if (converter->initCheck() != OK) {
+        return converter->initCheck();
+    }
 
     looper()->registerHandler(converter);
 
