@@ -32,6 +32,8 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
 
+#include <media/hardware/HardwareAPI.h>
+
 #include <OMX_Component.h>
 
 #include "include/avc_utils.h"
@@ -876,6 +878,33 @@ status_t ACodec::configureCodec(
         if (err != OK) {
             ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
                   mComponentName.c_str(), err);
+
+            return err;
+        }
+    }
+
+    int32_t prependSPSPPS;
+    if (encoder
+            && msg->findInt32("prepend-sps-pps-to-idr-frames", &prependSPSPPS)
+            && prependSPSPPS != 0) {
+        OMX_INDEXTYPE index;
+        err = mOMX->getExtensionIndex(
+                mNode,
+                "OMX.google.android.index.prependSPSPPSToIDRFrames",
+                &index);
+
+        if (err == OK) {
+            PrependSPSPPSToIDRFramesParams params;
+            InitOMXParams(&params);
+            params.bEnable = OMX_TRUE;
+
+            err = mOMX->setParameter(
+                    mNode, index, &params, sizeof(params));
+        }
+
+        if (err != OK) {
+            ALOGE("Encoder could not be configured to emit SPS/PPS before "
+                  "IDR frames. (err %d)", err);
 
             return err;
         }
