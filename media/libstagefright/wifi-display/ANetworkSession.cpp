@@ -176,7 +176,7 @@ ANetworkSession::Session::Session(
 }
 
 ANetworkSession::Session::~Session() {
-    ALOGI("Session %d gone", mSessionID);
+    ALOGV("Session %d gone", mSessionID);
 
     close(mSocket);
     mSocket = -1;
@@ -1084,7 +1084,7 @@ void ANetworkSession::threadLoop() {
                 } else {
                     status_t err = session->readMore();
                     if (err != OK) {
-                        ALOGI("readMore on socket %d failed w/ error %d (%s)",
+                        ALOGE("readMore on socket %d failed w/ error %d (%s)",
                               s, err, strerror(-err));
                     }
                 }
@@ -1093,7 +1093,7 @@ void ANetworkSession::threadLoop() {
             if (FD_ISSET(s, &ws)) {
                 status_t err = session->writeMore();
                 if (err != OK) {
-                    ALOGI("writeMore on socket %d failed w/ error %d (%s)",
+                    ALOGE("writeMore on socket %d failed w/ error %d (%s)",
                           s, err, strerror(-err));
                 }
             }

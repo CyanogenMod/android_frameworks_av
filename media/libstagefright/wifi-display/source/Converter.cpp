@@ -20,12 +20,15 @@
 
 #include "Converter.h"
 
+#include "MediaPuller.h"
+
 #include <cutils/properties.h>
 #include <gui/SurfaceTextureClient.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -53,14 +56,12 @@ Converter::Converter(
 }
 
 Converter::~Converter() {
-    if (mEncoder != NULL) {
-        mEncoder->release();
-        mEncoder.clear();
-    }
+    CHECK(mEncoder == NULL);
+}
 
-    AString mime;
-    CHECK(mInputFormat->findString("mime", &mime));
-    ALOGI("encoder (%s) shut down.", mime.c_str());
+void Converter::shutdownAsync() {
+    ALOGV("shutdown");
+    (new AMessage(kWhatShutdown, id()))->post();
 }
 
 status_t Converter::initCheck() const {
@@ -155,16 +156,6 @@ status_t Converter::initEncoder() {
     return mEncoder->getOutputBuffers(&mEncoderOutputBuffers);
 }
 
-void Converter::feedAccessUnit(const sp<ABuffer> &accessUnit) {
-    sp<AMessage> msg = new AMessage(kWhatFeedAccessUnit, id());
-    msg->setBuffer("accessUnit", accessUnit);
-    msg->post();
-}
-
-void Converter::signalEOS() {
-    (new AMessage(kWhatInputEOS, id()))->post();
-}
-
 void Converter::notifyError(status_t err) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatError);
@@ -174,32 +165,70 @@ void Converter::notifyError(status_t err) {
 
 void Converter::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
-        case kWhatFeedAccessUnit:
+        case kWhatMediaPullerNotify:
         {
-            sp<ABuffer> accessUnit;
-            CHECK(msg->findBuffer("accessUnit", &accessUnit));
+            int32_t what;
+            CHECK(msg->findInt32("what", &what));
 
-            mInputBufferQueue.push_back(accessUnit);
+            if (mEncoder == NULL) {
+                ALOGV("got msg '%s' after encoder shutdown.",
+                      msg->debugString().c_str());
 
-            feedEncoderInputBuffers();
+                if (what == MediaPuller::kWhatAccessUnit) {
+                    sp<ABuffer> accessUnit;
+                    CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
-            scheduleDoMoreWork();
-            break;
-        }
+                    void *mbuf;
+                    if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
+                            && mbuf != NULL) {
+                        ALOGV("releasing mbuf %p", mbuf);
 
-        case kWhatInputEOS:
-        {
-            mInputBufferQueue.push_back(NULL);
+                        accessUnit->meta()->setPointer("mediaBuffer", NULL);
 
-            feedEncoderInputBuffers();
+                        static_cast<MediaBuffer *>(mbuf)->release();
+                        mbuf = NULL;
+                    }
+                }
+                break;
+            }
 
-            scheduleDoMoreWork();
+            if (what == MediaPuller::kWhatEOS) {
+                mInputBufferQueue.push_back(NULL);
+
+                feedEncoderInputBuffers();
+
+                scheduleDoMoreWork();
+            } else {
+                CHECK_EQ(what, MediaPuller::kWhatAccessUnit);
+
+                sp<ABuffer> accessUnit;
+                CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
+#if 0
+                void *mbuf;
+                if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
+                        && mbuf != NULL) {
+                    ALOGI("queueing mbuf %p", mbuf);
+                }
+#endif
+
+                mInputBufferQueue.push_back(accessUnit);
+
+                feedEncoderInputBuffers();
+
+                scheduleDoMoreWork();
+            }
             break;
         }
 
         case kWhatDoMoreWork:
         {
             mDoMoreWorkPending = false;
+
+            if (mEncoder == NULL) {
+                break;
+            }
+
             status_t err = doMoreWork();
 
             if (err != OK) {
@@ -212,10 +241,26 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatRequestIDRFrame:
         {
+            if (mEncoder == NULL) {
+                break;
+            }
+
             if (mIsVideo) {
                 ALOGI("requesting IDR frame");
                 mEncoder->requestIDRFrame();
             }
+            break;
+        }
+
+        case kWhatShutdown:
+        {
+            ALOGI("shutting down encoder");
+            mEncoder->release();
+            mEncoder.clear();
+
+            AString mime;
+            CHECK(mInputFormat->findString("mime", &mime));
+            ALOGI("encoder (%s) shut down.", mime.c_str());
             break;
         }
 
