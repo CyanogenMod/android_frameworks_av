@@ -929,6 +929,11 @@ status_t Parameters::buildQuirks() {
     ALOGV_IF(quirks.useZslFormat, "Camera %d: Quirk useZslFormat enabled",
             cameraId);
 
+    entry = info->find(ANDROID_QUIRKS_METERING_CROP_REGION);
+    quirks.meteringCropRegion = (entry.count != 0 && entry.data.u8[0] == 1);
+    ALOGV_IF(quirks.meteringCropRegion, "Camera %d: Quirk meteringCropRegion"
+                " enabled", cameraId);
+
     return OK;
 }
 
@@ -1726,7 +1731,12 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     if (res != OK) return res;
     delete[] reqMeteringAreas;
 
-    CropRegion crop = calculateCropRegion();
+    /* don't include jpeg thumbnail size - it's valid for
+       it to be set to (0,0), meaning 'no thumbnail' */
+    CropRegion crop = calculateCropRegion( (CropRegion::Outputs)(
+            CropRegion::OUTPUT_PREVIEW     |
+            CropRegion::OUTPUT_VIDEO       |
+            CropRegion::OUTPUT_PICTURE    ));
     int32_t reqCropRegion[3] = { crop.left, crop.top, crop.width };
     res = request->update(ANDROID_SCALER_CROP_REGION,
             reqCropRegion, 3);
@@ -2161,23 +2171,123 @@ int Parameters::degToTransform(int degrees, bool mirror) {
     return -1;
 }
 
+int Parameters::cropXToArray(int x) const {
+    ALOG_ASSERT(x >= 0, "Crop-relative X coordinate = '%d' is out of bounds"
+                         "(lower = 0)", x);
+
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    ALOG_ASSERT(x < previewCrop.width, "Crop-relative X coordinate = '%d' "
+                    "is out of bounds (upper = %d)", x, previewCrop.width);
+
+    int ret = x + previewCrop.left;
+
+    ALOG_ASSERT( (ret >= 0 && ret < fastInfo.arrayWidth),
+        "Calculated pixel array value X = '%d' is out of bounds (upper = %d)",
+        ret, fastInfo.arrayWidth);
+    return ret;
+}
+
+int Parameters::cropYToArray(int y) const {
+    ALOG_ASSERT(y >= 0, "Crop-relative Y coordinate = '%d' is out of bounds "
+        "(lower = 0)", y);
+
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    ALOG_ASSERT(y < previewCrop.height, "Crop-relative Y coordinate = '%d' is "
+                "out of bounds (upper = %d)", y, previewCrop.height);
+
+    int ret = y + previewCrop.top;
+
+    ALOG_ASSERT( (ret >= 0 && ret < fastInfo.arrayHeight),
+        "Calculated pixel array value Y = '%d' is out of bounds (upper = %d)",
+        ret, fastInfo.arrayHeight);
+
+    return ret;
+
+}
+
+int Parameters::normalizedXToCrop(int x) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return (x + 1000) * (previewCrop.width - 1) / 2000;
+}
+
+int Parameters::normalizedYToCrop(int y) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return (y + 1000) * (previewCrop.height - 1) / 2000;
+}
+
+int Parameters::arrayXToCrop(int x) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return x - previewCrop.left;
+}
+
+int Parameters::arrayYToCrop(int y) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return y - previewCrop.top;
+}
+
+int Parameters::cropXToNormalized(int x) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return x * 2000 / (previewCrop.width - 1) - 1000;
+}
+
+int Parameters::cropYToNormalized(int y) const {
+    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    return y * 2000 / (previewCrop.height - 1) - 1000;
+}
+
 int Parameters::arrayXToNormalized(int width) const {
-    return width * 2000 / (fastInfo.arrayWidth - 1) - 1000;
+    int ret = cropXToNormalized(arrayXToCrop(width));
+
+    ALOG_ASSERT(ret >= -1000, "Calculated normalized value out of "
+        "lower bounds %d", ret);
+    ALOG_ASSERT(ret <= 1000, "Calculated normalized value out of "
+        "upper bounds %d", ret);
+
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return width * 2000 / (fastInfo.arrayWidth - 1) - 1000;
+    }
+
+    return ret;
 }
 
 int Parameters::arrayYToNormalized(int height) const {
-    return height * 2000 / (fastInfo.arrayHeight - 1) - 1000;
+    int ret = cropYToNormalized(arrayYToCrop(height));
+
+    ALOG_ASSERT(ret >= -1000, "Calculated normalized value out of lower bounds"
+        " %d", ret);
+    ALOG_ASSERT(ret <= 1000, "Calculated normalized value out of upper bounds"
+        " %d", ret);
+
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return height * 2000 / (fastInfo.arrayHeight - 1) - 1000;
+    }
+
+    return ret;
 }
 
 int Parameters::normalizedXToArray(int x) const {
-    return (x + 1000) * (fastInfo.arrayWidth - 1) / 2000;
+
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return (x + 1000) * (fastInfo.arrayWidth - 1) / 2000;
+    }
+
+    return cropXToArray(normalizedXToCrop(x));
 }
 
 int Parameters::normalizedYToArray(int y) const {
-    return (y + 1000) * (fastInfo.arrayHeight - 1) / 2000;
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return (y + 1000) * (fastInfo.arrayHeight - 1) / 2000;
+    }
+
+    return cropYToArray(normalizedYToCrop(y));
 }
 
-Parameters::CropRegion Parameters::calculateCropRegion(void) const {
+Parameters::CropRegion Parameters::calculateCropRegion(
+                            Parameters::CropRegion::Outputs outputs) const {
 
     float zoomLeft, zoomTop, zoomWidth, zoomHeight;
 
@@ -2220,9 +2330,7 @@ Parameters::CropRegion Parameters::calculateCropRegion(void) const {
         float outputSizes[][2] = {
             { previewWidth,     previewHeight },
             { videoWidth,       videoHeight },
-            /* don't include jpeg thumbnail size - it's valid for
-               it to be set to (0,0), meaning 'no thumbnail' */
-        //  { jpegThumbSize[0], jpegThumbSize[1] },
+            { jpegThumbSize[0], jpegThumbSize[1] },
             { pictureWidth,     pictureHeight },
         };
 
@@ -2232,6 +2340,11 @@ Parameters::CropRegion Parameters::calculateCropRegion(void) const {
         for (unsigned int i = 0;
              i < sizeof(outputSizes) / sizeof(outputSizes[0]);
              ++i) {
+
+            // skip over outputs we don't want to consider for the crop region
+            if ( !((1 << i) & outputs) ) {
+                continue;
+            }
 
             float outputWidth = outputSizes[i][0];
             float outputHeight = outputSizes[i][1];
