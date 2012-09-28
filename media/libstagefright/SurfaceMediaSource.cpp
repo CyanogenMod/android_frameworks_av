@@ -191,6 +191,23 @@ status_t SurfaceMediaSource::stop()
     ALOGV("stop");
     Mutex::Autolock lock(mMutex);
 
+    if (mStopped) {
+        return OK;
+    }
+
+    while (mNumPendingBuffers > 0) {
+        ALOGI("Still waiting for %d buffers to be returned.",
+                mNumPendingBuffers);
+
+#if DEBUG_PENDING_BUFFERS
+        for (size_t i = 0; i < mPendingBuffers.size(); ++i) {
+            ALOGI("%d: %p", i, mPendingBuffers.itemAt(i));
+        }
+#endif
+
+        mMediaBuffersAvailableCondition.wait(mMutex);
+    }
+
     mStopped = true;
     mFrameAvailableCondition.signal();
     mMediaBuffersAvailableCondition.signal();
@@ -335,6 +352,12 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
 
     ++mNumPendingBuffers;
 
+#if DEBUG_PENDING_BUFFERS
+    mPendingBuffers.push_back(*buffer);
+#endif
+
+    ALOGV("returning mbuf %p", *buffer);
+
     return OK;
 }
 
@@ -390,6 +413,15 @@ void SurfaceMediaSource::signalBufferReturned(MediaBuffer *buffer) {
     if (!foundBuffer) {
         CHECK(!"signalBufferReturned: bogus buffer");
     }
+
+#if DEBUG_PENDING_BUFFERS
+    for (size_t i = 0; i < mPendingBuffers.size(); ++i) {
+        if (mPendingBuffers.itemAt(i) == buffer) {
+            mPendingBuffers.removeAt(i);
+            break;
+        }
+    }
+#endif
 
     --mNumPendingBuffers;
     mMediaBuffersAvailableCondition.broadcast();
