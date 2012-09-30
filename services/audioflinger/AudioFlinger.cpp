@@ -1163,6 +1163,8 @@ AudioFlinger::ThreadBase::~ThreadBase()
 void AudioFlinger::ThreadBase::exit()
 {
     ALOGV("ThreadBase::exit");
+    // do any cleanup required for exit to succeed
+    preExit();
     {
         // This lock prevents the following race in thread (uniprocessor for illustration):
         //  if (!exitPending()) {
@@ -1692,6 +1694,15 @@ status_t AudioFlinger::PlaybackThread::readyToRun()
 void AudioFlinger::PlaybackThread::onFirstRef()
 {
     run(mName, ANDROID_PRIORITY_URGENT_AUDIO);
+}
+
+// ThreadBase virtuals
+void AudioFlinger::PlaybackThread::preExit()
+{
+    ALOGV("  preExit()");
+    // FIXME this is using hard-coded strings but in the future, this functionality will be
+    //       converted to use audio HAL extensions required to support tunneling
+    mOutput->stream->common.set_parameters(&mOutput->stream->common, "exiting=1");
 }
 
 // PlaybackThread::createTrack_l() must be called with AudioFlinger::mLock held
