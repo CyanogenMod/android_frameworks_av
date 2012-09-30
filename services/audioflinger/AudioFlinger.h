@@ -1477,7 +1477,8 @@ public:
                         uint32_t sampleRate,
                         audio_channel_mask_t channelMask,
                         audio_io_handle_t id,
-                        audio_devices_t device);
+                        audio_devices_t device,
+                        const sp<NBAIO_Sink>& teeSink);
                 virtual     ~RecordThread();
 
         // no addTrack_l ?
@@ -1573,6 +1574,9 @@ public:
                 // when < 0, maximum frames to drop before starting capture even if sync event is
                 // not received
                 ssize_t                             mFramestoDrop;
+
+                // For dumpsys
+                const sp<NBAIO_Sink>                mTeeSink;
     };
 
     // server side of the client's IAudioRecord
@@ -2065,6 +2069,13 @@ private:
     // for use from destructor
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
+
+    // all record threads serially share a common tee sink, which is re-created on format change
+    sp<NBAIO_Sink>   mRecordTeeSink;
+    sp<NBAIO_Source> mRecordTeeSource;
+
+public:
+    static void dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_handle_t id = 0);
 };
 
 
