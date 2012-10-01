@@ -42,7 +42,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mNumPendingBuffers(0),
     mCurrentTimestamp(0),
     mFrameRate(30),
-    mStopped(false),
+    mStarted(false),
     mNumFramesReceived(0),
     mNumFramesEncoded(0),
     mFirstFrameTimestamp(0),
@@ -80,7 +80,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
 
 SurfaceMediaSource::~SurfaceMediaSource() {
     ALOGV("~SurfaceMediaSource");
-    CHECK(mStopped == true);
+    CHECK(!mStarted);
 }
 
 nsecs_t SurfaceMediaSource::getTimestamp() {
@@ -140,6 +140,8 @@ status_t SurfaceMediaSource::start(MetaData *params)
 
     Mutex::Autolock lock(mMutex);
 
+    CHECK(!mStarted);
+
     mStartTimeNs = 0;
     int64_t startTimeUs;
     int32_t bufferCount = 0;
@@ -171,6 +173,7 @@ status_t SurfaceMediaSource::start(MetaData *params)
     }
 
     mNumPendingBuffers = 0;
+    mStarted = true;
 
     return OK;
 }
@@ -191,7 +194,7 @@ status_t SurfaceMediaSource::stop()
     ALOGV("stop");
     Mutex::Autolock lock(mMutex);
 
-    if (mStopped) {
+    if (!mStarted) {
         return OK;
     }
 
@@ -208,7 +211,7 @@ status_t SurfaceMediaSource::stop()
         mMediaBuffersAvailableCondition.wait(mMutex);
     }
 
-    mStopped = true;
+    mStarted = false;
     mFrameAvailableCondition.signal();
     mMediaBuffersAvailableCondition.signal();
 
@@ -270,7 +273,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
 
     *buffer = NULL;
 
-    while (!mStopped && mNumPendingBuffers == mMaxAcquiredBufferCount) {
+    while (mStarted && mNumPendingBuffers == mMaxAcquiredBufferCount) {
         mMediaBuffersAvailableCondition.wait(mMutex);
     }
 
@@ -281,7 +284,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
     BufferQueue::BufferItem item;
     // If the recording has started and the queue is empty, then just
     // wait here till the frames come in from the client side
-    while (!mStopped) {
+    while (mStarted) {
 
         status_t err = mBufferQueue->acquireBuffer(&item);
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
@@ -322,7 +325,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
 
     // If the loop was exited as a result of stopping the recording,
     // it is OK
-    if (mStopped) {
+    if (!mStarted) {
         ALOGV("Read: SurfaceMediaSource is stopped. Returning ERROR_END_OF_STREAM.");
         return ERROR_END_OF_STREAM;
     }
