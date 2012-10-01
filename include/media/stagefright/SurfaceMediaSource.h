@@ -193,8 +193,8 @@ private:
     // Set to a default of 30 fps if not specified by the client side
     int32_t mFrameRate;
 
-    // mStopped is a flag to check if the recording is going on
-    bool mStopped;
+    // mStarted is a flag to check if the recording is going on
+    bool mStarted;
 
     // mNumFramesReceived indicates the number of frames recieved from
     // the client side
