@@ -30,6 +30,7 @@
 #include <sys/time.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 
 namespace android {
 
@@ -94,7 +95,7 @@ TimedEventQueue::event_id TimedEventQueue::postEventToBack(
 TimedEventQueue::event_id TimedEventQueue::postEventWithDelay(
         const sp<Event> &event, int64_t delay_us) {
     CHECK(delay_us >= 0);
-    return postTimedEvent(event, getRealTimeUs() + delay_us);
+    return postTimedEvent(event, ALooper::GetNowUs() + delay_us);
 }
 
 TimedEventQueue::event_id TimedEventQueue::postTimedEvent(
@@ -179,14 +180,6 @@ void TimedEventQueue::cancelEvents(
 }
 
 // static
-int64_t TimedEventQueue::getRealTimeUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_sec * 1000000ll + tv.tv_usec;
-}
-
-// static
 void *TimedEventQueue::ThreadWrapper(void *me) {
 
     androidSetThreadPriority(0, ANDROID_PRIORITY_FOREGROUND);
@@ -225,7 +218,7 @@ void TimedEventQueue::threadEntry() {
                 List<QueueItem>::iterator it = mQueue.begin();
                 eventID = (*it).event->eventID();
 
-                now_us = getRealTimeUs();
+                now_us = ALooper::GetNowUs();
                 int64_t when_us = (*it).realtime_us;
 
                 int64_t delay_us;
@@ -258,7 +251,7 @@ void TimedEventQueue::threadEntry() {
                 if (!timeoutCapped && err == -ETIMEDOUT) {
                     // We finally hit the time this event is supposed to
                     // trigger.
-                    now_us = getRealTimeUs();
+                    now_us = ALooper::GetNowUs();
                     break;
                 }
             }
