@@ -173,13 +173,11 @@ status_t WifiDisplaySource::PlaybackSession::Track::start() {
 void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
     ALOGV("Track::stopAsync isAudio=%d", mIsAudio);
 
-    CHECK(mStarted);
-
     mConverter->shutdownAsync();
 
     sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, id());
 
-    if (mMediaPuller != NULL) {
+    if (mStarted && mMediaPuller != NULL) {
         mMediaPuller->stopAsync(msg);
     } else {
         msg->post();
