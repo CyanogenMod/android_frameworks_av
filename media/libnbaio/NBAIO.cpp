@@ -24,44 +24,55 @@ namespace android {
 
 size_t Format_frameSize(NBAIO_Format format)
 {
-    switch (format) {
-    case Format_SR44_1_C2_I16:
-    case Format_SR48_C2_I16:
-        return 2 * sizeof(short);
-    case Format_SR44_1_C1_I16:
-    case Format_SR48_C1_I16:
-        return 1 * sizeof(short);
-    case Format_Invalid:
-    default:
-        return 0;
-    }
+    return Format_channelCount(format) * sizeof(short);
 }
 
 size_t Format_frameBitShift(NBAIO_Format format)
 {
-    switch (format) {
-    case Format_SR44_1_C2_I16:
-    case Format_SR48_C2_I16:
-        return 2;   // 1 << 2 == 2 * sizeof(short)
-    case Format_SR44_1_C1_I16:
-    case Format_SR48_C1_I16:
-        return 1;   // 1 << 1 == 1 * sizeof(short)
-    case Format_Invalid:
-    default:
-        return 0;
-    }
+    // sizeof(short) == 2, so frame size == 1 << channels
+    return Format_channelCount(format);
 }
+
+enum {
+    Format_SR_8000,
+    Format_SR_11025,
+    Format_SR_16000,
+    Format_SR_22050,
+    Format_SR_24000,
+    Format_SR_32000,
+    Format_SR_44100,
+    Format_SR_48000,
+    Format_SR_Mask = 7
+};
+
+enum {
+    Format_C_1 = 0x08,
+    Format_C_2 = 0x10,
+    Format_C_Mask = 0x18
+};
 
 unsigned Format_sampleRate(NBAIO_Format format)
 {
-    switch (format) {
-    case Format_SR44_1_C1_I16:
-    case Format_SR44_1_C2_I16:
+    if (format == Format_Invalid) {
+        return 0;
+    }
+    switch (format & Format_SR_Mask) {
+    case Format_SR_8000:
+        return 8000;
+    case Format_SR_11025:
+        return 11025;
+    case Format_SR_16000:
+        return 16000;
+    case Format_SR_22050:
+        return 22050;
+    case Format_SR_24000:
+        return 24000;
+    case Format_SR_32000:
+        return 32000;
+    case Format_SR_44100:
         return 44100;
-    case Format_SR48_C1_I16:
-    case Format_SR48_C2_I16:
+    case Format_SR_48000:
         return 48000;
-    case Format_Invalid:
     default:
         return 0;
     }
@@ -69,14 +80,14 @@ unsigned Format_sampleRate(NBAIO_Format format)
 
 unsigned Format_channelCount(NBAIO_Format format)
 {
-    switch (format) {
-    case Format_SR44_1_C1_I16:
-    case Format_SR48_C1_I16:
+    if (format == Format_Invalid) {
+        return 0;
+    }
+    switch (format & Format_C_Mask) {
+    case Format_C_1:
         return 1;
-    case Format_SR44_1_C2_I16:
-    case Format_SR48_C2_I16:
+    case Format_C_2:
         return 2;
-    case Format_Invalid:
     default:
         return 0;
     }
@@ -84,11 +95,46 @@ unsigned Format_channelCount(NBAIO_Format format)
 
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount)
 {
-    if (sampleRate == 44100 && channelCount == 2) return Format_SR44_1_C2_I16;
-    if (sampleRate == 48000 && channelCount == 2) return Format_SR48_C2_I16;
-    if (sampleRate == 44100 && channelCount == 1) return Format_SR44_1_C1_I16;
-    if (sampleRate == 48000 && channelCount == 1) return Format_SR48_C1_I16;
-    return Format_Invalid;
+    NBAIO_Format format;
+    switch (sampleRate) {
+    case 8000:
+        format = Format_SR_8000;
+        break;
+    case 11025:
+        format = Format_SR_11025;
+        break;
+    case 16000:
+        format = Format_SR_16000;
+        break;
+    case 22050:
+        format = Format_SR_22050;
+        break;
+    case 24000:
+        format = Format_SR_24000;
+        break;
+    case 32000:
+        format = Format_SR_32000;
+        break;
+    case 44100:
+        format = Format_SR_44100;
+        break;
+    case 48000:
+        format = Format_SR_48000;
+        break;
+    default:
+        return Format_Invalid;
+    }
+    switch (channelCount) {
+    case 1:
+        format |= Format_C_1;
+        break;
+    case 2:
+        format |= Format_C_2;
+        break;
+    default:
+        return Format_Invalid;
+    }
+    return format;
 }
 
 // This is a default implementation; it is expected that subclasses will optimize this.

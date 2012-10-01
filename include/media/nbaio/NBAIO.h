@@ -45,17 +45,15 @@ enum {
 // Negotiation of format is based on the data provider and data sink, or the data consumer and
 // data source, exchanging prioritized arrays of offers and counter-offers until a single offer is
 // mutually agreed upon.  Each offer is an NBAIO_Format.  For simplicity and performance,
-// NBAIO_Format is an enum that ties together the most important combinations of the various
+// NBAIO_Format is a typedef that ties together the most important combinations of the various
 // attributes, rather than a struct with separate fields for format, sample rate, channel count,
 // interleave, packing, alignment, etc.  The reason is that NBAIO_Format tries to abstract out only
-// the combinations that are actually needed within AudioFligner.  If the list of combinations grows
+// the combinations that are actually needed within AudioFlinger.  If the list of combinations grows
 // too large, then this decision should be re-visited.
-enum NBAIO_Format {
-    Format_Invalid,
-    Format_SR44_1_C2_I16,   // 44.1 kHz PCM stereo interleaved 16-bit signed
-    Format_SR48_C2_I16,     // 48 kHz PCM stereo interleaved 16-bit signed
-    Format_SR44_1_C1_I16,   // 44.1 kHz PCM mono interleaved 16-bit signed
-    Format_SR48_C1_I16,     // 48 kHz PCM mono interleaved 16-bit signed
+// Sample rate and channel count are explicit, PCM interleaved 16-bit is assumed.
+typedef unsigned NBAIO_Format;
+enum {
+    Format_Invalid
 };
 
 // Return the frame size of an NBAIO_Format in bytes
