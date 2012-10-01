@@ -54,9 +54,7 @@ AudioSource::AudioSource(
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
       mNumFramesReceived(0),
-      mNumClientOwnedBuffers(0),
-      mUseLooperTime(false) {
-
+      mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
     CHECK(channelCount == 1 || channelCount == 2);
 
@@ -100,12 +98,6 @@ AudioSource::~AudioSource() {
 
 status_t AudioSource::initCheck() const {
     return mInitCheck;
-}
-
-void AudioSource::setUseLooperTime(bool useLooperTime) {
-    CHECK(!mStarted);
-
-    mUseLooperTime = useLooperTime;
 }
 
 status_t AudioSource::start(MetaData *params) {
@@ -280,8 +272,7 @@ void AudioSource::signalBufferReturned(MediaBuffer *buffer) {
 }
 
 status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
-    int64_t timeUs =
-        mUseLooperTime ? ALooper::GetNowUs() : (systemTime() / 1000ll);
+    int64_t timeUs = systemTime() / 1000ll;
 
     ALOGV("dataCallbackTimestamp: %lld us", timeUs);
     Mutex::Autolock autoLock(mLock);
@@ -300,9 +291,7 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
     if (mNumFramesReceived == 0 && mPrevSampleTimeUs == 0) {
         mInitialReadTimeUs = timeUs;
         // Initial delay
-        if (mUseLooperTime) {
-            mStartTimeUs = timeUs;
-        } else if (mStartTimeUs > 0) {
+        if (mStartTimeUs > 0) {
             mStartTimeUs = timeUs - mStartTimeUs;
         } else {
             // Assume latency is constant.

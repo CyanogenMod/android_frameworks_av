@@ -27,6 +27,7 @@
 #include <binder/MemoryDealer.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
@@ -39,13 +40,6 @@
 #define DEFAULT_TIMEOUT         500000
 
 namespace android {
-
-static int64_t getNowUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_usec + tv.tv_sec * 1000000;
-}
 
 Harness::Harness()
     : mInitCheck(NO_INIT) {
@@ -126,7 +120,7 @@ status_t Harness::dequeueMessageForNodeIgnoringBuffers(
         Vector<Buffer> *inputBuffers,
         Vector<Buffer> *outputBuffers,
         omx_message *msg, int64_t timeoutUs) {
-    int64_t finishBy = getNowUs() + timeoutUs;
+    int64_t finishBy = ALooper::GetNowUs() + timeoutUs;
 
     for (;;) {
         Mutex::Autolock autoLock(mLock);
@@ -150,7 +144,7 @@ status_t Harness::dequeueMessageForNodeIgnoringBuffers(
         status_t err = (timeoutUs < 0)
             ? mMessageAddedCondition.wait(mLock)
             : mMessageAddedCondition.waitRelative(
-                    mLock, (finishBy - getNowUs()) * 1000);
+                    mLock, (finishBy - ALooper::GetNowUs()) * 1000);
 
         if (err == TIMED_OUT) {
             return err;

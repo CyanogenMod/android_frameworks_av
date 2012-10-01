@@ -18,18 +18,12 @@
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
 
 #include <stdint.h>
 
 namespace android {
-
-static int64_t getNowUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
-}
 
 ARTPAssembler::ARTPAssembler()
     : mFirstFailureTimeUs(-1) {
@@ -42,7 +36,7 @@ void ARTPAssembler::onPacketReceived(const sp<ARTPSource> &source) {
 
         if (status == WRONG_SEQUENCE_NUMBER) {
             if (mFirstFailureTimeUs >= 0) {
-                if (getNowUs() - mFirstFailureTimeUs > 10000ll) {
+                if (ALooper::GetNowUs() - mFirstFailureTimeUs > 10000ll) {
                     mFirstFailureTimeUs = -1;
 
                     // LOG(VERBOSE) << "waited too long for packet.";
@@ -50,7 +44,7 @@ void ARTPAssembler::onPacketReceived(const sp<ARTPSource> &source) {
                     continue;
                 }
             } else {
-                mFirstFailureTimeUs = getNowUs();
+                mFirstFailureTimeUs = ALooper::GetNowUs();
             }
             break;
         } else {

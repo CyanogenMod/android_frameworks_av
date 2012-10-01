@@ -17,24 +17,17 @@
 #include <stddef.h>
 #include <sys/time.h>
 
+#include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/TimeSource.h>
 
 namespace android {
 
 SystemTimeSource::SystemTimeSource()
-    : mStartTimeUs(GetSystemTimeUs()) {
+    : mStartTimeUs(ALooper::GetNowUs()) {
 }
 
 int64_t SystemTimeSource::getRealTimeUs() {
-    return GetSystemTimeUs() - mStartTimeUs;
-}
-
-// static
-int64_t SystemTimeSource::GetSystemTimeUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+    return ALooper::GetNowUs() - mStartTimeUs;
 }
 
 }  // namespace android
