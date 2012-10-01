@@ -55,6 +55,18 @@ private:
     struct HDCPObserver;
 #endif
 
+    enum State {
+        INITIALIZED,
+        AWAITING_CLIENT_CONNECTION,
+        AWAITING_CLIENT_SETUP,
+        AWAITING_CLIENT_PLAY,
+        ABOUT_TO_PLAY,
+        PLAYING,
+        AWAITING_CLIENT_TEARDOWN,
+        STOPPING,
+        STOPPED,
+    };
+
     enum {
         kWhatStart,
         kWhatRTSPNotify,
@@ -64,6 +76,7 @@ private:
         kWhatKeepAlive,
         kWhatHDCPNotify,
         kWhatFinishStop2,
+        kWhatTeardownTriggerTimedOut,
     };
 
     struct ResponseID {
@@ -82,11 +95,18 @@ private:
 
     static const int64_t kReaperIntervalUs = 1000000ll;
 
+    // We request that the dongle send us a "TEARDOWN" in order to
+    // perform an orderly shutdown. We're willing to wait up to 2 secs
+    // for this message to arrive, after that we'll force a disconnect
+    // instead.
+    static const int64_t kTeardownTriggerTimeouSecs = 2;
+
     static const int64_t kPlaybackSessionTimeoutSecs = 30;
 
     static const int64_t kPlaybackSessionTimeoutUs =
         kPlaybackSessionTimeoutSecs * 1000000ll;
 
+    State mState;
     sp<ANetworkSession> mNetSession;
     sp<IRemoteDisplayClient> mClient;
     struct in_addr mInterfaceAddr;

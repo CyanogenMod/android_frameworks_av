@@ -41,7 +41,8 @@ namespace android {
 WifiDisplaySource::WifiDisplaySource(
         const sp<ANetworkSession> &netSession,
         const sp<IRemoteDisplayClient> &client)
-    : mNetSession(netSession),
+    : mState(INITIALIZED),
+      mNetSession(netSession),
       mClient(client),
       mSessionID(0),
       mStopReplyID(0),
@@ -61,6 +62,8 @@ WifiDisplaySource::~WifiDisplaySource() {
 }
 
 status_t WifiDisplaySource::start(const char *iface) {
+    CHECK_EQ(mState, INITIALIZED);
+
     sp<AMessage> msg = new AMessage(kWhatStart, id());
     msg->setString("iface", iface);
 
@@ -137,6 +140,10 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
+            if (err == OK) {
+                mState = AWAITING_CLIENT_CONNECTION;
+            }
+
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
             response->postReply(replyID);
@@ -190,6 +197,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                         break;
                     }
 
+                    CHECK_EQ(mState, AWAITING_CLIENT_CONNECTION);
+
                     CHECK(msg->findString("client-ip", &mClientInfo.mRemoteIP));
                     CHECK(msg->findString("server-ip", &mClientInfo.mLocalIP));
 
@@ -207,6 +216,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     mClientSessionID = sessionID;
 
                     ALOGI("We now have a client (%d) connected.", sessionID);
+
+                    mState = AWAITING_CLIENT_SETUP;
 
                     status_t err = sendM1(sessionID);
                     CHECK_EQ(err, (status_t)OK);
@@ -234,14 +245,24 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
         {
             CHECK(msg->senderAwaitsResponse(&mStopReplyID));
 
-            if (mClientSessionID != 0
-                    && mClientInfo.mPlaybackSessionID != -1) {
+            CHECK_LT(mState, AWAITING_CLIENT_TEARDOWN);
+
+            if (mState >= AWAITING_CLIENT_PLAY) {
+                // We have a session, i.e. a previous SETUP succeeded.
+
                 status_t err = sendM5(
                         mClientSessionID, true /* requestShutdown */);
 
                 if (err == OK) {
+                    mState = AWAITING_CLIENT_TEARDOWN;
+
+                    (new AMessage(kWhatTeardownTriggerTimedOut, id()))->post(
+                            kTeardownTriggerTimeouSecs * 1000000ll);
+
                     break;
                 }
+
+                // fall through.
             }
 
             finishStop();
@@ -293,6 +314,10 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                             mClientInfo.mPlaybackSession->height(),
                             0 /* flags */);
                 }
+
+                if (mState == ABOUT_TO_PLAY) {
+                    mState = PLAYING;
+                }
             } else if (what == PlaybackSession::kWhatSessionDestroyed) {
                 disconnectClient2();
             } else {
@@ -336,6 +361,18 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             sendM16(sessionID);
+            break;
+        }
+
+        case kWhatTeardownTriggerTimedOut:
+        {
+            if (mState == AWAITING_CLIENT_TEARDOWN) {
+                ALOGI("TEARDOWN trigger timed out, forcing disconnection.");
+
+                CHECK_NE(mStopReplyID, 0);
+                finishStop();
+                break;
+            }
             break;
         }
 
@@ -1020,6 +1057,8 @@ status_t WifiDisplaySource::onSetupRequest(
         return err;
     }
 
+    mState = AWAITING_CLIENT_PLAY;
+
     scheduleReaper();
     scheduleKeepAlive(sessionID);
 
@@ -1056,6 +1095,9 @@ status_t WifiDisplaySource::onPlayRequest(
     }
 
     playbackSession->finishPlay();
+
+    CHECK_EQ(mState, AWAITING_CLIENT_PLAY);
+    mState = ABOUT_TO_PLAY;
 
     return OK;
 }
@@ -1107,7 +1149,8 @@ status_t WifiDisplaySource::onTeardownRequest(
 
     mNetSession->sendRequest(sessionID, response.c_str());
 
-    if (mStopReplyID != 0) {
+    if (mState == AWAITING_CLIENT_TEARDOWN) {
+        CHECK_NE(mStopReplyID, 0);
         finishStop();
     } else {
         mClient->onDisplayError(IRemoteDisplayClient::kDisplayErrorUnknown);
@@ -1118,6 +1161,8 @@ status_t WifiDisplaySource::onTeardownRequest(
 
 void WifiDisplaySource::finishStop() {
     ALOGV("finishStop");
+
+    mState = STOPPING;
 
     disconnectClientAsync();
 }
@@ -1153,6 +1198,7 @@ void WifiDisplaySource::finishStop2() {
     }
 
     ALOGI("We're stopped.");
+    mState = STOPPED;
 
     status_t err = OK;
 
