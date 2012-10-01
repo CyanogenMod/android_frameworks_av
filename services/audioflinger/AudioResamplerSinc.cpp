@@ -64,13 +64,65 @@ const int32_t AudioResamplerSinc::mFirCoefsDown[] = {
         0x00000000 // this one is needed for lerping the last coefficient
 };
 
-//Define the static variables
-int AudioResamplerSinc::coefsBits;
-int  AudioResamplerSinc::cShift;
-uint32_t  AudioResamplerSinc::cMask;
-int AudioResamplerSinc::pShift;
-uint32_t AudioResamplerSinc::pMask;
-unsigned int AudioResamplerSinc::halfNumCoefs;
+// we use 15 bits to interpolate between these samples
+// this cannot change because the mul below rely on it.
+static const int pLerpBits = 15;
+
+static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+static readCoefficientsFn readResampleCoefficients = NULL;
+
+/*static*/ AudioResamplerSinc::Constants AudioResamplerSinc::highQualityConstants;
+/*static*/ AudioResamplerSinc::Constants AudioResamplerSinc::veryHighQualityConstants;
+
+void AudioResamplerSinc::init_routine()
+{
+    // for high quality resampler, the parameters for coefficients are compile-time constants
+    Constants *c = &highQualityConstants;
+    c->coefsBits = RESAMPLE_FIR_LERP_INT_BITS;
+    c->cShift = kNumPhaseBits - c->coefsBits;
+    c->cMask = ((1<< c->coefsBits)-1) << c->cShift;
+    c->pShift = kNumPhaseBits - c->coefsBits - pLerpBits;
+    c->pMask = ((1<< pLerpBits)-1) << c->pShift;
+    c->halfNumCoefs = RESAMPLE_FIR_NUM_COEF;
+
+    // for very high quality resampler, the parameters are load-time constants
+    veryHighQualityConstants = highQualityConstants;
+
+    // Open the dll to get the coefficients for VERY_HIGH_QUALITY
+    void *resampleCoeffLib = dlopen("libaudio-resampler.so", RTLD_NOW);
+    ALOGV("Open libaudio-resampler library = %p", resampleCoeffLib);
+    if (resampleCoeffLib == NULL) {
+        ALOGE("Could not open audio-resampler library: %s", dlerror());
+        return;
+    }
+
+    readResampleCoefficients = (readCoefficientsFn) dlsym(resampleCoeffLib,
+            "readResamplerCoefficients");
+    readResampleFirNumCoeffFn readResampleFirNumCoeff = (readResampleFirNumCoeffFn)
+            dlsym(resampleCoeffLib, "readResampleFirNumCoeff");
+    readResampleFirLerpIntBitsFn readResampleFirLerpIntBits = (readResampleFirLerpIntBitsFn)
+            dlsym(resampleCoeffLib, "readResampleFirLerpIntBits");
+    if (!readResampleCoefficients || !readResampleFirNumCoeff || !readResampleFirLerpIntBits) {
+        readResampleCoefficients = NULL;
+        dlclose(resampleCoeffLib);
+        resampleCoeffLib = NULL;
+        ALOGE("Could not find symbol: %s", dlerror());
+        return;
+    }
+
+    c = &veryHighQualityConstants;
+    // we have 16 coefs samples per zero-crossing
+    c->coefsBits = readResampleFirLerpIntBits();
+    ALOGV("coefsBits = %d", c->coefsBits);
+    c->cShift = kNumPhaseBits - c->coefsBits;
+    c->cMask = ((1<<c->coefsBits)-1) << c->cShift;
+    c->pShift = kNumPhaseBits - c->coefsBits - pLerpBits;
+    c->pMask = ((1<<pLerpBits)-1) << c->pShift;
+    // number of zero-crossing on each side
+    c->halfNumCoefs = readResampleFirNumCoeff();
+    ALOGV("halfNumCoefs = %d", c->halfNumCoefs);
+    // note that we "leak" resampleCoeffLib until the process exits
+}
 
 // ----------------------------------------------------------------------------
 
@@ -148,8 +200,8 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 // ----------------------------------------------------------------------------
 
 AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
-        int inChannelCount, int32_t sampleRate, int32_t quality)
-    : AudioResampler(bitDepth, inChannelCount, sampleRate),
+        int inChannelCount, int32_t sampleRate, src_quality quality)
+    : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
     mState(0)
 {
     /*
@@ -168,74 +220,28 @@ AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
      *
      */
 
-    mResampleCoeffLib = NULL;
-    //Intialize the parameters for resampler coefficients
-    //for high quality
-    coefsBits = RESAMPLE_FIR_LERP_INT_BITS;
-    cShift = kNumPhaseBits - coefsBits;
-    cMask  = ((1<< coefsBits)-1) <<  cShift;
-
-    pShift = kNumPhaseBits -  coefsBits - pLerpBits;
-    pMask  = ((1<< pLerpBits)-1) <<  pShift;
-
-    halfNumCoefs = RESAMPLE_FIR_NUM_COEF;
-
-    //Check if qcom highest quality can be used
-    char value[PROPERTY_VALUE_MAX];
-    //Open the dll to get the coefficients for VERY_HIGH_QUALITY
-    if (quality == VERY_HIGH_QUALITY ) {
-        mResampleCoeffLib = dlopen("libaudio-resampler.so", RTLD_NOW);
-        ALOGV("Open libaudio-resampler library = %p",mResampleCoeffLib);
-        if (mResampleCoeffLib == NULL) {
-            ALOGE("Could not open audio-resampler library: %s", dlerror());
-            return;
-        }
-        mReadResampleCoefficients = (readCoefficientsFn)dlsym(mResampleCoeffLib, "readResamplerCoefficients");
-        mReadResampleFirNumCoeff = (readResampleFirNumCoeffFn)dlsym(mResampleCoeffLib, "readResampleFirNumCoeff");
-        mReadResampleFirLerpIntBits = (readResampleFirLerpIntBitsFn)dlsym(mResampleCoeffLib,"readResampleFirLerpIntBits");
-        if (!mReadResampleCoefficients  || !mReadResampleFirNumCoeff || !mReadResampleFirLerpIntBits) {
-            mReadResampleCoefficients = NULL;
-            mReadResampleFirNumCoeff = NULL;
-            mReadResampleFirLerpIntBits = NULL;
-            dlclose(mResampleCoeffLib);
-            mResampleCoeffLib = NULL;
-            ALOGE("Could not find convert symbol: %s", dlerror());
-            return;
-        }
-        // we have 16 coefs samples per zero-crossing
-        coefsBits = mReadResampleFirLerpIntBits();
-        ALOGV("coefsBits = %d",coefsBits);
-        cShift = kNumPhaseBits - coefsBits;
-        cMask  = ((1<<coefsBits)-1) << cShift;
-        pShift = kNumPhaseBits - coefsBits - pLerpBits;
-        pMask  = ((1<<pLerpBits)-1) << pShift;
-        // number of zero-crossing on each side
-        halfNumCoefs = mReadResampleFirNumCoeff();
-        ALOGV("halfNumCoefs = %d",halfNumCoefs);
+    // Load the constants for coefficients
+    int ok = pthread_once(&once_control, init_routine);
+    if (ok != 0) {
+        ALOGE("%s pthread_once failed: %d", __func__, ok);
     }
+    mConstants = (quality == VERY_HIGH_QUALITY) ? &veryHighQualityConstants : &highQualityConstants;
 }
 
 
 AudioResamplerSinc::~AudioResamplerSinc()
 {
-    if(mResampleCoeffLib) {
-        ALOGV("close the libaudio-resampler library");
-        dlclose(mResampleCoeffLib);
-        mResampleCoeffLib = NULL;
-        mReadResampleCoefficients = NULL;
-        mReadResampleFirNumCoeff = NULL;
-        mReadResampleFirLerpIntBits = NULL;
-    }
-    delete [] mState;
+    delete[] mState;
 }
 
 void AudioResamplerSinc::init() {
+    const Constants *c = mConstants;
 
-    const size_t numCoefs = 2*halfNumCoefs;
+    const size_t numCoefs = 2*c->halfNumCoefs;
     const size_t stateSize = numCoefs * mChannelCount * 2;
     mState = new int16_t[stateSize];
     memset(mState, 0, sizeof(int16_t)*stateSize);
-    mImpulse = mState + (halfNumCoefs-1)*mChannelCount;
+    mImpulse = mState + (c->halfNumCoefs-1)*mChannelCount;
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
@@ -243,11 +249,14 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider)
 {
 
-    if(mResampleCoeffLib){
+    // FIXME store current state (up or down sample) and only load the coefs when the state
+    // changes. Or load two pointers one for up and one for down in the init function.
+    // Not critical now since the read functions are fast, but would be important if read was slow.
+    if (readResampleCoefficients) {
         ALOGV("get coefficient from libmm-audio resampler library");
-        mFirCoefs =  (mInSampleRate <= mSampleRate) ? mReadResampleCoefficients(true) : mReadResampleCoefficients(false);
-    }
-    else {
+        mFirCoefs = (mInSampleRate <= mSampleRate) ? readResampleCoefficients(true) :
+                readResampleCoefficients(false);
+    } else {
         ALOGV("Use default coefficients");
         mFirCoefs = (mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown;
     }
@@ -269,6 +278,7 @@ template<int CHANNELS>
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider)
 {
+    const Constants *c = mConstants;
     int16_t* impulse = mImpulse;
     uint32_t vRL = mVolumeRL;
     size_t inputIndex = mInputIndex;
@@ -307,7 +317,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         const size_t frameCount = mBuffer.frameCount;
 
         // Always read-in the first samples from the input buffer
-        int16_t* head = impulse + halfNumCoefs*CHANNELS;
+        int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
         head[0] = in[inputIndex*CHANNELS + 0];
         if (CHANNELS == 2)
             head[1] = in[inputIndex*CHANNELS + 1];
@@ -365,15 +375,16 @@ void AudioResamplerSinc::read(
         int16_t*& impulse, uint32_t& phaseFraction,
         const int16_t* in, size_t inputIndex)
 {
+    const Constants *c = mConstants;
     const uint32_t phaseIndex = phaseFraction >> kNumPhaseBits;
     impulse += CHANNELS;
     phaseFraction -= 1LU<<kNumPhaseBits;
     if (impulse >= mRingFull) {
-        const size_t stateSize = (halfNumCoefs*2)*CHANNELS;
+        const size_t stateSize = (c->halfNumCoefs*2)*CHANNELS;
         memcpy(mState, mState+stateSize, sizeof(int16_t)*stateSize);
         impulse -= stateSize;
     }
-    int16_t* head = impulse + halfNumCoefs*CHANNELS;
+    int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
     head[0] = in[inputIndex*CHANNELS + 0];
     if (CHANNELS == 2)
         head[1] = in[inputIndex*CHANNELS + 1];
@@ -383,15 +394,17 @@ template<int CHANNELS>
 void AudioResamplerSinc::filterCoefficient(
         int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples)
 {
+    const Constants *c = mConstants;
+
     // compute the index of the coefficient on the positive side and
     // negative side
-    uint32_t indexP = (phase & cMask) >> cShift;
-    uint16_t lerpP  = (phase & pMask) >> pShift;
-    uint32_t indexN = (-phase & cMask) >> cShift;
-    uint16_t lerpN  = (-phase & pMask) >> pShift;
+    uint32_t indexP = (phase & c->cMask) >> c->cShift;
+    uint16_t lerpP = (phase & c->pMask) >> c->pShift;
+    uint32_t indexN = (-phase & c->cMask) >> c->cShift;
+    uint16_t lerpN = (-phase & c->pMask) >> c->pShift;
     if ((indexP == 0) && (lerpP == 0)) {
-        indexN = cMask >> cShift;
-        lerpN = pMask >> pShift;
+        indexN = c->cMask >> c->cShift;
+        lerpN = c->pMask >> c->pShift;
     }
 
     l = 0;
@@ -399,19 +412,19 @@ void AudioResamplerSinc::filterCoefficient(
     const int32_t* coefs = mFirCoefs;
     const int16_t *sP = samples;
     const int16_t *sN = samples+CHANNELS;
-    for (unsigned int i=0 ; i<halfNumCoefs/4 ; i++) {
+    for (unsigned int i=0 ; i < c->halfNumCoefs/4 ; i++) {
         interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
         interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1<<coefsBits;
+        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
         interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
         interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1<<coefsBits;
+        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
         interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
         interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1<<coefsBits;
+        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
         interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
         interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1<<coefsBits;
+        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
     }
 }
 
