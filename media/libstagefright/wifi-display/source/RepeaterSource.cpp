@@ -13,7 +13,8 @@
 namespace android {
 
 RepeaterSource::RepeaterSource(const sp<MediaSource> &source, double rateHz)
-    : mSource(source),
+    : mStarted(false),
+      mSource(source),
       mRateHz(rateHz),
       mBuffer(NULL),
       mResult(OK),
@@ -22,10 +23,12 @@ RepeaterSource::RepeaterSource(const sp<MediaSource> &source, double rateHz)
 }
 
 RepeaterSource::~RepeaterSource() {
-    stop();
+    CHECK(!mStarted);
 }
 
 status_t RepeaterSource::start(MetaData *params) {
+    CHECK(!mStarted);
+
     status_t err = mSource->start(params);
 
     if (err != OK) {
@@ -46,10 +49,14 @@ status_t RepeaterSource::start(MetaData *params) {
 
     postRead();
 
+    mStarted = true;
+
     return OK;
 }
 
 status_t RepeaterSource::stop() {
+    CHECK(mStarted);
+
     ALOGV("stopping");
 
     if (mLooper != NULL) {
@@ -68,6 +75,8 @@ status_t RepeaterSource::stop() {
     status_t err = mSource->stop();
 
     ALOGV("stopped");
+
+    mStarted = false;
 
     return err;
 }
