@@ -312,7 +312,12 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                             mClientInfo.mPlaybackSession->getSurfaceTexture(),
                             mClientInfo.mPlaybackSession->width(),
                             mClientInfo.mPlaybackSession->height(),
-                            0 /* flags */);
+#if REQUIRE_HDCP
+                            IRemoteDisplayClient::kDisplayFlagSecure
+#else
+                            0 /* flags */
+#endif
+                            );
                 }
 
                 if (mState == ABOUT_TO_PLAY) {
