@@ -526,10 +526,6 @@ void WifiDisplaySource::PlaybackSession::destroyAsync() {
 
 void WifiDisplaySource::PlaybackSession::onMessageReceived(
         const sp<AMessage> &msg) {
-    if (mWeAreDead) {
-        return;
-    }
-
     switch (msg->what()) {
         case kWhatRTPNotify:
         case kWhatRTCPNotify:
@@ -661,6 +657,13 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         case kWhatConverterNotify:
         {
+            if (mWeAreDead) {
+                ALOGV("dropping msg '%s' because we're dead",
+                      msg->debugString().c_str());
+
+                break;
+            }
+
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
@@ -1322,10 +1325,6 @@ bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
     return true;
 }
 
-static inline size_t MIN(size_t a, size_t b) {
-    return (a < b) ? a : b;
-}
-
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
         size_t trackIndex, sp<ABuffer> accessUnit) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
@@ -1337,11 +1336,6 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
     uint8_t HDCP_private_data[16];
     if (mHDCP != NULL && !track->isAudio()) {
         isHDCPEncrypted = true;
-
-#if 0
-        ALOGI("in:");
-        hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
-#endif
 
         if (IsIDR(accessUnit)) {
             // XXX remove this once the encoder takes care of this.
@@ -1360,13 +1354,6 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
                   err);
 
             return err;
-        } else {
-#if 0
-            ALOGI("out:");
-            hexdump(accessUnit->data(), MIN(64, accessUnit->size()));
-            ALOGI("inputCTR: 0x%016llx", inputCTR);
-            ALOGI("streamCTR: 0x%08x", trackIndex);
-#endif
         }
 
         HDCP_private_data[0] = 0x00;
