@@ -2419,11 +2419,13 @@ AudioFlinger::MixerThread::~MixerThread()
         delete fastTrack->mBufferProvider;
         sq->end(false /*didModify*/);
         delete mFastMixer;
+#ifdef AUDIO_WATCHDOG
         if (mAudioWatchdog != 0) {
             mAudioWatchdog->requestExit();
             mAudioWatchdog->requestExitAndWait();
             mAudioWatchdog.clear();
         }
+#endif
     }
     delete mAudioMixer;
 }
@@ -2736,9 +2738,11 @@ void AudioFlinger::MixerThread::threadLoop_write()
                 if (old == -1) {
                     __futex_syscall3(&mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);
                 }
+#ifdef AUDIO_WATCHDOG
                 if (mAudioWatchdog != 0) {
                     mAudioWatchdog->resume();
                 }
+#endif
             }
             state->mCommand = FastMixerState::MIX_WRITE;
             sq->end();
@@ -2815,9 +2819,11 @@ void AudioFlinger::MixerThread::threadLoop_standby()
             if (kUseFastMixer == FastMixer_Dynamic) {
                 mNormalSink = mOutputSink;
             }
+#ifdef AUDIO_WATCHDOG
             if (mAudioWatchdog != 0) {
                 mAudioWatchdog->pause();
             }
+#endif
         } else {
             sq->end(false /*didModify*/);
         }
@@ -3330,9 +3336,11 @@ track_is_ready: ;
         sq->end(didModify);
         sq->push(block);
     }
+#ifdef AUDIO_WATCHDOG
     if (pauseAudioWatchdog && mAudioWatchdog != 0) {
         mAudioWatchdog->pause();
     }
+#endif
 
     // Now perform the deferred reset on fast tracks that have stopped
     while (resetMask != 0) {
@@ -3654,11 +3662,13 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
         }
     }
 
+#ifdef AUDIO_WATCHDOG
     if (mAudioWatchdog != 0) {
         // Make a non-atomic copy of audio watchdog dump so it won't change underneath us
         AudioWatchdogDump wdCopy = mAudioWatchdogDump;
         wdCopy.dump(fd);
     }
+#endif
 }
 
 uint32_t AudioFlinger::MixerThread::idleSleepTimeUs() const
