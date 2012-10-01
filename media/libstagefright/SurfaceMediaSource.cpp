@@ -46,8 +46,8 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mNumFramesReceived(0),
     mNumFramesEncoded(0),
     mFirstFrameTimestamp(0),
-    mMaxAcquiredBufferCount(4)  // XXX double-check the default
-{
+    mMaxAcquiredBufferCount(4),  // XXX double-check the default
+    mUseAbsoluteTimestamps(false) {
     ALOGV("SurfaceMediaSource");
 
     if (bufferWidth == 0 || bufferHeight == 0) {
@@ -188,6 +188,13 @@ status_t SurfaceMediaSource::setMaxAcquiredBufferCount(size_t count) {
     return OK;
 }
 
+status_t SurfaceMediaSource::setUseAbsoluteTimestamps() {
+    ALOGV("setUseAbsoluteTimestamps");
+    Mutex::Autolock lock(mMutex);
+    mUseAbsoluteTimestamps = true;
+
+    return OK;
+}
 
 status_t SurfaceMediaSource::stop()
 {
@@ -298,7 +305,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
             }
 
             // check for the timing of this buffer
-            if (mNumFramesReceived == 0) {
+            if (mNumFramesReceived == 0 && !mUseAbsoluteTimestamps) {
                 mFirstFrameTimestamp = item.mTimestamp;
                 // Initial delay
                 if (mStartTimeNs > 0) {
