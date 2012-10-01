@@ -267,7 +267,7 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mSendSRPending(false),
       mHistoryLength(0)
 #if TRACK_BANDWIDTH
-      ,mFirstPacketTimeUs(-1ll),
+      ,mFirstPacketTimeUs(-1ll)
       ,mTotalBytesSent(0ll)
 #endif
 #if LOG_TRANSPORT_STREAM
@@ -885,10 +885,8 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
 
     source->setUseAbsoluteTimestamps();
 
-    sp<MediaSource> videoSource = new RepeaterSource(source, 24.0f);
-
     size_t numInputBuffers;
-    status_t err = addSource(true /* isVideo */, videoSource, &numInputBuffers);
+    status_t err = addSource(true /* isVideo */, source, &numInputBuffers);
 
     if (err != OK) {
         return err;
@@ -1122,7 +1120,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
             int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
 
             if (delayUs > 0ll) {
-                ALOGV("approx. net bandwidth used: %.2f Mbit/sec",
+                ALOGI("approx. net bandwidth used: %.2f Mbit/sec",
                         mTotalBytesSent * 8.0 / delayUs);
             }
 #endif

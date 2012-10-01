@@ -132,7 +132,7 @@ status_t Converter::initEncoder() {
         mOutputFormat->setInt32("bitrate", audioBitrate);
     } else {
         mOutputFormat->setInt32("bitrate", videoBitrate);
-        mOutputFormat->setInt32("frame-rate", 24);
+        mOutputFormat->setInt32("frame-rate", 60);
         mOutputFormat->setInt32("i-frame-interval", 1);  // Iframes every 1 secs
         // mOutputFormat->setInt32("prepend-sps-pps-to-idr-frames", 1);
     }
