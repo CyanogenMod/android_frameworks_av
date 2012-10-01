@@ -63,10 +63,7 @@ private:
 
 // static
 int64_t ALooper::GetNowUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_sec * 1000000ll + tv.tv_usec;
+    return systemTime(SYSTEM_TIME_MONOTONIC) / 1000ll;
 }
 
 ALooper::ALooper()

@@ -17,15 +17,9 @@
 #include "include/ThrottledSource.h"
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 
 namespace android {
-
-static int64_t getNowUs() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-
-    return (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
-}
 
 ThrottledSource::ThrottledSource(
         const sp<DataSource> &source,
@@ -52,7 +46,7 @@ ssize_t ThrottledSource::readAt(off64_t offset, void *data, size_t size) {
 
     mTotalTransferred += n;
 
-    int64_t nowUs = getNowUs();
+    int64_t nowUs = ALooper::GetNowUs();
 
     if (mStartTimeUs < 0) {
         mStartTimeUs = nowUs;

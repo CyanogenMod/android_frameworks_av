@@ -53,12 +53,6 @@ struct AudioSource : public MediaSource, public MediaBufferObserver {
     status_t dataCallback(const AudioRecord::Buffer& buffer);
     virtual void signalBufferReturned(MediaBuffer *buffer);
 
-    // If useLooperTime == true, buffers will carry absolute timestamps
-    // as returned by ALooper::GetNowUs(), otherwise systemTime() is used
-    // and buffers contain timestamps relative to start time.
-    // The default is to _not_ use looper time.
-    void setUseLooperTime(bool useLooperTime);
-
 protected:
     virtual ~AudioSource();
 
@@ -93,8 +87,6 @@ private:
     int64_t mNumClientOwnedBuffers;
 
     List<MediaBuffer * > mBuffersReceived;
-
-    bool mUseLooperTime;
 
     void trackMaxAmplitude(int16_t *data, int nSamples);
 
