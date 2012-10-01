@@ -24,7 +24,6 @@
 #include <cutils/properties.h>
 #include <gui/SurfaceTextureClient.h>
 #include <gui/Surface.h>
-#include <media/hardware/MetadataBufferType.h>
 #include "camera2/Parameters.h"
 #include "Camera2Client.h"
 
@@ -52,10 +51,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         Client(cameraService, cameraClient,
                 cameraId, cameraFacing, clientPid),
         mSharedCameraClient(cameraClient),
-        mParameters(cameraId, cameraFacing),
-        mPreviewStreamId(NO_STREAM),
-        mRecordingStreamId(NO_STREAM),
-        mRecordingHeapCount(kDefaultRecordingHeapCount)
+        mParameters(cameraId, cameraFacing)
 {
     ATRACE_CALL();
     ALOGI("Camera %d: Opened", cameraId);
@@ -101,6 +97,8 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
     String8 threadName;
 
+    mStreamingProcessor = new StreamingProcessor(this);
+
     mFrameProcessor = new FrameProcessor(this);
     threadName = String8::format("C2-%d-FrameProc",
             mCameraId);
@@ -140,9 +138,12 @@ Camera2Client::~Camera2Client() {
 
     mDestructionStarted = true;
 
-    // Rewrite mClientPid to allow shutdown by CameraService
-    mClientPid = getCallingPid();
-    disconnect();
+    SharedParameters::Lock l(mParameters);
+    if (l.mParameters.state != Parameters::DISCONNECTED) {
+        // Rewrite mClientPid to allow shutdown by CameraService
+        mClientPid = getCallingPid();
+        disconnect();
+    }
 
     ALOGI("Camera %d: Closed", mCameraId);
 }
@@ -314,25 +315,9 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
             getCaptureStreamId());
     result.appendFormat("    Recording stream ID: %d\n",
             getRecordingStreamId());
+    write(fd, result.string(), result.size());
 
-    result.append("  Current requests:\n");
-    if (mPreviewRequest.entryCount() != 0) {
-        result.append("    Preview request:\n");
-        write(fd, result.string(), result.size());
-        mPreviewRequest.dump(fd, 2, 6);
-    } else {
-        result.append("    Preview request: undefined\n");
-        write(fd, result.string(), result.size());
-    }
-
-    if (mRecordingRequest.entryCount() != 0) {
-        result = "    Recording request:\n";
-        write(fd, result.string(), result.size());
-        mRecordingRequest.dump(fd, 2, 6);
-    } else {
-        result = "    Recording request: undefined\n";
-        write(fd, result.string(), result.size());
-    }
+    mStreamingProcessor->dump(fd, args);
 
     mCaptureSequencer->dump(fd, args);
 
@@ -373,20 +358,10 @@ void Camera2Client::disconnect() {
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
-    if (mPreviewStreamId != NO_STREAM) {
-        mDevice->deleteStream(mPreviewStreamId);
-        mPreviewStreamId = NO_STREAM;
-    }
-
+    mStreamingProcessor->deletePreviewStream();
+    mStreamingProcessor->deleteRecordingStream();
     mJpegProcessor->deleteStream();
-
-    if (mRecordingStreamId != NO_STREAM) {
-        mDevice->deleteStream(mRecordingStreamId);
-        mRecordingStreamId = NO_STREAM;
-    }
-
     mCallbackProcessor->deleteStream();
-
     mZslProcessor->deleteStream();
 
     mFrameProcessor->requestExit();
@@ -546,24 +521,13 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             break;
     }
 
-    if (mPreviewStreamId != NO_STREAM) {
-        res = mDevice->waitUntilDrained();
-        if (res != OK) {
-            ALOGE("%s: Error waiting for preview to drain: %s (%d)",
-                    __FUNCTION__, strerror(-res), res);
-            return res;
-        }
-        res = mDevice->deleteStream(mPreviewStreamId);
-        if (res != OK) {
-            ALOGE("%s: Unable to delete old preview stream: %s (%d)",
-                    __FUNCTION__, strerror(-res), res);
-            return res;
-        }
-        mPreviewStreamId = NO_STREAM;
-    }
-
     mPreviewSurface = binder;
-    mPreviewWindow = window;
+    res = mStreamingProcessor->setPreviewWindow(window);
+    if (res != OK) {
+        ALOGE("%s: Unable to set new preview window: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
 
     if (l.mParameters.state == Parameters::WAITING_FOR_PREVIEW_WINDOW) {
         return startPreviewL(l.mParameters, false);
@@ -637,18 +601,20 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         return INVALID_OPERATION;
     }
 
-    if (mPreviewWindow == 0) {
+    if (!mStreamingProcessor->haveValidPreviewWindow()) {
         params.state = Parameters::WAITING_FOR_PREVIEW_WINDOW;
         return OK;
     }
     params.state = Parameters::STOPPED;
 
-    res = updatePreviewStream(params);
+    res = mStreamingProcessor->updatePreviewStream(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update preview stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+
+    Vector<uint8_t> outputStreams;
     bool callbacksEnabled = params.previewCallbackFlags &
         CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
     if (callbacksEnabled) {
@@ -658,6 +624,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+        outputStreams.push(getCallbackStreamId());
     }
     if (params.zslMode && !params.recordingHint) {
         res = mZslProcessor->updateStream(params);
@@ -666,38 +633,28 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+        outputStreams.push(getZslStreamId());
     }
 
-    CameraMetadata *request;
+    outputStreams.push(getPreviewStreamId());
+
     if (!params.recordingHint) {
-        if (mPreviewRequest.entryCount() == 0) {
-            res = updatePreviewRequest(params);
+        if (!restart) {
+            res = mStreamingProcessor->updatePreviewRequest(params);
             if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to create preview request: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
+                ALOGE("%s: Camera %d: Can't set up preview request: "
+                        "%s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
                 return res;
             }
         }
-        request = &mPreviewRequest;
+        res = mStreamingProcessor->startStream(StreamingProcessor::PREVIEW,
+                outputStreams);
     } else {
         // With recording hint set, we're going to be operating under the
         // assumption that the user will record video. To optimize recording
         // startup time, create the necessary output streams for recording and
         // video snapshot now if they don't already exist.
-        if (mRecordingRequest.entryCount() == 0) {
-            res = updateRecordingRequest(params);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to create recording preview "
-                        "request: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
-                return res;
-            }
-        }
-        request = &mRecordingRequest;
-
-        // TODO: Re-enable recording stream creation/update here once issues are
-        // resolved
-
         res = mJpegProcessor->updateStream(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't pre-configure still image "
@@ -705,43 +662,26 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+
+        if (!restart) {
+            res = mStreamingProcessor->updateRecordingRequest(params);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't set up preview request with "
+                        "record hint: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
+        }
+        res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
+                outputStreams);
     }
-
-    Vector<uint8_t> outputStreams;
-    outputStreams.push(getPreviewStreamId());
-
-    if (callbacksEnabled) {
-        outputStreams.push(getCallbackStreamId());
-    }
-    if (params.zslMode && !params.recordingHint) {
-        outputStreams.push(getZslStreamId());
-    }
-
-    res = request->update(
-        ANDROID_REQUEST_OUTPUT_STREAMS,
-        outputStreams);
-
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-    res = request->sort();
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
+        ALOGE("%s: Camera %d: Unable to start streaming preview: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
-    res = mDevice->setStreamingRequest(*request);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
-                "%s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
     params.state = Parameters::PREVIEW;
-
     return OK;
 }
 
@@ -776,8 +716,7 @@ void Camera2Client::stopPreviewL() {
         case Parameters::RECORD:
             // no break - identical to preview
         case Parameters::PREVIEW:
-            mDevice->clearStreamingRequest();
-            mDevice->waitUntilDrained();
+            mStreamingProcessor->stopStream();
             // no break
         case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
             SharedParameters::Lock l(mParameters);
@@ -866,14 +805,24 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         return INVALID_OPERATION;
     }
 
-    mCameraService->playSound(CameraService::SOUND_RECORDING);
+    if (!restart) {
+        mCameraService->playSound(CameraService::SOUND_RECORDING);
+        mStreamingProcessor->updateRecordingRequest(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+    }
 
-    res = updateRecordingStream(params);
+    res = mStreamingProcessor->updateRecordingStream(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+
+    Vector<uint8_t> outputStreams;
     bool callbacksEnabled = params.previewCallbackFlags &
         CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK;
     if (callbacksEnabled) {
@@ -883,54 +832,19 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+        outputStreams.push(getCallbackStreamId());
     }
+    outputStreams.push(getPreviewStreamId());
+    outputStreams.push(getRecordingStreamId());
 
-    if (mRecordingRequest.entryCount() == 0) {
-        res = updateRecordingRequest(params);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create recording request: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    if (callbacksEnabled) {
-        uint8_t outputStreams[3] ={
-            getPreviewStreamId(),
-            getRecordingStreamId(),
-            getCallbackStreamId()
-        };
-        res = mRecordingRequest.update(
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                outputStreams, 3);
-    } else {
-        uint8_t outputStreams[2] = {
-            getPreviewStreamId(),
-            getRecordingStreamId()
-        };
-        res = mRecordingRequest.update(
-                ANDROID_REQUEST_OUTPUT_STREAMS,
-                outputStreams, 2);
-    }
+    res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
+            outputStreams);
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set up recording request: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-    res = mRecordingRequest.sort();
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Error sorting recording request: %s (%d)",
+        ALOGE("%s: Camera %d: Unable to start recording stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
 
-    res = mDevice->setStreamingRequest(mRecordingRequest);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set recording request to start "
-                "recording: %s (%d)", __FUNCTION__, mCameraId,
-                strerror(-res), res);
-        return res;
-    }
     if (params.state < Parameters::RECORD) {
         params.state = Parameters::RECORD;
     }
@@ -991,60 +905,9 @@ bool Camera2Client::recordingEnabledL() {
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    status_t res;
     if ( checkPid(__FUNCTION__) != OK) return;
 
-    SharedParameters::Lock l(mParameters);
-
-    // Make sure this is for the current heap
-    ssize_t offset;
-    size_t size;
-    sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
-    if (heap->getHeapID() != mRecordingHeap->mHeap->getHeapID()) {
-        ALOGW("%s: Camera %d: Mismatched heap ID, ignoring release "
-                "(got %x, expected %x)", __FUNCTION__, mCameraId,
-                heap->getHeapID(), mRecordingHeap->mHeap->getHeapID());
-        return;
-    }
-    uint8_t *data = (uint8_t*)heap->getBase() + offset;
-    uint32_t type = *(uint32_t*)data;
-    if (type != kMetadataBufferTypeGrallocSource) {
-        ALOGE("%s: Camera %d: Recording frame type invalid (got %x, expected %x)",
-                __FUNCTION__, mCameraId, type, kMetadataBufferTypeGrallocSource);
-        return;
-    }
-
-    // Release the buffer back to the recording queue
-
-    buffer_handle_t imgHandle = *(buffer_handle_t*)(data + 4);
-
-    size_t itemIndex;
-    for (itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
-        const BufferItemConsumer::BufferItem item = mRecordingBuffers[itemIndex];
-        if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT &&
-                item.mGraphicBuffer->handle == imgHandle) {
-            break;
-        }
-    }
-    if (itemIndex == mRecordingBuffers.size()) {
-        ALOGE("%s: Camera %d: Can't find buffer_handle_t %p in list of "
-                "outstanding buffers", __FUNCTION__, mCameraId, imgHandle);
-        return;
-    }
-
-    ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__, mCameraId,
-            imgHandle);
-
-    res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to free recording frame (buffer_handle_t: %p):"
-                "%s (%d)",
-                __FUNCTION__, mCameraId, imgHandle, strerror(-res), res);
-        return;
-    }
-    mRecordingBuffers.replaceAt(itemIndex);
-
-    mRecordingHeapFree++;
+    mStreamingProcessor->releaseRecordingFrame(mem);
 }
 
 status_t Camera2Client::autoFocus() {
@@ -1222,8 +1085,8 @@ status_t Camera2Client::commandSetDisplayOrientationL(int degrees) {
     }
     SharedParameters::Lock l(mParameters);
     if (transform != l.mParameters.previewTransform &&
-            mPreviewStreamId != NO_STREAM) {
-        mDevice->setStreamTransform(mPreviewStreamId, transform);
+            getPreviewStreamId() != NO_STREAM) {
+        mDevice->setStreamTransform(getPreviewStreamId(), transform);
     }
     l.mParameters.previewTransform = transform;
     return OK;
@@ -1336,23 +1199,7 @@ status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
         return INVALID_OPERATION;
     }
 
-    // 32 is the current upper limit on the video buffer count for BufferQueue
-    if (count > 32) {
-        ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
-                __FUNCTION__, mCameraId, count);
-        return BAD_VALUE;
-    }
-
-    // Need to reallocate memory for heap
-    if (mRecordingHeapCount != count) {
-        if  (mRecordingHeap != 0) {
-            mRecordingHeap.clear();
-            mRecordingHeap = NULL;
-        }
-        mRecordingHeapCount = count;
-    }
-
-    return OK;
+    return mStreamingProcessor->setRecordingBufferCount(count);
 }
 
 /** Device-related methods */
@@ -1503,7 +1350,7 @@ camera2::SharedParameters& Camera2Client::getParameters() {
 }
 
 int Camera2Client::getPreviewStreamId() const {
-    return mPreviewStreamId;
+    return mStreamingProcessor->getPreviewStreamId();
 }
 
 int Camera2Client::getCaptureStreamId() const {
@@ -1515,7 +1362,7 @@ int Camera2Client::getCallbackStreamId() const {
 }
 
 int Camera2Client::getRecordingStreamId() const {
-    return mRecordingStreamId;
+    return mStreamingProcessor->getRecordingStreamId();
 }
 
 int Camera2Client::getZslStreamId() const {
@@ -1561,117 +1408,18 @@ const int32_t Camera2Client::kPreviewRequestId;
 const int32_t Camera2Client::kRecordRequestId;
 const int32_t Camera2Client::kFirstCaptureRequestId;
 
-void Camera2Client::onRecordingFrameAvailable() {
-    ATRACE_CALL();
-    status_t res;
-    sp<Camera2Heap> recordingHeap;
-    size_t heapIdx = 0;
-    nsecs_t timestamp;
-    {
-        SharedParameters::Lock l(mParameters);
-
-        BufferItemConsumer::BufferItem imgBuffer;
-        res = mRecordingConsumer->acquireBuffer(&imgBuffer);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return;
-        }
-        timestamp = imgBuffer.mTimestamp;
-
-        mRecordingFrameCount++;
-        ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
-
-        // TODO: Signal errors here upstream
-        if (l.mParameters.state != Parameters::RECORD &&
-                l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
-            ALOGV("%s: Camera %d: Discarding recording image buffers received after "
-                    "recording done",
-                    __FUNCTION__, mCameraId);
-            mRecordingConsumer->releaseBuffer(imgBuffer);
-            return;
-        }
-
-        if (mRecordingHeap == 0) {
-            const size_t bufferSize = 4 + sizeof(buffer_handle_t);
-            ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
-                    "size %d bytes", __FUNCTION__, mCameraId,
-                    mRecordingHeapCount, bufferSize);
-
-            mRecordingHeap = new Camera2Heap(bufferSize, mRecordingHeapCount,
-                    "Camera2Client::RecordingHeap");
-            if (mRecordingHeap->mHeap->getSize() == 0) {
-                ALOGE("%s: Camera %d: Unable to allocate memory for recording",
-                        __FUNCTION__, mCameraId);
-                mRecordingConsumer->releaseBuffer(imgBuffer);
-                return;
-            }
-            for (size_t i = 0; i < mRecordingBuffers.size(); i++) {
-                if (mRecordingBuffers[i].mBuf !=
-                        BufferItemConsumer::INVALID_BUFFER_SLOT) {
-                    ALOGE("%s: Camera %d: Non-empty recording buffers list!",
-                            __FUNCTION__, mCameraId);
-                }
-            }
-            mRecordingBuffers.clear();
-            mRecordingBuffers.setCapacity(mRecordingHeapCount);
-            mRecordingBuffers.insertAt(0, mRecordingHeapCount);
-
-            mRecordingHeapHead = 0;
-            mRecordingHeapFree = mRecordingHeapCount;
-        }
-
-        if ( mRecordingHeapFree == 0) {
-            ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
-                    __FUNCTION__, mCameraId);
-            mRecordingConsumer->releaseBuffer(imgBuffer);
-            return;
-        }
-
-        heapIdx = mRecordingHeapHead;
-        mRecordingHeapHead = (mRecordingHeapHead + 1) % mRecordingHeapCount;
-        mRecordingHeapFree--;
-
-        ALOGV("%s: Camera %d: Timestamp %lld",
-                __FUNCTION__, mCameraId, timestamp);
-
-        ssize_t offset;
-        size_t size;
-        sp<IMemoryHeap> heap =
-                mRecordingHeap->mBuffers[heapIdx]->getMemory(&offset,
-                        &size);
-
-        uint8_t *data = (uint8_t*)heap->getBase() + offset;
-        uint32_t type = kMetadataBufferTypeGrallocSource;
-        *((uint32_t*)data) = type;
-        *((buffer_handle_t*)(data + 4)) = imgBuffer.mGraphicBuffer->handle;
-        ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
-                __FUNCTION__, mCameraId, imgBuffer.mGraphicBuffer->handle);
-        mRecordingBuffers.replaceAt(imgBuffer, heapIdx);
-        recordingHeap = mRecordingHeap;
-    }
-
-    // Call outside locked parameters to allow re-entrancy from notification
-    SharedCameraClient::Lock l(mSharedCameraClient);
-    if (l.mCameraClient != 0) {
-        l.mCameraClient->dataCallbackTimestamp(timestamp,
-                CAMERA_MSG_VIDEO_FRAME,
-                recordingHeap->mBuffers[heapIdx]);
-    }
-}
-
 /** Utility methods */
 
 status_t Camera2Client::updateRequests(Parameters &params) {
     status_t res;
 
-    res = updatePreviewRequest(params);
+    res = mStreamingProcessor->updatePreviewRequest(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update preview request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
-    res = updateRecordingRequest(params);
+    res = mStreamingProcessor->updateRecordingRequest(params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1687,7 +1435,7 @@ status_t Camera2Client::updateRequests(Parameters &params) {
         }
     } else if (params.state == Parameters::RECORD ||
             params.state == Parameters::VIDEO_SNAPSHOT) {
-        res = mDevice->setStreamingRequest(mRecordingRequest);
+        res = startRecordingL(params, true);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error streaming new record request: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1697,172 +1445,6 @@ status_t Camera2Client::updateRequests(Parameters &params) {
     return res;
 }
 
-status_t Camera2Client::updatePreviewStream(const Parameters &params) {
-    ATRACE_CALL();
-    status_t res;
-
-    if (mPreviewStreamId != NO_STREAM) {
-        // Check if stream parameters have to change
-        uint32_t currentWidth, currentHeight;
-        res = mDevice->getStreamInfo(mPreviewStreamId,
-                &currentWidth, &currentHeight, 0);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error querying preview stream info: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-        if (currentWidth != (uint32_t)params.previewWidth ||
-                currentHeight != (uint32_t)params.previewHeight) {
-            ALOGV("%s: Camera %d: Preview size switch: %d x %d -> %d x %d",
-                    __FUNCTION__, mCameraId, currentWidth, currentHeight,
-                    params.previewWidth, params.previewHeight);
-            res = mDevice->waitUntilDrained();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Error waiting for preview to drain: "
-                        "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-                return res;
-            }
-            res = mDevice->deleteStream(mPreviewStreamId);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to delete old output stream "
-                        "for preview: %s (%d)", __FUNCTION__, mCameraId,
-                        strerror(-res), res);
-                return res;
-            }
-            mPreviewStreamId = NO_STREAM;
-        }
-    }
-
-    if (mPreviewStreamId == NO_STREAM) {
-        res = mDevice->createStream(mPreviewWindow,
-                params.previewWidth, params.previewHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0,
-                &mPreviewStreamId);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create preview stream: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    res = mDevice->setStreamTransform(mPreviewStreamId,
-            params.previewTransform);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set preview stream transform: "
-                "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
-    }
-
-    return OK;
-}
-
-status_t Camera2Client::updatePreviewRequest(const Parameters &params) {
-    ATRACE_CALL();
-    status_t res;
-    if (mPreviewRequest.entryCount() == 0) {
-        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
-                &mPreviewRequest);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create default preview request: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    res = params.updateRequest(&mPreviewRequest);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update common entries of preview "
-                "request: %s (%d)", __FUNCTION__, mCameraId,
-                strerror(-res), res);
-        return res;
-    }
-
-    res = mPreviewRequest.update(ANDROID_REQUEST_ID,
-            &kPreviewRequestId, 1);
-
-    return OK;
-}
-
-status_t Camera2Client::updateRecordingRequest(const Parameters &params) {
-    ATRACE_CALL();
-    status_t res;
-    if (mRecordingRequest.entryCount() == 0) {
-        res = mDevice->createDefaultRequest(CAMERA2_TEMPLATE_VIDEO_RECORD,
-                &mRecordingRequest);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to create default recording request:"
-                    " %s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    res = params.updateRequest(&mRecordingRequest);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update common entries of recording "
-                "request: %s (%d)", __FUNCTION__, mCameraId,
-                strerror(-res), res);
-        return res;
-    }
-
-    return OK;
-}
-
-status_t Camera2Client::updateRecordingStream(const Parameters &params) {
-    status_t res;
-
-    if (mRecordingConsumer == 0) {
-        // Create CPU buffer queue endpoint. We need one more buffer here so that we can
-        // always acquire and free a buffer when the heap is full; otherwise the consumer
-        // will have buffers in flight we'll never clear out.
-        mRecordingConsumer = new BufferItemConsumer(
-                GRALLOC_USAGE_HW_VIDEO_ENCODER,
-                mRecordingHeapCount + 1,
-                true);
-        mRecordingConsumer->setFrameAvailableListener(new RecordingWaiter(this));
-        mRecordingConsumer->setName(String8("Camera2Client::RecordingConsumer"));
-        mRecordingWindow = new SurfaceTextureClient(
-            mRecordingConsumer->getProducerInterface());
-        // Allocate memory later, since we don't know buffer size until receipt
-    }
-
-    if (mRecordingStreamId != NO_STREAM) {
-        // Check if stream parameters have to change
-        uint32_t currentWidth, currentHeight;
-        res = mDevice->getStreamInfo(mRecordingStreamId,
-                &currentWidth, &currentHeight, 0);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Error querying recording output stream info: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-        if (currentWidth != (uint32_t)params.videoWidth ||
-                currentHeight != (uint32_t)params.videoHeight) {
-            // TODO: Should wait to be sure previous recording has finished
-            res = mDevice->deleteStream(mRecordingStreamId);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to delete old output stream "
-                        "for recording: %s (%d)", __FUNCTION__, mCameraId,
-                        strerror(-res), res);
-                return res;
-            }
-            mRecordingStreamId = NO_STREAM;
-        }
-    }
-
-    if (mRecordingStreamId == NO_STREAM) {
-        mRecordingFrameCount = 0;
-        res = mDevice->createStream(mRecordingWindow,
-                params.videoWidth, params.videoHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0, &mRecordingStreamId);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't create output stream for recording: "
-                    "%s (%d)", __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-    }
-
-    return OK;
-}
 
 size_t Camera2Client::calculateBufferSize(int width, int height,
         int format, int stride) {
