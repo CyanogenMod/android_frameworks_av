@@ -75,8 +75,6 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
     status_t start();
     void stopAsync();
 
-    bool isStopped() const { return !mStarted; }
-
     void queueAccessUnit(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueAccessUnit();
 
@@ -200,6 +198,8 @@ void WifiDisplaySource::PlaybackSession::Track::onMessageReceived(
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatStopped);
             notify->post();
+
+            ALOGI("kWhatStopped %s posted", mIsAudio ? "audio" : "video");
             break;
         }
 
@@ -267,9 +267,11 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mNumRTPOctetsSent(0),
       mNumSRsSent(0),
       mSendSRPending(false),
-      mFirstPacketTimeUs(-1ll),
-      mHistoryLength(0),
-      mTotalBytesSent(0ll)
+      mHistoryLength(0)
+#if TRACK_BANDWIDTH
+      ,mFirstPacketTimeUs(-1ll),
+      ,mTotalBytesSent(0ll)
+#endif
 #if LOG_TRANSPORT_STREAM
       ,mLogFile(NULL)
 #endif
@@ -747,20 +749,17 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             CHECK(msg->findSize("trackIndex", &trackIndex));
 
             if (what == Track::kWhatStopped) {
-                bool allTracksAreStopped = true;
-                for (size_t i = 0; i < mTracks.size(); ++i) {
-                    const sp<Track> &track = mTracks.valueAt(i);
-                    if (!track->isStopped()) {
-                        allTracksAreStopped = false;
-                        break;
-                    }
-                }
+                ALOGI("Track %d stopped", trackIndex);
 
-                if (!allTracksAreStopped) {
+                sp<Track> track = mTracks.valueFor(trackIndex);
+                looper()->unregisterHandler(track->id());
+                mTracks.removeItem(trackIndex);
+                track.clear();
+
+                if (!mTracks.isEmpty()) {
+                    ALOGI("not all tracks are stopped yet");
                     break;
                 }
-
-                mTracks.clear();
 
                 mPacketizer.clear();
 
@@ -1074,12 +1073,15 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
         // flush
 
         int64_t nowUs = ALooper::GetNowUs();
+
+#if TRACK_BANDWIDTH
         if (mFirstPacketTimeUs < 0ll) {
             mFirstPacketTimeUs = nowUs;
         }
+#endif
 
         // 90kHz time scale
-        uint32_t rtpTime = ((nowUs - mFirstPacketTimeUs) * 9ll) / 100ll;
+        uint32_t rtpTime = (nowUs * 9ll) / 100ll;
 
         uint8_t *rtp = mTSQueue->data();
         rtp[0] = 0x80;
@@ -1115,6 +1117,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
         } else {
             sendPacket(mRTPSessionID, rtp, mTSQueue->size());
 
+#if TRACK_BANDWIDTH
             mTotalBytesSent += mTSQueue->size();
             int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
 
@@ -1122,6 +1125,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
                 ALOGV("approx. net bandwidth used: %.2f Mbit/sec",
                         mTotalBytesSent * 8.0 / delayUs);
             }
+#endif
         }
 
         mTSQueue->setInt32Data(mRTPSeqNo - 1);

@@ -32,6 +32,7 @@ struct TSPacketizer;
 
 #define LOG_TRANSPORT_STREAM            0
 #define ENABLE_RETRANSMISSION           0
+#define TRACK_BANDWIDTH                 0
 
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
@@ -160,12 +161,13 @@ private:
 
     bool mSendSRPending;
 
-    int64_t mFirstPacketTimeUs;
-
     List<sp<ABuffer> > mHistory;
     size_t mHistoryLength;
 
+#if TRACK_BANDWIDTH
+    int64_t mFirstPacketTimeUs;
     uint64_t mTotalBytesSent;
+#endif
 
 #if LOG_TRANSPORT_STREAM
     FILE *mLogFile;
