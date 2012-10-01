@@ -14,6 +14,7 @@ LOCAL_SRC_FILES:=               \
     camera2/CameraMetadata.cpp \
     camera2/Parameters.cpp \
     camera2/FrameProcessor.cpp \
+    camera2/StreamingProcessor.cpp \
     camera2/JpegProcessor.cpp \
     camera2/CallbackProcessor.cpp \
     camera2/ZslProcessor.cpp \
