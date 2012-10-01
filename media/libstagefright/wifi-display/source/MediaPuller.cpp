@@ -75,7 +75,16 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStart:
         {
-            status_t err = mSource->start();
+            status_t err;
+            if (mIsAudio) {
+                // This atrocity causes AudioSource to deliver absolute
+                // systemTime() based timestamps (off by 1 us).
+                sp<MetaData> params = new MetaData;
+                params->setInt64(kKeyTime, 1ll);
+                err = mSource->start(params.get());
+            } else {
+                err = mSource->start();
+            }
 
             if (err == OK) {
                 schedulePull();
