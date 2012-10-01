@@ -77,6 +77,17 @@ public:
             void    setAvgFrames(size_t setpoint);
             size_t  maxFrames() const { return mMaxFrames; }
 
+            // Set the shutdown state for the write side of a pipe.
+            // This may be called by an unrelated thread.  When shutdown state is 'true',
+            // a write that would otherwise block instead returns a short transfer count.
+            // There is no guarantee how long it will take for the shutdown to be recognized,
+            // but it will not be an unbounded amount of time.
+            // The state can be restored to normal by calling shutdown(false).
+            void    shutdown(bool newState = true);
+
+            // Return true if the write side of a pipe is currently shutdown.
+            bool    isShutdown();
+
 private:
     // A pair of methods and a helper variable which allows the reader and the
     // writer to update and observe the values of mFront and mNextRdPTS in an
@@ -114,6 +125,8 @@ private:
 
     int64_t offsetTimestampByAudioFrames(int64_t ts, size_t audFrames);
     LinearTransform mSamplesToLocalTime;
+
+    bool            mIsShutdown;    // whether shutdown(true) was called, no barriers are needed
 };
 
 }   // namespace android

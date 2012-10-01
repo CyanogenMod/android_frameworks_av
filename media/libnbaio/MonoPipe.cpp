@@ -41,7 +41,8 @@ MonoPipe::MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock) :
         mWriteTsValid(false),
         // mWriteTs
         mSetpoint((reqFrames * 11) / 16),
-        mWriteCanBlock(writeCanBlock)
+        mWriteCanBlock(writeCanBlock),
+        mIsShutdown(false)
 {
     CCHelper tmpHelper;
     status_t res;
@@ -121,7 +122,7 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
             android_atomic_release_store(written + mRear, &mRear);
             totalFramesWritten += written;
         }
-        if (!mWriteCanBlock) {
+        if (!mWriteCanBlock || mIsShutdown) {
             break;
         }
         count -= written;
@@ -297,6 +298,16 @@ int64_t MonoPipe::offsetTimestampByAudioFrames(int64_t ts, size_t audFrames)
     }
 
     return ts + frame_lt_duration;
+}
+
+void MonoPipe::shutdown(bool newState)
+{
+    mIsShutdown = newState;
+}
+
+bool MonoPipe::isShutdown()
+{
+    return mIsShutdown;
 }
 
 }   // namespace android
