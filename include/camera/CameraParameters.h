@@ -525,10 +525,6 @@ public:
     // stream and record stabilized videos.
     static const char KEY_VIDEO_STABILIZATION_SUPPORTED[];
 
-    // Supported modes for special effects with light.
-    // Example values: "lowlight,hdr".
-    static const char KEY_LIGHTFX[];
-
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
     static const char TRUE[];
     static const char FALSE[];
@@ -667,12 +663,6 @@ public:
     // To stop continuous focus, applications should change the focus mode to
     // other modes.
     static const char FOCUS_MODE_CONTINUOUS_PICTURE[];
-
-    // Values for light special effects
-    // Low-light enhancement mode
-    static const char LIGHTFX_LOWLIGHT[];
-    // High-dynamic range mode
-    static const char LIGHTFX_HDR[];
 
 private:
     DefaultKeyedVector<String8,String8>    mMap;

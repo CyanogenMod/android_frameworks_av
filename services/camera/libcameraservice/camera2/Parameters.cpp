@@ -1331,10 +1331,6 @@ status_t Parameters::set(const String8& params) {
         ALOGE("%s: Video stabilization not supported", __FUNCTION__);
     }
 
-    // LIGHTFX
-    validatedParams.lightFx = lightFxStringToEnum(
-        newParams.get(CameraParameters::KEY_LIGHTFX));
-
     /** Update internal parameters */
 
     validatedParams.paramsFlattened = params;
@@ -1744,18 +1740,6 @@ Parameters::Parameters::focusMode_t Parameters::focusModeStringToEnum(
         !strcmp(focusMode, CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE) ?
             Parameters::FOCUS_MODE_CONTINUOUS_PICTURE :
         Parameters::FOCUS_MODE_INVALID;
-}
-
-Parameters::Parameters::lightFxMode_t Parameters::lightFxStringToEnum(
-        const char *lightFxMode) {
-    return
-        !lightFxMode ?
-            Parameters::LIGHTFX_NONE :
-        !strcmp(lightFxMode, CameraParameters::LIGHTFX_LOWLIGHT) ?
-            Parameters::LIGHTFX_LOWLIGHT :
-        !strcmp(lightFxMode, CameraParameters::LIGHTFX_HDR) ?
-            Parameters::LIGHTFX_HDR :
-        Parameters::LIGHTFX_NONE;
 }
 
 status_t Parameters::parseAreas(const char *areasCStr,

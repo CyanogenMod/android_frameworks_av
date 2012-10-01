@@ -213,7 +213,6 @@ struct Parameters {
     static int sceneModeStringToEnum(const char *sceneMode);
     static flashMode_t flashModeStringToEnum(const char *flashMode);
     static focusMode_t focusModeStringToEnum(const char *focusMode);
-    static lightFxMode_t lightFxStringToEnum(const char *lightFxMode);
     static status_t parseAreas(const char *areasCStr,
             Vector<Area> *areas);
     static status_t validateAreas(const Vector<Area> &areas,
