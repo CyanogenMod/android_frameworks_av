@@ -185,6 +185,7 @@ private:
     status_t addSource(
             bool isVideo,
             const sp<MediaSource> &source,
+            bool isRepeaterSource,
             size_t *numInputBuffers);
 
     status_t addVideoSource();
