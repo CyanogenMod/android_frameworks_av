@@ -64,6 +64,8 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
           const sp<MediaPuller> &mediaPuller,
           const sp<Converter> &converter);
 
+    void setRepeaterSource(const sp<RepeaterSource> &source);
+
     sp<AMessage> getFormat();
     bool isAudio() const;
 
@@ -77,6 +79,8 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
 
     void queueAccessUnit(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueAccessUnit();
+
+    void requestIDRFrame();
 
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -96,6 +100,7 @@ private:
     ssize_t mPacketizerTrackIndex;
     bool mIsAudio;
     List<sp<ABuffer> > mQueuedAccessUnits;
+    sp<RepeaterSource> mRepeaterSource;
 
     static bool IsAudioFormat(const sp<AMessage> &format);
 
@@ -178,6 +183,11 @@ void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
     sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, id());
 
     if (mStarted && mMediaPuller != NULL) {
+        if (mRepeaterSource != NULL) {
+            // Let's unblock MediaPuller's MediaSource::read().
+            mRepeaterSource->wakeUp();
+        }
+
         mMediaPuller->stopAsync(msg);
     } else {
         msg->post();
@@ -222,6 +232,23 @@ sp<ABuffer> WifiDisplaySource::PlaybackSession::Track::dequeueAccessUnit() {
     mQueuedAccessUnits.erase(mQueuedAccessUnits.begin());
 
     return accessUnit;
+}
+
+void WifiDisplaySource::PlaybackSession::Track::setRepeaterSource(
+        const sp<RepeaterSource> &source) {
+    mRepeaterSource = source;
+}
+
+void WifiDisplaySource::PlaybackSession::Track::requestIDRFrame() {
+    if (mIsAudio) {
+        return;
+    }
+
+    if (mRepeaterSource != NULL) {
+        mRepeaterSource->wakeUp();
+    }
+
+    mConverter->requestIDRFrame();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -809,7 +836,8 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::addSource(
-        bool isVideo, const sp<MediaSource> &source, size_t *numInputBuffers) {
+        bool isVideo, const sp<MediaSource> &source, bool isRepeaterSource,
+        size_t *numInputBuffers) {
     sp<ALooper> pullLooper = new ALooper;
     pullLooper->setName("pull_looper");
 
@@ -871,6 +899,10 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     sp<Track> track = new Track(
             notify, pullLooper, codecLooper, puller, converter);
 
+    if (isRepeaterSource) {
+        track->setRepeaterSource(static_cast<RepeaterSource *>(source.get()));
+    }
+
     looper()->registerHandler(track);
 
     mTracks.add(trackIndex, track);
@@ -887,8 +919,13 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
 
     source->setUseAbsoluteTimestamps();
 
+    sp<RepeaterSource> videoSource =
+        new RepeaterSource(source, 30.0 /* rateHz */);
+
     size_t numInputBuffers;
-    status_t err = addSource(true /* isVideo */, source, &numInputBuffers);
+    status_t err = addSource(
+            true /* isVideo */, videoSource, true /* isRepeaterSource */,
+            &numInputBuffers);
 
     if (err != OK) {
         return err;
@@ -910,7 +947,8 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource() {
 
     if (audioSource->initCheck() == OK) {
         return addSource(
-                false /* isVideo */, audioSource, NULL /* numInputBuffers */);
+                false /* isVideo */, audioSource, false /* isRepeaterSource */,
+                NULL /* numInputBuffers */);
     }
 
     ALOGW("Unable to instantiate audio source");
@@ -1300,7 +1338,7 @@ void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
     for (size_t i = 0; i < mTracks.size(); ++i) {
         const sp<Track> &track = mTracks.valueAt(i);
 
-        track->converter()->requestIDRFrame();
+        track->requestIDRFrame();
     }
 }
 

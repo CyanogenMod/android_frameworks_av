@@ -18,6 +18,7 @@ RepeaterSource::RepeaterSource(const sp<MediaSource> &source, double rateHz)
       mRateHz(rateHz),
       mBuffer(NULL),
       mResult(OK),
+      mLastBufferUpdateUs(-1ll),
       mStartTimeUs(-1ll),
       mFrameCount(0) {
 }
@@ -91,38 +92,59 @@ status_t RepeaterSource::read(
     ReadOptions::SeekMode seekMode;
     CHECK(options == NULL || !options->getSeekTo(&seekTimeUs, &seekMode));
 
-    int64_t bufferTimeUs = -1ll;
+    for (;;) {
+        int64_t bufferTimeUs = -1ll;
 
-    if (mStartTimeUs < 0ll) {
-        Mutex::Autolock autoLock(mLock);
-        while (mBuffer == NULL && mResult == OK) {
-            mCondition.wait(mLock);
+        if (mStartTimeUs < 0ll) {
+            Mutex::Autolock autoLock(mLock);
+            while ((mLastBufferUpdateUs < 0ll || mBuffer == NULL)
+                    && mResult == OK) {
+                mCondition.wait(mLock);
+            }
+
+            ALOGV("now resuming.");
+            mStartTimeUs = ALooper::GetNowUs();
+            bufferTimeUs = mStartTimeUs;
+        } else {
+            bufferTimeUs = mStartTimeUs + (mFrameCount * 1000000ll) / mRateHz;
+
+            int64_t nowUs = ALooper::GetNowUs();
+            int64_t delayUs = bufferTimeUs - nowUs;
+
+            if (delayUs > 0ll) {
+                usleep(delayUs);
+            }
         }
 
-        mStartTimeUs = ALooper::GetNowUs();
-        bufferTimeUs = mStartTimeUs;
-    } else {
-        bufferTimeUs = mStartTimeUs + (mFrameCount * 1000000ll) / mRateHz;
+        bool stale = false;
 
-        int64_t nowUs = ALooper::GetNowUs();
-        int64_t delayUs = bufferTimeUs - nowUs;
+        {
+            Mutex::Autolock autoLock(mLock);
+            if (mResult != OK) {
+                CHECK(mBuffer == NULL);
+                return mResult;
+            }
 
-        if (delayUs > 0ll) {
-            usleep(delayUs);
+            int64_t nowUs = ALooper::GetNowUs();
+            if (nowUs - mLastBufferUpdateUs > 1000000ll) {
+                mLastBufferUpdateUs = -1ll;
+                stale = true;
+            } else {
+                mBuffer->add_ref();
+                *buffer = mBuffer;
+                (*buffer)->meta_data()->setInt64(kKeyTime, bufferTimeUs);
+                ++mFrameCount;
+            }
         }
+
+        if (!stale) {
+            break;
+        }
+
+        mStartTimeUs = -1ll;
+        mFrameCount = 0;
+        ALOGV("now dormant");
     }
-
-    Mutex::Autolock autoLock(mLock);
-    if (mResult != OK) {
-        CHECK(mBuffer == NULL);
-        return mResult;
-    }
-
-    mBuffer->add_ref();
-    *buffer = mBuffer;
-    (*buffer)->meta_data()->setInt64(kKeyTime, bufferTimeUs);
-
-    ++mFrameCount;
 
     return OK;
 }
@@ -147,6 +169,7 @@ void RepeaterSource::onMessageReceived(const sp<AMessage> &msg) {
             }
             mBuffer = buffer;
             mResult = err;
+            mLastBufferUpdateUs = ALooper::GetNowUs();
 
             mCondition.broadcast();
 
@@ -158,6 +181,15 @@ void RepeaterSource::onMessageReceived(const sp<AMessage> &msg) {
 
         default:
             TRESPASS();
+    }
+}
+
+void RepeaterSource::wakeUp() {
+    ALOGV("wakeUp");
+    Mutex::Autolock autoLock(mLock);
+    if (mLastBufferUpdateUs < 0ll && mBuffer != NULL) {
+        mLastBufferUpdateUs = ALooper::GetNowUs();
+        mCondition.broadcast();
     }
 }
 
