@@ -592,6 +592,8 @@ bool ATSParser::Stream::isAudio() const {
 
 void ATSParser::Stream::signalDiscontinuity(
         DiscontinuityType type, const sp<AMessage> &extra) {
+    mExpectedContinuityCounter = -1;
+
     if (mQueue == NULL) {
         return;
     }
