@@ -41,8 +41,6 @@ public:
     virtual int64_t getRealTimeUs();
 
 private:
-    static int64_t GetSystemTimeUs();
-
     int64_t mStartTimeUs;
 };
 

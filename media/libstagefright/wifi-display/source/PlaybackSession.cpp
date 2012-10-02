@@ -883,8 +883,9 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(width(), height());
 
-    sp<MediaSource> videoSource =
-            new RepeaterSource(source, 24.0 /* rateHz */);
+    source->setUseAbsoluteTimestamps();
+
+    sp<MediaSource> videoSource = new RepeaterSource(source, 24.0f);
 
     size_t numInputBuffers;
     status_t err = addSource(true /* isVideo */, videoSource, &numInputBuffers);
@@ -908,8 +909,6 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource() {
             2 /* channelCount */);
 
     if (audioSource->initCheck() == OK) {
-        audioSource->setUseLooperTime(true);
-
         return addSource(
                 false /* isVideo */, audioSource, NULL /* numInputBuffers */);
     }
