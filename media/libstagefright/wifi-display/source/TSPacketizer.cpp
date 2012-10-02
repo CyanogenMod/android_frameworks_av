@@ -294,12 +294,11 @@ status_t TSPacketizer::packetize(
 
     const sp<Track> &track = mTracks.itemAt(trackIndex);
 
-    if (track->isH264() && !(flags & IS_ENCRYPTED)) {
-        if (IsIDR(accessUnit)) {
-            // prepend codec specific data, i.e. SPS and PPS.
-            accessUnit = track->prependCSD(accessUnit);
-        }
-    } else if (track->lacksADTSHeader()) {
+    if (track->isH264() && (flags & PREPEND_SPS_PPS_TO_IDR_FRAMES)
+            && IsIDR(accessUnit)) {
+        // prepend codec specific data, i.e. SPS and PPS.
+        accessUnit = track->prependCSD(accessUnit);
+    } else if (track->isAudio() && track->lacksADTSHeader()) {
         CHECK(!(flags & IS_ENCRYPTED));
         accessUnit = track->prependADTSHeader(accessUnit);
     }
