@@ -22,6 +22,10 @@ struct RepeaterSource : public MediaSource {
 
     void onMessageReceived(const sp<AMessage> &msg);
 
+    // If RepeaterSource is currently dormant, because SurfaceFlinger didn't
+    // send updates in a while, this is its wakeup call.
+    void wakeUp();
+
 protected:
     virtual ~RepeaterSource();
 
@@ -43,6 +47,7 @@ private:
 
     MediaBuffer *mBuffer;
     status_t mResult;
+    int64_t mLastBufferUpdateUs;
 
     int64_t mStartTimeUs;
     int32_t mFrameCount;
