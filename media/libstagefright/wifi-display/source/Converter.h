@@ -25,6 +25,8 @@ namespace android {
 struct ABuffer;
 struct MediaCodec;
 
+#define ENABLE_SILENCE_DETECTION        1
+
 // Utility class that receives media access units and converts them into
 // media access unit of a different format.
 // Right now this'll convert raw video into H.264 and raw audio into AAC.
@@ -83,6 +85,11 @@ private:
 
     bool mDoMoreWorkPending;
 
+#if ENABLE_SILENCE_DETECTION
+    int64_t mFirstSilentFrameUs;
+    bool mInSilentMode;
+#endif
+
     status_t initEncoder();
 
     status_t feedEncoderInputBuffers();
@@ -91,6 +98,8 @@ private:
     status_t doMoreWork();
 
     void notifyError(status_t err);
+
+    static bool IsSilence(const sp<ABuffer> &accessUnit);
 
     DISALLOW_EVIL_CONSTRUCTORS(Converter);
 };
