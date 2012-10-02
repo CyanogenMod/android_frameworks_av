@@ -116,6 +116,9 @@ public:
     // To be called before start()
     status_t setMaxAcquiredBufferCount(size_t count);
 
+    // To be called before start()
+    status_t setUseAbsoluteTimestamps();
+
 protected:
 
     // Implementation of the BufferQueue::ConsumerListener interface.  These
@@ -211,6 +214,8 @@ private:
     int64_t mStartTimeNs;
 
     size_t mMaxAcquiredBufferCount;
+
+    bool mUseAbsoluteTimestamps;
 
     // mFrameAvailableCondition condition used to indicate whether there
     // is a frame available for dequeuing
