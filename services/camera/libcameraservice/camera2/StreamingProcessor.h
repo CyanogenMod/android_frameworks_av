@@ -57,6 +57,7 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     int getRecordingStreamId() const;
 
     enum StreamType {
+        NONE,
         PREVIEW,
         RECORD
     };
@@ -64,6 +65,11 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
             const Vector<uint8_t> &outputStreams);
 
     status_t stopStream();
+
+    // Returns the request ID for the currently streaming request
+    // Returns 0 if there is no active request.
+    status_t getActiveRequestId() const;
+    status_t incrementStreamingIds();
 
     // Callback for new recording frames from HAL
     virtual void onFrameAvailable();
@@ -81,12 +87,16 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
 
     wp<Camera2Client> mClient;
 
+    StreamType mActiveRequest;
+
     // Preview-related members
+    int32_t mPreviewRequestId;
     int mPreviewStreamId;
     CameraMetadata mPreviewRequest;
     sp<ANativeWindow> mPreviewWindow;
 
     // Recording-related members
+    int32_t mRecordingRequestId;
     int mRecordingStreamId;
     int mRecordingFrameCount;
     sp<BufferItemConsumer> mRecordingConsumer;
