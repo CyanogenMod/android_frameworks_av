@@ -913,6 +913,7 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
 status_t Camera2Client::autoFocus() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -931,6 +932,7 @@ status_t Camera2Client::autoFocus() {
 status_t Camera2Client::cancelAutoFocus() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -1000,7 +1002,7 @@ status_t Camera2Client::takePicture(int msgType) {
 
 status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     Mutex::Autolock icl(mICameraLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -1017,13 +1019,13 @@ status_t Camera2Client::setParameters(const String8& params) {
 
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     Mutex::Autolock icl(mICameraLock);
     if ( checkPid(__FUNCTION__) != OK) return String8();
 
     SharedParameters::ReadLock l(mParameters);
 
-    // TODO: Deal with focus distances
-    return l.mParameters.paramsFlattened;
+    return l.mParameters.get();
 }
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
