@@ -161,8 +161,10 @@ private:
 
     bool mSendSRPending;
 
+#if ENABLE_RETRANSMISSION
     List<sp<ABuffer> > mHistory;
     size_t mHistoryLength;
+#endif
 
 #if TRACK_BANDWIDTH
     int64_t mFirstPacketTimeUs;
