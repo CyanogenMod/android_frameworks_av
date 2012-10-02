@@ -36,17 +36,30 @@ FrameProcessor::~FrameProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
 }
 
-status_t FrameProcessor::registerListener(int32_t id,
-        wp<FilteredListener> listener) {
+status_t FrameProcessor::registerListener(int32_t minId,
+        int32_t maxId, wp<FilteredListener> listener) {
     Mutex::Autolock l(mInputMutex);
-    ALOGV("%s: Registering listener for frame id %d",
-            __FUNCTION__, id);
-    return mListeners.replaceValueFor(id, listener);
+    ALOGV("%s: Registering listener for frame id range %d - %d",
+            __FUNCTION__, minId, maxId);
+    RangeListener rListener = { minId, maxId, listener };
+    mRangeListeners.push_back(rListener);
+    return OK;
 }
 
-status_t FrameProcessor::removeListener(int32_t id) {
+status_t FrameProcessor::removeListener(int32_t minId,
+        int32_t maxId, wp<FilteredListener> listener) {
     Mutex::Autolock l(mInputMutex);
-    return mListeners.removeItem(id);
+    List<RangeListener>::iterator item = mRangeListeners.begin();
+    while (item != mRangeListeners.end()) {
+        if (item->minId == minId &&
+                item->maxId == maxId &&
+                item->listener == listener) {
+            item = mRangeListeners.erase(item);
+        } else {
+            item++;
+        }
+    }
+    return OK;
 }
 
 void FrameProcessor::dump(int fd, const Vector<String16>& args) {
@@ -97,8 +110,7 @@ void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
         res = processFaceDetect(frame, client);
         if (res != OK) break;
 
-        // Must be last - listener can take ownership of frame
-        res = processListener(frame, client);
+        res = processListeners(frame, client);
         if (res != OK) break;
 
         if (!frame.isEmpty()) {
@@ -114,11 +126,11 @@ void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
     return;
 }
 
-status_t FrameProcessor::processListener(CameraMetadata &frame,
+status_t FrameProcessor::processListeners(const CameraMetadata &frame,
         sp<Camera2Client> &client) {
     status_t res;
     ATRACE_CALL();
-    camera_metadata_entry_t entry;
+    camera_metadata_ro_entry_t entry;
 
     entry = frame.find(ANDROID_REQUEST_ID);
     if (entry.count == 0) {
@@ -127,22 +139,30 @@ status_t FrameProcessor::processListener(CameraMetadata &frame,
         return BAD_VALUE;
     }
     int32_t frameId = entry.data.i32[0];
-    ALOGV("%s: Got frame with ID %d", __FUNCTION__, frameId);
 
-    sp<FilteredListener> listener;
+    List<sp<FilteredListener> > listeners;
     {
         Mutex::Autolock l(mInputMutex);
-        ssize_t listenerIndex = mListeners.indexOfKey(frameId);
-        if (listenerIndex != NAME_NOT_FOUND) {
-            listener = mListeners[listenerIndex].promote();
-            if (listener == 0) {
-                mListeners.removeItemsAt(listenerIndex, 1);
+
+        List<RangeListener>::iterator item = mRangeListeners.begin();
+        while (item != mRangeListeners.end()) {
+            if (frameId >= item->minId &&
+                    frameId < item->maxId) {
+                sp<FilteredListener> listener = item->listener.promote();
+                if (listener == 0) {
+                    item = mRangeListeners.erase(item);
+                    continue;
+                } else {
+                    listeners.push_back(listener);
+                }
             }
+            item++;
         }
     }
-
-    if (listener != 0) {
-        listener->onFrameAvailable(frameId, frame);
+    ALOGV("Got %d range listeners out of %d", listeners.size(), mRangeListeners.size());
+    List<sp<FilteredListener> >::iterator item = listeners.begin();
+    for (; item != listeners.end(); item++) {
+        (*item)->onFrameAvailable(frameId, frame);
     }
     return OK;
 }
