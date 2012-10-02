@@ -264,8 +264,10 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mNumRTPSent(0),
       mNumRTPOctetsSent(0),
       mNumSRsSent(0),
-      mSendSRPending(false),
-      mHistoryLength(0)
+      mSendSRPending(false)
+#if ENABLE_RETRANSMISSION
+      ,mHistoryLength(0)
+#endif
 #if TRACK_BANDWIDTH
       ,mFirstPacketTimeUs(-1ll)
       ,mTotalBytesSent(0ll)
@@ -1126,7 +1128,9 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
 #endif
         }
 
+#if ENABLE_RETRANSMISSION
         mTSQueue->setInt32Data(mRTPSeqNo - 1);
+
         mHistory.push_back(mTSQueue);
         ++mHistoryLength;
 
@@ -1138,6 +1142,7 @@ ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
         } else {
             mTSQueue = new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188);
         }
+#endif
 
         mTSQueue->setRange(0, 12);
     }
