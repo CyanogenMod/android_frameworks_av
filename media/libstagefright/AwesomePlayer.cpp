@@ -755,22 +755,18 @@ void AwesomePlayer::onBufferingUpdate() {
         if ((mFlags & PLAYING) && !eos
                 && (cachedDurationUs < kLowWaterMarkUs)) {
             modifyFlags(CACHE_UNDERRUN, SET);
-            if (mWVMExtractor == NULL) {
-                ALOGI("cache is running low (%.2f secs) , pausing.",
-                      cachedDurationUs / 1E6);
-                pause_l();
-                ensureCacheIsFetching_l();
-            }
+            ALOGI("cache is running low (%.2f secs) , pausing.",
+                  cachedDurationUs / 1E6);
+            pause_l();
+            ensureCacheIsFetching_l();
             sendCacheStats();
             notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
         } else if (eos || cachedDurationUs > kHighWaterMarkUs) {
             if (mFlags & CACHE_UNDERRUN) {
                 modifyFlags(CACHE_UNDERRUN, CLEAR);
-                if (mWVMExtractor == NULL) {
-                    ALOGI("cache has filled up (%.2f secs), resuming.",
-                          cachedDurationUs / 1E6);
-                    play_l();
-                }
+                ALOGI("cache has filled up (%.2f secs), resuming.",
+                      cachedDurationUs / 1E6);
+                play_l();
             } else if (mFlags & PREPARING) {
                 ALOGV("cache has filled up (%.2f secs), prepare is done",
                      cachedDurationUs / 1E6);
