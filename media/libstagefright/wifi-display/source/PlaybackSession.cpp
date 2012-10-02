@@ -1321,7 +1321,7 @@ bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
-        size_t trackIndex, sp<ABuffer> accessUnit) {
+        size_t trackIndex, const sp<ABuffer> &accessUnit) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
 
     uint32_t flags = 0;
@@ -1331,12 +1331,6 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
     uint8_t HDCP_private_data[16];
     if (mHDCP != NULL && !track->isAudio()) {
         isHDCPEncrypted = true;
-
-        if (IsIDR(accessUnit)) {
-            // XXX remove this once the encoder takes care of this.
-            accessUnit = mPacketizer->prependCSD(
-                    track->packetizerTrackIndex(), accessUnit);
-        }
 
         status_t err = mHDCP->encrypt(
                 accessUnit->data(), accessUnit->size(),
