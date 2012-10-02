@@ -44,7 +44,12 @@ Converter::Converter(
       mCodecLooper(codecLooper),
       mInputFormat(format),
       mIsVideo(false),
-      mDoMoreWorkPending(false) {
+      mDoMoreWorkPending(false)
+#if ENABLE_SILENCE_DETECTION
+      ,mFirstSilentFrameUs(-1ll)
+      ,mInSilentMode(false)
+#endif
+    {
     AString mime;
     CHECK(mInputFormat->findString("mime", &mime));
 
@@ -171,6 +176,20 @@ void Converter::notifyError(status_t err) {
     notify->post();
 }
 
+// static
+bool Converter::IsSilence(const sp<ABuffer> &accessUnit) {
+    const uint8_t *ptr = accessUnit->data();
+    const uint8_t *end = ptr + accessUnit->size();
+    while (ptr < end) {
+        if (*ptr != 0) {
+            return false;
+        }
+        ++ptr;
+    }
+
+    return true;
+}
+
 void Converter::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatMediaPullerNotify:
@@ -217,6 +236,30 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
                 if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
                         && mbuf != NULL) {
                     ALOGI("queueing mbuf %p", mbuf);
+                }
+#endif
+
+#if ENABLE_SILENCE_DETECTION
+                if (!mIsVideo) {
+                    if (IsSilence(accessUnit)) {
+                        if (!mInSilentMode) {
+                            int64_t nowUs = ALooper::GetNowUs();
+
+                            if (mFirstSilentFrameUs < 0ll) {
+                                mFirstSilentFrameUs = nowUs;
+                            } else if (nowUs >= mFirstSilentFrameUs + 1000000ll) {
+                                mInSilentMode = true;
+                                ALOGI("audio in silent mode now.");
+                                break;
+                            }
+                        }
+                    } else {
+                        if (mInSilentMode) {
+                            ALOGI("audio no longer in silent mode.");
+                        }
+                        mInSilentMode = false;
+                        mFirstSilentFrameUs = -1ll;
+                    }
                 }
 #endif
 
@@ -283,7 +326,7 @@ void Converter::scheduleDoMoreWork() {
     }
 
     mDoMoreWorkPending = true;
-    (new AMessage(kWhatDoMoreWork, id()))->post(10000ll);
+    (new AMessage(kWhatDoMoreWork, id()))->post(mIsVideo ? 10000ll : 5000ll);
 }
 
 status_t Converter::feedEncoderInputBuffers() {
@@ -338,14 +381,21 @@ status_t Converter::doMoreWork() {
         feedEncoderInputBuffers();
     }
 
-    size_t offset;
-    size_t size;
-    int64_t timeUs;
-    uint32_t flags;
-    err = mEncoder->dequeueOutputBuffer(
-            &bufferIndex, &offset, &size, &timeUs, &flags);
+    for (;;) {
+        size_t offset;
+        size_t size;
+        int64_t timeUs;
+        uint32_t flags;
+        err = mEncoder->dequeueOutputBuffer(
+                &bufferIndex, &offset, &size, &timeUs, &flags);
 
-    if (err == OK) {
+        if (err != OK) {
+            if (err == -EAGAIN) {
+                err = OK;
+            }
+            break;
+        }
+
         if (flags & MediaCodec::BUFFER_FLAG_EOS) {
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatEOS);
@@ -353,6 +403,10 @@ status_t Converter::doMoreWork() {
         } else {
             sp<ABuffer> buffer = new ABuffer(size);
             buffer->meta()->setInt64("timeUs", timeUs);
+
+            if (!mIsVideo) {
+                ALOGV("audio time %lld us (%.2f secs)", timeUs, timeUs / 1E6);
+            }
 
             memcpy(buffer->data(),
                    mEncoderOutputBuffers.itemAt(bufferIndex)->base() + offset,
@@ -368,9 +422,11 @@ status_t Converter::doMoreWork() {
             }
         }
 
-        err = mEncoder->releaseOutputBuffer(bufferIndex);
-    } else if (err == -EAGAIN) {
-        err = OK;
+        mEncoder->releaseOutputBuffer(bufferIndex);
+
+        if (flags & MediaCodec::BUFFER_FLAG_EOS) {
+            break;
+        }
     }
 
     return err;
