@@ -283,7 +283,7 @@ void Converter::scheduleDoMoreWork() {
     }
 
     mDoMoreWorkPending = true;
-    (new AMessage(kWhatDoMoreWork, id()))->post(1000ll);
+    (new AMessage(kWhatDoMoreWork, id()))->post(10000ll);
 }
 
 status_t Converter::feedEncoderInputBuffers() {
