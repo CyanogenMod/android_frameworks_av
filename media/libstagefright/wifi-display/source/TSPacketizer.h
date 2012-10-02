@@ -38,9 +38,10 @@ struct TSPacketizer : public RefBase {
     ssize_t addTrack(const sp<AMessage> &format);
 
     enum {
-        EMIT_PAT_AND_PMT = 1,
-        EMIT_PCR         = 2,
-        IS_ENCRYPTED     = 4,
+        EMIT_PAT_AND_PMT                = 1,
+        EMIT_PCR                        = 2,
+        IS_ENCRYPTED                    = 4,
+        PREPEND_SPS_PPS_TO_IDR_FRAMES   = 8,
     };
     status_t packetize(
             size_t trackIndex, const sp<ABuffer> &accessUnit,
