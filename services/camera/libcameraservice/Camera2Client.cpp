@@ -419,9 +419,6 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     mCameraClient = client;
     mSharedCameraClient = client;
 
-    SharedParameters::Lock l(mParameters);
-    l.mParameters.state = Parameters::STOPPED;
-
     return OK;
 }
 
@@ -603,6 +600,9 @@ status_t Camera2Client::startPreview() {
 status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     ATRACE_CALL();
     status_t res;
+
+    ALOGV("%s: state == %d, restart = %d", __FUNCTION__, params.state, restart);
+
     if (params.state == Parameters::PREVIEW && !restart) {
         // Succeed attempt to re-enter preview state
         ALOGI("%s: Not starting preview; already in preview state.",
@@ -792,6 +792,9 @@ status_t Camera2Client::startRecording() {
 
 status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     status_t res;
+
+    ALOGV("%s: state == %d, restart = %d", __FUNCTION__, params.state, restart);
+
     switch (params.state) {
         case Parameters::STOPPED:
             res = startPreviewL(params, false);
@@ -1429,6 +1432,8 @@ const int32_t Camera2Client::kFirstCaptureRequestId;
 
 status_t Camera2Client::updateRequests(Parameters &params) {
     status_t res;
+
+    ALOGV("%s: Camera %d: state = %d", __FUNCTION__, getCameraId(), params.state);
 
     res = mStreamingProcessor->updatePreviewRequest(params);
     if (res != OK) {

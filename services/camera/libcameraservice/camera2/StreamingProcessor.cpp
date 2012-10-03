@@ -351,6 +351,8 @@ status_t StreamingProcessor::startStream(StreamType type,
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
 
+    ALOGV("%s: Camera %d: type = %d", __FUNCTION__, client->getCameraId(), type);
+
     Mutex::Autolock m(mMutex);
 
     CameraMetadata &request = (type == PREVIEW) ?
