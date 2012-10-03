@@ -27,7 +27,6 @@
 
 #include "Parameters.h"
 #include "system/camera.h"
-#include "camera/CameraParameters.h"
 
 namespace android {
 namespace camera2 {
@@ -53,8 +52,6 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     res = buildFastInfo();
     if (res != OK) return res;
-
-    CameraParameters params;
 
     camera_metadata_ro_entry_t availableProcessedSizes =
         staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, 2);
@@ -171,6 +168,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     // still have to do something sane for them
 
     // NOTE: Not scaled like FPS range values are.
+    previewFps = previewFpsRange[0];
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
             previewFpsRange[0]);
 
@@ -414,7 +412,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                 supportedAntibanding);
     }
 
-    sceneMode = ANDROID_CONTROL_OFF;
+    sceneMode = ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
     params.set(CameraParameters::KEY_SCENE_MODE,
             CameraParameters::SCENE_MODE_AUTO);
 
@@ -768,6 +766,10 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     return OK;
 }
 
+String8 Parameters::get() const {
+    return paramsFlattened;
+}
+
 status_t Parameters::buildFastInfo() {
 
     camera_metadata_ro_entry_t activeArraySize =
@@ -811,6 +813,77 @@ status_t Parameters::buildFastInfo() {
 
     int32_t maxFaces = maxFacesDetected.data.i32[0];
 
+    camera_metadata_ro_entry_t availableSceneModes =
+        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
+    camera_metadata_ro_entry_t sceneModeOverrides =
+        staticInfo(ANDROID_CONTROL_SCENE_MODE_OVERRIDES);
+    camera_metadata_ro_entry_t minFocusDistance =
+        staticInfo(ANDROID_LENS_MINIMUM_FOCUS_DISTANCE);
+    bool fixedLens = (minFocusDistance.data.f[0] == 0);
+
+    if (sceneModeOverrides.count > 0) {
+        // sceneModeOverrides is defined to have 3 entries for each scene mode,
+        // which are AE, AWB, and AF override modes the HAL wants for that scene
+        // mode.
+        const size_t kModesPerSceneMode = 3;
+        if (sceneModeOverrides.count !=
+                availableSceneModes.count * kModesPerSceneMode) {
+            ALOGE("%s: Camera %d: Scene mode override list is an "
+                    "unexpected size: %d (expected %d)", __FUNCTION__,
+                    cameraId, sceneModeOverrides.count,
+                    availableSceneModes.count);
+            return NO_INIT;
+        }
+        for (size_t i = 0; i < availableSceneModes.count; i++) {
+            DeviceInfo::OverrideModes modes;
+            uint8_t aeMode =
+                    sceneModeOverrides.data.u8[i * kModesPerSceneMode + 0];
+            switch(aeMode) {
+                case ANDROID_CONTROL_AE_ON:
+                    modes.flashMode = FLASH_MODE_OFF;
+                    break;
+                case ANDROID_CONTROL_AE_ON_AUTO_FLASH:
+                    modes.flashMode = FLASH_MODE_AUTO;
+                    break;
+                case ANDROID_CONTROL_AE_ON_ALWAYS_FLASH:
+                    modes.flashMode = FLASH_MODE_ON;
+                    break;
+                case ANDROID_CONTROL_AE_ON_AUTO_FLASH_REDEYE:
+                    modes.flashMode = FLASH_MODE_RED_EYE;
+                    break;
+                default:
+                    ALOGE("%s: Unknown override AE mode: %d", __FUNCTION__,
+                            aeMode);
+                    modes.flashMode = FLASH_MODE_INVALID;
+                    break;
+            }
+            modes.wbMode =
+                    sceneModeOverrides.data.u8[i * kModesPerSceneMode + 1];
+            uint8_t afMode =
+                    sceneModeOverrides.data.u8[i * kModesPerSceneMode + 2];
+            switch(afMode) {
+                case ANDROID_CONTROL_AF_OFF:
+                    modes.focusMode = fixedLens ?
+                            FOCUS_MODE_FIXED : FOCUS_MODE_INFINITY;
+                    break;
+                case ANDROID_CONTROL_AF_AUTO:
+                case ANDROID_CONTROL_AF_MACRO:
+                case ANDROID_CONTROL_AF_CONTINUOUS_VIDEO:
+                case ANDROID_CONTROL_AF_CONTINUOUS_PICTURE:
+                case ANDROID_CONTROL_AF_EDOF:
+                    modes.focusMode = static_cast<focusMode_t>(afMode);
+                    break;
+                default:
+                    ALOGE("%s: Unknown override AF mode: %d", __FUNCTION__,
+                            afMode);
+                    modes.focusMode = FOCUS_MODE_INVALID;
+                    break;
+            }
+            fastInfo.sceneModeOverrides.add(availableSceneModes.data.u8[i],
+                    modes);
+        }
+    }
+
     fastInfo.arrayWidth = arrayWidth;
     fastInfo.arrayHeight = arrayHeight;
     fastInfo.bestFaceDetectMode = bestFaceDetectMode;
@@ -846,10 +919,10 @@ camera_metadata_ro_entry_t Parameters::staticInfo(uint32_t tag,
     return entry;
 }
 
-status_t Parameters::set(const String8& params) {
+status_t Parameters::set(const String8& paramString) {
     status_t res;
 
-    CameraParameters newParams(params);
+    CameraParameters newParams(paramString);
 
     // TODO: Currently ignoring any changes to supposedly read-only parameters
     // such as supported preview sizes, etc. Should probably produce an error if
@@ -918,6 +991,7 @@ status_t Parameters::set(const String8& params) {
             return BAD_VALUE;
         }
         validatedParams.previewFps = validatedParams.previewFpsRange[0];
+        newParams.setPreviewFrameRate(validatedParams.previewFps);
     }
 
     // PREVIEW_FORMAT
@@ -1096,23 +1170,6 @@ status_t Parameters::set(const String8& params) {
         validatedParams.gpsEnabled = false;
     }
 
-    // WHITE_BALANCE
-    validatedParams.wbMode = wbModeStringToEnum(
-        newParams.get(CameraParameters::KEY_WHITE_BALANCE) );
-    if (validatedParams.wbMode != wbMode) {
-        camera_metadata_ro_entry_t availableWbModes =
-            staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
-        for (i = 0; i < availableWbModes.count; i++) {
-            if (validatedParams.wbMode == availableWbModes.data.u8[i]) break;
-        }
-        if (i == availableWbModes.count) {
-            ALOGE("%s: Requested white balance mode %s is not supported",
-                    __FUNCTION__,
-                    newParams.get(CameraParameters::KEY_WHITE_BALANCE));
-            return BAD_VALUE;
-        }
-    }
-
     // EFFECT
     validatedParams.effectMode = effectModeStringToEnum(
         newParams.get(CameraParameters::KEY_EFFECT) );
@@ -1167,10 +1224,22 @@ status_t Parameters::set(const String8& params) {
             return BAD_VALUE;
         }
     }
+    bool sceneModeSet =
+            validatedParams.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
 
     // FLASH_MODE
-    validatedParams.flashMode = flashModeStringToEnum(
-        newParams.get(CameraParameters::KEY_FLASH_MODE) );
+    if (sceneModeSet) {
+        validatedParams.flashMode =
+                fastInfo.sceneModeOverrides.
+                        valueFor(validatedParams.sceneMode).flashMode;
+    } else {
+        validatedParams.flashMode = FLASH_MODE_INVALID;
+    }
+    if (validatedParams.flashMode == FLASH_MODE_INVALID) {
+        validatedParams.flashMode = flashModeStringToEnum(
+            newParams.get(CameraParameters::KEY_FLASH_MODE) );
+    }
+
     if (validatedParams.flashMode != flashMode) {
         camera_metadata_ro_entry_t flashAvailable =
             staticInfo(ANDROID_FLASH_AVAILABLE, 1, 1);
@@ -1199,11 +1268,52 @@ status_t Parameters::set(const String8& params) {
                     newParams.get(CameraParameters::KEY_FLASH_MODE));
             return BAD_VALUE;
         }
+        // Update in case of override
+        newParams.set(CameraParameters::KEY_FLASH_MODE,
+                flashModeEnumToString(validatedParams.flashMode));
+    }
+
+    // WHITE_BALANCE
+    if (sceneModeSet) {
+        validatedParams.wbMode =
+                fastInfo.sceneModeOverrides.
+                        valueFor(validatedParams.sceneMode).wbMode;
+    } else {
+        validatedParams.wbMode = ANDROID_CONTROL_AWB_OFF;
+    }
+    if (validatedParams.wbMode == ANDROID_CONTROL_AWB_OFF) {
+        validatedParams.wbMode = wbModeStringToEnum(
+            newParams.get(CameraParameters::KEY_WHITE_BALANCE) );
+    }
+    if (validatedParams.wbMode != wbMode) {
+        camera_metadata_ro_entry_t availableWbModes =
+            staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
+        for (i = 0; i < availableWbModes.count; i++) {
+            if (validatedParams.wbMode == availableWbModes.data.u8[i]) break;
+        }
+        if (i == availableWbModes.count) {
+            ALOGE("%s: Requested white balance mode %s is not supported",
+                    __FUNCTION__,
+                    newParams.get(CameraParameters::KEY_WHITE_BALANCE));
+            return BAD_VALUE;
+        }
+        // Update in case of override
+        newParams.set(CameraParameters::KEY_WHITE_BALANCE,
+                wbModeEnumToString(validatedParams.wbMode));
     }
 
     // FOCUS_MODE
-    validatedParams.focusMode = focusModeStringToEnum(
-        newParams.get(CameraParameters::KEY_FOCUS_MODE));
+    if (sceneModeSet) {
+        validatedParams.focusMode =
+                fastInfo.sceneModeOverrides.
+                        valueFor(validatedParams.sceneMode).focusMode;
+    } else {
+        validatedParams.focusMode = FOCUS_MODE_INVALID;
+    }
+    if (validatedParams.focusMode == FOCUS_MODE_INVALID) {
+        validatedParams.focusMode = focusModeStringToEnum(
+                newParams.get(CameraParameters::KEY_FOCUS_MODE) );
+    }
     if (validatedParams.focusMode != focusMode) {
         validatedParams.currentAfTriggerId = -1;
         if (validatedParams.focusMode != Parameters::FOCUS_MODE_FIXED) {
@@ -1231,6 +1341,9 @@ status_t Parameters::set(const String8& params) {
                 }
             }
         }
+        // Update in case of override
+        newParams.set(CameraParameters::KEY_FOCUS_MODE,
+                focusModeEnumToString(validatedParams.focusMode));
     } else {
         validatedParams.currentAfTriggerId = currentAfTriggerId;
     }
@@ -1333,8 +1446,11 @@ status_t Parameters::set(const String8& params) {
 
     /** Update internal parameters */
 
-    validatedParams.paramsFlattened = params;
     *this = validatedParams;
+
+    // Need to flatten again in case of overrides
+    paramsFlattened = newParams.flatten();
+    params = newParams;
 
     return OK;
 }
@@ -1350,10 +1466,6 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
             previewFpsRange, 2);
-    if (res != OK) return res;
-
-    res = request->update(ANDROID_CONTROL_AWB_MODE,
-            &wbMode, 1);
     if (res != OK) return res;
 
     uint8_t reqWbLock = autoWhiteBalanceLock ?
@@ -1372,8 +1484,10 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     // camera is in a face-priority mode. HAL2 splits this into separate parts
     // (face detection statistics and face priority scene mode). Map from other
     // to the other.
+    bool sceneModeActive =
+            sceneMode != (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
     uint8_t reqControlMode = ANDROID_CONTROL_AUTO;
-    if (enableFaceDetect || sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) {
+    if (enableFaceDetect || sceneModeActive) {
         reqControlMode = ANDROID_CONTROL_USE_SCENE_MODE;
     }
     res = request->update(ANDROID_CONTROL_MODE,
@@ -1381,8 +1495,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     if (res != OK) return res;
 
     uint8_t reqSceneMode =
-            (sceneMode !=
-                    (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) ? sceneMode :
+            sceneModeActive ? sceneMode :
             enableFaceDetect ? (uint8_t)ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY :
             (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
     res = request->update(ANDROID_CONTROL_SCENE_MODE,
@@ -1390,7 +1503,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     if (res != OK) return res;
 
     uint8_t reqFlashMode = ANDROID_FLASH_OFF;
-    uint8_t reqAeMode;
+    uint8_t reqAeMode = ANDROID_CONTROL_AE_OFF;
     switch (flashMode) {
         case Parameters::FLASH_MODE_OFF:
             reqAeMode = ANDROID_CONTROL_AE_ON; break;
@@ -1407,7 +1520,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
         default:
             ALOGE("%s: Camera %d: Unknown flash mode %d", __FUNCTION__,
                     cameraId, flashMode);
-            return BAD_VALUE;
+                return BAD_VALUE;
     }
     res = request->update(ANDROID_FLASH_MODE,
             &reqFlashMode, 1);
@@ -1420,9 +1533,14 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             ANDROID_CONTROL_AE_LOCK_ON : ANDROID_CONTROL_AE_LOCK_OFF;
     res = request->update(ANDROID_CONTROL_AE_LOCK,
             &reqAeLock, 1);
+    if (res != OK) return res;
+
+    res = request->update(ANDROID_CONTROL_AWB_MODE,
+            &wbMode, 1);
+    if (res != OK) return res;
 
     float reqFocusDistance = 0; // infinity focus in diopters
-    uint8_t reqFocusMode;
+    uint8_t reqFocusMode = ANDROID_CONTROL_AF_OFF;
     switch (focusMode) {
         case Parameters::FOCUS_MODE_AUTO:
         case Parameters::FOCUS_MODE_MACRO:
@@ -1436,9 +1554,9 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             reqFocusMode = ANDROID_CONTROL_AF_OFF;
             break;
         default:
-            ALOGE("%s: Camera %d: Unknown focus mode %d", __FUNCTION__,
-                    cameraId, focusMode);
-            return BAD_VALUE;
+                ALOGE("%s: Camera %d: Unknown focus mode %d", __FUNCTION__,
+                        cameraId, focusMode);
+                return BAD_VALUE;
     }
     res = request->update(ANDROID_LENS_FOCUS_DISTANCE,
             &reqFocusDistance, 1);
@@ -1623,6 +1741,31 @@ int Parameters::wbModeStringToEnum(const char *wbMode) {
         -1;
 }
 
+const char* Parameters::wbModeEnumToString(uint8_t wbMode) {
+    switch (wbMode) {
+        case ANDROID_CONTROL_AWB_AUTO:
+            return CameraParameters::WHITE_BALANCE_AUTO;
+        case ANDROID_CONTROL_AWB_INCANDESCENT:
+            return CameraParameters::WHITE_BALANCE_INCANDESCENT;
+        case ANDROID_CONTROL_AWB_FLUORESCENT:
+            return CameraParameters::WHITE_BALANCE_FLUORESCENT;
+        case ANDROID_CONTROL_AWB_WARM_FLUORESCENT:
+            return CameraParameters::WHITE_BALANCE_WARM_FLUORESCENT;
+        case ANDROID_CONTROL_AWB_DAYLIGHT:
+            return CameraParameters::WHITE_BALANCE_DAYLIGHT;
+        case ANDROID_CONTROL_AWB_CLOUDY_DAYLIGHT:
+            return CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT;
+        case ANDROID_CONTROL_AWB_TWILIGHT:
+            return CameraParameters::WHITE_BALANCE_TWILIGHT;
+        case ANDROID_CONTROL_AWB_SHADE:
+            return CameraParameters::WHITE_BALANCE_SHADE;
+        default:
+            ALOGE("%s: Unknown AWB mode enum: %d",
+                    __FUNCTION__, wbMode);
+            return "unknown";
+    }
+}
+
 int Parameters::effectModeStringToEnum(const char *effectMode) {
     return
         !effectMode ?
@@ -1720,6 +1863,25 @@ Parameters::Parameters::flashMode_t Parameters::flashModeStringToEnum(
         Parameters::FLASH_MODE_INVALID;
 }
 
+const char *Parameters::flashModeEnumToString(flashMode_t flashMode) {
+    switch (flashMode) {
+        case FLASH_MODE_OFF:
+            return CameraParameters::FLASH_MODE_OFF;
+        case FLASH_MODE_AUTO:
+            return CameraParameters::FLASH_MODE_AUTO;
+        case FLASH_MODE_ON:
+            return CameraParameters::FLASH_MODE_ON;
+        case FLASH_MODE_RED_EYE:
+            return CameraParameters::FLASH_MODE_RED_EYE;
+        case FLASH_MODE_TORCH:
+            return CameraParameters::FLASH_MODE_TORCH;
+        default:
+            ALOGE("%s: Unknown flash mode enum %d",
+                    __FUNCTION__, flashMode);
+            return "unknown";
+    }
+}
+
 Parameters::Parameters::focusMode_t Parameters::focusModeStringToEnum(
         const char *focusMode) {
     return
@@ -1740,6 +1902,29 @@ Parameters::Parameters::focusMode_t Parameters::focusModeStringToEnum(
         !strcmp(focusMode, CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE) ?
             Parameters::FOCUS_MODE_CONTINUOUS_PICTURE :
         Parameters::FOCUS_MODE_INVALID;
+}
+
+const char *Parameters::focusModeEnumToString(focusMode_t focusMode) {
+    switch (focusMode) {
+        case FOCUS_MODE_AUTO:
+            return CameraParameters::FOCUS_MODE_AUTO;
+        case FOCUS_MODE_MACRO:
+            return CameraParameters::FOCUS_MODE_MACRO;
+        case FOCUS_MODE_CONTINUOUS_VIDEO:
+            return CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO;
+        case FOCUS_MODE_CONTINUOUS_PICTURE:
+            return CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE;
+        case FOCUS_MODE_EDOF:
+            return CameraParameters::FOCUS_MODE_EDOF;
+        case FOCUS_MODE_INFINITY:
+            return CameraParameters::FOCUS_MODE_INFINITY;
+        case FOCUS_MODE_FIXED:
+            return CameraParameters::FOCUS_MODE_FIXED;
+        default:
+            ALOGE("%s: Unknown focus mode enum: %d",
+                    __FUNCTION__, focusMode);
+            return "unknown";
+    }
 }
 
 status_t Parameters::parseAreas(const char *areasCStr,

@@ -23,6 +23,8 @@
 #include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
+#include <utils/KeyedVector.h>
+#include <camera/CameraParameters.h>
 
 #include "CameraMetadata.h"
 
@@ -115,6 +117,7 @@ struct Parameters {
         LIGHTFX_HDR
     } lightFx;
 
+    CameraParameters params;
     String8 paramsFlattened;
 
     // These parameters are also part of the camera API-visible state, but not
@@ -162,7 +165,25 @@ struct Parameters {
         int32_t arrayHeight;
         uint8_t bestFaceDetectMode;
         int32_t maxFaces;
+        struct OverrideModes {
+            flashMode_t flashMode;
+            uint8_t     wbMode;
+            focusMode_t focusMode;
+            OverrideModes():
+                    flashMode(FLASH_MODE_INVALID),
+                    wbMode(ANDROID_CONTROL_AWB_OFF),
+                    focusMode(FOCUS_MODE_INVALID) {
+            }
+        };
+        DefaultKeyedVector<uint8_t, OverrideModes> sceneModeOverrides;
     } fastInfo;
+
+    // Quirks information; these are short-lived flags to enable workarounds for
+    // incomplete HAL implementations
+    struct Quirks {
+        bool triggerAfWithAuto;
+        bool useZslFormat;
+    } quirks;
 
     /**
      * Parameter manipulation and setup methods
@@ -185,7 +206,10 @@ struct Parameters {
             size_t minCount=0, size_t maxCount=0) const;
 
     // Validate and update camera parameters based on new settings
-    status_t set(const String8 &params);
+    status_t set(const String8 &paramString);
+
+    // Retrieve the current settings
+    String8 get() const;
 
     // Update passed-in request for common parameters
     status_t updateRequest(CameraMetadata *request) const;
@@ -208,11 +232,14 @@ struct Parameters {
     static const char *formatEnumToString(int format);
 
     static int wbModeStringToEnum(const char *wbMode);
+    static const char* wbModeEnumToString(uint8_t wbMode);
     static int effectModeStringToEnum(const char *effectMode);
     static int abModeStringToEnum(const char *abMode);
     static int sceneModeStringToEnum(const char *sceneMode);
     static flashMode_t flashModeStringToEnum(const char *flashMode);
+    static const char* flashModeEnumToString(flashMode_t flashMode);
     static focusMode_t focusModeStringToEnum(const char *focusMode);
+    static const char* focusModeEnumToString(focusMode_t focusMode);
     static status_t parseAreas(const char *areasCStr,
             Vector<Area> *areas);
     static status_t validateAreas(const Vector<Area> &areas,
@@ -232,7 +259,6 @@ struct Parameters {
     int arrayYToNormalized(int height) const;
     int normalizedXToArray(int x) const;
     int normalizedYToArray(int y) const;
-
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed
