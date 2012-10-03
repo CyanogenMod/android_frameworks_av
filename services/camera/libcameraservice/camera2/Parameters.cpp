@@ -1057,6 +1057,10 @@ status_t Parameters::set(const String8& paramString) {
             validatedParams.previewFpsRange[1] =
                     availableFrameRates.data.i32[i+1];
         }
+        newParams.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
+                String8::format("%d,%d",
+                        validatedParams.previewFpsRange[0] * kFpsToApiScale,
+                        validatedParams.previewFpsRange[1] * kFpsToApiScale));
     }
 
     // PICTURE_SIZE
