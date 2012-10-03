@@ -919,13 +919,22 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
 
     source->setUseAbsoluteTimestamps();
 
+#if 1
     sp<RepeaterSource> videoSource =
         new RepeaterSource(source, 30.0 /* rateHz */);
+#endif
 
+#if 1
     size_t numInputBuffers;
     status_t err = addSource(
             true /* isVideo */, videoSource, true /* isRepeaterSource */,
             &numInputBuffers);
+#else
+    size_t numInputBuffers;
+    status_t err = addSource(
+            true /* isVideo */, source, false /* isRepeaterSource */,
+            &numInputBuffers);
+#endif
 
     if (err != OK) {
         return err;
