@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "SoftAAC2"
+//#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
 #include "SoftAAC2.h"
@@ -26,8 +27,13 @@
 
 #define FILEREAD_MAX_LAYERS 2
 
-#define DRC_DEFAULT_REF_LEVEL 108   /* 108*0.25dB = -27 dB below full scale (typical for movies) */
-#define MAX_CHANNEL_COUNT     6     /* maximum number of audio channels that can be decoded      */
+#define DRC_DEFAULT_MOBILE_REF_LEVEL 48  /* 48*-0.25dB = -12 dB below full scale for mobile conf */
+#define DRC_DEFAULT_MOBILE_DRC_CUT   127 /* maximum compression of dynamic range for mobile conf */
+#define MAX_CHANNEL_COUNT            6  /* maximum number of audio channels that can be decoded */
+// names of properties that can be used to override the default DRC settings
+#define PROP_DRC_OVERRIDE_REF_LEVEL  "aac_drc_reference_level"
+#define PROP_DRC_OVERRIDE_CUT        "aac_drc_cut"
+#define PROP_DRC_OVERRIDE_BOOST      "aac_drc_boost"
 
 namespace android {
 
@@ -113,9 +119,35 @@ status_t SoftAAC2::initDecoder() {
         }
     }
     mIsFirst = true;
-    // the decoder will bypass all DRC processing during decode unless any of the DRC parameters
-    //  is set, so here we just reset the DRC reference level to its default value.
-    aacDecoder_SetParam(mAACDecoder, AAC_DRC_REFERENCE_LEVEL, DRC_DEFAULT_REF_LEVEL);
+
+    // for streams that contain metadata, use the mobile profile DRC settings unless overridden
+    // by platform properties:
+    char value[PROPERTY_VALUE_MAX];
+    //  * AAC_DRC_REFERENCE_LEVEL
+    if (property_get(PROP_DRC_OVERRIDE_REF_LEVEL, value, NULL)) {
+        unsigned refLevel = atoi(value);
+        ALOGV("AAC decoder using AAC_DRC_REFERENCE_LEVEL of %d instead of %d",
+                refLevel, DRC_DEFAULT_MOBILE_REF_LEVEL);
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_REFERENCE_LEVEL, refLevel);
+    } else {
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_REFERENCE_LEVEL, DRC_DEFAULT_MOBILE_REF_LEVEL);
+    }
+    //  * AAC_DRC_ATTENUATION_FACTOR
+    if (property_get(PROP_DRC_OVERRIDE_CUT, value, NULL)) {
+        unsigned cut = atoi(value);
+        ALOGV("AAC decoder using AAC_DRC_ATTENUATION_FACTOR of %d instead of %d",
+                        cut, DRC_DEFAULT_MOBILE_DRC_CUT);
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_ATTENUATION_FACTOR, cut);
+    } else {
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_ATTENUATION_FACTOR, DRC_DEFAULT_MOBILE_DRC_CUT);
+    }
+    //  * AAC_DRC_BOOST_FACTOR (note: no default, using cut)
+    if (property_get(PROP_DRC_OVERRIDE_BOOST, value, NULL)) {
+        unsigned boost = atoi(value);
+        ALOGV("AAC decoder using AAC_DRC_BOOST_FACTOR of %d", boost);
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_BOOST_FACTOR, boost);
+    }
+
     return status;
 }
 
