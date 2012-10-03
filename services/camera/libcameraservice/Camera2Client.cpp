@@ -315,6 +315,21 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
             getCaptureStreamId());
     result.appendFormat("    Recording stream ID: %d\n",
             getRecordingStreamId());
+
+    result.append("  Quirks for this camera:\n");
+    bool haveQuirk = false;
+    if (p.quirks.triggerAfWithAuto) {
+        result.appendFormat("    triggerAfWithAuto\n");
+        haveQuirk = true;
+    }
+    if (p.quirks.useZslFormat) {
+        result.appendFormat("    useZslFormat\n");
+        haveQuirk = true;
+    }
+    if (!haveQuirk) {
+        result.appendFormat("    none\n");
+    }
+
     write(fd, result.string(), result.size());
 
     mStreamingProcessor->dump(fd, args);

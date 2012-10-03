@@ -53,6 +53,9 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     res = buildFastInfo();
     if (res != OK) return res;
 
+    res = buildQuirks();
+    if (res != OK) return res;
+
     camera_metadata_ro_entry_t availableProcessedSizes =
         staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, 2);
     if (!availableProcessedSizes.count) return NO_INIT;
@@ -888,6 +891,21 @@ status_t Parameters::buildFastInfo() {
     fastInfo.arrayHeight = arrayHeight;
     fastInfo.bestFaceDetectMode = bestFaceDetectMode;
     fastInfo.maxFaces = maxFaces;
+    return OK;
+}
+
+status_t Parameters::buildQuirks() {
+    camera_metadata_ro_entry_t entry;
+    entry = info->find(ANDROID_QUIRKS_TRIGGER_AF_WITH_AUTO);
+    quirks.triggerAfWithAuto = (entry.count != 0 && entry.data.u8[0] == 1);
+    ALOGV_IF(quirks.triggerAfWithAuto, "Camera %d: Quirk triggerAfWithAuto enabled",
+            cameraId);
+
+    entry = info->find(ANDROID_QUIRKS_USE_ZSL_FORMAT);
+    quirks.useZslFormat = (entry.count != 0 && entry.data.u8[0] == 1);
+    ALOGV_IF(quirks.useZslFormat, "Camera %d: Quirk useZslFormat enabled",
+            cameraId);
+
     return OK;
 }
 
