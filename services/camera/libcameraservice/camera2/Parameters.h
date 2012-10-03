@@ -195,8 +195,10 @@ struct Parameters {
     // Sets up default parameters
     status_t initialize(const CameraMetadata *info);
 
-    // Build fast device info
+    // Build fast-access device static info from static info
     status_t buildFastInfo();
+    // Query for quirks from static info
+    status_t buildQuirks();
 
     // Get entry from camera static characteristics information. min/maxCount
     // are used for error checking the number of values in the entry. 0 for
