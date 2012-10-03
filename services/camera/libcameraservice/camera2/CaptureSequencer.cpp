@@ -289,13 +289,6 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
     client->registerFrameListener(mCaptureId,
             this);
 
-    res = client->getCameraDevice()->clearStreamingRequest();
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to stop preview for ZSL capture: "
-                "%s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
-        return DONE;
-    }
     // TODO: Actually select the right thing here.
     res = processor->pushToReprocess(mCaptureId);
     if (res != OK) {

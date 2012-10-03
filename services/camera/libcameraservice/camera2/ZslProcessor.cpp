@@ -297,6 +297,14 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
             return INVALID_OPERATION;
         }
 
+        res = client->getCameraDevice()->clearStreamingRequest();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to stop preview for ZSL capture: "
+                "%s (%d)",
+                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+            return INVALID_OPERATION;
+        }
+        // TODO: have push-and-clear be atomic
         res = client->getCameraDevice()->pushReprocessBuffer(mZslReprocessStreamId,
                 handle, this);
         if (res != OK) {
