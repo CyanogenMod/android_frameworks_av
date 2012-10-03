@@ -242,16 +242,18 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
 #if ENABLE_SILENCE_DETECTION
                 if (!mIsVideo) {
                     if (IsSilence(accessUnit)) {
-                        if (!mInSilentMode) {
-                            int64_t nowUs = ALooper::GetNowUs();
+                        if (mInSilentMode) {
+                            break;
+                        }
 
-                            if (mFirstSilentFrameUs < 0ll) {
-                                mFirstSilentFrameUs = nowUs;
-                            } else if (nowUs >= mFirstSilentFrameUs + 1000000ll) {
-                                mInSilentMode = true;
-                                ALOGI("audio in silent mode now.");
-                                break;
-                            }
+                        int64_t nowUs = ALooper::GetNowUs();
+
+                        if (mFirstSilentFrameUs < 0ll) {
+                            mFirstSilentFrameUs = nowUs;
+                        } else if (nowUs >= mFirstSilentFrameUs + 10000000ll) {
+                            mInSilentMode = true;
+                            ALOGI("audio in silent mode now.");
+                            break;
                         }
                     } else {
                         if (mInSilentMode) {
@@ -326,7 +328,7 @@ void Converter::scheduleDoMoreWork() {
     }
 
     mDoMoreWorkPending = true;
-    (new AMessage(kWhatDoMoreWork, id()))->post(mIsVideo ? 10000ll : 5000ll);
+    (new AMessage(kWhatDoMoreWork, id()))->post(1000ll);
 }
 
 status_t Converter::feedEncoderInputBuffers() {
@@ -404,9 +406,8 @@ status_t Converter::doMoreWork() {
             sp<ABuffer> buffer = new ABuffer(size);
             buffer->meta()->setInt64("timeUs", timeUs);
 
-            if (!mIsVideo) {
-                ALOGV("audio time %lld us (%.2f secs)", timeUs, timeUs / 1E6);
-            }
+            ALOGV("[%s] time %lld us (%.2f secs)",
+                  mIsVideo ? "video" : "audio", timeUs, timeUs / 1E6);
 
             memcpy(buffer->data(),
                    mEncoderOutputBuffers.itemAt(bufferIndex)->base() + offset,
