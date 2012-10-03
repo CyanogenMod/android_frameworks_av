@@ -196,11 +196,11 @@ sp<ICamera> CameraService::connect(
     switch(deviceVersion) {
       case CAMERA_DEVICE_API_VERSION_1_0:
         client = new CameraClient(this, cameraClient, cameraId,
-                info.facing, callingPid);
+                info.facing, callingPid, getpid());
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
         client = new Camera2Client(this, cameraClient, cameraId,
-                info.facing, callingPid);
+                info.facing, callingPid, getpid());
         break;
       default:
         ALOGE("Unknown camera device HAL version: %d", deviceVersion);
@@ -211,8 +211,10 @@ sp<ICamera> CameraService::connect(
         return NULL;
     }
 
+    cameraClient->asBinder()->linkToDeath(this);
+
     mClient[cameraId] = client;
-    LOG1("CameraService::connect X (id %d)", cameraId);
+    LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId, getpid());
     return client;
 }
 
@@ -220,12 +222,29 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
     int callingPid = getCallingPid();
     LOG1("CameraService::removeClient E (pid %d)", callingPid);
 
-    for (int i = 0; i < mNumberOfCameras; i++) {
-        // Declare this before the lock to make absolutely sure the
-        // destructor won't be called with the lock held.
-        sp<Client> client;
+    // Declare this before the lock to make absolutely sure the
+    // destructor won't be called with the lock held.
+    Mutex::Autolock lock(mServiceLock);
 
-        Mutex::Autolock lock(mServiceLock);
+    int outIndex;
+    sp<Client> client = findClientUnsafe(cameraClient, outIndex);
+
+    if (client != 0) {
+        // Found our camera, clear and leave.
+        LOG1("removeClient: clear camera %d", outIndex);
+        mClient[outIndex].clear();
+
+        client->unlinkToDeath(this);
+    }
+
+    LOG1("CameraService::removeClient X (pid %d)", callingPid);
+}
+
+sp<CameraService::Client> CameraService::findClientUnsafe(
+                        const sp<ICameraClient>& cameraClient, int& outIndex) {
+    sp<Client> client;
+
+    for (int i = 0; i < mNumberOfCameras; i++) {
 
         // This happens when we have already disconnected (or this is
         // just another unused camera).
@@ -235,20 +254,21 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
         // Client::~Client() -> disconnect() -> removeClient().
         client = mClient[i].promote();
 
-        if (client == 0) {
+        // Clean up stale client entry
+        if (client == NULL) {
             mClient[i].clear();
             continue;
         }
 
         if (cameraClient->asBinder() == client->getCameraClient()->asBinder()) {
-            // Found our camera, clear and leave.
-            LOG1("removeClient: clear camera %d", i);
-            mClient[i].clear();
-            break;
+            // Found our camera
+            outIndex = i;
+            return client;
         }
     }
 
-    LOG1("CameraService::removeClient X (pid %d)", callingPid);
+    outIndex = -1;
+    return NULL;
 }
 
 CameraService::Client* CameraService::getClientByIdUnsafe(int cameraId) {
@@ -259,6 +279,21 @@ CameraService::Client* CameraService::getClientByIdUnsafe(int cameraId) {
 Mutex* CameraService::getClientLockById(int cameraId) {
     if (cameraId < 0 || cameraId >= mNumberOfCameras) return NULL;
     return &mClientLock[cameraId];
+}
+
+/*virtual*/sp<CameraService::Client> CameraService::getClientByRemote(
+                                const sp<ICameraClient>& cameraClient) {
+
+    // Declare this before the lock to make absolutely sure the
+    // destructor won't be called with the lock held.
+    sp<Client> client;
+
+    Mutex::Autolock lock(mServiceLock);
+
+    int outIndex;
+    client = findClientUnsafe(cameraClient, outIndex);
+
+    return client;
 }
 
 status_t CameraService::onTransact(
@@ -292,10 +327,14 @@ status_t CameraService::onTransact(
 // the hardware first.
 void CameraService::setCameraBusy(int cameraId) {
     android_atomic_write(1, &mBusy[cameraId]);
+
+    ALOGV("setCameraBusy cameraId=%d", cameraId);
 }
 
 void CameraService::setCameraFree(int cameraId) {
     android_atomic_write(0, &mBusy[cameraId]);
+
+    ALOGV("setCameraFree cameraId=%d", cameraId);
 }
 
 // We share the media players for shutter and recording sound for all clients.
@@ -350,7 +389,7 @@ void CameraService::playSound(sound_kind kind) {
 
 CameraService::Client::Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        int cameraId, int cameraFacing, int clientPid) {
+        int cameraId, int cameraFacing, int clientPid, int servicePid) {
     int callingPid = getCallingPid();
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
@@ -359,6 +398,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     mCameraId = cameraId;
     mCameraFacing = cameraFacing;
     mClientPid = clientPid;
+    mServicePid = servicePid;
     mDestructionStarted = false;
 
     cameraService->setCameraBusy(cameraId);
@@ -512,6 +552,28 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 
     }
     return NO_ERROR;
+}
+
+/*virtual*/void CameraService::binderDied(
+    const wp<IBinder> &who) {
+
+    ALOGV("java clients' binder died");
+
+    sp<IBinder> whoStrong = who.promote();
+
+    if (whoStrong == 0) {
+        ALOGV("java clients' binder death already cleaned up (normal case)");
+        return;
+    }
+
+    sp<ICameraClient> iCamClient = interface_cast<ICameraClient>(whoStrong);
+
+    sp<Client> cameraClient = getClientByRemote(iCamClient);
+    ALOGW("Disconnecting camera client %p since the binder for it "
+          "died (this pid %d)", cameraClient.get(), getCallingPid());
+
+    cameraClient->disconnect();
+
 }
 
 }; // namespace android

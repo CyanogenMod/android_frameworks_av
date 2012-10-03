@@ -42,6 +42,7 @@ Camera2Device::Camera2Device(int id):
 Camera2Device::~Camera2Device()
 {
     ATRACE_CALL();
+    ALOGV("%s: Tearing down for camera id %d", __FUNCTION__, mId);
     disconnect();
 }
 

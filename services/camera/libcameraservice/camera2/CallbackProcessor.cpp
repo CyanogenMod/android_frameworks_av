@@ -86,6 +86,8 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
             // Since size should only change while preview is not running,
             // assuming that all existing use of old callback stream is
             // completed.
+            ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
+                __FUNCTION__, client->getCameraId(), mCallbackStreamId);
             res = device->deleteStream(mCallbackStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
