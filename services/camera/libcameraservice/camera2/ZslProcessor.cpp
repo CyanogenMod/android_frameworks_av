@@ -147,6 +147,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                         client->getCameraId(), strerror(-res), res);
                 return res;
             }
+            ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
+                __FUNCTION__, client->getCameraId(), mZslStreamId);
             res = device->deleteStream(mZslStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "

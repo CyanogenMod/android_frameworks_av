@@ -55,7 +55,8 @@ public:
             const sp<ICameraClient>& cameraClient,
             int cameraId,
             int cameraFacing,
-            int clientPid);
+            int clientPid,
+            int servicePid);
     ~CameraClient();
 
     status_t initialize(camera_module_t *module);

@@ -34,7 +34,8 @@ class MediaPlayer;
 
 class CameraService :
     public BinderService<CameraService>,
-    public BnCameraService
+    public BnCameraService,
+    public IBinder::DeathRecipient
 {
     friend class BinderService<CameraService>;
 public:
@@ -53,6 +54,8 @@ public:
     // prevent the client from destruction. The result can be NULL.
     virtual Client*     getClientByIdUnsafe(int cameraId);
     virtual Mutex*      getClientLockById(int cameraId);
+
+    virtual sp<Client>  getClientByRemote(const sp<ICameraClient>& cameraClient);
 
     virtual status_t    dump(int fd, const Vector<String16>& args);
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
@@ -100,7 +103,8 @@ public:
                 const sp<ICameraClient>& cameraClient,
                 int cameraId,
                 int cameraFacing,
-                int clientPid);
+                int clientPid,
+                int servicePid);
         ~Client();
 
         // return our camera client
@@ -128,6 +132,7 @@ public:
         int                             mCameraId;       // immutable after constructor
         int                             mCameraFacing;   // immutable after constructor
         pid_t                           mClientPid;
+        pid_t                           mServicePid;     // immutable after constructor
 
     };
 
@@ -136,6 +141,9 @@ private:
     wp<Client>          mClient[MAX_CAMERAS];  // protected by mServiceLock
     Mutex               mClientLock[MAX_CAMERAS]; // prevent Client destruction inside callbacks
     int                 mNumberOfCameras;
+
+    // needs to be called with mServiceLock held
+    sp<Client>          findClientUnsafe(const sp<ICameraClient>& cameraClient, int& outIndex);
 
     // atomics to record whether the hardware is allocated to some client.
     volatile int32_t    mBusy[MAX_CAMERAS];
@@ -150,6 +158,9 @@ private:
     int                 mSoundRef;  // reference count (release all MediaPlayer when 0)
 
     camera_module_t *mModule;
+
+    // IBinder::DeathRecipient implementation
+    virtual void binderDied(const wp<IBinder> &who);
 };
 
 } // namespace android
