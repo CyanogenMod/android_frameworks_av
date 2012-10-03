@@ -107,6 +107,8 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         }
         if (currentWidth != (uint32_t)params.pictureWidth ||
                 currentHeight != (uint32_t)params.pictureHeight) {
+            ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
+                __FUNCTION__, client->getCameraId(), mCaptureStreamId);
             res = device->deleteStream(mCaptureStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "

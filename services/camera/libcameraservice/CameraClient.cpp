@@ -40,9 +40,9 @@ static int getCallingUid() {
 
 CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        int cameraId, int cameraFacing, int clientPid):
+        int cameraId, int cameraFacing, int clientPid, int servicePid):
         Client(cameraService, cameraClient,
-                cameraId, cameraFacing, clientPid)
+                cameraId, cameraFacing, clientPid, servicePid)
 {
     int callingPid = getCallingPid();
     LOG1("CameraClient::CameraClient E (pid %d, id %d)", callingPid, cameraId);
@@ -124,7 +124,7 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
 
 status_t CameraClient::checkPid() const {
     int callingPid = getCallingPid();
-    if (callingPid == mClientPid) return NO_ERROR;
+    if (callingPid == mClientPid || callingPid == mServicePid) return NO_ERROR;
 
     ALOGW("attempt to use a locked camera from a different process"
          " (old pid %d, new pid %d)", mClientPid, callingPid);

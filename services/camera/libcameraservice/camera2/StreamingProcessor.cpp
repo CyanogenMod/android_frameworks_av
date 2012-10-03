@@ -170,6 +170,9 @@ status_t StreamingProcessor::deletePreviewStream() {
         if (client == 0) return INVALID_OPERATION;
         sp<Camera2Device> device = client->getCameraDevice();
 
+        ALOGV("%s: for cameraId %d on streamId %d",
+            __FUNCTION__, client->getCameraId(), mPreviewStreamId);
+
         res = device->waitUntilDrained();
         if (res != OK) {
             ALOGE("%s: Error waiting for preview to drain: %s (%d)",

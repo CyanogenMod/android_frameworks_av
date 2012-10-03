@@ -74,7 +74,8 @@ public:
             const sp<ICameraClient>& cameraClient,
             int cameraId,
             int cameraFacing,
-            int clientPid);
+            int clientPid,
+            int servicePid);
     virtual ~Camera2Client();
 
     status_t initialize(camera_module_t *module);
