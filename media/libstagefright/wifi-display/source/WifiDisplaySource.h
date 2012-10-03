@@ -26,7 +26,7 @@
 
 namespace android {
 
-#define REQUIRE_HDCP    0
+#define REQUIRE_HDCP    1
 
 struct IHDCP;
 struct IRemoteDisplayClient;
