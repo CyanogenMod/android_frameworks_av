@@ -274,8 +274,17 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatDoMoreWork:
+        case kWhatEncoderActivity:
         {
+#if 0
+            int64_t whenUs;
+            if (msg->findInt64("whenUs", &whenUs)) {
+                int64_t nowUs = ALooper::GetNowUs();
+                ALOGI("[%s] kWhatEncoderActivity after %lld us",
+                      mIsVideo ? "video" : "audio", nowUs - whenUs);
+            }
+#endif
+
             mDoMoreWorkPending = false;
 
             if (mEncoder == NULL) {
@@ -328,7 +337,17 @@ void Converter::scheduleDoMoreWork() {
     }
 
     mDoMoreWorkPending = true;
-    (new AMessage(kWhatDoMoreWork, id()))->post(1000ll);
+
+#if 1
+    if (mEncoderActivityNotify == NULL) {
+        mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, id());
+    }
+    mEncoder->requestActivityNotification(mEncoderActivityNotify->dup());
+#else
+    sp<AMessage> notify = new AMessage(kWhatEncoderActivity, id());
+    notify->setInt64("whenUs", ALooper::GetNowUs());
+    mEncoder->requestActivityNotification(notify);
+#endif
 }
 
 status_t Converter::feedEncoderInputBuffers() {
@@ -375,15 +394,23 @@ status_t Converter::feedEncoderInputBuffers() {
 }
 
 status_t Converter::doMoreWork() {
-    size_t bufferIndex;
-    status_t err = mEncoder->dequeueInputBuffer(&bufferIndex);
-
-    if (err == OK) {
-        mAvailEncoderInputIndices.push_back(bufferIndex);
-        feedEncoderInputBuffers();
-    }
+    status_t err;
 
     for (;;) {
+        size_t bufferIndex;
+        err = mEncoder->dequeueInputBuffer(&bufferIndex);
+
+        if (err != OK) {
+            break;
+        }
+
+        mAvailEncoderInputIndices.push_back(bufferIndex);
+    }
+
+    feedEncoderInputBuffers();
+
+    for (;;) {
+        size_t bufferIndex;
         size_t offset;
         size_t size;
         int64_t timeUs;
