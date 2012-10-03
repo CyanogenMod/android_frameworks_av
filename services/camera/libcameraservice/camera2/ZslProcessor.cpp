@@ -161,9 +161,12 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
     if (mZslStreamId == NO_STREAM) {
         // Create stream for HAL production
         // TODO: Sort out better way to select resolution for ZSL
+        int streamType = params.quirks.useZslFormat ?
+                (int)CAMERA2_HAL_PIXEL_FORMAT_ZSL :
+                (int)HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
         res = device->createStream(mZslWindow,
                 params.fastInfo.arrayWidth, params.fastInfo.arrayHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_ZSL, 0,
+                streamType, 0,
                 &mZslStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for ZSL: "
