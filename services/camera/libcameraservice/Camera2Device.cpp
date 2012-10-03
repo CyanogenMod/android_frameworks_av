@@ -1115,9 +1115,17 @@ status_t Camera2Device::StreamAdapter::release() {
     if (mState >= CONNECTED) {
         res = native_window_api_disconnect(mConsumerInterface.get(),
                 NATIVE_WINDOW_API_CAMERA);
-        if (res != OK) {
-            ALOGE("%s: Unable to disconnect stream %d from native window",
-                    __FUNCTION__, mId);
+
+        /* this is not an error. if client calling process dies,
+           the window will also die and all calls to it will return
+           DEAD_OBJECT, thus it's already "disconnected" */
+        if (res == DEAD_OBJECT) {
+            ALOGW("%s: While disconnecting stream %d from native window, the"
+                  " native window died from under us", __FUNCTION__, mId);
+        }
+        else if (res != OK) {
+            ALOGE("%s: Unable to disconnect stream %d from native window (error %d %s)",
+                    __FUNCTION__, mId, res, strerror(-res));
             return res;
         }
     }
