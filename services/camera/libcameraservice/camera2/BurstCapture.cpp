@@ -22,8 +22,8 @@
 
 #include "BurstCapture.h"
 
-#include "JpegCompressor.h"
 #include "../Camera2Client.h"
+#include "JpegCompressor.h"
 
 namespace android {
 namespace camera2 {
