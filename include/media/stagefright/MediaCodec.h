@@ -108,6 +108,11 @@ struct MediaCodec : public AHandler {
 
     status_t requestIDRFrame();
 
+    // Notification will be posted once there "is something to do", i.e.
+    // an input/output buffer has become available, a format change is
+    // pending, an error is pending.
+    void requestActivityNotification(const sp<AMessage> &notify);
+
 protected:
     virtual ~MediaCodec();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -132,22 +137,23 @@ private:
     };
 
     enum {
-        kWhatInit                       = 'init',
-        kWhatConfigure                  = 'conf',
-        kWhatStart                      = 'strt',
-        kWhatStop                       = 'stop',
-        kWhatRelease                    = 'rele',
-        kWhatDequeueInputBuffer         = 'deqI',
-        kWhatQueueInputBuffer           = 'queI',
-        kWhatDequeueOutputBuffer        = 'deqO',
-        kWhatReleaseOutputBuffer        = 'relO',
-        kWhatGetBuffers                 = 'getB',
-        kWhatFlush                      = 'flus',
-        kWhatGetOutputFormat            = 'getO',
-        kWhatDequeueInputTimedOut       = 'dITO',
-        kWhatDequeueOutputTimedOut      = 'dOTO',
-        kWhatCodecNotify                = 'codc',
-        kWhatRequestIDRFrame            = 'ridr',
+        kWhatInit                           = 'init',
+        kWhatConfigure                      = 'conf',
+        kWhatStart                          = 'strt',
+        kWhatStop                           = 'stop',
+        kWhatRelease                        = 'rele',
+        kWhatDequeueInputBuffer             = 'deqI',
+        kWhatQueueInputBuffer               = 'queI',
+        kWhatDequeueOutputBuffer            = 'deqO',
+        kWhatReleaseOutputBuffer            = 'relO',
+        kWhatGetBuffers                     = 'getB',
+        kWhatFlush                          = 'flus',
+        kWhatGetOutputFormat                = 'getO',
+        kWhatDequeueInputTimedOut           = 'dITO',
+        kWhatDequeueOutputTimedOut          = 'dOTO',
+        kWhatCodecNotify                    = 'codc',
+        kWhatRequestIDRFrame                = 'ridr',
+        kWhatRequestActivityNotification    = 'racN',
     };
 
     enum {
@@ -191,6 +197,8 @@ private:
 
     List<sp<ABuffer> > mCSD;
 
+    sp<AMessage> mActivityNotify;
+
     MediaCodec(const sp<ALooper> &looper);
 
     static status_t PostAndAwaitResponse(
@@ -215,6 +223,8 @@ private:
 
     status_t setNativeWindow(
             const sp<SurfaceTextureClient> &surfaceTextureClient);
+
+    void postActivityNotificationIfPossible();
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
