@@ -58,6 +58,7 @@ struct Converter : public AHandler {
         kWhatRequestIDRFrame,
         kWhatShutdown,
         kWhatMediaPullerNotify,
+        kWhatEncoderActivity,
     };
 
     void shutdownAsync();
@@ -75,6 +76,7 @@ private:
     sp<AMessage> mOutputFormat;
 
     sp<MediaCodec> mEncoder;
+    sp<AMessage> mEncoderActivityNotify;
 
     Vector<sp<ABuffer> > mEncoderInputBuffers;
     Vector<sp<ABuffer> > mEncoderOutputBuffers;
