@@ -1668,6 +1668,48 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     return OK;
 }
 
+status_t Parameters::updateRequestJpeg(CameraMetadata *request) const {
+    status_t res;
+
+    res = request->update(ANDROID_JPEG_THUMBNAIL_SIZE,
+            jpegThumbSize, 2);
+    if (res != OK) return res;
+    res = request->update(ANDROID_JPEG_THUMBNAIL_QUALITY,
+            &jpegThumbQuality, 1);
+    if (res != OK) return res;
+    res = request->update(ANDROID_JPEG_QUALITY,
+            &jpegQuality, 1);
+    if (res != OK) return res;
+    res = request->update(
+            ANDROID_JPEG_ORIENTATION,
+            &jpegRotation, 1);
+    if (res != OK) return res;
+
+    if (gpsEnabled) {
+        res = request->update(
+                ANDROID_JPEG_GPS_COORDINATES,
+                gpsCoordinates, 3);
+        if (res != OK) return res;
+        res = request->update(
+                ANDROID_JPEG_GPS_TIMESTAMP,
+                &gpsTimestamp, 1);
+        if (res != OK) return res;
+        res = request->update(
+                ANDROID_JPEG_GPS_PROCESSING_METHOD,
+                gpsProcessingMethod);
+        if (res != OK) return res;
+    } else {
+        res = request->erase(ANDROID_JPEG_GPS_COORDINATES);
+        if (res != OK) return res;
+        res = request->erase(ANDROID_JPEG_GPS_TIMESTAMP);
+        if (res != OK) return res;
+        res = request->erase(ANDROID_JPEG_GPS_PROCESSING_METHOD);
+        if (res != OK) return res;
+    }
+    return OK;
+}
+
+
 const char* Parameters::getStateName(State state) {
 #define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
     switch(state) {
