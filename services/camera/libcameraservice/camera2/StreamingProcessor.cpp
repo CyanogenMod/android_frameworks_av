@@ -422,6 +422,9 @@ void StreamingProcessor::onFrameAvailable() {
     if (client == 0) return;
 
     {
+        /* acquire SharedParameters before mMutex so we don't dead lock
+            with Camera2Client code calling into StreamingProcessor */
+        SharedParameters::Lock l(client->getParameters());
         Mutex::Autolock m(mMutex);
         BufferItemConsumer::BufferItem imgBuffer;
         res = mRecordingConsumer->acquireBuffer(&imgBuffer);
@@ -435,17 +438,14 @@ void StreamingProcessor::onFrameAvailable() {
         mRecordingFrameCount++;
         ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
 
-        {
-            SharedParameters::Lock l(client->getParameters());
-            // TODO: Signal errors here upstream
-            if (l.mParameters.state != Parameters::RECORD &&
-                    l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
-                ALOGV("%s: Camera %d: Discarding recording image buffers "
-                        "received after recording done", __FUNCTION__,
-                        client->getCameraId());
-                mRecordingConsumer->releaseBuffer(imgBuffer);
-                return;
-            }
+        // TODO: Signal errors here upstream
+        if (l.mParameters.state != Parameters::RECORD &&
+                l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
+            ALOGV("%s: Camera %d: Discarding recording image buffers "
+                    "received after recording done", __FUNCTION__,
+                    client->getCameraId());
+            mRecordingConsumer->releaseBuffer(imgBuffer);
+            return;
         }
 
         if (mRecordingHeap == 0) {
