@@ -312,10 +312,11 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
 
 status_t WifiDisplaySource::PlaybackSession::init(
         const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-        TransportMode transportMode) {
+        TransportMode transportMode,
+        bool usePCMAudio) {
     mClientIP = clientIP;
 
-    status_t err = setupPacketizer();
+    status_t err = setupPacketizer(usePCMAudio);
 
     if (err != OK) {
         return err;
@@ -823,7 +824,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
     }
 }
 
-status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
+status_t WifiDisplaySource::PlaybackSession::setupPacketizer(bool usePCMAudio) {
     mPacketizer = new TSPacketizer;
 
     status_t err = addVideoSource();
@@ -832,12 +833,15 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer() {
         return err;
     }
 
-    return addAudioSource();
+    return addAudioSource(usePCMAudio);
 }
 
 status_t WifiDisplaySource::PlaybackSession::addSource(
         bool isVideo, const sp<MediaSource> &source, bool isRepeaterSource,
-        size_t *numInputBuffers) {
+        bool usePCMAudio, size_t *numInputBuffers) {
+    CHECK(!usePCMAudio || !isVideo);
+    CHECK(!isRepeaterSource || isVideo);
+
     sp<ALooper> pullLooper = new ALooper;
     pullLooper->setName("pull_looper");
 
@@ -875,7 +879,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     notify->setSize("trackIndex", trackIndex);
 
     sp<Converter> converter =
-        new Converter(notify, codecLooper, format);
+        new Converter(notify, codecLooper, format, usePCMAudio);
 
     if (converter->initCheck() != OK) {
         return converter->initCheck();
@@ -928,12 +932,12 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
     size_t numInputBuffers;
     status_t err = addSource(
             true /* isVideo */, videoSource, true /* isRepeaterSource */,
-            &numInputBuffers);
+            false /* usePCMAudio */, &numInputBuffers);
 #else
     size_t numInputBuffers;
     status_t err = addSource(
             true /* isVideo */, source, false /* isRepeaterSource */,
-            &numInputBuffers);
+            false /* usePCMAudio */, &numInputBuffers);
 #endif
 
     if (err != OK) {
@@ -948,7 +952,7 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource() {
     return OK;
 }
 
-status_t WifiDisplaySource::PlaybackSession::addAudioSource() {
+status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
     sp<AudioSource> audioSource = new AudioSource(
             AUDIO_SOURCE_REMOTE_SUBMIX,
             48000 /* sampleRate */,
@@ -957,7 +961,7 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource() {
     if (audioSource->initCheck() == OK) {
         return addSource(
                 false /* isVideo */, audioSource, false /* isRepeaterSource */,
-                NULL /* numInputBuffers */);
+                usePCMAudio, NULL /* numInputBuffers */);
     }
 
     ALOGW("Unable to instantiate audio source");
