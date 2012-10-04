@@ -1936,10 +1936,13 @@ void AwesomePlayer::onVideoEvent() {
                 mAudioPlayer->pause();
 
                 modifyFlags(AUDIO_RUNNING, CLEAR);
-            }
-            mAudioSource->pause();
 #ifdef QCOM_HARDWARE
-            mAudioSourcePaused = true;
+                mAudioSource->pause();
+                mAudioSourcePaused = true;
+#endif
+            }
+#ifndef QCOM_HARDWARE
+            mAudioSource->pause();
 #endif
         }
     }
