@@ -607,6 +607,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
                 supportedFocusModes);
     }
+    shadowFocusMode = FOCUS_MODE_INVALID;
 
     camera_metadata_ro_entry_t max3aRegions =
         staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1);
@@ -1363,6 +1364,8 @@ status_t Parameters::set(const String8& paramString) {
                 }
             }
         }
+        // Always reset shadow focus mode to avoid reverting settings
+        shadowFocusMode = FOCUS_MODE_INVALID;
         // Update in case of override
         newParams.set(CameraParameters::KEY_FOCUS_MODE,
                 focusModeEnumToString(validatedParams.focusMode));
