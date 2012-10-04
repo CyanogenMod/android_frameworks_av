@@ -105,6 +105,8 @@ class ZslProcessor:
     size_t mZslQueueHead;
     size_t mZslQueueTail;
 
+    CameraMetadata mLatestCapturedRequest;
+
     virtual bool threadLoop();
 
     status_t processNewZslBuffer(sp<Camera2Client> &client);

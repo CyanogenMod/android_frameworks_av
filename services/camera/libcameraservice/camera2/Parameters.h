@@ -216,6 +216,9 @@ struct Parameters {
     // Update passed-in request for common parameters
     status_t updateRequest(CameraMetadata *request) const;
 
+    // Add/update JPEG entries in metadata
+    status_t updateRequestJpeg(CameraMetadata *request) const;
+
     // Calculate the crop region rectangle based on current stream sizes
     struct CropRegion {
         float left;
