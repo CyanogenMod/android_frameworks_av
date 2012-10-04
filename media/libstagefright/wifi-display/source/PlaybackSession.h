@@ -50,7 +50,8 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     };
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-            TransportMode transportMode);
+            TransportMode transportMode,
+            bool usePCMAudio);
 
     void destroyAsync();
 
@@ -180,16 +181,17 @@ private:
     void addSDES(const sp<ABuffer> &buffer);
     static uint64_t GetNowNTP();
 
-    status_t setupPacketizer();
+    status_t setupPacketizer(bool usePCMAudio);
 
     status_t addSource(
             bool isVideo,
             const sp<MediaSource> &source,
             bool isRepeaterSource,
+            bool usePCMAudio,
             size_t *numInputBuffers);
 
     status_t addVideoSource();
-    status_t addAudioSource();
+    status_t addAudioSource(bool usePCMAudio);
 
     ssize_t appendTSData(
             const void *data, size_t size, bool timeDiscontinuity, bool flush);
