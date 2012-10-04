@@ -321,8 +321,7 @@ void VideoEditorSRC::checkAndSetResampler() {
         mResampler = AudioResampler::create(
                         16 /* bit depth */,
                         mChannelCnt,
-                        mOutputSampleRate,
-                        AudioResampler::DEFAULT);
+                        mOutputSampleRate);
         CHECK(mResampler);
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(kUnityGain, kUnityGain);

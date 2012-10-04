@@ -80,7 +80,7 @@ M4OSA_Context  LVAudioResamplerCreate(M4OSA_Int32 bitDepth, M4OSA_Int32 inChanne
 
     VideoEditorResampler *context = new VideoEditorResampler();
     context->mResampler = AudioResampler::create(
-        bitDepth, inChannelCount, sampleRate, AudioResampler::DEFAULT);
+        bitDepth, inChannelCount, sampleRate);
     if (context->mResampler == NULL) {
         return NULL;
     }
