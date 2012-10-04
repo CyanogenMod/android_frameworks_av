@@ -586,40 +586,12 @@ status_t CaptureSequencer::updateCaptureRequest(const Parameters &params,
         return res;
     }
 
-    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_SIZE,
-            params.jpegThumbSize, 2);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(ANDROID_JPEG_THUMBNAIL_QUALITY,
-            &params.jpegThumbQuality, 1);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(ANDROID_JPEG_QUALITY,
-            &params.jpegQuality, 1);
-    if (res != OK) return res;
-    res = mCaptureRequest.update(
-            ANDROID_JPEG_ORIENTATION,
-            &params.jpegRotation, 1);
-    if (res != OK) return res;
-
-    if (params.gpsEnabled) {
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_COORDINATES,
-                params.gpsCoordinates, 3);
-        if (res != OK) return res;
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_TIMESTAMP,
-                &params.gpsTimestamp, 1);
-        if (res != OK) return res;
-        res = mCaptureRequest.update(
-                ANDROID_JPEG_GPS_PROCESSING_METHOD,
-                params.gpsProcessingMethod);
-        if (res != OK) return res;
-    } else {
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_COORDINATES);
-        if (res != OK) return res;
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_TIMESTAMP);
-        if (res != OK) return res;
-        res = mCaptureRequest.erase(ANDROID_JPEG_GPS_PROCESSING_METHOD);
-        if (res != OK) return res;
+    res = params.updateRequestJpeg(&mCaptureRequest);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update JPEG entries of capture "
+                "request: %s (%d)", __FUNCTION__, client->getCameraId(),
+                strerror(-res), res);
+        return res;
     }
 
     return OK;
