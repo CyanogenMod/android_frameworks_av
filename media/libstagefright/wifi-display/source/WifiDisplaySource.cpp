@@ -46,6 +46,7 @@ WifiDisplaySource::WifiDisplaySource(
       mClient(client),
       mSessionID(0),
       mStopReplyID(0),
+      mUsingPCMAudio(false),
       mClientSessionID(0),
       mReaperPending(false),
       mNextCSeq(1)
@@ -531,6 +532,11 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         transportString = "TCP";
     }
 
+    if (property_get("media.wfd.use-pcm-audio", val, NULL)
+            && (!strcasecmp("true", val) || !strcmp("1", val))) {
+        ALOGI("Using PCM audio.");
+        mUsingPCMAudio = true;
+    }
     // For 720p60:
     //   use "30 00 02 02 00000040 00000000 00000000 00 0000 0000 00 none none\r\n"
     // For 720p30:
@@ -540,9 +546,12 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     AString body = StringPrintf(
         "wfd_video_formats: "
         "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
-        "wfd_audio_codecs: AAC 00000001 00\r\n"  // 2 ch AAC 48kHz
+        "wfd_audio_codecs: %s\r\n"
         "wfd_presentation_URL: rtsp://%s/wfd1.0/streamid=0 none\r\n"
         "wfd_client_rtp_ports: RTP/AVP/%s;unicast 19000 0 mode=play\r\n",
+        (mUsingPCMAudio
+            ? "LPCM 00000002 00" // 2 ch PCM 48kHz
+            : "AAC 00000001 00"),  // 2 ch AAC 48kHz
         mClientInfo.mLocalIP.c_str(), transportString.c_str());
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
@@ -1000,7 +1009,8 @@ status_t WifiDisplaySource::onSetupRequest(
             mClientInfo.mRemoteIP.c_str(),
             clientRtp,
             clientRtcp,
-            transportMode);
+            transportMode,
+            mUsingPCMAudio);
 
     if (err != OK) {
         looper()->unregisterHandler(playbackSession->id());
