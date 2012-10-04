@@ -35,15 +35,15 @@ public:
     // certain fixed rate conversions. Sample rate cannot be
     // changed dynamically.
     enum src_quality {
-        DEFAULT=0,
+        DEFAULT_QUALITY=0,
         LOW_QUALITY=1,
         MED_QUALITY=2,
         HIGH_QUALITY=3,
-        VERY_HIGH_QUALITY=255
+        VERY_HIGH_QUALITY=4,
     };
 
     static AudioResampler* create(int bitDepth, int inChannelCount,
-            int32_t sampleRate, int quality=DEFAULT);
+            int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
 
     virtual ~AudioResampler();
 
@@ -61,6 +61,9 @@ public:
     virtual void reset();
     virtual size_t getUnreleasedFrames() const { return mInputIndex; }
 
+    // called from destructor, so must not be virtual
+    src_quality getQuality() const { return mQuality; }
+
 protected:
     // number of bits for phase fraction - 30 bits allows nearly 2x downsampling
     static const int kNumPhaseBits = 30;
@@ -71,7 +74,7 @@ protected:
     // multiplier to calculate fixed point phase increment
     static const double kPhaseMultiplier = 1L << kNumPhaseBits;
 
-    AudioResampler(int bitDepth, int inChannelCount, int32_t sampleRate);
+    AudioResampler(int bitDepth, int inChannelCount, int32_t sampleRate, src_quality quality);
 
     // prevent copying
     AudioResampler(const AudioResampler&);
@@ -94,6 +97,19 @@ protected:
     uint32_t mPhaseFraction;
     uint64_t mLocalTimeFreq;
     int64_t mPTS;
+
+private:
+    const src_quality mQuality;
+
+    // Return 'true' if the quality level is supported without explicit request
+    static bool qualityIsSupported(src_quality quality);
+
+    // For pthread_once()
+    static void init_routine();
+
+    // Return the estimated CPU load for specific resampler in MHz.
+    // The absolute number is irrelevant, it's the relative values that matter.
+    static uint32_t qualityMHz(src_quality quality);
 };
 
 // ----------------------------------------------------------------------------

@@ -539,11 +539,23 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
         if (sampleRate != value) {
             sampleRate = value;
             if (resampler == NULL) {
+                ALOGV("creating resampler from track %d Hz to device %d Hz", value, devSampleRate);
+                AudioResampler::src_quality quality;
+                // force lowest quality level resampler if use case isn't music or video
+                // FIXME this is flawed for dynamic sample rates, as we choose the resampler
+                // quality level based on the initial ratio, but that could change later.
+                // Should have a way to distinguish tracks with static ratios vs. dynamic ratios.
+                if (!((value == 44100 && devSampleRate == 48000) ||
+                      (value == 48000 && devSampleRate == 44100))) {
+                    quality = AudioResampler::LOW_QUALITY;
+                } else {
+                    quality = AudioResampler::DEFAULT_QUALITY;
+                }
                 resampler = AudioResampler::create(
                         format,
                         // the resampler sees the number of channels after the downmixer, if any
                         downmixerBufferProvider != NULL ? MAX_NUM_CHANNELS : channelCount,
-                        devSampleRate);
+                        devSampleRate, quality);
                 resampler->setLocalTimeFreq(localTimeFreq);
             }
             return true;
