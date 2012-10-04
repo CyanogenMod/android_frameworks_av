@@ -20,6 +20,8 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include <utils/Vector.h>
+#include <utils/SortedVector.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -171,16 +173,36 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     // still have to do something sane for them
 
     // NOTE: Not scaled like FPS range values are.
-    previewFps = previewFpsRange[0];
+    previewFps = fpsFromRange(previewFpsRange[0], previewFpsRange[1]);
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
-            previewFpsRange[0]);
+            previewFps);
 
     {
+        SortedVector<int32_t> sortedPreviewFrameRates;
+
         String8 supportedPreviewFrameRates;
         for (size_t i=0; i < availableFpsRanges.count; i += 2) {
-            if (i != 0) supportedPreviewFrameRates += ",";
+            // from the [min, max] fps range use the max value
+            int fps = fpsFromRange(availableFpsRanges.data.i32[i],
+                                   availableFpsRanges.data.i32[i+1]);
+
+            // de-dupe frame rates
+            if (sortedPreviewFrameRates.indexOf(fps) == NAME_NOT_FOUND) {
+                sortedPreviewFrameRates.add(fps);
+            }
+            else {
+                continue;
+            }
+
+            if (sortedPreviewFrameRates.size() > 1) {
+                supportedPreviewFrameRates += ",";
+            }
+
             supportedPreviewFrameRates += String8::format("%d",
-                    availableFpsRanges.data.i32[i]);
+                    fps);
+
+            ALOGV("%s: Supported preview frame rates: %s",
+                    __FUNCTION__, supportedPreviewFrameRates.string());
         }
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
                 supportedPreviewFrameRates);
@@ -983,6 +1005,13 @@ status_t Parameters::set(const String8& paramString) {
         }
     }
 
+    // RECORDING_HINT (always supported)
+    validatedParams.recordingHint = boolFromString(
+        newParams.get(CameraParameters::KEY_RECORDING_HINT) );
+    bool recordingHintChanged = validatedParams.recordingHint != recordingHint;
+    ALOGV_IF(recordingHintChanged, "%s: Recording hint changed to %d",
+            __FUNCTION__, recordingHintChanged);
+
     // PREVIEW_FPS_RANGE
     bool fpsRangeChanged = false;
     newParams.getPreviewFpsRange(&validatedParams.previewFpsRange[0],
@@ -1009,7 +1038,9 @@ status_t Parameters::set(const String8& paramString) {
                     validatedParams.previewFpsRange[1]);
             return BAD_VALUE;
         }
-        validatedParams.previewFps = validatedParams.previewFpsRange[0];
+        validatedParams.previewFps =
+            fpsFromRange(validatedParams.previewFpsRange[0],
+                         validatedParams.previewFpsRange[1]);
         newParams.setPreviewFrameRate(validatedParams.previewFps);
     }
 
@@ -1041,27 +1072,78 @@ status_t Parameters::set(const String8& paramString) {
     // The single-value FPS is the same as the minimum of the range.
     if (!fpsRangeChanged) {
         validatedParams.previewFps = newParams.getPreviewFrameRate();
-        if (validatedParams.previewFps != previewFps) {
+        if (validatedParams.previewFps != previewFps || recordingHintChanged) {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+            /**
+              * If recording hint is set, find the range that encompasses
+              * previewFps with the largest min index.
+              *
+              * If recording hint is not set, find the range with previewFps
+              * with the smallest min index.
+              *
+              * Either way, in case of multiple ranges, break the tie by
+              * selecting the smaller range.
+              */
+            int targetFps = validatedParams.previewFps;
+            // all ranges which have targetFps
+            Vector<Range> candidateRanges;
             for (i = 0; i < availableFrameRates.count; i+=2) {
-                if (availableFrameRates.data.i32[i] ==
-                        validatedParams.previewFps) break;
+                Range r = {
+                            availableFrameRates.data.i32[i],
+                            availableFrameRates.data.i32[i+1]
+                };
+
+                if (r.min <= targetFps && targetFps <= r.max) {
+                    candidateRanges.push(r);
+                }
             }
-            if (i == availableFrameRates.count) {
+            if (candidateRanges.isEmpty()) {
                 ALOGE("%s: Requested preview frame rate %d is not supported",
                         __FUNCTION__, validatedParams.previewFps);
                 return BAD_VALUE;
             }
+            // most applicable range with targetFps
+            Range bestRange = candidateRanges[0];
+            for (i = 1; i < candidateRanges.size(); ++i) {
+                Range r = candidateRanges[i];
+
+                // Find by largest minIndex in recording mode
+                if (validatedParams.recordingHint) {
+                    if (r.min > bestRange.min) {
+                        bestRange = r;
+                    }
+                    else if (r.min == bestRange.min && r.max < bestRange.max) {
+                        bestRange = r;
+                    }
+                }
+                // Find by smallest minIndex in preview mode
+                else {
+                    if (r.min < bestRange.min) {
+                        bestRange = r;
+                    }
+                    else if (r.min == bestRange.min && r.max < bestRange.max) {
+                        bestRange = r;
+                    }
+                }
+            }
+
             validatedParams.previewFpsRange[0] =
-                    availableFrameRates.data.i32[i];
+                    bestRange.min;
             validatedParams.previewFpsRange[1] =
-                    availableFrameRates.data.i32[i+1];
+                    bestRange.max;
+
+            ALOGV("%s: New preview FPS range: %d, %d, recordingHint = %d",
+                __FUNCTION__,
+                validatedParams.previewFpsRange[0],
+                validatedParams.previewFpsRange[1],
+                validatedParams.recordingHint);
         }
         newParams.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
                 String8::format("%d,%d",
                         validatedParams.previewFpsRange[0] * kFpsToApiScale,
                         validatedParams.previewFpsRange[1] * kFpsToApiScale));
+
     }
 
     // PICTURE_SIZE
@@ -1454,10 +1536,6 @@ status_t Parameters::set(const String8& paramString) {
             return BAD_VALUE;
         }
     }
-
-    // RECORDING_HINT (always supported)
-    validatedParams.recordingHint = boolFromString(
-        newParams.get(CameraParameters::KEY_RECORDING_HINT) );
 
     // VIDEO_STABILIZATION
     validatedParams.videoStabilization = boolFromString(
@@ -2202,6 +2280,10 @@ Parameters::CropRegion Parameters::calculateCropRegion(void) const {
 
     CropRegion crop = { zoomLeft, zoomTop, zoomWidth, zoomHeight };
     return crop;
+}
+
+int32_t Parameters::fpsFromRange(int32_t min, int32_t max) const {
+    return max;
 }
 
 }; // namespace camera2
