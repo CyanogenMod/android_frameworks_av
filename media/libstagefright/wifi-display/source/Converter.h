@@ -18,6 +18,8 @@
 
 #define CONVERTER_H_
 
+#include "WifiDisplaySource.h"
+
 #include <media/stagefright/foundation/AHandler.h>
 
 namespace android {
@@ -34,7 +36,8 @@ struct Converter : public AHandler {
     Converter(
             const sp<AMessage> &notify,
             const sp<ALooper> &codecLooper,
-            const sp<AMessage> &format);
+            const sp<AMessage> &format,
+            bool usePCMAudio);
 
     status_t initCheck() const;
 
@@ -73,6 +76,7 @@ private:
     sp<ALooper> mCodecLooper;
     sp<AMessage> mInputFormat;
     bool mIsVideo;
+    bool mIsPCMAudio;
     sp<AMessage> mOutputFormat;
 
     sp<MediaCodec> mEncoder;
@@ -92,6 +96,8 @@ private:
     bool mInSilentMode;
 #endif
 
+    sp<ABuffer> mPartialAudioAU;
+
     status_t initEncoder();
 
     status_t feedEncoderInputBuffers();
@@ -100,6 +106,11 @@ private:
     status_t doMoreWork();
 
     void notifyError(status_t err);
+
+    // Packetizes raw PCM audio data available in mInputBufferQueue
+    // into a format suitable for transport stream inclusion and
+    // notifies the observer.
+    status_t feedRawAudioInputBuffers();
 
     static bool IsSilence(const sp<ABuffer> &accessUnit);
 
