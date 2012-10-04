@@ -24,9 +24,7 @@
 #include <cutils/properties.h>
 #include "AudioResampler.h"
 #include "AudioResamplerSinc.h"
-#if 0
 #include "AudioResamplerCubic.h"
-#endif
 
 #ifdef __arm__
 #include <machine/cpu-features.h>
@@ -42,7 +40,7 @@ namespace android {
 class AudioResamplerOrder1 : public AudioResampler {
 public:
     AudioResamplerOrder1(int bitDepth, int inChannelCount, int32_t sampleRate) :
-        AudioResampler(bitDepth, inChannelCount, sampleRate), mX0L(0), mX0R(0) {
+        AudioResampler(bitDepth, inChannelCount, sampleRate, LOW_QUALITY), mX0L(0), mX0R(0) {
     }
     virtual void resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
@@ -79,29 +77,120 @@ private:
     int mX0R;
 };
 
+bool AudioResampler::qualityIsSupported(src_quality quality)
+{
+    switch (quality) {
+    case DEFAULT_QUALITY:
+    case LOW_QUALITY:
+#if 0   // these have not been qualified recently so are not supported unless explicitly requested
+    case MED_QUALITY:
+    case HIGH_QUALITY:
+#endif
+    case VERY_HIGH_QUALITY:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // ----------------------------------------------------------------------------
-AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
-        int32_t sampleRate, int quality) {
 
-    // can only create low quality resample now
-    AudioResampler* resampler;
+static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+static AudioResampler::src_quality defaultQuality = AudioResampler::DEFAULT_QUALITY;
 
+void AudioResampler::init_routine()
+{
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("af.resampler.quality", value, 0)) {
-        quality = atoi(value);
-        ALOGD("forcing AudioResampler quality to %d", quality);
+    if (property_get("af.resampler.quality", value, NULL) > 0) {
+        char *endptr;
+        unsigned long l = strtoul(value, &endptr, 0);
+        if (*endptr == '\0') {
+            defaultQuality = (src_quality) l;
+            ALOGD("forcing AudioResampler quality to %d", defaultQuality);
+            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > VERY_HIGH_QUALITY) {
+                defaultQuality = DEFAULT_QUALITY;
+            }
+        }
+    }
+}
+
+uint32_t AudioResampler::qualityMHz(src_quality quality)
+{
+    switch (quality) {
+    default:
+    case DEFAULT_QUALITY:
+    case LOW_QUALITY:
+        return 3;
+    case MED_QUALITY:
+        return 6;
+    case HIGH_QUALITY:
+        return 20;
+    case VERY_HIGH_QUALITY:
+        return 34;
+    }
+}
+
+static const uint32_t maxMHz = 75;  // an arbitrary number that permits 2 VHQ, should be tunable
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t currentMHz = 0;
+
+AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
+        int32_t sampleRate, src_quality quality) {
+
+    bool atFinalQuality;
+    if (quality == DEFAULT_QUALITY) {
+        // read the resampler default quality property the first time it is needed
+        int ok = pthread_once(&once_control, init_routine);
+        if (ok != 0) {
+            ALOGE("%s pthread_once failed: %d", __func__, ok);
+        }
+        quality = defaultQuality;
+        atFinalQuality = false;
+    } else {
+        atFinalQuality = true;
     }
 
-    if (quality == DEFAULT)
-        quality = LOW_QUALITY;
+    // naive implementation of CPU load throttling doesn't account for whether resampler is active
+    pthread_mutex_lock(&mutex);
+    for (;;) {
+        uint32_t deltaMHz = qualityMHz(quality);
+        uint32_t newMHz = currentMHz + deltaMHz;
+        if ((qualityIsSupported(quality) && newMHz <= maxMHz) || atFinalQuality) {
+            ALOGV("resampler load %u -> %u MHz due to delta +%u MHz from quality %d",
+                    currentMHz, newMHz, deltaMHz, quality);
+            currentMHz = newMHz;
+            break;
+        }
+        // not enough CPU available for proposed quality level, so try next lowest level
+        switch (quality) {
+        default:
+        case DEFAULT_QUALITY:
+        case LOW_QUALITY:
+            atFinalQuality = true;
+            break;
+        case MED_QUALITY:
+            quality = LOW_QUALITY;
+            break;
+        case HIGH_QUALITY:
+            quality = MED_QUALITY;
+            break;
+        case VERY_HIGH_QUALITY:
+            quality = HIGH_QUALITY;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutex);
+
+    AudioResampler* resampler;
 
     switch (quality) {
     default:
+    case DEFAULT_QUALITY:
     case LOW_QUALITY:
         ALOGV("Create linear Resampler");
         resampler = new AudioResamplerOrder1(bitDepth, inChannelCount, sampleRate);
         break;
-#if 0
+#if 0   // disabled because it has not been qualified recently, if requested will use default:
     case MED_QUALITY:
         ALOGV("Create cubic Resampler");
         resampler = new AudioResamplerCubic(bitDepth, inChannelCount, sampleRate);
@@ -110,8 +199,9 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     case HIGH_QUALITY:
         ALOGV("Create HIGH_QUALITY sinc Resampler");
         resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate);
+        break;
     case VERY_HIGH_QUALITY:
-        ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d",quality);
+        ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d", quality);
         resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate, quality);
         break;
     }
@@ -122,16 +212,19 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
 }
 
 AudioResampler::AudioResampler(int bitDepth, int inChannelCount,
-        int32_t sampleRate) :
+        int32_t sampleRate, src_quality quality) :
     mBitDepth(bitDepth), mChannelCount(inChannelCount),
             mSampleRate(sampleRate), mInSampleRate(sampleRate), mInputIndex(0),
             mPhaseFraction(0), mLocalTimeFreq(0),
-            mPTS(AudioBufferProvider::kInvalidPTS) {
+            mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
     // sanity check on format
     if ((bitDepth != 16) ||(inChannelCount < 1) || (inChannelCount > 2)) {
         ALOGE("Unsupported sample format, %d bits, %d channels", bitDepth,
                 inChannelCount);
         // ALOG_ASSERT(0);
+    }
+    if (sampleRate <= 0) {
+        ALOGE("Unsupported sample rate %d Hz", sampleRate);
     }
 
     // initialize common members
@@ -141,6 +234,15 @@ AudioResampler::AudioResampler(int bitDepth, int inChannelCount,
 }
 
 AudioResampler::~AudioResampler() {
+    pthread_mutex_lock(&mutex);
+    src_quality quality = getQuality();
+    uint32_t deltaMHz = qualityMHz(quality);
+    int32_t newMHz = currentMHz - deltaMHz;
+    ALOGV("resampler load %u -> %d MHz due to delta -%u MHz from quality %d",
+            currentMHz, newMHz, deltaMHz, quality);
+    LOG_ALWAYS_FATAL_IF(newMHz < 0, "negative resampler load %d MHz", newMHz);
+    currentMHz = newMHz;
+    pthread_mutex_unlock(&mutex);
 }
 
 void AudioResampler::setSampleRate(int32_t inSampleRate) {
