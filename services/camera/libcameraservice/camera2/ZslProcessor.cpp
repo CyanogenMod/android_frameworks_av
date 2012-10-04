@@ -313,6 +313,20 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
             return res;
         }
 
+        // Update JPEG settings
+        {
+            SharedParameters::Lock l(client->getParameters());
+            res = l.mParameters.updateRequestJpeg(&request);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to update JPEG entries of ZSL "
+                        "capture request: %s (%d)", __FUNCTION__,
+                        client->getCameraId(),
+                        strerror(-res), res);
+                return res;
+            }
+        }
+
+        mLatestCapturedRequest = request;
         res = client->getCameraDevice()->capture(request);
         if (res != OK ) {
             ALOGE("%s: Unable to send ZSL reprocess request to capture: %s (%d)",
@@ -350,6 +364,14 @@ status_t ZslProcessor::clearZslQueueLocked() {
 
 void ZslProcessor::dump(int fd, const Vector<String16>& args) const {
     Mutex::Autolock l(mInputMutex);
+    if (!mLatestCapturedRequest.isEmpty()) {
+        String8 result("    Latest ZSL capture request:\n");
+        write(fd, result.string(), result.size());
+        mLatestCapturedRequest.dump(fd, 2, 6);
+    } else {
+        String8 result("    Latest ZSL capture request: none yet\n");
+        write(fd, result.string(), result.size());
+    }
     dumpZslQueue(fd);
 }
 
