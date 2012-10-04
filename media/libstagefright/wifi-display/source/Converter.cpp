@@ -38,12 +38,14 @@ namespace android {
 Converter::Converter(
         const sp<AMessage> &notify,
         const sp<ALooper> &codecLooper,
-        const sp<AMessage> &format)
+        const sp<AMessage> &format,
+        bool usePCMAudio)
     : mInitCheck(NO_INIT),
       mNotify(notify),
       mCodecLooper(codecLooper),
       mInputFormat(format),
       mIsVideo(false),
+      mIsPCMAudio(usePCMAudio),
       mDoMoreWorkPending(false)
 #if ENABLE_SILENCE_DETECTION
       ,mFirstSilentFrameUs(-1ll)
@@ -56,6 +58,8 @@ Converter::Converter(
     if (!strncasecmp("video/", mime.c_str(), 6)) {
         mIsVideo = true;
     }
+
+    CHECK(!usePCMAudio || !mIsVideo);
 
     mInitCheck = initEncoder();
 
@@ -109,7 +113,11 @@ status_t Converter::initEncoder() {
     AString outputMIME;
     bool isAudio = false;
     if (!strcasecmp(inputMIME.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
-        outputMIME = MEDIA_MIMETYPE_AUDIO_AAC;
+        if (mIsPCMAudio) {
+            outputMIME = MEDIA_MIMETYPE_AUDIO_RAW;
+        } else {
+            outputMIME = MEDIA_MIMETYPE_AUDIO_AAC;
+        }
         isAudio = true;
     } else if (!strcasecmp(inputMIME.c_str(), MEDIA_MIMETYPE_VIDEO_RAW)) {
         outputMIME = MEDIA_MIMETYPE_VIDEO_AVC;
@@ -117,14 +125,21 @@ status_t Converter::initEncoder() {
         TRESPASS();
     }
 
-    mEncoder = MediaCodec::CreateByType(
-            mCodecLooper, outputMIME.c_str(), true /* encoder */);
+    if (!mIsPCMAudio) {
+        mEncoder = MediaCodec::CreateByType(
+                mCodecLooper, outputMIME.c_str(), true /* encoder */);
 
-    if (mEncoder == NULL) {
-        return ERROR_UNSUPPORTED;
+        if (mEncoder == NULL) {
+            return ERROR_UNSUPPORTED;
+        }
     }
 
     mOutputFormat = mInputFormat->dup();
+
+    if (mIsPCMAudio) {
+        return OK;
+    }
+
     mOutputFormat->setString("mime", outputMIME.c_str());
 
     int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 128000);
@@ -197,7 +212,7 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
-            if (mEncoder == NULL) {
+            if (!mIsPCMAudio && mEncoder == NULL) {
                 ALOGV("got msg '%s' after encoder shutdown.",
                       msg->debugString().c_str());
 
@@ -317,8 +332,11 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatShutdown:
         {
             ALOGI("shutting down encoder");
-            mEncoder->release();
-            mEncoder.clear();
+
+            if (mEncoder != NULL) {
+                mEncoder->release();
+                mEncoder.clear();
+            }
 
             AString mime;
             CHECK(mInputFormat->findString("mime", &mime));
@@ -332,6 +350,11 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void Converter::scheduleDoMoreWork() {
+    if (mIsPCMAudio) {
+        // There's no encoder involved in this case.
+        return;
+    }
+
     if (mDoMoreWorkPending) {
         return;
     }
@@ -350,7 +373,120 @@ void Converter::scheduleDoMoreWork() {
 #endif
 }
 
+status_t Converter::feedRawAudioInputBuffers() {
+    // Split incoming PCM audio into buffers of 6 AUs of 80 audio frames each
+    // and add a 4 byte header according to the wifi display specs.
+
+    while (!mInputBufferQueue.empty()) {
+        sp<ABuffer> buffer = *mInputBufferQueue.begin();
+        mInputBufferQueue.erase(mInputBufferQueue.begin());
+
+        int16_t *ptr = (int16_t *)buffer->data();
+        int16_t *stop = (int16_t *)(buffer->data() + buffer->size());
+        while (ptr < stop) {
+            *ptr = htons(*ptr);
+            ++ptr;
+        }
+
+        static const size_t kFrameSize = 2 * sizeof(int16_t);  // stereo
+        static const size_t kFramesPerAU = 80;
+        static const size_t kNumAUsPerPESPacket = 6;
+
+        if (mPartialAudioAU != NULL) {
+            size_t bytesMissingForFullAU =
+                kNumAUsPerPESPacket * kFramesPerAU * kFrameSize
+                - mPartialAudioAU->size() + 4;
+
+            size_t copy = buffer->size();
+            if(copy > bytesMissingForFullAU) {
+                copy = bytesMissingForFullAU;
+            }
+
+            memcpy(mPartialAudioAU->data() + mPartialAudioAU->size(),
+                   buffer->data(),
+                   copy);
+
+            mPartialAudioAU->setRange(0, mPartialAudioAU->size() + copy);
+
+            buffer->setRange(buffer->offset() + copy, buffer->size() - copy);
+
+            int64_t timeUs;
+            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+            int64_t copyUs = (int64_t)((copy / kFrameSize) * 1E6 / 48000.0);
+            timeUs += copyUs;
+            buffer->meta()->setInt64("timeUs", timeUs);
+
+            if (bytesMissingForFullAU == copy) {
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatAccessUnit);
+                notify->setBuffer("accessUnit", mPartialAudioAU);
+                notify->post();
+
+                mPartialAudioAU.clear();
+            }
+        }
+
+        while (buffer->size() > 0) {
+            sp<ABuffer> partialAudioAU =
+                new ABuffer(
+                        4
+                        + kNumAUsPerPESPacket * kFrameSize * kFramesPerAU);
+
+            uint8_t *ptr = partialAudioAU->data();
+            ptr[0] = 0xa0;  // 10100000b
+            ptr[1] = kNumAUsPerPESPacket;
+            ptr[2] = 0;  // reserved, audio _emphasis_flag = 0
+
+            static const unsigned kQuantizationWordLength = 0;  // 16-bit
+            static const unsigned kAudioSamplingFrequency = 2;  // 48Khz
+            static const unsigned kNumberOfAudioChannels = 1;  // stereo
+
+            ptr[3] = (kQuantizationWordLength << 6)
+                    | (kAudioSamplingFrequency << 3)
+                    | kNumberOfAudioChannels;
+
+            size_t copy = buffer->size();
+            if (copy > partialAudioAU->size() - 4) {
+                copy = partialAudioAU->size() - 4;
+            }
+
+            memcpy(&ptr[4], buffer->data(), copy);
+
+            partialAudioAU->setRange(0, 4 + copy);
+            buffer->setRange(buffer->offset() + copy, buffer->size() - copy);
+
+            int64_t timeUs;
+            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+            partialAudioAU->meta()->setInt64("timeUs", timeUs);
+
+            int64_t copyUs = (int64_t)((copy / kFrameSize) * 1E6 / 48000.0);
+            timeUs += copyUs;
+            buffer->meta()->setInt64("timeUs", timeUs);
+
+            if (copy == partialAudioAU->size() - 4) {
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatAccessUnit);
+                notify->setBuffer("accessUnit", partialAudioAU);
+                notify->post();
+
+                partialAudioAU.clear();
+                continue;
+            }
+
+            mPartialAudioAU = partialAudioAU;
+        }
+    }
+
+    return OK;
+}
+
 status_t Converter::feedEncoderInputBuffers() {
+    if (mIsPCMAudio) {
+        return feedRawAudioInputBuffers();
+    }
+
     while (!mInputBufferQueue.empty()
             && !mAvailEncoderInputIndices.empty()) {
         sp<ABuffer> buffer = *mInputBufferQueue.begin();

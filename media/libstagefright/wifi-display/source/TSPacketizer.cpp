@@ -47,6 +47,7 @@ struct TSPacketizer::Track : public RefBase {
     bool isVideo() const;
 
     bool isH264() const;
+    bool isAAC() const;
     bool lacksADTSHeader() const;
 
     sp<ABuffer> prependCSD(const sp<ABuffer> &accessUnit) const;
@@ -137,6 +138,10 @@ bool TSPacketizer::Track::isVideo() const {
 
 bool TSPacketizer::Track::isH264() const {
     return !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_VIDEO_AVC);
+}
+
+bool TSPacketizer::Track::isAAC() const {
+    return !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC);
 }
 
 bool TSPacketizer::Track::lacksADTSHeader() const {
@@ -247,6 +252,10 @@ ssize_t TSPacketizer::addTrack(const sp<AMessage> &format) {
         streamType = 0x0f;
         streamIDStart = 0xc0;
         streamIDStop = 0xdf;
+    } else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+        streamType = 0x83;
+        streamIDStart = 0xbd;
+        streamIDStop = 0xbd;
     } else {
         return ERROR_UNSUPPORTED;
     }
@@ -298,7 +307,7 @@ status_t TSPacketizer::packetize(
             && IsIDR(accessUnit)) {
         // prepend codec specific data, i.e. SPS and PPS.
         accessUnit = track->prependCSD(accessUnit);
-    } else if (track->isAudio() && track->lacksADTSHeader()) {
+    } else if (track->isAAC() && track->lacksADTSHeader()) {
         CHECK(!(flags & IS_ENCRYPTED));
         accessUnit = track->prependADTSHeader(accessUnit);
     }

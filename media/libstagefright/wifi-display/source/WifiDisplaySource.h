@@ -26,7 +26,7 @@
 
 namespace android {
 
-#define REQUIRE_HDCP    1
+#define REQUIRE_HDCP            1
 
 struct IHDCP;
 struct IRemoteDisplayClient;
@@ -114,6 +114,7 @@ private:
 
     uint32_t mStopReplyID;
 
+    bool mUsingPCMAudio;
     int32_t mClientSessionID;
 
     struct ClientInfo {
