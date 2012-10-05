@@ -267,6 +267,14 @@ struct Parameters {
     int arrayYToNormalized(int height) const;
     int normalizedXToArray(int x) const;
     int normalizedYToArray(int y) const;
+
+    struct Range {
+        int min;
+        int max;
+    };
+
+    int32_t fpsFromRange(int32_t min, int32_t max) const;
+
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed
