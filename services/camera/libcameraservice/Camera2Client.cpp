@@ -378,7 +378,16 @@ void Camera2Client::disconnect() {
 
     ALOGV("Camera %d: Shutting down", mCameraId);
 
-    stopPreviewL();
+    res = mStreamingProcessor->stopStream();
+    if (res != OK) {
+        ALOGE("%s: Problem stopping streaming: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+    }
+    res = mDevice->waitUntilDrained();
+    if (res != OK) {
+        ALOGE("%s: Problem waiting for HAL: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+    }
 
     {
         SharedParameters::Lock l(mParameters);
