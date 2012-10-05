@@ -27,6 +27,7 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include <utils/Timers.h>
 #include "Camera2Device.h"
 
 namespace android {
@@ -226,6 +227,11 @@ status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
 status_t Camera2Device::clearStreamingRequest() {
     ATRACE_CALL();
     return mRequestQueue.setStreamSlot(NULL);
+}
+
+status_t Camera2Device::waitUntilRequestReceived(int32_t requestId, nsecs_t timeout) {
+    ATRACE_CALL();
+    return mRequestQueue.waitForDequeue(requestId, timeout);
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
@@ -567,6 +573,7 @@ Camera2Device::NotificationListener::~NotificationListener() {
 Camera2Device::MetadataQueue::MetadataQueue():
             mDevice(NULL),
             mFrameCount(0),
+            mLatestRequestId(0),
             mCount(0),
             mStreamSlotCount(0),
             mSignalConsumer(true)
@@ -678,6 +685,16 @@ status_t Camera2Device::MetadataQueue::dequeue(camera_metadata_t **buf,
         mFrameCount++;
     }
 
+    // Check for request ID, and if present, signal waiters.
+    camera_metadata_entry_t requestId;
+    res = find_camera_metadata_entry(b,
+            ANDROID_REQUEST_ID,
+            &requestId);
+    if (res == OK) {
+        mLatestRequestId = requestId.data.i32[0];
+        mNewRequestId.signal();
+    }
+
     *buf = b;
     mCount--;
 
@@ -692,6 +709,22 @@ status_t Camera2Device::MetadataQueue::waitForBuffer(nsecs_t timeout)
         res = notEmpty.waitRelative(mMutex,timeout);
         if (res != OK) return res;
     }
+    return OK;
+}
+
+status_t Camera2Device::MetadataQueue::waitForDequeue(int32_t id,
+        nsecs_t timeout) {
+    Mutex::Autolock l(mMutex);
+    status_t res;
+    while (mLatestRequestId != id) {
+        nsecs_t startTime = systemTime();
+
+        res = mNewRequestId.waitRelative(mMutex, timeout);
+        if (res != OK) return res;
+
+        timeout -= (systemTime() - startTime);
+    }
+
     return OK;
 }
 
