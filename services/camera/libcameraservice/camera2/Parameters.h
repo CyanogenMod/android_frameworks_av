@@ -186,6 +186,7 @@ struct Parameters {
     struct Quirks {
         bool triggerAfWithAuto;
         bool useZslFormat;
+        bool meteringCropRegion;
     } quirks;
 
     /**
@@ -228,8 +229,15 @@ struct Parameters {
         float top;
         float width;
         float height;
+
+        enum Outputs {
+            OUTPUT_PREVIEW         = 0x01,
+            OUTPUT_VIDEO           = 0x02,
+            OUTPUT_JPEG_THUMBNAIL  = 0x04,
+            OUTPUT_PICTURE         = 0x08,
+        };
     };
-    CropRegion calculateCropRegion(void) const;
+    CropRegion calculateCropRegion(CropRegion::Outputs outputs) const;
 
     // Static methods for debugging and converting between camera1 and camera2
     // parameters
@@ -275,6 +283,21 @@ struct Parameters {
 
     int32_t fpsFromRange(int32_t min, int32_t max) const;
 
+private:
+
+    // Convert between HAL2 sensor array coordinates and
+    // viewfinder crop-region relative array coordinates
+    int cropXToArray(int x) const;
+    int cropYToArray(int y) const;
+    int arrayXToCrop(int x) const;
+    int arrayYToCrop(int y) const;
+
+    // Convert between viewfinder crop-region relative array coordinates
+    // and camera API (-1000,1000)-(1000,1000) normalized coords
+    int cropXToNormalized(int x) const;
+    int cropYToNormalized(int y) const;
+    int normalizedXToCrop(int x) const;
+    int normalizedYToCrop(int y) const;
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed
