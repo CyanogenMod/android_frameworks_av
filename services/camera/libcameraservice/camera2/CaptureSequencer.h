@@ -53,6 +53,11 @@ class CaptureSequencer:
     // Begin still image capture
     status_t startCapture();
 
+    // Wait until current image capture completes; returns immediately if no
+    // capture is active. Returns TIMED_OUT if capture does not complete during
+    // the specified duration.
+    status_t waitUntilIdle(nsecs_t timeout);
+
     // Notifications about AE state changes
     void notifyAutoExposure(uint8_t newState, int triggerId);
 
@@ -118,6 +123,8 @@ class CaptureSequencer:
         NUM_CAPTURE_STATES
     } mCaptureState;
     static const char* kStateNames[];
+    Mutex mStateMutex; // Guards mCaptureState
+    Condition mStateChanged;
 
     typedef CaptureState (CaptureSequencer::*StateManager)(sp<Camera2Client> &client);
     static const StateManager kStateManagers[];

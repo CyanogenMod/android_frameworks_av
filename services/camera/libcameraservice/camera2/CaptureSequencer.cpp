@@ -72,6 +72,23 @@ status_t CaptureSequencer::startCapture() {
     return OK;
 }
 
+status_t CaptureSequencer::waitUntilIdle(nsecs_t timeout) {
+    ATRACE_CALL();
+    ALOGV("%s: Waiting for idle", __FUNCTION__);
+    Mutex::Autolock l(mStateMutex);
+    status_t res = -1;
+    while (mCaptureState != IDLE) {
+        nsecs_t startTime = systemTime();
+
+        res = mStateChanged.waitRelative(mStateMutex, timeout);
+        if (res != OK) return res;
+
+        timeout -= (systemTime() - startTime);
+    }
+    ALOGV("%s: Now idle", __FUNCTION__);
+    return OK;
+}
+
 void CaptureSequencer::notifyAutoExposure(uint8_t newState, int triggerId) {
     ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
@@ -137,8 +154,9 @@ const char* CaptureSequencer::kStateNames[CaptureSequencer::NUM_CAPTURE_STATES+1
     "ZSL_WAITING",
     "ZSL_REPROCESSING",
     "STANDARD_START",
-    "STANDARD_PRECAPTURE",
-    "STANDARD_CAPTURING",
+    "STANDARD_PRECAPTURE_WAIT",
+    "STANDARD_CAPTURE",
+    "STANDARD_CAPTURE_WAIT",
     "BURST_CAPTURE_START",
     "BURST_CAPTURE_WAIT",
     "DONE",
@@ -168,15 +186,26 @@ bool CaptureSequencer::threadLoop() {
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return false;
 
-    if (mCaptureState < ERROR) {
-        CaptureState oldState = mCaptureState;
-        mCaptureState = (this->*kStateManagers[mCaptureState])(client);
-        if (ATRACE_ENABLED() && oldState != mCaptureState) {
-            ATRACE_INT("cam2_capt_state", mCaptureState);
-        }
-    } else {
-        ALOGE("%s: Bad capture state: %s",
-                __FUNCTION__, kStateNames[mCaptureState]);
+    CaptureState currentState;
+    {
+        Mutex::Autolock l(mStateMutex);
+        currentState = mCaptureState;
+    }
+
+    currentState = (this->*kStateManagers[currentState])(client);
+
+    Mutex::Autolock l(mStateMutex);
+    if (currentState != mCaptureState) {
+        mCaptureState = currentState;
+        ATRACE_INT("cam2_capt_state", mCaptureState);
+        ALOGV("Camera %d: New capture state %s",
+                client->getCameraId(), kStateNames[mCaptureState]);
+        mStateChanged.signal();
+    }
+
+    if (mCaptureState == ERROR) {
+        ALOGE("Camera %d: Stopping capture sequencer due to error",
+                client->getCameraId());
         return false;
     }
 
@@ -214,6 +243,11 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
     {
         SharedParameters::Lock l(client->getParameters());
         switch (l.mParameters.state) {
+            case Parameters::DISCONNECTED:
+                ALOGW("%s: Camera %d: Discarding image data during shutdown ",
+                        __FUNCTION__, client->getCameraId());
+                res = INVALID_OPERATION;
+                break;
             case Parameters::STILL_CAPTURE:
                 l.mParameters.state = Parameters::STOPPED;
                 break;
