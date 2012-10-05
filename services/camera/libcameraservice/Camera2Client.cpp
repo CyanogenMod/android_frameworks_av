@@ -536,7 +536,7 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             // Already running preview - need to stop and create a new stream
             // TODO: Optimize this so that we don't wait for old stream to drain
             // before spinning up new stream
-            mDevice->clearStreamingRequest();
+            mStreamingProcessor->stopStream();
             l.mParameters.state = Parameters::WAITING_FOR_PREVIEW_WINDOW;
             break;
     }
@@ -719,6 +719,7 @@ void Camera2Client::stopPreview() {
 
 void Camera2Client::stopPreviewL() {
     ATRACE_CALL();
+    status_t res;
     Parameters::State state;
     {
         SharedParameters::Lock l(mParameters);
@@ -740,6 +741,11 @@ void Camera2Client::stopPreviewL() {
             // no break - identical to preview
         case Parameters::PREVIEW:
             mStreamingProcessor->stopStream();
+            res = mDevice->waitUntilDrained();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
             // no break
         case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
             SharedParameters::Lock l(mParameters);
@@ -946,9 +952,14 @@ status_t Camera2Client::autoFocus() {
     int triggerId;
     {
         SharedParameters::Lock l(mParameters);
+        if (l.mParameters.state < Parameters::PREVIEW) {
+            return INVALID_OPERATION;
+        }
+
         l.mParameters.currentAfTriggerId = ++l.mParameters.afTriggerCounter;
         triggerId = l.mParameters.currentAfTriggerId;
     }
+    syncWithDevice();
 
     mDevice->triggerAutofocus(triggerId);
 
@@ -967,6 +978,7 @@ status_t Camera2Client::cancelAutoFocus() {
         SharedParameters::Lock l(mParameters);
         triggerId = ++l.mParameters.afTriggerCounter;
     }
+    syncWithDevice();
 
     mDevice->triggerCancelAutofocus(triggerId);
 
@@ -1016,6 +1028,9 @@ status_t Camera2Client::takePicture(int msgType) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+
+    // Need HAL to have correct settings before (possibly) triggering precapture
+    syncWithDevice();
 
     res = mCaptureSequencer->startCapture();
     if (res != OK) {
@@ -1397,13 +1412,18 @@ int Camera2Client::getZslStreamId() const {
     return mZslProcessor->getStreamId();
 }
 
-status_t Camera2Client::registerFrameListener(int32_t id,
+status_t Camera2Client::registerFrameListener(int32_t minId, int32_t maxId,
         wp<camera2::FrameProcessor::FilteredListener> listener) {
-    return mFrameProcessor->registerListener(id, listener);
+    return mFrameProcessor->registerListener(minId, maxId, listener);
 }
 
-status_t Camera2Client::removeFrameListener(int32_t id) {
-    return mFrameProcessor->removeListener(id);
+status_t Camera2Client::removeFrameListener(int32_t minId, int32_t maxId,
+        wp<camera2::FrameProcessor::FilteredListener> listener) {
+    return mFrameProcessor->removeListener(minId, maxId, listener);
+}
+
+status_t Camera2Client::stopStream() {
+    return mStreamingProcessor->stopStream();
 }
 
 Camera2Client::SharedCameraClient::Lock::Lock(SharedCameraClient &client):
@@ -1432,9 +1452,12 @@ void Camera2Client::SharedCameraClient::clear() {
     mCameraClient.clear();
 }
 
-const int32_t Camera2Client::kPreviewRequestId;
-const int32_t Camera2Client::kRecordRequestId;
-const int32_t Camera2Client::kFirstCaptureRequestId;
+const int32_t Camera2Client::kPreviewRequestIdStart;
+const int32_t Camera2Client::kPreviewRequestIdEnd;
+const int32_t Camera2Client::kRecordingRequestIdStart;
+const int32_t Camera2Client::kRecordingRequestIdEnd;
+const int32_t Camera2Client::kCaptureRequestIdStart;
+const int32_t Camera2Client::kCaptureRequestIdEnd;
 
 /** Utility methods */
 
@@ -1442,6 +1465,13 @@ status_t Camera2Client::updateRequests(Parameters &params) {
     status_t res;
 
     ALOGV("%s: Camera %d: state = %d", __FUNCTION__, getCameraId(), params.state);
+
+    res = mStreamingProcessor->incrementStreamingIds();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to increment request IDs: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
 
     res = mStreamingProcessor->updatePreviewRequest(params);
     if (res != OK) {
@@ -1502,6 +1532,25 @@ size_t Camera2Client::calculateBufferSize(int width, int height,
                     __FUNCTION__,  format);
             return 0;
     }
+}
+
+status_t Camera2Client::syncWithDevice() {
+    ATRACE_CALL();
+    const nsecs_t kMaxSyncTimeout = 100000000; // 100 ms
+    status_t res;
+
+    int32_t activeRequestId = mStreamingProcessor->getActiveRequestId();
+    if (activeRequestId == 0) return OK;
+
+    res = mDevice->waitUntilRequestReceived(activeRequestId, kMaxSyncTimeout);
+    if (res == TIMED_OUT) {
+        ALOGE("%s: Camera %d: Timed out waiting sync with HAL",
+                __FUNCTION__, mCameraId);
+    } else if (res != OK) {
+        ALOGE("%s: Camera %d: Error while waiting to sync with HAL",
+                __FUNCTION__, mCameraId);
+    }
+    return res;
 }
 
 } // namespace android
