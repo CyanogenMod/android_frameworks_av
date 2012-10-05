@@ -956,6 +956,16 @@ status_t Camera2Client::autoFocus() {
             return INVALID_OPERATION;
         }
 
+        if (l.mParameters.quirks.triggerAfWithAuto &&
+                l.mParameters.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED &&
+                l.mParameters.focusMode != Parameters::FOCUS_MODE_AUTO) {
+            ALOGV("%s: Quirk: Switching from focusMode %d to AUTO",
+                    __FUNCTION__, l.mParameters.focusMode);
+            l.mParameters.shadowFocusMode = l.mParameters.focusMode;
+            l.mParameters.focusMode = Parameters::FOCUS_MODE_AUTO;
+            updateRequests(l.mParameters);
+        }
+
         l.mParameters.currentAfTriggerId = ++l.mParameters.afTriggerCounter;
         triggerId = l.mParameters.currentAfTriggerId;
     }
@@ -977,6 +987,16 @@ status_t Camera2Client::cancelAutoFocus() {
     {
         SharedParameters::Lock l(mParameters);
         triggerId = ++l.mParameters.afTriggerCounter;
+
+        // When using triggerAfWithAuto quirk, may need to reset focus mode to
+        // the real state at this point.
+        if (l.mParameters.shadowFocusMode != Parameters::FOCUS_MODE_INVALID) {
+            ALOGV("%s: Quirk: Restoring focus mode to %d", __FUNCTION__,
+                    l.mParameters.shadowFocusMode);
+            l.mParameters.focusMode = l.mParameters.shadowFocusMode;
+            l.mParameters.shadowFocusMode = Parameters::FOCUS_MODE_INVALID;
+            updateRequests(l.mParameters);
+        }
     }
     syncWithDevice();
 
