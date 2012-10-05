@@ -67,6 +67,13 @@ class Camera2Device : public virtual RefBase {
     status_t clearStreamingRequest();
 
     /**
+     * Wait until a request with the given ID has been dequeued by the
+     * HAL. Returns TIMED_OUT if the timeout duration is reached. Returns
+     * immediately if the latest request received by the HAL has this id.
+     */
+    status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
+
+    /**
      * Create an output stream of the requested size and format.
      *
      * If format is CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, then the HAL device selects
@@ -226,6 +233,9 @@ class Camera2Device : public virtual RefBase {
         status_t dequeue(camera_metadata_t **buf, bool incrementCount = true);
         int      getBufferCount();
         status_t waitForBuffer(nsecs_t timeout);
+        // Wait until a buffer with the given ID is dequeued. Will return
+        // immediately if the latest buffer dequeued has that ID.
+        status_t waitForDequeue(int32_t id, nsecs_t timeout);
 
         // Set repeating buffer(s); if the queue is empty on a dequeue call, the
         // queue copies the contents of the stream slot into the queue, and then
@@ -247,6 +257,8 @@ class Camera2Device : public virtual RefBase {
         Condition notEmpty;
 
         int mFrameCount;
+        int32_t mLatestRequestId;
+        Condition mNewRequestId;
 
         int mCount;
         List<camera_metadata_t*> mEntries;

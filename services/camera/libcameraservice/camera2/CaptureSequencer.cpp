@@ -44,7 +44,7 @@ CaptureSequencer::CaptureSequencer(wp<Camera2Client> client):
         mCaptureState(IDLE),
         mTriggerId(0),
         mTimeoutCount(0),
-        mCaptureId(Camera2Client::kFirstCaptureRequestId) {
+        mCaptureId(Camera2Client::kCaptureRequestIdStart) {
     ALOGV("%s", __FUNCTION__);
 }
 
@@ -84,12 +84,12 @@ void CaptureSequencer::notifyAutoExposure(uint8_t newState, int triggerId) {
 }
 
 void CaptureSequencer::onFrameAvailable(int32_t frameId,
-        CameraMetadata &frame) {
+        const CameraMetadata &frame) {
     ALOGV("%s: Listener found new frame", __FUNCTION__);
     ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
     mNewFrameId = frameId;
-    mNewFrame.acquire(frame);
+    mNewFrame = frame;
     if (!mNewFrameReceived) {
         mNewFrameReceived = true;
         mNewFrameSignal.signal();
@@ -203,7 +203,9 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
     status_t res = OK;
     ATRACE_CALL();
     mCaptureId++;
-
+    if (mCaptureId >= Camera2Client::kCaptureRequestIdEnd) {
+        mCaptureId = Camera2Client::kCaptureRequestIdStart;
+    }
     {
         Mutex::Autolock l(mInputMutex);
         mBusy = false;
@@ -286,7 +288,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         return DONE;
     }
 
-    client->registerFrameListener(mCaptureId,
+    client->registerFrameListener(mCaptureId, mCaptureId + 1,
             this);
 
     // TODO: Actually select the right thing here.
@@ -326,7 +328,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslReprocessing(
 CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
         sp<Camera2Client> &client) {
     ATRACE_CALL();
-    client->registerFrameListener(mCaptureId,
+    client->registerFrameListener(mCaptureId, mCaptureId + 1,
             this);
     {
         SharedParameters::Lock l(client->getParameters());
@@ -421,7 +423,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
     }
 
     if (l.mParameters.state == Parameters::STILL_CAPTURE) {
-        res = client->getCameraDevice()->clearStreamingRequest();
+        res = client->stopStream();
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
                     "%s (%d)",
@@ -482,7 +484,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             ALOGW("Mismatched capture timestamps: Metadata frame %lld,"
                     " captured buffer %lld", entry.data.i64[0], mCaptureTimestamp);
         }
-        client->removeFrameListener(mCaptureId);
+        client->removeFrameListener(mCaptureId, mCaptureId + 1, this);
 
         mNewFrameReceived = false;
         mNewCaptureReceived = false;

@@ -33,7 +33,10 @@ namespace camera2 {
 
 StreamingProcessor::StreamingProcessor(wp<Camera2Client> client):
         mClient(client),
+        mActiveRequest(NONE),
+        mPreviewRequestId(Camera2Client::kPreviewRequestIdStart),
         mPreviewStreamId(NO_STREAM),
+        mRecordingRequestId(Camera2Client::kRecordingRequestIdStart),
         mRecordingStreamId(NO_STREAM),
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
@@ -90,7 +93,12 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
     }
 
     res = mPreviewRequest.update(ANDROID_REQUEST_ID,
-            &Camera2Client::kPreviewRequestId, 1);
+            &mPreviewRequestId, 1);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update request id for preview: %s (%d)",
+                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+        return res;
+    }
 
     return OK;
 }
@@ -190,7 +198,7 @@ status_t StreamingProcessor::deletePreviewStream() {
     return OK;
 }
 
-status_t StreamingProcessor::getPreviewStreamId() const {
+int StreamingProcessor::getPreviewStreamId() const {
     Mutex::Autolock m(mMutex);
     return mPreviewStreamId;
 }
@@ -243,6 +251,14 @@ status_t StreamingProcessor::updateRecordingRequest(const Parameters &params) {
         ALOGE("%s: Camera %d: Unable to update common entries of recording "
                 "request: %s (%d)", __FUNCTION__, client->getCameraId(),
                 strerror(-res), res);
+        return res;
+    }
+
+    res = mRecordingRequest.update(ANDROID_REQUEST_ID,
+            &mRecordingRequestId, 1);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to update request id for request: %s (%d)",
+                __FUNCTION__, client->getCameraId(), strerror(-res), res);
         return res;
     }
 
@@ -342,7 +358,7 @@ status_t StreamingProcessor::deleteRecordingStream() {
     return OK;
 }
 
-status_t StreamingProcessor::getRecordingStreamId() const {
+int StreamingProcessor::getRecordingStreamId() const {
     return mRecordingStreamId;
 }
 
@@ -350,6 +366,8 @@ status_t StreamingProcessor::startStream(StreamType type,
         const Vector<uint8_t> &outputStreams) {
     ATRACE_CALL();
     status_t res;
+
+    if (type == NONE) return INVALID_OPERATION;
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
@@ -384,6 +402,7 @@ status_t StreamingProcessor::startStream(StreamType type,
                 __FUNCTION__, client->getCameraId(), strerror(-res), res);
         return res;
     }
+    mActiveRequest = type;
 
     return OK;
 }
@@ -391,6 +410,8 @@ status_t StreamingProcessor::startStream(StreamType type,
 status_t StreamingProcessor::stopStream() {
     ATRACE_CALL();
     status_t res;
+
+    Mutex::Autolock m(mMutex);
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
@@ -402,11 +423,38 @@ status_t StreamingProcessor::stopStream() {
                 __FUNCTION__, client->getCameraId(), strerror(-res), res);
         return res;
     }
-    res = device->waitUntilDrained();
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
-        return res;
+    mActiveRequest = NONE;
+
+    return OK;
+}
+
+int32_t StreamingProcessor::getActiveRequestId() const {
+    Mutex::Autolock m(mMutex);
+    switch (mActiveRequest) {
+        case NONE:
+            return 0;
+        case PREVIEW:
+            return mPreviewRequestId;
+        case RECORD:
+            return mRecordingRequestId;
+        default:
+            ALOGE("%s: Unexpected mode %d", __FUNCTION__, mActiveRequest);
+            return 0;
+    }
+}
+
+status_t StreamingProcessor::incrementStreamingIds() {
+    ATRACE_CALL();
+    Mutex::Autolock m(mMutex);
+
+    status_t res;
+    mPreviewRequestId++;
+    if (mPreviewRequestId >= Camera2Client::kPreviewRequestIdEnd) {
+        mPreviewRequestId = Camera2Client::kPreviewRequestIdStart;
+    }
+    mRecordingRequestId++;
+    if (mRecordingRequestId >= Camera2Client::kRecordingRequestIdEnd) {
+        mRecordingRequestId = Camera2Client::kRecordingRequestIdStart;
     }
     return OK;
 }

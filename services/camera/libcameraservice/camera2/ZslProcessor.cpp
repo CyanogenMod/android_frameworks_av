@@ -69,16 +69,16 @@ void ZslProcessor::onFrameAvailable() {
     }
 }
 
-void ZslProcessor::onFrameAvailable(int32_t frameId, CameraMetadata &frame) {
+void ZslProcessor::onFrameAvailable(int32_t frameId, const CameraMetadata &frame) {
     Mutex::Autolock l(mInputMutex);
-    camera_metadata_entry_t entry;
+    camera_metadata_ro_entry_t entry;
     entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     ALOGVV("Got preview frame for timestamp %lld", timestamp);
 
     if (mState != RUNNING) return;
 
-    mFrameList.editItemAt(mFrameListHead).acquire(frame);
+    mFrameList.editItemAt(mFrameListHead) = frame;
     mFrameListHead = (mFrameListHead + 1) % kFrameListDepth;
 
     findMatchesLocked();
@@ -185,7 +185,9 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
             return res;
         }
     }
-    client->registerFrameListener(Camera2Client::kPreviewRequestId, this);
+    client->registerFrameListener(Camera2Client::kPreviewRequestIdStart,
+            Camera2Client::kPreviewRequestIdEnd,
+            this);
 
     return OK;
 }
@@ -297,7 +299,7 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
             return INVALID_OPERATION;
         }
 
-        res = client->getCameraDevice()->clearStreamingRequest();
+        res = client->stopStream();
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for ZSL capture: "
                 "%s (%d)",
