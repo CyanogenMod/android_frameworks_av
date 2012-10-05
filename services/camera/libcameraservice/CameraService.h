@@ -55,7 +55,7 @@ public:
     virtual Client*     getClientByIdUnsafe(int cameraId);
     virtual Mutex*      getClientLockById(int cameraId);
 
-    virtual sp<Client>  getClientByRemote(const sp<ICameraClient>& cameraClient);
+    virtual sp<Client>  getClientByRemote(const wp<IBinder>& cameraClient);
 
     virtual status_t    dump(int fd, const Vector<String16>& args);
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
@@ -143,7 +143,7 @@ private:
     int                 mNumberOfCameras;
 
     // needs to be called with mServiceLock held
-    sp<Client>          findClientUnsafe(const sp<ICameraClient>& cameraClient, int& outIndex);
+    sp<Client>          findClientUnsafe(const wp<IBinder>& cameraClient, int& outIndex);
 
     // atomics to record whether the hardware is allocated to some client.
     volatile int32_t    mBusy[MAX_CAMERAS];
