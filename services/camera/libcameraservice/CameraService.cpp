@@ -227,7 +227,7 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
     Mutex::Autolock lock(mServiceLock);
 
     int outIndex;
-    sp<Client> client = findClientUnsafe(cameraClient, outIndex);
+    sp<Client> client = findClientUnsafe(cameraClient->asBinder(), outIndex);
 
     if (client != 0) {
         // Found our camera, clear and leave.
@@ -241,7 +241,7 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
 }
 
 sp<CameraService::Client> CameraService::findClientUnsafe(
-                        const sp<ICameraClient>& cameraClient, int& outIndex) {
+                        const wp<IBinder>& cameraClient, int& outIndex) {
     sp<Client> client;
 
     for (int i = 0; i < mNumberOfCameras; i++) {
@@ -260,7 +260,7 @@ sp<CameraService::Client> CameraService::findClientUnsafe(
             continue;
         }
 
-        if (cameraClient->asBinder() == client->getCameraClient()->asBinder()) {
+        if (cameraClient == client->getCameraClient()->asBinder()) {
             // Found our camera
             outIndex = i;
             return client;
@@ -281,8 +281,8 @@ Mutex* CameraService::getClientLockById(int cameraId) {
     return &mClientLock[cameraId];
 }
 
-/*virtual*/sp<CameraService::Client> CameraService::getClientByRemote(
-                                const sp<ICameraClient>& cameraClient) {
+sp<CameraService::Client> CameraService::getClientByRemote(
+                                const wp<IBinder>& cameraClient) {
 
     // Declare this before the lock to make absolutely sure the
     // destructor won't be called with the lock held.
@@ -557,18 +557,20 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 /*virtual*/void CameraService::binderDied(
     const wp<IBinder> &who) {
 
+    /**
+      * While tempting to promote the wp<IBinder> into a sp,
+      * it's actually not supported by the binder driver
+      */
+
     ALOGV("java clients' binder died");
 
-    sp<IBinder> whoStrong = who.promote();
+    sp<Client> cameraClient = getClientByRemote(who);
 
-    if (whoStrong == 0) {
+    if (cameraClient == 0) {
         ALOGV("java clients' binder death already cleaned up (normal case)");
         return;
     }
 
-    sp<ICameraClient> iCamClient = interface_cast<ICameraClient>(whoStrong);
-
-    sp<Client> cameraClient = getClientByRemote(iCamClient);
     ALOGW("Disconnecting camera client %p since the binder for it "
           "died (this pid %d)", cameraClient.get(), getCallingPid());
 
