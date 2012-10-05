@@ -52,7 +52,7 @@ class ZslProcessor:
     // From mZslConsumer
     virtual void onFrameAvailable();
     // From FrameProcessor
-    virtual void onFrameAvailable(int32_t frameId, CameraMetadata &frame);
+    virtual void onFrameAvailable(int32_t frameId, const CameraMetadata &frame);
 
     virtual void onBufferReleased(buffer_handle_t *handle);
 

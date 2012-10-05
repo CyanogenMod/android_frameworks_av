@@ -21,6 +21,7 @@
 #include <utils/String16.h>
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
+#include <utils/List.h>
 #include "CameraMetadata.h"
 
 struct camera_frame_metadata;
@@ -40,15 +41,14 @@ class FrameProcessor: public Thread {
     ~FrameProcessor();
 
     struct FilteredListener: virtual public RefBase {
-        // Listener may take ownership of frame
-        virtual void onFrameAvailable(int32_t frameId, CameraMetadata &frame) = 0;
+        virtual void onFrameAvailable(int32_t frameId,
+                const CameraMetadata &frame) = 0;
     };
 
-    // Register a listener for a specific frame ID (android.request.id).
-    // De-registers any existing listeners for that ID
-    status_t registerListener(int32_t id, wp<FilteredListener> listener);
-
-    status_t removeListener(int32_t id);
+    // Register a listener for a range of IDs [minId, maxId). Multiple listeners
+    // can be listening to the same range
+    status_t registerListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
+    status_t removeListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
 
     void dump(int fd, const Vector<String16>& args);
   private:
@@ -58,14 +58,20 @@ class FrameProcessor: public Thread {
     virtual bool threadLoop();
 
     Mutex mInputMutex;
-    KeyedVector<int32_t, wp<FilteredListener> > mListeners;
+
+    struct RangeListener {
+        int32_t minId;
+        int32_t maxId;
+        wp<FilteredListener> listener;
+    };
+    List<RangeListener> mRangeListeners;
 
     void processNewFrames(sp<Camera2Client> &client);
 
     status_t processFaceDetect(const CameraMetadata &frame,
             sp<Camera2Client> &client);
 
-    status_t processListener(CameraMetadata &frame,
+    status_t processListeners(const CameraMetadata &frame,
             sp<Camera2Client> &client);
 
     CameraMetadata mLastFrame;

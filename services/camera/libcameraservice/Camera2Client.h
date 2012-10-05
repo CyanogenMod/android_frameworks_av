@@ -107,9 +107,12 @@ public:
     int getRecordingStreamId() const;
     int getZslStreamId() const;
 
-    status_t registerFrameListener(int32_t id,
+    status_t registerFrameListener(int32_t minId, int32_t maxId,
             wp<camera2::FrameProcessor::FilteredListener> listener);
-    status_t removeFrameListener(int32_t id);
+    status_t removeFrameListener(int32_t minId, int32_t maxId,
+            wp<camera2::FrameProcessor::FilteredListener> listener);
+
+    status_t stopStream();
 
     // Simple class to ensure that access to ICameraClient is serialized by
     // requiring mCameraClientLock to be locked before access to mCameraClient
@@ -135,9 +138,14 @@ public:
     static size_t calculateBufferSize(int width, int height,
             int format, int stride);
 
-    static const int32_t kPreviewRequestId = 1000;
-    static const int32_t kRecordRequestId  = 2000;
-    static const int32_t kFirstCaptureRequestId = 3000;
+    static const int32_t kPreviewRequestIdStart = 10000000;
+    static const int32_t kPreviewRequestIdEnd   = 20000000;
+
+    static const int32_t kRecordingRequestIdStart  = 20000000;
+    static const int32_t kRecordingRequestIdEnd    = 30000000;
+
+    static const int32_t kCaptureRequestIdStart = 30000000;
+    static const int32_t kCaptureRequestIdEnd   = 40000000;
 
 private:
     /** ICamera interface-related private members */
@@ -207,6 +215,9 @@ private:
     sp<Camera2Device> mDevice;
 
     /** Utility members */
+
+    // Wait until the camera device has received the latest control settings
+    status_t syncWithDevice();
 
     // Verify that caller is the owner of the camera
     status_t checkPid(const char *checkLocation) const;
