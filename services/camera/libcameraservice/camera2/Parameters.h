@@ -88,6 +88,9 @@ struct Parameters {
         FOCUS_MODE_INVALID = -1
     } focusMode;
 
+    // For use with triggerAfWithAuto quirk
+    focusMode_t shadowFocusMode;
+
     struct Area {
         int left, top, right, bottom;
         int weight;
