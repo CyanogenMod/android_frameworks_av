@@ -254,11 +254,14 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
     if (mZslQueueTail != mZslQueueHead) {
         CameraMetadata request;
         size_t index = mZslQueueTail;
-        while (request.isEmpty() && index != mZslQueueHead) {
-            request = mZslQueue[index].frame;
+        while (index != mZslQueueHead) {
+            if (!mZslQueue[index].frame.isEmpty()) {
+                request = mZslQueue[index].frame;
+                break;
+            }
             index = (index + 1) % kZslBufferDepth;
         }
-        if (request.isEmpty()) {
+        if (index == mZslQueueHead) {
             ALOGV("%s: ZSL queue has no valid frames to send yet.",
                   __FUNCTION__);
             return NOT_ENOUGH_DATA;
