@@ -409,6 +409,9 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
 // tear down the client
 CameraService::Client::~Client() {
     mCameraService->releaseSound();
+
+    // unconditionally disconnect. function is idempotent
+    Client::disconnect();
 }
 
 // ----------------------------------------------------------------------------
@@ -433,6 +436,7 @@ CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
     return client;
 }
 
+// NOTE: function is idempotent
 void CameraService::Client::disconnect() {
     mCameraService->removeClient(mCameraClient);
     mCameraService->setCameraFree(mCameraId);
