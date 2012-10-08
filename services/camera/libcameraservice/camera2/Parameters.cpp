@@ -542,9 +542,9 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     if (!availableAeModes.count) return NO_INIT;
 
     if (flashAvailable.data.u8[0]) {
-        flashMode = Parameters::FLASH_MODE_AUTO;
+        flashMode = Parameters::FLASH_MODE_OFF;
         params.set(CameraParameters::KEY_FLASH_MODE,
-                CameraParameters::FLASH_MODE_AUTO);
+                CameraParameters::FLASH_MODE_OFF);
 
         String8 supportedFlashModes(CameraParameters::FLASH_MODE_OFF);
         supportedFlashModes = supportedFlashModes +
