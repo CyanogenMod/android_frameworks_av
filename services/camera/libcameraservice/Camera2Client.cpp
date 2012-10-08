@@ -378,16 +378,7 @@ void Camera2Client::disconnect() {
 
     ALOGV("Camera %d: Shutting down", mCameraId);
 
-    res = mStreamingProcessor->stopStream();
-    if (res != OK) {
-        ALOGE("%s: Problem stopping streaming: %s (%d)",
-                __FUNCTION__, strerror(-res), res);
-    }
-    res = mDevice->waitUntilDrained();
-    if (res != OK) {
-        ALOGE("%s: Problem waiting for HAL: %s (%d)",
-                __FUNCTION__, strerror(-res), res);
-    }
+    stopPreviewL();
 
     {
         SharedParameters::Lock l(mParameters);
@@ -733,6 +724,7 @@ void Camera2Client::stopPreview() {
 void Camera2Client::stopPreviewL() {
     ATRACE_CALL();
     status_t res;
+    const nsecs_t kStopCaptureTimeout = 3000000000LL; // 3 seconds
     Parameters::State state;
     {
         SharedParameters::Lock l(mParameters);
@@ -745,13 +737,11 @@ void Camera2Client::stopPreviewL() {
                     __FUNCTION__, mCameraId);
             break;
         case Parameters::STOPPED:
-            break;
+        case Parameters::VIDEO_SNAPSHOT:
         case Parameters::STILL_CAPTURE:
-            ALOGE("%s: Camera %d: Cannot stop preview during still capture.",
-                    __FUNCTION__, mCameraId);
-            break;
+            mCaptureSequencer->waitUntilIdle(kStopCaptureTimeout);
+            // no break
         case Parameters::RECORD:
-            // no break - identical to preview
         case Parameters::PREVIEW:
             mStreamingProcessor->stopStream();
             res = mDevice->waitUntilDrained();
