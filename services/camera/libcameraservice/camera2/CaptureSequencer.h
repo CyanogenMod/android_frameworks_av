@@ -94,6 +94,8 @@ class CaptureSequencer:
     sp<MemoryBase> mCaptureBuffer;
     Condition mNewCaptureSignal;
 
+    bool mShutterNotified;
+
     /**
      * Internal to CaptureSequencer
      */
