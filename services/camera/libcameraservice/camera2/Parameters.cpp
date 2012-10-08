@@ -729,7 +729,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     params.set(CameraParameters::KEY_ZOOM_SUPPORTED,
             CameraParameters::TRUE);
     params.set(CameraParameters::KEY_SMOOTH_ZOOM_SUPPORTED,
-            CameraParameters::TRUE);
+            CameraParameters::FALSE);
 
     params.set(CameraParameters::KEY_FOCUS_DISTANCES,
             "Infinity,Infinity,Infinity");
