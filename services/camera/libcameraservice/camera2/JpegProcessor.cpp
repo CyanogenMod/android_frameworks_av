@@ -209,24 +209,6 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
     ALOGV("%s: Camera %d: Still capture available", __FUNCTION__,
             client->getCameraId());
 
-    // TODO: Signal errors here upstream
-    {
-        SharedParameters::Lock l(client->getParameters());
-
-        switch (l.mParameters.state) {
-            case Parameters::STILL_CAPTURE:
-            case Parameters::VIDEO_SNAPSHOT:
-                break;
-            default:
-                ALOGE("%s: Camera %d: Still image produced unexpectedly "
-                        "in state %s!",
-                        __FUNCTION__, client->getCameraId(),
-                        Parameters::getStateName(l.mParameters.state));
-                mCaptureConsumer->unlockBuffer(imgBuffer);
-                return BAD_VALUE;
-        }
-    }
-
     if (imgBuffer.format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Camera %d: Unexpected format for still image: "
                 "%x, expected %x", __FUNCTION__, client->getCameraId(),
