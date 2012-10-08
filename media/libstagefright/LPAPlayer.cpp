@@ -167,6 +167,9 @@ LPAPlayer::~LPAPlayer() {
     }
 
     reset();
+    if (mAudioFlinger != NULL) {
+        mAudioFlinger->deregisterClient(AudioFlingerClient);
+    }
     objectsAlive--;
 
     releaseWakeLock();

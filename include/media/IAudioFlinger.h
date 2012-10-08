@@ -203,6 +203,9 @@ public:
                                     audio_io_handle_t dstOutput) = 0;
 
     virtual audio_module_handle_t loadHwModule(const char *name) = 0;
+#ifdef QCOM_TUNNEL_LPA_ENABLED
+    virtual status_t deregisterClient(const sp<IAudioFlingerClient>& client) { return false; };
+#endif
 #if defined(QCOM_HARDWARE) && defined(QCOM_FM_ENABLED)
     virtual status_t setFmVolume(float volume) = 0;
 #endif
