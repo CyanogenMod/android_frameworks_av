@@ -635,8 +635,11 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1);
     if (!max3aRegions.count) return NO_INIT;
 
-    params.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS,
-            max3aRegions.data.i32[0]);
+    int32_t maxNumFocusAreas = 0;
+    if (focusMode != Parameters::FOCUS_MODE_FIXED) {
+        maxNumFocusAreas = max3aRegions.data.i32[0];
+    }
+    params.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, maxNumFocusAreas);
     params.set(CameraParameters::KEY_FOCUS_AREAS,
             "(0,0,0,0,0)");
     focusingAreas.clear();
@@ -1466,7 +1469,7 @@ status_t Parameters::set(const String8& paramString) {
     size_t max3aRegions =
         (size_t)staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1).data.i32[0];
     if (res == OK) res = validateAreas(validatedParams.focusingAreas,
-            max3aRegions);
+            max3aRegions, AREA_KIND_FOCUS);
     if (res != OK) {
         ALOGE("%s: Requested focus areas are malformed: %s",
                 __FUNCTION__, newParams.get(CameraParameters::KEY_FOCUS_AREAS));
@@ -1499,7 +1502,8 @@ status_t Parameters::set(const String8& paramString) {
     res = parseAreas(newParams.get(CameraParameters::KEY_METERING_AREAS),
             &validatedParams.meteringAreas);
     if (res == OK) {
-        res = validateAreas(validatedParams.meteringAreas, max3aRegions);
+        res = validateAreas(validatedParams.meteringAreas, max3aRegions,
+                            AREA_KIND_METERING);
     }
     if (res != OK) {
         ALOGE("%s: Requested metering areas are malformed: %s",
@@ -2111,7 +2115,8 @@ status_t Parameters::parseAreas(const char *areasCStr,
 }
 
 status_t Parameters::validateAreas(const Vector<Parameters::Area> &areas,
-                                      size_t maxRegions) {
+                                      size_t maxRegions,
+                                      AreaKind areaKind) const {
     // Definition of valid area can be found in
     // include/camera/CameraParameters.h
     if (areas.size() == 0) return BAD_VALUE;
@@ -2125,6 +2130,12 @@ status_t Parameters::validateAreas(const Vector<Parameters::Area> &areas,
             return OK;
         }
     }
+
+    // fixed focus can only set (0,0,0,0,0) focus area
+    if (areaKind == AREA_KIND_FOCUS && focusMode == FOCUS_MODE_FIXED) {
+        return BAD_VALUE;
+    }
+
     if (areas.size() > maxRegions) {
         ALOGE("%s: Too many areas requested: %d",
                 __FUNCTION__, areas.size());
