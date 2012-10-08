@@ -1514,7 +1514,8 @@ status_t Parameters::set(const String8& paramString) {
 
     // ZOOM
     validatedParams.zoom = newParams.getInt(CameraParameters::KEY_ZOOM);
-    if (validatedParams.zoom < 0 || validatedParams.zoom > (int)NUM_ZOOM_STEPS) {
+    if (validatedParams.zoom < 0
+                || validatedParams.zoom >= (int)NUM_ZOOM_STEPS) {
         ALOGE("%s: Requested zoom level %d is not supported",
                 __FUNCTION__, validatedParams.zoom);
         return BAD_VALUE;
