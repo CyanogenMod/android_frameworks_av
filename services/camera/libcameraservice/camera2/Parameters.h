@@ -258,8 +258,15 @@ struct Parameters {
     static const char* focusModeEnumToString(focusMode_t focusMode);
     static status_t parseAreas(const char *areasCStr,
             Vector<Area> *areas);
-    static status_t validateAreas(const Vector<Area> &areas,
-                                  size_t maxRegions);
+
+    enum AreaKind
+    {
+        AREA_KIND_FOCUS,
+        AREA_KIND_METERING
+    };
+    status_t validateAreas(const Vector<Area> &areas,
+                                  size_t maxRegions,
+                                  AreaKind areaKind) const;
     static bool boolFromString(const char *boolStr);
 
     // Map from camera orientation + facing to gralloc transform enum
