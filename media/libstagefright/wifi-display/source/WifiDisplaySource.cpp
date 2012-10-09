@@ -36,6 +36,8 @@
 #include <arpa/inet.h>
 #include <cutils/properties.h>
 
+#include <ctype.h>
+
 namespace android {
 
 WifiDisplaySource::WifiDisplaySource(
@@ -46,6 +48,7 @@ WifiDisplaySource::WifiDisplaySource(
       mClient(client),
       mSessionID(0),
       mStopReplyID(0),
+      mChosenRTPPort(-1),
       mUsingPCMAudio(false),
       mClientSessionID(0),
       mReaperPending(false),
@@ -532,11 +535,6 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         transportString = "TCP";
     }
 
-    if (property_get("media.wfd.use-pcm-audio", val, NULL)
-            && (!strcasecmp("true", val) || !strcmp("1", val))) {
-        ALOGI("Using PCM audio.");
-        mUsingPCMAudio = true;
-    }
     // For 720p60:
     //   use "30 00 02 02 00000040 00000000 00000000 00 0000 0000 00 none none\r\n"
     // For 720p30:
@@ -548,11 +546,11 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
         "wfd_audio_codecs: %s\r\n"
         "wfd_presentation_URL: rtsp://%s/wfd1.0/streamid=0 none\r\n"
-        "wfd_client_rtp_ports: RTP/AVP/%s;unicast 19000 0 mode=play\r\n",
+        "wfd_client_rtp_ports: RTP/AVP/%s;unicast %d 0 mode=play\r\n",
         (mUsingPCMAudio
             ? "LPCM 00000002 00" // 2 ch PCM 48kHz
             : "AAC 00000001 00"),  // 2 ch AAC 48kHz
-        mClientInfo.mLocalIP.c_str(), transportString.c_str());
+        mClientInfo.mLocalIP.c_str(), transportString.c_str(), mChosenRTPPort);
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
@@ -649,6 +647,36 @@ status_t WifiDisplaySource::onReceiveM1Response(
     return OK;
 }
 
+// sink_audio_list := ("LPCM"|"AAC"|"AC3" HEXDIGIT*8 HEXDIGIT*2)
+//                       (", " sink_audio_list)*
+static void GetAudioModes(const char *s, const char *prefix, uint32_t *modes) {
+    *modes = 0;
+
+    size_t prefixLen = strlen(prefix);
+
+    while (*s != '0') {
+        if (!strncmp(s, prefix, prefixLen) && s[prefixLen] == ' ') {
+            unsigned latency;
+            if (sscanf(&s[prefixLen + 1], "%08x %02x", modes, &latency) != 2) {
+                *modes = 0;
+            }
+
+            return;
+        }
+
+        char *commaPos = strchr(s, ',');
+        if (commaPos != NULL) {
+            s = commaPos + 1;
+
+            while (isspace(*s)) {
+                ++s;
+            }
+        } else {
+            break;
+        }
+    }
+}
+
 status_t WifiDisplaySource::onReceiveM3Response(
         int32_t sessionID, const sp<ParsedMessage> &msg) {
     int32_t statusCode;
@@ -667,8 +695,63 @@ status_t WifiDisplaySource::onReceiveM3Response(
         return ERROR_MALFORMED;
     }
 
-#if REQUIRE_HDCP
     AString value;
+    if (!params->findParameter("wfd_client_rtp_ports", &value)) {
+        ALOGE("Sink doesn't report its choice of wfd_client_rtp_ports.");
+        return ERROR_MALFORMED;
+    }
+
+    unsigned port0, port1;
+    if (sscanf(value.c_str(),
+               "RTP/AVP/UDP;unicast %u %u mode=play",
+               &port0,
+               &port1) != 2
+        || port0 == 0 || port0 > 65535 || port1 != 0) {
+        ALOGE("Sink chose its wfd_client_rtp_ports poorly (%s)",
+              value.c_str());
+
+        return ERROR_MALFORMED;
+    }
+
+    mChosenRTPPort = port0;
+
+    if (!params->findParameter("wfd_audio_codecs", &value)) {
+        ALOGE("Sink doesn't report its choice of wfd_audio_codecs.");
+        return ERROR_MALFORMED;
+    }
+
+    if  (value == "none") {
+        ALOGE("Sink doesn't support audio at all.");
+        return ERROR_UNSUPPORTED;
+    }
+
+    uint32_t modes;
+    GetAudioModes(value.c_str(), "AAC", &modes);
+
+    bool supportsAAC = (modes & 1) != 0;  // AAC 2ch 48kHz
+
+    GetAudioModes(value.c_str(), "LPCM", &modes);
+
+    bool supportsPCM = (modes & 2) != 0;  // LPCM 2ch 48kHz
+
+    char val[PROPERTY_VALUE_MAX];
+    if (supportsPCM
+            && property_get("media.wfd.use-pcm-audio", val, NULL)
+            && (!strcasecmp("true", val) || !strcmp("1", val))) {
+        ALOGI("Using PCM audio.");
+        mUsingPCMAudio = true;
+    } else if (supportsAAC) {
+        ALOGI("Using AAC audio.");
+        mUsingPCMAudio = false;
+    } else if (supportsPCM) {
+        ALOGI("Using PCM audio.");
+        mUsingPCMAudio = true;
+    } else {
+        ALOGI("Sink doesn't support an audio format we do.");
+        return ERROR_UNSUPPORTED;
+    }
+
+#if REQUIRE_HDCP
     if (!params->findParameter("wfd_content_protection", &value)) {
         ALOGE("Sink doesn't appear to support content protection.");
         return -EACCES;
