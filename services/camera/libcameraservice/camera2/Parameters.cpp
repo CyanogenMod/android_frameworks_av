@@ -271,6 +271,10 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             jpegRotation);
 
     gpsEnabled = false;
+    gpsCoordinates[0] = 0.0;
+    gpsCoordinates[1] = 0.0;
+    gpsCoordinates[2] = 0.0;
+    gpsTimestamp = 0;
     gpsProcessingMethod = "unknown";
     // GPS fields in CameraParameters are not set by implementation
 
@@ -742,12 +746,14 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     params.set(CameraParameters::KEY_VIDEO_FRAME_FORMAT,
             CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE);
 
+    recordingHint = false;
     params.set(CameraParameters::KEY_RECORDING_HINT,
             CameraParameters::FALSE);
 
     params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED,
             CameraParameters::TRUE);
 
+    videoStabilization = false;
     params.set(CameraParameters::KEY_VIDEO_STABILIZATION,
             CameraParameters::FALSE);
 
@@ -772,10 +778,12 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     enableFocusMoveMessages = false;
     afTriggerCounter = 1;
     currentAfTriggerId = -1;
+    afInMotion = false;
 
     precaptureTriggerCounter = 1;
 
     previewCallbackFlags = 0;
+    previewCallbackOneShot = false;
 
     char value[PROPERTY_VALUE_MAX];
     property_get("camera.disable_zsl_mode", value, "0");
