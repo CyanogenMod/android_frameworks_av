@@ -959,6 +959,21 @@ status_t Camera2Client::autoFocus() {
             return INVALID_OPERATION;
         }
 
+        /**
+          * If the camera does not support auto-focus, it is a no-op and
+          * onAutoFocus(boolean, Camera) callback will be called immediately
+          * with a fake value of success set to true.
+          */
+        if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED) {
+            SharedCameraClient::Lock l(mSharedCameraClient);
+            if (l.mCameraClient != 0) {
+                l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS,
+                    /*success*/1, 0);
+            }
+
+            return OK;
+        }
+
         if (l.mParameters.quirks.triggerAfWithAuto &&
                 l.mParameters.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED &&
                 l.mParameters.focusMode != Parameters::FOCUS_MODE_AUTO) {
