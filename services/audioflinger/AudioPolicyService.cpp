@@ -91,10 +91,6 @@ AudioPolicyService::AudioPolicyService()
     if (rc)
         return;
 
-    property_get("ro.camera.sound.forced", value, "0");
-    forced_val = strtol(value, NULL, 0);
-    mpAudioPolicy->set_can_mute_enforced_audible(mpAudioPolicy, !forced_val);
-
     ALOGI("Loaded audio policy from %s (%s)", module->name, module->id);
 
     // load audio pre processing modules
