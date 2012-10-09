@@ -114,6 +114,8 @@ private:
 
     uint32_t mStopReplyID;
 
+    int32_t mChosenRTPPort;  // extracted from "wfd_client_rtp_ports"
+
     bool mUsingPCMAudio;
     int32_t mClientSessionID;
 
