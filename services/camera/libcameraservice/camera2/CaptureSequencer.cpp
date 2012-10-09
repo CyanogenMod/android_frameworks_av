@@ -40,6 +40,7 @@ CaptureSequencer::CaptureSequencer(wp<Camera2Client> client):
         mNewAEState(false),
         mNewFrameReceived(false),
         mNewCaptureReceived(false),
+        mShutterNotified(false),
         mClient(client),
         mCaptureState(IDLE),
         mTriggerId(0),
@@ -308,6 +309,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStart(
     } else {
         nextState = STANDARD_START;
     }
+    mShutterNotified = false;
 
     return nextState;
 }
@@ -342,7 +344,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
     SharedParameters::Lock l(client->getParameters());
     /* warning: this also locks a SharedCameraClient */
     shutterNotifyLocked(l.mParameters, client);
-
+    mShutterNotified = true;
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
 }
@@ -474,9 +476,6 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
-    /* warning: this also locks a SharedCameraClient */
-    shutterNotifyLocked(l.mParameters, client);
-
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
     return STANDARD_CAPTURE_WAIT;
 }
@@ -493,7 +492,13 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             break;
         }
     }
-    while (!mNewCaptureReceived) {
+    if (mNewFrameReceived && !mShutterNotified) {
+        SharedParameters::Lock l(client->getParameters());
+        /* warning: this also locks a SharedCameraClient */
+        shutterNotifyLocked(l.mParameters, client);
+        mShutterNotified = true;
+    }
+    while (mNewFrameReceived && !mNewCaptureReceived) {
         res = mNewCaptureSignal.waitRelative(mInputMutex, kWaitDuration);
         if (res == TIMED_OUT) {
             mTimeoutCount--;
