@@ -735,6 +735,15 @@ status_t AudioSystem::isStreamActive(audio_stream_type_t stream, bool* state, ui
     return NO_ERROR;
 }
 
+status_t AudioSystem::isSourceActive(audio_source_t stream, bool* state)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    if (state == NULL) return BAD_VALUE;
+    *state = aps->isSourceActive(stream);
+    return NO_ERROR;
+}
+
 int32_t AudioSystem::getPrimaryOutputSamplingRate()
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
