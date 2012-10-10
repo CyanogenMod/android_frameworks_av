@@ -52,6 +52,7 @@ enum {
     REGISTER_EFFECT,
     UNREGISTER_EFFECT,
     IS_STREAM_ACTIVE,
+    IS_SOURCE_ACTIVE,
     GET_DEVICES_FOR_STREAM,
     QUERY_DEFAULT_PRE_PROCESSING,
     SET_EFFECT_ENABLED
@@ -329,6 +330,15 @@ public:
         return reply.readInt32();
     }
 
+    virtual bool isSourceActive(audio_source_t source) const
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32((int32_t) source);
+        remote()->transact(IS_SOURCE_ACTIVE, data, &reply);
+        return reply.readInt32();
+    }
+
     virtual status_t queryDefaultPreProcessing(int audioSession,
                                                effect_descriptor_t *descriptors,
                                                uint32_t *count)
@@ -591,6 +601,13 @@ status_t BnAudioPolicyService::onTransact(
             reply->writeInt32( isStreamActive((audio_stream_type_t) stream, inPastMs) );
             return NO_ERROR;
         } break;
+
+        case IS_SOURCE_ACTIVE: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_source_t source = (audio_source_t) data.readInt32();
+            reply->writeInt32( isSourceActive(source));
+            return NO_ERROR;
+        }
 
         case QUERY_DEFAULT_PRE_PROCESSING: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
