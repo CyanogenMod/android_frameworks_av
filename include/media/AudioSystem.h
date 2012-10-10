@@ -70,6 +70,8 @@ public:
     // returns true in *state if tracks are active on the specified stream or has been active
     // in the past inPastMs milliseconds
     static status_t isStreamActive(audio_stream_type_t stream, bool *state, uint32_t inPastMs = 0);
+    // returns true in *state if a recorder is currently recording with the specified source
+    static status_t isSourceActive(audio_source_t source, bool *state);
 
     // set/get audio hardware parameters. The function accepts a list of parameters
     // key value pairs in the form: key1=value1;key2=value2;...
