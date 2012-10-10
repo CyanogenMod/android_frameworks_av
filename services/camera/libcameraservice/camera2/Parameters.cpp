@@ -1739,9 +1739,6 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             reqMeteringAreas, reqMeteringAreasSize);
     if (res != OK) return res;
 
-    res = request->update(ANDROID_CONTROL_AWB_REGIONS,
-            reqMeteringAreas, reqMeteringAreasSize);
-    if (res != OK) return res;
     delete[] reqMeteringAreas;
 
     /* don't include jpeg thumbnail size - it's valid for
