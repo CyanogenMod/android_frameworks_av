@@ -102,8 +102,6 @@ CameraClient::~CameraClient() {
     int callingPid = getCallingPid();
     LOG1("CameraClient::~CameraClient E (pid %d, this %p)", callingPid, this);
 
-    // set mClientPid to let disconnet() tear down the hardware
-    mClientPid = callingPid;
     disconnect();
     LOG1("CameraClient::~CameraClient X (pid %d, this %p)", callingPid, this);
 }
@@ -125,7 +123,7 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
 
 status_t CameraClient::checkPid() const {
     int callingPid = getCallingPid();
-    if (callingPid == mClientPid || callingPid == mServicePid) return NO_ERROR;
+    if (callingPid == mClientPid) return NO_ERROR;
 
     ALOGW("attempt to use a locked camera from a different process"
          " (old pid %d, new pid %d)", mClientPid, callingPid);
@@ -219,7 +217,8 @@ void CameraClient::disconnect() {
     LOG1("disconnect E (pid %d)", callingPid);
     Mutex::Autolock lock(mLock);
 
-    if (checkPid() != NO_ERROR) {
+    // Allow both client and the media server to disconnect at all times
+    if (callingPid != mClientPid && callingPid != mServicePid) {
         ALOGW("different client - don't disconnect");
         return;
     }

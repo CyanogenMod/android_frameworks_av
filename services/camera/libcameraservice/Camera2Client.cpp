@@ -65,10 +65,10 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
 
 status_t Camera2Client::checkPid(const char* checkLocation) const {
     int callingPid = getCallingPid();
-    if (callingPid == mClientPid || callingPid == mServicePid) return NO_ERROR;
+    if (callingPid == mClientPid) return NO_ERROR;
 
     ALOGE("%s: attempt to use a locked camera from a different process"
-            " (old pid %d, new pid %d, servicePid %d)", checkLocation, mClientPid, callingPid, mServicePid);
+            " (old pid %d, new pid %d)", checkLocation, mClientPid, callingPid);
     return PERMISSION_DENIED;
 }
 
@@ -139,19 +139,7 @@ Camera2Client::~Camera2Client() {
 
     mDestructionStarted = true;
 
-    Parameters::State state;
-    // warning:
-    //   holding on to locks more than necessary may be hazardous to your health
-    {
-        SharedParameters::Lock l(mParameters);
-        state = l.mParameters.state;
-    }
-
-    if (state != Parameters::DISCONNECTED) {
-        // Rewrite mClientPid to allow shutdown by CameraService
-        mClientPid = getCallingPid();
-        disconnect();
-    }
+    disconnect();
 
     ALOGI("Camera %d: Closed", mCameraId);
 }
@@ -372,7 +360,10 @@ void Camera2Client::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
     status_t res;
-    if ( (res = checkPid(__FUNCTION__) ) != OK) return;
+
+    // Allow both client and the media server to disconnect at all times
+    int callingPid = getCallingPid();
+    if (callingPid != mClientPid && callingPid != mServicePid) return;
 
     if (mDevice == 0) return;
 
@@ -382,6 +373,7 @@ void Camera2Client::disconnect() {
 
     {
         SharedParameters::Lock l(mParameters);
+        if (l.mParameters.state == Parameters::DISCONNECTED) return;
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
