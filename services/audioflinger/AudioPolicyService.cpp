@@ -483,6 +483,18 @@ bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inP
     return mpAudioPolicy->is_stream_active(mpAudioPolicy, stream, inPastMs);
 }
 
+bool AudioPolicyService::isSourceActive(audio_source_t source) const
+{
+    if (mpAudioPolicy == NULL) {
+        return false;
+    }
+    if (mpAudioPolicy->is_source_active == 0) {
+        return false;
+    }
+    Mutex::Autolock _l(mLock);
+    return mpAudioPolicy->is_source_active(mpAudioPolicy, source);
+}
+
 status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
                                                        effect_descriptor_t *descriptors,
                                                        uint32_t *count)
