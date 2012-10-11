@@ -611,10 +611,13 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
 
     ALOGV("%s: state == %d, restart = %d", __FUNCTION__, params.state, restart);
 
-    if (params.state == Parameters::PREVIEW && !restart) {
-        // Succeed attempt to re-enter preview state
-        ALOGI("%s: Not starting preview; already in preview state.",
-              __FUNCTION__);
+    if ( (params.state == Parameters::PREVIEW ||
+                    params.state == Parameters::RECORD ||
+                    params.state == Parameters::VIDEO_SNAPSHOT)
+            && !restart) {
+        // Succeed attempt to re-enter a streaming state
+        ALOGI("%s: Camera %d: Preview already active, ignoring restart",
+                __FUNCTION__, mCameraId);
         return OK;
     }
     if (params.state > Parameters::PREVIEW && !restart) {
