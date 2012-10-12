@@ -1035,11 +1035,11 @@ void StagefrightRecorder::clipVideoFrameRate() {
                         "enc.vid.fps.min", mVideoEncoder);
     int maxFrameRate = mEncoderProfiles->getVideoEncoderParamByName(
                         "enc.vid.fps.max", mVideoEncoder);
-    if (mFrameRate < minFrameRate && mFrameRate != -1) {
+    if (mFrameRate < minFrameRate && minFrameRate != -1) {
         ALOGW("Intended video encoding frame rate (%d fps) is too small"
              " and will be set to (%d fps)", mFrameRate, minFrameRate);
         mFrameRate = minFrameRate;
-    } else if (mFrameRate > maxFrameRate) {
+    } else if (mFrameRate > maxFrameRate && maxFrameRate != -1) {
         ALOGW("Intended video encoding frame rate (%d fps) is too large"
              " and will be set to (%d fps)", mFrameRate, maxFrameRate);
         mFrameRate = maxFrameRate;
@@ -1052,11 +1052,11 @@ void StagefrightRecorder::clipVideoBitRate() {
                         "enc.vid.bps.min", mVideoEncoder);
     int maxBitRate = mEncoderProfiles->getVideoEncoderParamByName(
                         "enc.vid.bps.max", mVideoEncoder);
-    if (mVideoBitRate < minBitRate) {
+    if (mVideoBitRate < minBitRate && minBitRate != -1) {
         ALOGW("Intended video encoding bit rate (%d bps) is too small"
              " and will be set to (%d bps)", mVideoBitRate, minBitRate);
         mVideoBitRate = minBitRate;
-    } else if (mVideoBitRate > maxBitRate) {
+    } else if (mVideoBitRate > maxBitRate && maxBitRate != -1) {
         ALOGW("Intended video encoding bit rate (%d bps) is too large"
              " and will be set to (%d bps)", mVideoBitRate, maxBitRate);
         mVideoBitRate = maxBitRate;
@@ -1069,11 +1069,11 @@ void StagefrightRecorder::clipVideoFrameWidth() {
                         "enc.vid.width.min", mVideoEncoder);
     int maxFrameWidth = mEncoderProfiles->getVideoEncoderParamByName(
                         "enc.vid.width.max", mVideoEncoder);
-    if (mVideoWidth < minFrameWidth) {
+    if (mVideoWidth < minFrameWidth && minFrameWidth != -1) {
         ALOGW("Intended video encoding frame width (%d) is too small"
              " and will be set to (%d)", mVideoWidth, minFrameWidth);
         mVideoWidth = minFrameWidth;
-    } else if (mVideoWidth > maxFrameWidth) {
+    } else if (mVideoWidth > maxFrameWidth && maxFrameWidth != -1) {
         ALOGW("Intended video encoding frame width (%d) is too large"
              " and will be set to (%d)", mVideoWidth, maxFrameWidth);
         mVideoWidth = maxFrameWidth;
@@ -1164,7 +1164,7 @@ void StagefrightRecorder::clipAudioBitRate() {
     int minAudioBitRate =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.bps.min", mAudioEncoder);
-    if (mAudioBitRate < minAudioBitRate) {
+    if (minAudioBitRate != -1 && mAudioBitRate < minAudioBitRate) {
         ALOGW("Intended audio encoding bit rate (%d) is too small"
             " and will be set to (%d)", mAudioBitRate, minAudioBitRate);
         mAudioBitRate = minAudioBitRate;
@@ -1173,7 +1173,7 @@ void StagefrightRecorder::clipAudioBitRate() {
     int maxAudioBitRate =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.bps.max", mAudioEncoder);
-    if (mAudioBitRate > maxAudioBitRate) {
+    if (maxAudioBitRate != -1 && mAudioBitRate > maxAudioBitRate) {
         ALOGW("Intended audio encoding bit rate (%d) is too large"
             " and will be set to (%d)", mAudioBitRate, maxAudioBitRate);
         mAudioBitRate = maxAudioBitRate;
@@ -1186,7 +1186,7 @@ void StagefrightRecorder::clipAudioSampleRate() {
     int minSampleRate =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.hz.min", mAudioEncoder);
-    if (mSampleRate < minSampleRate) {
+    if (minSampleRate != -1 && mSampleRate < minSampleRate) {
         ALOGW("Intended audio sample rate (%d) is too small"
             " and will be set to (%d)", mSampleRate, minSampleRate);
         mSampleRate = minSampleRate;
@@ -1195,7 +1195,7 @@ void StagefrightRecorder::clipAudioSampleRate() {
     int maxSampleRate =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.hz.max", mAudioEncoder);
-    if (mSampleRate > maxSampleRate) {
+    if (maxSampleRate != -1 && mSampleRate > maxSampleRate) {
         ALOGW("Intended audio sample rate (%d) is too large"
             " and will be set to (%d)", mSampleRate, maxSampleRate);
         mSampleRate = maxSampleRate;
@@ -1208,7 +1208,7 @@ void StagefrightRecorder::clipNumberOfAudioChannels() {
     int minChannels =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.ch.min", mAudioEncoder);
-    if (mAudioChannels < minChannels) {
+    if (minChannels != -1 && mAudioChannels < minChannels) {
         ALOGW("Intended number of audio channels (%d) is too small"
             " and will be set to (%d)", mAudioChannels, minChannels);
         mAudioChannels = minChannels;
@@ -1217,7 +1217,7 @@ void StagefrightRecorder::clipNumberOfAudioChannels() {
     int maxChannels =
             mEncoderProfiles->getAudioEncoderParamByName(
                 "enc.aud.ch.max", mAudioEncoder);
-    if (mAudioChannels > maxChannels) {
+    if (maxChannels != -1 && mAudioChannels > maxChannels) {
         ALOGW("Intended number of audio channels (%d) is too large"
             " and will be set to (%d)", mAudioChannels, maxChannels);
         mAudioChannels = maxChannels;
@@ -1230,11 +1230,11 @@ void StagefrightRecorder::clipVideoFrameHeight() {
                         "enc.vid.height.min", mVideoEncoder);
     int maxFrameHeight = mEncoderProfiles->getVideoEncoderParamByName(
                         "enc.vid.height.max", mVideoEncoder);
-    if (mVideoHeight < minFrameHeight) {
+    if (minFrameHeight != -1 && mVideoHeight < minFrameHeight) {
         ALOGW("Intended video encoding frame height (%d) is too small"
              " and will be set to (%d)", mVideoHeight, minFrameHeight);
         mVideoHeight = minFrameHeight;
-    } else if (mVideoHeight > maxFrameHeight) {
+    } else if (maxFrameHeight != -1 && mVideoHeight > maxFrameHeight) {
         ALOGW("Intended video encoding frame height (%d) is too large"
              " and will be set to (%d)", mVideoHeight, maxFrameHeight);
         mVideoHeight = maxFrameHeight;
