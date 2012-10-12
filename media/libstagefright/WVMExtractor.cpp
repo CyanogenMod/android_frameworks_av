@@ -72,15 +72,18 @@ WVMExtractor::WVMExtractor(const sp<DataSource> &source)
     }
 }
 
-bool WVMExtractor::getVendorLibHandle()
+static void init_routine()
 {
-    if (gVendorLibHandle == NULL) {
-        gVendorLibHandle = dlopen("libwvm.so", RTLD_NOW);
-    }
-
+    gVendorLibHandle = dlopen("libwvm.so", RTLD_NOW);
     if (gVendorLibHandle == NULL) {
         ALOGE("Failed to open libwvm.so");
     }
+}
+
+bool WVMExtractor::getVendorLibHandle()
+{
+    static pthread_once_t sOnceControl = PTHREAD_ONCE_INIT;
+    pthread_once(&sOnceControl, init_routine);
 
     return gVendorLibHandle != NULL;
 }
