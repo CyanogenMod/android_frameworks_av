@@ -144,7 +144,7 @@ bool JpegCompressor::isBusy() {
 }
 
 // old function -- TODO: update for new buffer type
-bool JpegCompressor::isStreamInUse(uint32_t id) {
+bool JpegCompressor::isStreamInUse(uint32_t /*id*/) {
     ALOGV("%s", __FUNCTION__);
     Mutex::Autolock lock(mBusyMutex);
 
@@ -203,14 +203,14 @@ void JpegCompressor::jpegInitDestination(j_compress_ptr cinfo) {
     dest->free_in_buffer = kMaxJpegSize;
 }
 
-boolean JpegCompressor::jpegEmptyOutputBuffer(j_compress_ptr cinfo) {
+boolean JpegCompressor::jpegEmptyOutputBuffer(j_compress_ptr /*cinfo*/) {
     ALOGV("%s", __FUNCTION__);
     ALOGE("%s: JPEG destination buffer overflow!",
             __FUNCTION__);
     return true;
 }
 
-void JpegCompressor::jpegTermDestination(j_compress_ptr cinfo) {
+void JpegCompressor::jpegTermDestination(j_compress_ptr /*cinfo*/) {
     ALOGV("%s", __FUNCTION__);
     ALOGV("%s: Done writing JPEG data. %d bytes left in buffer",
             __FUNCTION__, cinfo->dest->free_in_buffer);

@@ -69,11 +69,12 @@ void ZslProcessor::onFrameAvailable() {
     }
 }
 
-void ZslProcessor::onFrameAvailable(int32_t frameId, const CameraMetadata &frame) {
+void ZslProcessor::onFrameAvailable(int32_t /*frameId*/, const CameraMetadata &frame) {
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;
     entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
+    (void)timestamp;
     ALOGVV("Got preview frame for timestamp %lld", timestamp);
 
     if (mState != RUNNING) return;
@@ -367,7 +368,7 @@ status_t ZslProcessor::clearZslQueueLocked() {
     return OK;
 }
 
-void ZslProcessor::dump(int fd, const Vector<String16>& args) const {
+void ZslProcessor::dump(int fd, const Vector<String16>& /*args*/) const {
     Mutex::Autolock l(mInputMutex);
     if (!mLatestCapturedRequest.isEmpty()) {
         String8 result("    Latest ZSL capture request:\n");

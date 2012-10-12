@@ -128,7 +128,7 @@ void CaptureSequencer::onCaptureAvailable(nsecs_t timestamp,
 }
 
 
-void CaptureSequencer::dump(int fd, const Vector<String16>& args) {
+void CaptureSequencer::dump(int fd, const Vector<String16>& /*args*/) {
     String8 result;
     if (mCaptureRequest.entryCount() != 0) {
         result = "    Capture request:\n";
@@ -182,7 +182,6 @@ const CaptureSequencer::StateManager
 };
 
 bool CaptureSequencer::threadLoop() {
-    status_t res;
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return false;
@@ -213,7 +212,8 @@ bool CaptureSequencer::threadLoop() {
     return true;
 }
 
-CaptureSequencer::CaptureState CaptureSequencer::manageIdle(sp<Camera2Client> &client) {
+CaptureSequencer::CaptureState CaptureSequencer::manageIdle(
+        sp<Camera2Client> &/*client*/) {
     status_t res;
     Mutex::Autolock l(mInputMutex);
     while (!mStartCapture) {
@@ -350,13 +350,13 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageZslWaiting(
-        sp<Camera2Client> &client) {
+        sp<Camera2Client> &/*client*/) {
     ALOGV("%s", __FUNCTION__);
     return DONE;
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageZslReprocessing(
-        sp<Camera2Client> &client) {
+        sp<Camera2Client> &/*client*/) {
     ALOGV("%s", __FUNCTION__);
     return START;
 }
@@ -378,7 +378,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageStandardPrecaptureWait(
-        sp<Camera2Client> &client) {
+        sp<Camera2Client> &/*client*/) {
     status_t res;
     ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
@@ -578,7 +578,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageBurstCaptureStart(
 }
 
 CaptureSequencer::CaptureState CaptureSequencer::manageBurstCaptureWait(
-        sp<Camera2Client> &client) {
+        sp<Camera2Client> &/*client*/) {
     status_t res;
     ATRACE_CALL();
 
