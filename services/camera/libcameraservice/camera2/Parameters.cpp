@@ -951,7 +951,6 @@ status_t Parameters::buildQuirks() {
 
 camera_metadata_ro_entry_t Parameters::staticInfo(uint32_t tag,
         size_t minCount, size_t maxCount) const {
-    status_t res;
     camera_metadata_ro_entry_t entry = info->find(tag);
 
     if (CC_UNLIKELY( entry.count == 0 )) {
@@ -2430,7 +2429,7 @@ Parameters::CropRegion Parameters::calculateCropRegion(
     return crop;
 }
 
-int32_t Parameters::fpsFromRange(int32_t min, int32_t max) const {
+int32_t Parameters::fpsFromRange(int32_t /*min*/, int32_t max) const {
     return max;
 }
 

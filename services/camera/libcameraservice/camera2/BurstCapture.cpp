@@ -38,7 +38,8 @@ BurstCapture::BurstCapture(wp<Camera2Client> client, wp<CaptureSequencer> sequen
 BurstCapture::~BurstCapture() {
 }
 
-status_t BurstCapture::start(Vector<CameraMetadata> &metadatas, int32_t firstCaptureId) {
+status_t BurstCapture::start(Vector<CameraMetadata> &/*metadatas*/,
+                             int32_t /*firstCaptureId*/) {
     ALOGE("Not completely implemented");
     return INVALID_OPERATION;
 }
@@ -75,7 +76,7 @@ bool BurstCapture::threadLoop() {
 
 CpuConsumer::LockedBuffer* BurstCapture::jpegEncode(
     CpuConsumer::LockedBuffer *imgBuffer,
-    int quality)
+    int /*quality*/)
 {
     ALOGV("%s", __FUNCTION__);
 
@@ -91,7 +92,7 @@ CpuConsumer::LockedBuffer* BurstCapture::jpegEncode(
     buffers.push_back(imgEncoded);
 
     sp<JpegCompressor> jpeg = new JpegCompressor();
-    status_t res = jpeg->start(buffers, 1);
+    jpeg->start(buffers, 1);
 
     bool success = jpeg->waitForDone(10 * 1e9);
     if(success) {
@@ -103,7 +104,7 @@ CpuConsumer::LockedBuffer* BurstCapture::jpegEncode(
     }
 }
 
-status_t BurstCapture::processFrameAvailable(sp<Camera2Client> &client) {
+status_t BurstCapture::processFrameAvailable(sp<Camera2Client> &/*client*/) {
     ALOGE("Not implemented");
     return INVALID_OPERATION;
 }
