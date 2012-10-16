@@ -3275,8 +3275,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // Remove it from the list of active tracks.
                 // TODO: use actual buffer filling status instead of latency when available from
                 // audio HAL
-                size_t audioHALFrames =
-                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
                 if (track->presentationComplete(framesWritten, audioHALFrames)) {
@@ -3799,8 +3798,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
                 // TODO: implement behavior for compressed audio
-                size_t audioHALFrames =
-                        (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
+                size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
                 if (track->presentationComplete(framesWritten, audioHALFrames)) {
