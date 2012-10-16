@@ -633,6 +633,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
                 supportedFocusModes);
     }
+    focusState = ANDROID_CONTROL_AF_STATE_INACTIVE;
     shadowFocusMode = FOCUS_MODE_INVALID;
 
     camera_metadata_ro_entry_t max3aRegions =
@@ -1462,8 +1463,9 @@ status_t Parameters::set(const String8& paramString) {
                 }
             }
         }
+        validatedParams.focusState = ANDROID_CONTROL_AF_STATE_INACTIVE;
         // Always reset shadow focus mode to avoid reverting settings
-        shadowFocusMode = FOCUS_MODE_INVALID;
+        validatedParams.shadowFocusMode = FOCUS_MODE_INVALID;
         // Update in case of override
         newParams.set(CameraParameters::KEY_FOCUS_MODE,
                 focusModeEnumToString(validatedParams.focusMode));
