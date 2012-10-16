@@ -230,7 +230,7 @@ class Camera2Device : public virtual RefBase {
         // Real interfaces. On enqueue, queue takes ownership of buffer pointer
         // On dequeue, user takes ownership of buffer pointer.
         status_t enqueue(camera_metadata_t *buf);
-        status_t dequeue(camera_metadata_t **buf, bool incrementCount = true);
+        status_t dequeue(camera_metadata_t **buf, bool incrementCount = false);
         int      getBufferCount();
         status_t waitForBuffer(nsecs_t timeout);
         // Wait until a buffer with the given ID is dequeued. Will return
