@@ -88,6 +88,8 @@ struct Parameters {
         FOCUS_MODE_INVALID = -1
     } focusMode;
 
+    uint8_t focusState; // Latest focus state from HAL
+
     // For use with triggerAfWithAuto quirk
     focusMode_t shadowFocusMode;
 
