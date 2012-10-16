@@ -267,6 +267,17 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         default: result.append("UNKNOWN\n");
     }
 
+    result.append("   Focus state: ");
+    switch (p.focusState) {
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_INACTIVE)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_PASSIVE_SCAN)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_ACTIVE_SCAN)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED)
+        default: result.append("UNKNOWN\n");
+    }
+
     result.append("    Focusing areas:\n");
     for (size_t i = 0; i < p.focusingAreas.size(); i++) {
         result.appendFormat("      [ (%d, %d, %d, %d), weight %d ]\n",
@@ -952,6 +963,8 @@ status_t Camera2Client::autoFocus() {
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     int triggerId;
+    bool notifyImmediately = false;
+    bool notifySuccess = false;
     {
         SharedParameters::Lock l(mParameters);
         if (l.mParameters.state < Parameters::PREVIEW) {
@@ -964,15 +977,34 @@ status_t Camera2Client::autoFocus() {
           * with a fake value of success set to true.
           */
         if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED) {
+            notifyImmediately = true;
+            notifySuccess = true;
+        }
+        /**
+         * If we're in CAF mode, and AF has already been locked, just fire back
+         * the callback right away; the HAL would not send a notification since
+         * no state change would happen on a AF trigger.
+         */
+        if ( (l.mParameters.focusMode == Parameters::FOCUS_MODE_CONTINUOUS_PICTURE ||
+                l.mParameters.focusMode == Parameters::FOCUS_MODE_CONTINUOUS_VIDEO) &&
+                l.mParameters.focusState == ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED ) {
+            notifyImmediately = true;
+            notifySuccess = true;
+        }
+        /**
+         * Send immediate notification back to client
+         */
+        if (notifyImmediately) {
             SharedCameraClient::Lock l(mSharedCameraClient);
             if (l.mCameraClient != 0) {
                 l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS,
-                    /*success*/1, 0);
+                        notifySuccess ? 1 : 0, 0);
             }
-
             return OK;
         }
-
+        /**
+         * Handle quirk mode for AF in scene modes
+         */
         if (l.mParameters.quirks.triggerAfWithAuto &&
                 l.mParameters.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED &&
                 l.mParameters.focusMode != Parameters::FOCUS_MODE_AUTO) {
@@ -1303,6 +1335,7 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
     bool afInMotion = false;
     {
         SharedParameters::Lock l(mParameters);
+        l.mParameters.focusState = newState;
         switch (l.mParameters.focusMode) {
             case Parameters::FOCUS_MODE_AUTO:
             case Parameters::FOCUS_MODE_MACRO:
