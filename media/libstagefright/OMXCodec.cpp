@@ -1689,6 +1689,8 @@ status_t OMXCodec::applyRotation() {
     if (transform) {
         err = native_window_set_buffers_transform(
                 mNativeWindow.get(), transform);
+        ALOGE("native_window_set_buffers_transform failed: %s (%d)",
+                strerror(-err), -err);
     }
 
     return err;
@@ -1703,6 +1705,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     status_t err = mOMX->getParameter(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
     if (err != OK) {
+        CODEC_LOGE("getParameter failed: %d", err);
         return err;
     }
 
@@ -3606,6 +3609,7 @@ status_t OMXCodec::start(MetaData *meta) {
     Mutex::Autolock autoLock(mLock);
 
     if (mState != LOADED) {
+        CODEC_LOGE("called start in the unexpected state: %d", mState);
         return UNKNOWN_ERROR;
     }
 
@@ -3639,12 +3643,14 @@ status_t OMXCodec::start(MetaData *meta) {
         // if supported, the source to use exactly the same number of input
         // buffers as requested by the encoder.
         if ((err = init()) != OK) {
+            CODEC_LOGE("init failed: %d", err);
             return err;
         }
 
         params->setInt32(kKeyNumBuffers, mPortBuffers[kPortIndexInput].size());
         err = mSource->start(params.get());
         if (err != OK) {
+            CODEC_LOGE("source failed to start: %d", err);
             stopOmxComponent_l();
         }
         return err;
@@ -3652,6 +3658,7 @@ status_t OMXCodec::start(MetaData *meta) {
 
     // Decoder case
     if ((err = mSource->start(params.get())) != OK) {
+        CODEC_LOGE("source failed to start: %d", err);
         return err;
     }
     return init();
