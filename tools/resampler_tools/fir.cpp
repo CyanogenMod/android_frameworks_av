@@ -54,29 +54,38 @@ static double kaiser(int k, int N, double alpha) {
 int main(int argc, char** argv)
 {
     // nc is the number of bits to store the coefficients
-    int nc = 16;
+    int nc = 32;
 
     // ni is the minimum number of bits needed for interpolation
     // (not used for generating the coefficients)
     const int ni = nc / 2;
 
+    // cut off frequency ratio Fc/Fs
+    // The bigger the stop-band, the less coefficients we'll need.
+    double Fcr = 22050.0 / 48000.0;
+
     // nzc is the number of zero-crossing on one half of the filter
-    int nzc = 12;
+    int nzc = 16;
     
     // alpha parameter of the kaiser window
     // Larger numbers reduce ripples in the rejection band but increase
-    // the width of the transition band. In reality there doesn't seem to be
-    // a good reason to choose a big number because of the limited range
-    // of our coefficients (16 bits).
-    double alpha = 3.0;
-    
-    // cut off frequency ratio Fc/Fs
-    double Fcr = 20000.0 / 44100.0;
+    // the width of the transition band. 
+    // the table below gives some value of alpha for a given
+    // stop-band attenuation.
+    //    30 dB    2.210
+    //    40 dB    3.384
+    //    50 dB    4.538
+    //    60 dB    5.658
+    //    70 dB    6.764
+    //    80 dB    7.865
+    //    90 dB    8.960
+    //   100 dB   10.056
+    double alpha = 10.056;	// -100dB stop-band attenuation
     
     // 2^nz is the number coefficients per zero-crossing
     // (int theory this should be 1<<(nc/2))
     const int nz = 4;
-    
+
     // total number of coefficients
     const int N = (1 << nz) * nzc;
 
@@ -93,13 +102,20 @@ int main(int argc, char** argv)
         double x = (2.0 * M_PI * i * Fcr) / (1 << nz);
         double y = kaiser(i+N, 2*N, alpha) * sinc(x);
 
-        int yi = floor(y * (1<<(nc-1)) + 0.5);
-        if (yi >= (1<<(nc-1))) yi = (1<<(nc-1))-1;        
+        long yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
+        if (yi >= (1LL<<(nc-1))) yi = (1LL<<(nc-1))-1;        
 
         if ((i % (1 << 4)) == 0) printf("\n    ");
-        printf("0x%04x, ", yi & 0xFFFF);
+        if (nc > 16)
+        	printf("0x%08x, ", int(yi));
+        else 
+        	printf("0x%04x, ", int(yi)&0xFFFF);
     }
     printf("\n};\n");
     return 0;
  }
+
+// http://www.dsptutor.freeuk.com/KaiserFilterDesign/KaiserFilterDesign.html
+// http://www.csee.umbc.edu/help/sound/AFsp-V2R1/html/audio/ResampAudio.html
+
  
