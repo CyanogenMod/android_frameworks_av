@@ -1504,6 +1504,7 @@ status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
         status_t err = mVideoSource->start();
 
         if (err != OK) {
+            ALOGE("failed to start video source");
             mVideoSource.clear();
             return err;
         }
