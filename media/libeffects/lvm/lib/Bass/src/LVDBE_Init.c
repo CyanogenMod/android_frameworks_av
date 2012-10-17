@@ -232,6 +232,10 @@ LVDBE_ReturnStatus_en LVDBE_Init(LVDBE_Handle_t         *phInstance,
     pInstance->pData->AGCInstance.AGC_Gain = pInstance->pData->AGCInstance.AGC_MaxGain;
                                                 /* Default to the bass boost setting */
 
+    // initialize the mixer with some fixes values since otherwise LVDBE_SetVolume ends up
+    // reading uninitialized data
+    pMixer_Instance = &pInstance->pData->BypassVolume;
+    LVC_Mixer_Init(&pMixer_Instance->MixerStream[0],0x00007FFF,0x00007FFF);
 
     /*
      * Initialise the volume
@@ -242,7 +246,6 @@ LVDBE_ReturnStatus_en LVDBE_Init(LVDBE_Handle_t         *phInstance,
     pInstance->pData->AGCInstance.Volume = pInstance->pData->AGCInstance.Target;
                                                 /* Initialise as the target */
 
-    pMixer_Instance = &pInstance->pData->BypassVolume;
     MixGain = LVC_Mixer_GetTarget(&pMixer_Instance->MixerStream[0]);
     LVC_Mixer_Init(&pMixer_Instance->MixerStream[0],MixGain,MixGain);
 
