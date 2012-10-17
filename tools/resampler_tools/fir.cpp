@@ -78,10 +78,9 @@ int main(int argc, char** argv)
     const int nz = 4;
     
     // total number of coefficients
-    const int N = (1 << 4) * nzc;
+    const int N = (1 << nz) * nzc;
 
     // generate the right half of the filter
-
     printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", N);
     printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", nzc);
     printf("const int32_t RESAMPLE_FIR_COEF_BITS      = %d;\n", nc);
@@ -91,19 +90,16 @@ int main(int argc, char** argv)
     printf("static int16_t resampleFIR[%d] = {", N);
     for (int i=0 ; i<N ; i++)
     {
-        double x = (2.0 * M_PI * i * Fcr) / (1 << 4);
+        double x = (2.0 * M_PI * i * Fcr) / (1 << nz);
         double y = kaiser(i+N, 2*N, alpha) * sinc(x);
 
         int yi = floor(y * (1<<(nc-1)) + 0.5);
         if (yi >= (1<<(nc-1))) yi = (1<<(nc-1))-1;        
 
-        //printf("%6d\n", yi);
-
         if ((i % (1 << 4)) == 0) printf("\n    ");
         printf("0x%04x, ", yi & 0xFFFF);
     }
     printf("\n};\n");
-
     return 0;
  }
  
