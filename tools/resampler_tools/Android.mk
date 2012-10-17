@@ -1,4 +1,4 @@
-# Copyright 2005 Google Inc. All Rights Reserved.
+# Copyright 2005 The Android Open Source Project
 #
 # Android.mk for resampler_tools 
 #
