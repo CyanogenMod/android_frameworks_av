@@ -10,7 +10,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
 	fir.cpp
 
-LOCAL_TARGET := fir
+LOCAL_MODULE := fir
 
 include $(BUILD_HOST_EXECUTABLE)
 
