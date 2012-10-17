@@ -100,6 +100,9 @@ struct Parameters {
         Area(int left, int top, int right, int bottom, int weight):
                 left(left), top(top), right(right), bottom(bottom),
                 weight(weight) {}
+        bool isEmpty() const {
+            return (left == 0) && (top == 0) && (right == 0) && (bottom == 0);
+        }
     };
     Vector<Area> focusingAreas;
 
