@@ -529,15 +529,19 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
         return NO_ERROR;
     }
 
-    SharedParameters::Lock l(mParameters);
-    switch (l.mParameters.state) {
+    Parameters::State state;
+    {
+        SharedParameters::Lock l(mParameters);
+        state = l.mParameters.state;
+    }
+    switch (state) {
         case Parameters::DISCONNECTED:
         case Parameters::RECORD:
         case Parameters::STILL_CAPTURE:
         case Parameters::VIDEO_SNAPSHOT:
             ALOGE("%s: Camera %d: Cannot set preview display while in state %s",
                     __FUNCTION__, mCameraId,
-                    Parameters::getStateName(l.mParameters.state));
+                    Parameters::getStateName(state));
             return INVALID_OPERATION;
         case Parameters::STOPPED:
         case Parameters::WAITING_FOR_PREVIEW_WINDOW:
@@ -545,10 +549,8 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             break;
         case Parameters::PREVIEW:
             // Already running preview - need to stop and create a new stream
-            // TODO: Optimize this so that we don't wait for old stream to drain
-            // before spinning up new stream
             mStreamingProcessor->stopStream();
-            l.mParameters.state = Parameters::WAITING_FOR_PREVIEW_WINDOW;
+            state = Parameters::WAITING_FOR_PREVIEW_WINDOW;
             break;
     }
 
@@ -560,7 +562,9 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
         return res;
     }
 
-    if (l.mParameters.state == Parameters::WAITING_FOR_PREVIEW_WINDOW) {
+    if (state == Parameters::WAITING_FOR_PREVIEW_WINDOW) {
+        SharedParameters::Lock l(mParameters);
+        l.mParameters.state = state;
         return startPreviewL(l.mParameters, false);
     }
 
