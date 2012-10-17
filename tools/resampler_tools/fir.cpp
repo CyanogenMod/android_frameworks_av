@@ -62,10 +62,10 @@ int main(int argc, char** argv)
 
     // cut off frequency ratio Fc/Fs
     // The bigger the stop-band, the less coefficients we'll need.
-    double Fcr = 22050.0 / 48000.0;
+    double Fcr = 20000.0 / 48000.0;
 
     // nzc is the number of zero-crossing on one half of the filter
-    int nzc = 16;
+    int nzc = 8;
     
     // alpha parameter of the kaiser window
     // Larger numbers reduce ripples in the rejection band but increase
@@ -80,7 +80,7 @@ int main(int argc, char** argv)
     //    80 dB    7.865
     //    90 dB    8.960
     //   100 dB   10.056
-    double alpha = 10.056;	// -100dB stop-band attenuation
+    double alpha = 7.865;	// -80dB stop-band attenuation
     
     // 2^nz is the number coefficients per zero-crossing
     // (int theory this should be 1<<(nc/2))
