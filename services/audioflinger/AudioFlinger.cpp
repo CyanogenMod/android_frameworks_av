@@ -941,8 +941,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
 
 String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& keys) const
 {
-//    ALOGV("getParameters() io %d, keys %s, tid %d, calling pid %d",
-//            ioHandle, keys.string(), gettid(), IPCThreadState::self()->getCallingPid());
+    ALOGVV("getParameters() io %d, keys %s, tid %d, calling pid %d",
+            ioHandle, keys.string(), gettid(), IPCThreadState::self()->getCallingPid());
 
     Mutex::Autolock _l(mLock);
 
@@ -3125,7 +3125,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
-            //ALOGV("track %d u=%08x, s=%08x [OK] on thread %p", name, cblk->user, cblk->server, this);
+            ALOGVV("track %d u=%08x, s=%08x [OK] on thread %p", name, cblk->user, cblk->server, this);
 
             mixedTracks++;
 
@@ -3268,7 +3268,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 chain->clearInputBuffer();
             }
 
-            //ALOGV("track %d u=%08x, s=%08x [NOT READY] on thread %p", name, cblk->user, cblk->server, this);
+            ALOGVV("track %d u=%08x, s=%08x [NOT READY] on thread %p", name, cblk->user, cblk->server, this);
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -3731,7 +3731,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
-            //ALOGV("track %d u=%08x, s=%08x [OK]", track->name(), cblk->user, cblk->server);
+            ALOGVV("track %d u=%08x, s=%08x [OK]", track->name(), cblk->user, cblk->server);
 
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
@@ -3792,7 +3792,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 mEffectChains[0]->clearInputBuffer();
             }
 
-            //ALOGV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
+            ALOGVV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -5664,7 +5664,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(AudioBufferProv
     audio_track_cblk_t* cblk = mCblk;
     uint32_t framesReq = buffer->frameCount;
 
-//    ALOGV("OutputTrack::obtainBuffer user %d, server %d", cblk->user, cblk->server);
+    ALOGVV("OutputTrack::obtainBuffer user %d, server %d", cblk->user, cblk->server);
     buffer->frameCount  = 0;
 
     uint32_t framesAvail = cblk->framesAvailable();
@@ -8594,7 +8594,7 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
                                              void *pReplyData)
 {
     Mutex::Autolock _l(mLock);
-//    ALOGV("command(), cmdCode: %d, mEffectInterface: %p", cmdCode, mEffectInterface);
+    ALOGVV("command(), cmdCode: %d, mEffectInterface: %p", cmdCode, mEffectInterface);
 
     if (mState == DESTROYED || mEffectInterface == NULL) {
         return NO_INIT;
@@ -9049,8 +9049,8 @@ status_t AudioFlinger::EffectHandle::command(uint32_t cmdCode,
                                              uint32_t *replySize,
                                              void *pReplyData)
 {
-//    ALOGV("command(), cmdCode: %d, mHasControl: %d, mEffect: %p",
-//              cmdCode, mHasControl, (mEffect == 0) ? 0 : mEffect.get());
+    ALOGVV("command(), cmdCode: %d, mHasControl: %d, mEffect: %p",
+            cmdCode, mHasControl, (mEffect == 0) ? 0 : mEffect.get());
 
     // only get parameter command is permitted for applications not controlling the effect
     if (!mHasControl && cmdCode != EFFECT_CMD_GET_PARAM) {
