@@ -1405,7 +1405,10 @@ struct MyHandler : public AHandler {
         CHECK(GetAttribute(range.c_str(), "npt", &val));
 
         float npt1, npt2;
-        if (!ASessionDescription::parseNTPRange(val.c_str(), &npt1, &npt2)) {
+        int64_t durationUs;
+        if (!ASessionDescription::parseNTPRange(val.c_str(), &npt1, &npt2)
+            && !mSessionDesc->getDurationUs(&durationUs)
+            && (durationUs==0)) {
             // This is a live stream and therefore not seekable.
 
             ALOGI("This is a live stream");
