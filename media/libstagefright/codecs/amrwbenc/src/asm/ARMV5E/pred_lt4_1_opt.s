@@ -44,7 +44,9 @@ pred_lt4_asm:
          SUBLT     r5, r5, #2                         @x--
          SUB       r5, r5, #30                        @x -= 15
          RSB       r4, r2, #3                         @k = 3 - frac
-         LDR       r6, Table
+         ADRL      r8, Table
+         LDR       r6, [r8]
+         ADD       r6, r8
 	 MOV       r8, r4, LSL #6
          @MOV       r7, #0                             @j = 0
          ADD       r8, r6, r8                         @ptr2 = &(inter4_2[k][0])
@@ -451,7 +453,7 @@ pred_lt4_end:
          LDMFD     r13!, {r4 - r12, r15}
 
 Table:
-         .word       inter4_2
+         .word       inter4_2-Table
 	 @ENDFUNC
 	 .END
 
