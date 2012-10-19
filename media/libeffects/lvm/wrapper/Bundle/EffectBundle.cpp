@@ -2737,7 +2737,7 @@ int Effect_process(effect_handle_t     self,
                 outBuffer->s16[i] =
                         clamp16((LVM_INT32)outBuffer->s16[i] + (LVM_INT32)inBuffer->s16[i]);
             }
-        } else {
+        } else if (outBuffer->raw != inBuffer->raw) {
             memcpy(outBuffer->raw, inBuffer->raw, outBuffer->frameCount*sizeof(LVM_INT16)*2);
         }
     }
