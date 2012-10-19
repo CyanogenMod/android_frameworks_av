@@ -3033,7 +3033,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
                     size_t framesWritten =
                             mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
-                    if (!track->presentationComplete(framesWritten, audioHALFrames)) {
+                    if (!(mStandby || track->presentationComplete(framesWritten, audioHALFrames))) {
                         // track stays in active list until presentation is complete
                         break;
                     }
@@ -3278,7 +3278,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
-                if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
                     }
@@ -3801,7 +3801,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten =
                         mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
-                if (track->presentationComplete(framesWritten, audioHALFrames)) {
+                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
                     }
