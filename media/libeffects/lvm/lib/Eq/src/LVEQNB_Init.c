@@ -264,6 +264,9 @@ LVEQNB_ReturnStatus_en LVEQNB_Init(LVEQNB_Handle_t          *phInstance,
     MemSize = (pCapabilities->MaxBands * sizeof(LVEQNB_BandDef_t));
     pInstance->pBandDefinitions  = (LVEQNB_BandDef_t *)InstAlloc_AddMember(&AllocMem,
                                                                            MemSize);
+    // clear all the bands, setting their gain to 0, otherwise when applying new params,
+    // it will compare against uninitialized values
+    memset(pInstance->pBandDefinitions, 0, MemSize);
     MemSize = (pCapabilities->MaxBands * sizeof(LVEQNB_BiquadType_en));
     pInstance->pBiquadType = (LVEQNB_BiquadType_en *)InstAlloc_AddMember(&AllocMem,
                                                                          MemSize);
