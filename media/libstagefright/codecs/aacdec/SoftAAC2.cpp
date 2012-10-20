@@ -27,7 +27,7 @@
 
 #define FILEREAD_MAX_LAYERS 2
 
-#define DRC_DEFAULT_MOBILE_REF_LEVEL 48  /* 48*-0.25dB = -12 dB below full scale for mobile conf */
+#define DRC_DEFAULT_MOBILE_REF_LEVEL 64  /* 64*-0.25dB = -16 dB below full scale for mobile conf */
 #define DRC_DEFAULT_MOBILE_DRC_CUT   127 /* maximum compression of dynamic range for mobile conf */
 #define MAX_CHANNEL_COUNT            6  /* maximum number of audio channels that can be decoded */
 // names of properties that can be used to override the default DRC settings
