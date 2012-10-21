@@ -78,4 +78,27 @@ LOCAL_CFLAGS += -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE
 
 include $(BUILD_SHARED_LIBRARY)
 
+#
+# build audio resampler test tool
+#
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:=               \
+	test-resample.cpp 			\
+    AudioResampler.cpp.arm      \
+	AudioResamplerCubic.cpp.arm \
+    AudioResamplerSinc.cpp.arm
+
+LOCAL_SHARED_LIBRARIES := \
+	libdl \
+    libcutils \
+    libutils
+
+LOCAL_MODULE:= test-resample
+
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_EXECUTABLE)
+
+
 include $(call all-makefiles-under,$(LOCAL_PATH))
