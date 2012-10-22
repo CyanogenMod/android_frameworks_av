@@ -52,13 +52,12 @@ WifiDisplaySource::WifiDisplaySource(
       mUsingPCMAudio(false),
       mClientSessionID(0),
       mReaperPending(false),
-      mNextCSeq(1)
-#if REQUIRE_HDCP
-      ,mIsHDCP2_0(false)
-      ,mHDCPPort(0)
-      ,mHDCPInitializationComplete(false)
-      ,mSetupTriggerDeferred(false)
-#endif
+      mNextCSeq(1),
+      mUsingHDCP(false),
+      mIsHDCP2_0(false),
+      mHDCPPort(0),
+      mHDCPInitializationComplete(false),
+      mSetupTriggerDeferred(false)
 {
 }
 
@@ -316,12 +315,9 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                             mClientInfo.mPlaybackSession->getSurfaceTexture(),
                             mClientInfo.mPlaybackSession->width(),
                             mClientInfo.mPlaybackSession->height(),
-#if REQUIRE_HDCP
-                            IRemoteDisplayClient::kDisplayFlagSecure
-#else
-                            0 /* flags */
-#endif
-                            );
+                            mUsingHDCP
+                                ? IRemoteDisplayClient::kDisplayFlagSecure
+                                : 0);
                 }
 
                 if (mState == ABOUT_TO_PLAY) {
@@ -385,7 +381,6 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-#if REQUIRE_HDCP
         case kWhatHDCPNotify:
         {
             int32_t msgCode, ext1, ext2;
@@ -437,7 +432,6 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             finishStop2();
             break;
         }
-#endif
 
         default:
             TRESPASS();
@@ -477,9 +471,7 @@ status_t WifiDisplaySource::sendM1(int32_t sessionID) {
 
 status_t WifiDisplaySource::sendM3(int32_t sessionID) {
     AString body =
-#if REQUIRE_HDCP
         "wfd_content_protection\r\n"
-#endif
         "wfd_video_formats\r\n"
         "wfd_audio_codecs\r\n"
         "wfd_client_rtp_ports\r\n";
@@ -751,39 +743,39 @@ status_t WifiDisplaySource::onReceiveM3Response(
         return ERROR_UNSUPPORTED;
     }
 
-#if REQUIRE_HDCP
+    mUsingHDCP = false;
     if (!params->findParameter("wfd_content_protection", &value)) {
-        ALOGE("Sink doesn't appear to support content protection.");
-        return -EACCES;
-    }
+        ALOGI("Sink doesn't appear to support content protection.");
+    } else if (value == "none") {
+        ALOGI("Sink does not support content protection.");
+    } else {
+        mUsingHDCP = true;
 
-    if (value == "none") {
-        ALOGE("Sink does not support content protection.");
-        return -EACCES;
-    }
+        bool isHDCP2_0 = false;
+        if (value.startsWith("HDCP2.0 ")) {
+            isHDCP2_0 = true;
+        } else if (!value.startsWith("HDCP2.1 ")) {
+            ALOGE("malformed wfd_content_protection: '%s'", value.c_str());
 
-    bool isHDCP2_0 = false;
-    if (value.startsWith("HDCP2.0 ")) {
-        isHDCP2_0 = true;
-    } else if (!value.startsWith("HDCP2.1 ")) {
-        return ERROR_MALFORMED;
-    }
+            return ERROR_MALFORMED;
+        }
 
-    int32_t hdcpPort;
-    if (!ParsedMessage::GetInt32Attribute(value.c_str() + 8, "port", &hdcpPort)
-            || hdcpPort < 1 || hdcpPort > 65535) {
-        return ERROR_MALFORMED;
-    }
+        int32_t hdcpPort;
+        if (!ParsedMessage::GetInt32Attribute(
+                    value.c_str() + 8, "port", &hdcpPort)
+                || hdcpPort < 1 || hdcpPort > 65535) {
+            return ERROR_MALFORMED;
+        }
 
-    mIsHDCP2_0 = isHDCP2_0;
-    mHDCPPort = hdcpPort;
+        mIsHDCP2_0 = isHDCP2_0;
+        mHDCPPort = hdcpPort;
 
-    status_t err = makeHDCP();
-    if (err != OK) {
-        ALOGE("Unable to instantiate HDCP component.");
-        return err;
+        status_t err = makeHDCP();
+        if (err != OK) {
+            ALOGE("Unable to instantiate HDCP component.");
+            return err;
+        }
     }
-#endif
 
     return sendM4(sessionID);
 }
@@ -799,14 +791,12 @@ status_t WifiDisplaySource::onReceiveM4Response(
         return ERROR_UNSUPPORTED;
     }
 
-#if REQUIRE_HDCP
-    if (!mHDCPInitializationComplete) {
+    if (mUsingHDCP && !mHDCPInitializationComplete) {
         ALOGI("Deferring SETUP trigger until HDCP initialization completes.");
 
         mSetupTriggerDeferred = true;
         return OK;
     }
-#endif
 
     return sendM5(sessionID, false /* requestShutdown */);
 }
@@ -1065,13 +1055,7 @@ status_t WifiDisplaySource::onSetupRequest(
 
     sp<PlaybackSession> playbackSession =
         new PlaybackSession(
-                mNetSession, notify, mInterfaceAddr,
-#if REQUIRE_HDCP
-                mHDCP
-#else
-                NULL
-#endif
-                );
+                mNetSession, notify, mInterfaceAddr, mHDCP);
 
     looper()->registerHandler(playbackSession);
 
@@ -1268,13 +1252,11 @@ void WifiDisplaySource::finishStop() {
 void WifiDisplaySource::finishStopAfterDisconnectingClient() {
     ALOGV("finishStopAfterDisconnectingClient");
 
-#if REQUIRE_HDCP
     if (mHDCP != NULL) {
         ALOGI("Initiating HDCP shutdown.");
         mHDCP->shutdownAsync();
         return;
     }
-#endif
 
     finishStop2();
 }
@@ -1282,13 +1264,11 @@ void WifiDisplaySource::finishStopAfterDisconnectingClient() {
 void WifiDisplaySource::finishStop2() {
     ALOGV("finishStop2");
 
-#if REQUIRE_HDCP
     if (mHDCP != NULL) {
         mHDCP->setObserver(NULL);
         mHDCPObserver.clear();
         mHDCP.clear();
     }
-#endif
 
     if (mSessionID != 0) {
         mNetSession->destroySession(mSessionID);
@@ -1448,7 +1428,6 @@ void WifiDisplaySource::disconnectClient2() {
     finishStopAfterDisconnectingClient();
 }
 
-#if REQUIRE_HDCP
 struct WifiDisplaySource::HDCPObserver : public BnHDCPObserver {
     HDCPObserver(const sp<AMessage> &notify);
 
@@ -1512,7 +1491,6 @@ status_t WifiDisplaySource::makeHDCP() {
 
     return OK;
 }
-#endif
 
 }  // namespace android
 
