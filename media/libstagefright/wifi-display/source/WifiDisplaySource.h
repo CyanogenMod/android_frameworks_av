@@ -26,8 +26,6 @@
 
 namespace android {
 
-#define REQUIRE_HDCP            1
-
 struct IHDCP;
 struct IRemoteDisplayClient;
 struct ParsedMessage;
@@ -50,10 +48,7 @@ protected:
 
 private:
     struct PlaybackSession;
-
-#if REQUIRE_HDCP
     struct HDCPObserver;
-#endif
 
     enum State {
         INITIALIZED,
@@ -134,7 +129,8 @@ private:
 
     KeyedVector<ResponseID, HandleRTSPResponseFunc> mResponseHandlers;
 
-#if REQUIRE_HDCP
+    // HDCP specific section >>>>
+    bool mUsingHDCP;
     bool mIsHDCP2_0;
     int32_t mHDCPPort;
     sp<IHDCP> mHDCP;
@@ -144,7 +140,7 @@ private:
     bool mSetupTriggerDeferred;
 
     status_t makeHDCP();
-#endif
+    // <<<< HDCP specific section
 
     status_t sendM1(int32_t sessionID);
     status_t sendM3(int32_t sessionID);
