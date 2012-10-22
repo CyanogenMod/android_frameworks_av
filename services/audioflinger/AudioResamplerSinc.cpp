@@ -252,7 +252,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
     // FIXME store current state (up or down sample) and only load the coefs when the state
     // changes. Or load two pointers one for up and one for down in the init function.
     // Not critical now since the read functions are fast, but would be important if read was slow.
-    if (readResampleCoefficients) {
+    if (mConstants == &veryHighQualityConstants && readResampleCoefficients) {
         ALOGV("get coefficient from libmm-audio resampler library");
         mFirCoefs = (mInSampleRate <= mSampleRate) ? readResampleCoefficients(true) :
                 readResampleCoefficients(false);
