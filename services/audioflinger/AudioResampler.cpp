@@ -130,7 +130,7 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
     }
 }
 
-static const uint32_t maxMHz = 75;  // an arbitrary number that permits 2 VHQ, should be tunable
+static const uint32_t maxMHz = 130; // an arbitrary number that permits 3 VHQ, should be tunable
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t currentMHz = 0;
 
