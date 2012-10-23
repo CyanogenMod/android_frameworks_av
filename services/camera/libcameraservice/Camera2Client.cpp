@@ -1614,7 +1614,7 @@ size_t Camera2Client::calculateBufferSize(int width, int height,
 
 status_t Camera2Client::syncWithDevice() {
     ATRACE_CALL();
-    const nsecs_t kMaxSyncTimeout = 100000000; // 100 ms
+    const nsecs_t kMaxSyncTimeout = 500000000; // 500 ms
     status_t res;
 
     int32_t activeRequestId = mStreamingProcessor->getActiveRequestId();
