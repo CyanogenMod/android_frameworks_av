@@ -1707,7 +1707,8 @@ void AwesomePlayer::onVideoEvent() {
         }
     }
 
-    if ((mFlags & TEXTPLAYER_INITIALIZED) && !(mFlags & (TEXT_RUNNING | SEEK_PREVIEW))) {
+    if ((mFlags & TEXTPLAYER_INITIALIZED)
+            && !(mFlags & (TEXT_RUNNING | SEEK_PREVIEW))) {
         mTextDriver->start();
         modifyFlags(TEXT_RUNNING, SET);
     }
@@ -1753,17 +1754,24 @@ void AwesomePlayer::onVideoEvent() {
                 && mAudioPlayer != NULL
                 && mAudioPlayer->getMediaTimeMapping(
                     &realTimeUs, &mediaTimeUs)) {
-            ALOGI("we're much too late (%.2f secs), video skipping ahead",
-                 latenessUs / 1E6);
+            if (mWVMExtractor == NULL) {
+                ALOGI("we're much too late (%.2f secs), video skipping ahead",
+                     latenessUs / 1E6);
 
-            mVideoBuffer->release();
-            mVideoBuffer = NULL;
+                mVideoBuffer->release();
+                mVideoBuffer = NULL;
 
-            mSeeking = SEEK_VIDEO_ONLY;
-            mSeekTimeUs = mediaTimeUs;
+                mSeeking = SEEK_VIDEO_ONLY;
+                mSeekTimeUs = mediaTimeUs;
 
-            postVideoEvent_l();
-            return;
+                postVideoEvent_l();
+                return;
+            } else {
+                // The widevine extractor doesn't deal well with seeking
+                // audio and video independently. We'll just have to wait
+                // until the decoder catches up, which won't be long at all.
+                ALOGI("we're very late (%.2f secs)", latenessUs / 1E6);
+            }
         }
 
         if (latenessUs > 40000) {
