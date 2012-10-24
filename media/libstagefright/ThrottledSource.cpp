@@ -31,10 +31,6 @@ ThrottledSource::ThrottledSource(
     CHECK(mBandwidthLimitBytesPerSecond > 0);
 }
 
-status_t ThrottledSource::initCheck() const {
-    return mSource->initCheck();
-}
-
 ssize_t ThrottledSource::readAt(off64_t offset, void *data, size_t size) {
     Mutex::Autolock autoLock(mLock);
 
@@ -62,17 +58,9 @@ ssize_t ThrottledSource::readAt(off64_t offset, void *data, size_t size) {
     if (whenUs > nowUs) {
         usleep(whenUs - nowUs);
     }
-
     return n;
 }
 
-status_t ThrottledSource::getSize(off64_t *size) {
-    return mSource->getSize(size);
-}
-
-uint32_t ThrottledSource::flags() {
-    return mSource->flags();
-}
 
 }  // namespace android
 

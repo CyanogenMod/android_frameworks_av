@@ -28,17 +28,43 @@ struct ThrottledSource : public DataSource {
             const sp<DataSource> &source,
             int32_t bandwidthLimitBytesPerSecond);
 
-    virtual status_t initCheck() const;
-
+    // implementation of readAt() that sleeps to achieve the desired max throughput
     virtual ssize_t readAt(off64_t offset, void *data, size_t size);
 
-    virtual status_t getSize(off64_t *size);
-    virtual uint32_t flags();
+    // returns an empty string to prevent callers from using the Uri to construct a new datasource
+    virtual String8 getUri() {
+        return String8();
+    }
+
+    // following methods all call through to the wrapped DataSource's methods
+
+    status_t initCheck() const {
+        return mSource->initCheck();
+    }
+
+    virtual status_t getSize(off64_t *size) {
+        return mSource->getSize(size);
+    }
+
+    virtual uint32_t flags() {
+        return mSource->flags();
+    }
+
+    virtual status_t reconnectAtOffset(off64_t offset) {
+        return mSource->reconnectAtOffset(offset);
+    }
+
+    virtual sp<DecryptHandle> DrmInitialization(const char *mime = NULL) {
+        return mSource->DrmInitialization(mime);
+    }
+
+    virtual void getDrmInfo(sp<DecryptHandle> &handle, DrmManagerClient **client) {
+        mSource->getDrmInfo(handle, client);
+    };
 
     virtual String8 getMIMEType() const {
         return mSource->getMIMEType();
     }
-
 
 private:
     Mutex mLock;
