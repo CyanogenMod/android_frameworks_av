@@ -577,6 +577,7 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
         audio_stream_type_t streamType,
         status_t *status)
 {
+    *status = NO_ERROR;
     status_t lStatus = NO_ERROR;
     sp<IDirectTrack> track = NULL;
     DirectAudioTrack* directTrack = NULL;
@@ -6328,9 +6329,6 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
     LOGD("SRS_Processing - DirectAudioTrack - OutNotify_Init: %p TID %d\n", this, gettid());
     SRS_Processing::ProcessOutNotify(SRS_Processing::AUTO, this, true);
 #endif
-    mDeathRecipient = new PMDeathRecipient(this);
-    acquireWakeLock();
-#ifdef QCOM_HARDWARE
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         createEffectThread();
 
@@ -6339,7 +6337,8 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
 
         allocateBufPool();
     }
-#endif
+    mDeathRecipient = new PMDeathRecipient(this);
+    acquireWakeLock();
 }
 
 AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
@@ -6348,18 +6347,18 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
     SRS_Processing::ProcessOutNotify(SRS_Processing::AUTO, this, false);
 #endif
 
-    if (mPowerManager != 0) {
-        sp<IBinder> binder = mPowerManager->asBinder();
-        binder->unlinkToDeath(mDeathRecipient);
-    }
-#ifdef QCOM_HARDWARE
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         deallocateBufPool();
         requestAndWaitForEffectsThreadExit();
         mAudioFlinger->deregisterClient(mAudioFlingerClient);
         mAudioFlinger->deleteEffectSession();
     }
-#endif
+    releaseWakeLock();
+
+    if (mPowerManager != 0) {
+        sp<IBinder> binder = mPowerManager->asBinder();
+        binder->unlinkToDeath(mDeathRecipient);
+    }
     AudioSystem::releaseOutput(mOutput);
 }
 
@@ -6389,7 +6388,7 @@ void AudioFlinger::DirectAudioTrack::pause() {
 }
 
 ssize_t AudioFlinger::DirectAudioTrack::write(const void *buffer, size_t size) {
-    ALOGV("Writing to AudioSessionOut");
+    ALOGV("Writing to AudioSessionOut size %d", size);
     int isAvail = 0;
     mOutputDesc->stream->is_buffer_available(mOutputDesc->stream, &isAvail);
     if (!isAvail) {
@@ -6491,59 +6490,6 @@ status_t AudioFlinger::DirectAudioTrack::onTransact(
     return BnDirectTrack::onTransact(code, data, reply, flags);
 }
 
-void AudioFlinger::DirectAudioTrack::acquireWakeLock()
-{
-    Mutex::Autolock _l(pmLock);
-
-    if (mPowerManager == 0) {
-        // use checkService() to avoid blocking if power service is not up yet
-        sp<IBinder> binder =
-            defaultServiceManager()->checkService(String16("power"));
-        if (binder == 0) {
-            ALOGW("Thread %s cannot connect to the power manager service", lockName);
-        } else {
-            mPowerManager = interface_cast<IPowerManager>(binder);
-            binder->linkToDeath(mDeathRecipient);
-        }
-    }
-    if (mPowerManager != 0 && mWakeLockToken == 0) {
-        sp<IBinder> binder = new BBinder();
-        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
-                                                         binder,
-                                                         String16(lockName));
-        if (status == NO_ERROR) {
-            mWakeLockToken = binder;
-        }
-        ALOGV("acquireWakeLock() %s status %d", mName, status);
-    }
-}
-
-void AudioFlinger::DirectAudioTrack::releaseWakeLock()
-{
-   Mutex::Autolock _l(pmLock);
-
-    if (mWakeLockToken != 0) {
-        ALOGV("releaseWakeLock() %s", mName);
-        if (mPowerManager != 0) {
-            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
-        }
-        mWakeLockToken.clear();
-    }
-}
-
-void AudioFlinger::DirectAudioTrack::clearPowerManager()
-{
-    Mutex::Autolock _l(pmLock);
-    releaseWakeLock();
-    mPowerManager.clear();
-}
-
-void AudioFlinger::DirectAudioTrack::PMDeathRecipient::binderDied(const wp<IBinder>& who)
-{
-    parentClass->clearPowerManager();
-    ALOGW("power manager service died !!!");
-}
-
 void *AudioFlinger::DirectAudioTrack::EffectsThreadWrapper(void *me) {
     static_cast<DirectAudioTrack *>(me)->EffectsThreadEntry();
     return NULL;
@@ -6565,7 +6511,7 @@ void AudioFlinger::DirectAudioTrack::EffectsThreadEntry() {
             mEffectConfigChanged = false;
             for ( List<BufferInfo>::iterator it = mEffectsPool.begin();
                   it != mEffectsPool.end(); it++) {
-                ALOGV("Apply effects on the buffer dspbuf %p, mEffectsPool.size() %d",it->dspBuf,mEffectsPool.size());
+                ALOGV("Apply effects on the buffer dspbuf %p, mEffectsPool.size() %d bytes %d",it->dspBuf,mEffectsPool.size(), it->bytesToWrite);
                 mAudioFlinger->applyEffectsOn((int16_t *)it->localBuf,
                                               (int16_t *)it->dspBuf,
                                               it->bytesToWrite);
@@ -6623,6 +6569,59 @@ void AudioFlinger::DirectAudioTrack::AudioFlingerDirectTrackClient
 
     }
     ALOGV("ioConfigChanged Out");
+}
+
+void AudioFlinger::DirectAudioTrack::acquireWakeLock()
+{
+    Mutex::Autolock _l(pmLock);
+
+    if (mPowerManager == 0) {
+        // use checkService() to avoid blocking if power service is not up yet
+        sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("power"));
+        if (binder == 0) {
+            ALOGW("Thread %s cannot connect to the power manager service", lockName);
+        } else {
+            mPowerManager = interface_cast<IPowerManager>(binder);
+            binder->linkToDeath(mDeathRecipient);
+        }
+    }
+    if (mPowerManager != 0 && mWakeLockToken == 0) {
+        sp<IBinder> binder = new BBinder();
+        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                                                         binder,
+                                                         String16(lockName));
+        if (status == NO_ERROR) {
+            mWakeLockToken = binder;
+        }
+        ALOGV("acquireWakeLock() %s status %d", lockName, status);
+    }
+}
+
+void AudioFlinger::DirectAudioTrack::releaseWakeLock()
+{
+   Mutex::Autolock _l(pmLock);
+
+    if (mWakeLockToken != 0) {
+        ALOGV("releaseWakeLock() %s", lockName);
+        if (mPowerManager != 0) {
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+        }
+        mWakeLockToken.clear();
+    }
+}
+
+void AudioFlinger::DirectAudioTrack::clearPowerManager()
+{
+    Mutex::Autolock _l(pmLock);
+    releaseWakeLock();
+    mPowerManager.clear();
+}
+
+void AudioFlinger::DirectAudioTrack::PMDeathRecipient::binderDied(const wp<IBinder>& who)
+{
+    parentClass->clearPowerManager();
+    ALOGW("power manager service died !!!");
 }
 #endif
 
