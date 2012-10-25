@@ -1402,7 +1402,7 @@ private:
         class BufferInfo {
         public:
             BufferInfo(void *buf1, void *buf2, int32_t nSize) :
-            localBuf(buf1), dspBuf(buf2), memBufsize(nSize)
+            localBuf(buf1), dspBuf(buf2), memBufsize(nSize), bytesToWrite(0)
             {}
 
             void *localBuf;
