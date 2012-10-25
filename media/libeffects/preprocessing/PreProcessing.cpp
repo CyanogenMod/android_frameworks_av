@@ -1889,6 +1889,8 @@ int PreProcessingLib_GetDescriptor(const effect_uuid_t *uuid,
     return 0;
 }
 
+// This is the only symbol that needs to be exported
+__attribute__ ((visibility ("default")))
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     tag : AUDIO_EFFECT_LIBRARY_TAG,
     version : EFFECT_LIBRARY_API_VERSION,
