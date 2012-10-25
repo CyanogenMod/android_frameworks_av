@@ -63,8 +63,6 @@ audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     version : EFFECT_LIBRARY_API_VERSION,
     name : "Downmix Library",
     implementor : "The Android Open Source Project",
-    query_num_effects : DownmixLib_QueryNumberEffects,
-    query_effect : DownmixLib_QueryEffect,
     create_effect : DownmixLib_Create,
     release_effect : DownmixLib_Release,
     get_descriptor : DownmixLib_GetDescriptor,
@@ -158,25 +156,6 @@ void Downmix_testIndexComputation(uint32_t mask) {
  *--------------------------------------------------------------------------*/
 
 /*--- Effect Library Interface Implementation ---*/
-
-int32_t DownmixLib_QueryNumberEffects(uint32_t *pNumEffects) {
-    ALOGV("DownmixLib_QueryNumberEffects()");
-    *pNumEffects = kNbEffects;
-    return 0;
-}
-
-int32_t DownmixLib_QueryEffect(uint32_t index, effect_descriptor_t *pDescriptor) {
-    ALOGV("DownmixLib_QueryEffect() index=%d", index);
-    if (pDescriptor == NULL) {
-        return -EINVAL;
-    }
-    if (index >= (uint32_t)kNbEffects) {
-        return -EINVAL;
-    }
-    memcpy(pDescriptor, gDescriptors[index], sizeof(effect_descriptor_t));
-    return 0;
-}
-
 
 int32_t DownmixLib_Create(const effect_uuid_t *uuid,
         int32_t sessionId,

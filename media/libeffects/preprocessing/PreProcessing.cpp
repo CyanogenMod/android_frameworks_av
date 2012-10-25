@@ -1818,30 +1818,6 @@ const struct effect_interface_s sEffectInterfaceReverse = {
 // Effect Library Interface Implementation
 //------------------------------------------------------------------------------
 
-int PreProcessingLib_QueryNumberEffects(uint32_t *pNumEffects)
-{
-    if (PreProc_Init() != 0) {
-        return sInitStatus;
-    }
-    if (pNumEffects == NULL) {
-        return -EINVAL;
-    }
-    *pNumEffects = PREPROC_NUM_EFFECTS;
-    return sInitStatus;
-}
-
-int PreProcessingLib_QueryEffect(uint32_t index, effect_descriptor_t *pDescriptor)
-{
-    if (PreProc_Init() != 0) {
-        return sInitStatus;
-    }
-    if (index >= PREPROC_NUM_EFFECTS) {
-        return -EINVAL;
-    }
-    *pDescriptor = *sDescriptors[index];
-    return 0;
-}
-
 int PreProcessingLib_Create(const effect_uuid_t *uuid,
                             int32_t             sessionId,
                             int32_t             ioId,
@@ -1918,8 +1894,6 @@ audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     version : EFFECT_LIBRARY_API_VERSION,
     name : "Audio Preprocessing Library",
     implementor : "The Android Open Source Project",
-    query_num_effects : PreProcessingLib_QueryNumberEffects,
-    query_effect : PreProcessingLib_QueryEffect,
     create_effect : PreProcessingLib_Create,
     release_effect : PreProcessingLib_Release,
     get_descriptor : PreProcessingLib_GetDescriptor

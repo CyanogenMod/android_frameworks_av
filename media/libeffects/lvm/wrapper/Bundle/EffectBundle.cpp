@@ -158,42 +158,6 @@ int  Volume_getParameter       (EffectContext *pContext,
 int Effect_setEnabled(EffectContext *pContext, bool enabled);
 
 /* Effect Library Interface Implementation */
-extern "C" int EffectQueryNumberEffects(uint32_t *pNumEffects){
-    ALOGV("\n\tEffectQueryNumberEffects start");
-    *pNumEffects = 4;
-    ALOGV("\tEffectQueryNumberEffects creating %d effects", *pNumEffects);
-    ALOGV("\tEffectQueryNumberEffects end\n");
-    return 0;
-}     /* end EffectQueryNumberEffects */
-
-extern "C" int EffectQueryEffect(uint32_t index, effect_descriptor_t *pDescriptor){
-    ALOGV("\n\tEffectQueryEffect start");
-    ALOGV("\tEffectQueryEffect processing index %d", index);
-
-    if (pDescriptor == NULL){
-        ALOGV("\tLVM_ERROR : EffectQueryEffect was passed NULL pointer");
-        return -EINVAL;
-    }
-    if (index > 3){
-        ALOGV("\tLVM_ERROR : EffectQueryEffect index out of range %d", index);
-        return -ENOENT;
-    }
-    if(index == LVM_BASS_BOOST){
-        ALOGV("\tEffectQueryEffect processing LVM_BASS_BOOST");
-        *pDescriptor = gBassBoostDescriptor;
-    }else if(index == LVM_VIRTUALIZER){
-        ALOGV("\tEffectQueryEffect processing LVM_VIRTUALIZER");
-        *pDescriptor = gVirtualizerDescriptor;
-    } else if(index == LVM_EQUALIZER){
-        ALOGV("\tEffectQueryEffect processing LVM_EQUALIZER");
-        *pDescriptor = gEqualizerDescriptor;
-    } else if(index == LVM_VOLUME){
-        ALOGV("\tEffectQueryEffect processing LVM_VOLUME");
-        *pDescriptor = gVolumeDescriptor;
-    }
-    ALOGV("\tEffectQueryEffect end\n");
-    return 0;
-}     /* end EffectQueryEffect */
 
 extern "C" int EffectCreate(const effect_uuid_t *uuid,
                             int32_t             sessionId,
@@ -3304,8 +3268,6 @@ audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     version : EFFECT_LIBRARY_API_VERSION,
     name : "Effect Bundle Library",
     implementor : "NXP Software Ltd.",
-    query_num_effects : android::EffectQueryNumberEffects,
-    query_effect : android::EffectQueryEffect,
     create_effect : android::EffectCreate,
     release_effect : android::EffectRelease,
     get_descriptor : android::EffectGetDescriptor,

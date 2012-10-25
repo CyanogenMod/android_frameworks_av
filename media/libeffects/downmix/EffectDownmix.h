@@ -65,9 +65,6 @@ const uint32_t kUnsupported =
  * Effect API
  *------------------------------------
 */
-int32_t DownmixLib_QueryNumberEffects(uint32_t *pNumEffects);
-int32_t DownmixLib_QueryEffect(uint32_t index,
-        effect_descriptor_t *pDescriptor);
 int32_t DownmixLib_Create(const effect_uuid_t *uuid,
         int32_t sessionId,
         int32_t ioId,
