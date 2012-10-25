@@ -29,4 +29,6 @@ else
 LOCAL_SHARED_LIBRARIES += libdl
 endif
 
+LOCAL_CFLAGS += -fvisibility=hidden
+
 include $(BUILD_SHARED_LIBRARY)

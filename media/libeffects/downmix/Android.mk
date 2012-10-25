@@ -25,4 +25,6 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_PRELINK_MODULE := false
 
+LOCAL_CFLAGS += -fvisibility=hidden
+
 include $(BUILD_SHARED_LIBRARY)
