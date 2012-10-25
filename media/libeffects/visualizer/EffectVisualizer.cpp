@@ -177,23 +177,6 @@ int Visualizer_init(VisualizerContext *pContext)
 //--- Effect Library Interface Implementation
 //
 
-int VisualizerLib_QueryNumberEffects(uint32_t *pNumEffects) {
-    *pNumEffects = 1;
-    return 0;
-}
-
-int VisualizerLib_QueryEffect(uint32_t index,
-                              effect_descriptor_t *pDescriptor) {
-    if (pDescriptor == NULL) {
-        return -EINVAL;
-    }
-    if (index > 0) {
-        return -EINVAL;
-    }
-    *pDescriptor = gVisualizerDescriptor;
-    return 0;
-}
-
 int VisualizerLib_Create(const effect_uuid_t *uuid,
                          int32_t sessionId,
                          int32_t ioId,
@@ -580,8 +563,6 @@ audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     version : EFFECT_LIBRARY_API_VERSION,
     name : "Visualizer Library",
     implementor : "The Android Open Source Project",
-    query_num_effects : VisualizerLib_QueryNumberEffects,
-    query_effect : VisualizerLib_QueryEffect,
     create_effect : VisualizerLib_Create,
     release_effect : VisualizerLib_Release,
     get_descriptor : VisualizerLib_GetDescriptor,
