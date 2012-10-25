@@ -577,6 +577,7 @@ sp<IDirectTrack> AudioFlinger::createDirectTrack(
         audio_stream_type_t streamType,
         status_t *status)
 {
+    *status = NO_ERROR;
     status_t lStatus = NO_ERROR;
     sp<IDirectTrack> track = NULL;
     DirectAudioTrack* directTrack = NULL;
@@ -6514,7 +6515,7 @@ void AudioFlinger::DirectAudioTrack::acquireWakeLock()
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
         }
-        ALOGV("acquireWakeLock() %s status %d", mName, status);
+        ALOGV("acquireWakeLock() %s status %d", lockName, status);
     }
 }
 
@@ -6523,7 +6524,7 @@ void AudioFlinger::DirectAudioTrack::releaseWakeLock()
    Mutex::Autolock _l(pmLock);
 
     if (mWakeLockToken != 0) {
-        ALOGV("releaseWakeLock() %s", mName);
+        ALOGV("releaseWakeLock() %s", lockName);
         if (mPowerManager != 0) {
             mPowerManager->releaseWakeLock(mWakeLockToken, 0);
         }
