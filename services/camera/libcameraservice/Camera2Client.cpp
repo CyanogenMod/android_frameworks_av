@@ -1068,42 +1068,44 @@ status_t Camera2Client::takePicture(int msgType) {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    SharedParameters::Lock l(mParameters);
-    switch (l.mParameters.state) {
-        case Parameters::DISCONNECTED:
-        case Parameters::STOPPED:
-        case Parameters::WAITING_FOR_PREVIEW_WINDOW:
-            ALOGE("%s: Camera %d: Cannot take picture without preview enabled",
-                    __FUNCTION__, mCameraId);
-            return INVALID_OPERATION;
-        case Parameters::PREVIEW:
-            // Good to go for takePicture
-            res = commandStopFaceDetectionL(l.mParameters);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
+    {
+        SharedParameters::Lock l(mParameters);
+        switch (l.mParameters.state) {
+            case Parameters::DISCONNECTED:
+            case Parameters::STOPPED:
+            case Parameters::WAITING_FOR_PREVIEW_WINDOW:
+                ALOGE("%s: Camera %d: Cannot take picture without preview enabled",
                         __FUNCTION__, mCameraId);
-                return res;
-            }
-            l.mParameters.state = Parameters::STILL_CAPTURE;
-            break;
-        case Parameters::RECORD:
-            // Good to go for video snapshot
-            l.mParameters.state = Parameters::VIDEO_SNAPSHOT;
-            break;
-        case Parameters::STILL_CAPTURE:
-        case Parameters::VIDEO_SNAPSHOT:
-            ALOGE("%s: Camera %d: Already taking a picture",
-                    __FUNCTION__, mCameraId);
-            return INVALID_OPERATION;
-    }
+                return INVALID_OPERATION;
+            case Parameters::PREVIEW:
+                // Good to go for takePicture
+                res = commandStopFaceDetectionL(l.mParameters);
+                if (res != OK) {
+                    ALOGE("%s: Camera %d: Unable to stop face detection for still capture",
+                            __FUNCTION__, mCameraId);
+                    return res;
+                }
+                l.mParameters.state = Parameters::STILL_CAPTURE;
+                break;
+            case Parameters::RECORD:
+                // Good to go for video snapshot
+                l.mParameters.state = Parameters::VIDEO_SNAPSHOT;
+                break;
+            case Parameters::STILL_CAPTURE:
+            case Parameters::VIDEO_SNAPSHOT:
+                ALOGE("%s: Camera %d: Already taking a picture",
+                        __FUNCTION__, mCameraId);
+                return INVALID_OPERATION;
+        }
 
-    ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
+        ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
-    res = mJpegProcessor->updateStream(l.mParameters);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
+        res = mJpegProcessor->updateStream(l.mParameters);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
 
     // Need HAL to have correct settings before (possibly) triggering precapture
