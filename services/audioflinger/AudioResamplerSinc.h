@@ -71,7 +71,7 @@ private:
 
     // ----------------------------------------------------------------------------
     static const int32_t RESAMPLE_FIR_NUM_COEF       = 8;
-    static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 4;
+    static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 7;
 
     struct Constants {
         // we have 16 coefs samples per zero-crossing
