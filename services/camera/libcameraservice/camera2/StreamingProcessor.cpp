@@ -447,7 +447,6 @@ status_t StreamingProcessor::incrementStreamingIds() {
     ATRACE_CALL();
     Mutex::Autolock m(mMutex);
 
-    status_t res;
     mPreviewRequestId++;
     if (mPreviewRequestId >= Camera2Client::kPreviewRequestIdEnd) {
         mPreviewRequestId = Camera2Client::kPreviewRequestIdStart;
@@ -628,7 +627,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
 }
 
 
-status_t StreamingProcessor::dump(int fd, const Vector<String16>& args) {
+status_t StreamingProcessor::dump(int fd, const Vector<String16>& /*args*/) {
     String8 result;
 
     result.append("  Current requests:\n");

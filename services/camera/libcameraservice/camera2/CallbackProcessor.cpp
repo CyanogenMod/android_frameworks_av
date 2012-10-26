@@ -119,7 +119,6 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 
 status_t CallbackProcessor::deleteStream() {
     ATRACE_CALL();
-    status_t res;
 
     Mutex::Autolock l(mInputMutex);
 
@@ -144,7 +143,7 @@ int CallbackProcessor::getStreamId() const {
     return mCallbackStreamId;
 }
 
-void CallbackProcessor::dump(int fd, const Vector<String16>& args) const {
+void CallbackProcessor::dump(int /*fd*/, const Vector<String16>& /*args*/) const {
 }
 
 bool CallbackProcessor::threadLoop() {
@@ -173,7 +172,6 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     ATRACE_CALL();
     status_t res;
 
-    int callbackHeapId;
     sp<Camera2Heap> callbackHeap;
     size_t heapIdx;
 

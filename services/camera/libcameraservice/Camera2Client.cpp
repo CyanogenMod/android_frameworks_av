@@ -37,10 +37,6 @@ static int getCallingPid() {
     return IPCThreadState::self()->getCallingPid();
 }
 
-static int getCallingUid() {
-    return IPCThreadState::self()->getCallingUid();
-}
-
 // Interface used by CameraService
 
 Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
@@ -370,7 +366,6 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 void Camera2Client::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
-    status_t res;
 
     // Allow both client and the media server to disconnect at all times
     int callingPid = getCallingPid();
@@ -575,7 +570,7 @@ void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Flag 0x%x", __FUNCTION__, mCameraId, flag);
     Mutex::Autolock icl(mICameraLock);
-    status_t res;
+
     if ( checkPid(__FUNCTION__) != OK) return;
 
     SharedParameters::Lock l(mParameters);
@@ -1062,7 +1057,7 @@ status_t Camera2Client::cancelAutoFocus() {
     return OK;
 }
 
-status_t Camera2Client::takePicture(int msgType) {
+status_t Camera2Client::takePicture(int /*msgType*/) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
     status_t res;
@@ -1244,7 +1239,7 @@ status_t Camera2Client::commandPlayRecordingSoundL() {
     return OK;
 }
 
-status_t Camera2Client::commandStartFaceDetectionL(int type) {
+status_t Camera2Client::commandStartFaceDetectionL(int /*type*/) {
     ALOGV("%s: Camera %d: Starting face detection",
           __FUNCTION__, mCameraId);
     status_t res;
@@ -1331,6 +1326,8 @@ void Camera2Client::notifyError(int errorCode, int arg1, int arg2) {
 }
 
 void Camera2Client::notifyShutter(int frameNumber, nsecs_t timestamp) {
+    (void)frameNumber;
+    (void)timestamp;
     ALOGV("%s: Shutter notification for frame %d at time %lld", __FUNCTION__,
             frameNumber, timestamp);
 }
@@ -1452,6 +1449,8 @@ void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
 }
 
 void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
+    (void)newState;
+    (void)triggerId;
     ALOGV("%s: Auto-whitebalance state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
 }

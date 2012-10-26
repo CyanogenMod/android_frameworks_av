@@ -765,7 +765,6 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock l(mMutex);
-    status_t res;
 
     if (mStreamSlotCount > 0) {
         freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
@@ -785,7 +784,7 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(
 }
 
 status_t Camera2Device::MetadataQueue::dump(int fd,
-        const Vector<String16>& args) {
+        const Vector<String16>& /*args*/) {
     ATRACE_CALL();
     String8 result;
     status_t notLocked;
@@ -894,12 +893,13 @@ int Camera2Device::MetadataQueue::consumer_free(
 {
     ATRACE_CALL();
     MetadataQueue *queue = getInstance(q);
+    (void)queue;
     free_camera_metadata(old_buffer);
     return OK;
 }
 
 int Camera2Device::MetadataQueue::producer_dequeue(
-        const camera2_frame_queue_dst_ops_t *q,
+        const camera2_frame_queue_dst_ops_t * /*q*/,
         size_t entries, size_t bytes,
         camera_metadata_t **buffer)
 {
@@ -912,7 +912,7 @@ int Camera2Device::MetadataQueue::producer_dequeue(
 }
 
 int Camera2Device::MetadataQueue::producer_cancel(
-        const camera2_frame_queue_dst_ops_t *q,
+        const camera2_frame_queue_dst_ops_t * /*q*/,
         camera_metadata_t *old_buffer)
 {
     ATRACE_CALL();
@@ -1184,7 +1184,7 @@ status_t Camera2Device::StreamAdapter::setTransform(int transform) {
 }
 
 status_t Camera2Device::StreamAdapter::dump(int fd,
-        const Vector<String16>& args) {
+        const Vector<String16>& /*args*/) {
     ATRACE_CALL();
     String8 result = String8::format("      Stream %d: %d x %d, format 0x%x\n",
             mId, mWidth, mHeight, mFormat);
@@ -1423,7 +1423,7 @@ status_t Camera2Device::ReprocessStreamAdapter::pushIntoStream(
 }
 
 status_t Camera2Device::ReprocessStreamAdapter::dump(int fd,
-        const Vector<String16>& args) {
+        const Vector<String16>& /*args*/) {
     ATRACE_CALL();
     String8 result =
             String8::format("      Reprocess stream %d: %d x %d, fmt 0x%x\n",
@@ -1444,7 +1444,7 @@ int Camera2Device::ReprocessStreamAdapter::acquire_buffer(
     const camera2_stream_in_ops_t *w,
         buffer_handle_t** buffer) {
     ATRACE_CALL();
-    int res;
+
     ReprocessStreamAdapter* stream =
             const_cast<ReprocessStreamAdapter*>(
                 static_cast<const ReprocessStreamAdapter*>(w));

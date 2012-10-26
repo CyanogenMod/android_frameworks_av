@@ -427,7 +427,7 @@ public:
     /**
      * Dump state of the camera hardware
      */
-    status_t dump(int fd, const Vector<String16>& args) const
+    status_t dump(int fd, const Vector<String16>& /*args*/) const
     {
         ALOGV("%s(%s)", __FUNCTION__, mName.string());
         if (mDevice->ops->dump)
@@ -584,9 +584,10 @@ private:
 #endif
 
     static int __lock_buffer(struct preview_stream_ops* w,
-                      buffer_handle_t* buffer)
+                      buffer_handle_t* /*buffer*/)
     {
         ANativeWindow *a = anw(w);
+        (void)a;
         return 0;
     }
 

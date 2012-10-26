@@ -139,7 +139,6 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
 
 status_t JpegProcessor::deleteStream() {
     ATRACE_CALL();
-    status_t res;
 
     Mutex::Autolock l(mInputMutex);
 
@@ -164,7 +163,7 @@ int JpegProcessor::getStreamId() const {
     return mCaptureStreamId;
 }
 
-void JpegProcessor::dump(int fd, const Vector<String16>& args) const {
+void JpegProcessor::dump(int /*fd*/, const Vector<String16>& /*args*/) const {
 }
 
 bool JpegProcessor::threadLoop() {
@@ -356,7 +355,7 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer, size_t maxSize) {
     // Find End of Image
     // Scan JPEG buffer until End of Image (EOI)
     bool foundEnd = false;
-    for (size; size <= maxSize - MARKER_LENGTH; size++) {
+    for ( ; size <= maxSize - MARKER_LENGTH; size++) {
         if ( checkJpegEnd(jpegBuffer + size) ) {
             foundEnd = true;
             size += MARKER_LENGTH;
