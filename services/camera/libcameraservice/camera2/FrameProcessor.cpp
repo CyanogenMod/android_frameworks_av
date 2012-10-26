@@ -62,7 +62,7 @@ status_t FrameProcessor::removeListener(int32_t minId,
     return OK;
 }
 
-void FrameProcessor::dump(int fd, const Vector<String16>& args) {
+void FrameProcessor::dump(int fd, const Vector<String16>& /*args*/) {
     String8 result("    Latest received frame:\n");
     write(fd, result.string(), result.size());
     mLastFrame.dump(fd, 2, 6);
@@ -128,7 +128,6 @@ void FrameProcessor::processNewFrames(sp<Camera2Client> &client) {
 
 status_t FrameProcessor::processListeners(const CameraMetadata &frame,
         sp<Camera2Client> &client) {
-    status_t res;
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
 
@@ -173,7 +172,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
     bool enableFaceDetect;
-    int maxFaces;
+
     {
         SharedParameters::Lock l(client->getParameters());
         enableFaceDetect = l.mParameters.enableFaceDetect;

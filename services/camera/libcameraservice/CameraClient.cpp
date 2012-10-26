@@ -34,10 +34,6 @@ static int getCallingPid() {
     return IPCThreadState::self()->getCallingPid();
 }
 
-static int getCallingUid() {
-    return IPCThreadState::self()->getCallingUid();
-}
-
 CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
         int cameraId, int cameraFacing, int clientPid, int servicePid):

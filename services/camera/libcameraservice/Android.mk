@@ -40,6 +40,9 @@ LOCAL_C_INCLUDES += \
     system/media/camera/include \
     external/jpeg
 
+
+LOCAL_CFLAGS += -Wall -Wextra
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
