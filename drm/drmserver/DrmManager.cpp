@@ -42,7 +42,8 @@ const String8 DrmManager::EMPTY_STRING("");
 DrmManager::DrmManager() :
     mDecryptSessionId(0),
     mConvertId(0) {
-
+    srand(time(NULL));
+    memset(mUniqueIdArray, 0, sizeof(bool) * kMaxNumUniqueIds);
 }
 
 DrmManager::~DrmManager() {
@@ -52,48 +53,37 @@ DrmManager::~DrmManager() {
 int DrmManager::addUniqueId(bool isNative) {
     Mutex::Autolock _l(mLock);
 
-    int temp = 0;
-    bool foundUniqueId = false;
-    const int size = mUniqueIdVector.size();
-    const int uniqueIdRange = 0xfff;
-    int maxLoopTimes = (uniqueIdRange - 1) / 2;
-    srand(time(NULL));
+    int uniqueId = -1;
+    int random = rand();
 
-    while (!foundUniqueId) {
-        temp = rand() & uniqueIdRange;
+    for (size_t index = 0; index < kMaxNumUniqueIds; ++index) {
+        int temp = (random + index) % kMaxNumUniqueIds;
+        if (!mUniqueIdArray[temp]) {
+            uniqueId = temp;
+            mUniqueIdArray[uniqueId] = true;
 
-        if (isNative) {
-            // set a flag to differentiate DrmManagerClient
-            // created from native side and java side
-            temp |= 0x1000;
-        }
-
-        int index = 0;
-        for (; index < size; ++index) {
-            if (mUniqueIdVector.itemAt(index) == temp) {
-                foundUniqueId = false;
-                break;
+            if (isNative) {
+                // set a flag to differentiate DrmManagerClient
+                // created from native side and java side
+                uniqueId |= 0x1000;
             }
+            break;
         }
-        if (index == size) {
-            foundUniqueId = true;
-        }
-
-        maxLoopTimes --;
-        LOG_FATAL_IF(maxLoopTimes <= 0, "cannot find an unique ID for this session");
     }
 
-    mUniqueIdVector.push(temp);
-    return temp;
+    // -1 indicates that no unique id can be allocated.
+    return uniqueId;
 }
 
 void DrmManager::removeUniqueId(int uniqueId) {
     Mutex::Autolock _l(mLock);
-    for (unsigned int i = 0; i < mUniqueIdVector.size(); i++) {
-        if (uniqueId == mUniqueIdVector.itemAt(i)) {
-            mUniqueIdVector.removeAt(i);
-            break;
-        }
+    if (uniqueId & 0x1000) {
+        // clear the flag for the native side.
+        uniqueId &= ~(0x1000);
+    }
+
+    if (uniqueId >= 0 && uniqueId < kMaxNumUniqueIds) {
+        mUniqueIdArray[uniqueId] = false;
     }
 }
 
