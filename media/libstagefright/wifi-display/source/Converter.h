@@ -27,7 +27,7 @@ namespace android {
 struct ABuffer;
 struct MediaCodec;
 
-#define ENABLE_SILENCE_DETECTION        1
+#define ENABLE_SILENCE_DETECTION        0
 
 // Utility class that receives media access units and converts them into
 // media access unit of a different format.
@@ -120,4 +120,3 @@ private:
 }  // namespace android
 
 #endif  // CONVERTER_H_
-
