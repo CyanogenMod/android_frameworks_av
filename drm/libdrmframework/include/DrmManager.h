@@ -144,7 +144,11 @@ private:
     bool canHandle(int uniqueId, const String8& path);
 
 private:
-    Vector<int> mUniqueIdVector;
+    enum {
+        kMaxNumUniqueIds = 0x1000,
+    };
+
+    bool mUniqueIdArray[kMaxNumUniqueIds];
     static const String8 EMPTY_STRING;
 
     int mDecryptSessionId;
