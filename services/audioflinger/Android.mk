@@ -19,10 +19,8 @@ LOCAL_SRC_FILES:=               \
     AudioResampler.cpp.arm      \
     AudioPolicyService.cpp      \
     ServiceUtilities.cpp        \
+	AudioResamplerCubic.cpp.arm \
     AudioResamplerSinc.cpp.arm
-
-# uncomment to enable AudioResampler::MED_QUALITY
-# LOCAL_SRC_FILES += AudioResamplerCubic.cpp.arm
 
 LOCAL_SRC_FILES += StateQueue.cpp
 
