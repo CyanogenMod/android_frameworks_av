@@ -6459,6 +6459,7 @@ void AudioFlinger::DirectAudioTrack::allocateBufPool() {
         memset(local_buf, 0, nSize);
         // Store this information for internal mapping / maintanence
         BufferInfo buf(local_buf, dsp_buf, nSize);
+        buf.bytesToWrite = 0;
         mBufPool.push_back(buf);
         mEffectsPool.push_back(buf);
 
