@@ -81,6 +81,9 @@ public:
             const sp<DataSource> &source, String8 *mimeType,
             float *confidence, sp<AMessage> *meta);
 
+#ifdef QCOM_LEGACY_MMPARSER
+    static void RegisterSniffer_l(SnifferFunc func, bool isExtendedExtractor = false);
+#endif
     static void RegisterDefaultSniffers();
 
     // for DRM
@@ -101,9 +104,14 @@ protected:
 private:
     static Mutex gSnifferMutex;
     static List<SnifferFunc> gSniffers;
+#ifdef QCOM_LEGACY_MMPARSER
+    static List<SnifferFunc>::iterator extendedSnifferPosition;
+#endif
     static bool gSniffersRegistered;
 
+#ifndef QCOM_LEGACY_MMPARSER
     static void RegisterSniffer_l(SnifferFunc func);
+#endif
 
     DataSource(const DataSource &);
     DataSource &operator=(const DataSource &);

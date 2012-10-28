@@ -32,12 +32,17 @@
 #include <dlfcn.h>  // for dlopen/dlclose
 #include "include/ExtendedExtractor.h"
 
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(QCOM_LEGACY_MMPARSER)
 
 namespace android {
 
+#ifdef QCOM_LEGACY_MMPARSER
+static const char* EXTENDED_EXTRACTOR_LIB = "libmmparser.so";
+static const char* EXTENDED_EXTRACTOR_CREATE = "createExtractor";
+#else
 static const char* EXTENDED_EXTRACTOR_LIB = "libExtendedExtractor.so";
 static const char* EXTENDED_EXTRACTOR_CREATE = "CreateExtractor";
+#endif
 static const char* EXTENDED_EXTRACTOR_SNIFF = "SniffExtendedExtractor";
 
 typedef MediaExtractor* (*ExtendedExtractorCreate)
@@ -94,6 +99,40 @@ MediaExtractor* ExtendedExtractor::Create (
 
     return extractor;
 }
+
+#ifdef QCOM_LEGACY_MMPARSER
+void ExtendedExtractor::RegisterSniffers() {
+    void *extendedExtractorLib = loadExtendedExtractorLib();
+    if (extendedExtractorLib == NULL) {
+        return;
+    }
+
+    SnifferArrayFunc snifferArrayFunc = (SnifferArrayFunc) dlsym(
+            extendedExtractorLib, MEDIA_SNIFFER_ARRAY);
+    if(snifferArrayFunc==NULL) {
+        ALOGE(" Unable to init Extended Sniffers, dlerror = %s \n", dlerror());
+        return;
+    }
+
+    const DataSource::SnifferFunc *snifferArray = NULL;
+    int snifferCount = 0;
+
+    //Invoke function in libmmparser to return its array of sniffers.
+    snifferArrayFunc(&snifferArray, &snifferCount);
+
+    if(snifferArray==NULL) {
+        ALOGE(" snifferArray is NULL \n");
+        return;
+    }
+
+    bool flag = true;
+    //Register the remote sniffers with the DataSource.
+    for(int i=0; i<snifferCount; i++) {
+        DataSource::RegisterSniffer_l(snifferArray[i], flag);
+        flag = false;
+    }
+}
+#endif
 
 bool ExtendedExtractor::Sniff (
         const sp<DataSource> &source, String8 *mimeType,
