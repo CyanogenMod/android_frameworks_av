@@ -222,7 +222,7 @@ int main(int argc, char** argv)
     if (!polyphase) {
         for (int i=0 ; i<N ; i++) {
             double x = (2.0 * M_PI * i * Fcr) / (1 << nz);
-            double y = kaiser(i+N, 2*N, beta) * sinc(x);
+            double y = kaiser(i+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;
             y *= atten;
 
             if (!debug) {
@@ -247,7 +247,7 @@ int main(int argc, char** argv)
             // generate a FIR per phase
             for (int i=-nzc ; i<nzc ; i++) {
                 double x = 2.0 * M_PI * Fcr * (i + p);
-                double y = kaiser(i+N, 2*N, beta) * sinc(x);
+                double y = kaiser(i+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;;
                 y *= atten;
                 if (!format) {
                     int64_t yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
