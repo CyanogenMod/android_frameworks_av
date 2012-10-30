@@ -206,7 +206,10 @@ int main(int argc, char* argv[]) {
     int32_t* out = (int32_t*) output_vaddr;
     int16_t* convert = (int16_t*) malloc(out_frames * sizeof(int16_t));
     for (size_t i = 0; i < out_frames; i++) {
-        convert[i] = out[i * 2] >> 12;
+        int32_t s = out[i * 2] >> 12;
+        if (s > 32767)       s =  32767;
+        else if (s < -32768) s = -32768;
+        convert[i] = int16_t(s);
     }
 
     // write output to disk
