@@ -106,6 +106,12 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     ALOG_ASSERT(maxNumTracks <= MAX_NUM_TRACKS, "maxNumTracks %u > MAX_NUM_TRACKS %u",
             maxNumTracks, MAX_NUM_TRACKS);
 
+    // AudioMixer is not yet capable of more than 32 active track inputs
+    ALOG_ASSERT(32 >= MAX_NUM_TRACKS, "bad MAX_NUM_TRACKS %d", MAX_NUM_TRACKS);
+
+    // AudioMixer is not yet capable of multi-channel output beyond stereo
+    ALOG_ASSERT(2 == MAX_NUM_CHANNELS, "bad MAX_NUM_CHANNELS %d", MAX_NUM_CHANNELS);
+
     LocalClock lc;
 
     pthread_once(&sOnceControl, &sInitRoutine);

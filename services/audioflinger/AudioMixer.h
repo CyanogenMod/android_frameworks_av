@@ -41,8 +41,15 @@ public:
 
     /*virtual*/             ~AudioMixer();  // non-virtual saves a v-table, restore if sub-classed
 
+
+    // This mixer has a hard-coded upper limit of 32 active track inputs.
+    // Adding support for > 32 tracks would require more than simply changing this value.
     static const uint32_t MAX_NUM_TRACKS = 32;
     // maximum number of channels supported by the mixer
+
+    // This mixer has a hard-coded upper limit of 2 channels for output.
+    // There is support for > 2 channel tracks down-mixed to 2 channel output via a down-mix effect.
+    // Adding support for > 2 channel output would require more than simply changing this value.
     static const uint32_t MAX_NUM_CHANNELS = 2;
     // maximum number of channels supported for the content
     static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = 8;
