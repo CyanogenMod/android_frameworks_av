@@ -84,7 +84,7 @@ int main(int argc, char** argv)
     unsigned int polyN = 147;
     bool debug = false;
     double Fs = 48000;
-    double Fc = 24000;
+    double Fc = 20478;
     double atten = 1;
     int format = 0;
 
