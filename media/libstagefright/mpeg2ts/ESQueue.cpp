@@ -31,6 +31,8 @@
 
 #include "include/avc_utils.h"
 
+#include <netinet/in.h>
+
 namespace android {
 
 ElementaryStreamQueue::ElementaryStreamQueue(Mode mode, uint32_t flags)
@@ -248,6 +250,11 @@ status_t ElementaryStreamQueue::appendData(
                 break;
             }
 
+            case PCM_AUDIO:
+            {
+                break;
+            }
+
             default:
                 TRESPASS();
                 break;
@@ -324,10 +331,66 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
             return dequeueAccessUnitMPEGVideo();
         case MPEG4_VIDEO:
             return dequeueAccessUnitMPEG4Video();
+        case PCM_AUDIO:
+            return dequeueAccessUnitPCMAudio();
         default:
             CHECK_EQ((unsigned)mMode, (unsigned)MPEG_AUDIO);
             return dequeueAccessUnitMPEGAudio();
     }
+}
+
+sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
+    if (mBuffer->size() < 4) {
+        return NULL;
+    }
+
+    ABitReader bits(mBuffer->data(), 4);
+    CHECK_EQ(bits.getBits(8), 0xa0);
+    unsigned numAUs = bits.getBits(8);
+    bits.skipBits(8);
+    unsigned quantization_word_length = bits.getBits(2);
+    unsigned audio_sampling_frequency = bits.getBits(3);
+    unsigned num_channels = bits.getBits(3);
+
+    CHECK_EQ(audio_sampling_frequency, 2);  // 48kHz
+    CHECK_EQ(num_channels, 1u);  // stereo!
+
+    if (mFormat == NULL) {
+        mFormat = new MetaData;
+        mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+        mFormat->setInt32(kKeyChannelCount, 2);
+        mFormat->setInt32(kKeySampleRate, 48000);
+    }
+
+    static const size_t kFramesPerAU = 80;
+    size_t frameSize = 2 /* numChannels */ * sizeof(int16_t);
+
+    size_t payloadSize = numAUs * frameSize * kFramesPerAU;
+
+    if (mBuffer->size() < 4 + payloadSize) {
+        return NULL;
+    }
+
+    sp<ABuffer> accessUnit = new ABuffer(payloadSize);
+    memcpy(accessUnit->data(), mBuffer->data() + 4, payloadSize);
+
+    int64_t timeUs = fetchTimestamp(payloadSize + 4);
+    CHECK_GE(timeUs, 0ll);
+    accessUnit->meta()->setInt64("timeUs", timeUs);
+
+    int16_t *ptr = (int16_t *)accessUnit->data();
+    for (size_t i = 0; i < payloadSize / sizeof(int16_t); ++i) {
+        ptr[i] = ntohs(ptr[i]);
+    }
+
+    memmove(
+            mBuffer->data(),
+            mBuffer->data() + 4 + payloadSize,
+            mBuffer->size() - 4 - payloadSize);
+
+    mBuffer->setRange(0, mBuffer->size() - 4 - payloadSize);
+
+    return accessUnit;
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
