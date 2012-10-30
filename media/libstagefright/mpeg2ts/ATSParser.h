@@ -87,6 +87,7 @@ struct ATSParser : public RefBase {
         STREAMTYPE_MPEG2_AUDIO_ADTS     = 0x0f,
         STREAMTYPE_MPEG4_VIDEO          = 0x10,
         STREAMTYPE_H264                 = 0x1b,
+        STREAMTYPE_PCM_AUDIO            = 0x83,
     };
 
 protected:

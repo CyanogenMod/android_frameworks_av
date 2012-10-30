@@ -465,7 +465,7 @@ status_t Converter::feedRawAudioInputBuffers() {
             timeUs += copyUs;
             buffer->meta()->setInt64("timeUs", timeUs);
 
-            if (copy == partialAudioAU->size() - 4) {
+            if (copy == partialAudioAU->capacity() - 4) {
                 sp<AMessage> notify = mNotify->dup();
                 notify->setInt32("what", kWhatAccessUnit);
                 notify->setBuffer("accessUnit", partialAudioAU);

@@ -22,6 +22,7 @@
 #include "PlaybackSession.h"
 #include "Parameters.h"
 #include "ParsedMessage.h"
+#include "Sender.h"
 
 #include <binder/IServiceManager.h>
 #include <gui/ISurfaceTexture.h>
@@ -981,8 +982,7 @@ status_t WifiDisplaySource::onSetupRequest(
         return ERROR_MALFORMED;
     }
 
-    PlaybackSession::TransportMode transportMode =
-        PlaybackSession::TRANSPORT_UDP;
+    Sender::TransportMode transportMode = Sender::TRANSPORT_UDP;
 
     int clientRtp, clientRtcp;
     if (transport.startsWith("RTP/AVP/TCP;")) {
@@ -991,7 +991,7 @@ status_t WifiDisplaySource::onSetupRequest(
                     transport.c_str(), "interleaved", &interleaved)
                 && sscanf(interleaved.c_str(), "%d-%d",
                           &clientRtp, &clientRtcp) == 2) {
-            transportMode = PlaybackSession::TRANSPORT_TCP_INTERLEAVED;
+            transportMode = Sender::TRANSPORT_TCP_INTERLEAVED;
         } else {
             bool badRequest = false;
 
@@ -1013,7 +1013,7 @@ status_t WifiDisplaySource::onSetupRequest(
                 return ERROR_MALFORMED;
             }
 
-            transportMode = PlaybackSession::TRANSPORT_TCP;
+            transportMode = Sender::TRANSPORT_TCP;
         }
     } else if (transport.startsWith("RTP/AVP;unicast;")
             || transport.startsWith("RTP/AVP/UDP;unicast;")) {
@@ -1101,7 +1101,7 @@ status_t WifiDisplaySource::onSetupRequest(
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
 
-    if (transportMode == PlaybackSession::TRANSPORT_TCP_INTERLEAVED) {
+    if (transportMode == Sender::TRANSPORT_TCP_INTERLEAVED) {
         response.append(
                 StringPrintf(
                     "Transport: RTP/AVP/TCP;interleaved=%d-%d;",
@@ -1110,7 +1110,7 @@ status_t WifiDisplaySource::onSetupRequest(
         int32_t serverRtp = playbackSession->getRTPPort();
 
         AString transportString = "UDP";
-        if (transportMode == PlaybackSession::TRANSPORT_TCP) {
+        if (transportMode == Sender::TRANSPORT_TCP) {
             transportString = "TCP";
         }
 
