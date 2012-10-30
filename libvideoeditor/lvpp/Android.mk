@@ -54,7 +54,6 @@ LOCAL_SHARED_LIBRARIES :=     \
     libGLESv2                 \
     libgui                    \
     libmedia                  \
-    libmedia_native           \
     libdrmframework           \
     libstagefright            \
     libstagefright_foundation \
