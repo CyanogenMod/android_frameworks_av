@@ -141,11 +141,8 @@ int32_t mulRL(int left, int32_t in, uint32_t vRL)
     }
     return out;
 #else
-    if (left) {
-        return int16_t(in>>16) * int16_t(vRL&0xFFFF);
-    } else {
-        return int16_t(in>>16) * int16_t(vRL>>16);
-    }
+    int16_t v = left ? int16_t(vRL) : int16_t(vRL>>16);
+    return int32_t((int64_t(in) * v) >> 16);
 #endif
 }
 
@@ -160,9 +157,7 @@ int32_t mulAdd(int16_t in, int32_t v, int32_t a)
          : );
     return out;
 #else
-    return a + in * (v>>16);
-    // improved precision
-    // return a + in * (v>>16) + ((in * (v & 0xffff)) >> 16);
+    return a + int32_t((int64_t(v) * in) >> 16);
 #endif
 }
 
@@ -184,13 +179,8 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
     }
     return out;
 #else
-    if (left) {
-        return a + (int16_t(inRL&0xFFFF) * (v>>16));
-        //improved precision
-        // return a + (int16_t(inRL&0xFFFF) * (v>>16)) + ((int16_t(inRL&0xFFFF) * (v & 0xffff)) >> 16);
-    } else {
-        return a + (int16_t(inRL>>16) * (v>>16));
-    }
+    int16_t s = left ? int16_t(inRL) : int16_t(inRL>>16);
+    return a + int32_t((int64_t(v) * s) >> 16);
 #endif
 }
 
