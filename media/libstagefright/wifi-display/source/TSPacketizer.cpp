@@ -49,9 +49,15 @@ struct TSPacketizer::Track : public RefBase {
     bool isH264() const;
     bool isAAC() const;
     bool lacksADTSHeader() const;
+    bool isPCMAudio() const;
 
     sp<ABuffer> prependCSD(const sp<ABuffer> &accessUnit) const;
     sp<ABuffer> prependADTSHeader(const sp<ABuffer> &accessUnit) const;
+
+    size_t countDescriptors() const;
+    sp<ABuffer> descriptorAt(size_t index) const;
+
+    void finalize();
 
 protected:
     virtual ~Track();
@@ -67,7 +73,10 @@ private:
     AString mMIME;
     Vector<sp<ABuffer> > mCSD;
 
+    Vector<sp<ABuffer> > mDescriptors;
+
     bool mAudioLacksATDSHeaders;
+    bool mFinalized;
 
     DISALLOW_EVIL_CONSTRUCTORS(Track);
 };
@@ -80,7 +89,8 @@ TSPacketizer::Track::Track(
       mStreamType(streamType),
       mStreamID(streamID),
       mContinuityCounter(0),
-      mAudioLacksATDSHeaders(false) {
+      mAudioLacksATDSHeaders(false),
+      mFinalized(false) {
     CHECK(format->findString("mime", &mMIME));
 
     if (!strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)
@@ -142,6 +152,10 @@ bool TSPacketizer::Track::isH264() const {
 
 bool TSPacketizer::Track::isAAC() const {
     return !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC);
+}
+
+bool TSPacketizer::Track::isPCMAudio() const {
+    return !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
 }
 
 bool TSPacketizer::Track::lacksADTSHeader() const {
@@ -211,6 +225,96 @@ sp<ABuffer> TSPacketizer::Track::prependADTSHeader(
     memcpy(ptr, accessUnit->data(), accessUnit->size());
 
     return dup;
+}
+
+size_t TSPacketizer::Track::countDescriptors() const {
+    return mDescriptors.size();
+}
+
+sp<ABuffer> TSPacketizer::Track::descriptorAt(size_t index) const {
+    CHECK_LT(index, mDescriptors.size());
+    return mDescriptors.itemAt(index);
+}
+
+void TSPacketizer::Track::finalize() {
+    if (mFinalized) {
+        return;
+    }
+
+    if (isH264()) {
+        {
+            // AVC video descriptor (40)
+
+            sp<ABuffer> descriptor = new ABuffer(6);
+            uint8_t *data = descriptor->data();
+            data[0] = 40;  // descriptor_tag
+            data[1] = 4;  // descriptor_length
+
+            CHECK_EQ(mCSD.size(), 1u);
+            const sp<ABuffer> &sps = mCSD.itemAt(0);
+            CHECK(!memcmp("\x00\x00\x00\x01", sps->data(), 4));
+            CHECK_GE(sps->size(), 7u);
+            // profile_idc, constraint_set*, level_idc
+            memcpy(&data[2], sps->data() + 4, 3);
+
+            // AVC_still_present=0, AVC_24_hour_picture_flag=0, reserved
+            data[5] = 0x3f;
+
+            mDescriptors.push_back(descriptor);
+        }
+
+        {
+            // AVC timing and HRD descriptor (42)
+
+            sp<ABuffer> descriptor = new ABuffer(4);
+            uint8_t *data = descriptor->data();
+            data[0] = 42;  // descriptor_tag
+            data[1] = 2;  // descriptor_length
+
+            // hrd_management_valid_flag = 0
+            // reserved = 111111b
+            // picture_and_timing_info_present = 0
+
+            data[2] = 0x7e;
+
+            // fixed_frame_rate_flag = 0
+            // temporal_poc_flag = 0
+            // picture_to_display_conversion_flag = 0
+            // reserved = 11111b
+            data[3] = 0x1f;
+
+            mDescriptors.push_back(descriptor);
+        }
+    } else if (isPCMAudio()) {
+        // LPCM audio stream descriptor (0x83)
+
+        int32_t channelCount;
+        CHECK(mFormat->findInt32("channel-count", &channelCount));
+        CHECK_EQ(channelCount, 2);
+
+        int32_t sampleRate;
+        CHECK(mFormat->findInt32("sample-rate", &sampleRate));
+        CHECK(sampleRate == 44100 || sampleRate == 48000);
+
+        sp<ABuffer> descriptor = new ABuffer(4);
+        uint8_t *data = descriptor->data();
+        data[0] = 0x83;  // descriptor_tag
+        data[1] = 2;  // descriptor_length
+
+        unsigned sampling_frequency = (sampleRate == 44100) ? 1 : 2;
+
+        data[2] = (sampling_frequency << 5)
+                    | (3 /* reserved */ << 1)
+                    | 0 /* emphasis_flag */;
+
+        data[3] =
+            (1 /* number_of_channels = stereo */ << 5)
+            | 0xf /* reserved */;
+
+        mDescriptors.push_back(descriptor);
+    }
+
+    mFinalized = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,7 +393,8 @@ status_t TSPacketizer::packetize(
         const sp<ABuffer> &_accessUnit,
         sp<ABuffer> *packets,
         uint32_t flags,
-        const uint8_t *PES_private_data, size_t PES_private_data_len) {
+        const uint8_t *PES_private_data, size_t PES_private_data_len,
+        size_t numStuffingBytes) {
     sp<ABuffer> accessUnit = _accessUnit;
 
     int64_t timeUs;
@@ -347,7 +452,7 @@ status_t TSPacketizer::packetize(
     // reserved = b1
     // the first fragment of "buffer" follows
 
-    size_t PES_packet_length = accessUnit->size() + 8;
+    size_t PES_packet_length = accessUnit->size() + 8 + numStuffingBytes;
     if (PES_private_data_len > 0) {
         PES_packet_length += PES_private_data_len + 1;
     }
@@ -410,7 +515,7 @@ status_t TSPacketizer::packetize(
         *ptr++ = 0x10 | mPATContinuityCounter;
         *ptr++ = 0x00;
 
-        const uint8_t *crcDataStart = ptr;
+        uint8_t *crcDataStart = ptr;
         *ptr++ = 0x00;
         *ptr++ = 0xb0;
         *ptr++ = 0x0d;
@@ -472,8 +577,6 @@ status_t TSPacketizer::packetize(
             mPMTContinuityCounter = 0;
         }
 
-        size_t section_length = 5 * mTracks.size() + 4 + 9;
-
         ptr = packetDataStart;
         *ptr++ = 0x47;
         *ptr++ = 0x40 | (kPID_PMT >> 8);
@@ -483,8 +586,10 @@ status_t TSPacketizer::packetize(
 
         crcDataStart = ptr;
         *ptr++ = 0x02;
-        *ptr++ = 0xb0 | (section_length >> 8);
-        *ptr++ = section_length & 0xff;
+
+        *ptr++ = 0x00;  // section_length to be filled in below.
+        *ptr++ = 0x00;
+
         *ptr++ = 0x00;
         *ptr++ = 0x01;
         *ptr++ = 0xc3;
@@ -498,14 +603,34 @@ status_t TSPacketizer::packetize(
         for (size_t i = 0; i < mTracks.size(); ++i) {
             const sp<Track> &track = mTracks.itemAt(i);
 
+            // Make sure all the decriptors have been added.
+            track->finalize();
+
             *ptr++ = track->streamType();
             *ptr++ = 0xe0 | (track->PID() >> 8);
             *ptr++ = track->PID() & 0xff;
-            *ptr++ = 0xf0;
-            *ptr++ = 0x00;
+
+            size_t ES_info_length = 0;
+            for (size_t i = 0; i < track->countDescriptors(); ++i) {
+                ES_info_length += track->descriptorAt(i)->size();
+            }
+            CHECK_LE(ES_info_length, 0xfff);
+
+            *ptr++ = 0xf0 | (ES_info_length >> 8);
+            *ptr++ = (ES_info_length & 0xff);
+
+            for (size_t i = 0; i < track->countDescriptors(); ++i) {
+                const sp<ABuffer> &descriptor = track->descriptorAt(i);
+                memcpy(ptr, descriptor->data(), descriptor->size());
+                ptr += descriptor->size();
+            }
         }
 
-        CHECK_EQ(ptr - crcDataStart, 12 + mTracks.size() * 5);
+        size_t section_length = ptr - (crcDataStart + 3) + 4 /* CRC */;
+
+        crcDataStart[1] = 0xb0 | (section_length >> 8);
+        crcDataStart[2] = section_length & 0xff;
+
         crc = htonl(crc32(crcDataStart, ptr - crcDataStart));
         memcpy(ptr, &crc, 4);
         ptr += 4;
@@ -601,8 +726,12 @@ status_t TSPacketizer::packetize(
     *ptr++ = 0x84;
     *ptr++ = (PES_private_data_len > 0) ? 0x81 : 0x80;
 
-    *ptr++ = (PES_private_data_len > 0)
-        ? (1 + PES_private_data_len + 0x05) : 0x05;
+    size_t headerLength = 0x05 + numStuffingBytes;
+    if (PES_private_data_len > 0) {
+        headerLength += 1 + PES_private_data_len;
+    }
+
+    *ptr++ = headerLength;
 
     *ptr++ = 0x20 | (((PTS >> 30) & 7) << 1) | 1;
     *ptr++ = (PTS >> 22) & 0xff;
@@ -614,6 +743,10 @@ status_t TSPacketizer::packetize(
         *ptr++ = 0x8e;  // PES_private_data_flag, reserved.
         memcpy(ptr, PES_private_data, PES_private_data_len);
         ptr += PES_private_data_len;
+    }
+
+    for (size_t i = 0; i < numStuffingBytes; ++i) {
+        *ptr++ = 0xff;
     }
 
     // 18 bytes of TS/PES header leave 188 - 18 = 170 bytes for the payload

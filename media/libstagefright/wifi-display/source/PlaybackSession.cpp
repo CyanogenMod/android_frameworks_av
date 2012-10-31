@@ -23,6 +23,7 @@
 #include "Converter.h"
 #include "MediaPuller.h"
 #include "RepeaterSource.h"
+#include "Sender.h"
 #include "TSPacketizer.h"
 #include "include/avc_utils.h"
 
@@ -49,9 +50,6 @@
 #include <OMX_IVCommon.h>
 
 namespace android {
-
-static size_t kMaxRTPPacketSize = 1500;
-static size_t kMaxNumTSPacketsPerRTPPacket = (kMaxRTPPacketSize - 12) / 188;
 
 struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
     enum {
@@ -80,6 +78,15 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
     void queueAccessUnit(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueAccessUnit();
 
+    bool hasOutputBuffer(int64_t *timeUs) const;
+    void queueOutputBuffer(const sp<ABuffer> &accessUnit);
+    sp<ABuffer> dequeueOutputBuffer();
+    bool isSuspended() const;
+
+    size_t countQueuedOutputBuffers() const {
+        return mQueuedOutputBuffers.size();
+    }
+
     void requestIDRFrame();
 
 protected:
@@ -101,6 +108,8 @@ private:
     bool mIsAudio;
     List<sp<ABuffer> > mQueuedAccessUnits;
     sp<RepeaterSource> mRepeaterSource;
+    List<sp<ABuffer> > mQueuedOutputBuffers;
+    int64_t mLastOutputBufferQueuedTimeUs;
 
     static bool IsAudioFormat(const sp<AMessage> &format);
 
@@ -120,7 +129,8 @@ WifiDisplaySource::PlaybackSession::Track::Track(
       mConverter(converter),
       mStarted(false),
       mPacketizerTrackIndex(-1),
-      mIsAudio(IsAudioFormat(mConverter->getOutputFormat())) {
+      mIsAudio(IsAudioFormat(mConverter->getOutputFormat())),
+      mLastOutputBufferQueuedTimeUs(-1ll) {
 }
 
 WifiDisplaySource::PlaybackSession::Track::~Track() {
@@ -251,6 +261,53 @@ void WifiDisplaySource::PlaybackSession::Track::requestIDRFrame() {
     mConverter->requestIDRFrame();
 }
 
+bool WifiDisplaySource::PlaybackSession::Track::hasOutputBuffer(
+        int64_t *timeUs) const {
+    *timeUs = 0ll;
+
+    if (mQueuedOutputBuffers.empty()) {
+        return false;
+    }
+
+    const sp<ABuffer> &outputBuffer = *mQueuedOutputBuffers.begin();
+
+    CHECK(outputBuffer->meta()->findInt64("timeUs", timeUs));
+
+    return true;
+}
+
+void WifiDisplaySource::PlaybackSession::Track::queueOutputBuffer(
+        const sp<ABuffer> &accessUnit) {
+    mQueuedOutputBuffers.push_back(accessUnit);
+
+    mLastOutputBufferQueuedTimeUs = ALooper::GetNowUs();
+}
+
+sp<ABuffer> WifiDisplaySource::PlaybackSession::Track::dequeueOutputBuffer() {
+    CHECK(!mQueuedOutputBuffers.empty());
+
+    sp<ABuffer> outputBuffer = *mQueuedOutputBuffers.begin();
+    mQueuedOutputBuffers.erase(mQueuedOutputBuffers.begin());
+
+    return outputBuffer;
+}
+
+bool WifiDisplaySource::PlaybackSession::Track::isSuspended() const {
+    if (!mQueuedOutputBuffers.empty()) {
+        return false;
+    }
+
+    if (mLastOutputBufferQueuedTimeUs < 0ll) {
+        // We've never seen an output buffer queued, but tracks start
+        // out live, not suspended.
+        return false;
+    }
+
+    // If we've not seen new output data for 60ms or more, we consider
+    // this track suspended for the time being.
+    return (ALooper::GetNowUs() - mLastOutputBufferQueuedTimeUs) > 60000ll;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 WifiDisplaySource::PlaybackSession::PlaybackSession(
@@ -265,197 +322,37 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mWeAreDead(false),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
-      mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
       mPrevTimeUs(-1ll),
-      mTransportMode(TRANSPORT_UDP),
-      mAllTracksHavePacketizerIndex(false),
-      mRTPChannel(0),
-      mRTCPChannel(0),
-      mRTPPort(0),
-      mRTPSessionID(0),
-      mRTCPSessionID(0),
-#if ENABLE_RETRANSMISSION
-      mRTPRetransmissionSessionID(0),
-      mRTCPRetransmissionSessionID(0),
-#endif
-      mClientRTPPort(0),
-      mClientRTCPPort(0),
-      mRTPConnected(false),
-      mRTCPConnected(false),
-      mRTPSeqNo(0),
-#if ENABLE_RETRANSMISSION
-      mRTPRetransmissionSeqNo(0),
-#endif
-      mLastNTPTime(0),
-      mLastRTPTime(0),
-      mNumRTPSent(0),
-      mNumRTPOctetsSent(0),
-      mNumSRsSent(0),
-      mSendSRPending(false)
-#if ENABLE_RETRANSMISSION
-      ,mHistoryLength(0)
-#endif
-#if TRACK_BANDWIDTH
-      ,mFirstPacketTimeUs(-1ll)
-      ,mTotalBytesSent(0ll)
-#endif
-#if LOG_TRANSPORT_STREAM
-      ,mLogFile(NULL)
-#endif
-{
-    mTSQueue->setRange(0, 12);
-
-#if LOG_TRANSPORT_STREAM
-    mLogFile = fopen("/system/etc/log.ts", "wb");
-#endif
+      mAllTracksHavePacketizerIndex(false) {
 }
 
 status_t WifiDisplaySource::PlaybackSession::init(
         const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-        TransportMode transportMode,
+        Sender::TransportMode transportMode,
         bool usePCMAudio) {
-    mClientIP = clientIP;
-
     status_t err = setupPacketizer(usePCMAudio);
 
     if (err != OK) {
         return err;
     }
 
-    mTransportMode = transportMode;
+    sp<AMessage> notify = new AMessage(kWhatSenderNotify, id());
+    mSender = new Sender(mNetSession, notify);
 
-    if (transportMode == TRANSPORT_TCP_INTERLEAVED) {
-        mRTPChannel = clientRtp;
-        mRTCPChannel = clientRtcp;
-        mRTPPort = 0;
-        mRTPSessionID = 0;
-        mRTCPSessionID = 0;
+    mSenderLooper = new ALooper;
+    mSenderLooper->setName("sender_looper");
 
-        updateLiveness();
-        return OK;
-    }
+    mSenderLooper->start(
+            false /* runOnCallingThread */,
+            false /* canCallJava */,
+            PRIORITY_AUDIO);
 
-    mRTPChannel = 0;
-    mRTCPChannel = 0;
+    mSenderLooper->registerHandler(mSender);
 
-    if (mTransportMode == TRANSPORT_TCP) {
-        // XXX This is wrong, we need to allocate sockets here, we only
-        // need to do this because the dongles are not establishing their
-        // end until after PLAY instead of before SETUP.
-        mRTPPort = 20000;
-        mRTPSessionID = 0;
-        mRTCPSessionID = 0;
-        mClientRTPPort = clientRtp;
-        mClientRTCPPort = clientRtcp;
+    err = mSender->init(clientIP, clientRtp, clientRtcp, transportMode);
 
-        updateLiveness();
-        return OK;
-    }
-
-    int serverRtp;
-
-    sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
-    sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
-
-#if ENABLE_RETRANSMISSION
-    sp<AMessage> rtpRetransmissionNotify =
-        new AMessage(kWhatRTPRetransmissionNotify, id());
-
-    sp<AMessage> rtcpRetransmissionNotify =
-        new AMessage(kWhatRTCPRetransmissionNotify, id());
-#endif
-
-    for (serverRtp = 15550;; serverRtp += 2) {
-        int32_t rtpSession;
-        if (mTransportMode == TRANSPORT_UDP) {
-            err = mNetSession->createUDPSession(
-                        serverRtp, clientIP, clientRtp,
-                        rtpNotify, &rtpSession);
-        } else {
-            err = mNetSession->createTCPDatagramSession(
-                        serverRtp, clientIP, clientRtp,
-                        rtpNotify, &rtpSession);
-        }
-
-        if (err != OK) {
-            ALOGI("failed to create RTP socket on port %d", serverRtp);
-            continue;
-        }
-
-        int32_t rtcpSession = 0;
-
-        if (clientRtcp >= 0) {
-            if (mTransportMode == TRANSPORT_UDP) {
-                err = mNetSession->createUDPSession(
-                        serverRtp + 1, clientIP, clientRtcp,
-                        rtcpNotify, &rtcpSession);
-            } else {
-                err = mNetSession->createTCPDatagramSession(
-                        serverRtp + 1, clientIP, clientRtcp,
-                        rtcpNotify, &rtcpSession);
-            }
-
-            if (err != OK) {
-                ALOGI("failed to create RTCP socket on port %d", serverRtp + 1);
-
-                mNetSession->destroySession(rtpSession);
-                continue;
-            }
-        }
-
-#if ENABLE_RETRANSMISSION
-        if (mTransportMode == TRANSPORT_UDP) {
-            int32_t rtpRetransmissionSession;
-
-            err = mNetSession->createUDPSession(
-                        serverRtp + kRetransmissionPortOffset,
-                        clientIP,
-                        clientRtp + kRetransmissionPortOffset,
-                        rtpRetransmissionNotify,
-                        &rtpRetransmissionSession);
-
-            if (err != OK) {
-                mNetSession->destroySession(rtcpSession);
-                mNetSession->destroySession(rtpSession);
-                continue;
-            }
-
-            CHECK_GE(clientRtcp, 0);
-
-            int32_t rtcpRetransmissionSession;
-            err = mNetSession->createUDPSession(
-                        serverRtp + 1 + kRetransmissionPortOffset,
-                        clientIP,
-                        clientRtp + 1 + kRetransmissionPortOffset,
-                        rtcpRetransmissionNotify,
-                        &rtcpRetransmissionSession);
-
-            if (err != OK) {
-                mNetSession->destroySession(rtpRetransmissionSession);
-                mNetSession->destroySession(rtcpSession);
-                mNetSession->destroySession(rtpSession);
-                continue;
-            }
-
-            mRTPRetransmissionSessionID = rtpRetransmissionSession;
-            mRTCPRetransmissionSessionID = rtcpRetransmissionSession;
-
-            ALOGI("rtpRetransmissionSessionID = %d, "
-                  "rtcpRetransmissionSessionID = %d",
-                  rtpRetransmissionSession, rtcpRetransmissionSession);
-        }
-#endif
-
-        mRTPPort = serverRtp;
-        mRTPSessionID = rtpSession;
-        mRTCPSessionID = rtcpSession;
-
-        ALOGI("rtpSessionID = %d, rtcpSessionID = %d", rtpSession, rtcpSession);
-        break;
-    }
-
-    if (mRTPPort == 0) {
-        return UNKNOWN_ERROR;
+    if (err != OK) {
+        return err;
     }
 
     updateLiveness();
@@ -464,16 +361,10 @@ status_t WifiDisplaySource::PlaybackSession::init(
 }
 
 WifiDisplaySource::PlaybackSession::~PlaybackSession() {
-#if LOG_TRANSPORT_STREAM
-    if (mLogFile != NULL) {
-        fclose(mLogFile);
-        mLogFile = NULL;
-    }
-#endif
 }
 
 int32_t WifiDisplaySource::PlaybackSession::getRTPPort() const {
-    return mRTPPort;
+    return mSender->getRTPPort();
 }
 
 int64_t WifiDisplaySource::PlaybackSession::getLastLifesignUs() const {
@@ -497,35 +388,11 @@ status_t WifiDisplaySource::PlaybackSession::finishPlay() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::onFinishPlay() {
-    if (mTransportMode != TRANSPORT_TCP) {
-        return onFinishPlay2();
-    }
-
-    sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
-
-    status_t err = mNetSession->createTCPDatagramSession(
-                mRTPPort, mClientIP.c_str(), mClientRTPPort,
-                rtpNotify, &mRTPSessionID);
-
-    if (err != OK) {
-        return err;
-    }
-
-    if (mClientRTCPPort >= 0) {
-        sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
-
-        err = mNetSession->createTCPDatagramSession(
-                mRTPPort + 1, mClientIP.c_str(), mClientRTCPPort,
-                rtcpNotify, &mRTCPSessionID);
-    }
-
-    return err;
+    return mSender->finishInit();
 }
 
 status_t WifiDisplaySource::PlaybackSession::onFinishPlay2() {
-    if (mRTCPSessionID != 0) {
-        scheduleSendSR();
-    }
+    mSender->scheduleSendSR();
 
     for (size_t i = 0; i < mTracks.size(); ++i) {
         CHECK_EQ((status_t)OK, mTracks.editValueAt(i)->start());
@@ -555,134 +422,6 @@ void WifiDisplaySource::PlaybackSession::destroyAsync() {
 void WifiDisplaySource::PlaybackSession::onMessageReceived(
         const sp<AMessage> &msg) {
     switch (msg->what()) {
-        case kWhatRTPNotify:
-        case kWhatRTCPNotify:
-#if ENABLE_RETRANSMISSION
-        case kWhatRTPRetransmissionNotify:
-        case kWhatRTCPRetransmissionNotify:
-#endif
-        {
-            int32_t reason;
-            CHECK(msg->findInt32("reason", &reason));
-
-            switch (reason) {
-                case ANetworkSession::kWhatError:
-                {
-                    int32_t sessionID;
-                    CHECK(msg->findInt32("sessionID", &sessionID));
-
-                    int32_t err;
-                    CHECK(msg->findInt32("err", &err));
-
-                    int32_t errorOccuredDuringSend;
-                    CHECK(msg->findInt32("send", &errorOccuredDuringSend));
-
-                    AString detail;
-                    CHECK(msg->findString("detail", &detail));
-
-                    if ((msg->what() == kWhatRTPNotify
-#if ENABLE_RETRANSMISSION
-                            || msg->what() == kWhatRTPRetransmissionNotify
-#endif
-                        ) && !errorOccuredDuringSend) {
-                        // This is ok, we don't expect to receive anything on
-                        // the RTP socket.
-                        break;
-                    }
-
-                    ALOGE("An error occurred during %s in session %d "
-                          "(%d, '%s' (%s)).",
-                          errorOccuredDuringSend ? "send" : "receive",
-                          sessionID,
-                          err,
-                          detail.c_str(),
-                          strerror(-err));
-
-                    mNetSession->destroySession(sessionID);
-
-                    if (sessionID == mRTPSessionID) {
-                        mRTPSessionID = 0;
-                    } else if (sessionID == mRTCPSessionID) {
-                        mRTCPSessionID = 0;
-                    }
-#if ENABLE_RETRANSMISSION
-                    else if (sessionID == mRTPRetransmissionSessionID) {
-                        mRTPRetransmissionSessionID = 0;
-                    } else if (sessionID == mRTCPRetransmissionSessionID) {
-                        mRTCPRetransmissionSessionID = 0;
-                    }
-#endif
-
-                    notifySessionDead();
-                    break;
-                }
-
-                case ANetworkSession::kWhatDatagram:
-                {
-                    int32_t sessionID;
-                    CHECK(msg->findInt32("sessionID", &sessionID));
-
-                    sp<ABuffer> data;
-                    CHECK(msg->findBuffer("data", &data));
-
-                    status_t err;
-                    if (msg->what() == kWhatRTCPNotify
-#if ENABLE_RETRANSMISSION
-                            || msg->what() == kWhatRTCPRetransmissionNotify
-#endif
-                       )
-                    {
-                        err = parseRTCP(data);
-                    }
-                    break;
-                }
-
-                case ANetworkSession::kWhatConnected:
-                {
-                    CHECK_EQ(mTransportMode, TRANSPORT_TCP);
-
-                    int32_t sessionID;
-                    CHECK(msg->findInt32("sessionID", &sessionID));
-
-                    if (sessionID == mRTPSessionID) {
-                        CHECK(!mRTPConnected);
-                        mRTPConnected = true;
-                        ALOGI("RTP Session now connected.");
-                    } else if (sessionID == mRTCPSessionID) {
-                        CHECK(!mRTCPConnected);
-                        mRTCPConnected = true;
-                        ALOGI("RTCP Session now connected.");
-                    } else {
-                        TRESPASS();
-                    }
-
-                    if (mRTPConnected
-                            && (mClientRTCPPort < 0 || mRTCPConnected)) {
-                        onFinishPlay2();
-                    }
-                    break;
-                }
-
-                default:
-                    TRESPASS();
-            }
-            break;
-        }
-
-        case kWhatSendSR:
-        {
-            mSendSRPending = false;
-
-            if (mRTCPSessionID == 0) {
-                break;
-            }
-
-            onSendSR();
-
-            scheduleSendSR();
-            break;
-        }
-
         case kWhatConverterNotify:
         {
             if (mWeAreDead) {
@@ -729,11 +468,9 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     break;
                 }
 
-                status_t err = packetizeAccessUnit(trackIndex, accessUnit);
+                track->queueOutputBuffer(accessUnit);
 
-                if (err != OK) {
-                    notifySessionDead();
-                }
+                drainAccessUnits();
                 break;
             } else if (what == Converter::kWhatEOS) {
                 CHECK_EQ(what, Converter::kWhatEOS);
@@ -765,6 +502,22 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             break;
         }
 
+        case kWhatSenderNotify:
+        {
+            int32_t what;
+            CHECK(msg->findInt32("what", &what));
+
+            if (what == Sender::kWhatInitDone) {
+                onFinishPlay2();
+            } else if (what == Sender::kWhatSessionDead) {
+                notifySessionDead();
+            } else {
+                TRESPASS();
+            }
+
+            break;
+        }
+
         case kWhatFinishPlay:
         {
             onFinishPlay();
@@ -792,30 +545,38 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     break;
                 }
 
+                mSenderLooper->unregisterHandler(mSender->id());
+                mSender.clear();
+                mSenderLooper.clear();
+
                 mPacketizer.clear();
-
-#if ENABLE_RETRANSMISSION
-                if (mRTCPRetransmissionSessionID != 0) {
-                    mNetSession->destroySession(mRTCPRetransmissionSessionID);
-                }
-
-                if (mRTPRetransmissionSessionID != 0) {
-                    mNetSession->destroySession(mRTPRetransmissionSessionID);
-                }
-#endif
-
-                if (mRTCPSessionID != 0) {
-                    mNetSession->destroySession(mRTCPSessionID);
-                }
-
-                if (mRTPSessionID != 0) {
-                    mNetSession->destroySession(mRTPSessionID);
-                }
 
                 sp<AMessage> notify = mNotify->dup();
                 notify->setInt32("what", kWhatSessionDestroyed);
                 notify->post();
             }
+            break;
+        }
+
+        case kWhatPacketize:
+        {
+            size_t trackIndex;
+            CHECK(msg->findSize("trackIndex", &trackIndex));
+
+            sp<ABuffer> accessUnit;
+            CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
+#if 0
+            if ((ssize_t)trackIndex == mVideoTrackIndex) {
+                int64_t nowUs = ALooper::GetNowUs();
+                static int64_t prevNowUs = 0ll;
+
+                ALOGI("sending AU, dNowUs=%lld us", nowUs - prevNowUs);
+
+                prevNowUs = nowUs;
+            }
+#endif
+
             break;
         }
 
@@ -981,383 +742,12 @@ int32_t WifiDisplaySource::PlaybackSession::height() const {
     return 720;
 }
 
-void WifiDisplaySource::PlaybackSession::scheduleSendSR() {
-    if (mSendSRPending) {
-        return;
-    }
-
-    mSendSRPending = true;
-    (new AMessage(kWhatSendSR, id()))->post(kSendSRIntervalUs);
-}
-
-void WifiDisplaySource::PlaybackSession::addSR(const sp<ABuffer> &buffer) {
-    uint8_t *data = buffer->data() + buffer->size();
-
-    // TODO: Use macros/utility functions to clean up all the bitshifts below.
-
-    data[0] = 0x80 | 0;
-    data[1] = 200;  // SR
-    data[2] = 0;
-    data[3] = 6;
-    data[4] = kSourceID >> 24;
-    data[5] = (kSourceID >> 16) & 0xff;
-    data[6] = (kSourceID >> 8) & 0xff;
-    data[7] = kSourceID & 0xff;
-
-    data[8] = mLastNTPTime >> (64 - 8);
-    data[9] = (mLastNTPTime >> (64 - 16)) & 0xff;
-    data[10] = (mLastNTPTime >> (64 - 24)) & 0xff;
-    data[11] = (mLastNTPTime >> 32) & 0xff;
-    data[12] = (mLastNTPTime >> 24) & 0xff;
-    data[13] = (mLastNTPTime >> 16) & 0xff;
-    data[14] = (mLastNTPTime >> 8) & 0xff;
-    data[15] = mLastNTPTime & 0xff;
-
-    data[16] = (mLastRTPTime >> 24) & 0xff;
-    data[17] = (mLastRTPTime >> 16) & 0xff;
-    data[18] = (mLastRTPTime >> 8) & 0xff;
-    data[19] = mLastRTPTime & 0xff;
-
-    data[20] = mNumRTPSent >> 24;
-    data[21] = (mNumRTPSent >> 16) & 0xff;
-    data[22] = (mNumRTPSent >> 8) & 0xff;
-    data[23] = mNumRTPSent & 0xff;
-
-    data[24] = mNumRTPOctetsSent >> 24;
-    data[25] = (mNumRTPOctetsSent >> 16) & 0xff;
-    data[26] = (mNumRTPOctetsSent >> 8) & 0xff;
-    data[27] = mNumRTPOctetsSent & 0xff;
-
-    buffer->setRange(buffer->offset(), buffer->size() + 28);
-}
-
-void WifiDisplaySource::PlaybackSession::addSDES(const sp<ABuffer> &buffer) {
-    uint8_t *data = buffer->data() + buffer->size();
-    data[0] = 0x80 | 1;
-    data[1] = 202;  // SDES
-    data[4] = kSourceID >> 24;
-    data[5] = (kSourceID >> 16) & 0xff;
-    data[6] = (kSourceID >> 8) & 0xff;
-    data[7] = kSourceID & 0xff;
-
-    size_t offset = 8;
-
-    data[offset++] = 1;  // CNAME
-
-    static const char *kCNAME = "someone@somewhere";
-    data[offset++] = strlen(kCNAME);
-
-    memcpy(&data[offset], kCNAME, strlen(kCNAME));
-    offset += strlen(kCNAME);
-
-    data[offset++] = 7;  // NOTE
-
-    static const char *kNOTE = "Hell's frozen over.";
-    data[offset++] = strlen(kNOTE);
-
-    memcpy(&data[offset], kNOTE, strlen(kNOTE));
-    offset += strlen(kNOTE);
-
-    data[offset++] = 0;
-
-    if ((offset % 4) > 0) {
-        size_t count = 4 - (offset % 4);
-        switch (count) {
-            case 3:
-                data[offset++] = 0;
-            case 2:
-                data[offset++] = 0;
-            case 1:
-                data[offset++] = 0;
-        }
-    }
-
-    size_t numWords = (offset / 4) - 1;
-    data[2] = numWords >> 8;
-    data[3] = numWords & 0xff;
-
-    buffer->setRange(buffer->offset(), buffer->size() + offset);
-}
-
-// static
-uint64_t WifiDisplaySource::PlaybackSession::GetNowNTP() {
-    uint64_t nowUs = ALooper::GetNowUs();
-
-    nowUs += ((70ll * 365 + 17) * 24) * 60 * 60 * 1000000ll;
-
-    uint64_t hi = nowUs / 1000000ll;
-    uint64_t lo = ((1ll << 32) * (nowUs % 1000000ll)) / 1000000ll;
-
-    return (hi << 32) | lo;
-}
-
-void WifiDisplaySource::PlaybackSession::onSendSR() {
-    sp<ABuffer> buffer = new ABuffer(1500);
-    buffer->setRange(0, 0);
-
-    addSR(buffer);
-    addSDES(buffer);
-
-    if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
-        sp<AMessage> notify = mNotify->dup();
-        notify->setInt32("what", kWhatBinaryData);
-        notify->setInt32("channel", mRTCPChannel);
-        notify->setBuffer("data", buffer);
-        notify->post();
-    } else {
-        sendPacket(mRTCPSessionID, buffer->data(), buffer->size());
-    }
-
-    ++mNumSRsSent;
-}
-
-ssize_t WifiDisplaySource::PlaybackSession::appendTSData(
-        const void *data, size_t size, bool timeDiscontinuity, bool flush) {
-    CHECK_EQ(size, 188);
-
-    CHECK_LE(mTSQueue->size() + size, mTSQueue->capacity());
-
-    memcpy(mTSQueue->data() + mTSQueue->size(), data, size);
-    mTSQueue->setRange(0, mTSQueue->size() + size);
-
-    if (flush || mTSQueue->size() == mTSQueue->capacity()) {
-        // flush
-
-        int64_t nowUs = ALooper::GetNowUs();
-
-#if TRACK_BANDWIDTH
-        if (mFirstPacketTimeUs < 0ll) {
-            mFirstPacketTimeUs = nowUs;
-        }
-#endif
-
-        // 90kHz time scale
-        uint32_t rtpTime = (nowUs * 9ll) / 100ll;
-
-        uint8_t *rtp = mTSQueue->data();
-        rtp[0] = 0x80;
-        rtp[1] = 33 | (timeDiscontinuity ? (1 << 7) : 0);  // M-bit
-        rtp[2] = (mRTPSeqNo >> 8) & 0xff;
-        rtp[3] = mRTPSeqNo & 0xff;
-        rtp[4] = rtpTime >> 24;
-        rtp[5] = (rtpTime >> 16) & 0xff;
-        rtp[6] = (rtpTime >> 8) & 0xff;
-        rtp[7] = rtpTime & 0xff;
-        rtp[8] = kSourceID >> 24;
-        rtp[9] = (kSourceID >> 16) & 0xff;
-        rtp[10] = (kSourceID >> 8) & 0xff;
-        rtp[11] = kSourceID & 0xff;
-
-        ++mRTPSeqNo;
-        ++mNumRTPSent;
-        mNumRTPOctetsSent += mTSQueue->size() - 12;
-
-        mLastRTPTime = rtpTime;
-        mLastNTPTime = GetNowNTP();
-
-        if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
-            sp<AMessage> notify = mNotify->dup();
-            notify->setInt32("what", kWhatBinaryData);
-
-            sp<ABuffer> data = new ABuffer(mTSQueue->size());
-            memcpy(data->data(), rtp, mTSQueue->size());
-
-            notify->setInt32("channel", mRTPChannel);
-            notify->setBuffer("data", data);
-            notify->post();
-        } else {
-            sendPacket(mRTPSessionID, rtp, mTSQueue->size());
-
-#if TRACK_BANDWIDTH
-            mTotalBytesSent += mTSQueue->size();
-            int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
-
-            if (delayUs > 0ll) {
-                ALOGI("approx. net bandwidth used: %.2f Mbit/sec",
-                        mTotalBytesSent * 8.0 / delayUs);
-            }
-#endif
-        }
-
-#if ENABLE_RETRANSMISSION
-        mTSQueue->setInt32Data(mRTPSeqNo - 1);
-
-        mHistory.push_back(mTSQueue);
-        ++mHistoryLength;
-
-        if (mHistoryLength > kMaxHistoryLength) {
-            mTSQueue = *mHistory.begin();
-            mHistory.erase(mHistory.begin());
-
-            --mHistoryLength;
-        } else {
-            mTSQueue = new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188);
-        }
-#endif
-
-        mTSQueue->setRange(0, 12);
-    }
-
-    return size;
-}
-
-status_t WifiDisplaySource::PlaybackSession::parseRTCP(
-        const sp<ABuffer> &buffer) {
-    const uint8_t *data = buffer->data();
-    size_t size = buffer->size();
-
-    while (size > 0) {
-        if (size < 8) {
-            // Too short to be a valid RTCP header
-            return ERROR_MALFORMED;
-        }
-
-        if ((data[0] >> 6) != 2) {
-            // Unsupported version.
-            return ERROR_UNSUPPORTED;
-        }
-
-        if (data[0] & 0x20) {
-            // Padding present.
-
-            size_t paddingLength = data[size - 1];
-
-            if (paddingLength + 12 > size) {
-                // If we removed this much padding we'd end up with something
-                // that's too short to be a valid RTP header.
-                return ERROR_MALFORMED;
-            }
-
-            size -= paddingLength;
-        }
-
-        size_t headerLength = 4 * (data[2] << 8 | data[3]) + 4;
-
-        if (size < headerLength) {
-            // Only received a partial packet?
-            return ERROR_MALFORMED;
-        }
-
-        switch (data[1]) {
-            case 200:
-            case 201:  // RR
-            case 202:  // SDES
-            case 203:
-            case 204:  // APP
-                break;
-
-#if ENABLE_RETRANSMISSION
-            case 205:  // TSFB (transport layer specific feedback)
-                parseTSFB(data, headerLength);
-                break;
-#endif
-
-            case 206:  // PSFB (payload specific feedback)
-                hexdump(data, headerLength);
-                break;
-
-            default:
-            {
-                ALOGW("Unknown RTCP packet type %u of size %d",
-                     (unsigned)data[1], headerLength);
-                break;
-            }
-        }
-
-        data += headerLength;
-        size -= headerLength;
-    }
-
-    return OK;
-}
-
-#if ENABLE_RETRANSMISSION
-status_t WifiDisplaySource::PlaybackSession::parseTSFB(
-        const uint8_t *data, size_t size) {
-    if ((data[0] & 0x1f) != 1) {
-        return ERROR_UNSUPPORTED;  // We only support NACK for now.
-    }
-
-    uint32_t srcId = U32_AT(&data[8]);
-    if (srcId != kSourceID) {
-        return ERROR_MALFORMED;
-    }
-
-    for (size_t i = 12; i < size; i += 4) {
-        uint16_t seqNo = U16_AT(&data[i]);
-        uint16_t blp = U16_AT(&data[i + 2]);
-
-        List<sp<ABuffer> >::iterator it = mHistory.begin();
-        bool foundSeqNo = false;
-        while (it != mHistory.end()) {
-            const sp<ABuffer> &buffer = *it;
-
-            uint16_t bufferSeqNo = buffer->int32Data() & 0xffff;
-
-            bool retransmit = false;
-            if (bufferSeqNo == seqNo) {
-                retransmit = true;
-            } else if (blp != 0) {
-                for (size_t i = 0; i < 16; ++i) {
-                    if ((blp & (1 << i))
-                        && (bufferSeqNo == ((seqNo + i + 1) & 0xffff))) {
-                        blp &= ~(1 << i);
-                        retransmit = true;
-                    }
-                }
-            }
-
-            if (retransmit) {
-                ALOGI("retransmitting seqNo %d", bufferSeqNo);
-
-                sp<ABuffer> retransRTP = new ABuffer(2 + buffer->size());
-                uint8_t *rtp = retransRTP->data();
-                memcpy(rtp, buffer->data(), 12);
-                rtp[2] = (mRTPRetransmissionSeqNo >> 8) & 0xff;
-                rtp[3] = mRTPRetransmissionSeqNo & 0xff;
-                rtp[12] = (bufferSeqNo >> 8) & 0xff;
-                rtp[13] = bufferSeqNo & 0xff;
-                memcpy(&rtp[14], buffer->data() + 12, buffer->size() - 12);
-
-                ++mRTPRetransmissionSeqNo;
-
-                sendPacket(
-                        mRTPRetransmissionSessionID,
-                        retransRTP->data(), retransRTP->size());
-
-                if (bufferSeqNo == seqNo) {
-                    foundSeqNo = true;
-                }
-
-                if (foundSeqNo && blp == 0) {
-                    break;
-                }
-            }
-
-            ++it;
-        }
-
-        if (!foundSeqNo || blp != 0) {
-            ALOGI("Some sequence numbers were no longer available for "
-                  "retransmission");
-        }
-    }
-
-    return OK;
-}
-#endif
-
 void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
     for (size_t i = 0; i < mTracks.size(); ++i) {
         const sp<Track> &track = mTracks.valueAt(i);
 
         track->requestIDRFrame();
     }
-}
-
-status_t WifiDisplaySource::PlaybackSession::sendPacket(
-        int32_t sessionID, const void *data, size_t size) {
-    return mNetSession->sendRequest(sessionID, data, size);
 }
 
 bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
@@ -1377,7 +767,8 @@ bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
-        size_t trackIndex, const sp<ABuffer> &accessUnit) {
+        size_t trackIndex, const sp<ABuffer> &accessUnit,
+        sp<ABuffer> *packets) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
 
     uint32_t flags = 0;
@@ -1477,35 +868,11 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
         mPrevTimeUs = timeUs;
     }
 
-    sp<ABuffer> packets;
     mPacketizer->packetize(
-            track->packetizerTrackIndex(), accessUnit, &packets, flags,
+            track->packetizerTrackIndex(), accessUnit, packets, flags,
             !isHDCPEncrypted ? NULL : HDCP_private_data,
-            !isHDCPEncrypted ? 0 : sizeof(HDCP_private_data));
-
-    for (size_t offset = 0;
-            offset < packets->size(); offset += 188) {
-        bool lastTSPacket = (offset + 188 >= packets->size());
-
-        // We're only going to flush video, audio packets are
-        // much more frequent and would waste all that space
-        // available in a full sized UDP packet.
-        bool flush =
-            lastTSPacket
-                && ((ssize_t)trackIndex == mVideoTrackIndex);
-
-        appendTSData(
-                packets->data() + offset,
-                188,
-                true /* timeDiscontinuity */,
-                flush);
-    }
-
-#if LOG_TRANSPORT_STREAM
-    if (mLogFile != NULL) {
-        fwrite(packets->data(), 1, packets->size(), mLogFile);
-    }
-#endif
+            !isHDCPEncrypted ? 0 : sizeof(HDCP_private_data),
+            track->isAudio() ? 2 : 0 /* numStuffingBytes */);
 
     return OK;
 }
@@ -1519,12 +886,7 @@ status_t WifiDisplaySource::PlaybackSession::packetizeQueuedAccessUnits() {
 
             sp<ABuffer> accessUnit = track->dequeueAccessUnit();
             if (accessUnit != NULL) {
-                status_t err = packetizeAccessUnit(trackIndex, accessUnit);
-
-                if (err != OK) {
-                    return err;
-                }
-
+                track->queueOutputBuffer(accessUnit);
                 gotMoreData = true;
             }
         }
@@ -1544,6 +906,58 @@ void WifiDisplaySource::PlaybackSession::notifySessionDead() {
     notify->post();
 
     mWeAreDead = true;
+}
+
+void WifiDisplaySource::PlaybackSession::drainAccessUnits() {
+    ALOGV("audio/video has %d/%d buffers ready.",
+            mTracks.valueFor(1)->countQueuedOutputBuffers(),
+            mTracks.valueFor(0)->countQueuedOutputBuffers());
+
+    while (drainAccessUnit()) {
+    }
+}
+
+bool WifiDisplaySource::PlaybackSession::drainAccessUnit() {
+    ssize_t minTrackIndex = -1;
+    int64_t minTimeUs = -1ll;
+
+    for (size_t i = 0; i < mTracks.size(); ++i) {
+        const sp<Track> &track = mTracks.valueAt(i);
+
+        int64_t timeUs;
+        if (track->hasOutputBuffer(&timeUs)) {
+            if (minTrackIndex < 0 || timeUs < minTimeUs) {
+                minTrackIndex = mTracks.keyAt(i);
+                minTimeUs = timeUs;
+            }
+        } else if (!track->isSuspended()) {
+            // We still consider this track "live", so it should keep
+            // delivering output data whose time stamps we'll have to
+            // consider for proper interleaving.
+            return false;
+        }
+    }
+
+    if (minTrackIndex < 0) {
+        return false;
+    }
+
+    const sp<Track> &track = mTracks.valueFor(minTrackIndex);
+    sp<ABuffer> accessUnit = track->dequeueOutputBuffer();
+
+    sp<ABuffer> packets;
+    status_t err = packetizeAccessUnit(minTrackIndex, accessUnit, &packets);
+
+    if (err != OK) {
+        notifySessionDead();
+    }
+
+    if ((ssize_t)minTrackIndex == mVideoTrackIndex) {
+        packets->meta()->setInt32("isVideo", 1);
+    }
+    mSender->queuePackets(minTimeUs, packets);
+
+    return true;
 }
 
 }  // namespace android
