@@ -17,6 +17,72 @@
 #ifndef ANDROID_AUDIO_STATE_QUEUE_H
 #define ANDROID_AUDIO_STATE_QUEUE_H
 
+// The state queue template class was originally driven by this use case / requirements:
+//  There are two threads: a fast mixer, and a normal mixer, and they share state.
+//  The interesting part of the shared state is a set of active fast tracks,
+//  and the output HAL configuration (buffer size in frames, sample rate, etc.).
+//  Fast mixer thread:
+//      periodic with typical period < 10 ms
+//      FIFO/RR scheduling policy and a low fixed priority
+//      ok to block for bounded time using nanosleep() to achieve desired period
+//      must not block on condition wait, mutex lock, atomic operation spin, I/O, etc.
+//        under typical operations of mixing, writing, or adding/removing tracks
+//      ok to block for unbounded time when the output HAL configuration changes,
+//        and this may result in an audible artifact
+//      needs read-only access to a recent stable state,
+//        but not necessarily the most current one
+//  Normal mixer thread:
+//      periodic with typical period ~40 ms
+//      SCHED_OTHER scheduling policy and nice priority == urgent audio
+//      ok to block, but prefer to avoid as much as possible
+//      needs read/write access to state
+//  The normal mixer may need to temporarily suspend the fast mixer thread during mode changes.
+//  It will do this using the state -- one of the fields tells the fast mixer to idle.
+
+// Additional requirements:
+//  - observer must always be able to poll for and view the latest pushed state; it must never be
+//    blocked from seeing that state
+//  - observer does not need to see every state in sequence; it is OK for it to skip states
+//    [see below for more on this]
+//  - mutator must always be able to read/modify a state, it must never be blocked from reading or
+//    modifying state
+//  - reduce memcpy where possible
+//  - work well if the observer runs more frequently than the mutator,
+//    as is the case with fast mixer/normal mixer.
+// It is not a requirement to work well if the roles were reversed,
+// and the mutator were to run more frequently than the observer.
+// In this case, the mutator could get blocked waiting for a slot to fill up for
+// it to work with. This could be solved somewhat by increasing the depth of the queue, but it would
+// still limit the mutator to a finite number of changes before it would block.  A future
+// possibility, not implemented here, would be to allow the mutator to safely overwrite an already
+// pushed state. This could be done by the mutator overwriting mNext, but then being prepared to
+// read an mAck which is actually for the earlier mNext (since there is a race).
+
+// Solution:
+//  Let's call the fast mixer thread the "observer" and normal mixer thread the "mutator".
+//  We assume there is only a single observer and a single mutator; this is critical.
+//  Each state is of type <T>, and should contain only POD (Plain Old Data) and raw pointers, as
+//  memcpy() may be used to copy state, and the destructors are run in unpredictable order.
+//  The states in chronological order are: previous, current, next, and mutating:
+//      previous    read-only, observer can compare vs. current to see the subset that changed
+//      current     read-only, this is the primary state for observer
+//      next        read-only, when observer is ready to accept a new state it will shift it in:
+//                      previous = current
+//                      current = next
+//                  and the slot formerly used by previous is now available to the mutator.
+//      mutating    invisible to observer, read/write to mutator
+//  Initialization is tricky, especially for the observer.  If the observer starts execution
+//  before the mutator, there are no previous, current, or next states.  And even if the observer
+//  starts execution after the mutator, there is a next state but no previous or current states.
+//  To solve this, we'll have the observer idle until there is a next state,
+//  and it will have to deal with the case where there is no previous state.
+//  The states are stored in a shared FIFO queue represented using a circular array.
+//  The observer polls for mutations, and receives a new state pointer after a
+//  a mutation is pushed onto the queue.  To the observer, the state pointers are
+//  effectively in random order, that is the observer should not do address
+//  arithmetic on the state pointers.  However to the mutator, the state pointers
+//  are in a definite circular order.
+
 namespace android {
 
 #ifdef STATE_QUEUE_DUMP
