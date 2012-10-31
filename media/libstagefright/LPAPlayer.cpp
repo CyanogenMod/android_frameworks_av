@@ -194,7 +194,16 @@ void LPAPlayer::AudioFlingerLPAdecodeClient::ioConfigChanged(int event, audio_io
 }
 
 void LPAPlayer::handleA2DPSwitch() {
-    pthread_cond_signal(&decoder_cv);
+    if (mIsA2DPEnabled && !mSeeking && !mPaused) {
+        // This is needed to ensure that playback happens from the current timestamp
+        // as the buffers sent to lpa driver are flushed during switch
+        mTimePlayed += (nanoseconds_to_microseconds(systemTime(SYSTEM_TIME_MONOTONIC)) - mTimeStarted);
+        mTimeStarted = 0;
+        mInternalSeeking = true;
+        mSeekTimeUs = mTimePlayed;
+    }
+    if (!mPaused)
+        pthread_cond_signal(&decoder_cv);
 }
 
 void LPAPlayer::setSource(const sp<MediaSource> &source) {
