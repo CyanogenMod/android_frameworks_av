@@ -131,6 +131,8 @@ private:
     sp<AnotherPacketSource> mSource;
     bool mPayloadStarted;
 
+    uint64_t mPrevPTS;
+
     ElementaryStreamQueue *mQueue;
 
     status_t flush();
@@ -458,6 +460,7 @@ ATSParser::Stream::Stream(
       mPCR_PID(PCR_PID),
       mExpectedContinuityCounter(-1),
       mPayloadStarted(false),
+      mPrevPTS(0),
       mQueue(NULL) {
     switch (mStreamType) {
         case STREAMTYPE_H264:
@@ -484,6 +487,11 @@ ATSParser::Stream::Stream(
         case STREAMTYPE_MPEG4_VIDEO:
             mQueue = new ElementaryStreamQueue(
                     ElementaryStreamQueue::MPEG4_VIDEO);
+            break;
+
+        case STREAMTYPE_PCM_AUDIO:
+            mQueue = new ElementaryStreamQueue(
+                    ElementaryStreamQueue::PCM_AUDIO);
             break;
 
         default:
@@ -583,6 +591,7 @@ bool ATSParser::Stream::isAudio() const {
         case STREAMTYPE_MPEG1_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
+        case STREAMTYPE_PCM_AUDIO:
             return true;
 
         default:
@@ -827,6 +836,14 @@ status_t ATSParser::Stream::flush() {
 void ATSParser::Stream::onPayloadData(
         unsigned PTS_DTS_flags, uint64_t PTS, uint64_t DTS,
         const uint8_t *data, size_t size) {
+#if 0
+    ALOGI("payload streamType 0x%02x, PTS = 0x%016llx, dPTS = %lld",
+          mStreamType,
+          PTS,
+          (int64_t)PTS - mPrevPTS);
+    mPrevPTS = PTS;
+#endif
+
     ALOGV("onPayloadData mStreamType=0x%02x", mStreamType);
 
     int64_t timeUs = 0ll;  // no presentation timestamp available.
