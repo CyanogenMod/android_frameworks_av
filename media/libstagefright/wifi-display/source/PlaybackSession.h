@@ -18,6 +18,7 @@
 
 #define PLAYBACK_SESSION_H_
 
+#include "Sender.h"
 #include "WifiDisplaySource.h"
 
 namespace android {
@@ -30,10 +31,6 @@ struct MediaPuller;
 struct MediaSource;
 struct TSPacketizer;
 
-#define LOG_TRANSPORT_STREAM            0
-#define ENABLE_RETRANSMISSION           0
-#define TRACK_BANDWIDTH                 0
-
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
 struct WifiDisplaySource::PlaybackSession : public AHandler {
@@ -43,14 +40,9 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const struct in_addr &interfaceAddr,
             const sp<IHDCP> &hdcp);
 
-    enum TransportMode {
-        TRANSPORT_UDP,
-        TRANSPORT_TCP_INTERLEAVED,
-        TRANSPORT_TCP,
-    };
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-            TransportMode transportMode,
+            Sender::TransportMode transportMode,
             bool usePCMAudio);
 
     void destroyAsync();
@@ -85,29 +77,18 @@ private:
     struct Track;
 
     enum {
-        kWhatSendSR,
-        kWhatRTPNotify,
-        kWhatRTCPNotify,
-#if ENABLE_RETRANSMISSION
-        kWhatRTPRetransmissionNotify,
-        kWhatRTCPRetransmissionNotify,
-#endif
         kWhatMediaPullerNotify,
         kWhatConverterNotify,
         kWhatTrackNotify,
+        kWhatSenderNotify,
         kWhatUpdateSurface,
         kWhatFinishPlay,
+        kWhatPacketize,
     };
 
-    static const int64_t kSendSRIntervalUs = 10000000ll;
-    static const uint32_t kSourceID = 0xdeadbeef;
-    static const size_t kMaxHistoryLength = 128;
-
-#if ENABLE_RETRANSMISSION
-    static const size_t kRetransmissionPortOffset = 120;
-#endif
-
     sp<ANetworkSession> mNetSession;
+    sp<Sender> mSender;
+    sp<ALooper> mSenderLooper;
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
@@ -121,65 +102,9 @@ private:
     KeyedVector<size_t, sp<Track> > mTracks;
     ssize_t mVideoTrackIndex;
 
-    sp<ABuffer> mTSQueue;
     int64_t mPrevTimeUs;
 
-    TransportMode mTransportMode;
-
-    AString mClientIP;
-
     bool mAllTracksHavePacketizerIndex;
-
-    // in TCP mode
-    int32_t mRTPChannel;
-    int32_t mRTCPChannel;
-
-    // in UDP mode
-    int32_t mRTPPort;
-    int32_t mRTPSessionID;
-    int32_t mRTCPSessionID;
-
-#if ENABLE_RETRANSMISSION
-    int32_t mRTPRetransmissionSessionID;
-    int32_t mRTCPRetransmissionSessionID;
-#endif
-
-    int32_t mClientRTPPort;
-    int32_t mClientRTCPPort;
-    bool mRTPConnected;
-    bool mRTCPConnected;
-
-    uint32_t mRTPSeqNo;
-#if ENABLE_RETRANSMISSION
-    uint32_t mRTPRetransmissionSeqNo;
-#endif
-
-    uint64_t mLastNTPTime;
-    uint32_t mLastRTPTime;
-    uint32_t mNumRTPSent;
-    uint32_t mNumRTPOctetsSent;
-    uint32_t mNumSRsSent;
-
-    bool mSendSRPending;
-
-#if ENABLE_RETRANSMISSION
-    List<sp<ABuffer> > mHistory;
-    size_t mHistoryLength;
-#endif
-
-#if TRACK_BANDWIDTH
-    int64_t mFirstPacketTimeUs;
-    uint64_t mTotalBytesSent;
-#endif
-
-#if LOG_TRANSPORT_STREAM
-    FILE *mLogFile;
-#endif
-
-    void onSendSR();
-    void addSR(const sp<ABuffer> &buffer);
-    void addSDES(const sp<ABuffer> &buffer);
-    static uint64_t GetNowNTP();
 
     status_t setupPacketizer(bool usePCMAudio);
 
@@ -196,26 +121,23 @@ private:
     ssize_t appendTSData(
             const void *data, size_t size, bool timeDiscontinuity, bool flush);
 
-    void scheduleSendSR();
-
-    status_t parseRTCP(const sp<ABuffer> &buffer);
-
-#if ENABLE_RETRANSMISSION
-    status_t parseTSFB(const uint8_t *data, size_t size);
-#endif
-
-    status_t sendPacket(int32_t sessionID, const void *data, size_t size);
     status_t onFinishPlay();
     status_t onFinishPlay2();
 
     bool allTracksHavePacketizerIndex();
 
     status_t packetizeAccessUnit(
-            size_t trackIndex, const sp<ABuffer> &accessUnit);
+            size_t trackIndex, const sp<ABuffer> &accessUnit,
+            sp<ABuffer> *packets);
 
     status_t packetizeQueuedAccessUnits();
 
     void notifySessionDead();
+
+    void drainAccessUnits();
+
+    // Returns true iff an access unit was successfully drained.
+    bool drainAccessUnit();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };

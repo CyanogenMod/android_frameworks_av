@@ -94,8 +94,11 @@ private:
     sp<AMessage> mNotify;
     bool mSawReceiveFailure, mSawSendFailure;
 
+    // for TCP / stream data
     AString mOutBuffer;
-    List<size_t> mOutBufferSizes;
+
+    // for UDP / datagrams
+    List<sp<ABuffer> > mOutDatagrams;
 
     AString mInBuffer;
 
@@ -213,8 +216,8 @@ bool ANetworkSession::Session::wantsToRead() {
 bool ANetworkSession::Session::wantsToWrite() {
     return !mSawSendFailure
         && (mState == CONNECTING
-            || ((mState == CONNECTED || mState == DATAGRAM)
-                    && !mOutBuffer.empty()));
+            || (mState == CONNECTED && !mOutBuffer.empty())
+            || (mState == DATAGRAM && !mOutDatagrams.empty()));
 }
 
 status_t ANetworkSession::Session::readMore() {
@@ -398,30 +401,27 @@ status_t ANetworkSession::Session::readMore() {
 
 status_t ANetworkSession::Session::writeMore() {
     if (mState == DATAGRAM) {
-        CHECK(!mOutBufferSizes.empty());
+        CHECK(!mOutDatagrams.empty());
 
         status_t err;
         do {
-            size_t size = *mOutBufferSizes.begin();
-
-            CHECK_GE(mOutBuffer.size(), size);
+            const sp<ABuffer> &datagram = *mOutDatagrams.begin();
 
             int n;
             do {
-                n = send(mSocket, mOutBuffer.c_str(), size, 0);
+                n = send(mSocket, datagram->data(), datagram->size(), 0);
             } while (n < 0 && errno == EINTR);
 
             err = OK;
 
             if (n > 0) {
-                mOutBufferSizes.erase(mOutBufferSizes.begin());
-                mOutBuffer.erase(0, n);
+                mOutDatagrams.erase(mOutDatagrams.begin());
             } else if (n < 0) {
                 err = -errno;
             } else if (n == 0) {
                 err = -ECONNRESET;
             }
-        } while (err == OK && !mOutBufferSizes.empty());
+        } while (err == OK && !mOutDatagrams.empty());
 
         if (err == -EAGAIN) {
             err = OK;
@@ -488,6 +488,16 @@ status_t ANetworkSession::Session::writeMore() {
 status_t ANetworkSession::Session::sendRequest(const void *data, ssize_t size) {
     CHECK(mState == CONNECTED || mState == DATAGRAM);
 
+    if (mState == DATAGRAM) {
+        CHECK_GE(size, 0);
+
+        sp<ABuffer> datagram = new ABuffer(size);
+        memcpy(datagram->data(), data, size);
+
+        mOutDatagrams.push_back(datagram);
+        return OK;
+    }
+
     if (mState == CONNECTED && !mIsRTSPConnection) {
         CHECK_LE(size, 65535);
 
@@ -501,11 +511,6 @@ status_t ANetworkSession::Session::sendRequest(const void *data, ssize_t size) {
     mOutBuffer.append(
             (const char *)data,
             (size >= 0) ? size : strlen((const char *)data));
-
-    if (mState == DATAGRAM) {
-        CHECK_GE(size, 0);
-        mOutBufferSizes.push_back(size);
-    }
 
     return OK;
 }
