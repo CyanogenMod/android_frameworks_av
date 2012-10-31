@@ -14,6 +14,7 @@ LOCAL_SRC_FILES:= \
         source/MediaPuller.cpp          \
         source/PlaybackSession.cpp      \
         source/RepeaterSource.cpp       \
+        source/Sender.cpp               \
         source/TSPacketizer.cpp         \
         source/WifiDisplaySource.cpp    \
 
