@@ -60,6 +60,10 @@ const char CameraParameters::KEY_MAX_BURST_PICTURE_COUNT[] = "max-burst-picture-
 const char CameraParameters::KEY_SUPPORTED_CONTINUOUS_AF[] = "continuous-af-mode";
 const char CameraParameters::KEY_SUPPORTED_CAF[] = "continuous-af-values";
 const char CameraParameters::KEY_SUPPORTED_CAPTURE_MODES[] = "capture-mode-values";
+const char CameraParameters::KEY_SUPPORTED_3D_FILE_FORMAT[] = "3d-file-format";
+
+const char CameraParameters::FILE_FORMAT_JPS[] = "jps";
+const char CameraParameters::FILE_FORMAT_MPO[] = "mpo";
 #endif
 const char CameraParameters::KEY_PICTURE_SIZE[] = "picture-size";
 const char CameraParameters::KEY_SUPPORTED_PICTURE_SIZES[] = "picture-size-values";
@@ -626,6 +630,11 @@ void CameraParameters::getSupportedPreviewSizes(Vector<Size> &sizes) const
 
 #ifdef QCOM_HARDWARE
 void CameraParameters::setPostviewSize(int width, int height)
+{
+    // dummy
+}
+
+void CameraParameters::set3DFileFormat(const char *file)
 {
     // dummy
 }
