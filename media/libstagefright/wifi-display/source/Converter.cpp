@@ -33,6 +33,8 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 
+#include <OMX_Video.h>
+
 namespace android {
 
 Converter::Converter(
@@ -152,6 +154,7 @@ status_t Converter::initEncoder() {
         mOutputFormat->setInt32("bitrate", audioBitrate);
     } else {
         mOutputFormat->setInt32("bitrate", videoBitrate);
+        mOutputFormat->setInt32("bitrate-mode", OMX_Video_ControlRateConstant);
         mOutputFormat->setInt32("frame-rate", 30);
         mOutputFormat->setInt32("i-frame-interval", 1);  // Iframes every 1 secs
         mOutputFormat->setInt32("prepend-sps-pps-to-idr-frames", 1);
