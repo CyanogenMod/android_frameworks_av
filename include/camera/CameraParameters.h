@@ -189,6 +189,10 @@ public:
     static const char KEY_MAX_BURST_PICTURE_COUNT[];
     static const char KEY_SUPPORTED_CONTINUOUS_AF[];
     static const char KEY_SUPPORTED_CAF[];
+    static const char KEY_TAKING_PICTURE_ZOOM[];
+    static const char KEY_PANORAMA_MODE[];
+    static const char PANORAMA_MODE_NOT_INPROGRESS[];
+    static const char PANORAMA_MODE_INPROGRESS[];
     static const char CAPTURE_MODE_NORMAL[];
     static const char CAPTURE_MODE_BURST[];
     static const char CAPTURE_MODE_CONTI_BURST[];
