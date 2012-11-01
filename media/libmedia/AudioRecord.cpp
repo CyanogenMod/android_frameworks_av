@@ -127,7 +127,8 @@ status_t AudioRecord::set(
         int sessionId)
 {
 
-    ALOGV("set(): sampleRate %d, channelMask %#x, frameCount %d",sampleRate, channelMask, frameCount);
+    ALOGV("set(): sampleRate %d, channelMask %#x, frameCount %d",sampleRate, channelMask,
+            frameCount);
 
     AutoMutex lock(mLock);
 
@@ -701,7 +702,8 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
         status_t err = obtainBuffer(&audioBuffer, 1);
         if (err < NO_ERROR) {
             if (err != TIMED_OUT) {
-                ALOGE_IF(err != status_t(NO_MORE_BUFFERS), "Error obtaining an audio buffer, giving up.");
+                ALOGE_IF(err != status_t(NO_MORE_BUFFERS),
+                        "Error obtaining an audio buffer, giving up.");
                 return false;
             }
             break;

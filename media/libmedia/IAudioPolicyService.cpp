@@ -399,13 +399,15 @@ status_t BnAudioPolicyService::onTransact(
 
         case SET_PHONE_STATE: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            reply->writeInt32(static_cast <uint32_t>(setPhoneState((audio_mode_t) data.readInt32())));
+            reply->writeInt32(static_cast <uint32_t>(setPhoneState(
+                    (audio_mode_t) data.readInt32())));
             return NO_ERROR;
         } break;
 
         case SET_FORCE_USE: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            audio_policy_force_use_t usage = static_cast <audio_policy_force_use_t>(data.readInt32());
+            audio_policy_force_use_t usage = static_cast <audio_policy_force_use_t>(
+                    data.readInt32());
             audio_policy_forced_cfg_t config =
                     static_cast <audio_policy_forced_cfg_t>(data.readInt32());
             reply->writeInt32(static_cast <uint32_t>(setForceUse(usage, config)));
@@ -414,7 +416,8 @@ status_t BnAudioPolicyService::onTransact(
 
         case GET_FORCE_USE: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            audio_policy_force_use_t usage = static_cast <audio_policy_force_use_t>(data.readInt32());
+            audio_policy_force_use_t usage = static_cast <audio_policy_force_use_t>(
+                    data.readInt32());
             reply->writeInt32(static_cast <uint32_t>(getForceUse(usage)));
             return NO_ERROR;
         } break;

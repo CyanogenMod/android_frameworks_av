@@ -152,7 +152,8 @@ status_t AudioEffect::set(const effect_uuid_t *type,
     mCblk->buffer = (uint8_t *)mCblk + bufOffset;
 
     iEffect->asBinder()->linkToDeath(mIEffectClient);
-    ALOGV("set() %p OK effect: %s id: %d status %d enabled %d", this, mDescriptor.name, mId, mStatus, mEnabled);
+    ALOGV("set() %p OK effect: %s id: %d status %d enabled %d", this, mDescriptor.name, mId,
+            mStatus, mEnabled);
 
     return mStatus;
 }
@@ -266,9 +267,11 @@ status_t AudioEffect::setParameter(effect_param_t *param)
     uint32_t size = sizeof(int);
     uint32_t psize = ((param->psize - 1) / sizeof(int) + 1) * sizeof(int) + param->vsize;
 
-    ALOGV("setParameter: param: %d, param2: %d", *(int *)param->data, (param->psize == 8) ? *((int *)param->data + 1): -1);
+    ALOGV("setParameter: param: %d, param2: %d", *(int *)param->data,
+            (param->psize == 8) ? *((int *)param->data + 1): -1);
 
-    return mIEffect->command(EFFECT_CMD_SET_PARAM, sizeof (effect_param_t) + psize, param, &size, &param->status);
+    return mIEffect->command(EFFECT_CMD_SET_PARAM, sizeof (effect_param_t) + psize, param, &size,
+            &param->status);
 }
 
 status_t AudioEffect::setParameterDeferred(effect_param_t *param)
@@ -321,11 +324,14 @@ status_t AudioEffect::getParameter(effect_param_t *param)
         return BAD_VALUE;
     }
 
-    ALOGV("getParameter: param: %d, param2: %d", *(int *)param->data, (param->psize == 8) ? *((int *)param->data + 1): -1);
+    ALOGV("getParameter: param: %d, param2: %d", *(int *)param->data,
+            (param->psize == 8) ? *((int *)param->data + 1): -1);
 
-    uint32_t psize = sizeof(effect_param_t) + ((param->psize - 1) / sizeof(int) + 1) * sizeof(int) + param->vsize;
+    uint32_t psize = sizeof(effect_param_t) + ((param->psize - 1) / sizeof(int) + 1) * sizeof(int) +
+            param->vsize;
 
-    return mIEffect->command(EFFECT_CMD_GET_PARAM, sizeof(effect_param_t) + param->psize, param, &psize, param);
+    return mIEffect->command(EFFECT_CMD_GET_PARAM, sizeof(effect_param_t) + param->psize, param,
+            &psize, param);
 }
 
 
@@ -346,7 +352,8 @@ void AudioEffect::binderDied()
 
 void AudioEffect::controlStatusChanged(bool controlGranted)
 {
-    ALOGV("controlStatusChanged %p control %d callback %p mUserData %p", this, controlGranted, mCbf, mUserData);
+    ALOGV("controlStatusChanged %p control %d callback %p mUserData %p", this, controlGranted, mCbf,
+            mUserData);
     if (controlGranted) {
         if (mStatus == ALREADY_EXISTS) {
             mStatus = NO_ERROR;

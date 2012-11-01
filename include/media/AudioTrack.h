@@ -53,9 +53,12 @@ public:
     enum event_type {
         EVENT_MORE_DATA = 0,        // Request to write more data to PCM buffer.
         EVENT_UNDERRUN = 1,         // PCM buffer underrun occured.
-        EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from loop start if loop count was not 0.
-        EVENT_MARKER = 3,           // Playback head is at the specified marker position (See setMarkerPosition()).
-        EVENT_NEW_POS = 4,          // Playback head is at a new position (See setPositionUpdatePeriod()).
+        EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from
+                                    // loop start if loop count was not 0.
+        EVENT_MARKER = 3,           // Playback head is at the specified marker position
+                                    // (See setMarkerPosition()).
+        EVENT_NEW_POS = 4,          // Playback head is at a new position
+                                    // (See setPositionUpdatePeriod()).
         EVENT_BUFFER_END = 5        // Playback head is at the end of the buffer.
     };
 
@@ -312,7 +315,8 @@ public:
     /* Sets marker position. When playback reaches the number of frames specified, a callback with
      * event type EVENT_MARKER is called. Calling setMarkerPosition with marker == 0 cancels marker
      * notification callback.
-     * If the AudioTrack has been opened with no callback function associated, the operation will fail.
+     * If the AudioTrack has been opened with no callback function associated, the operation will
+     * fail.
      *
      * Parameters:
      *
@@ -330,7 +334,8 @@ public:
      * a callback with event type EVENT_NEW_POS is called.
      * Calling setPositionUpdatePeriod with updatePeriod == 0 cancels new position notification
      * callback.
-     * If the AudioTrack has been opened with no callback function associated, the operation will fail.
+     * If the AudioTrack has been opened with no callback function associated, the operation will
+     * fail.
      *
      * Parameters:
      *
@@ -359,7 +364,8 @@ public:
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
      *  - INVALID_OPERATION: the AudioTrack is not stopped.
-     *  - BAD_VALUE: The specified position is beyond the number of frames present in AudioTrack buffer
+     *  - BAD_VALUE: The specified position is beyond the number of frames present in AudioTrack
+     *               buffer
      */
             status_t    setPosition(uint32_t position);
             status_t    getPosition(uint32_t *position);
@@ -518,8 +524,10 @@ protected:
 
     callback_t              mCbf;                   // callback handler for events, or NULL
     void*                   mUserData;
-    uint32_t                mNotificationFramesReq; // requested number of frames between each notification callback
-    uint32_t                mNotificationFramesAct; // actual number of frames between each notification callback
+    uint32_t                mNotificationFramesReq; // requested number of frames between each
+                                                    // notification callback
+    uint32_t                mNotificationFramesAct; // actual number of frames between each
+                                                    // notification callback
     sp<IMemory>             mSharedBuffer;
     int                     mLoopCount;
     uint32_t                mRemainingFrames;

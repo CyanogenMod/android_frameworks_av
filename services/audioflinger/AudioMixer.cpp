@@ -765,7 +765,8 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
 }
 
 
-void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFrameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFrameCount,
+        int32_t* temp, int32_t* aux)
 {
     t->resampler->setSampleRate(t->sampleRate);
 
@@ -798,11 +799,13 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
     }
 }
 
-void AudioMixer::track__nop(track_t* t, int32_t* out, size_t outFrameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::track__nop(track_t* t, int32_t* out, size_t outFrameCount, int32_t* temp,
+        int32_t* aux)
 {
 }
 
-void AudioMixer::volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
+        int32_t* aux)
 {
     int32_t vl = t->prevVolume[0];
     int32_t vr = t->prevVolume[1];
@@ -844,7 +847,8 @@ void AudioMixer::volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, i
     t->adjustVolumeRamp(aux != NULL);
 }
 
-void AudioMixer::volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
+        int32_t* aux)
 {
     const int16_t vl = t->volume[0];
     const int16_t vr = t->volume[1];
@@ -872,7 +876,8 @@ void AudioMixer::volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32
     }
 }
 
-void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
+        int32_t* aux)
 {
     const int16_t *in = static_cast<const int16_t *>(t->in);
 
@@ -962,7 +967,8 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
     t->in = in;
 }
 
-void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, int32_t* temp, int32_t* aux)
+void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
+        int32_t* aux)
 {
     const int16_t *in = static_cast<int16_t const *>(t->in);
 
@@ -1147,7 +1153,8 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                 while (outFrames) {
                     size_t inFrames = (t.frameCount > outFrames)?outFrames:t.frameCount;
                     if (inFrames) {
-                        t.hook(&t, outTemp + (BLOCKSIZE-outFrames)*MAX_NUM_CHANNELS, inFrames, state->resampleTemp, aux);
+                        t.hook(&t, outTemp + (BLOCKSIZE-outFrames)*MAX_NUM_CHANNELS, inFrames,
+                                state->resampleTemp, aux);
                         t.frameCount -= inFrames;
                         outFrames -= inFrames;
                         if (CC_UNLIKELY(aux != NULL)) {
@@ -1156,7 +1163,8 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                     }
                     if (t.frameCount == 0 && outFrames) {
                         t.bufferProvider->releaseBuffer(&t.buffer);
-                        t.buffer.frameCount = (state->frameCount - numFrames) - (BLOCKSIZE - outFrames);
+                        t.buffer.frameCount = (state->frameCount - numFrames) -
+                                (BLOCKSIZE - outFrames);
                         int64_t outputPTS = calculateOutputPTS(
                             t, pts, numFrames + (BLOCKSIZE - outFrames));
                         t.bufferProvider->getNextBuffer(&t.buffer, outputPTS);
@@ -1246,7 +1254,8 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
                     if (CC_UNLIKELY(aux != NULL)) {
                         aux += outFrames;
                     }
-                    t.hook(&t, outTemp + outFrames*MAX_NUM_CHANNELS, t.buffer.frameCount, state->resampleTemp, aux);
+                    t.hook(&t, outTemp + outFrames*MAX_NUM_CHANNELS, t.buffer.frameCount,
+                            state->resampleTemp, aux);
                     outFrames += t.buffer.frameCount;
                     t.bufferProvider->releaseBuffer(&t.buffer);
                 }
@@ -1286,7 +1295,8 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         // been enabled for mixing.
         if (in == NULL || ((unsigned long)in & 3)) {
             memset(out, 0, numFrames*MAX_NUM_CHANNELS*sizeof(int16_t));
-            ALOGE_IF(((unsigned long)in & 3), "process stereo track: input buffer alignment pb: buffer %p track %d, channels %d, needs %08x",
+            ALOGE_IF(((unsigned long)in & 3), "process stereo track: input buffer alignment pb: "
+                                              "buffer %p track %d, channels %d, needs %08x",
                     in, i, t.channelCount, t.needs);
             return;
         }

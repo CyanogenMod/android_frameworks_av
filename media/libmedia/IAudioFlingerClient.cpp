@@ -50,7 +50,8 @@ public:
             ALOGV("ioConfigChanged stream %d", stream);
             data.writeInt32(stream);
         } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED) {
-            const AudioSystem::OutputDescriptor *desc = (const AudioSystem::OutputDescriptor *)param2;
+            const AudioSystem::OutputDescriptor *desc =
+                    (const AudioSystem::OutputDescriptor *)param2;
             data.writeInt32(desc->samplingRate);
             data.writeInt32(desc->format);
             data.writeInt32(desc->channels);

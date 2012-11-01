@@ -65,8 +65,10 @@ public:
     sp<IMemory> getIMemory() { return mData; }
 
     // hack
-    void init(int numChannels, int sampleRate, audio_format_t format, size_t size, sp<IMemory> data ) {
-        mNumChannels = numChannels; mSampleRate = sampleRate; mFormat = format; mSize = size; mData = data; }
+    void init(int numChannels, int sampleRate, audio_format_t format, size_t size,
+            sp<IMemory> data ) {
+        mNumChannels = numChannels; mSampleRate = sampleRate; mFormat = format; mSize = size;
+            mData = data; }
 
 private:
     void init();

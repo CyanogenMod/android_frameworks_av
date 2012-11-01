@@ -142,11 +142,11 @@ private:
             status_t dumpInternals(int fd);
 
     // Thread used for tone playback and to send audio config commands to audio flinger
-    // For tone playback, using a separate thread is necessary to avoid deadlock with mLock because startTone()
-    // and stopTone() are normally called with mLock locked and requesting a tone start or stop will cause
-    // calls to AudioPolicyService and an attempt to lock mLock.
-    // For audio config commands, it is necessary because audio flinger requires that the calling process (user)
-    // has permission to modify audio settings.
+    // For tone playback, using a separate thread is necessary to avoid deadlock with mLock because
+    // startTone() and stopTone() are normally called with mLock locked and requesting a tone start
+    // or stop will cause calls to AudioPolicyService and an attempt to lock mLock.
+    // For audio config commands, it is necessary because audio flinger requires that the calling
+    // process (user) has permission to modify audio settings.
     class AudioCommandThread : public Thread {
         class AudioCommand;
     public:

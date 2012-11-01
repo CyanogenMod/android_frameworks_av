@@ -198,7 +198,8 @@ status_t AudioTrack::set(
         int sessionId)
 {
 
-    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(), sharedBuffer->size());
+    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
+            sharedBuffer->size());
 
     ALOGV("set() streamType %d frameCount %d flags %04x", streamType, frameCount, flags);
 
@@ -617,12 +618,14 @@ status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCou
     if (loopStart >= loopEnd ||
         loopEnd - loopStart > cblk->frameCount ||
         cblk->server > loopStart) {
-        ALOGE("setLoop invalid value: loopStart %d, loopEnd %d, loopCount %d, framecount %d, user %d", loopStart, loopEnd, loopCount, cblk->frameCount, cblk->user);
+        ALOGE("setLoop invalid value: loopStart %d, loopEnd %d, loopCount %d, framecount %d, "
+              "user %d", loopStart, loopEnd, loopCount, cblk->frameCount, cblk->user);
         return BAD_VALUE;
     }
 
     if ((mSharedBuffer != 0) && (loopEnd > cblk->frameCount)) {
-        ALOGE("setLoop invalid value: loop markers beyond data: loopStart %d, loopEnd %d, framecount %d",
+        ALOGE("setLoop invalid value: loop markers beyond data: loopStart %d, loopEnd %d, "
+            "framecount %d",
             loopStart, loopEnd, cblk->frameCount);
         return BAD_VALUE;
     }
@@ -924,7 +927,8 @@ status_t AudioTrack::createTrack_l(
         mCblk->stepUser(mCblk->frameCount);
     }
 
-    mCblk->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) | uint16_t(mVolume[LEFT] * 0x1000));
+    mCblk->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) |
+            uint16_t(mVolume[LEFT] * 0x1000));
     mCblk->setSendLevel(mSendLevel);
     mAudioTrack->attachAuxEffect(mAuxEffectId);
     mCblk->bufferTimeoutMs = MAX_STARTUP_TIMEOUT_MS;
@@ -994,8 +998,8 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                     // timing out when a loop has been set and we have already written upto loop end
                     // is a normal condition: no need to wake AudioFlinger up.
                     if (cblk->user < cblk->loopEnd) {
-                        ALOGW(   "obtainBuffer timed out (is the CPU pegged?) %p name=%#x"
-                                "user=%08x, server=%08x", this, cblk->mName, cblk->user, cblk->server);
+                        ALOGW("obtainBuffer timed out (is the CPU pegged?) %p name=%#x user=%08x, "
+                              "server=%08x", this, cblk->mName, cblk->user, cblk->server);
                         //unlock cblk mutex before calling mAudioTrack->start() (see issue #1617140)
                         cblk->lock.unlock();
                         result = mAudioTrack->start();
@@ -1265,7 +1269,8 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
         status_t err = obtainBuffer(&audioBuffer, waitCount);
         if (err < NO_ERROR) {
             if (err != TIMED_OUT) {
-                ALOGE_IF(err != status_t(NO_MORE_BUFFERS), "Error obtaining an audio buffer, giving up.");
+                ALOGE_IF(err != status_t(NO_MORE_BUFFERS),
+                        "Error obtaining an audio buffer, giving up.");
                 return false;
             }
             break;
@@ -1439,11 +1444,14 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     String8 result;
 
     result.append(" AudioTrack::dump\n");
-    snprintf(buffer, 255, "  stream type(%d), left - right volume(%f, %f)\n", mStreamType, mVolume[0], mVolume[1]);
+    snprintf(buffer, 255, "  stream type(%d), left - right volume(%f, %f)\n", mStreamType,
+            mVolume[0], mVolume[1]);
     result.append(buffer);
-    snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat, mChannelCount, mCblk->frameCount);
+    snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
+            mChannelCount, mCblk->frameCount);
     result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%d), status(%d), muted(%d)\n", (mCblk == 0) ? 0 : mCblk->sampleRate, mStatus, mMuted);
+    snprintf(buffer, 255, "  sample rate(%d), status(%d), muted(%d)\n",
+            (mCblk == 0) ? 0 : mCblk->sampleRate, mStatus, mMuted);
     result.append(buffer);
     snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);
     result.append(buffer);
