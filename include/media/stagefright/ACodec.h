@@ -242,7 +242,10 @@ private:
     status_t setupAVCEncoderParameters(const sp<AMessage> &msg);
 
     status_t verifySupportForProfileAndLevel(int32_t profile, int32_t level);
-    status_t configureBitrate(int32_t bitrate);
+
+    status_t configureBitrate(
+            int32_t bitrate, OMX_VIDEO_CONTROLRATETYPE bitrateMode);
+
     status_t setupErrorCorrectionParameters();
 
     status_t initNativeWindow();
