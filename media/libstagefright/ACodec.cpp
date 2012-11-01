@@ -1636,12 +1636,23 @@ static OMX_U32 setPFramesSpacing(int32_t iFramesInterval, int32_t frameRate) {
     return ret;
 }
 
+static OMX_VIDEO_CONTROLRATETYPE getBitrateMode(const sp<AMessage> &msg) {
+    int32_t tmp;
+    if (!msg->findInt32("bitrate-mode", &tmp)) {
+        return OMX_Video_ControlRateVariable;
+    }
+
+    return static_cast<OMX_VIDEO_CONTROLRATETYPE>(tmp);
+}
+
 status_t ACodec::setupMPEG4EncoderParameters(const sp<AMessage> &msg) {
     int32_t bitrate, iFrameInterval;
     if (!msg->findInt32("bitrate", &bitrate)
             || !msg->findInt32("i-frame-interval", &iFrameInterval)) {
         return INVALID_OPERATION;
     }
+
+    OMX_VIDEO_CONTROLRATETYPE bitrateMode = getBitrateMode(msg);
 
     float frameRate;
     if (!msg->findFloat("frame-rate", &frameRate)) {
@@ -1706,7 +1717,7 @@ status_t ACodec::setupMPEG4EncoderParameters(const sp<AMessage> &msg) {
         return err;
     }
 
-    err = configureBitrate(bitrate);
+    err = configureBitrate(bitrate, bitrateMode);
 
     if (err != OK) {
         return err;
@@ -1721,6 +1732,8 @@ status_t ACodec::setupH263EncoderParameters(const sp<AMessage> &msg) {
             || !msg->findInt32("i-frame-interval", &iFrameInterval)) {
         return INVALID_OPERATION;
     }
+
+    OMX_VIDEO_CONTROLRATETYPE bitrateMode = getBitrateMode(msg);
 
     float frameRate;
     if (!msg->findFloat("frame-rate", &frameRate)) {
@@ -1780,7 +1793,7 @@ status_t ACodec::setupH263EncoderParameters(const sp<AMessage> &msg) {
         return err;
     }
 
-    err = configureBitrate(bitrate);
+    err = configureBitrate(bitrate, bitrateMode);
 
     if (err != OK) {
         return err;
@@ -1795,6 +1808,8 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
             || !msg->findInt32("i-frame-interval", &iFrameInterval)) {
         return INVALID_OPERATION;
     }
+
+    OMX_VIDEO_CONTROLRATETYPE bitrateMode = getBitrateMode(msg);
 
     float frameRate;
     if (!msg->findFloat("frame-rate", &frameRate)) {
@@ -1881,7 +1896,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         return err;
     }
 
-    return configureBitrate(bitrate);
+    return configureBitrate(bitrate, bitrateMode);
 }
 
 status_t ACodec::verifySupportForProfileAndLevel(
@@ -1910,7 +1925,8 @@ status_t ACodec::verifySupportForProfileAndLevel(
     }
 }
 
-status_t ACodec::configureBitrate(int32_t bitrate) {
+status_t ACodec::configureBitrate(
+        int32_t bitrate, OMX_VIDEO_CONTROLRATETYPE bitrateMode) {
     OMX_VIDEO_PARAM_BITRATETYPE bitrateType;
     InitOMXParams(&bitrateType);
     bitrateType.nPortIndex = kPortIndexOutput;
@@ -1923,7 +1939,7 @@ status_t ACodec::configureBitrate(int32_t bitrate) {
         return err;
     }
 
-    bitrateType.eControlRate = OMX_Video_ControlRateVariable;
+    bitrateType.eControlRate = bitrateMode;
     bitrateType.nTargetBitrate = bitrate;
 
     return mOMX->setParameter(
