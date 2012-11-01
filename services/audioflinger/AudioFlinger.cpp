@@ -417,6 +417,12 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
             dev->dump(dev, fd);
         }
+
+        // dump the serially shared record tee sink
+        if (mRecordTeeSource != 0) {
+            dumpTee(fd, mRecordTeeSource);
+        }
+
         if (locked) mLock.unlock();
     }
     return NO_ERROR;
@@ -3580,39 +3586,18 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
     return reconfig;
 }
 
-void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_handle_t id)
 {
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    PlaybackThread::dumpInternals(fd, args);
-
-    snprintf(buffer, SIZE, "AudioMixer tracks: %08x\n", mAudioMixer->trackNames());
-    result.append(buffer);
-    write(fd, result.string(), result.size());
-
-    // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
-    FastMixerDumpState copy = mFastMixerDumpState;
-    copy.dump(fd);
-
-#ifdef STATE_QUEUE_DUMP
-    // Similar for state queue
-    StateQueueObserverDump observerCopy = mStateQueueObserverDump;
-    observerCopy.dump(fd);
-    StateQueueMutatorDump mutatorCopy = mStateQueueMutatorDump;
-    mutatorCopy.dump(fd);
-#endif
-
-    // Write the tee output to a .wav file
-    NBAIO_Source *teeSource = mTeeSource.get();
+    NBAIO_Source *teeSource = source.get();
     if (teeSource != NULL) {
-        char teePath[64];
+        char teeTime[16];
         struct timeval tv;
         gettimeofday(&tv, NULL);
         struct tm tm;
         localtime_r(&tv.tv_sec, &tm);
-        strftime(teePath, sizeof(teePath), "/data/misc/media/%T.wav", &tm);
+        strftime(teeTime, sizeof(teeTime), "%T", &tm);
+        char teePath[64];
+        sprintf(teePath, "/data/misc/media/%s_%d.wav", teeTime, id);
         int teeFd = open(teePath, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
         if (teeFd >= 0) {
             char wavHeader[44];
@@ -3660,6 +3645,34 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
             fdprintf(fd, "FastMixer unable to create tee %s: \n", strerror(errno));
         }
     }
+}
+
+void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& args)
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    String8 result;
+
+    PlaybackThread::dumpInternals(fd, args);
+
+    snprintf(buffer, SIZE, "AudioMixer tracks: %08x\n", mAudioMixer->trackNames());
+    result.append(buffer);
+    write(fd, result.string(), result.size());
+
+    // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
+    FastMixerDumpState copy = mFastMixerDumpState;
+    copy.dump(fd);
+
+#ifdef STATE_QUEUE_DUMP
+    // Similar for state queue
+    StateQueueObserverDump observerCopy = mStateQueueObserverDump;
+    observerCopy.dump(fd);
+    StateQueueMutatorDump mutatorCopy = mStateQueueMutatorDump;
+    mutatorCopy.dump(fd);
+#endif
+
+    // Write the tee output to a .wav file
+    dumpTee(fd, mTeeSource, mId);
 
 #ifdef AUDIO_WATCHDOG
     if (mAudioWatchdog != 0) {
@@ -5988,18 +6001,21 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          uint32_t sampleRate,
                                          audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
-                                         audio_devices_t device) :
+                                         audio_devices_t device,
+                                         const sp<NBAIO_Sink>& teeSink) :
     ThreadBase(audioFlinger, id, AUDIO_DEVICE_NONE, device, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
-    mReqSampleRate(sampleRate)
+    mReqSampleRate(sampleRate),
     // mBytesRead is only meaningful while active, and so is cleared in start()
     // (but might be better to also clear here for dump?)
+    mTeeSink(teeSink)
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
 
     readInputParameters();
+
 }
 
 
@@ -6125,14 +6141,16 @@ bool AudioFlinger::RecordThread::threadLoop()
                             }
                         }
                         if (framesOut && mFrameCount == mRsmpInIndex) {
+                            void *readInto;
                             if (framesOut == mFrameCount &&
                                 ((int)mChannelCount == mReqChannelCount || mFormat != AUDIO_FORMAT_PCM_16_BIT)) {
-                                mBytesRead = mInput->stream->read(mInput->stream, buffer.raw, mInputBytes);
+                                readInto = buffer.raw;
                                 framesOut = 0;
                             } else {
-                                mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mInputBytes);
+                                readInto = mRsmpInBuffer;
                                 mRsmpInIndex = 0;
                             }
+                            mBytesRead = mInput->stream->read(mInput->stream, readInto, mInputBytes);
                             if (mBytesRead <= 0) {
                                 if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE))
                                 {
@@ -6145,6 +6163,9 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 mRsmpInIndex = mFrameCount;
                                 framesOut = 0;
                                 buffer.frameCount = 0;
+                            } else if (mTeeSink != 0) {
+                                (void) mTeeSink->write(readInto,
+                                        mBytesRead >> Format_frameBitShift(mTeeSink->format()));
                             }
                         }
                     }
@@ -7184,18 +7205,66 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     }
 
     if (status == NO_ERROR && inStream != NULL) {
+
+        // Try to re-use most recently used Pipe to archive a copy of input for dumpsys,
+        // or (re-)create if current Pipe is idle and does not match the new format
+        sp<NBAIO_Sink> teeSink;
+#ifdef TEE_SINK_INPUT_FRAMES
+        enum {
+            TEE_SINK_NO,    // don't copy input
+            TEE_SINK_NEW,   // copy input using a new pipe
+            TEE_SINK_OLD,   // copy input using an existing pipe
+        } kind;
+        NBAIO_Format format = Format_from_SR_C(inStream->common.get_sample_rate(&inStream->common),
+                                        popcount(inStream->common.get_channels(&inStream->common)));
+        if (format == Format_Invalid) {
+            kind = TEE_SINK_NO;
+        } else if (mRecordTeeSink == 0) {
+            kind = TEE_SINK_NEW;
+        } else if (mRecordTeeSink->getStrongCount() != 1) {
+            kind = TEE_SINK_NO;
+        } else if (format == mRecordTeeSink->format()) {
+            kind = TEE_SINK_OLD;
+        } else {
+            kind = TEE_SINK_NEW;
+        }
+        switch (kind) {
+        case TEE_SINK_NEW: {
+            Pipe *pipe = new Pipe(TEE_SINK_INPUT_FRAMES, format);
+            size_t numCounterOffers = 0;
+            const NBAIO_Format offers[1] = {format};
+            ssize_t index = pipe->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            PipeReader *pipeReader = new PipeReader(*pipe);
+            numCounterOffers = 0;
+            index = pipeReader->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            mRecordTeeSink = pipe;
+            mRecordTeeSource = pipeReader;
+            teeSink = pipe;
+            }
+            break;
+        case TEE_SINK_OLD:
+            teeSink = mRecordTeeSink;
+            break;
+        case TEE_SINK_NO:
+        default:
+            break;
+        }
+#endif
         AudioStreamIn *input = new AudioStreamIn(inHwDev, inStream);
 
         // Start record thread
         // RecorThread require both input and output device indication to forward to audio
         // pre processing modules
         audio_devices_t device = (*pDevices) | primaryOutputDevice_l();
+
         thread = new RecordThread(this,
                                   input,
                                   reqSamplingRate,
                                   reqChannels,
                                   id,
-                                  device);
+                                  device, teeSink);
         mRecordThreads.add(id, thread);
         ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
         if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
