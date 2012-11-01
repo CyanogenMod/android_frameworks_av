@@ -123,7 +123,8 @@ public:
 
     virtual     status_t    setParameters(audio_io_handle_t ioHandle,
                                     const String8& keyValuePairs) = 0;
-    virtual     String8     getParameters(audio_io_handle_t ioHandle, const String8& keys) const = 0;
+    virtual     String8     getParameters(audio_io_handle_t ioHandle, const String8& keys)
+                                    const = 0;
 
     // register a current process for audio output change notifications
     virtual void registerClient(const sp<IAudioFlingerClient>& client) = 0;

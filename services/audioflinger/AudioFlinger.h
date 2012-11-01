@@ -269,12 +269,14 @@ private:
     virtual                 ~AudioFlinger();
 
     // call in any IAudioFlinger method that accesses mPrimaryHardwareDev
-    status_t                initCheck() const { return mPrimaryHardwareDev == NULL ? NO_INIT : NO_ERROR; }
+    status_t                initCheck() const { return mPrimaryHardwareDev == NULL ?
+                                                        NO_INIT : NO_ERROR; }
 
     // RefBase
     virtual     void        onFirstRef();
 
-    AudioHwDevice*          findSuitableHwDev_l(audio_module_handle_t module, audio_devices_t devices);
+    AudioHwDevice*          findSuitableHwDev_l(audio_module_handle_t module,
+                                                audio_devices_t devices);
     void                    purgeStaleEffects_l();
 
     // standby delay for MIXER and DUPLICATING playback threads is read from property
@@ -746,7 +748,8 @@ private:
                     const sp<PMDeathRecipient> mDeathRecipient;
                     // list of suspended effects per session and per type. The first vector is
                     // keyed by session ID, the second by type UUID timeLow field
-                    KeyedVector< int, KeyedVector< int, sp<SuspendedSessionDesc> > >  mSuspendedSessions;
+                    KeyedVector< int, KeyedVector< int, sp<SuspendedSessionDesc> > >
+                                            mSuspendedSessions;
     };
 
     struct  stream_type_t {
@@ -788,7 +791,8 @@ private:
 
             static  void        appendDumpHeader(String8& result);
                     void        dump(char* buffer, size_t size);
-            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event =
+                                            AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
             virtual void        stop();
                     void        pause();
@@ -823,7 +827,8 @@ private:
                                 Track& operator = (const Track&);
 
             // AudioBufferProvider interface
-            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts = kInvalidPTS);
+            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
+                                           int64_t pts = kInvalidPTS);
             // releaseBuffer() not overridden
 
             virtual size_t framesReady() const;
@@ -877,8 +882,8 @@ private:
             int32_t             *mAuxBuffer;
             int                 mAuxEffectId;
             bool                mHasVolumeController;
-            size_t              mPresentationCompleteFrames; // number of frames written to the audio HAL
-                                                       // when this track will be fully rendered
+            size_t              mPresentationCompleteFrames; // number of frames written to the
+                                            // audio HAL when this track will be fully rendered
         private:
             IAudioFlinger::track_flags_t mFlags;
 
@@ -1000,7 +1005,8 @@ private:
                                         int frameCount);
             virtual             ~OutputTrack();
 
-            virtual status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            virtual status_t    start(AudioSystem::sync_event_t event =
+                                            AudioSystem::SYNC_EVENT_NONE,
                                      int triggerSession = 0);
             virtual void        stop();
                     bool        write(int16_t* data, uint32_t frames);
@@ -1014,7 +1020,8 @@ private:
                 NO_MORE_BUFFERS = 0x80000001,   // same in AudioTrack.h, ok to be different value
             };
 
-            status_t            obtainBuffer(AudioBufferProvider::Buffer* buffer, uint32_t waitTimeMs);
+            status_t            obtainBuffer(AudioBufferProvider::Buffer* buffer,
+                                             uint32_t waitTimeMs);
             void                clearBufferQueue();
 
             // Maximum number of pending buffers allocated by OutputTrack::write()
@@ -1186,7 +1193,8 @@ public:
         void        dumpTracks(int fd, const Vector<String16>& args);
 
         SortedVector< sp<Track> >       mTracks;
-        // mStreamTypes[] uses 1 additional stream type internally for the OutputTrack used by DuplicatingThread
+        // mStreamTypes[] uses 1 additional stream type internally for the OutputTrack used by
+        // DuplicatingThread
         stream_type_t                   mStreamTypes[AUDIO_STREAM_CNT + 1];
         AudioStreamOut                  *mOutput;
 
@@ -1454,7 +1462,8 @@ public:
                     // clear the buffer overflow flag
                     void        clearOverflow() { mOverflow = false; }
                     // set the buffer overflow flag and return previous value
-                    bool        setOverflow() { bool tmp = mOverflow; mOverflow = true; return tmp; }
+                    bool        setOverflow() { bool tmp = mOverflow; mOverflow = true;
+                                                        return tmp; }
 
             static  void        appendDumpHeader(String8& result);
                     void        dump(char* buffer, size_t size);
@@ -1466,7 +1475,8 @@ public:
                                 RecordTrack& operator = (const RecordTrack&);
 
             // AudioBufferProvider interface
-            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts = kInvalidPTS);
+            virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
+                                           int64_t pts = kInvalidPTS);
             // releaseBuffer() not overridden
 
             bool                mOverflow;  // overflow on most recent attempt to fill client buffer
@@ -1786,7 +1796,8 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
         sp<IEffectClient> mEffectClient;    // callback interface for client notifications
         /*const*/ sp<Client> mClient;       // client for shared memory allocation, see disconnect()
         sp<IMemory>         mCblkMemory;    // shared memory for control block
-        effect_param_cblk_t* mCblk;         // control block for deferred parameter setting via shared memory
+        effect_param_cblk_t* mCblk;         // control block for deferred parameter setting via
+                                            // shared memory
         uint8_t*            mBuffer;        // pointer to parameter area in shared memory
         int mPriority;                      // client application priority to control the effect
         bool mHasControl;                   // true if this handle is controlling the effect
@@ -1799,10 +1810,10 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     // the EffectChain class represents a group of effects associated to one audio session.
     // There can be any number of EffectChain objects per output mixer thread (PlaybackThread).
     // The EffecChain with session ID 0 contains global effects applied to the output mix.
-    // Effects in this chain can be insert or auxiliary. Effects in other chains (attached to tracks)
-    // are insert only. The EffectChain maintains an ordered list of effect module, the order corresponding
-    // in the effect process order. When attached to a track (session ID != 0), it also provide it's own
-    // input buffer used by the track as accumulation buffer.
+    // Effects in this chain can be insert or auxiliary. Effects in other chains (attached to
+    // tracks) are insert only. The EffectChain maintains an ordered list of effect module, the
+    // order corresponding in the effect process order. When attached to a track (session ID != 0),
+    // it also provide it's own input buffer used by the track as accumulation buffer.
     class EffectChain : public RefBase {
     public:
         EffectChain(const wp<ThreadBase>& wThread, int sessionId);

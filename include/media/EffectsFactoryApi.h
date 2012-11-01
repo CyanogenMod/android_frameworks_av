@@ -74,7 +74,8 @@ int EffectQueryNumberEffects(uint32_t *pNumEffects);
 //                          -ENOENT     no more effect available
 //                          -ENODEV     factory failed to initialize
 //                          -EINVAL     invalid pDescriptor
-//                          -ENOSYS     effect list has changed since last execution of EffectQueryNumberEffects()
+//                          -ENOSYS     effect list has changed since last execution of
+//                                      EffectQueryNumberEffects()
 //        *pDescriptor:     updated with the effect descriptor.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,12 +92,12 @@ int EffectQueryEffect(uint32_t index, effect_descriptor_t *pDescriptor);
 //
 //    Input:
 //          pEffectUuid:    pointer to the effect uuid.
-//          sessionId:  audio session to which this effect instance will be attached. All effects created
-//              with the same session ID are connected in series and process the same signal stream.
-//              Knowing that two effects are part of the same effect chain can help the library implement
-//              some kind of optimizations.
-//          ioId:   identifies the output or input stream this effect is directed to at audio HAL. For future
-//              use especially with tunneled HW accelerated effects
+//          sessionId:  audio session to which this effect instance will be attached. All effects
+//              created with the same session ID are connected in series and process the same signal
+//              stream.  Knowing that two effects are part of the same effect chain can help the
+//              library implement some kind of optimizations.
+//          ioId:   identifies the output or input stream this effect is directed to at audio HAL.
+//              For future use especially with tunneled HW accelerated effects
 //
 //    Input/Output:
 //          pHandle:        address where to return the effect handle.
@@ -109,7 +110,8 @@ int EffectQueryEffect(uint32_t index, effect_descriptor_t *pDescriptor);
 //        *pHandle:         updated with the effect handle.
 //
 ////////////////////////////////////////////////////////////////////////////////
-int EffectCreate(const effect_uuid_t *pEffectUuid, int32_t sessionId, int32_t ioId, effect_handle_t *pHandle);
+int EffectCreate(const effect_uuid_t *pEffectUuid, int32_t sessionId, int32_t ioId,
+        effect_handle_t *pHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 //

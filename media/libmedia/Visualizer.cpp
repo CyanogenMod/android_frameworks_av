@@ -88,7 +88,8 @@ status_t Visualizer::setEnabled(bool enabled)
     return status;
 }
 
-status_t Visualizer::setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t flags, uint32_t rate)
+status_t Visualizer::setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t flags,
+        uint32_t rate)
 {
     if (rate > CAPTURE_RATE_MAX) {
         return BAD_VALUE;
@@ -334,7 +335,8 @@ void Visualizer::controlStatusChanged(bool controlGranted) {
 
 //-------------------------------------------------------------------------
 
-Visualizer::CaptureThread::CaptureThread(Visualizer& receiver, uint32_t captureRate, bool bCanCallJava)
+Visualizer::CaptureThread::CaptureThread(Visualizer& receiver, uint32_t captureRate,
+        bool bCanCallJava)
     : Thread(bCanCallJava), mReceiver(receiver)
 {
     mSleepTimeUs = 1000000000 / captureRate;

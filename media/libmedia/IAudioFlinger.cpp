@@ -865,7 +865,8 @@ status_t BnAudioFlinger::onTransact(
 
         case REGISTER_CLIENT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            sp<IAudioFlingerClient> client = interface_cast<IAudioFlingerClient>(data.readStrongBinder());
+            sp<IAudioFlingerClient> client = interface_cast<IAudioFlingerClient>(
+                    data.readStrongBinder());
             registerClient(client);
             return NO_ERROR;
         } break;
@@ -1043,7 +1044,8 @@ status_t BnAudioFlinger::onTransact(
             int id;
             int enabled;
 
-            sp<IEffect> effect = createEffect(pid, &desc, client, priority, output, sessionId, &status, &id, &enabled);
+            sp<IEffect> effect = createEffect(pid, &desc, client, priority, output, sessionId,
+                    &status, &id, &enabled);
             reply->writeInt32(status);
             reply->writeInt32(id);
             reply->writeInt32(enabled);

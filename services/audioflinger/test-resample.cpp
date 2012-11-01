@@ -61,7 +61,8 @@ struct HeaderWav {
 };
 
 static int usage(const char* name) {
-    fprintf(stderr,"Usage: %s [-p] [-h] [-q <dq|lq|mq|hq|vhq>] [-i <input-sample-rate>] [-o <output-sample-rate>] <input-file> <output-file>\n", name);
+    fprintf(stderr,"Usage: %s [-p] [-h] [-q <dq|lq|mq|hq|vhq>] [-i <input-sample-rate>] "
+                   "[-o <output-sample-rate>] <input-file> <output-file>\n", name);
     fprintf(stderr,"-p              - enable profiling\n");
     fprintf(stderr,"-h              - create wav file\n");
     fprintf(stderr,"-q              - resampler quality\n");

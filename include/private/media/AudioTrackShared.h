@@ -27,7 +27,8 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 // Maximum cumulated timeout milliseconds before restarting audioflinger thread
-#define MAX_STARTUP_TIMEOUT_MS  3000    // Longer timeout period at startup to cope with A2DP init time
+#define MAX_STARTUP_TIMEOUT_MS  3000    // Longer timeout period at startup to cope with A2DP
+                                        // init time
 #define MAX_RUN_TIMEOUT_MS      1000
 #define WAIT_PERIOD_MS          10
 #define RESTORE_TIMEOUT_MS      5000    // Maximum waiting time for a track to be restored
@@ -100,7 +101,8 @@ public:
                 uint8_t     mName;           // normal tracks: track name, fast tracks: track index
 
                 // used by client only
-                uint16_t    bufferTimeoutMs; // Maximum cumulated timeout before restarting audioflinger
+                uint16_t    bufferTimeoutMs; // Maximum cumulated timeout before restarting
+                                             // audioflinger
 
                 uint16_t    waitTimeMs;      // Cumulated wait time, used by client only
 private:

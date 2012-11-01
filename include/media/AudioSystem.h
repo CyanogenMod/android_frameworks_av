@@ -87,9 +87,12 @@ public:
     static float linearToLog(int volume);
     static int logToLinear(float volume);
 
-    static status_t getOutputSamplingRate(int* samplingRate, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
-    static status_t getOutputFrameCount(int* frameCount, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
-    static status_t getOutputLatency(uint32_t* latency, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getOutputSamplingRate(int* samplingRate,
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getOutputFrameCount(int* frameCount,
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getOutputLatency(uint32_t* latency,
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getSamplingRate(audio_io_handle_t output,
                                           audio_stream_type_t streamType,
                                           int* samplingRate);
@@ -126,7 +129,8 @@ public:
     // - BAD_VALUE: invalid parameter
     // NOTE: this feature is not supported on all hardware platforms and it is
     // necessary to check returned status before using the returned values.
-    static status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames, audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
     static unsigned int  getInputFramesLost(audio_io_handle_t ioHandle);
@@ -147,8 +151,8 @@ public:
         NUM_CONFIG_EVENTS
     };
 
-    // audio output descriptor used to cache output configurations in client process to avoid frequent calls
-    // through IAudioFlinger
+    // audio output descriptor used to cache output configurations in client process to avoid
+    // frequent calls through IAudioFlinger
     class OutputDescriptor {
     public:
         OutputDescriptor()
@@ -162,8 +166,8 @@ public:
     };
 
     // Events used to synchronize actions between audio sessions.
-    // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until playback
-    // is complete on another audio session.
+    // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until
+    // playback is complete on another audio session.
     // See definitions in MediaSyncEvent.java
     enum sync_event_t {
         SYNC_EVENT_SAME = -1,             // used internally to indicate restart with same event
@@ -183,8 +187,10 @@ public:
     //
     // IAudioPolicyService interface (see AudioPolicyInterface for method descriptions)
     //
-    static status_t setDeviceConnectionState(audio_devices_t device, audio_policy_dev_state_t state, const char *device_address);
-    static audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device, const char *device_address);
+    static status_t setDeviceConnectionState(audio_devices_t device, audio_policy_dev_state_t state,
+                                                const char *device_address);
+    static audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device,
+                                                                const char *device_address);
     static status_t setPhoneState(audio_mode_t state);
     static status_t setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config);
     static audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage);
