@@ -263,7 +263,7 @@ private:
 
     void copyBuffer(
             sp<ABuffer> *dst,
-            size_t offset, uint64_t size, size_t extra = 0) const;
+            size_t offset, uint64_t size) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(FragmentedMP4Parser);
 };
