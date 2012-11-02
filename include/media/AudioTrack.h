@@ -49,10 +49,11 @@ public:
     };
 
     /* Events used by AudioTrack callback function (audio_track_cblk_t).
+     * Keep in sync with frameworks/base/media/java/android/media/AudioTrack.java NATIVE_EVENT_*.
      */
     enum event_type {
         EVENT_MORE_DATA = 0,        // Request to write more data to PCM buffer.
-        EVENT_UNDERRUN = 1,         // PCM buffer underrun occured.
+        EVENT_UNDERRUN = 1,         // PCM buffer underrun occurred.
         EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from
                                     // loop start if loop count was not 0.
         EVENT_MARKER = 3,           // Playback head is at the specified marker position
@@ -73,7 +74,7 @@ public:
             MUTE    = 0x00000001
         };
         uint32_t    flags;        // 0 or MUTE
-        audio_format_t format; // but AUDIO_FORMAT_PCM_8_BIT -> AUDIO_FORMAT_PCM_16_BIT
+        audio_format_t format;    // but AUDIO_FORMAT_PCM_8_BIT -> AUDIO_FORMAT_PCM_16_BIT
         // accessed directly by WebKit ANP callback
         int         channelCount; // will be removed in the future, do not use
 
@@ -126,7 +127,7 @@ public:
      */
                         AudioTrack();
 
-    /* Creates an audio track and registers it with AudioFlinger.
+    /* Creates an AudioTrack object and registers it with AudioFlinger.
      * Once created, the track needs to be started before it can be used.
      * Unspecified values are set to the audio hardware's current
      * values.
@@ -140,12 +141,13 @@ public:
      *                     16 bits per sample).
      * channelMask:        Channel mask.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
+     *                     application's contribution to the
      *                     latency of the track. The actual size selected by the AudioTrack could be
      *                     larger if the requested size is not compatible with current audio HAL
      *                     latency.  Zero means to use a default value.
      * flags:              See comments on audio_output_flags_t in <system/audio.h>.
      * cbf:                Callback function. If not null, this function is called periodically
-     *                     to request new PCM data.
+     *                     to provide new PCM data.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames have been consumed from track input buffer.
@@ -209,7 +211,7 @@ public:
      *  - INVALID_OPERATION: AudioTrack is already initialized
      *  - BAD_VALUE: invalid parameter (channelMask, format, sampleRate...)
      *  - NO_INIT: audio server or audio hardware not initialized
-     * */
+     */
             status_t    set(audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT,
                             uint32_t sampleRate = 0,
                             audio_format_t format = AUDIO_FORMAT_DEFAULT,
@@ -293,7 +295,7 @@ public:
             status_t    setAuxEffectSendLevel(float level);
             void        getAuxEffectSendLevel(float* level) const;
 
-    /* Set sample rate for this track, mostly used for games' sound effects
+    /* Set sample rate for this track in Hz, mostly used for games' sound effects
      */
             status_t    setSampleRate(int sampleRate);
             uint32_t    getSampleRate() const;
@@ -419,7 +421,7 @@ public:
      * If the track is stopped, obtainBuffer() returns
      * STOPPED instead of NO_ERROR as long as there are buffers available,
      * at which point NO_MORE_BUFFERS is returned.
-     * Buffers will be returned until the pool (buffercount())
+     * Buffers will be returned until the pool
      * is exhausted, at which point obtainBuffer() will either block
      * or return WOULD_BLOCK depending on the value of the "blocking"
      * parameter.
@@ -523,7 +525,9 @@ protected:
     bool                    mActive;                // protected by mLock
 
     callback_t              mCbf;                   // callback handler for events, or NULL
-    void*                   mUserData;
+    void*                   mUserData;              // for client callback handler
+
+    // for notification APIs
     uint32_t                mNotificationFramesReq; // requested number of frames between each
                                                     // notification callback
     uint32_t                mNotificationFramesAct; // actual number of frames between each
@@ -531,10 +535,11 @@ protected:
     sp<IMemory>             mSharedBuffer;
     int                     mLoopCount;
     uint32_t                mRemainingFrames;
-    uint32_t                mMarkerPosition;
+    uint32_t                mMarkerPosition;        // in frames
     bool                    mMarkerReached;
-    uint32_t                mNewPosition;
-    uint32_t                mUpdatePeriod;
+    uint32_t                mNewPosition;           // in frames
+    uint32_t                mUpdatePeriod;          // in frames
+
     bool                    mFlushed; // FIXME will be made obsolete by making flush() synchronous
     audio_output_flags_t    mFlags;
     int                     mSessionId;
