@@ -1971,8 +1971,8 @@ status_t FragmentedMP4Parser::parseTrackFragmentRun(
 }
 
 void FragmentedMP4Parser::copyBuffer(
-        sp<ABuffer> *dst, size_t offset, uint64_t size, size_t extra) const {
-    sp<ABuffer> buf = new ABuffer(size + extra);
+        sp<ABuffer> *dst, size_t offset, uint64_t size) const {
+    sp<ABuffer> buf = new ABuffer(size);
     memcpy(buf->data(), mBuffer->data() + offset, size);
 
     *dst = buf;
