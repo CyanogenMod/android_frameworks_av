@@ -1336,8 +1336,8 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
 
     audio_track_cblk_t* cblk = refCblk;
     audio_track_cblk_t* newCblk = cblk;
-    ALOGW("dead IAudioTrack, creating a new one from %s TID %d",
-        fromStart ? "start()" : "obtainBuffer()", gettid());
+    ALOGW("dead IAudioTrack, creating a new one from %s",
+        fromStart ? "start()" : "obtainBuffer()");
 
     // signal old cblk condition so that other threads waiting for available buffers stop
     // waiting now
@@ -1411,7 +1411,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
     }
     newCblk->lock.lock();
 
-    ALOGW_IF(result != NO_ERROR, "restoreTrack_l() error %d TID %d", result, gettid());
+    ALOGW_IF(result != NO_ERROR, "restoreTrack_l() error %d", result);
 
     return result;
 }
