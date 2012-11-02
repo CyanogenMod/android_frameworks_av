@@ -481,6 +481,7 @@ protected:
             // body of AudioTrackThread::threadLoop()
             bool processAudioBuffer(const sp<AudioTrackThread>& thread);
 
+            // caller must hold lock on mLock for all _l methods
             status_t createTrack_l(audio_stream_type_t streamType,
                                  uint32_t sampleRate,
                                  audio_format_t format,
@@ -535,7 +536,13 @@ protected:
     audio_output_flags_t    mFlags;
     int                     mSessionId;
     int                     mAuxEffectId;
+
+    // When locking both mLock and mCblk->lock, must lock in this order to avoid deadlock:
+    //      1. mLock
+    //      2. mCblk->lock
+    // It is OK to lock only mCblk->lock.
     mutable Mutex           mLock;
+
     status_t                mRestoreStatus;
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
