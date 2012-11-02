@@ -870,8 +870,8 @@ bool AudioFlinger::streamMute(audio_stream_type_t stream) const
 
 status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs)
 {
-    ALOGV("setParameters(): io %d, keyvalue %s, tid %d, calling pid %d",
-            ioHandle, keyValuePairs.string(), gettid(), IPCThreadState::self()->getCallingPid());
+    ALOGV("setParameters(): io %d, keyvalue %s, calling pid %d",
+            ioHandle, keyValuePairs.string(), IPCThreadState::self()->getCallingPid());
     // check calling permissions
     if (!settingsAllowed()) {
         return PERMISSION_DENIED;
@@ -955,8 +955,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
 
 String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& keys) const
 {
-    ALOGVV("getParameters() io %d, keys %s, tid %d, calling pid %d",
-            ioHandle, keys.string(), gettid(), IPCThreadState::self()->getCallingPid());
+    ALOGVV("getParameters() io %d, keys %s, calling pid %d",
+            ioHandle, keys.string(), IPCThreadState::self()->getCallingPid());
 
     Mutex::Autolock _l(mLock);
 
@@ -1126,7 +1126,7 @@ void AudioFlinger::audioConfigChanged_l(int event, audio_io_handle_t ioHandle, c
 // removeClient_l() must be called with AudioFlinger::mLock held
 void AudioFlinger::removeClient_l(pid_t pid)
 {
-    ALOGV("removeClient_l() pid %d, tid %d, calling tid %d", pid, gettid(),
+    ALOGV("removeClient_l() pid %d, calling pid %d", pid,
             IPCThreadState::self()->getCallingPid());
     mClients.removeItem(pid);
 }
@@ -5534,9 +5534,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mBuffers = (char*)mCblk + sizeof(audio_track_cblk_t);
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
-        ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, mCblk->buffers %p, " \
+        ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, mBuffers %p, " \
                 "mCblk->frameCount %d, mCblk->sampleRate %u, mChannelMask 0x%08x mBufferEnd %p",
-                mCblk, mBuffer, mCblk->buffers,
+                mCblk, mBuffer, mBuffers,
                 mCblk->frameCount, mCblk->sampleRate, mChannelMask, mBufferEnd);
     } else {
         ALOGW("Error creating output track on thread %p", playbackThread);
