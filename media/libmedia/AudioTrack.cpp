@@ -1407,19 +1407,27 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart)
         android_atomic_or(CBLK_RESTORED_ON, &cblk->flags);
         cblk->cv.broadcast();
     } else {
-        if (!(cblk->flags & CBLK_RESTORED_MSK)) {
-            ALOGW("dead IAudioTrack, waiting for a new one TID %d", gettid());
+        bool haveLogged = false;
+        for (;;) {
+            if (cblk->flags & CBLK_RESTORED_MSK) {
+                ALOGW("dead IAudioTrack restored");
+                result = mRestoreStatus;
+                cblk->lock.unlock();
+                break;
+            }
+            if (!haveLogged) {
+                ALOGW("dead IAudioTrack, waiting for a new one");
+                haveLogged = true;
+            }
             mLock.unlock();
             result = cblk->cv.waitRelative(cblk->lock, milliseconds(RESTORE_TIMEOUT_MS));
-            if (result == NO_ERROR) {
-                result = mRestoreStatus;
-            }
             cblk->lock.unlock();
             mLock.lock();
-        } else {
-            ALOGW("dead IAudioTrack, already restored TID %d", gettid());
-            result = mRestoreStatus;
-            cblk->lock.unlock();
+            if (result != NO_ERROR) {
+                ALOGW("timed out");
+                break;
+            }
+            cblk->lock.lock();
         }
     }
     ALOGV("restoreTrack_l() status %d mActive %d cblk %p, old cblk %p flags %08x old flags %08x",
