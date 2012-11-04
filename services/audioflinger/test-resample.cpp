@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
             double y = sin(M_PI * k * t * t);
             int16_t yi = floor(y * 32767.0 + 0.5);
             for (size_t j=0 ; j<channels ; j++) {
-                in[i*channels + j] = yi;
+                in[i*channels + j] = yi / (1+j);
             }
         }
     }
