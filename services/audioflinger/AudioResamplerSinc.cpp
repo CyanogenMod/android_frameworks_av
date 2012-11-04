@@ -30,6 +30,20 @@
 #include "AudioResamplerSinc.h"
 
 
+
+#if defined(__arm__) && !defined(__thumb__)
+#define USE_INLINE_ASSEMBLY (true)
+#else
+#define USE_INLINE_ASSEMBLY (false)
+#endif
+
+#if USE_INLINE_ASSEMBLY && defined(__ARM_NEON__)
+#define USE_NEON (true)
+#else
+#define USE_NEON (false)
+#endif
+
+
 namespace android {
 // ----------------------------------------------------------------------------
 
@@ -375,7 +389,7 @@ void AudioResamplerSinc::init_routine()
 static inline
 int32_t mulRL(int left, int32_t in, uint32_t vRL)
 {
-#if defined(__arm__) && !defined(__thumb__)
+#if USE_INLINE_ASSEMBLY
     int32_t out;
     if (left) {
         asm( "smultb %[out], %[in], %[vRL] \n"
@@ -398,7 +412,7 @@ int32_t mulRL(int left, int32_t in, uint32_t vRL)
 static inline
 int32_t mulAdd(int16_t in, int32_t v, int32_t a)
 {
-#if defined(__arm__) && !defined(__thumb__)
+#if USE_INLINE_ASSEMBLY
     int32_t out;
     asm( "smlawb %[out], %[v], %[in], %[a] \n"
          : [out]"=r"(out)
@@ -413,7 +427,7 @@ int32_t mulAdd(int16_t in, int32_t v, int32_t a)
 static inline
 int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 {
-#if defined(__arm__) && !defined(__thumb__)
+#if USE_INLINE_ASSEMBLY
     int32_t out;
     if (left) {
         asm( "smlawb %[out], %[v], %[inRL], %[a] \n"
@@ -639,14 +653,155 @@ void AudioResamplerSinc::filterCoefficient(
     l = 0;
     r = 0;
     size_t count = offset;
-    for (size_t i=0 ; i<count ; i++) {
-        interpolate<CHANNELS>(l, r, coefsP++, offset, lerpP, sP);
-        sP -= CHANNELS;
-        interpolate<CHANNELS>(l, r, coefsN++, offset, lerpN, sN);
-        sN += CHANNELS;
+
+    if (!USE_NEON) {
+        for (size_t i=0 ; i<count ; i++) {
+            interpolate<CHANNELS>(l, r, coefsP++, offset, lerpP, sP);
+            sP -= CHANNELS;
+            interpolate<CHANNELS>(l, r, coefsN++, offset, lerpN, sN);
+            sN += CHANNELS;
+        }
+        l = 2 * mulRL(1, l, vRL);
+        r = 2 * mulRL(0, r, vRL);
+    } else if (CHANNELS == 1) {
+        int32_t const* coefsP1 = coefsP + offset;
+        int32_t const* coefsN1 = coefsN + offset;
+        sP -= CHANNELS*3;
+        asm (
+            "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
+            "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
+            "veor           q0, q0                   \n"    // result, initialize to 0
+
+            "1:                                      \n"
+            "vld1.16        { d4}, [%[sP]]           \n"    // load 4 16-bits stereo samples
+            "vld1.32        { q8}, [%[coefsP0]]!     \n"    // load 4 32-bits coefs
+            "vld1.32        { q9}, [%[coefsP1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld1.16        { d6}, [%[sN]]!          \n"    // load 4 16-bits stereo samples
+            "vld1.32        {q10}, [%[coefsN0]]!     \n"    // load 4 32-bits coefs
+            "vld1.32        {q11}, [%[coefsN1]]!     \n"    // load 4 32-bits coefs for interpolation
+
+            "vrev64.16      d4, d4                   \n"    // reverse 2 frames of the positive side
+
+            "vsub.s32        q9,  q9,  q8            \n"    // interpolate (step1) 1st set of coefs
+            "vsub.s32       q11, q11, q10            \n"    // interpolate (step1) 2nd set of coets
+            "vshll.s16      q12,  d4, #15            \n"    // extend samples to 31 bits
+
+            "vqrdmulh.s32    q9,  q9, d2[0]          \n"    // interpolate (step2) 1st set of coefs
+            "vqrdmulh.s32   q11, q11, d2[1]          \n"    // interpolate (step3) 2nd set of coefs
+            "vshll.s16      q14,  d6, #15            \n"    // extend samples to 31 bits
+
+            "vadd.s32        q8,  q8,  q9            \n"    // interpolate (step3) 1st set
+            "vadd.s32       q10, q10, q11            \n"    // interpolate (step4) 2nd set
+            "subs           %[count], %[count], #4   \n"    // update loop counter
+
+            "vqrdmulh.s32   q12, q12, q8             \n"    // multiply samples by interpolated coef
+            "vqrdmulh.s32   q14, q14, q10            \n"    // multiply samples by interpolated coef
+            "sub            %[sP], %[sP], #8         \n"    // move pointer to next set of samples
+
+            "vadd.s32       q0, q0, q12              \n"    // accumulate result
+            "vadd.s32       q0, q0, q14              \n"    // accumulate result
+
+            "bne            1b                       \n"    // loop
+
+            "vpadd.s32      d0, d0, d1               \n"    // add all 4 partial sums
+            "vpadd.s32      d0, d0, d0               \n"    // together
+
+            "vmov.s32       %[l], d0[0]              \n"    // save result in ARM register
+
+            : [l]  "=r" (l),
+              [count]   "+r" (count),
+              [coefsP0] "+r" (coefsP),
+              [coefsP1] "+r" (coefsP1),
+              [coefsN0] "+r" (coefsN),
+              [coefsN1] "+r" (coefsN1),
+              [sP]      "+r" (sP),
+              [sN]      "+r" (sN)
+            : [lerpP]   "r" (lerpP<<16),
+              [lerpN]   "r" (lerpN<<16),
+              [vRL]     "r" (vRL)
+            : "cc", "memory",
+              "q0", "q1", "q2", "q3",
+              "q8", "q9", "q10", "q11",
+              "q12", "q14"
+        );
+        l = 2 * mulRL(1, l, vRL);
+        r = l;
+    } else if (CHANNELS == 2) {
+        int32_t const* coefsP1 = coefsP + offset;
+        int32_t const* coefsN1 = coefsN + offset;
+        sP -= CHANNELS*3;
+        asm (
+            "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
+            "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
+            "veor           q0, q0                   \n"    // result, initialize to 0
+            "veor           q4, q4                   \n"    // result, initialize to 0
+
+            "1:                                      \n"
+            "vld2.16        {d4,d5}, [%[sP]]         \n"    // load 4 16-bits stereo samples
+            "vld1.32        { q8}, [%[coefsP0]]!     \n"    // load 4 32-bits coefs
+            "vld1.32        { q9}, [%[coefsP1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld2.16        {d6,d7}, [%[sN]]!        \n"    // load 4 16-bits stereo samples
+            "vld1.32        {q10}, [%[coefsN0]]!     \n"    // load 4 32-bits coefs
+            "vld1.32        {q11}, [%[coefsN1]]!     \n"    // load 4 32-bits coefs for interpolation
+
+            "vrev64.16      d4, d4                   \n"    // reverse 2 frames of the positive side
+            "vrev64.16      d5, d5                   \n"    // reverse 2 frames of the positive side
+
+            "vsub.s32        q9,  q9,  q8            \n"    // interpolate (step1) 1st set of coefs
+            "vsub.s32       q11, q11, q10            \n"    // interpolate (step1) 2nd set of coets
+            "vshll.s16      q12,  d4, #15            \n"    // extend samples to 31 bits
+            "vshll.s16      q13,  d5, #15            \n"    // extend samples to 31 bits
+
+            "vqrdmulh.s32    q9,  q9, d2[0]          \n"    // interpolate (step2) 1st set of coefs
+            "vqrdmulh.s32   q11, q11, d2[1]          \n"    // interpolate (step3) 2nd set of coefs
+            "vshll.s16      q14,  d6, #15            \n"    // extend samples to 31 bits
+            "vshll.s16      q15,  d7, #15            \n"    // extend samples to 31 bits
+
+            "vadd.s32        q8,  q8,  q9            \n"    // interpolate (step3) 1st set
+            "vadd.s32       q10, q10, q11            \n"    // interpolate (step4) 2nd set
+            "subs           %[count], %[count], #4   \n"    // update loop counter
+
+            "vqrdmulh.s32   q12, q12, q8             \n"    // multiply samples by interpolated coef
+            "vqrdmulh.s32   q13, q13, q8             \n"    // multiply samples by interpolated coef
+            "vqrdmulh.s32   q14, q14, q10            \n"    // multiply samples by interpolated coef
+            "vqrdmulh.s32   q15, q15, q10            \n"    // multiply samples by interpolated coef
+            "sub            %[sP], %[sP], #16        \n"    // move pointer to next set of samples
+
+            "vadd.s32       q0, q0, q12              \n"    // accumulate result
+            "vadd.s32       q4, q4, q13              \n"    // accumulate result
+            "vadd.s32       q0, q0, q14              \n"    // accumulate result
+            "vadd.s32       q4, q4, q15              \n"    // accumulate result
+
+            "bne            1b                       \n"    // loop
+
+            "vpadd.s32      d0, d0, d1               \n"    // add all 4 partial sums
+            "vpadd.s32      d8, d8, d9               \n"    // add all 4 partial sums
+            "vpadd.s32      d0, d0, d0               \n"    // together
+            "vpadd.s32      d8, d8, d8               \n"    // together
+
+            "vmov.s32       %[l], d0[0]              \n"    // save result in ARM register
+            "vmov.s32       %[r], d8[0]              \n"    // save result in ARM register
+
+            : [l]  "=r" (l),
+              [r]  "=r" (r),
+              [count]   "+r" (count),
+              [coefsP0] "+r" (coefsP),
+              [coefsP1] "+r" (coefsP1),
+              [coefsN0] "+r" (coefsN),
+              [coefsN1] "+r" (coefsN1),
+              [sP]      "+r" (sP),
+              [sN]      "+r" (sN)
+            : [lerpP]   "r" (lerpP<<16),
+              [lerpN]   "r" (lerpN<<16),
+              [vRL]     "r" (vRL)
+            : "cc", "memory",
+              "q0", "q1", "q2", "q3", "q4",
+              "q8", "q9", "q10", "q11",
+              "q12", "q13", "q14", "q15"
+        );
+        l = 2 * mulRL(1, l, vRL);
+        r = 2 * mulRL(0, r, vRL);
     }
-    l = 2 * mulRL(1, l, vRL);
-    r = 2 * mulRL(0, r, vRL);
 }
 
 template<int CHANNELS>
