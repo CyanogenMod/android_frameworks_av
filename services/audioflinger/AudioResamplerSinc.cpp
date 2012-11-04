@@ -23,6 +23,7 @@
 #include <cutils/properties.h>
 #include <stdlib.h>
 #include <utils/Log.h>
+#include <cutils/compiler.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -305,38 +306,28 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
 
         // Always read-in the first samples from the input buffer
         int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
-        head[0] = in[inputIndex*CHANNELS + 0];
-        if (CHANNELS == 2)
-            head[1] = in[inputIndex*CHANNELS + 1];
+        for (size_t i=0 ; i<CHANNELS ; i++) {
+            head[i] = in[inputIndex*CHANNELS + i];
+        }
 
         // handle boundary case
         int32_t l, r;
-        while (outputIndex < outputSampleCount) {
-            filterCoefficient<CHANNELS>(l, r, phaseFraction, impulse);
-            out[outputIndex++] += 2 * mulRL(1, l, vRL);
-            out[outputIndex++] += 2 * mulRL(0, r, vRL);
+        while (CC_LIKELY(outputIndex < outputSampleCount)) {
+            filterCoefficient<CHANNELS>(l, r, phaseFraction, impulse, vRL);
+            out[outputIndex++] += l;
+            out[outputIndex++] += r;
 
             phaseFraction += phaseIncrement;
-            const uint32_t phaseIndex = phaseFraction >> kNumPhaseBits;
-            if (phaseIndex == 1) {
+            const size_t phaseIndex = phaseFraction >> kNumPhaseBits;
+            for (size_t i=0 ; i<phaseIndex ; i++) {
                 inputIndex++;
-                if (inputIndex >= frameCount)
-                    break;  // need a new buffer
-                read<CHANNELS>(impulse, phaseFraction, in, inputIndex);
-            } else if (phaseIndex == 2) {    // maximum value
-                inputIndex++;
-                if (inputIndex >= frameCount)
-                    break;  // 0 frame available, 2 frames needed
-                // read first frame
-                read<CHANNELS>(impulse, phaseFraction, in, inputIndex);
-                inputIndex++;
-                if (inputIndex >= frameCount)
-                    break;  // 0 frame available, 1 frame needed
-                // read second frame
+                if (inputIndex >= frameCount) {
+                    goto done;  // need a new buffer
+                }
                 read<CHANNELS>(impulse, phaseFraction, in, inputIndex);
             }
         }
-
+done:
         // if done with buffer, save samples
         if (inputIndex >= frameCount) {
             inputIndex -= frameCount;
@@ -366,20 +357,20 @@ void AudioResamplerSinc::read(
     const uint32_t phaseIndex = phaseFraction >> kNumPhaseBits;
     impulse += CHANNELS;
     phaseFraction -= 1LU<<kNumPhaseBits;
-    if (impulse >= mRingFull) {
+    if (CC_UNLIKELY(impulse >= mRingFull)) {
         const size_t stateSize = (c->halfNumCoefs*2)*CHANNELS;
         memcpy(mState, mState+stateSize, sizeof(int16_t)*stateSize);
         impulse -= stateSize;
     }
     int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
-    head[0] = in[inputIndex*CHANNELS + 0];
-    if (CHANNELS == 2)
-        head[1] = in[inputIndex*CHANNELS + 1];
+    for (size_t i=0 ; i<CHANNELS ; i++) {
+        head[i] = in[inputIndex*CHANNELS + i];
+    }
 }
 
 template<int CHANNELS>
 void AudioResamplerSinc::filterCoefficient(
-        int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples)
+        int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples, uint32_t vRL)
 {
     const Constants *c = mConstants;
 
@@ -399,20 +390,15 @@ void AudioResamplerSinc::filterCoefficient(
     const int32_t* coefs = mFirCoefs;
     const int16_t *sP = samples;
     const int16_t *sN = samples+CHANNELS;
-    for (unsigned int i=0 ; i < c->halfNumCoefs/4 ; i++) {
+    const size_t offset = 1 << c->coefsBits;
+    const size_t count = c->halfNumCoefs;
+    for (size_t i=0 ; i < count ; i++) {
         interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
         interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
-        interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
-        interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
-        interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
-        interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
-        interpolate<CHANNELS>(l, r, coefs+indexP, lerpP, sP);
-        interpolate<CHANNELS>(l, r, coefs+indexN, lerpN, sN);
-        sP -= CHANNELS; sN += CHANNELS; coefs += 1 << c->coefsBits;
+        sP -= CHANNELS; sN += CHANNELS; coefs += offset;
     }
+    l = 2 * mulRL(1, l, vRL);
+    r = 2 * mulRL(0, r, vRL);
 }
 
 template<int CHANNELS>

@@ -50,7 +50,7 @@ private:
 
     template<int CHANNELS>
     inline void filterCoefficient(
-            int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples);
+            int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples, uint32_t vRL);
 
     template<int CHANNELS>
     inline void interpolate(
