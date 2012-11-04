@@ -195,7 +195,8 @@ int main(int argc, char** argv)
 
 
     // total number of coefficients (one side)
-    const int N = (1 << nz) * nzc;
+    const int M = (1 << nz);
+    const int N = M * nzc;
 
     // generate the right half of the filter
     if (!debug) {
@@ -220,22 +221,25 @@ int main(int argc, char** argv)
     }
 
     if (!polyphase) {
-        for (int i=0 ; i<N ; i++) {
-            double x = (2.0 * M_PI * i * Fcr) / (1 << nz);
-            double y = kaiser(i+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;
-            y *= atten;
+        for (int i=0 ; i<=M ; i++) { // an extra set of coefs for interpolation
+            for (int j=0 ; j<nzc ; j++) {
+                int ix = j*M + i;
+                double x = (2.0 * M_PI * ix * Fcr) / (1 << nz);
+                double y = kaiser(ix+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;
+                y *= atten;
 
-            if (!debug) {
-                if ((i % (1<<nz)) == 0)
-                    printf("\n    ");
-            }
+                if (!debug) {
+                    if (j == 0)
+                        printf("\n    ");
+                }
 
-            if (!format) {
-                int64_t yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
-                if (yi >= (1LL<<(nc-1))) yi = (1LL<<(nc-1))-1;
-                printf("0x%08x, ", int32_t(yi));
-            } else {
-                printf("%.9g%s ", y, debug ? "," : "f,");
+                if (!format) {
+                    int64_t yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
+                    if (yi >= (1LL<<(nc-1))) yi = (1LL<<(nc-1))-1;
+                    printf("0x%08x, ", int32_t(yi));
+                } else {
+                    printf("%.9g%s ", y, debug ? "," : "f,");
+                }
             }
         }
     } else {
@@ -266,11 +270,6 @@ int main(int argc, char** argv)
     }
 
     if (!debug) {
-        if (!format) {
-            printf("\n    0x%08x ", 0);
-        } else {
-            printf("\n    %.9g ", 0.0f);
-        }
         printf("\n};");
     }
     printf("\n");
