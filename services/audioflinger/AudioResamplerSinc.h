@@ -55,7 +55,8 @@ private:
     template<int CHANNELS>
     inline void interpolate(
             int32_t& l, int32_t& r,
-            const int32_t* coefs, int16_t lerp, const int16_t* samples);
+            const int32_t* coefs, size_t offset,
+            int32_t lerp, const int16_t* samples);
 
     template<int CHANNELS>
     inline void read(int16_t*& impulse, uint32_t& phaseFraction,
