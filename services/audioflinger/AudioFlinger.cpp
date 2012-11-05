@@ -4195,6 +4195,9 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         // mChannelCount
         // mChannelMask
 {
+    // client == 0 implies sharedBuffer == 0
+    ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
+
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
@@ -4206,33 +4209,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         size += bufferSize;
     }
 
-    if (client != NULL) {
+    if (client != 0) {
         mCblkMemory = client->heap()->allocate(size);
         if (mCblkMemory != 0) {
             mCblk = static_cast<audio_track_cblk_t *>(mCblkMemory->pointer());
-            if (mCblk != NULL) { // construct the shared structure in-place.
-                new(mCblk) audio_track_cblk_t();
-                // clear all buffers
-                mCblk->frameCount = frameCount;
-                mCblk->sampleRate = sampleRate;
-// uncomment the following lines to quickly test 32-bit wraparound
-//                mCblk->user = 0xffff0000;
-//                mCblk->server = 0xffff0000;
-//                mCblk->userBase = 0xffff0000;
-//                mCblk->serverBase = 0xffff0000;
-                mChannelCount = channelCount;
-                mChannelMask = channelMask;
-                if (sharedBuffer == 0) {
-                    mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
-                    memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
-                    // Force underrun condition to avoid false underrun callback until first data is
-                    // written to buffer (other flags are cleared)
-                    mCblk->flags = CBLK_UNDERRUN;
-                } else {
-                    mBuffer = sharedBuffer->pointer();
-                }
-                mBufferEnd = (uint8_t *)mBuffer + bufferSize;
-            }
+            // can't assume mCblk != NULL
         } else {
             ALOGE("not enough memory for AudioTrack size=%u", size);
             client->heap()->dump("AudioTrack");
@@ -4240,23 +4221,31 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         }
     } else {
         mCblk = (audio_track_cblk_t *)(new uint8_t[size]);
-        // construct the shared structure in-place.
+        // assume mCblk != NULL
+    }
+
+    // construct the shared structure in-place.
+    if (mCblk != NULL) {
         new(mCblk) audio_track_cblk_t();
         // clear all buffers
         mCblk->frameCount = frameCount;
         mCblk->sampleRate = sampleRate;
 // uncomment the following lines to quickly test 32-bit wraparound
-//        mCblk->user = 0xffff0000;
-//        mCblk->server = 0xffff0000;
-//        mCblk->userBase = 0xffff0000;
-//        mCblk->serverBase = 0xffff0000;
+//      mCblk->user = 0xffff0000;
+//      mCblk->server = 0xffff0000;
+//      mCblk->userBase = 0xffff0000;
+//      mCblk->serverBase = 0xffff0000;
         mChannelCount = channelCount;
         mChannelMask = channelMask;
-        mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
-        memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
-        // Force underrun condition to avoid false underrun callback until first data is
-        // written to buffer (other flags are cleared)
-        mCblk->flags = CBLK_UNDERRUN;
+        if (sharedBuffer == 0) {
+            mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
+            memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
+            // Force underrun condition to avoid false underrun callback until first data is
+            // written to buffer (other flags are cleared)
+            mCblk->flags = CBLK_UNDERRUN;
+        } else {
+            mBuffer = sharedBuffer->pointer();
+        }
         mBufferEnd = (uint8_t *)mBuffer + bufferSize;
     }
 }
