@@ -33,28 +33,15 @@ namespace android {
 #define WAIT_PERIOD_MS          10
 #define RESTORE_TIMEOUT_MS      5000    // Maximum waiting time for a track to be restored
 
-#define CBLK_UNDERRUN_MSK       0x0001
-#define CBLK_UNDERRUN_ON        0x0001  // underrun (out) or overrrun (in) indication
-#define CBLK_UNDERRUN_OFF       0x0000  // no underrun
-#define CBLK_DIRECTION_MSK      0x0002
-#define CBLK_DIRECTION_OUT      0x0002  // this cblk is for an AudioTrack
-#define CBLK_DIRECTION_IN       0x0000  // this cblk is for an AudioRecord
-#define CBLK_FORCEREADY_MSK     0x0004
-#define CBLK_FORCEREADY_ON      0x0004  // track is considered ready immediately by AudioFlinger
-#define CBLK_FORCEREADY_OFF     0x0000  // track is ready when buffer full
-#define CBLK_INVALID_MSK        0x0008
-#define CBLK_INVALID_ON         0x0008  // track buffer is invalidated by AudioFlinger:
-#define CBLK_INVALID_OFF        0x0000  // must be re-created
-#define CBLK_DISABLED_MSK       0x0010
-#define CBLK_DISABLED_ON        0x0010  // track disabled by AudioFlinger due to underrun:
-#define CBLK_DISABLED_OFF       0x0000  // must be re-started
-#define CBLK_RESTORING_MSK      0x0020
-#define CBLK_RESTORING_ON       0x0020  // track is being restored after invalidation
-#define CBLK_RESTORING_OFF      0x0000  // by AudioFlinger
-#define CBLK_RESTORED_MSK       0x0040
-#define CBLK_RESTORED_ON        0x0040  // track has been restored after invalidation
-#define CBLK_RESTORED_OFF       0x0040  // by AudioFlinger
-#define CBLK_FAST               0x0080  // AudioFlinger successfully created a fast track
+#define CBLK_UNDERRUN   0x01 // set: underrun (out) or overrrun (in), clear: no underrun or overrun
+#define CBLK_DIRECTION  0x02 // set: cblk is for an AudioTrack, clear: for AudioRecord
+#define CBLK_FORCEREADY 0x04 // set: track is considered ready immediately by AudioFlinger,
+                             // clear: track is ready when buffer full
+#define CBLK_INVALID    0x08 // track buffer invalidated by AudioFlinger, need to re-create
+#define CBLK_DISABLED   0x10 // track disabled by AudioFlinger due to underrun, need to re-start
+#define CBLK_RESTORING  0x20 // track is being restored after invalidation by AudioFlinger
+#define CBLK_RESTORED   0x40 // track has been restored after invalidation by AudioFlinger
+#define CBLK_FAST       0x80 // AudioFlinger successfully created a fast track
 
 // Important: do not add any virtual methods, including ~
 struct audio_track_cblk_t
