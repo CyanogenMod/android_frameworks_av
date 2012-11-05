@@ -523,8 +523,8 @@ void MediaPlayerService::Client::disconnect()
     {
         Mutex::Autolock l(mLock);
         p = mPlayer;
+        mClient.clear();
     }
-    mClient.clear();
 
     mPlayer.clear();
 
