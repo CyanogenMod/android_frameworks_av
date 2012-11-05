@@ -17,6 +17,7 @@
 #define LOG_TAG "AudioResamplerSinc"
 //#define LOG_NDEBUG 0
 
+#include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -338,12 +339,16 @@ void AudioResamplerSinc::init_routine()
         return;
     }
 
-    readResampleCoefficients = (readCoefficientsFn) dlsym(resampleCoeffLib,
-            "readResamplerCoefficients");
-    readResampleFirNumCoeffFn readResampleFirNumCoeff = (readResampleFirNumCoeffFn)
+    readResampleFirNumCoeffFn readResampleFirNumCoeff;
+    readResampleFirLerpIntBitsFn readResampleFirLerpIntBits;
+
+    readResampleCoefficients = (readCoefficientsFn)
+            dlsym(resampleCoeffLib, "readResamplerCoefficients");
+    readResampleFirNumCoeff = (readResampleFirNumCoeffFn)
             dlsym(resampleCoeffLib, "readResampleFirNumCoeff");
-    readResampleFirLerpIntBitsFn readResampleFirLerpIntBits = (readResampleFirLerpIntBitsFn)
+    readResampleFirLerpIntBits = (readResampleFirLerpIntBitsFn)
             dlsym(resampleCoeffLib, "readResampleFirLerpIntBits");
+
     if (!readResampleCoefficients || !readResampleFirNumCoeff || !readResampleFirLerpIntBits) {
         readResampleCoefficients = NULL;
         dlclose(resampleCoeffLib);
@@ -353,15 +358,14 @@ void AudioResamplerSinc::init_routine()
     }
 
     c = &veryHighQualityConstants;
-    // we have 16 coefs samples per zero-crossing
     c->coefsBits = readResampleFirLerpIntBits();
-    ALOGV("coefsBits = %d", c->coefsBits);
     c->cShift = kNumPhaseBits - c->coefsBits;
     c->cMask = ((1<<c->coefsBits)-1) << c->cShift;
     c->pShift = kNumPhaseBits - c->coefsBits - pLerpBits;
     c->pMask = ((1<<pLerpBits)-1) << c->pShift;
     // number of zero-crossing on each side
     c->halfNumCoefs = readResampleFirNumCoeff();
+    ALOGV("coefsBits = %d", c->coefsBits);
     ALOGV("halfNumCoefs = %d", c->halfNumCoefs);
     // note that we "leak" resampleCoeffLib until the process exits
 }
@@ -434,7 +438,7 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
         int inChannelCount, int32_t sampleRate, src_quality quality)
     : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
-    mState(0)
+    mState(0), mImpulse(0), mRingFull(0), mFirCoefs(0)
 {
     /*
      * Layout of the state buffer for 32 tap:
@@ -457,39 +461,34 @@ AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
     if (ok != 0) {
         ALOGE("%s pthread_once failed: %d", __func__, ok);
     }
-    mConstants = (quality == VERY_HIGH_QUALITY) ? &veryHighQualityConstants : &highQualityConstants;
+    mConstants = (quality == VERY_HIGH_QUALITY) ?
+            &veryHighQualityConstants : &highQualityConstants;
 }
 
 
-AudioResamplerSinc::~AudioResamplerSinc()
-{
-    delete[] mState;
+AudioResamplerSinc::~AudioResamplerSinc() {
+    free(mState);
 }
 
 void AudioResamplerSinc::init() {
-    const Constants *c = mConstants;
-
-    const size_t numCoefs = 2*c->halfNumCoefs;
+    const Constants& c(*mConstants);
+    const size_t numCoefs = 2 * c.halfNumCoefs;
     const size_t stateSize = numCoefs * mChannelCount * 2;
-    mState = new int16_t[stateSize];
+    mState = (int16_t*)memalign(32, stateSize*sizeof(int16_t));
     memset(mState, 0, sizeof(int16_t)*stateSize);
-    mImpulse = mState + (c->halfNumCoefs-1)*mChannelCount;
+    mImpulse  = mState   + (c.halfNumCoefs-1)*mChannelCount;
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider)
 {
-
     // FIXME store current state (up or down sample) and only load the coefs when the state
     // changes. Or load two pointers one for up and one for down in the init function.
     // Not critical now since the read functions are fast, but would be important if read was slow.
     if (mConstants == &veryHighQualityConstants && readResampleCoefficients) {
-        ALOGV("get coefficient from libmm-audio resampler library");
-        mFirCoefs = (mInSampleRate <= mSampleRate) ? readResampleCoefficients(true) :
-                readResampleCoefficients(false);
+        mFirCoefs = readResampleCoefficients( mInSampleRate <= mSampleRate );
     } else {
-        ALOGV("Use default coefficients");
         mFirCoefs = (mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown;
     }
 
@@ -502,7 +501,6 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         resample<2>(out, outFrameCount, provider);
         break;
     }
-
 }
 
 
@@ -510,7 +508,8 @@ template<int CHANNELS>
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider)
 {
-    const Constants *c = mConstants;
+    const Constants& c(*mConstants);
+    const size_t headOffset = c.halfNumCoefs*CHANNELS;
     int16_t* impulse = mImpulse;
     uint32_t vRL = mVolumeRL;
     size_t inputIndex = mInputIndex;
@@ -545,11 +544,11 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
                 }
             }
         }
-        int16_t *in = mBuffer.i16;
+        int16_t const * const in = mBuffer.i16;
         const size_t frameCount = mBuffer.frameCount;
 
         // Always read-in the first samples from the input buffer
-        int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
+        int16_t* head = impulse + headOffset;
         for (size_t i=0 ; i<CHANNELS ; i++) {
             head[i] = in[inputIndex*CHANNELS + i];
         }
@@ -597,16 +596,17 @@ void AudioResamplerSinc::read(
         int16_t*& impulse, uint32_t& phaseFraction,
         const int16_t* in, size_t inputIndex)
 {
-    const Constants *c = mConstants;
-    const uint32_t phaseIndex = phaseFraction >> kNumPhaseBits;
     impulse += CHANNELS;
     phaseFraction -= 1LU<<kNumPhaseBits;
+
+    const Constants& c(*mConstants);
     if (CC_UNLIKELY(impulse >= mRingFull)) {
-        const size_t stateSize = (c->halfNumCoefs*2)*CHANNELS;
+        const size_t stateSize = (c.halfNumCoefs*2)*CHANNELS;
         memcpy(mState, mState+stateSize, sizeof(int16_t)*stateSize);
         impulse -= stateSize;
     }
-    int16_t* head = impulse + c->halfNumCoefs*CHANNELS;
+
+    int16_t* head = impulse + c.halfNumCoefs*CHANNELS;
     for (size_t i=0 ; i<CHANNELS ; i++) {
         head[i] = in[inputIndex*CHANNELS + i];
     }
@@ -616,25 +616,23 @@ template<int CHANNELS>
 void AudioResamplerSinc::filterCoefficient(
         int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples, uint32_t vRL)
 {
-    const Constants *c = mConstants;
-
     // compute the index of the coefficient on the positive side and
     // negative side
-    uint32_t indexP = ( phase & c->cMask) >> c->cShift;
-    uint32_t indexN = (-phase & c->cMask) >> c->cShift;
-    uint32_t lerpP  = ( phase & c->pMask) >> c->pShift;
-    uint32_t lerpN  = (-phase & c->pMask) >> c->pShift;
+    const Constants& c(*mConstants);
+    uint32_t indexP = ( phase & c.cMask) >> c.cShift;
+    uint32_t indexN = (-phase & c.cMask) >> c.cShift;
+    uint32_t lerpP  = ( phase & c.pMask) >> c.pShift;
+    uint32_t lerpN  = (-phase & c.pMask) >> c.pShift;
     if ((indexP == 0) && (lerpP == 0)) {
-        indexN = c->cMask >> c->cShift;
-        lerpN  = c->pMask >> c->pShift;
+        indexN = c.cMask >> c.cShift;
+        lerpN  = c.pMask >> c.pShift;
     }
-    const size_t offset = c->halfNumCoefs;
+    const size_t offset = c.halfNumCoefs;
     indexP *= offset;
     indexN *= offset;
 
-    int32_t const* const coefs = mFirCoefs;
-    int32_t const* coefsP = coefs + indexP;
-    int32_t const* coefsN = coefs + indexN;
+    int32_t const* coefsP = mFirCoefs + indexP;
+    int32_t const* coefsN = mFirCoefs + indexN;
     int16_t const* sP = samples;
     int16_t const* sN = samples + CHANNELS;
 
