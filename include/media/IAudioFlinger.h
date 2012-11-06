@@ -62,7 +62,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 int frameCount,
-                                track_flags_t flags,
+                                track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
