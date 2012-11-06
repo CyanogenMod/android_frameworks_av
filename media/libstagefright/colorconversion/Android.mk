@@ -13,6 +13,10 @@ ifeq ($(TARGET_BOARD_PLATFORM), exynos4)
 LOCAL_CFLAGS += -DMALI_ALIGNMENT
 endif
 
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_CFLAGS += -DUSE_V4L2_ION
+endif
+
 LOCAL_MODULE:= libstagefright_color_conversion
 
 include $(BUILD_STATIC_LIBRARY)

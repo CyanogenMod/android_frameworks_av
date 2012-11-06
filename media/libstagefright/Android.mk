@@ -67,6 +67,7 @@ LOCAL_SRC_FILES:=                         \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
+        AVIExtractor.cpp                  \
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES+=                         \
@@ -222,6 +223,65 @@ endif
 
 ifeq ($(BOARD_USES_HDMI),true)
 LOCAL_CFLAGS += -DBOARD_USES_HDMI
+
+
+
+ifeq ($(BOARD_USE_ALP_AUDIO), true)
+LOCAL_CFLAGS += -DUSE_ALP_AUDIO
+endif
+
+ifeq ($(BOARD_USE_AVI_EXTRACTOR), true)
+LOCAL_CFLAGS += -DUSE_AVI_EXTRACTOR
+
+#below lines are for supporting codecs
+LOCAL_CFLAGS += -DUSE_AAC_CODEC
+
+#below line is to support Index table generation
+#for the contents which doesn't have index table
+LOCAL_CFLAGS += -DSUPPORT_INDEXTBL_GENERATION
+endif
+
+ifeq ($(BOARD_USE_MPEG2_CODEC), true)
+LOCAL_CFLAGS += -DUSE_MPEG2_CODEC
+endif
+
+ifeq ($(BOARD_USE_WMV_CODEC), true)
+LOCAL_CFLAGS += -DUSE_WMV_CODEC
+endif
+
+ifeq ($(BOARD_USE_WMA_CODEC), true)
+LOCAL_CFLAGS += -DUSE_WMA_CODEC
+endif
+
+ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/openmax/include/exynos
+endif
+
+ifeq ($(BOARD_USE_S3D_SUPPORT), true)
+LOCAL_CFLAGS += -DUSE_S3D_SUPPORT
+endif
+
+ifeq ($(BOARD_USE_FRAMERATE_DETECTION), true)
+LOCAL_CFLAGS += -DUSE_FRAMERATE_DETECTION
+endif
+
+ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
+LOCAL_CFLAGS += -DNATIVE_COLOR_FORMAT_PATCH
+LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/include
+LOCAL_STATIC_LIBRARIES += libcsc_helper
+endif
+
+ifeq ($(BOARD_USE_EXTRA_NATIVE_BUFFERS),true)
+	LOCAL_CFLAGS += -DUSE_EXTRA_NATIVE_BUFFERS
+endif
+
+ifeq ($(BOARD_USES_HDMI),true)
+	LOCAL_CFLAGS += -DBOARD_USES_HDMI
+endif
+
+ifeq ($(filter-out exynos5,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_CFLAGS += -DSAMSUNG_ANDROID_PATCH
 endif
 
 LOCAL_MODULE:= libstagefright

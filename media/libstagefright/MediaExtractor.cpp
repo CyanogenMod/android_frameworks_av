@@ -19,6 +19,10 @@
 #define LOG_TAG "MediaExtractor"
 #include <utils/Log.h>
 
+#ifdef USE_AVI_EXTRACTOR
+#include "include/AVIExtractor.h"
+#endif
+
 #include "include/AMRExtractor.h"
 #include "include/MP3Extractor.h"
 #include "include/MPEG4Extractor.h"
@@ -119,6 +123,11 @@ sp<MediaExtractor> MediaExtractor::Create(
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2PS)) {
         ret = new MPEG2PSExtractor(source);
     }
+#ifdef USE_AVI_EXTRACTOR
+    else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_AVI)) {
+        ret = new AVIExtractor(source);
+    }
+#endif
 
     if (ret != NULL) {
        if (isDrm) {
