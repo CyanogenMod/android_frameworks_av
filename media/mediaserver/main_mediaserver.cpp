@@ -33,6 +33,7 @@ using namespace android;
 
 int main(int argc, char** argv)
 {
+    signal(SIGPIPE, SIG_IGN);
     sp<ProcessState> proc(ProcessState::self());
     sp<IServiceManager> sm = defaultServiceManager();
     ALOGI("ServiceManager: %p", sm.get());
