@@ -275,6 +275,9 @@ private:
             int32_t numChannels, int32_t sampleRate, int32_t bitRate,
             int32_t aacProfile, bool isADTS);
 
+    void setWMAFormat(
+            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
+
     void setG711Format(int32_t numChannels);
 #ifdef QCOM_HARDWARE
     void setQCELPFormat( int32_t sampleRate, int32_t numChannels, int32_t bitRate);
@@ -306,7 +309,11 @@ private:
             CodecProfileLevel& profileLevel);
 
     status_t setVideoOutputFormat(
+#ifdef USE_FRAMERATE_DETECTION
+            const char *mime, OMX_U32 width, OMX_U32 height, OMX_U32 frameRate);
+#else
             const char *mime, OMX_U32 width, OMX_U32 height);
+#endif
 
     void setImageOutputFormat(
             OMX_COLOR_FORMATTYPE format, OMX_U32 width, OMX_U32 height);

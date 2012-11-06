@@ -30,6 +30,14 @@ extern const char *MEDIA_MIMETYPE_VIDEO_H263;
 extern const char *MEDIA_MIMETYPE_VIDEO_MPEG2;
 extern const char *MEDIA_MIMETYPE_VIDEO_RAW;
 
+#ifdef USE_WMV_CODEC
+extern const char *MEDIA_MIMETYPE_VIDEO_WMV;
+#endif
+
+#ifdef USE_WMA_CODEC
+extern const char *MEDIA_MIMETYPE_AUDIO_WMA;
+#endif
+
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_NB;
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_WB;
 extern const char *MEDIA_MIMETYPE_AUDIO_MPEG;           // layer III

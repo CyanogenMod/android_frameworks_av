@@ -130,6 +130,11 @@ private:
     AwesomePlayer *mObserver;
     int64_t mPinnedTimeUs;
 
+#ifdef SAMSUNG_ANDROID_PATCH
+    SystemTimeSource mSystemTimeSource;
+    int64_t mBaseTime;
+#endif
+
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);
 
@@ -147,6 +152,10 @@ private:
 
     AudioPlayer(const AudioPlayer &);
     AudioPlayer &operator=(const AudioPlayer &);
+
+#ifdef USE_ALP_AUDIO
+    bool mIsALPAudio;
+#endif
 };
 
 }  // namespace android

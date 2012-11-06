@@ -1666,6 +1666,20 @@ status_t AwesomePlayer::initAudioDecoder() {
                     ) {
         ALOGD("Set Audio Track as Audio Source");
         mAudioSource = mAudioTrack;
+#ifdef USE_ALP_AUDIO
+    } else if (mVideoTrack == NULL && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
+        mAudioSource = OMXCodec::Create(
+            mClient.interface(), mAudioTrack->getFormat(),
+            false, // createEncoder
+            mAudioTrack,
+            "OMX.Exynos.MP3.Decoder");
+        if (mAudioSource == NULL) {
+            mAudioSource = OMXCodec::Create(
+                mClient.interface(), mAudioTrack->getFormat(),
+                false, // createEncoder
+                mAudioTrack);
+        }
+#endif
     } else {
 #ifdef QCOM_HARDWARE
         int64_t durationUs;
@@ -2185,6 +2199,11 @@ void AwesomePlayer::onVideoEvent() {
             }
             postVideoEvent_l(kVideoEarlyMarginUs - latenessUs);
 #else
+#ifdef EXYNOS4_ENHANCEMENTS
+            if (latenessUs > -20000)
+                postVideoEvent_l(-latenessUs-10000);
+            else
+#endif
             postVideoEvent_l(10000);
 #endif
             return;
@@ -2278,6 +2297,18 @@ void AwesomePlayer::postCheckAudioStatusEvent(int64_t delayUs) {
         return;
     }
     mAudioStatusEventPending = true;
+
+#ifdef SAMSUNG_ANDROID_PATCH
+    /*
+     * Do not honor delay when audio reached EOS
+     * in order to change immediately time source from AudioPlayer to SystemTime
+     */
+    status_t finalStatus;
+    if (mWatchForAudioEOS && mAudioPlayer->reachedEOS(&finalStatus)) {
+        delayUs = 0;
+    }
+#endif
+
     // Do not honor delay when looping in order to limit audio gap
     if (mFlags & (LOOPING | AUTO_LOOPING)) {
         delayUs = 0;
