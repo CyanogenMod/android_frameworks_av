@@ -2167,7 +2167,7 @@ uint32_t AudioFlinger::PlaybackThread::hasAudioSession(int sessionId) const
     for (size_t i = 0; i < mTracks.size(); ++i) {
         sp<Track> track = mTracks[i];
         if (sessionId == track->sessionId() &&
-                !(track->mCblk->flags & CBLK_INVALID_MSK)) {
+                !(track->mCblk->flags & CBLK_INVALID)) {
             result |= TRACK_SESSION;
             break;
         }
@@ -2186,7 +2186,7 @@ uint32_t AudioFlinger::PlaybackThread::getStrategyForSession_l(int sessionId)
     for (size_t i = 0; i < mTracks.size(); i++) {
         sp<Track> track = mTracks[i];
         if (sessionId == track->sessionId() &&
-                !(track->mCblk->flags & CBLK_INVALID_MSK)) {
+                !(track->mCblk->flags & CBLK_INVALID)) {
             return AudioSystem::getStrategyForStream(track->streamType());
         }
     }
@@ -3032,7 +3032,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     }
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED_ON, &track->mCblk->flags);
+                    android_atomic_or(CBLK_DISABLED, &track->mCblk->flags);
                     // remove from active list, but state remains ACTIVE [confusing but true]
                     isActive = false;
                     break;
@@ -3314,7 +3314,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED_ON, &cblk->flags);
+                    android_atomic_or(CBLK_DISABLED, &cblk->flags);
                 // If one track is not ready, mark the mixer also not ready if:
                 //  - the mixer was ready during previous round OR
                 //  - no other track is ready
@@ -3447,7 +3447,7 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
     for (size_t i = 0; i < size; i++) {
         sp<Track> t = mTracks[i];
         if (t->streamType() == streamType) {
-            android_atomic_or(CBLK_INVALID_ON, &t->mCblk->flags);
+            android_atomic_or(CBLK_INVALID, &t->mCblk->flags);
             t->mCblk->cv.signal();
         }
     }
@@ -4227,7 +4227,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                     memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
                     // Force underrun condition to avoid false underrun callback until first data is
                     // written to buffer (other flags are cleared)
-                    mCblk->flags = CBLK_UNDERRUN_ON;
+                    mCblk->flags = CBLK_UNDERRUN;
                 } else {
                     mBuffer = sharedBuffer->pointer();
                 }
@@ -4256,7 +4256,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         memset(mBuffer, 0, frameCount*channelCount*sizeof(int16_t));
         // Force underrun condition to avoid false underrun callback until first data is
         // written to buffer (other flags are cleared)
-        mCblk->flags = CBLK_UNDERRUN_ON;
+        mCblk->flags = CBLK_UNDERRUN;
         mBufferEnd = (uint8_t *)mBuffer + bufferSize;
     }
 }
@@ -4600,9 +4600,9 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
     if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) return true;
 
     if (framesReady() >= mCblk->frameCount ||
-            (mCblk->flags & CBLK_FORCEREADY_MSK)) {
+            (mCblk->flags & CBLK_FORCEREADY)) {
         mFillingUpStatus = FS_FILLED;
-        android_atomic_and(~CBLK_FORCEREADY_MSK, &mCblk->flags);
+        android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
         return true;
     }
     return false;
@@ -4745,8 +4745,8 @@ void AudioFlinger::PlaybackThread::Track::reset()
         TrackBase::reset();
         // Force underrun condition to avoid false underrun callback until first data is
         // written to buffer
-        android_atomic_and(~CBLK_FORCEREADY_MSK, &mCblk->flags);
-        android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
+        android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
+        android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
         mFillingUpStatus = FS_FILLING;
         mResetDone = true;
         if (mState == FLUSHED) {
@@ -5495,7 +5495,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
             TrackBase::reset();
             // Force overrun condition to avoid false overrun callback until first data is
             // read from buffer
-            android_atomic_or(CBLK_UNDERRUN_ON, &mCblk->flags);
+            android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
         }
         recordThread->mLock.unlock();
         if (doStop) {
@@ -5540,7 +5540,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
 {
 
     if (mCblk != NULL) {
-        mCblk->flags |= CBLK_DIRECTION_OUT;
+        mCblk->flags |= CBLK_DIRECTION;
         mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
