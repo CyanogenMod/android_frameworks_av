@@ -70,14 +70,6 @@ public:
     class Buffer
     {
     public:
-        enum {
-            MUTE    = 0x00000001
-        };
-        uint32_t    flags;        // 0 or MUTE
-        audio_format_t format;    // but AUDIO_FORMAT_PCM_8_BIT -> AUDIO_FORMAT_PCM_16_BIT
-        // accessed directly by WebKit ANP callback
-        int         channelCount; // will be removed in the future, do not use
-
         size_t      frameCount;   // number of sample frames corresponding to size;
                                   // on input it is the number of frames desired,
                                   // on output is the number of frames actually filled
@@ -418,6 +410,17 @@ public:
      *  +n  limits wait time to n * WAIT_PERIOD_MS,
      *  -1  causes an (almost) infinite wait time,
      *   0  non-blocking.
+     *
+     * Buffer fields
+     * On entry:
+     *  frameCount  number of frames requested
+     * After error return:
+     *  frameCount  0
+     *  size        0
+     * After successful return:
+     *  frameCount  actual number of frames available, <= number requested
+     *  size        actual number of bytes available
+     *  raw         pointer to the buffer
      */
 
         enum {
