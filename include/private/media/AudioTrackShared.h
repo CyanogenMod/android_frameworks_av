@@ -41,7 +41,6 @@ namespace android {
 #define CBLK_DISABLED   0x10 // track disabled by AudioFlinger due to underrun, need to re-start
 #define CBLK_RESTORING  0x20 // track is being restored after invalidation by AudioFlinger
 #define CBLK_RESTORED   0x40 // track has been restored after invalidation by AudioFlinger
-#define CBLK_FAST       0x80 // AudioFlinger successfully created a fast track
 
 // Important: do not add any virtual methods, including ~
 struct audio_track_cblk_t

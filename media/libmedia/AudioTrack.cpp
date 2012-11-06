@@ -867,7 +867,7 @@ status_t AudioTrack::createTrack_l(
                                                       format,
                                                       channelMask,
                                                       frameCount,
-                                                      trackFlags,
+                                                      &trackFlags,
                                                       sharedBuffer,
                                                       output,
                                                       tid,
@@ -887,10 +887,9 @@ status_t AudioTrack::createTrack_l(
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
     mCblk = cblk;
-    // old has the previous value of cblk->flags before the "or" operation
-    int32_t old = android_atomic_or(CBLK_DIRECTION, &cblk->flags);
+    android_atomic_or(CBLK_DIRECTION, &cblk->flags);
     if (flags & AUDIO_OUTPUT_FLAG_FAST) {
-        if (old & CBLK_FAST) {
+        if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", cblk->frameCount);
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", cblk->frameCount);
