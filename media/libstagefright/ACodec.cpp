@@ -37,6 +37,10 @@
 #include "sec_format.h"
 #endif
 
+#ifdef NATIVE_COLOR_FORMAT_PATCH
+#include "csc.h"
+#endif
+
 namespace android {
 
 template<class T>
@@ -530,10 +534,10 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-#ifdef EXYNOS4_ENHANCEMENTS
+#ifdef NATIVE_COLOR_FORMAT_PATCH
     OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
-    setNativeWindowColorFormat(eNativeColorFormat);
-
+    eNativeColorFormat = (OMX_COLOR_FORMATTYPE)omx_2_hal_pixel_format(def.format.video.eColorFormat);
+    
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,

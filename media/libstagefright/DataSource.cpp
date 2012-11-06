@@ -20,6 +20,9 @@
 #if CHROMIUM_AVAILABLE
 #include "include/DataUriSource.h"
 #endif
+#ifdef USE_AVI_EXTRACTOR
+#include "include/AVIExtractor.h"
+#endif
 
 #include "include/MP3Extractor.h"
 #include "include/MPEG4Extractor.h"
@@ -180,6 +183,8 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer(SniffWVM);
 #ifdef QCOM_HARDWARE
     ExtendedExtractor::RegisterSniffers();
+#ifdef USE_AVI_EXTRACTOR
+    RegisterSniffer(SniffAVI);
 #endif
 
     char value[PROPERTY_VALUE_MAX];

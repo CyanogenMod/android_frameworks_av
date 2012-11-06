@@ -411,7 +411,12 @@ status_t AVIExtractor::parseHeaders() {
     if (res < 0) {
         return (status_t)res;
     }
-
+#ifdef SUPPORT_INDEXTBL_GENERATION
+    if (mFoundIndex == false) {
+        status_t result = makeIndex(mMovieOffset, mMovieChunkSize);
+        return result;
+    }
+#endif
     if (mMovieOffset == 0ll || !mFoundIndex) {
         return ERROR_MALFORMED;
     }
@@ -471,6 +476,9 @@ ssize_t AVIExtractor::parseChunk(off64_t offset, off64_t size, int depth) {
             // offset.
 
             mMovieOffset = offset;
+#ifdef SUPPORT_INDEXTBL_GENERATION
+            mMovieChunkSize = chunkSize;
+#endif
         } else {
             off64_t subOffset = offset + 12;
             off64_t subOffsetLimit = subOffset + chunkSize - 4;
@@ -580,7 +588,6 @@ static const char *GetMIMETypeForHandler(uint32_t handler) {
         case FOURCC('H', '2', '6', '4'):
         case FOURCC('v', 's', 's', 'h'):
             return MEDIA_MIMETYPE_VIDEO_AVC;
-
         case FOURCC('D','2','6','3'):
         case FOURCC('H','2','6','3'):
         case FOURCC('L','2','6','3'):
@@ -595,6 +602,11 @@ static const char *GetMIMETypeForHandler(uint32_t handler) {
         case FOURCC('W','M','V','9'):
         case FOURCC('W','V','C','1'):
             return MEDIA_MIMETYPE_VIDEO_WMV;
+
+#ifdef USE_MPEG2_CODEC
+        case FOURCC('m', 'p', 'g', '2'):
+            return MEDIA_MIMETYPE_VIDEO_MPEG2;
+#endif
 
         default:
             return NULL;
@@ -715,12 +727,64 @@ status_t AVIExtractor::parseStreamFormat(off64_t offset, size_t size) {
 
         track->mMeta->setInt32(kKeyWidth, width);
         track->mMeta->setInt32(kKeyHeight, height);
+
+#ifdef USE_WMV_CODEC
+        if (size > 44) {
+            memcpy(&mVideoFormatSpecificData,data,40);
+            mCodecSpecific_Size = size - 40;
+            ALOGV("mCodecSpecific_Size : %d", mCodecSpecific_Size);
+
+            if (mCodecSpecific_Size < 50)
+                memcpy(mCodecSpecificData, &data[40], mCodecSpecific_Size);
+            else
+                ALOGE("mCodecSpecific_Size is too big");
+        }
+#endif
     } else {
         uint32_t format = U16LE_AT(data);
 
         if (format == 0x55) {
             track->mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
-        } else {
+        }
+
+#ifdef USE_AAC_CODEC
+        else if (format == 0xFF) {
+            uint32_t numChannels = U16LE_AT(&data[2]);
+            uint32_t sampleRate = U32LE_AT(&data[4]);
+
+            track->mMeta->setInt32(kKeyChannelCount, numChannels);
+            track->mMeta->setInt32(kKeySampleRate, sampleRate);
+            track->mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
+
+            if (addAACCodecSpecificData(numChannels, sampleRate) == ERROR_MALFORMED)
+                ALOGW("AAC Codec specificdata is wrong = 0x%04x", format);
+        }
+#endif
+#ifdef USE_WMA_CODEC
+        else if ((format == 0x160) || (format == 0x161)) {
+            uint32_t numChannels = U16LE_AT(&data[2]);
+            uint32_t sampleRate = U32LE_AT(&data[4]);
+
+            track->mMeta->setInt32(kKeyChannelCount, numChannels);
+            track->mMeta->setInt32(kKeySampleRate, sampleRate);
+            track->mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_WMA);
+
+            if (size > 18) {
+                memcpy(&mAudioFormatSpecificData,data,18);
+                mAudioCodecSpecific_Size = size - 18;
+                ALOGV("mAudioCodecSpecific_Size : %d", mAudioCodecSpecific_Size);
+
+                if (mAudioCodecSpecific_Size < 50)
+                    memcpy(mAudioCodecSpecificData, &data[18], mAudioCodecSpecific_Size);
+                else
+                    ALOGV("mAudioCodecSpecific_Size is too big");
+            }
+
+            if (addWMACodecSpecificData(mTracks.size() - 1) == ERROR_MALFORMED)
+                ALOGW("WMA Codec specificdata is wrong = 0x%04x", format);
+        }
+#endif
+        else {
             ALOGW("Unsupported audio format = 0x%04x", format);
         }
 
@@ -952,6 +1016,12 @@ status_t AVIExtractor::parseIndex(off64_t offset, size_t size) {
                 err = addH264CodecSpecificData(i);
             }
 
+#ifdef USE_WMV_CODEC
+            else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_WMV)) {
+                err = addWMVCodecSpecificData(i);
+            }
+#endif
+
             if (err != OK) {
                 return err;
             }
@@ -962,6 +1032,188 @@ status_t AVIExtractor::parseIndex(off64_t offset, size_t size) {
 
     return OK;
 }
+
+#ifdef SUPPORT_INDEXTBL_GENERATION
+status_t AVIExtractor::makeIndex(off64_t offset, size_t size) {
+    if ((size % 16) != 0)
+        return ERROR_MALFORMED;
+
+    uint32_t frameHeaderSize = 16;
+    uint8_t data[frameHeaderSize];
+    off64_t curOffset = offset + 12;
+    uint32_t startHeaderPos = 0;
+
+    while (size + offset + 8 > curOffset) {
+        ssize_t n = mDataSource->readAt(curOffset, data, frameHeaderSize);
+        if (n < (ssize_t)frameHeaderSize) {
+            return n < 0 ? (status_t)n : ERROR_MALFORMED;
+        }
+
+        uint8_t i = 0;
+        startHeaderPos = 0;
+        while (i < frameHeaderSize) {
+            if (data[i] == 0x00)
+                startHeaderPos++;
+            else
+                break;
+            i++;
+        }
+
+        if (i == frameHeaderSize)
+            return ERROR_MALFORMED;
+
+        if ((data[0+startHeaderPos] == 0x69) && (data[1+startHeaderPos] == 0x78))
+            break;
+
+        uint32_t chunkType = U32_AT(&data[startHeaderPos]);
+
+        uint8_t hi = chunkType >> 24;
+        uint8_t lo = (chunkType >> 16) & 0xff;
+
+        if (hi < '0' || hi > '9' || lo < '0' || lo > '9')
+            return ERROR_MALFORMED;
+
+        size_t trackIndex = 10 * (hi - '0') + (lo - '0');
+
+        if (trackIndex >= mTracks.size())
+            return ERROR_MALFORMED;
+
+        Track *track = &mTracks.editItemAt(trackIndex);
+
+        if (!IsCorrectChunkType(-1, track->mKind, chunkType))
+            return ERROR_MALFORMED;
+
+        uint64_t inoffset = curOffset+startHeaderPos;
+        uint32_t chunkSize = U32LE_AT(&data[4+startHeaderPos]);
+        uint32_t flags = U32LE_AT(&data[8+startHeaderPos]);
+
+        if (chunkSize > track->mMaxSampleSize)
+            track->mMaxSampleSize = chunkSize;
+
+        track->mSamples.push();
+
+        SampleInfo *info = &track->mSamples.editItemAt(track->mSamples.size() - 1);
+
+        info->mOffset = (uint32_t)(inoffset);
+        if (track->mKind == Track::VIDEO)
+            info->mIsKey = (data[10+startHeaderPos] == 0x01) && (data[11+startHeaderPos] == 0x00);
+        else
+            info->mIsKey = 1;
+
+        if (info->mIsKey) {
+            static const size_t kMaxNumSyncSamplesToScan = 20;
+
+            if (track->mNumSyncSamples < kMaxNumSyncSamplesToScan) {
+                if (chunkSize > track->mThumbnailSampleSize) {
+                    track->mThumbnailSampleSize = chunkSize;
+                    track->mThumbnailSampleIndex = track->mSamples.size() - 1;
+                }
+            }
+
+            ++track->mNumSyncSamples;
+        }
+
+        curOffset = inoffset + chunkSize + 8;
+    }
+
+    if (!mTracks.isEmpty()) {
+        off64_t offset;
+        size_t size;
+        bool isKey;
+        int64_t timeUs;
+        status_t err = getSampleInfo(0, 0, &offset, &size, &isKey, &timeUs);
+
+        if (err != OK) {
+            mOffsetsAreAbsolute = !mOffsetsAreAbsolute;
+            err = getSampleInfo(0, 0, &offset, &size, &isKey, &timeUs);
+
+            if (err != OK)
+                return err;
+        }
+
+        ALOGV("Chunk offsets are %s", mOffsetsAreAbsolute ? "absolute" : "movie-chunk relative");
+    }
+
+    for (size_t i = 0; i < mTracks.size(); i++) {
+        Track *track = &mTracks.editItemAt(i);
+
+        if (track->mBytesPerSample > 0) {
+            /* Assume all chunks are roughly the same size for now.
+
+               Compute the avg. size of the first 128 chunks (if there are
+               that many), but exclude the size of the first one, since
+               it may be an outlier. */
+            size_t numSamplesToAverage = track->mSamples.size();
+            if (numSamplesToAverage > 256)
+                numSamplesToAverage = 256;
+
+            double avgChunkSize = 0;
+            size_t j;
+            for (j = 0; j <= numSamplesToAverage; j++) {
+                off64_t offset;
+                size_t size;
+                bool isKey;
+                int64_t dummy;
+
+                status_t err = getSampleInfo(i, j, &offset, &size, &isKey, &dummy);
+
+                if (err != OK)
+                    return err;
+
+                if (j == 0) {
+                    track->mFirstChunkSize = size;
+                    continue;
+                }
+
+                avgChunkSize += size;
+            }
+
+            avgChunkSize /= numSamplesToAverage;
+            track->mAvgChunkSize = avgChunkSize;
+        }
+
+        int64_t durationUs;
+        CHECK_EQ((status_t)OK, getSampleTime(i, track->mSamples.size() - 1, &durationUs));
+
+        ALOGV("track %d duration = %.2f secs", i, durationUs / 1E6);
+
+        track->mMeta->setInt64(kKeyDuration, durationUs);
+        track->mMeta->setInt32(kKeyMaxInputSize, track->mMaxSampleSize);
+
+        const char *tmp;
+        CHECK(track->mMeta->findCString(kKeyMIMEType, &tmp));
+
+        AString mime = tmp;
+
+        if (!strncasecmp("video/", mime.c_str(), 6)) {
+            if (track->mThumbnailSampleIndex >= 0) {
+                int64_t thumbnailTimeUs;
+                CHECK_EQ((status_t)OK, getSampleTime(i, track->mThumbnailSampleIndex, &thumbnailTimeUs));
+
+                track->mMeta->setInt64(kKeyThumbnailTime, thumbnailTimeUs);
+            }
+
+            status_t err = OK;
+
+            if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_MPEG4))
+                err = addMPEG4CodecSpecificData(i);
+            else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_AVC))
+                err = addH264CodecSpecificData(i);
+#ifdef USE_WMV_CODEC
+            else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_WMV))
+                err = addWMVCodecSpecificData(i);
+#endif
+
+            if (err != OK)
+                return err;
+        }
+    }
+
+    mFoundIndex = true;
+
+    return OK;
+}
+#endif
 
 static size_t GetSizeWidth(size_t x) {
     size_t n = 1;
@@ -1116,6 +1368,142 @@ status_t AVIExtractor::addH264CodecSpecificData(size_t trackIndex) {
     return OK;
 }
 
+#ifdef USE_WMV_CODEC
+status_t AVIExtractor::addWMVCodecSpecificData(size_t trackIndex) {
+    Track *track = &mTracks.editItemAt(trackIndex);
+
+    int32_t width, height;
+    CHECK(track->mMeta->findInt32(kKeyWidth, &width));
+    CHECK(track->mMeta->findInt32(kKeyHeight, &height));
+
+    mVideoFormatSpecificData.imageWidth = width;
+    mVideoFormatSpecificData.imageHeight = height;
+
+    int videoFormatSpecificData_Size = 40;
+
+    static const uint8_t kStaticESDS[] = {
+        0x03, 22,
+        0x00, 0x02,     /* ES_ID */
+        0x00,           /* streamDependenceFlag, URL_Flag, OCRstreamFlag */
+
+        0x04, 17,
+        0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+
+        0x05, 0x02, 0x12, 0x90, /* Dec-Specfic info Descriptor */
+    };
+
+    size_t size = sizeof(kStaticESDS) + videoFormatSpecificData_Size - 4; /* BitmapInfo Size */
+    size_t allSize = size + 2;
+    allSize += mCodecSpecific_Size;
+
+    unsigned char* data = new unsigned char[allSize];
+    memcpy(data, kStaticESDS, sizeof(kStaticESDS));
+    data[1] = (uint8_t)(allSize-2);
+    data[6] = 17 + videoFormatSpecificData_Size + mCodecSpecific_Size-2;
+    data[21] = (uint8_t)videoFormatSpecificData_Size+mCodecSpecific_Size;
+    memcpy(data+22, &mVideoFormatSpecificData , videoFormatSpecificData_Size);
+    memcpy(data+22+videoFormatSpecificData_Size, mCodecSpecificData, mCodecSpecific_Size);
+
+    track->mMeta->setData(kKeyESDS, 0, data, allSize);
+
+    return OK;
+}
+#endif
+
+#ifdef USE_WMV_CODEC
+status_t AVIExtractor::addWMACodecSpecificData(size_t trackIndex) {
+    Track *track = &mTracks.editItemAt(trackIndex);
+
+    int audioFormatSpecificData_Size = 18;
+
+    static const uint8_t kStaticESDS[] = {
+        0x03, 22,
+        0x00, 0x02,     /* ES_ID */
+        0x00,           /* streamDependenceFlag, URL_Flag, OCRstreamFlag */
+
+        0x04, 17,
+        0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+
+        0x05, 0x02, 0x12, 0x90, /* Dec-Specfic info Descriptor */
+    };
+
+    size_t size = sizeof(kStaticESDS) + audioFormatSpecificData_Size - 4; /* AudioSpecificData Size */
+    size_t allSize = size + 2;
+    allSize += mAudioCodecSpecific_Size;
+
+    unsigned char* data = new unsigned char[allSize];
+    memcpy(data, kStaticESDS, sizeof(kStaticESDS));
+    data[1] = (uint8_t)(allSize-2);
+    data[6] = 17 + audioFormatSpecificData_Size + mAudioCodecSpecific_Size-2;
+    data[21] = (uint8_t)audioFormatSpecificData_Size+mAudioCodecSpecific_Size;
+    memcpy(data+22, &mAudioFormatSpecificData , audioFormatSpecificData_Size);
+    memcpy(data+22+audioFormatSpecificData_Size, mAudioCodecSpecificData, mAudioCodecSpecific_Size);
+
+    track->mMeta->setData(kKeyESDS, 0, data, allSize);
+
+    return OK;
+}
+#endif
+
+#ifdef USE_AAC_CODEC
+status_t AVIExtractor::addAACCodecSpecificData(uint32_t numChannels, uint32_t sampleRate) {
+    Track *track = &mTracks.editItemAt(mTracks.size() - 1);
+    static const uint32_t kSamplingFreq[] = {
+        96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
+        16000, 12000, 11025, 8000
+    };
+
+    int i = 0;
+    int sampling_freq_index = 0;
+    int channel_configuration = numChannels;
+    for (i = 0; i < 12; i++) {
+        if (kSamplingFreq[i] == sampleRate)
+            sampling_freq_index = i;
+    }
+
+    if (sampling_freq_index == 12)
+        return ERROR_MALFORMED;
+
+    ALOGV("kSamplingFreq[i]:%d, sampling_freq_index:%d", kSamplingFreq[i], sampling_freq_index);
+
+    static const uint8_t kStaticESDS[] = {
+       0x03, 25,
+       0x00, 0x02,     /* ES_ID */
+       0x00,           /* streamDependenceFlag, URL_Flag, OCRstreamFlag */
+
+       0x04, 17,
+       0x40,
+       0x15, 0x00, 0x00, 0x00, /* Stream Type, Up Stream */
+       0x00, 0x00, 0x00, 0x00, /* Max Bit rate */
+       0x00, 0x00, 0x00, 0x00, /* Avg. BitRate */
+
+       0x05, 0x02, 0x12, 0x90, /* Dec-Specfic info Descriptor */
+       0x06, 0x01, 0x02, /* sync Layer Config Descriptor */
+       /* AudioSpecificInfo follows */
+   };
+
+    unsigned char* data = new unsigned char[sizeof(kStaticESDS)];
+
+    size_t size = sizeof(kStaticESDS);
+    memcpy(data, kStaticESDS, sizeof(kStaticESDS));
+
+    data[22] = (0x10 | (sampling_freq_index >> 1));
+    data[23] = ((sampling_freq_index << 7) & 0x80) | (channel_configuration << 3);
+
+    ALOGV("kSamplingFreq[i]:%d, channel_configuration:%d,%d,%d", kSamplingFreq[i], channel_configuration, data[22], data[23]);
+
+    track->mMeta->setData(kKeyESDS, 0, data, size);
+
+    return OK;
+}
+#endif
+
 status_t AVIExtractor::getSampleInfo(
         size_t trackIndex, size_t sampleIndex,
         off64_t *offset, size_t *size, bool *isKey,
@@ -1157,6 +1545,18 @@ status_t AVIExtractor::getSampleInfo(
     *size = U32LE_AT(&tmp[4]);
 
     *isKey = info.mIsKey;
+
+#ifdef USE_AAC_CODEC
+    const char *mime;
+    CHECK(track.mMeta->findCString(kKeyMIMEType, &mime));
+
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
+        int sampleRate = 0;
+        track.mMeta->findInt32(kKeySampleRate, &sampleRate);
+        *sampleTimeUs = sampleIndex * (1024 * 1000000ll + (sampleRate - 1)) / sampleRate;
+        return OK;
+    }
+#endif
 
     if (track.mBytesPerSample > 0) {
         size_t sampleStartInBytes;
@@ -1212,6 +1612,17 @@ status_t AVIExtractor::getSampleIndexAtTime(
         // Each chunk contains a single sample.
         closestSampleIndex = timeUs / track.mRate * track.mScale / 1000000ll;
     }
+
+#ifdef USE_AAC_CODEC
+    const char *mime;
+    CHECK(track.mMeta->findCString(kKeyMIMEType, &mime));
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
+        int sampleRate = 0;
+        track.mMeta->findInt32(kKeySampleRate, &sampleRate);
+
+        closestSampleIndex = (timeUs * sampleRate) / (1024 * 1000000ll + (sampleRate - 1));
+    }
+#endif
 
     ssize_t numSamples = track.mSamples.size();
 

@@ -60,6 +60,13 @@ AudioPlayer::AudioPlayer(
       mAllowDeepBuffering(allowDeepBuffering),
       mObserver(observer),
       mPinnedTimeUs(-1ll) {
+#ifdef USE_ALP_AUDIO
+    mSeekTimeUs = 0;
+    mIsALPAudio = false;
+#endif
+#ifdef SAMSUNG_ANDROID_PATCH
+    mBaseTime = 0;
+#endif
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -129,6 +136,15 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     int32_t numChannels, channelMask;
     success = format->findInt32(kKeyChannelCount, &numChannels);
     CHECK(success);
+
+#ifdef USE_ALP_AUDIO
+    const char *componentName;
+    if (format->findCString(kKeyDecoderComponent, &componentName) == true) {
+        if (strcmp(componentName, "OMX.Exynos.MP3.Decoder") == 0) {
+            mIsALPAudio = true;
+        }
+    }
+#endif
 
     if(!format->findInt32(kKeyChannelMask, &channelMask)) {
         // log only when there's a risk of ambiguity of channel mask selection
@@ -247,6 +263,9 @@ void AudioPlayer::resume() {
     } else {
         mAudioTrack->start();
     }
+#ifdef SAMSUNG_ANDROID_PATCH
+    mBaseTime = mSystemTimeSource.getRealTimeUs();
+#endif
 }
 
 void AudioPlayer::reset() {
@@ -297,6 +316,9 @@ void AudioPlayer::reset() {
     mPositionTimeMediaUs = -1;
     mPositionTimeRealUs = -1;
     mSeeking = false;
+#ifdef USE_ALP_AUDIO
+    mSeekTimeUs = 0;
+#endif
     mReachedEOS = false;
     mFinalStatus = OK;
     mStarted = false;
@@ -542,13 +564,23 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
     if (postSeekComplete) {
         mObserver->postAudioSeekComplete();
     }
-
+#ifdef SAMSUNG_ANDROID_PATCH
+    mBaseTime = mSystemTimeSource.getRealTimeUs();
+#endif
     return size_done;
 }
 
 int64_t AudioPlayer::getRealTimeUs() {
     Mutex::Autolock autoLock(mLock);
+#ifdef SAMSUNG_ANDROID_PATCH
+    CHECK(mStarted);
+    CHECK_NE(mSampleRate, 0);
+    int64_t origTime = -mLatencyUs + (mNumFramesPlayed * 1000000) / mSampleRate;
+    int64_t tmp = mSystemTimeSource.getRealTimeUs();
+    return (origTime+(tmp-mBaseTime));
+#else
     return getRealTimeUsLocked();
+#endif
 }
 
 int64_t AudioPlayer::getRealTimeUsLocked() const {
@@ -594,7 +626,18 @@ int64_t AudioPlayer::getMediaTimeUs() {
         realTimeOffset = 0;
     }
 
+#ifdef USE_ALP_AUDIO
+    /*
+     * Audio timestamp should be calculated not by input streams
+     * passed to the mp3 decoder but by played output frames.
+     */
+    if (mIsALPAudio)
+        return mSeekTimeUs + mPositionTimeRealUs + realTimeOffset;
+    else
+        return mPositionTimeMediaUs + realTimeOffset;
+#else
     return mPositionTimeMediaUs + realTimeOffset;
+#endif
 }
 
 bool AudioPlayer::getMediaTimeMapping(

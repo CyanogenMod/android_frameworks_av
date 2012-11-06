@@ -44,6 +44,34 @@ private:
     struct AVISource;
     struct MP3Splitter;
 
+#ifdef USE_WMV_CODEC
+    struct VideoFormatSpecificData {
+        uint32_t formatDataSize;
+        uint32_t imageWidth;
+        uint32_t imageHeight;
+        uint16_t reserved;
+        uint16_t bitsPerPixelCount;
+        uint32_t compressionID;
+        uint32_t imageSize;
+        uint32_t horizontalPixelsPerMeter;
+        uint32_t verticalPixelsPerMeter;
+        uint32_t colorsUsedCount;
+        uint32_t importantColorsCount;
+    };
+#endif
+
+#ifdef USE_WMA_CODEC
+    struct AudioFormatSpecificData {
+        uint16_t codecID;
+        uint16_t numberOfChannels;
+        uint32_t sampleRates;
+        uint32_t averageNumberOfbytesPerSecond;
+        uint16_t blockAlignment;
+        uint16_t bitsPerSample;
+        uint16_t codecSpecificDataSize;
+    };
+#endif
+
     struct SampleInfo {
         uint32_t mOffset;
         bool mIsKey;
@@ -82,8 +110,25 @@ private:
     Vector<Track> mTracks;
 
     off64_t mMovieOffset;
+#ifdef SUPPORT_INDEXTBL_GENERATION
+    off64_t mMovieChunkSize;
+#endif
     bool mFoundIndex;
     bool mOffsetsAreAbsolute;
+
+#ifdef USE_WMV_CODEC
+    /* for vc1,wmv3 codec */
+    size_t mCodecSpecific_Size;
+    char mCodecSpecificData[50];
+    VideoFormatSpecificData mVideoFormatSpecificData;
+#endif
+
+#ifdef USE_WMA_CODEC
+    /* for wmav1,wmav2 codec */
+    size_t mAudioCodecSpecific_Size;
+    char mAudioCodecSpecificData[50];
+    AudioFormatSpecificData mAudioFormatSpecificData;
+#endif
 
     ssize_t parseChunk(off64_t offset, off64_t size, int depth = 0);
     status_t parseStreamHeader(off64_t offset, size_t size);
@@ -105,8 +150,24 @@ private:
             int64_t timeUs, MediaSource::ReadOptions::SeekMode mode,
             size_t *sampleIndex) const;
 
+#ifdef SUPPORT_INDEXTBL_GENERATION
+    status_t makeIndex(off64_t offset, size_t size);
+#endif
+
     status_t addMPEG4CodecSpecificData(size_t trackIndex);
     status_t addH264CodecSpecificData(size_t trackIndex);
+
+#ifdef USE_WMV_CODEC
+    status_t addWMVCodecSpecificData(size_t trackIndex);
+#endif
+
+#ifdef USE_AAC_CODEC
+    status_t addAACCodecSpecificData(uint32_t numChannels, uint32_t sampleRate);
+#endif
+
+#ifdef USE_WMA_CODEC
+    status_t addWMACodecSpecificData(size_t trackIndex);
+#endif
 
     static bool IsCorrectChunkType(
         ssize_t trackIndex, Track::Kind kind, uint32_t chunkType);
