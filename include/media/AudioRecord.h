@@ -57,13 +57,6 @@ public:
     class Buffer
     {
     public:
-        enum {
-            MUTE    = 0x00000001
-        };
-        uint32_t    flags;
-        int         channelCount;
-        audio_format_t format;
-
         size_t      frameCount;     // number of sample frames corresponding to size;
                                     // on input it is the number of frames available,
                                     // on output is the number of frames actually drained
