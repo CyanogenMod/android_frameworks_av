@@ -509,7 +509,7 @@ protected:
     float                   mSendLevel;
     uint32_t                mFrameCount;
 
-    audio_track_cblk_t*     mCblk;
+    audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
     audio_format_t          mFormat;
     audio_stream_type_t     mStreamType;
     uint8_t                 mChannelCount;
@@ -548,7 +548,6 @@ protected:
     // It is OK to lock only mCblk->lock.
     mutable Mutex           mLock;
 
-    status_t                mRestoreStatus;
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;

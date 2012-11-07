@@ -297,7 +297,6 @@ status_t AudioTrack::set(
     mUpdatePeriod = 0;
     mFlushed = false;
     AudioSystem::acquireAudioSessionId(mSessionId);
-    mRestoreStatus = NO_ERROR;
     return NO_ERROR;
 }
 
@@ -956,12 +955,17 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
             }
             if (!(cblk->flags & CBLK_INVALID)) {
                 mLock.unlock();
+                // this condition is in shared memory, so if IAudioTrack and control block
+                // are replaced due to mediaserver death or IAudioTrack invalidation then
+                // cv won't be signalled, but fortunately the timeout will limit the wait
                 result = cblk->cv.waitRelative(cblk->lock, milliseconds(waitTimeMs));
                 cblk->lock.unlock();
                 mLock.lock();
                 if (!mActive) {
                     return status_t(STOPPED);
                 }
+                // IAudioTrack may have been re-created while mLock was unlocked
+                cblk = mCblk;
                 cblk->lock.lock();
             }
 
@@ -1071,6 +1075,9 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
     sp<IAudioTrack> audioTrack = mAudioTrack;
     sp<IMemory> iMem = mCblkMemory;
     mLock.unlock();
+
+    // since mLock is unlocked the IAudioTrack and shared memory may be re-created,
+    // so all cblk references might still refer to old shared memory, but that should be benign
 
     ssize_t written = 0;
     const int8_t *src = (const int8_t *)buffer;
@@ -1191,6 +1198,9 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
     audio_track_cblk_t* cblk = mCblk;
     bool active = mActive;
     mLock.unlock();
+
+    // since mLock is unlocked the IAudioTrack and shared memory may be re-created,
+    // so all cblk references might still refer to old shared memory, but that should be benign
 
     // Manage underrun callback
     if (active && (cblk->framesAvailableOut() == cblk->frameCount)) {
@@ -1318,104 +1328,72 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
 
     audio_track_cblk_t* cblk = refCblk;
     audio_track_cblk_t* newCblk = cblk;
-    if (!(android_atomic_or(CBLK_RESTORING, &cblk->flags) & CBLK_RESTORING)) {
-        ALOGW("dead IAudioTrack, creating a new one from %s TID %d",
-            fromStart ? "start()" : "obtainBuffer()", gettid());
+    ALOGW("dead IAudioTrack, creating a new one from %s TID %d",
+        fromStart ? "start()" : "obtainBuffer()", gettid());
 
-        // signal old cblk condition so that other threads waiting for available buffers stop
-        // waiting now
-        cblk->cv.broadcast();
-        cblk->lock.unlock();
+    // signal old cblk condition so that other threads waiting for available buffers stop
+    // waiting now
+    cblk->cv.broadcast();
+    cblk->lock.unlock();
 
-        // refresh the audio configuration cache in this process to make sure we get new
-        // output parameters in getOutput_l() and createTrack_l()
-        AudioSystem::clearAudioConfigCache();
+    // refresh the audio configuration cache in this process to make sure we get new
+    // output parameters in getOutput_l() and createTrack_l()
+    AudioSystem::clearAudioConfigCache();
 
-        // if the new IAudioTrack is created, createTrack_l() will modify the
-        // following member variables: mAudioTrack, mCblkMemory and mCblk.
-        // It will also delete the strong references on previous IAudioTrack and IMemory
-        result = createTrack_l(mStreamType,
-                               cblk->sampleRate,
-                               mFormat,
-                               mChannelMask,
-                               mFrameCount,
-                               mFlags,
-                               mSharedBuffer,
-                               getOutput_l());
+    // if the new IAudioTrack is created, createTrack_l() will modify the
+    // following member variables: mAudioTrack, mCblkMemory and mCblk.
+    // It will also delete the strong references on previous IAudioTrack and IMemory
+    result = createTrack_l(mStreamType,
+                           cblk->sampleRate,
+                           mFormat,
+                           mChannelMask,
+                           mFrameCount,
+                           mFlags,
+                           mSharedBuffer,
+                           getOutput_l());
 
-        if (result == NO_ERROR) {
-            uint32_t user = cblk->user;
-            uint32_t server = cblk->server;
-            // restore write index and set other indexes to reflect empty buffer status
-            newCblk = mCblk;
-            newCblk->user = user;
-            newCblk->server = user;
-            newCblk->userBase = user;
-            newCblk->serverBase = user;
-            // restore loop: this is not guaranteed to succeed if new frame count is not
-            // compatible with loop length
-            setLoop_l(cblk->loopStart, cblk->loopEnd, cblk->loopCount);
-            if (!fromStart) {
-                newCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
-                // Make sure that a client relying on callback events indicating underrun or
-                // the actual amount of audio frames played (e.g SoundPool) receives them.
-                if (mSharedBuffer == 0) {
-                    uint32_t frames = 0;
-                    if (user > server) {
-                        frames = ((user - server) > newCblk->frameCount) ?
-                                newCblk->frameCount : (user - server);
-                        memset(newCblk->buffers, 0, frames * newCblk->frameSize);
-                    }
-                    // restart playback even if buffer is not completely filled.
-                    android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
-                    // stepUser() clears CBLK_UNDERRUN flag enabling underrun callbacks to
-                    // the client
-                    newCblk->stepUserOut(frames);
+    if (result == NO_ERROR) {
+        uint32_t user = cblk->user;
+        uint32_t server = cblk->server;
+        // restore write index and set other indexes to reflect empty buffer status
+        newCblk = mCblk;
+        newCblk->user = user;
+        newCblk->server = user;
+        newCblk->userBase = user;
+        newCblk->serverBase = user;
+        // restore loop: this is not guaranteed to succeed if new frame count is not
+        // compatible with loop length
+        setLoop_l(cblk->loopStart, cblk->loopEnd, cblk->loopCount);
+        if (!fromStart) {
+            newCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
+            // Make sure that a client relying on callback events indicating underrun or
+            // the actual amount of audio frames played (e.g SoundPool) receives them.
+            if (mSharedBuffer == 0) {
+                uint32_t frames = 0;
+                if (user > server) {
+                    frames = ((user - server) > newCblk->frameCount) ?
+                            newCblk->frameCount : (user - server);
+                    memset(newCblk->buffers, 0, frames * newCblk->frameSize);
                 }
-            }
-            if (mSharedBuffer != 0) {
-                newCblk->stepUserOut(newCblk->frameCount);
-            }
-            if (mActive) {
-                result = mAudioTrack->start();
-                ALOGW_IF(result != NO_ERROR, "restoreTrack_l() start() failed status %d", result);
-            }
-            if (fromStart && result == NO_ERROR) {
-                mNewPosition = newCblk->server + mUpdatePeriod;
+                // restart playback even if buffer is not completely filled.
+                android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
+                // stepUser() clears CBLK_UNDERRUN flag enabling underrun callbacks to
+                // the client
+                newCblk->stepUserOut(frames);
             }
         }
-        if (result != NO_ERROR) {
-            android_atomic_and(~CBLK_RESTORING, &cblk->flags);
-            ALOGW_IF(result != NO_ERROR, "restoreTrack_l() failed status %d", result);
+        if (mSharedBuffer != 0) {
+            newCblk->stepUserOut(newCblk->frameCount);
         }
-        mRestoreStatus = result;
-        // signal old cblk condition for other threads waiting for restore completion
-        android_atomic_or(CBLK_RESTORED, &cblk->flags);
-        cblk->cv.broadcast();
-    } else {
-        bool haveLogged = false;
-        for (;;) {
-            if (cblk->flags & CBLK_RESTORED) {
-                ALOGW("dead IAudioTrack restored");
-                result = mRestoreStatus;
-                cblk->lock.unlock();
-                break;
-            }
-            if (!haveLogged) {
-                ALOGW("dead IAudioTrack, waiting for a new one");
-                haveLogged = true;
-            }
-            mLock.unlock();
-            result = cblk->cv.waitRelative(cblk->lock, milliseconds(RESTORE_TIMEOUT_MS));
-            cblk->lock.unlock();
-            mLock.lock();
-            if (result != NO_ERROR) {
-                ALOGW("timed out");
-                break;
-            }
-            cblk->lock.lock();
+        if (mActive) {
+            result = mAudioTrack->start();
+            ALOGW_IF(result != NO_ERROR, "restoreTrack_l() start() failed status %d", result);
+        }
+        if (fromStart && result == NO_ERROR) {
+            mNewPosition = newCblk->server + mUpdatePeriod;
         }
     }
+    ALOGW_IF(result != NO_ERROR, "restoreTrack_l() failed status %d", result);
     ALOGV("restoreTrack_l() status %d mActive %d cblk %p, old cblk %p flags %08x old flags %08x",
         result, mActive, newCblk, cblk, newCblk->flags, cblk->flags);
 
