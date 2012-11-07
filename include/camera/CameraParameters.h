@@ -184,6 +184,7 @@ public:
     static const char KEY_PICTURE_COUNT[];
     static const char KEY_MAX_BURST_PICTURE_COUNT[];
     static const char KEY_SUPPORTED_CONTINUOUS_AF[];
+    static const char KEY_SUPPORTED_CAF[];
     static const char CAPTURE_MODE_NORMAL[];
     static const char CAPTURE_MODE_BURST[];
     static const char CAPTURE_MODE_CONTI_BURST[];
@@ -830,6 +831,7 @@ public:
     static const char CONTINUOUS_AF_OFF[] ;
     static const char CONTINUOUS_AF_ON[] ;
     static const char KEY_CONTINUOUS_AF[] ;
+    static const char KEY_CAF[] ;
 
     // Normal focus mode. Applications should call
     // CameraHardwareInterface.autoFocus to start the focus in this mode.
