@@ -31,6 +31,7 @@ namespace android {
                                         // init time
 #define MAX_RUN_TIMEOUT_MS      1000
 #define WAIT_PERIOD_MS          10
+// AudioTrack no longer uses this, it is for AudioRecord only:
 #define RESTORE_TIMEOUT_MS      5000    // Maximum waiting time for a track to be restored
 
 #define CBLK_UNDERRUN   0x01 // set: underrun (out) or overrrun (in), clear: no underrun or overrun
@@ -38,6 +39,7 @@ namespace android {
                              // clear: track is ready when buffer full
 #define CBLK_INVALID    0x04 // track buffer invalidated by AudioFlinger, need to re-create
 #define CBLK_DISABLED   0x08 // track disabled by AudioFlinger due to underrun, need to re-start
+// AudioTrack no longer uses these, they are for AudioRecord only:
 #define CBLK_RESTORING  0x10 // track is being restored after invalidation by AudioFlinger
 #define CBLK_RESTORED   0x20 // track has been restored after invalidation by AudioFlinger
 
