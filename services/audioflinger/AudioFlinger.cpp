@@ -7843,6 +7843,10 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         }
         else {
             *pLatencyMs = 0;
+            if ((flags & AUDIO_OUTPUT_FLAG_LPA) || (flags & AUDIO_OUTPUT_FLAG_TUNNEL)) {
+                AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(id);
+                *pLatencyMs = desc->stream->get_latency(desc->stream);
+            }
         }
 #endif
         // the first primary output opened designates the primary hw device
