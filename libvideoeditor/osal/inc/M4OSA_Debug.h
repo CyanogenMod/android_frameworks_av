@@ -68,14 +68,14 @@ extern M4OSA_Void M4OSA_DEBUG_traceFunction(M4OSA_UInt32 line,
       if(cond)\
       {\
          M4OSA_DEBUG_traceFunction(__LINE__, (M4OSA_Char*)__FILE__, level,\
-                                   (M4OSA_Char*)#cond, (M4OSA_Char*)msg,
+                                   (M4OSA_Char*)#cond, (M4OSA_Char*)msg,\
                                    (errorCode));\
          return(errorCode);\
       }
 
 #define M4OSA_DEBUG(errorCode, msg)\
          M4OSA_DEBUG_traceFunction(__LINE__, (M4OSA_Char*)__FILE__, 1,\
-                                   (M4OSA_Char*)#errorCode, (M4OSA_Char*)msg,
+                                   (M4OSA_Char*)#errorCode, (M4OSA_Char*)msg,\
                                    (errorCode));
 
 #else /*(M4OSA_DEBUG_LEVEL >= 1) || (M4OSA_SUPER_DEBUG_LEVEL >= 1)*/
