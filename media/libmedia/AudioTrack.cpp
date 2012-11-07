@@ -1028,15 +1028,8 @@ create_new_track:
         framesReq = bufferEnd - u;
     }
 
-    audioBuffer->flags = mMuted ? Buffer::MUTE : 0;
-    audioBuffer->channelCount = mChannelCount;
     audioBuffer->frameCount = framesReq;
     audioBuffer->size = framesReq * cblk->frameSize;
-    if (audio_is_linear_pcm(mFormat)) {
-        audioBuffer->format = AUDIO_FORMAT_PCM_16_BIT;
-    } else {
-        audioBuffer->format = mFormat;
-    }
     audioBuffer->raw = (int8_t *)cblk->buffer(u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
