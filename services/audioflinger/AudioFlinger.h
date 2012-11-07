@@ -456,6 +456,9 @@ private:
             bool step();
             void reset();
 
+            virtual bool isOut() const = 0; // true for Track and TimedTrack, false for RecordTrack,
+                                            // this could be a track type if needed later
+
             const wp<ThreadBase> mThread;
             /*const*/ sp<Client> mClient;   // see explanation at ~TrackBase() why not const
             sp<IMemory>         mCblkMemory;
@@ -859,6 +862,7 @@ private:
             void triggerEvents(AudioSystem::sync_event_t type);
             virtual bool isTimedTrack() const { return false; }
             bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+            virtual bool isOut() const;
 
         protected:
 
@@ -1467,6 +1471,8 @@ public:
 
             static  void        appendDumpHeader(String8& result);
                     void        dump(char* buffer, size_t size);
+
+            virtual bool isOut() const;
 
         private:
             friend class AudioFlinger;  // for mState

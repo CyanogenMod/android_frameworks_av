@@ -34,13 +34,12 @@ namespace android {
 #define RESTORE_TIMEOUT_MS      5000    // Maximum waiting time for a track to be restored
 
 #define CBLK_UNDERRUN   0x01 // set: underrun (out) or overrrun (in), clear: no underrun or overrun
-#define CBLK_DIRECTION  0x02 // set: cblk is for an AudioTrack, clear: for AudioRecord
-#define CBLK_FORCEREADY 0x04 // set: track is considered ready immediately by AudioFlinger,
+#define CBLK_FORCEREADY 0x02 // set: track is considered ready immediately by AudioFlinger,
                              // clear: track is ready when buffer full
-#define CBLK_INVALID    0x08 // track buffer invalidated by AudioFlinger, need to re-create
-#define CBLK_DISABLED   0x10 // track disabled by AudioFlinger due to underrun, need to re-start
-#define CBLK_RESTORING  0x20 // track is being restored after invalidation by AudioFlinger
-#define CBLK_RESTORED   0x40 // track has been restored after invalidation by AudioFlinger
+#define CBLK_INVALID    0x04 // track buffer invalidated by AudioFlinger, need to re-create
+#define CBLK_DISABLED   0x08 // track disabled by AudioFlinger due to underrun, need to re-start
+#define CBLK_RESTORING  0x10 // track is being restored after invalidation by AudioFlinger
+#define CBLK_RESTORED   0x20 // track has been restored after invalidation by AudioFlinger
 
 // Important: do not add any virtual methods, including ~
 struct audio_track_cblk_t
@@ -102,13 +101,22 @@ public:
                 // Since the control block is always located in shared memory, this constructor
                 // is only used for placement new().  It is never used for regular new() or stack.
                             audio_track_cblk_t();
-                uint32_t    stepUser(uint32_t frameCount);      // called by client only, where
-                // client includes regular AudioTrack and AudioFlinger::PlaybackThread::OutputTrack
-                bool        stepServer(uint32_t frameCount);    // called by server only
+
+                // called by client only, where client includes regular
+                // AudioTrack and AudioFlinger::PlaybackThread::OutputTrack
+                uint32_t    stepUserIn(uint32_t frameCount) { return stepUser(frameCount, false); }
+                uint32_t    stepUserOut(uint32_t frameCount) { return stepUser(frameCount, true); }
+
+                bool        stepServer(uint32_t frameCount, bool isOut);
+
                 void*       buffer(uint32_t offset) const;
-                uint32_t    framesAvailable();
-                uint32_t    framesAvailable_l();
-                uint32_t    framesReady();                      // called by server only
+                uint32_t    framesAvailableIn() { return framesAvailable(false); }
+                uint32_t    framesAvailableOut() { return framesAvailable(true); }
+                uint32_t    framesAvailableIn_l() { return framesAvailable_l(false); }
+                uint32_t    framesAvailableOut_l() { return framesAvailable_l(true); }
+                uint32_t    framesReadyIn() { return framesReady(false); }
+                uint32_t    framesReadyOut() { return framesReady(true); }
+
                 bool        tryLock();
 
                 // No barriers on the following operations, so the ordering of loads/stores
@@ -134,6 +142,12 @@ public:
                     return mVolumeLR;
                 }
 
+private:
+                // isOut == true means AudioTrack, isOut == false means AudioRecord
+                uint32_t    stepUser(uint32_t frameCount, bool isOut);
+                uint32_t    framesAvailable(bool isOut);
+                uint32_t    framesAvailable_l(bool isOut);
+                uint32_t    framesReady(bool isOut);
 };
 
 
