@@ -466,7 +466,6 @@ status_t AudioRecord::openRecord_l(
     mCblkMemory = cblk;
     mCblk = static_cast<audio_track_cblk_t*>(cblk->pointer());
     mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
-    android_atomic_and(~CBLK_DIRECTION, &mCblk->flags);
     mCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
     mCblk->waitTimeMs = 0;
     return NO_ERROR;
@@ -484,7 +483,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
     audioBuffer->frameCount  = 0;
     audioBuffer->size        = 0;
 
-    uint32_t framesReady = cblk->framesReady();
+    uint32_t framesReady = cblk->framesReadyIn();
 
     if (framesReady == 0) {
         cblk->lock.lock();
@@ -540,7 +539,7 @@ create_new_record:
             }
             // read the server count again
         start_loop_here:
-            framesReady = cblk->framesReady();
+            framesReady = cblk->framesReadyIn();
         }
         cblk->lock.unlock();
     }
@@ -570,7 +569,7 @@ create_new_record:
 void AudioRecord::releaseBuffer(Buffer* audioBuffer)
 {
     AutoMutex lock(mLock);
-    mCblk->stepUser(audioBuffer->frameCount);
+    mCblk->stepUserIn(audioBuffer->frameCount);
 }
 
 audio_io_handle_t AudioRecord::getInput() const
@@ -732,7 +731,7 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 
 
     // Manage overrun callback
-    if (active && (cblk->framesAvailable() == 0)) {
+    if (active && (cblk->framesAvailableIn() == 0)) {
         // The value of active is stale, but we are almost sure to be active here because
         // otherwise we would have exited when obtainBuffer returned STOPPED earlier.
         ALOGV("Overrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
