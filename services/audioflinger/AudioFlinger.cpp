@@ -451,7 +451,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         audio_format_t format,
         audio_channel_mask_t channelMask,
         int frameCount,
-        IAudioFlinger::track_flags_t flags,
+        IAudioFlinger::track_flags_t *flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
         pid_t tid,
@@ -1725,17 +1725,17 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         int frameCount,
         const sp<IMemory>& sharedBuffer,
         int sessionId,
-        IAudioFlinger::track_flags_t flags,
+        IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         status_t *status)
 {
     sp<Track> track;
     status_t lStatus;
 
-    bool isTimed = (flags & IAudioFlinger::TRACK_TIMED) != 0;
+    bool isTimed = (*flags & IAudioFlinger::TRACK_TIMED) != 0;
 
     // client expresses a preference for FAST, but we get the final say
-    if (flags & IAudioFlinger::TRACK_FAST) {
+    if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
             // not timed
             (!isTimed) &&
@@ -1781,7 +1781,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 isTimed, sharedBuffer.get(), frameCount, mFrameCount, format,
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
-        flags &= ~IAudioFlinger::TRACK_FAST;
+        *flags &= ~IAudioFlinger::TRACK_FAST;
         // For compatibility with AudioTrack calculation, buffer depth is forced
         // to be at least 2 x the normal mixer frame count and cover audio hardware latency.
         // This is probably too conservative, but legacy application code may depend on it.
@@ -1845,7 +1845,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
         if (!isTimed) {
             track = new Track(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId, flags);
+                    channelMask, frameCount, sharedBuffer, sessionId, *flags);
         } else {
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId);
@@ -1864,7 +1864,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             chain->incTrackCnt();
         }
 
-        if ((flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+        if ((*flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
             pid_t callingPid = IPCThreadState::self()->getCallingPid();
             // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
             // so ask activity manager to do this on our behalf
@@ -4377,7 +4377,6 @@ AudioFlinger::PlaybackThread::Track::Track(
         }
         // only allocate a fast track index if we were able to allocate a normal track name
         if (flags & IAudioFlinger::TRACK_FAST) {
-            mCblk->flags |= CBLK_FAST;  // atomic op not needed yet
             ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
             int i = __builtin_ctz(thread->mFastTrackAvailMask);
             ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);

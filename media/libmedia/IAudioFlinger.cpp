@@ -90,7 +90,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 int frameCount,
-                                track_flags_t flags,
+                                track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
                                 pid_t tid,
@@ -106,7 +106,8 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         data.writeInt32(frameCount);
-        data.writeInt32((int32_t) flags);
+        track_flags_t lFlags = flags != NULL ? *flags : TRACK_DEFAULT;
+        data.writeInt32(lFlags);
         data.writeStrongBinder(sharedBuffer->asBinder());
         data.writeInt32((int32_t) output);
         data.writeInt32((int32_t) tid);
@@ -119,6 +120,10 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack error: %s", strerror(-lStatus));
         } else {
+            lFlags = reply.readInt32();
+            if (flags != NULL) {
+                *flags = lFlags;
+            }
             lSessionId = reply.readInt32();
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
@@ -732,7 +737,8 @@ status_t BnAudioFlinger::onTransact(
             status_t status;
             sp<IAudioTrack> track = createTrack(pid,
                     (audio_stream_type_t) streamType, sampleRate, format,
-                    channelMask, bufferCount, flags, buffer, output, tid, &sessionId, &status);
+                    channelMask, bufferCount, &flags, buffer, output, tid, &sessionId, &status);
+            reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(track->asBinder());
