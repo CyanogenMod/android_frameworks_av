@@ -174,7 +174,7 @@ public:
 #endif
 
 private:
-    static const unsigned kN = 4;       // values != 4 are not supported by this code
+    static const unsigned kN = 4;       // values < 4 are not supported by this code
     T                 mStates[kN];      // written by mutator, read by observer
 
     // "volatile" is meaningless with SMP, but here it indicates that we're using atomic ops

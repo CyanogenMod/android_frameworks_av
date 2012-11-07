@@ -390,7 +390,7 @@ void AudioTrack::start()
         }
         if (cblk->flags & CBLK_INVALID) {
             audio_track_cblk_t* temp = cblk;
-            status = restoreTrack_l(temp, true);
+            status = restoreTrack_l(temp, true /*fromStart*/);
             cblk = temp;
         }
         cblk->lock.unlock();
@@ -988,7 +988,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                             android_atomic_or(CBLK_INVALID, &cblk->flags);
 create_new_track:
                             audio_track_cblk_t* temp = cblk;
-                            result = restoreTrack_l(temp, false);
+                            result = restoreTrack_l(temp, false /*fromStart*/);
                             cblk = temp;
                         }
                         if (result != NO_ERROR) {
@@ -1147,7 +1147,7 @@ status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
     if (cblk->flags & CBLK_INVALID) {
         cblk->lock.lock();
         audio_track_cblk_t* temp = cblk;
-        result = restoreTrack_l(temp, false);
+        result = restoreTrack_l(temp, false /*fromStart*/);
         cblk = temp;
         cblk->lock.unlock();
 
