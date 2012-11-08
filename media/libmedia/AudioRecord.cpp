@@ -465,7 +465,7 @@ status_t AudioRecord::openRecord_l(
     mCblkMemory.clear();
     mCblkMemory = cblk;
     mCblk = static_cast<audio_track_cblk_t*>(cblk->pointer());
-    mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
+    mBuffers = (char*)mCblk + sizeof(audio_track_cblk_t);
     mCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
     mCblk->waitTimeMs = 0;
     return NO_ERROR;
@@ -561,7 +561,7 @@ create_new_record:
 
     audioBuffer->frameCount  = framesReq;
     audioBuffer->size        = framesReq*cblk->frameSize;
-    audioBuffer->raw         = (int8_t*)cblk->buffer(u);
+    audioBuffer->raw         = cblk->buffer(mBuffers, u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }

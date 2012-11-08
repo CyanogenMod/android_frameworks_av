@@ -895,9 +895,9 @@ status_t AudioTrack::createTrack_l(
         }
     }
     if (sharedBuffer == 0) {
-        cblk->buffers = (char*)cblk + sizeof(audio_track_cblk_t);
+        mBuffers = (char*)cblk + sizeof(audio_track_cblk_t);
     } else {
-        cblk->buffers = sharedBuffer->pointer();
+        mBuffers = sharedBuffer->pointer();
         // Force buffer full condition as data is already present in shared memory
         cblk->stepUserOut(cblk->frameCount);
     }
@@ -1027,7 +1027,7 @@ create_new_track:
 
     audioBuffer->frameCount = framesReq;
     audioBuffer->size = framesReq * cblk->frameSize;
-    audioBuffer->raw = (int8_t *)cblk->buffer(u);
+    audioBuffer->raw = cblk->buffer(mBuffers, u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }
@@ -1373,7 +1373,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
                 if (user > server) {
                     frames = ((user - server) > newCblk->frameCount) ?
                             newCblk->frameCount : (user - server);
-                    memset(newCblk->buffers, 0, frames * newCblk->frameSize);
+                    memset(mBuffers, 0, frames * newCblk->frameSize);
                 }
                 // restart playback even if buffer is not completely filled.
                 android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
@@ -1486,7 +1486,7 @@ void AudioTrack::AudioTrackThread::resume()
 
 audio_track_cblk_t::audio_track_cblk_t()
     : lock(Mutex::SHARED), cv(Condition::SHARED), user(0), server(0),
-    userBase(0), serverBase(0), buffers(NULL), frameCount(0),
+    userBase(0), serverBase(0), frameCount(0),
     loopStart(UINT_MAX), loopEnd(UINT_MAX), loopCount(0), mVolumeLR(0x10001000),
     mSendLevel(0), flags(0)
 {
@@ -1588,7 +1588,7 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount, bool isOut)
     return true;
 }
 
-void* audio_track_cblk_t::buffer(uint32_t offset) const
+void* audio_track_cblk_t::buffer(void *buffers, uint32_t offset) const
 {
     return (int8_t *)buffers + (offset - userBase) * frameSize;
 }
