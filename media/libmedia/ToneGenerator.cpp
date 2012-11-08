@@ -1036,7 +1036,7 @@ bool ToneGenerator::initAudioTrack() {
         goto initAudioTrack_exit;
     }
 
-    mpAudioTrack->setVolume(mVolume, mVolume);
+    mpAudioTrack->setVolume(mVolume);
 
     mState = TONE_INIT;
 
