@@ -265,9 +265,14 @@ public:
 
     /* Set volume for this track, mostly used for games' sound effects
      * left and right volumes. Levels must be >= 0.0 and <= 1.0.
+     * This is the older API.  New applications should use setVolume(float) when possible.
      */
             status_t    setVolume(float left, float right);
-            void        getVolume(float* left, float* right) const;
+
+    /* Set volume for all channels.  This is the preferred API for new applications,
+     * especially for multi-channel content.
+     */
+            status_t    setVolume(float volume);
 
     /* Set the send level for this track. An auxiliary effect should be attached
      * to the track with attachEffect(). Level must be >= 0.0 and <= 1.0.
