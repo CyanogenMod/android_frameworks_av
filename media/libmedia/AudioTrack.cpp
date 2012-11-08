@@ -1121,7 +1121,13 @@ TimedAudioTrack::TimedAudioTrack() {
 
 status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
 {
+    AutoMutex lock(mLock);
     status_t result = UNKNOWN_ERROR;
+
+    // acquire a strong reference on the IMemory and IAudioTrack so that they cannot be destroyed
+    // while we are accessing the cblk
+    sp<IAudioTrack> audioTrack = mAudioTrack;
+    sp<IMemory> iMem = mCblkMemory;
 
     // If the track is not invalid already, try to allocate a buffer.  alloc
     // fails indicating that the server is dead, flag the track as invalid so
