@@ -1035,6 +1035,7 @@ private:
             AudioBufferProvider::Buffer mOutBuffer;
             bool                        mActive;
             DuplicatingThread* const mSourceThread; // for waitTimeMs() in write()
+            void*                       mBuffers;   // starting address of buffers in plain memory
         };  // end of OutputTrack
 
         PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,

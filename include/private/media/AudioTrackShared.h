@@ -58,9 +58,7 @@ struct audio_track_cblk_t
                 uint32_t    userBase;
                 uint32_t    serverBase;
 
-                // if there is a shared buffer, "buffers" is the value of pointer() for the shared
-                // buffer, otherwise "buffers" points immediately after the control block
-                void*       buffers;
+                int         mPad1;          // unused, but preserves cache line alignment
                 uint32_t    frameCount;
 
                 // Cache line boundary
@@ -111,7 +109,10 @@ public:
 
                 bool        stepServer(uint32_t frameCount, bool isOut);
 
-                void*       buffer(uint32_t offset) const;
+                // if there is a shared buffer, "buffers" is the value of pointer() for the shared
+                // buffer, otherwise "buffers" points immediately after the control block
+                void*       buffer(void *buffers, uint32_t offset) const;
+
                 uint32_t    framesAvailableIn() { return framesAvailable(false); }
                 uint32_t    framesAvailableOut() { return framesAvailable(true); }
                 uint32_t    framesAvailableIn_l() { return framesAvailable_l(false); }
