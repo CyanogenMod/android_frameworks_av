@@ -510,6 +510,7 @@ protected:
     uint32_t                mFrameCount;
 
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
+    void*                   mBuffers;               // starting address of buffers in shared memory
     audio_format_t          mFormat;
     audio_stream_type_t     mStreamType;
     uint8_t                 mChannelCount;

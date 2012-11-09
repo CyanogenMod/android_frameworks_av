@@ -389,6 +389,7 @@ private:
     sp<IAudioRecord>        mAudioRecord;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;
+    void*                   mBuffers;           // starting address of buffers in shared memory
 
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;

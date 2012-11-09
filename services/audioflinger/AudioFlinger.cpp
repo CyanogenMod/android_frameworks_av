@@ -5534,11 +5534,11 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             int frameCount)
     :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
                 NULL, 0, IAudioFlinger::TRACK_DEFAULT),
-    mActive(false), mSourceThread(sourceThread)
+    mActive(false), mSourceThread(sourceThread), mBuffers(NULL)
 {
 
     if (mCblk != NULL) {
-        mCblk->buffers = (char*)mCblk + sizeof(audio_track_cblk_t);
+        mBuffers = (char*)mCblk + sizeof(audio_track_cblk_t);
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
         ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, mCblk->buffers %p, " \
@@ -5749,7 +5749,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
     }
 
     buffer->frameCount  = framesReq;
-    buffer->raw         = (void *)cblk->buffer(u);
+    buffer->raw         = cblk->buffer(mBuffers, u);
     return NO_ERROR;
 }
 
