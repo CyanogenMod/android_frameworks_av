@@ -78,14 +78,11 @@ private:
     static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 7;
 
     struct Constants {
-        // we have 16 coefs samples per zero-crossing
         int coefsBits;
         int cShift;
         uint32_t cMask;
-
         int pShift;
         uint32_t pMask;
-
         // number of zero-crossing on each side
         unsigned int halfNumCoefs;
     };
