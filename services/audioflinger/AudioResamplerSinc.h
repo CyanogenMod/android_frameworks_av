@@ -44,13 +44,15 @@ public:
 private:
     void init();
 
+    virtual void setVolume(int16_t left, int16_t right);
+
     template<int CHANNELS>
     void resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
 
     template<int CHANNELS>
     inline void filterCoefficient(
-            int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples, uint32_t vRL);
+            int32_t* out, uint32_t phase, const int16_t *samples, uint32_t vRL);
 
     template<int CHANNELS>
     inline void interpolate(
@@ -65,6 +67,7 @@ private:
     int16_t *mState;
     int16_t *mImpulse;
     int16_t *mRingFull;
+    int32_t mVolumeSIMD[2];
 
     const int32_t * mFirCoefs;
     static const int32_t mFirCoefsDown[];
