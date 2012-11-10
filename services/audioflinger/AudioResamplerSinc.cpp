@@ -637,17 +637,20 @@ template<int CHANNELS>
 void AudioResamplerSinc::filterCoefficient(
         int32_t* out, uint32_t phase, const int16_t *samples, uint32_t vRL)
 {
+    // NOTE: be very careful when modifying the code here. register
+    // pressure is very high and a small change might cause the compiler
+    // to generate far less efficient code.
+    // Always sanity check the result with objdump or test-resample.
+
     // compute the index of the coefficient on the positive side and
     // negative side
     const Constants& c(*mConstants);
+    const int32_t ONE = c.cMask | c.pMask;
     uint32_t indexP = ( phase & c.cMask) >> c.cShift;
-    uint32_t indexN = (-phase & c.cMask) >> c.cShift;
     uint32_t lerpP  = ( phase & c.pMask) >> c.pShift;
-    uint32_t lerpN  = (-phase & c.pMask) >> c.pShift;
-    if ((indexP == 0) && (lerpP == 0)) {
-        indexN = c.cMask >> c.cShift;
-        lerpN  = c.pMask >> c.pShift;
-    }
+    uint32_t indexN = ((ONE-phase) & c.cMask) >> c.cShift;
+    uint32_t lerpN  = ((ONE-phase) & c.pMask) >> c.pShift;
+
     const size_t offset = c.halfNumCoefs;
     indexP *= offset;
     indexN *= offset;
@@ -677,7 +680,8 @@ void AudioResamplerSinc::filterCoefficient(
         asm (
             "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
             "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
-            "veor           q0, q0                   \n"    // result, initialize to 0
+            "veor           q0, q0, q0               \n"    // result, initialize to 0
+            "vshl.s32       d2, d2, #16              \n"    // convert to 32 bits
 
             "1:                                      \n"
             "vld1.16        { d4}, [%[sP]]           \n"    // load 4 16-bits stereo samples
@@ -727,8 +731,8 @@ void AudioResamplerSinc::filterCoefficient(
               [coefsN1] "+r" (coefsN1),
               [sP]      "+r" (sP),
               [sN]      "+r" (sN)
-            : [lerpP]   "r" (lerpP<<16),
-              [lerpN]   "r" (lerpN<<16),
+            : [lerpP]   "r" (lerpP),
+              [lerpN]   "r" (lerpN),
               [vLR]     "r" (mVolumeSIMD)
             : "cc", "memory",
               "q0", "q1", "q2", "q3",
@@ -742,8 +746,9 @@ void AudioResamplerSinc::filterCoefficient(
         asm (
             "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
             "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
-            "veor           q0, q0                   \n"    // result, initialize to 0
-            "veor           q4, q4                   \n"    // result, initialize to 0
+            "veor           q0, q0, q0               \n"    // result, initialize to 0
+            "veor           q4, q4, q4               \n"    // result, initialize to 0
+            "vshl.s32       d2, d2, #16              \n"    // convert to 32 bits
 
             "1:                                      \n"
             "vld2.16        {d4,d5}, [%[sP]]         \n"    // load 4 16-bits stereo samples
@@ -802,8 +807,8 @@ void AudioResamplerSinc::filterCoefficient(
               [coefsN1] "+r" (coefsN1),
               [sP]      "+r" (sP),
               [sN]      "+r" (sN)
-            : [lerpP]   "r" (lerpP<<16),
-              [lerpN]   "r" (lerpN<<16),
+            : [lerpP]   "r" (lerpP),
+              [lerpN]   "r" (lerpN),
               [vLR]     "r" (mVolumeSIMD)
             : "cc", "memory",
               "q0", "q1", "q2", "q3", "q4",
