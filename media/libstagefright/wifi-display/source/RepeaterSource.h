@@ -6,6 +6,8 @@
 #include <media/stagefright/foundation/AHandlerReflector.h>
 #include <media/stagefright/MediaSource.h>
 
+#define SUSPEND_VIDEO_IF_IDLE   1
+
 namespace android {
 
 // This MediaSource delivers frames at a constant rate by repeating buffers
