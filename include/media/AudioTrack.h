@@ -229,7 +229,7 @@ public:
     /* Return channelCount * (bit depth per channel / 8).
      * channelCount is determined from channelMask, and bit depth comes from format.
      */
-            size_t      frameSize() const;
+            size_t      frameSize() const { return mFrameSize; }
 
             sp<IMemory>& sharedBuffer();
 
@@ -517,6 +517,13 @@ protected:
     uint8_t                 mMuted;
     uint8_t                 mReserved;
     audio_channel_mask_t    mChannelMask;
+
+                // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.
+                // For 8-bit PCM data, mFrameSizeAF is
+                // twice as large because data is expanded to 16-bit before being stored in buffer.
+    size_t                  mFrameSize;             // app-level frame size
+    size_t                  mFrameSizeAF;           // AudioFlinger frame size
+
     status_t                mStatus;
     uint32_t                mLatency;
 

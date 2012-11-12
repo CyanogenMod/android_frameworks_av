@@ -213,6 +213,13 @@ status_t AudioRecord::set(
     mFrameCount = mCblk->frameCount;
     mChannelCount = (uint8_t)channelCount;
     mChannelMask = channelMask;
+
+    if (audio_is_linear_pcm(mFormat)) {
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+    } else {
+        mFrameSize = sizeof(uint8_t);
+    }
+
     mActive = false;
     mCbf = cbf;
     mNotificationFrames = notificationFrames;
@@ -256,15 +263,6 @@ int AudioRecord::channelCount() const
 uint32_t AudioRecord::frameCount() const
 {
     return mFrameCount;
-}
-
-size_t AudioRecord::frameSize() const
-{
-    if (audio_is_linear_pcm(mFormat)) {
-        return channelCount()*audio_bytes_per_sample(mFormat);
-    } else {
-        return sizeof(uint8_t);
-    }
 }
 
 audio_source_t AudioRecord::inputSource() const
@@ -560,8 +558,8 @@ create_new_record:
     }
 
     audioBuffer->frameCount  = framesReq;
-    audioBuffer->size        = framesReq*cblk->frameSize;
-    audioBuffer->raw         = cblk->buffer(mBuffers, u);
+    audioBuffer->size        = framesReq * mFrameSize;
+    audioBuffer->raw         = cblk->buffer(mBuffers, mFrameSize, u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }
