@@ -300,7 +300,9 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
             }
         }
         if (cblk->flags & CBLK_INVALID) {
-            ret = restoreRecord_l(cblk);
+            audio_track_cblk_t* temp = cblk;
+            ret = restoreRecord_l(temp);
+            cblk = temp;
         }
         cblk->lock.unlock();
         if (ret == NO_ERROR) {
@@ -431,6 +433,7 @@ status_t AudioRecord::openRecord_l(
     status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
     if (audioFlinger == 0) {
+        ALOGE("Could not get audioflinger");
         return NO_INIT;
     }
 
@@ -453,19 +456,20 @@ status_t AudioRecord::openRecord_l(
         ALOGE("AudioFlinger could not create record track, status: %d", status);
         return status;
     }
-    sp<IMemory> cblk = record->getCblk();
-    if (cblk == 0) {
+    sp<IMemory> iMem = record->getCblk();
+    if (iMem == 0) {
         ALOGE("Could not get control block");
         return NO_INIT;
     }
     mAudioRecord.clear();
     mAudioRecord = record;
     mCblkMemory.clear();
-    mCblkMemory = cblk;
-    mCblk = static_cast<audio_track_cblk_t*>(cblk->pointer());
-    mBuffers = (char*)mCblk + sizeof(audio_track_cblk_t);
-    mCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
-    mCblk->waitTimeMs = 0;
+    mCblkMemory = iMem;
+    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
+    mCblk = cblk;
+    mBuffers = (char*)cblk + sizeof(audio_track_cblk_t);
+    cblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
+    cblk->waitTimeMs = 0;
     return NO_ERROR;
 }
 
@@ -498,12 +502,17 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
             }
             if (!(cblk->flags & CBLK_INVALID)) {
                 mLock.unlock();
+                // this condition is in shared memory, so if IAudioRecord and control block
+                // are replaced due to mediaserver death or IAudioRecord invalidation then
+                // cv won't be signalled, but fortunately the timeout will limit the wait
                 result = cblk->cv.waitRelative(cblk->lock, milliseconds(waitTimeMs));
                 cblk->lock.unlock();
                 mLock.lock();
                 if (!mActive) {
                     return status_t(STOPPED);
                 }
+                // IAudioRecord may have been re-created while mLock was unlocked
+                cblk = mCblk;
                 cblk->lock.lock();
             }
             if (cblk->flags & CBLK_INVALID) {
@@ -521,7 +530,9 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
                     if (result == DEAD_OBJECT) {
                         android_atomic_or(CBLK_INVALID, &cblk->flags);
 create_new_record:
-                        result = AudioRecord::restoreRecord_l(cblk);
+                        audio_track_cblk_t* temp = cblk;
+                        result = AudioRecord::restoreRecord_l(temp);
+                        cblk = temp;
                     }
                     if (result != NO_ERROR) {
                         ALOGW("obtainBuffer create Track error %d", result);
@@ -749,57 +760,41 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 // must be called with mLock and cblk.lock held. Callers must also hold strong references on
 // the IAudioRecord and IMemory in case they are recreated here.
 // If the IAudioRecord is successfully restored, the cblk pointer is updated
-status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& cblk)
+status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& refCblk)
 {
     status_t result;
 
-    if (!(android_atomic_or(CBLK_RESTORING, &cblk->flags) & CBLK_RESTORING)) {
-        ALOGW("dead IAudioRecord, creating a new one");
-        // signal old cblk condition so that other threads waiting for available buffers stop
-        // waiting now
-        cblk->cv.broadcast();
-        cblk->lock.unlock();
+    audio_track_cblk_t* cblk = refCblk;
+    audio_track_cblk_t* newCblk = cblk;
+    ALOGW("dead IAudioRecord, creating a new one");
 
-        // if the new IAudioRecord is created, openRecord_l() will modify the
-        // following member variables: mAudioRecord, mCblkMemory and mCblk.
-        // It will also delete the strong references on previous IAudioRecord and IMemory
-        result = openRecord_l(cblk->sampleRate, mFormat, mChannelMask,
-                mFrameCount, getInput_l());
-        if (result == NO_ERROR) {
-            // callback thread or sync event hasn't changed
-            result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
-        }
-        if (result != NO_ERROR) {
-            mActive = false;
-        }
+    // signal old cblk condition so that other threads waiting for available buffers stop
+    // waiting now
+    cblk->cv.broadcast();
+    cblk->lock.unlock();
 
-        // signal old cblk condition for other threads waiting for restore completion
-        android_atomic_or(CBLK_RESTORED, &cblk->flags);
-        cblk->cv.broadcast();
-    } else {
-        if (!(cblk->flags & CBLK_RESTORED)) {
-            ALOGW("dead IAudioRecord, waiting for a new one to be created");
-            mLock.unlock();
-            result = cblk->cv.waitRelative(cblk->lock, milliseconds(RESTORE_TIMEOUT_MS));
-            cblk->lock.unlock();
-            mLock.lock();
-        } else {
-            ALOGW("dead IAudioRecord, already restored");
-            result = NO_ERROR;
-            cblk->lock.unlock();
-        }
-        if (result != NO_ERROR || !mActive) {
-            result = status_t(STOPPED);
-        }
+    // if the new IAudioRecord is created, openRecord_l() will modify the
+    // following member variables: mAudioRecord, mCblkMemory and mCblk.
+    // It will also delete the strong references on previous IAudioRecord and IMemory
+    result = openRecord_l(cblk->sampleRate, mFormat, mChannelMask,
+            mFrameCount, getInput_l());
+    if (result == NO_ERROR) {
+        newCblk = mCblk;
+        // callback thread or sync event hasn't changed
+        result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
     }
+    if (result != NO_ERROR) {
+        mActive = false;
+    }
+
     ALOGV("restoreRecord_l() status %d mActive %d cblk %p, old cblk %p flags %08x old flags %08x",
-        result, mActive, mCblk, cblk, mCblk->flags, cblk->flags);
+        result, mActive, newCblk, cblk, newCblk->flags, cblk->flags);
 
     if (result == NO_ERROR) {
         // from now on we switch to the newly created cblk
-        cblk = mCblk;
+        refCblk = newCblk;
     }
-    cblk->lock.lock();
+    newCblk->lock.lock();
 
     ALOGW_IF(result != NO_ERROR, "restoreRecord_l() error %d", result);
 
