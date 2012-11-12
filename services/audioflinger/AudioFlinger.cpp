@@ -4190,6 +4190,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mState(IDLE),
         mSampleRate(sampleRate),
         mFormat(format),
+        mFrameSize(0),  // will be set to correct value in constructor
         mStepServerFailed(false),
         mSessionId(sessionId)
         // mChannelCount
@@ -4311,7 +4312,7 @@ int AudioFlinger::ThreadBase::TrackBase::sampleRate() const {
 
 void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t frames) const {
     audio_track_cblk_t* cblk = this->cblk();
-    size_t frameSize = cblk->frameSize;
+    size_t frameSize = mFrameSize;
     int8_t *bufferStart = (int8_t *)mBuffer + (offset-cblk->serverBase)*frameSize;
     int8_t *bufferEnd = bufferStart + frames * frameSize;
 
@@ -4363,11 +4364,11 @@ AudioFlinger::PlaybackThread::Track::Track(
     mUnderrunCount(0),
     mCachedVolume(1.0)
 {
+    // NOTE: frame size for 8 bit PCM data is based on a sample size of
+    // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
+    mFrameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) :
+            sizeof(uint8_t);
     if (mCblk != NULL) {
-        // NOTE: audio_track_cblk_t::frameSize for 8 bit PCM data is based on a sample size of
-        // 16 bit because data is converted to 16 bit before being stored in buffer by AudioTrack
-        mCblk->frameSize = audio_is_linear_pcm(format) ? mChannelCount * sizeof(int16_t) :
-                sizeof(uint8_t);
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
         mName = thread->getTrackName_l(channelMask, sessionId);
         mCblk->mName = mName;
@@ -5014,7 +5015,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueue_l() {
             // this frame in media time units and adding it to the PTS of the
             // buffer.
             int64_t frameCount = mTimedBufferQueue[trimEnd].buffer()->size()
-                               / mCblk->frameSize;
+                               / mFrameSize;
 
             if (!mMediaTimeToSampleTransform.doReverseTransform(frameCount,
                                                                 &bufEnd)) {
@@ -5074,7 +5075,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::updateFramesPendingAfterTrim_l(
                 " bytes.  (update reason: \"%s\")",
                 bufBytes, consumedAlready, logTag);
 
-    uint32_t bufFrames = (bufBytes - consumedAlready) / mCblk->frameSize;
+    uint32_t bufFrames = (bufBytes - consumedAlready) / mFrameSize;
     ALOG_ASSERT(mFramesPendingInQueue >= bufFrames,
                 "Bad bookkeeping while updating frames pending.  Should have at"
                 " least %u queued frames, but we think we have only %u.  (update"
@@ -5095,7 +5096,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::queueTimedBuffer(
 
     Mutex::Autolock _l(mTimedBufferQueueLock);
 
-    uint32_t bufFrames = buffer->size() / mCblk->frameSize;
+    uint32_t bufFrames = buffer->size() / mFrameSize;
     mFramesPendingInQueue += bufFrames;
     mTimedBufferQueue.add(TimedBuffer(buffer, pts));
 
@@ -5192,7 +5193,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
         // adjust the head buffer's PTS to reflect the portion of the head buffer
         // that has already been consumed
         int64_t effectivePTS = headLocalPTS +
-                ((head.position() / mCblk->frameSize) * mLocalTimeFreq / sampleRate());
+                ((head.position() / mFrameSize) * mLocalTimeFreq / sampleRate());
 
         // Calculate the delta in samples between the head of the input buffer
         // queue and the start of the next output buffer that will be written.
@@ -5257,7 +5258,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             // the next input sample is late
             uint32_t lateFrames = static_cast<uint32_t>(-((sampleDelta + 0x80000000) >> 32));
             size_t onTimeSamplePosition =
-                    head.position() + lateFrames * mCblk->frameSize;
+                    head.position() + lateFrames * mFrameSize;
 
             if (onTimeSamplePosition > head.buffer()->size()) {
                 // all the remaining samples in the head are too late, so
@@ -5292,7 +5293,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSamples_l(
                    head.position());
 
     uint32_t framesLeftInHead = ((head.buffer()->size() - head.position()) /
-                                 mCblk->frameSize);
+                                 mFrameSize);
     size_t framesRequested = buffer->frameCount;
     buffer->frameCount = min(framesLeftInHead, framesRequested);
 
@@ -5307,9 +5308,9 @@ void AudioFlinger::PlaybackThread::TimedTrack::timedYieldSilence_l(
     uint32_t numFrames, AudioBufferProvider::Buffer* buffer) {
 
     // lazily allocate a buffer filled with silence
-    if (mTimedSilenceBufferSize < numFrames * mCblk->frameSize) {
+    if (mTimedSilenceBufferSize < numFrames * mFrameSize) {
         delete [] mTimedSilenceBuffer;
-        mTimedSilenceBufferSize = numFrames * mCblk->frameSize;
+        mTimedSilenceBufferSize = numFrames * mFrameSize;
         mTimedSilenceBuffer = new uint8_t[mTimedSilenceBufferSize];
         memset(mTimedSilenceBuffer, 0, mTimedSilenceBufferSize);
     }
@@ -5357,7 +5358,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::releaseBuffer(
                     start, end, buffer->raw);
 
         head.setPosition(head.position() +
-                (buffer->frameCount * mCblk->frameSize));
+                (buffer->frameCount * mFrameSize));
         mQueueHeadInFlight = false;
 
         ALOG_ASSERT(mFramesPendingInQueue >= buffer->frameCount,
@@ -5409,15 +5410,13 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId),
         mOverflow(false)
 {
-    if (mCblk != NULL) {
-        ALOGV("RecordTrack constructor, size %d", (int)mBufferEnd - (int)mBuffer);
-        if (format == AUDIO_FORMAT_PCM_16_BIT) {
-            mCblk->frameSize = mChannelCount * sizeof(int16_t);
-        } else if (format == AUDIO_FORMAT_PCM_8_BIT) {
-            mCblk->frameSize = mChannelCount * sizeof(int8_t);
-        } else {
-            mCblk->frameSize = sizeof(int8_t);
-        }
+    ALOGV("RecordTrack constructor, size %d", (int)mBufferEnd - (int)mBuffer);
+    if (format == AUDIO_FORMAT_PCM_16_BIT) {
+        mFrameSize = mChannelCount * sizeof(int16_t);
+    } else if (format == AUDIO_FORMAT_PCM_8_BIT) {
+        mFrameSize = mChannelCount * sizeof(int8_t);
+    } else {
+        mFrameSize = sizeof(int8_t);
     }
 }
 
@@ -5749,7 +5748,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
     }
 
     buffer->frameCount  = framesReq;
-    buffer->raw         = cblk->buffer(mBuffers, u);
+    buffer->raw         = cblk->buffer(mBuffers, mFrameSize, u);
     return NO_ERROR;
 }
 
@@ -6157,7 +6156,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         if (framesIn) {
                             int8_t *src = (int8_t *)mRsmpInBuffer + mRsmpInIndex * mFrameSize;
                             int8_t *dst = buffer.i8 + (buffer.frameCount - framesOut) *
-                                    mActiveTrack->mCblk->frameSize;
+                                    mActiveTrack->mFrameSize;
                             if (framesIn > framesOut)
                                 framesIn = framesOut;
                             mRsmpInIndex += framesIn;

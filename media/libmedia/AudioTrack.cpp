@@ -286,6 +286,15 @@ status_t AudioTrack::set(
     mFormat = format;
     mChannelMask = channelMask;
     mChannelCount = channelCount;
+
+    if (audio_is_linear_pcm(format)) {
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+        mFrameSizeAF = channelCount * sizeof(int16_t);
+    } else {
+        mFrameSize = sizeof(uint8_t);
+        mFrameSizeAF = sizeof(uint8_t);
+    }
+
     mSharedBuffer = sharedBuffer;
     mMuted = false;
     mActive = false;
@@ -330,15 +339,6 @@ int AudioTrack::channelCount() const
 uint32_t AudioTrack::frameCount() const
 {
     return mCblk->frameCount;
-}
-
-size_t AudioTrack::frameSize() const
-{
-    if (audio_is_linear_pcm(mFormat)) {
-        return channelCount()*audio_bytes_per_sample(mFormat);
-    } else {
-        return sizeof(uint8_t);
-    }
 }
 
 sp<IMemory>& AudioTrack::sharedBuffer()
@@ -1026,8 +1026,8 @@ create_new_track:
     }
 
     audioBuffer->frameCount = framesReq;
-    audioBuffer->size = framesReq * cblk->frameSize;
-    audioBuffer->raw = cblk->buffer(mBuffers, u);
+    audioBuffer->size = framesReq * mFrameSizeAF;
+    audioBuffer->raw = cblk->buffer(mBuffers, mFrameSizeAF, u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }
@@ -1302,7 +1302,7 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
         // NOTE: cblk->frameSize is not equal to AudioTrack::frameSize() for
         // 8 bit PCM data: in this case,  cblk->frameSize is based on a sample size of
         // 16 bit.
-        audioBuffer.frameCount = writtenSize/cblk->frameSize;
+        audioBuffer.frameCount = writtenSize / mFrameSizeAF;
 
         frames -= audioBuffer.frameCount;
 
@@ -1373,7 +1373,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
                 if (user > server) {
                     frames = ((user - server) > newCblk->frameCount) ?
                             newCblk->frameCount : (user - server);
-                    memset(mBuffers, 0, frames * newCblk->frameSize);
+                    memset(mBuffers, 0, frames * mFrameSizeAF);
                 }
                 // restart playback even if buffer is not completely filled.
                 android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
@@ -1588,7 +1588,7 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount, bool isOut)
     return true;
 }
 
-void* audio_track_cblk_t::buffer(void *buffers, uint32_t offset) const
+void* audio_track_cblk_t::buffer(void *buffers, size_t frameSize, uint32_t offset) const
 {
     return (int8_t *)buffers + (offset - userBase) * frameSize;
 }
