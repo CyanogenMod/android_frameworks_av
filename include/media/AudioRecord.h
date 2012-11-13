@@ -185,7 +185,7 @@ public:
             audio_format_t format() const;
             int         channelCount() const;
             uint32_t    frameCount() const;
-            size_t      frameSize() const;
+            size_t      frameSize() const { return mFrameSize; }
             audio_source_t inputSource() const;
 
 
@@ -378,6 +378,7 @@ private:
     uint32_t                mFrameCount;
     audio_format_t          mFormat;
     uint8_t                 mChannelCount;
+    size_t                  mFrameSize;         // app-level frame size == AudioFlinger frame size
     audio_source_t          mInputSource;
     status_t                mStatus;
     uint32_t                mLatency;
