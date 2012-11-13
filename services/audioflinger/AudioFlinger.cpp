@@ -4186,7 +4186,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mCblk(NULL),
         // mBuffer
         // mBufferEnd
-        mFrameCount(0),
+        mStepCount(0),
         mState(IDLE),
         mSampleRate(sampleRate),
         mFormat(format),
@@ -4277,7 +4277,7 @@ AudioFlinger::ThreadBase::TrackBase::~TrackBase()
 void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buffer* buffer)
 {
     buffer->raw = NULL;
-    mFrameCount = buffer->frameCount;
+    mStepCount = buffer->frameCount;
     // FIXME See note at getNextBuffer()
     (void) step();      // ignore return value of step()
     buffer->frameCount = 0;
@@ -4287,7 +4287,7 @@ bool AudioFlinger::ThreadBase::TrackBase::step() {
     bool result;
     audio_track_cblk_t* cblk = this->cblk();
 
-    result = cblk->stepServer(mFrameCount, isOut());
+    result = cblk->stepServer(mStepCount, isOut());
     if (!result) {
         ALOGV("stepServer failed acquiring cblk mutex");
         mStepServerFailed = true;
@@ -4435,7 +4435,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt Chn mask   Session mFrCnt fCount S M F SRate  "
+    result.append("   Name Client Type Fmt Chn mask   Session StpCnt fCount S M F SRate  "
                   "L dB  R dB    Server      User     Main buf    Aux Buf  Flags Underruns\n");
 }
 
@@ -4506,7 +4506,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mFormat,
             mChannelMask,
             mSessionId,
-            mFrameCount,
+            mStepCount,
             mCblk->frameCount,
             stateChar,
             mMute,
@@ -5499,7 +5499,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("   Clien Fmt Chn mask   Session Buf  S SRate  Serv     User   FrameCount\n");
+    result.append("   Clien Fmt Chn mask   Session Step S SRate  Serv     User   FrameCount\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
@@ -5509,7 +5509,7 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
             mFormat,
             mChannelMask,
             mSessionId,
-            mFrameCount,
+            mStepCount,
             mState,
             mCblk->sampleRate,
             mCblk->server,
