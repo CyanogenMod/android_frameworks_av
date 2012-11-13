@@ -77,12 +77,9 @@ public:
 
                 uint32_t    sampleRate;
 
-                // NOTE: audio_track_cblk_t::frameSize is not equal to AudioTrack::frameSize() for
-                // 8 bit PCM data: in this case,  mCblk->frameSize is based on a sample size of
-                // 16 bit because data is converted to 16 bit before being stored in buffer
+                uint8_t     mPad2;           // unused
 
                 // read-only for client, server writes once at initialization and is then read-only
-                uint8_t     frameSize;       // would normally be size_t, but 8 bits is plenty
                 uint8_t     mName;           // normal tracks: track name, fast tracks: track index
 
                 // used by client only
@@ -111,7 +108,7 @@ public:
 
                 // if there is a shared buffer, "buffers" is the value of pointer() for the shared
                 // buffer, otherwise "buffers" points immediately after the control block
-                void*       buffer(void *buffers, uint32_t offset) const;
+                void*       buffer(void *buffers, uint32_t frameSize, uint32_t offset) const;
 
                 uint32_t    framesAvailableIn() { return framesAvailable(false); }
                 uint32_t    framesAvailableOut() { return framesAvailable(true); }
