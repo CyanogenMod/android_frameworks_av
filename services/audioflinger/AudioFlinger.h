@@ -453,7 +453,7 @@ private:
                 return mState == TERMINATED;
             }
 
-            bool step();
+            bool step();    // mStepCount is an implicit input
             void reset();
 
             virtual bool isOut() const = 0; // true for Track and TimedTrack, false for RecordTrack,
@@ -466,7 +466,8 @@ private:
             void*               mBuffer;    // start of track buffer, typically in shared memory
             void*               mBufferEnd; // &mBuffer[mFrameCount * frameSize], where frameSize
                                             //   is based on mChannelCount and 16-bit samples
-            uint32_t            mFrameCount;
+            uint32_t            mStepCount; // saves AudioBufferProvider::Buffer::frameCount as of
+                                            // time of releaseBuffer() for later use by step()
             // we don't really need a lock for these
             track_state         mState;
             const uint32_t      mSampleRate;    // initial sample rate only; for tracks which
