@@ -107,12 +107,6 @@ public:
                                audio_stream_type_t stream,
                                uint32_t* latency);
 
-    // DEPRECATED
-    static status_t getOutputSamplingRate(int* samplingRate, int stream = AUDIO_STREAM_DEFAULT);
-
-    // DEPRECATED
-    static status_t getOutputFrameCount(int* frameCount, int stream = AUDIO_STREAM_DEFAULT);
-
     static bool routedToA2dpOutput(audio_stream_type_t streamType);
 
     static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
