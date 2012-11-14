@@ -407,6 +407,24 @@ status_t ANetworkSession::Session::writeMore() {
         do {
             const sp<ABuffer> &datagram = *mOutDatagrams.begin();
 
+            uint8_t *data = datagram->data();
+            if (data[0] == 0x80 && (data[1] & 0x7f) == 33) {
+                int64_t nowUs = ALooper::GetNowUs();
+
+                uint32_t prevRtpTime = U32_AT(&data[4]);
+
+                // 90kHz time scale
+                uint32_t rtpTime = (nowUs * 9ll) / 100ll;
+                int32_t diffTime = (int32_t)rtpTime - (int32_t)prevRtpTime;
+
+                ALOGV("correcting rtpTime by %.0f ms", diffTime / 90.0);
+
+                data[4] = rtpTime >> 24;
+                data[5] = (rtpTime >> 16) & 0xff;
+                data[6] = (rtpTime >> 8) & 0xff;
+                data[7] = rtpTime & 0xff;
+            }
+
             int n;
             do {
                 n = send(mSocket, datagram->data(), datagram->size(), 0);
@@ -424,6 +442,9 @@ status_t ANetworkSession::Session::writeMore() {
         } while (err == OK && !mOutDatagrams.empty());
 
         if (err == -EAGAIN) {
+            if (!mOutDatagrams.empty()) {
+                ALOGI("%d datagrams remain queued.", mOutDatagrams.size());
+            }
             err = OK;
         }
 
