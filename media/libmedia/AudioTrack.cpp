@@ -50,7 +50,7 @@ namespace android {
 
 // static
 status_t AudioTrack::getMinFrameCount(
-        int* frameCount,
+        size_t* frameCount,
         audio_stream_type_t streamType,
         uint32_t sampleRate)
 {
@@ -69,7 +69,7 @@ status_t AudioTrack::getMinFrameCount(
     if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
         return NO_INIT;
     }
-    int afFrameCount;
+    size_t afFrameCount;
     if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
         return NO_INIT;
     }
@@ -166,7 +166,7 @@ status_t AudioTrack::set(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        int frameCountInt,
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
@@ -175,11 +175,17 @@ status_t AudioTrack::set(
         bool threadCanCallJava,
         int sessionId)
 {
+    // FIXME "int" here is legacy and will be replaced by size_t later
+    if (frameCountInt < 0) {
+        ALOGE("Invalid frame count %d", frameCountInt);
+        return BAD_VALUE;
+    }
+    size_t frameCount = frameCountInt;
 
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    ALOGV("set() streamType %d frameCount %d flags %04x", streamType, frameCount, flags);
+    ALOGV("set() streamType %d frameCount %u flags %04x", streamType, frameCount, flags);
 
     AutoMutex lock(mLock);
     if (mAudioTrack != 0) {
@@ -336,7 +342,7 @@ int AudioTrack::channelCount() const
     return mChannelCount;
 }
 
-uint32_t AudioTrack::frameCount() const
+size_t AudioTrack::frameCount() const
 {
     return mCblk->frameCount;
 }
@@ -730,7 +736,7 @@ status_t AudioTrack::createTrack_l(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         audio_output_flags_t flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output)
@@ -770,7 +776,7 @@ status_t AudioTrack::createTrack_l(
             // Same comment as below about ignoring frameCount parameter for set()
             frameCount = sharedBuffer->size();
         } else if (frameCount == 0) {
-            int afFrameCount;
+            size_t afFrameCount;
             if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
                 return NO_INIT;
             }
@@ -806,7 +812,7 @@ status_t AudioTrack::createTrack_l(
         if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
             return NO_INIT;
         }
-        int afFrameCount;
+        size_t afFrameCount;
         if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
             return NO_INIT;
         }
@@ -815,8 +821,8 @@ status_t AudioTrack::createTrack_l(
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
         if (minBufCount < 2) minBufCount = 2;
 
-        int minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
-        ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
+        size_t minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
+        ALOGV("minFrameCount: %u, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
 
@@ -828,7 +834,7 @@ status_t AudioTrack::createTrack_l(
         }
         // Make sure that application is notified with sufficient margin
         // before underrun
-        if (mNotificationFramesAct > (uint32_t)frameCount/2) {
+        if (mNotificationFramesAct > frameCount/2) {
             mNotificationFramesAct = frameCount/2;
         }
         if (frameCount < minFrameCount) {

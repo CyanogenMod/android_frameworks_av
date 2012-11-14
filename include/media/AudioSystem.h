@@ -89,7 +89,7 @@ public:
 
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
-    static status_t getOutputFrameCount(int* frameCount,
+    static status_t getOutputFrameCount(size_t* frameCount,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getOutputLatency(uint32_t* latency,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
@@ -100,7 +100,7 @@ public:
     // audio_stream->get_buffer_size()/audio_stream_frame_size()
     static status_t getFrameCount(audio_io_handle_t output,
                                   audio_stream_type_t stream,
-                                  int* frameCount);
+                                  size_t* frameCount);
     // returns the audio output stream latency in ms. Corresponds to
     // audio_stream_out->get_latency()
     static status_t getLatency(audio_io_handle_t output,
@@ -123,11 +123,11 @@ public:
     // - BAD_VALUE: invalid parameter
     // NOTE: this feature is not supported on all hardware platforms and it is
     // necessary to check returned status before using the returned values.
-    static status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
+    static status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
-    static unsigned int  getInputFramesLost(audio_io_handle_t ioHandle);
+    static size_t getInputFramesLost(audio_io_handle_t ioHandle);
 
     static int newAudioSessionId();
     static void acquireAudioSessionId(int audioSession);
@@ -238,7 +238,7 @@ public:
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     static uint32_t getPrimaryOutputSamplingRate();
-    static int32_t getPrimaryOutputFrameCount();
+    static size_t getPrimaryOutputFrameCount();
 
     // ----------------------------------------------------------------------------
 

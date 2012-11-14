@@ -89,7 +89,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                int frameCount,
+                                size_t frameCount,
                                 track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
@@ -143,7 +143,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                int frameCount,
+                                size_t frameCount,
                                 track_flags_t flags,
                                 pid_t tid,
                                 int *sessionId,
@@ -527,7 +527,7 @@ public:
         return status;
     }
 
-    virtual unsigned int getInputFramesLost(audio_io_handle_t ioHandle) const
+    virtual size_t getInputFramesLost(audio_io_handle_t ioHandle) const
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
@@ -703,7 +703,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual int32_t getPrimaryOutputFrameCount()
+    virtual size_t getPrimaryOutputFrameCount()
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
@@ -728,7 +728,7 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            size_t bufferCount = data.readInt32();
+            size_t frameCount = data.readInt32();
             track_flags_t flags = (track_flags_t) data.readInt32();
             sp<IMemory> buffer = interface_cast<IMemory>(data.readStrongBinder());
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
@@ -737,7 +737,7 @@ status_t BnAudioFlinger::onTransact(
             status_t status;
             sp<IAudioTrack> track = createTrack(pid,
                     (audio_stream_type_t) streamType, sampleRate, format,
-                    channelMask, bufferCount, &flags, buffer, output, tid, &sessionId, &status);
+                    channelMask, frameCount, &flags, buffer, output, tid, &sessionId, &status);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
@@ -751,13 +751,13 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            size_t bufferCount = data.readInt32();
+            size_t frameCount = data.readInt32();
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             status_t status;
             sp<IAudioRecord> record = openRecord(pid, input,
-                    sampleRate, format, channelMask, bufferCount, flags, tid, &sessionId, &status);
+                    sampleRate, format, channelMask, frameCount, flags, tid, &sessionId, &status);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(record->asBinder());
@@ -972,8 +972,8 @@ status_t BnAudioFlinger::onTransact(
         case GET_RENDER_POSITION: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
-            uint32_t halFrames;
-            uint32_t dspFrames;
+            size_t halFrames;
+            size_t dspFrames;
             status_t status = getRenderPosition(&halFrames, &dspFrames, output);
             reply->writeInt32(status);
             if (status == NO_ERROR) {

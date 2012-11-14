@@ -36,7 +36,7 @@ namespace android {
 
 // static
 status_t AudioRecord::getMinFrameCount(
-        int* frameCount,
+        size_t* frameCount,
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask)
@@ -119,15 +119,21 @@ status_t AudioRecord::set(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        int frameCountInt,
         callback_t cbf,
         void* user,
         int notificationFrames,
         bool threadCanCallJava,
         int sessionId)
 {
+    // FIXME "int" here is legacy and will be replaced by size_t later
+    if (frameCountInt < 0) {
+        ALOGE("Invalid frame count %d", frameCountInt);
+        return BAD_VALUE;
+    }
+    size_t frameCount = frameCountInt;
 
-    ALOGV("set(): sampleRate %u, channelMask %#x, frameCount %d", sampleRate, channelMask,
+    ALOGV("set(): sampleRate %u, channelMask %#x, frameCount %u", sampleRate, channelMask,
             frameCount);
 
     AutoMutex lock(mLock);
@@ -177,7 +183,7 @@ status_t AudioRecord::set(
     }
 
     // validate framecount
-    int minFrameCount = 0;
+    size_t minFrameCount = 0;
     status_t status = getMinFrameCount(&minFrameCount, sampleRate, format, channelMask);
     if (status != NO_ERROR) {
         return status;
@@ -260,7 +266,7 @@ int AudioRecord::channelCount() const
     return mChannelCount;
 }
 
-uint32_t AudioRecord::frameCount() const
+size_t AudioRecord::frameCount() const
 {
     return mFrameCount;
 }
@@ -427,7 +433,7 @@ status_t AudioRecord::openRecord_l(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         audio_io_handle_t input)
 {
     status_t status;

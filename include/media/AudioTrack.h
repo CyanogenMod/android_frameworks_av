@@ -110,7 +110,7 @@ public:
      *  - NO_INIT: audio server or audio hardware not initialized
      */
 
-     static status_t getMinFrameCount(int* frameCount,
+     static status_t getMinFrameCount(size_t* frameCount,
                                       audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT,
                                       uint32_t sampleRate = 0);
 
@@ -494,7 +494,7 @@ protected:
                                  uint32_t sampleRate,
                                  audio_format_t format,
                                  audio_channel_mask_t channelMask,
-                                 int frameCount,
+                                 size_t frameCount,
                                  audio_output_flags_t flags,
                                  const sp<IMemory>& sharedBuffer,
                                  audio_io_handle_t output);
