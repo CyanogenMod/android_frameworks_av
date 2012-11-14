@@ -127,7 +127,7 @@ private:
     bool allTracksHavePacketizerIndex();
 
     status_t packetizeAccessUnit(
-            size_t trackIndex, const sp<ABuffer> &accessUnit,
+            size_t trackIndex, sp<ABuffer> accessUnit,
             sp<ABuffer> *packets);
 
     status_t packetizeQueuedAccessUnits();

@@ -534,9 +534,15 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     //   use "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
     // For 720p24:
     //   use "78 00 02 02 00008000 00000000 00000000 00 0000 0000 00 none none\r\n"
+    // For 1080p30:
+    //   use "38 00 02 02 00000080 00000000 00000000 00 0000 0000 00 none none\r\n"
     AString body = StringPrintf(
         "wfd_video_formats: "
+#if USE_1080P
+        "38 00 02 02 00000080 00000000 00000000 00 0000 0000 00 none none\r\n"
+#else
         "28 00 02 02 00000020 00000000 00000000 00 0000 0000 00 none none\r\n"
+#endif
         "wfd_audio_codecs: %s\r\n"
         "wfd_presentation_URL: rtsp://%s/wfd1.0/streamid=0 none\r\n"
         "wfd_client_rtp_ports: RTP/AVP/%s;unicast %d 0 mode=play\r\n",
@@ -773,8 +779,10 @@ status_t WifiDisplaySource::onReceiveM3Response(
 
         status_t err = makeHDCP();
         if (err != OK) {
-            ALOGE("Unable to instantiate HDCP component.");
-            return err;
+            ALOGE("Unable to instantiate HDCP component. "
+                  "Not using HDCP after all.");
+
+            mUsingHDCP = false;
         }
     }
 

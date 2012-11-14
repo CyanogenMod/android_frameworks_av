@@ -26,6 +26,7 @@
 #include "Sender.h"
 #include "TSPacketizer.h"
 #include "include/avc_utils.h"
+#include "WifiDisplaySource.h"
 
 #include <binder/IServiceManager.h>
 #include <gui/ISurfaceComposer.h>
@@ -81,7 +82,10 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
     bool hasOutputBuffer(int64_t *timeUs) const;
     void queueOutputBuffer(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueOutputBuffer();
+
+#if SUSPEND_VIDEO_IF_IDLE
     bool isSuspended() const;
+#endif
 
     size_t countQueuedOutputBuffers() const {
         return mQueuedOutputBuffers.size();
@@ -279,7 +283,6 @@ bool WifiDisplaySource::PlaybackSession::Track::hasOutputBuffer(
 void WifiDisplaySource::PlaybackSession::Track::queueOutputBuffer(
         const sp<ABuffer> &accessUnit) {
     mQueuedOutputBuffers.push_back(accessUnit);
-
     mLastOutputBufferQueuedTimeUs = ALooper::GetNowUs();
 }
 
@@ -292,6 +295,7 @@ sp<ABuffer> WifiDisplaySource::PlaybackSession::Track::dequeueOutputBuffer() {
     return outputBuffer;
 }
 
+#if SUSPEND_VIDEO_IF_IDLE
 bool WifiDisplaySource::PlaybackSession::Track::isSuspended() const {
     if (!mQueuedOutputBuffers.empty()) {
         return false;
@@ -307,6 +311,7 @@ bool WifiDisplaySource::PlaybackSession::Track::isSuspended() const {
     // this track suspended for the time being.
     return (ALooper::GetNowUs() - mLastOutputBufferQueuedTimeUs) > 60000ll;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -443,8 +448,13 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 ssize_t packetizerTrackIndex = track->packetizerTrackIndex();
 
                 if (packetizerTrackIndex < 0) {
-                    packetizerTrackIndex =
-                        mPacketizer->addTrack(track->getFormat());
+                    sp<AMessage> trackFormat = track->getFormat()->dup();
+                    if (mHDCP != NULL && !track->isAudio()) {
+                        // HDCP2.0 _and_ HDCP 2.1 specs say to set the version
+                        // inside the HDCP descriptor to 0x20!!!
+                        trackFormat->setInt32("hdcp-version", 0x20);
+                    }
+                    packetizerTrackIndex = mPacketizer->addTrack(trackFormat);
 
                     CHECK_GE(packetizerTrackIndex, 0);
 
@@ -642,8 +652,10 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     sp<Converter> converter =
         new Converter(notify, codecLooper, format, usePCMAudio);
 
-    if (converter->initCheck() != OK) {
-        return converter->initCheck();
+    err = converter->initCheck();
+    if (err != OK) {
+        ALOGE("%s converter returned err %d", isVideo ? "video" : "audio", err);
+        return err;
     }
 
     looper()->registerHandler(converter);
@@ -735,11 +747,19 @@ sp<ISurfaceTexture> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
 }
 
 int32_t WifiDisplaySource::PlaybackSession::width() const {
+#if USE_1080P
+    return 1920;
+#else
     return 1280;
+#endif
 }
 
 int32_t WifiDisplaySource::PlaybackSession::height() const {
+#if USE_1080P
+    return 1080;
+#else
     return 720;
+#endif
 }
 
 void WifiDisplaySource::PlaybackSession::requestIDRFrame() {
@@ -767,7 +787,7 @@ bool WifiDisplaySource::PlaybackSession::allTracksHavePacketizerIndex() {
 }
 
 status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
-        size_t trackIndex, const sp<ABuffer> &accessUnit,
+        size_t trackIndex, sp<ABuffer> accessUnit,
         sp<ABuffer> *packets) {
     const sp<Track> &track = mTracks.valueFor(trackIndex);
 
@@ -776,8 +796,19 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
     bool isHDCPEncrypted = false;
     uint64_t inputCTR;
     uint8_t HDCP_private_data[16];
+
+    bool manuallyPrependSPSPPS =
+        !track->isAudio()
+        && track->converter()->needToManuallyPrependSPSPPS()
+        && IsIDR(accessUnit);
+
     if (mHDCP != NULL && !track->isAudio()) {
         isHDCPEncrypted = true;
+
+        if (manuallyPrependSPSPPS) {
+            accessUnit = mPacketizer->prependCSD(
+                    track->packetizerTrackIndex(), accessUnit);
+        }
 
         status_t err = mHDCP->encrypt(
                 accessUnit->data(), accessUnit->size(),
@@ -858,6 +889,8 @@ status_t WifiDisplaySource::PlaybackSession::packetizeAccessUnit(
 #endif
 
         flags |= TSPacketizer::IS_ENCRYPTED;
+    } else if (manuallyPrependSPSPPS) {
+        flags |= TSPacketizer::PREPEND_SPS_PPS_TO_IDR_FRAMES;
     }
 
     int64_t timeUs = ALooper::GetNowUs();
@@ -930,12 +963,21 @@ bool WifiDisplaySource::PlaybackSession::drainAccessUnit() {
                 minTrackIndex = mTracks.keyAt(i);
                 minTimeUs = timeUs;
             }
-        } else if (!track->isSuspended()) {
+        }
+#if SUSPEND_VIDEO_IF_IDLE
+        else if (!track->isSuspended()) {
             // We still consider this track "live", so it should keep
             // delivering output data whose time stamps we'll have to
             // consider for proper interleaving.
             return false;
         }
+#else
+        else {
+            // We need access units available on all tracks to be able to
+            // dequeue the earliest one.
+            return false;
+        }
+#endif
     }
 
     if (minTrackIndex < 0) {
@@ -950,12 +992,24 @@ bool WifiDisplaySource::PlaybackSession::drainAccessUnit() {
 
     if (err != OK) {
         notifySessionDead();
+        return false;
     }
 
     if ((ssize_t)minTrackIndex == mVideoTrackIndex) {
         packets->meta()->setInt32("isVideo", 1);
     }
     mSender->queuePackets(minTimeUs, packets);
+
+#if 0
+    if (minTrackIndex == mVideoTrackIndex) {
+        int64_t nowUs = ALooper::GetNowUs();
+
+        // Latency from "data acquired" to "ready to send if we wanted to".
+        ALOGI("[%s] latencyUs = %lld ms",
+              minTrackIndex == mVideoTrackIndex ? "video" : "audio",
+              (nowUs - minTimeUs) / 1000ll);
+    }
+#endif
 
     return true;
 }

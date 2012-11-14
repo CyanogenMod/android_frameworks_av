@@ -26,6 +26,8 @@
 
 namespace android {
 
+#define USE_1080P       0
+
 struct IHDCP;
 struct IRemoteDisplayClient;
 struct ParsedMessage;
