@@ -1387,7 +1387,7 @@ status_t MediaPlayerService::AudioOutput::open(
     }
     ALOGV("open(%u, %d, 0x%x, %d, %d, %d)", sampleRate, channelCount, channelMask,
             format, bufferCount, mSessionId);
-    int afSampleRate;
+    uint32_t afSampleRate;
     int afFrameCount;
     uint32_t frameCount;
 

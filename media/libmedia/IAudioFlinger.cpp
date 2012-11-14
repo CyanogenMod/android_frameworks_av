@@ -695,7 +695,7 @@ public:
         return (audio_module_handle_t) reply.readInt32();
     }
 
-    virtual int32_t getPrimaryOutputSamplingRate()
+    virtual uint32_t getPrimaryOutputSamplingRate()
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());

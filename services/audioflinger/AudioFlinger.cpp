@@ -1291,7 +1291,7 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
     result.append(buffer);
     snprintf(buffer, SIZE, "standby: %d\n", mStandby);
     result.append(buffer);
-    snprintf(buffer, SIZE, "Sample rate: %d\n", mSampleRate);
+    snprintf(buffer, SIZE, "Sample rate: %u\n", mSampleRate);
     result.append(buffer);
     snprintf(buffer, SIZE, "HAL frame count: %d\n", mFrameCount);
     result.append(buffer);
@@ -1776,7 +1776,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
-                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%d mSampleRate=%d "
+                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
                 isTimed, sharedBuffer.get(), frameCount, mFrameCount, format,
                 audio_is_linear_pcm(format),
@@ -1801,7 +1801,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     if (mType == DIRECT) {
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
-                ALOGE("createTrack_l() Bad parameter: sampleRate %d format %d, channelMask 0x%08x "
+                ALOGE("createTrack_l() Bad parameter: sampleRate %u format %d, channelMask 0x%08x "
                         "for output %p with format %d",
                         sampleRate, format, channelMask, mOutput, mFormat);
                 lStatus = BAD_VALUE;
@@ -1811,7 +1811,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     } else {
         // Resampler implementation limits input sampling rate to 2 x output sampling rate.
         if (sampleRate > mSampleRate*2) {
-            ALOGE("Sample rate out of range: %d mSampleRate %d", sampleRate, mSampleRate);
+            ALOGE("Sample rate out of range: %u mSampleRate %u", sampleRate, mSampleRate);
             lStatus = BAD_VALUE;
             goto Exit;
         }
@@ -2280,7 +2280,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mNormalSink below
 {
     ALOGV("MixerThread() id=%d device=%#x type=%d", id, device, type);
-    ALOGV("mSampleRate=%d, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
+    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%d, "
             "mFrameCount=%d, mNormalFrameCount=%d",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
             mNormalFrameCount);
@@ -3126,7 +3126,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         uint32_t minFrames = 1;
         if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
                 (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY)) {
-            if (t->sampleRate() == (int)mSampleRate) {
+            if (t->sampleRate() == mSampleRate) {
                 minFrames = mNormalFrameCount;
             } else {
                 // +1 for rounding and +1 for additional sample needed for interpolation
@@ -3624,7 +3624,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             NBAIO_Format format = teeSource->format();
             unsigned channelCount = Format_channelCount(format);
             ALOG_ASSERT(channelCount <= FCC_2);
-            unsigned sampleRate = Format_sampleRate(format);
+            uint32_t sampleRate = Format_sampleRate(format);
             wavHeader[22] = channelCount;       // number of channels
             wavHeader[24] = sampleRate;         // sample rate
             wavHeader[25] = sampleRate >> 8;
@@ -4306,8 +4306,8 @@ void AudioFlinger::ThreadBase::TrackBase::reset() {
     ALOGV("TrackBase::reset");
 }
 
-int AudioFlinger::ThreadBase::TrackBase::sampleRate() const {
-    return (int)mCblk->sampleRate;
+uint32_t AudioFlinger::ThreadBase::TrackBase::sampleRate() const {
+    return mCblk->sampleRate;
 }
 
 void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t frames) const {
@@ -5541,7 +5541,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
         ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, mCblk->buffers %p, " \
-                "mCblk->frameCount %d, mCblk->sampleRate %d, mChannelMask 0x%08x mBufferEnd %p",
+                "mCblk->frameCount %d, mCblk->sampleRate %u, mChannelMask 0x%08x mBufferEnd %p",
                 mCblk, mBuffer, mCblk->buffers,
                 mCblk->frameCount, mCblk->sampleRate, mChannelMask, mBufferEnd);
     } else {
@@ -6558,7 +6558,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
         result.append(buffer);
         snprintf(buffer, SIZE, "Out channel count: %d\n", mReqChannelCount);
         result.append(buffer);
-        snprintf(buffer, SIZE, "Out sample rate: %d\n", mReqSampleRate);
+        snprintf(buffer, SIZE, "Out sample rate: %u\n", mReqSampleRate);
         result.append(buffer);
     } else {
         result.append("No active record client\n");
@@ -6653,7 +6653,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
         AudioParameter param = AudioParameter(keyValuePair);
         int value;
         audio_format_t reqFormat = mFormat;
-        int reqSamplingRate = mReqSampleRate;
+        uint32_t reqSamplingRate = mReqSampleRate;
         int reqChannelCount = mReqChannelCount;
 
         if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
@@ -6987,7 +6987,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
 
 // ----------------------------------------------------------------------------
 
-int32_t AudioFlinger::getPrimaryOutputSamplingRate()
+uint32_t AudioFlinger::getPrimaryOutputSamplingRate()
 {
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = primaryPlaybackThread_l();

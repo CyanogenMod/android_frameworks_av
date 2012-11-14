@@ -282,7 +282,9 @@ public:
 
     /* Set sample rate for this track in Hz, mostly used for games' sound effects
      */
-            status_t    setSampleRate(int sampleRate);
+            status_t    setSampleRate(uint32_t sampleRate);
+
+    /* Return current sample rate in Hz, or 0 if unknown */
             uint32_t    getSampleRate() const;
 
     /* Enables looping and sets the start and end points of looping.

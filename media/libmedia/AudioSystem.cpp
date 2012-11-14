@@ -205,7 +205,7 @@ int AudioSystem::logToLinear(float volume)
     return volume ? 100 - int(dBConvertInverse * log(volume) + 0.5) : 0;
 }
 
-status_t AudioSystem::getOutputSamplingRate(int* samplingRate, audio_stream_type_t streamType)
+status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream_type_t streamType)
 {
     audio_io_handle_t output;
 
@@ -223,7 +223,7 @@ status_t AudioSystem::getOutputSamplingRate(int* samplingRate, audio_stream_type
 
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
                                       audio_stream_type_t streamType,
-                                      int* samplingRate)
+                                      uint32_t* samplingRate)
 {
     OutputDescriptor *outputDesc;
 
@@ -241,7 +241,7 @@ status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
         gLock.unlock();
     }
 
-    ALOGV("getSamplingRate() streamType %d, output %d, sampling rate %d", streamType, output,
+    ALOGV("getSamplingRate() streamType %d, output %d, sampling rate %u", streamType, output,
             *samplingRate);
 
     return NO_ERROR;
@@ -442,7 +442,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
         OutputDescriptor *outputDesc =  new OutputDescriptor(*desc);
         gOutputs.add(ioHandle, outputDesc);
-        ALOGV("ioConfigChanged() new output samplingRate %d, format %d channels %#x frameCount %d "
+        ALOGV("ioConfigChanged() new output samplingRate %u, format %d channels %#x frameCount %d "
                 "latency %d",
                 outputDesc->samplingRate, outputDesc->format, outputDesc->channels,
                 outputDesc->frameCount, outputDesc->latency);
@@ -466,7 +466,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         if (param2 == NULL) break;
         desc = (const OutputDescriptor *)param2;
 
-        ALOGV("ioConfigChanged() new config for output %d samplingRate %d, format %d channels %#x "
+        ALOGV("ioConfigChanged() new config for output %d samplingRate %u, format %d channels %#x "
                 "frameCount %d latency %d",
                 ioHandle, desc->samplingRate, desc->format,
                 desc->channels, desc->frameCount, desc->latency);
@@ -740,7 +740,7 @@ status_t AudioSystem::isSourceActive(audio_source_t stream, bool* state)
     return NO_ERROR;
 }
 
-int32_t AudioSystem::getPrimaryOutputSamplingRate()
+uint32_t AudioSystem::getPrimaryOutputSamplingRate()
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return 0;

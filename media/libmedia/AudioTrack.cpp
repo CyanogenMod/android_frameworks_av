@@ -65,7 +65,7 @@ status_t AudioTrack::getMinFrameCount(
     //          audio_format_t format
     //          audio_channel_mask_t channelMask
     //          audio_output_flags_t flags
-    int afSampleRate;
+    uint32_t afSampleRate;
     if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
         return NO_INIT;
     }
@@ -193,7 +193,7 @@ status_t AudioTrack::set(
     }
 
     if (sampleRate == 0) {
-        int afSampleRate;
+        uint32_t afSampleRate;
         if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
             return NO_INIT;
         }
@@ -535,9 +535,9 @@ void AudioTrack::getAuxEffectSendLevel(float* level) const
     }
 }
 
-status_t AudioTrack::setSampleRate(int rate)
+status_t AudioTrack::setSampleRate(uint32_t rate)
 {
-    int afSamplingRate;
+    uint32_t afSamplingRate;
 
     if (mIsTimed) {
         return INVALID_OPERATION;
@@ -547,7 +547,7 @@ status_t AudioTrack::setSampleRate(int rate)
         return NO_INIT;
     }
     // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-    if (rate <= 0 || rate > afSamplingRate*2 ) return BAD_VALUE;
+    if (rate == 0 || rate > afSamplingRate*2 ) return BAD_VALUE;
 
     AutoMutex lock(mLock);
     mCblk->sampleRate = rate;
@@ -557,7 +557,7 @@ status_t AudioTrack::setSampleRate(int rate)
 uint32_t AudioTrack::getSampleRate() const
 {
     if (mIsTimed) {
-        return INVALID_OPERATION;
+        return 0;
     }
 
     AutoMutex lock(mLock);
@@ -802,7 +802,7 @@ status_t AudioTrack::createTrack_l(
     } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
 
         // FIXME move these calculations and associated checks to server
-        int afSampleRate;
+        uint32_t afSampleRate;
         if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
             return NO_INIT;
         }
@@ -816,7 +816,7 @@ status_t AudioTrack::createTrack_l(
         if (minBufCount < 2) minBufCount = 2;
 
         int minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
-        ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%d, afSampleRate=%d"
+        ALOGV("minFrameCount: %d, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
 
@@ -1423,7 +1423,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
             mChannelCount, cblk->frameCount);
     result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%d), status(%d), muted(%d)\n",
+    snprintf(buffer, 255, "  sample rate(%u), status(%d), muted(%d)\n",
             (cblk == 0) ? 0 : cblk->sampleRate, mStatus, mMuted);
     result.append(buffer);
     snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);

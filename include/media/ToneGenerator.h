@@ -263,7 +263,7 @@ private:
 
     unsigned short mLoopCounter; // Current tone loopback count
 
-    int mSamplingRate;  // AudioFlinger Sampling rate
+    uint32_t mSamplingRate;  // AudioFlinger Sampling rate
     AudioTrack *mpAudioTrack;  // Pointer to audio track used for playback
     Mutex mLock;  // Mutex to control concurent access to ToneGenerator object from audio callback and application API
     Mutex mCbkCondLock; // Mutex associated to mWaitCbkCond
