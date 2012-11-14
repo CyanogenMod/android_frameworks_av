@@ -450,7 +450,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         IAudioFlinger::track_flags_t *flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
@@ -1730,7 +1730,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         const sp<IMemory>& sharedBuffer,
         int sessionId,
         IAudioFlinger::track_flags_t *flags,
@@ -1799,7 +1799,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         if (minBufCount < 2) {
             minBufCount = 2;
         }
-        int minFrameCount = mNormalFrameCount * minBufCount;
+        size_t minFrameCount = mNormalFrameCount * minBufCount;
         if (frameCount < minFrameCount) {
             frameCount = minFrameCount;
         }
@@ -4097,7 +4097,7 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
 {
     Mutex::Autolock _l(mLock);
     // FIXME explain this formula
-    int frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
+    size_t frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
     OutputTrack *outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
@@ -4185,7 +4185,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount,
+            size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId)
     :   RefBase(),
@@ -4348,7 +4348,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount,
+            size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
             IAudioFlinger::track_flags_t flags)
@@ -4892,7 +4892,7 @@ AudioFlinger::PlaybackThread::TimedTrack::create(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount,
+            size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId) {
     if (!client->reserveTimedTrack())
@@ -4910,7 +4910,7 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount,
+            size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId)
     : Track(thread, client, streamType, sampleRate, format, channelMask,
@@ -5405,7 +5405,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount,
+            size_t frameCount,
             int sessionId)
     :   TrackBase(thread, client, sampleRate, format,
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId),
@@ -5524,7 +5524,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            int frameCount)
+            size_t frameCount)
     :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
                 NULL, 0, IAudioFlinger::TRACK_DEFAULT),
     mActive(false), mSourceThread(sourceThread), mBuffers(NULL)
@@ -5918,7 +5918,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         IAudioFlinger::track_flags_t flags,
         pid_t tid,
         int *sessionId,
@@ -6295,7 +6295,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         int sessionId,
         IAudioFlinger::track_flags_t flags,
         pid_t tid,
@@ -6988,7 +6988,7 @@ uint32_t AudioFlinger::getPrimaryOutputSamplingRate()
     return thread != NULL ? thread->sampleRate() : 0;
 }
 
-int32_t AudioFlinger::getPrimaryOutputFrameCount()
+size_t AudioFlinger::getPrimaryOutputFrameCount()
 {
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = primaryPlaybackThread_l();

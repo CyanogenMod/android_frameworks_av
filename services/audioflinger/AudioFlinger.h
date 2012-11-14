@@ -92,7 +92,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                int frameCount,
+                                size_t frameCount,
                                 IAudioFlinger::track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
@@ -106,7 +106,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                int frameCount,
+                                size_t frameCount,
                                 IAudioFlinger::track_flags_t flags,
                                 pid_t tid,
                                 int *sessionId,
@@ -208,7 +208,7 @@ public:
     virtual audio_module_handle_t loadHwModule(const char *name);
 
     virtual uint32_t getPrimaryOutputSamplingRate();
-    virtual int32_t getPrimaryOutputFrameCount();
+    virtual size_t getPrimaryOutputFrameCount();
 
     virtual     status_t    onTransact(
                                 uint32_t code,
@@ -390,7 +390,7 @@ private:
                                         uint32_t sampleRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        int frameCount,
+                                        size_t frameCount,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId);
             virtual             ~TrackBase();
@@ -790,7 +790,7 @@ private:
                                         uint32_t sampleRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        int frameCount,
+                                        size_t frameCount,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId,
                                         IAudioFlinger::track_flags_t flags);
@@ -922,7 +922,7 @@ private:
                                          uint32_t sampleRate,
                                          audio_format_t format,
                                          audio_channel_mask_t channelMask,
-                                         int frameCount,
+                                         size_t frameCount,
                                          const sp<IMemory>& sharedBuffer,
                                          int sessionId);
             virtual ~TimedTrack();
@@ -965,7 +965,7 @@ private:
                        uint32_t sampleRate,
                        audio_format_t format,
                        audio_channel_mask_t channelMask,
-                       int frameCount,
+                       size_t frameCount,
                        const sp<IMemory>& sharedBuffer,
                        int sessionId);
 
@@ -1014,7 +1014,7 @@ private:
                                         uint32_t sampleRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        int frameCount);
+                                        size_t frameCount);
             virtual             ~OutputTrack();
 
             virtual status_t    start(AudioSystem::sync_event_t event =
@@ -1099,7 +1099,7 @@ public:
                                     uint32_t sampleRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int frameCount,
+                                    size_t frameCount,
                                     const sp<IMemory>& sharedBuffer,
                                     int sessionId,
                                     IAudioFlinger::track_flags_t *flags,
@@ -1463,7 +1463,7 @@ public:
                                         uint32_t sampleRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        int frameCount,
+                                        size_t frameCount,
                                         int sessionId);
             virtual             ~RecordTrack();
 
@@ -1526,7 +1526,7 @@ public:
                         uint32_t sampleRate,
                         audio_format_t format,
                         audio_channel_mask_t channelMask,
-                        int frameCount,
+                        size_t frameCount,
                         int sessionId,
                         IAudioFlinger::track_flags_t flags,
                         pid_t tid,

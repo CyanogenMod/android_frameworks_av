@@ -1388,7 +1388,7 @@ status_t MediaPlayerService::AudioOutput::open(
     ALOGV("open(%u, %d, 0x%x, %d, %d, %d)", sampleRate, channelCount, channelMask,
             format, bufferCount, mSessionId);
     uint32_t afSampleRate;
-    int afFrameCount;
+    size_t afFrameCount;
     uint32_t frameCount;
 
     if (AudioSystem::getOutputFrameCount(&afFrameCount, mStreamType) != NO_ERROR) {
