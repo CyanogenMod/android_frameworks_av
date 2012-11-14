@@ -470,6 +470,9 @@ AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
      *
      */
 
+    mVolumeSIMD[0] = 0;
+    mVolumeSIMD[1] = 0;
+
     // Load the constants for coefficients
     int ok = pthread_once(&once_control, init_routine);
     if (ok != 0) {
@@ -492,6 +495,12 @@ void AudioResamplerSinc::init() {
     memset(mState, 0, sizeof(int16_t)*stateSize);
     mImpulse  = mState   + (c.halfNumCoefs-1)*mChannelCount;
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
+}
+
+void AudioResamplerSinc::setVolume(int16_t left, int16_t right) {
+    AudioResampler::setVolume(left, right);
+    mVolumeSIMD[0] = int32_t(left)<<16;
+    mVolumeSIMD[1] = int32_t(right)<<16;
 }
 
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
@@ -568,11 +577,9 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         }
 
         // handle boundary case
-        int32_t l, r;
         while (CC_LIKELY(outputIndex < outputSampleCount)) {
-            filterCoefficient<CHANNELS>(l, r, phaseFraction, impulse, vRL);
-            out[outputIndex++] += l;
-            out[outputIndex++] += r;
+            filterCoefficient<CHANNELS>(&out[outputIndex], phaseFraction, impulse, vRL);
+            outputIndex += 2;
 
             phaseFraction += phaseIncrement;
             const size_t phaseIndex = phaseFraction >> kNumPhaseBits;
@@ -628,19 +635,22 @@ void AudioResamplerSinc::read(
 
 template<int CHANNELS>
 void AudioResamplerSinc::filterCoefficient(
-        int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples, uint32_t vRL)
+        int32_t* out, uint32_t phase, const int16_t *samples, uint32_t vRL)
 {
+    // NOTE: be very careful when modifying the code here. register
+    // pressure is very high and a small change might cause the compiler
+    // to generate far less efficient code.
+    // Always sanity check the result with objdump or test-resample.
+
     // compute the index of the coefficient on the positive side and
     // negative side
     const Constants& c(*mConstants);
+    const int32_t ONE = c.cMask | c.pMask;
     uint32_t indexP = ( phase & c.cMask) >> c.cShift;
-    uint32_t indexN = (-phase & c.cMask) >> c.cShift;
     uint32_t lerpP  = ( phase & c.pMask) >> c.pShift;
-    uint32_t lerpN  = (-phase & c.pMask) >> c.pShift;
-    if ((indexP == 0) && (lerpP == 0)) {
-        indexN = c.cMask >> c.cShift;
-        lerpN  = c.pMask >> c.pShift;
-    }
+    uint32_t indexN = ((ONE-phase) & c.cMask) >> c.cShift;
+    uint32_t lerpN  = ((ONE-phase) & c.pMask) >> c.pShift;
+
     const size_t offset = c.halfNumCoefs;
     indexP *= offset;
     indexN *= offset;
@@ -650,19 +660,19 @@ void AudioResamplerSinc::filterCoefficient(
     int16_t const* sP = samples;
     int16_t const* sN = samples + CHANNELS;
 
-    l = 0;
-    r = 0;
     size_t count = offset;
 
     if (!USE_NEON) {
+        int32_t l = 0;
+        int32_t r = 0;
         for (size_t i=0 ; i<count ; i++) {
             interpolate<CHANNELS>(l, r, coefsP++, offset, lerpP, sP);
             sP -= CHANNELS;
             interpolate<CHANNELS>(l, r, coefsN++, offset, lerpN, sN);
             sN += CHANNELS;
         }
-        l = 2 * mulRL(1, l, vRL);
-        r = 2 * mulRL(0, r, vRL);
+        out[0] += 2 * mulRL(1, l, vRL);
+        out[1] += 2 * mulRL(0, r, vRL);
     } else if (CHANNELS == 1) {
         int32_t const* coefsP1 = coefsP + offset;
         int32_t const* coefsN1 = coefsN + offset;
@@ -670,15 +680,16 @@ void AudioResamplerSinc::filterCoefficient(
         asm (
             "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
             "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
-            "veor           q0, q0                   \n"    // result, initialize to 0
+            "veor           q0, q0, q0               \n"    // result, initialize to 0
+            "vshl.s32       d2, d2, #16              \n"    // convert to 32 bits
 
             "1:                                      \n"
             "vld1.16        { d4}, [%[sP]]           \n"    // load 4 16-bits stereo samples
-            "vld1.32        { q8}, [%[coefsP0]]!     \n"    // load 4 32-bits coefs
-            "vld1.32        { q9}, [%[coefsP1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld1.32        { q8}, [%[coefsP0]:128]! \n"    // load 4 32-bits coefs
+            "vld1.32        { q9}, [%[coefsP1]:128]! \n"    // load 4 32-bits coefs for interpolation
             "vld1.16        { d6}, [%[sN]]!          \n"    // load 4 16-bits stereo samples
-            "vld1.32        {q10}, [%[coefsN0]]!     \n"    // load 4 32-bits coefs
-            "vld1.32        {q11}, [%[coefsN1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld1.32        {q10}, [%[coefsN0]:128]! \n"    // load 4 32-bits coefs
+            "vld1.32        {q11}, [%[coefsN1]:128]! \n"    // load 4 32-bits coefs for interpolation
 
             "vrev64.16      d4, d4                   \n"    // reverse 2 frames of the positive side
 
@@ -703,12 +714,16 @@ void AudioResamplerSinc::filterCoefficient(
 
             "bne            1b                       \n"    // loop
 
+            "vld1.s32       {d2}, [%[vLR]]           \n"    // load volumes
+            "vld1.s32       {d3}, %[out]             \n"    // load the output
             "vpadd.s32      d0, d0, d1               \n"    // add all 4 partial sums
             "vpadd.s32      d0, d0, d0               \n"    // together
+            "vdup.i32       d0, d0[0]                \n"    // interleave L,R channels
+            "vqrdmulh.s32   d0, d0, d2               \n"    // apply volume
+            "vadd.s32       d3, d3, d0               \n"    // accumulate result
+            "vst1.s32       {d0}, %[out]             \n"    // store result
 
-            "vmov.s32       %[l], d0[0]              \n"    // save result in ARM register
-
-            : [l]  "=r" (l),
+            : [out]     "=Uv" (out[0]),
               [count]   "+r" (count),
               [coefsP0] "+r" (coefsP),
               [coefsP1] "+r" (coefsP1),
@@ -716,16 +731,14 @@ void AudioResamplerSinc::filterCoefficient(
               [coefsN1] "+r" (coefsN1),
               [sP]      "+r" (sP),
               [sN]      "+r" (sN)
-            : [lerpP]   "r" (lerpP<<16),
-              [lerpN]   "r" (lerpN<<16),
-              [vRL]     "r" (vRL)
+            : [lerpP]   "r" (lerpP),
+              [lerpN]   "r" (lerpN),
+              [vLR]     "r" (mVolumeSIMD)
             : "cc", "memory",
               "q0", "q1", "q2", "q3",
               "q8", "q9", "q10", "q11",
               "q12", "q14"
         );
-        l = 2 * mulRL(1, l, vRL);
-        r = l;
     } else if (CHANNELS == 2) {
         int32_t const* coefsP1 = coefsP + offset;
         int32_t const* coefsN1 = coefsN + offset;
@@ -733,16 +746,17 @@ void AudioResamplerSinc::filterCoefficient(
         asm (
             "vmov.32        d2[0], %[lerpP]          \n"    // load the positive phase
             "vmov.32        d2[1], %[lerpN]          \n"    // load the negative phase
-            "veor           q0, q0                   \n"    // result, initialize to 0
-            "veor           q4, q4                   \n"    // result, initialize to 0
+            "veor           q0, q0, q0               \n"    // result, initialize to 0
+            "veor           q4, q4, q4               \n"    // result, initialize to 0
+            "vshl.s32       d2, d2, #16              \n"    // convert to 32 bits
 
             "1:                                      \n"
             "vld2.16        {d4,d5}, [%[sP]]         \n"    // load 4 16-bits stereo samples
-            "vld1.32        { q8}, [%[coefsP0]]!     \n"    // load 4 32-bits coefs
-            "vld1.32        { q9}, [%[coefsP1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld1.32        { q8}, [%[coefsP0]:128]! \n"    // load 4 32-bits coefs
+            "vld1.32        { q9}, [%[coefsP1]:128]! \n"    // load 4 32-bits coefs for interpolation
             "vld2.16        {d6,d7}, [%[sN]]!        \n"    // load 4 16-bits stereo samples
-            "vld1.32        {q10}, [%[coefsN0]]!     \n"    // load 4 32-bits coefs
-            "vld1.32        {q11}, [%[coefsN1]]!     \n"    // load 4 32-bits coefs for interpolation
+            "vld1.32        {q10}, [%[coefsN0]:128]! \n"    // load 4 32-bits coefs
+            "vld1.32        {q11}, [%[coefsN1]:128]! \n"    // load 4 32-bits coefs for interpolation
 
             "vrev64.16      d4, d4                   \n"    // reverse 2 frames of the positive side
             "vrev64.16      d5, d5                   \n"    // reverse 2 frames of the positive side
@@ -774,16 +788,18 @@ void AudioResamplerSinc::filterCoefficient(
 
             "bne            1b                       \n"    // loop
 
-            "vpadd.s32      d0, d0, d1               \n"    // add all 4 partial sums
-            "vpadd.s32      d8, d8, d9               \n"    // add all 4 partial sums
+            "vld1.s32       {d2}, [%[vLR]]           \n"    // load volumes
+            "vld1.s32       {d3}, %[out]             \n"    // load the output
+            "vpadd.s32      d0, d0, d1               \n"    // add all 4 partial sums from q0
+            "vpadd.s32      d8, d8, d9               \n"    // add all 4 partial sums from q4
             "vpadd.s32      d0, d0, d0               \n"    // together
             "vpadd.s32      d8, d8, d8               \n"    // together
+            "vtrn.s32       d0, d8                   \n"    // interlace L,R channels
+            "vqrdmulh.s32   d0, d0, d2               \n"    // apply volume
+            "vadd.s32       d3, d3, d0               \n"    // accumulate result
+            "vst1.s32       {d0}, %[out]             \n"    // store result
 
-            "vmov.s32       %[l], d0[0]              \n"    // save result in ARM register
-            "vmov.s32       %[r], d8[0]              \n"    // save result in ARM register
-
-            : [l]  "=r" (l),
-              [r]  "=r" (r),
+            : [out]     "=Uv" (out[0]),
               [count]   "+r" (count),
               [coefsP0] "+r" (coefsP),
               [coefsP1] "+r" (coefsP1),
@@ -791,16 +807,14 @@ void AudioResamplerSinc::filterCoefficient(
               [coefsN1] "+r" (coefsN1),
               [sP]      "+r" (sP),
               [sN]      "+r" (sN)
-            : [lerpP]   "r" (lerpP<<16),
-              [lerpN]   "r" (lerpN<<16),
-              [vRL]     "r" (vRL)
+            : [lerpP]   "r" (lerpP),
+              [lerpN]   "r" (lerpN),
+              [vLR]     "r" (mVolumeSIMD)
             : "cc", "memory",
               "q0", "q1", "q2", "q3", "q4",
               "q8", "q9", "q10", "q11",
               "q12", "q13", "q14", "q15"
         );
-        l = 2 * mulRL(1, l, vRL);
-        r = 2 * mulRL(0, r, vRL);
     }
 }
 
