@@ -55,7 +55,10 @@ struct audio_track_cblk_t
 
                 int         mPad1;          // unused, but preserves cache line alignment
 
-                uint32_t    frameCount;
+                size_t      frameCount_;    // used during creation to pass actual track buffer size
+                                            // from AudioFlinger to client, and not referenced again
+                                            // FIXME remove here and replace by createTrack() in/out parameter
+                                            // renamed to "_" to detect incorrect use
 
                 // Cache line boundary (32 bytes)
 
@@ -97,19 +100,23 @@ public:
 
                 // called by client only, where client includes regular
                 // AudioTrack and AudioFlinger::PlaybackThread::OutputTrack
-                uint32_t    stepUserIn(uint32_t frameCount) { return stepUser(frameCount, false); }
-                uint32_t    stepUserOut(uint32_t frameCount) { return stepUser(frameCount, true); }
+                uint32_t    stepUserIn(size_t stepCount, size_t frameCount) { return stepUser(stepCount, frameCount, false); }
+                uint32_t    stepUserOut(size_t stepCount, size_t frameCount) { return stepUser(stepCount, frameCount, true); }
 
-                bool        stepServer(uint32_t frameCount, bool isOut);
+                bool        stepServer(size_t stepCount, size_t frameCount, bool isOut);
 
                 // if there is a shared buffer, "buffers" is the value of pointer() for the shared
                 // buffer, otherwise "buffers" points immediately after the control block
                 void*       buffer(void *buffers, uint32_t frameSize, uint32_t offset) const;
 
-                uint32_t    framesAvailableIn() { return framesAvailable(false); }
-                uint32_t    framesAvailableOut() { return framesAvailable(true); }
-                uint32_t    framesAvailableIn_l() { return framesAvailable_l(false); }
-                uint32_t    framesAvailableOut_l() { return framesAvailable_l(true); }
+                uint32_t    framesAvailableIn(size_t frameCount)
+                                { return framesAvailable(frameCount, false); }
+                uint32_t    framesAvailableOut(size_t frameCount)
+                                { return framesAvailable(frameCount, true); }
+                uint32_t    framesAvailableIn_l(size_t frameCount)
+                                { return framesAvailable_l(frameCount, false); }
+                uint32_t    framesAvailableOut_l(size_t frameCount)
+                                { return framesAvailable_l(frameCount, true); }
                 uint32_t    framesReadyIn() { return framesReady(false); }
                 uint32_t    framesReadyOut() { return framesReady(true); }
 
@@ -140,9 +147,9 @@ public:
 
 private:
                 // isOut == true means AudioTrack, isOut == false means AudioRecord
-                uint32_t    stepUser(uint32_t frameCount, bool isOut);
-                uint32_t    framesAvailable(bool isOut);
-                uint32_t    framesAvailable_l(bool isOut);
+                uint32_t    stepUser(size_t stepCount, size_t frameCount, bool isOut);
+                uint32_t    framesAvailable(size_t frameCount, bool isOut);
+                uint32_t    framesAvailable_l(size_t frameCount, bool isOut);
                 uint32_t    framesReady(bool isOut);
 };
 

@@ -1757,7 +1757,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               (
                 (tid != -1) &&
                 ((frameCount == 0) ||
-                (frameCount >= (int) (mFrameCount * kFastTrackMultiplier)))
+                (frameCount >= (mFrameCount * kFastTrackMultiplier)))
               )
             ) &&
             // PCM data
@@ -4202,6 +4202,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mChannelCount(popcount(channelMask)),
         mFrameSize(audio_is_linear_pcm(format) ?
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
+        mFrameCount(frameCount),
         mStepServerFailed(false),
         mSessionId(sessionId)
 {
@@ -4237,7 +4238,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     if (mCblk != NULL) {
         new(mCblk) audio_track_cblk_t();
         // clear all buffers
-        mCblk->frameCount = frameCount;
+        mCblk->frameCount_ = frameCount;
         mCblk->sampleRate = sampleRate;
 // uncomment the following lines to quickly test 32-bit wraparound
 //      mCblk->user = 0xffff0000;
@@ -4293,7 +4294,7 @@ bool AudioFlinger::ThreadBase::TrackBase::step() {
     bool result;
     audio_track_cblk_t* cblk = this->cblk();
 
-    result = cblk->stepServer(mStepCount, isOut());
+    result = cblk->stepServer(mStepCount, mFrameCount, isOut());
     if (!result) {
         ALOGV("stepServer failed acquiring cblk mutex");
         mStepServerFailed = true;
@@ -4508,7 +4509,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mChannelMask,
             mSessionId,
             mStepCount,
-            mCblk->frameCount,
+            mFrameCount,
             stateChar,
             mMute,
             mFillingUpStatus,
@@ -4551,7 +4552,7 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
 
     if (CC_LIKELY(framesReady)) {
         uint32_t s = cblk->server;
-        uint32_t bufferEnd = cblk->serverBase + cblk->frameCount;
+        uint32_t bufferEnd = cblk->serverBase + mFrameCount;
 
         bufferEnd = (cblk->loopEnd < bufferEnd) ? cblk->loopEnd : bufferEnd;
         if (framesReq > framesReady) {
@@ -4589,7 +4590,7 @@ size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
     if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) return true;
 
-    if (framesReady() >= mCblk->frameCount ||
+    if (framesReady() >= mFrameCount ||
             (mCblk->flags & CBLK_FORCEREADY)) {
         mFillingUpStatus = FS_FILLED;
         android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
@@ -5435,11 +5436,11 @@ status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvi
     }
 
     // FIXME lock is not actually held, so overrun is possible
-    framesAvail = cblk->framesAvailableIn_l();
+    framesAvail = cblk->framesAvailableIn_l(mFrameCount);
 
     if (CC_LIKELY(framesAvail)) {
         uint32_t s = cblk->server;
-        uint32_t bufferEnd = cblk->serverBase + cblk->frameCount;
+        uint32_t bufferEnd = cblk->serverBase + mFrameCount;
 
         if (framesReq > framesAvail) {
             framesReq = framesAvail;
@@ -5508,7 +5509,7 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
             mCblk->sampleRate,
             mCblk->server,
             mCblk->user,
-            mCblk->frameCount);
+            mFrameCount);
 }
 
 bool AudioFlinger::RecordThread::RecordTrack::isOut() const
@@ -5585,9 +5586,9 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
             MixerThread *mixerThread = (MixerThread *)thread.get();
-            if (mCblk->frameCount > frames){
+            if (mFrameCount > frames){
                 if (mBufferQueue.size() < kMaxOverFlowBuffers) {
-                    uint32_t startFrames = (mCblk->frameCount - frames);
+                    uint32_t startFrames = (mFrameCount - frames);
                     pInBuffer = new Buffer;
                     pInBuffer->mBuffer = new int16_t[startFrames * channelCount];
                     pInBuffer->frameCount = startFrames;
@@ -5633,7 +5634,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         uint32_t outFrames = pInBuffer->frameCount > mOutBuffer.frameCount ? mOutBuffer.frameCount :
                 pInBuffer->frameCount;
         memcpy(mOutBuffer.raw, pInBuffer->raw, outFrames * channelCount * sizeof(int16_t));
-        mCblk->stepUserOut(outFrames);
+        mCblk->stepUserOut(outFrames, mFrameCount);
         pInBuffer->frameCount -= outFrames;
         pInBuffer->i16 += outFrames * channelCount;
         mOutBuffer.frameCount -= outFrames;
@@ -5677,8 +5678,8 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
     // If no more buffers are pending, fill output track buffer to make sure it is started
     // by output mixer.
     if (frames == 0 && mBufferQueue.size() == 0) {
-        if (mCblk->user < mCblk->frameCount) {
-            frames = mCblk->frameCount - mCblk->user;
+        if (mCblk->user < mFrameCount) {
+            frames = mFrameCount - mCblk->user;
             pInBuffer = new Buffer;
             pInBuffer->mBuffer = new int16_t[frames * channelCount];
             pInBuffer->frameCount = frames;
@@ -5704,7 +5705,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
     ALOGVV("OutputTrack::obtainBuffer user %d, server %d", cblk->user, cblk->server);
     buffer->frameCount  = 0;
 
-    uint32_t framesAvail = cblk->framesAvailableOut();
+    uint32_t framesAvail = cblk->framesAvailableOut(mFrameCount);
 
 
     if (framesAvail == 0) {
@@ -5722,7 +5723,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
             }
             // read the server count again
         start_loop_here:
-            framesAvail = cblk->framesAvailableOut_l();
+            framesAvail = cblk->framesAvailableOut_l(mFrameCount);
         }
     }
 
@@ -5735,7 +5736,7 @@ status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
     }
 
     uint32_t u = cblk->user;
-    uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
+    uint32_t bufferEnd = cblk->userBase + mFrameCount;
 
     if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
