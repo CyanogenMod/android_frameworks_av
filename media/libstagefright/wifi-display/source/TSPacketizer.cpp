@@ -314,6 +314,25 @@ void TSPacketizer::Track::finalize() {
         mDescriptors.push_back(descriptor);
     }
 
+    int32_t hdcpVersion;
+    if (mFormat->findInt32("hdcp-version", &hdcpVersion)) {
+        // HDCP descriptor
+
+        CHECK(hdcpVersion == 0x20 || hdcpVersion == 0x21);
+
+        sp<ABuffer> descriptor = new ABuffer(7);
+        uint8_t *data = descriptor->data();
+        data[0] = 0x05;  // descriptor_tag
+        data[1] = 5;  // descriptor_length
+        data[2] = 'H';
+        data[3] = 'D';
+        data[4] = 'C';
+        data[5] = 'P';
+        data[6] = hdcpVersion;
+
+        mDescriptors.push_back(descriptor);
+    }
+
     mFinalized = true;
 }
 

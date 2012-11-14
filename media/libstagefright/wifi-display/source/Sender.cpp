@@ -21,6 +21,7 @@
 #include "Sender.h"
 
 #include "ANetworkSession.h"
+#include "TimeSeries.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -29,78 +30,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 
-#include <math.h>
-
-#define DEBUG_JITTER    0
-
 namespace android {
-
-////////////////////////////////////////////////////////////////////////////////
-
-#if DEBUG_JITTER
-struct TimeSeries {
-    TimeSeries();
-
-    void add(double val);
-
-    double mean() const;
-    double sdev() const;
-
-private:
-    enum {
-        kHistorySize = 20
-    };
-    double mValues[kHistorySize];
-
-    size_t mCount;
-    double mSum;
-};
-
-TimeSeries::TimeSeries()
-    : mCount(0),
-      mSum(0.0) {
-}
-
-void TimeSeries::add(double val) {
-    if (mCount < kHistorySize) {
-        mValues[mCount++] = val;
-        mSum += val;
-    } else {
-        mSum -= mValues[0];
-        memmove(&mValues[0], &mValues[1], (kHistorySize - 1) * sizeof(double));
-        mValues[kHistorySize - 1] = val;
-        mSum += val;
-    }
-}
-
-double TimeSeries::mean() const {
-    if (mCount < 1) {
-        return 0.0;
-    }
-
-    return mSum / mCount;
-}
-
-double TimeSeries::sdev() const {
-    if (mCount < 1) {
-        return 0.0;
-    }
-
-    double m = mean();
-
-    double sum = 0.0;
-    for (size_t i = 0; i < mCount; ++i) {
-        double tmp = mValues[i] - m;
-        tmp *= tmp;
-
-        sum += tmp;
-    }
-
-    return sqrt(sum / mCount);
-}
-#endif  // DEBUG_JITTER
-
-////////////////////////////////////////////////////////////////////////////////
 
 static size_t kMaxRTPPacketSize = 1500;
 static size_t kMaxNumTSPacketsPerRTPPacket = (kMaxRTPPacketSize - 12) / 188;
@@ -110,14 +40,13 @@ Sender::Sender(
         const sp<AMessage> &notify)
     : mNetSession(netSession),
       mNotify(notify),
-      mTSQueue(new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188)),
       mTransportMode(TRANSPORT_UDP),
       mRTPChannel(0),
       mRTCPChannel(0),
       mRTPPort(0),
       mRTPSessionID(0),
       mRTCPSessionID(0),
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
       mRTPRetransmissionSessionID(0),
       mRTCPRetransmissionSessionID(0),
 #endif
@@ -128,7 +57,7 @@ Sender::Sender(
       mFirstOutputBufferReadyTimeUs(-1ll),
       mFirstOutputBufferSentTimeUs(-1ll),
       mRTPSeqNo(0),
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
       mRTPRetransmissionSeqNo(0),
 #endif
       mLastNTPTime(0),
@@ -148,15 +77,13 @@ Sender::Sender(
     ,mLogFile(NULL)
 #endif
 {
-    mTSQueue->setRange(0, 12);
-
 #if LOG_TRANSPORT_STREAM
     mLogFile = fopen("/system/etc/log.ts", "wb");
 #endif
 }
 
 Sender::~Sender() {
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
     if (mRTCPRetransmissionSessionID != 0) {
         mNetSession->destroySession(mRTCPRetransmissionSessionID);
     }
@@ -217,7 +144,7 @@ status_t Sender::init(
     sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
     sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
 
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
     sp<AMessage> rtpRetransmissionNotify =
         new AMessage(kWhatRTPRetransmissionNotify, id());
 
@@ -264,7 +191,7 @@ status_t Sender::init(
             }
         }
 
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
         if (mTransportMode == TRANSPORT_UDP) {
             int32_t rtpRetransmissionSession;
 
@@ -358,44 +285,67 @@ int32_t Sender::getRTPPort() const {
 }
 
 void Sender::queuePackets(
-        int64_t timeUs, const sp<ABuffer> &packets) {
-    bool isVideo = false;
+        int64_t timeUs, const sp<ABuffer> &tsPackets) {
+    const size_t numTSPackets = tsPackets->size() / 188;
 
-    int32_t dummy;
-    if (packets->meta()->findInt32("isVideo", &dummy)) {
-        isVideo = true;
+    const size_t numRTPPackets =
+        (numTSPackets + kMaxNumTSPacketsPerRTPPacket - 1)
+            / kMaxNumTSPacketsPerRTPPacket;
+
+    sp<ABuffer> udpPackets = new ABuffer(
+            numRTPPackets * (12 + kMaxNumTSPacketsPerRTPPacket * 188));
+
+    udpPackets->meta()->setInt64("timeUs", timeUs);
+
+    size_t dstOffset = 0;
+    for (size_t i = 0; i < numTSPackets; ++i) {
+        if ((i % kMaxNumTSPacketsPerRTPPacket) == 0) {
+            static const bool kMarkerBit = false;
+
+            uint8_t *rtp = udpPackets->data() + dstOffset;
+            rtp[0] = 0x80;
+            rtp[1] = 33 | (kMarkerBit ? (1 << 7) : 0);  // M-bit
+            rtp[2] = (mRTPSeqNo >> 8) & 0xff;
+            rtp[3] = mRTPSeqNo & 0xff;
+            rtp[4] = 0x00;  // rtp time to be filled in later.
+            rtp[5] = 0x00;
+            rtp[6] = 0x00;
+            rtp[7] = 0x00;
+            rtp[8] = kSourceID >> 24;
+            rtp[9] = (kSourceID >> 16) & 0xff;
+            rtp[10] = (kSourceID >> 8) & 0xff;
+            rtp[11] = kSourceID & 0xff;
+
+            ++mRTPSeqNo;
+
+            dstOffset += 12;
+        }
+
+        memcpy(udpPackets->data() + dstOffset,
+               tsPackets->data() + 188 * i,
+               188);
+
+        dstOffset += 188;
     }
 
-    int64_t delayUs;
-    int64_t whenUs;
+    udpPackets->setRange(0, dstOffset);
 
-    if (mFirstOutputBufferReadyTimeUs < 0ll) {
-        mFirstOutputBufferReadyTimeUs = timeUs;
-        mFirstOutputBufferSentTimeUs = whenUs = ALooper::GetNowUs();
-        delayUs = 0ll;
-    } else {
-        int64_t nowUs = ALooper::GetNowUs();
+    sp<AMessage> msg = new AMessage(kWhatDrainQueue, id());
+    msg->setBuffer("udpPackets", udpPackets);
+    msg->post();
 
-        whenUs = (timeUs - mFirstOutputBufferReadyTimeUs)
-                + mFirstOutputBufferSentTimeUs;
-
-        delayUs = whenUs - nowUs;
+#if LOG_TRANSPORT_STREAM
+    if (mLogFile != NULL) {
+        fwrite(tsPackets->data(), 1, tsPackets->size(), mLogFile);
     }
-
-    sp<AMessage> msg = new AMessage(kWhatQueuePackets, id());
-    msg->setBuffer("packets", packets);
-
-    packets->meta()->setInt64("timeUs", timeUs);
-    packets->meta()->setInt64("whenUs", whenUs);
-    packets->meta()->setInt64("delayUs", delayUs);
-    msg->post(delayUs > 0 ? delayUs : 0);
+#endif
 }
 
 void Sender::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatRTPNotify:
         case kWhatRTCPNotify:
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
         case kWhatRTPRetransmissionNotify:
         case kWhatRTCPRetransmissionNotify:
 #endif
@@ -419,7 +369,7 @@ void Sender::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findString("detail", &detail));
 
                     if ((msg->what() == kWhatRTPNotify
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
                             || msg->what() == kWhatRTPRetransmissionNotify
 #endif
                         ) && !errorOccuredDuringSend) {
@@ -443,7 +393,7 @@ void Sender::onMessageReceived(const sp<AMessage> &msg) {
                     } else if (sessionID == mRTCPSessionID) {
                         mRTCPSessionID = 0;
                     }
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
                     else if (sessionID == mRTPRetransmissionSessionID) {
                         mRTPRetransmissionSessionID = 0;
                     } else if (sessionID == mRTCPRetransmissionSessionID) {
@@ -465,7 +415,7 @@ void Sender::onMessageReceived(const sp<AMessage> &msg) {
 
                     status_t err;
                     if (msg->what() == kWhatRTCPNotify
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
                             || msg->what() == kWhatRTCPRetransmissionNotify
 #endif
                        )
@@ -507,12 +457,12 @@ void Sender::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatQueuePackets:
+        case kWhatDrainQueue:
         {
-            sp<ABuffer> packets;
-            CHECK(msg->findBuffer("packets", &packets));
+            sp<ABuffer> udpPackets;
+            CHECK(msg->findBuffer("udpPackets", &udpPackets));
 
-            onQueuePackets(packets);
+            onDrainQueue(udpPackets);
             break;
         }
 
@@ -530,156 +480,6 @@ void Sender::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
     }
-}
-
-void Sender::onQueuePackets(const sp<ABuffer> &packets) {
-#if DEBUG_JITTER
-    int32_t dummy;
-    if (packets->meta()->findInt32("isVideo", &dummy)) {
-        static int64_t lastTimeUs = 0ll;
-        int64_t nowUs = ALooper::GetNowUs();
-
-        static TimeSeries series;
-        series.add((double)(nowUs - lastTimeUs));
-
-        ALOGI("deltaTimeUs = %lld us, mean %.2f, sdev %.2f",
-              nowUs - lastTimeUs, series.mean(), series.sdev());
-
-        lastTimeUs = nowUs;
-    }
-#endif
-
-    int64_t startTimeUs = ALooper::GetNowUs();
-
-    for (size_t offset = 0;
-            offset < packets->size(); offset += 188) {
-        bool lastTSPacket = (offset + 188 >= packets->size());
-
-        appendTSData(
-                packets->data() + offset,
-                188,
-                true /* timeDiscontinuity */,
-                lastTSPacket /* flush */);
-    }
-
-#if 0
-    int64_t netTimeUs = ALooper::GetNowUs() - startTimeUs;
-
-    int64_t whenUs;
-    CHECK(packets->meta()->findInt64("whenUs", &whenUs));
-
-    int64_t delayUs;
-    CHECK(packets->meta()->findInt64("delayUs", &delayUs));
-
-    bool isVideo = false;
-    int32_t dummy;
-    if (packets->meta()->findInt32("isVideo", &dummy)) {
-        isVideo = true;
-    }
-
-    int64_t nowUs = ALooper::GetNowUs();
-
-    if (nowUs - whenUs > 2000) {
-        ALOGI("[%s] delayUs = %lld us, delta = %lld us",
-              isVideo ? "video" : "audio", delayUs, nowUs - netTimeUs - whenUs);
-    }
-#endif
-
-#if LOG_TRANSPORT_STREAM
-    if (mLogFile != NULL) {
-        fwrite(packets->data(), 1, packets->size(), mLogFile);
-    }
-#endif
-}
-
-ssize_t Sender::appendTSData(
-        const void *data, size_t size, bool timeDiscontinuity, bool flush) {
-    CHECK_EQ(size, 188);
-
-    CHECK_LE(mTSQueue->size() + size, mTSQueue->capacity());
-
-    memcpy(mTSQueue->data() + mTSQueue->size(), data, size);
-    mTSQueue->setRange(0, mTSQueue->size() + size);
-
-    if (flush || mTSQueue->size() == mTSQueue->capacity()) {
-        // flush
-
-        int64_t nowUs = ALooper::GetNowUs();
-
-#if TRACK_BANDWIDTH
-        if (mFirstPacketTimeUs < 0ll) {
-            mFirstPacketTimeUs = nowUs;
-        }
-#endif
-
-        // 90kHz time scale
-        uint32_t rtpTime = (nowUs * 9ll) / 100ll;
-
-        uint8_t *rtp = mTSQueue->data();
-        rtp[0] = 0x80;
-        rtp[1] = 33 | (timeDiscontinuity ? (1 << 7) : 0);  // M-bit
-        rtp[2] = (mRTPSeqNo >> 8) & 0xff;
-        rtp[3] = mRTPSeqNo & 0xff;
-        rtp[4] = rtpTime >> 24;
-        rtp[5] = (rtpTime >> 16) & 0xff;
-        rtp[6] = (rtpTime >> 8) & 0xff;
-        rtp[7] = rtpTime & 0xff;
-        rtp[8] = kSourceID >> 24;
-        rtp[9] = (kSourceID >> 16) & 0xff;
-        rtp[10] = (kSourceID >> 8) & 0xff;
-        rtp[11] = kSourceID & 0xff;
-
-        ++mRTPSeqNo;
-        ++mNumRTPSent;
-        mNumRTPOctetsSent += mTSQueue->size() - 12;
-
-        mLastRTPTime = rtpTime;
-        mLastNTPTime = GetNowNTP();
-
-        if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
-            sp<AMessage> notify = mNotify->dup();
-            notify->setInt32("what", kWhatBinaryData);
-
-            sp<ABuffer> data = new ABuffer(mTSQueue->size());
-            memcpy(data->data(), rtp, mTSQueue->size());
-
-            notify->setInt32("channel", mRTPChannel);
-            notify->setBuffer("data", data);
-            notify->post();
-        } else {
-            sendPacket(mRTPSessionID, rtp, mTSQueue->size());
-
-#if TRACK_BANDWIDTH
-            mTotalBytesSent += mTSQueue->size();
-            int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
-
-            if (delayUs > 0ll) {
-                ALOGI("approx. net bandwidth used: %.2f Mbit/sec",
-                        mTotalBytesSent * 8.0 / delayUs);
-            }
-#endif
-        }
-
-#if ENABLE_RETRANSMISSION
-        mTSQueue->setInt32Data(mRTPSeqNo - 1);
-
-        mHistory.push_back(mTSQueue);
-        ++mHistoryLength;
-
-        if (mHistoryLength > kMaxHistoryLength) {
-            mTSQueue = *mHistory.begin();
-            mHistory.erase(mHistory.begin());
-
-            --mHistoryLength;
-        } else {
-            mTSQueue = new ABuffer(12 + kMaxNumTSPacketsPerRTPPacket * 188);
-        }
-#endif
-
-        mTSQueue->setRange(0, 12);
-    }
-
-    return size;
 }
 
 void Sender::scheduleSendSR() {
@@ -851,6 +651,7 @@ status_t Sender::parseTSFB(
             if (retransmit) {
                 ALOGI("retransmitting seqNo %d", bufferSeqNo);
 
+#if RETRANSMISSION_ACCORDING_TO_RFC_XXXX
                 sp<ABuffer> retransRTP = new ABuffer(2 + buffer->size());
                 uint8_t *rtp = retransRTP->data();
                 memcpy(rtp, buffer->data(), 12);
@@ -865,6 +666,10 @@ status_t Sender::parseTSFB(
                 sendPacket(
                         mRTPRetransmissionSessionID,
                         retransRTP->data(), retransRTP->size());
+#else
+                sendPacket(
+                        mRTPSessionID, buffer->data(), buffer->size());
+#endif
 
                 if (bufferSeqNo == seqNo) {
                     foundSeqNo = true;
@@ -974,6 +779,92 @@ void Sender::notifySessionDead() {
     notify->setInt32("what", kWhatSessionDead);
     notify->post();
 }
+
+void Sender::onDrainQueue(const sp<ABuffer> &udpPackets) {
+    static const size_t kFullRTPPacketSize =
+        12 + 188 * kMaxNumTSPacketsPerRTPPacket;
+
+    size_t srcOffset = 0;
+    while (srcOffset < udpPackets->size()) {
+        uint8_t *rtp = udpPackets->data() + srcOffset;
+
+        size_t rtpPacketSize = udpPackets->size() - srcOffset;
+        if (rtpPacketSize > kFullRTPPacketSize) {
+            rtpPacketSize = kFullRTPPacketSize;
+        }
+
+        int64_t nowUs = ALooper::GetNowUs();
+        mLastNTPTime = GetNowNTP();
+
+        // 90kHz time scale
+        uint32_t rtpTime = (nowUs * 9ll) / 100ll;
+
+        rtp[4] = rtpTime >> 24;
+        rtp[5] = (rtpTime >> 16) & 0xff;
+        rtp[6] = (rtpTime >> 8) & 0xff;
+        rtp[7] = rtpTime & 0xff;
+
+        ++mNumRTPSent;
+        mNumRTPOctetsSent += rtpPacketSize - 12;
+
+        mLastRTPTime = rtpTime;
+
+        if (mTransportMode == TRANSPORT_TCP_INTERLEAVED) {
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("what", kWhatBinaryData);
+
+            sp<ABuffer> data = new ABuffer(rtpPacketSize);
+            memcpy(data->data(), rtp, rtpPacketSize);
+
+            notify->setInt32("channel", mRTPChannel);
+            notify->setBuffer("data", data);
+            notify->post();
+        } else {
+            sendPacket(mRTPSessionID, rtp, rtpPacketSize);
+
+#if TRACK_BANDWIDTH
+            mTotalBytesSent += rtpPacketSize->size();
+            int64_t delayUs = ALooper::GetNowUs() - mFirstPacketTimeUs;
+
+            if (delayUs > 0ll) {
+                ALOGI("approx. net bandwidth used: %.2f Mbit/sec",
+                        mTotalBytesSent * 8.0 / delayUs);
+            }
+#endif
+        }
+
+#if ENABLE_RETRANSMISSION
+        addToHistory(rtp, rtpPacketSize);
+#endif
+
+        srcOffset += rtpPacketSize;
+    }
+
+#if 0
+    int64_t timeUs;
+    CHECK(udpPackets->meta()->findInt64("timeUs", &timeUs));
+
+    ALOGI("dTimeUs = %lld us", ALooper::GetNowUs() - timeUs);
+#endif
+}
+
+#if ENABLE_RETRANSMISSION
+void Sender::addToHistory(const uint8_t *rtp, size_t rtpPacketSize) {
+    sp<ABuffer> packet = new ABuffer(rtpPacketSize);
+    memcpy(packet->data(), rtp, rtpPacketSize);
+
+    unsigned rtpSeqNo = U16_AT(&rtp[2]);
+    packet->setInt32Data(rtpSeqNo);
+
+    mHistory.push_back(packet);
+    ++mHistoryLength;
+
+    if (mHistoryLength > kMaxHistoryLength) {
+        mHistory.erase(mHistory.begin());
+        --mHistoryLength;
+    }
+}
+#endif
 
 }  // namespace android
 

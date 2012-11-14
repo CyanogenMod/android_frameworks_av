@@ -125,11 +125,14 @@ status_t RepeaterSource::read(
                 return mResult;
             }
 
+#if SUSPEND_VIDEO_IF_IDLE
             int64_t nowUs = ALooper::GetNowUs();
             if (nowUs - mLastBufferUpdateUs > 1000000ll) {
                 mLastBufferUpdateUs = -1ll;
                 stale = true;
-            } else {
+            } else
+#endif
+            {
                 mBuffer->add_ref();
                 *buffer = mBuffer;
                 (*buffer)->meta_data()->setInt64(kKeyTime, bufferTimeUs);
