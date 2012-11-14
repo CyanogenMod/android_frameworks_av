@@ -106,7 +106,7 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         data.writeInt32(frameCount);
-        track_flags_t lFlags = flags != NULL ? *flags : TRACK_DEFAULT;
+        track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
         data.writeStrongBinder(sharedBuffer->asBinder());
         data.writeInt32((int32_t) output);
