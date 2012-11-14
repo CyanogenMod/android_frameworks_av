@@ -207,7 +207,7 @@ public:
 
     virtual audio_module_handle_t loadHwModule(const char *name);
 
-    virtual int32_t getPrimaryOutputSamplingRate();
+    virtual uint32_t getPrimaryOutputSamplingRate();
     virtual int32_t getPrimaryOutputFrameCount();
 
     virtual     status_t    onTransact(
@@ -423,7 +423,7 @@ private:
 
             audio_channel_mask_t channelMask() const { return mChannelMask; }
 
-            int sampleRate() const; // FIXME inline after cblk sr moved
+            uint32_t sampleRate() const;    // FIXME inline after cblk sr moved
 
             // Return a pointer to the start of a contiguous slice of the track buffer.
             // Parameter 'offset' is the requested start position, expressed in

@@ -54,7 +54,7 @@ status_t AudioRecord::getMinFrameCount(
     }
 
     if (size == 0) {
-        ALOGE("Unsupported configuration: sampleRate %d, format %d, channelMask %#x",
+        ALOGE("Unsupported configuration: sampleRate %u, format %d, channelMask %#x",
             sampleRate, format, channelMask);
         return BAD_VALUE;
     }
@@ -127,7 +127,7 @@ status_t AudioRecord::set(
         int sessionId)
 {
 
-    ALOGV("set(): sampleRate %d, channelMask %#x, frameCount %d",sampleRate, channelMask,
+    ALOGV("set(): sampleRate %u, channelMask %#x, frameCount %d", sampleRate, channelMask,
             frameCount);
 
     AutoMutex lock(mLock);

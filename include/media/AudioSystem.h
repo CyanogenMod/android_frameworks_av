@@ -87,7 +87,7 @@ public:
     static float linearToLog(int volume);
     static int logToLinear(float volume);
 
-    static status_t getOutputSamplingRate(int* samplingRate,
+    static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getOutputFrameCount(int* frameCount,
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
@@ -95,7 +95,7 @@ public:
             audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
     static status_t getSamplingRate(audio_io_handle_t output,
                                           audio_stream_type_t streamType,
-                                          int* samplingRate);
+                                          uint32_t* samplingRate);
     // returns the number of frames per audio HAL write buffer. Corresponds to
     // audio_stream->get_buffer_size()/audio_stream_frame_size()
     static status_t getFrameCount(audio_io_handle_t output,
@@ -237,7 +237,7 @@ public:
     static const sp<IAudioPolicyService>& get_audio_policy_service();
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
-    static int32_t getPrimaryOutputSamplingRate();
+    static uint32_t getPrimaryOutputSamplingRate();
     static int32_t getPrimaryOutputFrameCount();
 
     // ----------------------------------------------------------------------------
