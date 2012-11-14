@@ -223,7 +223,7 @@ public:
 
             audio_stream_type_t streamType() const;
             audio_format_t format() const;
-            int         channelCount() const;
+            uint32_t    channelCount() const;
             uint32_t    frameCount() const;
 
     /* Return channelCount * (bit depth per channel / 8).
@@ -493,7 +493,6 @@ protected:
             status_t createTrack_l(audio_stream_type_t streamType,
                                  uint32_t sampleRate,
                                  audio_format_t format,
-                                 audio_channel_mask_t channelMask,
                                  size_t frameCount,
                                  audio_output_flags_t flags,
                                  const sp<IMemory>& sharedBuffer,
