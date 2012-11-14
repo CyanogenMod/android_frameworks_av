@@ -243,7 +243,9 @@ status_t AudioTrack::set(
         ALOGE("Invalid channel mask %#x", channelMask);
         return BAD_VALUE;
     }
+    mChannelMask = channelMask;
     uint32_t channelCount = popcount(channelMask);
+    mChannelCount = channelCount;
 
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
@@ -275,7 +277,6 @@ status_t AudioTrack::set(
     status_t status = createTrack_l(streamType,
                                   sampleRate,
                                   format,
-                                  channelMask,
                                   frameCount,
                                   flags,
                                   sharedBuffer,
@@ -293,8 +294,6 @@ status_t AudioTrack::set(
 
     mStreamType = streamType;
     mFormat = format;
-    mChannelMask = channelMask;
-    mChannelCount = channelCount;
 
     if (audio_is_linear_pcm(format)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
@@ -340,7 +339,7 @@ audio_format_t AudioTrack::format() const
     return mFormat;
 }
 
-int AudioTrack::channelCount() const
+uint32_t AudioTrack::channelCount() const
 {
     return mChannelCount;
 }
@@ -758,7 +757,6 @@ status_t AudioTrack::createTrack_l(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
-        audio_channel_mask_t channelMask,
         size_t frameCount,
         audio_output_flags_t flags,
         const sp<IMemory>& sharedBuffer,
@@ -808,17 +806,16 @@ status_t AudioTrack::createTrack_l(
 
     } else if (sharedBuffer != 0) {
 
-        // Ensure that buffer alignment matches channelCount
-        int channelCount = popcount(channelMask);
+        // Ensure that buffer alignment matches channel count
         // 8-bit data in shared memory is not currently supported by AudioFlinger
         size_t alignment = /* format == AUDIO_FORMAT_PCM_8_BIT ? 1 : */ 2;
-        if (channelCount > 1) {
+        if (mChannelCount > 1) {
             // More than 2 channels does not require stronger alignment than stereo
             alignment <<= 1;
         }
-        if (((uint32_t)sharedBuffer->pointer() & (alignment - 1)) != 0) {
-            ALOGE("Invalid buffer alignment: address %p, channelCount %d",
-                    sharedBuffer->pointer(), channelCount);
+        if (((size_t)sharedBuffer->pointer() & (alignment - 1)) != 0) {
+            ALOGE("Invalid buffer alignment: address %p, channel count %u",
+                    sharedBuffer->pointer(), mChannelCount);
             return BAD_VALUE;
         }
 
@@ -826,7 +823,7 @@ status_t AudioTrack::createTrack_l(
         // there's no frameCount parameter.
         // But when initializing a shared buffer AudioTrack via set(),
         // there _is_ a frameCount parameter.  We silently ignore it.
-        frameCount = sharedBuffer->size()/channelCount/sizeof(int16_t);
+        frameCount = sharedBuffer->size()/mChannelCount/sizeof(int16_t);
 
     } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
 
@@ -890,7 +887,7 @@ status_t AudioTrack::createTrack_l(
                                                       // AudioFlinger only sees 16-bit PCM
                                                       format == AUDIO_FORMAT_PCM_8_BIT ?
                                                               AUDIO_FORMAT_PCM_16_BIT : format,
-                                                      channelMask,
+                                                      mChannelMask,
                                                       frameCount,
                                                       &trackFlags,
                                                       sharedBuffer,
@@ -1398,7 +1395,6 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
     result = createTrack_l(mStreamType,
                            cblk->sampleRate,
                            mFormat,
-                           mChannelMask,
                            mReqFrameCount,  // so that frame count never goes down
                            mFlags,
                            mSharedBuffer,
