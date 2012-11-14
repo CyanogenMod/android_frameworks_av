@@ -478,6 +478,8 @@ private:
             const size_t        mFrameSize; // AudioFlinger's view of frame size in shared memory,
                                             // where for AudioTrack (but not AudioRecord),
                                             // 8-bit PCM samples are stored as 16-bit
+            const size_t        mFrameCount;// size of track buffer given at createTrack() or
+                                            // openRecord(), and then adjusted as needed
             bool                mStepServerFailed;
             const int           mSessionId;
             Vector < sp<SyncEvent> >mSyncEvents;
