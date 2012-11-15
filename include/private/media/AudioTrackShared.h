@@ -54,9 +54,10 @@ struct audio_track_cblk_t
                 uint32_t    serverBase;
 
                 int         mPad1;          // unused, but preserves cache line alignment
+
                 uint32_t    frameCount;
 
-                // Cache line boundary
+                // Cache line boundary (32 bytes)
 
                 uint32_t    loopStart;
                 uint32_t    loopEnd;        // read-only for server, read/write for client

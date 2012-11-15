@@ -422,6 +422,7 @@ public:
      * After error return:
      *  frameCount  0
      *  size        0
+     *  raw         undefined
      * After successful return:
      *  frameCount  actual number of frames available, <= number requested
      *  size        actual number of bytes available
@@ -510,7 +511,13 @@ protected:
     uint32_t                mFrameCount;
 
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
-    void*                   mBuffers;               // starting address of buffers in shared memory
+
+            // Starting address of buffers in shared memory.  If there is a shared buffer, mBuffers
+            // is the value of pointer() for the shared buffer, otherwise mBuffers points
+            // immediately after the control block.  This address is for the mapping within client
+            // address space.  AudioFlinger::TrackBase::mBuffer is for the server address space.
+    void*                   mBuffers;
+
     audio_format_t          mFormat;
     audio_stream_type_t     mStreamType;
     uint8_t                 mChannelCount;
