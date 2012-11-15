@@ -271,6 +271,7 @@ sp<ABuffer> TunnelRenderer::dequeueBuffer() {
     if (mFirstFailedAttemptUs + 50000ll > ALooper::GetNowUs()) {
         // We're willing to wait a little while to get the right packet.
 
+#if 0
         if (!mRequestedRetransmission) {
             ALOGI("requesting retransmission of seqNo %d",
                   (mLastDequeuedExtSeqNo + 1) & 0xffff);
@@ -280,7 +281,9 @@ sp<ABuffer> TunnelRenderer::dequeueBuffer() {
             notify->post();
 
             mRequestedRetransmission = true;
-        } else {
+        } else
+#endif
+        {
             ALOGI("still waiting for the correct packet to arrive.");
         }
 
