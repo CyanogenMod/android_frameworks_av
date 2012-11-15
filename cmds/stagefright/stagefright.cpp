@@ -589,7 +589,7 @@ static void performSeekTest(const sp<MediaSource> &source) {
 }
 
 static void usage(const char *me) {
-    fprintf(stderr, "usage: %s\n", me);
+    fprintf(stderr, "usage: %s [options] [input_filename]\n", me);
     fprintf(stderr, "       -h(elp)\n");
     fprintf(stderr, "       -a(udio)\n");
     fprintf(stderr, "       -n repetitions\n");
@@ -607,8 +607,8 @@ static void usage(const char *me) {
                     "(video only)\n");
     fprintf(stderr, "       -S allocate buffers from a surface\n");
     fprintf(stderr, "       -T allocate buffers from a surface texture\n");
-    fprintf(stderr, "       -d(ump) filename (raw stream data to a file)\n");
-    fprintf(stderr, "       -D(ump) filename (decoded PCM data to a file)\n");
+    fprintf(stderr, "       -d(ump) output_filename (raw stream data to a file)\n");
+    fprintf(stderr, "       -D(ump) output_filename (decoded PCM data to a file)\n");
 }
 
 static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
