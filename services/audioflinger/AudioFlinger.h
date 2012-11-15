@@ -861,6 +861,9 @@ private:
 
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
+            // framesWritten is cumulative, never reset, and is shared all tracks
+            // audioHalFrames is derived from output latency
+            // FIXME parameters not needed, could get them from the thread
             bool presentationComplete(size_t framesWritten, size_t audioHalFrames);
 
         public:
@@ -893,6 +896,7 @@ private:
             bool                mHasVolumeController;
             size_t              mPresentationCompleteFrames; // number of frames written to the
                                             // audio HAL when this track will be fully rendered
+                                            // zero means not monitoring
         private:
             IAudioFlinger::track_flags_t mFlags;
 
@@ -997,7 +1001,7 @@ private:
         };
 
 
-        // playback track
+        // playback track, used by DuplicatingThread
         class OutputTrack : public Track {
         public:
 
