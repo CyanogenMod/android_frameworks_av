@@ -38,6 +38,7 @@ enum {
     WAVE_FORMAT_PCM        = 0x0001,
     WAVE_FORMAT_ALAW       = 0x0006,
     WAVE_FORMAT_MULAW      = 0x0007,
+    WAVE_FORMAT_MSGSM      = 0x0031,
     WAVE_FORMAT_EXTENSIBLE = 0xFFFE
 };
 
@@ -178,6 +179,7 @@ status_t WAVExtractor::init() {
             if (mWaveFormat != WAVE_FORMAT_PCM
                     && mWaveFormat != WAVE_FORMAT_ALAW
                     && mWaveFormat != WAVE_FORMAT_MULAW
+                    && mWaveFormat != WAVE_FORMAT_MSGSM
                     && mWaveFormat != WAVE_FORMAT_EXTENSIBLE) {
                 return ERROR_UNSUPPORTED;
             }
@@ -214,6 +216,10 @@ status_t WAVExtractor::init() {
                     || mWaveFormat == WAVE_FORMAT_EXTENSIBLE) {
                 if (mBitsPerSample != 8 && mBitsPerSample != 16
                     && mBitsPerSample != 24) {
+                    return ERROR_UNSUPPORTED;
+                }
+            } else if (mWaveFormat == WAVE_FORMAT_MSGSM) {
+                if (mBitsPerSample != 0) {
                     return ERROR_UNSUPPORTED;
                 }
             } else {
@@ -283,6 +289,10 @@ status_t WAVExtractor::init() {
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_G711_ALAW);
                         break;
+                    case WAVE_FORMAT_MSGSM:
+                        mTrackMeta->setCString(
+                                kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MSGSM);
+                        break;
                     default:
                         CHECK_EQ(mWaveFormat, (uint16_t)WAVE_FORMAT_MULAW);
                         mTrackMeta->setCString(
@@ -294,11 +304,17 @@ status_t WAVExtractor::init() {
                 mTrackMeta->setInt32(kKeyChannelMask, mChannelMask);
                 mTrackMeta->setInt32(kKeySampleRate, mSampleRate);
 
-                size_t bytesPerSample = mBitsPerSample >> 3;
-
-                int64_t durationUs =
-                    1000000LL * (mDataSize / (mNumChannels * bytesPerSample))
-                        / mSampleRate;
+                int64_t durationUs = 0;
+                if (mWaveFormat == WAVE_FORMAT_MSGSM) {
+                    // 65 bytes decode to 320 8kHz samples
+                    durationUs =
+                        1000000LL * (mDataSize / 65 * 320) / 8000;
+                } else {
+                    size_t bytesPerSample = mBitsPerSample >> 3;
+                    durationUs =
+                        1000000LL * (mDataSize / (mNumChannels * bytesPerSample))
+                            / mSampleRate;
+                }
 
                 mTrackMeta->setInt64(kKeyDuration, durationUs);
 
@@ -388,7 +404,16 @@ status_t WAVSource::read(
     int64_t seekTimeUs;
     ReadOptions::SeekMode mode;
     if (options != NULL && options->getSeekTo(&seekTimeUs, &mode)) {
-        int64_t pos = (seekTimeUs * mSampleRate) / 1000000 * mNumChannels * (mBitsPerSample >> 3);
+        int64_t pos = 0;
+
+        if (mWaveFormat == WAVE_FORMAT_MSGSM) {
+            // 65 bytes decode to 320 8kHz samples
+            int64_t samplenumber = (seekTimeUs * mSampleRate) / 1000000;
+            int64_t framenumber = samplenumber / 320;
+            pos = framenumber * 65;
+        } else {
+            pos = (seekTimeUs * mSampleRate) / 1000000 * mNumChannels * (mBitsPerSample >> 3);
+        }
         if (pos > mSize) {
             pos = mSize;
         }
@@ -410,6 +435,15 @@ status_t WAVSource::read(
 
     if (maxBytesToRead > maxBytesAvailable) {
         maxBytesToRead = maxBytesAvailable;
+    }
+
+    if (mWaveFormat == WAVE_FORMAT_MSGSM) {
+        // Microsoft packs 2 frames into 65 bytes, rather than using separate 33-byte frames,
+        // so read multiples of 65, and use smaller buffers to account for ~10:1 expansion ratio
+        if (maxBytesToRead > 1024) {
+            maxBytesToRead = 1024;
+        }
+        maxBytesToRead = (maxBytesToRead / 65) * 65;
     }
 
     ssize_t n = mDataSource->readAt(
@@ -468,12 +502,17 @@ status_t WAVSource::read(
         }
     }
 
-    size_t bytesPerSample = mBitsPerSample >> 3;
+    int64_t timeStampUs = 0;
 
-    buffer->meta_data()->setInt64(
-            kKeyTime,
-            1000000LL * (mCurrentPos - mOffset)
-                / (mNumChannels * bytesPerSample) / mSampleRate);
+    if (mWaveFormat == WAVE_FORMAT_MSGSM) {
+        timeStampUs = 1000000LL * (mCurrentPos - mOffset) * 320 / 65 / mSampleRate;
+    } else {
+        size_t bytesPerSample = mBitsPerSample >> 3;
+        timeStampUs = 1000000LL * (mCurrentPos - mOffset)
+                / (mNumChannels * bytesPerSample) / mSampleRate;
+    }
+
+    buffer->meta_data()->setInt64(kKeyTime, timeStampUs);
 
     buffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
     mCurrentPos += n;
