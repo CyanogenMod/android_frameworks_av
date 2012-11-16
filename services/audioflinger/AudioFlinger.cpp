@@ -1042,7 +1042,7 @@ status_t AudioFlinger::setVoiceVolume(float value)
     return ret;
 }
 
-status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
+status_t AudioFlinger::getRenderPosition(size_t *halFrames, size_t *dspFrames,
         audio_io_handle_t output) const
 {
     status_t status;
@@ -1889,7 +1889,7 @@ Exit:
     return track;
 }
 
-uint32_t AudioFlinger::MixerThread::correctLatency(uint32_t latency) const
+uint32_t AudioFlinger::MixerThread::correctLatency_l(uint32_t latency) const
 {
     if (mFastMixer != NULL) {
         MonoPipe *pipe = (MonoPipe *)mPipeSink.get();
@@ -1898,7 +1898,7 @@ uint32_t AudioFlinger::MixerThread::correctLatency(uint32_t latency) const
     return latency;
 }
 
-uint32_t AudioFlinger::PlaybackThread::correctLatency(uint32_t latency) const
+uint32_t AudioFlinger::PlaybackThread::correctLatency_l(uint32_t latency) const
 {
     return latency;
 }
@@ -1911,7 +1911,7 @@ uint32_t AudioFlinger::PlaybackThread::latency() const
 uint32_t AudioFlinger::PlaybackThread::latency_l() const
 {
     if (initCheck() == NO_ERROR) {
-        return correctLatency(mOutput->stream->get_latency(mOutput->stream));
+        return correctLatency_l(mOutput->stream->get_latency(mOutput->stream));
     } else {
         return 0;
     }
@@ -2140,7 +2140,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
 }
 
 
-status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames)
+status_t AudioFlinger::PlaybackThread::getRenderPosition(size_t *halFrames, size_t *dspFrames)
 {
     if (halFrames == NULL || dspFrames == NULL) {
         return BAD_VALUE;
@@ -2149,15 +2149,13 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     if (initCheck() != NO_ERROR) {
         return INVALID_OPERATION;
     }
-    *halFrames = mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+    size_t framesWritten = mBytesWritten / mFrameSize;
+    *halFrames = framesWritten;
 
     if (isSuspended()) {
         // return an estimation of rendered frames when the output is suspended
-        int32_t frames = mBytesWritten - latency_l();
-        if (frames < 0) {
-            frames = 0;
-        }
-        *dspFrames = (uint32_t)frames;
+        size_t latencyFrames = (latency_l() * mSampleRate) / 1000;
+        *dspFrames = framesWritten >= latencyFrames ? framesWritten - latencyFrames : 0;
         return NO_ERROR;
     } else {
         return mOutput->stream->get_render_position(mOutput->stream, dspFrames);
@@ -2916,7 +2914,7 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
         memset (mMixBuffer, 0, mixBufferSize);
         sleepTime = 0;
-        ALOGV_IF((mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED)),
+        ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
     }
     // TODO add standby time extension fct of effect tail
@@ -3057,8 +3055,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 {
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
-                    size_t framesWritten =
-                            mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                    size_t framesWritten = mBytesWritten / mFrameSize;
                     if (!(mStandby || track->presentationComplete(framesWritten, audioHALFrames))) {
                         // track stays in active list until presentation is complete
                         break;
@@ -3305,8 +3302,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // TODO: use actual buffer filling status instead of latency when available from
                 // audio HAL
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
-                size_t framesWritten =
-                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                size_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
@@ -3837,8 +3833,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // Remove it from the list of active tracks.
                 // TODO: implement behavior for compressed audio
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
-                size_t framesWritten =
-                        mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                size_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();

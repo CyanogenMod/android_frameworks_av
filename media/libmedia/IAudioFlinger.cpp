@@ -506,7 +506,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
+    virtual status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
             audio_io_handle_t output) const
     {
         Parcel data, reply;
