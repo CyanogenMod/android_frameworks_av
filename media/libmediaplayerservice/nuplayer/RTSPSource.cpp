@@ -57,9 +57,7 @@ NuPlayer::RTSPSource::RTSPSource(
 }
 
 NuPlayer::RTSPSource::~RTSPSource() {
-    if (mLooper != NULL) {
-        mLooper->stop();
-    }
+   mLooper->stop();
 }
 
 void NuPlayer::RTSPSource::start() {
@@ -86,6 +84,9 @@ void NuPlayer::RTSPSource::start() {
 }
 
 void NuPlayer::RTSPSource::stop() {
+    if (mLooper == NULL) {
+        return;
+    }
     sp<AMessage> msg = new AMessage(kWhatDisconnect, mReflector->id());
 
     sp<AMessage> dummy;
