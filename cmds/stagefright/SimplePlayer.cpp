@@ -297,9 +297,11 @@ status_t SimplePlayer::onPrepare() {
         AString mime;
         CHECK(format->findString("mime", &mime));
 
+        bool isVideo = !strncasecmp(mime.c_str(), "video/", 6);
+
         if (!haveAudio && !strncasecmp(mime.c_str(), "audio/", 6)) {
             haveAudio = true;
-        } else if (!haveVideo && !strncasecmp(mime.c_str(), "video/", 6)) {
+        } else if (!haveVideo && isVideo) {
             haveVideo = true;
         } else {
             continue;
@@ -320,7 +322,7 @@ status_t SimplePlayer::onPrepare() {
 
         err = state->mCodec->configure(
                 format,
-                mNativeWindow->getSurfaceTextureClient(),
+                isVideo ? mNativeWindow->getSurfaceTextureClient() : NULL,
                 NULL /* crypto */,
                 0 /* flags */);
 
