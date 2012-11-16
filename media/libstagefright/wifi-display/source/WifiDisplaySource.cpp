@@ -65,6 +65,21 @@ WifiDisplaySource::WifiDisplaySource(
 WifiDisplaySource::~WifiDisplaySource() {
 }
 
+static status_t PostAndAwaitResponse(
+        const sp<AMessage> &msg, sp<AMessage> *response) {
+    status_t err = msg->postAndAwaitResponse(response);
+
+    if (err != OK) {
+        return err;
+    }
+
+    if (response == NULL || !(*response)->findInt32("err", &err)) {
+        err = OK;
+    }
+
+    return err;
+}
+
 status_t WifiDisplaySource::start(const char *iface) {
     CHECK_EQ(mState, INITIALIZED);
 
@@ -72,34 +87,28 @@ status_t WifiDisplaySource::start(const char *iface) {
     msg->setString("iface", iface);
 
     sp<AMessage> response;
-    status_t err = msg->postAndAwaitResponse(&response);
-
-    if (err != OK) {
-        return err;
-    }
-
-    if (!response->findInt32("err", &err)) {
-        err = OK;
-    }
-
-    return err;
+    return PostAndAwaitResponse(msg, &response);
 }
 
 status_t WifiDisplaySource::stop() {
     sp<AMessage> msg = new AMessage(kWhatStop, id());
 
     sp<AMessage> response;
-    status_t err = msg->postAndAwaitResponse(&response);
+    return PostAndAwaitResponse(msg, &response);
+}
 
-    if (err != OK) {
-        return err;
-    }
+status_t WifiDisplaySource::pause() {
+    sp<AMessage> msg = new AMessage(kWhatPause, id());
 
-    if (!response->findInt32("err", &err)) {
-        err = OK;
-    }
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
 
-    return err;
+status_t WifiDisplaySource::resume() {
+    sp<AMessage> msg = new AMessage(kWhatResume, id());
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
 }
 
 void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
@@ -236,6 +245,20 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                         mClient->onDisplayError(
                                 IRemoteDisplayClient::kDisplayErrorUnknown);
                     }
+
+#if 0
+                    // testing only.
+                    char val[PROPERTY_VALUE_MAX];
+                    if (property_get("media.wfd.trigger", val, NULL)) {
+                        if (!strcasecmp(val, "pause") && mState == PLAYING) {
+                            mState = PLAYING_TO_PAUSED;
+                            sendTrigger(mClientSessionID, TRIGGER_PAUSE);
+                        } else if (!strcasecmp(val, "play") && mState == PAUSED) {
+                            mState = PAUSED_TO_PLAYING;
+                            sendTrigger(mClientSessionID, TRIGGER_PLAY);
+                        }
+                    }
+#endif
                     break;
                 }
 
@@ -254,8 +277,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             if (mState >= AWAITING_CLIENT_PLAY) {
                 // We have a session, i.e. a previous SETUP succeeded.
 
-                status_t err = sendM5(
-                        mClientSessionID, true /* requestShutdown */);
+                status_t err = sendTrigger(
+                        mClientSessionID, TRIGGER_TEARDOWN);
 
                 if (err == OK) {
                     mState = AWAITING_CLIENT_TEARDOWN;
@@ -270,6 +293,46 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             finishStop();
+            break;
+        }
+
+        case kWhatPause:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            status_t err = OK;
+
+            if (mState != PLAYING) {
+                err = INVALID_OPERATION;
+            } else {
+                mState = PLAYING_TO_PAUSED;
+                sendTrigger(mClientSessionID, TRIGGER_PAUSE);
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatResume:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            status_t err = OK;
+
+            if (mState != PAUSED) {
+                err = INVALID_OPERATION;
+            } else {
+                mState = PAUSED_TO_PLAYING;
+                sendTrigger(mClientSessionID, TRIGGER_PLAY);
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
             break;
         }
 
@@ -400,7 +463,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     if (mSetupTriggerDeferred) {
                         mSetupTriggerDeferred = false;
 
-                        sendM5(mClientSessionID, false /* requestShutdown */);
+                        sendTrigger(mClientSessionID, TRIGGER_SETUP);
                     }
                     break;
                 }
@@ -574,13 +637,25 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
     return OK;
 }
 
-status_t WifiDisplaySource::sendM5(int32_t sessionID, bool requestShutdown) {
+status_t WifiDisplaySource::sendTrigger(
+        int32_t sessionID, TriggerType triggerType) {
     AString body = "wfd_trigger_method: ";
-    if (requestShutdown) {
-        ALOGI("Sending TEARDOWN trigger.");
-        body.append("TEARDOWN");
-    } else {
-        body.append("SETUP");
+    switch (triggerType) {
+        case TRIGGER_SETUP:
+            body.append("SETUP");
+            break;
+        case TRIGGER_TEARDOWN:
+            ALOGI("Sending TEARDOWN trigger.");
+            body.append("TEARDOWN");
+            break;
+        case TRIGGER_PAUSE:
+            body.append("PAUSE");
+            break;
+        case TRIGGER_PLAY:
+            body.append("PLAY");
+            break;
+        default:
+            TRESPASS();
     }
 
     body.append("\r\n");
@@ -807,7 +882,7 @@ status_t WifiDisplaySource::onReceiveM4Response(
         return OK;
     }
 
-    return sendM5(sessionID, false /* requestShutdown */);
+    return sendTrigger(sessionID, TRIGGER_SETUP);
 }
 
 status_t WifiDisplaySource::onReceiveM5Response(
@@ -1184,6 +1259,11 @@ status_t WifiDisplaySource::onPlayRequest(
         return err;
     }
 
+    if (mState == PAUSED_TO_PLAYING) {
+        mState = PLAYING;
+        return OK;
+    }
+
     playbackSession->finishPlay();
 
     CHECK_EQ(mState, AWAITING_CLIENT_PLAY);
@@ -1205,6 +1285,12 @@ status_t WifiDisplaySource::onPauseRequest(
         return ERROR_MALFORMED;
     }
 
+    ALOGI("Received PAUSE request.");
+
+    if (mState != PLAYING_TO_PAUSED) {
+        return INVALID_OPERATION;
+    }
+
     status_t err = playbackSession->pause();
     CHECK_EQ(err, (status_t)OK);
 
@@ -1213,6 +1299,12 @@ status_t WifiDisplaySource::onPauseRequest(
     response.append("\r\n");
 
     err = mNetSession->sendRequest(sessionID, response.c_str());
+
+    if (err != OK) {
+        return err;
+    }
+
+    mState = PAUSED;
 
     return err;
 }
