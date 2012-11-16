@@ -174,7 +174,7 @@ public:
 
     virtual status_t setVoiceVolume(float volume);
 
-    virtual status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
+    virtual status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
                                        audio_io_handle_t output) const;
 
     virtual     unsigned int  getInputFramesLost(audio_io_handle_t ioHandle) const;
@@ -1125,7 +1125,7 @@ public:
 
         virtual     String8     getParameters(const String8& keys);
         virtual     void        audioConfigChanged_l(int event, int param = 0);
-                    status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
+                    status_t    getRenderPosition(size_t *halFrames, size_t *dspFrames);
                     int16_t     *mixBuffer() const { return mMixBuffer; };
 
         virtual     void detachAuxEffect_l(int effectId);
@@ -1155,7 +1155,9 @@ public:
         // 'volatile' means accessed via atomic operations and no lock.
         volatile int32_t                mSuspended;
 
-        int                             mBytesWritten;
+        // FIXME overflows every 6+ hours at 44.1 kHz stereo 16-bit samples
+        // mFramesWritten would be better, or 64-bit even better
+        size_t                          mBytesWritten;
     private:
         // mMasterMute is in both PlaybackThread and in AudioFlinger.  When a
         // PlaybackThread needs to find out if master-muted, it checks it's local
@@ -1187,7 +1189,7 @@ public:
         // Cache various calculated values, at threadLoop() entry and after a parameter change
         virtual     void        cacheParameters_l();
 
-        virtual     uint32_t    correctLatency(uint32_t latency) const;
+        virtual     uint32_t    correctLatency_l(uint32_t latency) const;
 
     private:
 
@@ -1296,7 +1298,7 @@ public:
         virtual     void        threadLoop_mix();
         virtual     void        threadLoop_sleepTime();
         virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
-        virtual     uint32_t    correctLatency(uint32_t latency) const;
+        virtual     uint32_t    correctLatency_l(uint32_t latency) const;
 
                     AudioMixer* mAudioMixer;    // normal mixer
     private:
