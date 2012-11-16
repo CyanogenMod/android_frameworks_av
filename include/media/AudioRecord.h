@@ -95,7 +95,7 @@ public:
      *  - BAD_VALUE: unsupported configuration
      */
 
-     static status_t getMinFrameCount(int* frameCount,
+     static status_t getMinFrameCount(size_t* frameCount,
                                       uint32_t sampleRate,
                                       audio_format_t format,
                                       audio_channel_mask_t channelMask);
@@ -184,7 +184,7 @@ public:
 
             audio_format_t format() const;
             int         channelCount() const;
-            uint32_t    frameCount() const;
+            size_t      frameCount() const;
             size_t      frameSize() const { return mFrameSize; }
             audio_source_t inputSource() const;
 
@@ -352,7 +352,7 @@ private:
             status_t openRecord_l(uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                int frameCount,
+                                size_t frameCount,
                                 audio_io_handle_t input);
             audio_io_handle_t getInput_l();
             status_t restoreRecord_l(audio_track_cblk_t*& cblk);
@@ -375,7 +375,7 @@ private:
     uint32_t                mUpdatePeriod;      // in ms
 
     // constant after constructor or set()
-    uint32_t                mFrameCount;
+    size_t                  mFrameCount;
     audio_format_t          mFormat;
     uint8_t                 mChannelCount;
     size_t                  mFrameSize;         // app-level frame size == AudioFlinger frame size
