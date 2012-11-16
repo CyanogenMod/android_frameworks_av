@@ -216,7 +216,7 @@ status_t AudioRecord::set(
 
     mFormat = format;
     // Update buffer size in case it has been limited by AudioFlinger during track creation
-    mFrameCount = mCblk->frameCount;
+    mFrameCount = mCblk->frameCount_;
     mChannelCount = (uint8_t)channelCount;
     mChannelMask = channelMask;
 
@@ -568,7 +568,7 @@ create_new_record:
     }
 
     uint32_t u = cblk->user;
-    uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
+    uint32_t bufferEnd = cblk->userBase + mFrameCount;
 
     if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
@@ -584,7 +584,7 @@ create_new_record:
 void AudioRecord::releaseBuffer(Buffer* audioBuffer)
 {
     AutoMutex lock(mLock);
-    mCblk->stepUserIn(audioBuffer->frameCount);
+    mCblk->stepUserIn(audioBuffer->frameCount, mFrameCount);
 }
 
 audio_io_handle_t AudioRecord::getInput() const
@@ -746,7 +746,7 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 
 
     // Manage overrun callback
-    if (active && (cblk->framesAvailableIn() == 0)) {
+    if (active && (cblk->framesAvailableIn(mFrameCount) == 0)) {
         // The value of active is stale, but we are almost sure to be active here because
         // otherwise we would have exited when obtainBuffer returned STOPPED earlier.
         ALOGV("Overrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);

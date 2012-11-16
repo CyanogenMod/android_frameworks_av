@@ -257,6 +257,7 @@ status_t AudioTrack::set(
     mVolume[RIGHT] = 1.0f;
     mSendLevel = 0.0f;
     mFrameCount = frameCount;
+    mReqFrameCount = frameCount;
     mNotificationFramesReq = notificationFrames;
     mSessionId = sessionId;
     mAuxEffectId = 0;
@@ -344,7 +345,7 @@ int AudioTrack::channelCount() const
 
 size_t AudioTrack::frameCount() const
 {
-    return mCblk->frameCount;
+    return mFrameCount;
 }
 
 sp<IMemory>& AudioTrack::sharedBuffer()
@@ -596,17 +597,17 @@ status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCou
     }
 
     if (loopStart >= loopEnd ||
-        loopEnd - loopStart > cblk->frameCount ||
+        loopEnd - loopStart > mFrameCount ||
         cblk->server > loopStart) {
         ALOGE("setLoop invalid value: loopStart %d, loopEnd %d, loopCount %d, framecount %d, "
-              "user %d", loopStart, loopEnd, loopCount, cblk->frameCount, cblk->user);
+              "user %d", loopStart, loopEnd, loopCount, mFrameCount, cblk->user);
         return BAD_VALUE;
     }
 
-    if ((mSharedBuffer != 0) && (loopEnd > cblk->frameCount)) {
+    if ((mSharedBuffer != 0) && (loopEnd > mFrameCount)) {
         ALOGE("setLoop invalid value: loop markers beyond data: loopStart %d, loopEnd %d, "
             "framecount %d",
-            loopStart, loopEnd, cblk->frameCount);
+            loopStart, loopEnd, mFrameCount);
         return BAD_VALUE;
     }
 
@@ -695,7 +696,7 @@ status_t AudioTrack::reload()
     flush_l();
 
     audio_track_cblk_t* cblk = mCblk;
-    cblk->stepUserOut(cblk->frameCount);
+    cblk->stepUserOut(mFrameCount, mFrameCount);
 
     return NO_ERROR;
 }
@@ -889,17 +890,25 @@ status_t AudioTrack::createTrack_l(
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
     mCblk = cblk;
+    size_t temp = cblk->frameCount_;
+    if (temp < frameCount || (frameCount == 0 && temp == 0)) {
+        // In current design, AudioTrack client checks and ensures frame count validity before
+        // passing it to AudioFlinger so AudioFlinger should not return a different value except
+        // for fast track as it uses a special method of assigning frame count.
+        ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
+    }
+    frameCount = temp;
     if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", cblk->frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", frameCount);
         } else {
-            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", cblk->frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
             flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
             mFlags = flags;
         }
         if (sharedBuffer == 0) {
-            mNotificationFramesAct = cblk->frameCount/2;
+            mNotificationFramesAct = frameCount/2;
         }
     }
     if (sharedBuffer == 0) {
@@ -907,7 +916,7 @@ status_t AudioTrack::createTrack_l(
     } else {
         mBuffers = sharedBuffer->pointer();
         // Force buffer full condition as data is already present in shared memory
-        cblk->stepUserOut(cblk->frameCount);
+        cblk->stepUserOut(frameCount, frameCount);
     }
 
     cblk->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) |
@@ -918,11 +927,12 @@ status_t AudioTrack::createTrack_l(
     cblk->waitTimeMs = 0;
     mRemainingFrames = mNotificationFramesAct;
     // FIXME don't believe this lie
-    mLatency = afLatency + (1000*cblk->frameCount) / sampleRate;
+    mLatency = afLatency + (1000*frameCount) / sampleRate;
+    mFrameCount = frameCount;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
-    if (cblk->frameCount > mFrameCount) {
-        mFrameCount = cblk->frameCount;
+    if (frameCount > mReqFrameCount) {
+        mReqFrameCount = frameCount;
     }
     return NO_ERROR;
 }
@@ -939,7 +949,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
     audioBuffer->frameCount  = 0;
     audioBuffer->size = 0;
 
-    uint32_t framesAvail = cblk->framesAvailableOut();
+    uint32_t framesAvail = cblk->framesAvailableOut(mFrameCount);
 
     cblk->lock.lock();
     if (cblk->flags & CBLK_INVALID) {
@@ -1015,7 +1025,7 @@ create_new_track:
             }
             // read the server count again
         start_loop_here:
-            framesAvail = cblk->framesAvailableOut_l();
+            framesAvail = cblk->framesAvailableOut_l(mFrameCount);
         }
         cblk->lock.unlock();
     }
@@ -1027,7 +1037,7 @@ create_new_track:
     }
 
     uint32_t u = cblk->user;
-    uint32_t bufferEnd = cblk->userBase + cblk->frameCount;
+    uint32_t bufferEnd = cblk->userBase + mFrameCount;
 
     if (framesReq > bufferEnd - u) {
         framesReq = bufferEnd - u;
@@ -1044,7 +1054,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 {
     AutoMutex lock(mLock);
     audio_track_cblk_t* cblk = mCblk;
-    cblk->stepUserOut(audioBuffer->frameCount);
+    cblk->stepUserOut(audioBuffer->frameCount, mFrameCount);
     if (audioBuffer->frameCount > 0) {
         // restart track if it was disabled by audioflinger due to previous underrun
         if (mActive && (cblk->flags & CBLK_DISABLED)) {
@@ -1211,11 +1221,11 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
     // so all cblk references might still refer to old shared memory, but that should be benign
 
     // Manage underrun callback
-    if (active && (cblk->framesAvailableOut() == cblk->frameCount)) {
+    if (active && (cblk->framesAvailableOut(mFrameCount) == mFrameCount)) {
         ALOGV("Underrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
         if (!(android_atomic_or(CBLK_UNDERRUN, &cblk->flags) & CBLK_UNDERRUN)) {
             mCbf(EVENT_UNDERRUN, mUserData, 0);
-            if (cblk->server == cblk->frameCount) {
+            if (cblk->server == mFrameCount) {
                 mCbf(EVENT_BUFFER_END, mUserData, 0);
             }
             if (mSharedBuffer != 0) return false;
@@ -1355,7 +1365,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
                            cblk->sampleRate,
                            mFormat,
                            mChannelMask,
-                           mFrameCount,
+                           mReqFrameCount,  // so that frame count never goes down
                            mFlags,
                            mSharedBuffer,
                            getOutput_l());
@@ -1379,19 +1389,19 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
             if (mSharedBuffer == 0) {
                 uint32_t frames = 0;
                 if (user > server) {
-                    frames = ((user - server) > newCblk->frameCount) ?
-                            newCblk->frameCount : (user - server);
+                    frames = ((user - server) > mFrameCount) ?
+                            mFrameCount : (user - server);
                     memset(mBuffers, 0, frames * mFrameSizeAF);
                 }
                 // restart playback even if buffer is not completely filled.
                 android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
                 // stepUser() clears CBLK_UNDERRUN flag enabling underrun callbacks to
                 // the client
-                newCblk->stepUserOut(frames);
+                newCblk->stepUserOut(frames, mFrameCount);
             }
         }
         if (mSharedBuffer != 0) {
-            newCblk->stepUserOut(newCblk->frameCount);
+            newCblk->stepUserOut(mFrameCount, mFrameCount);
         }
         if (mActive) {
             result = mAudioTrack->start();
@@ -1429,7 +1439,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
             mVolume[0], mVolume[1]);
     result.append(buffer);
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
-            mChannelCount, cblk->frameCount);
+            mChannelCount, mFrameCount);
     result.append(buffer);
     snprintf(buffer, 255, "  sample rate(%u), status(%d), muted(%d)\n",
             (cblk == 0) ? 0 : cblk->sampleRate, mStatus, mMuted);
@@ -1494,18 +1504,18 @@ void AudioTrack::AudioTrackThread::resume()
 
 audio_track_cblk_t::audio_track_cblk_t()
     : lock(Mutex::SHARED), cv(Condition::SHARED), user(0), server(0),
-    userBase(0), serverBase(0), frameCount(0),
+    userBase(0), serverBase(0), frameCount_(0),
     loopStart(UINT_MAX), loopEnd(UINT_MAX), loopCount(0), mVolumeLR(0x10001000),
     mSendLevel(0), flags(0)
 {
 }
 
-uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount, bool isOut)
+uint32_t audio_track_cblk_t::stepUser(size_t stepCount, size_t frameCount, bool isOut)
 {
-    ALOGV("stepuser %08x %08x %d", user, server, frameCount);
+    ALOGV("stepuser %08x %08x %d", user, server, stepCount);
 
     uint32_t u = user;
-    u += frameCount;
+    u += stepCount;
     // Ensure that user is never ahead of server for AudioRecord
     if (isOut) {
         // If stepServer() has been called once, switch to normal obtainBuffer() timeout period
@@ -1517,15 +1527,14 @@ uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount, bool isOut)
         u = server;
     }
 
-    uint32_t fc = this->frameCount;
-    if (u >= fc) {
+    if (u >= frameCount) {
         // common case, user didn't just wrap
-        if (u - fc >= userBase ) {
-            userBase += fc;
+        if (u - frameCount >= userBase ) {
+            userBase += frameCount;
         }
-    } else if (u >= userBase + fc) {
+    } else if (u >= userBase + frameCount) {
         // user just wrapped
-        userBase += fc;
+        userBase += frameCount;
     }
 
     user = u;
@@ -1538,9 +1547,9 @@ uint32_t audio_track_cblk_t::stepUser(uint32_t frameCount, bool isOut)
     return u;
 }
 
-bool audio_track_cblk_t::stepServer(uint32_t frameCount, bool isOut)
+bool audio_track_cblk_t::stepServer(size_t stepCount, size_t frameCount, bool isOut)
 {
-    ALOGV("stepserver %08x %08x %d", user, server, frameCount);
+    ALOGV("stepserver %08x %08x %d", user, server, stepCount);
 
     if (!tryLock()) {
         ALOGW("stepServer() could not lock cblk");
@@ -1550,7 +1559,7 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount, bool isOut)
     uint32_t s = server;
     bool flushed = (s == user);
 
-    s += frameCount;
+    s += stepCount;
     if (isOut) {
         // Mark that we have read the first buffer so that next time stepUser() is called
         // we switch to normal obtainBuffer() timeout period
@@ -1576,15 +1585,14 @@ bool audio_track_cblk_t::stepServer(uint32_t frameCount, bool isOut)
         }
     }
 
-    uint32_t fc = this->frameCount;
-    if (s >= fc) {
+    if (s >= frameCount) {
         // common case, server didn't just wrap
-        if (s - fc >= serverBase ) {
-            serverBase += fc;
+        if (s - frameCount >= serverBase ) {
+            serverBase += frameCount;
         }
-    } else if (s >= serverBase + fc) {
+    } else if (s >= serverBase + frameCount) {
         // server just wrapped
-        serverBase += fc;
+        serverBase += frameCount;
     }
 
     server = s;
@@ -1601,13 +1609,13 @@ void* audio_track_cblk_t::buffer(void *buffers, size_t frameSize, uint32_t offse
     return (int8_t *)buffers + (offset - userBase) * frameSize;
 }
 
-uint32_t audio_track_cblk_t::framesAvailable(bool isOut)
+uint32_t audio_track_cblk_t::framesAvailable(size_t frameCount, bool isOut)
 {
     Mutex::Autolock _l(lock);
-    return framesAvailable_l(isOut);
+    return framesAvailable_l(frameCount, isOut);
 }
 
-uint32_t audio_track_cblk_t::framesAvailable_l(bool isOut)
+uint32_t audio_track_cblk_t::framesAvailable_l(size_t frameCount, bool isOut)
 {
     uint32_t u = user;
     uint32_t s = server;
