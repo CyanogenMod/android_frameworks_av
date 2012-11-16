@@ -803,6 +803,8 @@ status_t ACodec::setComponentRole(
             "audio_decoder.raw", "audio_encoder.raw" },
         { MEDIA_MIMETYPE_AUDIO_FLAC,
             "audio_decoder.flac", "audio_encoder.flac" },
+        { MEDIA_MIMETYPE_AUDIO_MSGSM,
+            "audio_decoder.gsm", "audio_encoder.gsm" },
     };
 
     static const size_t kNumMimeToRole =
