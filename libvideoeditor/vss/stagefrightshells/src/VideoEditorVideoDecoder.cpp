@@ -1149,6 +1149,12 @@ M4OSA_ERR VideoEditorVideoSoftwareDecoder_create(M4OSA_Context *pContext,
     pDecShellContext->mLastOutputCts     = -1;
     pDecShellContext->m_pDecBufferPool   = M4OSA_NULL;
 
+    // Calculate the interval between two video frames.
+    if(pDecShellContext->m_pVideoStreamhandler->m_averageFrameRate > 0){
+        pDecShellContext->mFrameIntervalMs =
+            1000.0 / pDecShellContext->m_pVideoStreamhandler->m_averageFrameRate;
+    }
+
     /**
      * StageFright graph building
      */
