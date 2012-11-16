@@ -407,7 +407,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
     ALOGV("open(%u, %d, %d, %d)", sampleRate, channelCount, format, bufferCount);
     if (mTrack) close();
     uint32_t afSampleRate;
-    int afFrameCount;
+    size_t afFrameCount;
     int frameCount;
 
     if (AudioSystem::getOutputFrameCount(&afFrameCount, mStreamType) !=

@@ -58,7 +58,7 @@ AudioSource::AudioSource(
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
     CHECK(channelCount == 1 || channelCount == 2);
 
-    int minFrameCount;
+    size_t minFrameCount;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
                                            sampleRate,
                                            AUDIO_FORMAT_PCM_16_BIT,
