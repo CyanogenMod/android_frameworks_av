@@ -131,7 +131,7 @@ public:
      * sampleRate:         Data sink sampling rate in Hz.
      * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
      *                     16 bits per sample).
-     * channelMask:        Channel mask.
+     * channelMask:        Channel mask, such that audio_is_input_channel(channelMask) is true.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     application's contribution to the
      *                     latency of the track.  The actual size selected by the AudioRecord could
@@ -148,9 +148,9 @@ public:
      */
 
                         AudioRecord(audio_source_t inputSource,
-                                    uint32_t sampleRate = 0,
-                                    audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
+                                    uint32_t sampleRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
                                     int frameCount      = 0,
                                     callback_t cbf = NULL,
                                     void* user = NULL,
@@ -178,10 +178,10 @@ public:
      *
      * threadCanCallJava:  Whether callbacks are made from an attached thread and thus can call JNI.
      */
-            status_t    set(audio_source_t inputSource = AUDIO_SOURCE_DEFAULT,
-                            uint32_t sampleRate = 0,
-                            audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                            audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
+            status_t    set(audio_source_t inputSource,
+                            uint32_t sampleRate,
+                            audio_format_t format,
+                            audio_channel_mask_t channelMask,
                             int frameCount      = 0,
                             callback_t cbf = NULL,
                             void* user = NULL,
