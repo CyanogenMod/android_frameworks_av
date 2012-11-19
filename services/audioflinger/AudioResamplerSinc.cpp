@@ -721,7 +721,7 @@ void AudioResamplerSinc::filterCoefficient(
             "vdup.i32       d0, d0[0]                \n"    // interleave L,R channels
             "vqrdmulh.s32   d0, d0, d2               \n"    // apply volume
             "vadd.s32       d3, d3, d0               \n"    // accumulate result
-            "vst1.s32       {d0}, %[out]             \n"    // store result
+            "vst1.s32       {d3}, %[out]             \n"    // store result
 
             : [out]     "=Uv" (out[0]),
               [count]   "+r" (count),
@@ -797,7 +797,7 @@ void AudioResamplerSinc::filterCoefficient(
             "vtrn.s32       d0, d8                   \n"    // interlace L,R channels
             "vqrdmulh.s32   d0, d0, d2               \n"    // apply volume
             "vadd.s32       d3, d3, d0               \n"    // accumulate result
-            "vst1.s32       {d0}, %[out]             \n"    // store result
+            "vst1.s32       {d3}, %[out]             \n"    // store result
 
             : [out]     "=Uv" (out[0]),
               [count]   "+r" (count),
