@@ -15,6 +15,9 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
+    Threads.cpp                 \
+    Tracks.cpp                  \
+    Effects.cpp                 \
     AudioMixer.cpp.arm          \
     AudioResampler.cpp.arm      \
     AudioPolicyService.cpp      \
