@@ -63,7 +63,7 @@ status_t AudioRecord::getMinFrameCount(
     size <<= 1;
 
     if (audio_is_linear_pcm(format)) {
-        int channelCount = popcount(channelMask);
+        uint32_t channelCount = popcount(channelMask);
         size /= channelCount * audio_bytes_per_sample(format);
     }
 
@@ -162,8 +162,9 @@ status_t AudioRecord::set(
     if (!audio_is_input_channel(channelMask)) {
         return BAD_VALUE;
     }
-
-    int channelCount = popcount(channelMask);
+    mChannelMask = channelMask;
+    uint32_t channelCount = popcount(channelMask);
+    mChannelCount = channelCount;
 
     if (sessionId == 0 ) {
         mSessionId = AudioSystem::newAudioSessionId();
@@ -201,8 +202,7 @@ status_t AudioRecord::set(
     }
 
     // create the IAudioRecord
-    status = openRecord_l(sampleRate, format, channelMask,
-                        frameCount, input);
+    status = openRecord_l(sampleRate, format, frameCount, input);
     if (status != NO_ERROR) {
         return status;
     }
@@ -217,8 +217,6 @@ status_t AudioRecord::set(
     mFormat = format;
     // Update buffer size in case it has been limited by AudioFlinger during track creation
     mFrameCount = mCblk->frameCount_;
-    mChannelCount = (uint8_t)channelCount;
-    mChannelMask = channelMask;
 
     if (audio_is_linear_pcm(mFormat)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
@@ -261,7 +259,7 @@ audio_format_t AudioRecord::format() const
     return mFormat;
 }
 
-int AudioRecord::channelCount() const
+uint32_t AudioRecord::channelCount() const
 {
     return mChannelCount;
 }
@@ -432,7 +430,6 @@ unsigned int AudioRecord::getInputFramesLost() const
 status_t AudioRecord::openRecord_l(
         uint32_t sampleRate,
         audio_format_t format,
-        audio_channel_mask_t channelMask,
         size_t frameCount,
         audio_io_handle_t input)
 {
@@ -449,7 +446,7 @@ status_t AudioRecord::openRecord_l(
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(getpid(), input,
                                                        sampleRate, format,
-                                                       channelMask,
+                                                       mChannelMask,
                                                        frameCount,
                                                        IAudioFlinger::TRACK_DEFAULT,
                                                        tid,
@@ -784,8 +781,7 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& refCblk)
     // if the new IAudioRecord is created, openRecord_l() will modify the
     // following member variables: mAudioRecord, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioRecord and IMemory
-    result = openRecord_l(cblk->sampleRate, mFormat, mChannelMask,
-            mFrameCount, getInput_l());
+    result = openRecord_l(cblk->sampleRate, mFormat, mFrameCount, getInput_l());
     if (result == NO_ERROR) {
         newCblk = mCblk;
         // callback thread or sync event hasn't changed

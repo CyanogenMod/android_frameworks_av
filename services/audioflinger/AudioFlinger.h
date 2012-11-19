@@ -419,7 +419,7 @@ private:
                 return mFormat;
             }
 
-            int channelCount() const { return mChannelCount; }
+            uint32_t channelCount() const { return mChannelCount; }
 
             audio_channel_mask_t channelMask() const { return mChannelMask; }
 
@@ -565,7 +565,7 @@ private:
 
                     // dynamic externally-visible
                     uint32_t    sampleRate() const { return mSampleRate; }
-                    int         channelCount() const { return mChannelCount; }
+                    uint32_t    channelCount() const { return mChannelCount; }
                     audio_channel_mask_t channelMask() const { return mChannelMask; }
                     audio_format_t format() const { return mFormat; }
                     // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
@@ -1593,7 +1593,7 @@ public:
                 int16_t                             *mRsmpInBuffer;
                 size_t                              mRsmpInIndex;
                 size_t                              mInputBytes;
-                const int                           mReqChannelCount;
+                const uint32_t                      mReqChannelCount;
                 const uint32_t                      mReqSampleRate;
                 ssize_t                             mBytesRead;
                 // sync event triggering actual audio capture. Frames read before this event will
