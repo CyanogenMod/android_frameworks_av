@@ -1604,8 +1604,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
         encoder_flags |= OMXCodec::kStoreMetaDataInVideoBuffers;
 #ifdef QCOM_HARDWARE
         if (property_get("ro.board.platform", value, "0")
-            && (!strncmp(value, "msm7627a", sizeof("msm7627a") - 1) ||
-                !strncmp(value, "msm7x27a", sizeof("msm7x27a") - 1))) {
+            && (!strncmp(value, "msm7x27a", sizeof("msm7x27a") - 1))) {
             ALOGW("msm7627 family of chipsets supports, only one buffer at a time");
             encoder_flags |= OMXCodec::kOnlySubmitOneInputBufferAtOneTime;
         }
