@@ -489,7 +489,7 @@ Sample::~Sample()
         ::close(mFd);
     }
     mData.clear();
-    delete mUrl;
+    free(mUrl);
 }
 
 status_t Sample::doLoad()
