@@ -183,7 +183,7 @@ public:
    /* getters, see constructor and set() */
 
             audio_format_t format() const;
-            int         channelCount() const;
+            uint32_t    channelCount() const;
             size_t      frameCount() const;
             size_t      frameSize() const { return mFrameSize; }
             audio_source_t inputSource() const;
@@ -351,7 +351,6 @@ private:
 
             status_t openRecord_l(uint32_t sampleRate,
                                 audio_format_t format,
-                                audio_channel_mask_t channelMask,
                                 size_t frameCount,
                                 audio_io_handle_t input);
             audio_io_handle_t getInput_l();

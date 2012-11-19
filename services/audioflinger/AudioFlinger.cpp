@@ -6181,7 +6181,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 framesIn = framesOut;
                             mRsmpInIndex += framesIn;
                             framesOut -= framesIn;
-                            if ((int)mChannelCount == mReqChannelCount ||
+                            if (mChannelCount == mReqChannelCount ||
                                 mFormat != AUDIO_FORMAT_PCM_16_BIT) {
                                 memcpy(dst, src, framesIn * mFrameSize);
                             } else {
@@ -6197,7 +6197,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         if (framesOut && mFrameCount == mRsmpInIndex) {
                             void *readInto;
                             if (framesOut == mFrameCount &&
-                                ((int)mChannelCount == mReqChannelCount ||
+                                (mChannelCount == mReqChannelCount ||
                                         mFormat != AUDIO_FORMAT_PCM_16_BIT)) {
                                 readInto = buffer.raw;
                                 framesOut = 0;
@@ -6576,7 +6576,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
         result.append(buffer);
         snprintf(buffer, SIZE, "Resampling: %d\n", (mResampler != NULL));
         result.append(buffer);
-        snprintf(buffer, SIZE, "Out channel count: %d\n", mReqChannelCount);
+        snprintf(buffer, SIZE, "Out channel count: %u\n", mReqChannelCount);
         result.append(buffer);
         snprintf(buffer, SIZE, "Out sample rate: %u\n", mReqSampleRate);
         result.append(buffer);
@@ -6674,7 +6674,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
         int value;
         audio_format_t reqFormat = mFormat;
         uint32_t reqSamplingRate = mReqSampleRate;
-        int reqChannelCount = mReqChannelCount;
+        uint32_t reqChannelCount = mReqChannelCount;
 
         if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
             reqSamplingRate = value;
