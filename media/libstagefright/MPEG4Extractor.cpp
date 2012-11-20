@@ -1633,8 +1633,9 @@ status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
         {
             if (size == 16 && flags == 0) {
                 char tmp[16];
-                sprintf(tmp, "%d/%d",
-                        (int)buffer[size - 5], (int)buffer[size - 3]);
+                uint16_t* pTrack = (uint16_t*)&buffer[10];
+                uint16_t* pTotalTracks = (uint16_t*)&buffer[12];
+                sprintf(tmp, "%d/%d", ntohs(*pTrack), ntohs(*pTotalTracks));
 
                 mFileMetaData->setCString(kKeyCDTrackNumber, tmp);
             }
@@ -1642,10 +1643,11 @@ status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
         }
         case FOURCC('d', 'i', 's', 'k'):
         {
-            if (size == 14 && flags == 0) {
+            if ((size == 14 || size == 16) && flags == 0) {
                 char tmp[16];
-                sprintf(tmp, "%d/%d",
-                        (int)buffer[size - 3], (int)buffer[size - 1]);
+                uint16_t* pDisc = (uint16_t*)&buffer[10];
+                uint16_t* pTotalDiscs = (uint16_t*)&buffer[12];
+                sprintf(tmp, "%d/%d", ntohs(*pDisc), ntohs(*pTotalDiscs));
 
                 mFileMetaData->setCString(kKeyDiscNumber, tmp);
             }
