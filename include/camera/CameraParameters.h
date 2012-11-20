@@ -117,6 +117,7 @@ public:
     void setPictureSize(int width, int height);
     void getPictureSize(int *width, int *height) const;
     void getSupportedPictureSizes(Vector<Size> &sizes) const;
+    void set3DFileFormat(const char* buffer);
     void setPictureFormat(const char *format);
     const char *getPictureFormat() const;
 #ifdef QCOM_HARDWARE
@@ -203,6 +204,8 @@ public:
     // Supported dimensions for captured pictures in pixels.
     // Example value: "2048x1536,1024x768". Read only.
     static const char KEY_SUPPORTED_PICTURE_SIZES[];
+    //HTC 3D color format
+    static const char KEY_SUPPORTED_3D_FILE_FORMAT[];
     // The image format for captured pictures. See CAMERA_MSG_COMPRESSED_IMAGE
     // in frameworks/base/include/camera/Camera.h.
     // Example value: "jpeg" or PIXEL_FORMAT_XXX constants. Read/write.
@@ -1002,6 +1005,10 @@ public:
     // Values for Face Detection settings.
     static const char FACE_DETECTION_OFF[];
     static const char FACE_DETECTION_ON[];
+
+    // Values for HTC 3D image settings.
+    static const char FILE_FORMAT_MPO[];
+    static const char FILE_FORMAT_JPS[];
 
     // Values for MCE settings.
     static const char MCE_ENABLE[];
