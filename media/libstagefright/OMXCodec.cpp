@@ -323,7 +323,6 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "requires-larger-encoder-output-buffer")) {
         quirks |= kRequiresLargerEncoderOutputBuffer;
     }
-
     if (list->codecHasQuirk(
                 index, "requires-allocate-on-input-ports")) {
         quirks |= kRequiresAllocateBufferOnInputPorts;
