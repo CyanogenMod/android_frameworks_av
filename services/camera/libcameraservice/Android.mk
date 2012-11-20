@@ -20,6 +20,10 @@ LOCAL_SHARED_LIBRARIES:= \
     libgui \
     libhardware
 
+ifeq ($(BOARD_HTC_3D_SUPPORT),true)
+   LOCAL_CFLAGS += -DHTC_3D_SUPPORT
+endif
+
 ifeq ($(BOARD_USE_SAMSUNG_V4L2_ION), true)
 LOCAL_CFLAGS += -DBOARD_USE_SAMSUNG_V4L2_ION
 endif

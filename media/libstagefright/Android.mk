@@ -9,6 +9,10 @@ endif
 
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
+ifeq ($(BOARD_HTC_3D_SUPPORT),true)
+   LOCAL_CFLAGS += -DHTC_3D_SUPPORT
+endif
+
 ifeq ($(TARGET_SOC),exynos4210)
 LOCAL_CFLAGS += -DCONFIG_MFC_FPS
 endif
