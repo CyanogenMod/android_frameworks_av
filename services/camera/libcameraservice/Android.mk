@@ -40,12 +40,17 @@ LOCAL_C_INCLUDES += \
     system/media/camera/include \
     external/jpeg
 
+
 ifeq ($(BOARD_USES_QCOM_LEGACY_CAM_PARAMS),true)
     LOCAL_CFLAGS += -DQCOM_LEGACY_CAM_PARAMS
 endif
 
-ifeq ($(BOARD_HAVE_HTC_FFC), true)
+ifeq ($(BOARD_HAVE_HTC_FFC),true)
 LOCAL_CFLAGS += -DBOARD_HAVE_HTC_FFC
+endif
+
+ifeq ($(BOARD_HTC_3D_SUPPORT),true)
+   LOCAL_CFLAGS += -DHTC_3D_SUPPORT
 endif
 
 LOCAL_MODULE:= libcameraservice
