@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <media/stagefright/foundation/ABitReader.h>
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
@@ -1221,18 +1222,15 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('a', 'v', 'c', 'C'):
         {
-            char buffer[256];
-            if (chunk_data_size > (off64_t)sizeof(buffer)) {
-                return ERROR_BUFFER_TOO_SMALL;
-            }
+            sp<ABuffer> buffer = new ABuffer(chunk_data_size);
 
             if (mDataSource->readAt(
-                        data_offset, buffer, chunk_data_size) < chunk_data_size) {
+                        data_offset, buffer->data(), chunk_data_size) < chunk_data_size) {
                 return ERROR_IO;
             }
 
             mLastTrack->meta->setData(
-                    kKeyAVCC, kTypeAVCC, buffer, chunk_data_size);
+                    kKeyAVCC, kTypeAVCC, buffer->data(), chunk_data_size);
 
             *offset += chunk_size;
             break;
