@@ -272,6 +272,32 @@ void OMXCodec::findMatchingCodecs(
 uint32_t OMXCodec::getComponentQuirks(
         const MediaCodecList *list, size_t index) {
     uint32_t quirks = 0;
+
+    if (list->codecHasQuirk(
+                index, "needs-flush-before-disable")) {
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+    if (list->codecHasQuirk(
+                index, "requires-flush-complete-emulation")) {
+        quirks |= kRequiresFlushCompleteEmulation;
+    }
+    if (list->codecHasQuirk(
+                index, "supports-multiple-frames-per-input-buffer")) {
+        quirks |= kSupportsMultipleFramesPerInputBuffer;
+    }
+    if (list->codecHasQuirk(
+                index, "input-buffer-sizes-are-bogus")) {
+        quirks |= kInputBufferSizesAreBogus;
+    }
+    if (list->codecHasQuirk(
+                index, "avoid-memcopy-input-recording-frames")) {
+        quirks |= kAvoidMemcopyInputRecordingFrames;
+    }
+    if (list->codecHasQuirk(
+                index, "requires-larger-encoder-output-buffer")) {
+        quirks |= kRequiresLargerEncoderOutputBuffer;
+    }
+
     if (list->codecHasQuirk(
                 index, "requires-allocate-on-input-ports")) {
         quirks |= kRequiresAllocateBufferOnInputPorts;
@@ -286,7 +312,7 @@ uint32_t OMXCodec::getComponentQuirks(
     }
     if (list->codecHasQuirk(
                 index, "requires-loaded-to-idle-after-allocation")) {
-      quirks |= kRequiresLoadedToIdleAfterAllocation;
+        quirks |= kRequiresLoadedToIdleAfterAllocation;
     }
     if (list->codecHasQuirk(
                 index, "defers-output-buffer-allocation")) {
@@ -301,6 +327,10 @@ uint32_t OMXCodec::getComponentQuirks(
       quirks |= kInputBufferSizesAreBogus;
     }
 #ifdef QCOM_HARDWARE
+    if (list->codecHasQuirk(
+                index, "defers-output-buffer-allocation")) {
+        quirks |= kDefersOutputBufferAllocation;
+    }
     if (list->codecHasQuirk(
                 index, "requires-global-flush")) {
         quirks |= kRequiresGlobalFlush;
