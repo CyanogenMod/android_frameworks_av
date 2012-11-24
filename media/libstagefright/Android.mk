@@ -115,6 +115,24 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_CFLAGS += -Wno-multichar
 
+ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+endif
+
+ifeq ($(BOARD_FIX_NATIVE_COLOR_FORMAT), true)
+# Include native color format header path
+LOCAL_C_INCLUDES += \
+ $(TOP)/hardware/samsung_slsi/exynos/include \
+ $(TOP)/hardware/samsung_slsi/exynos/libexynosutils
+
+# Add native color format patch definition
+LOCAL_CFLAGS += -DNATIVE_COLOR_FORMAT_PATCH
+endif # BOARD_FIX_NATIVE_COLOR_FORMAT
+
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_CFLAGS += -DUSE_V4L2_ION
+endif
+
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
