@@ -189,6 +189,9 @@ private:
     status_t freeBuffer(OMX_U32 portIndex, size_t i);
 
     status_t allocateOutputBuffersFromNativeWindow();
+#ifdef USE_SAMSUNG_COLORFORMAT
+    void setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat);
+#endif
     status_t cancelBufferToNativeWindow(BufferInfo *info);
     status_t freeOutputBuffersNotOwnedByComponent();
     BufferInfo *dequeueBufferFromNativeWindow();
