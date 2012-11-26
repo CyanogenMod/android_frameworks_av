@@ -37,6 +37,12 @@
 
 using namespace android;
 
+#ifdef SECTVOUT
+namespace android { namespace SecTVOutService {
+void instantiate(void);
+} }
+#endif
+
 int main(int argc, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
@@ -124,6 +130,9 @@ int main(int argc, char** argv)
         sp<ProcessState> proc(ProcessState::self());
         sp<IServiceManager> sm = defaultServiceManager();
         ALOGI("ServiceManager: %p", sm.get());
+#ifdef SECTVOUT
+        SecTVOutService::instantiate();
+#endif
         AudioFlinger::instantiate();
         MediaPlayerService::instantiate();
         CameraService::instantiate();
