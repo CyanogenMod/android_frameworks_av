@@ -28,6 +28,11 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
 	libregistermsext
 
+ifeq ($(BOARD_USE_SECTVOUT),true)
+	LOCAL_CFLAGS += -DSECTVOUT
+	LOCAL_SHARED_LIBRARIES += libTVOut
+endif
+
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
     frameworks/av/services/medialog \
