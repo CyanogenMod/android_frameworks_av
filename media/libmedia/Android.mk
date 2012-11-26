@@ -53,6 +53,13 @@ LOCAL_SRC_FILES:= \
     SoundPool.cpp \
     SoundPoolThread.cpp
 
+LOCAL_SRC_FILES += ../libnbaio/roundup.c
+
+# for <cutils/atomic-inline.h>
+LOCAL_CFLAGS += -DANDROID_SMP=$(if $(findstring true,$(TARGET_CPU_SMP)),1,0)
+LOCAL_SRC_FILES += SingleStateQueue.cpp
+LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
+
 LOCAL_SHARED_LIBRARIES := \
 	libui libcutils libutils libbinder libsonivox libicuuc libexpat \
         libcamera_client libstagefright_foundation \
