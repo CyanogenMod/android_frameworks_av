@@ -35,6 +35,10 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_C_INCLUDES += \
 	system/media/camera/include \
 
+ifeq ($(BOARD_CAMERA_HAVE_ISO),true)
+	LOCAL_CFLAGS += -DHAVE_ISO
+endif
+
 LOCAL_MODULE:= libcamera_client
 
 include $(BUILD_SHARED_LIBRARY)
