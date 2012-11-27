@@ -525,6 +525,11 @@ public:
     // stream and record stabilized videos.
     static const char KEY_VIDEO_STABILIZATION_SUPPORTED[];
 
+#ifdef HAVE_ISO
+    static const char KEY_SUPPORTED_ISO_MODES[];
+    static const char KEY_ISO_MODE[];
+#endif
+
 #ifdef SAMSUNG_CAMERA_HARDWARE
     static const char KEY_ANTI_SHAKE_MODE[];
     static const char KEY_METERING[];
