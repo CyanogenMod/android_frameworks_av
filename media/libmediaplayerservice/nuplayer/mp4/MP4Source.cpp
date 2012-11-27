@@ -133,4 +133,8 @@ status_t MP4Source::dequeueAccessUnit(
     return mParser->dequeueAccessUnit(audio, accessUnit);
 }
 
+uint32_t MP4Source::flags() const {
+    return 0;
+}
+
 }  // namespace android
