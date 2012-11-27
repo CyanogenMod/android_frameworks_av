@@ -82,10 +82,8 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
     switch (quality) {
     case DEFAULT_QUALITY:
     case LOW_QUALITY:
-#if 0   // these have not been qualified recently so are not supported unless explicitly requested
     case MED_QUALITY:
     case HIGH_QUALITY:
-#endif
     case VERY_HIGH_QUALITY:
         return true;
     default:
@@ -190,12 +188,10 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         ALOGV("Create linear Resampler");
         resampler = new AudioResamplerOrder1(bitDepth, inChannelCount, sampleRate);
         break;
-#if 0   // disabled because it has not been qualified recently, if requested will use default:
     case MED_QUALITY:
         ALOGV("Create cubic Resampler");
         resampler = new AudioResamplerCubic(bitDepth, inChannelCount, sampleRate);
         break;
-#endif
     case HIGH_QUALITY:
         ALOGV("Create HIGH_QUALITY sinc Resampler");
         resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate);
