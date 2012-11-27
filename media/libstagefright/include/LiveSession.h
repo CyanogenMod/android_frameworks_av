@@ -48,8 +48,10 @@ struct LiveSession : public AHandler {
     // Blocks until seek is complete.
     void seekTo(int64_t timeUs);
 
-    status_t getDuration(int64_t *durationUs);
-    bool isSeekable();
+    status_t getDuration(int64_t *durationUs) const;
+
+    bool isSeekable() const;
+    bool hasDynamicDuration() const;
 
 protected:
     virtual ~LiveSession();
@@ -95,10 +97,12 @@ private:
     int32_t mSeqNumber;
     int64_t mSeekTimeUs;
     int32_t mNumRetries;
+    bool mStartOfPlayback;
 
-    Mutex mLock;
+    mutable Mutex mLock;
     Condition mCondition;
     int64_t mDurationUs;
+    bool mDurationFixed;  // Duration has been determined once and for all.
     bool mSeekDone;
     bool mDisconnectPending;
 
@@ -135,6 +139,10 @@ private:
     bool timeToRefreshPlaylist(int64_t nowUs) const;
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
+
+    // Returns the media time in us of the segment specified by seqNumber.
+    // This is computed by summing the durations of all segments before it.
+    int64_t getSegmentStartTimeUs(int32_t seqNumber) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };
