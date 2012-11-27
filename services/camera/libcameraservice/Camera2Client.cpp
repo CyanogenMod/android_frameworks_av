@@ -1111,7 +1111,7 @@ status_t Camera2Client::takePicture(int msgType) {
     // Need HAL to have correct settings before (possibly) triggering precapture
     syncWithDevice();
 
-    res = mCaptureSequencer->startCapture();
+    res = mCaptureSequencer->startCapture(msgType);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to start capture: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
