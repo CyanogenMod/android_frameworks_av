@@ -44,18 +44,21 @@ public:
 private:
     void init();
 
+    virtual void setVolume(int16_t left, int16_t right);
+
     template<int CHANNELS>
     void resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
 
     template<int CHANNELS>
     inline void filterCoefficient(
-            int32_t& l, int32_t& r, uint32_t phase, const int16_t *samples);
+            int32_t* out, uint32_t phase, const int16_t *samples, uint32_t vRL);
 
     template<int CHANNELS>
     inline void interpolate(
             int32_t& l, int32_t& r,
-            const int32_t* coefs, int16_t lerp, const int16_t* samples);
+            const int32_t* coefs, size_t offset,
+            int32_t lerp, const int16_t* samples);
 
     template<int CHANNELS>
     inline void read(int16_t*& impulse, uint32_t& phaseFraction,
@@ -64,6 +67,7 @@ private:
     int16_t *mState;
     int16_t *mImpulse;
     int16_t *mRingFull;
+    int32_t mVolumeSIMD[2];
 
     const int32_t * mFirCoefs;
     static const int32_t mFirCoefsDown[];
@@ -71,17 +75,14 @@ private:
 
     // ----------------------------------------------------------------------------
     static const int32_t RESAMPLE_FIR_NUM_COEF       = 8;
-    static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 4;
+    static const int32_t RESAMPLE_FIR_LERP_INT_BITS  = 7;
 
     struct Constants {
-        // we have 16 coefs samples per zero-crossing
         int coefsBits;
         int cShift;
         uint32_t cMask;
-
         int pShift;
         uint32_t pMask;
-
         // number of zero-crossing on each side
         unsigned int halfNumCoefs;
     };
