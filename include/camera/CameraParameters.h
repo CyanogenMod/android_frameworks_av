@@ -529,6 +529,13 @@ public:
     // Example values: "lowlight,hdr".
     static const char KEY_LIGHTFX[];
 
+#ifdef SAMSUNG_CAMERA_HARDWARE
+    static const char KEY_ANTI_SHAKE_MODE[];
+    static const char KEY_METERING[];
+    static const char KEY_WDR[];
+    static const char KEY_WEATHER[];
+#endif
+
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
     static const char TRUE[];
     static const char FALSE[];
