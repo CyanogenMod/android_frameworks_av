@@ -35,7 +35,7 @@ struct ID3 {
         ID3_V2_4,
     };
 
-    ID3(const sp<DataSource> &source);
+    ID3(const sp<DataSource> &source, bool ignoreV1 = false);
     ~ID3();
 
     bool isValid() const;
