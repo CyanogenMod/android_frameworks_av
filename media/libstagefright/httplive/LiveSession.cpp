@@ -55,7 +55,9 @@ LiveSession::LiveSession(uint32_t flags, bool uidValid, uid_t uid)
       mSeqNumber(-1),
       mSeekTimeUs(-1),
       mNumRetries(0),
+      mStartOfPlayback(true),
       mDurationUs(-1),
+      mDurationFixed(false),
       mSeekDone(false),
       mDisconnectPending(false),
       mMonitorQueueGeneration(0),
@@ -311,6 +313,8 @@ status_t LiveSession::fetchFile(
 }
 
 sp<M3UParser> LiveSession::fetchPlaylist(const char *url, bool *unchanged) {
+    ALOGV("fetchPlaylist '%s'", url);
+
     *unchanged = false;
 
     sp<ABuffer> buffer;
@@ -362,6 +366,37 @@ sp<M3UParser> LiveSession::fetchPlaylist(const char *url, bool *unchanged) {
     }
 
     return playlist;
+}
+
+int64_t LiveSession::getSegmentStartTimeUs(int32_t seqNumber) const {
+    CHECK(mPlaylist != NULL);
+
+    int32_t firstSeqNumberInPlaylist;
+    if (mPlaylist->meta() == NULL || !mPlaylist->meta()->findInt32(
+                "media-sequence", &firstSeqNumberInPlaylist)) {
+        firstSeqNumberInPlaylist = 0;
+    }
+
+    int32_t lastSeqNumberInPlaylist =
+        firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1;
+
+    CHECK_GE(seqNumber, firstSeqNumberInPlaylist);
+    CHECK_LE(seqNumber, lastSeqNumberInPlaylist);
+
+    int64_t segmentStartUs = 0ll;
+    for (int32_t index = 0;
+            index < seqNumber - firstSeqNumberInPlaylist; ++index) {
+        sp<AMessage> itemMeta;
+        CHECK(mPlaylist->itemAt(
+                    index, NULL /* uri */, &itemMeta));
+
+        int64_t itemDurationUs;
+        CHECK(itemMeta->findInt64("durationUs", &itemDurationUs));
+
+        segmentStartUs += itemDurationUs;
+    }
+
+    return segmentStartUs;
 }
 
 static double uniformRand() {
@@ -512,8 +547,6 @@ rinse_repeat:
             url = mMasterURL;
         }
 
-        bool firstTime = (mPlaylist == NULL);
-
         if ((ssize_t)bandwidthIndex != mPrevBandwidthIndex) {
             // If we switch bandwidths, do not pay any heed to whether
             // playlists changed since the last time...
@@ -535,11 +568,12 @@ rinse_repeat:
             mPlaylist = playlist;
         }
 
-        if (firstTime) {
+        if (!mDurationFixed) {
             Mutex::Autolock autoLock(mLock);
 
-            if (!mPlaylist->isComplete()) {
+            if (!mPlaylist->isComplete() && !mPlaylist->isEvent()) {
                 mDurationUs = -1;
+                mDurationFixed = true;
             } else {
                 mDurationUs = 0;
                 for (size_t i = 0; i < mPlaylist->size(); ++i) {
@@ -552,6 +586,8 @@ rinse_repeat:
 
                     mDurationUs += itemDurationUs;
                 }
+
+                mDurationFixed = mPlaylist->isComplete();
             }
         }
 
@@ -569,7 +605,7 @@ rinse_repeat:
     bool bandwidthChanged = false;
 
     if (mSeekTimeUs >= 0) {
-        if (mPlaylist->isComplete()) {
+        if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
             size_t index = 0;
             int64_t segmentStartUs = 0;
             while (index < mPlaylist->size()) {
@@ -617,12 +653,20 @@ rinse_repeat:
         mCondition.broadcast();
     }
 
-    if (mSeqNumber < 0) {
-        mSeqNumber = firstSeqNumberInPlaylist;
-    }
-
-    int32_t lastSeqNumberInPlaylist =
+    const int32_t lastSeqNumberInPlaylist =
         firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1;
+
+    if (mSeqNumber < 0) {
+        if (mPlaylist->isComplete()) {
+            mSeqNumber = firstSeqNumberInPlaylist;
+        } else {
+            // If this is a live session, start 3 segments from the end.
+            mSeqNumber = lastSeqNumberInPlaylist - 3;
+            if (mSeqNumber < firstSeqNumberInPlaylist) {
+                mSeqNumber = firstSeqNumberInPlaylist;
+            }
+        }
+    }
 
     if (mSeqNumber < firstSeqNumberInPlaylist
             || mSeqNumber > lastSeqNumberInPlaylist) {
@@ -686,6 +730,9 @@ rinse_repeat:
         range_length = -1;
     }
 
+    ALOGV("fetching segment %d from (%d .. %d)",
+          mSeqNumber, firstSeqNumberInPlaylist, lastSeqNumberInPlaylist);
+
     sp<ABuffer> buffer;
     status_t err = fetchFile(uri.c_str(), &buffer, range_offset, range_length);
     if (err != OK) {
@@ -737,6 +784,11 @@ rinse_repeat:
         bandwidthChanged = false;
     }
 
+    if (mStartOfPlayback) {
+        seekDiscontinuity = true;
+        mStartOfPlayback = false;
+    }
+
     if (seekDiscontinuity || explicitDiscontinuity || bandwidthChanged) {
         // Signal discontinuity.
 
@@ -747,7 +799,19 @@ rinse_repeat:
         memset(tmp->data(), 0, tmp->size());
 
         // signal a 'hard' discontinuity for explicit or bandwidthChanged.
-        tmp->data()[1] = (explicitDiscontinuity || bandwidthChanged) ? 1 : 0;
+        uint8_t type = (explicitDiscontinuity || bandwidthChanged) ? 1 : 0;
+
+        if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
+            // If this was a live event this made no sense since
+            // we don't have access to all the segment before the current
+            // one.
+            int64_t segmentStartTimeUs = getSegmentStartTimeUs(mSeqNumber);
+            memcpy(tmp->data() + 2, &segmentStartTimeUs, sizeof(segmentStartTimeUs));
+
+            type |= 2;
+        }
+
+        tmp->data()[1] = type;
 
         mDataSource->queueBuffer(tmp);
     }
@@ -923,16 +987,20 @@ void LiveSession::onSeek(const sp<AMessage> &msg) {
     postMonitorQueue();
 }
 
-status_t LiveSession::getDuration(int64_t *durationUs) {
+status_t LiveSession::getDuration(int64_t *durationUs) const {
     Mutex::Autolock autoLock(mLock);
     *durationUs = mDurationUs;
 
     return OK;
 }
 
-bool LiveSession::isSeekable() {
+bool LiveSession::isSeekable() const {
     int64_t durationUs;
     return getDuration(&durationUs) == OK && durationUs >= 0;
+}
+
+bool LiveSession::hasDynamicDuration() const {
+    return !mDurationFixed;
 }
 
 }  // namespace android
