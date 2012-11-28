@@ -25,6 +25,11 @@ namespace android {
 struct ABuffer;
 
 struct NuPlayer::Source : public RefBase {
+    enum Flags {
+        FLAG_SEEKABLE           = 1,
+        FLAG_DYNAMIC_DURATION   = 2,
+    };
+
     Source() {}
 
     virtual void start() = 0;
@@ -47,9 +52,7 @@ struct NuPlayer::Source : public RefBase {
         return INVALID_OPERATION;
     }
 
-    virtual bool isSeekable() {
-        return false;
-    }
+    virtual uint32_t flags() const = 0;
 
 protected:
     virtual ~Source() {}

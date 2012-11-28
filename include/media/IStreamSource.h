@@ -73,6 +73,11 @@ struct IStreamListener : public IInterface {
     // ATSParser::DiscontinuityType.
     static const char *const kKeyDiscontinuityMask;
 
+    // Optionally signalled as part of a discontinuity that includes
+    // DISCONTINUITY_TIME. It indicates the media time (in us) to be associated
+    // with the next PTS occuring in the stream. The value is of type int64_t.
+    static const char *const kKeyMediaTimeUs;
+
     virtual void issueCommand(
             Command cmd, bool synchronous, const sp<AMessage> &msg = NULL) = 0;
 };
