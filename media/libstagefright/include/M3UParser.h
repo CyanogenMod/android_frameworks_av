@@ -33,6 +33,7 @@ struct M3UParser : public RefBase {
     bool isExtM3U() const;
     bool isVariantPlaylist() const;
     bool isComplete() const;
+    bool isEvent() const;
 
     sp<AMessage> meta();
 
@@ -54,6 +55,7 @@ private:
     bool mIsExtM3U;
     bool mIsVariantPlaylist;
     bool mIsComplete;
+    bool mIsEvent;
 
     sp<AMessage> mMeta;
     Vector<Item> mItems;

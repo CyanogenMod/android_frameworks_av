@@ -249,7 +249,6 @@ private:
     sp<MediaPlayerListener>     mListener;
     void*                       mCookie;
     media_player_states         mCurrentState;
-    int                         mDuration;
     int                         mCurrentPosition;
     int                         mSeekPosition;
     bool                        mPrepareSync;
