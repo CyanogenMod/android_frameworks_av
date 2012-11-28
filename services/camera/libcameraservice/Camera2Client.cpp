@@ -1057,7 +1057,7 @@ status_t Camera2Client::cancelAutoFocus() {
     return OK;
 }
 
-status_t Camera2Client::takePicture(int /*msgType*/) {
+status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
     Mutex::Autolock icl(mICameraLock);
     status_t res;
