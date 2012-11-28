@@ -178,7 +178,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         SharedParameters::Lock l(client->getParameters());
         enableFaceDetect = l.mParameters.enableFaceDetect;
     }
-    entry = frame.find(ANDROID_STATS_FACE_DETECT_MODE);
+    entry = frame.find(ANDROID_STATISTICS_FACE_DETECT_MODE);
 
     // TODO: This should be an error once implementations are compliant
     if (entry.count == 0) {
@@ -191,9 +191,9 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
     Vector<camera_face_t> faces;
     metadata.number_of_faces = 0;
 
-    if (enableFaceDetect && faceDetectMode != ANDROID_STATS_FACE_DETECTION_OFF) {
+    if (enableFaceDetect && faceDetectMode != ANDROID_STATISTICS_FACE_DETECT_MODE_OFF) {
         SharedParameters::Lock l(client->getParameters());
-        entry = frame.find(ANDROID_STATS_FACE_RECTANGLES);
+        entry = frame.find(ANDROID_STATISTICS_FACE_RECTANGLES);
         if (entry.count == 0) {
             // No faces this frame
             /* warning: locks SharedCameraClient */
@@ -210,7 +210,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         }
         const int32_t *faceRects = entry.data.i32;
 
-        entry = frame.find(ANDROID_STATS_FACE_SCORES);
+        entry = frame.find(ANDROID_STATISTICS_FACE_SCORES);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Unable to read face scores",
                     __FUNCTION__, client->getCameraId());
@@ -221,8 +221,8 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         const int32_t *faceLandmarks = NULL;
         const int32_t *faceIds = NULL;
 
-        if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
-            entry = frame.find(ANDROID_STATS_FACE_LANDMARKS);
+        if (faceDetectMode == ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
+            entry = frame.find(ANDROID_STATISTICS_FACE_LANDMARKS);
             if (entry.count == 0) {
                 ALOGE("%s: Camera %d: Unable to read face landmarks",
                         __FUNCTION__, client->getCameraId());
@@ -230,7 +230,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
             }
             faceLandmarks = entry.data.i32;
 
-            entry = frame.find(ANDROID_STATS_FACE_IDS);
+            entry = frame.find(ANDROID_STATISTICS_FACE_IDS);
 
             if (entry.count == 0) {
                 ALOGE("%s: Camera %d: Unable to read face IDs",
@@ -257,7 +257,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
             face.rect[3] = l.mParameters.arrayYToNormalized(faceRects[i*4 + 3]);
 
             face.score = faceScores[i];
-            if (faceDetectMode == ANDROID_STATS_FACE_DETECTION_FULL) {
+            if (faceDetectMode == ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
                 face.id = faceIds[i];
                 face.left_eye[0] =
                         l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 0]);
