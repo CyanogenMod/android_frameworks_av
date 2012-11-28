@@ -30,7 +30,7 @@ namespace android {
 
 static const size_t kMaxMetadataSize = 3 * 1024 * 1024;
 
-ID3::ID3(const sp<DataSource> &source)
+ID3::ID3(const sp<DataSource> &source, bool ignoreV1)
     : mIsValid(false),
       mData(NULL),
       mSize(0),
@@ -38,7 +38,7 @@ ID3::ID3(const sp<DataSource> &source)
       mVersion(ID3_UNKNOWN) {
     mIsValid = parseV2(source);
 
-    if (!mIsValid) {
+    if (!mIsValid && !ignoreV1) {
         mIsValid = parseV1(source);
     }
 }
