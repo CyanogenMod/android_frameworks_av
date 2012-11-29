@@ -425,11 +425,11 @@ bool FastMixer::threadLoop()
             //       but this code should be modified to handle both non-blocking and blocking sinks
             dumpState->mWriteSequence++;
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-            Tracer::traceBegin(ATRACE_TAG, "write");
+            ATRACE_BEGIN("write");
 #endif
             ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-            Tracer::traceEnd(ATRACE_TAG);
+            ATRACE_END();
 #endif
             dumpState->mWriteSequence++;
             if (framesWritten >= 0) {
