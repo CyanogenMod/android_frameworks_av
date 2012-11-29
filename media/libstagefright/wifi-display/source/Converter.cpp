@@ -161,7 +161,24 @@ status_t Converter::initEncoder() {
         mOutputFormat->setInt32("bitrate", videoBitrate);
         mOutputFormat->setInt32("bitrate-mode", OMX_Video_ControlRateConstant);
         mOutputFormat->setInt32("frame-rate", 30);
-        mOutputFormat->setInt32("i-frame-interval", 1);  // Iframes every 1 secs
+        mOutputFormat->setInt32("i-frame-interval", 15);  // Iframes every 15 secs
+
+        // Configure encoder to use intra macroblock refresh mode
+        mOutputFormat->setInt32("intra-refresh-mode", OMX_VIDEO_IntraRefreshCyclic);
+
+        int width, height, mbs;
+        if (!mOutputFormat->findInt32("width", &width)
+                || !mOutputFormat->findInt32("height", &height)) {
+            return ERROR_UNSUPPORTED;
+        }
+
+        // Update macroblocks in a cyclic fashion with 10% of all MBs within
+        // frame gets updated at one time. It takes about 10 frames to
+        // completely update a whole video frame. If the frame rate is 30,
+        // it takes about 333 ms in the best case (if next frame is not an IDR)
+        // to recover from a lost/corrupted packet.
+        mbs = (((width + 15) / 16) * ((height + 15) / 16) * 10) / 100;
+        mOutputFormat->setInt32("intra-refresh-CIR-mbs", mbs);
     }
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
