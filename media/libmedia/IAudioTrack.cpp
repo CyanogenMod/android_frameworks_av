@@ -33,7 +33,7 @@ enum {
     START,
     STOP,
     FLUSH,
-    MUTE,
+    RESERVED, // was MUTE
     PAUSE,
     ATTACH_AUX_EFFECT,
     ALLOCATE_TIMED_BUFFER,
@@ -86,14 +86,6 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
         remote()->transact(FLUSH, data, &reply);
-    }
-
-    virtual void mute(bool e)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
-        data.writeInt32(e);
-        remote()->transact(MUTE, data, &reply);
     }
 
     virtual void pause()
@@ -190,11 +182,6 @@ status_t BnAudioTrack::onTransact(
         case FLUSH: {
             CHECK_INTERFACE(IAudioTrack, data, reply);
             flush();
-            return NO_ERROR;
-        } break;
-        case MUTE: {
-            CHECK_INTERFACE(IAudioTrack, data, reply);
-            mute( data.readInt32() );
             return NO_ERROR;
         } break;
         case PAUSE: {

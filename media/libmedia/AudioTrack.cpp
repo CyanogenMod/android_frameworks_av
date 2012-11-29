@@ -304,7 +304,6 @@ status_t AudioTrack::set(
     }
 
     mSharedBuffer = sharedBuffer;
-    mMuted = false;
     mActive = false;
     mUserData = user;
     mLoopCount = 0;
@@ -451,12 +450,6 @@ void AudioTrack::pause()
         mCblk->cv.signal();
         mAudioTrack->pause();
     }
-}
-
-void AudioTrack::mute(bool e)
-{
-    mAudioTrack->mute(e);
-    mMuted = e;
 }
 
 status_t AudioTrack::setVolume(float left, float right)
@@ -1424,8 +1417,8 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
             mChannelCount, mFrameCount);
     result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%u), status(%d), muted(%d)\n",
-            (cblk == 0) ? 0 : cblk->sampleRate, mStatus, mMuted);
+    snprintf(buffer, 255, "  sample rate(%u), status(%d)\n",
+            (cblk == 0) ? 0 : cblk->sampleRate, mStatus);
     result.append(buffer);
     snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);
     result.append(buffer);

@@ -385,7 +385,6 @@ private:
         virtual status_t    start();
         virtual void        stop();
         virtual void        flush();
-        virtual void        mute(bool);
         virtual void        pause();
         virtual status_t    attachAuxEffect(int effectId);
         virtual status_t    allocateTimedBuffer(size_t size,
