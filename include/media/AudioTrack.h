@@ -258,12 +258,6 @@ public:
      */
             void        pause();
 
-    /* Mute or unmute this track.
-     * While muted, the callback, if set, is still called.
-     */
-            void        mute(bool);
-            bool        muted() const   { return mMuted; }
-
     /* Set volume for this track, mostly used for games' sound effects
      * left and right volumes. Levels must be >= 0.0 and <= 1.0.
      * This is the older API.  New applications should use setVolume(float) when possible.
@@ -524,9 +518,7 @@ protected:
 
     audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
     audio_stream_type_t     mStreamType;
-    uint8_t                 mChannelCount;
-    uint8_t                 mMuted;
-    uint8_t                 mReserved;
+    uint32_t                mChannelCount;
     audio_channel_mask_t    mChannelMask;
 
                 // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.

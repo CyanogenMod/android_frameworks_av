@@ -44,7 +44,6 @@ public:
 
             void        flush();
             void        destroy();
-            void        mute(bool);
             int         name() const { return mName; }
 
             audio_stream_type_t streamType() const {
@@ -78,7 +77,6 @@ protected:
 
     virtual size_t framesReady() const;
 
-    bool isMuted() const { return mMute; }
     bool isPausing() const {
         return mState == PAUSING;
     }
@@ -110,11 +108,6 @@ public:
     virtual bool isOut() const;
 
 protected:
-
-    // written by Track::mute() called by binder thread(s), without a mutex or barrier.
-    // read by Track::isMuted() called by playback thread, also without a mutex or barrier.
-    // The lack of mutex or barrier is safe because the mute status is only used by itself.
-    bool                mMute;
 
     // FILLED state is used for suppressing volume ramp at begin of playing
     enum {FS_INVALID, FS_FILLING, FS_FILLED, FS_ACTIVE};

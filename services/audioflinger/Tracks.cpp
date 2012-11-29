@@ -248,10 +248,6 @@ void AudioFlinger::TrackHandle::flush() {
     mTrack->flush();
 }
 
-void AudioFlinger::TrackHandle::mute(bool e) {
-    mTrack->mute(e);
-}
-
 void AudioFlinger::TrackHandle::pause() {
     mTrack->pause();
 }
@@ -315,7 +311,6 @@ AudioFlinger::PlaybackThread::Track::Track(
             IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount, sharedBuffer,
             sessionId),
-    mMute(false),
     mFillingUpStatus(FS_INVALID),
     // mRetryCount initialized later when needed
     mSharedBuffer(sharedBuffer),
@@ -397,7 +392,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt Chn mask   Session StpCnt fCount S M F SRate  "
+    result.append("   Name Client Type Fmt Chn mask   Session StpCnt fCount S F SRate  "
                   "L dB  R dB    Server      User     Main buf    Aux Buf  Flags Underruns\n");
 }
 
@@ -461,7 +456,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %1d %5u %5.2g %5.2g  "
+    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %5u %5.2g %5.2g  "
             "0x%08x 0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
@@ -471,7 +466,6 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mStepCount,
             mFrameCount,
             stateChar,
-            mMute,
             mFillingUpStatus,
             mCblk->sampleRate,
             20.0 * log10((vlr & 0xFFFF) / 4096.0),
@@ -706,11 +700,6 @@ void AudioFlinger::PlaybackThread::Track::reset()
             mState = IDLE;
         }
     }
-}
-
-void AudioFlinger::PlaybackThread::Track::mute(bool muted)
-{
-    mMute = muted;
 }
 
 status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)

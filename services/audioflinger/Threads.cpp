@@ -2544,8 +2544,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 }
                 // cache the combined master volume and stream type volume for fast mixer; this
                 // lacks any synchronization or barrier so VolumeProvider may read a stale value
-                track->mCachedVolume = track->isMuted() ?
-                        0 : masterVolume * mStreamTypes[track->streamType()].volume;
+                track->mCachedVolume = masterVolume * mStreamTypes[track->streamType()].volume;
                 ++fastTracks;
             } else {
                 // was it previously active?
@@ -2637,8 +2636,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
 
             // compute volume for this track
             uint32_t vl, vr, va;
-            if (track->isMuted() || track->isPausing() ||
-                mStreamTypes[track->streamType()].mute) {
+            if (track->isPausing() || mStreamTypes[track->streamType()].mute) {
                 vl = vr = va = 0;
                 if (track->isPausing()) {
                     track->setPaused();
@@ -3139,8 +3137,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
             // compute volume for this track
             float left, right;
-            if (track->isMuted() || mMasterMute || track->isPausing() ||
-                mStreamTypes[track->streamType()].mute) {
+            if (mMasterMute || track->isPausing() || mStreamTypes[track->streamType()].mute) {
                 left = right = 0;
                 if (track->isPausing()) {
                     track->setPaused();

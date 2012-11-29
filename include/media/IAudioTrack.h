@@ -54,11 +54,6 @@ public:
      */
     virtual void        flush() = 0;
 
-    /* Mute or unmute this track.
-     * While muted, the callback, if set, is still called.
-     */
-    virtual void        mute(bool) = 0;
-
     /* Pause a track. If set, the callback will cease being called and
      * obtainBuffer will return an error. Buffers that are already released
      * will continue to be processed, unless/until flush() is called.
