@@ -211,27 +211,28 @@ public:
      * an uninitialized AudioTrack produces undefined results.
      * See set() method above for possible return codes.
      */
-            status_t    initCheck() const;
+            status_t    initCheck() const   { return mStatus; }
 
     /* Returns this track's estimated latency in milliseconds.
      * This includes the latency due to AudioTrack buffer size, AudioMixer (if any)
      * and audio hardware driver.
      */
-            uint32_t     latency() const;
+            uint32_t     latency() const    { return mLatency; }
 
     /* getters, see constructors and set() */
 
-            audio_stream_type_t streamType() const;
-            audio_format_t format() const;
-            uint32_t    channelCount() const;
-            uint32_t    frameCount() const;
+            audio_stream_type_t streamType() const { return mStreamType; }
+            audio_format_t format() const   { return mFormat; }
 
     /* Return channelCount * (bit depth per channel / 8).
      * channelCount is determined from channelMask, and bit depth comes from format.
      */
-            size_t      frameSize() const { return mFrameSize; }
+            uint32_t    channelCount() const { return mChannelCount; }
 
-            sp<IMemory>& sharedBuffer();
+            uint32_t    frameCount() const  { return mFrameCount; }
+            size_t      frameSize() const   { return mFrameSize; }
+
+            sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
 
     /* After it's created the track is not active. Call start() to
@@ -261,7 +262,7 @@ public:
      * While muted, the callback, if set, is still called.
      */
             void        mute(bool);
-            bool        muted() const;
+            bool        muted() const   { return mMuted; }
 
     /* Set volume for this track, mostly used for games' sound effects
      * left and right volumes. Levels must be >= 0.0 and <= 1.0.
@@ -387,7 +388,7 @@ public:
      * Returned value:
      *  AudioTrack session ID.
      */
-            int    getSessionId() const;
+            int    getSessionId() const { return mSessionId; }
 
     /* Attach track auxiliary output to specified effect. Use effectId = 0
      * to detach track from effect.
