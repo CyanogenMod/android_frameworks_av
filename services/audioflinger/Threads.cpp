@@ -1653,7 +1653,7 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
 #define mBitShift 2 // FIXME
         size_t count = mixBufferSize >> mBitShift;
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-        Tracer::traceBegin(ATRACE_TAG, "write");
+        ATRACE_BEGIN("write");
 #endif
         // update the setpoint when AudioFlinger::mScreenState changes
         uint32_t screenState = AudioFlinger::mScreenState;
@@ -1667,7 +1667,7 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
         }
         ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
 #if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-        Tracer::traceEnd(ATRACE_TAG);
+        ATRACE_END();
 #endif
         if (framesWritten > 0) {
             bytesWritten = framesWritten << mBitShift;
