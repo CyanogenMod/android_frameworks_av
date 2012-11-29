@@ -76,6 +76,9 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
     status_t start();
     void stopAsync();
 
+    void pause();
+    void resume();
+
     void queueAccessUnit(const sp<ABuffer> &accessUnit);
     sp<ABuffer> dequeueAccessUnit();
 
@@ -208,6 +211,14 @@ void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
     }
 }
 
+void WifiDisplaySource::PlaybackSession::Track::pause() {
+    mMediaPuller->pause();
+}
+
+void WifiDisplaySource::PlaybackSession::Track::resume() {
+    mMediaPuller->resume();
+}
+
 void WifiDisplaySource::PlaybackSession::Track::onMessageReceived(
         const sp<AMessage> &msg) {
     switch (msg->what()) {
@@ -325,6 +336,7 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mInterfaceAddr(interfaceAddr),
       mHDCP(hdcp),
       mWeAreDead(false),
+      mPaused(false),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
       mPrevTimeUs(-1ll),
@@ -383,6 +395,8 @@ void WifiDisplaySource::PlaybackSession::updateLiveness() {
 status_t WifiDisplaySource::PlaybackSession::play() {
     updateLiveness();
 
+    (new AMessage(kWhatResume, id()))->post();
+
     return OK;
 }
 
@@ -412,6 +426,8 @@ status_t WifiDisplaySource::PlaybackSession::onFinishPlay2() {
 
 status_t WifiDisplaySource::PlaybackSession::pause() {
     updateLiveness();
+
+    (new AMessage(kWhatPause, id()))->post();
 
     return OK;
 }
@@ -587,6 +603,34 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             }
 #endif
 
+            break;
+        }
+
+        case kWhatPause:
+        {
+            if (mPaused) {
+                break;
+            }
+
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                mTracks.editValueAt(i)->pause();
+            }
+
+            mPaused = true;
+            break;
+        }
+
+        case kWhatResume:
+        {
+            if (!mPaused) {
+                break;
+            }
+
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                mTracks.editValueAt(i)->resume();
+            }
+
+            mPaused = false;
             break;
         }
 
