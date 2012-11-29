@@ -179,9 +179,11 @@ AudioSource::~AudioSource() {
     if (mStarted) {
         reset();
     }
-
-    delete mRecord;
-    mRecord = NULL;
+    if (mRecord)
+    {
+        delete mRecord;
+        mRecord = NULL;
+    }
 }
 
 status_t AudioSource::initCheck() const {
