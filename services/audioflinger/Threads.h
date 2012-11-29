@@ -901,7 +901,7 @@ private:
             int32_t                             *mRsmpOutBuffer;
             int16_t                             *mRsmpInBuffer;
             size_t                              mRsmpInIndex;
-            size_t                              mInputBytes;
+            size_t                              mBufferSize;    // stream buffer size for read()
             const uint32_t                      mReqChannelCount;
             const uint32_t                      mReqSampleRate;
             ssize_t                             mBytesRead;

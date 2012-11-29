@@ -4161,7 +4161,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
-    // mRsmpInIndex and mInputBytes set by readInputParameters()
+    // mRsmpInIndex and mBufferSize set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
@@ -4314,7 +4314,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 mRsmpInIndex = 0;
                             }
                             mBytesRead = mInput->stream->read(mInput->stream, readInto,
-                                    mInputBytes);
+                                    mBufferSize);
                             if (mBytesRead <= 0) {
                                 if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE))
                                 {
@@ -4669,7 +4669,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     if (mActiveTrack != 0) {
         snprintf(buffer, SIZE, "In index: %d\n", mRsmpInIndex);
         result.append(buffer);
-        snprintf(buffer, SIZE, "In size: %d\n", mInputBytes);
+        snprintf(buffer, SIZE, "Buffer size: %u bytes\n", mBufferSize);
         result.append(buffer);
         snprintf(buffer, SIZE, "Resampling: %d\n", (mResampler != NULL));
         result.append(buffer);
@@ -4722,7 +4722,7 @@ status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* 
     int channelCount;
 
     if (framesReady == 0) {
-        mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mInputBytes);
+        mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mBufferSize);
         if (mBytesRead <= 0) {
             if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE)) {
                 ALOGE("RecordThread::getNextBuffer() Error reading audio input");
@@ -4918,8 +4918,8 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelCount = popcount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
-    mInputBytes = mInput->stream->common.get_buffer_size(&mInput->stream->common);
-    mFrameCount = mInputBytes / mFrameSize;
+    mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
+    mFrameCount = mBufferSize / mFrameSize;
     mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2)
