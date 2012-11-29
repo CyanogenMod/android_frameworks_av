@@ -25,7 +25,7 @@ namespace android {
 #define LOG_TRANSPORT_STREAM            0
 #define TRACK_BANDWIDTH                 0
 
-#define ENABLE_RETRANSMISSION                   0
+#define ENABLE_RETRANSMISSION                   1
 
 // If retransmission is enabled the following define determines what
 // kind we support, if RETRANSMISSION_ACCORDING_TO_RFC_XXXX is 0
