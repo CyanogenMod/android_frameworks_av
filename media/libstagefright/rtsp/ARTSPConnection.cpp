@@ -830,6 +830,7 @@ status_t ARTSPConnection::findPendingRequest(
 
     if (i < 0) {
         // This is an unsolicited server->client message.
+        *index = -1;
         return OK;
     }
 
