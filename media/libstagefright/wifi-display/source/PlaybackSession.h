@@ -84,6 +84,8 @@ private:
         kWhatUpdateSurface,
         kWhatFinishPlay,
         kWhatPacketize,
+        kWhatPause,
+        kWhatResume,
     };
 
     sp<ANetworkSession> mNetSession;
@@ -93,6 +95,7 @@ private:
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
     bool mWeAreDead;
+    bool mPaused;
 
     int64_t mLastLifesignUs;
 
