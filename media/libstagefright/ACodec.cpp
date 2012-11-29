@@ -3106,11 +3106,6 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     mCodec->mOMX = omx;
     mCodec->mNode = node;
 
-    mCodec->mPortEOS[kPortIndexInput] =
-        mCodec->mPortEOS[kPortIndexOutput] = false;
-
-    mCodec->mInputEOSResult = OK;
-
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
         notify->setInt32("what", ACodec::kWhatComponentAllocated);
@@ -3131,6 +3126,11 @@ ACodec::LoadedState::LoadedState(ACodec *codec)
 
 void ACodec::LoadedState::stateEntered() {
     ALOGV("[%s] Now Loaded", mCodec->mComponentName.c_str());
+
+    mCodec->mPortEOS[kPortIndexInput] =
+        mCodec->mPortEOS[kPortIndexOutput] = false;
+
+    mCodec->mInputEOSResult = OK;
 
     if (mCodec->mShutdownInProgress) {
         bool keepComponentAllocated = mCodec->mKeepComponentAllocated;
