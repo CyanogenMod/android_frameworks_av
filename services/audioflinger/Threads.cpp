@@ -18,6 +18,7 @@
 
 #define LOG_TAG "AudioFlinger"
 //#define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_AUDIO
 
 #include <math.h>
 #include <fcntl.h>
@@ -25,6 +26,7 @@
 #include <cutils/properties.h>
 #include <cutils/compiler.h>
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include <private/media/AudioTrackShared.h>
 #include <hardware/audio.h>
@@ -1652,9 +1654,7 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
     if (mNormalSink != 0) {
 #define mBitShift 2 // FIXME
         size_t count = mixBufferSize >> mBitShift;
-#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
         ATRACE_BEGIN("write");
-#endif
         // update the setpoint when AudioFlinger::mScreenState changes
         uint32_t screenState = AudioFlinger::mScreenState;
         if (screenState != mScreenState) {
@@ -1666,9 +1666,7 @@ void AudioFlinger::PlaybackThread::threadLoop_write()
             }
         }
         ssize_t framesWritten = mNormalSink->write(mMixBuffer, count);
-#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
         ATRACE_END();
-#endif
         if (framesWritten > 0) {
             bytesWritten = framesWritten << mBitShift;
         } else {
@@ -2000,9 +1998,7 @@ if (mType == MIXER) {
             if (!mStandby && delta > maxPeriod) {
                 mNumDelayedWrites++;
                 if ((now - lastWarning) > kWarningThrottleNs) {
-#if defined(ATRACE_TAG) && (ATRACE_TAG != ATRACE_TAG_NEVER)
-                    ScopedTrace st(ATRACE_TAG, "underrun");
-#endif
+                    ATRACE_NAME("underrun");
                     ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
                             ns2ms(delta), mNumDelayedWrites, this);
                     lastWarning = now;

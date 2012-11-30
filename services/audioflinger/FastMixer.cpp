@@ -17,6 +17,11 @@
 #define LOG_TAG "FastMixer"
 //#define LOG_NDEBUG 0
 
+/** Uncomment for systrace.
+ * ATRACE_TAG will default to ATRACE_TAG_NEVER in the header.
+ */
+//#define ATRACE_TAG ATRACE_TAG_AUDIO
+
 #include <sys/atomics.h>
 #include <time.h>
 #include <utils/Log.h>
