@@ -572,6 +572,12 @@ audio_policy_dev_state_t AudioSystem::getDeviceConnectionState(audio_devices_t d
     return aps->getDeviceConnectionState(device, device_address);
 }
 
+extern "C" audio_policy_dev_state_t _ZN7android11AudioSystem24getDeviceConnectionStateE15audio_devices_tPKc(audio_devices_t device,
+                                                  const char *device_address)
+{
+    return AudioSystem::getDeviceConnectionState(device, device_address);
+}
+
 status_t AudioSystem::setPhoneState(audio_mode_t state)
 {
     if (uint32_t(state) >= AUDIO_MODE_CNT) return BAD_VALUE;
