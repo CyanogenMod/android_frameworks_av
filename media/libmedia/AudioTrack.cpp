@@ -138,6 +138,11 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT)
 {
+    if (sharedBuffer == 0) {
+        ALOGE("sharedBuffer must be non-0");
+        mStatus = BAD_VALUE;
+        return;
+    }
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId);
@@ -535,6 +540,10 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 // must be called with mLock held
 status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
+    if (mSharedBuffer == 0 || mIsTimed) {
+        return INVALID_OPERATION;
+    }
+
     audio_track_cblk_t* cblk = mCblk;
 
     Mutex::Autolock _l(cblk->lock);
@@ -545,10 +554,6 @@ status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCou
         cblk->loopCount = 0;
         mLoopCount = 0;
         return NO_ERROR;
-    }
-
-    if (mIsTimed) {
-        return INVALID_OPERATION;
     }
 
     if (loopStart >= loopEnd ||
@@ -624,7 +629,7 @@ status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 
 status_t AudioTrack::setPosition(uint32_t position)
 {
-    if (mIsTimed) {
+    if (mSharedBuffer == 0 || mIsTimed) {
         return INVALID_OPERATION;
     }
 
@@ -660,6 +665,10 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
 status_t AudioTrack::reload()
 {
+    if (mSharedBuffer == 0 || mIsTimed) {
+        return INVALID_OPERATION;
+    }
+
     AutoMutex lock(mLock);
 
     if (!stopped_l()) {
@@ -1036,10 +1045,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 ssize_t AudioTrack::write(const void* buffer, size_t userSize)
 {
 
-    if (mSharedBuffer != 0) {
-        return INVALID_OPERATION;
-    }
-    if (mIsTimed) {
+    if (mSharedBuffer != 0 || mIsTimed) {
         return INVALID_OPERATION;
     }
 
