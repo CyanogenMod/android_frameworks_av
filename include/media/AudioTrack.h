@@ -163,7 +163,7 @@ public:
      * the PCM data to be rendered by AudioTrack is passed in a shared memory buffer
      * identified by the argument sharedBuffer. This prototype is for static buffer playback.
      * PCM data must be present in memory before the AudioTrack is started.
-     * The write() and flush() methods are not supported in this case.
+     * The write() method is not supported in this case.
      * It is recommended to pass a callback function to be notified of playback end by an
      * EVENT_UNDERRUN event.
      */
@@ -247,8 +247,10 @@ public:
             void        stop();
             bool        stopped() const;
 
-    /* Flush a stopped track. All pending buffers are discarded.
-     * This function has no effect if the track is not stopped.
+    /* Flush a stopped or paused track. All previously buffered data is discarded immediately.
+     * This has the effect of draining the buffers without mixing or output.
+     * Flush is intended for streaming mode, for example before switching to non-contiguous content.
+     * This function is a no-op if the track is not stopped or paused, or uses a static buffer.
      */
             void        flush();
 
@@ -492,7 +494,10 @@ protected:
                                  audio_output_flags_t flags,
                                  const sp<IMemory>& sharedBuffer,
                                  audio_io_handle_t output);
+
+            // can only be called when !mActive
             void flush_l();
+
             status_t setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount);
             audio_io_handle_t getOutput_l();
             status_t restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart);

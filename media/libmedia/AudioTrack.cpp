@@ -397,6 +397,7 @@ void AudioTrack::stop()
         mMarkerReached = false;
         // Force flush if a shared buffer is used otherwise audioflinger
         // will not stop before end of buffer is reached.
+        // It may be needed to make sure that we stop playback, likely in case looping is on.
         if (mSharedBuffer != 0) {
             flush_l();
         }
@@ -419,26 +420,26 @@ bool AudioTrack::stopped() const
 void AudioTrack::flush()
 {
     AutoMutex lock(mLock);
-    flush_l();
+    if (!mActive && mSharedBuffer == 0) {
+        flush_l();
+    }
 }
 
-// must be called with mLock held
 void AudioTrack::flush_l()
 {
     ALOGV("flush");
+    ALOG_ASSERT(!mActive);
 
     // clear playback marker and periodic update counter
     mMarkerPosition = 0;
     mMarkerReached = false;
     mUpdatePeriod = 0;
 
-    if (!mActive) {
-        mFlushed = true;
-        mAudioTrack->flush();
-        // Release AudioTrack callback thread in case it was waiting for new buffers
-        // in AudioTrack::obtainBuffer()
-        mCblk->cv.signal();
-    }
+    mFlushed = true;
+    mAudioTrack->flush();
+    // Release AudioTrack callback thread in case it was waiting for new buffers
+    // in AudioTrack::obtainBuffer()
+    mCblk->cv.signal();
 }
 
 void AudioTrack::pause()
