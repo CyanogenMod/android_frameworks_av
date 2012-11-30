@@ -304,15 +304,24 @@ public:
     /* Enables looping and sets the start and end points of looping.
      * Only supported for static buffer mode.
      *
+     * FIXME The comments below are for the new planned interpretation which is not yet implemented.
+     * Currently the legacy behavior is still implemented, where loopStart and loopEnd
+     * are in wrapping (overflow) frame units like the return value of getPosition().
+     * The plan is to fix all callers to use the new version at same time implementation changes.
+     *
      * Parameters:
      *
-     * loopStart:   loop start expressed as the number of PCM frames played since AudioTrack start.
-     * loopEnd:     loop end expressed as the number of PCM frames played since AudioTrack start.
+     * loopStart:   loop start in frames relative to start of buffer.
+     * loopEnd:     loop end in frames relative to start of buffer.
      * loopCount:   number of loops to execute. Calling setLoop() with loopCount == 0 cancels any
-     *              pending or active loop. loopCount = -1 means infinite looping.
+     *              pending or active loop. loopCount == -1 means infinite looping.
      *
      * For proper operation the following condition must be respected:
-     *          (loopEnd-loopStart) <= framecount()
+     *      loopCount != 0 implies 0 <= loopStart < loopEnd <= frameCount().
+     *
+     * If the loop period (loopEnd - loopStart) is too small for the implementation to support,
+     * setLoop() will return BAD_VALUE.
+     *
      */
             status_t    setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount);
 
@@ -354,18 +363,19 @@ public:
             status_t    setPositionUpdatePeriod(uint32_t updatePeriod);
             status_t    getPositionUpdatePeriod(uint32_t *updatePeriod) const;
 
-    /* Sets playback head position within AudioTrack buffer. The new position is specified
-     * in number of frames.
-     * This method must be called with the AudioTrack in paused or stopped state.
-     * Note that the actual position set is <position> modulo the AudioTrack buffer size in frames.
-     * Therefore using this method makes sense only when playing a "static" audio buffer
-     * as opposed to streaming.
-     * The getPosition() method on the other hand returns the total number of frames played since
-     * playback start.
+    /* Sets playback head position.
+     * Only supported for static buffer mode.
+     *
+     * FIXME The comments below are for the new planned interpretation which is not yet implemented.
+     * Currently the legacy behavior is still implemented, where the new position
+     * is in wrapping (overflow) frame units like the return value of getPosition().
+     * The plan is to fix all callers to use the new version at same time implementation changes.
      *
      * Parameters:
      *
-     * position:  New playback head position within AudioTrack buffer.
+     * position:  New playback head position in frames relative to start of buffer.
+     *            0 <= position <= frameCount().  Note that end of buffer is permitted,
+     *            but will result in an immediate underrun if started.
      *
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
@@ -380,6 +390,14 @@ public:
      * It is reset to zero by flush(), reload(), and stop().
      */
             status_t    getPosition(uint32_t *position);
+
+#if 0
+    /* For static buffer mode only, this returns the current playback position in frames
+     * relative to start of buffer.  It is analogous to the new API for
+     * setLoop() and setPosition().  After underrun, the position will be at end of buffer.
+     */
+            status_t    getBufferPosition(uint32_t *position);
+#endif
 
     /* Forces AudioTrack buffer full condition. When playing a static buffer, this method avoids
      * rewriting the buffer before restarting playback after a stop.
