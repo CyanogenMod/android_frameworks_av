@@ -73,6 +73,9 @@ private:
     struct Renderer;
     struct RTSPSource;
     struct StreamingSource;
+    struct Action;
+    struct SeekAction;
+    struct SimpleAction;
 
     enum {
         kWhatSetDataSource              = '=DaS',
@@ -102,6 +105,8 @@ private:
     sp<Decoder> mAudioDecoder;
     sp<Renderer> mRenderer;
 
+    List<sp<Action> > mDeferredActions;
+
     bool mAudioEOS;
     bool mVideoEOS;
 
@@ -126,8 +131,6 @@ private:
 
     FlushStatus mFlushingAudio;
     FlushStatus mFlushingVideo;
-    bool mResetInProgress;
-    bool mResetPostponed;
 
     int64_t mSkipRenderingAudioUntilMediaTimeUs;
     int64_t mSkipRenderingVideoUntilMediaTimeUs;
@@ -150,11 +153,18 @@ private:
 
     static bool IsFlushingState(FlushStatus state, bool *needShutdown = NULL);
 
-    void finishReset();
     void postScanSources();
 
     void schedulePollDuration();
     void cancelPollDuration();
+
+    void processDeferredActions();
+
+    void performSeek(int64_t seekTimeUs);
+    void performDecoderFlush();
+    void performDecoderShutdown();
+    void performReset();
+    void performScanSources();
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };
