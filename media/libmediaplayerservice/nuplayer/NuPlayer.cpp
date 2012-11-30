@@ -50,6 +50,49 @@
 
 namespace android {
 
+struct NuPlayer::Action : public RefBase {
+    Action() {}
+
+    virtual void execute(NuPlayer *player) = 0;
+
+private:
+    DISALLOW_EVIL_CONSTRUCTORS(Action);
+};
+
+struct NuPlayer::SeekAction : public Action {
+    SeekAction(int64_t seekTimeUs)
+        : mSeekTimeUs(seekTimeUs) {
+    }
+
+    virtual void execute(NuPlayer *player) {
+        player->performSeek(mSeekTimeUs);
+    }
+
+private:
+    int64_t mSeekTimeUs;
+
+    DISALLOW_EVIL_CONSTRUCTORS(SeekAction);
+};
+
+// Use this if there's no state necessary to save in order to execute
+// the action.
+struct NuPlayer::SimpleAction : public Action {
+    typedef void (NuPlayer::*ActionFunc)();
+
+    SimpleAction(ActionFunc func)
+        : mFunc(func) {
+    }
+
+    virtual void execute(NuPlayer *player) {
+        (player->*mFunc)();
+    }
+
+private:
+    ActionFunc mFunc;
+
+    DISALLOW_EVIL_CONSTRUCTORS(SimpleAction);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NuPlayer::NuPlayer()
@@ -63,8 +106,6 @@ NuPlayer::NuPlayer()
       mTimeDiscontinuityPending(false),
       mFlushingAudio(NONE),
       mFlushingVideo(NONE),
-      mResetInProgress(false),
-      mResetPostponed(false),
       mSkipRenderingAudioUntilMediaTimeUs(-1ll),
       mSkipRenderingVideoUntilMediaTimeUs(-1ll),
       mVideoLateByUs(0ll),
@@ -495,8 +536,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mRenderer->queueEOS(audio, UNKNOWN_ERROR);
             } else if (what == ACodec::kWhatDrainThisBuffer) {
                 renderBuffer(audio, codecRequest);
-            } else {
-                ALOGV("Unhandled codec notification %d.", what);
+            } else if (what != ACodec::kWhatComponentAllocated
+                    && what != ACodec::kWhatComponentConfigured
+                    && what != ACodec::kWhatBuffersAllocated) {
+                ALOGV("Unhandled codec notification %d '%c%c%c%c'.",
+                      what,
+                      what >> 24,
+                      (what >> 16) & 0xff,
+                      (what >> 8) & 0xff,
+                      what & 0xff);
             }
 
             break;
@@ -569,47 +617,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             ALOGV("kWhatReset");
 
-            cancelPollDuration();
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performDecoderShutdown));
 
-            if (mRenderer != NULL) {
-                // There's an edge case where the renderer owns all output
-                // buffers and is paused, therefore the decoder will not read
-                // more input data and will never encounter the matching
-                // discontinuity. To avoid this, we resume the renderer.
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performReset));
 
-                if (mFlushingAudio == AWAITING_DISCONTINUITY
-                        || mFlushingVideo == AWAITING_DISCONTINUITY) {
-                    mRenderer->resume();
-                }
-            }
-
-            if (mFlushingAudio != NONE || mFlushingVideo != NONE) {
-                // We're currently flushing, postpone the reset until that's
-                // completed.
-
-                ALOGV("postponing reset mFlushingAudio=%d, mFlushingVideo=%d",
-                      mFlushingAudio, mFlushingVideo);
-
-                mResetPostponed = true;
-                break;
-            }
-
-            if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
-                finishReset();
-                break;
-            }
-
-            mTimeDiscontinuityPending = true;
-
-            if (mAudioDecoder != NULL) {
-                flushDecoder(true /* audio */, true /* needShutdown */);
-            }
-
-            if (mVideoDecoder != NULL) {
-                flushDecoder(false /* audio */, true /* needShutdown */);
-            }
-
-            mResetInProgress = true;
+            processDeferredActions();
             break;
         }
 
@@ -618,18 +632,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             int64_t seekTimeUs;
             CHECK(msg->findInt64("seekTimeUs", &seekTimeUs));
 
-            ALOGV("kWhatSeek seekTimeUs=%lld us (%.2f secs)",
-                 seekTimeUs, seekTimeUs / 1E6);
+            ALOGV("kWhatSeek seekTimeUs=%lld us", seekTimeUs);
 
-            mSource->seekTo(seekTimeUs);
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performDecoderFlush));
 
-            if (mDriver != NULL) {
-                sp<NuPlayerDriver> driver = mDriver.promote();
-                if (driver != NULL) {
-                    driver->notifySeekComplete();
-                }
-            }
+            mDeferredActions.push_back(new SeekAction(seekTimeUs));
 
+            processDeferredActions();
             break;
         }
 
@@ -680,39 +690,7 @@ void NuPlayer::finishFlushIfPossible() {
     mFlushingAudio = NONE;
     mFlushingVideo = NONE;
 
-    if (mResetInProgress) {
-        ALOGV("reset completed");
-
-        mResetInProgress = false;
-        finishReset();
-    } else if (mResetPostponed) {
-        (new AMessage(kWhatReset, id()))->post();
-        mResetPostponed = false;
-    } else if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
-        postScanSources();
-    }
-}
-
-void NuPlayer::finishReset() {
-    CHECK(mAudioDecoder == NULL);
-    CHECK(mVideoDecoder == NULL);
-
-    ++mScanSourcesGeneration;
-    mScanSourcesPending = false;
-
-    mRenderer.clear();
-
-    if (mSource != NULL) {
-        mSource->stop();
-        mSource.clear();
-    }
-
-    if (mDriver != NULL) {
-        sp<NuPlayerDriver> driver = mDriver.promote();
-        if (driver != NULL) {
-            driver->notifyResetComplete();
-        }
-    }
+    processDeferredActions();
 }
 
 void NuPlayer::postScanSources() {
@@ -831,6 +809,14 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                     mTimeDiscontinuityPending || timeChange;
 
                 if (formatChange || timeChange) {
+                    if (mFlushingAudio == NONE && mFlushingVideo == NONE) {
+                        // And we'll resume scanning sources once we're done
+                        // flushing.
+                        mDeferredActions.push_front(
+                                new SimpleAction(
+                                    &NuPlayer::performScanSources));
+                    }
+
                     flushDecoder(audio, formatChange);
                 } else {
                     // This stream is unaffected by the discontinuity
@@ -1021,6 +1007,129 @@ void NuPlayer::schedulePollDuration() {
 
 void NuPlayer::cancelPollDuration() {
     ++mPollDurationGeneration;
+}
+
+void NuPlayer::processDeferredActions() {
+    while (!mDeferredActions.empty()) {
+        // We won't execute any deferred actions until we're no longer in
+        // an intermediate state, i.e. one more more decoders are currently
+        // flushing or shutting down.
+
+        if (mRenderer != NULL) {
+            // There's an edge case where the renderer owns all output
+            // buffers and is paused, therefore the decoder will not read
+            // more input data and will never encounter the matching
+            // discontinuity. To avoid this, we resume the renderer.
+
+            if (mFlushingAudio == AWAITING_DISCONTINUITY
+                    || mFlushingVideo == AWAITING_DISCONTINUITY) {
+                mRenderer->resume();
+            }
+        }
+
+        if (mFlushingAudio != NONE || mFlushingVideo != NONE) {
+            // We're currently flushing, postpone the reset until that's
+            // completed.
+
+            ALOGV("postponing action mFlushingAudio=%d, mFlushingVideo=%d",
+                  mFlushingAudio, mFlushingVideo);
+
+            break;
+        }
+
+        sp<Action> action = *mDeferredActions.begin();
+        mDeferredActions.erase(mDeferredActions.begin());
+
+        action->execute(this);
+    }
+}
+
+void NuPlayer::performSeek(int64_t seekTimeUs) {
+    ALOGV("performSeek seekTimeUs=%lld us (%.2f secs)",
+          seekTimeUs,
+          seekTimeUs / 1E6);
+
+    mSource->seekTo(seekTimeUs);
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifyPosition(seekTimeUs);
+            driver->notifySeekComplete();
+        }
+    }
+
+    // everything's flushed, continue playback.
+}
+
+void NuPlayer::performDecoderFlush() {
+    ALOGV("performDecoderFlush");
+
+    if (mAudioDecoder != NULL && mVideoDecoder == NULL) {
+        return;
+    }
+
+    mTimeDiscontinuityPending = true;
+
+    if (mAudioDecoder != NULL) {
+        flushDecoder(true /* audio */, false /* needShutdown */);
+    }
+
+    if (mVideoDecoder != NULL) {
+        flushDecoder(false /* audio */, false /* needShutdown */);
+    }
+}
+
+void NuPlayer::performDecoderShutdown() {
+    ALOGV("performDecoderShutdown");
+
+    if (mAudioDecoder != NULL && mVideoDecoder == NULL) {
+        return;
+    }
+
+    mTimeDiscontinuityPending = true;
+
+    if (mAudioDecoder != NULL) {
+        flushDecoder(true /* audio */, true /* needShutdown */);
+    }
+
+    if (mVideoDecoder != NULL) {
+        flushDecoder(false /* audio */, true /* needShutdown */);
+    }
+}
+
+void NuPlayer::performReset() {
+    ALOGV("performReset");
+
+    CHECK(mAudioDecoder == NULL);
+    CHECK(mVideoDecoder == NULL);
+
+    cancelPollDuration();
+
+    ++mScanSourcesGeneration;
+    mScanSourcesPending = false;
+
+    mRenderer.clear();
+
+    if (mSource != NULL) {
+        mSource->stop();
+        mSource.clear();
+    }
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifyResetComplete();
+        }
+    }
+}
+
+void NuPlayer::performScanSources() {
+    ALOGV("performScanSources");
+
+    if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
+        postScanSources();
+    }
 }
 
 }  // namespace android
