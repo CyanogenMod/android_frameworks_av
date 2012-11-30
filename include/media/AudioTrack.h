@@ -52,8 +52,11 @@ public:
      * Keep in sync with frameworks/base/media/java/android/media/AudioTrack.java NATIVE_EVENT_*.
      */
     enum event_type {
-        EVENT_MORE_DATA = 0,        // Request to write more data to PCM buffer.
-        EVENT_UNDERRUN = 1,         // PCM buffer underrun occurred.
+        EVENT_MORE_DATA = 0,        // Request to write more data to buffer.
+                                    // If this event is delivered but the callback handler
+                                    // does not want to write more data, the handler must explicitly
+                                    // ignore the event by setting frameCount to zero.
+        EVENT_UNDERRUN = 1,         // Buffer underrun occurred.
         EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from
                                     // loop start if loop count was not 0.
         EVENT_MARKER = 3,           // Playback head is at the specified marker position
@@ -115,14 +118,16 @@ public:
                                       uint32_t sampleRate = 0);
 
     /* Constructs an uninitialized AudioTrack. No connection with
-     * AudioFlinger takes place.
+     * AudioFlinger takes place.  Use set() after this.
      */
                         AudioTrack();
 
     /* Creates an AudioTrack object and registers it with AudioFlinger.
      * Once created, the track needs to be started before it can be used.
-     * Unspecified values are set to the audio hardware's current
-     * values.
+     * Unspecified values are set to appropriate default values.
+     * With this constructor, the track is configured for streaming mode.
+     * Data to be rendered is supplied by write() or by the callback EVENT_MORE_DATA.
+     * Intermixing a combination of write() and non-ignored EVENT_MORE_DATA is deprecated.
      *
      * Parameters:
      *
@@ -136,10 +141,10 @@ public:
      *                     application's contribution to the
      *                     latency of the track. The actual size selected by the AudioTrack could be
      *                     larger if the requested size is not compatible with current audio HAL
-     *                     latency.  Zero means to use a default value.
+     *                     configuration.  Zero means to use a default value.
      * flags:              See comments on audio_output_flags_t in <system/audio.h>.
      * cbf:                Callback function. If not null, this function is called periodically
-     *                     to provide new PCM data.
+     *                     to provide new data and inform of marker, position updates, etc.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames have been consumed from track input buffer.
@@ -159,13 +164,16 @@ public:
                                     int notificationFrames = 0,
                                     int sessionId        = 0);
 
-    /* Creates an audio track and registers it with AudioFlinger. With this constructor,
-     * the PCM data to be rendered by AudioTrack is passed in a shared memory buffer
-     * identified by the argument sharedBuffer. This prototype is for static buffer playback.
-     * PCM data must be present in memory before the AudioTrack is started.
+    /* Creates an audio track and registers it with AudioFlinger.
+     * With this constructor, the track is configured for static buffer mode.
+     * The format must not be 8-bit linear PCM.
+     * Data to be rendered is passed in a shared memory buffer
+     * identified by the argument sharedBuffer, which must be non-0.
+     * The memory should be initialized to the desired data before calling start().
      * The write() method is not supported in this case.
      * It is recommended to pass a callback function to be notified of playback end by an
      * EVENT_UNDERRUN event.
+     * FIXME EVENT_MORE_DATA still occurs; it must be ignored.
      */
 
                         AudioTrack( audio_stream_type_t streamType,
@@ -184,13 +192,14 @@ public:
      */
                         ~AudioTrack();
 
-
     /* Initialize an uninitialized AudioTrack.
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful initialization
      *  - INVALID_OPERATION: AudioTrack is already initialized
      *  - BAD_VALUE: invalid parameter (channelMask, format, sampleRate...)
      *  - NO_INIT: audio server or audio hardware not initialized
+     * If sharedBuffer is non-0, the frameCount parameter is ignored and
+     * replaced by the shared buffer's total allocated size in frame units.
      */
             status_t    set(audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT,
                             uint32_t sampleRate = 0,
@@ -204,7 +213,6 @@ public:
                             const sp<IMemory>& sharedBuffer = 0,
                             bool threadCanCallJava = false,
                             int sessionId       = 0);
-
 
     /* Result of constructing the AudioTrack. This must be checked
      * before using any AudioTrack API (except for set()), because using
@@ -224,25 +232,31 @@ public:
             audio_stream_type_t streamType() const { return mStreamType; }
             audio_format_t format() const   { return mFormat; }
 
-    /* Return channelCount * (bit depth per channel / 8).
+    /* Return frame size in bytes, which for linear PCM is channelCount * (bit depth per channel / 8).
      * channelCount is determined from channelMask, and bit depth comes from format.
+     * For non-linear formats, the frame size is typically 1 byte.
      */
             uint32_t    channelCount() const { return mChannelCount; }
 
             uint32_t    frameCount() const  { return mFrameCount; }
             size_t      frameSize() const   { return mFrameSize; }
 
+    /* Return the static buffer specified in constructor or set(), or 0 for streaming mode */
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
-
 
     /* After it's created the track is not active. Call start() to
      * make it active. If set, the callback will start being called.
+     * If the track was previously paused, volume is ramped up over the first mix buffer.
      */
             void        start();
 
-    /* Stop a track. If set, the callback will cease being called and
+    /* Stop a track.
+     * In static buffer mode, the track is stopped immediately.
+     * In streaming mode, the callback will cease being called and
      * obtainBuffer returns STOPPED. Note that obtainBuffer() still works
      * and will fill up buffers until the pool is exhausted.
+     * The stop does not occur immediately: any data remaining in the buffer
+     * is first drained, mixed, and output, and only then is the track marked as stopped.
      */
             void        stop();
             bool        stopped() const;
@@ -254,9 +268,11 @@ public:
      */
             void        flush();
 
-    /* Pause a track. If set, the callback will cease being called and
+    /* Pause a track. After pause, the callback will cease being called and
      * obtainBuffer returns STOPPED. Note that obtainBuffer() still works
      * and will fill up buffers until the pool is exhausted.
+     * Volume is ramped down over the next mix buffer following the pause request,
+     * and then the track is marked as paused.  It can be resumed with ramp up by start().
      */
             void        pause();
 
@@ -285,6 +301,7 @@ public:
             uint32_t    getSampleRate() const;
 
     /* Enables looping and sets the start and end points of looping.
+     * Only supported for static buffer mode.
      *
      * Parameters:
      *
@@ -300,13 +317,15 @@ public:
 
     /* Sets marker position. When playback reaches the number of frames specified, a callback with
      * event type EVENT_MARKER is called. Calling setMarkerPosition with marker == 0 cancels marker
-     * notification callback.
+     * notification callback.  To set a marker at a position which would compute as 0,
+     * a workaround is to the set the marker at a nearby position such as -1 or 1.
      * If the AudioTrack has been opened with no callback function associated, the operation will
      * fail.
      *
      * Parameters:
      *
-     * marker:   marker position expressed in frames.
+     * marker:   marker position expressed in wrapping (overflow) frame units,
+     *           like the return value of getPosition().
      *
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
@@ -315,13 +334,13 @@ public:
             status_t    setMarkerPosition(uint32_t marker);
             status_t    getMarkerPosition(uint32_t *marker) const;
 
-
     /* Sets position update period. Every time the number of frames specified has been played,
      * a callback with event type EVENT_NEW_POS is called.
      * Calling setPositionUpdatePeriod with updatePeriod == 0 cancels new position notification
      * callback.
      * If the AudioTrack has been opened with no callback function associated, the operation will
      * fail.
+     * Extremely small values may be rounded up to a value the implementation can support.
      *
      * Parameters:
      *
@@ -349,20 +368,26 @@ public:
      *
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
-     *  - INVALID_OPERATION: the AudioTrack is not stopped.
+     *  - INVALID_OPERATION: the AudioTrack is not stopped or paused, or is streaming mode.
      *  - BAD_VALUE: The specified position is beyond the number of frames present in AudioTrack
      *               buffer
      */
             status_t    setPosition(uint32_t position);
+
+    /* Return the total number of frames played since playback start.
+     * The counter will wrap (overflow) periodically, e.g. every ~27 hours at 44.1 kHz.
+     * It is reset to zero by flush(), reload(), and stop().
+     */
             status_t    getPosition(uint32_t *position);
 
     /* Forces AudioTrack buffer full condition. When playing a static buffer, this method avoids
      * rewriting the buffer before restarting playback after a stop.
      * This method must be called with the AudioTrack in paused or stopped state.
+     * Not allowed in streaming mode.
      *
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
-     *  - INVALID_OPERATION: the AudioTrack is not stopped.
+     *  - INVALID_OPERATION: the AudioTrack is not stopped or paused, or is streaming mode.
      */
             status_t    reload();
 
@@ -410,6 +435,9 @@ public:
      * or return WOULD_BLOCK depending on the value of the "blocking"
      * parameter.
      *
+     * obtainBuffer() and releaseBuffer() are deprecated for direct use by applications,
+     * which should use write() or callback EVENT_MORE_DATA instead.
+     *
      * Interpretation of waitCount:
      *  +n  limits wait time to n * WAIT_PERIOD_MS,
      *  -1  causes an (almost) infinite wait time,
@@ -447,6 +475,7 @@ public:
      *      STOPPED             AudioTrack was stopped during the write
      *      NO_MORE_BUFFERS     when obtainBuffer() returns same
      *      or any other error code returned by IAudioTrack::start() or restoreTrack_l().
+     * Not supported for static buffer mode.
      */
             ssize_t     write(const void* buffer, size_t size);
 
@@ -548,7 +577,7 @@ protected:
     sp<IMemory>             mSharedBuffer;
     int                     mLoopCount;
     uint32_t                mRemainingFrames;
-    uint32_t                mMarkerPosition;        // in frames
+    uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;
     uint32_t                mNewPosition;           // in frames
     uint32_t                mUpdatePeriod;          // in frames
