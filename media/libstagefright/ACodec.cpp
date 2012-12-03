@@ -966,17 +966,23 @@ status_t ACodec::configureCodec(
             err = INVALID_OPERATION;
         } else {
             if (encoder) {
-                if (!msg->findInt32("flac-compression-level", &compressionLevel)) {
+                if (!msg->findInt32(
+                            "flac-compression-level", &compressionLevel)) {
                     compressionLevel = 5;// default FLAC compression level
                 } else if (compressionLevel < 0) {
-                    ALOGW("compression level %d outside [0..8] range, using 0", compressionLevel);
+                    ALOGW("compression level %d outside [0..8] range, "
+                          "using 0",
+                          compressionLevel);
                     compressionLevel = 0;
                 } else if (compressionLevel > 8) {
-                    ALOGW("compression level %d outside [0..8] range, using 8", compressionLevel);
+                    ALOGW("compression level %d outside [0..8] range, "
+                          "using 8",
+                          compressionLevel);
                     compressionLevel = 8;
                 }
             }
-            err = setupFlacCodec(encoder, numChannels, sampleRate, compressionLevel);
+            err = setupFlacCodec(
+                    encoder, numChannels, sampleRate, compressionLevel);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         int32_t numChannels, sampleRate;

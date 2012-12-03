@@ -22,6 +22,7 @@
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -41,7 +42,9 @@ unsigned parseUE(ABitReader *br) {
 
 // Determine video dimensions from the sequence parameterset.
 void FindAVCDimensions(
-        const sp<ABuffer> &seqParamSet, int32_t *width, int32_t *height) {
+        const sp<ABuffer> &seqParamSet,
+        int32_t *width, int32_t *height,
+        int32_t *sarWidth, int32_t *sarHeight) {
     ABitReader br(seqParamSet->data() + 1, seqParamSet->size() - 1);
 
     unsigned profile_idc = br.getBits(8);
@@ -128,6 +131,48 @@ void FindAVCDimensions(
             (frame_crop_left_offset + frame_crop_right_offset) * cropUnitX;
         *height -=
             (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
+    }
+
+    if (sarWidth != NULL) {
+        *sarWidth = 0;
+    }
+
+    if (sarHeight != NULL) {
+        *sarHeight = 0;
+    }
+
+    if (br.getBits(1)) {  // vui_parameters_present_flag
+        unsigned sar_width = 0, sar_height = 0;
+
+        if (br.getBits(1)) {  // aspect_ratio_info_present_flag
+            unsigned aspect_ratio_idc = br.getBits(8);
+
+            if (aspect_ratio_idc == 255 /* extendedSAR */) {
+                sar_width = br.getBits(16);
+                sar_height = br.getBits(16);
+            } else if (aspect_ratio_idc > 0 && aspect_ratio_idc < 14) {
+                static const int32_t kFixedSARWidth[] = {
+                    1, 12, 10, 16, 40, 24, 20, 32, 80, 18, 15, 64, 160
+                };
+
+                static const int32_t kFixedSARHeight[] = {
+                    1, 11, 11, 11, 33, 11, 11, 11, 33, 11, 11, 33, 99
+                };
+
+                sar_width = kFixedSARWidth[aspect_ratio_idc - 1];
+                sar_height = kFixedSARHeight[aspect_ratio_idc - 1];
+            }
+        }
+
+        ALOGV("sample aspect ratio = %u : %u", sar_width, sar_height);
+
+        if (sarWidth != NULL) {
+            *sarWidth = sar_width;
+        }
+
+        if (sarHeight != NULL) {
+            *sarHeight = sar_height;
+        }
     }
 }
 
@@ -254,7 +299,9 @@ sp<MetaData> MakeAVCCodecSpecificData(const sp<ABuffer> &accessUnit) {
     }
 
     int32_t width, height;
-    FindAVCDimensions(seqParamSet, &width, &height);
+    int32_t sarWidth, sarHeight;
+    FindAVCDimensions(
+            seqParamSet, &width, &height, &sarWidth, &sarHeight);
 
     size_t stopOffset;
     sp<ABuffer> picParamSet = FindNAL(data, size, 8, &stopOffset);
@@ -301,8 +348,29 @@ sp<MetaData> MakeAVCCodecSpecificData(const sp<ABuffer> &accessUnit) {
     meta->setInt32(kKeyWidth, width);
     meta->setInt32(kKeyHeight, height);
 
-    ALOGI("found AVC codec config (%d x %d, %s-profile level %d.%d)",
-         width, height, AVCProfileToString(profile), level / 10, level % 10);
+    if (sarWidth > 1 || sarHeight > 1) {
+        // We treat 0:0 (unspecified) as 1:1.
+
+        meta->setInt32(kKeySARWidth, sarWidth);
+        meta->setInt32(kKeySARHeight, sarHeight);
+
+        ALOGI("found AVC codec config (%d x %d, %s-profile level %d.%d) "
+              "SAR %d : %d",
+             width,
+             height,
+             AVCProfileToString(profile),
+             level / 10,
+             level % 10,
+             sarWidth,
+             sarHeight);
+    } else {
+        ALOGI("found AVC codec config (%d x %d, %s-profile level %d.%d)",
+             width,
+             height,
+             AVCProfileToString(profile),
+             level / 10,
+             level % 10);
+    }
 
     return meta;
 }
