@@ -42,7 +42,9 @@ struct NuPlayer : public AHandler {
 
     void setDataSource(int fd, int64_t offset, int64_t length);
 
-    void setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture);
+    void setVideoSurfaceTextureAsync(
+            const sp<ISurfaceTexture> &surfaceTexture);
+
     void setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink);
     void start();
 
@@ -75,6 +77,7 @@ private:
     struct StreamingSource;
     struct Action;
     struct SeekAction;
+    struct SetSurfaceAction;
     struct SimpleAction;
 
     enum {
@@ -140,6 +143,8 @@ private:
 
     int32_t mVideoScalingMode;
 
+    bool mStarted;
+
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
     status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
@@ -165,6 +170,7 @@ private:
     void performDecoderShutdown();
     void performReset();
     void performScanSources();
+    void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };

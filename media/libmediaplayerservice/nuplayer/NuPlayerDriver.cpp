@@ -29,6 +29,7 @@ namespace android {
 
 NuPlayerDriver::NuPlayerDriver()
     : mResetInProgress(false),
+      mSetSurfaceInProgress(false),
       mDurationUs(-1),
       mPositionUs(-1),
       mNumFramesTotal(0),
@@ -97,7 +98,19 @@ status_t NuPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
 
 status_t NuPlayerDriver::setVideoSurfaceTexture(
         const sp<ISurfaceTexture> &surfaceTexture) {
-    mPlayer->setVideoSurfaceTexture(surfaceTexture);
+    Mutex::Autolock autoLock(mLock);
+
+    if (mResetInProgress) {
+        return INVALID_OPERATION;
+    }
+
+    mSetSurfaceInProgress = true;
+
+    mPlayer->setVideoSurfaceTextureAsync(surfaceTexture);
+
+    while (mSetSurfaceInProgress) {
+        mCondition.wait(mLock);
+    }
 
     return OK;
 }
@@ -305,6 +318,13 @@ void NuPlayerDriver::notifyResetComplete() {
     Mutex::Autolock autoLock(mLock);
     CHECK(mResetInProgress);
     mResetInProgress = false;
+    mCondition.broadcast();
+}
+
+void NuPlayerDriver::notifySetSurfaceComplete() {
+    Mutex::Autolock autoLock(mLock);
+    CHECK(mSetSurfaceInProgress);
+    mSetSurfaceInProgress = false;
     mCondition.broadcast();
 }
 

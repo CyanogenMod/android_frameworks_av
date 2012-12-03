@@ -74,6 +74,21 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(SeekAction);
 };
 
+struct NuPlayer::SetSurfaceAction : public Action {
+    SetSurfaceAction(const sp<NativeWindowWrapper> &wrapper)
+        : mWrapper(wrapper) {
+    }
+
+    virtual void execute(NuPlayer *player) {
+        player->performSetSurface(mWrapper);
+    }
+
+private:
+    sp<NativeWindowWrapper> mWrapper;
+
+    DISALLOW_EVIL_CONSTRUCTORS(SetSurfaceAction);
+};
+
 // Use this if there's no state necessary to save in order to execute
 // the action.
 struct NuPlayer::SimpleAction : public Action {
@@ -111,7 +126,8 @@ NuPlayer::NuPlayer()
       mVideoLateByUs(0ll),
       mNumFramesTotal(0ll),
       mNumFramesDropped(0ll),
-      mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW) {
+      mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
+      mStarted(false) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -181,11 +197,19 @@ void NuPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
     msg->post();
 }
 
-void NuPlayer::setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+void NuPlayer::setVideoSurfaceTextureAsync(
+        const sp<ISurfaceTexture> &surfaceTexture) {
     sp<AMessage> msg = new AMessage(kWhatSetVideoNativeWindow, id());
-    sp<SurfaceTextureClient> surfaceTextureClient(surfaceTexture != NULL ?
-                new SurfaceTextureClient(surfaceTexture) : NULL);
-    msg->setObject("native-window", new NativeWindowWrapper(surfaceTextureClient));
+
+    if (surfaceTexture == NULL) {
+        msg->setObject("native-window", NULL);
+    } else {
+        msg->setObject(
+                "native-window",
+                new NativeWindowWrapper(
+                    new SurfaceTextureClient(surfaceTexture)));
+    }
+
     msg->post();
 }
 
@@ -278,13 +302,24 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             ALOGV("kWhatSetVideoNativeWindow");
 
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performDecoderShutdown));
+
             sp<RefBase> obj;
             CHECK(msg->findObject("native-window", &obj));
 
-            mNativeWindow = static_cast<NativeWindowWrapper *>(obj.get());
+            mDeferredActions.push_back(
+                    new SetSurfaceAction(
+                        static_cast<NativeWindowWrapper *>(obj.get())));
 
-            // XXX - ignore error from setVideoScalingMode for now
-            setVideoScalingMode(mVideoScalingMode);
+            if (obj != NULL) {
+                // If there is a new surface texture, instantiate decoders
+                // again if possible.
+                mDeferredActions.push_back(
+                        new SimpleAction(&NuPlayer::performScanSources));
+            }
+
+            processDeferredActions();
             break;
         }
 
@@ -311,6 +346,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mVideoLateByUs = 0;
             mNumFramesTotal = 0;
             mNumFramesDropped = 0;
+            mStarted = true;
 
             mSource->start();
 
@@ -986,8 +1022,7 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {
     mVideoScalingMode = mode;
-    if (mNativeWindow != NULL
-            && mNativeWindow->getNativeWindow() != NULL) {
+    if (mNativeWindow != NULL) {
         status_t ret = native_window_set_scaling_mode(
                 mNativeWindow->getNativeWindow().get(), mVideoScalingMode);
         if (ret != OK) {
@@ -1122,13 +1157,35 @@ void NuPlayer::performReset() {
             driver->notifyResetComplete();
         }
     }
+
+    mStarted = false;
 }
 
 void NuPlayer::performScanSources() {
     ALOGV("performScanSources");
 
+    if (!mStarted) {
+        return;
+    }
+
     if (mAudioDecoder == NULL || mVideoDecoder == NULL) {
         postScanSources();
+    }
+}
+
+void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
+    ALOGV("performSetSurface");
+
+    mNativeWindow = wrapper;
+
+    // XXX - ignore error from setVideoScalingMode for now
+    setVideoScalingMode(mVideoScalingMode);
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifySetSurfaceComplete();
+        }
     }
 }
 
