@@ -317,43 +317,6 @@ status_t AudioTrack::set(
     return NO_ERROR;
 }
 
-status_t AudioTrack::initCheck() const
-{
-    return mStatus;
-}
-
-// -------------------------------------------------------------------------
-
-uint32_t AudioTrack::latency() const
-{
-    return mLatency;
-}
-
-audio_stream_type_t AudioTrack::streamType() const
-{
-    return mStreamType;
-}
-
-audio_format_t AudioTrack::format() const
-{
-    return mFormat;
-}
-
-uint32_t AudioTrack::channelCount() const
-{
-    return mChannelCount;
-}
-
-size_t AudioTrack::frameCount() const
-{
-    return mFrameCount;
-}
-
-sp<IMemory>& AudioTrack::sharedBuffer()
-{
-    return mSharedBuffer;
-}
-
 // -------------------------------------------------------------------------
 
 void AudioTrack::start()
@@ -494,11 +457,6 @@ void AudioTrack::mute(bool e)
 {
     mAudioTrack->mute(e);
     mMuted = e;
-}
-
-bool AudioTrack::muted() const
-{
-    return mMuted;
 }
 
 status_t AudioTrack::setVolume(float left, float right)
@@ -733,11 +691,6 @@ audio_io_handle_t AudioTrack::getOutput_l()
 {
     return AudioSystem::getOutput(mStreamType,
             mCblk->sampleRate, mFormat, mChannelMask, mFlags);
-}
-
-int AudioTrack::getSessionId() const
-{
-    return mSessionId;
 }
 
 status_t AudioTrack::attachAuxEffect(int effectId)
