@@ -32,7 +32,7 @@ enum {
     CREATE_TRACK = IBinder::FIRST_CALL_TRANSACTION,
     OPEN_RECORD,
     SAMPLE_RATE,
-    CHANNEL_COUNT,  // obsolete
+    RESERVED,   // obsolete, was CHANNEL_COUNT
     FORMAT,
     FRAME_COUNT,
     LATENCY,
@@ -190,17 +190,6 @@ public:
         remote()->transact(SAMPLE_RATE, data, &reply);
         return reply.readInt32();
     }
-
-#if 0
-    virtual int channelCount(audio_io_handle_t output) const
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32((int32_t) output);
-        remote()->transact(CHANNEL_COUNT, data, &reply);
-        return reply.readInt32();
-    }
-#endif
 
     virtual audio_format_t format(audio_io_handle_t output) const
     {
@@ -768,13 +757,6 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32( sampleRate((audio_io_handle_t) data.readInt32()) );
             return NO_ERROR;
         } break;
-#if 0
-        case CHANNEL_COUNT: {
-            CHECK_INTERFACE(IAudioFlinger, data, reply);
-            reply->writeInt32( channelCount((audio_io_handle_t) data.readInt32()) );
-            return NO_ERROR;
-        } break;
-#endif
         case FORMAT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32( format((audio_io_handle_t) data.readInt32()) );
