@@ -448,7 +448,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == ACodec::kWhatOutputFormatChanged) {
                 if (audio) {
                     int32_t numChannels;
-                    CHECK(codecRequest->findInt32("channel-count", &numChannels));
+                    CHECK(codecRequest->findInt32(
+                                "channel-count", &numChannels));
 
                     int32_t sampleRate;
                     CHECK(codecRequest->findInt32("sample-rate", &sampleRate));
@@ -460,13 +461,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     audio_output_flags_t flags;
                     int64_t durationUs;
-                    // FIXME: we should handle the case where the video decoder is created after
-                    // we receive the format change indication. Current code will just make that
-                    // we select deep buffer with video which should not be a problem as it should
+                    // FIXME: we should handle the case where the video decoder
+                    // is created after we receive the format change indication.
+                    // Current code will just make that we select deep buffer
+                    // with video which should not be a problem as it should
                     // not prevent from keeping A/V sync.
                     if (mVideoDecoder == NULL &&
                             mSource->getDuration(&durationUs) == OK &&
-                            durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
+                            durationUs
+                                > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
                         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
                     } else {
                         flags = AUDIO_OUTPUT_FLAG_NONE;
@@ -502,17 +505,35 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                                 "crop",
                                 &cropLeft, &cropTop, &cropRight, &cropBottom));
 
+                    int32_t displayWidth = cropRight - cropLeft + 1;
+                    int32_t displayHeight = cropBottom - cropTop + 1;
+
                     ALOGV("Video output format changed to %d x %d "
                          "(crop: %d x %d @ (%d, %d))",
                          width, height,
-                         (cropRight - cropLeft + 1),
-                         (cropBottom - cropTop + 1),
+                         displayWidth,
+                         displayHeight,
                          cropLeft, cropTop);
 
+                    sp<AMessage> videoInputFormat =
+                        mSource->getFormat(false /* audio */);
+
+                    // Take into account sample aspect ratio if necessary:
+                    int32_t sarWidth, sarHeight;
+                    if (videoInputFormat->findInt32("sar-width", &sarWidth)
+                            && videoInputFormat->findInt32(
+                                "sar-height", &sarHeight)) {
+                        ALOGV("Sample aspect ratio %d : %d",
+                              sarWidth, sarHeight);
+
+                        displayWidth = (displayWidth * sarWidth) / sarHeight;
+
+                        ALOGV("display dimensions %d x %d",
+                              displayWidth, displayHeight);
+                    }
+
                     notifyListener(
-                            MEDIA_SET_VIDEO_SIZE,
-                            cropRight - cropLeft + 1,
-                            cropBottom - cropTop + 1);
+                            MEDIA_SET_VIDEO_SIZE, displayWidth, displayHeight);
                 }
             } else if (what == ACodec::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");

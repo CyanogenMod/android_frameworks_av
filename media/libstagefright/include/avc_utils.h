@@ -36,8 +36,11 @@ enum {
     kAVCProfileCAVLC444Intra = 0x2c
 };
 
+// Optionally returns sample aspect ratio as well.
 void FindAVCDimensions(
-        const sp<ABuffer> &seqParamSet, int32_t *width, int32_t *height);
+        const sp<ABuffer> &seqParamSet,
+        int32_t *width, int32_t *height,
+        int32_t *sarWidth = NULL, int32_t *sarHeight = NULL);
 
 unsigned parseUE(ABitReader *br);
 

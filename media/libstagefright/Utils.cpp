@@ -85,6 +85,13 @@ status_t convertMetaDataToMessage(
 
         msg->setInt32("width", width);
         msg->setInt32("height", height);
+
+        int32_t sarWidth, sarHeight;
+        if (meta->findInt32(kKeySARWidth, &sarWidth)
+                && meta->findInt32(kKeySARHeight, &sarHeight)) {
+            msg->setInt32("sar-width", sarWidth);
+            msg->setInt32("sar-height", sarHeight);
+        }
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
@@ -371,6 +378,13 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             meta->setInt32(kKeyHeight, height);
         } else {
             ALOGW("did not find width and/or height");
+        }
+
+        int32_t sarWidth, sarHeight;
+        if (msg->findInt32("sar-width", &sarWidth)
+                && msg->findInt32("sar-height", &sarHeight)) {
+            meta->setInt32(kKeySARWidth, sarWidth);
+            meta->setInt32(kKeySARHeight, sarHeight);
         }
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;

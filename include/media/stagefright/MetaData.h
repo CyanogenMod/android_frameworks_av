@@ -35,6 +35,8 @@ enum {
     kKeyHeight            = 'heig',  // int32_t, image pixel
     kKeyDisplayWidth      = 'dWid',  // int32_t, display/presentation
     kKeyDisplayHeight     = 'dHgt',  // int32_t, display/presentation
+    kKeySARWidth          = 'sarW',  // int32_t, sampleAspectRatio width
+    kKeySARHeight         = 'sarH',  // int32_t, sampleAspectRatio height
 
     // a rectangle, if absent assumed to be (0, 0, width - 1, height - 1)
     kKeyCropRect          = 'crop',
