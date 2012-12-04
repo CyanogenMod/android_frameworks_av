@@ -1,4 +1,8 @@
 /*
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
+ *
  * Copyright (C) 2007 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +28,10 @@
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
+#ifdef QCOM_HARDWARE
+#include <media/IDirectTrack.h>
+#include <media/IDirectTrackClient.h>
+#endif
 #include <media/IAudioTrack.h>
 #include <media/IAudioRecord.h>
 #include <media/IAudioFlingerClient.h>
@@ -68,6 +76,21 @@ public:
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
                                 status_t *status) = 0;
+
+#ifdef QCOM_HARDWARE
+    /* create a direct audio track and registers it with AudioFlinger.
+     * return null if the track cannot be created.
+     */
+    virtual sp<IDirectTrack> createDirectTrack(
+                                pid_t pid,
+                                uint32_t sampleRate,
+                                audio_channel_mask_t channelMask,
+                                audio_io_handle_t output,
+                                int *sessionId,
+                                IDirectTrackClient* client,
+                                audio_stream_type_t streamType,
+                                status_t *status) = 0;
+#endif
 
     virtual sp<IAudioRecord> openRecord(
                                 pid_t pid,

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2010 - 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +23,9 @@
 #include <media/IOMX.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaSource.h>
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/QCOMXCodec.h>
+#endif
 #include <utils/threads.h>
 
 #include <OMX_Audio.h>
@@ -100,6 +104,10 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
+#ifdef QCOM_HARDWARE
+        kRequiresGlobalFlush                  = 0x20000000, // 2^29
+        kRequiresWMAProComponent              = 0x40000000, //2^30
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -127,6 +135,11 @@ private:
     // Make sure mLock is accessible to OMXCodecObserver
     friend class OMXCodecObserver;
 
+#ifdef QCOM_HARDWARE
+    // QCOMXCodec can access variables of OMXCodec
+    friend class QCOMXCodec;
+#endif
+
     // Call this with mLock hold
     void on_message(const omx_message &msg);
 
@@ -143,6 +156,9 @@ private:
     };
 
     enum {
+#ifdef QCOM_HARDWARE
+        kPortIndexBoth   = -1,
+#endif
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
@@ -249,6 +265,11 @@ private:
             int32_t aacProfile, bool isADTS);
 
     void setG711Format(int32_t numChannels);
+
+#ifdef QCOM_HARDWARE
+    void setEVRCFormat( int32_t sampleRate, int32_t numChannels, int32_t bitRate);
+    void setQCELPFormat( int32_t sampleRate, int32_t numChannels, int32_t bitRate);
+#endif
 
     status_t setVideoPortFormatType(
             OMX_U32 portIndex,
@@ -361,6 +382,11 @@ private:
 
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
+
+#ifdef QCOM_HARDWARE
+    status_t setWMAFormat(const sp<MetaData> &inputFormat);
+    void setAC3Format(int32_t numChannels, int32_t sampleRate);
+#endif
 };
 
 struct CodecCapabilities {
