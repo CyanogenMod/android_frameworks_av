@@ -1,4 +1,8 @@
 /*
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +53,11 @@ public:
             uint32_t stream = *(const uint32_t *)param2;
             ALOGV("ioConfigChanged stream %d", stream);
             data.writeInt32(stream);
-        } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED) {
+        } else if (event != AudioSystem::OUTPUT_CLOSED &&
+#ifdef QCOM_HARDWARE
+                        event != AudioSystem::EFFECT_CONFIG_CHANGED &&
+#endif
+                        event != AudioSystem::INPUT_CLOSED) {
             const AudioSystem::OutputDescriptor *desc = (const AudioSystem::OutputDescriptor *)param2;
             data.writeInt32(desc->samplingRate);
             data.writeInt32(desc->format);
