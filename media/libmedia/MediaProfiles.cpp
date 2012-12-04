@@ -1,6 +1,7 @@
 /*
 **
 ** Copyright 2010, The Android Open Source Project
+** Copyright (c) 2010 - 2012, The Linux Foundation. All rights reserved.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -45,7 +46,10 @@ const MediaProfiles::NameToTagMap MediaProfiles::sAudioEncoderNameMap[] = {
     {"amrwb",  AUDIO_ENCODER_AMR_WB},
     {"aac",    AUDIO_ENCODER_AAC},
     {"heaac",  AUDIO_ENCODER_HE_AAC},
-    {"aaceld", AUDIO_ENCODER_AAC_ELD}
+    {"aaceld", AUDIO_ENCODER_AAC_ELD},
+#ifdef QCOM_HARDWARE
+    {"lpcm",  AUDIO_ENCODER_LPCM},
+#endif
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sFileFormatMap[] = {
@@ -804,6 +808,10 @@ MediaProfiles::createDefaultCamcorderProfiles(MediaProfiles *profiles)
 MediaProfiles::createDefaultAudioEncoders(MediaProfiles *profiles)
 {
     profiles->mAudioEncoders.add(createDefaultAmrNBEncoderCap());
+#ifdef QCOM_HARDWARE
+    profiles->mAudioEncoders.add(createDefaultAacEncoderCap());
+    profiles->mAudioEncoders.add(createDefaultLpcmEncoderCap());
+#endif
 }
 
 /*static*/ void
@@ -837,6 +845,22 @@ MediaProfiles::createDefaultAmrNBEncoderCap()
     return new MediaProfiles::AudioEncoderCap(
         AUDIO_ENCODER_AMR_NB, 5525, 12200, 8000, 8000, 1, 1);
 }
+
+#ifdef QCOM_HARDWARE
+/*static*/ MediaProfiles::AudioEncoderCap*
+MediaProfiles::createDefaultAacEncoderCap()
+{
+    return new MediaProfiles::AudioEncoderCap(
+        AUDIO_ENCODER_AAC, 64000, 156000, 8000, 48000, 1, 2);
+}
+
+/*static*/ MediaProfiles::AudioEncoderCap*
+MediaProfiles::createDefaultLpcmEncoderCap()
+{
+    return new MediaProfiles::AudioEncoderCap(
+        AUDIO_ENCODER_LPCM, 768000, 4608000, 48000, 48000, 1, 6);
+}
+#endif
 
 /*static*/ void
 MediaProfiles::createDefaultImageEncodingQualityLevels(MediaProfiles *profiles)
