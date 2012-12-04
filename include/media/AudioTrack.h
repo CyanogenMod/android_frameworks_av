@@ -31,6 +31,7 @@
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
+#include <media/IDirectTrackClient.h>
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -39,7 +40,8 @@ class audio_track_cblk_t;
 
 // ----------------------------------------------------------------------------
 
-class AudioTrack : virtual public RefBase
+class AudioTrack : public BnDirectTrackClient,
+                   virtual public RefBase
 {
 public:
     enum channel_index {
@@ -451,6 +453,9 @@ public:
      */
             status_t dump(int fd, const Vector<String16>& args) const;
 
+            virtual void notify(int msg);
+            virtual status_t getTimeStamp(uint64_t *tstamp);
+
 protected:
     /* copying audio tracks is not allowed */
                         AudioTrack(const AudioTrack& other);
@@ -496,6 +501,7 @@ protected:
             status_t restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart);
             bool stopped_l() const { return !mActive; }
 
+    sp<IDirectTrack>        mDirectTrack;
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     sp<AudioTrackThread>    mAudioTrackThread;
@@ -529,10 +535,13 @@ protected:
     uint32_t                mUpdatePeriod;
     bool                    mFlushed; // FIXME will be made obsolete by making flush() synchronous
     audio_output_flags_t    mFlags;
+    sp<IAudioFlinger>       mAudioFlinger;
+    audio_io_handle_t       mAudioDirectOutput;
     int                     mSessionId;
     int                     mAuxEffectId;
     mutable Mutex           mLock;
     status_t                mRestoreStatus;
+    void*                   mObserver;
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;

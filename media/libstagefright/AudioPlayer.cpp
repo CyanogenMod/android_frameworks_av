@@ -310,6 +310,11 @@ size_t AudioPlayer::AudioSinkCallback(
         void *buffer, size_t size, void *cookie) {
     AudioPlayer *me = (AudioPlayer *)cookie;
 
+    if (buffer == NULL) {
+        //Not applicable for AudioPlayer
+        ALOGE("This indicates the event underrun case for LPA/Tunnel");
+        return 0;
+    }
     return me->fillBuffer(buffer, size);
 }
 
