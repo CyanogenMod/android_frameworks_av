@@ -40,6 +40,10 @@ LOCAL_C_INCLUDES += \
     system/media/camera/include \
     external/jpeg
 
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_CFLAGS += -DUSE_V4L2_ION
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
