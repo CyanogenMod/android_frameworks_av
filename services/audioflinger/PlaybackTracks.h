@@ -103,6 +103,8 @@ protected:
 
 public:
     void triggerEvents(AudioSystem::sync_event_t type);
+    void invalidate();
+    bool isInvalid() const { return mIsInvalid; }
     virtual bool isTimedTrack() const { return false; }
     bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
     virtual bool isOut() const;
@@ -143,6 +145,7 @@ private:
     volatile float      mCachedVolume;  // combined master volume and stream type volume;
                                         // 'volatile' means accessed without lock or
                                         // barrier, but is read/written atomically
+    bool                mIsInvalid; // non-resettable latch, set by invalidate()
 };  // end of Track
 
 class TimedTrack : public Track {
