@@ -30,6 +30,9 @@
 #include "include/WVMExtractor.h"
 #include "include/FLACExtractor.h"
 #include "include/AACExtractor.h"
+#ifdef QCOM_HARDWARE
+#include "include/ExtendedExtractor.h"
+#endif
 
 #include "matroska/MatroskaExtractor.h"
 
@@ -131,6 +134,14 @@ sp<MediaExtractor> MediaExtractor::Create(
            ret->setDrmFlag(false);
        }
     }
+
+#ifdef QCOM_HARDWARE
+    if(ret == NULL) {
+        //Create Extended Extractor only if default extractor are not selected
+        ALOGV("Using ExtendedExtractor\n");
+        ret =  ExtendedExtractor::CreateExtractor(source, mime);
+    }
+#endif
 
     return ret;
 }

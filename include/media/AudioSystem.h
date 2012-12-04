@@ -1,4 +1,8 @@
 /*
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
+ *
  * Copyright (C) 2008 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -144,6 +148,9 @@ public:
         INPUT_CLOSED,
         INPUT_CONFIG_CHANGED,
         STREAM_CONFIG_CHANGED,
+#ifdef QCOM_HARDWARE
+        EFFECT_CONFIG_CHANGED,
+#endif
         NUM_CONFIG_EVENTS
     };
 
