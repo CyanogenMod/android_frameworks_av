@@ -2,6 +2,10 @@
  * Copyright (C) 2009 The Android Open Source Project
  * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -40,6 +44,12 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
+#ifdef QCOM_ENHANCED_AUDIO
+#include <media/stagefright/LPAPlayer.h>
+#ifdef USE_TUNNEL_MODE
+#include <media/stagefright/TunnelPlayer.h>
+#endif
+#endif
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -65,6 +75,9 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
+#ifdef QCOM_ENHANCED_AUDIO
+int AwesomePlayer::mTunnelAliveAP = 0;
+#endif
 
 struct AwesomeEvent : public TimedEventQueue::Event {
     AwesomeEvent(
@@ -215,6 +228,9 @@ AwesomePlayer::AwesomePlayer()
     mAudioStatusEventPending = false;
 
     reset();
+#ifdef QCOM_ENHANCED_AUDIO
+    mIsTunnelAudio = false;
+#endif
 }
 
 AwesomePlayer::~AwesomePlayer() {
@@ -223,6 +239,17 @@ AwesomePlayer::~AwesomePlayer() {
     }
 
     reset();
+
+#ifdef QCOM_ENHANCED_AUDIO
+    // Disable Tunnel Mode Audio
+    if (mIsTunnelAudio) {
+        if(mTunnelAliveAP > 0) {
+            mTunnelAliveAP--;
+            ALOGV("mTunnelAliveAP = %d", mTunnelAliveAP);
+        }
+    }
+    mIsTunnelAudio = false;
+#endif
 
     mClient.disconnect();
 }
@@ -858,6 +885,9 @@ status_t AwesomePlayer::play() {
 }
 
 status_t AwesomePlayer::play_l() {
+#ifdef QCOM_ENHANCED_AUDIO
+    int tunnelObjectsAlive = 0;
+#endif
     modifyFlags(SEEK_PREVIEW, CLEAR);
 
     if (mFlags & PLAYING) {
@@ -885,6 +915,13 @@ status_t AwesomePlayer::play_l() {
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
             if (mAudioSink != NULL) {
+#ifdef QCOM_ENHANCED_AUDIO
+                sp<MetaData> format = mAudioTrack->getFormat();
+                const char *mime;
+                bool success = format->findCString(kKeyMIMEType, &mime);
+                CHECK(success);
+#endif
+
                 bool allowDeepBuffering;
                 int64_t cachedDurationUs;
                 bool eos;
@@ -896,8 +933,64 @@ status_t AwesomePlayer::play_l() {
                 } else {
                     allowDeepBuffering = false;
                 }
+#ifdef QCOM_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
+                // Create tunnel player if tunnel mode is enabled
+                ALOGW("Trying to create tunnel player mIsTunnelAudio %d, \
+                        LPAPlayer::objectsAlive %d, \
+                        TunnelPlayer::mTunnelObjectsAlive = %d,\
+                        (mAudioPlayer == NULL) %d",
+                        mIsTunnelAudio, TunnelPlayer::mTunnelObjectsAlive,
+                        LPAPlayer::objectsAlive,(mAudioPlayer == NULL));
 
-                mAudioPlayer = new AudioPlayer(mAudioSink, allowDeepBuffering, this);
+                if(mIsTunnelAudio && (mAudioPlayer == NULL) &&
+                        (LPAPlayer::objectsAlive == 0) &&
+                        (TunnelPlayer::mTunnelObjectsAlive == 0)) {
+                    ALOGD("Tunnel player created for  mime %s duration %lld\n",\
+                        mime, mDurationUs);
+                    bool initCheck =  false;
+                    if(mVideoSource != NULL) {
+                        // The parameter true is to inform tunnel player that
+                        // clip is audio video
+                        mAudioPlayer = new TunnelPlayer(mAudioSink, initCheck,
+                                this, true);
+                    }
+                    else {
+                        mAudioPlayer = new TunnelPlayer(mAudioSink, initCheck,
+                                this);
+                    }
+                    if(!initCheck) {
+                        ALOGE("deleting Tunnel Player - initCheck failed");
+                        delete mAudioPlayer;
+                        mAudioPlayer = NULL;
+                    }
+                }
+                tunnelObjectsAlive = (TunnelPlayer::mTunnelObjectsAlive);
+#endif
+                char lpaDecode[128];
+                property_get("lpa.decode",lpaDecode,"0");
+                if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) && tunnelObjectsAlive==0 )
+                {
+                    ALOGV("LPAPlayer::getObjectsAlive() %d",LPAPlayer::objectsAlive);
+                    if ( mDurationUs > 60000000
+                         && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
+                         && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL) {
+                        ALOGD("LPAPlayer created, LPA MODE detected mime %s duration %lld", mime, mDurationUs);
+                        bool initCheck =  false;
+                        mAudioPlayer = new LPAPlayer(mAudioSink, initCheck, this);
+                        if(!initCheck) {
+                             delete mAudioPlayer;
+                             mAudioPlayer = NULL;
+                        }
+                    }
+                }
+                if(mAudioPlayer == NULL) {
+                    ALOGV("AudioPlayer created, Non-LPA mode mime %s duration %lld\n", mime, mDurationUs);
+#endif
+                    mAudioPlayer = new AudioPlayer(mAudioSink, allowDeepBuffering, this);
+#ifdef QCOM_ENHANCED_AUDIO
+                }
+#endif
                 mAudioPlayer->setSource(mAudioSource);
 
                 mTimeSource = mAudioPlayer;
@@ -915,9 +1008,14 @@ status_t AwesomePlayer::play_l() {
         if (mVideoSource == NULL) {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
-
-            status_t err = startAudioPlayer_l(
-                    false /* sendErrorNotification */);
+            bool sendErrorNotification = false;
+#ifdef QCOM_ENHANCED_AUDIO
+            if(mIsTunnelAudio) {
+                // For tunnel Audio error has to be posted to the client
+                sendErrorNotification = true;
+            }
+#endif
+            status_t err = startAudioPlayer_l(sendErrorNotification);
 
             if (err != OK) {
                 delete mAudioPlayer;
@@ -1387,14 +1485,92 @@ status_t AwesomePlayer::initAudioDecoder() {
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
+#ifdef QCOM_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
+    char value[PROPERTY_VALUE_MAX];
+    char tunnelDecode[128];
+    property_get("tunnel.decode",tunnelDecode,"0");
+    // Enable tunnel mode for mp3 and aac and if the clip is not aac adif
+    // and if no other tunnel mode instances aare running.
+    ALOGD("Tunnel Mime Type: %s, object alive = %d, mTunnelAliveAP = %d",\
+            mime, (TunnelPlayer::mTunnelObjectsAlive), mTunnelAliveAP);
+    if(((strcmp("true",tunnelDecode) == 0)||(atoi(tunnelDecode))) &&
+            (TunnelPlayer::mTunnelObjectsAlive == 0) &&
+            mTunnelAliveAP == 0 &&
+            ((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) ||
+            (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC)))) {
 
+        if(mVideoSource != NULL) {
+           char tunnelAVDecode[128];
+           property_get("tunnel.audiovideo.decode",tunnelAVDecode,"0");
+           if(((strncmp("true", tunnelAVDecode, 4) == 0)||(atoi(tunnelAVDecode)))) {
+               ALOGD("Enable Tunnel Mode for A-V playback");
+               mIsTunnelAudio = true;
+           }
+        }
+        else {
+            ALOGI("Tunnel Mode Audio Enabled");
+            mIsTunnelAudio = true;
+        }
+    }
+    else
+       ALOGD("Normal Audio Playback");
+#endif
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW) ||
+             (mIsTunnelAudio && (mTunnelAliveAP == 0))) {
+        ALOGD("Set Audio Track as Audio Source");
+        if(mIsTunnelAudio) {
+            mTunnelAliveAP++;
+        }
+#else
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+#endif
         mAudioSource = mAudioTrack;
     } else {
+#ifdef QCOM_ENHANCED_AUDIO
+        // For LPA Playback use the decoder without OMX layer
+        char *matchComponentName = NULL;
+        int64_t durationUs;
+        uint32_t flags = 0;
+        char lpaDecode[128];
+        property_get("lpa.decode",lpaDecode,"0");
+        if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
+            Mutex::Autolock autoLock(mMiscStateLock);
+            if (mDurationUs < 0 || durationUs > mDurationUs) {
+                mDurationUs = durationUs;
+            }
+        }
+        if ( mDurationUs > 60000000
+             && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
+             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)) {
+            char nonOMXDecoder[128];
+            if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
+                ALOGD("matchComponentName is set to MP3Decoder %lld, mime %s",mDurationUs,mime);
+                property_get("use.non-omx.mp3.decoder",nonOMXDecoder,"0");
+                if((strcmp("true",nonOMXDecoder) == 0)) {
+                    matchComponentName = (char *) "MP3Decoder";
+                }
+            } else if((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC))) {
+                ALOGD("matchComponentName is set to AACDecoder %lld, mime %s",mDurationUs,mime);
+                property_get("use.non-omx.aac.decoder",nonOMXDecoder,"0");
+                if((strcmp("true",nonOMXDecoder) == 0)) {
+                    matchComponentName = (char *) "AACDecoder";
+                } else {
+                    matchComponentName = (char *) "OMX.google.aac.decoder";
+                }
+            }
+            flags |= OMXCodec::kSoftwareCodecsOnly;
+        }
+        mAudioSource = OMXCodec::Create(
+                mClient.interface(), mAudioTrack->getFormat(),
+                false, // createEncoder
+                mAudioTrack, matchComponentName, flags,NULL);
+#else
         mAudioSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
                 mAudioTrack);
+#endif
     }
 
     if (mAudioSource != NULL) {

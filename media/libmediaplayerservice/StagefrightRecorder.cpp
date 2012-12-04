@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2010 - 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +30,10 @@
 #include <media/stagefright/AudioSource.h>
 #include <media/stagefright/AMRWriter.h>
 #include <media/stagefright/AACWriter.h>
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/ExtendedWriter.h>
+#include <media/stagefright/WAVEWriter.h>
+#endif
 #include <media/stagefright/CameraSource.h>
 #include <media/stagefright/CameraSourceTimeLapse.h>
 #include <media/stagefright/MPEG2TSWriter.h>
@@ -49,6 +54,9 @@
 #include <unistd.h>
 
 #include <system/audio.h>
+#ifdef QCOM_HARDWARE
+#include <QCMediaDefs.h>
+#endif
 
 #include "ARTPWriter.h"
 
@@ -159,6 +167,26 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
         mAudioEncoder = ae;
     }
 
+#ifdef QCOM_HARDWARE
+    // Use default values if appropriate setparam's weren't called.
+    if(mAudioEncoder == AUDIO_ENCODER_AAC) {
+        mSampleRate = mSampleRate ? mSampleRate : 48000;
+        mAudioChannels = mAudioChannels ? mAudioChannels : 2;
+        mAudioBitRate = mAudioBitRate ? mAudioBitRate : 156000;
+    } else if(mAudioEncoder == AUDIO_ENCODER_LPCM) {
+        mSampleRate = mSampleRate ? mSampleRate : 48000;
+        mAudioChannels = mAudioChannels ? mAudioChannels : 2;
+        mAudioBitRate = mAudioBitRate ? mAudioBitRate : 4608000;
+    } else if(mAudioEncoder == AUDIO_ENCODER_AMR_WB) {
+        mSampleRate = 16000;
+        mAudioChannels = 1;
+        mAudioBitRate = 23850;
+    } else {
+        mSampleRate = mSampleRate ? mSampleRate : 8000;
+        mAudioChannels = mAudioChannels ? mAudioChannels : 1;
+        mAudioBitRate = mAudioBitRate ? mAudioBitRate : 12200;
+    }
+#endif
     return OK;
 }
 
@@ -768,7 +796,15 @@ status_t StagefrightRecorder::start() {
         case OUTPUT_FORMAT_MPEG2TS:
             status = startMPEG2TSRecording();
             break;
+#ifdef QCOM_HARDWARE
+        case OUTPUT_FORMAT_QCP:
+            status = startExtendedRecording( );
+            break;
 
+        case OUTPUT_FORMAT_WAVE:
+            status = startWAVERecording( );
+            break;
+#endif
         default:
             ALOGE("Unsupported output file format: %d", mOutputFormat);
             status = UNKNOWN_ERROR;
@@ -809,6 +845,11 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     sp<MetaData> encMeta = new MetaData;
     const char *mime;
     switch (mAudioEncoder) {
+#ifdef QCOM_HARDWARE
+        case AUDIO_ENCODER_LPCM:
+            mime = MEDIA_MIMETYPE_AUDIO_RAW;
+            break;
+#endif
         case AUDIO_ENCODER_AMR_NB:
         case AUDIO_ENCODER_DEFAULT:
             mime = MEDIA_MIMETYPE_AUDIO_AMR_NB;
@@ -828,6 +869,14 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             mime = MEDIA_MIMETYPE_AUDIO_AAC;
             encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectELD);
             break;
+#ifdef QCOM_HARDWARE
+        case AUDIO_ENCODER_EVRC:
+            mime = MEDIA_MIMETYPE_AUDIO_EVRC;
+            break;
+        case AUDIO_ENCODER_QCELP:
+            mime = MEDIA_MIMETYPE_AUDIO_QCELP;
+            break;
+#endif
 
         default:
             ALOGE("Unknown audio encoder: %d", mAudioEncoder);
@@ -852,6 +901,17 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     sp<MediaSource> audioEncoder =
         OMXCodec::Create(client.interface(), encMeta,
                          true /* createEncoder */, audioSource);
+#ifdef QCOM_HARDWARE
+    // If encoder could not be created (as in LPCM), then
+    // use the AudioSource directly as the MediaSource.
+    if (audioEncoder == NULL && AUDIO_ENCODER_LPCM) {
+        ALOGD("No encoder is needed, use the AudioSource directly as the MediaSource for LPCM format");
+        audioEncoder = audioSource;
+    }
+    if (mAudioSourceNode != NULL) {
+        mAudioSourceNode.clear();
+    }
+#endif
     mAudioSourceNode = audioSource;
 
     return audioEncoder;
@@ -888,13 +948,35 @@ status_t StagefrightRecorder::startAMRRecording() {
                     mAudioEncoder);
             return BAD_VALUE;
         }
+#ifdef QCOM_HARDWARE
+        if (mSampleRate != 8000) {
+            ALOGE("Invalid sampling rate %d used for AMRNB recording",
+                    mSampleRate);
+            return BAD_VALUE;
+        }
+#endif
     } else {  // mOutputFormat must be OUTPUT_FORMAT_AMR_WB
         if (mAudioEncoder != AUDIO_ENCODER_AMR_WB) {
             ALOGE("Invlaid encoder %d used for AMRWB recording",
                     mAudioEncoder);
             return BAD_VALUE;
         }
+#ifdef QCOM_HARDWARE
+        if (mSampleRate != 16000) {
+            ALOGE("Invalid sample rate %d used for AMRWB recording",
+                    mSampleRate);
+            return BAD_VALUE;
+        }
+#endif
     }
+
+#ifdef QCOM_HARDWARE
+    if (mAudioChannels != 1) {
+        ALOGE("Invalid number of audio channels %d used for amr recording",
+                mAudioChannels);
+        return BAD_VALUE;
+    }
+#endif
 
     mWriter = new AMRWriter(mOutputFd);
     status_t status = startRawAudioRecording();
@@ -904,6 +986,24 @@ status_t StagefrightRecorder::startAMRRecording() {
     }
     return status;
 }
+
+#ifdef QCOM_HARDWARE
+status_t StagefrightRecorder::startWAVERecording() {
+    CHECK(mOutputFormat == OUTPUT_FORMAT_WAVE);
+
+    CHECK(mAudioEncoder == AUDIO_ENCODER_LPCM);
+    CHECK(mAudioSource != AUDIO_SOURCE_CNT);
+
+    mWriter = new WAVEWriter(mOutputFd);
+    status_t status = startRawAudioRecording();
+    if (status != OK) {
+        mWriter.clear();
+        mWriter = NULL;
+    }
+
+    return status;
+}
+#endif
 
 status_t StagefrightRecorder::startRawAudioRecording() {
     if (mAudioSource >= AUDIO_SOURCE_CNT) {
@@ -1450,6 +1550,9 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
         case AUDIO_ENCODER_AAC:
         case AUDIO_ENCODER_HE_AAC:
         case AUDIO_ENCODER_AAC_ELD:
+#ifdef QCOM_HARDWARE
+        case AUDIO_ENCODER_LPCM:
+#endif
             break;
 
         default:
@@ -1611,7 +1714,12 @@ status_t StagefrightRecorder::stop() {
         ::close(mOutputFd);
         mOutputFd = -1;
     }
-
+#ifdef QCOM_HARDWARE
+    if (mAudioSourceNode != NULL) {
+        mAudioSourceNode.clear();
+        mAudioSourceNode = NULL;
+    }
+#endif
     if (mStarted) {
         mStarted = false;
 
@@ -1653,9 +1761,15 @@ status_t StagefrightRecorder::reset() {
     mVideoHeight   = 144;
     mFrameRate     = -1;
     mVideoBitRate  = 192000;
+#ifdef QCOM_HARDWARE
+    mSampleRate    = 0;
+    mAudioChannels = 0;
+    mAudioBitRate  = 0;
+#else
     mSampleRate    = 8000;
     mAudioChannels = 1;
     mAudioBitRate  = 12200;
+#endif
     mInterleaveDurationUs = 0;
     mIFramesIntervalSec = 1;
     mAudioSourceNode = 0;
@@ -1767,4 +1881,48 @@ status_t StagefrightRecorder::dump(
     ::write(fd, result.string(), result.size());
     return OK;
 }
+
+#ifdef QCOM_HARDWARE
+status_t StagefrightRecorder::startExtendedRecording() {
+    CHECK(mOutputFormat == OUTPUT_FORMAT_QCP);
+
+    if (mSampleRate != 8000) {
+        ALOGE("Invalid sampling rate %d used for recording",
+             mSampleRate);
+        return BAD_VALUE;
+    }
+    if (mAudioChannels != 1) {
+        ALOGE("Invalid number of audio channels %d used for recording",
+                mAudioChannels);
+        return BAD_VALUE;
+    }
+
+    if (mAudioSource >= AUDIO_SOURCE_CNT) {
+        ALOGE("Invalid audio source: %d", mAudioSource);
+        return BAD_VALUE;
+    }
+
+    sp<MediaSource> audioEncoder = createAudioSource();
+
+    if (audioEncoder == NULL) {
+        ALOGE("AudioEncoder NULL");
+        return UNKNOWN_ERROR;
+    }
+
+    mWriter = new ExtendedWriter(dup(mOutputFd));
+    mWriter->addSource(audioEncoder);
+
+    if (mMaxFileDurationUs != 0) {
+        mWriter->setMaxFileDuration(mMaxFileDurationUs);
+    }
+    if (mMaxFileSizeBytes != 0) {
+        mWriter->setMaxFileSize(mMaxFileSizeBytes);
+    }
+    mWriter->setListener(mListener);
+    mWriter->start();
+
+    return OK;
+}
+#endif
+
 }  // namespace android

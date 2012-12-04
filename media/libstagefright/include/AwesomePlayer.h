@@ -200,6 +200,9 @@ private:
 
     bool mWatchForAudioSeekComplete;
     bool mWatchForAudioEOS;
+#ifdef QCOM_ENHANCED_AUDIO
+    static int mTunnelAliveAP;
+#endif
 
     sp<TimedEventQueue::Event> mVideoEvent;
     bool mVideoEventPending;
@@ -338,6 +341,11 @@ private:
     status_t selectTrack(size_t trackIndex, bool select);
 
     size_t countTracks() const;
+
+#ifdef QCOM_ENHANCED_AUDIO
+    //Flag to check if tunnel mode audio is enabled
+    bool mIsTunnelAudio;
+#endif
 
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
