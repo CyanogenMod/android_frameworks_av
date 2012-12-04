@@ -13,6 +13,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
     AudioTrack.cpp \
+    AudioTrackShared.cpp \
     IAudioFlinger.cpp \
     IAudioFlingerClient.cpp \
     IAudioTrack.cpp \
