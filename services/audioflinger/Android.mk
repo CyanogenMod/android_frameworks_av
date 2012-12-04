@@ -78,6 +78,13 @@ LOCAL_CFLAGS += -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE
 # LOCAL_SRC_FILES += AudioWatchdog.cpp
 # LOCAL_CFLAGS += -DAUDIO_WATCHDOG
 
+# Define ANDROID_SMP appropriately. Used to get inline tracing fast-path.
+ifeq ($(TARGET_CPU_SMP),true)
+    LOCAL_CFLAGS += -DANDROID_SMP=1
+else
+    LOCAL_CFLAGS += -DANDROID_SMP=0
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 #
