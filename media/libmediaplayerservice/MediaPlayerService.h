@@ -114,6 +114,10 @@ class MediaPlayerService : public BnMediaPlayerService
                 void            setNextOutput(const sp<AudioOutput>& nextOutput);
                 void            switchToNextOutput();
         virtual bool            needsTrailingPadding() { return mNextOutput == NULL; }
+#ifdef QCOM_HARDWARE
+        virtual ssize_t         sampleRate() const;
+        virtual status_t        getTimeStamp(uint64_t *tstamp);
+#endif
 
     private:
         static void             setMinBufferCount();
@@ -205,8 +209,10 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            close() {}
                 void            setAudioStreamType(audio_stream_type_t streamType) {}
                 void            setVolume(float left, float right) {}
-        virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
+#ifndef QCOM_HARDWARE
                 uint32_t        sampleRate() const { return mSampleRate; }
+#endif
+        virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
                 audio_format_t  format() const { return mFormat; }
                 size_t          size() const { return mSize; }
                 status_t        wait();
@@ -216,6 +222,9 @@ class MediaPlayerService : public BnMediaPlayerService
         static  void            notify(void* cookie, int msg,
                                        int ext1, int ext2, const Parcel *obj);
         virtual status_t        dump(int fd, const Vector<String16>& args) const;
+#ifdef QCOM_HARDWARE
+        virtual ssize_t         sampleRate() const;
+#endif
 
     private:
                                 AudioCache();

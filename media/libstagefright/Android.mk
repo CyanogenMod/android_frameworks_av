@@ -1,6 +1,12 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
+endif
+
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 LOCAL_SRC_FILES:=                         \
@@ -63,7 +69,22 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
-        $(TOP)/external/openssl/include \
+        $(TOP)/external/openssl/include
+
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+LOCAL_SRC_FILES += \
+        ExtendedWriter.cpp                \
+        LPAPlayerALSA.cpp                 \
+        QCMediaDefs.cpp                   \
+        QCOMXCodec.cpp                    \
+        TunnelPlayer.cpp                  \
+        WAVEWriter.cpp                    \
+        ExtendedExtractor.cpp
+
+LOCAL_C_INCLUDES += \
+        $(TOP)/hardware/qcom/media/mm-core/inc
+endif
+
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
