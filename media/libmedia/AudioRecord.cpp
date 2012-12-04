@@ -75,7 +75,8 @@ status_t AudioRecord::getMinFrameCount(
 
 AudioRecord::AudioRecord()
     : mStatus(NO_INIT), mSessionId(0),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT),
+      mProxy(NULL)
 {
 }
 
@@ -90,7 +91,9 @@ AudioRecord::AudioRecord(
         int notificationFrames,
         int sessionId)
     : mStatus(NO_INIT), mSessionId(0),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousPriority(ANDROID_PRIORITY_NORMAL),
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mProxy(NULL)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask,
             frameCount, cbf, user, notificationFrames, sessionId);
@@ -112,6 +115,7 @@ AudioRecord::~AudioRecord()
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
     }
+    delete mProxy;
 }
 
 status_t AudioRecord::set(
@@ -149,6 +153,8 @@ status_t AudioRecord::set(
     if (sampleRate == 0) {
         sampleRate = DEFAULT_SAMPLE_RATE;
     }
+    mSampleRate = sampleRate;
+
     // these below should probably come from the audioFlinger too...
     if (format == AUDIO_FORMAT_DEFAULT) {
         format = AUDIO_FORMAT_PCM_16_BIT;
@@ -165,6 +171,12 @@ status_t AudioRecord::set(
     mChannelMask = channelMask;
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
+
+    if (audio_is_linear_pcm(mFormat)) {
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+    } else {
+        mFrameSize = sizeof(uint8_t);
+    }
 
     if (sessionId == 0 ) {
         mSessionId = AudioSystem::newAudioSessionId();
@@ -217,12 +229,6 @@ status_t AudioRecord::set(
     mFormat = format;
     // Update buffer size in case it has been limited by AudioFlinger during track creation
     mFrameCount = mCblk->frameCount_;
-
-    if (audio_is_linear_pcm(mFormat)) {
-        mFrameSize = channelCount * audio_bytes_per_sample(format);
-    } else {
-        mFrameSize = sizeof(uint8_t);
-    }
 
     mActive = false;
     mCbf = cbf;
@@ -360,7 +366,7 @@ bool AudioRecord::stopped() const
 
 uint32_t AudioRecord::getSampleRate() const
 {
-    return mCblk->sampleRate;
+    return mSampleRate;
 }
 
 status_t AudioRecord::setMarkerPosition(uint32_t marker)
@@ -473,11 +479,18 @@ status_t AudioRecord::openRecord_l(
     mBuffers = (char*)cblk + sizeof(audio_track_cblk_t);
     cblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
     cblk->waitTimeMs = 0;
+
+    // update proxy
+    delete mProxy;
+    mProxy = new AudioRecordClientProxy(cblk, mBuffers, frameCount, mFrameSize);
+
     return NO_ERROR;
 }
 
 status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
 {
+    ALOG_ASSERT(mStatus == NO_ERROR && mProxy != NULL);
+
     AutoMutex lock(mLock);
     bool active;
     status_t result = NO_ERROR;
@@ -488,7 +501,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
     audioBuffer->frameCount  = 0;
     audioBuffer->size        = 0;
 
-    uint32_t framesReady = cblk->framesReadyIn();
+    size_t framesReady = mProxy->framesReady();
 
     if (framesReady == 0) {
         cblk->lock.lock();
@@ -551,7 +564,7 @@ create_new_record:
             }
             // read the server count again
         start_loop_here:
-            framesReady = cblk->framesReadyIn();
+            framesReady = mProxy->framesReady();
         }
         cblk->lock.unlock();
     }
@@ -573,15 +586,17 @@ create_new_record:
 
     audioBuffer->frameCount  = framesReq;
     audioBuffer->size        = framesReq * mFrameSize;
-    audioBuffer->raw         = cblk->buffer(mBuffers, mFrameSize, u);
+    audioBuffer->raw         = mProxy->buffer(u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }
 
 void AudioRecord::releaseBuffer(Buffer* audioBuffer)
 {
+    ALOG_ASSERT(mStatus == NO_ERROR && mProxy != NULL);
+
     AutoMutex lock(mLock);
-    mCblk->stepUserIn(audioBuffer->frameCount, mFrameCount);
+    (void) mProxy->stepUser(audioBuffer->frameCount);
 }
 
 audio_io_handle_t AudioRecord::getInput() const
@@ -594,7 +609,7 @@ audio_io_handle_t AudioRecord::getInput() const
 audio_io_handle_t AudioRecord::getInput_l()
 {
     mInput = AudioSystem::getInput(mInputSource,
-                                mCblk->sampleRate,
+                                mSampleRate,
                                 mFormat,
                                 mChannelMask,
                                 mSessionId);
@@ -745,7 +760,7 @@ bool AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 
 
     // Manage overrun callback
-    if (active && (cblk->framesAvailableIn(mFrameCount) == 0)) {
+    if (active && (mProxy->framesAvailable() == 0)) {
         // The value of active is stale, but we are almost sure to be active here because
         // otherwise we would have exited when obtainBuffer returned STOPPED earlier.
         ALOGV("Overrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
@@ -781,7 +796,7 @@ status_t AudioRecord::restoreRecord_l(audio_track_cblk_t*& refCblk)
     // if the new IAudioRecord is created, openRecord_l() will modify the
     // following member variables: mAudioRecord, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioRecord and IMemory
-    result = openRecord_l(cblk->sampleRate, mFormat, mFrameCount, getInput_l());
+    result = openRecord_l(mSampleRate, mFormat, mFrameCount, getInput_l());
     if (result == NO_ERROR) {
         newCblk = mCblk;
         // callback thread or sync event hasn't changed

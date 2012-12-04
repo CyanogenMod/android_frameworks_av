@@ -2643,7 +2643,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // read original volumes with volume control
                 float typeVolume = mStreamTypes[track->streamType()].volume;
                 float v = masterVolume * typeVolume;
-                uint32_t vlr = cblk->getVolumeLR();
+                ServerProxy *proxy = track->mServerProxy;
+                uint32_t vlr = proxy->getVolumeLR();
                 vl = vlr & 0xFFFF;
                 vr = vlr >> 16;
                 // track volumes come from shared memory, so can't be trusted and must be clamped
@@ -2661,7 +2662,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // assuming master volume and stream type volume each go up to 1.0,
                 // vl and vr are now in 8.24 format
 
-                uint16_t sendLevel = cblk->getSendLevel_U4_12();
+                uint16_t sendLevel = proxy->getSendLevel_U4_12();
                 // send level comes from shared memory and so may be corrupt
                 if (sendLevel > MAX_GAIN_INT) {
                     ALOGV("Track send level out of range: %04X", sendLevel);
@@ -2713,11 +2714,19 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 name,
                 AudioMixer::TRACK,
                 AudioMixer::CHANNEL_MASK, (void *)track->channelMask());
+            // limit track sample rate to 2 x output sample rate, which changes at re-configuration
+            uint32_t maxSampleRate = mSampleRate * 2;
+            uint32_t reqSampleRate = track->mServerProxy->getSampleRate();
+            if (reqSampleRate == 0) {
+                reqSampleRate = mSampleRate;
+            } else if (reqSampleRate > maxSampleRate) {
+                reqSampleRate = maxSampleRate;
+            }
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::RESAMPLE,
                 AudioMixer::SAMPLE_RATE,
-                (void *)(cblk->sampleRate));
+                (void *)reqSampleRate);
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TRACK,
@@ -2990,10 +2999,6 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                         break;
                     }
                     mTracks[i]->mName = name;
-                    // limit track sample rate to 2 x new output sample rate
-                    if (mTracks[i]->mCblk->sampleRate > 2 * sampleRate()) {
-                        mTracks[i]->mCblk->sampleRate = 2 * sampleRate();
-                    }
                 }
                 sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
             }
@@ -3142,7 +3147,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             } else {
                 float typeVolume = mStreamTypes[track->streamType()].volume;
                 float v = mMasterVolume * typeVolume;
-                uint32_t vlr = cblk->getVolumeLR();
+                uint32_t vlr = track->mServerProxy->getVolumeLR();
                 float v_clamped = v * (vlr & 0xFFFF);
                 if (v_clamped > MAX_GAIN) {
                     v_clamped = MAX_GAIN;

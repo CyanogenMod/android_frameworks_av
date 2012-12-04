@@ -44,7 +44,8 @@ public:
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
                                 const sp<IMemory>& sharedBuffer,
-                                int sessionId);
+                                int sessionId,
+                                bool isOut);
     virtual             ~TrackBase();
 
     virtual status_t    start(AudioSystem::sync_event_t event,
@@ -108,7 +109,8 @@ protected:
     bool step();    // mStepCount is an implicit input
     void reset();
 
-    virtual bool isOut() const = 0; // true for Track and TimedTrack, false for RecordTrack,
+    bool isOut() const { return mIsOut; }
+                                    // true for Track and TimedTrack, false for RecordTrack,
                                     // this could be a track type if needed later
 
     const wp<ThreadBase> mThread;
@@ -116,6 +118,7 @@ protected:
     sp<IMemory>         mCblkMemory;
     audio_track_cblk_t* mCblk;
     void*               mBuffer;    // start of track buffer, typically in shared memory
+                                    // except for OutputTrack when it is in local memory
     void*               mBufferEnd; // &mBuffer[mFrameCount * frameSize], where frameSize
                                     //   is based on mChannelCount and 16-bit samples
     uint32_t            mStepCount; // saves AudioBufferProvider::Buffer::frameCount as of
@@ -136,4 +139,6 @@ protected:
     bool                mStepServerFailed;
     const int           mSessionId;
     Vector < sp<SyncEvent> >mSyncEvents;
+    const bool          mIsOut;
+    ServerProxy*        mServerProxy;
 };
