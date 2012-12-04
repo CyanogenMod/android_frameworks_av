@@ -125,6 +125,10 @@ LOCAL_C_INCLUDES += \
 
 endif
 
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_CFLAGS += -DUSE_V4L2_ION
+endif
+
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional

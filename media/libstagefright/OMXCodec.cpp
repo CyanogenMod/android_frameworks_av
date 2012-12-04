@@ -1828,9 +1828,21 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     ALOGV("native_window_set_usage usage=0x%lx", usage);
 
 #ifdef EXYNOS4_ENHANCEMENTS
+#ifdef USE_V4L2_ION
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
-            | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY);
+            | GRALLOC_USAGE_HW_ION | GRALLOC_USAGE_HWC_HWOVERLAY);
+#else
+    if (mFlags & kUseSecureInputBuffers) {
+        err = native_window_set_usage(
+                mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+                                            | GRALLOC_USAGE_HWC_HWOVERLAY);
+    } else {
+        err = native_window_set_usage(
+                mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+                | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY);
+    }
+#endif
 #else
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);

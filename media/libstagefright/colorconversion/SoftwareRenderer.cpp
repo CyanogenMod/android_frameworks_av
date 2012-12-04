@@ -95,12 +95,21 @@ SoftwareRenderer::SoftwareRenderer(
     CHECK(mConverter == NULL || mConverter->isValid());
 
 #ifdef EXYNOS4_ENHANCEMENTS
+#ifdef USE_V4L2_ION
+    CHECK_EQ(0,
+            native_window_set_usage(
+            mNativeWindow.get(),
+            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
+            | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
+            | GRALLOC_USAGE_HW_ION | GRALLOC_USAGE_HWC_HWOVERLAY));
+#else
     CHECK_EQ(0,
             native_window_set_usage(
             mNativeWindow.get(),
             GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
             | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
             | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY));
+#endif
 #else
     CHECK_EQ(0,
             native_window_set_usage(
