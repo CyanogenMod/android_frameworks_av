@@ -88,6 +88,10 @@
 #include <media/nbaio/SourceAudioBufferProvider.h>
 
 #include "SchedulingPolicyService.h"
+#ifdef SRS_PROCESSING
+#include "srs_processing.h"
+#include "postpro_patch_ics.h"
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -780,6 +784,9 @@ void AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer, int16_t *outBu
             memcpy(outBuffer, inBuffer, size);
         }
     }
+#ifdef SRS_PROCESSING
+    POSTPRO_PATCH_ICS_OUTPROC_DIRECT_SAMPLES(token, AUDIO_FORMAT_PCM_16_BIT, outBuffer, size, mLPASampleRate, mLPANumChannels);
+#endif
 }
 #endif
 
@@ -1154,6 +1161,11 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
     // ioHandle == 0 means the parameters are global to the audio hardware interface
     if (ioHandle == 0) {
         Mutex::Autolock _l(mLock);
+#ifdef SRS_PROCESSING
+        POSTPRO_PATCH_ICS_PARAMS_SET(keyValuePairs);
+        if (!mDirectAudioTracks.isEmpty())
+            audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
+#endif
         status_t final_result = NO_ERROR;
         {
             AutoMutex lock(mHardwareLock);
@@ -1232,6 +1244,12 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             String8 key = String8(AudioParameter::keyRouting);
             int device;
             if (param.getInt(key, device) == NO_ERROR) {
+
+#ifdef SRS_PROCESSING
+                ALOGV("setParameters:: routing change to device %d", device);
+                desc->device = (audio_devices_t)device;
+                POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
+#endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
                     audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
@@ -1281,6 +1299,9 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
     if (ioHandle == 0) {
         String8 out_s8;
 
+#ifdef SRS_PROCESSING
+        POSTPRO_PATCH_ICS_PARAMS_GET(keys, out_s8);
+#endif
         for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
             char *s;
             {
@@ -2960,6 +2981,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
     standbyTime = systemTime();
 
+#ifdef SRS_PROCESSING
+if (mType == MIXER) {
+        POSTPRO_PATCH_ICS_OUTPROC_MIX_INIT(this, gettid());
+    } else if (mType == DUPLICATING) {
+        POSTPRO_PATCH_ICS_OUTPROC_DUPE_INIT(this, gettid());
+    }
+#endif
     // MIXER
     nsecs_t lastWarning = 0;
 
@@ -3074,6 +3102,15 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         // sleepTime == 0 means we must write to audio hardware
         if (sleepTime == 0) {
 
+#ifdef SRS_PROCESSING
+        if (mType == MIXER) {
+             POSTPRO_PATCH_ICS_OUTPROC_MIX_SAMPLES(this, mFormat, mMixBuffer,
+                mixBufferSize, mSampleRate, mChannelCount);
+        } else if (mType == DUPLICATING) {
+            POSTPRO_PATCH_ICS_OUTPROC_DUPE_SAMPLES(this, mFormat, mMixBuffer,
+                mixBufferSize, mSampleRate, mChannelCount);
+        }
+#endif
             threadLoop_write();
 
 if (mType == MIXER) {
@@ -3125,6 +3162,13 @@ if (mType == MIXER) {
         }
     }
 
+#ifdef SRS_PROCESSING
+        if (mType == MIXER) {
+            POSTPRO_PATCH_ICS_OUTPROC_MIX_EXIT(this, gettid());
+        } else if (mType == DUPLICATING) {
+            POSTPRO_PATCH_ICS_OUTPROC_DUPE_EXIT(this, gettid());
+        }
+#endif
     releaseWakeLock();
 
     ALOGV("Thread %p type %d exiting", this, mType);
@@ -3888,6 +3932,9 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
         String8 keyValuePair = mNewParameters[0];
         AudioParameter param = AudioParameter(keyValuePair);
         int value;
+#ifdef SRS_PROCESSING
+        POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(this, param, value);
+#endif
 
         if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
             reconfig = true;
@@ -6302,6 +6349,11 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
     : BnDirectTrack(), mIsPaused(false), mAudioFlinger(audioFlinger), mOutput(output), mOutputDesc(outputDesc),
       mClient(client), mEffectConfigChanged(false), mKillEffectsThread(false), mFlag(outflag)
 {
+#ifdef SRS_PROCESSING
+    ALOGD("SRS_Processing - DirectAudioTrack - OutNotify_Init: %p TID %d\n", this, gettid());
+    POSTPRO_PATCH_ICS_OUTPROC_DIRECT_INIT(this, gettid());
+    SRS_Processing::ProcessOutRoute(SRS_Processing::AUTO, this, outputDesc->device);
+#endif
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         createEffectThread();
 
@@ -6316,6 +6368,10 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
 }
 
 AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
+#ifdef SRS_PROCESSING
+    ALOGD("SRS_Processing - DirectAudioTrack - OutNotify_Init: %p TID %d\n", this, gettid());
+    POSTPRO_PATCH_ICS_OUTPROC_DIRECT_EXIT(this, gettid());
+#endif
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         requestAndWaitForEffectsThreadExit();
         mAudioFlinger->deregisterClient(mAudioFlingerClient);
@@ -7951,6 +8007,10 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = outHwDev;
 
+#ifdef SRS_PROCESSING
+            SRS_Processing::RawDataSet(NULL, "qdsp hook", &mPrimaryHardwareDev,
+                sizeof(&mPrimaryHardwareDev));
+#endif
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_MODE;
             hwDevHal->set_mode(hwDevHal, mMode);
