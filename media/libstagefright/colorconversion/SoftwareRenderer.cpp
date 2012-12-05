@@ -110,6 +110,12 @@ SoftwareRenderer::SoftwareRenderer(
 #endif
 
     CHECK_EQ(0,
+             mNativeWindow.get()->perform(
+             mNativeWindow.get(),
+             NATIVE_WINDOW_SET_BUFFERS_SIZE,
+             0));
+
+    CHECK_EQ(0,
             native_window_set_scaling_mode(
             mNativeWindow.get(),
             NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
