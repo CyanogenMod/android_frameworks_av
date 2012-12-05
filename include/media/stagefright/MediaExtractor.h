@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +50,7 @@ public:
         CAN_SEEK_FORWARD   = 2,  // the "seek 10secs forward button"
         CAN_PAUSE          = 4,
         CAN_SEEK           = 8,  // the "seek bar"
+        CAN_SEEK_TO_ZERO   = 16, // the "previous button"
     };
 
     // If subclasses do _not_ override this, the default is
