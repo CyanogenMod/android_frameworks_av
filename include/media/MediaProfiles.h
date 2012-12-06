@@ -1,4 +1,6 @@
 /*
+ ** Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ ** Not a Contribution.
  **
  ** Copyright 2010, The Android Open Source Project.
  **
@@ -466,6 +468,8 @@ private:
     static VideoEncoderCap* createDefaultH263VideoEncoderCap();
     static VideoEncoderCap* createDefaultM4vVideoEncoderCap();
     static AudioEncoderCap* createDefaultAmrNBEncoderCap();
+    static AudioEncoderCap* createDefaultAacEncoderCap();
+    static AudioEncoderCap* createDefaultLpcmEncoderCap();
 
     static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
 
