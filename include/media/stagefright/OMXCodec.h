@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -100,6 +103,8 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
+        kRequiresGlobalFlush                  = 0x20000000, // 2^29
+        kRequiresWMAProComponent              = 0x40000000, //2^30
     };
 
     struct CodecNameAndQuirks {
@@ -143,6 +148,7 @@ private:
     };
 
     enum {
+        kPortIndexBoth   = -1,
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };

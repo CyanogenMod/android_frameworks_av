@@ -43,6 +43,12 @@
 #include <OMX_Audio.h>
 #include <OMX_Component.h>
 #include <media/stagefright/ExtendedCodec.h>
+
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
+#include <QCMetaData.h>
+#include <QOMX_AudioExtensions.h>
+#endif
 #include "include/avc_utils.h"
 
 namespace android {
@@ -248,6 +254,18 @@ uint32_t OMXCodec::getComponentQuirks(
     if (list->codecHasQuirk(
                 index, "output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
+    }
+    if (list->codecHasQuirk(
+                index, "requies-loaded-to-idle-after-allocation")) {
+        quirks |= kRequiresLoadedToIdleAfterAllocation;
+    }
+    if (list->codecHasQuirk(
+                index, "requires-global-flush")) {
+        quirks |= kRequiresGlobalFlush;
+    }
+    if (list->codecHasQuirk(
+                index, "defers-output-buffer-allocation")) {
+        quirks |= kDefersOutputBufferAllocation;
     }
 
     quirks |= ExtendedCodec::getComponentQuirks(list,index);
@@ -497,6 +515,11 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
             CHECK(meta->findData(kKeyVorbisBooks, &type, &data, &size));
             addCodecSpecificData(data, size);
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        } else if (meta->findData(kKeyRawCodecSpecificData, &type, &data, &size)) {
+            ALOGV("OMXCodec::configureCodec found kKeyRawCodecSpecificData of size %d\n", size);
+            addCodecSpecificData(data, size);
+#endif
         } else {
             ExtendedCodec::getRawCodecSpecificData(meta, data, size);
             if (size) {
@@ -540,6 +563,17 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CODEC_LOGE("setAACFormat() failed (err = %d)", err);
             return err;
         }
+
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        uint32_t type;
+        const void *data;
+        size_t size;
+
+        if (meta->findData(kKeyAacCodecSpecificData, &type, &data, &size)) {
+            ALOGV("OMXCodec:: configureCodec found kKeyAacCodecSpecificData of size %d\n", size);
+            addCodecSpecificData(data, size);
+        }
+#endif
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MPEG, mMIME)) {
         int32_t numChannels, sampleRate;
         if (meta->findInt32(kKeyChannelCount, &numChannels)
@@ -1413,6 +1447,10 @@ void OMXCodec::setComponentRole(
             "audio_decoder.amrnb", "audio_encoder.amrnb" },
         { MEDIA_MIMETYPE_AUDIO_AMR_WB,
             "audio_decoder.amrwb", "audio_encoder.amrwb" },
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        { MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
+            "audio_decoder.amrwbplus", "audio_encoder.amrwbplus" },
+#endif
         { MEDIA_MIMETYPE_AUDIO_AAC,
             "audio_decoder.aac", "audio_encoder.aac" },
         { MEDIA_MIMETYPE_AUDIO_VORBIS,
@@ -1421,6 +1459,12 @@ void OMXCodec::setComponentRole(
             "audio_decoder.g711mlaw", "audio_encoder.g711mlaw" },
         { MEDIA_MIMETYPE_AUDIO_G711_ALAW,
             "audio_decoder.g711alaw", "audio_encoder.g711alaw" },
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        { MEDIA_MIMETYPE_AUDIO_EVRC,
+            "audio_decoder.evrchw", "audio_encoder.evrc" },
+        { MEDIA_MIMETYPE_AUDIO_QCELP,
+            "audio_decoder,qcelp13Hw", "audio_encoder.qcelp13" },
+#endif
         { MEDIA_MIMETYPE_VIDEO_AVC,
             "video_decoder.avc", "video_encoder.avc" },
         { MEDIA_MIMETYPE_VIDEO_MPEG4,
@@ -1435,6 +1479,16 @@ void OMXCodec::setComponentRole(
             "audio_decoder.flac", "audio_encoder.flac" },
         { MEDIA_MIMETYPE_AUDIO_MSGSM,
             "audio_decoder.gsm", "audio_encoder.gsm" },
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        { MEDIA_MIMETYPE_VIDEO_DIVX,
+            "video_decoder.divx", NULL },
+        { MEDIA_MIMETYPE_AUDIO_AC3,
+            "audio_decoder.ac3", NULL },
+        { MEDIA_MIMETYPE_AUDIO_EAC3,
+            "audio_decoder.eac3", NULL },
+        { MEDIA_MIMETYPE_VIDEO_DIVX311,
+            "video_decoder.divx", NULL },
+#endif
     };
 
     static const size_t kNumMimeToRole =
@@ -2589,11 +2643,18 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
             CODEC_LOGV("FLUSH_DONE(%ld)", portIndex);
 
+            if (portIndex == (OMX_U32) -1) {
+                CHECK_EQ((int)mPortStatus[kPortIndexInput], (int)SHUTTING_DOWN);
+                mPortStatus[kPortIndexInput] = ENABLED;
+                CHECK_EQ((int)mPortStatus[kPortIndexOutput], (int)SHUTTING_DOWN);
+                mPortStatus[kPortIndexOutput] = ENABLED;
+            } else {
             CHECK_EQ((int)mPortStatus[portIndex], (int)SHUTTING_DOWN);
             mPortStatus[portIndex] = ENABLED;
 
             CHECK_EQ(countBuffersWeOwn(mPortBuffers[portIndex]),
                      mPortBuffers[portIndex].size());
+            }
 
             if (mSkipCutBuffer != NULL && mPortStatus[kPortIndexOutput] == ENABLED) {
                 mSkipCutBuffer->clear();
@@ -2858,6 +2919,10 @@ bool OMXCodec::flushPortAsync(OMX_U32 portIndex) {
     CHECK(mState == EXECUTING || mState == RECONFIGURING
             || mState == EXECUTING_TO_IDLE);
 
+    if (portIndex == (OMX_U32) -1 ) {
+        mPortStatus[kPortIndexInput] = SHUTTING_DOWN;
+        mPortStatus[kPortIndexOutput] = SHUTTING_DOWN;
+    } else {
     CODEC_LOGV("flushPortAsync(%ld): we own %d out of %d buffers already.",
          portIndex, countBuffersWeOwn(mPortBuffers[portIndex]),
          mPortBuffers[portIndex].size());
@@ -2872,6 +2937,7 @@ bool OMXCodec::flushPortAsync(OMX_U32 portIndex) {
         // flush-complete event in this case.
 
         return false;
+        }
     }
 
     status_t err =
@@ -3307,6 +3373,12 @@ status_t OMXCodec::waitForBufferFilled_l() {
         return mBufferFilled.wait(mLock);
     }
     status_t err = mBufferFilled.waitRelative(mLock, kBufferFilledEventTimeOutNs);
+    if ((err == -ETIMEDOUT) && (mPaused == true)){
+        // When the audio playback is paused, the fill buffer maybe timed out
+        // if input data is not available to decode. Hence, considering the
+        // timed out as a valid case.
+        err = OK;
+    }
     if (err != OK) {
         CODEC_LOGE("Timed out waiting for output buffers: %d/%d",
             countBuffersWeOwn(mPortBuffers[kPortIndexInput]),
@@ -3772,6 +3844,14 @@ status_t OMXCodec::stopOmxComponent_l() {
                 CODEC_LOGV("This component requires a flush before transitioning "
                      "from EXECUTING to IDLE...");
 
+                //DSP supports flushing of ports simultaneously.
+                //Flushing individual port is not supported.
+                if(mQuirks & kRequiresGlobalFlush) {
+                    bool emulateFlushCompletion = !flushPortAsync(kPortIndexBoth);
+                    if (emulateFlushCompletion) {
+                        onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
+                    }
+                } else {
                 bool emulateInputFlushCompletion =
                     !flushPortAsync(kPortIndexInput);
 
@@ -3784,6 +3864,7 @@ status_t OMXCodec::stopOmxComponent_l() {
 
                 if (emulateOutputFlushCompletion) {
                     onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+                    }
                 }
             } else {
                 mPortStatus[kPortIndexInput] = SHUTTING_DOWN;
@@ -3891,16 +3972,34 @@ status_t OMXCodec::read(
         mFilledBuffers.clear();
 
         CHECK_EQ((int)mState, (int)EXECUTING);
+        //DSP supports flushing of ports simultaneously. Flushing individual port is not supported.
 
-        bool emulateInputFlushCompletion = !flushPortAsync(kPortIndexInput);
-        bool emulateOutputFlushCompletion = !flushPortAsync(kPortIndexOutput);
+        if(mQuirks & kRequiresGlobalFlush) {
+            bool emulateFlushCompletion = !flushPortAsync(kPortIndexBoth);
+            if (emulateFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
+            }
+        } else {
 
-        if (emulateInputFlushCompletion) {
-            onCmdComplete(OMX_CommandFlush, kPortIndexInput);
-        }
+        //DSP supports flushing of ports simultaneously.
+        //Flushing individual port is not supported.
+        if(mQuirks & kRequiresGlobalFlush) {
+            bool emulateFlushCompletion = !flushPortAsync(kPortIndexBoth);
+            if (emulateFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
+            }
+        } else {
+            bool emulateInputFlushCompletion = !flushPortAsync(kPortIndexInput);
+            bool emulateOutputFlushCompletion = !flushPortAsync(kPortIndexOutput);
 
-        if (emulateOutputFlushCompletion) {
-            onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+            if (emulateInputFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexInput);
+            }
+
+            if (emulateOutputFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+            }
+            }
         }
 
         while (mSeekTimeUs >= 0) {

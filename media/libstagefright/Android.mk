@@ -65,6 +65,7 @@ LOCAL_SRC_FILES:=                         \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
+        WAVEWriter.cpp                    \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
@@ -137,6 +138,7 @@ LOCAL_MODULE_TAGS := optional
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_QC_AV_ENHANCEMENTS
+       LOCAL_SRC_FILES  += ExtendedWriter.cpp
        LOCAL_SRC_FILES  += QCMediaDefs.cpp
        LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
 endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
