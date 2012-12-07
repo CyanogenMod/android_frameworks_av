@@ -782,4 +782,16 @@ void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who) {
     ALOGW("AudioPolicyService server died!");
 }
 
+#ifdef ICS_AUDIO_COMPAT
+extern "C" bool _ZN7android11AudioSystem17isSeparatedStreamE19audio_stream_type_t(audio_stream_type_t stream)
+{
+	return false;
+}
+
+extern "C" uint32_t _ZN7android11AudioSystem8popCountEj(uint32_t u)
+{
+	return popcount(u);
+}
+#endif
+
 }; // namespace android
