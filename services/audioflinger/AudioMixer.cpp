@@ -1098,6 +1098,12 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
         e0 &= ~(1<<i);
         track_t& t = state->tracks[i];
         t.buffer.frameCount = state->frameCount;
+        int valid = t.bufferProvider->getValid();
+        if (valid != AudioBufferProvider::kValid) {
+            ALOGE("invalid bufferProvider=%p name=%d frameCount=%d valid=%#x enabledTracks=%#x",
+                    t.bufferProvider, i, t.buffer.frameCount, valid, enabledTracks);
+            // expect to crash
+        }
         t.bufferProvider->getNextBuffer(&t.buffer, pts);
         t.frameCount = t.buffer.frameCount;
         t.in = t.buffer.raw;
