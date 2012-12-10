@@ -172,7 +172,8 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
     mChannelMask = channelMask;
-    uint32_t channelCount = popcount(channelMask);
+    uint32_t channelCount = popcount(channelMask
+        &(AUDIO_CHANNEL_IN_STEREO|AUDIO_CHANNEL_IN_MONO|AUDIO_CHANNEL_IN_5POINT1));
     mChannelCount = channelCount;
 
     if (audio_is_linear_pcm(format)) {
