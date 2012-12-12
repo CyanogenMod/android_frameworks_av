@@ -319,8 +319,7 @@ status_t FragmentedMP4Parser::onSeekTo(bool wantAudio, int64_t position) {
         off_t totalOffset = mFirstMoofOffset;
         for (int i = 0; i < numSidxEntries; i++) {
             const SidxEntry *se = &info->mSidx[i];
-            totalTime += se->mDurationUs;
-            if (totalTime > position) {
+            if (totalTime + se->mDurationUs > position) {
                 mBuffer->setRange(0,0);
                 mBufferPos = totalOffset;
                 if (mFinalResult == ERROR_END_OF_STREAM) {
@@ -329,9 +328,10 @@ status_t FragmentedMP4Parser::onSeekTo(bool wantAudio, int64_t position) {
                     resumeIfNecessary();
                 }
                 info->mFragments.clear();
-                info->mDecodingTime = position * info->mMediaTimeScale / 1000000ll;
+                info->mDecodingTime = totalTime * info->mMediaTimeScale / 1000000ll;
                 return OK;
             }
+            totalTime += se->mDurationUs;
             totalOffset += se->mSize;
         }
     }
