@@ -1524,8 +1524,7 @@ uint32_t AudioFlinger::PlaybackThread::hasAudioSession(int sessionId) const
 
     for (size_t i = 0; i < mTracks.size(); ++i) {
         sp<Track> track = mTracks[i];
-        if (sessionId == track->sessionId() &&
-                !(track->mCblk->flags & CBLK_INVALID)) {
+        if (sessionId == track->sessionId() && !track->isInvalid()) {
             result |= TRACK_SESSION;
             break;
         }
@@ -1543,8 +1542,7 @@ uint32_t AudioFlinger::PlaybackThread::getStrategyForSession_l(int sessionId)
     }
     for (size_t i = 0; i < mTracks.size(); i++) {
         sp<Track> track = mTracks[i];
-        if (sessionId == track->sessionId() &&
-                !(track->mCblk->flags & CBLK_INVALID)) {
+        if (sessionId == track->sessionId() && !track->isInvalid()) {
             return AudioSystem::getStrategyForStream(track->streamType());
         }
     }
@@ -1721,8 +1719,7 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
     for (size_t i = 0; i < size; i++) {
         sp<Track> t = mTracks[i];
         if (t->streamType() == streamType) {
-            android_atomic_or(CBLK_INVALID, &t->mCblk->flags);
-            t->mCblk->cv.signal();
+            t->invalidate();
         }
     }
 }
