@@ -941,7 +941,7 @@ int main(int argc, char **argv) {
             CHECK(useSurfaceTexAlloc);
 
             sp<SurfaceTexture> texture = new SurfaceTexture(0 /* tex */);
-            gSurface = new SurfaceTextureClient(texture->getBufferQueue());
+            gSurface = new SurfaceTextureClient(texture);
         }
 
         CHECK_EQ((status_t)OK,
