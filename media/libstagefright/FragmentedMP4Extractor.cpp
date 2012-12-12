@@ -222,8 +222,8 @@ status_t FragmentedMPEG4Source::start(MetaData *params) {
 
     mGroup = new MediaBufferGroup;
 
-    int32_t max_size = 65536;
-    // XXX CHECK(mFormat->findInt32(kKeyMaxInputSize, &max_size));
+    // for video, make the buffer big enough for an extremely poorly compressed 1080p frame.
+    int32_t max_size = mIsAudioTrack ? 65536 : 3110400;
 
     mGroup->add_buffer(new MediaBuffer(max_size));
 
