@@ -323,7 +323,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mFlags(flags),
     mFastIndex(-1),
     mUnderrunCount(0),
-    mCachedVolume(1.0)
+    mCachedVolume(1.0),
+    mIsInvalid(false)
 {
     if (mCblk != NULL) {
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
@@ -832,6 +833,14 @@ status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& 
 bool AudioFlinger::PlaybackThread::Track::isOut() const
 {
     return true;
+}
+
+void AudioFlinger::PlaybackThread::Track::invalidate()
+{
+    // FIXME should use proxy
+    android_atomic_or(CBLK_INVALID, &mCblk->flags);
+    mCblk->cv.signal();
+    mIsInvalid = true;
 }
 
 // ----------------------------------------------------------------------------
