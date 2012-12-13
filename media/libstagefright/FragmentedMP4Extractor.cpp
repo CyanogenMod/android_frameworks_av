@@ -278,6 +278,10 @@ status_t FragmentedMPEG4Source::read(
     sp<AMessage> meta = parseBuffer->meta();
     int64_t timeUs;
     CHECK(meta->findInt64("timeUs", &timeUs));
+    int32_t isSync;
+    if (meta->findInt32("is-sync-frame", &isSync) && isSync != 0) {
+        buffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
+    }
     buffer->meta_data()->setInt64(kKeyTime, timeUs);
     buffer->set_range(0, parseBuffer->size());
     memcpy(buffer->data(), parseBuffer->data(), parseBuffer->size());
