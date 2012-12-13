@@ -78,6 +78,11 @@ status_t convertMetaDataToMessage(
         msg->setInt64("durationUs", durationUs);
     }
 
+    int32_t isSync;
+    if (meta->findInt32(kKeyIsSyncFrame, &isSync) && isSync != 0) {
+        msg->setInt32("is-sync-frame", 1);
+    }
+
     if (!strncasecmp("video/", mime, 6)) {
         int32_t width, height;
         CHECK(meta->findInt32(kKeyWidth, &width));
@@ -368,6 +373,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int64_t durationUs;
     if (msg->findInt64("durationUs", &durationUs)) {
         meta->setInt64(kKeyDuration, durationUs);
+    }
+
+    int32_t isSync;
+    if (msg->findInt32("is-sync-frame", &isSync) && isSync != 0) {
+        meta->setInt32(kKeyIsSyncFrame, 1);
     }
 
     if (mime.startsWith("video/")) {
