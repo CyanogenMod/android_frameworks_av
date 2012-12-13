@@ -18,6 +18,7 @@
 #define LOG_TAG "FragmentedMP4Parser"
 #include <utils/Log.h>
 
+#include "include/avc_utils.h"
 #include "include/ESDS.h"
 #include "include/FragmentedMP4Parser.h"
 #include "TrackFragment.h"
@@ -961,6 +962,10 @@ status_t FragmentedMP4Parser::makeAccessUnit(
                sample.mSize);
 
         (*accessUnit)->meta()->setInt64("timeUs", presentationTimeUs);
+        if (IsIDR(*accessUnit)) {
+            (*accessUnit)->meta()->setInt32("is-sync-frame", 1);
+        }
+
         return OK;
     }
 
@@ -1002,6 +1007,9 @@ status_t FragmentedMP4Parser::makeAccessUnit(
             (*accessUnit)->meta()->setInt64(
                     "timeUs", presentationTimeUs);
         }
+    }
+    if (IsIDR(*accessUnit)) {
+        (*accessUnit)->meta()->setInt32("is-sync-frame", 1);
     }
 
     return OK;
