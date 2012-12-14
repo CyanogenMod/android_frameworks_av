@@ -70,8 +70,8 @@ private:
     int32_t mVolumeSIMD[2];
 
     const int32_t * mFirCoefs;
-    static const int32_t mFirCoefsDown[];
-    static const int32_t mFirCoefsUp[];
+    static const uint32_t mFirCoefsDown[];
+    static const uint32_t mFirCoefsUp[];
 
     // ----------------------------------------------------------------------------
     static const int32_t RESAMPLE_FIR_NUM_COEF       = 8;
