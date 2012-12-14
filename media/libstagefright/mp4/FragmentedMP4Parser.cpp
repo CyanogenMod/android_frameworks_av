@@ -132,6 +132,10 @@ struct FileSource : public FragmentedMP4Parser::Source {
             CHECK(mFile != NULL);
         }
 
+    virtual ~FileSource() {
+        fclose(mFile);
+    }
+
     virtual ssize_t readAt(off64_t offset, void *data, size_t size) {
         fseek(mFile, offset, SEEK_SET);
         return fread(data, 1, size, mFile);
