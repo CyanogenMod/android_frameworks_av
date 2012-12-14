@@ -95,6 +95,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_matroska \
         libstagefright_timedtext \
         libvpx \
+        libwebm \
         libstagefright_mpeg2ts \
         libstagefright_httplive \
         libstagefright_id3 \
