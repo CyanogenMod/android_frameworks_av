@@ -610,7 +610,7 @@ void CameraParameters::set(const char *key, const char *value)
         return;
     }
 
-    if (strchr(value, '=') || strchr(key, ';')) {
+    if (strchr(value, '=') || strchr(value, ';')) {
         //XXX ALOGE("Value \"%s\"contains invalid character (= or ;)", value);
         return;
     }
