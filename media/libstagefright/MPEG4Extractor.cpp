@@ -38,6 +38,8 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 
+#include <byteswap.h>
+
 namespace android {
 
 class MPEG4Source : public MediaSource {
@@ -1551,7 +1553,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('d', 'a', 't', 'a'):
         {
             if (mPath.size() == 6 && underMetaDataPath(mPath)) {
-                status_t err = parseMetaData(data_offset, chunk_data_size);
+                status_t err = parseITunesMetaData(data_offset, chunk_data_size);
 
                 if (err != OK) {
                     return err;
@@ -1675,6 +1677,23 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 mFileMetaData->setData(
                     kKeyAlbumArt, MetaData::TYPE_NONE,
                     buffer->data() + kSkipBytesOfDataBox, chunk_data_size - kSkipBytesOfDataBox);
+            }
+
+            *offset += chunk_size;
+            break;
+        }
+
+        case FOURCC('t', 'i', 't', 'l'):
+        case FOURCC('p', 'e', 'r', 'f'):
+        case FOURCC('a', 'u', 't', 'h'):
+        case FOURCC('g', 'n', 'r', 'e'):
+        case FOURCC('a', 'l', 'b', 'm'):
+        case FOURCC('y', 'r', 'r', 'c'):
+        {
+            status_t err = parse3GPPMetaData(data_offset, chunk_data_size, depth);
+
+            if (err != OK) {
+                return err;
             }
 
             *offset += chunk_size;
@@ -1915,7 +1934,7 @@ status_t MPEG4Extractor::parseTrackHeader(
     return OK;
 }
 
-status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
+status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
     if (size < 4) {
         return ERROR_MALFORMED;
     }
@@ -2093,6 +2112,114 @@ status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
 
             mFileMetaData->setCString(
                     metadataKey, (const char *)buffer + 8);
+        }
+    }
+
+    delete[] buffer;
+    buffer = NULL;
+
+    return OK;
+}
+
+status_t MPEG4Extractor::parse3GPPMetaData(off64_t offset, size_t size, int depth) {
+    if (size < 4) {
+        return ERROR_MALFORMED;
+    }
+
+    uint8_t *buffer = new uint8_t[size];
+    if (mDataSource->readAt(
+                offset, buffer, size) != (ssize_t)size) {
+        delete[] buffer;
+        buffer = NULL;
+
+        return ERROR_IO;
+    }
+
+    uint32_t metadataKey = 0;
+    switch (mPath[depth]) {
+        case FOURCC('t', 'i', 't', 'l'):
+        {
+            metadataKey = kKeyTitle;
+            break;
+        }
+        case FOURCC('p', 'e', 'r', 'f'):
+        {
+            metadataKey = kKeyArtist;
+            break;
+        }
+        case FOURCC('a', 'u', 't', 'h'):
+        {
+            metadataKey = kKeyWriter;
+            break;
+        }
+        case FOURCC('g', 'n', 'r', 'e'):
+        {
+            metadataKey = kKeyGenre;
+            break;
+        }
+        case FOURCC('a', 'l', 'b', 'm'):
+        {
+            if (buffer[size - 1] != '\0') {
+              char tmp[4];
+              sprintf(tmp, "%u", buffer[size - 1]);
+
+              mFileMetaData->setCString(kKeyCDTrackNumber, tmp);
+            }
+
+            metadataKey = kKeyAlbum;
+            break;
+        }
+        case FOURCC('y', 'r', 'r', 'c'):
+        {
+            char tmp[5];
+            uint16_t year = U16_AT(&buffer[4]);
+
+            if (year < 10000) {
+                sprintf(tmp, "%u", year);
+
+                mFileMetaData->setCString(kKeyYear, tmp);
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if (metadataKey > 0) {
+        bool isUTF8 = true; // Common case
+        char16_t *framedata = NULL;
+        int len16 = 0; // Number of UTF-16 characters
+
+        // smallest possible valid UTF-16 string w BOM: 0xfe 0xff 0x00 0x00
+        if (size - 6 >= 4) {
+            len16 = ((size - 6) / 2) - 1; // don't include 0x0000 terminator
+            framedata = (char16_t *)(buffer + 6);
+            if (0xfffe == *framedata) {
+                // endianness marker (BOM) doesn't match host endianness
+                for (int i = 0; i < len16; i++) {
+                    framedata[i] = bswap_16(framedata[i]);
+                }
+                // BOM is now swapped to 0xfeff, we will execute next block too
+            }
+
+            if (0xfeff == *framedata) {
+                // Remove the BOM
+                framedata++;
+                len16--;
+                isUTF8 = false;
+            }
+            // else normal non-zero-length UTF-8 string
+            // we can't handle UTF-16 without BOM as there is no other
+            // indication of encoding.
+        }
+
+        if (isUTF8) {
+            mFileMetaData->setCString(metadataKey, (const char *)buffer + 6);
+        } else {
+            // Convert from UTF-16 string to UTF-8 string.
+            String8 tmpUTF8str(framedata, len16);
+            mFileMetaData->setCString(metadataKey, tmpUTF8str.string());
         }
     }
 
