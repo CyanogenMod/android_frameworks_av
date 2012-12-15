@@ -60,10 +60,15 @@ LOCAL_SRC_FILES:=                         \
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
-        $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
+
+ifdef ENHANCED_DOMX
+LOCAL_C_INCLUDES += $(DOMX_PATH)/omx_core/inc
+else
+LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
+endif
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \

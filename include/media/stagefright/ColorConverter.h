@@ -25,6 +25,10 @@
 
 #include <OMX_Video.h>
 
+#ifdef OMAP_ENHANCEMENT
+#include <OMX_TI_Video.h>
+#endif
+
 namespace android {
 
 struct ColorConverter {

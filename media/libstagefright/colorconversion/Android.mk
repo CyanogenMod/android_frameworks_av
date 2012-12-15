@@ -11,4 +11,10 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_MODULE:= libstagefright_color_conversion
 
+ifdef ENHANCED_DOMX
+LOCAL_C_INCLUDES += $(DOMX_PATH)/omx_core/inc
+else
+LOCAL_C_INCLUDES += $(TOP)/hardware/ti/omap4xxx/domx/omx_core/inc
+endif
+
 include $(BUILD_STATIC_LIBRARY)
