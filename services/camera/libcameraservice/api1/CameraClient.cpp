@@ -720,6 +720,12 @@ void CameraClient::notifyCallback(int32_t msgType, int32_t ext1,
         int32_t ext2, void* user) {
     LOG2("notifyCallback(%d)", msgType);
 
+    // Ignore CAF_RESTART callbacks from Samsung's camera driver
+    if (msgType == CAMERA_MSG_FOCUS && ext1 == 4) {
+        LOG2("Ignore CAF_RESTART callback");
+        return;
+    }
+
     Mutex* lock = getClientLockFromCookie(user);
     if (lock == NULL) return;
     Mutex::Autolock alock(*lock);
