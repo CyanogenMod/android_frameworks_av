@@ -401,8 +401,10 @@ status_t WAVSource::read(
         return err;
     }
 
+    // make sure that maxBytesToRead is multiple of 3, in 24-bit case
     size_t maxBytesToRead =
-        mBitsPerSample == 8 ? kMaxFrameSize / 2 : kMaxFrameSize;
+        mBitsPerSample == 8 ? kMaxFrameSize / 2 : 
+        (mBitsPerSample == 24 ? 3*(kMaxFrameSize/3): kMaxFrameSize);
 
     size_t maxBytesAvailable =
         (mCurrentPos - mOffset >= (off64_t)mSize)
@@ -425,7 +427,7 @@ status_t WAVSource::read(
 
     buffer->set_range(0, n);
 
-    if (mWaveFormat == WAVE_FORMAT_PCM) {
+    if (mWaveFormat == WAVE_FORMAT_PCM || mWaveFormat == WAVE_FORMAT_EXTENSIBLE) {
         if (mBitsPerSample == 8) {
             // Convert 8-bit unsigned samples to 16-bit signed.
 
