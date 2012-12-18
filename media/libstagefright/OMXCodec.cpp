@@ -630,6 +630,8 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             if (err != OK) {
                 return err;
             }
+
+            ExtendedCodec::configureVideoCodec(meta,mOMX,mNode,mComponentName);
         }
     }
 

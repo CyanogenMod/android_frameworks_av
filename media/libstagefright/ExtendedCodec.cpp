@@ -270,6 +270,50 @@ status_t ExtendedCodec::handleSupportedAudioFormats(int format, AString* meta) {
     return retVal;
 }
 
+void ExtendedCodec::configureVideoCodec(
+        const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+        IOMX::node_id nodeID, char* componentName ) {
+    int32_t arbitraryMode = 1;
+    bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
+    bool useArbitraryMode = true;
+    if (success) {
+        useArbitraryMode = arbitraryMode ? true : false;
+    }
+
+    if (useArbitraryMode) {
+        ALOGI("Decoder should be in arbitrary mode");
+    } else{
+        ALOGI("Enable frame by frame mode");
+        OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
+        portFmt.nPortIndex = kPortIndexInput;
+        portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
+        status_t err = OMXhandle->setParameter(
+        nodeID, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn, (void *)&portFmt, sizeof(portFmt));
+        if(err != OK) {
+            ALOGW("Failed to set frame packing format on component");
+        }
+    }
+
+    // Enable timestamp reordering only for AVI/mpeg4 and vc1 clips
+    const char *fileFormat;
+    success = meta->findCString(kKeyFileFormat, &fileFormat);
+    if (!strcmp(componentName, "OMX.qcom.video.decoder.vc1") ||
+        (success && !strncmp(fileFormat, "video/avi", 9))) {
+        ALOGI("Enabling timestamp reordering");
+        QOMX_INDEXTIMESTAMPREORDER reorder;
+        InitOMXParams(&reorder);
+        reorder.nPortIndex = kPortIndexOutput;
+        reorder.bEnable = OMX_TRUE;
+        status_t err = OMXhandle->setParameter(nodeID,
+                       (OMX_INDEXTYPE)OMX_QcomIndexParamEnableTimeStampReorder,
+                       (void *)&reorder, sizeof(reorder));
+
+        if(err != OK) {
+            ALOGW("Failed to enable timestamp reordering");
+        }
+    }
+}
+
 //private methods
 void ExtendedCodec::setEVRCFormat(
         int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
@@ -637,7 +681,11 @@ namespace android {
             sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
     }
 
+    void ExtendedCodec::configureVideoCodec(
+        const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+        IOMX::node_id nodeID, char* componentName ) {
+    }
+
 } //namespace android
 
 #endif //ENABLE_QC_AV_ENHANCEMENTS
-
