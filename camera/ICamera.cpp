@@ -22,7 +22,7 @@
 #include <sys/types.h>
 #include <binder/Parcel.h>
 #include <camera/ICamera.h>
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 
 namespace android {
@@ -79,13 +79,13 @@ public:
         return reply.readInt32();
     }
 
-    // pass the buffered SurfaceTexture to the camera service
-    status_t setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture)
+    // pass the buffered IGraphicBufferProducer to the camera service
+    status_t setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)
     {
         ALOGV("setPreviewTexture");
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
-        sp<IBinder> b(surfaceTexture->asBinder());
+        sp<IBinder> b(bufferProducer->asBinder());
         data.writeStrongBinder(b);
         remote()->transact(SET_PREVIEW_TEXTURE, data, &reply);
         return reply.readInt32();
@@ -292,7 +292,8 @@ status_t BnCamera::onTransact(
         case SET_PREVIEW_TEXTURE: {
             ALOGV("SET_PREVIEW_TEXTURE");
             CHECK_INTERFACE(ICamera, data, reply);
-            sp<ISurfaceTexture> st = interface_cast<ISurfaceTexture>(data.readStrongBinder());
+            sp<IGraphicBufferProducer> st =
+                interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
             reply->writeInt32(setPreviewTexture(st));
             return NO_ERROR;
         } break;

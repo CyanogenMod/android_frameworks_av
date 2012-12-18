@@ -81,10 +81,10 @@ status_t VideoEditorPlayer::setVideoSurface(const sp<Surface> &surface) {
     return OK;
 }
 
-status_t VideoEditorPlayer::setVideoSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+status_t VideoEditorPlayer::setVideoSurfaceTexture(const sp<IGraphicBufferProducer> &bufferProducer) {
     ALOGV("setVideoSurfaceTexture");
 
-    mPlayer->setSurfaceTexture(surfaceTexture);
+    mPlayer->setSurfaceTexture(bufferProducer);
     return OK;
 }
 

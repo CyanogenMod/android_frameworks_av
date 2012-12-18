@@ -36,7 +36,7 @@ struct IStreamListener;
 struct TunnelRenderer : public AHandler {
     TunnelRenderer(
             const sp<AMessage> &notifyLost,
-            const sp<ISurfaceTexture> &surfaceTex);
+            const sp<IGraphicBufferProducer> &bufferProducer);
 
     sp<ABuffer> dequeueBuffer();
 
@@ -55,7 +55,7 @@ private:
     mutable Mutex mLock;
 
     sp<AMessage> mNotifyLost;
-    sp<ISurfaceTexture> mSurfaceTex;
+    sp<IGraphicBufferProducer> mSurfaceTex;
 
     List<sp<ABuffer> > mPackets;
     int64_t mTotalBytesQueued;

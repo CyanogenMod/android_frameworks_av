@@ -25,7 +25,7 @@
 #include "Sender.h"
 
 #include <binder/IServiceManager.h>
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <media/IHDCP.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IRemoteDisplayClient.h>

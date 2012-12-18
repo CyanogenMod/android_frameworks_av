@@ -49,7 +49,7 @@ public:
     virtual status_t        unlock();
     virtual status_t        setPreviewDisplay(const sp<Surface>& surface);
     virtual status_t        setPreviewTexture(
-        const sp<ISurfaceTexture>& surfaceTexture);
+        const sp<IGraphicBufferProducer>& bufferProducer);
     virtual void            setPreviewCallbackFlag(int flag);
     virtual status_t        startPreview();
     virtual void            stopPreview();

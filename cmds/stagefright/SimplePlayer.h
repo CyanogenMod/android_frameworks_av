@@ -23,7 +23,7 @@ namespace android {
 struct ABuffer;
 struct ALooper;
 struct AudioTrack;
-struct ISurfaceTexture;
+struct IGraphicBufferProducer;
 struct MediaCodec;
 struct NativeWindowWrapper;
 struct NuMediaExtractor;
@@ -32,7 +32,7 @@ struct SimplePlayer : public AHandler {
     SimplePlayer();
 
     status_t setDataSource(const char *path);
-    status_t setSurface(const sp<ISurfaceTexture> &surfaceTexture);
+    status_t setSurface(const sp<IGraphicBufferProducer> &bufferProducer);
     status_t prepare();
     status_t start();
     status_t stop();
