@@ -56,6 +56,7 @@
 #include <powermanager/IPowerManager.h>
 
 #include <media/nbaio/NBLog.h>
+#include <private/media/AudioTrackShared.h>
 
 namespace android {
 

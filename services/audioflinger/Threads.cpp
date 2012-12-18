@@ -139,7 +139,7 @@ static const int kPriorityFastMixer = 3;
 // FIXME It would be better for client to tell AudioFlinger whether it wants double-buffering or
 // N-buffering, so AudioFlinger could allocate the right amount of memory.
 // See the client's minBufCount and mNotificationFramesAct calculations for details.
-static const int kFastTrackMultiplier = 2;
+static const int kFastTrackMultiplier = 1;
 
 // ----------------------------------------------------------------------------
 
@@ -1327,7 +1327,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         // the track is newly added, make sure it fills up all its
         // buffers before playing. This is to ensure the client will
         // effectively get the latency it requested.
-        track->mFillingUpStatus = Track::FS_FILLING;
+        track->mFillingUpStatus = track->sharedBuffer() != 0 ? Track::FS_FILLED : Track::FS_FILLING;
         track->mResetDone = false;
         track->mPresentationCompleteFrames = 0;
         mActiveTracks.add(track);
@@ -2596,24 +2596,35 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // app does not call stop() and relies on underrun to stop:
         // hence the test on (mMixerStatus == MIXER_TRACKS_READY) meaning the track was mixed
         // during last round
+        size_t desiredFrames;
+        if (t->sampleRate() == mSampleRate) {
+            desiredFrames = mNormalFrameCount;
+        } else {
+            // +1 for rounding and +1 for additional sample needed for interpolation
+            desiredFrames = (mNormalFrameCount * t->sampleRate()) / mSampleRate + 1 + 1;
+            // add frames already consumed but not yet released by the resampler
+            // because cblk->framesReady() will include these frames
+            desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
+            // the minimum track buffer size is normally twice the number of frames necessary
+            // to fill one buffer and the resampler should not leave more than one buffer worth
+            // of unreleased frames after each pass, but just in case...
+            ALOG_ASSERT(desiredFrames <= cblk->frameCount_);
+        }
         uint32_t minFrames = 1;
         if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
                 (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY)) {
-            if (t->sampleRate() == mSampleRate) {
-                minFrames = mNormalFrameCount;
-            } else {
-                // +1 for rounding and +1 for additional sample needed for interpolation
-                minFrames = (mNormalFrameCount * t->sampleRate()) / mSampleRate + 1 + 1;
-                // add frames already consumed but not yet released by the resampler
-                // because cblk->framesReady() will include these frames
-                minFrames += mAudioMixer->getUnreleasedFrames(track->name());
-                // the minimum track buffer size is normally twice the number of frames necessary
-                // to fill one buffer and the resampler should not leave more than one buffer worth
-                // of unreleased frames after each pass, but just in case...
-                ALOG_ASSERT(minFrames <= cblk->frameCount_);
-            }
+            minFrames = desiredFrames;
         }
-        if ((track->framesReady() >= minFrames) && track->isReady() &&
+        // It's not safe to call framesReady() for a static buffer track, so assume it's ready
+        size_t framesReady;
+        if (track->sharedBuffer() == 0) {
+            framesReady = track->framesReady();
+        } else if (track->isStopped()) {
+            framesReady = 0;
+        } else {
+            framesReady = 1;
+        }
+        if ((framesReady >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
             ALOGVV("track %d u=%08x, s=%08x [OK] on thread %p", name, cblk->user, cblk->server,
@@ -2664,7 +2675,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // read original volumes with volume control
                 float typeVolume = mStreamTypes[track->streamType()].volume;
                 float v = masterVolume * typeVolume;
-                ServerProxy *proxy = track->mServerProxy;
+                AudioTrackServerProxy *proxy = track->mAudioTrackServerProxy;
                 uint32_t vlr = proxy->getVolumeLR();
                 vl = vlr & 0xFFFF;
                 vr = vlr >> 16;
@@ -2737,7 +2748,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 AudioMixer::CHANNEL_MASK, (void *)track->channelMask());
             // limit track sample rate to 2 x output sample rate, which changes at re-configuration
             uint32_t maxSampleRate = mSampleRate * 2;
-            uint32_t reqSampleRate = track->mServerProxy->getSampleRate();
+            uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
             if (reqSampleRate == 0) {
                 reqSampleRate = mSampleRate;
             } else if (reqSampleRate > maxSampleRate) {
@@ -2768,6 +2779,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 mixerStatus = MIXER_TRACKS_READY;
             }
         } else {
+            // only implemented for normal tracks, not fast tracks
+            if (framesReady < desiredFrames && !track->isStopped() && !track->isPaused()) {
+                // we missed desiredFrames whatever the actual number of frames missing was
+                cblk->u.mStreaming.mUnderrunFrames += desiredFrames;
+                // FIXME also wake futex so that underrun is noticed more quickly
+                (void) android_atomic_or(CBLK_UNDERRUN, &cblk->flags);
+            }
             // clear effect chain input buffer if an active track underruns to avoid sending
             // previous audio buffer again to effects
             chain = getEffectChain_l(track->sessionId());
@@ -3170,7 +3188,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             } else {
                 float typeVolume = mStreamTypes[track->streamType()].volume;
                 float v = mMasterVolume * typeVolume;
-                uint32_t vlr = track->mServerProxy->getVolumeLR();
+                uint32_t vlr = track->mAudioTrackServerProxy->getVolumeLR();
                 float v_clamped = v * (vlr & 0xFFFF);
                 if (v_clamped > MAX_GAIN) {
                     v_clamped = MAX_GAIN;
@@ -3696,7 +3714,8 @@ bool AudioFlinger::RecordThread::threadLoop()
             }
 
             buffer.frameCount = mFrameCount;
-            if (CC_LIKELY(mActiveTrack->getNextBuffer(&buffer) == NO_ERROR)) {
+            status_t status = mActiveTrack->getNextBuffer(&buffer);
+            if (CC_LIKELY(status == NO_ERROR)) {
                 readOnce = true;
                 size_t framesOut = buffer.frameCount;
                 if (mResampler == NULL) {

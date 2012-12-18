@@ -74,7 +74,7 @@ protected:
 
     audio_channel_mask_t channelMask() const { return mChannelMask; }
 
-    uint32_t sampleRate() const; // FIXME inline after cblk sr moved
+    virtual uint32_t sampleRate() const { return mSampleRate; }
 
     // Return a pointer to the start of a contiguous slice of the track buffer.
     // Parameter 'offset' is the requested start position, expressed in

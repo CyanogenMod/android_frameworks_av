@@ -1060,7 +1060,9 @@ bool ToneGenerator::initAudioTrack() {
                       this, // user
                       0,    // notificationFrames
                       0,    // sharedBuffer
-                      mThreadCanCallJava);
+                      mThreadCanCallJava,
+                      0,    // sessionId
+                      AudioTrack::TRANSFER_CALLBACK);
 
     if (mpAudioTrack->initCheck() != NO_ERROR) {
         ALOGE("AudioTrack->initCheck failed");

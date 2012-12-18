@@ -98,7 +98,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
-    size_t bufferSize = frameCount * mFrameSize;
+    size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
     if (sharedBuffer == 0) {
         size += bufferSize;
     }
@@ -124,22 +124,16 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         new(mCblk) audio_track_cblk_t();
         // clear all buffers
         mCblk->frameCount_ = frameCount;
-// uncomment the following lines to quickly test 32-bit wraparound
-//      mCblk->user = 0xffff0000;
-//      mCblk->server = 0xffff0000;
-//      mCblk->userBase = 0xffff0000;
-//      mCblk->serverBase = 0xffff0000;
         if (sharedBuffer == 0) {
             mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
             memset(mBuffer, 0, bufferSize);
-            // Force underrun condition to avoid false underrun callback until first data is
-            // written to buffer (other flags are cleared)
-            mCblk->flags = CBLK_UNDERRUN;
         } else {
             mBuffer = sharedBuffer->pointer();
+#if 0
+            mCblk->flags = CBLK_FORCEREADY;     // FIXME hack, need to fix the track ready logic
+#endif
         }
         mBufferEnd = (uint8_t *)mBuffer + bufferSize;
-        mServerProxy = new ServerProxy(mCblk, mBuffer, frameCount, mFrameSize, isOut);
 
 #ifdef TEE_SINK
         if (mTeeSinkTrackEnabled) {
@@ -199,51 +193,17 @@ void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buf
     }
 #endif
 
-    buffer->raw = NULL;
-    mStepCount = buffer->frameCount;
-    // FIXME See note at getNextBuffer()
-    (void) step();      // ignore return value of step()
+    ServerProxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    buf.mRaw = buffer->raw;
     buffer->frameCount = 0;
-}
-
-bool AudioFlinger::ThreadBase::TrackBase::step() {
-    bool result = mServerProxy->step(mStepCount);
-    if (!result) {
-        ALOGV("stepServer failed acquiring cblk mutex");
-        mStepServerFailed = true;
-    }
-    return result;
+    buffer->raw = NULL;
+    mServerProxy->releaseBuffer(&buf);
 }
 
 void AudioFlinger::ThreadBase::TrackBase::reset() {
-    audio_track_cblk_t* cblk = this->cblk();
-
-    cblk->user = 0;
-    cblk->server = 0;
-    cblk->userBase = 0;
-    cblk->serverBase = 0;
-    mStepServerFailed = false;
     ALOGV("TrackBase::reset");
-}
-
-uint32_t AudioFlinger::ThreadBase::TrackBase::sampleRate() const {
-    return mServerProxy->getSampleRate();
-}
-
-void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t frames) const {
-    audio_track_cblk_t* cblk = this->cblk();
-    int8_t *bufferStart = (int8_t *)mBuffer + (offset-cblk->serverBase) * mFrameSize;
-    int8_t *bufferEnd = bufferStart + frames * mFrameSize;
-
-    // Check validity of returned pointer in case the track control block would have been corrupted.
-    ALOG_ASSERT(!(bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd),
-            "TrackBase::getBuffer buffer out of range:\n"
-                "    start: %p, end %p , mBuffer %p mBufferEnd %p\n"
-                "    server %u, serverBase %u, user %u, userBase %u, frameSize %u",
-                bufferStart, bufferEnd, mBuffer, mBufferEnd,
-                cblk->server, cblk->serverBase, cblk->user, cblk->userBase, mFrameSize);
-
-    return bufferStart;
+    // FIXME still needed?
 }
 
 status_t AudioFlinger::ThreadBase::TrackBase::setSyncEvent(const sp<SyncEvent>& event)
@@ -362,9 +322,18 @@ AudioFlinger::PlaybackThread::Track::Track(
     mFastIndex(-1),
     mUnderrunCount(0),
     mCachedVolume(1.0),
-    mIsInvalid(false)
+    mIsInvalid(false),
+    mAudioTrackServerProxy(NULL)
 {
     if (mCblk != NULL) {
+        if (sharedBuffer == 0) {
+            mAudioTrackServerProxy = new AudioTrackServerProxy(mCblk, mBuffer, frameCount,
+                    mFrameSize);
+        } else {
+            mAudioTrackServerProxy = new StaticAudioTrackServerProxy(mCblk, mBuffer, frameCount,
+                    mFrameSize);
+        }
+        mServerProxy = mAudioTrackServerProxy;
         // to avoid leaking a track name, do not allocate one unless there is an mCblk
         mName = thread->getTrackName_l(channelMask, sessionId);
         mCblk->mName = mName;
@@ -374,6 +343,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         }
         // only allocate a fast track index if we were able to allocate a normal track name
         if (flags & IAudioFlinger::TRACK_FAST) {
+            mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
             ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
             int i = __builtin_ctz(thread->mFastTrackAvailMask);
             ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);
@@ -432,12 +402,12 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
     result.append("   Name Client Type Fmt Chn mask   Session StpCnt fCount S F SRate  "
-                  "L dB  R dB    Server      User     Main buf    Aux Buf  Flags Underruns\n");
+                  "L dB  R dB    Server    Main buf    Aux Buf  Flags Underruns\n");
 }
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
 {
-    uint32_t vlr = mServerProxy->getVolumeLR();
+    uint32_t vlr = mAudioTrackServerProxy->getVolumeLR();
     if (isFastTrack()) {
         sprintf(buffer, "   F %2d", mFastIndex);
     } else {
@@ -496,7 +466,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         break;
     }
     snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %5u %5.2g %5.2g  "
-            "0x%08x 0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
+            "0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
             mFormat,
@@ -506,11 +476,10 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mFrameCount,
             stateChar,
             mFillingUpStatus,
-            mServerProxy->getSampleRate(),
+            mAudioTrackServerProxy->getSampleRate(),
             20.0 * log10((vlr & 0xFFFF) / 4096.0),
             20.0 * log10((vlr >> 16) / 4096.0),
             mCblk->server,
-            mCblk->user,
             (int)mMainBuffer,
             (int)mAuxBuffer,
             mCblk->flags,
@@ -518,53 +487,27 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             nowInUnderrun);
 }
 
+uint32_t AudioFlinger::PlaybackThread::Track::sampleRate() const {
+    return mAudioTrackServerProxy->getSampleRate();
+}
+
 // AudioBufferProvider interface
 status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
         AudioBufferProvider::Buffer* buffer, int64_t pts)
 {
-    audio_track_cblk_t* cblk = this->cblk();
-    uint32_t framesReady;
-    uint32_t framesReq = buffer->frameCount;
-
-    // Check if last stepServer failed, try to step now
-    if (mStepServerFailed) {
-        // FIXME When called by fast mixer, this takes a mutex with tryLock().
-        //       Since the fast mixer is higher priority than client callback thread,
-        //       it does not result in priority inversion for client.
-        //       But a non-blocking solution would be preferable to avoid
-        //       fast mixer being unable to tryLock(), and
-        //       to avoid the extra context switches if the client wakes up,
-        //       discovers the mutex is locked, then has to wait for fast mixer to unlock.
-        if (!step())  goto getNextBuffer_exit;
-        ALOGV("stepServer recovered");
-        mStepServerFailed = false;
+    ServerProxy::Buffer buf;
+    size_t desiredFrames = buffer->frameCount;
+    buf.mFrameCount = desiredFrames;
+    status_t status = mServerProxy->obtainBuffer(&buf);
+    buffer->frameCount = buf.mFrameCount;
+    buffer->raw = buf.mRaw;
+    if (buf.mFrameCount == 0) {
+        // only implemented so far for normal tracks, not fast tracks
+        mCblk->u.mStreaming.mUnderrunFrames += desiredFrames;
+        // FIXME also wake futex so that underrun is noticed more quickly
+        (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
     }
-
-    // FIXME Same as above
-    framesReady = mServerProxy->framesReady();
-
-    if (CC_LIKELY(framesReady)) {
-        uint32_t s = cblk->server;
-        uint32_t bufferEnd = cblk->serverBase + mFrameCount;
-
-        bufferEnd = (cblk->loopEnd < bufferEnd) ? cblk->loopEnd : bufferEnd;
-        if (framesReq > framesReady) {
-            framesReq = framesReady;
-        }
-        if (framesReq > bufferEnd - s) {
-            framesReq = bufferEnd - s;
-        }
-
-        buffer->raw = getBuffer(s, framesReq);
-        buffer->frameCount = framesReq;
-        return NO_ERROR;
-    }
-
-getNextBuffer_exit:
-    buffer->raw = NULL;
-    buffer->frameCount = 0;
-    ALOGV("getNextBuffer() no more data for track %d on thread %p", mName, mThread.unsafe_get());
-    return NOT_ENOUGH_DATA;
+    return status;
 }
 
 // Note that framesReady() takes a mutex on the control block using tryLock().
@@ -576,7 +519,7 @@ getNextBuffer_exit:
 // the tryLock() could block for up to 1 ms, and a sequence of these could delay fast mixer.
 // FIXME Replace AudioTrackShared control block implementation by a non-blocking FIFO queue.
 size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
-    return mServerProxy->framesReady();
+    return mAudioTrackServerProxy->framesReady();
 }
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
@@ -732,7 +675,6 @@ void AudioFlinger::PlaybackThread::Track::reset()
         // Force underrun condition to avoid false underrun callback until first data is
         // written to buffer
         android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
-        android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
         mFillingUpStatus = FS_FILLING;
         mResetDone = true;
         if (mState == FLUSHED) {
@@ -833,7 +775,7 @@ uint32_t AudioFlinger::PlaybackThread::Track::getVolumeLR()
 {
     // called by FastMixer, so not allowed to take any locks, block, or do I/O including logs
     ALOG_ASSERT(isFastTrack() && (mCblk != NULL));
-    uint32_t vlr = mServerProxy->getVolumeLR();
+    uint32_t vlr = mAudioTrackServerProxy->getVolumeLR();
     uint32_t vl = vlr & 0xFFFF;
     uint32_t vr = vlr >> 16;
     // track volumes come from shared memory, so can't be trusted and must be clamped
@@ -870,9 +812,12 @@ status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& 
 
 void AudioFlinger::PlaybackThread::Track::invalidate()
 {
-    // FIXME should use proxy
-    android_atomic_or(CBLK_INVALID, &mCblk->flags);
-    mCblk->cv.signal();
+    // FIXME should use proxy, and needs work
+    audio_track_cblk_t* cblk = mCblk;
+    android_atomic_or(CBLK_INVALID, &cblk->flags);
+    android_atomic_release_store(0x40000000, &cblk->mFutex);
+    // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
+    (void) __futex_syscall3(&cblk->mFutex, FUTEX_WAKE, INT_MAX);
     mIsInvalid = true;
 }
 
@@ -1418,6 +1363,8 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mClientProxy->setVolumeLR((uint32_t(uint16_t(0x1000)) << 16) | uint16_t(0x1000));
         mClientProxy->setSendLevel(0.0);
         mClientProxy->setSampleRate(sampleRate);
+        mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize,
+                true /*clientInServer*/);
     } else {
         ALOGW("Error creating output track on thread %p", playbackThread);
     }
@@ -1498,9 +1445,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         if (mOutBuffer.frameCount == 0) {
             mOutBuffer.frameCount = pInBuffer->frameCount;
             nsecs_t startTime = systemTime();
-            if (obtainBuffer(&mOutBuffer, waitTimeLeftMs) == (status_t)NO_MORE_BUFFERS) {
-                ALOGV("OutputTrack::write() %p thread %p no more output buffers", this,
-                        mThread.unsafe_get());
+            status_t status = obtainBuffer(&mOutBuffer, waitTimeLeftMs);
+            if (status != NO_ERROR) {
+                ALOGV("OutputTrack::write() %p thread %p no more output buffers; status %d", this,
+                        mThread.unsafe_get(), status);
                 outputBufferFull = true;
                 break;
             }
@@ -1515,7 +1463,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         uint32_t outFrames = pInBuffer->frameCount > mOutBuffer.frameCount ? mOutBuffer.frameCount :
                 pInBuffer->frameCount;
         memcpy(mOutBuffer.raw, pInBuffer->raw, outFrames * channelCount * sizeof(int16_t));
-        mClientProxy->stepUser(outFrames);
+        Proxy::Buffer buf;
+        buf.mFrameCount = outFrames;
+        buf.mRaw = NULL;
+        mClientProxy->releaseBuffer(&buf);
         pInBuffer->frameCount -= outFrames;
         pInBuffer->i16 += outFrames * channelCount;
         mOutBuffer.frameCount -= outFrames;
@@ -1559,8 +1510,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
     // If no more buffers are pending, fill output track buffer to make sure it is started
     // by output mixer.
     if (frames == 0 && mBufferQueue.size() == 0) {
-        if (mCblk->user < mFrameCount) {
-            frames = mFrameCount - mCblk->user;
+        // FIXME borken, replace by getting framesReady() from proxy
+        size_t user = 0;    // was mCblk->user
+        if (user < mFrameCount) {
+            frames = mFrameCount - user;
             pInBuffer = new Buffer;
             pInBuffer->mBuffer = new int16_t[frames * channelCount];
             pInBuffer->frameCount = frames;
@@ -1578,45 +1531,16 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
 status_t AudioFlinger::PlaybackThread::OutputTrack::obtainBuffer(
         AudioBufferProvider::Buffer* buffer, uint32_t waitTimeMs)
 {
-    audio_track_cblk_t* cblk = mCblk;
-    uint32_t framesReq = buffer->frameCount;
-
-    ALOGVV("OutputTrack::obtainBuffer user %d, server %d", cblk->user, cblk->server);
-    buffer->frameCount  = 0;
-
-    size_t framesAvail;
-    {
-        Mutex::Autolock _l(cblk->lock);
-
-        // read the server count again
-        while (!(framesAvail = mClientProxy->framesAvailable_l())) {
-            if (CC_UNLIKELY(!mActive)) {
-                ALOGV("Not active and NO_MORE_BUFFERS");
-                return NO_MORE_BUFFERS;
-            }
-            status_t result = cblk->cv.waitRelative(cblk->lock, milliseconds(waitTimeMs));
-            if (result != NO_ERROR) {
-                return NO_MORE_BUFFERS;
-            }
-        }
-    }
-
-    if (framesReq > framesAvail) {
-        framesReq = framesAvail;
-    }
-
-    uint32_t u = cblk->user;
-    uint32_t bufferEnd = cblk->userBase + mFrameCount;
-
-    if (framesReq > bufferEnd - u) {
-        framesReq = bufferEnd - u;
-    }
-
-    buffer->frameCount  = framesReq;
-    buffer->raw         = mClientProxy->buffer(u);
-    return NO_ERROR;
+    ClientProxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    struct timespec timeout;
+    timeout.tv_sec = waitTimeMs / 1000;
+    timeout.tv_nsec = (int) (waitTimeMs % 1000) * 1000000;
+    status_t status = mClientProxy->obtainBuffer(&buf, &timeout);
+    buffer->frameCount = buf.mFrameCount;
+    buffer->raw = buf.mRaw;
+    return status;
 }
-
 
 void AudioFlinger::PlaybackThread::OutputTrack::clearBufferQueue()
 {
@@ -1688,6 +1612,11 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         mOverflow(false)
 {
     ALOGV("RecordTrack constructor, size %d", (int)mBufferEnd - (int)mBuffer);
+    if (mCblk != NULL) {
+        mAudioRecordServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
+                mFrameSize);
+        mServerProxy = mAudioRecordServerProxy;
+    }
 }
 
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
@@ -1699,42 +1628,16 @@ AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
 status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvider::Buffer* buffer,
         int64_t pts)
 {
-    audio_track_cblk_t* cblk = this->cblk();
-    uint32_t framesAvail;
-    uint32_t framesReq = buffer->frameCount;
-
-    // Check if last stepServer failed, try to step now
-    if (mStepServerFailed) {
-        if (!step()) {
-            goto getNextBuffer_exit;
-        }
-        ALOGV("stepServer recovered");
-        mStepServerFailed = false;
+    ServerProxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    status_t status = mServerProxy->obtainBuffer(&buf);
+    buffer->frameCount = buf.mFrameCount;
+    buffer->raw = buf.mRaw;
+    if (buf.mFrameCount == 0) {
+        // FIXME also wake futex so that overrun is noticed more quickly
+        (void) android_atomic_or(CBLK_OVERRUN, &mCblk->flags);
     }
-
-    // FIXME lock is not actually held, so overrun is possible
-    framesAvail = mServerProxy->framesAvailableIn_l();
-
-    if (CC_LIKELY(framesAvail)) {
-        uint32_t s = cblk->server;
-        uint32_t bufferEnd = cblk->serverBase + mFrameCount;
-
-        if (framesReq > framesAvail) {
-            framesReq = framesAvail;
-        }
-        if (framesReq > bufferEnd - s) {
-            framesReq = bufferEnd - s;
-        }
-
-        buffer->raw = getBuffer(s, framesReq);
-        buffer->frameCount = framesReq;
-        return NO_ERROR;
-    }
-
-getNextBuffer_exit:
-    buffer->raw = NULL;
-    buffer->frameCount = 0;
-    return NOT_ENOUGH_DATA;
+    return status;
 }
 
 status_t AudioFlinger::RecordThread::RecordTrack::start(AudioSystem::sync_event_t event,
@@ -1790,12 +1693,12 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("   Clien Fmt Chn mask   Session Step S Serv     User   FrameCount\n");
+    result.append("   Clien Fmt Chn mask   Session Step S Serv   FrameCount\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
 {
-    snprintf(buffer, size, "   %05d %03u 0x%08x %05d   %04u %01d %08x %08x %05d\n",
+    snprintf(buffer, size, "   %05d %03u 0x%08x %05d   %04u %01d %08x %05d\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
             mChannelMask,
@@ -1803,7 +1706,6 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
             mStepCount,
             mState,
             mCblk->server,
-            mCblk->user,
             mFrameCount);
 }
 

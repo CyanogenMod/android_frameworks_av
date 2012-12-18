@@ -46,6 +46,8 @@ public:
             void        destroy();
             int         name() const { return mName; }
 
+    virtual uint32_t    sampleRate() const;
+
             audio_stream_type_t streamType() const {
                 return mStreamType;
             }
@@ -139,6 +141,7 @@ private:
                                         // 'volatile' means accessed without lock or
                                         // barrier, but is read/written atomically
     bool                mIsInvalid; // non-resettable latch, set by invalidate()
+    AudioTrackServerProxy*  mAudioTrackServerProxy;
 };  // end of Track
 
 class TimedTrack : public Track {
@@ -254,10 +257,6 @@ public:
     const wp<ThreadBase>& thread() const { return mThread; }
 
 private:
-
-    enum {
-        NO_MORE_BUFFERS = 0x80000001,   // same in AudioTrack.h, ok to be different value
-    };
 
     status_t            obtainBuffer(AudioBufferProvider::Buffer* buffer,
                                      uint32_t waitTimeMs);

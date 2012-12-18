@@ -57,4 +57,5 @@ private:
     // releaseBuffer() not overridden
 
     bool                mOverflow;  // overflow on most recent attempt to fill client buffer
+    AudioRecordServerProxy* mAudioRecordServerProxy;
 };
