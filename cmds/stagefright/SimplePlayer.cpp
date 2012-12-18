@@ -64,12 +64,12 @@ status_t SimplePlayer::setDataSource(const char *path) {
     return PostAndAwaitResponse(msg, &response);
 }
 
-status_t SimplePlayer::setSurface(const sp<ISurfaceTexture> &surfaceTexture) {
+status_t SimplePlayer::setSurface(const sp<IGraphicBufferProducer> &bufferProducer) {
     sp<AMessage> msg = new AMessage(kWhatSetSurface, id());
 
     sp<SurfaceTextureClient> surfaceTextureClient;
-    if (surfaceTexture != NULL) {
-        surfaceTextureClient = new SurfaceTextureClient(surfaceTexture);
+    if (bufferProducer != NULL) {
+        surfaceTextureClient = new SurfaceTextureClient(bufferProducer);
     }
 
     msg->setObject(

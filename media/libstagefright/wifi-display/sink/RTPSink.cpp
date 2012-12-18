@@ -238,9 +238,9 @@ void RTPSink::Source::addReportBlock(
 
 RTPSink::RTPSink(
         const sp<ANetworkSession> &netSession,
-        const sp<ISurfaceTexture> &surfaceTex)
+        const sp<IGraphicBufferProducer> &bufferProducer)
     : mNetSession(netSession),
-      mSurfaceTex(surfaceTex),
+      mSurfaceTex(bufferProducer),
       mRTPPort(0),
       mRTPSessionID(0),
       mRTCPSessionID(0),

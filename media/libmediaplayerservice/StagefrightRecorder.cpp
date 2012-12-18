@@ -89,7 +89,7 @@ status_t StagefrightRecorder::init() {
 // The client side of mediaserver asks it to creat a SurfaceMediaSource
 // and return a interface reference. The client side will use that
 // while encoding GL Frames
-sp<ISurfaceTexture> StagefrightRecorder::querySurfaceMediaSource() const {
+sp<IGraphicBufferProducer> StagefrightRecorder::querySurfaceMediaSource() const {
     ALOGV("Get SurfaceMediaSource");
     return mSurfaceMediaSource->getBufferQueue();
 }

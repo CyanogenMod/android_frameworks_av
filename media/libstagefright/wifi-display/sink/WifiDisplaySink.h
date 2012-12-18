@@ -34,7 +34,7 @@ struct RTPSink;
 struct WifiDisplaySink : public AHandler {
     WifiDisplaySink(
             const sp<ANetworkSession> &netSession,
-            const sp<ISurfaceTexture> &surfaceTex = NULL);
+            const sp<IGraphicBufferProducer> &bufferProducer = NULL);
 
     void start(const char *sourceHost, int32_t sourcePort);
     void start(const char *uri);
@@ -76,7 +76,7 @@ private:
 
     State mState;
     sp<ANetworkSession> mNetSession;
-    sp<ISurfaceTexture> mSurfaceTex;
+    sp<IGraphicBufferProducer> mSurfaceTex;
     AString mSetupURI;
     AString mRTSPHost;
     int32_t mSessionID;

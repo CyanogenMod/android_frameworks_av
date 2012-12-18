@@ -17,7 +17,7 @@
 #ifndef ANDROID_GUI_SURFACEMEDIASOURCE_H
 #define ANDROID_GUI_SURFACEMEDIASOURCE_H
 
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <gui/BufferQueue.h>
 
 #include <utils/threads.h>
@@ -35,7 +35,7 @@ class GraphicBuffer;
 // ASSUMPTIONS
 // 1. SurfaceMediaSource is initialized with width*height which
 // can never change.  However, deqeueue buffer does not currently
-// enforce this as in BufferQueue, dequeue can be used by SurfaceTexture
+// enforce this as in BufferQueue, dequeue can be used by SurfaceTextureClient
 // which can modify the default width and heght.  Also neither the width
 // nor height can be 0.
 // 2. setSynchronousMode is never used (basically no one should call
@@ -122,7 +122,7 @@ public:
 protected:
 
     // Implementation of the BufferQueue::ConsumerListener interface.  These
-    // calls are used to notify the SurfaceTexture of asynchronous events in the
+    // calls are used to notify the SurfaceTextureClient of asynchronous events in the
     // BufferQueue.
     virtual void onFrameAvailable();
 
@@ -157,7 +157,7 @@ private:
     // mCurrentSlot is the buffer slot index of the buffer that is currently
     // being used by buffer consumer
     // (e.g. StageFrightRecorder in the case of SurfaceMediaSource or GLTexture
-    // in the case of SurfaceTexture).
+    // in the case of SurfaceTextureClient).
     // It is initialized to INVALID_BUFFER_SLOT,
     // indicating that no buffer slot is currently bound to the texture. Note,
     // however, that a value of INVALID_BUFFER_SLOT does not necessarily mean

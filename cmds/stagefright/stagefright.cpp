@@ -940,7 +940,7 @@ int main(int argc, char **argv) {
         } else {
             CHECK(useSurfaceTexAlloc);
 
-            sp<SurfaceTexture> texture = new SurfaceTexture(0 /* tex */);
+            sp<GLConsumer> texture = new GLConsumer(0 /* tex */);
             gSurface = new SurfaceTextureClient(texture->getBufferQueue());
         }
 

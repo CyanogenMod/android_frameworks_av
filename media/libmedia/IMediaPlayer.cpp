@@ -24,7 +24,7 @@
 #include <media/IMediaPlayer.h>
 #include <media/IStreamSource.h>
 
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <utils/String8.h>
 
 namespace android {
@@ -113,12 +113,12 @@ public:
         return reply.readInt32();
     }
 
-    // pass the buffered ISurfaceTexture to the media player service
-    status_t setVideoSurfaceTexture(const sp<ISurfaceTexture>& surfaceTexture)
+    // pass the buffered IGraphicBufferProducer to the media player service
+    status_t setVideoSurfaceTexture(const sp<IGraphicBufferProducer>& bufferProducer)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
-        sp<IBinder> b(surfaceTexture->asBinder());
+        sp<IBinder> b(bufferProducer->asBinder());
         data.writeStrongBinder(b);
         remote()->transact(SET_VIDEO_SURFACETEXTURE, data, &reply);
         return reply.readInt32();
@@ -383,9 +383,9 @@ status_t BnMediaPlayer::onTransact(
         }
         case SET_VIDEO_SURFACETEXTURE: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
-            sp<ISurfaceTexture> surfaceTexture =
-                    interface_cast<ISurfaceTexture>(data.readStrongBinder());
-            reply->writeInt32(setVideoSurfaceTexture(surfaceTexture));
+            sp<IGraphicBufferProducer> bufferProducer =
+                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            reply->writeInt32(setVideoSurfaceTexture(bufferProducer));
             return NO_ERROR;
         } break;
         case PREPARE_ASYNC: {

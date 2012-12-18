@@ -81,7 +81,7 @@ public:
         virtual status_t      lock() = 0;
         virtual status_t      unlock() = 0;
         virtual status_t      setPreviewDisplay(const sp<Surface>& surface) = 0;
-        virtual status_t      setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture) = 0;
+        virtual status_t      setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)=0;
         virtual void          setPreviewCallbackFlag(int flag) = 0;
         virtual status_t      startPreview() = 0;
         virtual void          stopPreview() = 0;

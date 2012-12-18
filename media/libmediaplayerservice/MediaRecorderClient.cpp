@@ -38,7 +38,7 @@
 #include "MediaPlayerService.h"
 
 #include "StagefrightRecorder.h"
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 
 namespace android {
 
@@ -56,7 +56,7 @@ static bool checkPermission(const char* permissionString) {
 }
 
 
-sp<ISurfaceTexture> MediaRecorderClient::querySurfaceMediaSource()
+sp<IGraphicBufferProducer> MediaRecorderClient::querySurfaceMediaSource()
 {
     ALOGV("Query SurfaceMediaSource");
     Mutex::Autolock lock(mLock);

@@ -497,7 +497,7 @@ status_t Camera2Client::setPreviewDisplay(
 }
 
 status_t Camera2Client::setPreviewTexture(
-        const sp<ISurfaceTexture>& surfaceTexture) {
+        const sp<IGraphicBufferProducer>& bufferProducer) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mICameraLock);
@@ -506,9 +506,9 @@ status_t Camera2Client::setPreviewTexture(
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
-    if (surfaceTexture != 0) {
-        binder = surfaceTexture->asBinder();
-        window = new SurfaceTextureClient(surfaceTexture);
+    if (bufferProducer != 0) {
+        binder = bufferProducer->asBinder();
+        window = new SurfaceTextureClient(bufferProducer);
     }
     return setPreviewWindowL(binder, window);
 }
