@@ -37,15 +37,15 @@
 // we only expect that happens briefly when one clip is about to finish
 // and the next clip is about to start.
 //
-// We allocate a SurfaceTexture for each RenderInput and the user can use
+// We allocate a SurfaceTextureClient for each RenderInput and the user can use
 // the getTargetWindow() function to get the corresponding ANativeWindow
-// for that SurfaceTexture. The intention is that the user can pass that
+// for that SurfaceTextureClient. The intention is that the user can pass that
 // ANativeWindow to OMXCodec::Create() so the codec can decode directly
 // to buffers provided by the texture.
 
 namespace android {
 
-class SurfaceTexture;
+class GLConsumer;
 class SurfaceTextureClient;
 class RenderInput;
 
@@ -110,7 +110,7 @@ private:
     // destination aspect ratio.
     GLfloat mPositionCoordinates[8];
 
-    // We use a different GL id for each SurfaceTexture.
+    // We use a different GL id for each SurfaceTextureClient.
     GLuint mNextTextureId;
 
     // Number of existing RenderInputs, just for debugging.
@@ -146,7 +146,7 @@ private:
 
 class RenderInput {
 public:
-    // Returns the ANativeWindow corresponds to the SurfaceTexture.
+    // Returns the ANativeWindow corresponds to the SurfaceTextureClient.
     ANativeWindow* getTargetWindow();
 
     // Updates video frame size from the MediaSource's metadata. Specifically
@@ -156,7 +156,7 @@ public:
     // Renders the buffer with the given video effect and rending mode.
     // The video effets are defined in VideoEditorTools.h
     // Set isExternalBuffer to true only when the buffer given is not
-    // provided by the SurfaceTexture.
+    // provided by the SurfaceTextureClient.
     void render(MediaBuffer *buffer, uint32_t videoEffect,
         M4xVSS_MediaRendering renderingMode, bool isExternalBuffer);
 private:
@@ -164,7 +164,7 @@ private:
     ~RenderInput();
     NativeWindowRenderer* mRenderer;
     GLuint mTextureId;
-    sp<SurfaceTexture> mST;
+    sp<GLConsumer> mST;
     sp<SurfaceTextureClient> mSTC;
     int mWidth, mHeight;
 

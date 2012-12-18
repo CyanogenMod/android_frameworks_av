@@ -26,7 +26,7 @@ namespace android {
 struct ABuffer;
 struct BufferQueue;
 struct IHDCP;
-struct ISurfaceTexture;
+struct IGraphicBufferProducer;
 struct MediaPuller;
 struct MediaSource;
 struct TSPacketizer;
@@ -56,7 +56,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
     status_t finishPlay();
     status_t pause();
 
-    sp<ISurfaceTexture> getSurfaceTexture();
+    sp<IGraphicBufferProducer> getSurfaceTexture();
     int32_t width() const;
     int32_t height() const;
 

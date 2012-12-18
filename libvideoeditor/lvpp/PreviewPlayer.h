@@ -44,7 +44,7 @@ struct PreviewPlayer {
 
     bool isPlaying() const;
     void setSurface(const sp<Surface> &surface);
-    void setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture);
+    void setSurfaceTexture(const sp<IGraphicBufferProducer> &bufferProducer);
     status_t seekTo(int64_t timeUs);
 
     status_t getVideoDimensions(int32_t *width, int32_t *height) const;

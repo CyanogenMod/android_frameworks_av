@@ -35,7 +35,7 @@ struct TunnelRenderer;
 // the RTCP channel.
 struct RTPSink : public AHandler {
     RTPSink(const sp<ANetworkSession> &netSession,
-            const sp<ISurfaceTexture> &surfaceTex);
+            const sp<IGraphicBufferProducer> &bufferProducer);
 
     // If TCP interleaving is used, no UDP sockets are created, instead
     // incoming RTP/RTCP packets (arriving on the RTSP control connection)
@@ -66,7 +66,7 @@ private:
     struct StreamSource;
 
     sp<ANetworkSession> mNetSession;
-    sp<ISurfaceTexture> mSurfaceTex;
+    sp<IGraphicBufferProducer> mSurfaceTex;
     KeyedVector<uint32_t, sp<Source> > mSources;
 
     int32_t mRTPPort;

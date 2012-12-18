@@ -36,7 +36,7 @@ public:
 
     virtual status_t    setDataSource(int fd, int64_t offset, int64_t length);
     virtual status_t    setVideoSurfaceTexture(
-                                const sp<ISurfaceTexture>& surfaceTexture)
+                                const sp<IGraphicBufferProducer>& bufferProducer)
                             { return UNKNOWN_ERROR; }
     virtual status_t    prepare();
     virtual status_t    prepareAsync();

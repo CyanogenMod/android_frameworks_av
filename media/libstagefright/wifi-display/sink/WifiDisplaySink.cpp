@@ -31,10 +31,10 @@ namespace android {
 
 WifiDisplaySink::WifiDisplaySink(
         const sp<ANetworkSession> &netSession,
-        const sp<ISurfaceTexture> &surfaceTex)
+        const sp<IGraphicBufferProducer> &bufferProducer)
     : mState(UNDEFINED),
       mNetSession(netSession),
-      mSurfaceTex(surfaceTex),
+      mSurfaceTex(bufferProducer),
       mSessionID(0),
       mNextCSeq(1) {
 }

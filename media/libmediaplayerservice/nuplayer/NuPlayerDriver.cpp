@@ -97,7 +97,7 @@ status_t NuPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
 }
 
 status_t NuPlayerDriver::setVideoSurfaceTexture(
-        const sp<ISurfaceTexture> &surfaceTexture) {
+        const sp<IGraphicBufferProducer> &bufferProducer) {
     Mutex::Autolock autoLock(mLock);
 
     if (mResetInProgress) {
@@ -106,7 +106,7 @@ status_t NuPlayerDriver::setVideoSurfaceTexture(
 
     mSetSurfaceInProgress = true;
 
-    mPlayer->setVideoSurfaceTextureAsync(surfaceTexture);
+    mPlayer->setVideoSurfaceTextureAsync(bufferProducer);
 
     while (mSetSurfaceInProgress) {
         mCondition.wait(mLock);

@@ -31,7 +31,7 @@
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <gui/Surface.h>
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <gui/SurfaceTextureClient.h>
 
 #include "VideoEditorPreviewController.h"
@@ -1775,12 +1775,12 @@ void PreviewPlayer::setSurface(const sp<Surface> &surface) {
     setNativeWindow_l(surface);
 }
 
-void PreviewPlayer::setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture) {
+void PreviewPlayer::setSurfaceTexture(const sp<IGraphicBufferProducer> &bufferProducer) {
     Mutex::Autolock autoLock(mLock);
 
     mSurface.clear();
-    if (surfaceTexture != NULL) {
-        setNativeWindow_l(new SurfaceTextureClient(surfaceTexture));
+    if (bufferProducer != NULL) {
+        setNativeWindow_l(new SurfaceTextureClient(bufferProducer));
     }
 }
 
