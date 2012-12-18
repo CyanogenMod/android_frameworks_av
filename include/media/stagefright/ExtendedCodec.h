@@ -88,6 +88,11 @@ struct ExtendedCodec {
     static void setSupportedRole(
             const sp<IOMX> &omx, IOMX::node_id node,
             bool isEncoder,const char *mime);
+
+    static void configureVideoCodec(
+            const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID, char* componentName );
+
 private:
 
     static status_t setWMAFormat(
