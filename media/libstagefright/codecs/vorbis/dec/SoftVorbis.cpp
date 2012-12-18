@@ -410,6 +410,11 @@ void SoftVorbis::onPortFlushCompleted(OMX_U32 portIndex) {
     }
 }
 
+void SoftVorbis::onReset() {
+    mNumFramesOutput = 0;
+    vorbis_dsp_restart(mState);
+}
+
 void SoftVorbis::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     if (portIndex != 1) {
         return;
