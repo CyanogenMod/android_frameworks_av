@@ -612,7 +612,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
         BufferInfo info;
         info.mStatus = BufferInfo::OWNED_BY_US;
-        info.mData = new ABuffer(0);
+        info.mData = new ABuffer(NULL /* data */, def.nBufferSize /* capacity */);
         info.mGraphicBuffer = graphicBuffer;
         mBuffers[kPortIndexOutput].push(info);
 
@@ -2868,15 +2868,14 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 mCodec->sendFormatChange();
             }
 
-            if (mCodec->mNativeWindow == NULL) {
-                info->mData->setRange(rangeOffset, rangeLength);
-
+            info->mData->setRange(rangeOffset, rangeLength);
 #if 0
+            if (mCodec->mNativeWindow == NULL) {
                 if (IsIDR(info->mData)) {
                     ALOGI("IDR frame");
                 }
-#endif
             }
+#endif
 
             if (mCodec->mSkipCutBuffer != NULL) {
                 mCodec->mSkipCutBuffer->submit(info->mData);
