@@ -343,6 +343,11 @@ void SoftMP3::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     }
 }
 
+void SoftMP3::onReset() {
+    pvmp3_InitDecoder(mConfig, mDecoderBuf);
+    mIsFirst = true;
+}
+
 }  // namespace android
 
 android::SoftOMXComponent *createSoftOMXComponent(

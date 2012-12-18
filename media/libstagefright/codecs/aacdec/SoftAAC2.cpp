@@ -594,6 +594,11 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
     }
 }
 
+void SoftAAC2::onReset() {
+    aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
+    mIsFirst = true;
+}
+
 void SoftAAC2::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     if (portIndex != 1) {
         return;
