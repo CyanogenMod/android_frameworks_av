@@ -575,13 +575,50 @@ status_t MPEG4Writer::start(MetaData *param) {
     /*
      * When the requested file size limit is small, the priority
      * is to meet the file size limit requirement, rather than
-     * to make the file streamable.
+     * to make the file streamable. mStreamableFile does not tell
+     * whether the actual recorded file is streamable or not.
      */
     mStreamableFile =
         (mMaxFileSizeLimitBytes != 0 &&
          mMaxFileSizeLimitBytes >= kMinStreamableFileSizeInBytes);
 
-    mWriteMoovBoxToMemory = mStreamableFile;
+    /*
+     * mWriteMoovBoxToMemory is true if the amount of data in moov box is
+     * smaller than the reserved free space at the beginning of a file, AND
+     * when the content of moov box is constructed. Note that video/audio
+     * frame data is always written to the file but not in the memory.
+     *
+     * Before stop()/reset() is called, mWriteMoovBoxToMemory is always
+     * false. When reset() is called at the end of a recording session,
+     * Moov box needs to be constructed.
+     *
+     * 1) Right before a moov box is constructed, mWriteMoovBoxToMemory
+     * to set to mStreamableFile so that if
+     * the file is intended to be streamable, it is set to true;
+     * otherwise, it is set to false. When the value is set to false,
+     * all the content of the moov box is written immediately to
+     * the end of the file. When the value is set to true, all the
+     * content of the moov box is written to an in-memory cache,
+     * mMoovBoxBuffer, util the following condition happens. Note
+     * that the size of the in-memory cache is the same as the
+     * reserved free space at the beginning of the file.
+     *
+     * 2) While the data of the moov box is written to an in-memory
+     * cache, the data size is checked against the reserved space.
+     * If the data size surpasses the reserved space, subsequent moov
+     * data could no longer be hold in the in-memory cache. This also
+     * indicates that the reserved space was too small. At this point,
+     * _all_ moov data must be written to the end of the file.
+     * mWriteMoovBoxToMemory must be set to false to direct the write
+     * to the file.
+     *
+     * 3) If the data size in moov box is smaller than the reserved
+     * space after moov box is completely constructed, the in-memory
+     * cache copy of the moov box is written to the reserved free
+     * space. Thus, immediately after the moov is completedly
+     * constructed, mWriteMoovBoxToMemory is always set to false.
+     */
+    mWriteMoovBoxToMemory = false;
     mMoovBoxBuffer = NULL;
     mMoovBoxBufferOffset = 0;
 
@@ -786,15 +823,25 @@ status_t MPEG4Writer::reset() {
     }
     lseek64(mFd, mOffset, SEEK_SET);
 
-    const off64_t moovOffset = mOffset;
-    mWriteMoovBoxToMemory = mStreamableFile;
-    mMoovBoxBuffer = (uint8_t *) malloc(mEstimatedMoovBoxSize);
+    // Construct moov box now
     mMoovBoxBufferOffset = 0;
-    CHECK(mMoovBoxBuffer != NULL);
+    mWriteMoovBoxToMemory = mStreamableFile;
+    if (mWriteMoovBoxToMemory) {
+        // There is no need to allocate in-memory cache
+        // for moov box if the file is not streamable.
+
+        mMoovBoxBuffer = (uint8_t *) malloc(mEstimatedMoovBoxSize);
+        CHECK(mMoovBoxBuffer != NULL);
+    }
     writeMoovBox(maxDurationUs);
 
-    mWriteMoovBoxToMemory = false;
-    if (mStreamableFile) {
+    // mWriteMoovBoxToMemory could be set to false in
+    // MPEG4Writer::write() method
+    if (mWriteMoovBoxToMemory) {
+        mWriteMoovBoxToMemory = false;
+        // Content of the moov box is saved in the cache, and the in-memory
+        // moov box needs to be written to the file in a single shot.
+
         CHECK_LE(mMoovBoxBufferOffset + 8, mEstimatedMoovBoxSize);
 
         // Moov box
@@ -806,13 +853,15 @@ status_t MPEG4Writer::reset() {
         lseek64(mFd, mOffset, SEEK_SET);
         writeInt32(mEstimatedMoovBoxSize - mMoovBoxBufferOffset);
         write("free", 4);
+    } else {
+        ALOGI("The mp4 file will not be streamable.");
+    }
 
-        // Free temp memory
+    // Free in-memory cache for moov box
+    if (mMoovBoxBuffer != NULL) {
         free(mMoovBoxBuffer);
         mMoovBoxBuffer = NULL;
         mMoovBoxBufferOffset = 0;
-    } else {
-        ALOGI("The mp4 file will not be streamable.");
     }
 
     CHECK(mBoxes.empty());
@@ -994,23 +1043,28 @@ size_t MPEG4Writer::write(
 
     const size_t bytes = size * nmemb;
     if (mWriteMoovBoxToMemory) {
-        // This happens only when we write the moov box at the end of
-        // recording, not for each output video/audio frame we receive.
+
         off64_t moovBoxSize = 8 + mMoovBoxBufferOffset + bytes;
         if (moovBoxSize > mEstimatedMoovBoxSize) {
+            // The reserved moov box at the beginning of the file
+            // is not big enough. Moov box should be written to
+            // the end of the file from now on, but not to the
+            // in-memory cache.
+
+            // We write partial moov box that is in the memory to
+            // the file first.
             for (List<off64_t>::iterator it = mBoxes.begin();
                  it != mBoxes.end(); ++it) {
                 (*it) += mOffset;
             }
             lseek64(mFd, mOffset, SEEK_SET);
             ::write(mFd, mMoovBoxBuffer, mMoovBoxBufferOffset);
-            ::write(mFd, ptr, size * nmemb);
+            ::write(mFd, ptr, bytes);
             mOffset += (bytes + mMoovBoxBufferOffset);
-            free(mMoovBoxBuffer);
-            mMoovBoxBuffer = NULL;
-            mMoovBoxBufferOffset = 0;
+
+            // All subsequent moov box content will be written
+            // to the end of the file.
             mWriteMoovBoxToMemory = false;
-            mStreamableFile = false;
         } else {
             memcpy(mMoovBoxBuffer + mMoovBoxBufferOffset, ptr, bytes);
             mMoovBoxBufferOffset += bytes;
