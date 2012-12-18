@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaExtractor"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include "include/AMRExtractor.h"
 #include "include/MP3Extractor.h"
@@ -57,6 +58,7 @@ uint32_t MediaExtractor::flags() const {
 sp<MediaExtractor> MediaExtractor::Create(
         const sp<DataSource> &source, const char *mime) {
     sp<AMessage> meta;
+    bool bCheckExtendedExtractor = false;
 
     String8 tmp;
     if (mime == NULL) {
@@ -103,6 +105,15 @@ sp<MediaExtractor> MediaExtractor::Create(
         } else {
             ret = new MPEG4Extractor(source);
         }
+#ifdef QCOM_ENHANCED_AUDIO
+        char tunnelDecode[PROPERTY_VALUE_MAX];
+        ALOGV("MediaExtractor::Create checking tunnel.decode");
+        property_get("tunnel.decode",tunnelDecode,"0");
+        if( (strncmp("true",tunnelDecode,4) == 0) || (atoi(tunnelDecode)) ) {
+            bCheckExtendedExtractor = true;
+            ALOGV("MediaExtractor::Create detected tunnel.decode as true...");
+        }
+#endif
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         ret = new MP3Extractor(source, meta);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)
@@ -136,13 +147,48 @@ sp<MediaExtractor> MediaExtractor::Create(
     }
 
 #ifdef QCOM_HARDWARE
-    if(ret == NULL) {
-        //Create Extended Extractor only if default extractor are not selected
-        ALOGV("Using ExtendedExtractor\n");
-        ret =  ExtendedExtractor::CreateExtractor(source, mime);
+    //If default extractor created and flag is not set to check extended extractor,
+    // then pass default extractor.
+    if (ret && (!bCheckExtendedExtractor) ) {
+        ALOGD("returning default extractor");
+        return ret;
+    }
+
+    //Create Extended Extractor only if default extractor are not selected
+    ALOGV("Using ExtendedExtractor");
+    sp<MediaExtractor> retextParser =  ExtendedExtractor::CreateExtractor(source, mime);
+    //if we came here, it means we do not have to use the default extractor, if created above.
+    bool bUseDefaultExtractor = false;
+
+    if(bCheckExtendedExtractor) {
+        ALOGV("bCheckExtendedExtractor is true");
+        //bCheckExtendedExtractor is true which means default extractor was found
+        // but we want to give preference to extended extractor based on certain
+        // codec type.Set bUseDefaultExtractor to true if extended extractor
+        //does not return specific codec type that we are looking for.
+        bUseDefaultExtractor = true;
+        ALOGV(" bCheckExtendedExtractor is true..checking extended extractor");
+        for (size_t i = 0; (retextParser!=NULL) && (i < retextParser->countTracks()); ++i) {
+            sp<MetaData> meta = retextParser->getTrackMetaData(i);
+            const char *mime;
+            bool success = meta->findCString(kKeyMIMEType, &mime);
+            if( (success == true) && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) {
+                ALOGV("Discarding default extractor and using the extended one");
+                //We found what we were looking for, set bUseDefaultExtractor to false;
+                bUseDefaultExtractor = false;
+                if(ret) {
+                    //delete the default extractor as we will be using extended extractor..
+                    delete ret;
+                }
+                break;
+            }
+        }
+    }
+    if( (retextParser != NULL) && (!bUseDefaultExtractor) ) {
+        ALOGV("returning retextParser");
+        return retextParser;
     }
 #endif
-
     return ret;
 }
 

@@ -212,11 +212,10 @@ private:
         A2DP_DISCONNECT
     };
 
-    int64_t getTimeStamp(A2DPState state);
+    void getPlayedTimeFromDSP_l(int64_t *timeStamp);
+    void getOffsetRealTime_l(int64_t *offsetTime);
 
     size_t fillBuffer(void *data, size_t size);
-
-    int64_t getRealTimeUsLocked();
 
     void reset();
 

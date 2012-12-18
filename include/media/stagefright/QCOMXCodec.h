@@ -91,6 +91,9 @@ struct QCOMXCodec {
     static void     checkQCRole(const sp<IOMX> &omx, IOMX::node_id node,
                                         bool isEncoder,const char *mime);
 
+    static void     setQCSpecificVideoFormat(const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+                                               IOMX::node_id nodeID, char* componentName );
+
 };
 
 }

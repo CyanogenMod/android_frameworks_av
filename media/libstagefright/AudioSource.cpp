@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +57,7 @@ AudioSource::AudioSource(
       mNumFramesReceived(0),
       mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
-    CHECK(channelCount == 1 || channelCount == 2);
+    CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
 
     int minFrameCount;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,

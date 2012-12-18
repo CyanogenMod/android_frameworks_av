@@ -967,9 +967,18 @@ status_t AwesomePlayer::play_l() {
                 }
                 tunnelObjectsAlive = (TunnelPlayer::mTunnelObjectsAlive);
 #endif
+                int32_t nchannels = 0;
+                if(mAudioTrack != NULL) {
+                    sp<MetaData> format = mAudioTrack->getFormat();
+                    if(format != NULL) {
+                        format->findInt32( kKeyChannelCount, &nchannels );
+                        ALOGV("nchannels %d;LPA will be skipped if nchannels is > 2 or nchannels == 0",nchannels);
+                    }
+                }
                 char lpaDecode[128];
                 property_get("lpa.decode",lpaDecode,"0");
-                if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) && tunnelObjectsAlive==0 )
+                if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) &&
+                   (tunnelObjectsAlive==0) && (nchannels && (nchannels <= 2)))
                 {
                     ALOGV("LPAPlayer::getObjectsAlive() %d",LPAPlayer::objectsAlive);
                     if ( mDurationUs > 60000000
@@ -1486,6 +1495,11 @@ status_t AwesomePlayer::initAudioDecoder() {
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 #ifdef QCOM_ENHANCED_AUDIO
+    int32_t nchannels = 0;
+    meta->findInt32( kKeyChannelCount, &nchannels );
+    ALOGV("nchannels %d;LPA will be skipped if nchannels is > 2 or nchannels == 0",
+           nchannels);
+
 #ifdef USE_TUNNEL_MODE
     char value[PROPERTY_VALUE_MAX];
     char tunnelDecode[128];
@@ -1498,6 +1512,8 @@ status_t AwesomePlayer::initAudioDecoder() {
             (TunnelPlayer::mTunnelObjectsAlive == 0) &&
             mTunnelAliveAP == 0 &&
             ((!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) ||
+            (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB))       ||
+            (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS))  ||
             (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC)))) {
 
         if(mVideoSource != NULL) {
@@ -1542,7 +1558,8 @@ status_t AwesomePlayer::initAudioDecoder() {
         }
         if ( mDurationUs > 60000000
              && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
-             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)) {
+             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)
+             && (nchannels && (nchannels <= 2)) ) {
             char nonOMXDecoder[128];
             if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
                 ALOGD("matchComponentName is set to MP3Decoder %lld, mime %s",mDurationUs,mime);

@@ -545,4 +545,48 @@ status_t QCOMXCodec::checkQCFormats(int format, AString* meta){
     return retVal;
 }
 
+void QCOMXCodec::setQCSpecificVideoFormat(const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+                                       IOMX::node_id nodeID, char* componentName ) {
+    int32_t arbitraryMode = 1;
+    bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
+    bool useArbitraryMode = true;
+    if (success) {
+        useArbitraryMode = arbitraryMode ? true : false;
+    }
+
+    if (useArbitraryMode) {
+        ALOGI("Decoder should be in arbitrary mode");
+        // Is it required to set OMX_QCOM_FramePacking_Arbitrary ??
+    } else{
+        ALOGI("Enable frame by frame mode");
+        OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
+        portFmt.nPortIndex = OMXCodec::kPortIndexInput;
+        portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
+        status_t err = OMXhandle->setParameter(
+        nodeID, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn, (void *)&portFmt, sizeof(portFmt));
+        if(err != OK) {
+            ALOGW("Failed to set frame packing format on component");
+        }
+    }
+
+    // Enable timestamp reordering only for AVI/mpeg4 and vc1 clips
+    const char *fileFormat;
+    success = meta->findCString(kKeyFileFormat, &fileFormat);
+    if (!strcmp(componentName, "OMX.qcom.video.decoder.vc1") ||
+        (success && !strncmp(fileFormat, "video/avi", 9))) {
+        ALOGI("Enabling timestamp reordering");
+        QOMX_INDEXTIMESTAMPREORDER reorder;
+        InitOMXParams(&reorder);
+        reorder.nPortIndex = OMXCodec::kPortIndexOutput;
+        reorder.bEnable = OMX_TRUE;
+        status_t err = OMXhandle->setParameter(nodeID,
+                       (OMX_INDEXTYPE)OMX_QcomIndexParamEnableTimeStampReorder,
+                       (void *)&reorder, sizeof(reorder));
+
+        if(err != OK) {
+            ALOGW("Failed to enable timestamp reordering");
+        }
+    }
+}
+
 }
