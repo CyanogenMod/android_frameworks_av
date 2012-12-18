@@ -47,7 +47,7 @@ struct RemoteDisplayClient : public BnRemoteDisplayClient {
     RemoteDisplayClient();
 
     virtual void onDisplayConnected(
-            const sp<ISurfaceTexture> &surfaceTexture,
+            const sp<IGraphicBufferProducer> &bufferProducer,
             uint32_t width,
             uint32_t height,
             uint32_t flags);
@@ -67,7 +67,7 @@ private:
     bool mDone;
 
     sp<SurfaceComposerClient> mComposerClient;
-    sp<ISurfaceTexture> mSurfaceTexture;
+    sp<IGraphicBufferProducer> mSurfaceTexture;
     sp<IBinder> mDisplayBinder;
 
     DISALLOW_EVIL_CONSTRUCTORS(RemoteDisplayClient);
@@ -83,14 +83,14 @@ RemoteDisplayClient::~RemoteDisplayClient() {
 }
 
 void RemoteDisplayClient::onDisplayConnected(
-        const sp<ISurfaceTexture> &surfaceTexture,
+        const sp<IGraphicBufferProducer> &bufferProducer,
         uint32_t width,
         uint32_t height,
         uint32_t flags) {
     ALOGI("onDisplayConnected width=%u, height=%u, flags = 0x%08x",
           width, height, flags);
 
-    mSurfaceTexture = surfaceTexture;
+    mSurfaceTexture = bufferProducer;
     mDisplayBinder = mComposerClient->createDisplay(
             String8("foo"), false /* secure */);
 

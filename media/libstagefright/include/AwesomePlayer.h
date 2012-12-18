@@ -36,7 +36,7 @@ struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
 struct NuCachedSource2;
-struct ISurfaceTexture;
+struct IGraphicBufferProducer;
 
 class DrmManagerClinet;
 class DecryptHandle;
@@ -81,7 +81,7 @@ struct AwesomePlayer {
 
     bool isPlaying() const;
 
-    status_t setSurfaceTexture(const sp<ISurfaceTexture> &surfaceTexture);
+    status_t setSurfaceTexture(const sp<IGraphicBufferProducer> &bufferProducer);
     void setAudioSink(const sp<MediaPlayerBase::AudioSink> &audioSink);
     status_t setLooping(bool shouldLoop);
 

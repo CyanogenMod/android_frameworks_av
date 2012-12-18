@@ -24,7 +24,7 @@
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
 #include <media/mediaplayer.h>  // for MEDIA_ERROR_SERVER_DIED
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 
 namespace android {
 
@@ -348,9 +348,9 @@ status_t MediaRecorder::setVideoSize(int width, int height)
 }
 
 // Query a SurfaceMediaSurface through the Mediaserver, over the
-// binder interface. This is used by the Filter Framework (MeidaEncoder)
-// to get an <ISurfaceTexture> object to hook up to ANativeWindow.
-sp<ISurfaceTexture> MediaRecorder::
+// binder interface. This is used by the Filter Framework (MediaEncoder)
+// to get an <IGraphicBufferProducer> object to hook up to ANativeWindow.
+sp<IGraphicBufferProducer> MediaRecorder::
         querySurfaceMediaSourceFromMediaServer()
 {
     Mutex::Autolock _l(mLock);

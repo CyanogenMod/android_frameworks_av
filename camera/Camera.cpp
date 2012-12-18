@@ -27,7 +27,7 @@
 #include <camera/ICameraRecordingProxyListener.h>
 #include <camera/ICameraService.h>
 
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 
 namespace android {
@@ -184,14 +184,14 @@ status_t Camera::setPreviewDisplay(const sp<Surface>& surface)
     }
 }
 
-// pass the buffered ISurfaceTexture to the camera service
-status_t Camera::setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture)
+// pass the buffered IGraphicBufferProducer to the camera service
+status_t Camera::setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)
 {
-    ALOGV("setPreviewTexture(%p)", surfaceTexture.get());
+    ALOGV("setPreviewTexture(%p)", bufferProducer.get());
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
-    if (surfaceTexture != 0) {
-        return c->setPreviewTexture(surfaceTexture);
+    if (bufferProducer != 0) {
+        return c->setPreviewTexture(bufferProducer);
     } else {
         ALOGD("app passed NULL surface");
         return c->setPreviewTexture(0);

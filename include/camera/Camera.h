@@ -18,7 +18,7 @@
 #define ANDROID_HARDWARE_CAMERA_H
 
 #include <utils/Timers.h>
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <system/camera.h>
 #include <camera/ICameraClient.h>
 #include <camera/ICameraRecordingProxy.h>
@@ -86,8 +86,8 @@ public:
             // pass the buffered Surface to the camera service
             status_t    setPreviewDisplay(const sp<Surface>& surface);
 
-            // pass the buffered ISurfaceTexture to the camera service
-            status_t    setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture);
+            // pass the buffered IGraphicBufferProducer to the camera service
+            status_t    setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer);
 
             // start preview mode, must call setPreviewDisplay first
             status_t    startPreview();

@@ -33,7 +33,7 @@ public:
     virtual status_t        lock();
     virtual status_t        unlock();
     virtual status_t        setPreviewDisplay(const sp<Surface>& surface);
-    virtual status_t        setPreviewTexture(const sp<ISurfaceTexture>& surfaceTexture);
+    virtual status_t        setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer);
     virtual void            setPreviewCallbackFlag(int flag);
     virtual status_t        startPreview();
     virtual void            stopPreview();
@@ -124,7 +124,7 @@ private:
 
     // Ensures atomicity among the public methods
     mutable Mutex                   mLock;
-    // This is a binder of Surface or SurfaceTexture.
+    // This is a binder of Surface or SurfaceTextureClient.
     sp<IBinder>                     mSurface;
     sp<ANativeWindow>               mPreviewWindow;
 

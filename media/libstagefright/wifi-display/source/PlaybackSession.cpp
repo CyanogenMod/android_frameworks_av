@@ -786,7 +786,7 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
     return OK;
 }
 
-sp<ISurfaceTexture> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
+sp<IGraphicBufferProducer> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
     return mBufferQueue;
 }
 

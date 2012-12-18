@@ -70,10 +70,10 @@ status_t StagefrightPlayer::setDataSource(const sp<IStreamSource> &source) {
 }
 
 status_t StagefrightPlayer::setVideoSurfaceTexture(
-        const sp<ISurfaceTexture> &surfaceTexture) {
+        const sp<IGraphicBufferProducer> &bufferProducer) {
     ALOGV("setVideoSurfaceTexture");
 
-    return mPlayer->setSurfaceTexture(surfaceTexture);
+    return mPlayer->setSurfaceTexture(bufferProducer);
 }
 
 status_t StagefrightPlayer::prepare() {

@@ -307,17 +307,17 @@ status_t CameraClient::setPreviewDisplay(const sp<Surface>& surface) {
     return setPreviewWindow(binder, window);
 }
 
-// set the SurfaceTexture that the preview will use
+// set the SurfaceTextureClient that the preview will use
 status_t CameraClient::setPreviewTexture(
-        const sp<ISurfaceTexture>& surfaceTexture) {
-    LOG1("setPreviewTexture(%p) (pid %d)", surfaceTexture.get(),
+        const sp<IGraphicBufferProducer>& bufferProducer) {
+    LOG1("setPreviewTexture(%p) (pid %d)", bufferProducer.get(),
             getCallingPid());
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
-    if (surfaceTexture != 0) {
-        binder = surfaceTexture->asBinder();
-        window = new SurfaceTextureClient(surfaceTexture);
+    if (bufferProducer != 0) {
+        binder = bufferProducer->asBinder();
+        window = new SurfaceTextureClient(bufferProducer);
     }
     return setPreviewWindow(binder, window);
 }

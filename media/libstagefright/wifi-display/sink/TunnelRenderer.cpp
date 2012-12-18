@@ -159,9 +159,9 @@ void TunnelRenderer::StreamSource::doSomeWork() {
 
 TunnelRenderer::TunnelRenderer(
         const sp<AMessage> &notifyLost,
-        const sp<ISurfaceTexture> &surfaceTex)
+        const sp<IGraphicBufferProducer> &bufferProducer)
     : mNotifyLost(notifyLost),
-      mSurfaceTex(surfaceTex),
+      mSurfaceTex(bufferProducer),
       mTotalBytesQueued(0ll),
       mLastDequeuedExtSeqNo(-1),
       mFirstFailedAttemptUs(-1ll),

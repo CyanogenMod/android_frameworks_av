@@ -35,7 +35,7 @@ struct MediaWriter;
 class MetaData;
 struct AudioSource;
 class MediaProfiles;
-class ISurfaceTexture;
+class IGraphicBufferProducer;
 class SurfaceMediaSource;
 
 struct StagefrightRecorder : public MediaRecorderBase {
@@ -65,7 +65,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t getMaxAmplitude(int *max);
     virtual status_t dump(int fd, const Vector<String16>& args) const;
     // Querying a SurfaceMediaSourcer
-    virtual sp<ISurfaceTexture> querySurfaceMediaSource() const;
+    virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
 private:
     sp<ICamera> mCamera;
@@ -116,7 +116,7 @@ private:
 
     bool mStarted;
     // Needed when GLFrames are encoded.
-    // An <ISurfaceTexture> pointer
+    // An <IGraphicBufferProducer> pointer
     // will be sent to the client side using which the
     // frame buffers will be queued and dequeued
     sp<SurfaceMediaSource> mSurfaceMediaSource;

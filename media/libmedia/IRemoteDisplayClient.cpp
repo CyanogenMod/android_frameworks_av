@@ -18,7 +18,7 @@
 #include <sys/types.h>
 
 #include <media/IRemoteDisplayClient.h>
-#include <gui/ISurfaceTexture.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <utils/String8.h>
 
 namespace android {
@@ -37,12 +37,12 @@ public:
     {
     }
 
-    void onDisplayConnected(const sp<ISurfaceTexture>& surfaceTexture,
+    void onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
             uint32_t width, uint32_t height, uint32_t flags)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IRemoteDisplayClient::getInterfaceDescriptor());
-        data.writeStrongBinder(surfaceTexture->asBinder());
+        data.writeStrongBinder(bufferProducer->asBinder());
         data.writeInt32(width);
         data.writeInt32(height);
         data.writeInt32(flags);
@@ -75,8 +75,8 @@ status_t BnRemoteDisplayClient::onTransact(
     switch (code) {
         case ON_DISPLAY_CONNECTED: {
             CHECK_INTERFACE(IRemoteDisplayClient, data, reply);
-            sp<ISurfaceTexture> surfaceTexture(
-                    interface_cast<ISurfaceTexture>(data.readStrongBinder()));
+            sp<IGraphicBufferProducer> surfaceTexture(
+                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder()));
             uint32_t width = data.readInt32();
             uint32_t height = data.readInt32();
             uint32_t flags = data.readInt32();
