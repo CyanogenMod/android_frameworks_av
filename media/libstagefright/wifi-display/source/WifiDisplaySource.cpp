@@ -745,7 +745,10 @@ status_t WifiDisplaySource::onReceiveM3Response(
     }
 
     mUsingHDCP = false;
-    if (!params->findParameter("wfd_content_protection", &value)) {
+    if (property_get("persist.sys.wfd.nohdcp", val, NULL)
+            && !strcmp("1", val)) {
+        ALOGI("Content protection has been disabled for WFD sinks");
+    } else if (!params->findParameter("wfd_content_protection", &value)) {
         ALOGI("Sink doesn't appear to support content protection.");
     } else if (value == "none") {
         ALOGI("Sink does not support content protection.");
