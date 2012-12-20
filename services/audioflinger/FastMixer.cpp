@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+// <IMPORTANT_WARNING>
+// Design rules for threadLoop() are given in the comments at section "Fast mixer thread" of
+// StateQueue.h.  In particular, avoid library and system calls except at well-known points.
+// The design rules are only for threadLoop(), and don't apply to FastMixerDumpState methods.
+// </IMPORTANT_WARNING>
+
 #define LOG_TAG "FastMixer"
 //#define LOG_NDEBUG 0
 
