@@ -644,7 +644,8 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
                 break;
             }
             if (err == status_t(TIMED_OUT)) {
-                err = 0;
+                // return partial transfer count
+                return read;
             }
             return ssize_t(err);
         }
