@@ -311,18 +311,14 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         BufferInfo *inInfo = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
         ++mPicId;
-        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
-            inQueue.erase(inQueue.begin());
-            inInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inHeader);
-            mEOSStatus = INPUT_EOS_SEEN;
-            continue;
-        }
 
         OMX_BUFFERHEADERTYPE *header = new OMX_BUFFERHEADERTYPE;
         memset(header, 0, sizeof(OMX_BUFFERHEADERTYPE));
         header->nTimeStamp = inHeader->nTimeStamp;
         header->nFlags = inHeader->nFlags;
+        if (header->nFlags & OMX_BUFFERFLAG_EOS) {
+            mEOSStatus = INPUT_EOS_SEEN;
+        }
         mPicToHeaderMap.add(mPicId, header);
         inQueue.erase(inQueue.begin());
 
