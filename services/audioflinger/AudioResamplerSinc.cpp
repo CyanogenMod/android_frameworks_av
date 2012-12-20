@@ -53,7 +53,7 @@ namespace android {
  * tools/resampler_tools
  * cmd-line: fir -l 7 -s 48000 -c 20478
  */
-const int32_t AudioResamplerSinc::mFirCoefsUp[] __attribute__ ((aligned (32))) = {
+const uint32_t AudioResamplerSinc::mFirCoefsUp[] __attribute__ ((aligned (32))) = {
         0x6d374bc7, 0x111c6ba0, 0xf3240e61, 0x07d14a38, 0xfc509e64, 0x0139cee9, 0xffc8c866, 0xfffcc300,
         0x6d35278a, 0x103e8192, 0xf36b9dfd, 0x07bdfaa5, 0xfc5102d0, 0x013d618d, 0xffc663b9, 0xfffd9592,
         0x6d2ebafe, 0x0f62811a, 0xf3b3d8ac, 0x07a9f399, 0xfc51d9a6, 0x0140bea5, 0xffc41212, 0xfffe631e,
@@ -189,7 +189,7 @@ const int32_t AudioResamplerSinc::mFirCoefsUp[] __attribute__ ((aligned (32))) =
  * These coefficients are optimized for 48KHz -> 44.1KHz
  * cmd-line: fir -l 7 -s 48000 -c 17189
  */
-const int32_t AudioResamplerSinc::mFirCoefsDown[] __attribute__ ((aligned (32))) = {
+const uint32_t AudioResamplerSinc::mFirCoefsDown[] __attribute__ ((aligned (32))) = {
         0x5bacb6f4, 0x1ded1a1d, 0xf0398d56, 0x0394f674, 0x0193a5f9, 0xfe66dbeb, 0x00791043, 0xfffe6631,
         0x5bab6c81, 0x1d3ddccd, 0xf0421d2c, 0x03af9995, 0x01818dc9, 0xfe6bb63e, 0x0079812a, 0xfffdc37d,
         0x5ba78d37, 0x1c8f2cf9, 0xf04beb1d, 0x03c9a04a, 0x016f8aca, 0xfe70a511, 0x0079e34d, 0xfffd2545,
@@ -512,7 +512,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
     if (mConstants == &veryHighQualityConstants && readResampleCoefficients) {
         mFirCoefs = readResampleCoefficients( mInSampleRate <= mSampleRate );
     } else {
-        mFirCoefs = (mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown;
+        mFirCoefs = (const int32_t *) ((mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown);
     }
 
     // select the appropriate resampler
