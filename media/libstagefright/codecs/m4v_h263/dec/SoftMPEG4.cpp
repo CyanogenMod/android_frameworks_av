@@ -326,7 +326,7 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
         OMX_BUFFERHEADERTYPE *outHeader =
             port->mBuffers.editItemAt(mNumSamplesOutput & 1).mHeader;
 
-        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+        if ((inHeader->nFlags & OMX_BUFFERFLAG_EOS) && inHeader->nFilledLen == 0) {
             inQueue.erase(inQueue.begin());
             inInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inHeader);
@@ -445,6 +445,11 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
 
         inHeader->nOffset += bufferSize;
         inHeader->nFilledLen = 0;
+        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+        } else {
+            outHeader->nFlags = 0;
+        }
 
         if (inHeader->nFilledLen == 0) {
             inInfo->mOwnedByUs = false;
@@ -458,7 +463,6 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
 
         outHeader->nOffset = 0;
         outHeader->nFilledLen = (mWidth * mHeight * 3) / 2;
-        outHeader->nFlags = 0;
 
         List<BufferInfo *>::iterator it = outQueue.begin();
         while ((*it)->mHeader != outHeader) {
