@@ -67,11 +67,45 @@ Converter::Converter(
     mInitCheck = initEncoder();
 
     if (mInitCheck != OK) {
-        if (mEncoder != NULL) {
-            mEncoder->release();
-            mEncoder.clear();
-        }
+        releaseEncoder();
     }
+}
+
+static void ReleaseMediaBufferReference(const sp<ABuffer> &accessUnit) {
+    void *mbuf;
+    if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
+            && mbuf != NULL) {
+        ALOGV("releasing mbuf %p", mbuf);
+
+        accessUnit->meta()->setPointer("mediaBuffer", NULL);
+
+        static_cast<MediaBuffer *>(mbuf)->release();
+        mbuf = NULL;
+    }
+}
+
+void Converter::releaseEncoder() {
+    if (mEncoder == NULL) {
+        return;
+    }
+
+    mEncoder->release();
+    mEncoder.clear();
+
+    while (!mInputBufferQueue.empty()) {
+        sp<ABuffer> accessUnit = *mInputBufferQueue.begin();
+        mInputBufferQueue.erase(mInputBufferQueue.begin());
+
+        ReleaseMediaBufferReference(accessUnit);
+    }
+
+    for (size_t i = 0; i < mEncoderInputBuffers.size(); ++i) {
+        sp<ABuffer> accessUnit = mEncoderInputBuffers.itemAt(i);
+        ReleaseMediaBufferReference(accessUnit);
+    }
+
+    mEncoderInputBuffers.clear();
+    mEncoderOutputBuffers.clear();
 }
 
 Converter::~Converter() {
@@ -274,16 +308,7 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
                     sp<ABuffer> accessUnit;
                     CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
-                    void *mbuf;
-                    if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
-                            && mbuf != NULL) {
-                        ALOGV("releasing mbuf %p", mbuf);
-
-                        accessUnit->meta()->setPointer("mediaBuffer", NULL);
-
-                        static_cast<MediaBuffer *>(mbuf)->release();
-                        mbuf = NULL;
-                    }
+                    ReleaseMediaBufferReference(accessUnit);
                 }
                 break;
             }
@@ -385,12 +410,9 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatShutdown:
         {
-            ALOGI("shutting down encoder");
+            ALOGI("shutting down %s encoder", mIsVideo ? "video" : "audio");
 
-            if (mEncoder != NULL) {
-                mEncoder->release();
-                mEncoder.clear();
-            }
+            releaseEncoder();
 
             AString mime;
             CHECK(mInputFormat->findString("mime", &mime));
