@@ -101,6 +101,7 @@ private:
     sp<ABuffer> mPartialAudioAU;
 
     status_t initEncoder();
+    void releaseEncoder();
 
     status_t feedEncoderInputBuffers();
 
