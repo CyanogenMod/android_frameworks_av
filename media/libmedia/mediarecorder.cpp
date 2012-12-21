@@ -620,7 +620,7 @@ MediaRecorder::MediaRecorder() : mSurfaceMediaSource(NULL)
 
     const sp<IMediaPlayerService>& service(getMediaPlayerService());
     if (service != NULL) {
-        mMediaRecorder = service->createMediaRecorder(getpid());
+        mMediaRecorder = service->createMediaRecorder();
     }
     if (mMediaRecorder != NULL) {
         mCurrentState = MEDIA_RECORDER_IDLE;

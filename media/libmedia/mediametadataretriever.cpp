@@ -64,7 +64,7 @@ MediaMetadataRetriever::MediaMetadataRetriever()
         ALOGE("failed to obtain MediaMetadataRetrieverService");
         return;
     }
-    sp<IMediaMetadataRetriever> retriever(service->createMetadataRetriever(getpid()));
+    sp<IMediaMetadataRetriever> retriever(service->createMetadataRetriever());
     if (retriever == 0) {
         ALOGE("failed to create IMediaMetadataRetriever object from server");
     }

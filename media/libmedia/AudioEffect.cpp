@@ -127,7 +127,7 @@ status_t AudioEffect::set(const effect_uuid_t *type,
 
     mIEffectClient = new EffectClient(this);
 
-    iEffect = audioFlinger->createEffect(getpid(), &mDescriptor,
+    iEffect = audioFlinger->createEffect((effect_descriptor_t *)&mDescriptor,
             mIEffectClient, priority, io, mSessionId, &mStatus, &mId, &enabled);
 
     if (iEffect == 0 || (mStatus != NO_ERROR && mStatus != ALREADY_EXISTS)) {

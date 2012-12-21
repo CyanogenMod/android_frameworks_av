@@ -344,7 +344,6 @@ sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
 
 
 sp<IAudioTrack> AudioFlinger::createTrack(
-        pid_t pid,
         audio_stream_type_t streamType,
         uint32_t sampleRate,
         audio_format_t format,
@@ -389,6 +388,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             goto Exit;
         }
 
+        pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid_l(pid);
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
@@ -1120,7 +1120,6 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who)
 // ----------------------------------------------------------------------------
 
 sp<IAudioRecord> AudioFlinger::openRecord(
-        pid_t pid,
         audio_io_handle_t input,
         uint32_t sampleRate,
         audio_format_t format,
@@ -1154,6 +1153,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             goto Exit;
         }
 
+        pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid_l(pid);
 
         // If no audio session id is provided, create one here
@@ -1877,7 +1877,7 @@ status_t AudioFlinger::getEffectDescriptor(const effect_uuid_t *pUuid,
 }
 
 
-sp<IEffect> AudioFlinger::createEffect(pid_t pid,
+sp<IEffect> AudioFlinger::createEffect(
         effect_descriptor_t *pDesc,
         const sp<IEffectClient>& effectClient,
         int32_t priority,
@@ -1891,6 +1891,7 @@ sp<IEffect> AudioFlinger::createEffect(pid_t pid,
     sp<EffectHandle> handle;
     effect_descriptor_t desc;
 
+    pid_t pid = IPCThreadState::self()->getCallingPid();
     ALOGV("createEffect pid %d, effectClient %p, priority %d, sessionId %d, io %d",
             pid, effectClient.get(), priority, sessionId, io);
 

@@ -22,7 +22,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "jpeg.h"
 #include "SineSource.h"
@@ -821,7 +820,7 @@ int main(int argc, char **argv) {
         CHECK(service.get() != NULL);
 
         sp<IMediaMetadataRetriever> retriever =
-            service->createMetadataRetriever(getpid());
+            service->createMetadataRetriever();
 
         CHECK(retriever != NULL);
 

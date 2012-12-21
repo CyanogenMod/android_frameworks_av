@@ -370,7 +370,7 @@ int main(int argc, char **argv) {
     }
 
     sp<IMediaPlayer> player =
-        service->create(getpid(), client, 0);
+        service->create(client, 0);
 
     if (player != NULL && player->setDataSource(source) == NO_ERROR) {
         player->setVideoSurfaceTexture(surface->getSurfaceTexture());
