@@ -444,7 +444,7 @@ status_t AudioRecord::openRecord_l(
     // FIXME see similar logic at AudioTrack
 
     int originalSessionId = mSessionId;
-    sp<IAudioRecord> record = audioFlinger->openRecord(getpid(), input,
+    sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        sampleRate, format,
                                                        mChannelMask,
                                                        frameCount,

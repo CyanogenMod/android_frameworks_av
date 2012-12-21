@@ -92,7 +92,6 @@ public:
 
     // IAudioFlinger interface, in binder opcode order
     virtual sp<IAudioTrack> createTrack(
-                                pid_t pid,
                                 audio_stream_type_t streamType,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -106,7 +105,6 @@ public:
                                 status_t *status);
 
     virtual sp<IAudioRecord> openRecord(
-                                pid_t pid,
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -197,7 +195,7 @@ public:
     virtual status_t getEffectDescriptor(const effect_uuid_t *pUuid,
                                          effect_descriptor_t *descriptor) const;
 
-    virtual sp<IEffect> createEffect(pid_t pid,
+    virtual sp<IEffect> createEffect(
                         effect_descriptor_t *pDesc,
                         const sp<IEffectClient>& effectClient,
                         int32_t priority,

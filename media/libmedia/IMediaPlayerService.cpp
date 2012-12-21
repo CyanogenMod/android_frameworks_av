@@ -56,20 +56,18 @@ public:
     {
     }
 
-    virtual sp<IMediaMetadataRetriever> createMetadataRetriever(pid_t pid)
+    virtual sp<IMediaMetadataRetriever> createMetadataRetriever()
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeInt32(pid);
         remote()->transact(CREATE_METADATA_RETRIEVER, data, &reply);
         return interface_cast<IMediaMetadataRetriever>(reply.readStrongBinder());
     }
 
     virtual sp<IMediaPlayer> create(
-            pid_t pid, const sp<IMediaPlayerClient>& client, int audioSessionId) {
+            const sp<IMediaPlayerClient>& client, int audioSessionId) {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeInt32(pid);
         data.writeStrongBinder(client->asBinder());
         data.writeInt32(audioSessionId);
 
@@ -77,11 +75,10 @@ public:
         return interface_cast<IMediaPlayer>(reply.readStrongBinder());
     }
 
-    virtual sp<IMediaRecorder> createMediaRecorder(pid_t pid)
+    virtual sp<IMediaRecorder> createMediaRecorder()
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeInt32(pid);
         remote()->transact(CREATE_MEDIA_RECORDER, data, &reply);
         return interface_cast<IMediaRecorder>(reply.readStrongBinder());
     }
@@ -168,11 +165,10 @@ status_t BnMediaPlayerService::onTransact(
     switch (code) {
         case CREATE: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            pid_t pid = data.readInt32();
             sp<IMediaPlayerClient> client =
                 interface_cast<IMediaPlayerClient>(data.readStrongBinder());
             int audioSessionId = data.readInt32();
-            sp<IMediaPlayer> player = create(pid, client, audioSessionId);
+            sp<IMediaPlayer> player = create(client, audioSessionId);
             reply->writeStrongBinder(player->asBinder());
             return NO_ERROR;
         } break;
@@ -206,15 +202,13 @@ status_t BnMediaPlayerService::onTransact(
         } break;
         case CREATE_MEDIA_RECORDER: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            pid_t pid = data.readInt32();
-            sp<IMediaRecorder> recorder = createMediaRecorder(pid);
+            sp<IMediaRecorder> recorder = createMediaRecorder();
             reply->writeStrongBinder(recorder->asBinder());
             return NO_ERROR;
         } break;
         case CREATE_METADATA_RETRIEVER: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            pid_t pid = data.readInt32();
-            sp<IMediaMetadataRetriever> retriever = createMetadataRetriever(pid);
+            sp<IMediaMetadataRetriever> retriever = createMetadataRetriever();
             reply->writeStrongBinder(retriever->asBinder());
             return NO_ERROR;
         } break;
