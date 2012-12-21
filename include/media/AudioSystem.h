@@ -152,6 +152,7 @@ public:
 #ifdef QCOM_DIRECTTRACK
         A2DP_OUTPUT_STATE,
         EFFECT_CONFIG_CHANGED,
+        USB_OUTPUT_STATE,
 #endif
         NUM_CONFIG_EVENTS
     };
