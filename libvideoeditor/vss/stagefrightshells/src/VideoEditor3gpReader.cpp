@@ -975,7 +975,7 @@ M4OSA_ERR VideoEditor3gpReader_getNextAu(M4OSA_Context context,
     status_t error;
     int32_t i32Tmp = 0;
 
-    M4OSA_DEBUG_IF1((pReaderContext == 0), M4ERR_PARAMETER,
+    M4OSA_DEBUG_IF1(( pC== 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid context");
     M4OSA_DEBUG_IF1((pStreamHandler == 0), M4ERR_PARAMETER,
         "VideoEditor3gpReader_getNextAu: invalid pointer to M4_StreamHandler");
