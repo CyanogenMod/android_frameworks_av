@@ -26,7 +26,7 @@ audio_track_cblk_t::audio_track_cblk_t()
     : lock(Mutex::SHARED), cv(Condition::SHARED), user(0), server(0),
     userBase(0), serverBase(0), frameCount_(0),
     loopStart(UINT_MAX), loopEnd(UINT_MAX), loopCount(0), mVolumeLR(0x10001000),
-    mSendLevel(0), flags(0)
+    mSampleRate(0), mSendLevel(0), flags(0)
 {
 }
 

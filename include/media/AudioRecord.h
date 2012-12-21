@@ -29,6 +29,7 @@
 namespace android {
 
 class audio_track_cblk_t;
+class AudioRecordClientProxy;
 
 // ----------------------------------------------------------------------------
 
@@ -374,6 +375,7 @@ private:
     uint32_t                mUpdatePeriod;      // in ms
 
     // constant after constructor or set()
+    uint32_t                mSampleRate;
     size_t                  mFrameCount;
     audio_format_t          mFormat;
     uint8_t                 mChannelCount;
@@ -393,6 +395,7 @@ private:
 
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
+    AudioRecordClientProxy* mProxy;
 };
 
 }; // namespace android

@@ -36,6 +36,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 class audio_track_cblk_t;
+class AudioTrackClientProxy;
 
 // ----------------------------------------------------------------------------
 
@@ -538,6 +539,7 @@ protected:
 
     float                   mVolume[2];
     float                   mSendLevel;
+    uint32_t                mSampleRate;
     size_t                  mFrameCount;            // corresponds to current IAudioTrack
     size_t                  mReqFrameCount;         // frame count to request the next time a new
                                                     // IAudioTrack is needed
@@ -596,6 +598,7 @@ protected:
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
+    AudioTrackClientProxy*  mProxy;
 };
 
 class TimedAudioTrack : public AudioTrack
