@@ -4025,7 +4025,7 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectFifties( M4OSA_Void *pUserData,
     M4xVSS_FiftiesStruct* p_FiftiesData = (M4xVSS_FiftiesStruct *)pUserData;
 
     /* Check the inputs (debug only) */
-    M4OSA_DEBUG_IF2((pFiftiesData == M4OSA_NULL),M4ERR_PARAMETER,
+    M4OSA_DEBUG_IF2((p_FiftiesData == M4OSA_NULL),M4ERR_PARAMETER,
          "xVSS: p_FiftiesData is M4OSA_NULL in M4VSS3GPP_externalVideoEffectFifties");
     M4OSA_DEBUG_IF2((pPlaneOut == M4OSA_NULL),M4ERR_PARAMETER,
          "xVSS: p_PlaneOut is M4OSA_NULL in M4VSS3GPP_externalVideoEffectFifties");
