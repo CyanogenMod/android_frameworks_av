@@ -91,6 +91,7 @@ private:
     bool mStarted;
     bool mPaused;
     bool mA2DPEnabled;
+    bool mUSBEnabled;
     int32_t mChannelMask;
     int32_t numChannels;
     int32_t mNumOutputChannels;
@@ -179,6 +180,7 @@ private:
     void createThreads();
 
     volatile bool mIsA2DPEnabled;
+    volatile bool mIsUSBEnabled;
 
     //Structure to recieve the BT notification from the flinger.
     class AudioFlingerLPAdecodeClient: public IBinder::DeathRecipient, public BnAudioFlingerClient {
@@ -204,6 +206,7 @@ private:
     void getAudioFlinger();
 
     void handleA2DPSwitch();
+    void handleUSBSwitch();
     void onPauseTimeOut();
 
     int64_t getMediaTimeUs_l();
