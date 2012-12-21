@@ -61,6 +61,7 @@ class AudioMixer;
 class AudioBuffer;
 class AudioResampler;
 class FastMixer;
+class ServerProxy;
 
 // ----------------------------------------------------------------------------
 

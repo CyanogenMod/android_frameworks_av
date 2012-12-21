@@ -97,7 +97,8 @@ AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mProxy(NULL)
 {
 }
 
@@ -115,7 +116,8 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mProxy(NULL)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -136,7 +138,8 @@ AudioTrack::AudioTrack(
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousSchedulingGroup(SP_DEFAULT),
+      mProxy(NULL)
 {
     if (sharedBuffer == 0) {
         ALOGE("sharedBuffer must be non-0");
@@ -166,6 +169,7 @@ AudioTrack::~AudioTrack()
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
     }
+    delete mProxy;
 }
 
 status_t AudioTrack::set(
@@ -212,6 +216,7 @@ status_t AudioTrack::set(
         }
         sampleRate = afSampleRate;
     }
+    mSampleRate = sampleRate;
 
     // these below should probably come from the audioFlinger too...
     if (format == AUDIO_FORMAT_DEFAULT) {
@@ -251,6 +256,14 @@ status_t AudioTrack::set(
     mChannelMask = channelMask;
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
+
+    if (audio_is_linear_pcm(format)) {
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+        mFrameSizeAF = channelCount * sizeof(int16_t);
+    } else {
+        mFrameSize = sizeof(uint8_t);
+        mFrameSizeAF = sizeof(uint8_t);
+    }
 
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
@@ -299,14 +312,6 @@ status_t AudioTrack::set(
 
     mStreamType = streamType;
     mFormat = format;
-
-    if (audio_is_linear_pcm(format)) {
-        mFrameSize = channelCount * audio_bytes_per_sample(format);
-        mFrameSizeAF = channelCount * sizeof(int16_t);
-    } else {
-        mFrameSize = sizeof(uint8_t);
-        mFrameSizeAF = sizeof(uint8_t);
-    }
 
     mSharedBuffer = sharedBuffer;
     mActive = false;
@@ -460,6 +465,11 @@ void AudioTrack::pause()
 
 status_t AudioTrack::setVolume(float left, float right)
 {
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
+    ALOG_ASSERT(mProxy != NULL);
+
     if (left < 0.0f || left > 1.0f || right < 0.0f || right > 1.0f) {
         return BAD_VALUE;
     }
@@ -468,7 +478,7 @@ status_t AudioTrack::setVolume(float left, float right)
     mVolume[LEFT] = left;
     mVolume[RIGHT] = right;
 
-    mCblk->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
+    mProxy->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
 
     return NO_ERROR;
 }
@@ -481,14 +491,19 @@ status_t AudioTrack::setVolume(float volume)
 status_t AudioTrack::setAuxEffectSendLevel(float level)
 {
     ALOGV("setAuxEffectSendLevel(%f)", level);
+
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
+    ALOG_ASSERT(mProxy != NULL);
+
     if (level < 0.0f || level > 1.0f) {
         return BAD_VALUE;
     }
     AutoMutex lock(mLock);
 
     mSendLevel = level;
-
-    mCblk->setSendLevel(level);
+    mProxy->setSendLevel(level);
 
     return NO_ERROR;
 }
@@ -517,7 +532,9 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     }
 
     AutoMutex lock(mLock);
-    mCblk->sampleRate = rate;
+    mSampleRate = rate;
+    mProxy->setSampleRate(rate);
+
     return NO_ERROR;
 }
 
@@ -528,7 +545,7 @@ uint32_t AudioTrack::getSampleRate() const
     }
 
     AutoMutex lock(mLock);
-    return mCblk->sampleRate;
+    return mSampleRate;
 }
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
@@ -665,6 +682,11 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
 status_t AudioTrack::reload()
 {
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
+    ALOG_ASSERT(mProxy != NULL);
+
     if (mSharedBuffer == 0 || mIsTimed) {
         return INVALID_OPERATION;
     }
@@ -677,8 +699,7 @@ status_t AudioTrack::reload()
 
     flush_l();
 
-    audio_track_cblk_t* cblk = mCblk;
-    cblk->stepUserOut(mFrameCount, mFrameCount);
+    (void) mProxy->stepUser(mFrameCount);
 
     return NO_ERROR;
 }
@@ -693,7 +714,7 @@ audio_io_handle_t AudioTrack::getOutput()
 audio_io_handle_t AudioTrack::getOutput_l()
 {
     return AudioSystem::getOutput(mStreamType,
-            mCblk->sampleRate, mFormat, mChannelMask, mFlags);
+            mSampleRate, mFormat, mChannelMask, mFlags);
 }
 
 status_t AudioTrack::attachAuxEffect(int effectId)
@@ -889,13 +910,8 @@ status_t AudioTrack::createTrack_l(
         mBuffers = (char*)cblk + sizeof(audio_track_cblk_t);
     } else {
         mBuffers = sharedBuffer->pointer();
-        // Force buffer full condition as data is already present in shared memory
-        cblk->stepUserOut(frameCount, frameCount);
     }
 
-    cblk->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) |
-            uint16_t(mVolume[LEFT] * 0x1000));
-    cblk->setSendLevel(mSendLevel);
     mAudioTrack->attachAuxEffect(mAuxEffectId);
     cblk->bufferTimeoutMs = MAX_STARTUP_TIMEOUT_MS;
     cblk->waitTimeMs = 0;
@@ -908,11 +924,26 @@ status_t AudioTrack::createTrack_l(
     if (frameCount > mReqFrameCount) {
         mReqFrameCount = frameCount;
     }
+
+    // update proxy
+    delete mProxy;
+    mProxy = new AudioTrackClientProxy(cblk, mBuffers, frameCount, mFrameSizeAF);
+    mProxy->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) |
+            uint16_t(mVolume[LEFT] * 0x1000));
+    mProxy->setSendLevel(mSendLevel);
+    mProxy->setSampleRate(mSampleRate);
+    if (sharedBuffer != 0) {
+        // Force buffer full condition as data is already present in shared memory
+        mProxy->stepUser(frameCount);
+    }
+
     return NO_ERROR;
 }
 
 status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
 {
+    ALOG_ASSERT(mStatus == NO_ERROR && mProxy != NULL);
+
     AutoMutex lock(mLock);
     bool active;
     status_t result = NO_ERROR;
@@ -923,7 +954,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
     audioBuffer->frameCount  = 0;
     audioBuffer->size = 0;
 
-    uint32_t framesAvail = cblk->framesAvailableOut(mFrameCount);
+    size_t framesAvail = mProxy->framesAvailable();
 
     cblk->lock.lock();
     if (cblk->flags & CBLK_INVALID) {
@@ -999,7 +1030,7 @@ create_new_track:
             }
             // read the server count again
         start_loop_here:
-            framesAvail = cblk->framesAvailableOut_l(mFrameCount);
+            framesAvail = mProxy->framesAvailable_l();
         }
         cblk->lock.unlock();
     }
@@ -1019,16 +1050,18 @@ create_new_track:
 
     audioBuffer->frameCount = framesReq;
     audioBuffer->size = framesReq * mFrameSizeAF;
-    audioBuffer->raw = cblk->buffer(mBuffers, mFrameSizeAF, u);
+    audioBuffer->raw = mProxy->buffer(u);
     active = mActive;
     return active ? status_t(NO_ERROR) : status_t(STOPPED);
 }
 
 void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 {
+    ALOG_ASSERT(mStatus == NO_ERROR && mProxy != NULL);
+
     AutoMutex lock(mLock);
     audio_track_cblk_t* cblk = mCblk;
-    cblk->stepUserOut(audioBuffer->frameCount, mFrameCount);
+    (void) mProxy->stepUser(audioBuffer->frameCount);
     if (audioBuffer->frameCount > 0) {
         // restart track if it was disabled by audioflinger due to previous underrun
         if (mActive && (cblk->flags & CBLK_DISABLED)) {
@@ -1198,7 +1231,7 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
     // so all cblk references might still refer to old shared memory, but that should be benign
 
     // Manage underrun callback
-    if (active && (cblk->framesAvailableOut(mFrameCount) == mFrameCount)) {
+    if (active && (mProxy->framesAvailable() == mFrameCount)) {
         ALOGV("Underrun user: %x, server: %x, flags %04x", cblk->user, cblk->server, cblk->flags);
         if (!(android_atomic_or(CBLK_UNDERRUN, &cblk->flags) & CBLK_UNDERRUN)) {
             mCbf(EVENT_UNDERRUN, mUserData, 0);
@@ -1345,7 +1378,7 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioTrack and IMemory
     result = createTrack_l(mStreamType,
-                           cblk->sampleRate,
+                           mSampleRate,
                            mFormat,
                            mReqFrameCount,  // so that frame count never goes down
                            mFlags,
@@ -1364,12 +1397,12 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
         // restore loop: this is not guaranteed to succeed if new frame count is not
         // compatible with loop length
         setLoop_l(cblk->loopStart, cblk->loopEnd, cblk->loopCount);
+        size_t frames = 0;
         if (!fromStart) {
             newCblk->bufferTimeoutMs = MAX_RUN_TIMEOUT_MS;
             // Make sure that a client relying on callback events indicating underrun or
             // the actual amount of audio frames played (e.g SoundPool) receives them.
             if (mSharedBuffer == 0) {
-                uint32_t frames = 0;
                 if (user > server) {
                     frames = ((user - server) > mFrameCount) ?
                             mFrameCount : (user - server);
@@ -1377,13 +1410,15 @@ status_t AudioTrack::restoreTrack_l(audio_track_cblk_t*& refCblk, bool fromStart
                 }
                 // restart playback even if buffer is not completely filled.
                 android_atomic_or(CBLK_FORCEREADY, &newCblk->flags);
-                // stepUser() clears CBLK_UNDERRUN flag enabling underrun callbacks to
-                // the client
-                newCblk->stepUserOut(frames, mFrameCount);
             }
         }
         if (mSharedBuffer != 0) {
-            newCblk->stepUserOut(mFrameCount, mFrameCount);
+            frames = mFrameCount;
+        }
+        if (frames > 0) {
+            // stepUser() clears CBLK_UNDERRUN flag enabling underrun callbacks to
+            // the client
+            mProxy->stepUser(frames);
         }
         if (mActive) {
             result = mAudioTrack->start();
@@ -1415,7 +1450,6 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     char buffer[SIZE];
     String8 result;
 
-    audio_track_cblk_t* cblk = mCblk;
     result.append(" AudioTrack::dump\n");
     snprintf(buffer, 255, "  stream type(%d), left - right volume(%f, %f)\n", mStreamType,
             mVolume[0], mVolume[1]);
@@ -1423,8 +1457,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
             mChannelCount, mFrameCount);
     result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%u), status(%d)\n",
-            (cblk == 0) ? 0 : cblk->sampleRate, mStatus);
+    snprintf(buffer, 255, "  sample rate(%u), status(%d)\n", mSampleRate, mStatus);
     result.append(buffer);
     snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);
     result.append(buffer);

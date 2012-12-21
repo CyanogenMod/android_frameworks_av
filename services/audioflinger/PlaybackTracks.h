@@ -107,7 +107,6 @@ public:
     bool isInvalid() const { return mIsInvalid; }
     virtual bool isTimedTrack() const { return false; }
     bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
-    virtual bool isOut() const;
 
 protected:
 
@@ -277,5 +276,5 @@ private:
     AudioBufferProvider::Buffer mOutBuffer;
     bool                        mActive;
     DuplicatingThread* const mSourceThread; // for waitTimeMs() in write()
-    void*                       mBuffers;   // starting address of buffers in plain memory
+    AudioTrackClientProxy*      mClientProxy;
 };  // end of OutputTrack
