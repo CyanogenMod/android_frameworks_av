@@ -45,6 +45,9 @@ OMXMaster::~OMXMaster() {
 
 void OMXMaster::addVendorPlugin() {
     addPlugin("libstagefrighthw.so");
+#ifdef BOARD_USE_SAMSUNG_OMX_LIBS
+    addPlugin("libsomxcore.so");
+#endif
 }
 
 void OMXMaster::addPlugin(const char *libname) {

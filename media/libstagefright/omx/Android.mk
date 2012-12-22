@@ -25,6 +25,10 @@ LOCAL_SHARED_LIBRARIES :=               \
 
 LOCAL_MODULE:= libstagefright_omx
 
+ifeq ($(BOARD_USE_SAMSUNG_OMX_LIBS), true)
+LOCAL_CFLAGS += -DBOARD_USE_SAMSUNG_OMX_LIBS
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 ################################################################################
