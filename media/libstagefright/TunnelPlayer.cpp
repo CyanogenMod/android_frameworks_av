@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  * Not a Contribution, Apache license notifications and license are retained
  * for attribution purposes only.
  *
@@ -50,8 +50,10 @@
 
 static const char   mName[] = "TunnelPlayer";
 #define MEM_METADATA_SIZE 64
-#define MEM_BUFFER_SIZE (600*1024 - MEM_METADATA_SIZE)
+#define MEM_PADDING 64
+#define MEM_BUFFER_SIZE (256*1024 - MEM_METADATA_SIZE)
 #define MEM_BUFFER_COUNT 4
+#define TUNNEL_BUFFER_TIME 1500000
 
 namespace android {
 int TunnelPlayer::mTunnelObjectsAlive = 0;
@@ -100,6 +102,7 @@ mObserver(observer) {
     //mAudioFlinger->registerClient(mAudioFlingerClient);
 
     mSeekTimeUs = 0;
+    mIsAudioRouted = false;
 
     mHasVideo = hasVideo;
     initCheck = true;
@@ -265,7 +268,7 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
     CHECK(!mStarted);
     CHECK(mSource != NULL);
 
-    ALOGD("start: sourceAlreadyStarted %d", sourceAlreadyStarted);
+    ALOGV("start: sourceAlreadyStarted %d", sourceAlreadyStarted);
     //Check if the source is started, start it
     status_t err;
     if (!sourceAlreadyStarted) {
@@ -363,7 +366,7 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
     mIsAudioRouted = true;
     mStarted = true;
     mAudioSink->start();
-    ALOGV("Waking up decoder thread");
+    ALOGV("Waking up extractor thread");
     pthread_cond_signal(&extractor_cv);
 
     return OK;
@@ -372,16 +375,44 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
 status_t TunnelPlayer::seekTo(int64_t time_us) {
 
     ALOGV("seekTo: time_us %lld", time_us);
-    if ( mReachedEOS ) {
-        mReachedEOS = false;
-        mReachedOutputEOS = false;
+
+    if (mPositionTimeRealUs != 0) {
+      //check for return conditions only if seektime
+      // is set
+      if (time_us > mPositionTimeRealUs){
+           if((time_us - mPositionTimeRealUs) < TUNNEL_BUFFER_TIME){
+             ALOGV("In seekTo(), ignoring time_us %lld mSeekTimeUs %lld", time_us, mSeekTimeUs);
+             mObserver->postAudioSeekComplete();
+             return OK;
+           }
+      } else {
+           if((mPositionTimeRealUs - time_us) < TUNNEL_BUFFER_TIME){
+               ALOGV("In seekTo(), ignoring time_us %lld mSeekTimeUs %lld", time_us, mSeekTimeUs);
+               mObserver->postAudioSeekComplete();
+               return OK;
+           }
+      }
     }
+
     mSeeking = true;
     mSeekTimeUs = time_us;
+    mPauseTime = mSeekTimeUs;
     ALOGV("In seekTo(), mSeekTimeUs %lld",mSeekTimeUs);
-    mAudioSink->flush();
-    pthread_cond_signal(&extractor_cv);
-    //TODO: Update the mPauseTime
+
+    if (mIsAudioRouted) {
+        mAudioSink->flush();
+    }
+
+    if (mReachedEOS) {
+        mReachedEOS = false;
+        mReachedOutputEOS = false;
+        if(mPaused == false) {
+            ALOGV("Going to signal extractor thread since playback is already going on ");
+            pthread_cond_signal(&extractor_cv);
+            ALOGV("Signalled extractor thread.");
+        }
+    }
+    ALOGV("seek done.");
     return OK;
 }
 void TunnelPlayer::pause(bool playPendingSamples) {
@@ -407,6 +438,7 @@ void TunnelPlayer::pause(bool playPendingSamples) {
 }
 
 void TunnelPlayer::resume() {
+    Mutex::Autolock autoLock(mLock);
     ALOGV("resume: mPaused %d",mPaused);
     if ( mPaused) {
         CHECK(mStarted);
@@ -435,8 +467,11 @@ void TunnelPlayer::resume() {
             mIsAudioRouted = true;
         }
         mPaused = false;
+        ALOGV("Audio sink open succeeded.");
         mAudioSink->start();
+        ALOGV("Audio sink start succeeded.");
         pthread_cond_signal(&extractor_cv);
+        ALOGV("Audio signalling extractor thread.");
     }
 }
 
@@ -446,15 +481,20 @@ size_t TunnelPlayer::AudioSinkCallback(
         void *buffer, size_t size, void *cookie) {
     if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
         TunnelPlayer *me = (TunnelPlayer *)cookie;
-        me->mReachedEOS = true;
-        me->mReachedOutputEOS = true;
-        ALOGV("postAudioEOS");
-        me->mObserver->postAudioEOS(0);
+        if(me->mReachedEOS == true) {
+            //in the case of seek all these flags will be reset
+            me->mReachedOutputEOS = true;
+            ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+            me->mObserver->postAudioEOS(0);
+        }else {
+            ALOGV("postAudioEOS ignored since %d", me->mSeeking);
+        }
     }
     return 1;
 }
 
 void TunnelPlayer::reset() {
+    ALOGV("Reset");
 
     mReachedEOS = true;
 
@@ -482,7 +522,8 @@ void TunnelPlayer::reset() {
         mInputBuffer = NULL;
     }
 
-    mSource->stop();
+    if(mStarted)
+        mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
     // component is completely released by the time we may try
@@ -529,7 +570,7 @@ void TunnelPlayer::extractorThreadEntry() {
 
     pid_t tid  = gettid();
     androidSetThreadPriority(tid, ANDROID_PRIORITY_AUDIO);
-    prctl(PR_SET_NAME, (unsigned long)"Tunnel DecodeThread", 0, 0, 0);
+    prctl(PR_SET_NAME, (unsigned long)"Extractor Thread", 0, 0, 0);
 
     ALOGV("extractorThreadEntry wait for signal \n");
     if (!mStarted) {
@@ -545,26 +586,79 @@ void TunnelPlayer::extractorThreadEntry() {
         const char *mime;
         bool success = format->findCString(kKeyMIMEType, &mime);
     }
-    void* local_buf = malloc(BufferSizeToUse);
+    void* local_buf = malloc(BufferSizeToUse + MEM_PADDING);
+    int *lptr = ((int*)local_buf);
     int bytesWritten = 0;
+    bool lSeeking = false;
+    bool lPaused = false;
     while (!killExtractorThread) {
 
         if (mReachedEOS || mPaused || !mIsAudioRouted) {
+            ALOGV("Going to sleep before write since "
+                  "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
+                  mReachedEOS, mPaused, mIsAudioRouted);
             pthread_mutex_lock(&extractor_mutex);
             pthread_cond_wait(&extractor_cv, &extractor_mutex);
             pthread_mutex_unlock(&extractor_mutex);
+            ALOGV("Woke up from sleep before write since "
+                  "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
+                  mReachedEOS, mPaused, mIsAudioRouted);
             continue;
         }
 
         if (!mIsA2DPEnabled) {
-            ALOGW("FillBuffer: MemBuffer size %d", BufferSizeToUse);
+            ALOGV("FillBuffer: MemBuffer size %d", BufferSizeToUse);
             ALOGV("Fillbuffer started");
             bytesWritten = fillBuffer(local_buf, BufferSizeToUse);
             ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
             if(!killExtractorThread) {
-                mAudioSink->write(local_buf, bytesWritten);
-                if(mReachedEOS && bytesWritten)
-                    mAudioSink->write(local_buf, 0);
+                mLock.lock();
+                lPaused = mPaused;
+                mLock.unlock();
+
+                if(lPaused == true) {
+                    //write only if player is not in paused state. Sleep on lock
+                    // resume is called
+                    ALOGV("Going to sleep in decodethreadiwrite since sink is paused");
+                    pthread_mutex_lock(&extractor_mutex);
+                    pthread_cond_wait(&extractor_cv, &extractor_mutex);
+                    ALOGV("Going to unlock n decodethreadwrite since sink "
+                          "resumed mPaused %d, mIsAudioRouted %d, mReachedEOS %d",
+                          mPaused, mIsAudioRouted, mReachedEOS);
+                    pthread_mutex_unlock(&extractor_mutex);
+                }
+                mLock.lock();
+                lSeeking = mSeeking||mInternalSeeking;
+                mLock.unlock();
+
+                if(lSeeking == false && (killExtractorThread == false)){
+                    //if we are seeking, ignore write, otherwise write
+                    ALOGV("Fillbuffer before write %d and seek flag %d", mSeeking,
+                          lptr[MEM_BUFFER_SIZE/sizeof(int)]);
+                    int lWrittenBytes = mAudioSink->write(local_buf, bytesWritten);
+                    ALOGV("Fillbuffer after write, written bytes %d and seek flag %d", lWrittenBytes, mSeeking);
+                    if(lWrittenBytes > 0) {
+                        //send EOS only if write was successful, if is_buffer_available
+                        // is flushed out (which returns 0 do not SEND EOS
+                        ALOGV("Fillbuffer after write and seek flag %d", mSeeking);
+                        mLock.lock();
+                        lSeeking = mSeeking||mInternalSeeking;
+                        mLock.unlock();
+                        //ignore posting zero length buffer is seeking is set
+                        if(mReachedEOS && bytesWritten && !lSeeking && (killExtractorThread == false)) {
+                            ALOGV("Fillbuffer after write sent EOS flag %d", lSeeking);
+                            mAudioSink->write(local_buf, 0);
+                        } else {
+                            ALOGV("Not sending EOS buffer sent since seeking %d, "
+                                  "kill %d and mReachedEOS %d",         \
+                                  lSeeking, killExtractorThread, mReachedEOS);
+                        }
+                    } else {
+                        ALOGV("write exited because of flush %d", mSeeking);
+                    }
+                } else {
+                    ALOGV("Fillbuffer ignored since we seeked after fillBuffer was set %d", mSeeking);
+                }
             }
         }
     }
@@ -588,7 +682,7 @@ void TunnelPlayer::createThreads() {
 
     extractorThreadAlive = true;
 
-    ALOGV("Creating decoder Thread");
+    ALOGV("Creating Extractor Thread");
     pthread_create(&extractorThread, &attr, extractorThreadWrapper, this);
 
     pthread_attr_destroy(&attr);
@@ -603,6 +697,10 @@ size_t TunnelPlayer::fillBuffer(void *data, size_t size) {
 
     size_t size_done = 0;
     size_t size_remaining = size;
+    int *ldataptr = (int*) data;
+    //clear the flag since we dont know whether we are seeking or not, yet
+    ldataptr[(MEM_BUFFER_SIZE/sizeof(int))] = 0;
+    ALOGV("fillBuffer: Clearing seek flag in fill buffer");
 
     while (size_remaining > 0) {
         MediaSource::ReadOptions options;
@@ -635,10 +733,13 @@ size_t TunnelPlayer::fillBuffer(void *data, size_t size) {
 
                 mSeeking = false;
                 if (mObserver && !mInternalSeeking) {
-                    ALOGD("fillBuffer: Posting audio seek complete event");
+                    ALOGV("fillBuffer: Posting audio seek complete event");
                     postSeekComplete = true;
                 }
                 mInternalSeeking = false;
+                ALOGV("fillBuffer: Setting seek flag in fill buffer");
+                //set the flag since we know that this buffer is the new positions buffer
+                ldataptr[(MEM_BUFFER_SIZE/sizeof(int))] = 1;
             }
         }
         if (mInputBuffer == NULL) {
@@ -708,6 +809,7 @@ int64_t TunnelPlayer::getRealTimeUs() {
 }
 
 void TunnelPlayer::getPlayedTimeFromDSP_l(int64_t* timeStamp ) {
+    ALOGV("going to query timestamp");
     mAudioSink->getTimeStamp((uint64_t*)timeStamp);
     ALOGV("timestamp returned from DSP %lld ", (*timeStamp));
     return;
@@ -744,15 +846,25 @@ void TunnelPlayer::requestAndWaitForExtractorThreadExit() {
 
     if (!extractorThreadAlive)
         return;
-    if (mIsAudioRouted)
-        mAudioSink->flush();
+
     killExtractorThread = true;
+
+    ALOGV("requestAndWaitForExtractorThreadExit +0");
+    if (mIsAudioRouted && !mReachedOutputEOS) {
+        mAudioSink->flush();
+    }
+
+    ALOGV("requestAndWaitForExtractorThreadExit +1");
     pthread_cond_signal(&extractor_cv);
+    ALOGV("requestAndWaitForExtractorThreadExit +2");
     pthread_join(extractorThread,NULL);
-    ALOGD("Extractor thread killed");
+    ALOGV("requestAndWaitForExtractorThreadExit +3");
+
+    ALOGV("Extractor thread killed");
 }
 
 void TunnelPlayer::onPauseTimeOut() {
+    Mutex::Autolock autoLock(mLock);
     int64_t playedTime = 0;
     ALOGV("onPauseTimeOut");
     if (!mPauseEventPending) {
@@ -765,17 +877,23 @@ void TunnelPlayer::onPauseTimeOut() {
         mReachedOutputEOS = false;
 
         if(mSeeking == false) {
+            ALOGV("onPauseTimeOut +2");
             mInternalSeeking = true;
-            mLock.lock();
+            ALOGV("onPauseTimeOut +3");
             getPlayedTimeFromDSP_l(&playedTime);
-            mLock.unlock();
             mSeekTimeUs += playedTime;
         } else {
             ALOGV("Do not update seek time if it was seeked before onpause timeout");
         }
 
         // 2.) Close routing Session
+        ALOGV("onPauseTimeOut +4");
+        mAudioSink->flush();
+        ALOGV("onPauseTimeOut +5");
+        mAudioSink->stop();
+        ALOGV("onPauseTimeOut +6");
         mAudioSink->close();
+        ALOGV("onPauseTimeOut +7");
         mIsAudioRouted = false;
 
         // 3.) Release Wake Lock

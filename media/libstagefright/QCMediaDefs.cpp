@@ -1,4 +1,4 @@
-/*Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/*Copyright (c) 2012 - 2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -50,6 +50,6 @@ const char *MEDIA_MIMETYPE_AUDIO_DTS = "audio/dts";
 const char *MEDIA_MIMETYPE_AUDIO_DTS_LBR = "audio/dts-lbr";
 const char *MEDIA_MIMETYPE_AUDIO_EAC3 = "audio/eac3";
 const char *MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS = "audio/amr-wb-plus";
-
+const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG2TS = "video/qc-mp2ts";
 }  // namespace android
 

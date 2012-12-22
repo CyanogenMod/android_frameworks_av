@@ -6166,12 +6166,13 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
         mAudioFlinger->deleteEffectSession();
         deallocateBufPool();
     }
+    AudioSystem::releaseOutput(mOutput);
     releaseWakeLock();
+
     if (mPowerManager != 0) {
         sp<IBinder> binder = mPowerManager->asBinder();
         binder->unlinkToDeath(mDeathRecipient);
     }
-    AudioSystem::releaseOutput(mOutput);
 }
 
 status_t AudioFlinger::DirectAudioTrack::start() {
