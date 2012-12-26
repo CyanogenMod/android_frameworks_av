@@ -861,7 +861,9 @@ status_t AudioTrack::createTrack_l(
 
         // Ensure that buffer depth covers at least audio hardware latency
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
-        if (minBufCount < 2) minBufCount = 2;
+        if (minBufCount < 2) {
+            minBufCount = 2;
+        }
 
         size_t minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
         ALOGV("minFrameCount: %u, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"

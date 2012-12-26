@@ -1716,7 +1716,7 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
 
 void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
 {
-    ALOGV ("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %d",
+    ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %d",
             this,  streamType, mTracks.size());
     Mutex::Autolock _l(mLock);
 
@@ -3970,6 +3970,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         ALOGV("Record started OK");
         return status;
     }
+
 startError:
     AudioSystem::stopInput(mId);
     clearSyncStartEvent();

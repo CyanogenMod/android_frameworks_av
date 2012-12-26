@@ -1477,7 +1477,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
                     memset(pInBuffer->raw, 0, startFrames * channelCount * sizeof(int16_t));
                     mBufferQueue.add(pInBuffer);
                 } else {
-                    ALOGW ("OutputTrack::write() %p no more buffers in queue", this);
+                    ALOGW("OutputTrack::write() %p no more buffers in queue", this);
                 }
             }
         }
@@ -1499,7 +1499,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
             mOutBuffer.frameCount = pInBuffer->frameCount;
             nsecs_t startTime = systemTime();
             if (obtainBuffer(&mOutBuffer, waitTimeLeftMs) == (status_t)NO_MORE_BUFFERS) {
-                ALOGV ("OutputTrack::write() %p thread %p no more output buffers", this,
+                ALOGV("OutputTrack::write() %p thread %p no more output buffers", this,
                         mThread.unsafe_get());
                 outputBufferFull = true;
                 break;
