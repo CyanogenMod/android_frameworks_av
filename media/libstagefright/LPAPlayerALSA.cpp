@@ -19,7 +19,7 @@
  */
 
 #define LOG_NDDEBUG 0
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "LPAPlayerALSA"
 
 #include <utils/Log.h>
