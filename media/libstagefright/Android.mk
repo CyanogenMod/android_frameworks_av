@@ -62,6 +62,11 @@ LOCAL_SRC_FILES:=                         \
         ExtendedExtractor.cpp             \
         QCUtils.cpp                       \
 
+ifeq ($(BOARD_HAVE_QCOM_FM),true)
+LOCAL_SRC_FILES+=                         \
+        FMA2DPWriter.cpp
+endif
+
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
