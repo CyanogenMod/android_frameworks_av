@@ -1,9 +1,9 @@
 /*
+ * Copyright (C) 2007 The Android Open Source Project
  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
  * Not a Contribution, Apache license notifications and license are retained
  * for attribution purposes only.
- *
- * Copyright (C) 2007 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -219,6 +219,9 @@ public:
     // that looks on primary device for a stream with fast flag, primary flag, or first one.
     virtual int32_t getPrimaryOutputSamplingRate() = 0;
     virtual int32_t getPrimaryOutputFrameCount() = 0;
+#ifdef QCOM_FM_ENABLED
+    virtual status_t setFmVolume(float volume) = 0;
+#endif
 
 };
 

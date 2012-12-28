@@ -1,5 +1,9 @@
 /*
  * Copyright (C) 2006-2007 The Android Open Source Project
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -410,6 +414,15 @@ void AudioSystem::releaseAudioSessionId(int audioSession) {
         af->releaseAudioSessionId(audioSession);
     }
 }
+
+#ifdef QCOM_FM_ENABLED
+status_t AudioSystem::setFmVolume(float value)
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
+    return af->setFmVolume(value);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 
