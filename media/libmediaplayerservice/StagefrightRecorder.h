@@ -1,6 +1,8 @@
 /*
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
- * Not a Contribution.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only
  *
  * Copyright (C) 2009 The Android Open Source Project
  *
@@ -137,6 +139,9 @@ private:
         sp<MetaData> *meta);
     status_t startMPEG4Recording();
     status_t startAMRRecording();
+#ifdef QCOM_FM_ENABLED
+    status_t startFMA2DPWriter();
+#endif
     status_t startAACRecording();
     status_t startWAVERecording();
     status_t startRawAudioRecording();
