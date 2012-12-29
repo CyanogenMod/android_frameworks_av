@@ -2234,6 +2234,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                 bool                                mBtNrecIsOff;
 #ifdef QCOM_HARDWARE
                 DefaultKeyedVector<audio_io_handle_t, AudioSessionDescriptor *> mDirectAudioTracks;
+                int                                 mA2DPHandle; // Handle to notify A2DP connection status
 #endif
                 // protected by mLock
 #ifdef QCOM_HARDWARE
