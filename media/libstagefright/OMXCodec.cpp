@@ -339,7 +339,7 @@ uint32_t OMXCodec::getComponentQuirks(
     }
 #endif
     if (list->codecHasQuirk(
-                index, "requies-loaded-to-idle-after-allocation")) {
+                index, "requires-loaded-to-idle-after-allocation")) {
         quirks |= kRequiresLoadedToIdleAfterAllocation;
     }
 #ifdef QCOM_HARDWARE
