@@ -246,6 +246,7 @@ const char CameraParameters::PIXEL_FORMAT_RGBA8888[] = "rgba8888";
 const char CameraParameters::PIXEL_FORMAT_JPEG[] = "jpeg";
 const char CameraParameters::PIXEL_FORMAT_BAYER_RGGB[] = "bayer-rggb";
 const char CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE[] = "android-opaque";
+const char CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUEE[] = "android-opaque";
 
 #ifdef QCOM_HARDWARE
 const char CameraParameters::PIXEL_FORMAT_RAW[] = "raw";

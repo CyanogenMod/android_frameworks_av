@@ -116,7 +116,8 @@ static int32_t getColorFormat(const char* colorFormat) {
        return OMX_TI_COLOR_FormatYUV420PackedSemiPlanar;
     }
 
-    if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE)) {
+    if ((!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE))
+    || (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUEE))) {
         return OMX_COLOR_FormatAndroidOpaque;
     }
 

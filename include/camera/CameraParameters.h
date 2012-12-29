@@ -759,6 +759,7 @@ public:
 
     // Pixel format is not known to the framework
     static const char PIXEL_FORMAT_ANDROID_OPAQUE[];
+    static const char PIXEL_FORMAT_ANDROID_OPAQUEE[];
 
 #ifdef QCOM_HARDWARE
     static const char PIXEL_FORMAT_RAW[];
