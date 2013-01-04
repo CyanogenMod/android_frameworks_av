@@ -1208,23 +1208,24 @@ status_t Parameters::set(const String8& paramString) {
     }
 
     // JPEG_THUMBNAIL_QUALITY
-    validatedParams.jpegThumbQuality =
-            newParams.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
-    if (validatedParams.jpegThumbQuality < 0 ||
-            validatedParams.jpegThumbQuality > 100) {
+    int quality = newParams.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY);
+    // also makes sure quality fits in uint8_t
+    if (quality < 0 || quality > 100) {
         ALOGE("%s: Requested JPEG thumbnail quality %d is not supported",
-                __FUNCTION__, validatedParams.jpegThumbQuality);
+                __FUNCTION__, quality);
         return BAD_VALUE;
     }
+    validatedParams.jpegThumbQuality = quality;
 
     // JPEG_QUALITY
-    validatedParams.jpegQuality =
-            newParams.getInt(CameraParameters::KEY_JPEG_QUALITY);
-    if (validatedParams.jpegQuality < 0 || validatedParams.jpegQuality > 100) {
+    quality = newParams.getInt(CameraParameters::KEY_JPEG_QUALITY);
+    // also makes sure quality fits in uint8_t
+    if (quality < 0 || quality > 100) {
         ALOGE("%s: Requested JPEG quality %d is not supported",
-                __FUNCTION__, validatedParams.jpegQuality);
+                __FUNCTION__, quality);
         return BAD_VALUE;
     }
+    validatedParams.jpegQuality = quality;
 
     // ROTATION
     validatedParams.jpegRotation =
@@ -1749,7 +1750,11 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             CropRegion::OUTPUT_PREVIEW     |
             CropRegion::OUTPUT_VIDEO       |
             CropRegion::OUTPUT_PICTURE    ));
-    int32_t reqCropRegion[3] = { crop.left, crop.top, crop.width };
+    int32_t reqCropRegion[3] = {
+        static_cast<int32_t>(crop.left),
+        static_cast<int32_t>(crop.top),
+        static_cast<int32_t>(crop.width)
+    };
     res = request->update(ANDROID_SCALER_CROP_REGION,
             reqCropRegion, 3);
     if (res != OK) return res;
@@ -2347,10 +2352,14 @@ Parameters::CropRegion Parameters::calculateCropRegion(
     float minOutputWidth, minOutputHeight, minOutputRatio;
     {
         float outputSizes[][2] = {
-            { previewWidth,     previewHeight },
-            { videoWidth,       videoHeight },
-            { jpegThumbSize[0], jpegThumbSize[1] },
-            { pictureWidth,     pictureHeight },
+            { static_cast<float>(previewWidth),
+              static_cast<float>(previewHeight) },
+            { static_cast<float>(videoWidth),
+              static_cast<float>(videoHeight) },
+            { static_cast<float>(jpegThumbSize[0]),
+              static_cast<float>(jpegThumbSize[1]) },
+            { static_cast<float>(pictureWidth),
+              static_cast<float>(pictureHeight) },
         };
 
         minOutputWidth = outputSizes[0][0];

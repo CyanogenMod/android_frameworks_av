@@ -55,7 +55,7 @@ struct Parameters {
     int pictureWidth, pictureHeight;
 
     int32_t jpegThumbSize[2];
-    int32_t jpegQuality, jpegThumbQuality;
+    uint8_t jpegQuality, jpegThumbQuality;
     int32_t jpegRotation;
 
     bool gpsEnabled;
