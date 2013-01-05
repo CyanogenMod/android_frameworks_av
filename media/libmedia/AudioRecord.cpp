@@ -96,7 +96,7 @@ AudioRecord::AudioRecord(
       mProxy(NULL)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask,
-            frameCount, cbf, user, notificationFrames, sessionId);
+            frameCount, cbf, user, notificationFrames, false /*threadCanCallJava*/, sessionId);
 }
 
 AudioRecord::~AudioRecord()
