@@ -28,7 +28,8 @@ public:
         MIXER,              // Thread class is MixerThread
         DIRECT,             // Thread class is DirectOutputThread
         DUPLICATING,        // Thread class is DuplicatingThread
-        RECORD              // Thread class is RecordThread
+        RECORD,             // Thread class is RecordThread
+        OFFLOAD             // Thread class is OffloadThread
     };
 
     ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
@@ -129,6 +130,7 @@ public:
                 size_t      frameCount() const { return mNormalFrameCount; }
                 // Return's the HAL's frame count i.e. fast mixer buffer size.
                 size_t      frameCountHAL() const { return mFrameCount; }
+                size_t      frameSize() const { return mFrameSize; }
 
     // Should be "virtual status_t requestExitAndWait()" and override same
     // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
@@ -184,6 +186,8 @@ public:
                 void lockEffectChains_l(Vector< sp<EffectChain> >& effectChains);
                 // unlock effect chains after process
                 void unlockEffectChains(const Vector< sp<EffectChain> >& effectChains);
+                // get a copy of mEffectChains vector
+                Vector< sp<EffectChain> > getEffectChains_l() const { return mEffectChains; };
                 // set audio mode to all effect chains
                 void setMode(audio_mode_t mode);
                 // get effect module with corresponding ID on specified audio session
@@ -329,10 +333,18 @@ public:
     enum mixer_state {
         MIXER_IDLE,             // no active tracks
         MIXER_TRACKS_ENABLED,   // at least one active track, but no track has any data ready
-        MIXER_TRACKS_READY      // at least one active track, and at least one track has data
+        MIXER_TRACKS_READY,      // at least one active track, and at least one track has data
+        MIXER_DRAIN_TRACK,      // drain currently playing track
+        MIXER_DRAIN_ALL,        // fully drain the hardware
         // standby mode does not have an enum value
         // suspend by audio policy manager is orthogonal to mixer state
     };
+
+    // retry count before removing active track in case of underrun on offloaded thread:
+    // we need to make sure that AudioTrack client has enough time to send large buffers
+//FIXME may be more appropriate if expressed in time units. Need to revise how underrun is handled
+    // for offloaded tracks
+    static const int8_t kMaxTrackRetriesOffload = 20;
 
     PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                    audio_io_handle_t id, audio_devices_t device, type_t type);
@@ -351,8 +363,10 @@ protected:
     // Code snippets that were lifted up out of threadLoop()
     virtual     void        threadLoop_mix() = 0;
     virtual     void        threadLoop_sleepTime() = 0;
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
+    virtual     void        threadLoop_drain();
     virtual     void        threadLoop_standby();
+    virtual     void        threadLoop_exit();
     virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
 
                 // prepareTracks_l reads and writes mActiveTracks, and returns
@@ -360,6 +374,19 @@ protected:
                 // is responsible for clearing or destroying this Vector later on, when it
                 // is safe to do so. That will drop the final ref count and destroy the tracks.
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove) = 0;
+                void        removeTracks_l(const Vector< sp<Track> >& tracksToRemove);
+
+                void        writeCallback();
+                void        setWriteBlocked(bool value);
+                void        drainCallback();
+                void        setDraining(bool value);
+
+    static      int         asyncCallback(stream_callback_event_t event, void *param, void *cookie);
+
+    virtual     bool        waitingAsyncCallback();
+    virtual     bool        waitingAsyncCallback_l();
+    virtual     bool        shouldStandby_l();
+
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -436,7 +463,8 @@ public:
 
 
 protected:
-    int16_t*                        mMixBuffer;
+    int16_t*                        mMixBuffer;         // frame size aligned mix buffer
+    int8_t*                         mAllocMixBuffer;    // mixer buffer allocation address
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
@@ -489,8 +517,9 @@ private:
     PlaybackThread& operator = (const PlaybackThread&);
 
     status_t    addTrack_l(const sp<Track>& track);
-    void        destroyTrack_l(const sp<Track>& track);
+    bool        destroyTrack_l(const sp<Track>& track);
     void        removeTrack_l(const sp<Track>& track);
+    void        signal_l();
 
     void        readOutputParameters();
 
@@ -538,6 +567,14 @@ private:
     // DUPLICATING only
     uint32_t                        writeFrames;
 
+    size_t                          mBytesRemaining;
+    size_t                          mCurrentWriteLength;
+    bool                            mUseAsyncWrite;
+    bool                            mWriteBlocked;
+    bool                            mDraining;
+    bool                            mSignalPending;
+    sp<AsyncCallbackThread>         mCallbackThread;
+
 private:
     // The HAL output sink is treated as non-blocking, but current implementation is blocking
     sp<NBAIO_Sink>          mOutputSink;
@@ -561,7 +598,7 @@ public:
 protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
-
+    virtual     void        flushOutput_l();
 };
 
 class MixerThread : public PlaybackThread {
@@ -587,7 +624,7 @@ protected:
     virtual     void        cacheParameters_l();
 
     // threadLoop snippets
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
     virtual     void        threadLoop_standby();
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
@@ -644,15 +681,71 @@ protected:
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
 
-private:
     // volumes last sent to audio HAL with stream->set_volume()
     float mLeftVolFloat;
     float mRightVolFloat;
+
+    DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                        audio_io_handle_t id, uint32_t device, ThreadBase::type_t type);
+    void processVolume_l(Track *track, bool lastTrack);
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
     sp<Track>               mActiveTrack;
 public:
     virtual     bool        hasFastMixer() const { return false; }
+};
+
+class OffloadThread : public DirectOutputThread {
+public:
+
+    OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                        audio_io_handle_t id, uint32_t device);
+    virtual                 ~OffloadThread();
+
+protected:
+    // threadLoop snippets
+    virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
+    virtual     void        threadLoop_exit();
+    virtual     void        flushOutput_l();
+
+    virtual     bool        waitingAsyncCallback();
+    virtual     bool        waitingAsyncCallback_l();
+    virtual     bool        shouldStandby_l();
+
+private:
+                void        flushHw_l();
+
+private:
+    bool        mHwPaused;
+    bool        mFlushPending;
+    size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
+    size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
+    sp<Track>   mPreviousTrack;         // used to detect track switch
+};
+
+class AsyncCallbackThread : public Thread {
+public:
+
+    AsyncCallbackThread(const sp<OffloadThread>& offloadThread);
+
+    virtual             ~AsyncCallbackThread();
+
+    // Thread virtuals
+    virtual bool        threadLoop();
+
+    // RefBase
+    virtual void        onFirstRef();
+
+            void        exit();
+            void        setWriteBlocked(bool value);
+            void        setDraining(bool value);
+
+private:
+    wp<OffloadThread>   mOffloadThread;
+    bool                mWriteBlocked;
+    bool                mDraining;
+    Condition           mWaitWorkCV;
+    Mutex               mLock;
 };
 
 class DuplicatingThread : public MixerThread {
@@ -674,7 +767,7 @@ protected:
     // threadLoop snippets
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
     virtual     void        threadLoop_standby();
     virtual     void        cacheParameters_l();
 

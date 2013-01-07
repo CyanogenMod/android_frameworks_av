@@ -126,6 +126,7 @@ protected:
 
     status_t start_l();
     status_t stop_l();
+    status_t remove_effect_from_hal_l();
 
 mutable Mutex               mLock;      // mutex for process, commands and handles list protection
     wp<ThreadBase>      mThread;    // parent thread

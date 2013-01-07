@@ -139,6 +139,11 @@ public:
     virtual status_t setVoiceVolume(float volume, int delayMs = 0);
     virtual bool isOffloadSupported(const audio_offload_info_t &config);
 
+            status_t doStopOutput(audio_io_handle_t output,
+                                  audio_stream_type_t stream,
+                                  int session = 0);
+            void doReleaseOutput(audio_io_handle_t output);
+
 private:
                         AudioPolicyService() ANDROID_API;
     virtual             ~AudioPolicyService();
@@ -161,10 +166,12 @@ private:
             STOP_TONE,
             SET_VOLUME,
             SET_PARAMETERS,
-            SET_VOICE_VOLUME
+            SET_VOICE_VOLUME,
+            STOP_OUTPUT,
+            RELEASE_OUTPUT
         };
 
-        AudioCommandThread (String8 name);
+        AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
         virtual             ~AudioCommandThread();
 
                     status_t    dump(int fd);
@@ -182,6 +189,11 @@ private:
                     status_t    parametersCommand(audio_io_handle_t ioHandle,
                                             const char *keyValuePairs, int delayMs = 0);
                     status_t    voiceVolumeCommand(float volume, int delayMs = 0);
+                    void        stopOutputCommand(audio_io_handle_t output,
+                                                  audio_stream_type_t stream,
+                                                  int session);
+                    void        releaseOutputCommand(audio_io_handle_t output);
+
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
@@ -226,12 +238,25 @@ private:
             float mVolume;
         };
 
+        class StopOutputData {
+        public:
+            audio_io_handle_t mIO;
+            audio_stream_type_t mStream;
+            int mSession;
+        };
+
+        class ReleaseOutputData {
+        public:
+            audio_io_handle_t mIO;
+        };
+
         Mutex   mLock;
         Condition mWaitWorkCV;
         Vector <AudioCommand *> mAudioCommands; // list of pending commands
         ToneGenerator *mpToneGenerator;     // the tone generator
         AudioCommand mLastCommand;          // last processed command (used by dump)
         String8 mName;                      // string used by wake lock fo delayed commands
+        wp<AudioPolicyService> mService;
     };
 
     class EffectDesc {
@@ -316,6 +341,7 @@ private:
                             // device connection state  or routing
     sp<AudioCommandThread> mAudioCommandThread;     // audio commands thread
     sp<AudioCommandThread> mTonePlaybackThread;     // tone playback thread
+    sp<AudioCommandThread> mOutputCommandThread;    // process stop and release output
     struct audio_policy_device *mpAudioPolicyDev;
     struct audio_policy *mpAudioPolicy;
     KeyedVector< audio_source_t, InputSourceDesc* > mInputSources;

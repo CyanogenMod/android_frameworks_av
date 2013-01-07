@@ -322,6 +322,14 @@ void AudioTrackClientProxy::flush()
     mCblk->u.mStreaming.mFlush++;
 }
 
+bool AudioTrackClientProxy::clearStreamEndDone() {
+    return android_atomic_and(~CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE;
+}
+
+bool AudioTrackClientProxy::getStreamEndDone() const {
+    return (mCblk->flags & CBLK_STREAM_END_DONE) != 0;
+}
+
 // ---------------------------------------------------------------------------
 
 StaticAudioTrackClientProxy::StaticAudioTrackClientProxy(audio_track_cblk_t* cblk, void *buffers,
@@ -522,6 +530,16 @@ size_t AudioTrackServerProxy::framesReady()
     //  and racy if called by normal mixer thread
     // ignores flush(), so framesReady() may report a larger mFrameCount than obtainBuffer()
     return filled;
+}
+
+bool  AudioTrackServerProxy::setStreamEndDone() {
+    bool old =
+            (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE) != 0;
+    if (!old) {
+        (void) __futex_syscall3(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1);
+    }
+    return old;
 }
 
 // ---------------------------------------------------------------------------

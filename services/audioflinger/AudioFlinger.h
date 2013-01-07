@@ -365,7 +365,9 @@ private:
     class PlaybackThread;
     class MixerThread;
     class DirectOutputThread;
+    class OffloadThread;
     class DuplicatingThread;
+    class AsyncCallbackThread;
     class Track;
     class RecordTrack;
     class EffectModule;
@@ -431,6 +433,7 @@ private:
         // for use from destructor
         void                stop_nonvirtual();
     };
+
 
               PlaybackThread *checkPlaybackThread_l(audio_io_handle_t output) const;
               MixerThread *checkMixerThread_l(audio_io_handle_t output) const;
@@ -498,11 +501,12 @@ private:
     struct AudioStreamOut {
         AudioHwDevice* const audioHwDev;
         audio_stream_out_t* const stream;
+        audio_output_flags_t flags;
 
         audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
 
-        AudioStreamOut(AudioHwDevice *dev, audio_stream_out_t *out) :
-            audioHwDev(dev), stream(out) {}
+        AudioStreamOut(AudioHwDevice *dev, audio_stream_out_t *out, audio_output_flags_t flags) :
+            audioHwDev(dev), stream(out), flags(flags) {}
     };
 
     struct AudioStreamIn {

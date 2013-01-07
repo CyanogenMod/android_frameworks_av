@@ -291,6 +291,11 @@ public:
     virtual uint32_t    getUnderrunFrames() const {
         return mCblk->u.mStreaming.mUnderrunFrames;
     }
+
+    bool        clearStreamEndDone();   // and return previous value
+
+    bool        getStreamEndDone() const;
+
 };
 
 class StaticAudioTrackClientProxy : public AudioTrackClientProxy {
@@ -405,6 +410,8 @@ public:
     // should avoid doing a state queue poll from within framesReady().
     // FIXME Change AudioFlinger to not call framesReady() from normal mixer thread.
     virtual void        framesReadyIsCalledByMultipleThreads() { }
+
+    bool     setStreamEndDone();    // and return previous value
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {

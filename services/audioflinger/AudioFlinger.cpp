@@ -1423,13 +1423,15 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     audio_stream_out_t *outStream = NULL;
     AudioHwDevice *outHwDev;
 
-    ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %d, Channels %x, flags %x",
+    ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %#08x, Channels %x, flags %x",
               module,
               (pDevices != NULL) ? *pDevices : 0,
               config.sample_rate,
               config.format,
               config.channel_mask,
               flags);
+    ALOGV("openOutput(), offloadInfo %p version 0x%04x",
+          offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version );
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;
@@ -1454,7 +1456,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                           &outStream);
 
     mHardwareStatus = AUDIO_HW_IDLE;
-    ALOGV("openOutput() openOutputStream returned output %p, SamplingRate %d, Format %d, "
+    ALOGV("openOutput() openOutputStream returned output %p, SamplingRate %d, Format %#08x, "
             "Channels %x, status %d",
             outStream,
             config.sample_rate,
@@ -1463,9 +1465,12 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             status);
 
     if (status == NO_ERROR && outStream != NULL) {
-        AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream);
+        AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream, flags);
 
-        if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
+        if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+            thread = new OffloadThread(this, output, id, *pDevices);
+            ALOGV("openOutput() created offload output: ID %d thread %p", id, thread);
+        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
             (config.format != AUDIO_FORMAT_PCM_16_BIT) ||
             (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
             thread = new DirectOutputThread(this, output, id, *pDevices);
@@ -1555,11 +1560,28 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
                     DuplicatingThread *dupThread =
                             (DuplicatingThread *)mPlaybackThreads.valueAt(i).get();
                     dupThread->removeOutputTrack((MixerThread *)thread.get());
+
+                }
+            }
+        }
+
+
+        mPlaybackThreads.removeItem(output);
+        // save all effects to the default thread
+        if (mPlaybackThreads.size()) {
+            PlaybackThread *dstThread = checkPlaybackThread_l(mPlaybackThreads.keyAt(0));
+            if (dstThread != NULL) {
+                // audioflinger lock is held here so the acquisition order of thread locks does not
+                // matter
+                Mutex::Autolock _dl(dstThread->mLock);
+                Mutex::Autolock _sl(thread->mLock);
+                Vector< sp<EffectChain> > effectChains = thread->getEffectChains_l();
+                for (size_t i = 0; i < effectChains.size(); i ++) {
+                    moveEffectChain_l(effectChains[i]->sessionId(), thread.get(), dstThread, true);
                 }
             }
         }
         audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
-        mPlaybackThreads.removeItem(output);
     }
     thread->exit();
     // The thread entity (active unit of execution) is no longer running here,

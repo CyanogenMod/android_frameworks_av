@@ -51,6 +51,8 @@ public:
             audio_stream_type_t streamType() const {
                 return mStreamType;
             }
+            bool        isOffloaded() const { return (mFlags & IAudioFlinger::TRACK_OFFLOAD) != 0; }
+            status_t    setParameters(const String8& keyValuePairs);
             status_t    attachAuxEffect(int EffectId);
             void        setAuxBuffer(int EffectId, int32_t *buffer);
             int32_t     *auxBuffer() const { return mAuxBuffer; }
@@ -68,6 +70,7 @@ protected:
     friend class PlaybackThread;
     friend class MixerThread;
     friend class DirectOutputThread;
+    friend class OffloadThread;
 
                         Track(const Track&);
                         Track& operator = (const Track&);
@@ -142,6 +145,7 @@ private:
                                         // barrier, but is read/written atomically
     bool                mIsInvalid; // non-resettable latch, set by invalidate()
     AudioTrackServerProxy*  mAudioTrackServerProxy;
+    bool                mResumeToStopping; // track was paused in stopping state.
 };  // end of Track
 
 class TimedTrack : public Track {

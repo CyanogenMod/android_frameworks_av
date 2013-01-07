@@ -89,7 +89,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mSessionId(sessionId),
         mIsOut(isOut),
         mServerProxy(NULL),
-        mId(android_atomic_inc(&nextTrackId))
+        mId(android_atomic_inc(&nextTrackId)),
+        mTerminated(false)
 {
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
@@ -252,7 +253,7 @@ void AudioFlinger::TrackHandle::pause() {
 }
 
 status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) {
-    return INVALID_OPERATION;   // stub function
+    return mTrack->setParameters(keyValuePairs);
 }
 
 status_t AudioFlinger::TrackHandle::attachAuxEffect(int EffectId)
@@ -328,7 +329,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mUnderrunCount(0),
     mCachedVolume(1.0),
     mIsInvalid(false),
-    mAudioTrackServerProxy(NULL)
+    mAudioTrackServerProxy(NULL),
+    mResumeToStopping(false)
 {
     if (mCblk != NULL) {
         if (sharedBuffer == 0) {
@@ -386,27 +388,19 @@ void AudioFlinger::PlaybackThread::Track::destroy()
     { // scope for mLock
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
-            if (!isOutputTrack()) {
-                if (mState == ACTIVE || mState == RESUMING) {
-                    AudioSystem::stopOutput(thread->id(), mStreamType, mSessionId);
-
-#ifdef ADD_BATTERY_DATA
-                    // to track the speaker usage
-                    addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStop);
-#endif
-                }
-                AudioSystem::releaseOutput(thread->id());
-            }
             Mutex::Autolock _l(thread->mLock);
             PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-            playbackThread->destroyTrack_l(this);
+            bool wasActive = playbackThread->destroyTrack_l(this);
+            if (!isOutputTrack() && !wasActive) {
+                AudioSystem::releaseOutput(thread->id());
+            }
         }
     }
 }
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt Chn mask   Session StpCnt fCount S F SRate  "
+    result.append("   Name Client Type Fmt        Chn mask   Session StpCnt fCount S F SRate  "
                   "L dB  R dB    Server    Main buf    Aux Buf  Flags Underruns\n");
 }
 
@@ -420,40 +414,41 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
     }
     track_state state = mState;
     char stateChar;
-    switch (state) {
-    case IDLE:
-        stateChar = 'I';
-        break;
-    case TERMINATED:
+    if (isTerminated()) {
         stateChar = 'T';
-        break;
-    case STOPPING_1:
-        stateChar = 's';
-        break;
-    case STOPPING_2:
-        stateChar = '5';
-        break;
-    case STOPPED:
-        stateChar = 'S';
-        break;
-    case RESUMING:
-        stateChar = 'R';
-        break;
-    case ACTIVE:
-        stateChar = 'A';
-        break;
-    case PAUSING:
-        stateChar = 'p';
-        break;
-    case PAUSED:
-        stateChar = 'P';
-        break;
-    case FLUSHED:
-        stateChar = 'F';
-        break;
-    default:
-        stateChar = '?';
-        break;
+    } else {
+        switch (state) {
+        case IDLE:
+            stateChar = 'I';
+            break;
+        case STOPPING_1:
+            stateChar = 's';
+            break;
+        case STOPPING_2:
+            stateChar = '5';
+            break;
+        case STOPPED:
+            stateChar = 'S';
+            break;
+        case RESUMING:
+            stateChar = 'R';
+            break;
+        case ACTIVE:
+            stateChar = 'A';
+            break;
+        case PAUSING:
+            stateChar = 'p';
+            break;
+        case PAUSED:
+            stateChar = 'P';
+            break;
+        case FLUSHED:
+            stateChar = 'F';
+            break;
+        default:
+            stateChar = '?';
+            break;
+        }
     }
     char nowInUnderrun;
     switch (mObservedUnderruns.mBitFields.mMostRecent) {
@@ -470,7 +465,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[7], size-7, " %6d %4u %3u 0x%08x %7u %6u %6u %1c %1d %5u %5.2g %5.2g  "
+    snprintf(&buffer[7], size-7, " %6d %4u 0x%08x 0x%08x %7u %6u %6u %1c %1d %5u %5.2g %5.2g  "
             "0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
@@ -555,32 +550,33 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         track_state state = mState;
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
+
         if (state == PAUSED) {
-            mState = TrackBase::RESUMING;
-            ALOGV("PAUSED => RESUMING (%d) on thread %p", mName, this);
+            if (mResumeToStopping) {
+                // happened we need to resume to STOPPING_1
+                mState = TrackBase::STOPPING_1;
+                ALOGV("PAUSED => STOPPING_1 (%d) on thread %p", mName, this);
+            } else {
+                mState = TrackBase::RESUMING;
+                ALOGV("PAUSED => RESUMING (%d) on thread %p", mName, this);
+            }
         } else {
             mState = TrackBase::ACTIVE;
             ALOGV("? => ACTIVE (%d) on thread %p", mName, this);
         }
 
-        if (!isOutputTrack() && state != ACTIVE && state != RESUMING) {
-            thread->mLock.unlock();
-            status = AudioSystem::startOutput(thread->id(), mStreamType, mSessionId);
-            thread->mLock.lock();
-
-#ifdef ADD_BATTERY_DATA
-            // to track the speaker usage
-            if (status == NO_ERROR) {
-                addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStart);
-            }
-#endif
-        }
-        if (status == NO_ERROR) {
-            PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-            playbackThread->addTrack_l(this);
-        } else {
-            mState = state;
+        PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+        status = playbackThread->addTrack_l(this);
+        if (status == INVALID_OPERATION || status == PERMISSION_DENIED) {
             triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
+            //  restore previous state if start was rejected by policy manager
+            if (status == PERMISSION_DENIED) {
+                mState = state;
+            }
+        }
+        // track was already in the active list, not a problem
+        if (status == ALREADY_EXISTS) {
+            status = NO_ERROR;
         }
     } else {
         status = BAD_VALUE;
@@ -601,25 +597,17 @@ void AudioFlinger::PlaybackThread::Track::stop()
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
                 mState = STOPPED;
-            } else if (!isFastTrack()) {
+            } else if (!isFastTrack() && !isOffloaded()) {
                 mState = STOPPED;
             } else {
-                // prepareTracks_l() will set state to STOPPING_2 after next underrun,
-                // and then to STOPPED and reset() when presentation is complete
+                // For fast tracks prepareTracks_l() will set state to STOPPING_2
+                // presentation is complete
+                // For an offloaded track this starts a drain and state will
+                // move to STOPPING_2 when drain completes and then STOPPED
                 mState = STOPPING_1;
             }
             ALOGV("not stopping/stopped => stopping/stopped (%d) on thread %p", mName,
                     playbackThread);
-        }
-        if (!isOutputTrack() && (state == ACTIVE || state == RESUMING)) {
-            thread->mLock.unlock();
-            AudioSystem::stopOutput(thread->id(), mStreamType, mSessionId);
-            thread->mLock.lock();
-
-#ifdef ADD_BATTERY_DATA
-            // to track the speaker usage
-            addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStop);
-#endif
         }
     }
 }
@@ -630,19 +618,27 @@ void AudioFlinger::PlaybackThread::Track::pause()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
-        if (mState == ACTIVE || mState == RESUMING) {
+        PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+        switch (mState) {
+        case STOPPING_1:
+        case STOPPING_2:
+            if (!isOffloaded()) {
+                /* nothing to do if track is not offloaded */
+                break;
+            }
+
+            // Offloaded track was draining, we need to carry on draining when resumed
+            mResumeToStopping = true;
+            // fall through...
+        case ACTIVE:
+        case RESUMING:
             mState = PAUSING;
             ALOGV("ACTIVE/RESUMING => PAUSING (%d) on thread %p", mName, thread.get());
-            if (!isOutputTrack()) {
-                thread->mLock.unlock();
-                AudioSystem::stopOutput(thread->id(), mStreamType, mSessionId);
-                thread->mLock.lock();
+            playbackThread->signal_l();
+            break;
 
-#ifdef ADD_BATTERY_DATA
-                // to track the speaker usage
-                addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStop);
-#endif
-            }
+        default:
+            break;
         }
     }
 }
@@ -653,21 +649,52 @@ void AudioFlinger::PlaybackThread::Track::flush()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
-        if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED && mState != PAUSED &&
-                mState != PAUSING && mState != IDLE && mState != FLUSHED) {
-            return;
-        }
-        // No point remaining in PAUSED state after a flush => go to
-        // FLUSHED state
-        mState = FLUSHED;
-        // do not reset the track if it is still in the process of being stopped or paused.
-        // this will be done by prepareTracks_l() when the track is stopped.
-        // prepareTracks_l() will see mState == FLUSHED, then
-        // remove from active track list, reset(), and trigger presentation complete
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-        if (playbackThread->mActiveTracks.indexOf(this) < 0) {
+
+        if (isOffloaded()) {
+            // If offloaded we allow flush during any state except terminated
+            // and keep the track active to avoid problems if user is seeking
+            // rapidly and underlying hardware has a significant delay handling
+            // a pause
+            if (isTerminated()) {
+                return;
+            }
+
+            ALOGV("flush: offload flush");
             reset();
+
+            if (mState == STOPPING_1 || mState == STOPPING_2) {
+                ALOGV("flushed in STOPPING_1 or 2 state, change state to ACTIVE");
+                mState = ACTIVE;
+            }
+
+            if (mState == ACTIVE) {
+                ALOGV("flush called in active state, resetting buffer time out retry count");
+                mRetryCount = PlaybackThread::kMaxTrackRetriesOffload;
+            }
+
+            mResumeToStopping = false;
+        } else {
+            if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED &&
+                    mState != PAUSED && mState != PAUSING && mState != IDLE && mState != FLUSHED) {
+                return;
+            }
+            // No point remaining in PAUSED state after a flush => go to
+            // FLUSHED state
+            mState = FLUSHED;
+            // do not reset the track if it is still in the process of being stopped or paused.
+            // this will be done by prepareTracks_l() when the track is stopped.
+            // prepareTracks_l() will see mState == FLUSHED, then
+            // remove from active track list, reset(), and trigger presentation complete
+            if (playbackThread->mActiveTracks.indexOf(this) < 0) {
+                reset();
+            }
         }
+        // Prevent flush being lost if the track is flushed and then resumed
+        // before mixer thread can run. This is important when offloading
+        // because the hardware buffer could hold a large amount of audio
+        playbackThread->flushOutput_l();
+        playbackThread->signal_l();
     }
 }
 
@@ -685,6 +712,20 @@ void AudioFlinger::PlaybackThread::Track::reset()
         if (mState == FLUSHED) {
             mState = IDLE;
         }
+    }
+}
+
+status_t AudioFlinger::PlaybackThread::Track::setParameters(const String8& keyValuePairs)
+{
+    sp<ThreadBase> thread = mThread.promote();
+    if (thread == 0) {
+        ALOGE("thread is dead");
+        return FAILED_TRANSACTION;
+    } else if ((thread->type() == ThreadBase::DIRECT) ||
+                    (thread->type() == ThreadBase::OFFLOAD)) {
+        return thread->setParameters(keyValuePairs);
+    } else {
+        return PERMISSION_DENIED;
     }
 }
 
@@ -749,15 +790,23 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWrit
     // a track is considered presented when the total number of frames written to audio HAL
     // corresponds to the number of frames written when presentationComplete() is called for the
     // first time (mPresentationCompleteFrames == 0) plus the buffer filling status at that time.
+    // For an offloaded track the HAL+h/w delay is variable so a HAL drain() is used
+    // to detect when all frames have been played. In this case framesWritten isn't
+    // useful because it doesn't always reflect whether there is data in the h/w
+    // buffers, particularly if a track has been paused and resumed during draining
+    ALOGV("presentationComplete() mPresentationCompleteFrames %d framesWritten %d",
+                      mPresentationCompleteFrames, framesWritten);
     if (mPresentationCompleteFrames == 0) {
         mPresentationCompleteFrames = framesWritten + audioHalFrames;
         ALOGV("presentationComplete() reset: mPresentationCompleteFrames %d audioHalFrames %d",
                   mPresentationCompleteFrames, audioHalFrames);
     }
-    if (framesWritten >= mPresentationCompleteFrames) {
+
+    if (framesWritten >= mPresentationCompleteFrames || isOffloaded()) {
         ALOGV("presentationComplete() session %d complete: framesWritten %d",
                   mSessionId, framesWritten);
         triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
+        mAudioTrackServerProxy->setStreamEndDone();
         return true;
     }
     return false;
@@ -803,7 +852,7 @@ uint32_t AudioFlinger::PlaybackThread::Track::getVolumeLR()
 
 status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& event)
 {
-    if (mState == TERMINATED || mState == PAUSED ||
+    if (isTerminated() || mState == PAUSED ||
             ((framesReady() == 0) && ((mSharedBuffer != 0) ||
                                       (mState == STOPPED)))) {
         ALOGW("Track::setSyncEvent() in invalid state %d on session %d %s mode, framesReady %d ",

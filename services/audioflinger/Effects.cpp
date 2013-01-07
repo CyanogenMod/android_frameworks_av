@@ -95,16 +95,7 @@ AudioFlinger::EffectModule::~EffectModule()
 {
     ALOGV("Destructor %p", this);
     if (mEffectInterface != NULL) {
-        if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
-                (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
-            sp<ThreadBase> thread = mThread.promote();
-            if (thread != 0) {
-                audio_stream_t *stream = thread->stream();
-                if (stream != NULL) {
-                    stream->remove_audio_effect(stream, mEffectInterface);
-                }
-            }
-        }
+        remove_effect_from_hal_l();
         // release effect engine
         EffectRelease(mEffectInterface);
     }
@@ -488,7 +479,7 @@ status_t AudioFlinger::EffectModule::stop_l()
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
-    status_t cmdStatus;
+    status_t cmdStatus = NO_ERROR;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_DISABLE,
@@ -496,12 +487,19 @@ status_t AudioFlinger::EffectModule::stop_l()
                                                    NULL,
                                                    &size,
                                                    &cmdStatus);
-    if (status == 0) {
+    if (status == NO_ERROR) {
         status = cmdStatus;
     }
-    if (status == 0 &&
-            ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
-             (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC)) {
+    if (status == NO_ERROR) {
+        status = remove_effect_from_hal_l();
+    }
+    return status;
+}
+
+status_t AudioFlinger::EffectModule::remove_effect_from_hal_l()
+{
+    if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
+             (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
             audio_stream_t *stream = thread->stream();
@@ -510,7 +508,7 @@ status_t AudioFlinger::EffectModule::stop_l()
             }
         }
     }
-    return status;
+    return NO_ERROR;
 }
 
 status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
@@ -595,6 +593,17 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
                 h->setEnabled(enabled);
             }
         }
+//EL_FIXME not sure why this is needed?
+//        sp<ThreadBase> thread = mThread.promote();
+//        if (thread == 0) {
+//            return NO_ERROR;
+//        }
+//
+//        if ((thread->type() == ThreadBase::OFFLOAD) && (enabled)) {
+//            PlaybackThread *p = (PlaybackThread *)thread.get();
+//            ALOGV("setEnabled: Offload, invalidate tracks");
+//            p->invalidateTracks(AUDIO_STREAM_MUSIC);
+//        }
     }
     return NO_ERROR;
 }
@@ -1218,9 +1227,7 @@ void AudioFlinger::EffectChain::clearInputBuffer()
 // Must be called with EffectChain::mLock locked
 void AudioFlinger::EffectChain::clearInputBuffer_l(sp<ThreadBase> thread)
 {
-    size_t numSamples = thread->frameCount() * thread->channelCount();
-    memset(mInBuffer, 0, numSamples * sizeof(int16_t));
-
+    memset(mInBuffer, 0, thread->frameCount() * thread->frameSize());
 }
 
 // Must be called with EffectChain::mLock locked

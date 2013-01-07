@@ -25,10 +25,10 @@ class TrackBase : public ExtendedAudioBufferProvider, public RefBase {
 public:
     enum track_state {
         IDLE,
-        TERMINATED,
         FLUSHED,
         STOPPED,
-        // next 2 states are currently used for fast tracks only
+        // next 2 states are currently used for fast tracks
+        // and offloaded tracks only
         STOPPING_1,     // waiting for first underrun
         STOPPING_2,     // waiting for presentation complete
         RESUMING,
@@ -89,7 +89,7 @@ protected:
         return (mState == STOPPED || mState == FLUSHED);
     }
 
-    // for fast tracks only
+    // for fast tracks and offloaded tracks only
     bool isStopping() const {
         return mState == STOPPING_1 || mState == STOPPING_2;
     }
@@ -101,7 +101,11 @@ protected:
     }
 
     bool isTerminated() const {
-        return mState == TERMINATED;
+        return mTerminated;
+    }
+
+    void terminate() {
+        mTerminated = true;
     }
 
     bool step();    // mStepCount is an implicit input
@@ -142,4 +146,5 @@ protected:
     const int           mId;
     sp<NBAIO_Sink>      mTeeSink;
     sp<NBAIO_Source>    mTeeSource;
+    bool                mTerminated;
 };
