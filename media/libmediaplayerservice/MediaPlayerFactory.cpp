@@ -30,6 +30,7 @@
 #include "TestPlayerStub.h"
 #include "StagefrightPlayer.h"
 #include "nuplayer/NuPlayerDriver.h"
+#include <dlfcn.h>
 
 namespace android {
 
@@ -334,6 +335,30 @@ void MediaPlayerFactory::registerBuiltinFactories() {
     registerFactory_l(new SonivoxPlayerFactory(), SONIVOX_PLAYER);
     registerFactory_l(new TestPlayerFactory(), TEST_PLAYER);
 
+    const char* FACTORY_LIB           = "libdashplayer.so";
+    const char* FACTORY_CREATE_FN     = "CreateDASHFactory";
+
+    MediaPlayerFactory::IFactory* pFactory  = NULL;
+    void* pFactoryLib = NULL;
+    typedef MediaPlayerFactory::IFactory* (*CreateDASHDriverFn)();
+
+    pFactoryLib = ::dlopen(FACTORY_LIB, RTLD_LAZY);
+    if (pFactoryLib == NULL) {
+        ALOGE("Failed to open FACTORY_LIB Error : %s ",::dlerror());
+    } else {
+        CreateDASHDriverFn pCreateFnPtr;
+        pCreateFnPtr = (CreateDASHDriverFn) dlsym(pFactoryLib, FACTORY_CREATE_FN);
+        if (pCreateFnPtr == NULL) {
+            ALOGE("Could not locate pCreateFnPtr");
+        } else {
+            pFactory = pCreateFnPtr();
+            if(pFactory == NULL) {
+                ALOGE("Failed to invoke CreateDASHDriverFn...");
+            } else {
+                registerFactory_l(pFactory,DASH_PLAYER);
+            }
+        }
+    }
     sInitComplete = true;
 }
 

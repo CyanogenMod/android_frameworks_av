@@ -35,6 +35,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libstagefright_omx          \
     libstagefright_wfd          \
     libutils                    \
+    libdl                       \
     libvorbisidec               \
 
 LOCAL_STATIC_LIBRARIES :=       \
