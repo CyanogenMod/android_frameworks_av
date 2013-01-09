@@ -568,7 +568,6 @@ public:
     // Example value: "true" or "false". Read only.
     static const char KEY_VIDEO_SNAPSHOT_SUPPORTED[];
     static const char KEY_FULL_VIDEO_SNAP_SUPPORTED[];
-    static const char KEY_POWER_MODE_SUPPORTED[];
 
 #ifdef QCOM_HARDWARE
     static const char KEY_ISO_MODE[];
@@ -604,6 +603,7 @@ public:
     static const char KEY_MEMORY_COLOR_ENHANCEMENT[];
     static const char KEY_SUPPORTED_MEM_COLOR_ENHANCE_MODES[];
 
+    static const char KEY_POWER_MODE_SUPPORTED[];
     static const char KEY_POWER_MODE[];
 
     static const char KEY_ZSL[];
