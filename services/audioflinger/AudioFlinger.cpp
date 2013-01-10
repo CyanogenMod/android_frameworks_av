@@ -323,6 +323,13 @@ AudioFlinger::AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
             if ((dev->get_supported_devices != NULL) &&
                     (dev->get_supported_devices(dev) & devices) == devices)
                 return audioHwDevice;
+#ifdef ICS_AUDIO_BLOB
+            else if (dev->get_supported_devices == NULL && i != 0 &&
+                    devices == 0x80)
+                // Reasonably safe assumption: A non-primary HAL without
+                // get_supported_devices is a locally-built A2DP binary
+                return audioHwDevice;
+#endif
         }
     } else {
         // check a match for the requested module handle
