@@ -2124,19 +2124,19 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
                 (monoPipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
         mPipeSink = monoPipe;
 
-#ifdef TEE_SINK_FRAMES
-        // create a Pipe to archive a copy of FastMixer's output for dumpsys
-        Pipe *teeSink = new Pipe(TEE_SINK_FRAMES, format);
-        numCounterOffers = 0;
-        index = teeSink->negotiate(offers, 1, NULL, numCounterOffers);
-        ALOG_ASSERT(index == 0);
-        mTeeSink = teeSink;
-        PipeReader *teeSource = new PipeReader(*teeSink);
-        numCounterOffers = 0;
-        index = teeSource->negotiate(offers, 1, NULL, numCounterOffers);
-        ALOG_ASSERT(index == 0);
-        mTeeSource = teeSource;
-#endif
+        if (mTeeSinkOutputEnabled) {
+            // create a Pipe to archive a copy of FastMixer's output for dumpsys
+            Pipe *teeSink = new Pipe(mTeeSinkOutputFrames, format);
+            numCounterOffers = 0;
+            index = teeSink->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            mTeeSink = teeSink;
+            PipeReader *teeSource = new PipeReader(*teeSink);
+            numCounterOffers = 0;
+            index = teeSource->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            mTeeSource = teeSource;
+        }
 
         // create fast mixer and configure it initially with just one fast track for our submix
         mFastMixer = new FastMixer();
