@@ -164,6 +164,7 @@ status_t AudioRecord::set(
         ALOGE("Invalid format");
         return BAD_VALUE;
     }
+    mFormat = format;
 
     if (!audio_is_input_channel(channelMask)) {
         return BAD_VALUE;
@@ -172,7 +173,7 @@ status_t AudioRecord::set(
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
 
-    if (audio_is_linear_pcm(mFormat)) {
+    if (audio_is_linear_pcm(format)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
     } else {
         mFrameSize = sizeof(uint8_t);
@@ -226,7 +227,6 @@ status_t AudioRecord::set(
 
     mStatus = NO_ERROR;
 
-    mFormat = format;
     // Update buffer size in case it has been limited by AudioFlinger during track creation
     mFrameCount = mCblk->frameCount_;
 
