@@ -63,7 +63,12 @@ status_t AudioRecord::getMinFrameCount(
     // We double the size of input buffer for ping pong use of record buffer.
     size <<= 1;
 
-    if (audio_is_linear_pcm(format)) {
+#ifdef QCOM_ENHANCED_AUDIO
+    if (audio_is_linear_pcm(format) || format == AUDIO_FORMAT_AMR_WB)
+#else
+    if (audio_is_linear_pcm(format))
+#endif
+    {
         int channelCount = popcount(channelMask);
         size /= channelCount * audio_bytes_per_sample(format);
     }

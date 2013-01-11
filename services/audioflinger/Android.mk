@@ -13,6 +13,10 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
+ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
+LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO
+endif
+
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     AudioMixer.cpp.arm          \
