@@ -376,7 +376,13 @@ status_t TunnelPlayer::seekTo(int64_t time_us) {
 
     ALOGV("seekTo: time_us %lld", time_us);
 
-    if (mPositionTimeRealUs != 0) {
+    //This can happen if the client calls seek
+    //without ever calling getPosition
+    if (mPositionTimeRealUs == -1) {
+        getOffsetRealTime_l(&mPositionTimeRealUs);
+    }
+
+    if (mPositionTimeRealUs > 0) {
       //check for return conditions only if seektime
       // is set
       if (time_us > mPositionTimeRealUs){
@@ -522,17 +528,10 @@ void TunnelPlayer::reset() {
         mInputBuffer = NULL;
     }
 
-    if(mStarted)
+    if (mStarted)
         mSource->stop();
 
-    // The following hack is necessary to ensure that the OMX
-    // component is completely released by the time we may try
-    // to instantiate it again.
-    wp<MediaSource> tmp = mSource;
     mSource.clear();
-    while (tmp.promote() != NULL) {
-        usleep(1000);
-    }
 
     mPositionTimeMediaUs = -1;
     mPositionTimeRealUs = -1;
