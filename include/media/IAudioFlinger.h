@@ -74,6 +74,7 @@ public:
                                 // output: server's description of IAudioTrack for display in logs.
                                 // Don't attempt to parse, as the format could change.
                                 String8& name,
+                                int clientUid,
                                 status_t *status) = 0;
 
     virtual sp<IAudioRecord> openRecord(

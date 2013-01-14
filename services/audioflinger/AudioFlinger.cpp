@@ -451,6 +451,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         pid_t tid,
         int *sessionId,
         String8& name,
+        int clientUid,
         status_t *status)
 {
     sp<PlaybackThread::Track> track;
@@ -486,6 +487,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
 
         pid_t pid = IPCThreadState::self()->getCallingPid();
+
         client = registerPid_l(pid);
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
@@ -513,7 +515,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         ALOGV("createTrack() lSessionId: %d", lSessionId);
 
         track = thread->createTrack_l(client, streamType, sampleRate, format,
-                channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, &lStatus);
+                channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, clientUid, &lStatus);
         // we don't abort yet if lStatus != NO_ERROR; there is still work to be done regardless
 
         // move effect chain to this output thread if an effect on same session was waiting
@@ -1289,8 +1291,11 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         }
         // create new record track.
         // The record track uses one track in mHardwareMixerThread by convention.
+        // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
-                                                  frameCount, lSessionId, flags, tid, &lStatus);
+                                                  frameCount, lSessionId,
+                                                  IPCThreadState::self()->getCallingUid(),
+                                                  flags, tid, &lStatus);
         LOG_ALWAYS_FATAL_IF((recordTrack != 0) != (lStatus == NO_ERROR));
     }
 
