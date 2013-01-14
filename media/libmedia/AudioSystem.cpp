@@ -788,4 +788,13 @@ void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who) {
     ALOGW("AudioPolicyService server died!");
 }
 
+#ifdef USE_SAMSUNG_SEPARATEDSTREAM
+extern "C" bool _ZN7android11AudioSystem17isSeparatedStreamE19audio_stream_type_t(audio_stream_type_t stream)
+{
+    ALOGD("audio_stream_type_t: %d", stream);
+    ALOGD("isSeparatedStream: false");
+    return false;
+}
+#endif // USE_SAMSUNG_SEPARATEDSTREAM
+
 }; // namespace android
