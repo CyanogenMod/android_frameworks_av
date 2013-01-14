@@ -45,6 +45,7 @@ public:
                                 size_t frameCount,
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
+                                int uid,
                                 bool isOut);
     virtual             ~TrackBase();
 
@@ -54,6 +55,7 @@ public:
             sp<IMemory> getCblk() const { return mCblkMemory; }
             audio_track_cblk_t* cblk() const { return mCblk; }
             int         sessionId() const { return mSessionId; }
+            int         uid() const { return mUid; }
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
 protected:
@@ -132,6 +134,7 @@ protected:
                                     // openRecord(), and then adjusted as needed
 
     const int           mSessionId;
+    int                 mUid;
     Vector < sp<SyncEvent> >mSyncEvents;
     const bool          mIsOut;
     ServerProxy*        mServerProxy;
