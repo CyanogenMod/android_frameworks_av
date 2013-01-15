@@ -19,7 +19,6 @@
 #include <utils/Log.h>
 
 #include "include/MPEG2TSExtractor.h"
-#include "include/LiveSession.h"
 #include "include/NuCachedSource2.h"
 
 #include <media/stagefright/foundation/ADebug.h>
@@ -79,15 +78,7 @@ status_t MPEG2TSSource::stop() {
 }
 
 sp<MetaData> MPEG2TSSource::getFormat() {
-    sp<MetaData> meta = mImpl->getFormat();
-
-    int64_t durationUs;
-    if (mExtractor->mLiveSession != NULL
-            && mExtractor->mLiveSession->getDuration(&durationUs) == OK) {
-        meta->setInt64(kKeyDuration, durationUs);
-    }
-
-    return meta;
+    return mImpl->getFormat();
 }
 
 status_t MPEG2TSSource::read(
@@ -97,7 +88,7 @@ status_t MPEG2TSSource::read(
     int64_t seekTimeUs;
     ReadOptions::SeekMode seekMode;
     if (mSeekable && options && options->getSeekTo(&seekTimeUs, &seekMode)) {
-        mExtractor->seekTo(seekTimeUs);
+        return ERROR_UNSUPPORTED;
     }
 
     status_t finalResult;
@@ -216,32 +207,8 @@ status_t MPEG2TSExtractor::feedMore() {
     return mParser->feedTSPacket(packet, kTSPacketSize);
 }
 
-void MPEG2TSExtractor::setLiveSession(const sp<LiveSession> &liveSession) {
-    Mutex::Autolock autoLock(mLock);
-
-    mLiveSession = liveSession;
-}
-
-void MPEG2TSExtractor::seekTo(int64_t seekTimeUs) {
-    Mutex::Autolock autoLock(mLock);
-
-    if (mLiveSession == NULL) {
-        return;
-    }
-
-    mLiveSession->seekTo(seekTimeUs);
-}
-
 uint32_t MPEG2TSExtractor::flags() const {
-    Mutex::Autolock autoLock(mLock);
-
-    uint32_t flags = CAN_PAUSE;
-
-    if (mLiveSession != NULL && mLiveSession->isSeekable()) {
-        flags |= CAN_SEEK_FORWARD | CAN_SEEK_BACKWARD | CAN_SEEK;
-    }
-
-    return flags;
+    return CAN_PAUSE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

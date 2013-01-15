@@ -89,6 +89,38 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(SetSurfaceAction);
 };
 
+struct NuPlayer::ShutdownDecoderAction : public Action {
+    ShutdownDecoderAction(bool audio, bool video)
+        : mAudio(audio),
+          mVideo(video) {
+    }
+
+    virtual void execute(NuPlayer *player) {
+        player->performDecoderShutdown(mAudio, mVideo);
+    }
+
+private:
+    bool mAudio;
+    bool mVideo;
+
+    DISALLOW_EVIL_CONSTRUCTORS(ShutdownDecoderAction);
+};
+
+struct NuPlayer::PostMessageAction : public Action {
+    PostMessageAction(const sp<AMessage> &msg)
+        : mMessage(msg) {
+    }
+
+    virtual void execute(NuPlayer *) {
+        mMessage->post();
+    }
+
+private:
+    sp<AMessage> mMessage;
+
+    DISALLOW_EVIL_CONSTRUCTORS(PostMessageAction);
+};
+
 // Use this if there's no state necessary to save in order to execute
 // the action.
 struct NuPlayer::SimpleAction : public Action {
@@ -335,7 +367,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatSetVideoNativeWindow");
 
             mDeferredActions.push_back(
-                    new SimpleAction(&NuPlayer::performDecoderShutdown));
+                    new ShutdownDecoderAction(
+                        false /* audio */, true /* video */));
 
             sp<RefBase> obj;
             CHECK(msg->findObject("native-window", &obj));
@@ -712,7 +745,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatReset");
 
             mDeferredActions.push_back(
-                    new SimpleAction(&NuPlayer::performDecoderShutdown));
+                    new ShutdownDecoderAction(
+                        true /* audio */, true /* video */));
 
             mDeferredActions.push_back(
                     new SimpleAction(&NuPlayer::performReset));
@@ -1023,6 +1057,9 @@ void NuPlayer::notifyListener(int msg, int ext1, int ext2) {
 }
 
 void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
+    ALOGV("[%s] flushDecoder needShutdown=%d",
+          audio ? "audio" : "video", needShutdown);
+
     if ((audio && mAudioDecoder == NULL) || (!audio && mVideoDecoder == NULL)) {
         ALOGI("flushDecoder %s without decoder present",
              audio ? "audio" : "video");
@@ -1173,20 +1210,29 @@ void NuPlayer::performDecoderFlush() {
     }
 }
 
-void NuPlayer::performDecoderShutdown() {
-    ALOGV("performDecoderShutdown");
+void NuPlayer::performDecoderShutdown(bool audio, bool video) {
+    ALOGV("performDecoderShutdown audio=%d, video=%d", audio, video);
 
-    if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
+    if ((!audio || mAudioDecoder == NULL)
+            && (!video || mVideoDecoder == NULL)) {
         return;
     }
 
     mTimeDiscontinuityPending = true;
 
-    if (mAudioDecoder != NULL) {
+    if (mFlushingAudio == NONE && (!audio || mAudioDecoder == NULL)) {
+        mFlushingAudio = FLUSHED;
+    }
+
+    if (mFlushingVideo == NONE && (!video || mVideoDecoder == NULL)) {
+        mFlushingVideo = FLUSHED;
+    }
+
+    if (audio && mAudioDecoder != NULL) {
         flushDecoder(true /* audio */, true /* needShutdown */);
     }
 
-    if (mVideoDecoder != NULL) {
+    if (video && mVideoDecoder != NULL) {
         flushDecoder(false /* audio */, true /* needShutdown */);
     }
 }
@@ -1322,6 +1368,19 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case Source::kWhatQueueDecoderShutdown:
+        {
+            int32_t audio, video;
+            CHECK(msg->findInt32("audio", &audio));
+            CHECK(msg->findInt32("video", &video));
+
+            sp<AMessage> reply;
+            CHECK(msg->findMessage("reply", &reply));
+
+            queueDecoderShutdown(audio, video, reply);
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -1353,6 +1412,21 @@ void NuPlayer::Source::notifyPrepared(status_t err) {
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> &msg) {
     TRESPASS();
+}
+
+void NuPlayer::queueDecoderShutdown(
+        bool audio, bool video, const sp<AMessage> &reply) {
+    ALOGI("queueDecoderShutdown audio=%d, video=%d", audio, video);
+
+    mDeferredActions.push_back(
+            new ShutdownDecoderAction(audio, video));
+
+    mDeferredActions.push_back(
+            new SimpleAction(&NuPlayer::performScanSources));
+
+    mDeferredActions.push_back(new PostMessageAction(reply));
+
+    processDeferredActions();
 }
 
 }  // namespace android

@@ -25,10 +25,12 @@
 namespace android {
 
 struct ABuffer;
+struct AnotherPacketSource;
 struct DataSource;
+struct HTTPBase;
 struct LiveDataSource;
 struct M3UParser;
-struct HTTPBase;
+struct PlaylistFetcher;
 
 struct LiveSession : public AHandler {
     enum Flags {
@@ -39,24 +41,32 @@ struct LiveSession : public AHandler {
             const sp<AMessage> &notify,
             uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
 
-    sp<DataSource> getDataSource();
+    enum StreamType {
+        STREAMTYPE_AUDIO        = 1,
+        STREAMTYPE_VIDEO        = 2,
+        STREAMTYPE_SUBTITLES    = 4,
+    };
+    status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
-    void connect(
+    status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
+
+    void connectAsync(
             const char *url,
             const KeyedVector<String8, String8> *headers = NULL);
 
-    void disconnect();
+    status_t disconnect();
 
     // Blocks until seek is complete.
-    void seekTo(int64_t timeUs);
+    status_t seekTo(int64_t timeUs);
 
     status_t getDuration(int64_t *durationUs) const;
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
 
-    // Posted notification's "what" field will carry one of the following:
     enum {
+        kWhatStreamsChanged,
+        kWhatError,
         kWhatPrepared,
         kWhatPreparationFailed,
     };
@@ -67,21 +77,28 @@ protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 private:
-    enum {
-        kMaxNumQueuedFragments = 3,
-        kMaxNumRetries         = 5,
-    };
+    friend struct PlaylistFetcher;
 
     enum {
-        kWhatConnect        = 'conn',
-        kWhatDisconnect     = 'disc',
-        kWhatMonitorQueue   = 'moni',
-        kWhatSeek           = 'seek',
+        kWhatConnect                    = 'conn',
+        kWhatDisconnect                 = 'disc',
+        kWhatSeek                       = 'seek',
+        kWhatFetcherNotify              = 'notf',
+        kWhatCheckBandwidth             = 'bndw',
+        kWhatChangeConfiguration2       = 'chC2',
+        kWhatChangeConfiguration3       = 'chC3',
+        kWhatFinishDisconnect2          = 'fin2',
     };
 
     struct BandwidthItem {
-        AString mURI;
+        size_t mPlaylistIndex;
         unsigned long mBandwidth;
+    };
+
+    struct FetcherInfo {
+        sp<PlaylistFetcher> mFetcher;
+        int64_t mDurationUs;
+        bool mIsPrepared;
     };
 
     sp<AMessage> mNotify;
@@ -91,71 +108,61 @@ private:
 
     bool mInPreparationPhase;
 
-    sp<LiveDataSource> mDataSource;
-
     sp<HTTPBase> mHTTPDataSource;
-
-    AString mMasterURL;
     KeyedVector<String8, String8> mExtraHeaders;
 
+    AString mMasterURL;
+
     Vector<BandwidthItem> mBandwidthItems;
-
-    KeyedVector<AString, sp<ABuffer> > mAESKeyForURI;
-
     ssize_t mPrevBandwidthIndex;
-    int64_t mLastPlaylistFetchTimeUs;
+
     sp<M3UParser> mPlaylist;
-    int32_t mSeqNumber;
-    int64_t mSeekTimeUs;
-    int32_t mNumRetries;
-    bool mStartOfPlayback;
 
-    mutable Mutex mLock;
-    Condition mCondition;
-    int64_t mDurationUs;
-    bool mDurationFixed;  // Duration has been determined once and for all.
-    bool mSeekDone;
-    bool mDisconnectPending;
+    KeyedVector<AString, FetcherInfo> mFetcherInfos;
+    AString mAudioURI, mVideoURI, mSubtitleURI;
+    uint32_t mStreamMask;
 
-    int32_t mMonitorQueueGeneration;
+    KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
 
-    enum RefreshState {
-        INITIAL_MINIMUM_RELOAD_DELAY,
-        FIRST_UNCHANGED_RELOAD_ATTEMPT,
-        SECOND_UNCHANGED_RELOAD_ATTEMPT,
-        THIRD_UNCHANGED_RELOAD_ATTEMPT
-    };
-    RefreshState mRefreshState;
+    int32_t mCheckBandwidthGeneration;
 
-    uint8_t mPlaylistHash[16];
+    size_t mContinuationCounter;
+    sp<AMessage> mContinuation;
+
+    int64_t mLastDequeuedTimeUs;
+
+    bool mReconfigurationInProgress;
+    uint32_t mDisconnectReplyID;
+
+    sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
-    void onDisconnect();
-    void onDownloadNext();
-    void onMonitorQueue();
-    void onSeek(const sp<AMessage> &msg);
+    status_t onSeek(const sp<AMessage> &msg);
+    void onFinishDisconnect2();
 
     status_t fetchFile(
             const char *url, sp<ABuffer> *out,
             int64_t range_offset = 0, int64_t range_length = -1);
 
-    sp<M3UParser> fetchPlaylist(const char *url, bool *unchanged);
+    sp<M3UParser> fetchPlaylist(
+            const char *url, uint8_t *curPlaylistHash, bool *unchanged);
+
     size_t getBandwidthIndex();
-
-    status_t decryptBuffer(
-            size_t playlistIndex, const sp<ABuffer> &buffer);
-
-    void postMonitorQueue(int64_t delayUs = 0);
-
-    bool timeToRefreshPlaylist(int64_t nowUs) const;
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
 
-    // Returns the media time in us of the segment specified by seqNumber.
-    // This is computed by summing the durations of all segments before it.
-    int64_t getSegmentStartTimeUs(int32_t seqNumber) const;
+    void changeConfiguration(int64_t timeUs, size_t bandwidthIndex);
+    void onChangeConfiguration2(const sp<AMessage> &msg);
+    void onChangeConfiguration3(const sp<AMessage> &msg);
 
-    void signalEOS(status_t err);
+    void scheduleCheckBandwidthEvent();
+    void cancelCheckBandwidthEvent();
+
+    void onCheckBandwidth();
+
+    void finishDisconnect();
+
+    void postPrepared(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };

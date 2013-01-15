@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#define LOG_TAG "AHierarchicalStateMachine"
+#include <utils/Log.h>
+
 #include <media/stagefright/foundation/AHierarchicalStateMachine.h>
 
 #include <media/stagefright/foundation/ADebug.h>

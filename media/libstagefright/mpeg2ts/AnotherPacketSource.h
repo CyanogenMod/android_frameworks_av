@@ -41,6 +41,8 @@ struct AnotherPacketSource : public MediaSource {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL);
 
+    void clear();
+
     bool hasBufferAvailable(status_t *finalResult);
 
     // Returns the difference between the last and the first queued

@@ -30,8 +30,6 @@
 #include <binder/ProcessState.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ALooper.h>
-#include <media/stagefright/foundation/AMessage.h>
-#include "include/LiveSession.h"
 #include "include/NuCachedSource2.h"
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/DataSource.h>
@@ -678,7 +676,6 @@ int main(int argc, char **argv) {
     gDisplayHistogram = false;
 
     sp<ALooper> looper;
-    sp<LiveSession> liveSession;
 
     int res;
     while ((res = getopt(argc, argv, "han:lm:b:ptsrow:kxSTd:D:")) >= 0) {
@@ -961,9 +958,7 @@ int main(int argc, char **argv) {
 
         sp<DataSource> dataSource = DataSource::CreateFromURI(filename);
 
-        if (strncasecmp(filename, "sine:", 5)
-                && strncasecmp(filename, "httplive://", 11)
-                && dataSource == NULL) {
+        if (strncasecmp(filename, "sine:", 5) && dataSource == NULL) {
             fprintf(stderr, "Unable to create data source.\n");
             return 1;
         }
@@ -995,44 +990,21 @@ int main(int argc, char **argv) {
                 mediaSources.push(mediaSource);
             }
         } else {
-            sp<MediaExtractor> extractor;
+            sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
 
-            if (!strncasecmp("httplive://", filename, 11)) {
-                String8 uri("http://");
-                uri.append(filename + 11);
+            if (extractor == NULL) {
+                fprintf(stderr, "could not create extractor.\n");
+                return -1;
+            }
 
-                if (looper == NULL) {
-                    looper = new ALooper;
-                    looper->start();
-                }
-                liveSession = new LiveSession(NULL /* notify */);
-                looper->registerHandler(liveSession);
+            sp<MetaData> meta = extractor->getMetaData();
 
-                liveSession->connect(uri.string());
-                dataSource = liveSession->getDataSource();
+            if (meta != NULL) {
+                const char *mime;
+                CHECK(meta->findCString(kKeyMIMEType, &mime));
 
-                extractor =
-                    MediaExtractor::Create(
-                            dataSource, MEDIA_MIMETYPE_CONTAINER_MPEG2TS);
-
-                syncInfoPresent = false;
-            } else {
-                extractor = MediaExtractor::Create(dataSource);
-
-                if (extractor == NULL) {
-                    fprintf(stderr, "could not create extractor.\n");
-                    return -1;
-                }
-
-                sp<MetaData> meta = extractor->getMetaData();
-
-                if (meta != NULL) {
-                    const char *mime;
-                    CHECK(meta->findCString(kKeyMIMEType, &mime));
-
-                    if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) {
-                        syncInfoPresent = false;
-                    }
+                if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) {
+                    syncInfoPresent = false;
                 }
             }
 

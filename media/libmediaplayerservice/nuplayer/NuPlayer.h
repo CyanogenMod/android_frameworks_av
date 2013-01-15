@@ -80,6 +80,8 @@ private:
     struct Action;
     struct SeekAction;
     struct SetSurfaceAction;
+    struct ShutdownDecoderAction;
+    struct PostMessageAction;
     struct SimpleAction;
 
     enum {
@@ -172,12 +174,15 @@ private:
 
     void performSeek(int64_t seekTimeUs);
     void performDecoderFlush();
-    void performDecoderShutdown();
+    void performDecoderShutdown(bool audio, bool video);
     void performReset();
     void performScanSources();
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
 
     void onSourceNotify(const sp<AMessage> &msg);
+
+    void queueDecoderShutdown(
+            bool audio, bool video, const sp<AMessage> &reply);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };

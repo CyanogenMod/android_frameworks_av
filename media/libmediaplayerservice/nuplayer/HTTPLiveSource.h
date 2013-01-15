@@ -23,7 +23,6 @@
 
 namespace android {
 
-struct ATSParser;
 struct LiveSession;
 
 struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
@@ -37,17 +36,15 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
     virtual void prepareAsync();
     virtual void start();
 
-    virtual status_t feedMoreTSData();
-
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
+    virtual sp<AMessage> getFormat(bool audio);
 
+    virtual status_t feedMoreTSData();
     virtual status_t getDuration(int64_t *durationUs);
     virtual status_t seekTo(int64_t seekTimeUs);
 
 protected:
     virtual ~HTTPLiveSource();
-
-    virtual sp<MetaData> getFormatMeta(bool audio);
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
@@ -70,7 +67,6 @@ private:
     off64_t mOffset;
     sp<ALooper> mLiveLooper;
     sp<LiveSession> mLiveSession;
-    sp<ATSParser> mTSParser;
 
     void onSessionNotify(const sp<AMessage> &msg);
 

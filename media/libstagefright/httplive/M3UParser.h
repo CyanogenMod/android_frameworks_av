@@ -40,10 +40,18 @@ struct M3UParser : public RefBase {
     size_t size();
     bool itemAt(size_t index, AString *uri, sp<AMessage> *meta = NULL);
 
+    void pickRandomMediaItems();
+
+    bool getAudioURI(size_t index, AString *uri) const;
+    bool getVideoURI(size_t index, AString *uri) const;
+    bool getSubtitleURI(size_t index, AString *uri) const;
+
 protected:
     virtual ~M3UParser();
 
 private:
+    struct MediaGroup;
+
     struct Item {
         AString mURI;
         sp<AMessage> mMeta;
@@ -60,6 +68,9 @@ private:
     sp<AMessage> mMeta;
     Vector<Item> mItems;
 
+    // Media groups keyed by group ID.
+    KeyedVector<AString, sp<MediaGroup> > mMediaGroups;
+
     status_t parse(const void *data, size_t size);
 
     static status_t parseMetaData(
@@ -68,8 +79,8 @@ private:
     static status_t parseMetaDataDuration(
             const AString &line, sp<AMessage> *meta, const char *key);
 
-    static status_t parseStreamInf(
-            const AString &line, sp<AMessage> *meta);
+    status_t parseStreamInf(
+            const AString &line, sp<AMessage> *meta) const;
 
     static status_t parseCipherInfo(
             const AString &line, sp<AMessage> *meta, const AString &baseURI);
@@ -77,6 +88,10 @@ private:
     static status_t parseByteRange(
             const AString &line, uint64_t curOffset,
             uint64_t *length, uint64_t *offset);
+
+    status_t parseMedia(const AString &line);
+
+    bool getTypeURI(size_t index, const char *key, AString *uri) const;
 
     static status_t ParseInt32(const char *s, int32_t *x);
     static status_t ParseDouble(const char *s, double *x);
