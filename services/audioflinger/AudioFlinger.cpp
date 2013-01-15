@@ -7513,7 +7513,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     {  // scope for auto-lock pattern
         AutoMutex lock(mHardwareLock);
 
-#ifndef ICS_AUDIO_BLOB
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
         if (0 == mAudioHwDevs.size()) {
             mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
             if (NULL != dev->get_master_volume) {
@@ -7540,7 +7540,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     AudioHwDevice::AHWD_CAN_SET_MASTER_VOLUME);
         }
 
-#ifndef ICS_AUDIO_BLOB
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
         mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
         if ((NULL != dev->set_master_mute) &&
             (OK == dev->set_master_mute(dev, mMasterMute))) {
