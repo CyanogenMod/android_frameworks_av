@@ -2171,6 +2171,13 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
+    err = mNativeWindow.get()->perform(mNativeWindow.get(),
+                             NATIVE_WINDOW_SET_BUFFERS_SIZE, def.nBufferSize);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_size failed: %s (%d)", strerror(-err),
+                -err);
+        return err;
+    }
     CODEC_LOGV("allocating %lu buffers from a native window of size %lu on "
             "output port", def.nBufferCountActual, def.nBufferSize);
 
