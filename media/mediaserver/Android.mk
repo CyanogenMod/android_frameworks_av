@@ -7,12 +7,17 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
 	libcameraservice \
+	libmedialogservice \
+	libcutils \
+	libnbaio \
+	libmedia \
 	libmediaplayerservice \
 	libutils \
 	libbinder
 
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
+    frameworks/av/services/medialog \
     frameworks/av/services/audioflinger \
     frameworks/av/services/camera/libcameraservice
 
