@@ -53,6 +53,8 @@
 
 #include <powermanager/IPowerManager.h>
 
+#include <media/nbaio/NBLog.h>
+
 namespace android {
 
 class audio_track_cblk_t;
@@ -221,6 +223,13 @@ public:
                                 uint32_t flags);
 
     // end of IAudioFlinger interface
+
+    sp<NBLog::Writer>   newWriter_l(size_t size, const char *name);
+    void                unregisterWriter(const sp<NBLog::Writer>& writer);
+private:
+    static const size_t kLogMemorySize = 10 * 1024;
+    sp<MemoryDealer>    mLogMemoryDealer;   // == 0 when NBLog is disabled
+public:
 
     class SyncEvent;
 

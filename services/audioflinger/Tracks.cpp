@@ -569,6 +569,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
+        thread->mNBLogWriter->logf("start mName=%d", mName);
         track_state state = mState;
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
@@ -611,6 +612,7 @@ void AudioFlinger::PlaybackThread::Track::stop()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
+        thread->mNBLogWriter->logf("stop mName=%d", mName);
         track_state state = mState;
         if (state == RESUMING || state == ACTIVE || state == PAUSING || state == PAUSED) {
             // If the track is not active (PAUSED and buffers full), flush buffers
@@ -647,6 +649,7 @@ void AudioFlinger::PlaybackThread::Track::pause()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
+        thread->mNBLogWriter->logf("pause mName=%d", mName);
         if (mState == ACTIVE || mState == RESUMING) {
             mState = PAUSING;
             ALOGV("ACTIVE/RESUMING => PAUSING (%d) on thread %p", mName, thread.get());
@@ -670,6 +673,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
+        thread->mNBLogWriter->logf("flush mName=%d", mName);
         if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED && mState != PAUSED &&
                 mState != PAUSING && mState != IDLE && mState != FLUSHED) {
             return;

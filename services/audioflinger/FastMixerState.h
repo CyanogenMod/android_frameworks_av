@@ -20,6 +20,7 @@
 #include <system/audio.h>
 #include <media/ExtendedAudioBufferProvider.h>
 #include <media/nbaio/NBAIO.h>
+#include <media/nbaio/NBLog.h>
 
 namespace android {
 
@@ -77,6 +78,7 @@ struct FastMixerState {
     // This might be a one-time configuration rather than per-state
     FastMixerDumpState* mDumpState; // if non-NULL, then update dump state periodically
     NBAIO_Sink* mTeeSink;       // if non-NULL, then duplicate write()s to this non-blocking sink
+    NBLog::Writer* mNBLogWriter; // non-blocking logger
 };  // struct FastMixerState
 
 }   // namespace android
