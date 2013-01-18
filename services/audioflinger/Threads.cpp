@@ -2589,7 +2589,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // the minimum track buffer size is normally twice the number of frames necessary
                 // to fill one buffer and the resampler should not leave more than one buffer worth
                 // of unreleased frames after each pass, but just in case...
-                ALOG_ASSERT(minFrames <= cblk->frameCount);
+                ALOG_ASSERT(minFrames <= cblk->frameCount_);
             }
         }
         if ((track->framesReady() >= minFrames) && track->isReady() &&
