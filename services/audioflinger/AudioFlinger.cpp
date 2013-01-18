@@ -59,6 +59,8 @@
 #include <common_time/cc_helper.h>
 //#include <common_time/local_clock.h>
 
+#include <media/IMediaLogService.h>
+
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -127,6 +129,11 @@ AudioFlinger::AudioFlinger()
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
 {
+    char value[PROPERTY_VALUE_MAX];
+    bool doLog = (property_get("ro.test_harness", value, "0") > 0) && (atoi(value) == 1);
+    if (doLog) {
+        mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters");
+    }
 }
 
 void AudioFlinger::onFirstRef()
@@ -323,6 +330,17 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         if (locked) {
             mLock.unlock();
         }
+
+        // append a copy of media.log here by forwarding fd to it, but don't attempt
+        // to lookup the service if it's not running, as it will block for a second
+        if (mLogMemoryDealer != 0) {
+            sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
+            if (binder != 0) {
+                fdprintf(fd, "\nmedia.log:\n");
+                Vector<String16> args;
+                binder->dump(fd, args);
+            }
+        }
     }
     return NO_ERROR;
 }
@@ -338,6 +356,35 @@ sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
     }
 
     return client;
+}
+
+sp<NBLog::Writer> AudioFlinger::newWriter_l(size_t size, const char *name)
+{
+    if (mLogMemoryDealer == 0) {
+        return new NBLog::Writer();
+    }
+    sp<IMemory> shared = mLogMemoryDealer->allocate(NBLog::Timeline::sharedSize(size));
+    sp<NBLog::Writer> writer = new NBLog::Writer(size, shared);
+    sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
+    if (binder != 0) {
+        interface_cast<IMediaLogService>(binder)->registerWriter(shared, size, name);
+    }
+    return writer;
+}
+
+void AudioFlinger::unregisterWriter(const sp<NBLog::Writer>& writer)
+{
+    sp<IMemory> iMemory(writer->getIMemory());
+    if (iMemory == 0) {
+        return;
+    }
+    sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
+    if (binder != 0) {
+        interface_cast<IMediaLogService>(binder)->unregisterWriter(iMemory);
+        // Now the media.log remote reference to IMemory is gone.
+        // When our last local reference to IMemory also drops to zero,
+        // the IMemory destructor will deallocate the region from mMemoryDealer.
+    }
 }
 
 // IAudioFlinger interface

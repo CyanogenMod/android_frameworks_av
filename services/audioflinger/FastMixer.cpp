@@ -92,6 +92,7 @@ bool FastMixer::threadLoop()
     struct timespec measuredWarmupTs = {0, 0};  // how long did it take for warmup to complete
     uint32_t warmupCycles = 0;  // counter of number of loop cycles required to warmup
     NBAIO_Sink* teeSink = NULL; // if non-NULL, then duplicate write() to this non-blocking sink
+    NBLog::Writer dummyLogWriter, *logWriter = &dummyLogWriter;
 
     for (;;) {
 
@@ -119,9 +120,12 @@ bool FastMixer::threadLoop()
         FastMixerState::Command command = next->mCommand;
         if (next != current) {
 
+            logWriter->log("next != current");
+
             // As soon as possible of learning of a new dump area, start using it
             dumpState = next->mDumpState != NULL ? next->mDumpState : &dummyDumpState;
             teeSink = next->mTeeSink;
+            logWriter = next->mNBLogWriter != NULL ? next->mNBLogWriter : &dummyLogWriter;
 
             // We want to always have a valid reference to the previous (non-idle) state.
             // However, the state queue only guarantees access to current and previous states.
@@ -163,6 +167,7 @@ bool FastMixer::threadLoop()
                 ALOG_ASSERT(coldFutexAddr != NULL);
                 int32_t old = android_atomic_dec(coldFutexAddr);
                 if (old <= 0) {
+                    logWriter->log("wait");
                     __futex_syscall4(coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
                 // This may be overly conservative; there could be times that the normal mixer
@@ -181,6 +186,7 @@ bool FastMixer::threadLoop()
             }
             continue;
         case FastMixerState::EXIT:
+            logWriter->log("exit");
             delete mixer;
             delete[] mixBuffer;
             return false;
@@ -258,11 +264,15 @@ bool FastMixer::threadLoop()
             unsigned currentTrackMask = current->mTrackMask;
             dumpState->mTrackMask = currentTrackMask;
             if (current->mFastTracksGen != fastTracksGen) {
+                logWriter->logf("gen %d", current->mFastTracksGen);
                 ALOG_ASSERT(mixBuffer != NULL);
                 int name;
 
                 // process removed tracks first to avoid running out of track names
                 unsigned removedTracks = previousTrackMask & ~currentTrackMask;
+                if (removedTracks) {
+                    logWriter->logf("removed %#x", removedTracks);
+                }
                 while (removedTracks != 0) {
                     i = __builtin_ctz(removedTracks);
                     removedTracks &= ~(1 << i);
@@ -282,6 +292,9 @@ bool FastMixer::threadLoop()
 
                 // now process added tracks
                 unsigned addedTracks = currentTrackMask & ~previousTrackMask;
+                if (addedTracks) {
+                    logWriter->logf("added %#x", addedTracks);
+                }
                 while (addedTracks != 0) {
                     i = __builtin_ctz(addedTracks);
                     addedTracks &= ~(1 << i);
@@ -312,6 +325,9 @@ bool FastMixer::threadLoop()
                 // finally process modified tracks; these use the same slot
                 // but may have a different buffer provider or volume provider
                 unsigned modifiedTracks = currentTrackMask & previousTrackMask;
+                if (modifiedTracks) {
+                    logWriter->logf("modified %#x", modifiedTracks);
+                }
                 while (modifiedTracks != 0) {
                     i = __builtin_ctz(modifiedTracks);
                     modifiedTracks &= ~(1 << i);
@@ -455,6 +471,7 @@ bool FastMixer::threadLoop()
         struct timespec newTs;
         int rc = clock_gettime(CLOCK_MONOTONIC, &newTs);
         if (rc == 0) {
+            logWriter->logTimestamp(newTs);
             if (oldTsValid) {
                 time_t sec = newTs.tv_sec - oldTs.tv_sec;
                 long nsec = newTs.tv_nsec - oldTs.tv_nsec;

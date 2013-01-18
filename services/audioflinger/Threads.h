@@ -315,6 +315,8 @@ protected:
                 // keyed by session ID, the second by type UUID timeLow field
                 KeyedVector< int, KeyedVector< int, sp<SuspendedSessionDesc> > >
                                         mSuspendedSessions;
+                static const size_t     kLogSize = 512;
+                sp<NBLog::Writer>       mNBLogWriter;
 };
 
 // --- PlaybackThread ---
@@ -544,6 +546,8 @@ private:
     sp<NBAIO_Sink>          mTeeSink;
     sp<NBAIO_Source>        mTeeSource;
     uint32_t                mScreenState;   // cached copy of gScreenState
+    static const size_t     kFastMixerLogSize = 8 * 1024;
+    sp<NBLog::Writer>       mFastMixerNBLogWriter;
 public:
     virtual     bool        hasFastMixer() const = 0;
     virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const
