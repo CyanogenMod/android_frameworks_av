@@ -1293,6 +1293,18 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case Source::kWhatBufferingStart:
+        {
+            notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
+            break;
+        }
+
+        case Source::kWhatBufferingEnd:
+        {
+            notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+            break;
+        }
+
         default:
             TRESPASS();
     }
