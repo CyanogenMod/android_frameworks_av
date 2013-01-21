@@ -732,6 +732,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatPause:
         {
             CHECK(mRenderer != NULL);
+            mSource->pause();
             mRenderer->pause();
             break;
         }
@@ -739,6 +740,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatResume:
         {
             CHECK(mRenderer != NULL);
+            mSource->resume();
             mRenderer->resume();
             break;
         }

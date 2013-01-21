@@ -54,6 +54,8 @@ struct NuPlayer::Source : public AHandler {
 
     virtual void start() = 0;
     virtual void stop() {}
+    virtual void pause() {}
+    virtual void resume() {}
 
     // Returns OK iff more data was available,
     // an error or ERROR_END_OF_STREAM if not.
