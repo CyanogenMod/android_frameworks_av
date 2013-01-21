@@ -119,6 +119,25 @@ void NuPlayer::RTSPSource::stop() {
     msg->postAndAwaitResponse(&dummy);
 }
 
+void NuPlayer::RTSPSource::pause() {
+    int64_t mediaDurationUs = 0;
+    getDuration(&mediaDurationUs);
+    for (size_t index = 0; index < mTracks.size(); index++) {
+        TrackInfo *info = &mTracks.editItemAt(index);
+        sp<AnotherPacketSource> source = info->mSource;
+
+        // Check if EOS or ERROR is received
+        if (source != NULL && source->isFinished(mediaDurationUs)) {
+            return;
+        }
+    }
+    mHandler->pause();
+}
+
+void NuPlayer::RTSPSource::resume() {
+    mHandler->resume();
+}
+
 status_t NuPlayer::RTSPSource::feedMoreTSData() {
     return mFinalResult;
 }

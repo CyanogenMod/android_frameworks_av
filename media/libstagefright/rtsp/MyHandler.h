@@ -135,7 +135,8 @@ struct MyHandler : public AHandler {
           mReceivedFirstRTPPacket(false),
           mSeekable(true),
           mKeepAliveTimeoutUs(kDefaultKeepAliveTimeoutUs),
-          mKeepAliveGeneration(0) {
+          mKeepAliveGeneration(0),
+          mPausing(false) {
         mNetLooper->setName("rtsp net");
         mNetLooper->start(false /* runOnCallingThread */,
                           false /* canCallJava */,
@@ -197,6 +198,16 @@ struct MyHandler : public AHandler {
 
     bool isSeekable() const {
         return mSeekable;
+    }
+
+    void pause() {
+        sp<AMessage> msg = new AMessage('paus', id());
+        msg->post();
+    }
+
+    void resume() {
+        sp<AMessage> msg = new AMessage('resu', id());
+        msg->post();
     }
 
     static void addRR(const sp<ABuffer> &buf) {
@@ -824,6 +835,7 @@ struct MyHandler : public AHandler {
                 mNumAccessUnitsReceived = 0;
                 mReceivedFirstRTCPPacket = false;
                 mReceivedFirstRTPPacket = false;
+                mPausing = false;
                 mSeekable = true;
 
                 sp<AMessage> reply = new AMessage('tear', id());
@@ -973,6 +985,100 @@ struct MyHandler : public AHandler {
                 break;
             }
 
+            case 'paus':
+            {
+                if (!mSeekable) {
+                    ALOGW("This is a live stream, ignoring pause request.");
+                    break;
+                }
+                mCheckPending = true;
+                ++mCheckGeneration;
+                mPausing = true;
+
+                AString request = "PAUSE ";
+                request.append(mSessionURL);
+                request.append(" RTSP/1.0\r\n");
+
+                request.append("Session: ");
+                request.append(mSessionID);
+                request.append("\r\n");
+
+                request.append("\r\n");
+
+                sp<AMessage> reply = new AMessage('pau2', id());
+                mConn->sendRequest(request.c_str(), reply);
+                break;
+            }
+
+            case 'pau2':
+            {
+                int32_t result;
+                CHECK(msg->findInt32("result", &result));
+
+                ALOGI("PAUSE completed with result %d (%s)",
+                     result, strerror(-result));
+                break;
+            }
+
+            case 'resu':
+            {
+                if (mPausing && mSeekPending) {
+                    // If seeking, Play will be sent from see1 instead
+                    break;
+                }
+
+                if (!mPausing) {
+                    // Dont send PLAY if we have not paused
+                    break;
+                }
+                AString request = "PLAY ";
+                request.append(mSessionURL);
+                request.append(" RTSP/1.0\r\n");
+
+                request.append("Session: ");
+                request.append(mSessionID);
+                request.append("\r\n");
+
+                request.append("\r\n");
+
+                sp<AMessage> reply = new AMessage('res2', id());
+                mConn->sendRequest(request.c_str(), reply);
+                break;
+            }
+
+            case 'res2':
+            {
+                int32_t result;
+                CHECK(msg->findInt32("result", &result));
+
+                ALOGI("PLAY completed with result %d (%s)",
+                     result, strerror(-result));
+
+                mCheckPending = false;
+                postAccessUnitTimeoutCheck();
+
+                if (result == OK) {
+                    sp<RefBase> obj;
+                    CHECK(msg->findObject("response", &obj));
+                    sp<ARTSPResponse> response =
+                        static_cast<ARTSPResponse *>(obj.get());
+
+                    if (response->mStatusCode != 200) {
+                        result = UNKNOWN_ERROR;
+                    } else {
+                        parsePlayResponse(response);
+                    }
+                }
+
+                if (result != OK) {
+                    ALOGE("resume failed, aborting.");
+                    (new AMessage('abor', id()))->post();
+                }
+
+                mPausing = false;
+                break;
+            }
+
             case 'seek':
             {
                 if (!mSeekable) {
@@ -994,6 +1100,15 @@ struct MyHandler : public AHandler {
                 mCheckPending = true;
                 ++mCheckGeneration;
 
+                sp<AMessage> reply = new AMessage('see1', id());
+                reply->setInt64("time", timeUs);
+
+                if (mPausing) {
+                    // PAUSE already sent
+                    ALOGI("Pause already sent");
+                    reply->post();
+                    break;
+                }
                 AString request = "PAUSE ";
                 request.append(mSessionURL);
                 request.append(" RTSP/1.0\r\n");
@@ -1004,8 +1119,6 @@ struct MyHandler : public AHandler {
 
                 request.append("\r\n");
 
-                sp<AMessage> reply = new AMessage('see1', id());
-                reply->setInt64("time", timeUs);
                 mConn->sendRequest(request.c_str(), reply);
                 break;
             }
@@ -1049,7 +1162,10 @@ struct MyHandler : public AHandler {
 
             case 'see2':
             {
-                CHECK(mSeekPending);
+                if (mTracks.size() == 0) {
+                    // We have already hit abor, break
+                    break;
+                }
 
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
@@ -1085,6 +1201,7 @@ struct MyHandler : public AHandler {
                     (new AMessage('abor', id()))->post();
                 }
 
+                mPausing = false;
                 mSeekPending = false;
 
                 sp<AMessage> msg = mNotify->dup();
@@ -1327,6 +1444,7 @@ private:
     bool mSeekable;
     int64_t mKeepAliveTimeoutUs;
     int32_t mKeepAliveGeneration;
+    bool mPausing;
 
     Vector<TrackInfo> mTracks;
 
