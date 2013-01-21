@@ -95,7 +95,7 @@ private:
     State mState;
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
-    bool mStartingUp;
+    bool mBuffering;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<RTSPSource> > mReflector;
@@ -110,6 +110,9 @@ private:
 
     int32_t mSeekGeneration;
 
+    int64_t mEOSTimeoutAudio;
+    int64_t mEOSTimeoutVideo;
+
     sp<AnotherPacketSource> getSource(bool audio);
 
     void onConnected();
@@ -120,6 +123,8 @@ private:
     void performSeek(int64_t seekTimeUs);
 
     bool haveSufficientDataOnAllTracks();
+
+    void setEOSTimeout(bool audio, int64_t timeout);
 
     DISALLOW_EVIL_CONSTRUCTORS(RTSPSource);
 };

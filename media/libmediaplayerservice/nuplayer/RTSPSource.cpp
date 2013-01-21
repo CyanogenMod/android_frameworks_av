@@ -29,6 +29,8 @@
 
 namespace android {
 
+const int64_t kNearEOSTimeoutUs = 2000000ll; // 2 secs
+
 NuPlayer::RTSPSource::RTSPSource(
         const sp<AMessage> &notify,
         const char *url,
@@ -45,8 +47,10 @@ NuPlayer::RTSPSource::RTSPSource(
       mState(DISCONNECTED),
       mFinalResult(OK),
       mDisconnectReplyID(0),
-      mStartingUp(true),
-      mSeekGeneration(0) {
+      mBuffering(true),
+      mSeekGeneration(0),
+      mEOSTimeoutAudio(0),
+      mEOSTimeoutVideo(0) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -96,6 +100,10 @@ void NuPlayer::RTSPSource::prepareAsync() {
 
         mHandler->connect();
     }
+
+    sp<AMessage> notifyStart = dupNotify();
+    notifyStart->setInt32("what", kWhatBufferingStart);
+    notifyStart->post();
 }
 
 void NuPlayer::RTSPSource::start() {
@@ -131,6 +139,13 @@ bool NuPlayer::RTSPSource::haveSufficientDataOnAllTracks() {
 
     static const int64_t kMinDurationUs = 2000000ll;
 
+    int64_t mediaDurationUs = 0;
+    getDuration(&mediaDurationUs);
+    if ((mAudioTrack != NULL && mAudioTrack->isFinished(mediaDurationUs))
+            || (mVideoTrack != NULL && mVideoTrack->isFinished(mediaDurationUs))) {
+        return true;
+    }
+
     status_t err;
     int64_t durationUs;
     if (mAudioTrack != NULL
@@ -156,12 +171,16 @@ bool NuPlayer::RTSPSource::haveSufficientDataOnAllTracks() {
 
 status_t NuPlayer::RTSPSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
-    if (mStartingUp) {
+    if (mBuffering) {
         if (!haveSufficientDataOnAllTracks()) {
             return -EWOULDBLOCK;
         }
 
-        mStartingUp = false;
+        mBuffering = false;
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatBufferingEnd);
+        notify->post();
     }
 
     sp<AnotherPacketSource> source = getSource(audio);
@@ -172,8 +191,50 @@ status_t NuPlayer::RTSPSource::dequeueAccessUnit(
 
     status_t finalResult;
     if (!source->hasBufferAvailable(&finalResult)) {
-        return finalResult == OK ? -EWOULDBLOCK : finalResult;
+        if (finalResult == OK) {
+            int64_t mediaDurationUs = 0;
+            getDuration(&mediaDurationUs);
+            sp<AnotherPacketSource> otherSource = getSource(!audio);
+            status_t otherFinalResult;
+
+            // If other source already signaled EOS, this source should also signal EOS
+            if (otherSource != NULL &&
+                    !otherSource->hasBufferAvailable(&otherFinalResult) &&
+                    otherFinalResult == ERROR_END_OF_STREAM) {
+                source->signalEOS(ERROR_END_OF_STREAM);
+                return ERROR_END_OF_STREAM;
+            }
+
+            // If this source has detected near end, give it some time to retrieve more
+            // data before signaling EOS
+            if (source->isFinished(mediaDurationUs)) {
+                int64_t eosTimeout = audio ? mEOSTimeoutAudio : mEOSTimeoutVideo;
+                if (eosTimeout == 0) {
+                    setEOSTimeout(audio, ALooper::GetNowUs());
+                } else if ((ALooper::GetNowUs() - eosTimeout) > kNearEOSTimeoutUs) {
+                    setEOSTimeout(audio, 0);
+                    source->signalEOS(ERROR_END_OF_STREAM);
+                    return ERROR_END_OF_STREAM;
+                }
+                return -EWOULDBLOCK;
+            }
+
+            if (!(otherSource != NULL && otherSource->isFinished(mediaDurationUs))) {
+                // We should not enter buffering mode
+                // if any of the sources already have detected EOS.
+                mBuffering = true;
+
+                sp<AMessage> notify = dupNotify();
+                notify->setInt32("what", kWhatBufferingStart);
+                notify->post();
+            }
+
+            return -EWOULDBLOCK;
+        }
+        return finalResult;
     }
+
+    setEOSTimeout(audio, 0);
 
     return source->dequeueAccessUnit(accessUnit);
 }
@@ -187,6 +248,14 @@ sp<AnotherPacketSource> NuPlayer::RTSPSource::getSource(bool audio) {
     }
 
     return audio ? mAudioTrack : mVideoTrack;
+}
+
+void NuPlayer::RTSPSource::setEOSTimeout(bool audio, int64_t timeout) {
+    if (audio) {
+        mEOSTimeoutAudio = timeout;
+    } else {
+        mEOSTimeoutVideo = timeout;
+    }
 }
 
 status_t NuPlayer::RTSPSource::getDuration(int64_t *durationUs) {
@@ -289,7 +358,6 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         case MyHandler::kWhatSeekDone:
         {
             mState = CONNECTED;
-            mStartingUp = true;
             break;
         }
 

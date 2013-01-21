@@ -512,9 +512,15 @@ void NuPlayer::Renderer::onQueueEOS(const sp<AMessage> &msg) {
     entry.mFinalResult = finalResult;
 
     if (audio) {
+        if (mAudioQueue.empty() && mSyncQueues) {
+            syncQueuesDone();
+        }
         mAudioQueue.push_back(entry);
         postDrainAudioQueue();
     } else {
+        if (mVideoQueue.empty() && mSyncQueues) {
+            syncQueuesDone();
+        }
         mVideoQueue.push_back(entry);
         postDrainVideoQueue();
     }
