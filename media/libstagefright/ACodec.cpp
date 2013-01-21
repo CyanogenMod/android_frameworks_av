@@ -35,6 +35,9 @@
 #include <media/hardware/HardwareAPI.h>
 
 #include <OMX_Component.h>
+#ifdef USE_TI_CUSTOM_DOMX
+#include <OMX_TI_IVCommon.h>
+#endif
 
 #ifdef USE_SAMSUNG_COLORFORMAT
 #include <sec_format.h>
