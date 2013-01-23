@@ -186,6 +186,27 @@ struct MyHandler : public AHandler {
         mConn->connect(mOriginalSessionURL.c_str(), reply);
     }
 
+    AString getControlURL(sp<ASessionDescription> desc) {
+        AString sessionLevelControlURL;
+        if (mSessionDesc->findAttribute(
+                0,
+                "a=control",
+                &sessionLevelControlURL)) {
+            if (sessionLevelControlURL.compare("*") == 0) {
+                return mBaseURL;
+            } else {
+                AString controlURL;
+                CHECK(MakeURL(
+                        mBaseURL.c_str(),
+                        sessionLevelControlURL.c_str(),
+                        &controlURL));
+                return controlURL;
+            }
+        } else {
+            return mSessionURL;
+        }
+    }
+
     void disconnect() {
         (new AMessage('abor', id()))->post();
     }
@@ -526,6 +547,8 @@ struct MyHandler : public AHandler {
                                 mBaseURL = tmp;
                             }
 
+                            mControlURL = getControlURL(mSessionDesc);
+
                             if (mSessionDesc->countTracks() < 2) {
                                 // There's no actual tracks in this session.
                                 // The first "track" is merely session meta
@@ -569,6 +592,8 @@ struct MyHandler : public AHandler {
                         mBaseURL = mSessionURL;
 
                         mSeekable = !isLiveStream(mSessionDesc);
+
+                        mControlURL = getControlURL(mSessionDesc);
 
                         if (mSessionDesc->countTracks() < 2) {
                             // There's no actual tracks in this session.
@@ -708,7 +733,7 @@ struct MyHandler : public AHandler {
                     postKeepAlive();
 
                     AString request = "PLAY ";
-                    request.append(mSessionURL);
+                    request.append(mControlURL);
                     request.append(" RTSP/1.0\r\n");
 
                     request.append("Session: ");
@@ -996,7 +1021,7 @@ struct MyHandler : public AHandler {
                 mPausing = true;
 
                 AString request = "PAUSE ";
-                request.append(mSessionURL);
+                request.append(mControlURL);
                 request.append(" RTSP/1.0\r\n");
 
                 request.append("Session: ");
@@ -1032,7 +1057,7 @@ struct MyHandler : public AHandler {
                     break;
                 }
                 AString request = "PLAY ";
-                request.append(mSessionURL);
+                request.append(mControlURL);
                 request.append(" RTSP/1.0\r\n");
 
                 request.append("Session: ");
@@ -1110,7 +1135,7 @@ struct MyHandler : public AHandler {
                     break;
                 }
                 AString request = "PAUSE ";
-                request.append(mSessionURL);
+                request.append(mControlURL);
                 request.append(" RTSP/1.0\r\n");
 
                 request.append("Session: ");
@@ -1142,7 +1167,7 @@ struct MyHandler : public AHandler {
                 CHECK(msg->findInt64("time", &timeUs));
 
                 AString request = "PLAY ";
-                request.append(mSessionURL);
+                request.append(mControlURL);
                 request.append(" RTSP/1.0\r\n");
 
                 request.append("Session: ");
@@ -1424,6 +1449,7 @@ private:
     AString mSessionURL;
     AString mSessionHost;
     AString mBaseURL;
+    AString mControlURL;
     AString mSessionID;
     bool mSetupTracksSuccessful;
     bool mSeekPending;
