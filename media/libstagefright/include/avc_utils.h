@@ -37,7 +37,7 @@ enum {
 };
 
 void FindAVCDimensions(
-        const sp<ABuffer> &seqParamSet, int32_t *width, int32_t *height);
+        const sp<ABuffer> &seqParamSet, int32_t *width, int32_t *height, int32_t *isInterlaced = NULL);
 
 unsigned parseUE(ABitReader *br);
 

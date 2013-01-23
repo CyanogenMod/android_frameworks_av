@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,6 +45,7 @@
 #include <OMX_Component.h>
 #include <QOMX_AudioExtensions.h>
 
+#include "include/avc_utils.h"
 
 namespace android {
 
@@ -587,6 +588,23 @@ void QCOMXCodec::setQCSpecificVideoFormat(const sp<MetaData> &meta, sp<IOMX> OMX
             ALOGW("Failed to enable timestamp reordering");
         }
     }
+}
+
+void QCOMXCodec::checkIfInterlaced(const uint8_t *ptr, const sp<MetaData> &meta)
+{
+    uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
+    int32_t width = 0, height = 0, isInterlaced = 0;
+    const uint8_t *spsStart = &ptr[8];
+
+    sp<ABuffer> seqParamSet = new ABuffer(spsSize);
+    memcpy(seqParamSet->data(), spsStart, spsSize);
+    FindAVCDimensions(seqParamSet, &width, &height, &isInterlaced);
+
+    ALOGV("height is %d, width is %d, isInterlaced is %d\n", height, width, isInterlaced);
+    if (isInterlaced) {
+        meta->setInt32(kKeyUseArbitraryMode, 1);
+    }
+    return;
 }
 
 }

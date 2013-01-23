@@ -42,6 +42,7 @@
 #include <utils/String8.h>
 #ifdef QCOM_HARDWARE
 #include <QCMediaDefs.h>
+#include <QCMetaData.h>
 #endif
 
 namespace android {
@@ -2002,6 +2003,12 @@ MPEG4Source::MPEG4Source(
         // The number of bytes used to encode the length of a NAL unit.
         mNALLengthSize = 1 + (ptr[4] & 3);
     }
+
+#ifdef QCOM_HARDWARE
+    //MPEG4 extractor can give complete frames,
+    //set arbitrary mode to false
+    mFormat->setInt32(kKeyUseArbitraryMode, 0);
+#endif
 }
 
 MPEG4Source::~MPEG4Source() {
