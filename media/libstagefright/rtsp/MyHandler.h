@@ -129,6 +129,7 @@ struct MyHandler : public AHandler {
           mNumAccessUnitsReceived(0),
           mCheckPending(false),
           mCheckGeneration(0),
+          mCheckTimeoutGeneration(0),
           mTryTCPInterleaving(false),
           mTryFakeRTCP(false),
           mReceivedFirstRTCPPacket(false),
@@ -771,6 +772,8 @@ struct MyHandler : public AHandler {
                         parsePlayResponse(response);
 
                         sp<AMessage> timeout = new AMessage('tiou', id());
+                        mCheckTimeoutGeneration++;
+                        timeout->setInt32("tioucheck", mCheckTimeoutGeneration);
                         timeout->post(kStartupTimeoutUs);
                     }
                 }
@@ -982,7 +985,16 @@ struct MyHandler : public AHandler {
                 int32_t eos;
                 if (msg->findInt32("eos", &eos)) {
                     ALOGI("received BYE on track index %d", trackIndex);
-                    postQueueEOS(trackIndex, ERROR_END_OF_STREAM);
+                    if (!mAllTracksHaveTime && dataReceivedOnAllChannels()) {
+                        ALOGI("No time established => fake existing data");
+
+                        track->mEOSReceived = true;
+                        mTryFakeRTCP = true;
+                        mReceivedFirstRTCPPacket = true;
+                        fakeTimestamps();
+                    } else {
+                        postQueueEOS(trackIndex, ERROR_END_OF_STREAM);
+                    }
                     return;
                 }
 
@@ -1039,6 +1051,7 @@ struct MyHandler : public AHandler {
             {
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
+                mCheckTimeoutGeneration++;
 
                 ALOGI("PAUSE completed with result %d (%s)",
                      result, strerror(-result));
@@ -1092,6 +1105,13 @@ struct MyHandler : public AHandler {
                         result = UNKNOWN_ERROR;
                     } else {
                         parsePlayResponse(response);
+
+                        // Post new timeout in order to make sure to use
+                        // fake timestamps if no new Sender Reports arrive
+                        sp<AMessage> timeout = new AMessage('tiou', id());
+                        mCheckTimeoutGeneration++;
+                        timeout->setInt32("tioucheck", mCheckTimeoutGeneration);
+                        timeout->post(kStartupTimeoutUs);
                     }
                 }
 
@@ -1155,6 +1175,7 @@ struct MyHandler : public AHandler {
                     TrackInfo *info = &mTracks.editItemAt(i);
 
                     postQueueSeekDiscontinuity(i);
+                    info->mEOSReceived = false;
 
                     info->mRTPAnchor = 0;
                     info->mNTPAnchorUs = -1;
@@ -1162,6 +1183,13 @@ struct MyHandler : public AHandler {
 
                 mAllTracksHaveTime = false;
                 mNTPAnchorUs = -1;
+
+                // Start new timeoutgeneration to avoid getting timeout
+                // before PLAY response arrive
+                sp<AMessage> timeout = new AMessage('tiou', id());
+                mCheckTimeoutGeneration++;
+                timeout->setInt32("tioucheck", mCheckTimeoutGeneration);
+                timeout->post(kStartupTimeoutUs);
 
                 int64_t timeUs;
                 CHECK(msg->findInt64("time", &timeUs));
@@ -1212,6 +1240,13 @@ struct MyHandler : public AHandler {
                     } else {
                         parsePlayResponse(response);
 
+                        // Post new timeout in order to make sure to use
+                        // fake timestamps if no new Sender Reports arrive
+                        sp<AMessage> timeout = new AMessage('tiou', id());
+                        mCheckTimeoutGeneration++;
+                        timeout->setInt32("tioucheck", mCheckTimeoutGeneration);
+                        timeout->post(kStartupTimeoutUs);
+
                         ssize_t i = response->mHeaders.indexOfKey("rtp-info");
                         CHECK_GE(i, 0);
 
@@ -1249,8 +1284,17 @@ struct MyHandler : public AHandler {
 
             case 'tiou':
             {
+                int32_t timeoutGenerationCheck;
+                CHECK(msg->findInt32("tioucheck", &timeoutGenerationCheck));
+                if (timeoutGenerationCheck != mCheckTimeoutGeneration) {
+                    // This is an outdated message. Ignore.
+                    // This typically happens if a lot of seeks are
+                    // performed, since new timeout messages now are
+                    // posted at seek as well.
+                    break;
+                }
                 if (!mReceivedFirstRTCPPacket) {
-                    if (mReceivedFirstRTPPacket && !mTryFakeRTCP) {
+                    if (dataReceivedOnAllChannels() && !mTryFakeRTCP) {
                         ALOGW("We received RTP packets but no RTCP packets, "
                              "using fake timestamps.");
 
@@ -1427,6 +1471,7 @@ private:
         uint32_t mRTPAnchor;
         int64_t mNTPAnchorUs;
         int32_t mTimeScale;
+        bool mEOSReceived;
 
         uint32_t mNormalPlayTimeRTP;
         int64_t mNormalPlayTimeUs;
@@ -1463,6 +1508,7 @@ private:
     int64_t mNumAccessUnitsReceived;
     bool mCheckPending;
     int32_t mCheckGeneration;
+    int32_t mCheckTimeoutGeneration;
     bool mTryTCPInterleaving;
     bool mTryFakeRTCP;
     bool mReceivedFirstRTCPPacket;
@@ -1517,6 +1563,7 @@ private:
                 formatDesc.c_str(), &timescale, &numChannels);
 
         info->mTimeScale = timescale;
+        info->mEOSReceived = false;
 
         ALOGV("track #%d URL=%s", mTracks.size(), trackURL.c_str());
 
@@ -1609,6 +1656,17 @@ private:
         }
     }
 
+    bool dataReceivedOnAllChannels() {
+        TrackInfo *track;
+        for (size_t i = 0; i < mTracks.size(); ++i) {
+            track = &mTracks.editItemAt(i);
+            if (track->mPackets.empty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void onTimeUpdate(int32_t trackIndex, uint32_t rtpTime, uint64_t ntpTime) {
         ALOGV("onTimeUpdate track %d, rtpTime = 0x%08x, ntpTime = 0x%016llx",
              trackIndex, rtpTime, ntpTime);
@@ -1637,6 +1695,27 @@ private:
             if (allTracksHaveTime) {
                 mAllTracksHaveTime = true;
                 ALOGI("Time now established for all tracks.");
+            }
+        }
+        if (mAllTracksHaveTime && dataReceivedOnAllChannels()) {
+            // Time is now established, lets start timestamping immediately
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                TrackInfo *trackInfo = &mTracks.editItemAt(i);
+                while (!trackInfo->mPackets.empty()) {
+                    sp<ABuffer> accessUnit = *trackInfo->mPackets.begin();
+                    trackInfo->mPackets.erase(trackInfo->mPackets.begin());
+
+                    if (addMediaTimestamp(i, trackInfo, accessUnit)) {
+                        postQueueAccessUnit(i, accessUnit);
+                    }
+                }
+            }
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                TrackInfo *trackInfo = &mTracks.editItemAt(i);
+                if (trackInfo->mEOSReceived) {
+                    postQueueEOS(i, ERROR_END_OF_STREAM);
+                    trackInfo->mEOSReceived = false;
+                }
             }
         }
     }
@@ -1682,6 +1761,11 @@ private:
 
         if (addMediaTimestamp(trackIndex, track, accessUnit)) {
             postQueueAccessUnit(trackIndex, accessUnit);
+        }
+
+        if (track->mEOSReceived) {
+            postQueueEOS(trackIndex, ERROR_END_OF_STREAM);
+            track->mEOSReceived = false;
         }
     }
 
