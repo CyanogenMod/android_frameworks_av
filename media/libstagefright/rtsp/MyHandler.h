@@ -52,6 +52,8 @@ static int64_t kStartupTimeoutUs = 10000000ll;
 
 static int64_t kDefaultKeepAliveTimeoutUs = 60000000ll;
 
+static int64_t kPauseDelayUs = 3000000ll;
+
 namespace android {
 
 static void MakeUserAgentString(AString *s) {
@@ -137,7 +139,8 @@ struct MyHandler : public AHandler {
           mSeekable(true),
           mKeepAliveTimeoutUs(kDefaultKeepAliveTimeoutUs),
           mKeepAliveGeneration(0),
-          mPausing(false) {
+          mPausing(false),
+          mPauseGeneration(0) {
         mNetLooper->setName("rtsp net");
         mNetLooper->start(false /* runOnCallingThread */,
                           false /* canCallJava */,
@@ -215,6 +218,7 @@ struct MyHandler : public AHandler {
     void seek(int64_t timeUs) {
         sp<AMessage> msg = new AMessage('seek', id());
         msg->setInt64("time", timeUs);
+        mPauseGeneration++;
         msg->post();
     }
 
@@ -224,11 +228,14 @@ struct MyHandler : public AHandler {
 
     void pause() {
         sp<AMessage> msg = new AMessage('paus', id());
-        msg->post();
+        mPauseGeneration++;
+        msg->setInt32("pausecheck", mPauseGeneration);
+        msg->post(kPauseDelayUs);
     }
 
     void resume() {
         sp<AMessage> msg = new AMessage('resu', id());
+        mPauseGeneration++;
         msg->post();
     }
 
@@ -1024,6 +1031,13 @@ struct MyHandler : public AHandler {
 
             case 'paus':
             {
+                int32_t generation;
+                CHECK(msg->findInt32("pausecheck", &generation));
+                if (generation != mPauseGeneration) {
+                    ALOGV("Ignoring outdated pause message.");
+                    break;
+                }
+
                 if (!mSeekable) {
                     ALOGW("This is a live stream, ignoring pause request.");
                     break;
@@ -1517,6 +1531,7 @@ private:
     int64_t mKeepAliveTimeoutUs;
     int32_t mKeepAliveGeneration;
     bool mPausing;
+    int32_t mPauseGeneration;
 
     Vector<TrackInfo> mTracks;
 
