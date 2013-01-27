@@ -128,6 +128,10 @@ LOCAL_C_INCLUDES += \
 
 endif
 
+ifeq ($(BOARD_USE_TI_DUCATI_H264_PROFILE), true)
+LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE
+endif
+
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
