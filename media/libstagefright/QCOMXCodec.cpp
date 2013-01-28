@@ -594,7 +594,7 @@ void QCOMXCodec::setQCSpecificVideoFormat(const sp<MetaData> &meta, sp<IOMX> OMX
 void QCOMXCodec::checkIfInterlaced(const uint8_t *ptr, const sp<MetaData> &meta)
 {
     uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
-    int32_t width = 0, height = 0, isInterlaced = 0;
+    int32_t width = 0, height = 0, isInterlaced = 1;
     const uint8_t *spsStart = &ptr[8];
 
     sp<ABuffer> seqParamSet = new ABuffer(spsSize);
