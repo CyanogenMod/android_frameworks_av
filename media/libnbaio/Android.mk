@@ -14,6 +14,8 @@ LOCAL_SRC_FILES := \
     roundup.c                       \
     SourceAudioBufferProvider.cpp
 
+LOCAL_SRC_FILES += NBLog.cpp
+
 # libsndfile license is incompatible; uncomment to use for local debug only
 #LOCAL_SRC_FILES += LibsndfileSink.cpp LibsndfileSource.cpp
 #LOCAL_C_INCLUDES += path/to/libsndfile/src
@@ -25,6 +27,7 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE := libnbaio
 
 LOCAL_SHARED_LIBRARIES := \
+    libbinder \
     libcommon_time_client \
     libcutils \
     libutils
