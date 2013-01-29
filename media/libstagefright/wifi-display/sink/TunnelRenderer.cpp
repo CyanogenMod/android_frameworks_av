@@ -264,16 +264,17 @@ sp<ABuffer> TunnelRenderer::dequeueBuffer() {
     if (mFirstFailedAttemptUs < 0ll) {
         mFirstFailedAttemptUs = ALooper::GetNowUs();
 
-        ALOGI("failed to get the correct packet the first time.");
+        ALOGV("failed to get the correct packet the first time.");
         return NULL;
     }
 
     if (mFirstFailedAttemptUs + 50000ll > ALooper::GetNowUs()) {
         // We're willing to wait a little while to get the right packet.
 
-#if 0
+#if 1
         if (!mRequestedRetransmission) {
-            ALOGI("requesting retransmission of seqNo %d",
+            ALOGI("requesting retransmission of extSeqNo %d (seqNo %d)",
+                  mLastDequeuedExtSeqNo + 1,
                   (mLastDequeuedExtSeqNo + 1) & 0xffff);
 
             sp<AMessage> notify = mNotifyLost->dup();
@@ -284,7 +285,7 @@ sp<ABuffer> TunnelRenderer::dequeueBuffer() {
         } else
 #endif
         {
-            ALOGI("still waiting for the correct packet to arrive.");
+            ALOGV("still waiting for the correct packet to arrive.");
         }
 
         return NULL;
