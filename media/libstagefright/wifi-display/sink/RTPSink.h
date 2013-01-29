@@ -24,18 +24,26 @@
 
 #include <gui/Surface.h>
 
+#define USE_TUNNEL_RENDERER     0
+
 namespace android {
 
 struct ABuffer;
 struct ANetworkSession;
+
+#if USE_TUNNEL_RENDERER
 struct TunnelRenderer;
+#else
+struct DirectRenderer;
+#endif
 
 // Creates a pair of sockets for RTP/RTCP traffic, instantiates a renderer
 // for incoming transport stream data and occasionally sends statistics over
 // the RTCP channel.
 struct RTPSink : public AHandler {
     RTPSink(const sp<ANetworkSession> &netSession,
-            const sp<IGraphicBufferProducer> &bufferProducer);
+            const sp<IGraphicBufferProducer> &bufferProducer,
+            const sp<AMessage> &notify);
 
     // If TCP interleaving is used, no UDP sockets are created, instead
     // incoming RTP/RTCP packets (arriving on the RTSP control connection)
@@ -67,6 +75,7 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<IGraphicBufferProducer> mSurfaceTex;
+    sp<AMessage> mNotify;
     KeyedVector<uint32_t, sp<Source> > mSources;
 
     int32_t mRTPPort;
@@ -78,7 +87,11 @@ private:
     LinearRegression mRegression;
     int64_t mMaxDelayMs;
 
+#if USE_TUNNEL_RENDERER
     sp<TunnelRenderer> mRenderer;
+#else
+    sp<DirectRenderer> mRenderer;
+#endif
 
     status_t parseRTP(const sp<ABuffer> &buffer);
     status_t parseRTCP(const sp<ABuffer> &buffer);

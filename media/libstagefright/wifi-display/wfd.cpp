@@ -30,6 +30,7 @@
 #include <media/IRemoteDisplayClient.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
 
 namespace android {
 
