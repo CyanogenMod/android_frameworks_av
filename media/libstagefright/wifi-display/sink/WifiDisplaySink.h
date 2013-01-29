@@ -20,11 +20,14 @@
 
 #include "ANetworkSession.h"
 
+#include "VideoFormats.h"
+
 #include <gui/Surface.h>
 #include <media/stagefright/foundation/AHandler.h>
 
 namespace android {
 
+struct AMessage;
 struct ParsedMessage;
 struct RTPSink;
 
@@ -32,9 +35,18 @@ struct RTPSink;
 // Connects to a wifi display source and renders the incoming
 // transport stream using a MediaPlayer instance.
 struct WifiDisplaySink : public AHandler {
+    enum {
+        kWhatDisconnected,
+    };
+
+    // If no notification message is specified (notify == NULL)
+    // the sink will stop its looper() once the session ends,
+    // otherwise it will post an appropriate notification but leave
+    // the looper() running.
     WifiDisplaySink(
             const sp<ANetworkSession> &netSession,
-            const sp<IGraphicBufferProducer> &bufferProducer = NULL);
+            const sp<IGraphicBufferProducer> &bufferProducer = NULL,
+            const sp<AMessage> &notify = NULL);
 
     void start(const char *sourceHost, int32_t sourcePort);
     void start(const char *uri);
@@ -56,6 +68,8 @@ private:
         kWhatStart,
         kWhatRTSPNotify,
         kWhatStop,
+        kWhatRequestIDRFrame,
+        kWhatRTPSinkNotify,
     };
 
     struct ResponseID {
@@ -75,8 +89,10 @@ private:
     static const bool sUseTCPInterleaving = false;
 
     State mState;
+    VideoFormats mSinkSupportedVideoFormats;
     sp<ANetworkSession> mNetSession;
     sp<IGraphicBufferProducer> mSurfaceTex;
+    sp<AMessage> mNotify;
     AString mSetupURI;
     AString mRTSPHost;
     int32_t mSessionID;
@@ -93,6 +109,7 @@ private:
     status_t sendDescribe(int32_t sessionID, const char *uri);
     status_t sendSetup(int32_t sessionID, const char *uri);
     status_t sendPlay(int32_t sessionID, const char *uri);
+    status_t sendIDRFrameRequest(int32_t sessionID);
 
     status_t onReceiveM2Response(
             int32_t sessionID, const sp<ParsedMessage> &msg);
@@ -106,6 +123,9 @@ private:
     status_t configureTransport(const sp<ParsedMessage> &msg);
 
     status_t onReceivePlayResponse(
+            int32_t sessionID, const sp<ParsedMessage> &msg);
+
+    status_t onReceiveIDRFrameRequestResponse(
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
     void registerResponseHandler(

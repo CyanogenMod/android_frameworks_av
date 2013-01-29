@@ -685,7 +685,15 @@ status_t Sender::parseTSFB(
 
         if (!foundSeqNo || blp != 0) {
             ALOGI("Some sequence numbers were no longer available for "
-                  "retransmission");
+                  "retransmission (seqNo = %d, foundSeqNo = %d, blp = 0x%04x)",
+                  seqNo, foundSeqNo, blp);
+
+            if (!mHistory.empty()) {
+                int32_t earliest = (*mHistory.begin())->int32Data() & 0xffff;
+                int32_t latest = (*--mHistory.end())->int32Data() & 0xffff;
+
+                ALOGI("have seq numbers from %d - %d", earliest, latest);
+            }
         }
     }
 

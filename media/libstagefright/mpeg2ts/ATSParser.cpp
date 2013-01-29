@@ -534,6 +534,16 @@ status_t ATSParser::Stream::parse(
         mBuffer->setRange(0, 0);
         mExpectedContinuityCounter = -1;
 
+#if 0
+        // Uncomment this if you'd rather see no corruption whatsoever on
+        // screen and suspend updates until we come across another IDR frame.
+
+        if (mStreamType == STREAMTYPE_H264) {
+            ALOGI("clearing video queue");
+            mQueue->clear(true /* clearFormat */);
+        }
+#endif
+
         return OK;
     }
 

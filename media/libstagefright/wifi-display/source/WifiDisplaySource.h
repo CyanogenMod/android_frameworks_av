@@ -19,14 +19,13 @@
 #define WIFI_DISPLAY_SOURCE_H_
 
 #include "ANetworkSession.h"
+#include "VideoFormats.h"
 
 #include <media/stagefright/foundation/AHandler.h>
 
 #include <netinet/in.h>
 
 namespace android {
-
-#define USE_1080P       0
 
 struct IHDCP;
 struct IRemoteDisplayClient;
@@ -112,6 +111,7 @@ private:
         kPlaybackSessionTimeoutSecs * 1000000ll;
 
     State mState;
+    VideoFormats mSupportedSourceVideoFormats;
     sp<ANetworkSession> mNetSession;
     sp<IRemoteDisplayClient> mClient;
     struct in_addr mInterfaceAddr;
@@ -120,6 +120,14 @@ private:
     uint32_t mStopReplyID;
 
     int32_t mChosenRTPPort;  // extracted from "wfd_client_rtp_ports"
+
+    bool mSinkSupportsVideo;
+    VideoFormats mSupportedSinkVideoFormats;
+
+    VideoFormats::ResolutionType mChosenVideoResolutionType;
+    size_t mChosenVideoResolutionIndex;
+
+    bool mSinkSupportsAudio;
 
     bool mUsingPCMAudio;
     int32_t mClientSessionID;

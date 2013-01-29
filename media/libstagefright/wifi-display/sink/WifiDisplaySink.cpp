@@ -31,12 +31,27 @@ namespace android {
 
 WifiDisplaySink::WifiDisplaySink(
         const sp<ANetworkSession> &netSession,
-        const sp<IGraphicBufferProducer> &bufferProducer)
+        const sp<IGraphicBufferProducer> &bufferProducer,
+        const sp<AMessage> &notify)
     : mState(UNDEFINED),
       mNetSession(netSession),
       mSurfaceTex(bufferProducer),
+      mNotify(notify),
       mSessionID(0),
       mNextCSeq(1) {
+#if 1
+    // We support any and all resolutions, but prefer 720p30
+    mSinkSupportedVideoFormats.setNativeResolution(
+            VideoFormats::RESOLUTION_CEA, 5);  // 1280 x 720 p30
+
+    mSinkSupportedVideoFormats.enableAll();
+#else
+    // We only support 800 x 600 p60.
+    mSinkSupportedVideoFormats.disableAll();
+
+    mSinkSupportedVideoFormats.setNativeResolution(
+            VideoFormats::RESOLUTION_VESA, 1);  // 800 x 600 p60
+#endif
 }
 
 WifiDisplaySink::~WifiDisplaySink() {
@@ -123,6 +138,8 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStart:
         {
+            sleep(2);  // XXX
+
             int32_t sourcePort;
 
             if (msg->findString("setupURI", &mSetupURI)) {
@@ -176,7 +193,13 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
                         mNetSession->destroySession(mSessionID);
                         mSessionID = 0;
 
-                        looper()->stop();
+                        if (mNotify == NULL) {
+                            looper()->stop();
+                        } else {
+                            sp<AMessage> notify = mNotify->dup();
+                            notify->setInt32("what", kWhatDisconnected);
+                            notify->post();
+                        }
                     }
                     break;
                 }
@@ -224,6 +247,18 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatStop:
         {
             looper()->stop();
+            break;
+        }
+
+        case kWhatRequestIDRFrame:
+        {
+            ALOGI("requesting IDR frame");
+            sendIDRFrameRequest(mSessionID);
+            break;
+        }
+
+        case kWhatRTPSinkNotify:
+        {
             break;
         }
 
@@ -392,6 +427,11 @@ status_t WifiDisplaySink::onReceivePlayResponse(
     return OK;
 }
 
+status_t WifiDisplaySink::onReceiveIDRFrameRequestResponse(
+        int32_t sessionID, const sp<ParsedMessage> &msg) {
+    return OK;
+}
+
 void WifiDisplaySink::onReceiveClientData(const sp<AMessage> &msg) {
     int32_t sessionID;
     CHECK(msg->findInt32("sessionID", &sessionID));
@@ -474,11 +514,11 @@ void WifiDisplaySink::onGetParameterRequest(
         int32_t sessionID,
         int32_t cseq,
         const sp<ParsedMessage> &data) {
-    AString body =
-        "wfd_video_formats: "
-        "28 00 02 02 FFFFFFFF 0000000 00000000 00 0000 0000 00 none none\r\n"
-        "wfd_audio_codecs: AAC 0000000F 00\r\n"
-        "wfd_client_rtp_ports: RTP/AVP/UDP;unicast 19000 0 mode=play\r\n";
+    AString body = "wfd_video_formats: ";
+    body.append(mSinkSupportedVideoFormats.getFormatSpec());
+    body.append(
+            "\r\nwfd_audio_codecs: AAC 0000000F 00\r\n"
+            "wfd_client_rtp_ports: RTP/AVP/UDP;unicast 19000 0 mode=play\r\n");
 
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq);
@@ -517,7 +557,9 @@ status_t WifiDisplaySink::sendDescribe(int32_t sessionID, const char *uri) {
 }
 
 status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
-    mRTPSink = new RTPSink(mNetSession, mSurfaceTex);
+    sp<AMessage> notify = new AMessage(kWhatRTPSinkNotify, id());
+
+    mRTPSink = new RTPSink(mNetSession, mSurfaceTex, notify);
     looper()->registerHandler(mRTPSink);
 
     status_t err = mRTPSink->init(sUseTCPInterleaving);
@@ -578,6 +620,35 @@ status_t WifiDisplaySink::sendPlay(int32_t sessionID, const char *uri) {
 
     registerResponseHandler(
             sessionID, mNextCSeq, &WifiDisplaySink::onReceivePlayResponse);
+
+    ++mNextCSeq;
+
+    return OK;
+}
+
+status_t WifiDisplaySink::sendIDRFrameRequest(int32_t sessionID) {
+    AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
+
+    AppendCommonResponse(&request, mNextCSeq);
+
+    AString content = "wfd_idr_request\r\n";
+
+    request.append(StringPrintf("Session: %s\r\n", mPlaybackSessionID.c_str()));
+    request.append(StringPrintf("Content-Length: %d\r\n", content.size()));
+    request.append("\r\n");
+    request.append(content);
+
+    status_t err =
+        mNetSession->sendRequest(sessionID, request.c_str(), request.size());
+
+    if (err != OK) {
+        return err;
+    }
+
+    registerResponseHandler(
+            sessionID,
+            mNextCSeq,
+            &WifiDisplaySink::onReceiveIDRFrameRequestResponse);
 
     ++mNextCSeq;
 
