@@ -698,6 +698,22 @@ const ToneGenerator::ToneDescriptor ToneGenerator::sToneDescriptors[] = {
           { segments: { { duration: 0, waveFreq: { 0 }, 0, 0 }},
           repeatCnt: 0,
           repeatSegment: 0 },                            // TONE_CDMA_SIGNAL_OFF
+        { segments: { { duration: 300, waveFreq: { 450, 0 }, 0, 0 },
+                      { duration: 300, waveFreq: { 450, 0 }, 0, 0 },
+                      { duration: 5000, waveFreq: { 0 }, 0, 0 },
+                      { duration: 0 , waveFreq: { 0 }, 0, 0}},
+          repeatCnt: ToneGenerator::TONEGEN_INF,
+          repeatSegment: 0 },                              // TONE_LOCAL_CW
+        { segments: { { duration: 3000, waveFreq: { 0 }, 0, 0 },
+                      { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
+                      { duration: 0 , waveFreq: { 0 }, 0, 0}},
+          repeatCnt: ToneGenerator::TONEGEN_INF,
+          repeatSegment: 0 },                              // TONE_SUPERVISORY_CW
+        { segments: { { duration: 15000, waveFreq: { 0 }, 0, 0 },
+                      { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
+                      { duration: 0 , waveFreq: { 0 }, 0, 0}},
+          repeatCnt: ToneGenerator::TONEGEN_INF,
+          repeatSegment: 0 },                              // TONE_HOLD_RECALL
 
         { segments: { { duration: ToneGenerator::TONEGEN_INF, waveFreq: { 350, 440, 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
@@ -1042,6 +1058,14 @@ void ToneGenerator::stopTone() {
 ////////////////////////////////////////////////////////////////////////////////
 bool ToneGenerator::initAudioTrack() {
 
+    audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_FAST;
+#ifdef QCOM_HARDWARE
+    // Set AUDIO_OUTPUT_FLAG_DIRECT and AUDIO_OUTPUT_FLAG_INCALL_MUSIC for incall music delivery
+    if (mStreamType == AUDIO_STREAM_INCALL_MUSIC) {
+        flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_INCALL_MUSIC);
+    }
+#endif
+
     // Open audio track in mono, PCM 16bit, default sampling rate, default buffer size
     mpAudioTrack = new AudioTrack();
     ALOGV("Create Track: %p", mpAudioTrack.get());
@@ -1051,7 +1075,7 @@ bool ToneGenerator::initAudioTrack() {
                       AUDIO_FORMAT_PCM_16_BIT,
                       AUDIO_CHANNEL_OUT_MONO,
                       0,    // frameCount
-                      AUDIO_OUTPUT_FLAG_FAST,
+                      flags,
                       audioCallback,
                       this, // user
                       0,    // notificationFrames
