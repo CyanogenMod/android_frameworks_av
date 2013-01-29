@@ -26,10 +26,6 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SHARED_LIBRARIES := libcrypto
 
-LOCAL_WHOLE_STATIC_LIBRARIES := libfwdlock-common
-
-LOCAL_STATIC_LIBRARIES := libfwdlock-common
-
 LOCAL_MODULE := libfwdlock-converter
 
 LOCAL_MODULE_TAGS := optional
