@@ -42,6 +42,11 @@ namespace client {
 #define dout if (0) std::cerr
 #endif
 
+#define EXPECT_OK(x) EXPECT_EQ(OK, (x))
+#define ASSERT_OK(x) ASSERT_EQ(OK, (x))
+
+class ProCameraTest;
+
 enum LockEvent {
     UNKNOWN,
     ACQUIRED,
@@ -63,9 +68,7 @@ public:
 
         IPCThreadState *ptr = IPCThreadState::self();
 
-        dout << "will join thread pool" << std::endl;
         ptr->joinThreadPool();
-        dout << "joined thread pool (done)" << std::endl;
 
         return false;
     }
@@ -178,10 +181,13 @@ public:
     ProCameraTest() {
     }
 
-    virtual void SetUp() {
+    static void SetUpTestCase() {
+        // Binder Thread Pool Initialization
         mTestThread = new ProCameraTestThread();
         mTestThread->run("ProCameraTestThread");
+    }
 
+    virtual void SetUp() {
         mCamera = ProCamera::connect(CAMERA_ID);
         ASSERT_NE((void*)NULL, mCamera.get());
 
@@ -198,19 +204,49 @@ protected:
     sp<ProCamera> mCamera;
     sp<ProCameraTestListener> mListener;
 
-    sp<Thread> mTestThread;
+    static sp<Thread> mTestThread;
 
 };
 
+sp<Thread> ProCameraTest::mTestThread;
+
+// test around exclusiveTryLock (immediate locking)
 TEST_F(ProCameraTest, LockingImmediate) {
 
     if (HasFatalFailure()) {
         return;
     }
 
-
     EXPECT_FALSE(mCamera->hasExclusiveLock());
     EXPECT_EQ(OK, mCamera->exclusiveTryLock());
+    // at this point we definitely have the lock
+
+    EXPECT_EQ(OK, mListener->WaitForEvent());
+    EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
+
+    EXPECT_TRUE(mCamera->hasExclusiveLock());
+    EXPECT_EQ(OK, mCamera->exclusiveUnlock());
+
+    EXPECT_EQ(OK, mListener->WaitForEvent());
+    EXPECT_EQ(RELEASED, mListener->ReadEvent());
+
+    EXPECT_FALSE(mCamera->hasExclusiveLock());
+}
+
+// test around exclusiveLock (locking at some future point in time)
+TEST_F(ProCameraTest, LockingAsynchronous) {
+
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    // TODO: Add another procamera that has a lock here.
+    // then we can be test that the lock wont immediately be acquired
+
+    EXPECT_FALSE(mCamera->hasExclusiveLock());
+    EXPECT_EQ(OK, mCamera->exclusiveLock());
+    // at this point we may or may not have the lock
+    // we cant be sure until we get an ACQUIRED event
 
     EXPECT_EQ(OK, mListener->WaitForEvent());
     EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
