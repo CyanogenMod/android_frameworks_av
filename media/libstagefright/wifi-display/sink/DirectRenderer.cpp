@@ -270,7 +270,8 @@ void DirectRenderer::dequeueAccessUnits() {
 
                 err = mVideoDecoder->configure(
                         videoFormat,
-                        new SurfaceTextureClient(mSurfaceTex),
+                        mSurfaceTex == NULL
+                            ? NULL : new SurfaceTextureClient(mSurfaceTex),
                         NULL /* crypto */,
                         0 /* flags */);
 
