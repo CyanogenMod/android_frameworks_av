@@ -26,8 +26,9 @@
 
 namespace android {
 
-HDCP::HDCP()
-    : mLibHandle(NULL),
+HDCP::HDCP(bool createEncryptionModule)
+    : mIsEncryptionModule(createEncryptionModule),
+      mLibHandle(NULL),
       mHDCPModule(NULL) {
     mLibHandle = dlopen("libstagefright_hdcp.so", RTLD_NOW);
 
@@ -40,7 +41,10 @@ HDCP::HDCP()
             void *, HDCPModule::ObserverFunc);
 
     CreateHDCPModuleFunc createHDCPModule =
-        (CreateHDCPModuleFunc)dlsym(mLibHandle, "createHDCPModule");
+        mIsEncryptionModule
+            ? (CreateHDCPModuleFunc)dlsym(mLibHandle, "createHDCPModule")
+            : (CreateHDCPModuleFunc)dlsym(
+                    mLibHandle, "createHDCPModuleForDecryption");
 
     if (createHDCPModule == NULL) {
         ALOGE("Unable to find symbol 'createHDCPModule'.");
@@ -101,6 +105,8 @@ status_t HDCP::encrypt(
         uint64_t *outInputCTR, void *outData) {
     Mutex::Autolock autoLock(mLock);
 
+    CHECK(mIsEncryptionModule);
+
     if (mHDCPModule == NULL) {
         *outInputCTR = 0;
 
@@ -108,6 +114,20 @@ status_t HDCP::encrypt(
     }
 
     return mHDCPModule->encrypt(inData, size, streamCTR, outInputCTR, outData);
+}
+
+status_t HDCP::decrypt(
+        const void *inData, size_t size,
+        uint32_t streamCTR, uint64_t outInputCTR, void *outData) {
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK(!mIsEncryptionModule);
+
+    if (mHDCPModule == NULL) {
+        return NO_INIT;
+    }
+
+    return mHDCPModule->decrypt(inData, size, streamCTR, outInputCTR, outData);
 }
 
 // static

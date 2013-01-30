@@ -31,6 +31,7 @@ enum {
     HDCP_INIT_ASYNC,
     HDCP_SHUTDOWN_ASYNC,
     HDCP_ENCRYPT,
+    HDCP_DECRYPT,
 };
 
 struct BpHDCPObserver : public BpInterface<IHDCPObserver> {
@@ -102,6 +103,29 @@ struct BpHDCP : public BpInterface<IHDCP> {
         }
 
         *outInputCTR = reply.readInt64();
+        reply.read(outData, size);
+
+        return err;
+    }
+
+    virtual status_t decrypt(
+            const void *inData, size_t size,
+            uint32_t streamCTR, uint64_t inputCTR,
+            void *outData) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHDCP::getInterfaceDescriptor());
+        data.writeInt32(size);
+        data.write(inData, size);
+        data.writeInt32(streamCTR);
+        data.writeInt64(inputCTR);
+        remote()->transact(HDCP_DECRYPT, data, &reply);
+
+        status_t err = reply.readInt32();
+
+        if (err != OK) {
+            return err;
+        }
+
         reply.read(outData, size);
 
         return err;
@@ -189,6 +213,31 @@ status_t BnHDCP::onTransact(
 
             if (err == OK) {
                 reply->writeInt64(inputCTR);
+                reply->write(outData, size);
+            }
+
+            free(inData);
+            inData = outData = NULL;
+
+            return OK;
+        }
+
+        case HDCP_DECRYPT:
+        {
+            size_t size = data.readInt32();
+
+            void *inData = malloc(2 * size);
+            void *outData = (uint8_t *)inData + size;
+
+            data.read(inData, size);
+
+            uint32_t streamCTR = data.readInt32();
+            uint64_t inputCTR = data.readInt64();
+            status_t err = decrypt(inData, size, streamCTR, inputCTR, outData);
+
+            reply->writeInt32(err);
+
+            if (err == OK) {
                 reply->write(outData, size);
             }
 
