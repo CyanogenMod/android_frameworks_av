@@ -29,8 +29,6 @@
 #include "WifiDisplaySource.h"
 
 #include <binder/IServiceManager.h>
-#include <gui/ISurfaceComposer.h>
-#include <gui/SurfaceComposerClient.h>
 #include <media/IHDCP.h>
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -41,10 +39,8 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
-#include <media/stagefright/MPEG2TSWriter.h>
 #include <media/stagefright/SurfaceMediaSource.h>
 #include <media/stagefright/Utils.h>
 
