@@ -23,6 +23,7 @@
 
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <media/AudioSystem.h>
 #include <media/IMediaPlayerService.h>
@@ -31,6 +32,7 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <ui/DisplayInfo.h>
 
 namespace android {
 
@@ -282,12 +284,44 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    sp<SurfaceComposerClient> composerClient = new SurfaceComposerClient;
+    CHECK_EQ(composerClient->initCheck(), (status_t)OK);
+
+    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
+            ISurfaceComposer::eDisplayIdMain));
+    DisplayInfo info;
+    SurfaceComposerClient::getDisplayInfo(display, &info);
+    ssize_t displayWidth = info.w;
+    ssize_t displayHeight = info.h;
+
+    ALOGV("display is %d x %d\n", displayWidth, displayHeight);
+
+    sp<SurfaceControl> control =
+        composerClient->createSurface(
+                String8("A Surface"),
+                displayWidth,
+                displayHeight,
+                PIXEL_FORMAT_RGB_565,
+                0);
+
+    CHECK(control != NULL);
+    CHECK(control->isValid());
+
+    SurfaceComposerClient::openGlobalTransaction();
+    CHECK_EQ(control->setLayer(INT_MAX), (status_t)OK);
+    CHECK_EQ(control->show(), (status_t)OK);
+    SurfaceComposerClient::closeGlobalTransaction();
+
+    sp<Surface> surface = control->getSurface();
+    CHECK(surface != NULL);
+
     sp<ANetworkSession> session = new ANetworkSession;
     session->start();
 
     sp<ALooper> looper = new ALooper;
 
-    sp<WifiDisplaySink> sink = new WifiDisplaySink(session);
+    sp<WifiDisplaySink> sink = new WifiDisplaySink(
+            session, surface->getSurfaceTexture());
     looper->registerHandler(sink);
 
     if (connectToPort >= 0) {
@@ -297,6 +331,8 @@ int main(int argc, char **argv) {
     }
 
     looper->start(true /* runOnCallingThread */);
+
+    composerClient->dispose();
 
     return 0;
 }
