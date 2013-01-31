@@ -90,7 +90,8 @@ mTrackType(TRACK_NONE){
     mLpaInProgress = true;
     mTimeStarted = 0;
     mTimePlayed = 0;
-    numChannels =0;
+    mNumOutputChannels =0;
+    mNumInputChannels = 0;
     mPaused = false;
     mIsA2DPEnabled = false;
     mIsUSBEnabled = false;
@@ -290,13 +291,16 @@ status_t LPAPlayer::start(bool sourceAlreadyStarted) {
     success = format->findInt32(kKeySampleRate, &mSampleRate);
     CHECK(success);
 
-    success = format->findInt32(kKeyChannelCount, &numChannels);
+    success = format->findInt32(kKeyChannelCount, &mNumInputChannels);
     CHECK(success);
+
+    // Always produce stereo output
+    mNumOutputChannels = 2;
 
     if(!format->findInt32(kKeyChannelMask, &mChannelMask)) {
         // log only when there's a risk of ambiguity of channel mask selection
-        ALOGI_IF(numChannels > 2,
-                "source format didn't specify channel mask, using (%d) channel order", numChannels);
+        ALOGI_IF(mNumInputChannels > 2,
+                "source format didn't specify channel mask, using (%d) channel order", mNumInputChannels);
         mChannelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
 
@@ -512,6 +516,10 @@ void LPAPlayer::decoderThreadEntry() {
     }
     void* local_buf = malloc(MEM_BUFFER_SIZE);
     int bytesWritten = 0;
+    if (!local_buf) {
+        ALOGE("Failed to allocate temporary buffer for decoderThread");
+        return;
+    }
     while (!killDecoderThread) {
 
         setupAudioSink();
@@ -532,8 +540,16 @@ void LPAPlayer::decoderThreadEntry() {
         if (!mIsA2DPEnabled && !mIsUSBEnabled) {
             ALOGV("FillBuffer: MemBuffer size %d", MEM_BUFFER_SIZE);
             ALOGV("Fillbuffer started");
-            //TODO: Add memset
+        if (mNumInputChannels == 1) {
+            bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE/2);
+            CHECK(bytesWritten <= MEM_BUFFER_SIZE/2);
+
+            convertMonoToStereo((int16_t*)local_buf, bytesWritten);
+            bytesWritten *= 2;
+        } else {
             bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE);
+            CHECK(bytesWritten <= MEM_BUFFER_SIZE);
+        }
             ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
 
             if(!killDecoderThread) {
@@ -770,11 +786,11 @@ status_t  LPAPlayer::setupAudioSink()
 
         ALOGD("setupAudioSink:Open rEGULAR track");
 
-        ALOGD("setupAudioSink:mAudiosink->open() mSampleRate %d, numChannels %d, mChannelMask %d, flags %d",
-                mSampleRate, numChannels, mChannelMask, 0);
+        ALOGD("setupAudioSink:mAudiosink->open() mSampleRate %d, mNumOutputChannels %d, mChannelMask %d, flags %d",
+                mSampleRate, mNumOutputChannels, mChannelMask, 0);
 
         err = mAudioSink->open(
-            mSampleRate, numChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
+            mSampleRate, mNumOutputChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
             DEFAULT_AUDIOSINK_BUFFERCOUNT,
             &LPAPlayer::AudioSinkCallback,
             this,
@@ -807,7 +823,7 @@ status_t  LPAPlayer::setupAudioSink()
         ALOGD("setupAudioSink:Open rEGULAR track");
 
         err = mAudioSink->open(
-            mSampleRate, numChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
+            mSampleRate, mNumOutputChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
             DEFAULT_AUDIOSINK_BUFFERCOUNT,
             &LPAPlayer::AudioSinkCallback,
             this,
@@ -844,11 +860,11 @@ status_t  LPAPlayer::setupAudioSink()
 
         ALOGD("setupAudioSink:Open dIRECT track");
 
-        ALOGD("setupAudioSink:mAudiosink->open() mSampleRate %d, numChannels %d, mChannelMask %d, flags %d",
-                mSampleRate, numChannels, mChannelMask, (AUDIO_OUTPUT_FLAG_LPA | AUDIO_OUTPUT_FLAG_DIRECT));
+        ALOGD("setupAudioSink:mAudiosink->open() mSampleRate %d, mNumOutputChannels %d, mChannelMask %d, flags %d",
+                mSampleRate, mNumOutputChannels, mChannelMask, (AUDIO_OUTPUT_FLAG_LPA | AUDIO_OUTPUT_FLAG_DIRECT));
 
         err = mAudioSink->open(
-            mSampleRate, numChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
+            mSampleRate, mNumOutputChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
             DEFAULT_AUDIOSINK_BUFFERCOUNT,
             &LPAPlayer::AudioSinkCallback,
             this,
@@ -897,5 +913,20 @@ size_t LPAPlayer::AudioCallback(void *cookie, void *buffer, size_t size) {
         return size_done;
     }
 }
+
+//dup each mono frame
+void LPAPlayer::convertMonoToStereo(int16_t *data, size_t size)
+{
+    int i =0;
+    int16_t *start_pointer = data;
+    int monoFrameCount = (size) / (sizeof(int16_t));
+
+    for (i = monoFrameCount; i > 0 ; i--) {
+      int16_t temp_sample = *(start_pointer + i - 1);
+      *(start_pointer + (i*2) - 1) = temp_sample;
+      *(start_pointer + (i*2) - 2) = temp_sample;
+    }
+}
+
 
 } //namespace android
