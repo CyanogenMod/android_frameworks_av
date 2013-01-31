@@ -33,6 +33,7 @@
 #include <utils/Log.h>
 
 #include <include/QCUtilityClass.h>
+#include "include/ExtendedExtractor.h"
 #include <media/stagefright/MetaData.h>
 
 #include <media/stagefright/foundation/ADebug.h>
@@ -264,6 +265,92 @@ uint32_t QCUtilityClass::helper_getCodecSpecificQuirks(KeyedVector<AString, size
         value |= 1ul << bit;
     }
     return value;
+}
+
+//- returns NULL if we dont really need a new extractor (or cannot),
+//  valid extractor is returned otherwise
+//- caller needs to check for NULL
+// defaultExt - the existing extractor
+// source - file source
+// mime - container mime
+// Note that defaultExt will be deleted in this function if the new parser is taken
+sp<MediaExtractor> QCUtilityClass::helper_MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
+                                                     const sp<DataSource> &source,
+                                                     const char *mime) {
+    bool bCheckExtendedExtractor = false;
+    bool videoOnly = true;
+    bool amrwbAudio = false;
+    if (defaultExt != NULL) {
+        for (size_t i = 0; i < defaultExt->countTracks(); ++i) {
+            sp<MetaData> meta = defaultExt->getTrackMetaData(i);
+            const char *_mime;
+            CHECK(meta->findCString(kKeyMIMEType, &_mime));
+
+            String8 mime = String8(_mime);
+
+            if (!strncasecmp(mime.string(), "audio/", 6)) {
+                videoOnly = false;
+
+                amrwbAudio = !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_AMR_WB,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
+                if (amrwbAudio) break;
+            }
+        }
+        bCheckExtendedExtractor = videoOnly || amrwbAudio;
+    } else {
+        bCheckExtendedExtractor = true;
+    }
+
+    if (!bCheckExtendedExtractor) {
+        ALOGD("extended extractor not needed, return default");
+        return defaultExt;
+    }
+
+    sp<MediaExtractor> retextParser;
+
+    //Create Extended Extractor only if default extractor are not selected
+    ALOGD("Try creating ExtendedExtractor");
+    retextParser = ExtendedExtractor::CreateExtractor(source, mime);
+
+    if (retextParser == NULL) {
+        ALOGD("Couldn't create the extended extractor, return default one");
+        return defaultExt;
+    }
+
+    if (defaultExt == NULL) {
+        ALOGD("default one is NULL, return extended extractor");
+        return retextParser;
+    }
+
+    //bCheckExtendedExtractor is true which means default extractor was found
+    //but we want to give preference to extended extractor based on certain
+    //conditions.
+
+    //needed to prevent a leak in case both extractors are valid
+    //but we still dont want to use the extended one. we need
+    //to delete the new one
+    bool bUseDefaultExtractor = true;
+
+    for (size_t i = 0; (i < retextParser->countTracks()); ++i) {
+        sp<MetaData> meta = retextParser->getTrackMetaData(i);
+        const char *mime;
+        bool success = meta->findCString(kKeyMIMEType, &mime);
+        if ((success == true) && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) {
+            ALOGD("Discarding default extractor and using the extended one");
+            bUseDefaultExtractor = false;
+            break;
+        }
+    }
+
+    if (bUseDefaultExtractor) {
+        ALOGD("using default extractor inspite of having a new extractor");
+        retextParser.clear();
+        return defaultExt;
+    } else {
+        defaultExt.clear();
+        return retextParser;
+    }
 }
 
 }

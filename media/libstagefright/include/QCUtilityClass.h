@@ -48,6 +48,10 @@
 #include <camera/CameraParameters.h>
 
 #include <OMX_Video.h>
+#include <media/stagefright/MediaExtractor.h>
+#include <media/stagefright/MetaData.h>
+#include <media/stagefright/MediaDebug.h>
+#include <media/stagefright/MediaDefs.h>
 
 namespace android {
 
@@ -98,6 +102,9 @@ struct QCUtilityClass
     //helper function to calculate the value of quirks from strings
     static uint32_t helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
                                                   Vector<AString> quirks);
+    static sp<MediaExtractor> helper_MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
+                                                                    const sp<DataSource> &source,
+                                                                                const char *mime);
 };
 
 }
