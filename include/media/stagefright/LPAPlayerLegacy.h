@@ -93,7 +93,6 @@ private:
     bool mA2DPEnabled;
     bool mUSBEnabled;
     int32_t mChannelMask;
-    int32_t numChannels;
     int32_t mNumOutputChannels;
     int32_t mNumInputChannels;
     int32_t mSampleRate;
