@@ -787,12 +787,12 @@ void RTPSink::onPacketLost(const sp<AMessage> &msg) {
 
     int32_t blp = 0;
 
-    sp<ABuffer> buf = new ABuffer(1500);
+    sp<ABuffer> buf = new ABuffer(16);
     buf->setRange(0, 0);
 
     uint8_t *ptr = buf->data();
     ptr[0] = 0x80 | 1;  // generic NACK
-    ptr[1] = 205;  // RTPFB
+    ptr[1] = 205;  // TSFB
     ptr[2] = 0;
     ptr[3] = 3;
     ptr[4] = 0xde;  // sender SSRC
