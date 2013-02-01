@@ -48,7 +48,7 @@ struct RTPSink : public AHandler {
     // If TCP interleaving is used, no UDP sockets are created, instead
     // incoming RTP/RTCP packets (arriving on the RTSP control connection)
     // are manually injected by WifiDisplaySink.
-    status_t init(bool useTCPInterleaving);
+    status_t init(bool usingTCPTransport, bool usingTCPInterleaving);
 
     status_t connect(
             const char *host, int32_t remoteRtpPort, int32_t remoteRtcpPort);
@@ -79,8 +79,12 @@ private:
     KeyedVector<uint32_t, sp<Source> > mSources;
 
     int32_t mRTPPort;
-    int32_t mRTPSessionID;
-    int32_t mRTCPSessionID;
+
+    int32_t mRTPSessionID;   // in TCP unicast mode these are just server
+    int32_t mRTCPSessionID;  // sockets. No data is transferred through them.
+
+    int32_t mRTPClientSessionID;  // in TCP unicast mode
+    int32_t mRTCPClientSessionID;
 
     int64_t mFirstArrivalTimeUs;
     int64_t mNumPacketsReceived;

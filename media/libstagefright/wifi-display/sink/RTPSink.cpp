@@ -253,6 +253,8 @@ RTPSink::RTPSink(
       mRTPPort(0),
       mRTPSessionID(0),
       mRTCPSessionID(0),
+      mRTPClientSessionID(0),
+      mRTCPClientSessionID(0),
       mFirstArrivalTimeUs(-1ll),
       mNumPacketsReceived(0ll),
       mRegression(1000),
@@ -260,6 +262,14 @@ RTPSink::RTPSink(
 }
 
 RTPSink::~RTPSink() {
+    if (mRTCPClientSessionID != 0) {
+        mNetSession->destroySession(mRTCPClientSessionID);
+    }
+
+    if (mRTPClientSessionID != 0) {
+        mNetSession->destroySession(mRTPClientSessionID);
+    }
+
     if (mRTCPSessionID != 0) {
         mNetSession->destroySession(mRTCPSessionID);
     }
@@ -269,8 +279,8 @@ RTPSink::~RTPSink() {
     }
 }
 
-status_t RTPSink::init(bool useTCPInterleaving) {
-    if (useTCPInterleaving) {
+status_t RTPSink::init(bool usingTCPTransport, bool usingTCPInterleaving) {
+    if (usingTCPInterleaving) {
         return OK;
     }
 
@@ -280,8 +290,16 @@ status_t RTPSink::init(bool useTCPInterleaving) {
     sp<AMessage> rtcpNotify = new AMessage(kWhatRTCPNotify, id());
     for (clientRtp = 15550;; clientRtp += 2) {
         int32_t rtpSession;
-        status_t err = mNetSession->createUDPSession(
-                    clientRtp, rtpNotify, &rtpSession);
+        status_t err;
+        struct in_addr ifaceAddr;
+        if (usingTCPTransport) {
+            ifaceAddr.s_addr = INADDR_ANY;
+            err = mNetSession->createTCPDatagramSession(
+                        ifaceAddr, clientRtp, rtpNotify, &rtpSession);
+        } else {
+            err = mNetSession->createUDPSession(
+                        clientRtp, rtpNotify, &rtpSession);
+        }
 
         if (err != OK) {
             ALOGI("failed to create RTP socket on port %d", clientRtp);
@@ -289,8 +307,13 @@ status_t RTPSink::init(bool useTCPInterleaving) {
         }
 
         int32_t rtcpSession;
-        err = mNetSession->createUDPSession(
-                clientRtp + 1, rtcpNotify, &rtcpSession);
+        if (usingTCPTransport) {
+            err = mNetSession->createTCPDatagramSession(
+                    ifaceAddr, clientRtp + 1, rtcpNotify, &rtcpSession);
+        } else {
+            err = mNetSession->createUDPSession(
+                    clientRtp + 1, rtcpNotify, &rtcpSession);
+        }
 
         if (err == OK) {
             mRTPPort = clientRtp;
@@ -363,6 +386,24 @@ void RTPSink::onMessageReceived(const sp<AMessage> &msg) {
                         err = parseRTP(data);
                     } else {
                         err = parseRTCP(data);
+                    }
+                    break;
+                }
+
+                case ANetworkSession::kWhatClientConnected:
+                {
+                    int32_t sessionID;
+                    CHECK(msg->findInt32("sessionID", &sessionID));
+                    ALOGI("TCP session %d now connected", sessionID);
+
+                    int32_t serverPort;
+                    CHECK(msg->findInt32("server-port", &serverPort));
+
+                    if (serverPort == mRTPPort) {
+                        mRTPClientSessionID = sessionID;
+                    } else {
+                        CHECK_EQ(serverPort, mRTPPort + 1);
+                        mRTCPClientSessionID = sessionID;
                     }
                     break;
                 }
