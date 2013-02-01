@@ -27,6 +27,8 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 
+#include <cutils/properties.h>
+
 namespace android {
 
 WifiDisplaySink::WifiDisplaySink(
@@ -37,6 +39,8 @@ WifiDisplaySink::WifiDisplaySink(
       mNetSession(netSession),
       mSurfaceTex(bufferProducer),
       mNotify(notify),
+      mUsingTCPTransport(false),
+      mUsingTCPInterleaving(false),
       mSessionID(0),
       mNextCSeq(1) {
 #if 1
@@ -141,17 +145,8 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
             sleep(2);  // XXX
 
             int32_t sourcePort;
-
-            if (msg->findString("setupURI", &mSetupURI)) {
-                AString path, user, pass;
-                CHECK(ParseURL(
-                            mSetupURI.c_str(),
-                            &mRTSPHost, &sourcePort, &path, &user, &pass)
-                        && user.empty() && pass.empty());
-            } else {
-                CHECK(msg->findString("sourceHost", &mRTSPHost));
-                CHECK(msg->findInt32("sourcePort", &sourcePort));
-            }
+            CHECK(msg->findString("sourceHost", &mRTSPHost));
+            CHECK(msg->findInt32("sourcePort", &sourcePort));
 
             sp<AMessage> notify = new AMessage(kWhatRTSPNotify, id());
 
@@ -208,13 +203,6 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     ALOGI("We're now connected.");
                     mState = CONNECTED;
-
-                    if (!mSetupURI.empty()) {
-                        status_t err =
-                            sendDescribe(mSessionID, mSetupURI.c_str());
-
-                        CHECK_EQ(err, (status_t)OK);
-                    }
                     break;
                 }
 
@@ -226,7 +214,7 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
 
                 case ANetworkSession::kWhatBinaryData:
                 {
-                    CHECK(sUseTCPInterleaving);
+                    CHECK(mUsingTCPInterleaving);
 
                     int32_t channel;
                     CHECK(msg->findInt32("channel", &channel));
@@ -312,20 +300,6 @@ status_t WifiDisplaySink::onReceiveM2Response(
     return OK;
 }
 
-status_t WifiDisplaySink::onReceiveDescribeResponse(
-        int32_t sessionID, const sp<ParsedMessage> &msg) {
-    int32_t statusCode;
-    if (!msg->getStatusCode(&statusCode)) {
-        return ERROR_MALFORMED;
-    }
-
-    if (statusCode != 200) {
-        return ERROR_UNSUPPORTED;
-    }
-
-    return sendSetup(sessionID, mSetupURI.c_str());
-}
-
 status_t WifiDisplaySink::onReceiveSetupResponse(
         int32_t sessionID, const sp<ParsedMessage> &msg) {
     int32_t statusCode;
@@ -365,12 +339,11 @@ status_t WifiDisplaySink::onReceiveSetupResponse(
 
     return sendPlay(
             sessionID,
-            !mSetupURI.empty()
-                ? mSetupURI.c_str() : "rtsp://x.x.x.x:x/wfd1.0/streamid=0");
+            "rtsp://x.x.x.x:x/wfd1.0/streamid=0");
 }
 
 status_t WifiDisplaySink::configureTransport(const sp<ParsedMessage> &msg) {
-    if (sUseTCPInterleaving) {
+    if (mUsingTCPTransport) {
         return OK;
     }
 
@@ -514,11 +487,45 @@ void WifiDisplaySink::onGetParameterRequest(
         int32_t sessionID,
         int32_t cseq,
         const sp<ParsedMessage> &data) {
-    AString body = "wfd_video_formats: ";
-    body.append(mSinkSupportedVideoFormats.getFormatSpec());
-    body.append(
-            "\r\nwfd_audio_codecs: AAC 0000000F 00\r\n"
-            "wfd_client_rtp_ports: RTP/AVP/UDP;unicast 19000 0 mode=play\r\n");
+    AString body;
+
+    if (mState == CONNECTED) {
+        mUsingTCPTransport = false;
+        mUsingTCPInterleaving = false;
+
+        char val[PROPERTY_VALUE_MAX];
+        if (property_get("media.wfd-sink.tcp-mode", val, NULL)) {
+            if (!strcasecmp("true", val) || !strcmp("1", val)) {
+                ALOGI("Using TCP unicast transport.");
+                mUsingTCPTransport = true;
+                mUsingTCPInterleaving = false;
+            } else if (!strcasecmp("interleaved", val)) {
+                ALOGI("Using TCP interleaved transport.");
+                mUsingTCPTransport = true;
+                mUsingTCPInterleaving = true;
+            }
+        }
+
+        body = "wfd_video_formats: ";
+        body.append(mSinkSupportedVideoFormats.getFormatSpec());
+
+        body.append(
+                "\r\nwfd_audio_codecs: AAC 0000000F 00\r\n"
+                "wfd_client_rtp_ports: RTP/AVP/");
+
+        if (mUsingTCPTransport) {
+            body.append("TCP;");
+            if (mUsingTCPInterleaving) {
+                body.append("interleaved");
+            } else {
+                body.append("unicast 19000 0");
+            }
+        } else {
+            body.append("UDP;unicast 19000 0");
+        }
+
+        body.append(" mode=play\r\n");
+    }
 
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq);
@@ -531,38 +538,13 @@ void WifiDisplaySink::onGetParameterRequest(
     CHECK_EQ(err, (status_t)OK);
 }
 
-status_t WifiDisplaySink::sendDescribe(int32_t sessionID, const char *uri) {
-    uri = "rtsp://xwgntvx.is.livestream-api.com/livestreamiphone/wgntv";
-    uri = "rtsp://v2.cache6.c.youtube.com/video.3gp?cid=e101d4bf280055f9&fmt=18";
-
-    AString request = StringPrintf("DESCRIBE %s RTSP/1.0\r\n", uri);
-    AppendCommonResponse(&request, mNextCSeq);
-
-    request.append("Accept: application/sdp\r\n");
-    request.append("\r\n");
-
-    status_t err = mNetSession->sendRequest(
-            sessionID, request.c_str(), request.size());
-
-    if (err != OK) {
-        return err;
-    }
-
-    registerResponseHandler(
-            sessionID, mNextCSeq, &WifiDisplaySink::onReceiveDescribeResponse);
-
-    ++mNextCSeq;
-
-    return OK;
-}
-
 status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
     sp<AMessage> notify = new AMessage(kWhatRTPSinkNotify, id());
 
     mRTPSink = new RTPSink(mNetSession, mSurfaceTex, notify);
     looper()->registerHandler(mRTPSink);
 
-    status_t err = mRTPSink->init(sUseTCPInterleaving);
+    status_t err = mRTPSink->init(mUsingTCPTransport, mUsingTCPInterleaving);
 
     if (err != OK) {
         looper()->unregisterHandler(mRTPSink->id());
@@ -574,15 +556,17 @@ status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
 
     AppendCommonResponse(&request, mNextCSeq);
 
-    if (sUseTCPInterleaving) {
+    if (mUsingTCPInterleaving) {
         request.append("Transport: RTP/AVP/TCP;interleaved=0-1\r\n");
     } else {
         int32_t rtpPort = mRTPSink->getRTPPort();
 
         request.append(
                 StringPrintf(
-                    "Transport: RTP/AVP/UDP;unicast;client_port=%d-%d\r\n",
-                    rtpPort, rtpPort + 1));
+                    "Transport: RTP/AVP/%s;unicast;client_port=%d-%d\r\n",
+                    mUsingTCPTransport ? "TCP" : "UDP",
+                    rtpPort,
+                    rtpPort + 1));
     }
 
     request.append("\r\n");

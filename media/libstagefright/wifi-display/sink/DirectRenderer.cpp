@@ -35,11 +35,19 @@
 
 namespace android {
 
+#if 0
 // static
 const int64_t DirectRenderer::kPacketLostDelayUs = 80000ll;
 
 // static
 const int64_t DirectRenderer::kPacketLateDelayUs = 60000ll;
+#else
+// static
+const int64_t DirectRenderer::kPacketLostDelayUs = 1000000ll;
+
+// static
+const int64_t DirectRenderer::kPacketLateDelayUs = -1ll;
+#endif
 
 DirectRenderer::DirectRenderer(
         const sp<AMessage> &notifyLost,
@@ -309,11 +317,11 @@ void DirectRenderer::dequeueAccessUnits() {
 void DirectRenderer::schedulePacketLost() {
     sp<AMessage> msg;
 
-#if 1
-    msg = new AMessage(kWhatPacketLate, id());
-    msg->setInt32("generation", mPacketLostGeneration);
-    msg->post(kPacketLateDelayUs);
-#endif
+    if (kPacketLateDelayUs > 0ll) {
+        msg = new AMessage(kWhatPacketLate, id());
+        msg->setInt32("generation", mPacketLostGeneration);
+        msg->post(kPacketLateDelayUs);
+    }
 
     msg = new AMessage(kWhatPacketLost, id());
     msg->setInt32("generation", mPacketLostGeneration);

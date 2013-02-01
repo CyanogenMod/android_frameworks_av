@@ -119,6 +119,7 @@ private:
 
     uint32_t mStopReplyID;
 
+    AString mWfdClientRtpPorts;
     int32_t mChosenRTPPort;  // extracted from "wfd_client_rtp_ports"
 
     bool mSinkSupportsVideo;
