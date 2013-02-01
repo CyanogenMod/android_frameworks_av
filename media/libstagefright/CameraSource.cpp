@@ -25,11 +25,13 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <QCMetaData.h>
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
 #include <gui/Surface.h>
 #include <utils/String8.h>
 #include <cutils/properties.h>
+#include "include/QCUtilityClass.h"
 
 #ifdef USE_TI_CUSTOM_DOMX
 #include <OMX_TI_IVCommon.h>
@@ -569,6 +571,9 @@ status_t CameraSource::initWithCameraAccess(
     mMeta->setInt32(kKeyStride,      mVideoSize.width);
     mMeta->setInt32(kKeySliceHeight, mVideoSize.height);
     mMeta->setInt32(kKeyFrameRate,   mVideoFrameRate);
+
+    QCUtilityClass::helper_CameraSource_hfr(params, mMeta);
+
     return OK;
 }
 

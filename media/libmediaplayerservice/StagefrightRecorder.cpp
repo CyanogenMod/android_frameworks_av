@@ -60,6 +60,8 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#include <QCUtilityClass.h>
+
 #include <system/audio.h>
 #ifdef QCOM_HARDWARE
 #include <QCMediaDefs.h>
@@ -1581,6 +1583,15 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (mVideoTimeScale > 0) {
         enc_meta->setInt32(kKeyTimeScale, mVideoTimeScale);
     }
+
+    status_t retVal =
+             QCUtilityClass::helper_StageFrightRecoder_hfr(meta,enc_meta, mMaxFileDurationUs,
+                                                                  mFrameRate, mVideoEncoder);
+    if(retVal != OK) {
+        return retVal;
+    }
+
+
     if (mVideoEncoderProfile != -1) {
         enc_meta->setInt32(kKeyVideoProfile, mVideoEncoderProfile);
     }

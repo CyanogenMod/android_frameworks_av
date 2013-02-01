@@ -30,6 +30,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaSource.h>
+#include "include/QCUtilityClass.h"
 #include <media/stagefright/Utils.h>
 #include <media/mediarecorder.h>
 #include <cutils/properties.h>
@@ -2161,6 +2162,10 @@ status_t MPEG4Writer::Track::threadEntry() {
         meta_data->findInt32(kKeyIsSyncFrame, &isSync);
         CHECK(meta_data->findInt64(kKeyTime, &timestampUs));
 
+        if(!mIsAudio) {
+            QCUtilityClass::helper_MPEG4Writer_hfr(mMeta, timestampUs);
+        }
+
 ////////////////////////////////////////////////////////////////////////////////
         if (mStszTableEntries->count() == 0) {
             mFirstSampleTimeRealUs = systemTime() / 1000;
@@ -2190,6 +2195,8 @@ status_t MPEG4Writer::Track::threadEntry() {
              */
             int64_t decodingTimeUs;
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
+            QCUtilityClass::helper_MPEG4Writer_hfr(mMeta, decodingTimeUs);
+
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
                     timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;

@@ -52,7 +52,9 @@
 #include <QCMetaData.h>
 #include <QOMX_AudioExtensions.h>
 #include <OMX_QCOMExtns.h>
+#include "include/QCUtilityClass.h"
 #endif
+
 #include "include/avc_utils.h"
 
 #ifdef USE_SAMSUNG_COLORFORMAT
@@ -1054,6 +1056,9 @@ void OMXCodec::setVideoInputFormat(
     CHECK(success);
     CHECK(stride != 0);
 
+    int32_t newFrameRate = frameRate;
+    QCUtilityClass::helper_OMXCodec_hfr(meta, frameRate, bitRate, newFrameRate);
+
     OMX_VIDEO_CODINGTYPE compressionFormat = OMX_VIDEO_CodingUnused;
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
         compressionFormat = OMX_VIDEO_CodingAVC;
@@ -1288,7 +1293,10 @@ status_t OMXCodec::setupH263EncoderParameters(const sp<MetaData>& meta) {
     h263type.nAllowedPictureTypes =
         OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
 
-    h263type.nPFrames = setPFramesSpacing(iFramesInterval, frameRate);
+    int32_t newFrameRate = frameRate;
+    QCUtilityClass::helper_OMXCodec_hfr(meta, frameRate, bitRate, newFrameRate);
+
+    h263type.nPFrames = setPFramesSpacing(iFramesInterval, newFrameRate);
     if (h263type.nPFrames == 0) {
         h263type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
     }
@@ -1339,7 +1347,10 @@ status_t OMXCodec::setupMPEG4EncoderParameters(const sp<MetaData>& meta) {
     mpeg4type.nAllowedPictureTypes =
         OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
 
-    mpeg4type.nPFrames = setPFramesSpacing(iFramesInterval, frameRate);
+    int32_t newFrameRate = frameRate;
+    QCUtilityClass::helper_OMXCodec_hfr(meta, frameRate, bitRate, newFrameRate);
+
+    mpeg4type.nPFrames = setPFramesSpacing(iFramesInterval, newFrameRate);
     if (mpeg4type.nPFrames == 0) {
         mpeg4type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
     }
@@ -1397,6 +1408,9 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profileLevel.mProfile);
     h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(profileLevel.mLevel);
 
+    int32_t newFrameRate = frameRate;
+    QCUtilityClass::helper_OMXCodec_hfr(meta, frameRate, bitRate, newFrameRate);
+
     // XXX
 #ifdef USE_TI_DUCATI_H264_PROFILE
     if ((strncmp(mComponentName, "OMX.TI.DUCATI1", 14) != 0)
@@ -1414,7 +1428,7 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
         h264type.bUseHadamard = OMX_TRUE;
         h264type.nRefFrames = 1;
         h264type.nBFrames = 0;
-        h264type.nPFrames = setPFramesSpacing(iFramesInterval, frameRate);
+        h264type.nPFrames = setPFramesSpacing(iFramesInterval, newFrameRate);
         if (h264type.nPFrames == 0) {
             h264type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
         }
@@ -5252,6 +5266,8 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 if (mNativeWindow != NULL) {
                      initNativeWindowCrop();
                 }
+            } else {
+                QCUtilityClass::helper_OMXCodec_hfr(inputFormat, mOutputFormat);
             }
             break;
         }
