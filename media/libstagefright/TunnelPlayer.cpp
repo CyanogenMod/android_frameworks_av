@@ -51,7 +51,7 @@
 static const char   mName[] = "TunnelPlayer";
 #define MEM_METADATA_SIZE 64
 #define MEM_PADDING 64
-#define MEM_BUFFER_SIZE (256*1024 - MEM_METADATA_SIZE)
+#define MEM_BUFFER_SIZE (240*1024 - MEM_METADATA_SIZE)
 #define MEM_BUFFER_COUNT 4
 #define TUNNEL_BUFFER_TIME 1500000
 
