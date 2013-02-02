@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  * Not a Contribution, Apache license notifications and license are retained
  * for attribution purposes only.
  *
@@ -51,11 +51,14 @@
 
 static const char   mName[] = "LPAPlayer";
 
-#define MEM_BUFFER_SIZE 262144
+#define MEM_PADDING 64
+#define MEM_BUFFER_SIZE (256*1024)
 #define MEM_BUFFER_COUNT 4
 
 #define PCM_FORMAT 2
 #define NUM_FDS 2
+#define LPA_BUFFER_TIME 1500000
+
 namespace android {
 int LPAPlayer::objectsAlive = 0;
 
@@ -87,7 +90,8 @@ mAudioSink(audioSink),
 mObserver(observer) {
     ALOGV("LPAPlayer::LPAPlayer() ctor");
     objectsAlive++;
-    numChannels =0;
+    mNumOutputChannels =0;
+    mNumInputChannels = 0;
     mPaused = false;
     mIsA2DPEnabled = false;
     mAudioFlinger = NULL;
@@ -256,20 +260,24 @@ status_t LPAPlayer::start(bool sourceAlreadyStarted) {
     success = format->findInt32(kKeySampleRate, &mSampleRate);
     CHECK(success);
 
-    success = format->findInt32(kKeyChannelCount, &numChannels);
+    success = format->findInt32(kKeyChannelCount, &mNumInputChannels);
     CHECK(success);
+
+    // Always produce stereo output
+    mNumOutputChannels = 2;
 
     if(!format->findInt32(kKeyChannelMask, &mChannelMask)) {
         // log only when there's a risk of ambiguity of channel mask selection
-        ALOGI_IF(numChannels > 2,
-                "source format didn't specify channel mask, using (%d) channel order", numChannels);
+        ALOGI_IF(mNumInputChannels > 2,
+                "source format didn't specify channel mask, using (%d) channel order", mNumInputChannels);
         mChannelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
     audio_output_flags_t flags = (audio_output_flags_t) (AUDIO_OUTPUT_FLAG_LPA |
                                                          AUDIO_OUTPUT_FLAG_DIRECT);
-    ALOGV("mAudiosink->open() mSampleRate %d, numChannels %d, mChannelMask %d, flags %d",mSampleRate, numChannels, mChannelMask, flags);
+    ALOGV("mAudiosink->open() mSampleRate %d, numOutputChannels %d, mChannelMask %d, flags %d",mSampleRate,
+          mNumOutputChannels, mChannelMask, flags);
     err = mAudioSink->open(
-        mSampleRate, numChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
+        mSampleRate, mNumOutputChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
         DEFAULT_AUDIOSINK_BUFFERCOUNT,
         &LPAPlayer::AudioSinkCallback,
         this,
@@ -301,16 +309,40 @@ status_t LPAPlayer::start(bool sourceAlreadyStarted) {
 status_t LPAPlayer::seekTo(int64_t time_us) {
     Mutex::Autolock autoLock(mLock);
     ALOGV("seekTo: time_us %lld", time_us);
-    if ( mReachedEOS ) {
-        mReachedEOS = false;
-        mReachedOutputEOS = false;
+
+    int64_t mediaTimeUs = getMediaTimeUs_l();
+
+    if (mediaTimeUs != 0) {
+      //check for return conditions only if seektime
+      // is set
+      int64_t diffUs = time_us - mediaTimeUs;
+
+      if (labs(diffUs) < LPA_BUFFER_TIME) {
+          ALOGV("In seekTo(), ignoring time_us %lld mSeekTimeUs %lld", time_us, mSeekTimeUs);
+          mObserver->postAudioSeekComplete();
+          return OK;
+      }
     }
+
     mSeeking = true;
     mSeekTimeUs = time_us;
     mPauseTime = mSeekTimeUs;
     ALOGV("In seekTo(), mSeekTimeUs %lld",mSeekTimeUs);
-    mAudioSink->flush();
-    pthread_cond_signal(&decoder_cv);
+
+    if (mIsAudioRouted) {
+        mAudioSink->flush();
+    }
+
+    if (mReachedEOS) {
+        mReachedEOS = false;
+        mReachedOutputEOS = false;
+        if(mPaused == false) {
+            ALOGV("Going to signal decoder thread since playback is already going on ");
+            pthread_cond_signal(&decoder_cv);
+            ALOGV("Signalled extractor thread.");
+        }
+    }
+    ALOGV("seek done.");
     return OK;
 }
 
@@ -322,41 +354,26 @@ void LPAPlayer::pause(bool playPendingSamples) {
     ALOGV("pause: playPendingSamples %d", playPendingSamples);
     mPaused = true;
     A2DPState state;
-    if (playPendingSamples) {
-        if (!mIsA2DPEnabled) {
-            if (!mPauseEventPending) {
-                ALOGV("Posting an event for Pause timeout");
-                mQueue.postEventWithDelay(mPauseEvent, LPA_PAUSE_TIMEOUT_USEC);
-                mPauseEventPending = true;
-            }
-            mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_DISABLED);
-        }
-        else {
-            mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_ENABLED);
-        }
-        if (mAudioSink.get() != NULL)
-            mAudioSink->pause();
+    if (!mIsA2DPEnabled) {
+       if (!mPauseEventPending) {
+           ALOGV("Posting an event for Pause timeout");
+           mQueue.postEventWithDelay(mPauseEvent, LPA_PAUSE_TIMEOUT_USEC);
+           mPauseEventPending = true;
+       }
+       mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_DISABLED);
     } else {
-        if (!mIsA2DPEnabled) {
-            if(!mPauseEventPending) {
-                ALOGV("Posting an event for Pause timeout");
-                mQueue.postEventWithDelay(mPauseEvent, LPA_PAUSE_TIMEOUT_USEC);
-                mPauseEventPending = true;
-            }
-            mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_DISABLED);
-        } else {
-            mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_ENABLED);
-        }
-        if (mAudioSink.get() != NULL) {
-            ALOGV("AudioSink pause");
-            mAudioSink->pause();
-        }
+        mPauseTime = mSeekTimeUs + getTimeStamp(A2DP_ENABLED);
+    }
+
+    if (mAudioSink.get() != NULL) {
+        ALOGV("AudioSink pause");
+        mAudioSink->pause();
     }
 }
 
 void LPAPlayer::resume() {
     ALOGV("resume: mPaused %d",mPaused);
-    Mutex::Autolock autoLock(mResumeLock);
+    Mutex::Autolock autoLock(mLock);
     if ( mPaused) {
         CHECK(mStarted);
         if (!mIsA2DPEnabled) {
@@ -372,7 +389,7 @@ void LPAPlayer::resume() {
             audio_output_flags_t flags = (audio_output_flags_t) (AUDIO_OUTPUT_FLAG_LPA |
                                                                 AUDIO_OUTPUT_FLAG_DIRECT);
             status_t err = mAudioSink->open(
-                mSampleRate, numChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
+                mSampleRate, mNumOutputChannels, mChannelMask, AUDIO_FORMAT_PCM_16_BIT,
                 DEFAULT_AUDIOSINK_BUFFERCOUNT,
                 &LPAPlayer::AudioSinkCallback,
                 this,
@@ -394,30 +411,42 @@ size_t LPAPlayer::AudioSinkCallback(
         void *buffer, size_t size, void *cookie) {
     if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
         LPAPlayer *me = (LPAPlayer *)cookie;
-        me->mReachedEOS = true;
-        me->mReachedOutputEOS = true;
-        ALOGV("postAudioEOS");
-        me->mObserver->postAudioEOS(0);
+        if(me->mReachedEOS == true) {
+            //in the case of seek all these flags will be reset
+            me->mReachedOutputEOS = true;
+            ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+            me->mObserver->postAudioEOS(0);
+        }else {
+            ALOGV("postAudioEOS ignored since %d", me->mSeeking);
+        }
     }
     return 1;
 }
 
 void LPAPlayer::reset() {
+    ALOGD("Reset");
 
-    ALOGV("Reset");
+    Mutex::Autolock _l(mLock); //to sync w/ onpausetimeout
+
+    //cancel any pending onpause timeout events
+    //doesnt matter if the event is really present or not
+    mPauseEventPending = false;
+    mQueue.cancelEvent(mPauseEvent->eventID());
+
     // Close the audiosink after all the threads exited to make sure
     mReachedEOS = true;
 
     // make sure Decoder thread has exited
-    ALOGV("Closing all the threads");
+    ALOGD("Closing all the threads");
     requestAndWaitForDecoderThreadExit();
     requestAndWaitForA2DPNotificationThreadExit();
 
-    ALOGV("Close the Sink");
+    ALOGD("Close the Sink");
     if (mIsAudioRouted) {
 	    mAudioSink->stop();
         mAudioSink->close();
         mAudioSink.clear();
+        mIsAudioRouted = false;
     }
     // Make sure to release any buffer we hold onto so that the
     // source is able to stop().
@@ -490,25 +519,80 @@ void LPAPlayer::decoderThreadEntry() {
         return;
     }
     void* local_buf = malloc(MEM_BUFFER_SIZE);
+    if(local_buf == (void*) NULL) {
+        killDecoderThread = true;
+        ALOGE("Malloc failed");
+        return;
+    }
+    int *lptr = ((int*)local_buf);
     int bytesWritten = 0;
+
+    if (!local_buf) {
+      ALOGE("Failed to allocate temporary buffer for decoderThread");
+      return;
+    }
+
+    bool lSeeking = false;
+    bool lPaused = false;
+
     while (!killDecoderThread) {
 
         if (mReachedEOS || mPaused || !mIsAudioRouted) {
+            ALOGV("Going to sleep before write since "
+                  "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
+                  mReachedEOS, mPaused, mIsAudioRouted);
             pthread_mutex_lock(&decoder_mutex);
             pthread_cond_wait(&decoder_cv, &decoder_mutex);
             pthread_mutex_unlock(&decoder_mutex);
+            ALOGV("Woke up from sleep before write since "
+                  "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
+                  mReachedEOS, mPaused, mIsAudioRouted);
             continue;
         }
 
         if (!mIsA2DPEnabled) {
             ALOGV("FillBuffer: MemBuffer size %d", MEM_BUFFER_SIZE);
             ALOGV("Fillbuffer started");
-            //TODO: Add memset
-            bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE);
-            ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
+            if (mNumInputChannels == 1) {
+                bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE/2);
+                CHECK(bytesWritten <= MEM_BUFFER_SIZE/2);
 
+                convertMonoToStereo((int16_t*)local_buf, bytesWritten);
+                bytesWritten *= 2;
+            } else {
+                bytesWritten = fillBuffer(local_buf, MEM_BUFFER_SIZE);
+                CHECK(bytesWritten <= MEM_BUFFER_SIZE);
+            }
+
+            ALOGV("FillBuffer completed bytesToWrite %d", bytesWritten);
             if(!killDecoderThread) {
-                mAudioSink->write(local_buf, bytesWritten);
+                mLock.lock();
+                lPaused = mPaused;
+                mLock.unlock();
+
+                if(lPaused == true) {
+                    //write only if player is not in paused state. Sleep on lock
+                    // resume is called
+                    ALOGV("Going to sleep in decodethreadiwrite since sink is paused");
+                    pthread_mutex_lock(&decoder_mutex);
+                    pthread_cond_wait(&decoder_cv, &decoder_mutex);
+                    ALOGV("Going to unlock n decodethreadwrite since sink "
+                          "resumed mPaused %d, mIsAudioRouted %d, mReachedEOS %d",
+                          mPaused, mIsAudioRouted, mReachedEOS);
+                    pthread_mutex_unlock(&decoder_mutex);
+                }
+                mLock.lock();
+                lSeeking = mSeeking||mInternalSeeking;
+                mLock.unlock();
+
+                if(lSeeking == false && (killDecoderThread == false)){
+                    //if we are seeking, ignore write, otherwise write
+                    ALOGV("Fillbuffer before seeling flag %d", mSeeking);
+                    int lWrittenBytes = mAudioSink->write(local_buf, bytesWritten);
+                    ALOGV("Fillbuffer after write, written bytes %d and seek flag %d", lWrittenBytes, mSeeking);
+                } else {
+                    ALOGV("Fillbuffer ignored since we seeked after fillBuffer was set %d", mSeeking);
+                }
             }
         }
     }
@@ -580,19 +664,27 @@ size_t LPAPlayer::fillBuffer(void *data, size_t size) {
         return 0;
     }
 
+    if ((data == (void*) NULL) || size > MEM_BUFFER_SIZE) {
+        ALOGE("fillBuffer given wrong buffer");
+        return 0;
+    }
+
     bool postSeekComplete = false;
 
     size_t size_done = 0;
     size_t size_remaining = size;
+    ALOGV("fillBuffer: Clearing seek flag in fill buffer");
+
     while (size_remaining > 0) {
         MediaSource::ReadOptions options;
 
         {
             Mutex::Autolock autoLock(mLock);
 
-            if (mSeeking) {
+            if(mSeeking) {
                 mInternalSeeking = false;
             }
+
             if (mSeeking || mInternalSeeking) {
                 if (mIsFirstBuffer) {
                     if (mFirstBuffer != NULL) {
@@ -609,8 +701,9 @@ size_t LPAPlayer::fillBuffer(void *data, size_t size) {
                     mInputBuffer = NULL;
                 }
 
-                size_remaining = size;
+                // This is to ignore the data already filled in the output buffer
                 size_done = 0;
+                size_remaining = size;
 
                 mSeeking = false;
                 if (mObserver && !mInternalSeeking) {
@@ -618,6 +711,7 @@ size_t LPAPlayer::fillBuffer(void *data, size_t size) {
                     postSeekComplete = true;
                 }
                 mInternalSeeking = false;
+                ALOGV("fillBuffer: Setting seek flag in fill buffer");
             }
         }
 
@@ -635,14 +729,16 @@ size_t LPAPlayer::fillBuffer(void *data, size_t size) {
             }
 
             CHECK((err == OK && mInputBuffer != NULL)
-                   || (err != OK && mInputBuffer == NULL));
+                  || (err != OK && mInputBuffer == NULL));
+            {
+                Mutex::Autolock autoLock(mLock);
 
-            Mutex::Autolock autoLock(mLock);
-
-            if (err != OK) {
-                mReachedEOS = true;
-                mFinalStatus = err;
-                break;
+                if (err != OK) {
+                    ALOGD("fill buffer - reached eos true");
+                    mReachedEOS = true;
+                    mFinalStatus = err;
+                    break;
+                }
             }
 
             CHECK(mInputBuffer->meta_data()->findInt64(
@@ -662,7 +758,7 @@ size_t LPAPlayer::fillBuffer(void *data, size_t size) {
         size_t copy = size_remaining;
         if (copy > mInputBuffer->range_length()) {
             copy = mInputBuffer->range_length();
-        }
+        } //is size_remaining < range_length impossible?
 
         memcpy((char *)data + size_done,
                (const char *)mInputBuffer->data() + mInputBuffer->range_offset(),
@@ -712,9 +808,7 @@ int64_t LPAPlayer::getTimeStamp(A2DPState state) {
     return timestamp;
 }
 
-int64_t LPAPlayer::getMediaTimeUs() {
-    Mutex::Autolock autoLock(mLock);
-    ALOGV("getMediaTimeUs() mPaused %d mSeekTimeUs %lld mPauseTime %lld", mPaused, mSeekTimeUs, mPauseTime);
+int64_t LPAPlayer::getMediaTimeUs_l() {
     if (mPaused) {
         return mPauseTime;
     } else {
@@ -723,16 +817,21 @@ int64_t LPAPlayer::getMediaTimeUs() {
     }
 }
 
-bool LPAPlayer::getMediaTimeMapping(
-                                   int64_t *realtime_us, int64_t *mediatime_us) {
+int64_t LPAPlayer::getMediaTimeUs() {
     Mutex::Autolock autoLock(mLock);
-
-    *realtime_us = mPositionTimeRealUs;
-    *mediatime_us = mPositionTimeMediaUs;
-
-    return mPositionTimeRealUs != -1 && mPositionTimeMediaUs != -1;
+    ALOGV("getMediaTimeUs() mPaused %d mSeekTimeUs %lld mPauseTime %lld", mPaused, mSeekTimeUs, mPauseTime);
+    return getMediaTimeUs_l();
 }
 
+bool LPAPlayer::getMediaTimeMapping(
+                                   int64_t *realtime_us, int64_t *mediatime_us) {
+    ALOGE("getMediaTimeMapping is invalid for LPA Player");
+    *realtime_us = -1;
+    *mediatime_us = -1;
+    return false;
+}
+
+//lock taken in reset()
 void LPAPlayer::requestAndWaitForDecoderThreadExit() {
 
     if (!decoderThreadAlive)
@@ -745,8 +844,10 @@ void LPAPlayer::requestAndWaitForDecoderThreadExit() {
         mAudioSink->flush();
 
     pthread_cond_signal(&decoder_cv);
+    mLock.unlock();
     pthread_join(decoderThread,NULL);
-    ALOGV("decoder thread killed");
+    mLock.lock();
+    ALOGD("decoder thread killed");
 
 }
 
@@ -761,7 +862,7 @@ void LPAPlayer::requestAndWaitForA2DPNotificationThreadExit() {
 
 void LPAPlayer::onPauseTimeOut() {
     ALOGV("onPauseTimeOut");
-    Mutex::Autolock autoLock(mResumeLock);
+    Mutex::Autolock autoLock(mLock);
     if (!mPauseEventPending) {
         return;
     }
@@ -788,6 +889,20 @@ void LPAPlayer::onPauseTimeOut() {
         mIsAudioRouted = false;
     }
 
+}
+
+//dup each mono frame
+void LPAPlayer::convertMonoToStereo(int16_t *data, size_t size)
+{
+    int i =0;
+    int16_t *start_pointer = data;
+    int monoFrameCount = (size) / (sizeof(int16_t));
+
+    for (i = monoFrameCount; i > 0 ; i--) {
+      int16_t temp_sample = *(start_pointer + i - 1);
+      *(start_pointer + (i*2) - 1) = temp_sample;
+      *(start_pointer + (i*2) - 2) = temp_sample;
+    }
 }
 
 } //namespace android

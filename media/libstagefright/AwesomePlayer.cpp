@@ -1537,9 +1537,10 @@ status_t AwesomePlayer::initAudioDecoder() {
     int32_t isADTS = 0;
     meta->findInt32( kKeyChannelCount, &nchannels );
     meta->findInt32(kKeyIsADTS, &isADTS);
-    if(isADTS == 1){
+    if (isADTS == 1) {
         ALOGV("Widevine content\n");
     }
+
     ALOGV("nchannels %d;LPA will be skipped if nchannels is > 2 or nchannels == 0",
            nchannels);
 #endif
@@ -1555,7 +1556,7 @@ status_t AwesomePlayer::initAudioDecoder() {
 
     //widevine will fallback to software decoder
     if (sys_prop_enabled && (TunnelPlayer::mTunnelObjectsAlive == 0) &&
-        mTunnelAliveAP == 0 && (isADTS == 0) &&
+       (mTunnelAliveAP == 0) && (isADTS == 0) &&
         mAudioSink->realtime() &&
         inSupportedTunnelFormats(mime)) {
 
@@ -1576,10 +1577,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     else
        ALOGD("Normal Audio Playback");
 
-    if (isStreamingHTTP()) {
-      ALOGV("Streaming, force disable tunnel mode playback");
-      mIsTunnelAudio = false;
-    }
+    checkTunnelExceptions();
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW) ||
              (mIsTunnelAudio && (mTunnelAliveAP == 0))) {
@@ -2050,8 +2048,8 @@ void AwesomePlayer::onVideoEvent() {
 
         if (latenessUs > 40000) {
             // We're more than 40ms late.
-            ALOGV("we're late by %lld us (%.2f secs)",
-                 latenessUs, latenessUs / 1E6);
+            ALOGE("we're late by %lld us nowUs %lld, timeUs %lld",
+                  latenessUs, nowUs, timeUs);
 
             if (!(mFlags & SLOW_DECODER_HACK)
                     || mSinceLastDropped > FRAME_DROP_FREQ)
@@ -3055,6 +3053,45 @@ bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
 
     ALOGW("Tunnel playback unsupported for %s", mime);
     return false;
+}
+
+void AwesomePlayer::checkTunnelExceptions()
+{
+    /* exception 1: No streaming */
+    if (isStreamingHTTP()) {
+        ALOGV("Streaming, force disable tunnel mode playback");
+        mIsTunnelAudio = false;
+        return;
+    }
+
+    /* below exceptions are only for av content */
+    if (mVideoTrack == NULL) return;
+
+    /* exception 2: No avi having video + mp3 */
+    if (mExtractor == NULL) return;
+
+    sp<MetaData> metaData = mExtractor->getMetaData();
+    const char * container;
+
+    /*only proceed for avi content.*/
+    if (!metaData->findCString(kKeyMIMEType, &container) ||
+        strcmp(container, MEDIA_MIMETYPE_CONTAINER_AVI)) {
+        return;
+    }
+
+    CHECK(mAudioTrack != NULL);
+
+    const char * mime;
+    metaData = mAudioTrack->getFormat();
+    /*disable for av content having mp3*/
+    if (metaData->findCString(kKeyMIMEType, &mime) &&
+        !strcmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
+        ALOGV("Clip has AVI extractor and mp3 content, disable tunnel mode");
+        mIsTunnelAudio = false;
+        return;
+    }
+
+    return;
 }
 #endif
 
