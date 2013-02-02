@@ -1600,14 +1600,14 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         // Start record thread
         // RecorThread require both input and output device indication to forward to audio
         // pre processing modules
-        audio_devices_t device = (*pDevices) | primaryOutputDevice_l();
-
         thread = new RecordThread(this,
                                   input,
                                   reqSamplingRate,
                                   reqChannels,
                                   id,
-                                  device, teeSink);
+                                  primaryOutputDevice_l(),
+                                  *pDevices,
+                                  teeSink);
         mRecordThreads.add(id, thread);
         ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
         if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
