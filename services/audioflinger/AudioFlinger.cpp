@@ -7280,10 +7280,22 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             // store input device and output device but do not forward output device to audio HAL.
             // Note that status is ignored by the caller for output device
             // (see AudioFlinger::setParameters()
+            
+#ifndef ICS_AUDIO_BLOB
+            
             if (audio_is_output_devices(value)) {
                 mOutDevice = value;
                 status = BAD_VALUE;
             } else {
+#else
+            {
+        	if (audio_is_output_devices(value)) {
+        	    /* Input devices have changed in /system/core/include/system/audio.h
+            	    * and AudioPolicy/HAL still uses the ICS values
+            	    **/
+        	    ALOGD("%s WARNING routing to possible output device", __func__);
+        	}
+#endif
                 mInDevice = value;
                 // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
                 if (mTracks.size() > 0) {
