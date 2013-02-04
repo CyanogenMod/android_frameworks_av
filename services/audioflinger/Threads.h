@@ -702,7 +702,8 @@ public:
                     uint32_t sampleRate,
                     audio_channel_mask_t channelMask,
                     audio_io_handle_t id,
-                    audio_devices_t device,
+                    audio_devices_t outDevice,
+                    audio_devices_t inDevice,
                     const sp<NBAIO_Sink>& teeSink);
             virtual     ~RecordThread();
 
