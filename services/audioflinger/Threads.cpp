@@ -3573,9 +3573,10 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          uint32_t sampleRate,
                                          audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
-                                         audio_devices_t device,
+                                         audio_devices_t outDevice,
+                                         audio_devices_t inDevice,
                                          const sp<NBAIO_Sink>& teeSink) :
-    ThreadBase(audioFlinger, id, AUDIO_DEVICE_NONE, device, RECORD),
+    ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
