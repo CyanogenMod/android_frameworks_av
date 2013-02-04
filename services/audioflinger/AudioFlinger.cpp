@@ -374,6 +374,9 @@ sp<NBLog::Writer> AudioFlinger::newWriter_l(size_t size, const char *name)
 
 void AudioFlinger::unregisterWriter(const sp<NBLog::Writer>& writer)
 {
+    if (writer == 0) {
+        return;
+    }
     sp<IMemory> iMemory(writer->getIMemory());
     if (iMemory == 0) {
         return;
