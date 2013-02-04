@@ -26,12 +26,14 @@ LOCAL_SRC_FILES:=                         \
         MPEG2TSWriter.cpp                 \
         MPEG4Extractor.cpp                \
         MPEG4Writer.cpp                   \
+        MediaAdapter.cpp                  \
         MediaBuffer.cpp                   \
         MediaBufferGroup.cpp              \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
         MediaDefs.cpp                     \
         MediaExtractor.cpp                \
+        MediaMuxer.cpp                    \
         MediaSource.cpp                   \
         MetaData.cpp                      \
         NuCachedSource2.cpp               \
