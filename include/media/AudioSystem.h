@@ -67,9 +67,14 @@ public:
     // set audio mode in audio hardware
     static status_t setMode(audio_mode_t mode);
 
-    // returns true in *state if tracks are active on the specified stream or has been active
+    // returns true in *state if tracks are active on the specified stream or have been active
     // in the past inPastMs milliseconds
     static status_t isStreamActive(audio_stream_type_t stream, bool *state, uint32_t inPastMs = 0);
+    // returns true in *state if tracks are active for what qualifies as remote playback
+    // on the specified stream or have been active in the past inPastMs milliseconds. Remote
+    // playback isn't mutually exclusive with local playback.
+    static status_t isStreamActiveRemotely(audio_stream_type_t stream, bool *state,
+            uint32_t inPastMs = 0);
     // returns true in *state if a recorder is currently recording with the specified source
     static status_t isSourceActive(audio_source_t source, bool *state);
 

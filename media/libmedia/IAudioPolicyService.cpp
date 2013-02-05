@@ -55,7 +55,8 @@ enum {
     IS_SOURCE_ACTIVE,
     GET_DEVICES_FOR_STREAM,
     QUERY_DEFAULT_PRE_PROCESSING,
-    SET_EFFECT_ENABLED
+    SET_EFFECT_ENABLED,
+    IS_STREAM_ACTIVE_REMOTELY
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -327,6 +328,16 @@ public:
         data.writeInt32((int32_t) stream);
         data.writeInt32(inPastMs);
         remote()->transact(IS_STREAM_ACTIVE, data, &reply);
+        return reply.readInt32();
+    }
+
+    virtual bool isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32((int32_t) stream);
+        data.writeInt32(inPastMs);
+        remote()->transact(IS_STREAM_ACTIVE_REMOTELY, data, &reply);
         return reply.readInt32();
     }
 
@@ -602,6 +613,14 @@ status_t BnAudioPolicyService::onTransact(
             audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
             uint32_t inPastMs = (uint32_t)data.readInt32();
             reply->writeInt32( isStreamActive((audio_stream_type_t) stream, inPastMs) );
+            return NO_ERROR;
+        } break;
+
+        case IS_STREAM_ACTIVE_REMOTELY: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
+            uint32_t inPastMs = (uint32_t)data.readInt32();
+            reply->writeInt32( isStreamActiveRemotely((audio_stream_type_t) stream, inPastMs) );
             return NO_ERROR;
         } break;
 
