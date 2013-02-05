@@ -32,12 +32,15 @@ struct MediaSource;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(
+            const sp<AMessage> &notify,
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,
             uid_t uid = 0);
 
-    GenericSource(int fd, int64_t offset, int64_t length);
+    GenericSource(
+            const sp<AMessage> &notify,
+            int fd, int64_t offset, int64_t length);
 
     virtual void start();
 

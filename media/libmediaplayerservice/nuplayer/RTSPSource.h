@@ -32,6 +32,7 @@ struct MyHandler;
 
 struct NuPlayer::RTSPSource : public NuPlayer::Source {
     RTSPSource(
+            const sp<AMessage> &notify,
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,

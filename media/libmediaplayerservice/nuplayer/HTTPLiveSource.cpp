@@ -34,10 +34,12 @@
 namespace android {
 
 NuPlayer::HTTPLiveSource::HTTPLiveSource(
+        const sp<AMessage> &notify,
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid, uid_t uid)
-    : mURL(url),
+    : Source(notify),
+      mURL(url),
       mUIDValid(uidValid),
       mUID(uid),
       mFlags(0),
