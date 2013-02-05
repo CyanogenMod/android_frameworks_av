@@ -2511,6 +2511,7 @@ status_t AwesomePlayer::setVideoScalingMode_l(int32_t mode) {
         if (err != OK) {
             ALOGW("Failed to set scaling mode: %d", err);
         }
+        return err;
     }
     return OK;
 }
