@@ -20,17 +20,23 @@
 
 #include "NuPlayer.h"
 
+#include <media/stagefright/foundation/AMessage.h>
+
 namespace android {
 
 struct ABuffer;
 
-struct NuPlayer::Source : public RefBase {
+struct NuPlayer::Source : public AHandler {
     enum Flags {
         FLAG_SEEKABLE           = 1,
         FLAG_DYNAMIC_DURATION   = 2,
     };
 
-    Source() {}
+    // The provides message is used to notify the player about various
+    // events.
+    Source(const sp<AMessage> &notify)
+        : mNotify(notify) {
+    }
 
     virtual void start() = 0;
     virtual void stop() {}
@@ -57,9 +63,15 @@ struct NuPlayer::Source : public RefBase {
 protected:
     virtual ~Source() {}
 
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+
     virtual sp<MetaData> getFormatMeta(bool audio) { return NULL; }
 
+    sp<AMessage> dupNotify() const { return mNotify->dup(); }
+
 private:
+    sp<AMessage> mNotify;
+
     DISALLOW_EVIL_CONSTRUCTORS(Source);
 };
 

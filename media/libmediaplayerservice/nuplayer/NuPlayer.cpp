@@ -145,12 +145,14 @@ void NuPlayer::setDriver(const wp<NuPlayerDriver> &driver) {
 void NuPlayer::setDataSource(const sp<IStreamSource> &source) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+
     char prop[PROPERTY_VALUE_MAX];
     if (property_get("media.stagefright.use-mp4source", prop, NULL)
             && (!strcmp(prop, "1") || !strcasecmp(prop, "true"))) {
-        msg->setObject("source", new MP4Source(source));
+        msg->setObject("source", new MP4Source(notify, source));
     } else {
-        msg->setObject("source", new StreamingSource(source));
+        msg->setObject("source", new StreamingSource(notify, source));
     }
 
     msg->post();
@@ -176,13 +178,15 @@ void NuPlayer::setDataSource(
         const char *url, const KeyedVector<String8, String8> *headers) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
-        source = new HTTPLiveSource(url, headers, mUIDValid, mUID);
+        source = new HTTPLiveSource(notify, url, headers, mUIDValid, mUID);
     } else if (!strncasecmp(url, "rtsp://", 7)) {
-        source = new RTSPSource(url, headers, mUIDValid, mUID);
+        source = new RTSPSource(notify, url, headers, mUIDValid, mUID);
     } else {
-        source = new GenericSource(url, headers, mUIDValid, mUID);
+        source = new GenericSource(notify, url, headers, mUIDValid, mUID);
     }
 
     msg->setObject("source", source);
@@ -192,7 +196,9 @@ void NuPlayer::setDataSource(
 void NuPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
-    sp<Source> source = new GenericSource(fd, offset, length);
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+
+    sp<Source> source = new GenericSource(notify, fd, offset, length);
     msg->setObject("source", source);
     msg->post();
 }
@@ -273,6 +279,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findObject("source", &obj));
 
             mSource = static_cast<Source *>(obj.get());
+
+            looper()->registerHandler(mSource);
             break;
         }
 
@@ -711,6 +719,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             CHECK(mRenderer != NULL);
             mRenderer->resume();
+            break;
+        }
+
+        case kWhatSourceNotify:
+        {
+            TRESPASS();  // TBD
             break;
         }
 
@@ -1169,6 +1183,9 @@ void NuPlayer::performReset() {
 
     if (mSource != NULL) {
         mSource->stop();
+
+        looper()->unregisterHandler(mSource->id());
+
         mSource.clear();
     }
 
@@ -1208,6 +1225,12 @@ void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
             driver->notifySetSurfaceComplete();
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void NuPlayer::Source::onMessageReceived(const sp<AMessage> &msg) {
+    TRESPASS();
 }
 
 }  // namespace android

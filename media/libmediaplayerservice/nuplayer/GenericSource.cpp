@@ -32,11 +32,13 @@
 namespace android {
 
 NuPlayer::GenericSource::GenericSource(
+        const sp<AMessage> &notify,
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid,
         uid_t uid)
-    : mDurationUs(0ll),
+    : Source(notify),
+      mDurationUs(0ll),
       mAudioIsVorbis(false) {
     DataSource::RegisterDefaultSniffers();
 
@@ -48,8 +50,10 @@ NuPlayer::GenericSource::GenericSource(
 }
 
 NuPlayer::GenericSource::GenericSource(
+        const sp<AMessage> &notify,
         int fd, int64_t offset, int64_t length)
-    : mDurationUs(0ll),
+    : Source(notify),
+      mDurationUs(0ll),
       mAudioIsVorbis(false) {
     DataSource::RegisterDefaultSniffers();
 

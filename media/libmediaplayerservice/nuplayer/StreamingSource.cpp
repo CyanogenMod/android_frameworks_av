@@ -32,8 +32,11 @@
 
 namespace android {
 
-NuPlayer::StreamingSource::StreamingSource(const sp<IStreamSource> &source)
-    : mSource(source),
+NuPlayer::StreamingSource::StreamingSource(
+        const sp<AMessage> &notify,
+        const sp<IStreamSource> &source)
+    : Source(notify),
+      mSource(source),
       mFinalResult(OK) {
 }
 
