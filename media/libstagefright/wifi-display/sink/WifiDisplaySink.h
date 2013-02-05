@@ -86,14 +86,13 @@ private:
     typedef status_t (WifiDisplaySink::*HandleRTSPResponseFunc)(
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
-    static const bool sUseTCPInterleaving = false;
-
     State mState;
     VideoFormats mSinkSupportedVideoFormats;
     sp<ANetworkSession> mNetSession;
     sp<IGraphicBufferProducer> mSurfaceTex;
     sp<AMessage> mNotify;
-    AString mSetupURI;
+    bool mUsingTCPTransport;
+    bool mUsingTCPInterleaving;
     AString mRTSPHost;
     int32_t mSessionID;
 
@@ -106,15 +105,11 @@ private:
     int32_t mPlaybackSessionTimeoutSecs;
 
     status_t sendM2(int32_t sessionID);
-    status_t sendDescribe(int32_t sessionID, const char *uri);
     status_t sendSetup(int32_t sessionID, const char *uri);
     status_t sendPlay(int32_t sessionID, const char *uri);
     status_t sendIDRFrameRequest(int32_t sessionID);
 
     status_t onReceiveM2Response(
-            int32_t sessionID, const sp<ParsedMessage> &msg);
-
-    status_t onReceiveDescribeResponse(
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
     status_t onReceiveSetupResponse(

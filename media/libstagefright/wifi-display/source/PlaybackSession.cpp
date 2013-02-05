@@ -542,6 +542,18 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 onFinishPlay2();
             } else if (what == Sender::kWhatSessionDead) {
                 notifySessionDead();
+            } else if (what == Sender::kWhatBinaryData) {
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatBinaryData);
+
+                int32_t channel;
+                CHECK(msg->findInt32("channel", &channel));
+                notify->setInt32("channel", channel);
+
+                sp<ABuffer> data;
+                CHECK(msg->findBuffer("data", &data));
+                notify->setBuffer("data", data);
+                notify->post();
             } else {
                 TRESPASS();
             }
