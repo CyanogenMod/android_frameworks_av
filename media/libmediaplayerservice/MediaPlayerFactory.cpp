@@ -100,7 +100,7 @@ void MediaPlayerFactory::unregisterFactory(player_type type) {
     }                                                   \
                                                         \
     if (0.0 == bestScore) {                             \
-        bestScore = getDefaultPlayerType();             \
+        ret = getDefaultPlayerType();                   \
     }                                                   \
                                                         \
     return ret;
