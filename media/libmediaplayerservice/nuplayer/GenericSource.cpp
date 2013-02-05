@@ -106,6 +106,26 @@ void NuPlayer::GenericSource::initFromDataSource(
 NuPlayer::GenericSource::~GenericSource() {
 }
 
+void NuPlayer::GenericSource::prepareAsync() {
+    if (mVideoTrack.mSource != NULL) {
+        sp<MetaData> meta = mVideoTrack.mSource->getFormat();
+
+        int32_t width, height;
+        CHECK(meta->findInt32(kKeyWidth, &width));
+        CHECK(meta->findInt32(kKeyHeight, &height));
+
+        notifyVideoSizeChanged(width, height);
+    }
+
+    notifyFlagsChanged(
+            FLAG_CAN_PAUSE
+            | FLAG_CAN_SEEK_BACKWARD
+            | FLAG_CAN_SEEK_FORWARD
+            | FLAG_CAN_SEEK);
+
+    notifyPrepared();
+}
+
 void NuPlayer::GenericSource::start() {
     ALOGI("start");
 
@@ -260,10 +280,6 @@ void NuPlayer::GenericSource::readBuffer(
             break;
         }
     }
-}
-
-uint32_t NuPlayer::GenericSource::flags() const {
-    return FLAG_SEEKABLE;
 }
 
 }  // namespace android

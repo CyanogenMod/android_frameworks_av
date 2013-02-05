@@ -26,6 +26,7 @@ struct FragmentedMP4Parser;
 struct MP4Source : public NuPlayer::Source {
     MP4Source(const sp<AMessage> &notify, const sp<IStreamSource> &source);
 
+    virtual void prepareAsync();
     virtual void start();
 
     virtual status_t feedMoreTSData();
@@ -34,8 +35,6 @@ struct MP4Source : public NuPlayer::Source {
 
     virtual status_t dequeueAccessUnit(
             bool audio, sp<ABuffer> *accessUnit);
-
-    virtual uint32_t flags() const;
 
 protected:
     virtual ~MP4Source();

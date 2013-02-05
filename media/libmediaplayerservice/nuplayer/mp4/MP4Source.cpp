@@ -117,6 +117,12 @@ MP4Source::MP4Source(
 MP4Source::~MP4Source() {
 }
 
+void MP4Source::prepareAsync() {
+    notifyVideoSizeChanged(0, 0);
+    notifyFlagsChanged(0);
+    notifyPrepared();
+}
+
 void MP4Source::start() {
     mLooper->start(false /* runOnCallingThread */);
     mParser->start(new StreamSource(mSource));
@@ -133,10 +139,6 @@ sp<AMessage> MP4Source::getFormat(bool audio) {
 status_t MP4Source::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
     return mParser->dequeueAccessUnit(audio, accessUnit);
-}
-
-uint32_t MP4Source::flags() const {
-    return 0;
 }
 
 }  // namespace android
