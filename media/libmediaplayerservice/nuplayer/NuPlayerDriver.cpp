@@ -31,6 +31,7 @@ namespace android {
 
 NuPlayerDriver::NuPlayerDriver()
     : mState(STATE_IDLE),
+      mIsAsyncPrepare(false),
       mAsyncResult(UNKNOWN_ERROR),
       mSetSurfaceInProgress(false),
       mDurationUs(-1),
@@ -160,6 +161,11 @@ status_t NuPlayerDriver::prepare_l() {
     switch (mState) {
         case STATE_UNPREPARED:
             mState = STATE_PREPARING;
+
+            // Make sure we're not posting any notifications, success or
+            // failure information is only communicated through our result
+            // code.
+            mIsAsyncPrepare = false;
             mPlayer->prepareAsync();
             while (mState == STATE_PREPARING) {
                 mCondition.wait(mLock);
@@ -176,6 +182,7 @@ status_t NuPlayerDriver::prepareAsync() {
     switch (mState) {
         case STATE_UNPREPARED:
             mState = STATE_PREPARING;
+            mIsAsyncPrepare = true;
             mPlayer->prepareAsync();
             return OK;
         default:
@@ -500,9 +507,14 @@ void NuPlayerDriver::notifyPrepareCompleted(status_t err) {
     mAsyncResult = err;
 
     if (err == OK) {
-        notifyListener(MEDIA_PREPARED);
+        if (mIsAsyncPrepare) {
+            notifyListener(MEDIA_PREPARED);
+        }
         mState = STATE_PREPARED;
     } else {
+        if (mIsAsyncPrepare) {
+            notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+        }
         mState = STATE_UNPREPARED;
     }
 

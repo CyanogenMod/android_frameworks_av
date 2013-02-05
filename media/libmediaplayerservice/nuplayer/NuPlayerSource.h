@@ -81,7 +81,7 @@ protected:
 
     void notifyFlagsChanged(uint32_t flags);
     void notifyVideoSizeChanged(int32_t width, int32_t height);
-    void notifyPrepared();
+    void notifyPrepared(status_t err = OK);
 
 private:
     sp<AMessage> mNotify;

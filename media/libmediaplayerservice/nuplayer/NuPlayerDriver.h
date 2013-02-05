@@ -92,6 +92,7 @@ private:
 
     State mState;
 
+    bool mIsAsyncPrepare;
     status_t mAsyncResult;
 
     // The following are protected through "mLock"

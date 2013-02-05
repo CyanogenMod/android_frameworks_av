@@ -195,6 +195,10 @@ struct MyHandler : public AHandler {
         msg->post();
     }
 
+    bool isSeekable() const {
+        return mSeekable;
+    }
+
     static void addRR(const sp<ABuffer> &buf) {
         uint8_t *ptr = buf->data() + buf->size();
         ptr[0] = 0x80 | 0;
