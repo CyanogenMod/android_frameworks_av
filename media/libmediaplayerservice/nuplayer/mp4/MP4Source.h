@@ -24,7 +24,7 @@ namespace android {
 struct FragmentedMP4Parser;
 
 struct MP4Source : public NuPlayer::Source {
-    MP4Source(const sp<IStreamSource> &source);
+    MP4Source(const sp<AMessage> &notify, const sp<IStreamSource> &source);
 
     virtual void start();
 

@@ -95,6 +95,7 @@ private:
         kWhatPause                      = 'paus',
         kWhatResume                     = 'rsme',
         kWhatPollDuration               = 'polD',
+        kWhatSourceNotify               = 'srcN',
     };
 
     wp<NuPlayerDriver> mDriver;

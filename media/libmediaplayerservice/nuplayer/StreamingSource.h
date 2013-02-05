@@ -27,7 +27,9 @@ struct ABuffer;
 struct ATSParser;
 
 struct NuPlayer::StreamingSource : public NuPlayer::Source {
-    StreamingSource(const sp<IStreamSource> &source);
+    StreamingSource(
+            const sp<AMessage> &notify,
+            const sp<IStreamSource> &source);
 
     virtual void start();
 
