@@ -173,6 +173,18 @@ struct MyHandler : public AHandler {
         mConn->connect(mOriginalSessionURL.c_str(), reply);
     }
 
+    void loadSDP(const sp<ASessionDescription>& desc) {
+        looper()->registerHandler(mConn);
+        (1 ? mNetLooper : looper())->registerHandler(mRTPConn);
+
+        sp<AMessage> notify = new AMessage('biny', id());
+        mConn->observeBinaryData(notify);
+
+        sp<AMessage> reply = new AMessage('sdpl', id());
+        reply->setObject("description", desc);
+        mConn->connect(mOriginalSessionURL.c_str(), reply);
+    }
+
     void disconnect() {
         (new AMessage('abor', id()))->post();
     }
@@ -475,6 +487,47 @@ struct MyHandler : public AHandler {
                             } else {
                                 setupTrack(1);
                             }
+                        }
+                    }
+                }
+
+                if (result != OK) {
+                    sp<AMessage> reply = new AMessage('disc', id());
+                    mConn->disconnect(reply);
+                }
+                break;
+            }
+
+            case 'sdpl':
+            {
+                int32_t result;
+                CHECK(msg->findInt32("result", &result));
+
+                ALOGI("SDP connection request completed with result %d (%s)",
+                     result, strerror(-result));
+
+                if (result == OK) {
+                    sp<RefBase> obj;
+                    CHECK(msg->findObject("description", &obj));
+                    mSessionDesc =
+                        static_cast<ASessionDescription *>(obj.get());
+
+                    if (!mSessionDesc->isValid()) {
+                        ALOGE("Failed to parse session description.");
+                        result = ERROR_MALFORMED;
+                    } else {
+                        mBaseURL = mSessionURL;
+
+                        if (mSessionDesc->countTracks() < 2) {
+                            // There's no actual tracks in this session.
+                            // The first "track" is merely session meta
+                            // data.
+
+                            ALOGW("Session doesn't contain any playable "
+                                 "tracks. Aborting.");
+                            result = ERROR_UNSUPPORTED;
+                        } else {
+                            setupTrack(1);
                         }
                     }
                 }
