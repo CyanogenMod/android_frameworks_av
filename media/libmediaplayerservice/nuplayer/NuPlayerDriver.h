@@ -61,6 +61,8 @@ struct NuPlayerDriver : public MediaPlayerInterface {
 
     virtual status_t dump(int fd, const Vector<String16> &args) const;
 
+    void notifySetDataSourceCompleted(status_t err);
+    void notifyPrepareCompleted(status_t err);
     void notifyResetComplete();
     void notifySetSurfaceComplete();
     void notifyDuration(int64_t durationUs);
@@ -68,17 +70,32 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     void notifySeekComplete();
     void notifyFrameStats(int64_t numFramesTotal, int64_t numFramesDropped);
     void notifyListener(int msg, int ext1 = 0, int ext2 = 0);
+    void notifyFlagsChanged(uint32_t flags);
 
 protected:
     virtual ~NuPlayerDriver();
 
 private:
+    enum State {
+        STATE_IDLE,
+        STATE_SET_DATASOURCE_PENDING,
+        STATE_UNPREPARED,
+        STATE_PREPARING,
+        STATE_PREPARED,
+        STATE_RUNNING,
+        STATE_PAUSED,
+        STATE_RESET_IN_PROGRESS,
+    };
+
     mutable Mutex mLock;
     Condition mCondition;
 
+    State mState;
+
+    status_t mAsyncResult;
+
     // The following are protected through "mLock"
     // >>>
-    bool mResetInProgress;
     bool mSetSurfaceInProgress;
     int64_t mDurationUs;
     int64_t mPositionUs;
@@ -88,18 +105,13 @@ private:
 
     sp<ALooper> mLooper;
     sp<NuPlayer> mPlayer;
+    uint32_t mPlayerFlags;
 
-    enum State {
-        UNINITIALIZED,
-        STOPPED,
-        PLAYING,
-        PAUSED
-    };
-
-    State mState;
     bool mAtEOS;
 
     int64_t mStartupSeekTimeUs;
+
+    status_t prepare_l();
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayerDriver);
 };

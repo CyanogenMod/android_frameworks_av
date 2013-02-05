@@ -35,12 +35,14 @@ struct NuPlayer : public AHandler {
 
     void setDriver(const wp<NuPlayerDriver> &driver);
 
-    void setDataSource(const sp<IStreamSource> &source);
+    void setDataSourceAsync(const sp<IStreamSource> &source);
 
-    void setDataSource(
+    void setDataSourceAsync(
             const char *url, const KeyedVector<String8, String8> *headers);
 
-    void setDataSource(int fd, int64_t offset, int64_t length);
+    void setDataSourceAsync(int fd, int64_t offset, int64_t length);
+
+    void prepareAsync();
 
     void setVideoSurfaceTextureAsync(
             const sp<IGraphicBufferProducer> &bufferProducer);
@@ -82,6 +84,7 @@ private:
 
     enum {
         kWhatSetDataSource              = '=DaS',
+        kWhatPrepare                    = 'prep',
         kWhatSetVideoNativeWindow       = '=NaW',
         kWhatSetAudioSink               = '=AuS',
         kWhatMoreDataQueued             = 'more',
@@ -102,6 +105,7 @@ private:
     bool mUIDValid;
     uid_t mUID;
     sp<Source> mSource;
+    uint32_t mSourceFlags;
     sp<NativeWindowWrapper> mNativeWindow;
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<Decoder> mVideoDecoder;
@@ -172,6 +176,8 @@ private:
     void performReset();
     void performScanSources();
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
+
+    void onSourceNotify(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };
