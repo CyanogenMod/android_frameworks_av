@@ -25,11 +25,21 @@
 namespace android {
 
 struct ABuffer;
+struct MetaData;
 
 struct NuPlayer::Source : public AHandler {
     enum Flags {
-        FLAG_SEEKABLE           = 1,
-        FLAG_DYNAMIC_DURATION   = 2,
+        FLAG_CAN_PAUSE          = 1,
+        FLAG_CAN_SEEK_BACKWARD  = 2,  // the "10 sec back button"
+        FLAG_CAN_SEEK_FORWARD   = 4,  // the "10 sec forward button"
+        FLAG_CAN_SEEK           = 8,  // the "seek bar"
+        FLAG_DYNAMIC_DURATION   = 16,
+    };
+
+    enum {
+        kWhatPrepared,
+        kWhatFlagsChanged,
+        kWhatVideoSizeChanged,
     };
 
     // The provides message is used to notify the player about various
@@ -37,6 +47,8 @@ struct NuPlayer::Source : public AHandler {
     Source(const sp<AMessage> &notify)
         : mNotify(notify) {
     }
+
+    virtual void prepareAsync() = 0;
 
     virtual void start() = 0;
     virtual void stop() {}
@@ -58,8 +70,6 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual uint32_t flags() const = 0;
-
 protected:
     virtual ~Source() {}
 
@@ -68,6 +78,10 @@ protected:
     virtual sp<MetaData> getFormatMeta(bool audio) { return NULL; }
 
     sp<AMessage> dupNotify() const { return mNotify->dup(); }
+
+    void notifyFlagsChanged(uint32_t flags);
+    void notifyVideoSizeChanged(int32_t width, int32_t height);
+    void notifyPrepared();
 
 private:
     sp<AMessage> mNotify;

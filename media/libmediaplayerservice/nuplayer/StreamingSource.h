@@ -31,13 +31,12 @@ struct NuPlayer::StreamingSource : public NuPlayer::Source {
             const sp<AMessage> &notify,
             const sp<IStreamSource> &source);
 
+    virtual void prepareAsync();
     virtual void start();
 
     virtual status_t feedMoreTSData();
 
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
-
-    virtual uint32_t flags() const;
 
 protected:
     virtual ~StreamingSource();

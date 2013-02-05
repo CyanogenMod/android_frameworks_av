@@ -112,6 +112,7 @@ private:
 
 NuPlayer::NuPlayer()
     : mUIDValid(false),
+      mSourceFlags(0),
       mVideoIsAVC(false),
       mAudioEOS(false),
       mVideoEOS(false),
@@ -142,7 +143,7 @@ void NuPlayer::setDriver(const wp<NuPlayerDriver> &driver) {
     mDriver = driver;
 }
 
-void NuPlayer::setDataSource(const sp<IStreamSource> &source) {
+void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
     sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
@@ -174,7 +175,7 @@ static bool IsHTTPLiveURL(const char *url) {
     return false;
 }
 
-void NuPlayer::setDataSource(
+void NuPlayer::setDataSourceAsync(
         const char *url, const KeyedVector<String8, String8> *headers) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
     size_t len = strlen(url);
@@ -199,7 +200,7 @@ void NuPlayer::setDataSource(
     msg->post();
 }
 
-void NuPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
+void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
 
     sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
@@ -207,6 +208,10 @@ void NuPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
     sp<Source> source = new GenericSource(notify, fd, offset, length);
     msg->setObject("source", source);
     msg->post();
+}
+
+void NuPlayer::prepareAsync() {
+    (new AMessage(kWhatPrepare, id()))->post();
 }
 
 void NuPlayer::setVideoSurfaceTextureAsync(
@@ -287,6 +292,18 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mSource = static_cast<Source *>(obj.get());
 
             looper()->registerHandler(mSource);
+
+            CHECK(mDriver != NULL);
+            sp<NuPlayerDriver> driver = mDriver.promote();
+            if (driver != NULL) {
+                driver->notifySetDataSourceCompleted(OK);
+            }
+            break;
+        }
+
+        case kWhatPrepare:
+        {
+            mSource->prepareAsync();
             break;
         }
 
@@ -403,9 +420,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     && (mAudioDecoder != NULL || mVideoDecoder != NULL)) {
                 // This is the first time we've found anything playable.
 
-                uint32_t flags = mSource->flags();
-
-                if (flags & Source::FLAG_DYNAMIC_DURATION) {
+                if (mSourceFlags & Source::FLAG_DYNAMIC_DURATION) {
                     schedulePollDuration();
                 }
             }
@@ -730,7 +745,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSourceNotify:
         {
-            TRESPASS();  // TBD
+            onSourceNotify(msg);
             break;
         }
 
@@ -1233,7 +1248,75 @@ void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
     }
 }
 
+void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
+    int32_t what;
+    CHECK(msg->findInt32("what", &what));
+
+    switch (what) {
+        case Source::kWhatPrepared:
+        {
+            sp<NuPlayerDriver> driver = mDriver.promote();
+            if (driver != NULL) {
+                driver->notifyPrepareCompleted(OK);
+            }
+            break;
+        }
+
+        case Source::kWhatFlagsChanged:
+        {
+            uint32_t flags;
+            CHECK(msg->findInt32("flags", (int32_t *)&flags));
+
+            if ((mSourceFlags & Source::FLAG_DYNAMIC_DURATION)
+                    && (!(flags & Source::FLAG_DYNAMIC_DURATION))) {
+                cancelPollDuration();
+            } else if (!(mSourceFlags & Source::FLAG_DYNAMIC_DURATION)
+                    && (flags & Source::FLAG_DYNAMIC_DURATION)
+                    && (mAudioDecoder != NULL || mVideoDecoder != NULL)) {
+                schedulePollDuration();
+            }
+
+            mSourceFlags = flags;
+            break;
+        }
+
+        case Source::kWhatVideoSizeChanged:
+        {
+            int32_t width, height;
+            CHECK(msg->findInt32("width", &width));
+            CHECK(msg->findInt32("height", &height));
+
+            notifyListener(MEDIA_SET_VIDEO_SIZE, width, height);
+            break;
+        }
+
+        default:
+            TRESPASS();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+void NuPlayer::Source::notifyFlagsChanged(uint32_t flags) {
+    sp<AMessage> notify = dupNotify();
+    notify->setInt32("what", kWhatFlagsChanged);
+    notify->setInt32("flags", flags);
+    notify->post();
+}
+
+void NuPlayer::Source::notifyVideoSizeChanged(int32_t width, int32_t height) {
+    sp<AMessage> notify = dupNotify();
+    notify->setInt32("what", kWhatVideoSizeChanged);
+    notify->setInt32("width", width);
+    notify->setInt32("height", height);
+    notify->post();
+}
+
+void NuPlayer::Source::notifyPrepared() {
+    sp<AMessage> notify = dupNotify();
+    notify->setInt32("what", kWhatPrepared);
+    notify->post();
+}
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> &msg) {
     TRESPASS();

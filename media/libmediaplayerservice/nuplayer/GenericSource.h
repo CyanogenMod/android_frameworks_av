@@ -42,6 +42,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
             const sp<AMessage> &notify,
             int fd, int64_t offset, int64_t length);
 
+    virtual void prepareAsync();
+
     virtual void start();
 
     virtual status_t feedMoreTSData();
@@ -50,8 +52,6 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t getDuration(int64_t *durationUs);
     virtual status_t seekTo(int64_t seekTimeUs);
-
-    virtual uint32_t flags() const;
 
 protected:
     virtual ~GenericSource();
