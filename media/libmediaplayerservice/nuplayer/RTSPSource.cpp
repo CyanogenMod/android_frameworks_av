@@ -96,16 +96,6 @@ void NuPlayer::RTSPSource::prepareAsync() {
 
         mHandler->connect();
     }
-
-    notifyVideoSizeChanged(0, 0);
-
-    notifyFlagsChanged(
-            FLAG_CAN_PAUSE
-            | FLAG_CAN_SEEK_BACKWARD
-            | FLAG_CAN_SEEK_FORWARD
-            | FLAG_CAN_SEEK);
-
-    notifyPrepared();
 }
 
 void NuPlayer::RTSPSource::start() {
@@ -270,12 +260,31 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
     switch (what) {
         case MyHandler::kWhatConnected:
+        {
             onConnected();
+
+            notifyVideoSizeChanged(0, 0);
+
+            uint32_t flags = 0;
+
+            if (mHandler->isSeekable()) {
+                flags = FLAG_CAN_PAUSE | FLAG_CAN_SEEK;
+
+                // Seeking 10secs forward or backward is a very expensive
+                // operation for rtsp, so let's not enable that.
+                // The user can always use the seek bar.
+            }
+
+            notifyFlagsChanged(flags);
+            notifyPrepared();
             break;
+        }
 
         case MyHandler::kWhatDisconnected:
+        {
             onDisconnected(msg);
             break;
+        }
 
         case MyHandler::kWhatSeekDone:
         {
@@ -520,6 +529,12 @@ void NuPlayer::RTSPSource::onSDPLoaded(const sp<AMessage> &msg) {
     }
 
     if (err != OK) {
+        if (mState == CONNECTING) {
+            // We're still in the preparation phase, signal that it
+            // failed.
+            notifyPrepared(err);
+        }
+
         mState = DISCONNECTED;
         mFinalResult = err;
 
@@ -536,6 +551,12 @@ void NuPlayer::RTSPSource::onDisconnected(const sp<AMessage> &msg) {
 
     mLooper->unregisterHandler(mHandler->id());
     mHandler.clear();
+
+    if (mState == CONNECTING) {
+        // We're still in the preparation phase, signal that it
+        // failed.
+        notifyPrepared(err);
+    }
 
     mState = DISCONNECTED;
     mFinalResult = err;

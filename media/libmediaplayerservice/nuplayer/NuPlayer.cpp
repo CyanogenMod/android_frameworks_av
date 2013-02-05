@@ -1255,9 +1255,12 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
     switch (what) {
         case Source::kWhatPrepared:
         {
+            int32_t err;
+            CHECK(msg->findInt32("err", &err));
+
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
-                driver->notifyPrepareCompleted(OK);
+                driver->notifyPrepareCompleted(err);
             }
             break;
         }
@@ -1312,9 +1315,10 @@ void NuPlayer::Source::notifyVideoSizeChanged(int32_t width, int32_t height) {
     notify->post();
 }
 
-void NuPlayer::Source::notifyPrepared() {
+void NuPlayer::Source::notifyPrepared(status_t err) {
     sp<AMessage> notify = dupNotify();
     notify->setInt32("what", kWhatPrepared);
+    notify->setInt32("err", err);
     notify->post();
 }
 
