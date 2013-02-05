@@ -22,6 +22,7 @@
 
 #include "AnotherPacketSource.h"
 #include "MyHandler.h"
+#include "SDPLoader.h"
 
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
@@ -33,12 +34,14 @@ NuPlayer::RTSPSource::RTSPSource(
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid,
-        uid_t uid)
+        uid_t uid,
+        bool isSDP)
     : Source(notify),
       mURL(url),
       mUIDValid(uidValid),
       mUID(uid),
       mFlags(0),
+      mIsSDP(isSDP),
       mState(DISCONNECTED),
       mFinalResult(OK),
       mDisconnectReplyID(0),
@@ -73,16 +76,25 @@ void NuPlayer::RTSPSource::start() {
     }
 
     CHECK(mHandler == NULL);
+    CHECK(mSDPLoader == NULL);
 
     sp<AMessage> notify = new AMessage(kWhatNotify, mReflector->id());
-
-    mHandler = new MyHandler(mURL.c_str(), notify, mUIDValid, mUID);
-    mLooper->registerHandler(mHandler);
 
     CHECK_EQ(mState, (int)DISCONNECTED);
     mState = CONNECTING;
 
-    mHandler->connect();
+    if (mIsSDP) {
+        mSDPLoader = new SDPLoader(notify,
+                (mFlags & kFlagIncognito) ? SDPLoader::kFlagIncognito : 0,
+                mUIDValid, mUID);
+
+        mSDPLoader->load(mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
+    } else {
+        mHandler = new MyHandler(mURL.c_str(), notify, mUIDValid, mUID);
+        mLooper->registerHandler(mHandler);
+
+        mHandler->connect();
+    }
 }
 
 void NuPlayer::RTSPSource::stop() {
@@ -408,6 +420,12 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case SDPLoader::kWhatSDPLoaded:
+        {
+            onSDPLoaded(msg);
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -461,6 +479,46 @@ void NuPlayer::RTSPSource::onConnected() {
     mState = CONNECTED;
 }
 
+void NuPlayer::RTSPSource::onSDPLoaded(const sp<AMessage> &msg) {
+    status_t err;
+    CHECK(msg->findInt32("result", &err));
+
+    mSDPLoader.clear();
+
+    if (mDisconnectReplyID != 0) {
+        err = UNKNOWN_ERROR;
+    }
+
+    if (err == OK) {
+        sp<ASessionDescription> desc;
+        sp<RefBase> obj;
+        CHECK(msg->findObject("description", &obj));
+        desc = static_cast<ASessionDescription *>(obj.get());
+
+        AString rtspUri;
+        if (!desc->findAttribute(0, "a=control", &rtspUri)) {
+            ALOGE("Unable to find url in SDP");
+            err = UNKNOWN_ERROR;
+        } else {
+            sp<AMessage> notify = new AMessage(kWhatNotify, mReflector->id());
+
+            mHandler = new MyHandler(rtspUri.c_str(), notify, mUIDValid, mUID);
+            mLooper->registerHandler(mHandler);
+
+            mHandler->loadSDP(desc);
+        }
+    }
+
+    if (err != OK) {
+        mState = DISCONNECTED;
+        mFinalResult = err;
+
+        if (mDisconnectReplyID != 0) {
+            finishDisconnectIfPossible();
+        }
+    }
+}
+
 void NuPlayer::RTSPSource::onDisconnected(const sp<AMessage> &msg) {
     status_t err;
     CHECK(msg->findInt32("result", &err));
@@ -479,7 +537,11 @@ void NuPlayer::RTSPSource::onDisconnected(const sp<AMessage> &msg) {
 
 void NuPlayer::RTSPSource::finishDisconnectIfPossible() {
     if (mState != DISCONNECTED) {
-        mHandler->disconnect();
+        if (mHandler != NULL) {
+            mHandler->disconnect();
+        } else if (mSDPLoader != NULL) {
+            mSDPLoader->cancel();
+        }
         return;
     }
 

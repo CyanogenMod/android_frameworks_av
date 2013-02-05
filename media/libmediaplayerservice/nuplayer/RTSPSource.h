@@ -29,6 +29,7 @@ namespace android {
 struct ALooper;
 struct AnotherPacketSource;
 struct MyHandler;
+struct SDPLoader;
 
 struct NuPlayer::RTSPSource : public NuPlayer::Source {
     RTSPSource(
@@ -36,7 +37,8 @@ struct NuPlayer::RTSPSource : public NuPlayer::Source {
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,
-            uid_t uid = 0);
+            uid_t uid = 0,
+            bool isSDP = false);
 
     virtual void start();
     virtual void stop();
@@ -90,6 +92,7 @@ private:
     bool mUIDValid;
     uid_t mUID;
     uint32_t mFlags;
+    bool mIsSDP;
     State mState;
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
@@ -98,6 +101,7 @@ private:
     sp<ALooper> mLooper;
     sp<AHandlerReflector<RTSPSource> > mReflector;
     sp<MyHandler> mHandler;
+    sp<SDPLoader> mSDPLoader;
 
     Vector<TrackInfo> mTracks;
     sp<AnotherPacketSource> mAudioTrack;
@@ -110,6 +114,7 @@ private:
     sp<AnotherPacketSource> getSource(bool audio);
 
     void onConnected();
+    void onSDPLoaded(const sp<AMessage> &msg);
     void onDisconnected(const sp<AMessage> &msg);
     void finishDisconnectIfPossible();
 

@@ -215,6 +215,10 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
             if (strstr(url,"m3u8")) {
                 return kOurScore;
             }
+
+            if ((len >= 4 && !strcasecmp(".sdp", &url[len - 4])) || strstr(url, ".sdp?")) {
+                return kOurScore;
+            }
         }
 
         if (!strncasecmp("rtsp://", url, 7)) {
