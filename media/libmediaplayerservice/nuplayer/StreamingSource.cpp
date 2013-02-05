@@ -43,6 +43,12 @@ NuPlayer::StreamingSource::StreamingSource(
 NuPlayer::StreamingSource::~StreamingSource() {
 }
 
+void NuPlayer::StreamingSource::prepareAsync() {
+    notifyVideoSizeChanged(0, 0);
+    notifyFlagsChanged(0);
+    notifyPrepared();
+}
+
 void NuPlayer::StreamingSource::start() {
     mStreamListener = new NuPlayerStreamListener(mSource, 0);
 
@@ -174,10 +180,6 @@ status_t NuPlayer::StreamingSource::dequeueAccessUnit(
 #endif
 
     return err;
-}
-
-uint32_t NuPlayer::StreamingSource::flags() const {
-    return 0;
 }
 
 }  // namespace android

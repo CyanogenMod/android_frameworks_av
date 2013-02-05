@@ -66,7 +66,7 @@ NuPlayer::HTTPLiveSource::~HTTPLiveSource() {
     }
 }
 
-void NuPlayer::HTTPLiveSource::start() {
+void NuPlayer::HTTPLiveSource::prepareAsync() {
     mLiveLooper = new ALooper;
     mLiveLooper->setName("http live");
     mLiveLooper->start();
@@ -81,6 +81,26 @@ void NuPlayer::HTTPLiveSource::start() {
             mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
 
     mTSParser = new ATSParser;
+
+    notifyVideoSizeChanged(0, 0);
+
+    uint32_t flags = FLAG_CAN_PAUSE;
+    if (mLiveSession->isSeekable()) {
+        flags |= FLAG_CAN_SEEK;
+        flags |= FLAG_CAN_SEEK_BACKWARD;
+        flags |= FLAG_CAN_SEEK_FORWARD;
+    }
+
+    if (mLiveSession->hasDynamicDuration()) {
+        flags |= FLAG_DYNAMIC_DURATION;
+    }
+
+    notifyFlagsChanged(flags);
+
+    notifyPrepared();
+}
+
+void NuPlayer::HTTPLiveSource::start() {
 }
 
 sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
@@ -192,19 +212,6 @@ status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
     mLiveSession->seekTo(seekTimeUs);
 
     return OK;
-}
-
-uint32_t NuPlayer::HTTPLiveSource::flags() const {
-    uint32_t flags = 0;
-    if (mLiveSession->isSeekable()) {
-        flags |= FLAG_SEEKABLE;
-    }
-
-    if (mLiveSession->hasDynamicDuration()) {
-        flags |= FLAG_DYNAMIC_DURATION;
-    }
-
-    return flags;
 }
 
 }  // namespace android

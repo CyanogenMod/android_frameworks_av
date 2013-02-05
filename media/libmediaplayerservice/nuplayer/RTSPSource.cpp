@@ -65,7 +65,7 @@ NuPlayer::RTSPSource::~RTSPSource() {
    mLooper->stop();
 }
 
-void NuPlayer::RTSPSource::start() {
+void NuPlayer::RTSPSource::prepareAsync() {
     if (mLooper == NULL) {
         mLooper = new ALooper;
         mLooper->setName("rtsp");
@@ -88,13 +88,27 @@ void NuPlayer::RTSPSource::start() {
                 (mFlags & kFlagIncognito) ? SDPLoader::kFlagIncognito : 0,
                 mUIDValid, mUID);
 
-        mSDPLoader->load(mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
+        mSDPLoader->load(
+                mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
     } else {
         mHandler = new MyHandler(mURL.c_str(), notify, mUIDValid, mUID);
         mLooper->registerHandler(mHandler);
 
         mHandler->connect();
     }
+
+    notifyVideoSizeChanged(0, 0);
+
+    notifyFlagsChanged(
+            FLAG_CAN_PAUSE
+            | FLAG_CAN_SEEK_BACKWARD
+            | FLAG_CAN_SEEK_FORWARD
+            | FLAG_CAN_SEEK);
+
+    notifyPrepared();
+}
+
+void NuPlayer::RTSPSource::start() {
 }
 
 void NuPlayer::RTSPSource::stop() {
@@ -223,10 +237,6 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
 
     mState = SEEKING;
     mHandler->seek(seekTimeUs);
-}
-
-uint32_t NuPlayer::RTSPSource::flags() const {
-    return FLAG_SEEKABLE;
 }
 
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
