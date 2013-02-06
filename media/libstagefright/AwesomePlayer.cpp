@@ -229,7 +229,7 @@ AwesomePlayer::AwesomePlayer()
     mAudioStatusEventPending = false;
 
     reset();
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
     mIsTunnelAudio = false;
 #endif
 }
@@ -241,7 +241,7 @@ AwesomePlayer::~AwesomePlayer() {
 
     reset();
 
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
     // Disable Tunnel Mode Audio
     if (mIsTunnelAudio) {
         if(mTunnelAliveAP > 0) {
@@ -1039,7 +1039,7 @@ status_t AwesomePlayer::play_l() {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
             bool sendErrorNotification = false;
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef IS_TUNNEL_MODE
             if(mIsTunnelAudio) {
                 // For tunnel Audio error has to be posted to the client
                 sendErrorNotification = true;
@@ -1542,7 +1542,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     }
     ALOGV("nchannels %d;LPA will be skipped if nchannels is > 2 or nchannels == 0",
            nchannels);
-
+#endif
 #ifdef USE_TUNNEL_MODE
     char tunnelDecode[PROPERTY_VALUE_MAX];
     property_get("tunnel.decode",tunnelDecode,"0");
@@ -1575,7 +1575,6 @@ status_t AwesomePlayer::initAudioDecoder() {
     }
     else
        ALOGD("Normal Audio Playback");
-#endif
 
     if (isStreamingHTTP()) {
       ALOGV("Streaming, force disable tunnel mode playback");
