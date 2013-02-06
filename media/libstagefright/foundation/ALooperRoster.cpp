@@ -82,7 +82,8 @@ status_t ALooperRoster::postMessage_l(
     ssize_t index = mHandlers.indexOfKey(msg->target());
 
     if (index < 0) {
-        ALOGW("failed to post message. Target handler not registered.");
+        ALOGW("failed to post message '%s'. Target handler not registered.",
+              msg->debugString().c_str());
         return -ENOENT;
     }
 

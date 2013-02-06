@@ -40,10 +40,13 @@
 
 namespace android {
 
-LiveSession::LiveSession(uint32_t flags, bool uidValid, uid_t uid)
-    : mFlags(flags),
+LiveSession::LiveSession(
+        const sp<AMessage> &notify, uint32_t flags, bool uidValid, uid_t uid)
+    : mNotify(notify),
+      mFlags(flags),
       mUIDValid(uidValid),
       mUID(uid),
+      mInPreparationPhase(true),
       mDataSource(new LiveDataSource),
       mHTTPDataSource(
               HTTPBase::Create(
@@ -179,7 +182,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
     if (playlist == NULL) {
         ALOGE("unable to fetch master playlist '%s'.", url.c_str());
 
-        mDataSource->queueEOS(ERROR_IO);
+        signalEOS(ERROR_IO);
         return;
     }
 
@@ -207,7 +210,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
 void LiveSession::onDisconnect() {
     ALOGI("onDisconnect");
 
-    mDataSource->queueEOS(ERROR_END_OF_STREAM);
+    signalEOS(ERROR_END_OF_STREAM);
 
     Mutex::Autolock autoLock(mLock);
     mDisconnectPending = false;
@@ -561,7 +564,8 @@ rinse_repeat:
                 // unchanged from the last time we tried.
             } else {
                 ALOGE("failed to load playlist at url '%s'", url.c_str());
-                mDataSource->queueEOS(ERROR_IO);
+                signalEOS(ERROR_IO);
+
                 return;
             }
         } else {
@@ -704,7 +708,7 @@ rinse_repeat:
                  mSeqNumber, firstSeqNumberInPlaylist,
                  firstSeqNumberInPlaylist + mPlaylist->size() - 1);
 
-            mDataSource->queueEOS(ERROR_END_OF_STREAM);
+            signalEOS(ERROR_END_OF_STREAM);
             return;
         }
     }
@@ -737,7 +741,7 @@ rinse_repeat:
     status_t err = fetchFile(uri.c_str(), &buffer, range_offset, range_length);
     if (err != OK) {
         ALOGE("failed to fetch .ts segment at url '%s'", uri.c_str());
-        mDataSource->queueEOS(err);
+        signalEOS(err);
         return;
     }
 
@@ -748,7 +752,7 @@ rinse_repeat:
     if (err != OK) {
         ALOGE("decryptBuffer failed w/ error %d", err);
 
-        mDataSource->queueEOS(err);
+        signalEOS(err);
         return;
     }
 
@@ -760,7 +764,7 @@ rinse_repeat:
         mBandwidthItems.removeAt(bandwidthIndex);
 
         if (mBandwidthItems.isEmpty()) {
-            mDataSource->queueEOS(ERROR_UNSUPPORTED);
+            signalEOS(ERROR_UNSUPPORTED);
             return;
         }
 
@@ -824,11 +828,42 @@ rinse_repeat:
     postMonitorQueue();
 }
 
+void LiveSession::signalEOS(status_t err) {
+    if (mInPreparationPhase && mNotify != NULL) {
+        sp<AMessage> notify = mNotify->dup();
+
+        notify->setInt32(
+                "what",
+                err == ERROR_END_OF_STREAM
+                    ? kWhatPrepared : kWhatPreparationFailed);
+
+        if (err != ERROR_END_OF_STREAM) {
+            notify->setInt32("err", err);
+        }
+
+        notify->post();
+
+        mInPreparationPhase = false;
+    }
+
+    mDataSource->queueEOS(err);
+}
+
 void LiveSession::onMonitorQueue() {
     if (mSeekTimeUs >= 0
             || mDataSource->countQueuedBuffers() < kMaxNumQueuedFragments) {
         onDownloadNext();
     } else {
+        if (mInPreparationPhase) {
+            if (mNotify != NULL) {
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatPrepared);
+                notify->post();
+            }
+
+            mInPreparationPhase = false;
+        }
+
         postMonitorQueue(1000000ll);
     }
 }

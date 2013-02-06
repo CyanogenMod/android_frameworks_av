@@ -35,7 +35,9 @@ struct LiveSession : public AHandler {
         // Don't log any URLs.
         kFlagIncognito = 1,
     };
-    LiveSession(uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
+    LiveSession(
+            const sp<AMessage> &notify,
+            uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
 
     sp<DataSource> getDataSource();
 
@@ -52,6 +54,12 @@ struct LiveSession : public AHandler {
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
+
+    // Posted notification's "what" field will carry one of the following:
+    enum {
+        kWhatPrepared,
+        kWhatPreparationFailed,
+    };
 
 protected:
     virtual ~LiveSession();
@@ -76,9 +84,12 @@ private:
         unsigned long mBandwidth;
     };
 
+    sp<AMessage> mNotify;
     uint32_t mFlags;
     bool mUIDValid;
     uid_t mUID;
+
+    bool mInPreparationPhase;
 
     sp<LiveDataSource> mDataSource;
 
@@ -143,6 +154,8 @@ private:
     // Returns the media time in us of the segment specified by seqNumber.
     // This is computed by summing the durations of all segments before it.
     int64_t getSegmentStartTimeUs(int32_t seqNumber) const;
+
+    void signalEOS(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };

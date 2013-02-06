@@ -49,10 +49,16 @@ protected:
 
     virtual sp<MetaData> getFormatMeta(bool audio);
 
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+
 private:
     enum Flags {
         // Don't log any URLs.
         kFlagIncognito = 1,
+    };
+
+    enum {
+        kWhatSessionNotify,
     };
 
     AString mURL;
@@ -65,6 +71,8 @@ private:
     sp<ALooper> mLiveLooper;
     sp<LiveSession> mLiveSession;
     sp<ATSParser> mTSParser;
+
+    void onSessionNotify(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(HTTPLiveSource);
 };

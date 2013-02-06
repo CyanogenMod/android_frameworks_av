@@ -30,6 +30,7 @@
 #include <binder/ProcessState.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ALooper.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include "include/LiveSession.h"
 #include "include/NuCachedSource2.h"
 #include <media/stagefright/AudioPlayer.h>
@@ -1004,7 +1005,7 @@ int main(int argc, char **argv) {
                     looper = new ALooper;
                     looper->start();
                 }
-                liveSession = new LiveSession;
+                liveSession = new LiveSession(NULL /* notify */);
                 looper->registerHandler(liveSession);
 
                 liveSession->connect(uri.string());
