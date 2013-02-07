@@ -1203,6 +1203,23 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSetParameters:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            sp<AMessage> params;
+            CHECK(msg->findMessage("params", &params));
+
+            status_t err = onSetParameters(params);
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+
+            response->postReply(replyID);
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -1554,6 +1571,20 @@ void MediaCodec::postActivityNotificationIfPossible() {
         mActivityNotify->post();
         mActivityNotify.clear();
     }
+}
+
+status_t MediaCodec::setParameters(const sp<AMessage> &params) {
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, id());
+    msg->setMessage("params", params);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
+status_t MediaCodec::onSetParameters(const sp<AMessage> &params) {
+    mCodec->signalSetParameters(params);
+
+    return OK;
 }
 
 }  // namespace android
