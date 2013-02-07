@@ -25,6 +25,8 @@
 #include <gui/Surface.h>
 #include "camera2/Parameters.h"
 #include "Camera2Client.h"
+#include "Camera2Device.h"
+#include "Camera3Device.h"
 
 #define ALOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define ALOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
@@ -45,7 +47,8 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int cameraFacing,
         int clientPid,
         uid_t clientUid,
-        int servicePid):
+        int servicePid,
+        int deviceVersion):
         Client(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
         mSharedCameraClient(cameraClient),
@@ -54,7 +57,20 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
     ATRACE_CALL();
     ALOGI("Camera %d: Opened", cameraId);
 
-    mDevice = new Camera2Device(cameraId);
+    switch (deviceVersion) {
+        case CAMERA_DEVICE_API_VERSION_2_0:
+            mDevice = new Camera2Device(cameraId);
+            break;
+        case CAMERA_DEVICE_API_VERSION_3_0:
+            mDevice = new Camera3Device(cameraId);
+            break;
+        default:
+            ALOGE("Camera %d: Unknown HAL device version %d",
+                    cameraId, deviceVersion);
+            mDevice = NULL;
+            break;
+    }
+
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;
@@ -79,6 +95,12 @@ status_t Camera2Client::initialize(camera_module_t *module)
     res = startCameraOps();
     if (res != OK) {
         return res;
+    }
+
+    if (mDevice == NULL) {
+        ALOGE("%s: Camera %d: No device connected",
+                __FUNCTION__, mCameraId);
+        return NO_INIT;
     }
 
     res = mDevice->initialize(module);
@@ -1465,7 +1487,7 @@ int Camera2Client::getCameraId() const {
     return mCameraId;
 }
 
-const sp<Camera2Device>& Camera2Client::getCameraDevice() {
+const sp<CameraDeviceBase>& Camera2Client::getCameraDevice() {
     return mDevice;
 }
 

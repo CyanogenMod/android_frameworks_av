@@ -26,7 +26,7 @@
 #include "StreamingProcessor.h"
 #include "Camera2Heap.h"
 #include "../Camera2Client.h"
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 
 namespace android {
 namespace camera2 {
@@ -110,7 +110,7 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
     status_t res;
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     if (mPreviewStreamId != NO_STREAM) {
         // Check if stream parameters have to change
@@ -176,7 +176,7 @@ status_t StreamingProcessor::deletePreviewStream() {
     if (mPreviewStreamId != NO_STREAM) {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return INVALID_OPERATION;
-        sp<Camera2Device> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = client->getCameraDevice();
 
         ALOGV("%s: for cameraId %d on streamId %d",
             __FUNCTION__, client->getCameraId(), mPreviewStreamId);
@@ -272,7 +272,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     if (mRecordingConsumer == 0) {
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
@@ -339,7 +339,7 @@ status_t StreamingProcessor::deleteRecordingStream() {
     if (mRecordingStreamId != NO_STREAM) {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return INVALID_OPERATION;
-        sp<Camera2Device> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = client->getCameraDevice();
 
         res = device->waitUntilDrained();
         if (res != OK) {
@@ -415,7 +415,7 @@ status_t StreamingProcessor::stopStream() {
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return INVALID_OPERATION;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     res = device->clearStreamingRequest();
     if (res != OK) {

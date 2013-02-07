@@ -27,7 +27,7 @@
 
 #include "JpegProcessor.h"
 #include <gui/Surface.h>
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 #include "../Camera2Client.h"
 
 
@@ -66,7 +66,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return OK;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     // Find out buffer size for JPEG
     camera_metadata_ro_entry_t maxJpegSize =
@@ -145,7 +145,7 @@ status_t JpegProcessor::deleteStream() {
     if (mCaptureStreamId != NO_STREAM) {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return OK;
-        sp<Camera2Device> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = client->getCameraDevice();
 
         device->deleteStream(mCaptureStreamId);
 

@@ -24,6 +24,11 @@ namespace android {
 class MemoryHeapBase;
 class CameraHardwareInterface;
 
+/**
+ * Interface between android.hardware.Camera API and Camera HAL device for version
+ * CAMERA_DEVICE_API_VERSION_1_0.
+ */
+
 class CameraClient : public CameraService::Client
 {
 public:

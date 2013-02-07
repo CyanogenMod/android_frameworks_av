@@ -22,7 +22,7 @@
 #include <utils/Trace.h>
 
 #include "FrameProcessor.h"
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 #include "../Camera2Client.h"
 
 namespace android {
@@ -71,7 +71,7 @@ void FrameProcessor::dump(int fd, const Vector<String16>& /*args*/) {
 bool FrameProcessor::threadLoop() {
     status_t res;
 
-    sp<Camera2Device> device;
+    sp<CameraDeviceBase> device;
     {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return false;

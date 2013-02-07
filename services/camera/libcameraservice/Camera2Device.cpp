@@ -34,7 +34,7 @@ namespace android {
 
 Camera2Device::Camera2Device(int id):
         mId(id),
-        mDevice(NULL)
+        mHal2Device(NULL)
 {
     ATRACE_CALL();
     ALOGV("%s: Created device for camera %d", __FUNCTION__, id);
@@ -51,7 +51,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
 {
     ATRACE_CALL();
     ALOGV("%s: Initializing device for camera %d", __FUNCTION__, mId);
-    if (mDevice != NULL) {
+    if (mHal2Device != NULL) {
         ALOGE("%s: Already initialized!", __FUNCTION__);
         return INVALID_OPERATION;
     }
@@ -131,7 +131,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
     }
 
     mDeviceInfo = info.static_camera_characteristics;
-    mDevice = device;
+    mHal2Device = device;
 
     return OK;
 }
@@ -139,23 +139,23 @@ status_t Camera2Device::initialize(camera_module_t *module)
 status_t Camera2Device::disconnect() {
     ATRACE_CALL();
     status_t res = OK;
-    if (mDevice) {
+    if (mHal2Device) {
         ALOGV("%s: Closing device for camera %d", __FUNCTION__, mId);
 
-        int inProgressCount = mDevice->ops->get_in_progress_count(mDevice);
+        int inProgressCount = mHal2Device->ops->get_in_progress_count(mHal2Device);
         if (inProgressCount > 0) {
             ALOGW("%s: Closing camera device %d with %d requests in flight!",
                     __FUNCTION__, mId, inProgressCount);
         }
         mReprocessStreams.clear();
         mStreams.clear();
-        res = mDevice->common.close(&mDevice->common);
+        res = mHal2Device->common.close(&mHal2Device->common);
         if (res != OK) {
             ALOGE("%s: Could not close camera %d: %s (%d)",
                     __FUNCTION__,
                     mId, strerror(-res), res);
         }
-        mDevice = NULL;
+        mHal2Device = NULL;
         ALOGV("%s: Shutdown complete", __FUNCTION__);
     }
     return res;
@@ -197,7 +197,7 @@ status_t Camera2Device::dump(int fd, const Vector<String16>& args) {
     write(fd, result.string(), result.size());
 
     status_t res;
-    res = mDevice->ops->dump(mDevice, fd);
+    res = mHal2Device->ops->dump(mHal2Device, fd);
 
     return res;
 }
@@ -240,7 +240,7 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
-    sp<StreamAdapter> stream = new StreamAdapter(mDevice);
+    sp<StreamAdapter> stream = new StreamAdapter(mHal2Device);
 
     res = stream->connectToDevice(consumer, width, height, format, size);
     if (res != OK) {
@@ -276,7 +276,7 @@ status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
         return BAD_VALUE;
     }
 
-    sp<ReprocessStreamAdapter> stream = new ReprocessStreamAdapter(mDevice);
+    sp<ReprocessStreamAdapter> stream = new ReprocessStreamAdapter(mHal2Device);
 
     res = stream->connectToDevice((*streamI));
     if (res != OK) {
@@ -401,8 +401,8 @@ status_t Camera2Device::createDefaultRequest(int templateId,
     status_t err;
     ALOGV("%s: E", __FUNCTION__);
     camera_metadata_t *rawRequest;
-    err = mDevice->ops->construct_default_request(
-        mDevice, templateId, &rawRequest);
+    err = mHal2Device->ops->construct_default_request(
+        mHal2Device, templateId, &rawRequest);
     request->acquire(rawRequest);
     return err;
 }
@@ -417,12 +417,12 @@ status_t Camera2Device::waitUntilDrained() {
 
     // TODO: Set up notifications from HAL, instead of sleeping here
     uint32_t totalTime = 0;
-    while (mDevice->ops->get_in_progress_count(mDevice) > 0) {
+    while (mHal2Device->ops->get_in_progress_count(mHal2Device) > 0) {
         usleep(kSleepTime);
         totalTime += kSleepTime;
         if (totalTime > kMaxSleepTime) {
             ALOGE("%s: Waited %d us, %d requests still in flight", __FUNCTION__,
-                    mDevice->ops->get_in_progress_count(mDevice), totalTime);
+                    mHal2Device->ops->get_in_progress_count(mHal2Device), totalTime);
             return TIMED_OUT;
         }
     }
@@ -433,7 +433,7 @@ status_t Camera2Device::waitUntilDrained() {
 status_t Camera2Device::setNotifyCallback(NotificationListener *listener) {
     ATRACE_CALL();
     status_t res;
-    res = mDevice->ops->set_notify_callback(mDevice, notificationCallback,
+    res = mHal2Device->ops->set_notify_callback(mHal2Device, notificationCallback,
             reinterpret_cast<void*>(listener) );
     if (res != OK) {
         ALOGE("%s: Unable to set notification callback!", __FUNCTION__);
@@ -497,7 +497,7 @@ status_t Camera2Device::triggerAutofocus(uint32_t id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: Triggering autofocus, id %d", __FUNCTION__, id);
-    res = mDevice->ops->trigger_action(mDevice,
+    res = mHal2Device->ops->trigger_action(mHal2Device,
             CAMERA2_TRIGGER_AUTOFOCUS, id, 0);
     if (res != OK) {
         ALOGE("%s: Error triggering autofocus (id %d)",
@@ -510,7 +510,7 @@ status_t Camera2Device::triggerCancelAutofocus(uint32_t id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: Canceling autofocus, id %d", __FUNCTION__, id);
-    res = mDevice->ops->trigger_action(mDevice,
+    res = mHal2Device->ops->trigger_action(mHal2Device,
             CAMERA2_TRIGGER_CANCEL_AUTOFOCUS, id, 0);
     if (res != OK) {
         ALOGE("%s: Error canceling autofocus (id %d)",
@@ -523,7 +523,7 @@ status_t Camera2Device::triggerPrecaptureMetering(uint32_t id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: Triggering precapture metering, id %d", __FUNCTION__, id);
-    res = mDevice->ops->trigger_action(mDevice,
+    res = mHal2Device->ops->trigger_action(mHal2Device,
             CAMERA2_TRIGGER_PRECAPTURE_METERING, id, 0);
     if (res != OK) {
         ALOGE("%s: Error triggering precapture metering (id %d)",
@@ -560,18 +560,11 @@ status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
 }
 
 /**
- * Camera2Device::NotificationListener
- */
-
-Camera2Device::NotificationListener::~NotificationListener() {
-}
-
-/**
  * Camera2Device::MetadataQueue
  */
 
 Camera2Device::MetadataQueue::MetadataQueue():
-            mDevice(NULL),
+            mHal2Device(NULL),
             mFrameCount(0),
             mLatestRequestId(0),
             mCount(0),
@@ -602,7 +595,7 @@ status_t Camera2Device::MetadataQueue::setConsumerDevice(camera2_device_t *d) {
     res = d->ops->set_request_queue_src_ops(d,
             this);
     if (res != OK) return res;
-    mDevice = d;
+    mHal2Device = d;
     return OK;
 }
 
@@ -835,12 +828,12 @@ status_t Camera2Device::MetadataQueue::signalConsumerLocked() {
     ATRACE_CALL();
     status_t res = OK;
     notEmpty.signal();
-    if (mSignalConsumer && mDevice != NULL) {
+    if (mSignalConsumer && mHal2Device != NULL) {
         mSignalConsumer = false;
 
         mMutex.unlock();
         ALOGV("%s: Signaling consumer", __FUNCTION__);
-        res = mDevice->ops->notify_request_queue_not_empty(mDevice);
+        res = mHal2Device->ops->notify_request_queue_not_empty(mHal2Device);
         mMutex.lock();
     }
     return res;
@@ -939,7 +932,7 @@ int Camera2Device::MetadataQueue::producer_enqueue(
 
 Camera2Device::StreamAdapter::StreamAdapter(camera2_device_t *d):
         mState(RELEASED),
-        mDevice(d),
+        mHal2Device(d),
         mId(-1),
         mWidth(0), mHeight(0), mFormat(0), mSize(0), mUsage(0),
         mMaxProducerBuffers(0), mMaxConsumerBuffers(0),
@@ -990,7 +983,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     uint32_t formatActual;
     uint32_t usage;
     uint32_t maxBuffers = 2;
-    res = mDevice->ops->allocate_stream(mDevice,
+    res = mHal2Device->ops->allocate_stream(mHal2Device,
             mWidth, mHeight, mFormatRequested, getStreamOps(),
             &id, &formatActual, &usage, &maxBuffers);
     if (res != OK) {
@@ -1106,7 +1099,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
 
     ALOGV("%s: Registering %d buffers with camera HAL", __FUNCTION__, mTotalBuffers);
-    res = mDevice->ops->register_stream_buffers(mDevice,
+    res = mHal2Device->ops->register_stream_buffers(mHal2Device,
             mId,
             mTotalBuffers,
             buffers);
@@ -1138,7 +1131,7 @@ status_t Camera2Device::StreamAdapter::release() {
     status_t res;
     ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
     if (mState >= ALLOCATED) {
-        res = mDevice->ops->release_stream(mDevice, mId);
+        res = mHal2Device->ops->release_stream(mHal2Device, mId);
         if (res != OK) {
             ALOGE("%s: Unable to release stream %d",
                     __FUNCTION__, mId);
@@ -1319,7 +1312,7 @@ int Camera2Device::StreamAdapter::set_crop(const camera2_stream_ops_t* w,
 
 Camera2Device::ReprocessStreamAdapter::ReprocessStreamAdapter(camera2_device_t *d):
         mState(RELEASED),
-        mDevice(d),
+        mHal2Device(d),
         mId(-1),
         mWidth(0), mHeight(0), mFormat(0),
         mActiveBuffers(0),
@@ -1361,7 +1354,7 @@ status_t Camera2Device::ReprocessStreamAdapter::connectToDevice(
     // Allocate device-side stream interface
 
     uint32_t id;
-    res = mDevice->ops->allocate_reprocess_stream_from_stream(mDevice,
+    res = mHal2Device->ops->allocate_reprocess_stream_from_stream(mHal2Device,
             outputStream->getId(), getStreamOps(),
             &id);
     if (res != OK) {
@@ -1385,7 +1378,7 @@ status_t Camera2Device::ReprocessStreamAdapter::release() {
     status_t res;
     ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
     if (mState >= ACTIVE) {
-        res = mDevice->ops->release_reprocess_stream(mDevice, mId);
+        res = mHal2Device->ops->release_reprocess_stream(mHal2Device, mId);
         if (res != OK) {
             ALOGE("%s: Unable to release stream %d",
                     __FUNCTION__, mId);
