@@ -23,7 +23,7 @@
 
 #include "CallbackProcessor.h"
 #include <gui/Surface.h>
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 #include "../Camera2Client.h"
 
 
@@ -58,7 +58,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return OK;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     if (mCallbackConsumer == 0) {
         // Create CPU buffer queue endpoint
@@ -125,7 +125,7 @@ status_t CallbackProcessor::deleteStream() {
     if (mCallbackStreamId != NO_STREAM) {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return OK;
-        sp<Camera2Device> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = client->getCameraDevice();
 
         device->deleteStream(mCallbackStreamId);
 

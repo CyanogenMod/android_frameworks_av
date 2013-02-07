@@ -27,7 +27,7 @@
 #include "FrameProcessor.h"
 #include "camera/CameraMetadata.h"
 #include "Camera2Heap.h"
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 
 namespace android {
 
@@ -44,7 +44,7 @@ class ZslProcessor:
             virtual public Thread,
             virtual public BufferItemConsumer::FrameAvailableListener,
             virtual public FrameProcessor::FilteredListener,
-            virtual public Camera2Device::BufferReleasedListener {
+            virtual public CameraDeviceBase::BufferReleasedListener {
   public:
     ZslProcessor(wp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     ~ZslProcessor();
