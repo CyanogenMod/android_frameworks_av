@@ -35,7 +35,7 @@
 
 namespace android {
 
-#if 0
+#if 1
 // static
 const int64_t DirectRenderer::kPacketLostDelayUs = 80000ll;
 
