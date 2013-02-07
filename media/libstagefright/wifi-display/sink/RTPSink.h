@@ -78,6 +78,9 @@ private:
     sp<AMessage> mNotify;
     KeyedVector<uint32_t, sp<Source> > mSources;
 
+    bool mUsingTCPTransport;
+    bool mUsingTCPInterleaving;
+
     int32_t mRTPPort;
 
     int32_t mRTPSessionID;   // in TCP unicast mode these are just server
