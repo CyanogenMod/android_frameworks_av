@@ -115,6 +115,8 @@ struct MediaCodec : public AHandler {
 
     status_t getName(AString *componentName) const;
 
+    status_t setParameters(const sp<AMessage> &params);
+
 protected:
     virtual ~MediaCodec();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -157,6 +159,7 @@ private:
         kWhatRequestIDRFrame                = 'ridr',
         kWhatRequestActivityNotification    = 'racN',
         kWhatGetName                        = 'getN',
+        kWhatSetParameters                  = 'setP',
     };
 
     enum {
@@ -229,6 +232,8 @@ private:
             const sp<SurfaceTextureClient> &surfaceTextureClient);
 
     void postActivityNotificationIfPossible();
+
+    status_t onSetParameters(const sp<AMessage> &params);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
