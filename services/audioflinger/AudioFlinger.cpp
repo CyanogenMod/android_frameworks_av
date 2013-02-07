@@ -6247,6 +6247,7 @@ void AudioFlinger::DirectAudioTrack::mute(bool muted) {
 void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
     mOutputDesc->mVolumeLeft = left;
     mOutputDesc->mVolumeRight = right;
+    mOutputDesc->stream->set_volume(mOutputDesc->stream,left,right);
 }
 
 int64_t AudioFlinger::DirectAudioTrack::getTimeStamp() {
