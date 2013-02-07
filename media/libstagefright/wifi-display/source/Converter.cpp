@@ -54,6 +54,7 @@ Converter::Converter(
       ,mFirstSilentFrameUs(-1ll)
       ,mInSilentMode(false)
 #endif
+      ,mPrevVideoBitrate(-1)
     {
     AString mime;
     CHECK(mInputFormat->findString("mime", &mime));
@@ -185,6 +186,7 @@ status_t Converter::initEncoder() {
 
     int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 128000);
     int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
+    mPrevVideoBitrate = videoBitrate;
 
     ALOGI("using audio bitrate of %d bps, video bitrate of %d bps",
           audioBitrate, videoBitrate);
@@ -606,6 +608,18 @@ status_t Converter::feedEncoderInputBuffers() {
 }
 
 status_t Converter::doMoreWork() {
+    if (mIsVideo) {
+        int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
+        if (videoBitrate != mPrevVideoBitrate) {
+            sp<AMessage> params = new AMessage;
+
+            params->setInt32("videoBitrate", videoBitrate);
+            mEncoder->setParameters(params);
+
+            mPrevVideoBitrate = videoBitrate;
+        }
+    }
+
     status_t err;
 
     for (;;) {

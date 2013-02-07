@@ -374,6 +374,12 @@ void ACodec::initiateSetup(const sp<AMessage> &msg) {
     msg->post();
 }
 
+void ACodec::signalSetParameters(const sp<AMessage> &params) {
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, id());
+    msg->setMessage("params", params);
+    msg->post();
+}
+
 void ACodec::initiateAllocateComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatAllocateComponent);
     msg->setTarget(id());
@@ -3550,12 +3556,54 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSetParameters:
+        {
+            sp<AMessage> params;
+            CHECK(msg->findMessage("params", &params));
+
+            status_t err = mCodec->setParameters(params);
+
+            sp<AMessage> reply;
+            if (msg->findMessage("reply", &reply)) {
+                reply->setInt32("err", err);
+                reply->post();
+            }
+
+            handled = true;
+            break;
+        }
+
         default:
             handled = BaseState::onMessageReceived(msg);
             break;
     }
 
     return handled;
+}
+
+status_t ACodec::setParameters(const sp<AMessage> &params) {
+    int32_t videoBitrate;
+    if (params->findInt32("videoBitrate", &videoBitrate)) {
+        OMX_VIDEO_CONFIG_BITRATETYPE configParams;
+        InitOMXParams(&configParams);
+        configParams.nPortIndex = kPortIndexOutput;
+        configParams.nEncodeBitrate = videoBitrate;
+
+        status_t err = mOMX->setConfig(
+                mNode,
+                OMX_IndexConfigVideoBitrate,
+                &configParams,
+                sizeof(configParams));
+
+        if (err != OK) {
+            ALOGE("setConfig(OMX_IndexConfigVideoBitrate, %d) failed w/ err %d",
+                   videoBitrate, err);
+
+            return err;
+        }
+    }
+
+    return OK;
 }
 
 bool ACodec::ExecutingState::onOMXEvent(

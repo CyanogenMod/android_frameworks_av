@@ -100,6 +100,8 @@ private:
 
     sp<ABuffer> mPartialAudioAU;
 
+    int32_t mPrevVideoBitrate;
+
     status_t initEncoder();
     void releaseEncoder();
 

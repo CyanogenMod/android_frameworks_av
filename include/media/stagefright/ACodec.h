@@ -54,6 +54,8 @@ struct ACodec : public AHierarchicalStateMachine {
     void signalResume();
     void initiateShutdown(bool keepComponentAllocated = false);
 
+    void signalSetParameters(const sp<AMessage> &msg);
+
     void initiateAllocateComponent(const sp<AMessage> &msg);
     void initiateConfigureComponent(const sp<AMessage> &msg);
     void initiateStart();
@@ -105,6 +107,7 @@ private:
         kWhatConfigureComponent      = 'conf',
         kWhatStart                   = 'star',
         kWhatRequestIDRFrame         = 'ridr',
+        kWhatSetParameters           = 'setP',
     };
 
     enum {
@@ -270,6 +273,7 @@ private:
             status_t internalError = UNKNOWN_ERROR);
 
     status_t requestIDRFrame();
+    status_t setParameters(const sp<AMessage> &params);
 
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };
