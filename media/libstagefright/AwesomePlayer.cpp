@@ -61,6 +61,9 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
 #include "include/QCUtils.h"
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
+#endif
 
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
@@ -3152,6 +3155,10 @@ bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
     const char * tunnelFormats [ ] = {
         MEDIA_MIMETYPE_AUDIO_MPEG,
         MEDIA_MIMETYPE_AUDIO_AAC,
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        MEDIA_MIMETYPE_AUDIO_AC3,
+        MEDIA_MIMETYPE_AUDIO_EAC3,
+#endif
 #ifdef TUNNEL_MODE_SUPPORTS_AMRWB
         MEDIA_MIMETYPE_AUDIO_AMR_WB,
     #ifdef ENABLE_QC_AV_ENHANCEMENTS

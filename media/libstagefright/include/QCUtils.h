@@ -122,6 +122,11 @@ struct QCUtils {
             OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
+
+        //helper function for MPEG4 Extractor to check for AC3/EAC3 contents
+    static void helper_mpeg4extractor_checkAC3EAC3(MediaBuffer *buffer, sp<MetaData> &format,
+                                                   size_t size);
+
 };
 
 }
