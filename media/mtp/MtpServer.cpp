@@ -1118,7 +1118,7 @@ MtpResponseCode MtpServer::doSendPartialObject() {
     int initialData = ret - MTP_CONTAINER_HEADER_SIZE;
 
     if (initialData > 0) {
-        ret = write(edit->mFD, mData.getData(), initialData);
+        ret = pwrite(edit->mFD, mData.getData(), initialData, offset);
         offset += initialData;
         length -= initialData;
     }
