@@ -141,6 +141,10 @@ struct ExtendedUtils {
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 
+    //helper function for MPEG4 Extractor to check for AC3/EAC3 contents
+    static void helper_Mpeg4ExtractorCheckAC3EAC3(MediaBuffer *buffer, sp<MetaData> &format,
+                                                   size_t size);
+
     static void prefetchSecurePool(int fd);
 
     static void prefetchSecurePool(const char *uri);
