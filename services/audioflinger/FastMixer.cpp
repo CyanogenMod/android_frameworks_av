@@ -301,6 +301,11 @@ bool FastMixer::threadLoop()
                     const FastTrack* fastTrack = &current->mFastTracks[i];
                     AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
                     ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
+                    if (bufferProvider == NULL ||
+                            bufferProvider->getValid() != AudioBufferProvider::kValid) {
+                        logWriter->logTimestamp();
+                        logWriter->logf("added invalid %#x", i);
+                    }
                     if (mixer != NULL) {
                         // calling getTrackName with default channel mask and a random invalid
                         //   sessionId (no effects here)
@@ -335,6 +340,11 @@ bool FastMixer::threadLoop()
                     if (fastTrack->mGeneration != generations[i]) {
                         AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
                         ALOG_ASSERT(bufferProvider != NULL);
+                        if (bufferProvider == NULL ||
+                                bufferProvider->getValid() != AudioBufferProvider::kValid) {
+                            logWriter->logTimestamp();
+                            logWriter->logf("modified invalid %#x", i);
+                        }
                         if (mixer != NULL) {
                             name = fastTrackNames[i];
                             ALOG_ASSERT(name >= 0);
@@ -423,6 +433,12 @@ bool FastMixer::threadLoop()
                 }
                 ftDump->mUnderruns = underruns;
                 ftDump->mFramesReady = framesReady;
+                AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
+                if (bufferProvider == NULL ||
+                        bufferProvider->getValid() != AudioBufferProvider::kValid) {
+                    logWriter->logTimestamp();
+                    logWriter->logf("mixing invalid %#x", i);
+                }
             }
 
             int64_t pts;
