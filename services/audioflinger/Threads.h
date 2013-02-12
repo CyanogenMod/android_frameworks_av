@@ -315,7 +315,7 @@ protected:
                 // keyed by session ID, the second by type UUID timeLow field
                 KeyedVector< int, KeyedVector< int, sp<SuspendedSessionDesc> > >
                                         mSuspendedSessions;
-                static const size_t     kLogSize = 512;
+                static const size_t     kLogSize = 4096;
                 sp<NBLog::Writer>       mNBLogWriter;
 };
 
