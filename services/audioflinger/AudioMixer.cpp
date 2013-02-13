@@ -209,6 +209,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         t->mainBuffer = NULL;
         t->auxBuffer = NULL;
         t->downmixerBufferProvider = NULL;
+        t->fastIndex = -1;
 
         status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
         if (status == OK) {
@@ -455,6 +456,9 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         //         for a specific track? or per mixer?
         /* case DOWNMIX_TYPE:
             break          */
+        case FAST_INDEX:
+            track.fastIndex = valueInt;
+            break;
         default:
             LOG_FATAL("bad param");
         }
@@ -1111,8 +1115,8 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
         t.buffer.frameCount = state->frameCount;
         int valid = t.bufferProvider->getValid();
         if (valid != AudioBufferProvider::kValid) {
-            ALOGE("invalid bufferProvider=%p name=%d frameCount=%d valid=%#x enabledTracks=%#x",
-                    t.bufferProvider, i, t.buffer.frameCount, valid, enabledTracks);
+            ALOGE("invalid bufferProvider=%p name=%d fastIndex=%d frameCount=%d valid=%#x enabledTracks=%#x",
+                    t.bufferProvider, i, t.fastIndex, t.buffer.frameCount, valid, enabledTracks);
             // expect to crash
         }
         t.bufferProvider->getNextBuffer(&t.buffer, pts);
