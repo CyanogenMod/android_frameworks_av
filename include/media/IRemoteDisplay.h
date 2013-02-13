@@ -39,6 +39,9 @@ class IRemoteDisplay : public IInterface
 public:
     DECLARE_META_INTERFACE(RemoteDisplay);
 
+    virtual status_t pause() = 0;
+    virtual status_t resume() = 0;
+
     // Disconnects the remote display and stops listening for new connections.
     virtual status_t dispose() = 0;
 };

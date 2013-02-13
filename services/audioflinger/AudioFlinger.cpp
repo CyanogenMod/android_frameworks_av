@@ -5038,7 +5038,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
         if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED && mState != PAUSED &&
-                mState != PAUSING) {
+                mState != PAUSING && mState != IDLE && mState != FLUSHED) {
             return;
         }
         // No point remaining in PAUSED state after a flush => go to

@@ -48,6 +48,7 @@ Converter::Converter(
       mInputFormat(format),
       mIsVideo(false),
       mIsPCMAudio(usePCMAudio),
+      mNeedToManuallyPrependSPSPPS(false),
       mDoMoreWorkPending(false)
 #if ENABLE_SILENCE_DETECTION
       ,mFirstSilentFrameUs(-1ll)
@@ -92,6 +93,10 @@ size_t Converter::getInputBufferCount() const {
 
 sp<AMessage> Converter::getOutputFormat() const {
     return mOutputFormat;
+}
+
+bool Converter::needToManuallyPrependSPSPPS() const {
+    return mNeedToManuallyPrependSPSPPS;
 }
 
 static int32_t getBitrate(const char *propName, int32_t defaultValue) {
@@ -156,17 +161,63 @@ status_t Converter::initEncoder() {
         mOutputFormat->setInt32("bitrate", videoBitrate);
         mOutputFormat->setInt32("bitrate-mode", OMX_Video_ControlRateConstant);
         mOutputFormat->setInt32("frame-rate", 30);
-        mOutputFormat->setInt32("i-frame-interval", 1);  // Iframes every 1 secs
-        mOutputFormat->setInt32("prepend-sps-pps-to-idr-frames", 1);
+        mOutputFormat->setInt32("i-frame-interval", 15);  // Iframes every 15 secs
+
+        // Configure encoder to use intra macroblock refresh mode
+        mOutputFormat->setInt32("intra-refresh-mode", OMX_VIDEO_IntraRefreshCyclic);
+
+        int width, height, mbs;
+        if (!mOutputFormat->findInt32("width", &width)
+                || !mOutputFormat->findInt32("height", &height)) {
+            return ERROR_UNSUPPORTED;
+        }
+
+        // Update macroblocks in a cyclic fashion with 10% of all MBs within
+        // frame gets updated at one time. It takes about 10 frames to
+        // completely update a whole video frame. If the frame rate is 30,
+        // it takes about 333 ms in the best case (if next frame is not an IDR)
+        // to recover from a lost/corrupted packet.
+        mbs = (((width + 15) / 16) * ((height + 15) / 16) * 10) / 100;
+        mOutputFormat->setInt32("intra-refresh-CIR-mbs", mbs);
     }
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
 
-    status_t err = mEncoder->configure(
-            mOutputFormat,
-            NULL /* nativeWindow */,
-            NULL /* crypto */,
-            MediaCodec::CONFIGURE_FLAG_ENCODE);
+    mNeedToManuallyPrependSPSPPS = false;
+
+    status_t err = NO_INIT;
+
+    if (!isAudio) {
+        sp<AMessage> tmp = mOutputFormat->dup();
+        tmp->setInt32("prepend-sps-pps-to-idr-frames", 1);
+
+        err = mEncoder->configure(
+                tmp,
+                NULL /* nativeWindow */,
+                NULL /* crypto */,
+                MediaCodec::CONFIGURE_FLAG_ENCODE);
+
+        if (err == OK) {
+            // Encoder supported prepending SPS/PPS, we don't need to emulate
+            // it.
+            mOutputFormat = tmp;
+        } else {
+            mNeedToManuallyPrependSPSPPS = true;
+
+            ALOGI("We going to manually prepend SPS and PPS to IDR frames.");
+        }
+    }
+
+    if (err != OK) {
+        // We'll get here for audio or if we failed to configure the encoder
+        // to automatically prepend SPS/PPS in the case of video.
+
+        err = mEncoder->configure(
+                    mOutputFormat,
+                    NULL /* nativeWindow */,
+                    NULL /* crypto */,
+                    MediaCodec::CONFIGURE_FLAG_ENCODE);
+    }
 
     if (err != OK) {
         return err;

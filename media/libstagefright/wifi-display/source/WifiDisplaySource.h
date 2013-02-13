@@ -26,6 +26,8 @@
 
 namespace android {
 
+#define USE_1080P       0
+
 struct IHDCP;
 struct IRemoteDisplayClient;
 struct ParsedMessage;
@@ -42,6 +44,9 @@ struct WifiDisplaySource : public AHandler {
     status_t start(const char *iface);
     status_t stop();
 
+    status_t pause();
+    status_t resume();
+
 protected:
     virtual ~WifiDisplaySource();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -57,6 +62,9 @@ private:
         AWAITING_CLIENT_PLAY,
         ABOUT_TO_PLAY,
         PLAYING,
+        PLAYING_TO_PAUSED,
+        PAUSED,
+        PAUSED_TO_PLAYING,
         AWAITING_CLIENT_TEARDOWN,
         STOPPING,
         STOPPED,
@@ -66,6 +74,8 @@ private:
         kWhatStart,
         kWhatRTSPNotify,
         kWhatStop,
+        kWhatPause,
+        kWhatResume,
         kWhatReapDeadClients,
         kWhatPlaybackSessionNotify,
         kWhatKeepAlive,
@@ -145,7 +155,17 @@ private:
     status_t sendM1(int32_t sessionID);
     status_t sendM3(int32_t sessionID);
     status_t sendM4(int32_t sessionID);
-    status_t sendM5(int32_t sessionID, bool requestShutdown);
+
+    enum TriggerType {
+        TRIGGER_SETUP,
+        TRIGGER_TEARDOWN,
+        TRIGGER_PAUSE,
+        TRIGGER_PLAY,
+    };
+
+    // M5
+    status_t sendTrigger(int32_t sessionID, TriggerType triggerType);
+
     status_t sendM16(int32_t sessionID);
 
     status_t onReceiveM1Response(

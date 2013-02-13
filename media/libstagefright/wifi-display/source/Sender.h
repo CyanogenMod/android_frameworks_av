@@ -23,8 +23,16 @@
 namespace android {
 
 #define LOG_TRANSPORT_STREAM            0
-#define ENABLE_RETRANSMISSION           0
 #define TRACK_BANDWIDTH                 0
+
+#define ENABLE_RETRANSMISSION                   1
+
+// If retransmission is enabled the following define determines what
+// kind we support, if RETRANSMISSION_ACCORDING_TO_RFC_XXXX is 0
+// we'll send NACKs on the original RTCP channel and retransmit packets
+// on the original RTP channel, otherwise a separate channel pair is used
+// for this purpose.
+#define RETRANSMISSION_ACCORDING_TO_RFC_XXXX    0
 
 struct ABuffer;
 struct ANetworkSession;
@@ -51,7 +59,7 @@ struct Sender : public AHandler {
 
     int32_t getRTPPort() const;
 
-    void queuePackets(int64_t timeUs, const sp<ABuffer> &packets);
+    void queuePackets(int64_t timeUs, const sp<ABuffer> &tsPackets);
     void scheduleSendSR();
 
 protected:
@@ -60,13 +68,13 @@ protected:
 
 private:
     enum {
-        kWhatQueuePackets,
+        kWhatDrainQueue,
         kWhatSendSR,
         kWhatRTPNotify,
         kWhatRTCPNotify,
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
         kWhatRTPRetransmissionNotify,
-        kWhatRTCPRetransmissionNotify
+        kWhatRTCPRetransmissionNotify,
 #endif
     };
 
@@ -75,14 +83,12 @@ private:
     static const uint32_t kSourceID = 0xdeadbeef;
     static const size_t kMaxHistoryLength = 128;
 
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
     static const size_t kRetransmissionPortOffset = 120;
 #endif
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
-
-    sp<ABuffer> mTSQueue;
 
     TransportMode mTransportMode;
     AString mClientIP;
@@ -96,7 +102,7 @@ private:
     int32_t mRTPSessionID;
     int32_t mRTCPSessionID;
 
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
     int32_t mRTPRetransmissionSessionID;
     int32_t mRTCPRetransmissionSessionID;
 #endif
@@ -106,12 +112,11 @@ private:
     bool mRTPConnected;
     bool mRTCPConnected;
 
-
     int64_t mFirstOutputBufferReadyTimeUs;
     int64_t mFirstOutputBufferSentTimeUs;
 
     uint32_t mRTPSeqNo;
-#if ENABLE_RETRANSMISSION
+#if ENABLE_RETRANSMISSION && RETRANSMISSION_ACCORDING_TO_RFC_XXXX
     uint32_t mRTPRetransmissionSeqNo;
 #endif
 
@@ -133,22 +138,18 @@ private:
     uint64_t mTotalBytesSent;
 #endif
 
+#if LOG_TRANSPORT_STREAM
+    FILE *mLogFile;
+#endif
+
     void onSendSR();
     void addSR(const sp<ABuffer> &buffer);
     void addSDES(const sp<ABuffer> &buffer);
     static uint64_t GetNowNTP();
 
-#if LOG_TRANSPORT_STREAM
-    FILE *mLogFile;
-#endif
-
-    ssize_t appendTSData(
-            const void *data, size_t size, bool timeDiscontinuity, bool flush);
-
-    void onQueuePackets(const sp<ABuffer> &packets);
-
 #if ENABLE_RETRANSMISSION
     status_t parseTSFB(const uint8_t *data, size_t size);
+    void addToHistory(const uint8_t *rtp, size_t rtpPacketSize);
 #endif
 
     status_t parseRTCP(const sp<ABuffer> &buffer);
@@ -157,6 +158,8 @@ private:
 
     void notifyInitDone();
     void notifySessionDead();
+
+    void onDrainQueue(const sp<ABuffer> &udpPackets);
 
     DISALLOW_EVIL_CONSTRUCTORS(Sender);
 };

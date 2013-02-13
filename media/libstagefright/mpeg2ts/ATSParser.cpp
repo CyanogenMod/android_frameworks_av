@@ -215,6 +215,14 @@ bool ATSParser::Program::parsePID(
 
 void ATSParser::Program::signalDiscontinuity(
         DiscontinuityType type, const sp<AMessage> &extra) {
+    int64_t mediaTimeUs;
+    if ((type & DISCONTINUITY_TIME)
+            && extra != NULL
+            && extra->findInt64(
+                IStreamListener::kKeyMediaTimeUs, &mediaTimeUs)) {
+        mFirstPTSValid = false;
+    }
+
     for (size_t i = 0; i < mStreams.size(); ++i) {
         mStreams.editValueAt(i)->signalDiscontinuity(type, extra);
     }
@@ -929,7 +937,13 @@ status_t ATSParser::feedTSPacket(const void *data, size_t size) {
 
 void ATSParser::signalDiscontinuity(
         DiscontinuityType type, const sp<AMessage> &extra) {
-    if (type == DISCONTINUITY_ABSOLUTE_TIME) {
+    int64_t mediaTimeUs;
+    if ((type & DISCONTINUITY_TIME)
+            && extra != NULL
+            && extra->findInt64(
+                IStreamListener::kKeyMediaTimeUs, &mediaTimeUs)) {
+        mAbsoluteTimeAnchorUs = mediaTimeUs;
+    } else if (type == DISCONTINUITY_ABSOLUTE_TIME) {
         int64_t timeUs;
         CHECK(extra->findInt64("timeUs", &timeUs));
 

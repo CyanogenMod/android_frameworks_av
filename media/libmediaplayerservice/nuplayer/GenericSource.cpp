@@ -258,8 +258,8 @@ void NuPlayer::GenericSource::readBuffer(
     }
 }
 
-bool NuPlayer::GenericSource::isSeekable() {
-    return true;
+uint32_t NuPlayer::GenericSource::flags() const {
+    return FLAG_SEEKABLE;
 }
 
 }  // namespace android

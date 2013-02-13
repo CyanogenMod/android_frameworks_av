@@ -17,6 +17,7 @@ LOCAL_SRC_FILES:= \
         source/Sender.cpp               \
         source/TSPacketizer.cpp         \
         source/WifiDisplaySource.cpp    \
+        TimeSeries.cpp                  \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/media/libstagefright \

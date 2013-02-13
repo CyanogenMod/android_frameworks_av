@@ -84,6 +84,8 @@ private:
         kWhatUpdateSurface,
         kWhatFinishPlay,
         kWhatPacketize,
+        kWhatPause,
+        kWhatResume,
     };
 
     sp<ANetworkSession> mNetSession;
@@ -93,6 +95,7 @@ private:
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
     bool mWeAreDead;
+    bool mPaused;
 
     int64_t mLastLifesignUs;
 
@@ -127,7 +130,7 @@ private:
     bool allTracksHavePacketizerIndex();
 
     status_t packetizeAccessUnit(
-            size_t trackIndex, const sp<ABuffer> &accessUnit,
+            size_t trackIndex, sp<ABuffer> accessUnit,
             sp<ABuffer> *packets);
 
     status_t packetizeQueuedAccessUnits();

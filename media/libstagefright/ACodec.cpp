@@ -978,7 +978,8 @@ status_t ACodec::configureCodec(
             }
 
             err = setupAACCodec(
-                    encoder, numChannels, sampleRate, bitRate, aacProfile, isADTS != 0);
+                    encoder, numChannels, sampleRate, bitRate, aacProfile,
+                    isADTS != 0);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -1025,6 +1026,10 @@ status_t ACodec::configureCodec(
         } else {
             err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
         }
+    }
+
+    if (err != OK) {
+        return err;
     }
 
     if (!msg->findInt32("encoder-delay", &mEncoderDelay)) {
@@ -1666,6 +1671,43 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
     return err;
 }
 
+status_t ACodec::setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode) {
+    OMX_VIDEO_PARAM_INTRAREFRESHTYPE params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+
+    params.eRefreshMode = static_cast<OMX_VIDEO_INTRAREFRESHTYPE>(mode);
+
+    if (params.eRefreshMode == OMX_VIDEO_IntraRefreshCyclic ||
+            params.eRefreshMode == OMX_VIDEO_IntraRefreshBoth) {
+        int32_t mbs;
+        if (!msg->findInt32("intra-refresh-CIR-mbs", &mbs)) {
+            return INVALID_OPERATION;
+        }
+        params.nCirMBs = mbs;
+    }
+
+    if (params.eRefreshMode == OMX_VIDEO_IntraRefreshAdaptive ||
+            params.eRefreshMode == OMX_VIDEO_IntraRefreshBoth) {
+        int32_t mbs;
+        if (!msg->findInt32("intra-refresh-AIR-mbs", &mbs)) {
+            return INVALID_OPERATION;
+        }
+        params.nAirMBs = mbs;
+
+        int32_t ref;
+        if (!msg->findInt32("intra-refresh-AIR-ref", &ref)) {
+            return INVALID_OPERATION;
+        }
+        params.nAirRef = ref;
+    }
+
+    status_t err = mOMX->setParameter(
+            mNode, OMX_IndexParamVideoIntraRefresh,
+            &params, sizeof(params));
+    return err;
+}
+
 static OMX_U32 setPFramesSpacing(int32_t iFramesInterval, int32_t frameRate) {
     if (iFramesInterval < 0) {
         return 0xFFFFFFFF;
@@ -1861,11 +1903,22 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         frameRate = (float)tmp;
     }
 
+    status_t err = OK;
+    int32_t intraRefreshMode = 0;
+    if (msg->findInt32("intra-refresh-mode", &intraRefreshMode)) {
+        err = setCyclicIntraMacroblockRefresh(msg, intraRefreshMode);
+        if (err != OK) {
+            ALOGE("Setting intra macroblock refresh mode (%d) failed: 0x%x",
+                    err, intraRefreshMode);
+            return err;
+        }
+    }
+
     OMX_VIDEO_PARAM_AVCTYPE h264type;
     InitOMXParams(&h264type);
     h264type.nPortIndex = kPortIndexOutput;
 
-    status_t err = mOMX->getParameter(
+    err = mOMX->getParameter(
             mNode, OMX_IndexParamVideoAvc, &h264type, sizeof(h264type));
 
     if (err != OK) {
