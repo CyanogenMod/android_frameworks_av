@@ -24,7 +24,7 @@
 #include <utils/Condition.h>
 #include <gui/CpuConsumer.h>
 #include "Parameters.h"
-#include "CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 #include "Camera2Heap.h"
 
 namespace android {

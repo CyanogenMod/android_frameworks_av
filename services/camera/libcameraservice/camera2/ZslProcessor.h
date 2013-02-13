@@ -25,7 +25,7 @@
 #include <gui/BufferItemConsumer.h>
 #include "Parameters.h"
 #include "FrameProcessor.h"
-#include "CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 #include "Camera2Heap.h"
 #include "../Camera2Device.h"
 

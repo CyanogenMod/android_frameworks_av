@@ -3,6 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
 	Camera.cpp \
+	CameraMetadata.cpp \
 	CameraParameters.cpp \
 	ICamera.cpp \
 	ICameraClient.cpp \
@@ -16,7 +17,11 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder \
 	libhardware \
 	libui \
-	libgui
+	libgui \
+	libcamera_metadata \
+
+LOCAL_C_INCLUDES += \
+    system/media/camera/include
 
 LOCAL_MODULE:= libcamera_client
 
