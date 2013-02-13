@@ -23,7 +23,7 @@
 #include <utils/Vector.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
-#include "CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 #include "Parameters.h"
 #include "FrameProcessor.h"
 

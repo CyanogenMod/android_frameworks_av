@@ -17,7 +17,7 @@
 #ifndef ANDROID_SERVERS_CAMERA_BURST_CAPTURE_H
 #define ANDROID_SERVERS_CAMERA_BURST_CAPTURE_H
 
-#include "camera2/CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <gui/CpuConsumer.h>

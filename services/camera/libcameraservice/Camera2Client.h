@@ -157,7 +157,6 @@ private:
     mutable Mutex mICameraLock;
 
     typedef camera2::Parameters Parameters;
-    typedef camera2::CameraMetadata CameraMetadata;
 
     status_t setPreviewWindowL(const sp<IBinder>& binder,
             sp<ANativeWindow> window);

@@ -22,7 +22,7 @@
 #include <gui/BufferItemConsumer.h>
 
 #include "Parameters.h"
-#include "CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 
 namespace android {
 

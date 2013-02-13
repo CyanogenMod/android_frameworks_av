@@ -18,11 +18,10 @@
 #include <utils/Log.h>
 #include <utils/Errors.h>
 
-#include "CameraMetadata.h"
+#include <camera/CameraMetadata.h>
 
 namespace android {
 
-namespace camera2 {
 CameraMetadata::CameraMetadata() :
         mBuffer(NULL) {
 }
@@ -34,6 +33,10 @@ CameraMetadata::CameraMetadata(size_t entryCapacity, size_t dataCapacity)
 
 CameraMetadata::CameraMetadata(const CameraMetadata &other) {
     mBuffer = clone_camera_metadata(other.mBuffer);
+}
+
+CameraMetadata::CameraMetadata(camera_metadata_t *buffer) : mBuffer(NULL) {
+    acquire(buffer);
 }
 
 CameraMetadata &CameraMetadata::operator=(const CameraMetadata &other) {
@@ -292,5 +295,4 @@ status_t CameraMetadata::resizeIfNeeded(size_t extraEntries, size_t extraData) {
     return OK;
 }
 
-}; // namespace camera2
 }; // namespace android

@@ -22,7 +22,7 @@
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <utils/List.h>
-#include "CameraMetadata.h"
+#include "camera/CameraMetadata.h"
 
 struct camera_frame_metadata;
 

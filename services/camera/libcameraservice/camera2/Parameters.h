@@ -25,8 +25,7 @@
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <camera/CameraParameters.h>
-
-#include "CameraMetadata.h"
+#include <camera/CameraMetadata.h>
 
 namespace android {
 namespace camera2 {
