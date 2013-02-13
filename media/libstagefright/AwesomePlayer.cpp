@@ -57,6 +57,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
+#include "include/QCUtilityClass.h"
 
 #include <gui/ISurfaceTexture.h>
 #include <gui/SurfaceTextureClient.h>
@@ -448,7 +449,8 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
                     &mStats.mTracks.editItemAt(mStats.mVideoTrackIndex);
                 stat->mMIME = mime.string();
             }
-        } else if (!haveAudio && !strncasecmp(mime.string(), "audio/", 6)) {
+        } else if (!haveAudio && !strncasecmp(mime.string(), "audio/", 6) &&
+                    !QCUtilityClass::helper_Awesomeplayer_checkIfAudioDisable()) {
             setAudioSource(extractor->getTrack(i));
             haveAudio = true;
             mActiveAudioTrackIndex = i;

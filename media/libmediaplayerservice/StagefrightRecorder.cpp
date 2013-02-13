@@ -119,6 +119,10 @@ status_t StagefrightRecorder::setAudioSource(audio_source_t as) {
         return BAD_VALUE;
     }
 
+    if(QCUtilityClass::helper_StagefrightRecoder_checkIfAudioDisable()) {
+        return OK;
+    }
+
     if (as == AUDIO_SOURCE_DEFAULT) {
         mAudioSource = AUDIO_SOURCE_MIC;
     } else {
@@ -168,6 +172,10 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
         ae >= AUDIO_ENCODER_LIST_END) {
         ALOGE("Invalid audio encoder: %d", ae);
         return BAD_VALUE;
+    }
+
+    if(QCUtilityClass::helper_StagefrightRecoder_checkIfAudioDisable()) {
+        return OK;
     }
 
     if (ae == AUDIO_ENCODER_DEFAULT) {
@@ -1591,6 +1599,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
         return retVal;
     }
 
+    QCUtilityClass::helper_StagefrightRecoder_setUserprofile(mVideoEncoder,
+                                                             mVideoEncoderProfile);
 
     if (mVideoEncoderProfile != -1) {
         enc_meta->setInt32(kKeyVideoProfile, mVideoEncoderProfile);

@@ -26,6 +26,9 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef QC_UTIL_CLASS_H_
+#define QC_UTIL_CLASS_H_
+
 #include <QCMetaData.h>
 #include <cutils/properties.h>
 #include <QCMediaDefs.h>
@@ -42,12 +45,9 @@
 #include <media/MediaRecorderBase.h>
 #include <camera/CameraParameters.h>
 
-#ifndef QC_UTIL_CLASS
-#define QC_UTIL_CLASS
-
+#include <OMX_Video.h>
 
 namespace android {
-
 
 struct QCUtilityClass
 {
@@ -71,6 +71,21 @@ struct QCUtilityClass
     // present on input format
     static void  helper_OMXCodec_hfr(const sp<MetaData> &inputFormat, sp<MetaData> &outputFormat);
 
+    // helper function to disable audio when decode audio disable prop is set
+    static bool  helper_Awesomeplayer_checkIfAudioDisable();
+
+    // helper function to disable audio when encode audio disable prop is set
+    static bool  helper_StagefrightRecoder_checkIfAudioDisable();
+
+    //helper function to set encoding profiles
+    static void  helper_StagefrightRecoder_setUserprofile(video_encoder &videoEncoder,
+                                                                    int32_t &videoEncoderProfile);
+    //helper function to setBframe related info for MPEG4type
+    static void helper_OMXCodec_setBFrames(OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames);
+
+    //helper function to setBframe related info for H264 type
+    static void helper_OMXCodec_setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
+                                           int32_t iFramesInterval, int32_t frameRate);
 };
 
 }

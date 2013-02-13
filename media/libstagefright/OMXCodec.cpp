@@ -1371,6 +1371,7 @@ status_t OMXCodec::setupMPEG4EncoderParameters(const sp<MetaData>& meta) {
     mpeg4type.eProfile = static_cast<OMX_VIDEO_MPEG4PROFILETYPE>(profileLevel.mProfile);
     mpeg4type.eLevel = static_cast<OMX_VIDEO_MPEG4LEVELTYPE>(profileLevel.mLevel);
 
+    QCUtilityClass::helper_OMXCodec_setBFrames(mpeg4type, mNumBFrames);
     err = mOMX->setParameter(
             mNode, OMX_IndexParamVideoMpeg4, &mpeg4type, sizeof(mpeg4type));
     CHECK_EQ(err, (status_t)OK);
@@ -1411,27 +1412,18 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     int32_t newFrameRate = frameRate;
     QCUtilityClass::helper_OMXCodec_hfr(meta, frameRate, bitRate, newFrameRate);
 
-    // XXX
 #ifdef USE_TI_DUCATI_H264_PROFILE
     if ((strncmp(mComponentName, "OMX.TI.DUCATI1", 14) != 0)
             && (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline)) {
-#else
-    if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
-#endif
-        ALOGW("Use baseline profile instead of %d for AVC recording",
-            h264type.eProfile);
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
+#endif
 
     if (h264type.eProfile == OMX_VIDEO_AVCProfileBaseline) {
         h264type.nSliceHeaderSpacing = 0;
         h264type.bUseHadamard = OMX_TRUE;
         h264type.nRefFrames = 1;
         h264type.nBFrames = 0;
-        h264type.nPFrames = setPFramesSpacing(iFramesInterval, newFrameRate);
-        if (h264type.nPFrames == 0) {
-            h264type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
-        }
         h264type.nRefIdx10ActiveMinus1 = 0;
         h264type.nRefIdx11ActiveMinus1 = 0;
         h264type.bEntropyCodingCABAC = OMX_FALSE;
@@ -1442,6 +1434,10 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
         h264type.nCabacInitIdc = 0;
     }
 
+    QCUtilityClass::helper_OMXCodec_setBFrames(h264type,
+                                               mNumBFrames,
+                                               iFramesInterval,
+                                               newFrameRate);
     if (h264type.nBFrames != 0) {
         h264type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
     }
@@ -1667,7 +1663,8 @@ OMXCodec::OMXCodec(
       mNativeWindow(
               (!strncmp(componentName, "OMX.google.", 11)
               || !strcmp(componentName, "OMX.Nvidia.mpeg2v.decode"))
-                        ? NULL : nativeWindow) {
+                        ? NULL : nativeWindow),
+      mNumBFrames(0) {
     mPortStatus[kPortIndexInput] = ENABLED;
     mPortStatus[kPortIndexOutput] = ENABLED;
 
@@ -3335,7 +3332,8 @@ void OMXCodec::drainInputBuffers() {
             }
 
             if (mFlags & kOnlySubmitOneInputBufferAtOneTime) {
-                break;
+                if (i == mNumBFrames)
+                    break;
             }
         }
     }
