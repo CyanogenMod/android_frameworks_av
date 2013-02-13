@@ -18,7 +18,12 @@
 
 #define MPEG4_EXTRACTOR_H_
 
+#include <arpa/inet.h>
+
+#include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/stagefright/Utils.h>
+#include <utils/List.h>
 #include <utils/Vector.h>
 #include <utils/String8.h>
 
@@ -28,6 +33,11 @@ struct AMessage;
 class DataSource;
 class SampleTable;
 class String8;
+
+struct SidxEntry {
+    size_t mSize;
+    uint32_t mDurationUs;
+};
 
 class MPEG4Extractor : public MediaExtractor {
 public:
@@ -39,6 +49,7 @@ public:
     virtual sp<MetaData> getTrackMetaData(size_t index, uint32_t flags);
 
     virtual sp<MetaData> getMetaData();
+    virtual uint32_t flags() const;
 
     // for DRM
     virtual char* getDrmTrackInfo(size_t trackID, int *len);
@@ -47,6 +58,7 @@ protected:
     virtual ~MPEG4Extractor();
 
 private:
+
     struct Track {
         Track *next;
         sp<MetaData> meta;
@@ -55,6 +67,10 @@ private:
         bool includes_expensive_metadata;
         bool skipTrack;
     };
+
+    Vector<SidxEntry> mSidxEntries;
+    uint64_t mSidxDuration;
+    off64_t mMoofOffset;
 
     sp<DataSource> mDataSource;
     status_t mInitCheck;
@@ -92,6 +108,8 @@ private:
     status_t parseDrmSINF(off64_t *offset, off64_t data_offset);
 
     status_t parseTrackHeader(off64_t data_offset, off64_t data_size);
+
+    status_t parseSegmentIndex(off64_t data_offset, size_t data_size);
 
     Track *findTrackByMimePrefix(const char *mimePrefix);
 
