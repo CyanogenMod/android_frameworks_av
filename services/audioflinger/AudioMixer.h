@@ -28,6 +28,7 @@
 
 #include <audio_effects/effect_downmix.h>
 #include <system/audio.h>
+#include <media/nbaio/NBLog.h>
 
 namespace android {
 
@@ -76,6 +77,7 @@ public:
         MAIN_BUFFER     = 0x4002,
         AUX_BUFFER      = 0x4003,
         DOWNMIX_TYPE    = 0X4004,
+        FAST_INDEX      = 0x4005, // for debugging only
         // for target RESAMPLE
         SAMPLE_RATE     = 0x4100, // Configure sample rate conversion on this track name;
                                   // parameter 'value' is the new sample rate in Hz.
@@ -106,6 +108,7 @@ public:
     // Enable or disable an allocated track by name
     void        enable(int name);
     void        disable(int name);
+    bool        enabled(int name);
 
     void        setParameter(int name, int target, int param, void *value);
 
@@ -200,7 +203,10 @@ private:
 
         int32_t     sessionId;
 
-        int32_t     padding[2];
+        int32_t     fastIndex;
+        int32_t     magic;
+        static const int kMagic = 0x54637281;
+        //int32_t     padding[1];
 
         // 16-byte boundary
 
@@ -210,6 +216,12 @@ private:
         void        adjustVolumeRamp(bool aux);
         size_t      getUnreleasedFrames() const { return resampler != NULL ?
                                                     resampler->getUnreleasedFrames() : 0; };
+        void        checkMagic() {
+            if (magic != kMagic) {
+                ALOGE("magic=%#x fastIndex=%d", magic, fastIndex);
+            }
+        }
+
     };
 
     // pad to 32-bytes to fill cache line
@@ -220,7 +232,8 @@ private:
         void            (*hook)(state_t* state, int64_t pts);   // one of process__*, never NULL
         int32_t         *outputTemp;
         int32_t         *resampleTemp;
-        int32_t         reserved[2];
+        NBLog::Writer*  mLog;
+        int32_t         reserved[1];
         // FIXME allocate dynamically to save some memory when maxNumTracks < MAX_NUM_TRACKS
         track_t         tracks[MAX_NUM_TRACKS]; __attribute__((aligned(32)));
     };
@@ -247,6 +260,11 @@ private:
 
     const uint32_t  mSampleRate;
 
+    NBLog::Writer*  mLog;
+    NBLog::Writer   mDummyLog;
+public:
+    void            setLog(NBLog::Writer* log);
+private:
     state_t         mState __attribute__((aligned(32)));
 
     // effect descriptor for the downmixer used by the mixer
