@@ -227,7 +227,7 @@ public:
     sp<NBLog::Writer>   newWriter_l(size_t size, const char *name);
     void                unregisterWriter(const sp<NBLog::Writer>& writer);
 private:
-    static const size_t kLogMemorySize = 10 * 1024;
+    static const size_t kLogMemorySize = 30 * 1024;
     sp<MemoryDealer>    mLogMemoryDealer;   // == 0 when NBLog is disabled
 public:
 
