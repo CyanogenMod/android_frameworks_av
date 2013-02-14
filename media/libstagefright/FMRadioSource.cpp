@@ -38,7 +38,7 @@ FMRadioSource::FMRadioSource()
       mSessionId(AudioSystem::newAudioSessionId()) {
 
     // get FM Radio RX input
-    audio_io_handle_t input = AudioSystem::getInput(AUDIO_SOURCE_FM_RADIO_RX,
+    audio_io_handle_t input = AudioSystem::getInput(AUDIO_SOURCE_FM_RX,
                                                     kSampleRate,
                                                     kAudioFormat,
                                                     kChannelMask,
