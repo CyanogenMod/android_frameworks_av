@@ -165,3 +165,26 @@ LOCAL_MODULE:= codec
 
 include $(BUILD_EXECUTABLE)
 
+################################################################################
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:=               \
+        muxer.cpp            \
+
+LOCAL_SHARED_LIBRARIES := \
+	libstagefright liblog libutils libbinder libstagefright_foundation \
+        libmedia libgui libcutils libui libc
+
+LOCAL_C_INCLUDES:= \
+	frameworks/av/media/libstagefright \
+	$(TOP)/frameworks/native/include/media/openmax
+
+LOCAL_CFLAGS += -Wno-multichar
+
+LOCAL_MODULE_TAGS := debug
+
+LOCAL_MODULE:= muxer
+
+include $(BUILD_EXECUTABLE)
+
