@@ -120,7 +120,6 @@ bool FastMixer::threadLoop()
         FastMixerState::Command command = next->mCommand;
         if (next != current) {
 
-            logWriter->logTimestamp();
             logWriter->log("next != current");
 
             // As soon as possible of learning of a new dump area, start using it
@@ -302,19 +301,12 @@ bool FastMixer::threadLoop()
                     const FastTrack* fastTrack = &current->mFastTracks[i];
                     AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
                     ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
-                    if (bufferProvider == NULL ||
-                            bufferProvider->getValid() != AudioBufferProvider::kValid) {
-                        logWriter->logTimestamp();
-                        logWriter->logf("added invalid %#x", i);
-                    }
                     if (mixer != NULL) {
                         // calling getTrackName with default channel mask and a random invalid
                         //   sessionId (no effects here)
                         name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO, -555);
                         ALOG_ASSERT(name >= 0);
                         fastTrackNames[i] = name;
-                        mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FAST_INDEX,
-                                (void *) i);
                         mixer->setBufferProvider(name, bufferProvider);
                         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                                 (void *) mixBuffer);
@@ -330,31 +322,22 @@ bool FastMixer::threadLoop()
                     generations[i] = fastTrack->mGeneration;
                 }
 
-                // finally process (potentially) modified tracks; these use the same slot
+                // finally process modified tracks; these use the same slot
                 // but may have a different buffer provider or volume provider
                 unsigned modifiedTracks = currentTrackMask & previousTrackMask;
                 if (modifiedTracks) {
-                    logWriter->logf("pot. mod. %#x", modifiedTracks);
+                    logWriter->logf("modified %#x", modifiedTracks);
                 }
-                unsigned actuallyModifiedTracks = 0;
                 while (modifiedTracks != 0) {
                     i = __builtin_ctz(modifiedTracks);
                     modifiedTracks &= ~(1 << i);
                     const FastTrack* fastTrack = &current->mFastTracks[i];
                     if (fastTrack->mGeneration != generations[i]) {
-                        actuallyModifiedTracks |= 1 << i;
                         AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
                         ALOG_ASSERT(bufferProvider != NULL);
-                        if (bufferProvider == NULL ||
-                                bufferProvider->getValid() != AudioBufferProvider::kValid) {
-                            logWriter->logTimestamp();
-                            logWriter->logf("modified invalid %#x", i);
-                        }
                         if (mixer != NULL) {
                             name = fastTrackNames[i];
                             ALOG_ASSERT(name >= 0);
-                            mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FAST_INDEX,
-                                    (void *) i);
                             mixer->setBufferProvider(name, bufferProvider);
                             if (fastTrack->mVolumeProvider == NULL) {
                                 mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
@@ -376,9 +359,6 @@ bool FastMixer::threadLoop()
                         }
                         generations[i] = fastTrack->mGeneration;
                     }
-                }
-                if (actuallyModifiedTracks) {
-                    logWriter->logf("act. mod. %#x", actuallyModifiedTracks);
                 }
 
                 fastTracksGen = current->mFastTracksGen;
@@ -443,12 +423,6 @@ bool FastMixer::threadLoop()
                 }
                 ftDump->mUnderruns = underruns;
                 ftDump->mFramesReady = framesReady;
-                AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
-                if (bufferProvider == NULL ||
-                        bufferProvider->getValid() != AudioBufferProvider::kValid) {
-                    logWriter->logTimestamp();
-                    logWriter->logf("mixing invalid %#x", i);
-                }
             }
 
             int64_t pts;
