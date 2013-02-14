@@ -426,6 +426,33 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
 
 }
 
+void QCUtils::helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCodecInfos,
+                                          KeyedVector<AString, size_t> &mTypes,
+                                          bool encoder, const char *name,
+                                          const char *type, uint32_t quirks) {
+    mCodecInfos.push();
+    MediaCodecList::CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+    info->mName = name;
+    info->mIsEncoder = encoder;
+    ssize_t index = mTypes.indexOfKey(type);
+    uint32_t bit = mTypes.valueAt(index);
+    info->mTypes |= 1ul << bit;
+    info->mQuirks = quirks;
+}
+
+uint32_t QCUtils::helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
+                                                       Vector<AString> quirks) {
+    size_t i = 0, numQuirks = quirks.size();
+    uint32_t bit = 0, value = 0;
+    for (i = 0; i < numQuirks; i++)
+    {
+        ssize_t index = mCodecQuirks.indexOfKey(quirks.itemAt(i));
+        bit = mCodecQuirks.valueAt(index);
+        value |= 1ul << bit;
+    }
+    return value;
+}
+
 bool QCUtils::isAVCProfileSupported(int32_t  profile){
    if(profile == OMX_VIDEO_AVCProfileMain || profile == OMX_VIDEO_AVCProfileHigh || profile == OMX_VIDEO_AVCProfileBaseline){
       return true;
@@ -571,6 +598,17 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
                                                             const sp<DataSource> &source,
                                                             const char *mime) {
                    return defaultExt;
+}
+
+void QCUtils::helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCodecInfos,
+                                          KeyedVector<AString, size_t> &mTypes,
+                                          bool encoder, const char *name,
+                                          const char *type, uint32_t quirks) {
+}
+
+uint32_t QCUtils::helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
+                                                       Vector<AString> quirks) {
+    return 0;
 }
 
 bool QCUtils::isAVCProfileSupported(int32_t  profile){

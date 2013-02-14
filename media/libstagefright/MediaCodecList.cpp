@@ -27,6 +27,7 @@
 #include <utils/threads.h>
 
 #include <libexpat/expat.h>
+#include "include/QCUtils.h"
 
 namespace android {
 
@@ -64,6 +65,12 @@ MediaCodecList::MediaCodecList()
 
         addMediaCodec(
                 false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
+
+        Vector<AString> QcomAACQuirks;
+        QcomAACQuirks.push(AString("requires-allocate-on-input-ports"));
+        QcomAACQuirks.push(AString("requires-allocate-on-output-ports"));
+        QCUtils::helper_addMediaCodec(mCodecInfos, mTypes, false, "OMX.qcom.audio.decoder.multiaac",
+            "audio/mp4a-latm", QCUtils::helper_getCodecSpecificQuirks(mCodecQuirks, QcomAACQuirks));
     }
 
 #if 0

@@ -31,6 +31,9 @@
 #include <utils/StrongPointer.h>
 #include <media/Metadata.h>
 #include <media/stagefright/MediaSource.h>
+#include <media/stagefright/foundation/AString.h>
+#include <media/stagefright/MediaCodecList.h>
+
 #include <media/MediaRecorderBase.h>
 #include <media/stagefright/MediaExtractor.h>
 #include <camera/CameraParameters.h>
@@ -114,6 +117,16 @@ struct QCUtils {
 
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
               const sp<DataSource> &source, const char *mime);
+
+    //helper function to add media codecs with specific quirks
+    static void helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCodecInfos,
+                                     KeyedVector<AString, size_t> &mTypes,
+                                     bool encoder, const char *name,
+                                     const char *type, uint32_t quirks);
+
+    //helper function to calculate the value of quirks from strings
+    static uint32_t helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
+                                                  Vector<AString> quirks);
 
     static bool isAVCProfileSupported(int32_t profile);
 

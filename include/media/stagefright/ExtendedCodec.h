@@ -100,6 +100,8 @@ struct ExtendedCodec {
 
     static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
 
+    static bool useHWAACDecoder(const char *mime);
+
 private:
 
     static status_t setWMAFormat(
