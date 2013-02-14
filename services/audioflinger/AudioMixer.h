@@ -76,6 +76,7 @@ public:
         MAIN_BUFFER     = 0x4002,
         AUX_BUFFER      = 0x4003,
         DOWNMIX_TYPE    = 0X4004,
+        FAST_INDEX      = 0x4005, // for debugging only
         // for target RESAMPLE
         SAMPLE_RATE     = 0x4100, // Configure sample rate conversion on this track name;
                                   // parameter 'value' is the new sample rate in Hz.
@@ -200,7 +201,8 @@ private:
 
         int32_t     sessionId;
 
-        int32_t     padding[2];
+        int32_t     fastIndex;
+        int32_t     padding[1];
 
         // 16-byte boundary
 
