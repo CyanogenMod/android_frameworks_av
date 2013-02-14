@@ -30,6 +30,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "QCOMXCodec"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
@@ -605,6 +606,16 @@ void QCOMXCodec::checkIfInterlaced(const uint8_t *ptr, const sp<MetaData> &meta)
         meta->setInt32(kKeyUseArbitraryMode, 1);
     }
     return;
+}
+
+bool QCOMXCodec::useHWAACDecoder(const char *mime) {
+    char value[PROPERTY_VALUE_MAX];
+    int aaccodectype = property_get("media.aaccodectype", value, NULL);
+    if (!strcmp("0", value) && aaccodectype && !strcmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
+        ALOGI("Using Hardware AAC Decoder");
+        return true;
+    }
+    return false;
 }
 
 }

@@ -35,6 +35,8 @@
 
 #include <media/Metadata.h>
 #include <media/stagefright/MediaSource.h>
+#include <media/stagefright/foundation/AString.h>
+#include <media/stagefright/MediaCodecList.h>
 
 #include <utils/Errors.h>
 #include <sys/types.h>
@@ -86,6 +88,16 @@ struct QCUtilityClass
     //helper function to setBframe related info for H264 type
     static void helper_OMXCodec_setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
                                            int32_t iFramesInterval, int32_t frameRate);
+
+    //helper function to add media codecs with specific quirks
+    static void helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCodecInfos,
+                                     KeyedVector<AString, size_t> &mTypes,
+                                     bool encoder, const char *name,
+                                     const char *type, uint32_t quirks);
+
+    //helper function to calculate the value of quirks from strings
+    static uint32_t helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
+                                                  Vector<AString> quirks);
 };
 
 }
