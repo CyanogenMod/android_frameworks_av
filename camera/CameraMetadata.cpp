@@ -208,6 +208,11 @@ status_t CameraMetadata::update(uint32_t tag, const void *data,
     return res;
 }
 
+bool CameraMetadata::exists(uint32_t tag) const {
+    camera_metadata_ro_entry entry;
+    return find_camera_metadata_ro_entry(mBuffer, tag, &entry) == 0;
+}
+
 camera_metadata_entry_t CameraMetadata::find(uint32_t tag) {
     status_t res;
     camera_metadata_entry entry;

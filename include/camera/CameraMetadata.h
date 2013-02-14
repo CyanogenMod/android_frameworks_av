@@ -121,6 +121,12 @@ class CameraMetadata {
     }
 
     /**
+     * Check if a metadata entry exists for a given tag id
+     *
+     */
+    bool exists(uint32_t tag) const;
+
+    /**
      * Get metadata entry by tag id
      */
     camera_metadata_entry find(uint32_t tag);
