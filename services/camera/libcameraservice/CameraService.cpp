@@ -28,7 +28,6 @@
 #include <binder/MemoryHeapBase.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
-#include <gui/SurfaceTextureClient.h>
 #include <gui/Surface.h>
 #include <hardware/hardware.h>
 #include <media/AudioSystem.h>

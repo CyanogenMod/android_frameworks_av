@@ -32,7 +32,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <gui/Surface.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 
 #include "VideoEditorPreviewController.h"
 #include "DummyAudioSource.h"
@@ -1780,7 +1780,7 @@ void PreviewPlayer::setSurfaceTexture(const sp<IGraphicBufferProducer> &bufferPr
 
     mSurface.clear();
     if (bufferProducer != NULL) {
-        setNativeWindow_l(new SurfaceTextureClient(bufferProducer));
+        setNativeWindow_l(new Surface(bufferProducer));
     }
 }
 

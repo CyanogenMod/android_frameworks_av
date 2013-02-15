@@ -29,7 +29,7 @@
 #include <utils/Trace.h>
 
 #include "ZslProcessor.h"
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include "../Camera2Device.h"
 #include "../Camera2Client.h"
 
@@ -124,7 +124,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
             true);
         mZslConsumer->setFrameAvailableListener(this);
         mZslConsumer->setName(String8("Camera2Client::ZslConsumer"));
-        mZslWindow = new SurfaceTextureClient(
+        mZslWindow = new Surface(
             mZslConsumer->getProducerInterface());
     }
 

@@ -35,6 +35,7 @@
 #include <media/IMediaPlayerService.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
+#include <gui/Surface.h>
 
 #include <fcntl.h>
 #include <ui/DisplayInfo.h>
@@ -373,7 +374,7 @@ int main(int argc, char **argv) {
         service->create(client, 0);
 
     if (player != NULL && player->setDataSource(source) == NO_ERROR) {
-        player->setVideoSurfaceTexture(surface->getSurfaceTexture());
+        player->setVideoSurfaceTexture(surface->getISurfaceTexture());
         player->start();
 
         client->waitForEOS();

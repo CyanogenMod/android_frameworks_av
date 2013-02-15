@@ -20,7 +20,7 @@
 
 #include "SimplePlayer.h"
 
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include <media/AudioTrack.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -67,13 +67,13 @@ status_t SimplePlayer::setDataSource(const char *path) {
 status_t SimplePlayer::setSurface(const sp<IGraphicBufferProducer> &bufferProducer) {
     sp<AMessage> msg = new AMessage(kWhatSetSurface, id());
 
-    sp<SurfaceTextureClient> surfaceTextureClient;
+    sp<Surface> surface;
     if (bufferProducer != NULL) {
-        surfaceTextureClient = new SurfaceTextureClient(bufferProducer);
+        surface = new Surface(bufferProducer);
     }
 
     msg->setObject(
-            "native-window", new NativeWindowWrapper(surfaceTextureClient));
+            "native-window", new NativeWindowWrapper(surface));
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);

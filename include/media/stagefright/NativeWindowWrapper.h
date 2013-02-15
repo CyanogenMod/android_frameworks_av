@@ -18,29 +18,29 @@
 
 #define NATIVE_WINDOW_WRAPPER_H_
 
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 
 namespace android {
 
-// SurfaceTextureClient derives from ANativeWindow which derives from multiple
+// Surface derives from ANativeWindow which derives from multiple
 // base classes, in order to carry it in AMessages, we'll temporarily wrap it
 // into a NativeWindowWrapper.
 
 struct NativeWindowWrapper : RefBase {
     NativeWindowWrapper(
-            const sp<SurfaceTextureClient> &surfaceTextureClient) :
+            const sp<Surface> &surfaceTextureClient) :
         mSurfaceTextureClient(surfaceTextureClient) { }
 
     sp<ANativeWindow> getNativeWindow() const {
         return mSurfaceTextureClient;
     }
 
-    sp<SurfaceTextureClient> getSurfaceTextureClient() const {
+    sp<Surface> getSurfaceTextureClient() const {
         return mSurfaceTextureClient;
     }
 
 private:
-    const sp<SurfaceTextureClient> mSurfaceTextureClient;
+    const sp<Surface> mSurfaceTextureClient;
 
     DISALLOW_EVIL_CONSTRUCTORS(NativeWindowWrapper);
 };
