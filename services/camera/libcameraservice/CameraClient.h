@@ -124,7 +124,7 @@ private:
 
     // Ensures atomicity among the public methods
     mutable Mutex                   mLock;
-    // This is a binder of Surface or SurfaceTextureClient.
+    // This is a binder of Surface or Surface.
     sp<IBinder>                     mSurface;
     sp<ANativeWindow>               mPreviewWindow;
 

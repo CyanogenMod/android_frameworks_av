@@ -376,7 +376,7 @@ void TunnelRenderer::initPlayer() {
     CHECK_EQ(mPlayer->setDataSource(mStreamSource), (status_t)OK);
 
     mPlayer->setVideoSurfaceTexture(
-            mSurfaceTex != NULL ? mSurfaceTex : mSurface->getSurfaceTexture());
+            mSurfaceTex != NULL ? mSurfaceTex : mSurface->getIGraphicBufferProducer());
 
     mPlayer->start();
 }

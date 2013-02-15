@@ -27,7 +27,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
 
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 
 #include <media/mediaplayer.h>
 #include <media/AudioSystem.h>

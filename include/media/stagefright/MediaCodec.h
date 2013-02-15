@@ -31,7 +31,7 @@ struct AMessage;
 struct AString;
 struct ICrypto;
 struct SoftwareRenderer;
-struct SurfaceTextureClient;
+struct Surface;
 
 struct MediaCodec : public AHandler {
     enum ConfigureFlags {
@@ -52,7 +52,7 @@ struct MediaCodec : public AHandler {
 
     status_t configure(
             const sp<AMessage> &format,
-            const sp<SurfaceTextureClient> &nativeWindow,
+            const sp<Surface> &nativeWindow,
             const sp<ICrypto> &crypto,
             uint32_t flags);
 
@@ -187,7 +187,7 @@ private:
     AString mComponentName;
     uint32_t mReplyID;
     uint32_t mFlags;
-    sp<SurfaceTextureClient> mNativeWindow;
+    sp<Surface> mNativeWindow;
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
 
@@ -229,7 +229,7 @@ private:
     status_t queueCSDInputBuffer(size_t bufferIndex);
 
     status_t setNativeWindow(
-            const sp<SurfaceTextureClient> &surfaceTextureClient);
+            const sp<Surface> &surface);
 
     void postActivityNotificationIfPossible();
 

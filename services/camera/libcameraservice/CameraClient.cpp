@@ -18,7 +18,6 @@
 //#define LOG_NDEBUG 0
 
 #include <cutils/properties.h>
-#include <gui/SurfaceTextureClient.h>
 #include <gui/Surface.h>
 
 #include "CameraClient.h"
@@ -302,7 +301,7 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
 status_t CameraClient::setPreviewDisplay(const sp<Surface>& surface) {
     LOG1("setPreviewDisplay(%p) (pid %d)", surface.get(), getCallingPid());
 
-    sp<IBinder> binder(surface != 0 ? surface->asBinder() : 0);
+    sp<IBinder> binder(surface != 0 ? surface->getISurfaceTexture()->asBinder() : 0);
     sp<ANativeWindow> window(surface);
     return setPreviewWindow(binder, window);
 }
@@ -317,7 +316,7 @@ status_t CameraClient::setPreviewTexture(
     sp<ANativeWindow> window;
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        window = new SurfaceTextureClient(bufferProducer);
+        window = new Surface(bufferProducer);
     }
     return setPreviewWindow(binder, window);
 }
