@@ -38,7 +38,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/MemoryHeapBase.h>
 #include <binder/MemoryBase.h>
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include <utils/Errors.h>  // for status_t
 #include <utils/String8.h>
 #include <utils/SystemClock.h>
@@ -731,7 +731,7 @@ status_t MediaPlayerService::Client::setVideoSurfaceTexture(
 
     sp<ANativeWindow> anw;
     if (bufferProducer != NULL) {
-        anw = new SurfaceTextureClient(bufferProducer);
+        anw = new Surface(bufferProducer);
         status_t err = native_window_api_connect(anw.get(),
                 NATIVE_WINDOW_API_MEDIA);
 

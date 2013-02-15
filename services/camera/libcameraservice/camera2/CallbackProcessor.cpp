@@ -22,7 +22,7 @@
 #include <utils/Trace.h>
 
 #include "CallbackProcessor.h"
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include "../Camera2Device.h"
 #include "../Camera2Client.h"
 
@@ -65,7 +65,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         mCallbackConsumer = new CpuConsumer(kCallbackHeapCount);
         mCallbackConsumer->setFrameAvailableListener(this);
         mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
-        mCallbackWindow = new SurfaceTextureClient(
+        mCallbackWindow = new Surface(
             mCallbackConsumer->getProducerInterface());
     }
 

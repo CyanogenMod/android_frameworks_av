@@ -27,7 +27,7 @@
 #include <media/mediarecorder.h>
 
 #include <ui/GraphicBuffer.h>
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -109,7 +109,7 @@ protected:
             ALOGV("No actual display. Choosing EGLSurface based on SurfaceMediaSource");
             sp<IGraphicBufferProducer> sms = (new SurfaceMediaSource(
                     getSurfaceWidth(), getSurfaceHeight()))->getBufferQueue();
-            sp<SurfaceTextureClient> stc = new SurfaceTextureClient(sms);
+            sp<Surface> stc = new Surface(sms);
             sp<ANativeWindow> window = stc;
 
             mEglSurface = eglCreateWindowSurface(mEglDisplay, mGlConfig,
@@ -361,7 +361,7 @@ protected:
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
 
         // Manual cast is required to avoid constructor ambiguity
-        mSTC = new SurfaceTextureClient(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
         mANW = mSTC;
     }
 
@@ -375,7 +375,7 @@ protected:
     const int mYuvTexHeight;
 
     sp<SurfaceMediaSource> mSMS;
-    sp<SurfaceTextureClient> mSTC;
+    sp<Surface> mSTC;
     sp<ANativeWindow> mANW;
 };
 
@@ -396,7 +396,7 @@ protected:
         ALOGV("SMS-GLTest::SetUp()");
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-        mSTC = new SurfaceTextureClient(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
         mANW = mSTC;
 
         // Doing the setup related to the GL Side
@@ -416,7 +416,7 @@ protected:
     const int mYuvTexHeight;
 
     sp<SurfaceMediaSource> mSMS;
-    sp<SurfaceTextureClient> mSTC;
+    sp<Surface> mSTC;
     sp<ANativeWindow> mANW;
 };
 
@@ -483,7 +483,7 @@ sp<MediaRecorder> SurfaceMediaSourceGLTest::setUpMediaRecorder(int fd, int video
 // query the mediarecorder for a surfacemeidasource and create an egl surface with that
 void SurfaceMediaSourceGLTest::setUpEGLSurfaceFromMediaRecorder(sp<MediaRecorder>& mr) {
     sp<IGraphicBufferProducer> iST = mr->querySurfaceMediaSourceFromMediaServer();
-    mSTC = new SurfaceTextureClient(iST);
+    mSTC = new Surface(iST);
     mANW = mSTC;
 
     if (mEglSurface != EGL_NO_SURFACE) {
@@ -750,7 +750,7 @@ TEST_F(SurfaceMediaSourceTest, DISABLED_EncodingFromCpuYV12BufferNpotWriteMediaS
     // get the reference to the surfacemediasource living in
     // mediaserver that is created by stagefrightrecorder
     sp<IGraphicBufferProducer> iST = mr->querySurfaceMediaSourceFromMediaServer();
-    mSTC = new SurfaceTextureClient(iST);
+    mSTC = new Surface(iST);
     mANW = mSTC;
     ASSERT_EQ(NO_ERROR, native_window_api_connect(mANW.get(), NATIVE_WINDOW_API_CPU));
     ASSERT_EQ(NO_ERROR, native_window_set_buffers_format(mANW.get(),
@@ -781,7 +781,7 @@ TEST_F(SurfaceMediaSourceGLTest, ChooseAndroidRecordableEGLConfigDummyWriter) {
     ALOGV("Verify creating a surface w/ right config + dummy writer*********");
 
     mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-    mSTC = new SurfaceTextureClient(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+    mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
     mANW = mSTC;
 
     DummyRecorder writer(mSMS);

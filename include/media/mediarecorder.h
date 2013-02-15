@@ -32,7 +32,7 @@ class IMediaRecorder;
 class ICamera;
 class ICameraRecordingProxy;
 class IGraphicBufferProducer;
-class SurfaceTextureClient;
+class Surface;
 
 typedef void (*media_completion_f)(status_t status, void *cookie);
 

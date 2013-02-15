@@ -22,7 +22,6 @@
 #include <utils/Trace.h>
 
 #include <cutils/properties.h>
-#include <gui/SurfaceTextureClient.h>
 #include <gui/Surface.h>
 #include "camera2/Parameters.h"
 #include "Camera2Client.h"
@@ -489,7 +488,7 @@ status_t Camera2Client::setPreviewDisplay(
     sp<IBinder> binder;
     sp<ANativeWindow> window;
     if (surface != 0) {
-        binder = surface->asBinder();
+        binder = surface->getISurfaceTexture()->asBinder();
         window = surface;
     }
 
@@ -508,7 +507,7 @@ status_t Camera2Client::setPreviewTexture(
     sp<ANativeWindow> window;
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        window = new SurfaceTextureClient(bufferProducer);
+        window = new Surface(bufferProducer);
     }
     return setPreviewWindowL(binder, window);
 }

@@ -321,7 +321,7 @@ int main(int argc, char **argv) {
     sp<ALooper> looper = new ALooper;
 
     sp<WifiDisplaySink> sink = new WifiDisplaySink(
-            session, surface->getSurfaceTexture());
+            session, surface->getIGraphicBufferProducer());
     looper->registerHandler(sink);
 
     if (connectToPort >= 0) {
