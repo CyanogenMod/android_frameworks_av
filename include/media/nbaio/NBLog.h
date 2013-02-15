@@ -115,7 +115,7 @@ public:
     virtual ~Writer() { }
 
     virtual void    log(const char *string);
-    virtual void    logf(const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+    virtual void    logf(const char *fmt, ...);
     virtual void    logvf(const char *fmt, va_list ap);
     virtual void    logTimestamp();
     virtual void    logTimestamp(const struct timespec& ts);
@@ -149,7 +149,7 @@ public:
     LockedWriter(size_t size, void *shared);
 
     virtual void    log(const char *string);
-    virtual void    logf(const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+    virtual void    logf(const char *fmt, ...);
     virtual void    logvf(const char *fmt, va_list ap);
     virtual void    logTimestamp();
     virtual void    logTimestamp(const struct timespec& ts);

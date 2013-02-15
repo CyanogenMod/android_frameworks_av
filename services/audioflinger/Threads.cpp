@@ -1196,8 +1196,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
     { // scope for mLock
         Mutex::Autolock _l(mLock);
-        mNBLogWriter->logf("createTrack_l isFast=%d caller=%d",
-                (*flags & IAudioFlinger::TRACK_FAST) != 0, IPCThreadState::self()->getCallingPid());
 
         // all tracks in same audio session must share the same routing strategy otherwise
         // conflicts will happen when tracks are moved from one output to another by audio policy
@@ -1251,6 +1249,7 @@ Exit:
     if (status) {
         *status = lStatus;
     }
+    mNBLogWriter->logf("createTrack_l");
     return track;
 }
 
@@ -1318,8 +1317,7 @@ float AudioFlinger::PlaybackThread::streamVolume(audio_stream_type_t stream) con
 // addTrack_l() must be called with ThreadBase::mLock held
 status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logf("addTrack_l mName=%d mFastIndex=%d caller=%d", track->mName,
-            track->mFastIndex, IPCThreadState::self()->getCallingPid());
+    mNBLogWriter->logf("addTrack_l mName=%d", track->mName);
     status_t status = ALREADY_EXISTS;
 
     // set retry count for buffer fill
@@ -1353,9 +1351,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 // destroyTrack_l() must be called with ThreadBase::mLock held
 void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logTimestamp();
-    mNBLogWriter->logf("destroyTrack_l mName=%d mFastIndex=%d mClientPid=%d", track->mName,
-            track->mFastIndex, track->mClient != 0 ? track->mClient->pid() : -1);
+    mNBLogWriter->logf("destroyTrack_l mName=%d", track->mName);
     track->mState = TrackBase::TERMINATED;
     // active tracks are removed by threadLoop()
     if (mActiveTracks.indexOf(track) < 0) {
@@ -1365,9 +1361,7 @@ void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 
 void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logTimestamp();
-    mNBLogWriter->logf("removeTrack_l mName=%d mFastIndex=%d clientPid=%d", track->mName,
-            track->mFastIndex, track->mClient != 0 ? track->mClient->pid() : -1);
+    mNBLogWriter->logf("removeTrack_l mName=%d", track->mName);
     track->triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
     mTracks.remove(track);
     deleteTrackName_l(track->name());
@@ -2155,7 +2149,6 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         FastTrack *fastTrack = &state->mFastTracks[0];
         // wrap the source side of the MonoPipe to make it an AudioBufferProvider
         fastTrack->mBufferProvider = new SourceAudioBufferProvider(new MonoPipeReader(monoPipe));
-        mNBLogWriter->logf("fastTrack0 bp=%p", fastTrack->mBufferProvider);
         fastTrack->mVolumeProvider = NULL;
         fastTrack->mGeneration++;
         state->mFastTracksGen++;
@@ -2560,7 +2553,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // was it previously inactive?
                 if (!(state->mTrackMask & (1 << j))) {
                     ExtendedAudioBufferProvider *eabp = track;
-                    mNBLogWriter->logf("fastTrack j=%d bp=%p", j, eabp);
                     VolumeProvider *vp = track;
                     fastTrack->mBufferProvider = eabp;
                     fastTrack->mVolumeProvider = vp;
@@ -2847,19 +2839,11 @@ track_is_ready: ;
             block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
             pauseAudioWatchdog = true;
         }
+        sq->end();
     }
     if (sq != NULL) {
-        unsigned trackMask = state->mTrackMask;
         sq->end(didModify);
-        if (didModify) {
-            mNBLogWriter->logTimestamp();
-            mNBLogWriter->logf("push trackMask=%#x block=%d", trackMask, block);
-        }
         sq->push(block);
-        if (didModify) {
-            mNBLogWriter->logTimestamp();
-            mNBLogWriter->log("pushed");
-        }
     }
 #ifdef AUDIO_WATCHDOG
     if (pauseAudioWatchdog && mAudioWatchdog != 0) {
@@ -2886,9 +2870,7 @@ track_is_ready: ;
     if (CC_UNLIKELY(count)) {
         for (size_t i=0 ; i<count ; i++) {
             const sp<Track>& track = tracksToRemove->itemAt(i);
-            mNBLogWriter->logTimestamp();
-            mNBLogWriter->logf("prepareTracks_l remove name=%u mFastIndex=%d", track->name(),
-                    track->mFastIndex);
+            mNBLogWriter->logf("prepareTracks_l remove name=%u", track->name());
             mActiveTracks.remove(track);
             if (track->mainBuffer() != mMixBuffer) {
                 chain = getEffectChain_l(track->sessionId());
