@@ -19,7 +19,6 @@ LOCAL_SRC_FILES:=                         \
         ESDS.cpp                          \
         FileSource.cpp                    \
         FLACExtractor.cpp                 \
-        FragmentedMP4Extractor.cpp        \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \
         MP3Extractor.cpp                  \
