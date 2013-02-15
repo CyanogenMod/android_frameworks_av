@@ -21,7 +21,6 @@
 #include "include/AMRExtractor.h"
 #include "include/MP3Extractor.h"
 #include "include/MPEG4Extractor.h"
-#include "include/FragmentedMP4Extractor.h"
 #include "include/WAVExtractor.h"
 #include "include/OggExtractor.h"
 #include "include/MPEG2PSExtractor.h"
@@ -94,12 +93,7 @@ sp<MediaExtractor> MediaExtractor::Create(
     MediaExtractor *ret = NULL;
     if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
-        int fragmented = 0;
-        if (meta != NULL && meta->findInt32("fragmented", &fragmented) && fragmented) {
-            ret = new FragmentedMP4Extractor(source);
-        } else {
-            ret = new MPEG4Extractor(source);
-        }
+        ret = new MPEG4Extractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         ret = new MP3Extractor(source, meta);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)

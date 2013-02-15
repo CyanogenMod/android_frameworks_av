@@ -23,7 +23,6 @@
 #include "include/AACExtractor.h"
 #include "include/DRMExtractor.h"
 #include "include/FLACExtractor.h"
-#include "include/FragmentedMP4Extractor.h"
 #include "include/HTTPBase.h"
 #include "include/MP3Extractor.h"
 #include "include/MPEG2PSExtractor.h"
@@ -137,7 +136,6 @@ void DataSource::RegisterSniffer(SnifferFunc func) {
 // static
 void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer(SniffMPEG4);
-    RegisterSniffer(SniffFragmentedMP4);
     RegisterSniffer(SniffMatroska);
     RegisterSniffer(SniffOgg);
     RegisterSniffer(SniffWAV);
