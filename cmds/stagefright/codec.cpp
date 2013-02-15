@@ -36,6 +36,7 @@
 #include <media/stagefright/NuMediaExtractor.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
+#include <gui/Surface.h>
 #include <ui/DisplayInfo.h>
 
 static void usage(const char *me) {
@@ -413,7 +414,7 @@ int main(int argc, char **argv) {
         looper->registerHandler(player);
 
         player->setDataSource(argv[0]);
-        player->setSurface(surface->getSurfaceTexture());
+        player->setSurface(surface->getIGraphicBufferProducer());
         player->start();
         sleep(60);
         player->stop();

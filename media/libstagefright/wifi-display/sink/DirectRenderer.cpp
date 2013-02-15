@@ -24,6 +24,7 @@
 #include "ATSParser.h"
 
 #include <gui/SurfaceComposerClient.h>
+#include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -279,7 +280,7 @@ void DirectRenderer::dequeueAccessUnits() {
                 err = mVideoDecoder->configure(
                         videoFormat,
                         mSurfaceTex == NULL
-                            ? NULL : new SurfaceTextureClient(mSurfaceTex),
+                            ? NULL : new Surface(mSurfaceTex),
                         NULL /* crypto */,
                         0 /* flags */);
 

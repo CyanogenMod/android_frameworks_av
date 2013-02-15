@@ -20,7 +20,7 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
-#include <gui/SurfaceTextureClient.h>
+#include <gui/Surface.h>
 #include <media/hardware/MetadataBufferType.h>
 
 #include "StreamingProcessor.h"
@@ -284,7 +284,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
                 true);
         mRecordingConsumer->setFrameAvailableListener(this);
         mRecordingConsumer->setName(String8("Camera2-RecordingConsumer"));
-        mRecordingWindow = new SurfaceTextureClient(
+        mRecordingWindow = new Surface(
             mRecordingConsumer->getProducerInterface());
         // Allocate memory later, since we don't know buffer size until receipt
     }
