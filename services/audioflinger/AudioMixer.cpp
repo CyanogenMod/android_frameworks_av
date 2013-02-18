@@ -1064,33 +1064,37 @@ void AudioMixer::process__nop(state_t* state, int64_t pts)
         // avoid multiple memset() on same buffer
         uint32_t e1 = e0, e2 = e0;
         int i = 31 - __builtin_clz(e1);
-        track_t& t1 = state->tracks[i];
-        e2 &= ~(1<<i);
-        while (e2) {
-            i = 31 - __builtin_clz(e2);
+        {
+            track_t& t1 = state->tracks[i];
             e2 &= ~(1<<i);
-            track_t& t2 = state->tracks[i];
-            if (CC_UNLIKELY(t2.mainBuffer != t1.mainBuffer)) {
-                e1 &= ~(1<<i);
+            while (e2) {
+                i = 31 - __builtin_clz(e2);
+                e2 &= ~(1<<i);
+                track_t& t2 = state->tracks[i];
+                if (CC_UNLIKELY(t2.mainBuffer != t1.mainBuffer)) {
+                    e1 &= ~(1<<i);
+                }
             }
-        }
-        e0 &= ~(e1);
+            e0 &= ~(e1);
 
-        memset(t1.mainBuffer, 0, bufSize);
+            memset(t1.mainBuffer, 0, bufSize);
+        }
 
         while (e1) {
             i = 31 - __builtin_clz(e1);
             e1 &= ~(1<<i);
-            t1 = state->tracks[i];
-            size_t outFrames = state->frameCount;
-            while (outFrames) {
-                t1.buffer.frameCount = outFrames;
-                int64_t outputPTS = calculateOutputPTS(
-                    t1, pts, state->frameCount - outFrames);
-                t1.bufferProvider->getNextBuffer(&t1.buffer, outputPTS);
-                if (t1.buffer.raw == NULL) break;
-                outFrames -= t1.buffer.frameCount;
-                t1.bufferProvider->releaseBuffer(&t1.buffer);
+            {
+                track_t& t3 = state->tracks[i];
+                size_t outFrames = state->frameCount;
+                while (outFrames) {
+                    t3.buffer.frameCount = outFrames;
+                    int64_t outputPTS = calculateOutputPTS(
+                        t3, pts, state->frameCount - outFrames);
+                    t3.bufferProvider->getNextBuffer(&t3.buffer, outputPTS);
+                    if (t3.buffer.raw == NULL) break;
+                    outFrames -= t3.buffer.frameCount;
+                    t3.bufferProvider->releaseBuffer(&t3.buffer);
+                }
             }
         }
     }
