@@ -32,6 +32,7 @@
 #include <cutils/properties.h>
 #ifdef QCOM_HARDWARE
 #include "include/ExtendedUtils.h"
+#include <OMX_QCOMExtns.h>
 #endif
 
 #ifdef USE_TI_CUSTOM_DOMX
@@ -122,6 +123,12 @@ static int32_t getColorFormat(const char* colorFormat) {
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_RGB565)) {
        return OMX_COLOR_Format16bitRGB565;
     }
+
+#ifdef QCOM_HARDWARE
+    if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420SP_ADRENO)) {
+       return QOMX_COLOR_FormatYVU420PackedSemiPlanar32m4ka;
+    }
+#endif
 
     if (!strcmp(colorFormat, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar")) {
        return OMX_TI_COLOR_FormatYUV420PackedSemiPlanar;
