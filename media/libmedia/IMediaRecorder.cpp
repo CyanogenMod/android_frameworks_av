@@ -51,7 +51,8 @@ enum {
     SET_PARAMETERS,
     SET_PREVIEW_SURFACE,
     SET_CAMERA,
-    SET_LISTENER
+    SET_LISTENER,
+    SET_CLIENT_NAME
 };
 
 class BpMediaRecorder: public BpInterface<IMediaRecorder>
@@ -214,6 +215,16 @@ public:
         data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
         data.writeStrongBinder(listener->asBinder());
         remote()->transact(SET_LISTENER, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t setClientName(const String16& clientName)
+    {
+        ALOGV("setClientName(%s)", String8(clientName).string());
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
+        data.writeString16(clientName);
+        remote()->transact(SET_CLIENT_NAME, data, &reply);
         return reply.readInt32();
     }
 
@@ -423,6 +434,12 @@ status_t BnMediaRecorder::onTransact(
             reply->writeInt32(setListener(listener));
             return NO_ERROR;
         } break;
+        case SET_CLIENT_NAME: {
+            ALOGV("SET_CLIENT_NAME");
+            CHECK_INTERFACE(IMediaRecorder, data, reply);
+            reply->writeInt32(setClientName(data.readString16()));
+            return NO_ERROR;
+        }
         case SET_PREVIEW_SURFACE: {
             ALOGV("SET_PREVIEW_SURFACE");
             CHECK_INTERFACE(IMediaRecorder, data, reply);

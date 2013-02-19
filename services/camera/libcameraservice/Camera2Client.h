@@ -72,9 +72,11 @@ public:
 
     Camera2Client(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
+            const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
             int clientPid,
+            uid_t clientUid,
             int servicePid);
     virtual ~Camera2Client();
 

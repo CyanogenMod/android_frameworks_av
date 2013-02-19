@@ -40,12 +40,14 @@ static int getCallingPid() {
 
 Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
+        const String16& clientPackageName,
         int cameraId,
         int cameraFacing,
         int clientPid,
+        uid_t clientUid,
         int servicePid):
-        Client(cameraService, cameraClient,
-                cameraId, cameraFacing, clientPid, servicePid),
+        Client(cameraService, cameraClient, clientPackageName,
+                cameraId, cameraFacing, clientPid, clientUid, servicePid),
         mSharedCameraClient(cameraClient),
         mParameters(cameraId, cameraFacing)
 {
@@ -72,6 +74,12 @@ status_t Camera2Client::initialize(camera_module_t *module)
     ATRACE_CALL();
     ALOGV("%s: Initializing client for camera %d", __FUNCTION__, mCameraId);
     status_t res;
+
+    // Verify ops permissions
+    res = startCameraOps();
+    if (res != OK) {
+        return res;
+    }
 
     res = mDevice->initialize(module);
     if (res != OK) {
@@ -741,8 +749,7 @@ void Camera2Client::stopPreviewL() {
 
     switch (state) {
         case Parameters::DISCONNECTED:
-            ALOGE("%s: Camera %d: Call before initialized",
-                    __FUNCTION__, mCameraId);
+            // Nothing to do.
             break;
         case Parameters::STOPPED:
         case Parameters::VIDEO_SNAPSHOT:
