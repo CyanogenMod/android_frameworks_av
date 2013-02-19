@@ -121,13 +121,14 @@ static int32_t getColorFormat(const char* colorFormat) {
     CHECK(!"Unknown color format");
 }
 
-CameraSource *CameraSource::Create() {
+CameraSource *CameraSource::Create(const String16 &clientName) {
     Size size;
     size.width = -1;
     size.height = -1;
 
     sp<ICamera> camera;
-    return new CameraSource(camera, NULL, 0, size, -1, NULL, false);
+    return new CameraSource(camera, NULL, 0, clientName, -1,
+            size, -1, NULL, false);
 }
 
 // static
@@ -135,14 +136,16 @@ CameraSource *CameraSource::CreateFromCamera(
     const sp<ICamera>& camera,
     const sp<ICameraRecordingProxy>& proxy,
     int32_t cameraId,
+    const String16& clientName,
+    uid_t clientUid,
     Size videoSize,
     int32_t frameRate,
     const sp<Surface>& surface,
     bool storeMetaDataInVideoBuffers) {
 
     CameraSource *source = new CameraSource(camera, proxy, cameraId,
-                    videoSize, frameRate, surface,
-                    storeMetaDataInVideoBuffers);
+            clientName, clientUid, videoSize, frameRate, surface,
+            storeMetaDataInVideoBuffers);
     return source;
 }
 
@@ -150,6 +153,8 @@ CameraSource::CameraSource(
     const sp<ICamera>& camera,
     const sp<ICameraRecordingProxy>& proxy,
     int32_t cameraId,
+    const String16& clientName,
+    uid_t clientUid,
     Size videoSize,
     int32_t frameRate,
     const sp<Surface>& surface,
@@ -173,6 +178,7 @@ CameraSource::CameraSource(
     mVideoSize.height = -1;
 
     mInitCheck = init(camera, proxy, cameraId,
+                    clientName, clientUid,
                     videoSize, frameRate,
                     storeMetaDataInVideoBuffers);
     if (mInitCheck != OK) releaseCamera();
@@ -184,10 +190,10 @@ status_t CameraSource::initCheck() const {
 
 status_t CameraSource::isCameraAvailable(
     const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy,
-    int32_t cameraId) {
+    int32_t cameraId, const String16& clientName, uid_t clientUid) {
 
     if (camera == 0) {
-        mCamera = Camera::connect(cameraId);
+        mCamera = Camera::connect(cameraId, clientName, clientUid);
         if (mCamera == 0) return -EBUSY;
         mCameraFlags &= ~FLAGS_HOT_CAMERA;
     } else {
@@ -469,6 +475,8 @@ status_t CameraSource::init(
         const sp<ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
+        const String16& clientName,
+        uid_t clientUid,
         Size videoSize,
         int32_t frameRate,
         bool storeMetaDataInVideoBuffers) {
@@ -476,7 +484,7 @@ status_t CameraSource::init(
     ALOGV("init");
     status_t err = OK;
     int64_t token = IPCThreadState::self()->clearCallingIdentity();
-    err = initWithCameraAccess(camera, proxy, cameraId,
+    err = initWithCameraAccess(camera, proxy, cameraId, clientName, clientUid,
                                videoSize, frameRate,
                                storeMetaDataInVideoBuffers);
     IPCThreadState::self()->restoreCallingIdentity(token);
@@ -487,13 +495,16 @@ status_t CameraSource::initWithCameraAccess(
         const sp<ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
+        const String16& clientName,
+        uid_t clientUid,
         Size videoSize,
         int32_t frameRate,
         bool storeMetaDataInVideoBuffers) {
     ALOGV("initWithCameraAccess");
     status_t err = OK;
 
-    if ((err = isCameraAvailable(camera, proxy, cameraId)) != OK) {
+    if ((err = isCameraAvailable(camera, proxy, cameraId,
+            clientName, clientUid)) != OK) {
         ALOGE("Camera connection could not be established.");
         return err;
     }

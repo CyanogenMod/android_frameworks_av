@@ -53,9 +53,11 @@ public:
     // Interface used by CameraService
     CameraClient(const sp<CameraService>& cameraService,
             const sp<ICameraClient>& cameraClient,
+            const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
             int clientPid,
+            int clientUid,
             int servicePid);
     ~CameraClient();
 

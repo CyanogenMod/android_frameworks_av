@@ -36,6 +36,8 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
         const sp<ICamera> &camera,
         const sp<ICameraRecordingProxy> &proxy,
         int32_t cameraId,
+        const String16& clientName,
+        uid_t clientUid,
         Size videoSize,
         int32_t videoFrameRate,
         const sp<Surface>& surface,
@@ -43,6 +45,7 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
 
     CameraSourceTimeLapse *source = new
             CameraSourceTimeLapse(camera, proxy, cameraId,
+                clientName, clientUid,
                 videoSize, videoFrameRate, surface,
                 timeBetweenFrameCaptureUs);
 
@@ -59,11 +62,14 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
         const sp<ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
+        const String16& clientName,
+        uid_t clientUid,
         Size videoSize,
         int32_t videoFrameRate,
         const sp<Surface>& surface,
         int64_t timeBetweenFrameCaptureUs)
-    : CameraSource(camera, proxy, cameraId, videoSize, videoFrameRate, surface, true),
+      : CameraSource(camera, proxy, cameraId, clientName, clientUid,
+                videoSize, videoFrameRate, surface, true),
       mTimeBetweenTimeLapseVideoFramesUs(1E6/videoFrameRate),
       mLastTimeLapseFrameRealTimestampUs(0),
       mSkipCurrentFrame(false) {

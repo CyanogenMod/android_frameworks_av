@@ -77,9 +77,11 @@ public:
 
     ProCamera2Client(const sp<CameraService>& cameraService,
             const sp<IProCameraCallbacks>& remoteCallback,
+            const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
             int clientPid,
+            uid_t clientUid,
             int servicePid);
     virtual ~ProCamera2Client();
 

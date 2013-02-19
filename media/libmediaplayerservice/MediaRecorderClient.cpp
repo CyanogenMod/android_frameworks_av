@@ -99,7 +99,7 @@ status_t MediaRecorderClient::setVideoSource(int vs)
         return PERMISSION_DENIED;
     }
     Mutex::Autolock lock(mLock);
-    if (mRecorder == NULL)	{
+    if (mRecorder == NULL)     {
         ALOGE("recorder is not initialized");
         return NO_INIT;
     }
@@ -323,6 +323,16 @@ status_t MediaRecorderClient::setListener(const sp<IMediaRecorderClient>& listen
         return NO_INIT;
     }
     return mRecorder->setListener(listener);
+}
+
+status_t MediaRecorderClient::setClientName(const String16& clientName) {
+    ALOGV("setClientName(%s)", String8(clientName).string());
+    Mutex::Autolock lock(mLock);
+    if (mRecorder == NULL) {
+        ALOGE("recorder is not initialized");
+        return NO_INIT;
+    }
+    return mRecorder->setClientName(clientName);
 }
 
 status_t MediaRecorderClient::dump(int fd, const Vector<String16>& args) const {

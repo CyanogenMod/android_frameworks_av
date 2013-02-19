@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include <binder/AppOpsManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryBase.h>
@@ -72,7 +73,7 @@ static int getCallingUid() {
 static CameraService *gCameraService;
 
 CameraService::CameraService()
-:mSoundRef(0), mModule(0)
+    :mSoundRef(0), mModule(0)
 {
     ALOGI("CameraService started (pid=%d)", getpid());
     gCameraService = this;
@@ -155,10 +156,27 @@ int CameraService::getDeviceVersion(int cameraId, int* facing) {
 }
 
 sp<ICamera> CameraService::connect(
-        const sp<ICameraClient>& cameraClient, int cameraId) {
+        const sp<ICameraClient>& cameraClient,
+        int cameraId,
+        const String16& clientPackageName,
+        int clientUid) {
+
+    String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
 
-    LOG1("CameraService::connect E (pid %d, id %d)", callingPid, cameraId);
+    LOG1("CameraService::connect E (pid %d \"%s\", id %d)", callingPid,
+            clientName8.string(), cameraId);
+
+    if (clientUid == USE_CALLING_UID) {
+        clientUid = getCallingUid();
+    } else {
+        // We only trust our own process to forward client UIDs
+        if (callingPid != getpid()) {
+            ALOGE("CameraService::connect X (pid %d) rejected (don't trust clientUid)",
+                    callingPid);
+            return NULL;
+        }
+    }
 
     if (!mModule) {
         ALOGE("Camera HAL module not loaded");
@@ -208,8 +226,10 @@ sp<ICamera> CameraService::connect(
     would be fine
     */
     if (mBusy[cameraId]) {
-        ALOGW("CameraService::connect X (pid %d) rejected"
-                " (camera %d is still busy).", callingPid, cameraId);
+
+        ALOGW("CameraService::connect X (pid %d, \"%s\") rejected"
+                " (camera %d is still busy).", callingPid,
+                clientName8.string(), cameraId);
         return NULL;
     }
 
@@ -218,13 +238,15 @@ sp<ICamera> CameraService::connect(
 
     switch(deviceVersion) {
       case CAMERA_DEVICE_API_VERSION_1_0:
-        client = new CameraClient(this, cameraClient, cameraId,
-                facing, callingPid, getpid());
+        client = new CameraClient(this, cameraClient,
+                clientPackageName, cameraId,
+                facing, callingPid, clientUid, getpid());
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
       case CAMERA_DEVICE_API_VERSION_2_1:
-        client = new Camera2Client(this, cameraClient, cameraId,
-                facing, callingPid, getpid());
+        client = new Camera2Client(this, cameraClient,
+                clientPackageName, cameraId,
+                facing, callingPid, clientUid, getpid());
         break;
       case -1:
         ALOGE("Invalid camera id %d", cameraId);
@@ -283,8 +305,8 @@ sp<IProCameraUser> CameraService::connect(
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
       case CAMERA_DEVICE_API_VERSION_2_1:
-        client = new ProCamera2Client(this, cameraCb, cameraId,
-                facing, callingPid, getpid());
+        client = new ProCamera2Client(this, cameraCb, String16(),
+                cameraId, facing, callingPid, USE_CALLING_UID, getpid());
         break;
       case -1:
         ALOGE("Invalid camera id %d", cameraId);
@@ -302,7 +324,8 @@ sp<IProCameraUser> CameraService::connect(
 
     cameraCb->asBinder()->linkToDeath(this);
 
-    LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId, getpid());
+    LOG1("CameraService::connectPro X (id %d, this pid is %d)", cameraId,
+            getpid());
     return client;
 
 
@@ -522,10 +545,15 @@ void CameraService::playSound(sound_kind kind) {
 
 CameraService::Client::Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        int cameraId, int cameraFacing, int clientPid, int servicePid) :
+        const String16& clientPackageName,
+        int cameraId, int cameraFacing,
+        int clientPid, uid_t clientUid,
+        int servicePid) :
         CameraService::BasicClient(cameraService, cameraClient->asBinder(),
-                                   cameraId, cameraFacing,
-                                   clientPid, servicePid)
+                clientPackageName,
+                cameraId, cameraFacing,
+                clientPid, clientUid,
+                servicePid)
 {
     int callingPid = getCallingPid();
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
@@ -534,6 +562,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
 
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
+
     LOG1("Client::Client X (pid %d, id %d)", callingPid, cameraId);
 }
 
@@ -542,23 +571,27 @@ CameraService::Client::~Client() {
     mDestructionStarted = true;
 
     mCameraService->releaseSound();
-
+    finishCameraOps();
     // unconditionally disconnect. function is idempotent
     Client::disconnect();
 }
 
 CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
-                                   const sp<IBinder>& remoteCallback,
-                                   int cameraId, int cameraFacing,
-                                   int clientPid, int servicePid)
+        const sp<IBinder>& remoteCallback,
+        const String16& clientPackageName,
+        int cameraId, int cameraFacing,
+        int clientPid, uid_t clientUid,
+        int servicePid):
+        mClientPackageName(clientPackageName)
 {
     mCameraService = cameraService;
     mRemoteCallback = remoteCallback;
     mCameraId = cameraId;
     mCameraFacing = cameraFacing;
     mClientPid = clientPid;
+    mClientUid = clientUid;
     mServicePid = servicePid;
-
+    mOpsActive = false;
     mDestructionStarted = false;
 }
 
@@ -568,6 +601,66 @@ CameraService::BasicClient::~BasicClient() {
 
 void CameraService::BasicClient::disconnect() {
     mCameraService->removeClientByRemote(mRemoteCallback);
+}
+
+status_t CameraService::BasicClient::startCameraOps() {
+    int32_t res;
+
+    mOpsCallback = new OpsCallback(this);
+
+    mAppOpsManager.startWatchingMode(AppOpsManager::OP_CAMERA,
+            mClientPackageName, mOpsCallback);
+    res = mAppOpsManager.startOp(AppOpsManager::OP_CAMERA,
+            mClientUid, mClientPackageName);
+
+    if (res != AppOpsManager::MODE_ALLOWED) {
+        ALOGI("Camera %d: Access for \"%s\" has been revoked",
+                mCameraId, String8(mClientPackageName).string());
+        return PERMISSION_DENIED;
+    }
+    mOpsActive = true;
+    return OK;
+}
+
+status_t CameraService::BasicClient::finishCameraOps() {
+    if (mOpsActive) {
+        mAppOpsManager.finishOp(AppOpsManager::OP_CAMERA, mClientUid,
+                mClientPackageName);
+        mOpsActive = false;
+    }
+    mAppOpsManager.stopWatchingMode(mOpsCallback);
+    mOpsCallback.clear();
+
+    return OK;
+}
+
+void CameraService::BasicClient::opChanged(int32_t op, const String16& packageName) {
+    String8 name(packageName);
+    String8 myName(mClientPackageName);
+
+    if (op != AppOpsManager::OP_CAMERA) {
+        ALOGW("Unexpected app ops notification received: %d", op);
+        return;
+    }
+
+    int32_t res;
+    res = mAppOpsManager.checkOp(AppOpsManager::OP_CAMERA,
+            mClientUid, mClientPackageName);
+    ALOGV("checkOp returns: %d, %s ", res,
+            res == AppOpsManager::MODE_ALLOWED ? "ALLOWED" :
+            res == AppOpsManager::MODE_IGNORED ? "IGNORED" :
+            res == AppOpsManager::MODE_ERRORED ? "ERRORED" :
+            "UNKNOWN");
+
+    if (res != AppOpsManager::MODE_ALLOWED) {
+        ALOGI("Camera %d: Access for \"%s\" revoked", mCameraId,
+                myName.string());
+        // Reset the client PID to allow server-initiated disconnect,
+        // and to prevent further calls by client.
+        mClientPid = getCallingPid();
+        notifyError();
+        disconnect();
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -592,10 +685,26 @@ CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
     return client;
 }
 
+void CameraService::Client::notifyError() {
+    mCameraClient->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
+}
+
 // NOTE: function is idempotent
 void CameraService::Client::disconnect() {
     BasicClient::disconnect();
     mCameraService->setCameraFree(mCameraId);
+}
+
+CameraService::Client::OpsCallback::OpsCallback(wp<BasicClient> client):
+        mClient(client) {
+}
+
+void CameraService::Client::OpsCallback::opChanged(int32_t op,
+        const String16& packageName) {
+    sp<BasicClient> client = mClient.promote();
+    if (client != NULL) {
+        client->opChanged(op, packageName);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -603,14 +712,16 @@ void CameraService::Client::disconnect() {
 // ----------------------------------------------------------------------------
 
 CameraService::ProClient::ProClient(const sp<CameraService>& cameraService,
-                const sp<IProCameraCallbacks>& remoteCallback,
-                int cameraId,
-                int cameraFacing,
-                int clientPid,
-                int servicePid)
- :       CameraService::BasicClient(cameraService, remoteCallback->asBinder(),
-                                   cameraId, cameraFacing,
-                                   clientPid, servicePid)
+        const sp<IProCameraCallbacks>& remoteCallback,
+        const String16& clientPackageName,
+        int cameraId,
+        int cameraFacing,
+        int clientPid,
+        uid_t clientUid,
+        int servicePid)
+        : CameraService::BasicClient(cameraService, remoteCallback->asBinder(),
+                clientPackageName, cameraId, cameraFacing,
+                clientPid,  clientUid, servicePid)
 {
     mRemoteCallback = remoteCallback;
 }
@@ -681,6 +792,10 @@ status_t CameraService::ProClient::cancelStream(int streamId) {
     ALOGE("%s: not implemented yet", __FUNCTION__);
 
     return INVALID_OPERATION;
+}
+
+void CameraService::ProClient::notifyError() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
 }
 
 // ----------------------------------------------------------------------------
