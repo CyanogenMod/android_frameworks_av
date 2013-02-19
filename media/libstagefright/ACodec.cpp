@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 
+#include <media/stagefright/BufferProducerWrapper.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/NativeWindowWrapper.h>
@@ -192,6 +193,7 @@ private:
     friend struct ACodec::UninitializedState;
 
     bool onConfigureComponent(const sp<AMessage> &msg);
+    void onCreateInputSurface(const sp<AMessage> &msg);
     void onStart();
     void onShutdown(bool keepComponentAllocated);
 
@@ -238,6 +240,9 @@ struct ACodec::ExecutingState : public ACodec::BaseState {
     // Submit output buffers to the decoder, submit input buffers to client
     // to fill with data.
     void resume();
+
+    // Send EOS on input stream.
+    void onSignalEndOfInputStream();
 
     // Returns true iff input and output buffers are in play.
     bool active() const { return mActive; }
@@ -390,6 +395,14 @@ void ACodec::initiateConfigureComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatConfigureComponent);
     msg->setTarget(id());
     msg->post();
+}
+
+void ACodec::initiateCreateInputSurface() {
+    (new AMessage(kWhatCreateInputSurface, id()))->post();
+}
+
+void ACodec::signalEndOfInputStream() {
+    (new AMessage(kWhatSignalEndOfInputStream, id()))->post();
 }
 
 void ACodec::initiateStart() {
@@ -2469,6 +2482,14 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             return onOMXMessage(msg);
         }
 
+        case ACodec::kWhatCreateInputSurface:
+        case ACodec::kWhatSignalEndOfInputStream:
+        {
+            ALOGE("Message 0x%x was not handled", msg->what());
+            mCodec->signalError(OMX_ErrorUndefined, INVALID_OPERATION);
+            return true;
+        }
+
         default:
             return false;
     }
@@ -3232,6 +3253,13 @@ bool ACodec::LoadedState::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case ACodec::kWhatCreateInputSurface:
+        {
+            onCreateInputSurface(msg);
+            handled = true;
+            break;
+        }
+
         case ACodec::kWhatStart:
         {
             onStart();
@@ -3308,6 +3336,32 @@ bool ACodec::LoadedState::onConfigureComponent(
     }
 
     return true;
+}
+
+void ACodec::LoadedState::onCreateInputSurface(
+        const sp<AMessage> &msg) {
+    ALOGV("onCreateInputSurface");
+
+    sp<AMessage> notify = mCodec->mNotify->dup();
+    notify->setInt32("what", ACodec::kWhatInputSurfaceCreated);
+
+    sp<IGraphicBufferProducer> bufferProducer;
+    status_t err;
+
+    err = mCodec->mOMX->createInputSurface(mCodec->mNode, kPortIndexInput,
+            &bufferProducer);
+    if (err == OK) {
+        notify->setObject("input-surface",
+                new BufferProducerWrapper(bufferProducer));
+    } else {
+        // Can't use mCodec->signalError() here -- MediaCodec won't forward
+        // the error through because it's in the "configured" state.  We
+        // send a kWhatInputSurfaceCreated with an error value instead.
+        ALOGE("[%s] onCreateInputSurface returning error %d",
+                mCodec->mComponentName.c_str(), err);
+        notify->setInt32("err", err);
+    }
+    notify->post();
 }
 
 void ACodec::LoadedState::onStart() {
@@ -3484,6 +3538,17 @@ void ACodec::ExecutingState::resume() {
     mActive = true;
 }
 
+void ACodec::ExecutingState::onSignalEndOfInputStream() {
+    sp<AMessage> notify = mCodec->mNotify->dup();
+    notify->setInt32("what", ACodec::kWhatSignaledInputEOS);
+
+    status_t err = mCodec->mOMX->signalEndOfInputStream(mCodec->mNode);
+    if (err != OK) {
+        notify->setInt32("err", err);
+    }
+    notify->post();
+}
+
 void ACodec::ExecutingState::stateEntered() {
     ALOGV("[%s] Now Executing", mCodec->mComponentName.c_str());
 
@@ -3569,6 +3634,13 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
                 reply->post();
             }
 
+            handled = true;
+            break;
+        }
+
+        case ACodec::kWhatSignalEndOfInputStream:
+        {
+            onSignalEndOfInputStream();
             handled = true;
             break;
         }

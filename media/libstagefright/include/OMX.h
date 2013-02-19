@@ -79,6 +79,12 @@ public:
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer);
 
+    virtual status_t createInputSurface(
+            node_id node, OMX_U32 port_index,
+            sp<IGraphicBufferProducer> *bufferProducer);
+
+    virtual status_t signalEndOfInputStream(node_id node);
+
     virtual status_t allocateBuffer(
             node_id node, OMX_U32 port_index, size_t size,
             buffer_id *buffer, void **buffer_data);
