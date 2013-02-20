@@ -55,6 +55,8 @@ namespace client {
 #define TEST_CPU_FRAME_COUNT 2
 #define TEST_CPU_HEAP_COUNT 5
 
+#define TEST_FRAME_PROCESSING_DELAY_US 200000 // 200 ms
+
 #if TEST_DEBUGGING
 #define dout std::cerr
 #else
@@ -888,7 +890,7 @@ TEST_F(ProCameraTest, WaitForSingleStreamBuffer) {
 
     // Consume a couple of results
     for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
-        EXPECT_OK(mCamera->waitForFrameBuffer(streamId));
+        EXPECT_EQ(1, mCamera->waitForFrameBuffer(streamId));
 
         CpuConsumer::LockedBuffer buf;
         EXPECT_OK(consumer->lockNextBuffer(&buf));
@@ -942,7 +944,7 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
 
         // Get the buffers
 
-        EXPECT_OK(mCamera->waitForFrameBuffer(depthStreamId));
+        EXPECT_EQ(1, mCamera->waitForFrameBuffer(depthStreamId));
 
         /**
           * Guaranteed to be able to consume the depth frame,
@@ -978,7 +980,58 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
+TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
+    if (HasFatalFailure()) {
+        return;
+    }
 
+    const int NUM_REQUESTS = 20 * TEST_CPU_FRAME_COUNT;
+
+    int streamId = -1;
+    sp<CpuConsumer> consumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                  TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+
+    uint8_t streams[] = { streamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
+                                                     /*requests*/NUM_REQUESTS));
+
+    // Consume a couple of results
+    for (int i = 0; i < NUM_REQUESTS; ++i) {
+        // Process at 10fps, stream is at 15fps.
+        // This means we will definitely fill up the buffer queue with
+        // extra buffers and need to drop them.
+        usleep(TEST_FRAME_PROCESSING_DELAY_US);
+
+        int numFrames;
+        EXPECT_TRUE((numFrames = mCamera->waitForFrameBuffer(streamId)) > 0);
+
+        // Drop all but the newest framebuffer
+        EXPECT_EQ(numFrames-1, mCamera->dropFrameBuffer(streamId, numFrames-1));
+
+        dout << "Dropped " << (numFrames - 1) << " frames" << std::endl;
+
+        // Skip the counter ahead, don't try to consume these frames again
+        i += numFrames-1;
+
+        // "Consume" the buffer
+        CpuConsumer::LockedBuffer buf;
+        EXPECT_OK(consumer->lockNextBuffer(&buf));
+
+        dout << "Buffer synchronously received on streamId = " << streamId <<
+                ", dataPtr = " << (void*)buf.data <<
+                ", timestamp = " << buf.timestamp << std::endl;
+
+        EXPECT_OK(consumer->unlockBuffer(buf));
+    }
+
+    // Done: clean up
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
 
 
 
