@@ -87,6 +87,7 @@ void CameraService::onFirstRef()
         mNumberOfCameras = 0;
     }
     else {
+        ALOGI("Loaded \"%s\" camera module", mModule->common.name);
         mNumberOfCameras = mModule->get_number_of_cameras();
         if (mNumberOfCameras > MAX_CAMERAS) {
             ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
