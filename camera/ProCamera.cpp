@@ -432,20 +432,21 @@ void ProCamera::onFrameAvailable(int streamId) {
     // Unblock waitForFrame(id) callers
     {
         Mutex::Autolock al(mWaitMutex);
-        getStreamInfo(streamId).frameReady = true;
+        getStreamInfo(streamId).frameReady++;
         mWaitCondition.broadcast();
     }
 }
 
-status_t ProCamera::waitForFrameBuffer(int streamId) {
+int ProCamera::waitForFrameBuffer(int streamId) {
     status_t stat = BAD_VALUE;
     Mutex::Autolock al(mWaitMutex);
 
     StreamInfo& si = getStreamInfo(streamId);
 
-    if (si.frameReady) {
-        si.frameReady = false;
-        return OK;
+    if (si.frameReady > 0) {
+        int numFrames = si.frameReady;
+        si.frameReady = 0;
+        return numFrames;
     } else {
         while (true) {
             stat = mWaitCondition.waitRelative(mWaitMutex,
@@ -456,15 +457,39 @@ status_t ProCamera::waitForFrameBuffer(int streamId) {
                 return stat;
             }
 
-            if (si.frameReady) {
-                si.frameReady = false;
-                return OK;
+            if (si.frameReady > 0) {
+                int numFrames = si.frameReady;
+                si.frameReady = 0;
+                return numFrames;
             }
             // else it was some other stream that got unblocked
         }
     }
 
     return stat;
+}
+
+int ProCamera::dropFrameBuffer(int streamId, int count) {
+    StreamInfo& si = getStreamInfo(streamId);
+
+    if (!si.cpuStream) {
+        return BAD_VALUE;
+    } else if (count < 0) {
+        return BAD_VALUE;
+    }
+
+    int numDropped = 0;
+    for (int i = 0; i < count; ++i) {
+        CpuConsumer::LockedBuffer buffer;
+        if (si.cpuConsumer->lockNextBuffer(&buffer) != OK) {
+            break;
+        }
+
+        si.cpuConsumer->unlockBuffer(buffer);
+        numDropped++;
+    }
+
+    return numDropped;
 }
 
 status_t ProCamera::waitForFrameMetadata() {

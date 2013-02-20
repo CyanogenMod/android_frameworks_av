@@ -196,9 +196,12 @@ public:
     // Blocks until a frame is available (CPU streams only)
     // - Obtain the frame data by calling CpuConsumer::lockNextBuffer
     // - Release the frame data after use with CpuConsumer::unlockBuffer
+    // Return value:
+    // - >0 - number of frames available to be locked
+    // - <0 - error (refer to error codes)
     // Error codes:
     // -ETIMEDOUT if it took too long to get a frame
-    status_t waitForFrameBuffer(int streamId);
+    int waitForFrameBuffer(int streamId);
 
     // Blocks until a metadata result is available
     // - Obtain the metadata by calling consumeFrameMetadata()
@@ -210,6 +213,14 @@ public:
     // - Calling this repeatedly will produce empty metadata objects.
     // - Use waitForFrameMetadata to sync until new data is available.
     CameraMetadata consumeFrameMetadata();
+
+    // Convenience method to drop frame buffers (CPU streams only)
+    // Return values:
+    //  >=0 - number of frames dropped (up to count)
+    //  <0  - error code
+    // Error codes:
+    //   BAD_VALUE - invalid streamId or count passed
+    int dropFrameBuffer(int streamId, int count);
 
     sp<IProCameraUser>         remote();
 
@@ -286,7 +297,7 @@ private:
         StreamInfo(int streamId) {
             this->streamID = streamId;
             cpuStream = false;
-            frameReady = false;
+            frameReady = 0;
         }
 
         StreamInfo() {
@@ -299,7 +310,7 @@ private:
         sp<CpuConsumer> cpuConsumer;
         sp<ProFrameListener> frameAvailableListener;
         sp<Surface> stc;
-        bool frameReady;
+        int frameReady;
     };
 
     Condition mWaitCondition;
