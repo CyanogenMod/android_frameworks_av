@@ -301,7 +301,7 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
 status_t CameraClient::setPreviewDisplay(const sp<Surface>& surface) {
     LOG1("setPreviewDisplay(%p) (pid %d)", surface.get(), getCallingPid());
 
-    sp<IBinder> binder(surface != 0 ? surface->getISurfaceTexture()->asBinder() : 0);
+    sp<IBinder> binder(surface != 0 ? surface->getIGraphicBufferProducer()->asBinder() : 0);
     sp<ANativeWindow> window(surface);
     return setPreviewWindow(binder, window);
 }

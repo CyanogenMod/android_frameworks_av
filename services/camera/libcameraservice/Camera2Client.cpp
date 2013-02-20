@@ -488,7 +488,7 @@ status_t Camera2Client::setPreviewDisplay(
     sp<IBinder> binder;
     sp<ANativeWindow> window;
     if (surface != 0) {
-        binder = surface->getISurfaceTexture()->asBinder();
+        binder = surface->getIGraphicBufferProducer()->asBinder();
         window = surface;
     }
 
