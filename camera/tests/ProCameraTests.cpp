@@ -207,7 +207,8 @@ protected:
                                   const CpuConsumer::LockedBuffer& buf) {
 
         dout << "Buffer received on streamId = " << streamId <<
-                ", dataPtr = " << (void*)buf.data << std::endl;
+                ", dataPtr = " << (void*)buf.data <<
+                ", timestamp = " << buf.timestamp << std::endl;
 
         QueueEvent(BUFFER_RECEIVED);
 
@@ -376,7 +377,7 @@ protected:
             return false;
         }
 
-        for (int i = 0; i < count; ++i) {
+        for (size_t i = 0; i < count; ++i) {
             if (array[i] == needle) {
                 return true;
             }
@@ -410,10 +411,10 @@ protected:
      * Creating a streaming request for these output streams from a template,
      *  and submit it
      */
-    void createSubmitRequestForStreams(uint8_t* streamIds, size_t count) {
+    void createSubmitRequestForStreams(uint8_t* streamIds, size_t count, int requestCount=-1) {
 
         ASSERT_NE((void*)NULL, streamIds);
-        ASSERT_LT(0, count);
+        ASSERT_LT(0u, count);
 
         camera_metadata_t *requestTmp = NULL;
         EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
@@ -427,7 +428,15 @@ protected:
         request.update(tag, streamIds, count);
 
         requestTmp = request.release();
-        EXPECT_OK(mCamera->submitRequest(requestTmp, /*streaming*/true));
+
+        if (requestCount < 0) {
+            EXPECT_OK(mCamera->submitRequest(requestTmp, /*streaming*/true));
+        } else {
+            for (int i = 0; i < requestCount; ++i) {
+                EXPECT_OK(mCamera->submitRequest(requestTmp,
+                                                 /*streaming*/false));
+            }
+        }
         request.acquire(requestTmp);
     }
 
@@ -628,8 +637,9 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
     mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
 
     int streamId = -1;
+    sp<CpuConsumer> consumer;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
-        TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &streamId));
+                TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
     EXPECT_NE(-1, streamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
@@ -693,13 +703,14 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
     mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
 
     int streamId = -1;
+    sp<CpuConsumer> consumer;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
-                            TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &streamId));
+                TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
     EXPECT_NE(-1, streamId);
 
     int depthStreamId = -1;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
-                     TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &depthStreamId));
+            TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &consumer, &depthStreamId));
     EXPECT_NE(-1, depthStreamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
@@ -772,8 +783,9 @@ TEST_F(ProCameraTest, ResultReceiver) {
     // need to filter out events at read time
 
     int streamId = -1;
+    sp<CpuConsumer> consumer;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
-                             TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &streamId));
+                TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
     EXPECT_NE(-1, streamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
@@ -827,6 +839,148 @@ TEST_F(ProCameraTest, ResultReceiver) {
     EXPECT_OK(mCamera->deleteStream(streamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
+
+TEST_F(ProCameraTest, WaitForResult) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    int streamId = -1;
+    sp<CpuConsumer> consumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                 TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+
+    uint8_t streams[] = { streamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1));
+
+    // Consume a couple of results
+    for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
+        EXPECT_OK(mCamera->waitForFrameMetadata());
+        CameraMetadata meta = mCamera->consumeFrameMetadata();
+        EXPECT_FALSE(meta.isEmpty());
+    }
+
+    // Done: clean up
+    consumer->abandon(); // since we didn't consume any of the buffers
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, WaitForSingleStreamBuffer) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    int streamId = -1;
+    sp<CpuConsumer> consumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                  TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+
+    uint8_t streams[] = { streamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
+                                            /*requests*/TEST_CPU_FRAME_COUNT));
+
+    // Consume a couple of results
+    for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
+        EXPECT_OK(mCamera->waitForFrameBuffer(streamId));
+
+        CpuConsumer::LockedBuffer buf;
+        EXPECT_OK(consumer->lockNextBuffer(&buf));
+
+        dout << "Buffer synchronously received on streamId = " << streamId <<
+                ", dataPtr = " << (void*)buf.data <<
+                ", timestamp = " << buf.timestamp << std::endl;
+
+        EXPECT_OK(consumer->unlockBuffer(buf));
+    }
+
+    // Done: clean up
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    const int REQUEST_COUNT = TEST_CPU_FRAME_COUNT * 10;
+
+    // 15 fps
+    int streamId = -1;
+    sp<CpuConsumer> consumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                 TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    // 30 fps
+    int depthStreamId = -1;
+    sp<CpuConsumer> depthConsumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
+       TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &depthConsumer, &depthStreamId));
+    EXPECT_NE(-1, depthStreamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+
+    uint8_t streams[] = { streamId, depthStreamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/2,
+                                                    /*requests*/REQUEST_COUNT));
+
+    // Consume two frames simultaneously. Unsynchronized by timestamps.
+    for (int i = 0; i < REQUEST_COUNT; ++i) {
+
+        // Get the metadata
+        EXPECT_OK(mCamera->waitForFrameMetadata());
+        CameraMetadata meta = mCamera->consumeFrameMetadata();
+        EXPECT_FALSE(meta.isEmpty());
+
+        // Get the buffers
+
+        EXPECT_OK(mCamera->waitForFrameBuffer(depthStreamId));
+
+        /**
+          * Guaranteed to be able to consume the depth frame,
+          * since we waited on it.
+          */
+        CpuConsumer::LockedBuffer depthBuffer;
+        EXPECT_OK(depthConsumer->lockNextBuffer(&depthBuffer));
+
+        dout << "Depth Buffer synchronously received on streamId = " <<
+                streamId <<
+                ", dataPtr = " << (void*)depthBuffer.data <<
+                ", timestamp = " << depthBuffer.timestamp << std::endl;
+
+        EXPECT_OK(depthConsumer->unlockBuffer(depthBuffer));
+
+
+        /** Consume Greyscale frames if there are any.
+          * There may not be since it runs at half FPS */
+        CpuConsumer::LockedBuffer greyBuffer;
+        while (consumer->lockNextBuffer(&greyBuffer) == OK) {
+
+            dout << "GRAY Buffer synchronously received on streamId = " <<
+                streamId <<
+                ", dataPtr = " << (void*)greyBuffer.data <<
+                ", timestamp = " << greyBuffer.timestamp << std::endl;
+
+            EXPECT_OK(consumer->unlockBuffer(greyBuffer));
+        }
+    }
+
+    // Done: clean up
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+
+
+
 
 }
 }

@@ -86,12 +86,13 @@ sp<ProCamera> ProCamera::connect(int cameraId)
 
 void ProCamera::disconnect()
 {
-    ALOGV("disconnect");
+    ALOGV("%s: disconnect", __FUNCTION__);
     if (mCamera != 0) {
         mCamera->disconnect();
         mCamera->asBinder()->unlinkToDeath(this);
         mCamera = 0;
     }
+    ALOGV("%s: disconnect (done)", __FUNCTION__);
 }
 
 ProCamera::ProCamera()
@@ -208,6 +209,19 @@ void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
         Mutex::Autolock _l(mLock);
         listener = mListener;
     }
+
+    CameraMetadata tmp(result);
+
+    // Unblock waitForFrame(id) callers
+    {
+        Mutex::Autolock al(mWaitMutex);
+        mMetadataReady = true;
+        mLatestMetadata = tmp;
+        mWaitCondition.broadcast();
+    }
+
+    result = tmp.release();
+
     if (listener != NULL) {
         listener->onResultReceived(frameId, result);
     } else {
@@ -323,10 +337,13 @@ status_t ProCamera::createStream(int width, int height, int format,
 status_t ProCamera::createStreamCpu(int width, int height, int format,
                           int heapCount,
                           /*out*/
+                          sp<CpuConsumer>* cpuConsumer,
                           int* streamId)
 {
     ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
                                                                         format);
+
+    *cpuConsumer = NULL;
 
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
@@ -356,6 +373,8 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     getStreamInfo(*streamId).frameAvailableListener = frameAvailableListener;
 
     cc->setFrameAvailableListener(frameAvailableListener);
+
+    *cpuConsumer = cc;
 
     return s;
 }
@@ -399,26 +418,91 @@ void ProCamera::onFrameAvailable(int streamId) {
     ALOGV("%s: streamId = %d", __FUNCTION__, streamId);
 
     sp<ProCameraListener> listener = mListener;
+    StreamInfo& stream = getStreamInfo(streamId);
+
+    CpuConsumer::LockedBuffer buf;
+
     if (listener.get() != NULL) {
-        StreamInfo& stream = getStreamInfo(streamId);
-
-        CpuConsumer::LockedBuffer buf;
-
-        status_t stat = stream.cpuConsumer->lockNextBuffer(&buf);
-        if (stat != OK) {
-            ALOGE("%s: Failed to lock buffer, error code = %d", __FUNCTION__,
-                   stat);
+        if (listener->useOnFrameAvailable()) {
+            listener->onFrameAvailable(streamId, stream.cpuConsumer);
             return;
         }
+    }
 
-        listener->onBufferReceived(streamId, buf);
-        stat = stream.cpuConsumer->unlockBuffer(buf);
+    // Unblock waitForFrame(id) callers
+    {
+        Mutex::Autolock al(mWaitMutex);
+        getStreamInfo(streamId).frameReady = true;
+        mWaitCondition.broadcast();
+    }
+}
 
-        if (stat != OK) {
-            ALOGE("%s: Failed to unlock buffer, error code = %d", __FUNCTION__,
-                   stat);
+status_t ProCamera::waitForFrameBuffer(int streamId) {
+    status_t stat = BAD_VALUE;
+    Mutex::Autolock al(mWaitMutex);
+
+    StreamInfo& si = getStreamInfo(streamId);
+
+    if (si.frameReady) {
+        si.frameReady = false;
+        return OK;
+    } else {
+        while (true) {
+            stat = mWaitCondition.waitRelative(mWaitMutex,
+                                                mWaitTimeout);
+            if (stat != OK) {
+                ALOGE("%s: Error while waiting for frame buffer: %d",
+                    __FUNCTION__, stat);
+                return stat;
+            }
+
+            if (si.frameReady) {
+                si.frameReady = false;
+                return OK;
+            }
+            // else it was some other stream that got unblocked
         }
     }
+
+    return stat;
+}
+
+status_t ProCamera::waitForFrameMetadata() {
+    status_t stat = BAD_VALUE;
+    Mutex::Autolock al(mWaitMutex);
+
+    if (mMetadataReady) {
+        return OK;
+    } else {
+        while (true) {
+            stat = mWaitCondition.waitRelative(mWaitMutex,
+                                               mWaitTimeout);
+
+            if (stat != OK) {
+                ALOGE("%s: Error while waiting for metadata: %d",
+                        __FUNCTION__, stat);
+                return stat;
+            }
+
+            if (mMetadataReady) {
+                mMetadataReady = false;
+                return OK;
+            }
+            // else it was some other stream or metadata
+        }
+    }
+
+    return stat;
+}
+
+CameraMetadata ProCamera::consumeFrameMetadata() {
+    Mutex::Autolock al(mWaitMutex);
+
+    // Destructive: Subsequent calls return empty metadatas
+    CameraMetadata tmp = mLatestMetadata;
+    mLatestMetadata.release();
+
+    return tmp;
 }
 
 ProCamera::StreamInfo& ProCamera::getStreamInfo(int streamId) {
