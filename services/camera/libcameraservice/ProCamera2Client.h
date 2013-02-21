@@ -58,6 +58,7 @@ public:
                                        int* streamId);
 
     // Create a request object from a template.
+    // -- Caller owns the newly allocated metadata
     virtual status_t      createDefaultRequest(int templateId,
                                                /*out*/
                                                camera_metadata** request);

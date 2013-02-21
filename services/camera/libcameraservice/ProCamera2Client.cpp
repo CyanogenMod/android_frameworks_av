@@ -194,8 +194,15 @@ status_t ProCamera2Client::submitRequest(camera_metadata_t* request,
         return PERMISSION_DENIED;
     }
 
-    ALOGE("%s: not fully implemented yet", __FUNCTION__);
-    free_camera_metadata(request);
+    CameraMetadata metadata(request);
+
+    if (streaming) {
+        return mDevice->setStreamingRequest(metadata);
+    } else {
+        return mDevice->capture(metadata);
+    }
+
+    // unreachable. thx gcc for a useless warning
     return OK;
 }
 
@@ -209,7 +216,7 @@ status_t ProCamera2Client::cancelRequest(int requestId) {
     }
 
     ALOGE("%s: not fully implemented yet", __FUNCTION__);
-    return OK;
+    return INVALID_OPERATION;
 }
 
 status_t ProCamera2Client::requestStream(int streamId) {
@@ -219,31 +226,62 @@ status_t ProCamera2Client::requestStream(int streamId) {
 }
 
 status_t ProCamera2Client::cancelStream(int streamId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
+    ATRACE_CALL();
+    ALOGV("%s (streamId = 0x%x)", __FUNCTION__, streamId);
 
-    return INVALID_OPERATION;
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+
+    return mDevice->deleteStream(streamId);
 }
 
 status_t ProCamera2Client::createStream(int width, int height, int format,
-                                        const sp<Surface>& surface,
-                                        /*out*/
-                                        int* streamId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
+                      const sp<Surface>& surface,
+                      /*out*/
+                      int* streamId)
+{
+    if (streamId) {
+        *streamId = -1;
+    }
 
-    return INVALID_OPERATION;
+    ATRACE_CALL();
+    ALOGV("%s (w = %d, h = %d, f = 0x%x)", __FUNCTION__, width, height, format);
+
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+
+    return mDevice->createStream(surface, width, height, format, /*size*/1, streamId);
 }
 
+// Create a request object from a template.
+// -- Caller owns the newly allocated metadata
 status_t ProCamera2Client::createDefaultRequest(int templateId,
-                                               /*out*/
-                                               camera_metadata** request) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
+                             /*out*/
+                              camera_metadata** request)
+{
+    ATRACE_CALL();
+    ALOGV("%s (templateId = 0x%x)", __FUNCTION__, templateId);
 
-    return INVALID_OPERATION;
+    if (request) {
+        *request = NULL;
+    }
+
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+
+    CameraMetadata metadata;
+    if ( (res = mDevice->createDefaultRequest(templateId, &metadata) ) == OK) {
+        *request = metadata.release();
+    }
+
+    return res;
 }
-
-
-
-
 
 status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
