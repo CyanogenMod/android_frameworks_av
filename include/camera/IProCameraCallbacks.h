@@ -39,6 +39,14 @@ public:
     virtual void            dataCallbackTimestamp(nsecs_t timestamp,
                                                   int32_t msgType,
                                                   const sp<IMemory>& data) = 0;
+
+    enum LockStatus {
+        LOCK_ACQUIRED,
+        LOCK_RELEASED,
+        LOCK_STOLEN,
+    };
+
+    virtual void            onLockStatusChanged(LockStatus newLockStatus) = 0;
 };
 
 // ----------------------------------------------------------------------------
