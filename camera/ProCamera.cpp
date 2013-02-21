@@ -278,7 +278,8 @@ status_t ProCamera::createStream(int width, int height, int format,
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
 
-    return c->createStream(width, height, format, surface, streamId);
+    return c->createStream(width, height, format, surface->getIGraphicBufferProducer(),
+                           streamId);
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
@@ -293,10 +294,10 @@ status_t ProCamera::createStream(int width, int height, int format,
     status_t stat = INVALID_OPERATION;
 
     if (bufferProducer != 0) {
-        binder = bufferProducer->asBinder();
+        sp <IProCameraUser> c = mCamera;
+        if (c == 0) return NO_INIT;
 
-        ALOGV("%s: createStreamT END (%d), StreamID = %d", __FUNCTION__, stat,
-                                                                    *streamId);
+        return c->createStream(width, height, format, bufferProducer, streamId);
     }
     else {
         *streamId = -1;

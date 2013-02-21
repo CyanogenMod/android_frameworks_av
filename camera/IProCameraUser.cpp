@@ -219,7 +219,7 @@ public:
     }
 
     virtual status_t createStream(int width, int height, int format,
-                          const sp<Surface>& surface,
+                          const sp<IGraphicBufferProducer>& bufferProducer,
                           /*out*/
                           int* streamId)
     {
@@ -229,7 +229,9 @@ public:
         data.writeInt32(height);
         data.writeInt32(format);
 
-        Surface::writeToParcel(surface, &data);
+        sp<IBinder> b(bufferProducer->asBinder());
+        data.writeStrongBinder(b);
+
         remote()->transact(CREATE_STREAM, data, &reply);
 
         int sId = reply.readInt32();
@@ -340,11 +342,12 @@ status_t BnProCameraUser::onTransact(
             height = data.readInt32();
             format = data.readInt32();
 
-            sp<Surface> surface = Surface::readFromParcel(data);
+            sp<IGraphicBufferProducer> bp =
+               interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
 
             int streamId = -1;
             status_t ret;
-            ret = createStream(width, height, format, surface, &streamId);
+            ret = createStream(width, height, format, bp, &streamId);
 
             reply->writeInt32(streamId);
             reply->writeInt32(ret);

@@ -53,9 +53,9 @@ public:
     virtual status_t      cancelStream(int streamId);
 
     virtual status_t      createStream(int width, int height, int format,
-                                       const sp<Surface>& surface,
-                                       /*out*/
-                                       int* streamId);
+                                      const sp<IGraphicBufferProducer>& bufferProducer,
+                                      /*out*/
+                                      int* streamId);
 
     // Create a request object from a template.
     // -- Caller owns the newly allocated metadata

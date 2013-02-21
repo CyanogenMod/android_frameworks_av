@@ -238,7 +238,7 @@ status_t ProCamera2Client::cancelStream(int streamId) {
 }
 
 status_t ProCamera2Client::createStream(int width, int height, int format,
-                      const sp<Surface>& surface,
+                      const sp<IGraphicBufferProducer>& bufferProducer,
                       /*out*/
                       int* streamId)
 {
@@ -254,7 +254,15 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
 
     Mutex::Autolock icl(mIProCameraUserLock);
 
-    return mDevice->createStream(surface, width, height, format, /*size*/1, streamId);
+    sp<IBinder> binder;
+    sp<ANativeWindow> window;
+    if (bufferProducer != 0) {
+        binder = bufferProducer->asBinder();
+        window = new Surface(bufferProducer);
+    }
+
+    return mDevice->createStream(window, width, height, format, /*size*/1,
+                                 streamId);
 }
 
 // Create a request object from a template.
