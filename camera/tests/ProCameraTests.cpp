@@ -43,6 +43,7 @@ namespace client {
 #define TEST_LISTENER_TIMEOUT 1000000000 // 1 second listener timeout
 #define TEST_FORMAT HAL_PIXEL_FORMAT_Y16 //TODO: YUY2 instead
 
+#define TEST_FORMAT_MAIN HAL_PIXEL_FORMAT_Y8
 #define TEST_FORMAT_DEPTH HAL_PIXEL_FORMAT_Y16
 
 #define TEST_CPU_FRAME_COUNT 2
@@ -352,7 +353,7 @@ TEST_F(ProCameraTest, LockingAsynchronous) {
 }
 
 // Stream directly to the screen.
-TEST_F(ProCameraTest, StreamingImage) {
+TEST_F(ProCameraTest, StreamingImageSingle) {
     if (HasFatalFailure()) {
         return;
     }
@@ -431,7 +432,94 @@ TEST_F(ProCameraTest, StreamingImage) {
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
-TEST_F(ProCameraTest, CpuConsumer) {
+// Stream directly to the screen.
+TEST_F(ProCameraTest, StreamingImageDual) {
+    if (HasFatalFailure()) {
+        return;
+    }
+    char* displaySecsEnv = getenv("TEST_DISPLAY_SECS");
+    if (displaySecsEnv != NULL) {
+        mDisplaySecs = atoi(displaySecsEnv);
+        if (mDisplaySecs < 0) {
+            mDisplaySecs = 0;
+        }
+    } else {
+        mDisplaySecs = 0;
+    }
+
+    sp<Surface> surface;
+    sp<Surface> depthSurface;
+    if (mDisplaySecs > 0) {
+        createOnScreenSurface(/*out*/surface);
+        createDepthOnScreenSurface(/*out*/depthSurface);
+    }
+
+    int streamId = -1;
+    EXPECT_OK(mCamera->createStream(/*width*/1280, /*height*/960,
+              TEST_FORMAT_MAIN, surface, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    int depthStreamId = -1;
+    EXPECT_OK(mCamera->createStream(/*width*/320, /*height*/240,
+              TEST_FORMAT_DEPTH, depthSurface, &depthStreamId));
+    EXPECT_NE(-1, depthStreamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+    /*
+    */
+    /* iterate in a loop submitting requests every frame.
+     *  what kind of requests doesnt really matter, just whatever.
+     */
+
+    // it would probably be better to use CameraMetadata from camera service.
+    camera_metadata_t *request = NULL;
+    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+              /*out*/&request));
+    EXPECT_NE((void*)NULL, request);
+
+    /*FIXME: dont need this later, at which point the above should become an
+             ASSERT_NE*/
+    if(request == NULL) request = allocate_camera_metadata(10, 100);
+
+    // set the output streams to just this stream ID
+
+    // wow what a verbose API.
+    uint8_t allStreams[] = { streamId, depthStreamId };
+    // IMPORTANT. bad things will happen if its not a uint8.
+    size_t streamCount = sizeof(allStreams) / sizeof(allStreams[0]);
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+    int find = find_camera_metadata_entry(request, tag, &entry);
+    if (find == -ENOENT) {
+        if (add_camera_metadata_entry(request, tag, &allStreams,
+                                      /*data_count*/streamCount) != OK) {
+            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
+            ASSERT_OK(append_camera_metadata(tmp, request));
+            free_camera_metadata(request);
+            request = tmp;
+
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
+                                                /*data_count*/streamCount));
+        }
+    } else {
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
+                  &allStreams, /*data_count*/streamCount, &entry));
+    }
+
+    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+
+    dout << "will sleep now for " << mDisplaySecs << std::endl;
+    sleep(mDisplaySecs);
+
+    free_camera_metadata(request);
+
+    for (int i = 0; i < streamCount; ++i) {
+        EXPECT_OK(mCamera->deleteStream(allStreams[i]));
+    }
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, CpuConsumerSingle) {
     if (HasFatalFailure()) {
         return;
     }
@@ -485,6 +573,82 @@ TEST_F(ProCameraTest, CpuConsumer) {
     for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
         EXPECT_EQ(OK, mListener->WaitForEvent());
         EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+    }
+
+    // Done: clean up
+    free_camera_metadata(request);
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, CpuConsumerDual) {
+    if (HasFatalFailure()) {
+        return;
+    }
+    int streamId = -1;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                            TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    int depthStreamId = -1;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
+                     TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &depthStreamId));
+    EXPECT_NE(-1, depthStreamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+    EXPECT_EQ(OK, mListener->WaitForEvent());
+    EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
+    /*
+    */
+    /* iterate in a loop submitting requests every frame.
+     *  what kind of requests doesnt really matter, just whatever.
+     */
+
+    // it would probably be better to use CameraMetadata from camera service.
+    camera_metadata_t *request = NULL;
+    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                                            /*out*/&request));
+    EXPECT_NE((void*)NULL, request);
+
+    if(request == NULL) request = allocate_camera_metadata(10, 100);
+
+    // set the output streams to just this stream ID
+
+    // wow what a verbose API.
+    uint8_t allStreams[] = { streamId, depthStreamId };
+    size_t streamCount = 2;
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+    int find = find_camera_metadata_entry(request, tag, &entry);
+    if (find == -ENOENT) {
+        if (add_camera_metadata_entry(request, tag, &allStreams,
+                                      /*data_count*/streamCount) != OK) {
+            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
+            ASSERT_OK(append_camera_metadata(tmp, request));
+            free_camera_metadata(request);
+            request = tmp;
+
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
+                                                   /*data_count*/streamCount));
+        }
+    } else {
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
+                              &allStreams, /*data_count*/streamCount, &entry));
+    }
+
+    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+
+    // Consume a couple of frames
+    for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
+        // stream id 1
+        EXPECT_EQ(OK, mListener->WaitForEvent());
+        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+
+        // stream id 2
+        EXPECT_EQ(OK, mListener->WaitForEvent());
+        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+
+        //TODO: events should be a struct with some data like the stream id
     }
 
     // Done: clean up
