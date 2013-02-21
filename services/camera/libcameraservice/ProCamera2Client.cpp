@@ -26,6 +26,7 @@
 #include <gui/Surface.h>
 #include "camera2/Parameters.h"
 #include "ProCamera2Client.h"
+#include "camera2/ProFrameProcessor.h"
 
 namespace android {
 using namespace camera2;
@@ -81,6 +82,16 @@ status_t ProCamera2Client::initialize(camera_module_t *module)
     }
 
     res = mDevice->setNotifyCallback(this);
+
+    String8 threadName;
+    mFrameProcessor = new ProFrameProcessor(this);
+    threadName = String8::format("PC2-%d-FrameProc",
+            mCameraId);
+    mFrameProcessor->run(threadName.string());
+
+    mFrameProcessor->registerListener(FRAME_PROCESSOR_LISTENER_MIN_ID,
+                                      FRAME_PROCESSOR_LISTENER_MAX_ID,
+                                      /*listener*/this);
 
     return OK;
 }
@@ -307,6 +318,7 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     result.append("  State: ");
 
     // TODO: print dynamic/request section from most recent requests
+    mFrameProcessor->dump(fd, args);
 
 #define CASE_APPEND_ENUM(x) case x: result.append(#x "\n"); break;
 
@@ -338,7 +350,12 @@ void ProCamera2Client::disconnect() {
     if (mDevice == 0) return;
 
     ALOGV("Camera %d: Shutting down", mCameraId);
+    mFrameProcessor->removeListener(FRAME_PROCESSOR_LISTENER_MIN_ID,
+                                    FRAME_PROCESSOR_LISTENER_MAX_ID,
+                                    /*listener*/this);
+    mFrameProcessor->requestExit();
     ALOGV("Camera %d: Waiting for threads", mCameraId);
+    mFrameProcessor->join();
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
     mDevice->disconnect();
@@ -444,6 +461,24 @@ ProCamera2Client::SharedCameraCallbacks&
 void ProCamera2Client::SharedCameraCallbacks::clear() {
     Mutex::Autolock l(mRemoteCallbackLock);
     mRemoteCallback.clear();
+}
+
+void ProCamera2Client::onFrameAvailable(int32_t frameId,
+                                        const CameraMetadata& frame) {
+    ATRACE_CALL();
+    ALOGV("%s", __FUNCTION__);
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+    SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+
+    if (mRemoteCallback != NULL) {
+        CameraMetadata tmp(frame);
+        camera_metadata_t* meta = tmp.release();
+        ALOGV("%s: meta = %p ", __FUNCTION__, meta);
+        mRemoteCallback->onResultReceived(frameId, meta);
+        tmp.acquire(meta);
+    }
+
 }
 
 } // namespace android

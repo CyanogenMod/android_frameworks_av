@@ -19,6 +19,7 @@
 
 #include "Camera2Device.h"
 #include "CameraService.h"
+#include "camera2/ProFrameProcessor.h"
 
 namespace android {
 
@@ -29,7 +30,8 @@ class IMemory;
  */
 class ProCamera2Client :
         public CameraService::ProClient,
-        public Camera2Device::NotificationListener
+        public Camera2Device::NotificationListener,
+        public camera2::ProFrameProcessor::FilteredListener
 {
 public:
     /**
@@ -120,6 +122,10 @@ public:
         mutable Mutex mRemoteCallbackLock;
     } mSharedCameraCallbacks;
 
+protected:
+    /** FilteredListener implementation **/
+    virtual void onFrameAvailable(int32_t frameId, const CameraMetadata& frame);
+
 private:
     /** IProCameraUser interface-related private members */
 
@@ -137,6 +143,10 @@ private:
     sp<IBinder> mPreviewSurface;
 
     /** Preview callback related members */
+    sp<camera2::ProFrameProcessor> mFrameProcessor;
+    static const int32_t FRAME_PROCESSOR_LISTENER_MIN_ID = 0;
+    static const int32_t FRAME_PROCESSOR_LISTENER_MAX_ID = 0x7fffffffL;
+
     /** Camera2Device instance wrapping HAL2 entry */
 
     sp<Camera2Device> mDevice;

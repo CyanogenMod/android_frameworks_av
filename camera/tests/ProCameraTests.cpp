@@ -66,7 +66,12 @@ enum ProEvent {
     RELEASED,
     STOLEN,
     BUFFER_RECEIVED,
+    RESULT_RECEIVED,
 };
+
+inline int ProEvent_Mask(ProEvent e) {
+    return (1 << static_cast<int>(e));
+}
 
 typedef Vector<ProEvent> EventList;
 
@@ -93,6 +98,12 @@ public:
 class ProCameraTestListener : public ProCameraListener {
 
 public:
+    static const int EVENT_MASK_ALL = 0xFFFFFFFF;
+
+    ProCameraTestListener() {
+        mEventMask = EVENT_MASK_ALL;
+    }
+
     status_t WaitForEvent() {
         Mutex::Autolock cal(mConditionMutex);
 
@@ -136,15 +147,26 @@ public:
         return ev;
     }
 
+    void SetEventMask(int eventMask) {
+        Mutex::Autolock al(mListenerMutex);
+        mEventMask = eventMask;
+    }
+
 private:
     void QueueEvent(ProEvent ev) {
+        bool eventAdded = false;
         {
             Mutex::Autolock al(mListenerMutex);
-            mProEventList.push(ev);
+
+            if (ProEvent_Mask(ev) & mEventMask) {
+                mProEventList.push(ev);
+                eventAdded = true;
+            }
         }
 
-
-        mListenerCondition.broadcast();
+        if (eventAdded) {
+            mListenerCondition.broadcast();
+        }
     }
 
 protected:
@@ -184,8 +206,11 @@ protected:
         QueueEvent(BUFFER_RECEIVED);
 
     }
-    virtual void onRequestReceived(
-                                   camera_metadata* request) {
+    virtual void onResultReceived(int32_t frameId,
+                                  camera_metadata* request) {
+        dout << "Result received frameId = " << frameId
+             << ", requestPtr = " << (void*)request << std::endl;
+        QueueEvent(RESULT_RECEIVED);
         free_camera_metadata(request);
     }
 
@@ -201,6 +226,7 @@ protected:
     Mutex             mListenerMutex;
     Mutex             mConditionMutex;
     Condition         mListenerCondition;
+    int               mEventMask;
 };
 
 class ProCameraTest : public ::testing::Test {
@@ -309,6 +335,10 @@ TEST_F(ProCameraTest, LockingImmediate) {
         return;
     }
 
+    mListener->SetEventMask(ProEvent_Mask(ACQUIRED) |
+                            ProEvent_Mask(STOLEN)   |
+                            ProEvent_Mask(RELEASED));
+
     EXPECT_FALSE(mCamera->hasExclusiveLock());
     EXPECT_EQ(OK, mCamera->exclusiveTryLock());
     // at this point we definitely have the lock
@@ -332,13 +362,17 @@ TEST_F(ProCameraTest, LockingAsynchronous) {
         return;
     }
 
+
+    mListener->SetEventMask(ProEvent_Mask(ACQUIRED) |
+                            ProEvent_Mask(STOLEN)   |
+                            ProEvent_Mask(RELEASED));
+
     // TODO: Add another procamera that has a lock here.
     // then we can be test that the lock wont immediately be acquired
 
     EXPECT_FALSE(mCamera->hasExclusiveLock());
-    EXPECT_EQ(OK, mCamera->exclusiveLock());
-    // at this point we may or may not have the lock
-    // we cant be sure until we get an ACQUIRED event
+    EXPECT_EQ(OK, mCamera->exclusiveTryLock());
+    // at this point we definitely have the lock
 
     EXPECT_EQ(OK, mListener->WaitForEvent());
     EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
@@ -353,7 +387,7 @@ TEST_F(ProCameraTest, LockingAsynchronous) {
 }
 
 // Stream directly to the screen.
-TEST_F(ProCameraTest, StreamingImageSingle) {
+TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
     if (HasFatalFailure()) {
         return;
     }
@@ -433,7 +467,7 @@ TEST_F(ProCameraTest, StreamingImageSingle) {
 }
 
 // Stream directly to the screen.
-TEST_F(ProCameraTest, StreamingImageDual) {
+TEST_F(ProCameraTest, DISABLED_StreamingImageDual) {
     if (HasFatalFailure()) {
         return;
     }
@@ -523,6 +557,9 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
     if (HasFatalFailure()) {
         return;
     }
+
+    mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
+
     int streamId = -1;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
         TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &streamId));
@@ -585,6 +622,9 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
     if (HasFatalFailure()) {
         return;
     }
+
+    mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
+
     int streamId = -1;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
                             TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &streamId));
@@ -596,8 +636,6 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
     EXPECT_NE(-1, depthStreamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
-    EXPECT_EQ(OK, mListener->WaitForEvent());
-    EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
     /*
     */
     /* iterate in a loop submitting requests every frame.
@@ -649,6 +687,72 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
         EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
 
         //TODO: events should be a struct with some data like the stream id
+    }
+
+    // Done: clean up
+    free_camera_metadata(request);
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, ResultReceiver) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    mListener->SetEventMask(ProEvent_Mask(RESULT_RECEIVED));
+    //FIXME: if this is run right after the previous test we get BUFFER_RECEIVED
+    // need to filter out events at read time
+
+    int streamId = -1;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                             TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+    /*
+    */
+    /* iterate in a loop submitting requests every frame.
+     *  what kind of requests doesnt really matter, just whatever.
+     */
+
+    camera_metadata_t *request = NULL;
+    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                                            /*out*/&request));
+    EXPECT_NE((void*)NULL, request);
+
+    /*FIXME*/
+    if(request == NULL) request = allocate_camera_metadata(10, 100);
+
+    // set the output streams to just this stream ID
+
+    uint8_t allStreams[] = { streamId };
+    size_t streamCount = 1;
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+    int find = find_camera_metadata_entry(request, tag, &entry);
+    if (find == -ENOENT) {
+        if (add_camera_metadata_entry(request, tag, &allStreams,
+                                      /*data_count*/streamCount) != OK) {
+            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
+            ASSERT_OK(append_camera_metadata(tmp, request));
+            free_camera_metadata(request);
+            request = tmp;
+
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
+                                                /*data_count*/streamCount));
+        }
+    } else {
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
+                               &allStreams, /*data_count*/streamCount, &entry));
+    }
+
+    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+
+    // Consume a couple of results
+    for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
+        EXPECT_EQ(OK, mListener->WaitForEvent());
+        EXPECT_EQ(RESULT_RECEIVED, mListener->ReadEvent());
     }
 
     // Done: clean up

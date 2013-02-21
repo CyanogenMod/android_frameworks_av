@@ -24,6 +24,8 @@
 #include <utils/Timers.h>
 #include <system/camera.h>
 
+struct camera_metadata;
+
 namespace android {
 
 class IProCameraCallbacks: public IInterface
@@ -47,6 +49,11 @@ public:
     };
 
     virtual void            onLockStatusChanged(LockStatus newLockStatus) = 0;
+
+    /** Missing by design: implementation is client-side in ProCamera.cpp **/
+    // virtual void onBufferReceived(int streamId,
+    //                               const CpuConsumer::LockedBufer& buf);
+    virtual void onResultReceived(int32_t frameId, camera_metadata* result) = 0;
 };
 
 // ----------------------------------------------------------------------------
