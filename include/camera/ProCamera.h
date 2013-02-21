@@ -114,7 +114,48 @@ public:
      * Lock free. Service maintains counter of streams.
      * Errors: BAD_VALUE if unknown stream ID.
      */
+// TODO: remove requestStream, its useless.
+
+// TODO: rename cancelStream to deleteStream
+// can probably do it with a grep/sed
+
+    /**
+      * Ask for a stream to be disabled.
+      * Lock free. Service maintains counter of streams.
+      * Errors: BAD_VALUE if unknown stream ID.
+      */
     status_t cancelStream(int streamId);
+
+    /**
+      * Create a new HW stream, whose sink will be the window.
+      * Lock free. Service maintains counter of streams.
+      * Errors: -EBUSY if too many streams created
+      */
+    status_t createStream(int width, int height, int format,
+                          const sp<ANativeWindow>& window,
+                          /*out*/
+                          int* streamId);
+
+    /**
+      * Create a new HW stream, whose sink will be the SurfaceTexture.
+      * Lock free. Service maintains counter of streams.
+      * Errors: -EBUSY if too many streams created
+      */
+    status_t createStream(int width, int height, int format,
+                          const sp<IGraphicBufferProducer>& bufferProducer,
+                          /*out*/
+                          int* streamId);
+
+    // Create a request object from a template.
+    status_t createDefaultRequest(int templateId,
+                                 /*out*/
+                                  camera_metadata** request) const;
+
+    // Get number of cameras
+    static int getNumberOfCameras();
+
+    // Get static camera metadata
+    static camera_metadata* getCameraInfo(int cameraId);
 
     sp<IProCameraUser>         remote();
 
