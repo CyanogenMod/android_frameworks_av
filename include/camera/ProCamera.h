@@ -18,17 +18,20 @@
 #define ANDROID_HARDWARE_PRO_CAMERA_H
 
 #include <utils/Timers.h>
+#include <utils/KeyedVector.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <system/camera.h>
 #include <camera/IProCameraCallbacks.h>
 #include <camera/IProCameraUser.h>
 #include <camera/Camera.h>
+#include <gui/CpuConsumer.h>
 
 struct camera_metadata;
 
 namespace android {
 
-// ref-counted object for callbacks
+// All callbacks on this class are concurrent
+// (they come from separate threads)
 class ProCameraListener : public CameraListener
 {
 public:
@@ -42,6 +45,21 @@ public:
     // Lock free.
     virtual void onTriggerNotify(int32_t msgType, int32_t ext1, int32_t ext2)
                                                                             = 0;
+
+    // OnBufferReceived and OnRequestReceived can come in with any order,
+    // use android.sensor.timestamp and LockedBuffer.timestamp to correlate them
+
+    // TODO: implement in IProCameraCallbacks, ProCamera2Client
+
+    // A new frame buffer has been received for this stream.
+    // -- This callback only fires for createStreamCpu streams
+    // -- The buffer must not be accessed after this function call completes
+    virtual void onBufferReceived(int streamId,
+                                  const CpuConsumer::LockedBuffer& buf) = 0;
+    // A new metadata buffer has been received.
+    // -- Ownership of request passes on to the callee,
+    //    free with free_camera_metadata.
+    virtual void onRequestReceived(camera_metadata* request) = 0;
 };
 
 class ProCamera : public BnProCameraCallbacks, public IBinder::DeathRecipient
@@ -109,22 +127,15 @@ public:
      * Lock free. Service maintains counter of streams.
      */
     status_t requestStream(int streamId);
-    /**
-     * Ask for a stream to be disabled.
-     * Lock free. Service maintains counter of streams.
-     * Errors: BAD_VALUE if unknown stream ID.
-     */
 // TODO: remove requestStream, its useless.
 
-// TODO: rename cancelStream to deleteStream
-// can probably do it with a grep/sed
-
     /**
-      * Ask for a stream to be disabled.
-      * Lock free. Service maintains counter of streams.
+      * Delete a stream.
+      * Lock free.
       * Errors: BAD_VALUE if unknown stream ID.
+      *         PERMISSION_DENIED if the stream wasn't yours
       */
-    status_t cancelStream(int streamId);
+    status_t deleteStream(int streamId);
 
     /**
       * Create a new HW stream, whose sink will be the window.
@@ -143,6 +154,10 @@ public:
       */
     status_t createStream(int width, int height, int format,
                           const sp<IGraphicBufferProducer>& bufferProducer,
+                          /*out*/
+                          int* streamId);
+    status_t createStreamCpu(int width, int height, int format,
+                          int heapCount,
                           /*out*/
                           int* streamId);
 
@@ -202,6 +217,53 @@ private:
 
     static  Mutex               mLock;
     static  sp<ICameraService>  mCameraService;
+
+    class ProFrameListener : public CpuConsumer::FrameAvailableListener {
+    public:
+        ProFrameListener(wp<ProCamera> camera, int streamID) {
+            mCamera = camera;
+            mStreamId = streamID;
+        }
+
+    protected:
+        virtual void onFrameAvailable() {
+            sp<ProCamera> c = mCamera.promote();
+            if (c.get() != NULL) {
+                c->onFrameAvailable(mStreamId);
+            }
+        }
+
+    private:
+        wp<ProCamera> mCamera;
+        int mStreamId;
+    };
+    friend class ProFrameListener;
+
+    struct StreamInfo
+    {
+        StreamInfo(int streamId) {
+            this->streamID = streamId;
+            cpuStream = false;
+        }
+
+        StreamInfo() {
+            streamID = -1;
+            cpuStream = false;
+        }
+
+        int  streamID;
+        bool cpuStream;
+        sp<CpuConsumer> cpuConsumer;
+        sp<ProFrameListener> frameAvailableListener;
+        sp<Surface> stc;
+    };
+
+    KeyedVector<int, StreamInfo> mStreams;
+
+
+    void onFrameAvailable(int streamId);
+
+    StreamInfo& getStreamInfo(int streamId);
 
 
 };
