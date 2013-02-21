@@ -24,7 +24,11 @@
 #include <camera/IProCameraCallbacks.h>
 #include <camera/IProCameraUser.h>
 #include <camera/Camera.h>
+#include <camera/CameraMetadata.h>
 #include <gui/CpuConsumer.h>
+
+#include <utils/Condition.h>
+#include <utils/Mutex.h>
 
 struct camera_metadata;
 
@@ -62,6 +66,20 @@ public:
       *    free_camera_metadata.
       */
     virtual void onResultReceived(int32_t frameId, camera_metadata* result) = 0;
+
+
+    // A new frame buffer has been received for this stream.
+    // -- This callback only fires for createStreamCpu streams
+    // -- Use buf.timestamp to correlate with metadata's android.sensor.timestamp
+    // -- The buffer should be accessed with CpuConsumer::lockNextBuffer
+    //      and CpuConsumer::unlockBuffer
+    virtual void onFrameAvailable(int streamId,
+                                  const sp<CpuConsumer>& cpuConsumer) {
+    }
+
+    virtual bool useOnFrameAvailable() {
+        return false;
+    }
 };
 
 class ProCamera : public BnProCameraCallbacks, public IBinder::DeathRecipient
@@ -161,6 +179,7 @@ public:
     status_t createStreamCpu(int width, int height, int format,
                           int heapCount,
                           /*out*/
+                          sp<CpuConsumer>* cpuConsumer,
                           int* streamId);
 
     // Create a request object from a template.
@@ -173,6 +192,24 @@ public:
 
     // Get static camera metadata
     camera_metadata* getCameraInfo(int cameraId);
+
+    // Blocks until a frame is available (CPU streams only)
+    // - Obtain the frame data by calling CpuConsumer::lockNextBuffer
+    // - Release the frame data after use with CpuConsumer::unlockBuffer
+    // Error codes:
+    // -ETIMEDOUT if it took too long to get a frame
+    status_t waitForFrameBuffer(int streamId);
+
+    // Blocks until a metadata result is available
+    // - Obtain the metadata by calling consumeFrameMetadata()
+    // Error codes:
+    // -ETIMEDOUT if it took too long to get a frame
+    status_t waitForFrameMetadata();
+
+    // Get the latest metadata. This is destructive.
+    // - Calling this repeatedly will produce empty metadata objects.
+    // - Use waitForFrameMetadata to sync until new data is available.
+    CameraMetadata consumeFrameMetadata();
 
     sp<IProCameraUser>         remote();
 
@@ -249,6 +286,7 @@ private:
         StreamInfo(int streamId) {
             this->streamID = streamId;
             cpuStream = false;
+            frameReady = false;
         }
 
         StreamInfo() {
@@ -261,10 +299,15 @@ private:
         sp<CpuConsumer> cpuConsumer;
         sp<ProFrameListener> frameAvailableListener;
         sp<Surface> stc;
+        bool frameReady;
     };
 
+    Condition mWaitCondition;
+    Mutex     mWaitMutex;
+    static const nsecs_t mWaitTimeout = 1000000000; // 1sec
     KeyedVector<int, StreamInfo> mStreams;
-
+    bool mMetadataReady;
+    CameraMetadata mLatestMetadata;
 
     void onFrameAvailable(int streamId);
 
