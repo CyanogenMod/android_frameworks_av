@@ -20,7 +20,8 @@ LOCAL_SRC_FILES:=               \
     camera2/ZslProcessor.cpp \
     camera2/BurstCapture.cpp \
     camera2/JpegCompressor.cpp \
-    camera2/CaptureSequencer.cpp
+    camera2/CaptureSequencer.cpp \
+    camera2/ProFrameProcessor.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \

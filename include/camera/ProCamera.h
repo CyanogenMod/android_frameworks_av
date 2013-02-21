@@ -49,17 +49,19 @@ public:
     // OnBufferReceived and OnRequestReceived can come in with any order,
     // use android.sensor.timestamp and LockedBuffer.timestamp to correlate them
 
-    // TODO: implement in IProCameraCallbacks, ProCamera2Client
-
     // A new frame buffer has been received for this stream.
     // -- This callback only fires for createStreamCpu streams
+    // -- Use buf.timestamp to correlate with metadata's
+    //    android.sensor.timestamp
     // -- The buffer must not be accessed after this function call completes
     virtual void onBufferReceived(int streamId,
                                   const CpuConsumer::LockedBuffer& buf) = 0;
-    // A new metadata buffer has been received.
-    // -- Ownership of request passes on to the callee,
-    //    free with free_camera_metadata.
-    virtual void onRequestReceived(camera_metadata* request) = 0;
+    /**
+      * A new metadata buffer has been received.
+      * -- Ownership of request passes on to the callee, free with
+      *    free_camera_metadata.
+      */
+    virtual void onResultReceived(int32_t frameId, camera_metadata* result) = 0;
 };
 
 class ProCamera : public BnProCameraCallbacks, public IBinder::DeathRecipient
@@ -188,6 +190,9 @@ protected:
                                               const sp<IMemory>& dataPtr);
     virtual void        onLockStatusChanged(
                                 IProCameraCallbacks::LockStatus newLockStatus);
+
+    virtual void        onResultReceived(int32_t frameId,
+                                         camera_metadata* result);
 
     class DeathNotifier: public IBinder::DeathRecipient
     {

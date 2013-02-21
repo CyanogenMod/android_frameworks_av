@@ -33,6 +33,8 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 
+#include <system/camera_metadata.h>
+
 namespace android {
 
 // client singleton for camera service binder interface
@@ -196,6 +198,22 @@ void ProCamera::onLockStatusChanged(
                       __FUNCTION__, newLockStatus);
         }
     }
+}
+
+void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
+    ALOGV("%s: frameId = %d, result = %p", __FUNCTION__, frameId, result);
+
+    sp<ProCameraListener> listener;
+    {
+        Mutex::Autolock _l(mLock);
+        listener = mListener;
+    }
+    if (listener != NULL) {
+        listener->onResultReceived(frameId, result);
+    } else {
+        free_camera_metadata(result);
+    }
+
 }
 
 status_t ProCamera::exclusiveTryLock()

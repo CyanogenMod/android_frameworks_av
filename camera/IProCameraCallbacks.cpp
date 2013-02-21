@@ -28,6 +28,8 @@
 
 #include <camera/IProCameraCallbacks.h>
 
+#include <system/camera_metadata.h>
+
 namespace android {
 
 enum {
@@ -35,7 +37,11 @@ enum {
     DATA_CALLBACK,
     DATA_CALLBACK_TIMESTAMP,
     LOCK_STATUS_CHANGED,
+    RESULT_RECEIVED,
 };
+
+void readMetadata(const Parcel& data, camera_metadata_t** out);
+void writeMetadata(Parcel& data, camera_metadata_t* metadata);
 
 class BpProCameraCallbacks: public BpInterface<IProCameraCallbacks>
 {
@@ -96,6 +102,15 @@ public:
         remote()->transact(LOCK_STATUS_CHANGED, data, &reply,
                            IBinder::FLAG_ONEWAY);
     }
+
+    void onResultReceived(int32_t frameId, camera_metadata* result) {
+        ALOGV("onResultReceived");
+        Parcel data, reply;
+        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
+        data.writeInt32(frameId);
+        writeMetadata(data, result);
+        remote()->transact(RESULT_RECEIVED, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(ProCameraCallbacks,
@@ -152,6 +167,16 @@ status_t BnProCameraCallbacks::onTransact(
             onLockStatusChanged(newLockStatus);
             return NO_ERROR;
         } break;
+        case RESULT_RECEIVED: {
+            ALOGV("RESULT_RECEIVED");
+            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
+            int32_t frameId = data.readInt32();
+            camera_metadata_t *result = NULL;
+            readMetadata(data, &result);
+            onResultReceived(frameId, result);
+            return NO_ERROR;
+            break;
+        }
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
