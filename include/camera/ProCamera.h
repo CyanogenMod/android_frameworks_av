@@ -172,7 +172,7 @@ public:
     static int getNumberOfCameras();
 
     // Get static camera metadata
-    static camera_metadata* getCameraInfo(int cameraId);
+    camera_metadata* getCameraInfo(int cameraId);
 
     sp<IProCameraUser>         remote();
 

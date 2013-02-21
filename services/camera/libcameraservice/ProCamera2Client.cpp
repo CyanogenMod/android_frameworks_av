@@ -309,6 +309,20 @@ status_t ProCamera2Client::createDefaultRequest(int templateId,
     return res;
 }
 
+status_t ProCamera2Client::getCameraInfo(int cameraId,
+                                         /*out*/
+                                         camera_metadata** info)
+{
+    if (cameraId != mCameraId) {
+        return INVALID_OPERATION;
+    }
+
+    CameraMetadata deviceInfo = mDevice->info();
+    *info = deviceInfo.release();
+
+    return OK;
+}
+
 status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("ProCamera2Client[%d] (%p) PID: %d, dump:\n",

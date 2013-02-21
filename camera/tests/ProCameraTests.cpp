@@ -324,9 +324,39 @@ protected:
         ASSERT_NE((void*)NULL, surface.get());
     }
 
+    template <typename T>
+    static bool FindItem(T needle, T* array, size_t count) {
+        for (int i = 0; i < count; ++i) {
+            if (array[i] == needle) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 };
 
 sp<Thread> ProCameraTest::mTestThread;
+
+TEST_F(ProCameraTest, AvailableFormats) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    camera_metadata_t* info = mCamera->getCameraInfo(CAMERA_ID);
+    ASSERT_NE((void*)NULL, info);
+
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_SCALER_AVAILABLE_FORMATS);
+    EXPECT_EQ(OK, find_camera_metadata_entry(info, tag, &entry));
+
+    EXPECT_TRUE(FindItem<int32_t>(HAL_PIXEL_FORMAT_YV12,
+                                                  entry.data.i32, entry.count));
+    EXPECT_TRUE(FindItem<int32_t>(HAL_PIXEL_FORMAT_YCrCb_420_SP,
+                                                  entry.data.i32, entry.count));
+
+    free_camera_metadata(info);
+}
 
 // test around exclusiveTryLock (immediate locking)
 TEST_F(ProCameraTest, LockingImmediate) {
