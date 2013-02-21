@@ -234,6 +234,13 @@ status_t ProCamera2Client::cancelStream(int streamId) {
 
     Mutex::Autolock icl(mIProCameraUserLock);
 
+    mDevice->clearStreamingRequest();
+
+    status_t code;
+    if ((code = mDevice->waitUntilDrained()) != OK) {
+        ALOGE("%s: waitUntilDrained failed with code 0x%x", __FUNCTION__, code);
+    }
+
     return mDevice->deleteStream(streamId);
 }
 

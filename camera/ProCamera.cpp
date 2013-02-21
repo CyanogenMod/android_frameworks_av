@@ -246,19 +246,16 @@ status_t ProCamera::cancelRequest(int requestId)
     return c->cancelRequest(requestId);
 }
 
-status_t ProCamera::requestStream(int streamId)
+status_t ProCamera::deleteStream(int streamId)
 {
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
 
-    return c->requestStream(streamId);
-}
-status_t ProCamera::cancelStream(int streamId)
-{
-    sp <IProCameraUser> c = mCamera;
-    if (c == 0) return NO_INIT;
+    status_t s = c->cancelStream(streamId);
 
-    return c->cancelStream(streamId);
+    mStreams.removeItem(streamId);
+
+    return s;
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
@@ -275,36 +272,74 @@ status_t ProCamera::createStream(int width, int height, int format,
         return BAD_VALUE;
     }
 
-    sp <IProCameraUser> c = mCamera;
-    if (c == 0) return NO_INIT;
-
-    return c->createStream(width, height, format, surface->getIGraphicBufferProducer(),
-                           streamId);
+    return createStream(width, height, format, surface->getIGraphicBufferProducer(),
+                        streamId);
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
                           const sp<IGraphicBufferProducer>& bufferProducer,
                           /*out*/
                           int* streamId) {
+    *streamId = -1;
 
     ALOGV("%s: createStreamT %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
                                                                        format);
 
-    sp<IBinder> binder;
-    status_t stat = INVALID_OPERATION;
-
-    if (bufferProducer != 0) {
-        sp <IProCameraUser> c = mCamera;
-        if (c == 0) return NO_INIT;
-
-        return c->createStream(width, height, format, bufferProducer, streamId);
-    }
-    else {
-        *streamId = -1;
+    if (bufferProducer == 0) {
         return BAD_VALUE;
     }
 
+    sp <IProCameraUser> c = mCamera;
+    status_t stat = c->createStream(width, height, format, bufferProducer,
+                                    streamId);
+
+    if (stat == OK) {
+        StreamInfo s(*streamId);
+
+        mStreams.add(*streamId, s);
+    }
+
     return stat;
+}
+
+status_t ProCamera::createStreamCpu(int width, int height, int format,
+                          int heapCount,
+                          /*out*/
+                          int* streamId)
+{
+    ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
+                                                                        format);
+
+    sp <IProCameraUser> c = mCamera;
+    if (c == 0) return NO_INIT;
+
+    sp<CpuConsumer> cc = new CpuConsumer(heapCount);
+    cc->setName(String8("ProCamera::mCpuConsumer"));
+
+    sp<Surface> stc = new Surface(
+        cc->getProducerInterface());
+
+    status_t s = createStream(width, height, format, stc->getIGraphicBufferProducer(),
+                        streamId);
+
+    if (s != OK) {
+        ALOGE("%s: Failure to create stream %dx%d (fmt=0x%x)", __FUNCTION__,
+                    width, height, format);
+        return s;
+    }
+
+    sp<ProFrameListener> frameAvailableListener =
+        new ProFrameListener(this, *streamId);
+
+    getStreamInfo(*streamId).cpuStream = true;
+    getStreamInfo(*streamId).cpuConsumer = cc;
+    getStreamInfo(*streamId).stc = stc;
+    // for lifetime management
+    getStreamInfo(*streamId).frameAvailableListener = frameAvailableListener;
+
+    cc->setFrameAvailableListener(frameAvailableListener);
+
+    return s;
 }
 
 int ProCamera::getNumberOfCameras() {
@@ -327,6 +362,36 @@ status_t ProCamera::createDefaultRequest(int templateId,
     if (c == 0) return NO_INIT;
 
     return c->createDefaultRequest(templateId, request);
+}
+
+void ProCamera::onFrameAvailable(int streamId) {
+    ALOGV("%s: streamId = %d", __FUNCTION__, streamId);
+
+    sp<ProCameraListener> listener = mListener;
+    if (listener.get() != NULL) {
+        StreamInfo& stream = getStreamInfo(streamId);
+
+        CpuConsumer::LockedBuffer buf;
+
+        status_t stat = stream.cpuConsumer->lockNextBuffer(&buf);
+        if (stat != OK) {
+            ALOGE("%s: Failed to lock buffer, error code = %d", __FUNCTION__,
+                   stat);
+            return;
+        }
+
+        listener->onBufferReceived(streamId, buf);
+        stat = stream.cpuConsumer->unlockBuffer(buf);
+
+        if (stat != OK) {
+            ALOGE("%s: Failed to unlock buffer, error code = %d", __FUNCTION__,
+                   stat);
+        }
+    }
+}
+
+ProCamera::StreamInfo& ProCamera::getStreamInfo(int streamId) {
+    return mStreams.editValueFor(streamId);
 }
 
 }; // namespace android

@@ -41,7 +41,12 @@ namespace client {
 #define TEST_DEBUGGING 0
 
 #define TEST_LISTENER_TIMEOUT 1000000000 // 1 second listener timeout
-#define TEST_FORMAT HAL_PIXEL_FORMAT_RGBA_8888 //TODO: YUY2 instead
+#define TEST_FORMAT HAL_PIXEL_FORMAT_Y16 //TODO: YUY2 instead
+
+#define TEST_FORMAT_DEPTH HAL_PIXEL_FORMAT_Y16
+
+#define TEST_CPU_FRAME_COUNT 2
+#define TEST_CPU_HEAP_COUNT 5
 
 #if TEST_DEBUGGING
 #define dout std::cerr
@@ -54,14 +59,15 @@ namespace client {
 
 class ProCameraTest;
 
-enum LockEvent {
+enum ProEvent {
     UNKNOWN,
     ACQUIRED,
     RELEASED,
-    STOLEN
+    STOLEN,
+    BUFFER_RECEIVED,
 };
 
-typedef Vector<LockEvent> EventList;
+typedef Vector<ProEvent> EventList;
 
 class ProCameraTestThread : public Thread
 {
@@ -92,7 +98,7 @@ public:
         {
             Mutex::Autolock al(mListenerMutex);
 
-            if (mLockEventList.size() > 0) {
+            if (mProEventList.size() > 0) {
                 return OK;
             }
         }
@@ -105,35 +111,35 @@ public:
     void ReadEvents(EventList& out) {
         Mutex::Autolock al(mListenerMutex);
 
-        for (size_t i = 0; i < mLockEventList.size(); ++i) {
-            out.push(mLockEventList[i]);
+        for (size_t i = 0; i < mProEventList.size(); ++i) {
+            out.push(mProEventList[i]);
         }
 
-        mLockEventList.clear();
+        mProEventList.clear();
     }
 
     /**
       * Dequeue 1 event from the event queue.
       * Returns UNKNOWN if queue is empty
       */
-    LockEvent ReadEvent() {
+    ProEvent ReadEvent() {
         Mutex::Autolock al(mListenerMutex);
 
-        if (mLockEventList.size() == 0) {
+        if (mProEventList.size() == 0) {
             return UNKNOWN;
         }
 
-        LockEvent ev = mLockEventList[0];
-        mLockEventList.removeAt(0);
+        ProEvent ev = mProEventList[0];
+        mProEventList.removeAt(0);
 
         return ev;
     }
 
 private:
-    void QueueEvent(LockEvent ev) {
+    void QueueEvent(ProEvent ev) {
         {
             Mutex::Autolock al(mListenerMutex);
-            mLockEventList.push(ev);
+            mProEventList.push(ev);
         }
 
 
@@ -168,6 +174,20 @@ protected:
              << " " << ext3 << std::endl;
     }
 
+    virtual void onBufferReceived(int streamId,
+                                  const CpuConsumer::LockedBuffer& buf) {
+
+        dout << "Buffer received on streamId = " << streamId <<
+                ", dataPtr = " << (void*)buf.data << std::endl;
+
+        QueueEvent(BUFFER_RECEIVED);
+
+    }
+    virtual void onRequestReceived(
+                                   camera_metadata* request) {
+        free_camera_metadata(request);
+    }
+
     // TODO: remove
 
     virtual void notify(int32_t , int32_t , int32_t ) {}
@@ -176,7 +196,7 @@ protected:
     virtual void postDataTimestamp(nsecs_t , int32_t , const sp<IMemory>& ) {}
 
 
-    Vector<LockEvent> mLockEventList;
+    Vector<ProEvent> mProEventList;
     Mutex             mListenerMutex;
     Mutex             mConditionMutex;
     Condition         mListenerCondition;
@@ -217,6 +237,9 @@ protected:
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
 
+    sp<SurfaceComposerClient> mDepthComposerClient;
+    sp<SurfaceControl> mDepthSurfaceControl;
+
     int getSurfaceWidth() {
         return 512;
     }
@@ -233,6 +256,8 @@ protected:
                 getSurfaceWidth(), getSurfaceHeight(),
                 PIXEL_FORMAT_RGB_888, 0);
 
+        mSurfaceControl->setPosition(640, 0);
+
         ASSERT_TRUE(mSurfaceControl != NULL);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
@@ -243,6 +268,31 @@ protected:
 
         sp<ANativeWindow> window = mSurfaceControl->getSurface();
         surface = mSurfaceControl->getSurface();
+
+        ASSERT_NE((void*)NULL, surface.get());
+    }
+
+    void createDepthOnScreenSurface(sp<Surface>& surface) {
+        mDepthComposerClient = new SurfaceComposerClient;
+        ASSERT_EQ(NO_ERROR, mDepthComposerClient->initCheck());
+
+        mDepthSurfaceControl = mDepthComposerClient->createSurface(
+                String8("ProCameraTest StreamingImage Surface"),
+                getSurfaceWidth(), getSurfaceHeight(),
+                PIXEL_FORMAT_RGB_888, 0);
+
+        mDepthSurfaceControl->setPosition(640, 0);
+
+        ASSERT_TRUE(mDepthSurfaceControl != NULL);
+        ASSERT_TRUE(mDepthSurfaceControl->isValid());
+
+        SurfaceComposerClient::openGlobalTransaction();
+        ASSERT_EQ(NO_ERROR, mDepthSurfaceControl->setLayer(0x7FFFFFFF));
+        ASSERT_EQ(NO_ERROR, mDepthSurfaceControl->show());
+        SurfaceComposerClient::closeGlobalTransaction();
+
+        sp<ANativeWindow> window = mDepthSurfaceControl->getSurface();
+        surface = mDepthSurfaceControl->getSurface();
 
         ASSERT_NE((void*)NULL, surface.get());
     }
@@ -316,14 +366,15 @@ TEST_F(ProCameraTest, StreamingImage) {
         mDisplaySecs = 0;
     }
 
-    sp<Surface> surface;
+    sp<Surface> depthSurface;
     if (mDisplaySecs > 0) {
-        createOnScreenSurface(/*out*/surface);
+        createDepthOnScreenSurface(/*out*/depthSurface);
     }
-    int streamId = -1;
-    EXPECT_OK(mCamera->createStream(/*width*/640, /*height*/480, TEST_FORMAT,
-              surface, &streamId));
-    EXPECT_NE(-1, streamId);
+
+    int depthStreamId = -1;
+    EXPECT_OK(mCamera->createStream(/*width*/320, /*height*/240,
+                              TEST_FORMAT_DEPTH, depthSurface, &depthStreamId));
+    EXPECT_NE(-1, depthStreamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
     /* iterate in a loop submitting requests every frame.
@@ -345,23 +396,26 @@ TEST_F(ProCameraTest, StreamingImage) {
     // wow what a verbose API.
     // i would give a loaf of bread for
     //   metadata->updateOrInsert(keys.request.output.streams, streamId);
+    uint8_t allStreams[] = { depthStreamId };
+    size_t streamCount = sizeof(allStreams) / sizeof(allStreams[0]);
+
     camera_metadata_entry_t entry;
     uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
     int find = find_camera_metadata_entry(request, tag, &entry);
     if (find == -ENOENT) {
-        if (add_camera_metadata_entry(request, tag, &streamId, /*data_count*/1)
-                != OK) {
+        if (add_camera_metadata_entry(request, tag, &allStreams,
+            /*data_count*/streamCount) != OK) {
             camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
             ASSERT_OK(append_camera_metadata(tmp, request));
             free_camera_metadata(request);
             request = tmp;
 
-            ASSERT_OK(add_camera_metadata_entry(request, tag, &streamId,
-                /*data_count*/1));
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
+                /*data_count*/streamCount));
         }
     } else {
-        ASSERT_OK(update_camera_metadata_entry(request, entry.index, &streamId,
-                  /*data_count*/1, &entry));
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
+                &allStreams, /*data_count*/streamCount, &entry));
     }
 
     EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
@@ -370,7 +424,72 @@ TEST_F(ProCameraTest, StreamingImage) {
     sleep(mDisplaySecs);
 
     free_camera_metadata(request);
-    EXPECT_OK(mCamera->cancelStream(streamId));
+
+    for (int i = 0; i < streamCount; ++i) {
+        EXPECT_OK(mCamera->deleteStream(allStreams[i]));
+    }
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, CpuConsumer) {
+    if (HasFatalFailure()) {
+        return;
+    }
+    int streamId = -1;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/320, /*height*/240,
+        TEST_FORMAT_DEPTH, TEST_CPU_HEAP_COUNT, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+    EXPECT_EQ(OK, mListener->WaitForEvent());
+    EXPECT_EQ(ACQUIRED, mListener->ReadEvent());
+    /* iterate in a loop submitting requests every frame.
+     *  what kind of requests doesnt really matter, just whatever.
+     */
+
+    // it would probably be better to use CameraMetadata from camera service.
+    camera_metadata_t *request = NULL;
+    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+        /*out*/&request));
+    EXPECT_NE((void*)NULL, request);
+
+    /*FIXME: dont need this later, at which point the above should become an
+      ASSERT_NE*/
+    if(request == NULL) request = allocate_camera_metadata(10, 100);
+
+    // set the output streams to just this stream ID
+
+    uint8_t allStreams[] = { streamId };
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+    int find = find_camera_metadata_entry(request, tag, &entry);
+    if (find == -ENOENT) {
+        if (add_camera_metadata_entry(request, tag, &allStreams,
+                /*data_count*/1) != OK) {
+            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
+            ASSERT_OK(append_camera_metadata(tmp, request));
+            free_camera_metadata(request);
+            request = tmp;
+
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
+                /*data_count*/1));
+        }
+    } else {
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
+            &allStreams, /*data_count*/1, &entry));
+    }
+
+    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+
+    // Consume a couple of frames
+    for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
+        EXPECT_EQ(OK, mListener->WaitForEvent());
+        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+    }
+
+    // Done: clean up
+    free_camera_metadata(request);
+    EXPECT_OK(mCamera->deleteStream(streamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
