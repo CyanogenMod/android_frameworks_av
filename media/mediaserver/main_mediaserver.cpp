@@ -26,6 +26,7 @@
 #include <binder/IServiceManager.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
+#include "RegisterExtensions.h"
 
 // from LOCAL_C_INCLUDES
 #include "AudioFlinger.h"
@@ -127,6 +128,7 @@ int main(int argc, char** argv)
         MediaPlayerService::instantiate();
         CameraService::instantiate();
         AudioPolicyService::instantiate();
+        registerExtensions();
         ProcessState::self()->startThreadPool();
         IPCThreadState::self()->joinThreadPool();
     }
