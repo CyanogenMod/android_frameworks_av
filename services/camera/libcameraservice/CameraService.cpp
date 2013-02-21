@@ -166,6 +166,7 @@ sp<ICamera> CameraService::connect(
                      callingPid);
                 return client;
             } else {
+                // TODOSC: need to support 1 regular client, multiple shared clients here
                 ALOGW("CameraService::connect X (pid %d) rejected (existing client).",
                       callingPid);
                 return NULL;

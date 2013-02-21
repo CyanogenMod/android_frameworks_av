@@ -159,7 +159,7 @@ public:
         sp<Camera>         mCamera;
     };
 
-private:
+protected:
                         Camera();
                         Camera(const Camera&);
                         Camera& operator=(const Camera);
