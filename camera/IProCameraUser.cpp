@@ -42,7 +42,77 @@ enum {
     CANCEL_REQUEST,
     REQUEST_STREAM,
     CANCEL_STREAM,
+    CREATE_STREAM,
+    CREATE_DEFAULT_REQUEST,
 };
+
+/**
+  * Caller becomes the owner of the new metadata
+  * 'const Parcel' doesnt prevent us from calling the read functions.
+  *  which is interesting since it changes the internal state
+  */
+void readMetadata(const Parcel& data, camera_metadata_t** out) {
+    camera_metadata_t* metadata;
+
+    // arg0 = metadataSize (int32)
+    size_t metadataSize = static_cast<size_t>(data.readInt32());
+
+    if (metadataSize == 0) {
+        if (out) {
+            *out = NULL;
+        }
+        return;
+    }
+
+    // NOTE: this doesn't make sense to me. shouldnt the blob
+    // know how big it is? why do we have to specify the size
+    // to Parcel::readBlob ?
+
+    ReadableBlob blob;
+    // arg1 = metadata (blob)
+    {
+        data.readBlob(metadataSize, &blob);
+        const camera_metadata_t* tmp =
+                       reinterpret_cast<const camera_metadata_t*>(blob.data());
+        size_t entry_capacity = get_camera_metadata_entry_capacity(tmp);
+        size_t data_capacity = get_camera_metadata_data_capacity(tmp);
+
+        metadata = allocate_camera_metadata(entry_capacity, data_capacity);
+        copy_camera_metadata(metadata, metadataSize, tmp);
+    }
+    blob.release();
+
+    if (out) {
+        *out = metadata;
+    } else {
+        free_camera_metadata(metadata);
+    }
+}
+
+/**
+  * Caller retains ownership of metadata
+  * - Write 2 (int32 + blob) args in the current position
+  */
+void writeMetadata(Parcel& data, camera_metadata_t* metadata) {
+    // arg0 = metadataSize (int32)
+    size_t metadataSize;
+
+    if (metadata == NULL) {
+        data.writeInt32(0);
+        return;
+    }
+
+    metadataSize = get_camera_metadata_compact_size(metadata);
+    data.writeInt32(static_cast<int32_t>(metadataSize));
+
+    // arg1 = metadata (blob)
+    WritableBlob blob;
+    {
+        data.writeBlob(metadataSize, &blob);
+        copy_camera_metadata(blob.data(), metadataSize, metadata);
+    }
+    blob.release();
+}
 
 class BpProCameraUser: public BpInterface<IProCameraUser>
 {
@@ -109,17 +179,8 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
 
-        // arg0 = metadataSize (int32)
-        size_t metadataSize = get_camera_metadata_compact_size(metadata);
-        data.writeInt32(static_cast<int32_t>(metadataSize));
-
-        // arg1 = metadata (blob)
-        WritableBlob blob;
-        {
-            data.writeBlob(metadataSize, &blob);
-            copy_camera_metadata(blob.data(), metadataSize, metadata);
-        }
-        blob.release();
+        // arg0+arg1
+        writeMetadata(data, metadata);
 
         // arg2 = streaming (bool)
         data.writeInt32(streaming);
@@ -156,6 +217,44 @@ public:
         remote()->transact(CANCEL_STREAM, data, &reply);
         return reply.readInt32();
     }
+
+    virtual status_t createStream(int width, int height, int format,
+                          const sp<Surface>& surface,
+                          /*out*/
+                          int* streamId)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
+        data.writeInt32(width);
+        data.writeInt32(height);
+        data.writeInt32(format);
+
+        Surface::writeToParcel(surface, &data);
+        remote()->transact(CREATE_STREAM, data, &reply);
+
+        int sId = reply.readInt32();
+        if (streamId) {
+            *streamId = sId;
+        }
+        return reply.readInt32();
+    }
+
+    // Create a request object from a template.
+    virtual status_t createDefaultRequest(int templateId,
+                                 /*out*/
+                                  camera_metadata** request)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
+        data.writeInt32(templateId);
+        remote()->transact(CREATE_DEFAULT_REQUEST, data, &reply);
+        readMetadata(reply, /*out*/request);
+        return reply.readInt32();
+    }
+
+
+private:
+
 
 };
 
@@ -205,28 +304,7 @@ status_t BnProCameraUser::onTransact(
         case SUBMIT_REQUEST: {
             CHECK_INTERFACE(IProCameraUser, data, reply);
             camera_metadata_t* metadata;
-
-            // arg0 = metadataSize (int32)
-            size_t metadataSize = static_cast<size_t>(data.readInt32());
-
-            // NOTE: this doesn't make sense to me. shouldnt the blob
-            // know how big it is? why do we have to specify the size
-            // to Parcel::readBlob ?
-
-            ReadableBlob blob;
-            // arg1 = metadata (blob)
-            {
-                data.readBlob(metadataSize, &blob);
-                const camera_metadata_t* tmp =
-                        reinterpret_cast<const camera_metadata_t*>(blob.data());
-                size_t entry_capacity = get_camera_metadata_entry_capacity(tmp);
-                size_t data_capacity = get_camera_metadata_data_capacity(tmp);
-
-                metadata = allocate_camera_metadata(entry_capacity,
-                                                                 data_capacity);
-                copy_camera_metadata(metadata, metadataSize, tmp);
-            }
-            blob.release();
+            readMetadata(data, /*out*/&metadata);
 
             // arg2 = streaming (bool)
             bool streaming = data.readInt32();
@@ -252,6 +330,40 @@ status_t BnProCameraUser::onTransact(
             CHECK_INTERFACE(IProCameraUser, data, reply);
             int streamId = data.readInt32();
             reply->writeInt32(cancelStream(streamId));
+            return NO_ERROR;
+        } break;
+        case CREATE_STREAM: {
+            CHECK_INTERFACE(IProCameraUser, data, reply);
+            int width, height, format;
+
+            width = data.readInt32();
+            height = data.readInt32();
+            format = data.readInt32();
+
+            sp<Surface> surface = Surface::readFromParcel(data);
+
+            int streamId = -1;
+            status_t ret;
+            ret = createStream(width, height, format, surface, &streamId);
+
+            reply->writeInt32(streamId);
+            reply->writeInt32(ret);
+
+            return NO_ERROR;
+        } break;
+
+        case CREATE_DEFAULT_REQUEST: {
+            CHECK_INTERFACE(IProCameraUser, data, reply);
+
+            int templateId = data.readInt32();
+
+            camera_metadata_t* request = NULL;
+            status_t ret;
+            ret = createDefaultRequest(templateId, &request);
+
+            writeMetadata(*reply, request);
+            reply->writeInt32(ret);
+
             return NO_ERROR;
         } break;
         default:

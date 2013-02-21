@@ -317,14 +317,12 @@ TEST_F(ProCameraTest, StreamingImage) {
     }
 
     sp<Surface> surface;
-    sp<ANativeWindow> window;
     if (mDisplaySecs > 0) {
         createOnScreenSurface(/*out*/surface);
-        window = surface;
     }
     int streamId = -1;
     EXPECT_OK(mCamera->createStream(/*width*/640, /*height*/480, TEST_FORMAT,
-              window, &streamId));
+              surface, &streamId));
     EXPECT_NE(-1, streamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
@@ -351,8 +349,16 @@ TEST_F(ProCameraTest, StreamingImage) {
     uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
     int find = find_camera_metadata_entry(request, tag, &entry);
     if (find == -ENOENT) {
-        ASSERT_OK(add_camera_metadata_entry(request, tag, &streamId,
-                  /*data_count*/1));
+        if (add_camera_metadata_entry(request, tag, &streamId, /*data_count*/1)
+                != OK) {
+            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
+            ASSERT_OK(append_camera_metadata(tmp, request));
+            free_camera_metadata(request);
+            request = tmp;
+
+            ASSERT_OK(add_camera_metadata_entry(request, tag, &streamId,
+                /*data_count*/1));
+        }
     } else {
         ASSERT_OK(update_camera_metadata_entry(request, entry.index, &streamId,
                   /*data_count*/1, &entry));
@@ -360,10 +366,8 @@ TEST_F(ProCameraTest, StreamingImage) {
 
     EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
 
+    dout << "will sleep now for " << mDisplaySecs << std::endl;
     sleep(mDisplaySecs);
-    //should the window be empty until the buffer is flipped?
-    //  that would certainly make sense
-
 
     free_camera_metadata(request);
     EXPECT_OK(mCamera->cancelStream(streamId));

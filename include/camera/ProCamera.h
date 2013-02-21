@@ -132,7 +132,7 @@ public:
       * Errors: -EBUSY if too many streams created
       */
     status_t createStream(int width, int height, int format,
-                          const sp<ANativeWindow>& window,
+                          const sp<Surface>& surface,
                           /*out*/
                           int* streamId);
 
