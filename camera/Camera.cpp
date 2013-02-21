@@ -120,9 +120,10 @@ sp<Camera> Camera::connect(int cameraId)
 {
     ALOGV("connect");
     sp<Camera> c = new Camera();
+    sp<ICameraClient> cl = c;
     const sp<ICameraService>& cs = getCameraService();
     if (cs != 0) {
-        c->mCamera = cs->connect(c, cameraId);
+        c->mCamera = cs->connect(cl, cameraId);
     }
     if (c->mCamera != 0) {
         c->mCamera->asBinder()->linkToDeath(c);

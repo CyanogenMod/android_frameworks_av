@@ -79,6 +79,8 @@ CameraService::CameraService()
 
 void CameraService::onFirstRef()
 {
+    LOG1("CameraService::onFirstRef");
+
     BnCameraService::onFirstRef();
 
     if (hw_get_module(CAMERA_HARDWARE_MODULE_ID,
@@ -131,6 +133,26 @@ status_t CameraService::getCameraInfo(int cameraId,
     return rc;
 }
 
+int CameraService::getDeviceVersion(int cameraId, int* facing) {
+    struct camera_info info;
+    if (mModule->get_camera_info(cameraId, &info) != OK) {
+        return -1;
+    }
+
+    int deviceVersion;
+    if (mModule->common.module_api_version >= CAMERA_MODULE_API_VERSION_2_0) {
+        deviceVersion = info.device_version;
+    } else {
+        deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
+    }
+
+    if (facing) {
+        *facing = info.facing;
+    }
+
+    return deviceVersion;
+}
+
 sp<ICamera> CameraService::connect(
         const sp<ICameraClient>& cameraClient, int cameraId) {
     int callingPid = getCallingPid();
@@ -175,34 +197,37 @@ sp<ICamera> CameraService::connect(
         mClient[cameraId].clear();
     }
 
+    /*
+    mBusy is set to false as the last step of the Client destructor,
+    after which it is guaranteed that the Client destructor has finished (
+    including any inherited destructors)
+
+    We only need this for a Client subclasses since we don't allow
+    multiple Clents to be opened concurrently, but multiple BasicClient
+    would be fine
+    */
     if (mBusy[cameraId]) {
         ALOGW("CameraService::connect X (pid %d) rejected"
                 " (camera %d is still busy).", callingPid, cameraId);
         return NULL;
     }
 
-    struct camera_info info;
-    if (mModule->get_camera_info(cameraId, &info) != OK) {
-        ALOGE("Invalid camera id %d", cameraId);
-        return NULL;
-    }
-
-    int deviceVersion;
-    if (mModule->common.module_api_version == CAMERA_MODULE_API_VERSION_2_0) {
-        deviceVersion = info.device_version;
-    } else {
-        deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
-    }
+    int facing = -1;
+    int deviceVersion = getDeviceVersion(cameraId, &facing);
 
     switch(deviceVersion) {
       case CAMERA_DEVICE_API_VERSION_1_0:
         client = new CameraClient(this, cameraClient, cameraId,
-                info.facing, callingPid, getpid());
+                facing, callingPid, getpid());
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
+      case CAMERA_DEVICE_API_VERSION_2_1:
         client = new Camera2Client(this, cameraClient, cameraId,
-                info.facing, callingPid, getpid());
+                facing, callingPid, getpid());
         break;
+      case -1:
+        ALOGE("Invalid camera id %d", cameraId);
+        return NULL;
       default:
         ALOGE("Unknown camera device HAL version: %d", deviceVersion);
         return NULL;
@@ -219,16 +244,79 @@ sp<ICamera> CameraService::connect(
     return client;
 }
 
-void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
+sp<IProCameraUser> CameraService::connect(
+                                        const sp<IProCameraCallbacks>& cameraCb,
+                                        int cameraId)
+{
     int callingPid = getCallingPid();
-    LOG1("CameraService::removeClient E (pid %d)", callingPid);
+
+    LOG1("CameraService::connectPro E (pid %d, id %d)", callingPid, cameraId);
+
+    if (!mModule) {
+        ALOGE("Camera HAL module not loaded");
+        return NULL;
+    }
+
+    sp<ProClient> client;
+    if (cameraId < 0 || cameraId >= mNumberOfCameras) {
+        ALOGE("CameraService::connectPro X (pid %d) rejected (invalid cameraId %d).",
+            callingPid, cameraId);
+        return NULL;
+    }
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("sys.secpolicy.camera.disabled", value, "0");
+    if (strcmp(value, "1") == 0) {
+        // Camera is disabled by DevicePolicyManager.
+        ALOGI("Camera is disabled. connect X (pid %d) rejected", callingPid);
+        return NULL;
+    }
+
+    int facing = -1;
+    int deviceVersion = getDeviceVersion(cameraId, &facing);
+
+    switch(deviceVersion) {
+      case CAMERA_DEVICE_API_VERSION_1_0:
+        ALOGE("Camera id %d uses HALv1, doesn't support ProCamera", cameraId);
+        return NULL;
+        break;
+      case CAMERA_DEVICE_API_VERSION_2_0:
+        client = new ProClient(this, cameraCb, cameraId,
+                facing, callingPid, getpid());
+        break;
+      case -1:
+        ALOGE("Invalid camera id %d", cameraId);
+        return NULL;
+      default:
+        ALOGE("Unknown camera device HAL version: %d", deviceVersion);
+        return NULL;
+    }
+
+    if (client->initialize(mModule) != OK) {
+        return NULL;
+    }
+
+    mProClientList[cameraId].push(client);
+
+    cameraCb->asBinder()->linkToDeath(this);
+
+    LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId, getpid());
+    return client;
+
+
+    return NULL;
+}
+
+void CameraService::removeClientByRemote(const wp<IBinder>& remoteBinder) {
+    int callingPid = getCallingPid();
+    LOG1("CameraService::removeClientByRemote E (pid %d)", callingPid);
 
     // Declare this before the lock to make absolutely sure the
     // destructor won't be called with the lock held.
     Mutex::Autolock lock(mServiceLock);
 
     int outIndex;
-    sp<Client> client = findClientUnsafe(cameraClient->asBinder(), outIndex);
+    sp<Client> client = findClientUnsafe(remoteBinder, outIndex);
 
     if (client != 0) {
         // Found our camera, clear and leave.
@@ -236,9 +324,50 @@ void CameraService::removeClient(const sp<ICameraClient>& cameraClient) {
         mClient[outIndex].clear();
 
         client->unlinkToDeath(this);
+    } else {
+
+        sp<ProClient> clientPro = findProClientUnsafe(remoteBinder);
+
+        if (clientPro != NULL) {
+            // Found our camera, clear and leave.
+            LOG1("removeClient: clear pro %p", clientPro.get());
+
+            clientPro->getRemoteCallback()->asBinder()->unlinkToDeath(this);
+        }
     }
 
-    LOG1("CameraService::removeClient X (pid %d)", callingPid);
+    LOG1("CameraService::removeClientByRemote X (pid %d)", callingPid);
+}
+
+sp<CameraService::ProClient> CameraService::findProClientUnsafe(
+                        const wp<IBinder>& cameraCallbacksRemote)
+{
+    sp<ProClient> clientPro;
+
+    for (int i = 0; i < mNumberOfCameras; ++i) {
+        Vector<size_t> removeIdx;
+
+        for (size_t j = 0; j < mProClientList[i].size(); ++j) {
+            wp<ProClient> cl = mProClientList[i][j];
+
+            sp<ProClient> clStrong = cl.promote();
+            if (clStrong != NULL && clStrong->getRemote() == cameraCallbacksRemote) {
+                clientPro = clStrong;
+                break;
+            } else if (clStrong == NULL) {
+                // mark to clean up dead ptr
+                removeIdx.push(j);
+            }
+        }
+
+        // remove stale ptrs (in reverse so the indices dont change)
+        for (ssize_t j = (ssize_t)removeIdx.size() - 1; j >= 0; --j) {
+            mProClientList[i].removeAt(removeIdx[j]);
+        }
+
+    }
+
+    return clientPro;
 }
 
 sp<CameraService::Client> CameraService::findClientUnsafe(
@@ -252,7 +381,7 @@ sp<CameraService::Client> CameraService::findClientUnsafe(
         if (mClient[i] == 0) continue;
 
         // Promote mClient. It can fail if we are called from this path:
-        // Client::~Client() -> disconnect() -> removeClient().
+        // Client::~Client() -> disconnect() -> removeClientByRemote().
         client = mClient[i].promote();
 
         // Clean up stale client entry
@@ -282,12 +411,12 @@ Mutex* CameraService::getClientLockById(int cameraId) {
     return &mClientLock[cameraId];
 }
 
-sp<CameraService::Client> CameraService::getClientByRemote(
+sp<CameraService::BasicClient> CameraService::getClientByRemote(
                                 const wp<IBinder>& cameraClient) {
 
     // Declare this before the lock to make absolutely sure the
     // destructor won't be called with the lock held.
-    sp<Client> client;
+    sp<BasicClient> client;
 
     Mutex::Autolock lock(mServiceLock);
 
@@ -302,6 +431,7 @@ status_t CameraService::onTransact(
     // Permission checks
     switch (code) {
         case BnCameraService::CONNECT:
+        case BnCameraService::CONNECT_PRO:
             const int pid = getCallingPid();
             const int self_pid = getpid();
             if (pid != self_pid) {
@@ -390,17 +520,15 @@ void CameraService::playSound(sound_kind kind) {
 
 CameraService::Client::Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        int cameraId, int cameraFacing, int clientPid, int servicePid) {
+        int cameraId, int cameraFacing, int clientPid, int servicePid) :
+        CameraService::BasicClient(cameraService, cameraClient->asBinder(),
+                                   cameraId, cameraFacing,
+                                   clientPid, servicePid)
+{
     int callingPid = getCallingPid();
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
-    mCameraService = cameraService;
     mCameraClient = cameraClient;
-    mCameraId = cameraId;
-    mCameraFacing = cameraFacing;
-    mClientPid = clientPid;
-    mServicePid = servicePid;
-    mDestructionStarted = false;
 
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
@@ -409,10 +537,35 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
 
 // tear down the client
 CameraService::Client::~Client() {
+    mDestructionStarted = true;
+
     mCameraService->releaseSound();
 
     // unconditionally disconnect. function is idempotent
     Client::disconnect();
+}
+
+CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
+                                   const sp<IBinder>& remoteCallback,
+                                   int cameraId, int cameraFacing,
+                                   int clientPid, int servicePid)
+{
+    mCameraService = cameraService;
+    mRemoteCallback = remoteCallback;
+    mCameraId = cameraId;
+    mCameraFacing = cameraFacing;
+    mClientPid = clientPid;
+    mServicePid = servicePid;
+
+    mDestructionStarted = false;
+}
+
+CameraService::BasicClient::~BasicClient() {
+    mDestructionStarted = true;
+}
+
+void CameraService::BasicClient::disconnect() {
+    mCameraService->removeClientByRemote(mRemoteCallback);
 }
 
 // ----------------------------------------------------------------------------
@@ -439,8 +592,93 @@ CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
 
 // NOTE: function is idempotent
 void CameraService::Client::disconnect() {
-    mCameraService->removeClient(mCameraClient);
+    BasicClient::disconnect();
     mCameraService->setCameraFree(mCameraId);
+}
+
+// ----------------------------------------------------------------------------
+//                  IProCamera
+// ----------------------------------------------------------------------------
+
+CameraService::ProClient::ProClient(const sp<CameraService>& cameraService,
+                const sp<IProCameraCallbacks>& remoteCallback,
+                int cameraId,
+                int cameraFacing,
+                int clientPid,
+                int servicePid)
+ :       CameraService::BasicClient(cameraService, remoteCallback->asBinder(),
+                                   cameraId, cameraFacing,
+                                   clientPid, servicePid)
+{
+    mRemoteCallback = remoteCallback;
+}
+
+CameraService::ProClient::~ProClient() {
+    mDestructionStarted = true;
+
+    ProClient::disconnect();
+}
+
+status_t CameraService::ProClient::connect(const sp<IProCameraCallbacks>& callbacks) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    return INVALID_OPERATION;
+}
+
+void CameraService::ProClient::disconnect() {
+    BasicClient::disconnect();
+}
+
+status_t CameraService::ProClient::initialize(camera_module_t* module)
+{
+    ALOGW("%s: not implemented yet", __FUNCTION__);
+    return OK;
+}
+
+status_t CameraService::ProClient::exclusiveTryLock() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+status_t CameraService::ProClient::exclusiveLock() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+status_t CameraService::ProClient::exclusiveUnlock() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+bool CameraService::ProClient::hasExclusiveLock() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+    return false;
+}
+
+status_t CameraService::ProClient::submitRequest(camera_metadata_t* request, bool streaming) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    free_camera_metadata(request);
+
+    return INVALID_OPERATION;
+}
+
+status_t CameraService::ProClient::cancelRequest(int requestId) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    return INVALID_OPERATION;
+}
+
+status_t CameraService::ProClient::requestStream(int streamId) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    return INVALID_OPERATION;
+}
+
+status_t CameraService::ProClient::cancelStream(int streamId) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    return INVALID_OPERATION;
 }
 
 // ----------------------------------------------------------------------------
@@ -569,7 +807,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 
     ALOGV("java clients' binder died");
 
-    sp<Client> cameraClient = getClientByRemote(who);
+    sp<BasicClient> cameraClient = getClientByRemote(who);
 
     if (cameraClient == 0) {
         ALOGV("java clients' binder death already cleaned up (normal case)");

@@ -12,7 +12,10 @@ LOCAL_SRC_FILES:= \
 	ICameraClient.cpp \
 	ICameraService.cpp \
 	ICameraRecordingProxy.cpp \
-	ICameraRecordingProxyListener.cpp
+	ICameraRecordingProxyListener.cpp \
+	IProCameraUser.cpp \
+	IProCameraCallbacks.cpp \
+	ProCamera.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \

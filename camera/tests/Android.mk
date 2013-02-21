@@ -3,6 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
 	main.cpp \
+	ProCameraTests.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
 	libutils \

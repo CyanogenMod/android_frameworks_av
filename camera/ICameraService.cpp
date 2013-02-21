@@ -65,6 +65,17 @@ public:
         remote()->transact(BnCameraService::CONNECT, data, &reply);
         return interface_cast<ICamera>(reply.readStrongBinder());
     }
+
+    // connect to camera service (pro client)
+    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb, int cameraId)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(cameraCb->asBinder());
+        data.writeInt32(cameraId);
+        remote()->transact(BnCameraService::CONNECT_PRO, data, &reply);
+        return interface_cast<IProCameraUser>(reply.readStrongBinder());
+    }
 };
 
 IMPLEMENT_META_INTERFACE(CameraService, "android.hardware.ICameraService");
@@ -94,6 +105,13 @@ status_t BnCameraService::onTransact(
             CHECK_INTERFACE(ICameraService, data, reply);
             sp<ICameraClient> cameraClient = interface_cast<ICameraClient>(data.readStrongBinder());
             sp<ICamera> camera = connect(cameraClient, data.readInt32());
+            reply->writeStrongBinder(camera->asBinder());
+            return NO_ERROR;
+        } break;
+        case CONNECT_PRO: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<IProCameraCallbacks> cameraClient = interface_cast<IProCameraCallbacks>(data.readStrongBinder());
+            sp<IProCameraUser> camera = connect(cameraClient, data.readInt32());
             reply->writeStrongBinder(camera->asBinder());
             return NO_ERROR;
         } break;
