@@ -31,6 +31,7 @@
 
 #include <system/camera_metadata.h>
 #include <hardware/camera2.h> // for CAMERA2_TEMPLATE_PREVIEW only
+#include <camera/CameraMetadata.h>
 
 namespace android {
 namespace camera2 {
@@ -45,6 +46,11 @@ namespace client {
 
 #define TEST_FORMAT_MAIN HAL_PIXEL_FORMAT_Y8
 #define TEST_FORMAT_DEPTH HAL_PIXEL_FORMAT_Y16
+
+// defaults for display "test"
+#define TEST_DISPLAY_FORMAT HAL_PIXEL_FORMAT_Y16
+#define TEST_DISPLAY_WIDTH 1280
+#define TEST_DISPLAY_HEIGHT 960
 
 #define TEST_CPU_FRAME_COUNT 2
 #define TEST_CPU_HEAP_COUNT 5
@@ -233,6 +239,42 @@ class ProCameraTest : public ::testing::Test {
 
 public:
     ProCameraTest() {
+        char* displaySecsEnv = getenv("TEST_DISPLAY_SECS");
+        if (displaySecsEnv != NULL) {
+            mDisplaySecs = atoi(displaySecsEnv);
+            if (mDisplaySecs < 0) {
+                mDisplaySecs = 0;
+            }
+        } else {
+            mDisplaySecs = 0;
+        }
+
+        char* displayFmtEnv = getenv("TEST_DISPLAY_FORMAT");
+        if (displayFmtEnv != NULL) {
+            mDisplayFmt = FormatFromString(displayFmtEnv);
+        } else {
+            mDisplayFmt = TEST_DISPLAY_FORMAT;
+        }
+
+        char* displayWidthEnv = getenv("TEST_DISPLAY_WIDTH");
+        if (displayWidthEnv != NULL) {
+            mDisplayW = atoi(displayWidthEnv);
+            if (mDisplayW < 0) {
+                mDisplayW = 0;
+            }
+        } else {
+            mDisplayW = TEST_DISPLAY_WIDTH;
+        }
+
+        char* displayHeightEnv = getenv("TEST_DISPLAY_HEIGHT");
+        if (displayHeightEnv != NULL) {
+            mDisplayH = atoi(displayHeightEnv);
+            if (mDisplayH < 0) {
+                mDisplayH = 0;
+            }
+        } else {
+            mDisplayH = TEST_DISPLAY_HEIGHT;
+        }
     }
 
     static void SetUpTestCase() {
@@ -261,6 +303,10 @@ protected:
     static sp<Thread> mTestThread;
 
     int mDisplaySecs;
+    int mDisplayFmt;
+    int mDisplayW;
+    int mDisplayH;
+
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
 
@@ -283,7 +329,7 @@ protected:
                 getSurfaceWidth(), getSurfaceHeight(),
                 PIXEL_FORMAT_RGB_888, 0);
 
-        mSurfaceControl->setPosition(640, 0);
+        mSurfaceControl->setPosition(0, 0);
 
         ASSERT_TRUE(mSurfaceControl != NULL);
         ASSERT_TRUE(mSurfaceControl->isValid());
@@ -325,13 +371,64 @@ protected:
     }
 
     template <typename T>
-    static bool FindItem(T needle, T* array, size_t count) {
+    static bool ExistsItem(T needle, T* array, size_t count) {
+        if (!array) {
+            return false;
+        }
+
         for (int i = 0; i < count; ++i) {
             if (array[i] == needle) {
                 return true;
             }
         }
         return false;
+    }
+
+
+    static int FormatFromString(const char* str) {
+        std::string s(str);
+
+#define CMP_STR(x, y)                               \
+        if (s == #x) return HAL_PIXEL_FORMAT_ ## y;
+#define CMP_STR_SAME(x) CMP_STR(x, x)
+
+        CMP_STR_SAME( Y16);
+        CMP_STR_SAME( Y8);
+        CMP_STR_SAME( YV12);
+        CMP_STR(NV16, YCbCr_422_SP);
+        CMP_STR(NV21, YCrCb_420_SP);
+        CMP_STR(YUY2, YCbCr_422_I);
+        CMP_STR(RAW,  RAW_SENSOR);
+        CMP_STR(RGBA, RGBA_8888);
+
+        std::cerr << "Unknown format string " << str << std::endl;
+        return -1;
+
+    }
+
+    /**
+     * Creating a streaming request for these output streams from a template,
+     *  and submit it
+     */
+    void createSubmitRequestForStreams(uint8_t* streamIds, size_t count) {
+
+        ASSERT_NE((void*)NULL, streamIds);
+        ASSERT_LT(0, count);
+
+        camera_metadata_t *requestTmp = NULL;
+        EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                                                /*out*/&requestTmp));
+        ASSERT_NE((void*)NULL, requestTmp);
+        CameraMetadata request(requestTmp);
+
+        // set the output streams. default is empty
+
+        uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+        request.update(tag, streamIds, count);
+
+        requestTmp = request.release();
+        EXPECT_OK(mCamera->submitRequest(requestTmp, /*streaming*/true));
+        request.acquire(requestTmp);
     }
 
 };
@@ -343,19 +440,17 @@ TEST_F(ProCameraTest, AvailableFormats) {
         return;
     }
 
-    camera_metadata_t* info = mCamera->getCameraInfo(CAMERA_ID);
-    ASSERT_NE((void*)NULL, info);
+    CameraMetadata staticInfo = mCamera->getCameraInfo(CAMERA_ID);
+    ASSERT_FALSE(staticInfo.isEmpty());
 
-    camera_metadata_entry_t entry;
     uint32_t tag = static_cast<uint32_t>(ANDROID_SCALER_AVAILABLE_FORMATS);
-    EXPECT_EQ(OK, find_camera_metadata_entry(info, tag, &entry));
+    EXPECT_TRUE(staticInfo.exists(tag));
+    camera_metadata_entry_t entry = staticInfo.find(tag);
 
-    EXPECT_TRUE(FindItem<int32_t>(HAL_PIXEL_FORMAT_YV12,
+    EXPECT_TRUE(ExistsItem<int32_t>(HAL_PIXEL_FORMAT_YV12,
                                                   entry.data.i32, entry.count));
-    EXPECT_TRUE(FindItem<int32_t>(HAL_PIXEL_FORMAT_YCrCb_420_SP,
+    EXPECT_TRUE(ExistsItem<int32_t>(HAL_PIXEL_FORMAT_YCrCb_420_SP,
                                                   entry.data.i32, entry.count));
-
-    free_camera_metadata(info);
 }
 
 // test around exclusiveTryLock (immediate locking)
@@ -421,78 +516,30 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
     if (HasFatalFailure()) {
         return;
     }
-    char* displaySecsEnv = getenv("TEST_DISPLAY_SECS");
-    if (displaySecsEnv != NULL) {
-        mDisplaySecs = atoi(displaySecsEnv);
-        if (mDisplaySecs < 0) {
-            mDisplaySecs = 0;
-        }
-    } else {
-        mDisplaySecs = 0;
-    }
 
-    sp<Surface> depthSurface;
+    sp<Surface> surface;
     if (mDisplaySecs > 0) {
-        createDepthOnScreenSurface(/*out*/depthSurface);
+        createOnScreenSurface(/*out*/surface);
+    }
+    else {
+        dout << "Skipping, will not render to screen" << std::endl;
+        return;
     }
 
     int depthStreamId = -1;
-    EXPECT_OK(mCamera->createStream(/*width*/320, /*height*/240,
-                              TEST_FORMAT_DEPTH, depthSurface, &depthStreamId));
+    EXPECT_OK(mCamera->createStream(mDisplayW, mDisplayH, mDisplayFmt, surface,
+                                    &depthStreamId));
     EXPECT_NE(-1, depthStreamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
-    /* iterate in a loop submitting requests every frame.
-     *  what kind of requests doesnt really matter, just whatever.
-     */
 
-    // it would probably be better to use CameraMetadata from camera service.
-    camera_metadata_t *request = NULL;
-    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
-              /*out*/&request));
-    EXPECT_NE((void*)NULL, request);
-
-    /* FIXME: dont need this later, at which point the above should become an
-       ASSERT_NE*/
-    if(request == NULL) request = allocate_camera_metadata(10, 100);
-
-    // set the output streams to just this stream ID
-
-    // wow what a verbose API.
-    // i would give a loaf of bread for
-    //   metadata->updateOrInsert(keys.request.output.streams, streamId);
-    uint8_t allStreams[] = { depthStreamId };
-    size_t streamCount = sizeof(allStreams) / sizeof(allStreams[0]);
-
-    camera_metadata_entry_t entry;
-    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
-    int find = find_camera_metadata_entry(request, tag, &entry);
-    if (find == -ENOENT) {
-        if (add_camera_metadata_entry(request, tag, &allStreams,
-            /*data_count*/streamCount) != OK) {
-            camera_metadata_t *tmp = allocate_camera_metadata(1000, 10000);
-            ASSERT_OK(append_camera_metadata(tmp, request));
-            free_camera_metadata(request);
-            request = tmp;
-
-            ASSERT_OK(add_camera_metadata_entry(request, tag, &allStreams,
-                /*data_count*/streamCount));
-        }
-    } else {
-        ASSERT_OK(update_camera_metadata_entry(request, entry.index,
-                &allStreams, /*data_count*/streamCount, &entry));
-    }
-
-    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+    uint8_t streams[] = { depthStreamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1));
 
     dout << "will sleep now for " << mDisplaySecs << std::endl;
     sleep(mDisplaySecs);
 
-    free_camera_metadata(request);
-
-    for (int i = 0; i < streamCount; ++i) {
-        EXPECT_OK(mCamera->deleteStream(allStreams[i]));
-    }
+    EXPECT_OK(mCamera->deleteStream(depthStreamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
@@ -501,16 +548,6 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageDual) {
     if (HasFatalFailure()) {
         return;
     }
-    char* displaySecsEnv = getenv("TEST_DISPLAY_SECS");
-    if (displaySecsEnv != NULL) {
-        mDisplaySecs = atoi(displaySecsEnv);
-        if (mDisplaySecs < 0) {
-            mDisplaySecs = 0;
-        }
-    } else {
-        mDisplaySecs = 0;
-    }
-
     sp<Surface> surface;
     sp<Surface> depthSurface;
     if (mDisplaySecs > 0) {
