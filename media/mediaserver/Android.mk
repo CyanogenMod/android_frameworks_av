@@ -1,4 +1,13 @@
 LOCAL_PATH:= $(call my-dir)
+
+ifneq ($(BOARD_USE_CUSTOM_MEDIASERVEREXTENSIONS),true)
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := register.cpp
+LOCAL_MODULE := libregistermsext
+LOCAL_MODULE_TAGS := optional
+include $(BUILD_STATIC_LIBRARY)
+endif
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
@@ -14,6 +23,9 @@ LOCAL_SHARED_LIBRARIES := \
 	libmediaplayerservice \
 	libutils \
 	libbinder
+
+LOCAL_STATIC_LIBRARIES := \
+	libregistermsext
 
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
