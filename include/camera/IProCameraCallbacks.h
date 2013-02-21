@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,46 +14,36 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_HARDWARE_ICAMERASERVICE_H
-#define ANDROID_HARDWARE_ICAMERASERVICE_H
+#ifndef ANDROID_HARDWARE_IPROCAMERA_CALLBACKS_H
+#define ANDROID_HARDWARE_IPROCAMERA_CALLBACKS_H
 
 #include <utils/RefBase.h>
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
-
-#include <camera/ICameraClient.h>
-#include <camera/ICamera.h>
-#include <camera/IProCameraUser.h>
+#include <binder/IMemory.h>
+#include <utils/Timers.h>
+#include <system/camera.h>
 
 namespace android {
 
-class ICameraService : public IInterface
+class IProCameraCallbacks: public IInterface
 {
 public:
-    enum {
-        GET_NUMBER_OF_CAMERAS = IBinder::FIRST_CALL_TRANSACTION,
-        GET_CAMERA_INFO,
-        CONNECT,
-        CONNECT_PRO
-    };
+    DECLARE_META_INTERFACE(ProCameraCallbacks);
 
-public:
-    DECLARE_META_INTERFACE(CameraService);
-
-    virtual int32_t         getNumberOfCameras() = 0;
-    virtual status_t        getCameraInfo(int cameraId,
-                                          struct CameraInfo* cameraInfo) = 0;
-    virtual sp<ICamera>     connect(const sp<ICameraClient>& cameraClient,
-                                    int cameraId) = 0;
-
-    virtual sp<IProCameraUser>
-                            connect(const sp<IProCameraCallbacks>& cameraCb,
-                                    int cameraId) = 0;
+    virtual void            notifyCallback(int32_t msgType, int32_t ext1,
+                                                              int32_t ext2) = 0;
+    virtual void            dataCallback(int32_t msgType,
+                                         const sp<IMemory>& data,
+                                         camera_frame_metadata_t *metadata) = 0;
+    virtual void            dataCallbackTimestamp(nsecs_t timestamp,
+                                                  int32_t msgType,
+                                                  const sp<IMemory>& data) = 0;
 };
 
 // ----------------------------------------------------------------------------
 
-class BnCameraService: public BnInterface<ICameraService>
+class BnProCameraCallbacks: public BnInterface<IProCameraCallbacks>
 {
 public:
     virtual status_t    onTransact( uint32_t code,
