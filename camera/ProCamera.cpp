@@ -361,15 +361,28 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
 }
 
 int ProCamera::getNumberOfCameras() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-    return 1;
+    const sp<ICameraService> cs = getCameraService();
+
+    if (!cs.get()) {
+        return DEAD_OBJECT;
+    }
+    return cs->getNumberOfCameras();
 }
 
 camera_metadata* ProCamera::getCameraInfo(int cameraId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
     ALOGV("%s: cameraId = %d", __FUNCTION__, cameraId);
-    return NULL;
+
+    sp <IProCameraUser> c = mCamera;
+    if (c == 0) return NULL;
+
+    camera_metadata* ptr = NULL;
+    status_t status = c->getCameraInfo(cameraId, &ptr);
+
+    if (status != OK) {
+        ALOGE("%s: Failed to get camera info, error = %d", __FUNCTION__, status);
+    }
+
+    return ptr;
 }
 
 status_t ProCamera::createDefaultRequest(int templateId,

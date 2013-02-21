@@ -44,6 +44,7 @@ enum {
     CANCEL_STREAM,
     CREATE_STREAM,
     CREATE_DEFAULT_REQUEST,
+    GET_CAMERA_INFO,
 };
 
 /**
@@ -255,6 +256,17 @@ public:
     }
 
 
+    virtual status_t getCameraInfo(int cameraId, camera_metadata** info)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
+        data.writeInt32(cameraId);
+        remote()->transact(GET_CAMERA_INFO, data, &reply);
+        readMetadata(reply, /*out*/info);
+        return reply.readInt32();
+    }
+
+
 private:
 
 
@@ -366,6 +378,24 @@ status_t BnProCameraUser::onTransact(
 
             writeMetadata(*reply, request);
             reply->writeInt32(ret);
+
+            free_camera_metadata(request);
+
+            return NO_ERROR;
+        } break;
+        case GET_CAMERA_INFO: {
+            CHECK_INTERFACE(IProCameraUser, data, reply);
+
+            int cameraId = data.readInt32();
+
+            camera_metadata_t* info = NULL;
+            status_t ret;
+            ret = getCameraInfo(cameraId, &info);
+
+            writeMetadata(*reply, info);
+            reply->writeInt32(ret);
+
+            free_camera_metadata(info);
 
             return NO_ERROR;
         } break;
