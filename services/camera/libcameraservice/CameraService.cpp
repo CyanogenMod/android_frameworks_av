@@ -39,6 +39,7 @@
 #include "CameraService.h"
 #include "CameraClient.h"
 #include "Camera2Client.h"
+#include "ProCamera2Client.h"
 
 namespace android {
 
@@ -281,7 +282,8 @@ sp<IProCameraUser> CameraService::connect(
         return NULL;
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
-        client = new ProClient(this, cameraCb, cameraId,
+      case CAMERA_DEVICE_API_VERSION_2_1:
+        client = new ProCamera2Client(this, cameraCb, cameraId,
                 facing, callingPid, getpid());
         break;
       case -1:

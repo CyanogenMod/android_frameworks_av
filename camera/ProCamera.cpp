@@ -262,7 +262,7 @@ status_t ProCamera::cancelStream(int streamId)
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
-                          const sp<ANativeWindow>& window,
+                          const sp<Surface>& surface,
                           /*out*/
                           int* streamId)
 {
@@ -271,12 +271,14 @@ status_t ProCamera::createStream(int width, int height, int format,
     ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
                                                                        format);
 
-    if (window == 0) {
+    if (surface == 0) {
         return BAD_VALUE;
     }
 
-    // TODO: actually implement this in IProCamera
-    return INVALID_OPERATION;
+    sp <IProCameraUser> c = mCamera;
+    if (c == 0) return NO_INIT;
+
+    return c->createStream(width, height, format, surface, streamId);
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
@@ -288,13 +290,10 @@ status_t ProCamera::createStream(int width, int height, int format,
                                                                        format);
 
     sp<IBinder> binder;
-    sp<ANativeWindow> window;
+    status_t stat = INVALID_OPERATION;
 
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        window = new Surface(bufferProducer);
-
-        status_t stat = createStream(width, height, format, window, streamId);
 
         ALOGV("%s: createStreamT END (%d), StreamID = %d", __FUNCTION__, stat,
                                                                     *streamId);
@@ -304,7 +303,7 @@ status_t ProCamera::createStream(int width, int height, int format,
         return BAD_VALUE;
     }
 
-    return BAD_VALUE;
+    return stat;
 }
 
 int ProCamera::getNumberOfCameras() {
@@ -321,12 +320,12 @@ camera_metadata* ProCamera::getCameraInfo(int cameraId) {
 
 status_t ProCamera::createDefaultRequest(int templateId,
                                              camera_metadata** request) const {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
     ALOGV("%s: templateId = %d", __FUNCTION__, templateId);
 
-    *request = NULL;
-    return INVALID_OPERATION;
+    sp <IProCameraUser> c = mCamera;
+    if (c == 0) return NO_INIT;
+
+    return c->createDefaultRequest(templateId, request);
 }
 
 }; // namespace android

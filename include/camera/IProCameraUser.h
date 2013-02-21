@@ -63,6 +63,16 @@ public:
 
     virtual status_t        requestStream(int streamId) = 0;
     virtual status_t        cancelStream(int streamId) = 0;
+    virtual status_t        createStream(int width, int height, int format,
+                                         const sp<Surface>& surface,
+                                         /*out*/
+                                         int* streamId) = 0;
+
+    // Create a request object from a template.
+    virtual status_t        createDefaultRequest(int templateId,
+                                                 /*out*/
+                                                 camera_metadata** request)
+                                                                           = 0;
 
 };
 
