@@ -261,4 +261,72 @@ status_t ProCamera::cancelStream(int streamId)
     return c->cancelStream(streamId);
 }
 
+status_t ProCamera::createStream(int width, int height, int format,
+                          const sp<ANativeWindow>& window,
+                          /*out*/
+                          int* streamId)
+{
+    *streamId = -1;
+
+    ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
+                                                                       format);
+
+    if (window == 0) {
+        return BAD_VALUE;
+    }
+
+    // TODO: actually implement this in IProCamera
+    return INVALID_OPERATION;
+}
+
+status_t ProCamera::createStream(int width, int height, int format,
+                          const sp<IGraphicBufferProducer>& bufferProducer,
+                          /*out*/
+                          int* streamId) {
+
+    ALOGV("%s: createStreamT %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
+                                                                       format);
+
+    sp<IBinder> binder;
+    sp<ANativeWindow> window;
+
+    if (bufferProducer != 0) {
+        binder = bufferProducer->asBinder();
+        window = new Surface(bufferProducer);
+
+        status_t stat = createStream(width, height, format, window, streamId);
+
+        ALOGV("%s: createStreamT END (%d), StreamID = %d", __FUNCTION__, stat,
+                                                                    *streamId);
+    }
+    else {
+        *streamId = -1;
+        return BAD_VALUE;
+    }
+
+    return BAD_VALUE;
+}
+
+int ProCamera::getNumberOfCameras() {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+    return 1;
+}
+
+camera_metadata* ProCamera::getCameraInfo(int cameraId) {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    ALOGV("%s: cameraId = %d", __FUNCTION__, cameraId);
+    return NULL;
+}
+
+status_t ProCamera::createDefaultRequest(int templateId,
+                                             camera_metadata** request) const {
+    ALOGE("%s: not implemented yet", __FUNCTION__);
+
+    ALOGV("%s: templateId = %d", __FUNCTION__, templateId);
+
+    *request = NULL;
+    return INVALID_OPERATION;
+}
+
 }; // namespace android

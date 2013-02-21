@@ -26,6 +26,12 @@
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
 
+#include <gui/SurfaceComposerClient.h>
+#include <gui/Surface.h>
+
+#include <system/camera_metadata.h>
+#include <hardware/camera2.h> // for CAMERA2_TEMPLATE_PREVIEW only
+
 namespace android {
 namespace camera2 {
 namespace tests {
@@ -34,7 +40,8 @@ namespace client {
 #define CAMERA_ID 0
 #define TEST_DEBUGGING 0
 
-#define TEST_LISTENER_TIMEOUT 2000000000 // 2 second listener timeout
+#define TEST_LISTENER_TIMEOUT 1000000000 // 1 second listener timeout
+#define TEST_FORMAT HAL_PIXEL_FORMAT_RGBA_8888 //TODO: YUY2 instead
 
 #if TEST_DEBUGGING
 #define dout std::cerr
@@ -206,6 +213,40 @@ protected:
 
     static sp<Thread> mTestThread;
 
+    int mDisplaySecs;
+    sp<SurfaceComposerClient> mComposerClient;
+    sp<SurfaceControl> mSurfaceControl;
+
+    int getSurfaceWidth() {
+        return 512;
+    }
+    int getSurfaceHeight() {
+        return 512;
+    }
+
+    void createOnScreenSurface(sp<Surface>& surface) {
+        mComposerClient = new SurfaceComposerClient;
+        ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
+
+        mSurfaceControl = mComposerClient->createSurface(
+                String8("ProCameraTest StreamingImage Surface"),
+                getSurfaceWidth(), getSurfaceHeight(),
+                PIXEL_FORMAT_RGB_888, 0);
+
+        ASSERT_TRUE(mSurfaceControl != NULL);
+        ASSERT_TRUE(mSurfaceControl->isValid());
+
+        SurfaceComposerClient::openGlobalTransaction();
+        ASSERT_EQ(NO_ERROR, mSurfaceControl->setLayer(0x7FFFFFFF));
+        ASSERT_EQ(NO_ERROR, mSurfaceControl->show());
+        SurfaceComposerClient::closeGlobalTransaction();
+
+        sp<ANativeWindow> window = mSurfaceControl->getSurface();
+        surface = mSurfaceControl->getSurface();
+
+        ASSERT_NE((void*)NULL, surface.get());
+    }
+
 };
 
 sp<Thread> ProCameraTest::mTestThread;
@@ -258,6 +299,75 @@ TEST_F(ProCameraTest, LockingAsynchronous) {
     EXPECT_EQ(RELEASED, mListener->ReadEvent());
 
     EXPECT_FALSE(mCamera->hasExclusiveLock());
+}
+
+// Stream directly to the screen.
+TEST_F(ProCameraTest, StreamingImage) {
+    if (HasFatalFailure()) {
+        return;
+    }
+    char* displaySecsEnv = getenv("TEST_DISPLAY_SECS");
+    if (displaySecsEnv != NULL) {
+        mDisplaySecs = atoi(displaySecsEnv);
+        if (mDisplaySecs < 0) {
+            mDisplaySecs = 0;
+        }
+    } else {
+        mDisplaySecs = 0;
+    }
+
+    sp<Surface> surface;
+    sp<ANativeWindow> window;
+    if (mDisplaySecs > 0) {
+        createOnScreenSurface(/*out*/surface);
+        window = surface;
+    }
+    int streamId = -1;
+    EXPECT_OK(mCamera->createStream(/*width*/640, /*height*/480, TEST_FORMAT,
+              window, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+    /* iterate in a loop submitting requests every frame.
+     *  what kind of requests doesnt really matter, just whatever.
+     */
+
+    // it would probably be better to use CameraMetadata from camera service.
+    camera_metadata_t *request = NULL;
+    EXPECT_OK(mCamera->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+              /*out*/&request));
+    EXPECT_NE((void*)NULL, request);
+
+    /* FIXME: dont need this later, at which point the above should become an
+       ASSERT_NE*/
+    if(request == NULL) request = allocate_camera_metadata(10, 100);
+
+    // set the output streams to just this stream ID
+
+    // wow what a verbose API.
+    // i would give a loaf of bread for
+    //   metadata->updateOrInsert(keys.request.output.streams, streamId);
+    camera_metadata_entry_t entry;
+    uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
+    int find = find_camera_metadata_entry(request, tag, &entry);
+    if (find == -ENOENT) {
+        ASSERT_OK(add_camera_metadata_entry(request, tag, &streamId,
+                  /*data_count*/1));
+    } else {
+        ASSERT_OK(update_camera_metadata_entry(request, entry.index, &streamId,
+                  /*data_count*/1, &entry));
+    }
+
+    EXPECT_OK(mCamera->submitRequest(request, /*streaming*/true));
+
+    sleep(mDisplaySecs);
+    //should the window be empty until the buffer is flipped?
+    //  that would certainly make sense
+
+
+    free_camera_metadata(request);
+    EXPECT_OK(mCamera->cancelStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
 }
