@@ -34,9 +34,10 @@ class ProCameraListener : public CameraListener
 public:
     // Lock has been acquired. Write operations now available.
     virtual void onLockAcquired() = 0;
-    // Lock has been released with exclusiveUnlock, or has been stolen by
-    // another client.
+    // Lock has been released with exclusiveUnlock.
     virtual void onLockReleased() = 0;
+    // Lock has been stolen by another client.
+    virtual void onLockStolen() = 0;
 
     // Lock free.
     virtual void onTriggerNotify(int32_t msgType, int32_t ext1, int32_t ext2)
@@ -129,6 +130,8 @@ protected:
     virtual void        dataCallbackTimestamp(nsecs_t timestamp,
                                               int32_t msgType,
                                               const sp<IMemory>& dataPtr);
+    virtual void        onLockStatusChanged(
+                                IProCameraCallbacks::LockStatus newLockStatus);
 
     class DeathNotifier: public IBinder::DeathRecipient
     {

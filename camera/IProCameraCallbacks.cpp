@@ -34,6 +34,7 @@ enum {
     NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
     DATA_CALLBACK,
     DATA_CALLBACK_TIMESTAMP,
+    LOCK_STATUS_CHANGED,
 };
 
 class BpProCameraCallbacks: public BpInterface<IProCameraCallbacks>
@@ -86,6 +87,15 @@ public:
         remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply,
                                                           IBinder::FLAG_ONEWAY);
     }
+
+    void onLockStatusChanged(LockStatus newLockStatus) {
+        ALOGV("onLockStatusChanged");
+        Parcel data, reply;
+        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
+        data.writeInt32(newLockStatus);
+        remote()->transact(LOCK_STATUS_CHANGED, data, &reply,
+                           IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(ProCameraCallbacks,
@@ -96,6 +106,7 @@ IMPLEMENT_META_INTERFACE(ProCameraCallbacks,
 status_t BnProCameraCallbacks::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
+    ALOGV("onTransact - code = %d", code);
     switch(code) {
         case NOTIFY_CALLBACK: {
             ALOGV("NOTIFY_CALLBACK");
@@ -131,6 +142,14 @@ status_t BnProCameraCallbacks::onTransact(
             sp<IMemory> imageData = interface_cast<IMemory>(
                                                        data.readStrongBinder());
             dataCallbackTimestamp(timestamp, msgType, imageData);
+            return NO_ERROR;
+        } break;
+        case LOCK_STATUS_CHANGED: {
+            ALOGV("LOCK_STATUS_CHANGED");
+            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
+            LockStatus newLockStatus
+                                 = static_cast<LockStatus>(data.readInt32());
+            onLockStatusChanged(newLockStatus);
             return NO_ERROR;
         } break;
         default:

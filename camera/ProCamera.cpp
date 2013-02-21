@@ -118,6 +118,12 @@ void ProCamera::DeathNotifier::binderDied(const wp<IBinder>& who) {
     ALOGW("Camera service died!");
 }
 
+void ProCamera::setListener(const sp<ProCameraListener>& listener)
+{
+    Mutex::Autolock _l(mLock);
+    mListener = listener;
+}
+
 
 // callback from camera service
 void ProCamera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
@@ -163,6 +169,34 @@ void ProCamera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType,
 }
 
 /* IProCameraUser's implementation */
+
+void ProCamera::onLockStatusChanged(
+                                 IProCameraCallbacks::LockStatus newLockStatus)
+{
+    ALOGV("%s: newLockStatus = %d", __FUNCTION__, newLockStatus);
+
+    sp<ProCameraListener> listener;
+    {
+        Mutex::Autolock _l(mLock);
+        listener = mListener;
+    }
+    if (listener != NULL) {
+        switch (newLockStatus) {
+            case IProCameraCallbacks::LOCK_ACQUIRED:
+                listener->onLockAcquired();
+                break;
+            case IProCameraCallbacks::LOCK_RELEASED:
+                listener->onLockReleased();
+                break;
+            case IProCameraCallbacks::LOCK_STOLEN:
+                listener->onLockStolen();
+                break;
+            default:
+                ALOGE("%s: Unknown lock status: %d",
+                      __FUNCTION__, newLockStatus);
+        }
+    }
+}
 
 status_t ProCamera::exclusiveTryLock()
 {

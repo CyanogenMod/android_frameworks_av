@@ -14,7 +14,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libgui \
 	libsync \
 	libui \
-	libdl
+	libdl \
+	libbinder
 
 LOCAL_STATIC_LIBRARIES := \
 	libgtest
