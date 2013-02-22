@@ -256,6 +256,46 @@ AwesomePlayer::~AwesomePlayer() {
     mClient.disconnect();
 }
 
+void AwesomePlayer::printStats() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.debug.sf.statistics", value, "0");
+    if (atoi(value) && mVideoSource != NULL) {
+        ALOGE("===========================\n"
+            "   videoDimensions(%d x %d)\n"
+            "   Total Video Frames Decoded(%lld)\n"
+            "   Total Video Frames Rendered(%lld)\n"
+            "   Total Playback Duration(%lld ms)\n"
+            "   numVideoFramesDropped(%lld)\n"
+            "   Average Frames Per Second(%.4f)\n"
+            "   Last Seek To Time(%lld ms)\n"
+            "   Last Paused Time(%lld ms)\n"
+            "   First Frame Latency (%lld ms)\n"
+            "   Number of times AV Sync Lost(%u)\n"
+            "   Max Video Ahead Time Delta(%u)\n"
+            "   Max Video Behind Time Delta(%u)\n"
+            "   Max Time Sync Loss(%u)\n"
+            "   EOS(%d)\n"
+            "   PLAYING(%d)\n"
+            "===========================\n\n",
+            mStats.mVideoWidth,
+            mStats.mVideoHeight,
+            mStats.mNumVideoFramesDecoded,
+            mStats.mTotalFrames,
+            mStats.mTotalTimeUs/1000,
+            mStats.mNumVideoFramesDropped,
+            mStats.mTotalTimeUs > 0 ? ((double)(mStats.mTotalFrames)*1E6)/((double)mStats.mTotalTimeUs) : 0,
+            mStats.mLastSeekToTimeMs,
+            mStats.mLastPausedTimeMs,
+            mStats.mFirstFrameLatencyUs/1000,
+            mStats.mNumTimesSyncLoss,
+            -mStats.mMaxEarlyDelta/1000,
+            mStats.mMaxLateDelta/1000,
+            mStats.mMaxTimeSyncLoss/1000,
+            (mFlags & VIDEO_AT_EOS) > 0,
+            (mFlags & PLAYING) > 0);
+    }
+}
+
 void AwesomePlayer::cancelPlayerEvents(bool keepNotifications) {
     mQueue.cancelEvent(mVideoEvent->eventID());
     mVideoEventPending = false;
@@ -575,6 +615,8 @@ void AwesomePlayer::reset_l() {
 
     mVideoRenderer.clear();
 
+    modifyFlags(PLAYING, CLEAR);
+    printStats();
     if (mVideoSource != NULL) {
         shutdownVideoDecoder_l();
     }
@@ -1082,6 +1124,7 @@ status_t AwesomePlayer::play_l() {
         if (mAudioSource != NULL && mVideoSource != NULL) {
             postVideoLagEvent_l();
         }
+        printStats();
     }
 
     if (mFlags & AT_EOS) {
@@ -1298,9 +1341,10 @@ status_t AwesomePlayer::pause_l(bool at_eos) {
                 Playback::PAUSE, 0);
     }
 
-    if(!(mFlags & AT_EOS)){
+    if(!(mFlags & VIDEO_AT_EOS)){
         Mutex::Autolock autoLock(mStatsLock);
         mStats.mLastPausedTimeMs = mVideoTimeUs/1000;
+        printStats();
     }
 
     uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
@@ -1834,6 +1878,7 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
         mStats.mLastSeekToTimeMs = mSeekTimeUs/1000;
         logFirstFrame();
     }
+    printStats();
 }
 
 void AwesomePlayer::onVideoEvent() {
