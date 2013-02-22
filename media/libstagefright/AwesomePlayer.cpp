@@ -3064,6 +3064,13 @@ void AwesomePlayer::checkTunnelExceptions()
         return;
     }
 
+    /* exception 2: use tunnel player only for AUDIO_STREAM_MUSIC */
+    if (mAudioSink->streamType() != AUDIO_STREAM_MUSIC ) {
+        ALOGD("Use tunnel player only for AUDIO_STREAM_MUSIC");
+        mIsTunnelAudio = false;
+        return;
+    }
+
     /* below exceptions are only for av content */
     if (mVideoTrack == NULL) return;
 
