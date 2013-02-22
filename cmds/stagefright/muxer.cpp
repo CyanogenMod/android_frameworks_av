@@ -69,7 +69,8 @@ static int muxing(
     ALOGV("input file %s, output file %s", path, outputFileName);
     ALOGV("useAudio %d, useVideo %d", useAudio, useVideo);
 
-    sp<MediaMuxer> muxer = new MediaMuxer(outputFileName);
+    sp<MediaMuxer> muxer = new MediaMuxer(outputFileName,
+                                          MediaMuxer::OUTPUT_FORMAT_MPEG_4);
 
     size_t trackCount = extractor->countTracks();
     // Map the extractor's track index to the muxer's track index.

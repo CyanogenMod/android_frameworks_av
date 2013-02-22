@@ -35,14 +35,20 @@
 
 namespace android {
 
-MediaMuxer::MediaMuxer(const char* pathOut)
-    : mState(INITED) {
-    mWriter = new MPEG4Writer(pathOut);
+MediaMuxer::MediaMuxer(const char *path, OutputFormat format)
+    : mState(UNINITED) {
+    if (format == OUTPUT_FORMAT_MPEG_4) {
+        mWriter = new MPEG4Writer(path);
+        mState = INITED;
+    }
 }
 
-MediaMuxer::MediaMuxer(int fd)
-    : mState(INITED) {
-    mWriter = new MPEG4Writer(fd);
+MediaMuxer::MediaMuxer(int fd, OutputFormat format)
+    : mState(UNINITED) {
+    if (format == OUTPUT_FORMAT_MPEG_4) {
+        mWriter = new MPEG4Writer(fd);
+        mState = INITED;
+    }
 }
 
 MediaMuxer::~MediaMuxer() {
@@ -107,8 +113,6 @@ status_t MediaMuxer::writeSampleData(const sp<ABuffer> &buffer, size_t trackInde
                                      int64_t timeUs, uint32_t flags) {
     Mutex::Autolock autoLock(mMuxerLock);
 
-    sp<MediaAdapter> currentTrack = mTrackList[trackIndex];
-
     if (buffer.get() == NULL) {
         ALOGE("WriteSampleData() get an NULL buffer.");
         return -EINVAL;
@@ -134,10 +138,11 @@ status_t MediaMuxer::writeSampleData(const sp<ABuffer> &buffer, size_t trackInde
     // Just set the kKeyDecodingTime as the presentation time for now.
     metaData->setInt64(kKeyDecodingTime, timeUs);
 
-    if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
+    if (flags & SAMPLE_FLAG_SYNC) {
         metaData->setInt32(kKeyIsSyncFrame, true);
     }
 
+    sp<MediaAdapter> currentTrack = mTrackList[trackIndex];
     // This pushBuffer will wait until the mediaBuffer is consumed.
     return currentTrack->pushBuffer(mediaBuffer);
 }

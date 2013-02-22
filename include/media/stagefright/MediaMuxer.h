@@ -40,11 +40,25 @@ struct MPEG4Writer;
 // deleting the output file after stop.
 struct MediaMuxer : public RefBase {
 public:
+    // Please update media/java/android/media/MediaMuxer.java if the
+    // SampleFlags is updated.
+    enum SampleFlags {
+        SAMPLE_FLAG_SYNC = 1,
+    };
+
+    // Please update media/java/android/media/MediaMuxer.java if the
+    // OutputFormat is updated.
+    enum OutputFormat {
+        OUTPUT_FORMAT_MPEG_4 = 0,
+        OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
+    };
+
     // Construct the muxer with the output file path.
-    MediaMuxer(const char* pathOut);
+    MediaMuxer(const char *path, OutputFormat format);
+
     // Construct the muxer with the file descriptor. Note that the MediaMuxer
     // will close this file at stop().
-    MediaMuxer(int fd);
+    MediaMuxer(int fd, OutputFormat format);
 
     virtual ~MediaMuxer();
 
@@ -94,6 +108,7 @@ private:
     Mutex mMuxerLock;
 
     enum State {
+        UNINITED,
         INITED,
         STARTED,
         STOPPED
