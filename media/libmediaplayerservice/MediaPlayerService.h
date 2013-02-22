@@ -1,6 +1,9 @@
 /*
 **
 ** Copyright 2008, The Android Open Source Project
+** Copyright (c) 2013, The Linux Foundation. All rights reserved.
+** Not a Contribution, Apache license notifications and license are retained
+** for attribution purposes only.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -85,6 +88,9 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         channelCount() const;
         virtual ssize_t         frameSize() const;
         virtual uint32_t        latency() const;
+#ifdef QCOM_HARDWARE
+        virtual audio_stream_type_t streamType() const;
+#endif
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;

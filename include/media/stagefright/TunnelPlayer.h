@@ -133,8 +133,7 @@ private:
 
     //Declare the condition Variables and Mutex
 
-    pthread_mutex_t extractor_mutex;
-    pthread_cond_t extractor_cv;
+    Condition mExtractorCV;
 
 
     // make sure Decoder thread has exited
@@ -198,8 +197,18 @@ private:
     sp<TimedEventQueue::Event>  mPauseEvent;
     bool                        mPauseEventPending;
 
+    typedef enum {
+      NCREATED = -1,
+      INITIALIZED,
+      RUNNING,
+      SLEEPING,
+      EXITING,
+    } ThreadState;
+
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     AwesomePlayer *mObserver;
+    ThreadState mThreadState;
+    bool mStopSinkPending;
 
     static size_t AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
@@ -218,6 +227,8 @@ private:
     size_t fillBuffer(void *data, size_t size);
 
     void reset();
+    status_t schedPauseTimeOut();
+    status_t stopAudioSink();
 
     TunnelPlayer(const TunnelPlayer &);
     TunnelPlayer &operator=(const TunnelPlayer &);

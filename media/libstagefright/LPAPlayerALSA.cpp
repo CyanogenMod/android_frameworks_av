@@ -310,18 +310,11 @@ status_t LPAPlayer::seekTo(int64_t time_us) {
     Mutex::Autolock autoLock(mLock);
     ALOGV("seekTo: time_us %lld", time_us);
 
-    int64_t mediaTimeUs = getMediaTimeUs_l();
-
-    if (mediaTimeUs != 0) {
-      //check for return conditions only if seektime
-      // is set
-      int64_t diffUs = time_us - mediaTimeUs;
-
-      if (labs(diffUs) < LPA_BUFFER_TIME) {
-          ALOGV("In seekTo(), ignoring time_us %lld mSeekTimeUs %lld", time_us, mSeekTimeUs);
-          mObserver->postAudioSeekComplete();
-          return OK;
-      }
+    if (seekTooClose(time_us)) {
+        mLock.unlock();
+        mObserver->postAudioSeekComplete();
+        mLock.lock();
+        return OK;
     }
 
     mSeeking = true;
@@ -808,7 +801,9 @@ int64_t LPAPlayer::getTimeStamp(A2DPState state) {
     return timestamp;
 }
 
-int64_t LPAPlayer::getMediaTimeUs_l() {
+int64_t LPAPlayer::getMediaTimeUs_l( ) {
+    ALOGV("getMediaTimeUs() mPaused %d mSeekTimeUs %lld mPauseTime %lld",
+          mPaused, mSeekTimeUs, mPauseTime);
     if (mPaused) {
         return mPauseTime;
     } else {
@@ -903,6 +898,22 @@ void LPAPlayer::convertMonoToStereo(int16_t *data, size_t size)
       *(start_pointer + (i*2) - 1) = temp_sample;
       *(start_pointer + (i*2) - 2) = temp_sample;
     }
+}
+
+bool LPAPlayer::seekTooClose(int64_t time_us) {
+    int64_t t1 = getMediaTimeUs_l();
+    /*
+     * empirical
+     * -----------
+     * This constant signifies how much data (in Us) has been rendered by the
+     * DSP in the interval between the moment flush is issued on AudioSink to
+     * after ioctl(PAUSE) returns in Audio HAL. (flush triggers an implicit
+     * pause in audio HAL)
+     *
+     */
+    const int64_t kDeltaUs = 60000LL; /* 60-70ms on msm8974, must be measured for other targets */
+    t1 += kDeltaUs;
+    return (time_us > t1) && ((time_us - t1) <= LPA_BUFFER_TIME);
 }
 
 } //namespace android

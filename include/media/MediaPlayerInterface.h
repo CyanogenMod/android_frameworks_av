@@ -1,5 +1,8 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,6 +90,9 @@ public:
         virtual ssize_t     channelCount() const = 0;
         virtual ssize_t     frameSize() const = 0;
         virtual uint32_t    latency() const = 0;
+#ifdef QCOM_HARDWARE
+        virtual audio_stream_type_t    streamType() const {return AUDIO_STREAM_DEFAULT;}
+#endif
         virtual float       msecsPerFrame() const = 0;
         virtual status_t    getPosition(uint32_t *position) const = 0;
         virtual status_t    getFramesWritten(uint32_t *frameswritten) const = 0;

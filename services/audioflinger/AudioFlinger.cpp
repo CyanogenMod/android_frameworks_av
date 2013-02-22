@@ -249,6 +249,9 @@ AudioFlinger::AudioFlinger()
       mNextUniqueId(1),
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
+#ifdef QCOM_HARDWARE
+      ,mAllChainsLocked(false)
+#endif
 {
 }
 
@@ -6232,16 +6235,17 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
 }
 
 status_t AudioFlinger::DirectAudioTrack::start() {
+    AudioSystem::startOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
     if(mIsPaused) {
         mIsPaused = false;
         mOutputDesc->stream->start(mOutputDesc->stream);
     }
     mOutputDesc->mActive = true;
-    AudioSystem::startOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
     return NO_ERROR;
 }
 
 void AudioFlinger::DirectAudioTrack::stop() {
+    ALOGV("DirectAudioTrack::stop");
     mOutputDesc->mActive = false;
     mOutputDesc->stream->stop(mOutputDesc->stream);
     AudioSystem::stopOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
@@ -6290,11 +6294,14 @@ void AudioFlinger::DirectAudioTrack::mute(bool muted) {
 }
 
 void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
-    mOutputDesc->mVolumeLeft = left;
-    mOutputDesc->mVolumeRight = right;
-    mOutputDesc->stream->set_volume(mOutputDesc->stream,
+    ALOGV("DirectAudioTrack::setVolume left: %f, right: %f", left, right);
+    if(mOutputDesc && mOutputDesc->mActive) {
+        mOutputDesc->mVolumeLeft = left;
+        mOutputDesc->mVolumeRight = right;
+        mOutputDesc->stream->set_volume(mOutputDesc->stream,
                                     left * mOutputDesc->mVolumeScale,
                                     right* mOutputDesc->mVolumeScale);
+    }
 }
 
 int64_t AudioFlinger::DirectAudioTrack::getTimeStamp() {
@@ -8760,11 +8767,19 @@ void AudioFlinger::ThreadBase::lockEffectChains_l(
         Vector< sp<AudioFlinger::EffectChain> >& effectChains)
 {
     effectChains = mEffectChains;
+#ifdef QCOM_HARDWARE
+    mAudioFlinger->mAllChainsLocked = true;
+#endif
     for (size_t i = 0; i < mEffectChains.size(); i++) {
 #ifdef QCOM_HARDWARE
-        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain) {
 #endif
             mEffectChains[i]->lock();
+#ifdef QCOM_HARDWARE
+        } else {
+            mAudioFlinger-> mAllChainsLocked = false;
+        }
+#endif
     }
 }
 
@@ -8773,7 +8788,7 @@ void AudioFlinger::ThreadBase::unlockEffectChains(
 {
     for (size_t i = 0; i < effectChains.size(); i++) {
 #ifdef QCOM_HARDWARE
-        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+        if (mAudioFlinger-> mAllChainsLocked || mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
 #endif
             effectChains[i]->unlock();
     }

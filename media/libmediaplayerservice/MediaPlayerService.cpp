@@ -1357,6 +1357,13 @@ uint32_t MediaPlayerService::AudioOutput::latency () const
     return mTrack->latency();
 }
 
+#ifdef QCOM_HARDWARE
+audio_stream_type_t MediaPlayerService::AudioOutput::streamType () const
+{
+    return mStreamType;
+}
+#endif
+
 float MediaPlayerService::AudioOutput::msecsPerFrame() const
 {
     return mMsecsPerFrame;
