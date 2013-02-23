@@ -210,6 +210,20 @@ static int CompareSoftwareCodecsFirst(
     return 0;
 }
 
+#ifdef STE_HARDWARE
+static uint32_t OmxToHALFormat(OMX_COLOR_FORMATTYPE omxValue) {
+    switch (omxValue) {
+        case OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB:
+            return HAL_PIXEL_FORMAT_YCBCR42XMBN;
+        case OMX_COLOR_FormatYUV420Planar:
+            return HAL_PIXEL_FORMAT_YCbCr_420_P;
+        default:
+            ALOGI("Unknown OMX pixel format (0x%X), passing it on unchanged", omxValue);
+            return omxValue;
+    }
+}
+#endif
+
 // static
 void OMXCodec::findMatchingCodecs(
         const char *mime,
@@ -273,6 +287,10 @@ uint32_t OMXCodec::getComponentQuirks(
         const MediaCodecList *list, size_t index) {
     uint32_t quirks = 0;
     if (list->codecHasQuirk(
+                index, "needs-flush-before-disable")) {
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+    if (list->codecHasQuirk(
                 index, "requires-allocate-on-input-ports")) {
         quirks |= kRequiresAllocateBufferOnInputPorts;
     }
@@ -300,6 +318,12 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "input-buffer-sizes-are-bogus")) {
       quirks |= kInputBufferSizesAreBogus;
     }
+#ifdef STE_HARDWARE
+    if (list->codecHasQuirk(
+                index, "requires-store-metadata-before-idle")) {
+      quirks |= kRequiresStoreMetaDataBeforeIdle;
+    }
+#endif
 #ifdef QCOM_HARDWARE
     if (list->codecHasQuirk(
                 index, "requires-global-flush")) {
@@ -999,6 +1023,9 @@ static size_t getFrameSize(
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_COLOR_FormatYUV420SemiPlanar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+#ifdef STE_HARDWARE
+        case OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB:
+#endif
         /*
         * FIXME: For the Opaque color format, the frame size does not
         * need to be (w*h*3)/2. It just needs to
@@ -1581,7 +1608,11 @@ status_t OMXCodec::setVideoOutputFormat(
                || format.eColorFormat == OMX_SEC_COLOR_FormatNV12Tiled
 #endif
                || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
+#ifndef STE_HARDWARE
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar
+#else
+               || format.eColorFormat == OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB
+#endif
 #ifdef QCOM_HARDWARE
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420PackedSemiPlanar32m4ka
                || format.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka
@@ -1765,6 +1796,10 @@ void OMXCodec::setComponentRole(
             "video_decoder.mpeg4", "video_encoder.mpeg4" },
         { MEDIA_MIMETYPE_VIDEO_H263,
             "video_decoder.h263", "video_encoder.h263" },
+#ifdef STE_HARDWARE
+        { MEDIA_MIMETYPE_VIDEO_VC1,
+            "video_decoder.vc1", "video_encoder.vc1" },
+#endif
         { MEDIA_MIMETYPE_VIDEO_VPX,
             "video_decoder.vpx", "video_encoder.vpx" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
@@ -1852,6 +1887,18 @@ status_t OMXCodec::init() {
     CHECK_EQ((int)mState, (int)LOADED);
 
     status_t err;
+
+#ifdef STE_HARDWARE
+    if ((mQuirks & kRequiresStoreMetaDataBeforeIdle)
+            && (mFlags & kStoreMetaDataInVideoBuffers)) {
+        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE);
+        if (err != OK) {
+            ALOGE("Storing meta data in video buffers is not supported");
+            return err;
+        }
+    }
+#endif
+
     if (!(mQuirks & kRequiresLoadedToIdleAfterAllocation)) {
         err = mOMX->sendCommand(mNode, OMX_CommandStateSet, OMX_StateIdle);
         CHECK_EQ(err, (status_t)OK);
@@ -1926,7 +1973,12 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     }
 
     status_t err = OK;
+#ifndef STE_HARDWARE
     if ((mFlags & kStoreMetaDataInVideoBuffers)
+#else
+    if (!(mQuirks & kRequiresStoreMetaDataBeforeIdle)
+            && (mFlags & kStoreMetaDataInVideoBuffers)
+#endif
             && portIndex == kPortIndexInput) {
         ALOGW("Trying to enable metadata mode on encoder");
         err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE);
@@ -2125,7 +2177,11 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     ALOGV("set_buffers_geometry w %lu, h %lu format %d",
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifndef STE_HARDWARE
             def.format.video.eColorFormat);
+#else	2549
+           OmxToHALFormat(def.format.video.eColorFormat));
+#endif
 #ifdef QCOM_HARDWARE
     format = def.format.video.eColorFormat;
     if(def.format.video.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar)
@@ -4976,6 +5032,9 @@ static const char *videoCompressionFormatString(OMX_VIDEO_CODINGTYPE type) {
         "OMX_VIDEO_CodingRV",
         "OMX_VIDEO_CodingAVC",
         "OMX_VIDEO_CodingMJPEG",
+#ifdef STE_HARDWARE
+        "OMX_VIDEO_CodingVC1",
+#endif
     };
 
     size_t numNames = sizeof(kNames) / sizeof(kNames[0]);

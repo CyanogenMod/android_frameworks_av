@@ -113,6 +113,9 @@ struct OMXCodec : public MediaSource,
         kAvoidMemcopyInputRecordingFrames     = 2048,
         kRequiresLargerEncoderOutputBuffer    = 4096,
         kOutputBuffersAreUnreadable           = 8192,
+#ifdef STE_HARDWARE
+        kRequiresStoreMetaDataBeforeIdle      = 16384,
+#endif
 #ifdef QCOM_HARDWARE
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
         kRequiresWMAProComponent              = 0x40000000, //2^30
