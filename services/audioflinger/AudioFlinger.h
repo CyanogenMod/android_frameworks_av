@@ -593,7 +593,24 @@ private:
     sp<NBAIO_Source> mRecordTeeSource;
 
 public:
+    // tee sink, if enabled by property, allows dumpsys to write most recent audio to .wav file
     static void dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_handle_t id = 0);
+
+    // whether tee sink is enabled by property
+    static bool mTeeSinkInputEnabled;
+    static bool mTeeSinkOutputEnabled;
+    static bool mTeeSinkTrackEnabled;
+
+    // runtime configured size of each tee sink pipe, in frames
+    static size_t mTeeSinkInputFrames;
+    static size_t mTeeSinkOutputFrames;
+    static size_t mTeeSinkTrackFrames;
+
+    // compile-time default size of tee sink pipes, in frames
+    // 0x200000 stereo 16-bit PCM frames = 47.5 seconds at 44.1 kHz, 8 megabytes
+    static const size_t kTeeSinkInputFramesDefault = 0x200000;
+    static const size_t kTeeSinkOutputFramesDefault = 0x200000;
+    static const size_t kTeeSinkTrackFramesDefault = 0x1000;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
