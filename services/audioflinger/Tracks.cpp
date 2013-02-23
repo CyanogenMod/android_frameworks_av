@@ -32,6 +32,9 @@
 #include "AudioFlinger.h"
 #include "ServiceUtilities.h"
 
+#include <media/nbaio/Pipe.h>
+#include <media/nbaio/PipeReader.h>
+
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -52,6 +55,8 @@ namespace android {
 // ----------------------------------------------------------------------------
 //      TrackBase
 // ----------------------------------------------------------------------------
+
+static volatile int32_t nextTrackId = 55;
 
 // TrackBase constructor must be called with AudioFlinger::mLock held
 AudioFlinger::ThreadBase::TrackBase::TrackBase(
@@ -82,7 +87,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mStepServerFailed(false),
         mSessionId(sessionId),
         mIsOut(isOut),
-        mServerProxy(NULL)
+        mServerProxy(NULL),
+        mId(android_atomic_inc(&nextTrackId))
 {
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
@@ -134,11 +140,30 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         }
         mBufferEnd = (uint8_t *)mBuffer + bufferSize;
         mServerProxy = new ServerProxy(mCblk, mBuffer, frameCount, mFrameSize, isOut);
+
+        if (mTeeSinkTrackEnabled) {
+        NBAIO_Format pipeFormat = Format_from_SR_C(mSampleRate, mChannelCount);
+        if (pipeFormat != Format_Invalid) {
+            Pipe *pipe = new Pipe(mTeeSinkTrackFrames, pipeFormat);
+            size_t numCounterOffers = 0;
+            const NBAIO_Format offers[1] = {pipeFormat};
+            ssize_t index = pipe->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            PipeReader *pipeReader = new PipeReader(*pipe);
+            numCounterOffers = 0;
+            index = pipeReader->negotiate(offers, 1, NULL, numCounterOffers);
+            ALOG_ASSERT(index == 0);
+            mTeeSink = pipe;
+            mTeeSource = pipeReader;
+        }
+        }
+
     }
 }
 
 AudioFlinger::ThreadBase::TrackBase::~TrackBase()
 {
+    dumpTee(-1, mTeeSource, mId);
     // delete the proxy before deleting the shared memory it refers to, to avoid dangling reference
     delete mServerProxy;
     if (mCblk != NULL) {
@@ -164,6 +189,10 @@ AudioFlinger::ThreadBase::TrackBase::~TrackBase()
 // This implementation of releaseBuffer() is used by Track and RecordTrack, but not TimedTrack
 void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buffer* buffer)
 {
+    if (mTeeSink != 0) {
+        (void) mTeeSink->write(buffer->raw, buffer->frameCount);
+    }
+
     buffer->raw = NULL;
     mStepCount = buffer->frameCount;
     // FIXME See note at getNextBuffer()

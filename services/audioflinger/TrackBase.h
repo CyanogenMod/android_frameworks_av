@@ -141,4 +141,7 @@ protected:
     Vector < sp<SyncEvent> >mSyncEvents;
     const bool          mIsOut;
     ServerProxy*        mServerProxy;
+    const int           mId;
+    sp<NBAIO_Sink>      mTeeSink;
+    sp<NBAIO_Source>    mTeeSource;
 };
