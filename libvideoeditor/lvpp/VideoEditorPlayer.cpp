@@ -392,7 +392,12 @@ status_t VideoEditorPlayer::VeAudioOutput::getFramesWritten(uint32_t *written) c
 status_t VideoEditorPlayer::VeAudioOutput::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
+#ifdef STE_HARDWARE
+        AudioCallback cb, void *cookie,
+	LatencyCallback latencyCb) {
+#else
         AudioCallback cb, void *cookie, audio_output_flags_t flags) {
+#endif
 
     mCallback = cb;
     mCallbackCookie = cookie;
