@@ -19,6 +19,7 @@
 #define LOG_TAG "Camera"
 #include <utils/Log.h>
 #include <utils/threads.h>
+#include <utils/String16.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/IMemory.h>
@@ -116,14 +117,15 @@ status_t Camera::getCameraInfo(int cameraId,
     return cs->getCameraInfo(cameraId, cameraInfo);
 }
 
-sp<Camera> Camera::connect(int cameraId)
+sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
+        int clientUid)
 {
     ALOGV("connect");
     sp<Camera> c = new Camera();
     sp<ICameraClient> cl = c;
     const sp<ICameraService>& cs = getCameraService();
     if (cs != 0) {
-        c->mCamera = cs->connect(cl, cameraId);
+        c->mCamera = cs->connect(cl, cameraId, clientPackageName, clientUid);
     }
     if (c->mCamera != 0) {
         c->mCamera->asBinder()->linkToDeath(c);

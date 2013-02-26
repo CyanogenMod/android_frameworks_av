@@ -43,12 +43,14 @@ static int getCallingUid() {
 
 ProCamera2Client::ProCamera2Client(const sp<CameraService>& cameraService,
         const sp<IProCameraCallbacks>& remoteCallback,
+        const String16& clientPackageName,
         int cameraId,
         int cameraFacing,
         int clientPid,
+        uid_t clientUid,
         int servicePid):
-        ProClient(cameraService, remoteCallback,
-                cameraId, cameraFacing, clientPid, servicePid),
+        ProClient(cameraService, remoteCallback, clientPackageName,
+                cameraId, cameraFacing, clientPid, clientUid, servicePid),
         mSharedCameraCallbacks(remoteCallback)
 {
     ATRACE_CALL();

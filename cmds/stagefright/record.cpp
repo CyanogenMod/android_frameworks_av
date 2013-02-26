@@ -264,7 +264,8 @@ int main(int argc, char **argv) {
 #endif
 
 #if 0
-    CameraSource *source = CameraSource::Create();
+    CameraSource *source = CameraSource::Create(
+            String16(argv[0], strlen(argv[0])));
     source->start();
 
     printf("source = %p\n", source);

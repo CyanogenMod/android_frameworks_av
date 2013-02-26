@@ -46,6 +46,7 @@ public:
     virtual     status_t   setParameters(const String8& params);
     virtual     status_t   setListener(
                               const sp<IMediaRecorderClient>& listener);
+    virtual     status_t   setClientName(const String16& clientName);
     virtual     status_t   prepare();
     virtual     status_t   getMaxAmplitude(int* max);
     virtual     status_t   start();
