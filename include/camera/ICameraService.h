@@ -21,11 +21,12 @@
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
-#include <camera/ICameraClient.h>
-#include <camera/ICamera.h>
-#include <camera/IProCameraUser.h>
-
 namespace android {
+
+class ICamera;
+class ICameraClient;
+class IProCameraUser;
+class IProCameraCallbacks;
 
 class ICameraService : public IInterface
 {
@@ -58,7 +59,9 @@ public:
             int clientUid) = 0;
 
     virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId) = 0;
+            int cameraId,
+            const String16& clientPackageName,
+            int clientUid) = 0;
 };
 
 // ----------------------------------------------------------------------------
