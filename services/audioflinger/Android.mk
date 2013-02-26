@@ -66,6 +66,9 @@ LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
 LOCAL_CFLAGS += -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE
 
+# uncomment to allow tee sink debugging to be enabled by property
+# LOCAL_CFLAGS += -DTEE_SINK
+
 # uncomment to enable the audio watchdog
 # LOCAL_SRC_FILES += AudioWatchdog.cpp
 # LOCAL_CFLAGS += -DAUDIO_WATCHDOG
