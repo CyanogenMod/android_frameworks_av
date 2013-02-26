@@ -19,7 +19,9 @@
 #define ANDROID_SERVERS_CAMERA_CAMERASERVICE_H
 
 #include <utils/Vector.h>
+#include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
+#include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
 #include <hardware/camera.h>
 
@@ -54,9 +56,11 @@ public:
     virtual int32_t     getNumberOfCameras();
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId);
-    virtual sp<IProCameraUser>
-                        connect(const sp<IProCameraCallbacks>& cameraCb, int cameraId);
+
+    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
+            const String16& clientPackageName, int clientUid);
+    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
+            int cameraId);
 
     // Extra permissions checks
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
@@ -100,9 +104,11 @@ public:
     protected:
         BasicClient(const sp<CameraService>& cameraService,
                 const sp<IBinder>& remoteCallback,
+                const String16& clientPackageName,
                 int cameraId,
                 int cameraFacing,
                 int clientPid,
+                uid_t clientUid,
                 int servicePid);
 
         virtual ~BasicClient();
@@ -117,12 +123,41 @@ public:
         sp<CameraService>               mCameraService;  // immutable after constructor
         int                             mCameraId;       // immutable after constructor
         int                             mCameraFacing;   // immutable after constructor
+        const String16                  mClientPackageName;
         pid_t                           mClientPid;
+        uid_t                           mClientUid;      // immutable after constructor
         pid_t                           mServicePid;     // immutable after constructor
 
         // - The app-side Binder interface to receive callbacks from us
         wp<IBinder>                     mRemoteCallback; // immutable after constructor
-    };
+
+        // permissions management
+        status_t                        startCameraOps();
+        status_t                        finishCameraOps();
+
+        // Notify client about a fatal error
+        virtual void                    notifyError() = 0;
+    private:
+        AppOpsManager                   mAppOpsManager;
+
+        class OpsCallback : public BnAppOpsCallback {
+        public:
+            OpsCallback(wp<BasicClient> client);
+            virtual void opChanged(int32_t op, const String16& packageName);
+
+        private:
+            wp<BasicClient> mClient;
+
+        }; // class OpsCallback
+
+        sp<OpsCallback> mOpsCallback;
+        // Track whether startCameraOps was called successfully, to avoid
+        // finishing what we didn't start.
+        bool            mOpsActive;
+
+        // IAppOpsCallback interface, indirected through opListener
+        virtual void opChanged(int32_t op, const String16& packageName);
+    }; // class BasicClient
 
     class Client : public BnCamera, public BasicClient
     {
@@ -153,9 +188,11 @@ public:
         // Interface used by CameraService
         Client(const sp<CameraService>& cameraService,
                 const sp<ICameraClient>& cameraClient,
+                const String16& clientPackageName,
                 int cameraId,
                 int cameraFacing,
                 int clientPid,
+                uid_t clientUid,
                 int servicePid);
         ~Client();
 
@@ -169,19 +206,24 @@ public:
         // convert client from cookie. Client lock should be acquired before getting Client.
         static Client*       getClientFromCookie(void* user);
 
+        virtual void         notifyError();
+
         // Initialized in constructor
 
         // - The app-side Binder interface to receive callbacks from us
         sp<ICameraClient>               mCameraClient;
-    };
+
+    }; // class Client
 
     class ProClient : public BnProCameraUser, public BasicClient {
     public:
         ProClient(const sp<CameraService>& cameraService,
                 const sp<IProCameraCallbacks>& remoteCallback,
+                const String16& clientPackageName,
                 int cameraId,
                 int cameraFacing,
                 int clientPid,
+                uid_t clientUid,
                 int servicePid);
 
         virtual ~ProClient();
@@ -217,9 +259,10 @@ public:
         virtual status_t      cancelStream(int streamId);
 
     protected:
-        sp<IProCameraCallbacks> mRemoteCallback;
+        virtual void          notifyError();
 
-    };
+        sp<IProCameraCallbacks> mRemoteCallback;
+    }; // class ProClient
 
 private:
 

@@ -53,6 +53,7 @@ class ICamera;
 class Surface;
 class Mutex;
 class String8;
+class String16;
 
 // ref-counted object for callbacks
 class CameraListener: virtual public RefBase
@@ -67,12 +68,19 @@ public:
 class Camera : public BnCameraClient, public IBinder::DeathRecipient
 {
 public:
+    enum {
+        USE_CALLING_UID = -1
+    };
+
             // construct a camera client from an existing remote
     static  sp<Camera>  create(const sp<ICamera>& camera);
     static  int32_t     getNumberOfCameras();
     static  status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
-    static  sp<Camera>  connect(int cameraId);
+    static  sp<Camera>  connect(int cameraId,
+                                const String16& clientPackageName,
+                                int clientUid);
+
             virtual     ~Camera();
             void        init();
 

@@ -219,6 +219,7 @@ public:
     status_t    setVideoFrameRate(int frames_per_second);
     status_t    setParameters(const String8& params);
     status_t    setListener(const sp<MediaRecorderListener>& listener);
+    status_t    setClientName(const String16& clientName);
     status_t    prepare();
     status_t    getMaxAmplitude(int* max);
     status_t    start();

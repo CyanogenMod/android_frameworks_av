@@ -35,9 +35,12 @@ static int getCallingPid() {
 
 CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        int cameraId, int cameraFacing, int clientPid, int servicePid):
-        Client(cameraService, cameraClient,
-                cameraId, cameraFacing, clientPid, servicePid)
+        const String16& clientPackageName,
+        int cameraId, int cameraFacing,
+        int clientPid, int clientUid,
+        int servicePid):
+        Client(cameraService, cameraClient, clientPackageName,
+                cameraId, cameraFacing, clientPid, clientUid, servicePid)
 {
     int callingPid = getCallingPid();
     LOG1("CameraClient::CameraClient E (pid %d, id %d)", callingPid, cameraId);
@@ -57,10 +60,17 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
 
 status_t CameraClient::initialize(camera_module_t *module) {
     int callingPid = getCallingPid();
+    status_t res;
+
     LOG1("CameraClient::initialize E (pid %d, id %d)", callingPid, mCameraId);
 
+    // Verify ops permissions
+    res = startCameraOps();
+    if (res != OK) {
+        return res;
+    }
+
     char camera_device_name[10];
-    status_t res;
     snprintf(camera_device_name, sizeof(camera_device_name), "%d", mCameraId);
 
     mHardware = new CameraHardwareInterface(camera_device_name);

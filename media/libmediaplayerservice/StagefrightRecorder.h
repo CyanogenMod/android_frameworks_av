@@ -56,6 +56,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t setOutputFile(int fd, int64_t offset, int64_t length);
     virtual status_t setParameters(const String8& params);
     virtual status_t setListener(const sp<IMediaRecorderClient>& listener);
+    virtual status_t setClientName(const String16& clientName);
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
@@ -72,6 +73,8 @@ private:
     sp<ICameraRecordingProxy> mCameraProxy;
     sp<Surface> mPreviewSurface;
     sp<IMediaRecorderClient> mListener;
+    String16 mClientName;
+    uid_t mClientUid;
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;

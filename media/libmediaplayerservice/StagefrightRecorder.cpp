@@ -730,6 +730,12 @@ status_t StagefrightRecorder::setListener(const sp<IMediaRecorderClient> &listen
     return OK;
 }
 
+status_t StagefrightRecorder::setClientName(const String16& clientName) {
+    mClientName = clientName;
+
+    return OK;
+}
+
 status_t StagefrightRecorder::prepare() {
     return OK;
 }
@@ -737,6 +743,8 @@ status_t StagefrightRecorder::prepare() {
 status_t StagefrightRecorder::start() {
     CHECK_GE(mOutputFd, 0);
 
+    // Get UID here for permission checking
+    mClientUid = IPCThreadState::self()->getCallingUid();
     if (mWriter != NULL) {
         ALOGE("File writer is not avaialble");
         return UNKNOWN_ERROR;
@@ -1312,13 +1320,14 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
         mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId,
+                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate, mPreviewSurface,
                 mTimeBetweenTimeLapseFrameCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId, videoSize, mFrameRate,
+                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
+                videoSize, mFrameRate,
                 mPreviewSurface, true /*storeMetaDataInVideoBuffers*/);
     }
     mCamera.clear();
