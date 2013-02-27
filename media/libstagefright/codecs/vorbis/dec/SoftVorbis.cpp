@@ -93,7 +93,7 @@ void SoftVorbis::initPorts() {
 
     def.format.audio.pNativeRender = NULL;
     def.format.audio.bFlagErrorConcealment = OMX_FALSE;
-    def.format.audio.eEncoding = OMX_AUDIO_CodingAAC;
+    def.format.audio.eEncoding = OMX_AUDIO_CodingVORBIS;
 
     addPort(def);
 
