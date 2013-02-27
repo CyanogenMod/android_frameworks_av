@@ -17,7 +17,7 @@
 #ifndef ANDROID_SERVERS_CAMERA_CAMERA2CLIENT_H
 #define ANDROID_SERVERS_CAMERA_CAMERA2CLIENT_H
 
-#include "Camera2Device.h"
+#include "CameraDeviceBase.h"
 #include "CameraService.h"
 #include "camera2/Parameters.h"
 #include "camera2/FrameProcessor.h"
@@ -31,12 +31,12 @@ namespace android {
 
 class IMemory;
 /**
- * Implements the android.hardware.camera API on top of
- * camera device HAL version 2.
+ * Interface between android.hardware.Camera API and Camera HAL device for versions
+ * CAMERA_DEVICE_API_VERSION_2_0 and 3_0.
  */
 class Camera2Client :
         public CameraService::Client,
-        public Camera2Device::NotificationListener
+        public CameraDeviceBase::NotificationListener
 {
 public:
     /**
@@ -77,7 +77,9 @@ public:
             int cameraFacing,
             int clientPid,
             uid_t clientUid,
-            int servicePid);
+            int servicePid,
+            int deviceVersion);
+
     virtual ~Camera2Client();
 
     status_t initialize(camera_module_t *module);
@@ -85,7 +87,7 @@ public:
     virtual status_t dump(int fd, const Vector<String16>& args);
 
     /**
-     * Interface used by Camera2Device
+     * Interface used by CameraDeviceBase
      */
 
     virtual void notifyError(int errorCode, int arg1, int arg2);
@@ -99,7 +101,7 @@ public:
      */
 
     int getCameraId() const;
-    const sp<Camera2Device>& getCameraDevice();
+    const sp<CameraDeviceBase>& getCameraDevice();
     const sp<CameraService>& getCameraService();
     camera2::SharedParameters& getParameters();
 
@@ -211,9 +213,9 @@ private:
 
     bool mAfInMotion;
 
-    /** Camera2Device instance wrapping HAL2 entry */
+    /** CameraDevice instance, wraps HAL camera device */
 
-    sp<Camera2Device> mDevice;
+    sp<CameraDeviceBase> mDevice;
 
     /** Utility members */
 

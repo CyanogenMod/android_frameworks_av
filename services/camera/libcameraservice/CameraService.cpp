@@ -244,9 +244,11 @@ sp<ICamera> CameraService::connect(
         break;
       case CAMERA_DEVICE_API_VERSION_2_0:
       case CAMERA_DEVICE_API_VERSION_2_1:
+      case CAMERA_DEVICE_API_VERSION_3_0:
         client = new Camera2Client(this, cameraClient,
                 clientPackageName, cameraId,
-                facing, callingPid, clientUid, getpid());
+                facing, callingPid, clientUid, getpid(),
+                deviceVersion);
         break;
       case -1:
         ALOGE("Invalid camera id %d", cameraId);

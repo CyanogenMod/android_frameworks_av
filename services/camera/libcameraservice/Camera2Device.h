@@ -21,184 +21,53 @@
 #include <utils/Errors.h>
 #include <utils/List.h>
 #include <utils/Mutex.h>
-#include <utils/RefBase.h>
-#include <utils/String8.h>
-#include <utils/String16.h>
-#include <utils/Vector.h>
 
-#include "hardware/camera2.h"
-#include "camera/CameraMetadata.h"
+#include "CameraDeviceBase.h"
 
 namespace android {
 
-class Camera2Device : public virtual RefBase {
+/**
+ * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_2_0
+ */
+class Camera2Device: public CameraDeviceBase {
   public:
     Camera2Device(int id);
 
-    ~Camera2Device();
-
-    status_t initialize(camera_module_t *module);
-    status_t disconnect();
-
-    status_t dump(int fd, const Vector<String16>& args);
+    virtual ~Camera2Device();
 
     /**
-     * The device's static characteristics metadata buffer
+     * CameraDevice interface
      */
-    const CameraMetadata& info() const;
-
-    /**
-     * Submit request for capture. The Camera2Device takes ownership of the
-     * passed-in buffer.
-     */
-    status_t capture(CameraMetadata &request);
-
-    /**
-     * Submit request for streaming. The Camera2Device makes a copy of the
-     * passed-in buffer and the caller retains ownership.
-     */
-    status_t setStreamingRequest(const CameraMetadata &request);
-
-    /**
-     * Clear the streaming request slot.
-     */
-    status_t clearStreamingRequest();
-
-    /**
-     * Wait until a request with the given ID has been dequeued by the
-     * HAL. Returns TIMED_OUT if the timeout duration is reached. Returns
-     * immediately if the latest request received by the HAL has this id.
-     */
-    status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
-
-    /**
-     * Create an output stream of the requested size and format.
-     *
-     * If format is CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, then the HAL device selects
-     * an appropriate format; it can be queried with getStreamInfo.
-     *
-     * If format is HAL_PIXEL_FORMAT_COMPRESSED, the size parameter must be
-     * equal to the size in bytes of the buffers to allocate for the stream. For
-     * other formats, the size parameter is ignored.
-     */
-    status_t createStream(sp<ANativeWindow> consumer,
+    virtual status_t initialize(camera_module_t *module);
+    virtual status_t disconnect();
+    virtual status_t dump(int fd, const Vector<String16>& args);
+    virtual const CameraMetadata& info() const;
+    virtual status_t capture(CameraMetadata &request);
+    virtual status_t setStreamingRequest(const CameraMetadata &request);
+    virtual status_t clearStreamingRequest();
+    virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
+    virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format, size_t size,
             int *id);
-
-    /**
-     * Create an input reprocess stream that uses buffers from an existing
-     * output stream.
-     */
-    status_t createReprocessStreamFromStream(int outputId, int *id);
-
-    /**
-     * Get information about a given stream.
-     */
-    status_t getStreamInfo(int id,
+    virtual status_t createReprocessStreamFromStream(int outputId, int *id);
+    virtual status_t getStreamInfo(int id,
             uint32_t *width, uint32_t *height, uint32_t *format);
-
-    /**
-     * Set stream gralloc buffer transform
-     */
-    status_t setStreamTransform(int id, int transform);
-
-    /**
-     * Delete stream. Must not be called if there are requests in flight which
-     * reference that stream.
-     */
-    status_t deleteStream(int id);
-
-    /**
-     * Delete reprocess stream. Must not be called if there are requests in
-     * flight which reference that stream.
-     */
-    status_t deleteReprocessStream(int id);
-
-    /**
-     * Create a metadata buffer with fields that the HAL device believes are
-     * best for the given use case
-     */
-    status_t createDefaultRequest(int templateId, CameraMetadata *request);
-
-    /**
-     * Wait until all requests have been processed. Returns INVALID_OPERATION if
-     * the streaming slot is not empty, or TIMED_OUT if the requests haven't
-     * finished processing in 10 seconds.
-     */
-    status_t waitUntilDrained();
-
-    /**
-     * Abstract class for HAL notification listeners
-     */
-    class NotificationListener {
-      public:
-        // Refer to the Camera2 HAL definition for notification definitions
-        virtual void notifyError(int errorCode, int arg1, int arg2) = 0;
-        virtual void notifyShutter(int frameNumber, nsecs_t timestamp) = 0;
-        virtual void notifyAutoFocus(uint8_t newState, int triggerId) = 0;
-        virtual void notifyAutoExposure(uint8_t newState, int triggerId) = 0;
-        virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId) = 0;
-      protected:
-        virtual ~NotificationListener();
-    };
-
-    /**
-     * Connect HAL notifications to a listener. Overwrites previous
-     * listener. Set to NULL to stop receiving notifications.
-     */
-    status_t setNotifyCallback(NotificationListener *listener);
-
-    /**
-     * Wait for a new frame to be produced, with timeout in nanoseconds.
-     * Returns TIMED_OUT when no frame produced within the specified duration
-     */
-    status_t waitForNextFrame(nsecs_t timeout);
-
-    /**
-     * Get next metadata frame from the frame queue. Returns NULL if the queue
-     * is empty; caller takes ownership of the metadata buffer.
-     */
-    status_t getNextFrame(CameraMetadata *frame);
-
-    /**
-     * Trigger auto-focus. The latest ID used in a trigger autofocus or cancel
-     * autofocus call will be returned by the HAL in all subsequent AF
-     * notifications.
-     */
-    status_t triggerAutofocus(uint32_t id);
-
-    /**
-     * Cancel auto-focus. The latest ID used in a trigger autofocus/cancel
-     * autofocus call will be returned by the HAL in all subsequent AF
-     * notifications.
-     */
-    status_t triggerCancelAutofocus(uint32_t id);
-
-    /**
-     * Trigger pre-capture metering. The latest ID used in a trigger pre-capture
-     * call will be returned by the HAL in all subsequent AE and AWB
-     * notifications.
-     */
-    status_t triggerPrecaptureMetering(uint32_t id);
-
-    /**
-     * Abstract interface for clients that want to listen to reprocess buffer
-     * release events
-     */
-    struct BufferReleasedListener: public virtual RefBase {
-        virtual void onBufferReleased(buffer_handle_t *handle) = 0;
-    };
-
-    /**
-     * Push a buffer to be reprocessed into a reprocessing stream, and
-     * provide a listener to call once the buffer is returned by the HAL
-     */
-    status_t pushReprocessBuffer(int reprocessStreamId,
+    virtual status_t setStreamTransform(int id, int transform);
+    virtual status_t deleteStream(int id);
+    virtual status_t deleteReprocessStream(int id);
+    virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
+    virtual status_t waitUntilDrained();
+    virtual status_t setNotifyCallback(NotificationListener *listener);
+    virtual status_t waitForNextFrame(nsecs_t timeout);
+    virtual status_t getNextFrame(CameraMetadata *frame);
+    virtual status_t triggerAutofocus(uint32_t id);
+    virtual status_t triggerCancelAutofocus(uint32_t id);
+    virtual status_t triggerPrecaptureMetering(uint32_t id);
+    virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
-
   private:
     const int mId;
-    camera2_device_t *mDevice;
+    camera2_device_t *mHal2Device;
 
     CameraMetadata mDeviceInfo;
     vendor_tag_query_ops_t *mVendorTagOps;
@@ -249,7 +118,7 @@ class Camera2Device : public virtual RefBase {
         status_t freeBuffers(List<camera_metadata_t*>::iterator start,
                 List<camera_metadata_t*>::iterator end);
 
-        camera2_device_t *mDevice;
+        camera2_device_t *mHal2Device;
 
         Mutex mMutex;
         Condition notEmpty;
@@ -341,7 +210,7 @@ class Camera2Device : public virtual RefBase {
         } mState;
 
         sp<ANativeWindow> mConsumerInterface;
-        camera2_device_t *mDevice;
+        camera2_device_t *mHal2Device;
 
         uint32_t mId;
         uint32_t mWidth;
@@ -435,7 +304,7 @@ class Camera2Device : public virtual RefBase {
 
         List<QueueEntry> mInFlightQueue;
 
-        camera2_device_t *mDevice;
+        camera2_device_t *mHal2Device;
 
         uint32_t mId;
         uint32_t mWidth;

@@ -30,7 +30,7 @@
 
 #include "ZslProcessor.h"
 #include <gui/Surface.h>
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 #include "../Camera2Client.h"
 
 
@@ -114,7 +114,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
 
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) return OK;
-    sp<Camera2Device> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = client->getCameraDevice();
 
     if (mZslConsumer == 0) {
         // Create CPU buffer queue endpoint
@@ -202,7 +202,7 @@ status_t ZslProcessor::deleteStream() {
     if (mZslStreamId != NO_STREAM) {
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) return OK;
-        sp<Camera2Device> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = client->getCameraDevice();
 
         res = device->deleteReprocessStream(mZslReprocessStreamId);
         if (res != OK) {
@@ -289,10 +289,12 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
         uint8_t requestType = ANDROID_REQUEST_TYPE_REPROCESS;
         res = request.update(ANDROID_REQUEST_TYPE,
                 &requestType, 1);
-        uint8_t inputStreams[1] = { mZslReprocessStreamId };
+        uint8_t inputStreams[1] =
+                { static_cast<uint8_t>(mZslReprocessStreamId) };
         if (res == OK) request.update(ANDROID_REQUEST_INPUT_STREAMS,
                 inputStreams, 1);
-        uint8_t outputStreams[1] = { client->getCaptureStreamId() };
+        uint8_t outputStreams[1] =
+                { static_cast<uint8_t>(client->getCaptureStreamId()) };
         if (res == OK) request.update(ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 1);
         res = request.update(ANDROID_REQUEST_ID,
