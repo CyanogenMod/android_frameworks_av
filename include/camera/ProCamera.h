@@ -169,6 +169,9 @@ public:
     /**
       * Delete a stream.
       * Lock free.
+      *
+      * NOTE: As a side effect this cancels ALL streaming requests.
+      *
       * Errors: BAD_VALUE if unknown stream ID.
       *         PERMISSION_DENIED if the stream wasn't yours
       */
