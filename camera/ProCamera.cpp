@@ -31,71 +31,19 @@
 #include <camera/IProCameraCallbacks.h>
 
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/Surface.h>
 
 #include <system/camera_metadata.h>
 
 namespace android {
 
-// client singleton for camera service binder interface
-Mutex ProCamera::mLock;
-sp<ICameraService> ProCamera::mCameraService;
-sp<ProCamera::DeathNotifier> ProCamera::mDeathNotifier;
-
-// establish binder interface to camera service
-const sp<ICameraService>& ProCamera::getCameraService()
-{
-    Mutex::Autolock _l(mLock);
-    if (mCameraService.get() == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.camera"));
-            if (binder != 0)
-                break;
-            ALOGW("CameraService not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while(true);
-        if (mDeathNotifier == NULL) {
-            mDeathNotifier = new DeathNotifier();
-        }
-        binder->linkToDeath(mDeathNotifier);
-        mCameraService = interface_cast<ICameraService>(binder);
-    }
-    ALOGE_IF(mCameraService==0, "no CameraService!?");
-    return mCameraService;
-}
-
 sp<ProCamera> ProCamera::connect(int cameraId)
 {
-    ALOGV("connect");
-    sp<ProCamera> c = new ProCamera();
-    sp<IProCameraCallbacks> cl = c;
-    const sp<ICameraService>& cs = getCameraService();
-    if (cs != 0) {
-        c->mCamera = cs->connect(cl, cameraId);
-    }
-    if (c->mCamera != 0) {
-        c->mCamera->asBinder()->linkToDeath(c);
-        c->mStatus = NO_ERROR;
-    } else {
-        c.clear();
-    }
-    return c;
+    return CameraBaseT::connect(cameraId, String16(),
+                                 ICameraService::USE_CALLING_UID);
 }
 
-void ProCamera::disconnect()
-{
-    ALOGV("%s: disconnect", __FUNCTION__);
-    if (mCamera != 0) {
-        mCamera->disconnect();
-        mCamera->asBinder()->unlinkToDeath(this);
-        mCamera = 0;
-    }
-    ALOGV("%s: disconnect (done)", __FUNCTION__);
-}
-
-ProCamera::ProCamera()
+ProCamera::ProCamera(int cameraId)
+    : CameraBase(cameraId)
 {
 }
 
@@ -104,74 +52,28 @@ ProCamera::~ProCamera()
 
 }
 
-sp<IProCameraUser> ProCamera::remote()
-{
-    return mCamera;
-}
-
-void ProCamera::binderDied(const wp<IBinder>& who) {
-    ALOGW("IProCameraUser died");
-    notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_SERVER_DIED, 0);
-}
-
-void ProCamera::DeathNotifier::binderDied(const wp<IBinder>& who) {
-    ALOGV("binderDied");
-    Mutex::Autolock _l(ProCamera::mLock);
-    ProCamera::mCameraService.clear();
-    ALOGW("Camera service died!");
-}
-
-void ProCamera::setListener(const sp<ProCameraListener>& listener)
-{
-    Mutex::Autolock _l(mLock);
-    mListener = listener;
-}
-
+/* IProCameraUser's implementation */
 
 // callback from camera service
 void ProCamera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
 {
-    sp<ProCameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->notify(msgType, ext1, ext2);
-    }
+    return CameraBaseT::notifyCallback(msgType, ext1, ext2);
 }
 
 // callback from camera service when frame or image is ready
 void ProCamera::dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
                           camera_frame_metadata_t *metadata)
 {
-    sp<ProCameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postData(msgType, dataPtr, metadata);
-    }
+    return CameraBaseT::dataCallback(msgType, dataPtr, metadata);
 }
 
 // callback from camera service when timestamped frame is ready
 void ProCamera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType,
-                                                    const sp<IMemory>& dataPtr)
+                                   const sp<IMemory>& dataPtr)
 {
-    sp<ProCameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postDataTimestamp(timestamp, msgType, dataPtr);
-    } else {
-        ALOGW("No listener was set. Drop a recording frame.");
-    }
+    CameraBaseT::dataCallbackTimestamp(timestamp, msgType, dataPtr);
 }
 
-/* IProCameraUser's implementation */
 
 void ProCamera::onLockStatusChanged(
                                  IProCameraCallbacks::LockStatus newLockStatus)
@@ -291,9 +193,9 @@ status_t ProCamera::deleteStream(int streamId)
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
-                          const sp<Surface>& surface,
-                          /*out*/
-                          int* streamId)
+                                 const sp<Surface>& surface,
+                                 /*out*/
+                                 int* streamId)
 {
     *streamId = -1;
 
@@ -304,14 +206,15 @@ status_t ProCamera::createStream(int width, int height, int format,
         return BAD_VALUE;
     }
 
-    return createStream(width, height, format, surface->getIGraphicBufferProducer(),
+    return createStream(width, height, format,
+                        surface->getIGraphicBufferProducer(),
                         streamId);
 }
 
 status_t ProCamera::createStream(int width, int height, int format,
-                          const sp<IGraphicBufferProducer>& bufferProducer,
-                          /*out*/
-                          int* streamId) {
+                                 const sp<IGraphicBufferProducer>& bufferProducer,
+                                 /*out*/
+                                 int* streamId) {
     *streamId = -1;
 
     ALOGV("%s: createStreamT %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
@@ -335,10 +238,10 @@ status_t ProCamera::createStream(int width, int height, int format,
 }
 
 status_t ProCamera::createStreamCpu(int width, int height, int format,
-                          int heapCount,
-                          /*out*/
-                          sp<CpuConsumer>* cpuConsumer,
-                          int* streamId)
+                                    int heapCount,
+                                    /*out*/
+                                    sp<CpuConsumer>* cpuConsumer,
+                                    int* streamId)
 {
     ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
                                                                         format);
@@ -354,8 +257,9 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     sp<Surface> stc = new Surface(
         cc->getProducerInterface());
 
-    status_t s = createStream(width, height, format, stc->getIGraphicBufferProducer(),
-                        streamId);
+    status_t s = createStream(width, height, format,
+                              stc->getIGraphicBufferProducer(),
+                              streamId);
 
     if (s != OK) {
         ALOGE("%s: Failure to create stream %dx%d (fmt=0x%x)", __FUNCTION__,
@@ -377,15 +281,6 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     *cpuConsumer = cc;
 
     return s;
-}
-
-int ProCamera::getNumberOfCameras() {
-    const sp<ICameraService> cs = getCameraService();
-
-    if (!cs.get()) {
-        return DEAD_OBJECT;
-    }
-    return cs->getNumberOfCameras();
 }
 
 camera_metadata* ProCamera::getCameraInfo(int cameraId) {

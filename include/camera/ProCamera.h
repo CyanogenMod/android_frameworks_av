@@ -27,8 +27,12 @@
 #include <camera/CameraMetadata.h>
 #include <gui/CpuConsumer.h>
 
+#include <gui/Surface.h>
+
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
+
+#include <camera/CameraBase.h>
 
 struct camera_metadata;
 
@@ -53,6 +57,8 @@ public:
     // OnBufferReceived and OnRequestReceived can come in with any order,
     // use android.sensor.timestamp and LockedBuffer.timestamp to correlate them
 
+    // TODO: remove onBufferReceived
+
     // A new frame buffer has been received for this stream.
     // -- This callback only fires for createStreamCpu streams
     // -- Use buf.timestamp to correlate with metadata's
@@ -67,22 +73,36 @@ public:
       */
     virtual void onResultReceived(int32_t frameId, camera_metadata* result) = 0;
 
+    // TODO: make onFrameAvailable pure virtual
 
     // A new frame buffer has been received for this stream.
     // -- This callback only fires for createStreamCpu streams
     // -- Use buf.timestamp to correlate with metadata's android.sensor.timestamp
     // -- The buffer should be accessed with CpuConsumer::lockNextBuffer
     //      and CpuConsumer::unlockBuffer
-    virtual void onFrameAvailable(int streamId,
-                                  const sp<CpuConsumer>& cpuConsumer) {
+    virtual void onFrameAvailable(int /*streamId*/,
+                                  const sp<CpuConsumer>& /*cpuConsumer*/) {
     }
 
+    // TODO: Remove useOnFrameAvailable
     virtual bool useOnFrameAvailable() {
         return false;
     }
 };
 
-class ProCamera : public BnProCameraCallbacks, public IBinder::DeathRecipient
+class ProCamera;
+
+template <>
+struct CameraTraits<ProCamera>
+{
+    typedef ProCameraListener     TCamListener;
+    typedef IProCameraUser        TCamUser;
+    typedef IProCameraCallbacks   TCamCallbacks;
+};
+
+class ProCamera :
+    public CameraBase<ProCamera>,
+    public BnProCameraCallbacks
 {
 public:
     /**
@@ -91,10 +111,7 @@ public:
      * to be acquired with exclusive[Try]Lock.
      */
     static sp<ProCamera> connect(int cameraId);
-    virtual void disconnect();
     virtual ~ProCamera();
-
-    void setListener(const sp<ProCameraListener>& listener);
 
     /**
      * Exclusive Locks:
@@ -187,9 +204,6 @@ public:
                                  /*out*/
                                   camera_metadata** request) const;
 
-    // Get number of cameras
-    static int getNumberOfCameras();
-
     // Get static camera metadata
     camera_metadata* getCameraInfo(int cameraId);
 
@@ -222,8 +236,6 @@ public:
     //   BAD_VALUE - invalid streamId or count passed
     int dropFrameBuffer(int streamId, int count);
 
-    sp<IProCameraUser>         remote();
-
 protected:
     ////////////////////////////////////////////////////////
     // IProCameraCallbacks implementation
@@ -241,35 +253,8 @@ protected:
 
     virtual void        onResultReceived(int32_t frameId,
                                          camera_metadata* result);
-
-    class DeathNotifier: public IBinder::DeathRecipient
-    {
-    public:
-        DeathNotifier() {
-        }
-
-        virtual void binderDied(const wp<IBinder>& who);
-    };
-
 private:
-    ProCamera();
-
-    virtual void binderDied(const wp<IBinder>& who);
-
-    // helper function to obtain camera service handle
-    static const sp<ICameraService>& getCameraService();
-
-    static sp<DeathNotifier> mDeathNotifier;
-
-    sp<IProCameraUser>  mCamera;
-    status_t            mStatus;
-
-    sp<ProCameraListener>  mListener;
-
-    friend class DeathNotifier;
-
-    static  Mutex               mLock;
-    static  sp<ICameraService>  mCameraService;
+    ProCamera(int cameraId);
 
     class ProFrameListener : public CpuConsumer::FrameAvailableListener {
     public:
@@ -324,7 +309,7 @@ private:
 
     StreamInfo& getStreamInfo(int streamId);
 
-
+    friend class CameraBase;
 };
 
 }; // namespace android
