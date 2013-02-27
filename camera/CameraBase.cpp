@@ -231,6 +231,22 @@ status_t CameraBase<TCam, TCamTraits>::getCameraInfo(int cameraId,
     return cs->getCameraInfo(cameraId, cameraInfo);
 }
 
+template <typename TCam, typename TCamTraits>
+status_t CameraBase<TCam, TCamTraits>::addServiceListener(
+                            const sp<ICameraServiceListener>& listener) {
+    const sp<ICameraService>& cs = getCameraService();
+    if (cs == 0) return UNKNOWN_ERROR;
+    return cs->addListener(listener);
+}
+
+template <typename TCam, typename TCamTraits>
+status_t CameraBase<TCam, TCamTraits>::removeServiceListener(
+                            const sp<ICameraServiceListener>& listener) {
+    const sp<ICameraService>& cs = getCameraService();
+    if (cs == 0) return UNKNOWN_ERROR;
+    return cs->removeListener(listener);
+}
+
 template class CameraBase<ProCamera>;
 template class CameraBase<Camera>;
 

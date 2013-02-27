@@ -30,6 +30,8 @@
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
 
+#include <camera/ICameraServiceListener.h>
+
 /* This needs to be increased if we can have more cameras */
 #define MAX_CAMERAS 2
 
@@ -66,6 +68,10 @@ public:
             const String16& clientPackageName, int clientUid);
     virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
             int cameraId, const String16& clientPackageName, int clientUid);
+
+    virtual status_t    addListener(const sp<ICameraServiceListener>& listener);
+    virtual status_t    removeListener(
+                                    const sp<ICameraServiceListener>& listener);
 
     // Extra permissions checks
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
@@ -263,6 +269,9 @@ public:
         virtual status_t      requestStream(int streamId);
         virtual status_t      cancelStream(int streamId);
 
+        // Callbacks from camera service
+        virtual void          onExclusiveLockStolen();
+
     protected:
         virtual void          notifyError();
 
@@ -303,11 +312,30 @@ private:
 
     camera_module_t *mModule;
 
+    Vector<sp<ICameraServiceListener> >
+                        mListenerList;
+
+    // guard only mStatusList and the broadcasting of ICameraServiceListener
+    Mutex               mStatusMutex;
+    ICameraServiceListener::Status
+                        mStatusList[MAX_CAMERAS];
+
+    // Broadcast the new status if it changed (locks the service mutex)
+    void                updateStatus(
+                            ICameraServiceListener::Status status,
+                            int32_t cameraId);
+    // Call this one when the service mutex is already held (idempotent)
+    void                updateStatusUnsafe(
+                            ICameraServiceListener::Status status,
+                            int32_t cameraId);
+
     // IBinder::DeathRecipient implementation
-    virtual void binderDied(const wp<IBinder> &who);
+    virtual void        binderDied(const wp<IBinder> &who);
 
     // Helpers
     int                 getDeviceVersion(int cameraId, int* facing);
+
+    bool                isValidCameraId(int cameraId);
 };
 
 } // namespace android
