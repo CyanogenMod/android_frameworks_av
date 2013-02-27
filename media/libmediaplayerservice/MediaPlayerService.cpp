@@ -1,6 +1,6 @@
 /*
 **
-** Copyright (c) 2012, The Linux Foundation. All rights reserved.
+** Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
 ** Not a Contribution, Apache license notifications and license are retained
 ** for attribution purposes only.
 **
@@ -1733,6 +1733,27 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         (*me->mCallback)(
             me, NULL, (size_t)AudioTrack::EVENT_UNDERRUN, me->mCallbackCookie);
         data->unlock();
+        return;
+    }
+    if (event == AudioTrack::EVENT_HW_FAIL) {
+        ALOGW("Event hardware failure");
+        CallbackData *data = (CallbackData*)cookie;
+        if (data != NULL) {
+            data->lock();
+            AudioOutput *me = data->getOutput();
+            if (me == NULL) {
+                // no output set, likely because the track was
+                // scheduled to be reused
+                // by another player, but the format turned out
+                // to be incompatible.
+                data->unlock();
+                return;
+            }
+            ALOGV("Callback!!!");
+            (*me->mCallback)(me, NULL, (size_t)AudioTrack::EVENT_HW_FAIL,
+                             me->mCallbackCookie);
+            data->unlock();
+        }
         return;
     }
 #endif

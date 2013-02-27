@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +65,8 @@ public:
         EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from loop start if loop count was not 0.
         EVENT_MARKER = 3,           // Playback head is at the specified marker position (See setMarkerPosition()).
         EVENT_NEW_POS = 4,          // Playback head is at a new position (See setPositionUpdatePeriod()).
-        EVENT_BUFFER_END = 5        // Playback head is at the end of the buffer.
+        EVENT_BUFFER_END = 5,       // Playback head is at the end of the buffer.
+        EVENT_HW_FAIL = 6,          // ADSP failure.
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()

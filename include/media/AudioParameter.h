@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008-2011 The Android Open Source Project
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ public:
     static const char * const keyFluenceType;
     static const char * const keySSR;
     static const char * const keyHandleA2dpDevice;
+    static const char * const keyADSPStatus;
 #endif
 
     String8 toString();
