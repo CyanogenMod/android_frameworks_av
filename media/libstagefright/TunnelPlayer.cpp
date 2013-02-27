@@ -501,6 +501,28 @@ void TunnelPlayer::resume() {
 size_t TunnelPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
         void *buffer, size_t size, void *cookie) {
+#ifdef QCOM_HARDWARE
+    TunnelPlayer *me = (TunnelPlayer *)cookie;
+    if(me != NULL) {
+        ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+        if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
+            if(me->mReachedEOS == true) {
+                //in the case of seek all these flags will be reset
+                me->mReachedOutputEOS = true;
+                ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+                me->mObserver->postAudioEOS(0);
+            }else {
+                ALOGV("postAudioEOS ignored since %d", me->mSeeking);
+            }
+        } else if (size == AudioTrack::EVENT_HW_FAIL) {
+            ALOGV("postAudioEOS in SSR " );
+            me->mReachedOutputEOS = true;
+            me->mReachedEOS = true;
+            me->killExtractorThread = true;
+            me->mObserver->postAudioEOS(0);
+        }
+    }
+#else
     if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
         TunnelPlayer *me = (TunnelPlayer *)cookie;
         if(me->mReachedEOS == true) {
@@ -512,6 +534,7 @@ size_t TunnelPlayer::AudioSinkCallback(
             ALOGV("postAudioEOS ignored since %d", me->mSeeking);
         }
     }
+#endif
     return 1;
 }
 
