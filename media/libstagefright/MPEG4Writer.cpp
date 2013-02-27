@@ -2558,7 +2558,8 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
     mOwner->writeInt32(0x480000);    // vert resolution
     mOwner->writeInt32(0);           // reserved
     mOwner->writeInt16(1);           // frame count
-    mOwner->write("                                ", 32);
+    mOwner->writeInt8(0);            // compressor string length
+    mOwner->write("                               ", 31);
     mOwner->writeInt16(0x18);        // depth
     mOwner->writeInt16(-1);          // predefined
 
