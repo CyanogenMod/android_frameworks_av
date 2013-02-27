@@ -536,7 +536,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     size_t nalSize;
     bool foundSlice = false;
     while ((err = getNextNALUnit(&data, &size, &nalStart, &nalSize)) == OK) {
-        CHECK_GT(nalSize, 0u);
+        if (nalSize == 0) continue;
 
         unsigned nalType = nalStart[0] & 0x1f;
         bool flush = false;

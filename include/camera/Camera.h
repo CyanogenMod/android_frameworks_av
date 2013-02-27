@@ -23,35 +23,13 @@
 #include <camera/ICameraClient.h>
 #include <camera/ICameraRecordingProxy.h>
 #include <camera/ICameraRecordingProxyListener.h>
+#include <camera/ICameraService.h>
+#include <camera/ICamera.h>
+#include <camera/CameraBase.h>
 
 namespace android {
 
-struct CameraInfo {
-    /**
-     * The direction that the camera faces to. It should be CAMERA_FACING_BACK
-     * or CAMERA_FACING_FRONT.
-     */
-    int facing;
-
-    /**
-     * The orientation of the camera image. The value is the angle that the
-     * camera image needs to be rotated clockwise so it shows correctly on the
-     * display in its natural orientation. It should be 0, 90, 180, or 270.
-     *
-     * For example, suppose a device has a naturally tall screen. The
-     * back-facing camera sensor is mounted in landscape. You are looking at
-     * the screen. If the top side of the camera sensor is aligned with the
-     * right edge of the screen in natural orientation, the value should be
-     * 90. If the top side of a front-facing camera sensor is aligned with the
-     * right of the screen, the value should be 270.
-     */
-    int orientation;
-};
-
-class ICameraService;
-class ICamera;
 class Surface;
-class Mutex;
 class String8;
 class String16;
 
@@ -65,31 +43,36 @@ public:
     virtual void postDataTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr) = 0;
 };
 
-class Camera : public BnCameraClient, public IBinder::DeathRecipient
+class Camera;
+
+template <>
+struct CameraTraits<Camera>
+{
+    typedef CameraListener        TCamListener;
+    typedef ICamera               TCamUser;
+    typedef ICameraClient         TCamCallbacks;
+};
+
+class Camera :
+    public CameraBase<Camera>,
+    public BnCameraClient
 {
 public:
     enum {
-        USE_CALLING_UID = -1
+        USE_CALLING_UID = ICameraService::USE_CALLING_UID
     };
 
             // construct a camera client from an existing remote
     static  sp<Camera>  create(const sp<ICamera>& camera);
-    static  int32_t     getNumberOfCameras();
-    static  status_t    getCameraInfo(int cameraId,
-                                      struct CameraInfo* cameraInfo);
     static  sp<Camera>  connect(int cameraId,
                                 const String16& clientPackageName,
                                 int clientUid);
 
             virtual     ~Camera();
-            void        init();
 
             status_t    reconnect();
-            void        disconnect();
             status_t    lock();
             status_t    unlock();
-
-            status_t    getStatus() { return mStatus; }
 
             // pass the buffered Surface to the camera service
             status_t    setPreviewDisplay(const sp<Surface>& surface);
@@ -151,8 +134,6 @@ public:
                                      camera_frame_metadata_t *metadata);
     virtual void        dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr);
 
-    sp<ICamera>         remote();
-
     class RecordingProxy : public BnCameraRecordingProxy
     {
     public:
@@ -168,35 +149,13 @@ public:
     };
 
 protected:
-                        Camera();
+                        Camera(int cameraId);
                         Camera(const Camera&);
                         Camera& operator=(const Camera);
-                        virtual void binderDied(const wp<IBinder>& who);
 
-            class DeathNotifier: public IBinder::DeathRecipient
-            {
-            public:
-                DeathNotifier() {
-                }
+    sp<ICameraRecordingProxyListener>  mRecordingProxyListener;
 
-                virtual void binderDied(const wp<IBinder>& who);
-            };
-
-            static sp<DeathNotifier> mDeathNotifier;
-
-            // helper function to obtain camera service handle
-            static const sp<ICameraService>& getCameraService();
-
-            sp<ICamera>         mCamera;
-            status_t            mStatus;
-
-            sp<CameraListener>  mListener;
-            sp<ICameraRecordingProxyListener>  mRecordingProxyListener;
-
-            friend class DeathNotifier;
-
-            static  Mutex               mLock;
-            static  sp<ICameraService>  mCameraService;
+    friend class        CameraBase;
 };
 
 }; // namespace android

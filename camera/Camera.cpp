@@ -27,46 +27,16 @@
 #include <camera/Camera.h>
 #include <camera/ICameraRecordingProxyListener.h>
 #include <camera/ICameraService.h>
+#include <camera/ICamera.h>
 
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 
 namespace android {
 
-// client singleton for camera service binder interface
-Mutex Camera::mLock;
-sp<ICameraService> Camera::mCameraService;
-sp<Camera::DeathNotifier> Camera::mDeathNotifier;
-
-// establish binder interface to camera service
-const sp<ICameraService>& Camera::getCameraService()
+Camera::Camera(int cameraId)
+    : CameraBase(cameraId)
 {
-    Mutex::Autolock _l(mLock);
-    if (mCameraService.get() == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.camera"));
-            if (binder != 0)
-                break;
-            ALOGW("CameraService not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while(true);
-        if (mDeathNotifier == NULL) {
-            mDeathNotifier = new DeathNotifier();
-        }
-        binder->linkToDeath(mDeathNotifier);
-        mCameraService = interface_cast<ICameraService>(binder);
-    }
-    ALOGE_IF(mCameraService==0, "no CameraService!?");
-    return mCameraService;
-}
-
-// ---------------------------------------------------------------------------
-
-Camera::Camera()
-{
-    init();
 }
 
 // construct a camera client from an existing camera remote
@@ -78,7 +48,7 @@ sp<Camera> Camera::create(const sp<ICamera>& camera)
          return 0;
      }
 
-    sp<Camera> c = new Camera();
+    sp<Camera> c = new Camera(-1);
     if (camera->connect(c) == NO_ERROR) {
         c->mStatus = NO_ERROR;
         c->mCamera = camera;
@@ -86,11 +56,6 @@ sp<Camera> Camera::create(const sp<ICamera>& camera)
         return c;
     }
     return 0;
-}
-
-void Camera::init()
-{
-    mStatus = UNKNOWN_ERROR;
 }
 
 Camera::~Camera()
@@ -103,47 +68,10 @@ Camera::~Camera()
     // deadlock if we call any method of ICamera here.
 }
 
-int32_t Camera::getNumberOfCameras()
-{
-    const sp<ICameraService>& cs = getCameraService();
-    if (cs == 0) return 0;
-    return cs->getNumberOfCameras();
-}
-
-status_t Camera::getCameraInfo(int cameraId,
-                               struct CameraInfo* cameraInfo) {
-    const sp<ICameraService>& cs = getCameraService();
-    if (cs == 0) return UNKNOWN_ERROR;
-    return cs->getCameraInfo(cameraId, cameraInfo);
-}
-
 sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
         int clientUid)
 {
-    ALOGV("connect");
-    sp<Camera> c = new Camera();
-    sp<ICameraClient> cl = c;
-    const sp<ICameraService>& cs = getCameraService();
-    if (cs != 0) {
-        c->mCamera = cs->connect(cl, cameraId, clientPackageName, clientUid);
-    }
-    if (c->mCamera != 0) {
-        c->mCamera->asBinder()->linkToDeath(c);
-        c->mStatus = NO_ERROR;
-    } else {
-        c.clear();
-    }
-    return c;
-}
-
-void Camera::disconnect()
-{
-    ALOGV("disconnect");
-    if (mCamera != 0) {
-        mCamera->disconnect();
-        mCamera->asBinder()->unlinkToDeath(this);
-        mCamera = 0;
-    }
+    return CameraBaseT::connect(cameraId, clientPackageName, clientUid);
 }
 
 status_t Camera::reconnect()
@@ -152,11 +80,6 @@ status_t Camera::reconnect()
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
     return c->connect(this);
-}
-
-sp<ICamera> Camera::remote()
-{
-    return mCamera;
 }
 
 status_t Camera::lock()
@@ -353,28 +276,14 @@ void Camera::setPreviewCallbackFlags(int flag)
 // callback from camera service
 void Camera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
 {
-    sp<CameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->notify(msgType, ext1, ext2);
-    }
+    return CameraBaseT::notifyCallback(msgType, ext1, ext2);
 }
 
 // callback from camera service when frame or image is ready
 void Camera::dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
                           camera_frame_metadata_t *metadata)
 {
-    sp<CameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postData(msgType, dataPtr, metadata);
-    }
+    return CameraBaseT::dataCallback(msgType, dataPtr, metadata);
 }
 
 // callback from camera service when timestamped frame is ready
@@ -393,29 +302,10 @@ void Camera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<
         return;
     }
 
-    sp<CameraListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postDataTimestamp(timestamp, msgType, dataPtr);
-    } else {
+    if (!CameraBaseT::dataCallbackTimestamp(timestamp, msgType, dataPtr)) {
         ALOGW("No listener was set. Drop a recording frame.");
         releaseRecordingFrame(dataPtr);
     }
-}
-
-void Camera::binderDied(const wp<IBinder>& who) {
-    ALOGW("ICamera died");
-    notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_SERVER_DIED, 0);
-}
-
-void Camera::DeathNotifier::binderDied(const wp<IBinder>& who) {
-    ALOGV("binderDied");
-    Mutex::Autolock _l(Camera::mLock);
-    Camera::mCameraService.clear();
-    ALOGW("Camera server died!");
 }
 
 sp<ICameraRecordingProxy> Camera::getRecordingProxy() {

@@ -23,6 +23,10 @@
 #include <binder/IServiceManager.h>
 
 #include <camera/ICameraService.h>
+#include <camera/IProCameraUser.h>
+#include <camera/IProCameraCallbacks.h>
+#include <camera/ICamera.h>
+#include <camera/ICameraClient.h>
 
 namespace android {
 
@@ -70,12 +74,15 @@ public:
     }
 
     // connect to camera service (pro client)
-    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb, int cameraId)
+    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
+                                       const String16 &clientPackageName, int clientUid)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(cameraCb->asBinder());
         data.writeInt32(cameraId);
+        data.writeString16(clientPackageName);
+        data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT_PRO, data, &reply);
         return interface_cast<IProCameraUser>(reply.readStrongBinder());
     }
@@ -119,7 +126,11 @@ status_t BnCameraService::onTransact(
         case CONNECT_PRO: {
             CHECK_INTERFACE(ICameraService, data, reply);
             sp<IProCameraCallbacks> cameraClient = interface_cast<IProCameraCallbacks>(data.readStrongBinder());
-            sp<IProCameraUser> camera = connect(cameraClient, data.readInt32());
+            int32_t cameraId = data.readInt32();
+            const String16 clientName = data.readString16();
+            int32_t clientUid = data.readInt32();
+            sp<IProCameraUser> camera = connect(cameraClient, cameraId,
+                                                clientName, clientUid);
             reply->writeStrongBinder(camera->asBinder());
             return NO_ERROR;
         } break;
