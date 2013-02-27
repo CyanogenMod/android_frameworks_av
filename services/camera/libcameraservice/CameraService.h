@@ -25,6 +25,11 @@
 #include <camera/ICameraService.h>
 #include <hardware/camera.h>
 
+#include <camera/ICamera.h>
+#include <camera/ICameraClient.h>
+#include <camera/IProCameraUser.h>
+#include <camera/IProCameraCallbacks.h>
+
 /* This needs to be increased if we can have more cameras */
 #define MAX_CAMERAS 2
 
@@ -60,7 +65,7 @@ public:
     virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
             const String16& clientPackageName, int clientUid);
     virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId);
+            int cameraId, const String16& clientPackageName, int clientUid);
 
     // Extra permissions checks
     virtual status_t    onTransact(uint32_t code, const Parcel& data,

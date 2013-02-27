@@ -16,6 +16,7 @@ LOCAL_SRC_FILES:= \
 	IProCameraUser.cpp \
 	IProCameraCallbacks.cpp \
 	ProCamera.cpp \
+	CameraBase.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \

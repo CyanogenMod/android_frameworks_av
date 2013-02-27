@@ -269,9 +269,13 @@ sp<ICamera> CameraService::connect(
 
 sp<IProCameraUser> CameraService::connect(
                                         const sp<IProCameraCallbacks>& cameraCb,
-                                        int cameraId)
+                                        int cameraId,
+                                        const String16& clientPackageName,
+                                        int clientUid)
 {
     int callingPid = getCallingPid();
+
+    // TODO: use clientPackageName and clientUid with appOpsMangr
 
     LOG1("CameraService::connectPro E (pid %d, id %d)", callingPid, cameraId);
 
