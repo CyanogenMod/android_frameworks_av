@@ -241,6 +241,17 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
                                     int heapCount,
                                     /*out*/
                                     sp<CpuConsumer>* cpuConsumer,
+                                    int* streamId) {
+    return createStreamCpu(width, height, format, heapCount,
+                           /*synchronousMode*/true,
+                           cpuConsumer, streamId);
+}
+
+status_t ProCamera::createStreamCpu(int width, int height, int format,
+                                    int heapCount,
+                                    bool synchronousMode,
+                                    /*out*/
+                                    sp<CpuConsumer>* cpuConsumer,
                                     int* streamId)
 {
     ALOGV("%s: createStreamW %dx%d (fmt=0x%x)", __FUNCTION__, width, height,
@@ -251,7 +262,7 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
 
-    sp<CpuConsumer> cc = new CpuConsumer(heapCount);
+    sp<CpuConsumer> cc = new CpuConsumer(heapCount, synchronousMode);
     cc->setName(String8("ProCamera::mCpuConsumer"));
 
     sp<Surface> stc = new Surface(
@@ -272,6 +283,7 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
 
     getStreamInfo(*streamId).cpuStream = true;
     getStreamInfo(*streamId).cpuConsumer = cc;
+    getStreamInfo(*streamId).synchronousMode = synchronousMode;
     getStreamInfo(*streamId).stc = stc;
     // for lifetime management
     getStreamInfo(*streamId).frameAvailableListener = frameAvailableListener;
@@ -370,6 +382,13 @@ int ProCamera::dropFrameBuffer(int streamId, int count) {
     if (!si.cpuStream) {
         return BAD_VALUE;
     } else if (count < 0) {
+        return BAD_VALUE;
+    }
+
+    if (!si.synchronousMode) {
+        ALOGW("%s: No need to drop frames on asynchronous streams,"
+              " as asynchronous mode only keeps 1 latest frame around.",
+              __FUNCTION__);
         return BAD_VALUE;
     }
 

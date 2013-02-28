@@ -201,6 +201,12 @@ public:
                           /*out*/
                           sp<CpuConsumer>* cpuConsumer,
                           int* streamId);
+    status_t createStreamCpu(int width, int height, int format,
+                          int heapCount,
+                          bool synchronousMode,
+                          /*out*/
+                          sp<CpuConsumer>* cpuConsumer,
+                          int* streamId);
 
     // Create a request object from a template.
     status_t createDefaultRequest(int templateId,
@@ -296,6 +302,7 @@ private:
         int  streamID;
         bool cpuStream;
         sp<CpuConsumer> cpuConsumer;
+        bool synchronousMode;
         sp<ProFrameListener> frameAvailableListener;
         sp<Surface> stc;
         int frameReady;
