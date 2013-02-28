@@ -995,7 +995,7 @@ status_t AwesomePlayer::play_l() {
                 property_get("lpa.min_duration",minUserDefDuration,"LPA_MIN_DURATION_USEC_DEFAULT");
                 minDurationForLPA = atoi(minUserDefDuration);
                 if(minDurationForLPA < LPA_MIN_DURATION_USEC_ALLOWED) {
-                    ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
+                    ALOGV("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
                     minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
                 }
                 if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) &&
@@ -1602,7 +1602,7 @@ status_t AwesomePlayer::initAudioDecoder() {
         property_get("lpa.min_duration",minUserDefDuration,"LPA_MIN_DURATION_USEC_DEFAULT");
         minDurationForLPA = atoi(minUserDefDuration);
         if(minDurationForLPA < LPA_MIN_DURATION_USEC_ALLOWED) {
-            ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
+            ALOGV("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
             minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
         }
         if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
