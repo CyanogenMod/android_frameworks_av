@@ -27,6 +27,7 @@ class ICamera;
 class ICameraClient;
 class IProCameraUser;
 class IProCameraCallbacks;
+class ICameraServiceListener;
 
 class ICameraService : public IInterface
 {
@@ -35,7 +36,9 @@ public:
         GET_NUMBER_OF_CAMERAS = IBinder::FIRST_CALL_TRANSACTION,
         GET_CAMERA_INFO,
         CONNECT,
-        CONNECT_PRO
+        CONNECT_PRO,
+        ADD_LISTENER,
+        REMOVE_LISTENER,
     };
 
     enum {
@@ -45,9 +48,18 @@ public:
 public:
     DECLARE_META_INTERFACE(CameraService);
 
-    virtual int32_t         getNumberOfCameras() = 0;
-    virtual status_t        getCameraInfo(int cameraId,
+    virtual int32_t  getNumberOfCameras() = 0;
+    virtual status_t getCameraInfo(int cameraId,
                                           struct CameraInfo* cameraInfo) = 0;
+
+    // Returns 'OK' if operation succeeded
+    // - Errors: ALREADY_EXISTS if the listener was already added
+    virtual status_t addListener(const sp<ICameraServiceListener>& listener)
+                                                                            = 0;
+    // Returns 'OK' if operation succeeded
+    // - Errors: BAD_VALUE if specified listener was not in the listener list
+    virtual status_t removeListener(const sp<ICameraServiceListener>& listener)
+                                                                            = 0;
     /**
      * clientPackageName and clientUid are used for permissions checking.  if
      * clientUid == USE_CALLING_UID, then the calling UID is used instead. Only

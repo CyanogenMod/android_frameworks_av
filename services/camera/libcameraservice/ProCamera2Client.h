@@ -104,6 +104,9 @@ public:
     const sp<Camera2Device>& getCameraDevice();
     const sp<CameraService>& getCameraService();
 
+    // Callbacks from camera service
+    virtual void onExclusiveLockStolen();
+
     /**
      * Interface used by independent components of ProCamera2Client.
      */
@@ -167,6 +170,8 @@ private:
     // - if no we can't modify the request queue.
     // note that creating/deleting streams we own is still OK
     bool mExclusiveLock;
+
+    void detachDevice();
 };
 
 }; // namespace android
