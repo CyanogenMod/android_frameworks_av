@@ -90,6 +90,7 @@ nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
 
 uint32_t AudioFlinger::mScreenState;
 
+#ifdef TEE_SINK
 bool AudioFlinger::mTeeSinkInputEnabled = false;
 bool AudioFlinger::mTeeSinkOutputEnabled = false;
 bool AudioFlinger::mTeeSinkTrackEnabled = false;
@@ -97,6 +98,7 @@ bool AudioFlinger::mTeeSinkTrackEnabled = false;
 size_t AudioFlinger::mTeeSinkInputFrames = kTeeSinkInputFramesDefault;
 size_t AudioFlinger::mTeeSinkOutputFrames = kTeeSinkOutputFramesDefault;
 size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -146,6 +148,7 @@ AudioFlinger::AudioFlinger()
     if (doLog) {
         mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters");
     }
+#ifdef TEE_SINK
     (void) property_get("ro.debuggable", value, "0");
     int debuggable = atoi(value);
     int teeEnabled = 0;
@@ -159,6 +162,7 @@ AudioFlinger::AudioFlinger()
         mTeeSinkOutputEnabled = true;
     if (teeEnabled & 4)
         mTeeSinkTrackEnabled = true;
+#endif
 }
 
 void AudioFlinger::onFirstRef()
@@ -347,10 +351,12 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             dev->dump(dev, fd);
         }
 
+#ifdef TEE_SINK
         // dump the serially shared record tee sink
         if (mRecordTeeSource != 0) {
             dumpTee(fd, mRecordTeeSource);
         }
+#endif
 
         if (locked) {
             mLock.unlock();
@@ -1624,6 +1630,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
 
     if (status == NO_ERROR && inStream != NULL) {
 
+#ifdef TEE_SINK
         // Try to re-use most recently used Pipe to archive a copy of input for dumpsys,
         // or (re-)create if current Pipe is idle and does not match the new format
         sp<NBAIO_Sink> teeSink;
@@ -1670,6 +1677,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         default:
             break;
         }
+#endif
 
         AudioStreamIn *input = new AudioStreamIn(inHwDev, inStream);
 
@@ -1682,8 +1690,11 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                   reqChannels,
                                   id,
                                   primaryOutputDevice_l(),
-                                  *pDevices,
-                                  teeSink);
+                                  *pDevices
+#ifdef TEE_SINK
+                                  , teeSink
+#endif
+                                  );
         mRecordThreads.add(id, thread);
         ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
         if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
@@ -2235,6 +2246,7 @@ int comparEntry(const void *p1, const void *p2)
     return strcmp(((const Entry *) p1)->mName, ((const Entry *) p2)->mName);
 }
 
+#ifdef TEE_SINK
 void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_handle_t id)
 {
     NBAIO_Source *teeSource = source.get();
@@ -2350,6 +2362,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
         }
     }
 }
+#endif
 
 // ----------------------------------------------------------------------------
 
