@@ -33,6 +33,8 @@
 #include <hardware/camera2.h> // for CAMERA2_TEMPLATE_PREVIEW only
 #include <camera/CameraMetadata.h>
 
+#include <camera/ICameraServiceListener.h>
+
 namespace android {
 namespace camera2 {
 namespace tests {
@@ -48,9 +50,9 @@ namespace client {
 #define TEST_FORMAT_DEPTH HAL_PIXEL_FORMAT_Y16
 
 // defaults for display "test"
-#define TEST_DISPLAY_FORMAT HAL_PIXEL_FORMAT_Y16
-#define TEST_DISPLAY_WIDTH 1280
-#define TEST_DISPLAY_HEIGHT 960
+#define TEST_DISPLAY_FORMAT HAL_PIXEL_FORMAT_Y8
+#define TEST_DISPLAY_WIDTH 320
+#define TEST_DISPLAY_HEIGHT 240
 
 #define TEST_CPU_FRAME_COUNT 2
 #define TEST_CPU_HEAP_COUNT 5
@@ -67,6 +69,52 @@ namespace client {
 #define ASSERT_OK(x) ASSERT_EQ(OK, (x))
 
 class ProCameraTest;
+
+struct ServiceListener : public BnCameraServiceListener {
+
+    ServiceListener() :
+        mLatestStatus(STATUS_UNKNOWN),
+        mPrevStatus(STATUS_UNKNOWN)
+    {
+    }
+
+    void onStatusChanged(Status status, int32_t cameraId) {
+        dout << "On status changed: 0x" << std::hex
+             << status << " cameraId " << cameraId
+             << std::endl;
+
+        Mutex::Autolock al(mMutex);
+
+        mLatestStatus = status;
+        mCondition.broadcast();
+    }
+
+    status_t waitForStatusChange(Status& newStatus) {
+        Mutex::Autolock al(mMutex);
+
+        if (mLatestStatus != mPrevStatus) {
+            newStatus = mLatestStatus;
+            mPrevStatus = mLatestStatus;
+            return OK;
+        }
+
+        status_t stat = mCondition.waitRelative(mMutex,
+                                               TEST_LISTENER_TIMEOUT);
+
+        if (stat == OK) {
+            newStatus = mLatestStatus;
+            mPrevStatus = mLatestStatus;
+        }
+
+        return stat;
+    }
+
+    Condition mCondition;
+    Mutex mMutex;
+
+    Status mLatestStatus;
+    Status mPrevStatus;
+};
 
 enum ProEvent {
     UNKNOWN,
@@ -441,7 +489,6 @@ protected:
         }
         request.acquire(requestTmp);
     }
-
 };
 
 sp<Thread> ProCameraTest::mTestThread;
@@ -538,18 +585,52 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
     }
 
     int depthStreamId = -1;
-    EXPECT_OK(mCamera->createStream(mDisplayW, mDisplayH, mDisplayFmt, surface,
-                                    &depthStreamId));
-    EXPECT_NE(-1, depthStreamId);
 
-    EXPECT_OK(mCamera->exclusiveTryLock());
+    sp<ServiceListener> listener = new ServiceListener();
+    EXPECT_OK(ProCamera::addServiceListener(listener));
 
-    uint8_t streams[] = { depthStreamId };
-    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1));
+    ServiceListener::Status currentStatus = ServiceListener::STATUS_AVAILABLE;
 
-    dout << "will sleep now for " << mDisplaySecs << std::endl;
-    sleep(mDisplaySecs);
+    dout << "Will now stream and resume infinitely..." << std::endl;
+    while (true) {
 
+        if (currentStatus == ServiceListener::STATUS_AVAILABLE) {
+
+            EXPECT_OK(mCamera->createStream(mDisplayW, mDisplayH, mDisplayFmt,
+                                            surface,
+                                            &depthStreamId));
+            EXPECT_NE(-1, depthStreamId);
+
+            EXPECT_OK(mCamera->exclusiveTryLock());
+
+            uint8_t streams[] = { depthStreamId };
+            ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(
+                                                 streams,
+                                                 /*count*/1));
+        }
+
+        ServiceListener::Status stat = ServiceListener::STATUS_UNKNOWN;
+
+        // TODO: maybe check for getch every once in a while?
+        while (listener->waitForStatusChange(/*out*/stat) != OK);
+
+        if (currentStatus != stat) {
+            if (stat == ServiceListener::STATUS_AVAILABLE) {
+                dout << "Reconnecting to camera" << std::endl;
+                mCamera = ProCamera::connect(CAMERA_ID);
+            } else if (stat == ServiceListener::STATUS_NOT_AVAILABLE) {
+                dout << "Disconnecting from camera" << std::endl;
+                mCamera->disconnect();
+            } else {
+                dout << "Unknown status change "
+                     << std::hex << stat << std::endl;
+            }
+
+            currentStatus = stat;
+        }
+    }
+
+    EXPECT_OK(ProCamera::removeServiceListener(listener));
     EXPECT_OK(mCamera->deleteStream(depthStreamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
@@ -980,7 +1061,7 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
-TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
+TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesSync) {
     if (HasFatalFailure()) {
         return;
     }
@@ -990,7 +1071,8 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
     int streamId = -1;
     sp<CpuConsumer> consumer;
     EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
-                  TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT, &consumer, &streamId));
+                  TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT,
+                  /*synchronousMode*/true, &consumer, &streamId));
     EXPECT_NE(-1, streamId);
 
     EXPECT_OK(mCamera->exclusiveTryLock());
@@ -1031,6 +1113,102 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
     // Done: clean up
     EXPECT_OK(mCamera->deleteStream(streamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
+    if (HasFatalFailure()) {
+        return;
+    }
+
+    const int NUM_REQUESTS = 20 * TEST_CPU_FRAME_COUNT;
+
+    int streamId = -1;
+    sp<CpuConsumer> consumer;
+    EXPECT_OK(mCamera->createStreamCpu(/*width*/1280, /*height*/960,
+                  TEST_FORMAT_MAIN, TEST_CPU_HEAP_COUNT,
+                  /*synchronousMode*/false, &consumer, &streamId));
+    EXPECT_NE(-1, streamId);
+
+    EXPECT_OK(mCamera->exclusiveTryLock());
+
+    uint8_t streams[] = { streamId };
+    ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
+                                                     /*requests*/NUM_REQUESTS));
+
+    // Consume a couple of results
+    for (int i = 0; i < NUM_REQUESTS; ++i) {
+        int numFrames;
+        EXPECT_TRUE((numFrames = mCamera->waitForFrameBuffer(streamId)) > 0);
+
+        dout << "Dropped " << (numFrames - 1) << " frames" << std::endl;
+
+        // Skip the counter ahead, don't try to consume these frames again
+        i += numFrames-1;
+
+        // "Consume" the buffer
+        CpuConsumer::LockedBuffer buf;
+        EXPECT_OK(consumer->lockNextBuffer(&buf));
+
+        dout << "Buffer asynchronously received on streamId = " << streamId <<
+                ", dataPtr = " << (void*)buf.data <<
+                ", timestamp = " << buf.timestamp << std::endl;
+
+        // Process at 10fps, stream is at 15fps.
+        // This means we will definitely fill up the buffer queue with
+        // extra buffers and need to drop them.
+        usleep(TEST_FRAME_PROCESSING_DELAY_US);
+
+        EXPECT_OK(consumer->unlockBuffer(buf));
+    }
+
+    // Done: clean up
+    EXPECT_OK(mCamera->deleteStream(streamId));
+    EXPECT_OK(mCamera->exclusiveUnlock());
+}
+
+
+
+//TODO: refactor into separate file
+TEST_F(ProCameraTest, ServiceListenersSubscribe) {
+
+    ASSERT_EQ(4u, sizeof(ServiceListener::Status));
+
+    sp<ServiceListener> listener = new ServiceListener();
+
+    EXPECT_EQ(BAD_VALUE, ProCamera::removeServiceListener(listener));
+    EXPECT_OK(ProCamera::addServiceListener(listener));
+
+    EXPECT_EQ(ALREADY_EXISTS, ProCamera::addServiceListener(listener));
+    EXPECT_OK(ProCamera::removeServiceListener(listener));
+
+    EXPECT_EQ(BAD_VALUE, ProCamera::removeServiceListener(listener));
+}
+
+//TODO: refactor into separate file
+TEST_F(ProCameraTest, ServiceListenersFunctional) {
+
+    sp<ServiceListener> listener = new ServiceListener();
+
+    EXPECT_OK(ProCamera::addServiceListener(listener));
+
+    sp<Camera> cam = Camera::connect(CAMERA_ID,
+                                     /*clientPackageName*/String16(),
+                                     -1);
+    EXPECT_NE((void*)NULL, cam.get());
+
+    ServiceListener::Status stat = ServiceListener::STATUS_UNKNOWN;
+    EXPECT_OK(listener->waitForStatusChange(/*out*/stat));
+
+    EXPECT_EQ(ServiceListener::STATUS_NOT_AVAILABLE, stat);
+
+    if (cam.get()) {
+        cam->disconnect();
+    }
+
+    EXPECT_OK(listener->waitForStatusChange(/*out*/stat));
+    EXPECT_EQ(ServiceListener::STATUS_AVAILABLE, stat);
+
+    EXPECT_OK(ProCamera::removeServiceListener(listener));
 }
 
 
