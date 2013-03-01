@@ -23,6 +23,7 @@
 #include <binder/IServiceManager.h>
 
 #include <camera/ICameraService.h>
+#include <camera/ICameraServiceListener.h>
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
 #include <camera/ICamera.h>
@@ -86,6 +87,24 @@ public:
         remote()->transact(BnCameraService::CONNECT_PRO, data, &reply);
         return interface_cast<IProCameraUser>(reply.readStrongBinder());
     }
+
+    virtual status_t addListener(const sp<ICameraServiceListener>& listener)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(listener->asBinder());
+        remote()->transact(BnCameraService::ADD_LISTENER, data, &reply);
+        return reply.readInt32();
+    }
+
+    virtual status_t removeListener(const sp<ICameraServiceListener>& listener)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(listener->asBinder());
+        remote()->transact(BnCameraService::REMOVE_LISTENER, data, &reply);
+        return reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(CameraService, "android.hardware.ICameraService");
@@ -132,6 +151,20 @@ status_t BnCameraService::onTransact(
             sp<IProCameraUser> camera = connect(cameraClient, cameraId,
                                                 clientName, clientUid);
             reply->writeStrongBinder(camera->asBinder());
+            return NO_ERROR;
+        } break;
+        case ADD_LISTENER: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<ICameraServiceListener> listener =
+                interface_cast<ICameraServiceListener>(data.readStrongBinder());
+            reply->writeInt32(addListener(listener));
+            return NO_ERROR;
+        } break;
+        case REMOVE_LISTENER: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<ICameraServiceListener> listener =
+                interface_cast<ICameraServiceListener>(data.readStrongBinder());
+            reply->writeInt32(removeListener(listener));
             return NO_ERROR;
         } break;
         default:

@@ -71,6 +71,12 @@ public:
                                        /*out*/
                                        struct CameraInfo* cameraInfo);
 
+    static status_t      addServiceListener(
+                                    const sp<ICameraServiceListener>& listener);
+
+    static status_t      removeServiceListener(
+                                    const sp<ICameraServiceListener>& listener);
+
     sp<TCamUser>         remote();
 
     // Status is set to 'UNKNOWN_ERROR' after successful (re)connection

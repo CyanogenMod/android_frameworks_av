@@ -169,6 +169,9 @@ public:
     /**
       * Delete a stream.
       * Lock free.
+      *
+      * NOTE: As a side effect this cancels ALL streaming requests.
+      *
       * Errors: BAD_VALUE if unknown stream ID.
       *         PERMISSION_DENIED if the stream wasn't yours
       */
@@ -195,6 +198,12 @@ public:
                           int* streamId);
     status_t createStreamCpu(int width, int height, int format,
                           int heapCount,
+                          /*out*/
+                          sp<CpuConsumer>* cpuConsumer,
+                          int* streamId);
+    status_t createStreamCpu(int width, int height, int format,
+                          int heapCount,
+                          bool synchronousMode,
                           /*out*/
                           sp<CpuConsumer>* cpuConsumer,
                           int* streamId);
@@ -293,6 +302,7 @@ private:
         int  streamID;
         bool cpuStream;
         sp<CpuConsumer> cpuConsumer;
+        bool synchronousMode;
         sp<ProFrameListener> frameAvailableListener;
         sp<Surface> stc;
         int frameReady;

@@ -115,6 +115,8 @@ status_t ProCamera2Client::exclusiveTryLock() {
     Mutex::Autolock icl(mIProCameraUserLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
+    if (!mDevice.get()) return PERMISSION_DENIED;
+
     if (!mExclusiveLock) {
         mExclusiveLock = true;
 
@@ -143,6 +145,8 @@ status_t ProCamera2Client::exclusiveLock() {
 
     Mutex::Autolock icl(mIProCameraUserLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+
+    if (!mDevice.get()) return PERMISSION_DENIED;
 
     /**
      * TODO: this should asynchronously 'wait' until the lock becomes available
@@ -197,12 +201,33 @@ bool ProCamera2Client::hasExclusiveLock() {
     return mExclusiveLock;
 }
 
+void ProCamera2Client::onExclusiveLockStolen() {
+    ALOGV("%s: ProClient lost exclusivity (id %d)",
+          __FUNCTION__, mCameraId);
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+    SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+
+    if (mExclusiveLock && mRemoteCallback.get() != NULL) {
+        mRemoteCallback->onLockStatusChanged(
+                                       IProCameraCallbacks::LOCK_STOLEN);
+    }
+
+    mExclusiveLock = false;
+
+    //TODO: we should not need to detach the device, merely reset it.
+    detachDevice();
+}
+
 status_t ProCamera2Client::submitRequest(camera_metadata_t* request,
                                          bool streaming) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
     Mutex::Autolock icl(mIProCameraUserLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
+
     if (!mExclusiveLock) {
         return PERMISSION_DENIED;
     }
@@ -224,6 +249,9 @@ status_t ProCamera2Client::cancelRequest(int requestId) {
     ALOGV("%s", __FUNCTION__);
 
     Mutex::Autolock icl(mIProCameraUserLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
+
     if (!mExclusiveLock) {
         return PERMISSION_DENIED;
     }
@@ -247,6 +275,7 @@ status_t ProCamera2Client::cancelStream(int streamId) {
 
     Mutex::Autolock icl(mIProCameraUserLock);
 
+    if (!mDevice.get()) return DEAD_OBJECT;
     mDevice->clearStreamingRequest();
 
     status_t code;
@@ -273,6 +302,8 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     Mutex::Autolock icl(mIProCameraUserLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
@@ -303,6 +334,8 @@ status_t ProCamera2Client::createDefaultRequest(int templateId,
 
     Mutex::Autolock icl(mIProCameraUserLock);
 
+    if (!mDevice.get()) return DEAD_OBJECT;
+
     CameraMetadata metadata;
     if ( (res = mDevice->createDefaultRequest(templateId, &metadata) ) == OK) {
         *request = metadata.release();
@@ -318,6 +351,10 @@ status_t ProCamera2Client::getCameraInfo(int cameraId,
     if (cameraId != mCameraId) {
         return INVALID_OPERATION;
     }
+
+    Mutex::Autolock icl(mIProCameraUserLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
 
     CameraMetadata deviceInfo = mDevice->info();
     *info = deviceInfo.release();
@@ -341,6 +378,12 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     result = "  Device dump:\n";
     write(fd, result.string(), result.size());
 
+    if (!mDevice.get()) {
+        result = "  *** Device is detached\n";
+        write(fd, result.string(), result.size());
+        return NO_ERROR;
+    }
+
     status_t res = mDevice->dump(fd, args);
     if (res != OK) {
         result = String8::format("   Error dumping device: %s (%d)",
@@ -363,9 +406,19 @@ void ProCamera2Client::disconnect() {
     int callingPid = getCallingPid();
     if (callingPid != mClientPid && callingPid != mServicePid) return;
 
+    ALOGV("Camera %d: Shutting down", mCameraId);
+
+    detachDevice();
+    ProClient::disconnect();
+
+    ALOGV("Camera %d: Shut down complete complete", mCameraId);
+}
+
+void ProCamera2Client::detachDevice() {
     if (mDevice == 0) return;
 
-    ALOGV("Camera %d: Shutting down", mCameraId);
+    ALOGV("Camera %d: Stopping processors", mCameraId);
+
     mFrameProcessor->removeListener(FRAME_PROCESSOR_LISTENER_MIN_ID,
                                     FRAME_PROCESSOR_LISTENER_MAX_ID,
                                     /*listener*/this);
@@ -374,11 +427,22 @@ void ProCamera2Client::disconnect() {
     mFrameProcessor->join();
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
+    // WORKAROUND: HAL refuses to disconnect while there's streams in flight
+    {
+        mDevice->clearStreamingRequest();
+
+        status_t code;
+        if ((code = mDevice->waitUntilDrained()) != OK) {
+            ALOGE("%s: waitUntilDrained failed with code 0x%x", __FUNCTION__,
+                  code);
+        }
+    }
+
     mDevice->disconnect();
 
     mDevice.clear();
 
-    ProClient::disconnect();
+    ALOGV("Camera %d: Detach complete", mCameraId);
 }
 
 status_t ProCamera2Client::connect(const sp<IProCameraCallbacks>& client) {
