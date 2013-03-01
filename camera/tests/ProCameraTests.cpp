@@ -1001,11 +1001,6 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
 
     // Consume a couple of results
     for (int i = 0; i < NUM_REQUESTS; ++i) {
-        // Process at 10fps, stream is at 15fps.
-        // This means we will definitely fill up the buffer queue with
-        // extra buffers and need to drop them.
-        usleep(TEST_FRAME_PROCESSING_DELAY_US);
-
         int numFrames;
         EXPECT_TRUE((numFrames = mCamera->waitForFrameBuffer(streamId)) > 0);
 
@@ -1024,6 +1019,11 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFrames) {
         dout << "Buffer synchronously received on streamId = " << streamId <<
                 ", dataPtr = " << (void*)buf.data <<
                 ", timestamp = " << buf.timestamp << std::endl;
+
+        // Process at 10fps, stream is at 15fps.
+        // This means we will definitely fill up the buffer queue with
+        // extra buffers and need to drop them.
+        usleep(TEST_FRAME_PROCESSING_DELAY_US);
 
         EXPECT_OK(consumer->unlockBuffer(buf));
     }
