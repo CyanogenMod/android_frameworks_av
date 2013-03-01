@@ -2124,6 +2124,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
                 (monoPipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
         mPipeSink = monoPipe;
 
+#ifdef TEE_SINK
         if (mTeeSinkOutputEnabled) {
             // create a Pipe to archive a copy of FastMixer's output for dumpsys
             Pipe *teeSink = new Pipe(mTeeSinkOutputFrames, format);
@@ -2137,6 +2138,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
             ALOG_ASSERT(index == 0);
             mTeeSource = teeSource;
         }
+#endif
 
         // create fast mixer and configure it initially with just one fast track for our submix
         mFastMixer = new FastMixer();
@@ -2163,7 +2165,9 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         state->mColdFutexAddr = &mFastMixerFutex;
         state->mColdGen++;
         state->mDumpState = &mFastMixerDumpState;
+#ifdef TEE_SINK
         state->mTeeSink = mTeeSink.get();
+#endif
         mFastMixerNBLogWriter = audioFlinger->newWriter_l(kFastMixerLogSize, "FastMixer");
         state->mNBLogWriter = mFastMixerNBLogWriter.get();
         sq->end();
@@ -3076,8 +3080,10 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
     mutatorCopy.dump(fd);
 #endif
 
+#ifdef TEE_SINK
     // Write the tee output to a .wav file
     dumpTee(fd, mTeeSource, mId);
+#endif
 
 #ifdef AUDIO_WATCHDOG
     if (mAudioWatchdog != 0) {
@@ -3574,16 +3580,21 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
                                          audio_devices_t outDevice,
-                                         audio_devices_t inDevice,
-                                         const sp<NBAIO_Sink>& teeSink) :
+                                         audio_devices_t inDevice
+#ifdef TEE_SINK
+                                         , const sp<NBAIO_Sink>& teeSink
+#endif
+                                         ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
-    mReqSampleRate(sampleRate),
+    mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
     // (but might be better to also clear here for dump?)
-    mTeeSink(teeSink)
+#ifdef TEE_SINK
+    , mTeeSink(teeSink)
+#endif
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
 
@@ -3740,10 +3751,13 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 mRsmpInIndex = mFrameCount;
                                 framesOut = 0;
                                 buffer.frameCount = 0;
-                            } else if (mTeeSink != 0) {
+                            }
+#ifdef TEE_SINK
+                            else if (mTeeSink != 0) {
                                 (void) mTeeSink->write(readInto,
                                         mBytesRead >> Format_frameBitShift(mTeeSink->format()));
                             }
+#endif
                         }
                     }
                 } else {

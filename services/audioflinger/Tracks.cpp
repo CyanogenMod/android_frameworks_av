@@ -141,29 +141,33 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mBufferEnd = (uint8_t *)mBuffer + bufferSize;
         mServerProxy = new ServerProxy(mCblk, mBuffer, frameCount, mFrameSize, isOut);
 
+#ifdef TEE_SINK
         if (mTeeSinkTrackEnabled) {
-        NBAIO_Format pipeFormat = Format_from_SR_C(mSampleRate, mChannelCount);
-        if (pipeFormat != Format_Invalid) {
-            Pipe *pipe = new Pipe(mTeeSinkTrackFrames, pipeFormat);
-            size_t numCounterOffers = 0;
-            const NBAIO_Format offers[1] = {pipeFormat};
-            ssize_t index = pipe->negotiate(offers, 1, NULL, numCounterOffers);
-            ALOG_ASSERT(index == 0);
-            PipeReader *pipeReader = new PipeReader(*pipe);
-            numCounterOffers = 0;
-            index = pipeReader->negotiate(offers, 1, NULL, numCounterOffers);
-            ALOG_ASSERT(index == 0);
-            mTeeSink = pipe;
-            mTeeSource = pipeReader;
+            NBAIO_Format pipeFormat = Format_from_SR_C(mSampleRate, mChannelCount);
+            if (pipeFormat != Format_Invalid) {
+                Pipe *pipe = new Pipe(mTeeSinkTrackFrames, pipeFormat);
+                size_t numCounterOffers = 0;
+                const NBAIO_Format offers[1] = {pipeFormat};
+                ssize_t index = pipe->negotiate(offers, 1, NULL, numCounterOffers);
+                ALOG_ASSERT(index == 0);
+                PipeReader *pipeReader = new PipeReader(*pipe);
+                numCounterOffers = 0;
+                index = pipeReader->negotiate(offers, 1, NULL, numCounterOffers);
+                ALOG_ASSERT(index == 0);
+                mTeeSink = pipe;
+                mTeeSource = pipeReader;
+            }
         }
-        }
+#endif
 
     }
 }
 
 AudioFlinger::ThreadBase::TrackBase::~TrackBase()
 {
+#ifdef TEE_SINK
     dumpTee(-1, mTeeSource, mId);
+#endif
     // delete the proxy before deleting the shared memory it refers to, to avoid dangling reference
     delete mServerProxy;
     if (mCblk != NULL) {
@@ -189,9 +193,11 @@ AudioFlinger::ThreadBase::TrackBase::~TrackBase()
 // This implementation of releaseBuffer() is used by Track and RecordTrack, but not TimedTrack
 void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buffer* buffer)
 {
+#ifdef TEE_SINK
     if (mTeeSink != 0) {
         (void) mTeeSink->write(buffer->raw, buffer->frameCount);
     }
+#endif
 
     buffer->raw = NULL;
     mStepCount = buffer->frameCount;

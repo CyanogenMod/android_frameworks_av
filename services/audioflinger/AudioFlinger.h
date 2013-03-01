@@ -588,11 +588,15 @@ private:
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
 
+#ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change
     sp<NBAIO_Sink>   mRecordTeeSink;
     sp<NBAIO_Source> mRecordTeeSource;
+#endif
 
 public:
+
+#ifdef TEE_SINK
     // tee sink, if enabled by property, allows dumpsys to write most recent audio to .wav file
     static void dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_handle_t id = 0);
 
@@ -611,6 +615,8 @@ public:
     static const size_t kTeeSinkInputFramesDefault = 0x200000;
     static const size_t kTeeSinkOutputFramesDefault = 0x200000;
     static const size_t kTeeSinkTrackFramesDefault = 0x1000;
+#endif
+
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
