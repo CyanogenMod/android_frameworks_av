@@ -542,9 +542,11 @@ private:
     sp<NBAIO_Sink>          mPipeSink;
     // The current sink for the normal mixer to write it's (sub)mix, mOutputSink or mPipeSink
     sp<NBAIO_Sink>          mNormalSink;
+#ifdef TEE_SINK
     // For dumpsys
     sp<NBAIO_Sink>          mTeeSink;
     sp<NBAIO_Source>        mTeeSource;
+#endif
     uint32_t                mScreenState;   // cached copy of gScreenState
     static const size_t     kFastMixerLogSize = 8 * 1024;
     sp<NBLog::Writer>       mFastMixerNBLogWriter;
@@ -703,8 +705,11 @@ public:
                     audio_channel_mask_t channelMask,
                     audio_io_handle_t id,
                     audio_devices_t outDevice,
-                    audio_devices_t inDevice,
-                    const sp<NBAIO_Sink>& teeSink);
+                    audio_devices_t inDevice
+#ifdef TEE_SINK
+                    , const sp<NBAIO_Sink>& teeSink
+#endif
+                    );
             virtual     ~RecordThread();
 
     // no addTrack_l ?
