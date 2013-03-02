@@ -271,10 +271,11 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
     }
 
     if (mCaptureBuffer != 0 && res == OK) {
-        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
+        Camera2Client::SharedCameraCallbacks::Lock
+            l(client->mSharedCameraCallbacks);
         ALOGV("%s: Sending still image to client", __FUNCTION__);
-        if (l.mCameraClient != 0) {
-            l.mCameraClient->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
+        if (l.mRemoteCallback != 0) {
+            l.mRemoteCallback->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE,
                     mCaptureBuffer, NULL);
         } else {
             ALOGV("%s: No client!", __FUNCTION__);
@@ -344,7 +345,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
     }
 
     SharedParameters::Lock l(client->getParameters());
-    /* warning: this also locks a SharedCameraClient */
+    /* warning: this also locks a SharedCameraCallbacks */
     shutterNotifyLocked(l.mParameters, client, mMsgType);
     mShutterNotified = true;
     mTimeoutCount = kMaxTimeoutsForCaptureEnd;
@@ -496,7 +497,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
     }
     if (mNewFrameReceived && !mShutterNotified) {
         SharedParameters::Lock l(client->getParameters());
-        /* warning: this also locks a SharedCameraClient */
+        /* warning: this also locks a SharedCameraCallbacks */
         shutterNotifyLocked(l.mParameters, client, mMsgType);
         mShutterNotified = true;
     }
@@ -651,16 +652,17 @@ status_t CaptureSequencer::updateCaptureRequest(const Parameters &params,
     }
 
     {
-        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
+        Camera2Client::SharedCameraCallbacks::Lock
+            l(client->mSharedCameraCallbacks);
 
         ALOGV("%s: Notifying of shutter close to client", __FUNCTION__);
-        if (l.mCameraClient != 0) {
+        if (l.mRemoteCallback != 0) {
             // ShutterCallback
-            l.mCameraClient->notifyCallback(CAMERA_MSG_SHUTTER,
+            l.mRemoteCallback->notifyCallback(CAMERA_MSG_SHUTTER,
                                             /*ext1*/0, /*ext2*/0);
 
             // RawCallback with null buffer
-            l.mCameraClient->notifyCallback(CAMERA_MSG_RAW_IMAGE_NOTIFY,
+            l.mRemoteCallback->notifyCallback(CAMERA_MSG_RAW_IMAGE_NOTIFY,
                                             /*ext1*/0, /*ext2*/0);
         } else {
             ALOGV("%s: No client!", __FUNCTION__);
