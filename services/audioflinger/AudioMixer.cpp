@@ -122,6 +122,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     mState.hook         = process__nop;
     mState.outputTemp   = NULL;
     mState.resampleTemp = NULL;
+    mState.mLog         = &mDummyLog;
     // mState.reserved
 
     // FIXME Most of the following initialization is probably redundant since
@@ -167,6 +168,11 @@ AudioMixer::~AudioMixer()
     }
     delete [] mState.outputTemp;
     delete [] mState.resampleTemp;
+}
+
+void AudioMixer::setLog(NBLog::Writer *log)
+{
+    mState.mLog = log;
 }
 
 int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
@@ -618,7 +624,6 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
         mState.tracks[name].bufferProvider = bufferProvider;
     }
 }
-
 
 
 void AudioMixer::process(int64_t pts)
