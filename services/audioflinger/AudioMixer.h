@@ -28,6 +28,7 @@
 
 #include <audio_effects/effect_downmix.h>
 #include <system/audio.h>
+#include <media/nbaio/NBLog.h>
 
 namespace android {
 
@@ -220,7 +221,8 @@ private:
         void            (*hook)(state_t* state, int64_t pts);   // one of process__*, never NULL
         int32_t         *outputTemp;
         int32_t         *resampleTemp;
-        int32_t         reserved[2];
+        NBLog::Writer*  mLog;
+        int32_t         reserved[1];
         // FIXME allocate dynamically to save some memory when maxNumTracks < MAX_NUM_TRACKS
         track_t         tracks[MAX_NUM_TRACKS]; __attribute__((aligned(32)));
     };
@@ -247,6 +249,10 @@ private:
 
     const uint32_t  mSampleRate;
 
+    NBLog::Writer   mDummyLog;
+public:
+    void            setLog(NBLog::Writer* log);
+private:
     state_t         mState __attribute__((aligned(32)));
 
     // effect descriptor for the downmixer used by the mixer
