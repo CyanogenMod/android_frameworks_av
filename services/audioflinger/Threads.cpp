@@ -1249,7 +1249,6 @@ Exit:
     if (status) {
         *status = lStatus;
     }
-    mNBLogWriter->logf("createTrack_l");
     return track;
 }
 
@@ -1317,7 +1316,6 @@ float AudioFlinger::PlaybackThread::streamVolume(audio_stream_type_t stream) con
 // addTrack_l() must be called with ThreadBase::mLock held
 status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logf("addTrack_l mName=%d", track->mName);
     status_t status = ALREADY_EXISTS;
 
     // set retry count for buffer fill
@@ -1351,7 +1349,6 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 // destroyTrack_l() must be called with ThreadBase::mLock held
 void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logf("destroyTrack_l mName=%d", track->mName);
     track->mState = TrackBase::TERMINATED;
     // active tracks are removed by threadLoop()
     if (mActiveTracks.indexOf(track) < 0) {
@@ -1361,7 +1358,6 @@ void AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
 
 void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
 {
-    mNBLogWriter->logf("removeTrack_l mName=%d", track->mName);
     track->triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
     mTracks.remove(track);
     deleteTrackName_l(track->name());
@@ -1934,7 +1930,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
                     threadLoop_standby();
 
-                    mNBLogWriter->log("standby");
                     mStandby = true;
                 }
 
@@ -2030,9 +2025,6 @@ if (mType == MIXER) {
         // since we can't guarantee the destructors won't acquire that
         // same lock.  This will also mutate and push a new fast mixer state.
         threadLoop_removeTracks(tracksToRemove);
-        if (tracksToRemove.size() > 0) {
-            logString = "remove";
-        }
         tracksToRemove.clear();
 
         // FIXME I don't understand the need for this here;
@@ -2843,7 +2835,6 @@ track_is_ready: ;
             block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
             pauseAudioWatchdog = true;
         }
-        sq->end();
     }
     if (sq != NULL) {
         sq->end(didModify);
@@ -2874,7 +2865,6 @@ track_is_ready: ;
     if (CC_UNLIKELY(count)) {
         for (size_t i=0 ; i<count ; i++) {
             const sp<Track>& track = tracksToRemove->itemAt(i);
-            mNBLogWriter->logf("prepareTracks_l remove name=%u", track->name());
             mActiveTracks.remove(track);
             if (track->mainBuffer() != mMixBuffer) {
                 chain = getEffectChain_l(track->sessionId());
@@ -3253,9 +3243,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     // remove all the tracks that need to be...
     if (CC_UNLIKELY(trackToRemove != 0)) {
         tracksToRemove->add(trackToRemove);
-#if 0
-        mNBLogWriter->logf("prepareTracks_l remove name=%u", trackToRemove->name());
-#endif
         mActiveTracks.remove(trackToRemove);
         if (!mEffectChains.isEmpty()) {
             ALOGV("stopping track on chain %p for session Id: %d", mEffectChains[0].get(),
