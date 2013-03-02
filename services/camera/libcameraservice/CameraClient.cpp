@@ -117,7 +117,7 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
 
     size_t len = snprintf(buffer, SIZE, "Client[%d] (%p) PID: %d\n",
             mCameraId,
-            getCameraClient()->asBinder().get(),
+            getRemoteCallback()->asBinder().get(),
             mClientPid);
     len = (len > SIZE - 1) ? SIZE - 1 : len;
     write(fd, buffer, len);
@@ -173,10 +173,10 @@ status_t CameraClient::unlock() {
             return INVALID_OPERATION;
         }
         mClientPid = 0;
-        LOG1("clear mCameraClient (pid %d)", callingPid);
+        LOG1("clear mRemoteCallback (pid %d)", callingPid);
         // we need to remove the reference to ICameraClient so that when the app
         // goes away, the reference count goes to 0.
-        mCameraClient.clear();
+        mRemoteCallback.clear();
     }
     return result;
 }
@@ -193,14 +193,15 @@ status_t CameraClient::connect(const sp<ICameraClient>& client) {
         return EBUSY;
     }
 
-    if (mCameraClient != 0 && (client->asBinder() == mCameraClient->asBinder())) {
+    if (mRemoteCallback != 0 &&
+        (client->asBinder() == mRemoteCallback->asBinder())) {
         LOG1("Connect to the same client");
         return NO_ERROR;
     }
 
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
     mClientPid = callingPid;
-    mCameraClient = client;
+    mRemoteCallback = client;
 
     LOG1("connect X (pid %d)", callingPid);
     return NO_ERROR;
@@ -780,7 +781,7 @@ void CameraClient::handleShutter(void) {
         mCameraService->playSound(CameraService::SOUND_SHUTTER);
     }
 
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     if (c != 0) {
         mLock.unlock();
         c->notifyCallback(CAMERA_MSG_SHUTTER, 0, 0);
@@ -811,7 +812,7 @@ void CameraClient::handlePreviewData(int32_t msgType,
     }
 
     // hold a strong pointer to the client
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
 
     // clear callback flags if no client or one-shot mode
     if (c == 0 || (mPreviewCallbackFlag & CAMERA_FRAME_CALLBACK_FLAG_ONE_SHOT_MASK)) {
@@ -841,7 +842,7 @@ void CameraClient::handlePreviewData(int32_t msgType,
 void CameraClient::handlePostview(const sp<IMemory>& mem) {
     disableMsgType(CAMERA_MSG_POSTVIEW_FRAME);
 
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_POSTVIEW_FRAME, mem, NULL);
@@ -856,7 +857,7 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
     size_t size;
     sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
 
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_RAW_IMAGE, mem, NULL);
@@ -867,7 +868,7 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
 void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
     disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
 
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE, mem, NULL);
@@ -877,7 +878,7 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
 
 void CameraClient::handleGenericNotify(int32_t msgType,
     int32_t ext1, int32_t ext2) {
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->notifyCallback(msgType, ext1, ext2);
@@ -886,7 +887,7 @@ void CameraClient::handleGenericNotify(int32_t msgType,
 
 void CameraClient::handleGenericData(int32_t msgType,
     const sp<IMemory>& dataPtr, camera_frame_metadata_t *metadata) {
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(msgType, dataPtr, metadata);
@@ -895,7 +896,7 @@ void CameraClient::handleGenericData(int32_t msgType,
 
 void CameraClient::handleGenericDataTimestamp(nsecs_t timestamp,
     int32_t msgType, const sp<IMemory>& dataPtr) {
-    sp<ICameraClient> c = mCameraClient;
+    sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallbackTimestamp(timestamp, msgType, dataPtr);

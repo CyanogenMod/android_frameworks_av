@@ -223,7 +223,9 @@ sp<ICamera> CameraService::connect(
     if (mClient[cameraId] != 0) {
         client = mClient[cameraId].promote();
         if (client != 0) {
-            if (cameraClient->asBinder() == client->getCameraClient()->asBinder()) {
+            if (cameraClient->asBinder() ==
+                client->getRemoteCallback()->asBinder()) {
+
                 LOG1("CameraService::connect X (pid %d) (the same client)",
                      callingPid);
                 return client;
@@ -496,7 +498,7 @@ sp<CameraService::Client> CameraService::findClientUnsafe(
             continue;
         }
 
-        if (cameraClient == client->getCameraClient()->asBinder()) {
+        if (cameraClient == client->getRemoteCallback()->asBinder()) {
             // Found our camera
             outIndex = i;
             return client;
@@ -639,7 +641,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     int callingPid = getCallingPid();
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
-    mCameraClient = cameraClient;
+    mRemoteCallback = cameraClient;
 
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
@@ -666,7 +668,7 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
         mClientPackageName(clientPackageName)
 {
     mCameraService = cameraService;
-    mRemoteCallback = remoteCallback;
+    mRemoteBinder = remoteCallback;
     mCameraId = cameraId;
     mCameraFacing = cameraFacing;
     mClientPid = clientPid;
@@ -681,7 +683,7 @@ CameraService::BasicClient::~BasicClient() {
 }
 
 void CameraService::BasicClient::disconnect() {
-    mCameraService->removeClientByRemote(mRemoteCallback);
+    mCameraService->removeClientByRemote(mRemoteBinder);
 }
 
 status_t CameraService::BasicClient::startCameraOps() {
@@ -767,7 +769,7 @@ CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
 }
 
 void CameraService::Client::notifyError() {
-    mCameraClient->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
+    mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
 }
 
 // NOTE: function is idempotent

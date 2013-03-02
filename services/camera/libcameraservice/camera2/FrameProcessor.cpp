@@ -195,7 +195,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         entry = frame.find(ANDROID_STATISTICS_FACE_RECTANGLES);
         if (entry.count == 0) {
             // No faces this frame
-            /* warning: locks SharedCameraClient */
+            /* warning: locks SharedCameraCallbacks */
             callbackFaceDetection(client, metadata);
             return OK;
         }
@@ -286,7 +286,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
         metadata.faces = faces.editArray();
     }
 
-    /* warning: locks SharedCameraClient */
+    /* warning: locks SharedCameraCallbacks */
     callbackFaceDetection(client, metadata);
 
     return OK;
@@ -297,9 +297,9 @@ void FrameProcessor::callbackFaceDetection(sp<Camera2Client> client,
 
     /* Filter out repeated 0-face callbacks, but not when the last frame was >0 */
     if (metadata.number_of_faces != 0 || mLastFrameNumberOfFaces != metadata.number_of_faces) {
-        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
-        if (l.mCameraClient != NULL) {
-            l.mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
+        Camera2Client::SharedCameraCallbacks::Lock l(client->mSharedCameraCallbacks);
+        if (l.mRemoteCallback != NULL) {
+            l.mRemoteCallback->dataCallback(CAMERA_MSG_PREVIEW_METADATA,
                     NULL, &metadata);
         }
     }
