@@ -47,9 +47,9 @@ status_t AudioRecord::getMinFrameCount(
     *frameCount = 0;
 
     size_t size = 0;
-    if (AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &size)
-            != NO_ERROR) {
-        ALOGE("AudioSystem could not query the input buffer size.");
+    status_t status = AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &size);
+    if (status != NO_ERROR) {
+        ALOGE("AudioSystem could not query the input buffer size; status %d", status);
         return NO_INIT;
     }
 
