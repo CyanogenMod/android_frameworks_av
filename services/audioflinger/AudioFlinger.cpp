@@ -464,7 +464,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         PlaybackThread *thread = checkPlaybackThread_l(output);
         PlaybackThread *effectThread = NULL;
         if (thread == NULL) {
-            ALOGE("unknown output thread");
+            ALOGE("no playback thread found for output handle %d", output);
             lStatus = BAD_VALUE;
             goto Exit;
         }
@@ -589,7 +589,7 @@ uint32_t AudioFlinger::latency(audio_io_handle_t output) const
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = checkPlaybackThread_l(output);
     if (thread == NULL) {
-        ALOGW("latency() unknown thread %d", output);
+        ALOGW("latency(): no playback thread found for output handle %d", output);
         return 0;
     }
     return thread->latency();

@@ -77,15 +77,9 @@ protected:
 
     virtual size_t framesReady() const;
 
-    bool isPausing() const {
-        return mState == PAUSING;
-    }
-    bool isPaused() const {
-        return mState == PAUSED;
-    }
-    bool isResuming() const {
-        return mState == RESUMING;
-    }
+    bool isPausing() const { return mState == PAUSING; }
+    bool isPaused() const { return mState == PAUSED; }
+    bool isResuming() const { return mState == RESUMING; }
     bool isReady() const;
     void setPaused() { mState = PAUSED; }
     void reset();
