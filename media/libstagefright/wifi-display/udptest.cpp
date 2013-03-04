@@ -47,7 +47,17 @@ private:
         kWhatStartClient,
         kWhatUDPNotify,
         kWhatSendPacket,
+        kWhatTimedOut,
     };
+
+    struct TimeInfo {
+        int64_t mT1;  // client timestamp at send
+        int64_t mT2;  // server timestamp at receive
+        int64_t mT3;  // server timestamp at send
+        int64_t mT4;  // client timestamp at receive
+    };
+
+    static const int64_t kTimeoutDelayUs = 1000000ll;
 
     sp<ANetworkSession> mNetSession;
 
@@ -57,8 +67,15 @@ private:
     uint32_t mSeqNo;
     double mTotalTimeUs;
     int32_t mCount;
+    int64_t mSumOffsets;
+
+    int64_t mPendingT1;
+    int32_t mTimeoutGeneration;
 
     void postSendPacket(int64_t delayUs = 0ll);
+
+    void postTimeout();
+    void cancelTimeout();
 
     DISALLOW_EVIL_CONSTRUCTORS(TestHandler);
 };
@@ -70,7 +87,10 @@ TestHandler::TestHandler(const sp<ANetworkSession> &netSession)
       mUDPSession(0),
       mSeqNo(0),
       mTotalTimeUs(0.0),
-      mCount(0) {
+      mCount(0),
+      mSumOffsets(0ll),
+      mPendingT1(0ll),
+      mTimeoutGeneration(0) {
 }
 
 TestHandler::~TestHandler() {
@@ -131,30 +151,31 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSendPacket:
         {
-            char buffer[12];
-            memset(buffer, 0, sizeof(buffer));
+            TimeInfo ti;
+            memset(&ti, 0, sizeof(ti));
 
-            buffer[0] = mSeqNo >> 24;
-            buffer[1] = (mSeqNo >> 16) & 0xff;
-            buffer[2] = (mSeqNo >> 8) & 0xff;
-            buffer[3] = mSeqNo & 0xff;
-            ++mSeqNo;
-
-            int64_t nowUs = ALooper::GetNowUs();
-            buffer[4] = nowUs >> 56;
-            buffer[5] = (nowUs >> 48) & 0xff;
-            buffer[6] = (nowUs >> 40) & 0xff;
-            buffer[7] = (nowUs >> 32) & 0xff;
-            buffer[8] = (nowUs >> 24) & 0xff;
-            buffer[9] = (nowUs >> 16) & 0xff;
-            buffer[10] = (nowUs >> 8) & 0xff;
-            buffer[11] = nowUs & 0xff;
+            ti.mT1 = ALooper::GetNowUs();
 
             CHECK_EQ((status_t)OK,
                      mNetSession->sendRequest(
-                         mUDPSession, buffer, sizeof(buffer)));
+                         mUDPSession, &ti, sizeof(ti)));
 
-            postSendPacket(20000ll);
+            mPendingT1 = ti.mT1;
+            postTimeout();
+            break;
+        }
+
+        case kWhatTimedOut:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+
+            if (generation != mTimeoutGeneration) {
+                break;
+            }
+
+            ALOGI("timed out, sending another request");
+            postSendPacket();
             break;
         }
 
@@ -182,6 +203,9 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
                           strerror(-err));
 
                     mNetSession->destroySession(sessionID);
+
+                    cancelTimeout();
+                    looper()->stop();
                     break;
                 }
 
@@ -190,8 +214,16 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
                     int32_t sessionID;
                     CHECK(msg->findInt32("sessionID", &sessionID));
 
-                    sp<ABuffer> data;
-                    CHECK(msg->findBuffer("data", &data));
+                    sp<ABuffer> packet;
+                    CHECK(msg->findBuffer("data", &packet));
+
+                    int64_t arrivalTimeUs;
+                    CHECK(packet->meta()->findInt64(
+                                "arrivalTimeUs", &arrivalTimeUs));
+
+                    CHECK_EQ(packet->size(), sizeof(TimeInfo));
+
+                    TimeInfo *ti = (TimeInfo *)packet->data();
 
                     if (mIsServer) {
                         if (!mConnected) {
@@ -208,43 +240,41 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
                             mConnected = true;
                         }
 
-                        int64_t nowUs = ALooper::GetNowUs();
-
-                        sp<ABuffer> buffer = new ABuffer(data->size() + 8);
-                        memcpy(buffer->data(), data->data(), data->size());
-
-                        uint8_t *ptr = buffer->data() + data->size();
-
-                        *ptr++ = nowUs >> 56;
-                        *ptr++ = (nowUs >> 48) & 0xff;
-                        *ptr++ = (nowUs >> 40) & 0xff;
-                        *ptr++ = (nowUs >> 32) & 0xff;
-                        *ptr++ = (nowUs >> 24) & 0xff;
-                        *ptr++ = (nowUs >> 16) & 0xff;
-                        *ptr++ = (nowUs >> 8) & 0xff;
-                        *ptr++ = nowUs & 0xff;
+                        ti->mT2 = arrivalTimeUs;
+                        ti->mT3 = ALooper::GetNowUs();
 
                         CHECK_EQ((status_t)OK,
                                  mNetSession->sendRequest(
-                                     mUDPSession, buffer->data(), buffer->size()));
+                                     mUDPSession, ti, sizeof(*ti)));
                     } else {
-                        CHECK_EQ(data->size(), 20u);
+                        if (ti->mT1 != mPendingT1) {
+                            break;
+                        }
 
-                        uint32_t seqNo = U32_AT(data->data());
-                        int64_t t1 = U64_AT(data->data() + 4);
-                        int64_t t2 = U64_AT(data->data() + 12);
+                        cancelTimeout();
+                        mPendingT1 = 0;
 
-                        int64_t t3;
-                        CHECK(data->meta()->findInt64("arrivalTimeUs", &t3));
+                        ti->mT4 = arrivalTimeUs;
 
-#if 0
-                        printf("roundtrip seqNo %u, time = %lld us\n",
-                               seqNo, t3 - t1);
-#else
-                        mTotalTimeUs += t3 - t1;
+                        // One way delay for a packet to travel from client
+                        // to server or back (assumed to be the same either way).
+                        int64_t delay =
+                            (ti->mT2 - ti->mT1 + ti->mT4 - ti->mT3) / 2;
+
+                        // Offset between the client clock (T1, T4) and the
+                        // server clock (T2, T3) timestamps.
+                        int64_t offset =
+                            (ti->mT2 - ti->mT1 - ti->mT4 + ti->mT3) / 2;
+
+                        mSumOffsets += offset;
                         ++mCount;
-                        printf("avg. roundtrip time %.2f us\n", mTotalTimeUs / mCount);
-#endif
+
+                        printf("delay = %lld us,\toffset %lld us\n",
+                               delay,
+                               offset);
+                        fflush(stdout);
+
+                        postSendPacket(1000000ll / 30);
                     }
                     break;
                 }
@@ -263,6 +293,16 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
 
 void TestHandler::postSendPacket(int64_t delayUs) {
     (new AMessage(kWhatSendPacket, id()))->post(delayUs);
+}
+
+void TestHandler::postTimeout() {
+    sp<AMessage> msg = new AMessage(kWhatTimedOut, id());
+    msg->setInt32("generation", mTimeoutGeneration);
+    msg->post(kTimeoutDelayUs);
+}
+
+void TestHandler::cancelTimeout() {
+    ++mTimeoutGeneration;
 }
 
 }  // namespace android
