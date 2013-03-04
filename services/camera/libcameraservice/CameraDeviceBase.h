@@ -36,6 +36,11 @@ class CameraDeviceBase : public virtual RefBase {
   public:
     virtual ~CameraDeviceBase();
 
+    /**
+     * The device's camera ID
+     */
+    virtual int      getId() const = 0;
+
     virtual status_t initialize(camera_module_t *module) = 0;
     virtual status_t disconnect() = 0;
 

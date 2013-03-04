@@ -24,11 +24,9 @@
 #include <utils/List.h>
 #include <camera/CameraMetadata.h>
 
-struct camera_frame_metadata;
-
 namespace android {
 
-class ProCamera2Client;
+class CameraDeviceBase;
 
 namespace camera2 {
 
@@ -37,23 +35,25 @@ namespace camera2 {
  */
 class ProFrameProcessor: public Thread {
   public:
-    ProFrameProcessor(wp<ProCamera2Client> client);
-    ~ProFrameProcessor();
+    ProFrameProcessor(wp<CameraDeviceBase> device);
+    virtual ~ProFrameProcessor();
 
     struct FilteredListener: virtual public RefBase {
         virtual void onFrameAvailable(int32_t frameId,
-                const CameraMetadata &frame) = 0;
+                                      const CameraMetadata &frame) = 0;
     };
 
     // Register a listener for a range of IDs [minId, maxId). Multiple listeners
     // can be listening to the same range
-    status_t registerListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
-    status_t removeListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
+    status_t registerListener(int32_t minId, int32_t maxId,
+                              wp<FilteredListener> listener);
+    status_t removeListener(int32_t minId, int32_t maxId,
+                            wp<FilteredListener> listener);
 
     void dump(int fd, const Vector<String16>& args);
-  private:
+  protected:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
-    wp<ProCamera2Client> mClient;
+    wp<CameraDeviceBase> mDevice;
 
     virtual bool threadLoop();
 
@@ -66,10 +66,13 @@ class ProFrameProcessor: public Thread {
     };
     List<RangeListener> mRangeListeners;
 
-    void processNewFrames(sp<ProCamera2Client> &client);
+    void processNewFrames(const sp<CameraDeviceBase> &device);
+
+    virtual bool processSingleFrame(CameraMetadata &frame,
+                                    const sp<CameraDeviceBase> &device);
 
     status_t processListeners(const CameraMetadata &frame,
-            sp<ProCamera2Client> &client);
+                              const sp<CameraDeviceBase> &device);
 
     CameraMetadata mLastFrame;
 };
