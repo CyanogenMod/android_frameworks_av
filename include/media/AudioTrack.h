@@ -226,7 +226,7 @@ public:
      * This includes the latency due to AudioTrack buffer size, AudioMixer (if any)
      * and audio hardware driver.
      */
-            uint32_t     latency() const    { return mLatency; }
+            uint32_t    latency() const     { return mLatency; }
 
     /* getters, see constructors and set() */
 

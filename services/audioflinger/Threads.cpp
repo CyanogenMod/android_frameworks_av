@@ -2795,7 +2795,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
                 if (--(track->mRetryCount) <= 0) {
-                    ALOGV("BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
+                    ALOGI("BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
@@ -3725,7 +3725,8 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 readInto = mRsmpInBuffer;
                                 mRsmpInIndex = 0;
                             }
-                            mBytesRead = mInput->stream->read(mInput->stream, readInto, mInputBytes);
+                            mBytesRead = mInput->stream->read(mInput->stream, readInto,
+                                    mInputBytes);
                             if (mBytesRead <= 0) {
                                 if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE))
                                 {

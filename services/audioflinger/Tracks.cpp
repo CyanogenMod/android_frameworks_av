@@ -607,7 +607,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         track_state state = mState;
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
-        if (mState == PAUSED) {
+        if (state == PAUSED) {
             mState = TrackBase::RESUMING;
             ALOGV("PAUSED => RESUMING (%d) on thread %p", mName, this);
         } else {
