@@ -23,13 +23,13 @@
 
 #include "ProFrameProcessor.h"
 #include "../CameraDeviceBase.h"
-#include "../ProCamera2Client.h"
 
 namespace android {
 namespace camera2 {
 
-ProFrameProcessor::ProFrameProcessor(wp<ProCamera2Client> client):
-        Thread(false), mClient(client) {
+ProFrameProcessor::ProFrameProcessor(wp<CameraDeviceBase> device) :
+    Thread(/*canCallJava*/false),
+    mDevice(device) {
 }
 
 ProFrameProcessor::~ProFrameProcessor() {
@@ -47,7 +47,8 @@ status_t ProFrameProcessor::registerListener(int32_t minId,
 }
 
 status_t ProFrameProcessor::removeListener(int32_t minId,
-        int32_t maxId, wp<FilteredListener> listener) {
+                                           int32_t maxId,
+                                           wp<FilteredListener> listener) {
     Mutex::Autolock l(mInputMutex);
     List<RangeListener>::iterator item = mRangeListeners.begin();
     while (item != mRangeListeners.end()) {
@@ -73,42 +74,40 @@ bool ProFrameProcessor::threadLoop() {
 
     sp<CameraDeviceBase> device;
     {
-        sp<ProCamera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        device = client->getCameraDevice();
+        device = mDevice.promote();
         if (device == 0) return false;
     }
 
     res = device->waitForNextFrame(kWaitDuration);
     if (res == OK) {
-        sp<ProCamera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        processNewFrames(client);
+        processNewFrames(device);
     } else if (res != TIMED_OUT) {
-        ALOGE("ProCamera2Client::ProFrameProcessor: Error waiting for new "
+        ALOGE("ProFrameProcessor: Error waiting for new "
                 "frames: %s (%d)", strerror(-res), res);
     }
 
     return true;
 }
 
-void ProFrameProcessor::processNewFrames(sp<ProCamera2Client> &client) {
+void ProFrameProcessor::processNewFrames(const sp<CameraDeviceBase> &device) {
     status_t res;
     ATRACE_CALL();
     CameraMetadata frame;
-    while ( (res = client->getCameraDevice()->getNextFrame(&frame)) == OK) {
+    while ( (res = device->getNextFrame(&frame)) == OK) {
+
         camera_metadata_entry_t entry;
 
         entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Error reading frame number",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, device->getId());
             break;
         }
         ATRACE_INT("cam2_frame", entry.data.i32[0]);
 
-        res = processListeners(frame, client);
-        if (res != OK) break;
+        if (!processSingleFrame(frame, device)) {
+            break;
+        }
 
         if (!frame.isEmpty()) {
             mLastFrame.acquire(frame);
@@ -116,22 +115,27 @@ void ProFrameProcessor::processNewFrames(sp<ProCamera2Client> &client) {
     }
     if (res != NOT_ENOUGH_DATA) {
         ALOGE("%s: Camera %d: Error getting next frame: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, device->getId(), strerror(-res), res);
         return;
     }
 
     return;
 }
 
+bool ProFrameProcessor::processSingleFrame(CameraMetadata &frame,
+                                           const sp<CameraDeviceBase> &device) {
+    return processListeners(frame, device) == OK;
+}
+
 status_t ProFrameProcessor::processListeners(const CameraMetadata &frame,
-        sp<ProCamera2Client> &client) {
+        const sp<CameraDeviceBase> &device) {
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
 
     entry = frame.find(ANDROID_REQUEST_ID);
     if (entry.count == 0) {
         ALOGE("%s: Camera %d: Error reading frame id",
-                __FUNCTION__, client->getCameraId());
+                __FUNCTION__, device->getId());
         return BAD_VALUE;
     }
     int32_t frameId = entry.data.i32[0];
