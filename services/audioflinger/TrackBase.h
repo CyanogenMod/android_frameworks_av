@@ -68,9 +68,7 @@ protected:
     // but putting it in TrackBase avoids the complexity of virtual inheritance
     virtual size_t  framesReady() const { return SIZE_MAX; }
 
-    audio_format_t format() const {
-        return mFormat;
-    }
+    audio_format_t format() const { return mFormat; }
 
     uint32_t channelCount() const { return mChannelCount; }
 

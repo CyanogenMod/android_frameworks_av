@@ -388,9 +388,9 @@ bool FastMixer::threadLoop()
                 if (ATRACE_ENABLED()) {
                     // I wish we had formatted trace names
                     char traceName[16];
-                    strcpy(traceName, "framesReady");
-                    traceName[11] = i + (i < 10 ? '0' : 'A' - 10);
-                    traceName[12] = '\0';
+                    strcpy(traceName, "fRdy");
+                    traceName[4] = i + (i < 10 ? '0' : 'A' - 10);
+                    traceName[5] = '\0';
                     ATRACE_INT(traceName, framesReady);
                 }
                 FastTrackDump *ftDump = &dumpState->mTracks[i];
