@@ -584,6 +584,11 @@ status_t OMXNodeInstance::createInputSurface(
             mHandle, OMX_IndexParamPortDefinition, &def);
     CHECK(oerr == OMX_ErrorNone);
 
+    if (def.format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque) {
+        ALOGE("createInputSurface requires AndroidOpaque color format");
+        return INVALID_OPERATION;
+    }
+
     GraphicBufferSource* bufferSource = new GraphicBufferSource(
             this, def.format.video.nFrameWidth, def.format.video.nFrameHeight);
     if ((err = bufferSource->initCheck()) != OK) {
@@ -602,11 +607,10 @@ status_t OMXNodeInstance::signalEndOfInputStream() {
     // flag set).  Seems easier than doing the equivalent from here.
     sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
     if (bufferSource == NULL) {
-        ALOGW("signalEndOfInputStream should only be used with Surface input");
+        ALOGW("signalEndOfInputStream can only be used with Surface input");
         return INVALID_OPERATION;
     };
-    bufferSource->signalEndOfInputStream();
-    return OK;
+    return bufferSource->signalEndOfInputStream();
 }
 
 status_t OMXNodeInstance::allocateBuffer(
@@ -801,8 +805,11 @@ void OMXNodeInstance::onEvent(
             arg1 == OMX_CommandStateSet) {
         if (arg2 == OMX_StateExecuting) {
             bufferSource->omxExecuting();
-        } else if (arg2 == OMX_StateIdle) {
-            bufferSource->omxIdling();
+        } else if (arg2 == OMX_StateLoaded) {
+            // Must be shutting down -- won't have a GraphicBufferSource
+            // on the way up.
+            bufferSource->omxLoaded();
+            setGraphicBufferSource(NULL);
         }
     }
 }

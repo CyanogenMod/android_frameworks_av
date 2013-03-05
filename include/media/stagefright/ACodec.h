@@ -281,6 +281,9 @@ private:
     status_t requestIDRFrame();
     status_t setParameters(const sp<AMessage> &params);
 
+    // Send EOS on input stream.
+    void onSignalEndOfInputStream();
+
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };
 
