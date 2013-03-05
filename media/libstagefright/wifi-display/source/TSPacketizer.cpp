@@ -58,6 +58,7 @@ struct TSPacketizer::Track : public RefBase {
     sp<ABuffer> descriptorAt(size_t index) const;
 
     void finalize();
+    void extractCSDIfNecessary();
 
 protected:
     virtual ~Track();
@@ -77,6 +78,7 @@ private:
 
     bool mAudioLacksATDSHeaders;
     bool mFinalized;
+    bool mExtractedCSD;
 
     DISALLOW_EVIL_CONSTRUCTORS(Track);
 };
@@ -90,14 +92,21 @@ TSPacketizer::Track::Track(
       mStreamID(streamID),
       mContinuityCounter(0),
       mAudioLacksATDSHeaders(false),
-      mFinalized(false) {
+      mFinalized(false),
+      mExtractedCSD(false) {
     CHECK(format->findString("mime", &mMIME));
+}
+
+void TSPacketizer::Track::extractCSDIfNecessary() {
+    if (mExtractedCSD) {
+        return;
+    }
 
     if (!strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)
             || !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
         for (size_t i = 0;; ++i) {
             sp<ABuffer> csd;
-            if (!format->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
+            if (!mFormat->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
                 break;
             }
 
@@ -111,6 +120,8 @@ TSPacketizer::Track::Track(
             }
         }
     }
+
+    mExtractedCSD = true;
 }
 
 TSPacketizer::Track::~Track() {
@@ -405,6 +416,17 @@ ssize_t TSPacketizer::addTrack(const sp<AMessage> &format) {
 
     sp<Track> track = new Track(format, PID, streamType, streamID);
     return mTracks.add(track);
+}
+
+status_t TSPacketizer::extractCSDIfNecessary(size_t trackIndex) {
+    if (trackIndex >= mTracks.size()) {
+        return -ERANGE;
+    }
+
+    const sp<Track> &track = mTracks.itemAt(trackIndex);
+    track->extractCSDIfNecessary();
+
+    return OK;
 }
 
 status_t TSPacketizer::packetize(

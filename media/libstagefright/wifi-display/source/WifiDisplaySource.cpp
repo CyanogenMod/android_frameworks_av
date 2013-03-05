@@ -22,7 +22,7 @@
 #include "PlaybackSession.h"
 #include "Parameters.h"
 #include "ParsedMessage.h"
-#include "Sender.h"
+#include "rtp/RTPSender.h"
 
 #include <binder/IServiceManager.h>
 #include <gui/IGraphicBufferProducer.h>
@@ -1140,7 +1140,7 @@ status_t WifiDisplaySource::onSetupRequest(
         return ERROR_MALFORMED;
     }
 
-    Sender::TransportMode transportMode = Sender::TRANSPORT_UDP;
+    RTPSender::TransportMode transportMode = RTPSender::TRANSPORT_UDP;
 
     int clientRtp, clientRtcp;
     if (transport.startsWith("RTP/AVP/TCP;")) {
@@ -1149,7 +1149,7 @@ status_t WifiDisplaySource::onSetupRequest(
                     transport.c_str(), "interleaved", &interleaved)
                 && sscanf(interleaved.c_str(), "%d-%d",
                           &clientRtp, &clientRtcp) == 2) {
-            transportMode = Sender::TRANSPORT_TCP_INTERLEAVED;
+            transportMode = RTPSender::TRANSPORT_TCP_INTERLEAVED;
         } else {
             bool badRequest = false;
 
@@ -1171,7 +1171,7 @@ status_t WifiDisplaySource::onSetupRequest(
                 return ERROR_MALFORMED;
             }
 
-            transportMode = Sender::TRANSPORT_TCP;
+            transportMode = RTPSender::TRANSPORT_TCP;
         }
     } else if (transport.startsWith("RTP/AVP;unicast;")
             || transport.startsWith("RTP/AVP/UDP;unicast;")) {
@@ -1263,7 +1263,7 @@ status_t WifiDisplaySource::onSetupRequest(
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
 
-    if (transportMode == Sender::TRANSPORT_TCP_INTERLEAVED) {
+    if (transportMode == RTPSender::TRANSPORT_TCP_INTERLEAVED) {
         response.append(
                 StringPrintf(
                     "Transport: RTP/AVP/TCP;interleaved=%d-%d;",
@@ -1272,7 +1272,7 @@ status_t WifiDisplaySource::onSetupRequest(
         int32_t serverRtp = playbackSession->getRTPPort();
 
         AString transportString = "UDP";
-        if (transportMode == Sender::TRANSPORT_TCP) {
+        if (transportMode == RTPSender::TRANSPORT_TCP) {
             transportString = "TCP";
         }
 
