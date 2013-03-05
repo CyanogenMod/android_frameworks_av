@@ -56,6 +56,8 @@ struct MediaCodec : public AHandler {
             const sp<ICrypto> &crypto,
             uint32_t flags);
 
+    status_t createInputSurface(sp<IGraphicBufferProducer>* bufferProducer);
+
     status_t start();
 
     // Returns to a state in which the component remains allocated but
@@ -101,6 +103,8 @@ struct MediaCodec : public AHandler {
     status_t renderOutputBufferAndRelease(size_t index);
     status_t releaseOutputBuffer(size_t index);
 
+    status_t signalEndOfInputStream();
+
     status_t getOutputFormat(sp<AMessage> *format) const;
 
     status_t getInputBuffers(Vector<sp<ABuffer> > *buffers) const;
@@ -143,6 +147,7 @@ private:
     enum {
         kWhatInit                           = 'init',
         kWhatConfigure                      = 'conf',
+        kWhatCreateInputSurface             = 'cisf',
         kWhatStart                          = 'strt',
         kWhatStop                           = 'stop',
         kWhatRelease                        = 'rele',
@@ -150,6 +155,7 @@ private:
         kWhatQueueInputBuffer               = 'queI',
         kWhatDequeueOutputBuffer            = 'deqO',
         kWhatReleaseOutputBuffer            = 'relO',
+        kWhatSignalEndOfInputStream         = 'eois',
         kWhatGetBuffers                     = 'getB',
         kWhatFlush                          = 'flus',
         kWhatGetOutputFormat                = 'getO',
