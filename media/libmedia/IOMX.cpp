@@ -40,6 +40,8 @@ enum {
     ENABLE_GRAPHIC_BUFFERS,
     USE_BUFFER,
     USE_GRAPHIC_BUFFER,
+    CREATE_INPUT_SURFACE,
+    SIGNAL_END_OF_INPUT_STREAM,
     STORE_META_DATA_IN_BUFFERS,
     ALLOC_BUFFER,
     ALLOC_BUFFER_WITH_BACKUP,
@@ -280,6 +282,45 @@ public:
         return err;
     }
 
+    virtual status_t createInputSurface(
+            node_id node, OMX_U32 port_index,
+            sp<IGraphicBufferProducer> *bufferProducer) {
+        Parcel data, reply;
+        status_t err;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        data.writeInt32(port_index);
+        err = remote()->transact(CREATE_INPUT_SURFACE, data, &reply);
+        if (err != OK) {
+            ALOGW("binder transaction failed: %d", err);
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != OK) {
+            return err;
+        }
+
+        *bufferProducer = IGraphicBufferProducer::asInterface(
+                reply.readStrongBinder());
+
+        return err;
+    }
+
+    virtual status_t signalEndOfInputStream(node_id node) {
+        Parcel data, reply;
+        status_t err;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        err = remote()->transact(SIGNAL_END_OF_INPUT_STREAM, data, &reply);
+        if (err != OK) {
+            ALOGW("binder transaction failed: %d", err);
+            return err;
+        }
+
+        return reply.readInt32();
+    }
+
     virtual status_t storeMetaDataInBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable) {
         Parcel data, reply;
@@ -404,7 +445,7 @@ IMPLEMENT_META_INTERFACE(OMX, "android.hardware.IOMX");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define CHECK_INTERFACE(interface, data, reply) \
+#define CHECK_OMX_INTERFACE(interface, data, reply) \
         do { if (!data.enforceInterface(interface::getInterfaceDescriptor())) { \
             ALOGW("Call incorrectly routed to " #interface); \
             return PERMISSION_DENIED; \
@@ -415,7 +456,7 @@ status_t BnOMX::onTransact(
     switch (code) {
         case LIVES_LOCALLY:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
             node_id node = (void *)data.readIntPtr();
             pid_t pid = (pid_t)data.readInt32();
             reply->writeInt32(livesLocally(node, pid));
@@ -425,7 +466,7 @@ status_t BnOMX::onTransact(
 
         case LIST_NODES:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             List<ComponentInfo> list;
             listNodes(&list);
@@ -448,7 +489,7 @@ status_t BnOMX::onTransact(
 
         case ALLOCATE_NODE:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             const char *name = data.readCString();
 
@@ -468,7 +509,7 @@ status_t BnOMX::onTransact(
 
         case FREE_NODE:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
 
@@ -479,7 +520,7 @@ status_t BnOMX::onTransact(
 
         case SEND_COMMAND:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
 
@@ -497,7 +538,7 @@ status_t BnOMX::onTransact(
         case GET_CONFIG:
         case SET_CONFIG:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_INDEXTYPE index = static_cast<OMX_INDEXTYPE>(data.readInt32());
@@ -539,7 +580,7 @@ status_t BnOMX::onTransact(
 
         case GET_STATE:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_STATETYPE state = OMX_StateInvalid;
@@ -553,7 +594,7 @@ status_t BnOMX::onTransact(
 
         case ENABLE_GRAPHIC_BUFFERS:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -567,7 +608,7 @@ status_t BnOMX::onTransact(
 
         case GET_GRAPHIC_BUFFER_USAGE:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -582,7 +623,7 @@ status_t BnOMX::onTransact(
 
         case USE_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -602,7 +643,7 @@ status_t BnOMX::onTransact(
 
         case USE_GRAPHIC_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -621,9 +662,41 @@ status_t BnOMX::onTransact(
             return NO_ERROR;
         }
 
+        case CREATE_INPUT_SURFACE:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (void*)data.readIntPtr();
+            OMX_U32 port_index = data.readInt32();
+
+            sp<IGraphicBufferProducer> bufferProducer;
+            status_t err = createInputSurface(node, port_index,
+                    &bufferProducer);
+
+            reply->writeInt32(err);
+
+            if (err == OK) {
+                reply->writeStrongBinder(bufferProducer->asBinder());
+            }
+
+            return NO_ERROR;
+        }
+
+        case SIGNAL_END_OF_INPUT_STREAM:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (void*)data.readIntPtr();
+
+            status_t err = signalEndOfInputStream(node);
+            reply->writeInt32(err);
+
+            return NO_ERROR;
+        }
+
         case STORE_META_DATA_IN_BUFFERS:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -637,7 +710,7 @@ status_t BnOMX::onTransact(
 
         case ALLOC_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -659,7 +732,7 @@ status_t BnOMX::onTransact(
 
         case ALLOC_BUFFER_WITH_BACKUP:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -681,7 +754,7 @@ status_t BnOMX::onTransact(
 
         case FREE_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
@@ -693,7 +766,7 @@ status_t BnOMX::onTransact(
 
         case FILL_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             buffer_id buffer = (void*)data.readIntPtr();
@@ -704,7 +777,7 @@ status_t BnOMX::onTransact(
 
         case EMPTY_BUFFER:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             buffer_id buffer = (void*)data.readIntPtr();
@@ -723,7 +796,7 @@ status_t BnOMX::onTransact(
 
         case GET_EXTENSION_INDEX:
         {
-            CHECK_INTERFACE(IOMX, data, reply);
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (void*)data.readIntPtr();
             const char *parameter_name = data.readCString();
@@ -769,7 +842,7 @@ status_t BnOMXObserver::onTransact(
     switch (code) {
         case OBSERVER_ON_MSG:
         {
-            CHECK_INTERFACE(IOMXObserver, data, reply);
+            CHECK_OMX_INTERFACE(IOMXObserver, data, reply);
 
             omx_message msg;
             data.read(&msg, sizeof(msg));

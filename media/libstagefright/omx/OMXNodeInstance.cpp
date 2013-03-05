@@ -20,13 +20,17 @@
 
 #include "../include/OMXNodeInstance.h"
 #include "OMXMaster.h"
+#include "GraphicBufferSource.h"
 
 #include <OMX_Component.h>
 
 #include <binder/IMemory.h>
+#include <gui/BufferQueue.h>
 #include <HardwareAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaErrors.h>
+
+static const OMX_U32 kPortIndexInput = 0;
 
 namespace android {
 
@@ -98,6 +102,17 @@ void OMXNodeInstance::setHandle(OMX::node_id node_id, OMX_HANDLETYPE handle) {
     CHECK(mHandle == NULL);
     mNodeID = node_id;
     mHandle = handle;
+}
+
+sp<GraphicBufferSource> OMXNodeInstance::getGraphicBufferSource() {
+    Mutex::Autolock autoLock(mGraphicBufferSourceLock);
+    return mGraphicBufferSource;
+}
+
+void OMXNodeInstance::setGraphicBufferSource(
+        const sp<GraphicBufferSource>& bufferSource) {
+    Mutex::Autolock autoLock(mGraphicBufferSourceLock);
+    mGraphicBufferSource = bufferSource;
 }
 
 OMX *OMXNodeInstance::owner() {
@@ -354,7 +369,12 @@ status_t OMXNodeInstance::storeMetaDataInBuffers(
         OMX_U32 portIndex,
         OMX_BOOL enable) {
     Mutex::Autolock autolock(mLock);
+    return storeMetaDataInBuffers_l(portIndex, enable);
+}
 
+status_t OMXNodeInstance::storeMetaDataInBuffers_l(
+        OMX_U32 portIndex,
+        OMX_BOOL enable) {
     OMX_INDEXTYPE index;
     OMX_STRING name = const_cast<OMX_STRING>(
             "OMX.google.android.index.storeMetaDataInBuffers");
@@ -410,6 +430,11 @@ status_t OMXNodeInstance::useBuffer(
     *buffer = header;
 
     addActiveBuffer(portIndex, *buffer);
+
+    sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+    if (bufferSource != NULL && portIndex == kPortIndexInput) {
+        bufferSource->addCodecBuffer(header);
+    }
 
     return OK;
 }
@@ -530,6 +555,60 @@ status_t OMXNodeInstance::useGraphicBuffer(
     return OK;
 }
 
+status_t OMXNodeInstance::createInputSurface(
+        OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer) {
+    Mutex::Autolock autolock(mLock);
+    status_t err;
+
+    const sp<GraphicBufferSource>& surfaceCheck = getGraphicBufferSource();
+    if (surfaceCheck != NULL) {
+        return ALREADY_EXISTS;
+    }
+
+    // Input buffers will hold meta-data (gralloc references).
+    err = storeMetaDataInBuffers_l(portIndex, OMX_TRUE);
+    if (err != OK) {
+        return err;
+    }
+
+    // Retrieve the width and height of the graphic buffer, set when the
+    // codec was configured.
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    def.nSize = sizeof(def);
+    def.nVersion.s.nVersionMajor = 1;
+    def.nVersion.s.nVersionMinor = 0;
+    def.nVersion.s.nRevision = 0;
+    def.nVersion.s.nStep = 0;
+    def.nPortIndex = portIndex;
+    OMX_ERRORTYPE oerr = OMX_GetParameter(
+            mHandle, OMX_IndexParamPortDefinition, &def);
+    CHECK(oerr == OMX_ErrorNone);
+
+    GraphicBufferSource* bufferSource = new GraphicBufferSource(
+            this, def.format.video.nFrameWidth, def.format.video.nFrameHeight);
+    if ((err = bufferSource->initCheck()) != OK) {
+        delete bufferSource;
+        return err;
+    }
+    setGraphicBufferSource(bufferSource);
+
+    *bufferProducer = bufferSource->getIGraphicBufferProducer();
+    return OK;
+}
+
+status_t OMXNodeInstance::signalEndOfInputStream() {
+    // For non-Surface input, the MediaCodec should convert the call to a
+    // pair of requests (dequeue input buffer, queue input buffer with EOS
+    // flag set).  Seems easier than doing the equivalent from here.
+    sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+    if (bufferSource == NULL) {
+        ALOGW("signalEndOfInputStream should only be used with Surface input");
+        return INVALID_OPERATION;
+    };
+    bufferSource->signalEndOfInputStream();
+    return OK;
+}
+
 status_t OMXNodeInstance::allocateBuffer(
         OMX_U32 portIndex, size_t size, OMX::buffer_id *buffer,
         void **buffer_data) {
@@ -559,6 +638,11 @@ status_t OMXNodeInstance::allocateBuffer(
     *buffer_data = header->pBuffer;
 
     addActiveBuffer(portIndex, *buffer);
+
+    sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+    if (bufferSource != NULL && portIndex == kPortIndexInput) {
+        bufferSource->addCodecBuffer(header);
+    }
 
     return OK;
 }
@@ -591,6 +675,11 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     *buffer = header;
 
     addActiveBuffer(portIndex, *buffer);
+
+    sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+    if (bufferSource != NULL && portIndex == kPortIndexInput) {
+        bufferSource->addCodecBuffer(header);
+    }
 
     return OK;
 }
@@ -646,6 +735,26 @@ status_t OMXNodeInstance::emptyBuffer(
     return StatusFromOMXError(err);
 }
 
+// like emptyBuffer, but the data is already in header->pBuffer
+status_t OMXNodeInstance::emptyDirectBuffer(
+        OMX_BUFFERHEADERTYPE *header,
+        OMX_U32 rangeOffset, OMX_U32 rangeLength,
+        OMX_U32 flags, OMX_TICKS timestamp) {
+    Mutex::Autolock autoLock(mLock);
+
+    header->nFilledLen = rangeLength;
+    header->nOffset = rangeOffset;
+    header->nFlags = flags;
+    header->nTimeStamp = timestamp;
+
+    OMX_ERRORTYPE err = OMX_EmptyThisBuffer(mHandle, header);
+    if (err != OMX_ErrorNone) {
+        ALOGW("emptyDirectBuffer failed, OMX err=0x%x", err);
+    }
+
+    return StatusFromOMXError(err);
+}
+
 status_t OMXNodeInstance::getExtensionIndex(
         const char *parameterName, OMX_INDEXTYPE *index) {
     Mutex::Autolock autoLock(mLock);
@@ -682,6 +791,22 @@ void OMXNodeInstance::onGetHandleFailed() {
     delete this;
 }
 
+// OMXNodeInstance::OnEvent calls OMX::OnEvent, which then calls here.
+// Don't try to acquire mLock here -- in rare circumstances this will hang.
+void OMXNodeInstance::onEvent(
+        OMX_EVENTTYPE event, OMX_U32 arg1, OMX_U32 arg2) {
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+
+    if (bufferSource != NULL && event == OMX_EventCmdComplete &&
+            arg1 == OMX_CommandStateSet) {
+        if (arg2 == OMX_StateExecuting) {
+            bufferSource->omxExecuting();
+        } else if (arg2 == OMX_StateIdle) {
+            bufferSource->omxIdling();
+        }
+    }
+}
+
 // static
 OMX_ERRORTYPE OMXNodeInstance::OnEvent(
         OMX_IN OMX_HANDLETYPE hComponent,
@@ -705,6 +830,17 @@ OMX_ERRORTYPE OMXNodeInstance::OnEmptyBufferDone(
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
     if (instance->mDying) {
+        return OMX_ErrorNone;
+    }
+    const sp<GraphicBufferSource>& bufferSource(
+            instance->getGraphicBufferSource());
+    if (bufferSource != NULL) {
+        bufferSource->codecBufferEmptied(pBuffer);
+
+        // This is one of the buffers used exclusively by GraphicBufferSource.
+        // Don't dispatch a message back to ACodec, since it doesn't
+        // know that anyone asked to have the buffer emptied and will
+        // be very confused.
         return OMX_ErrorNone;
     }
     return instance->owner()->OnEmptyBufferDone(instance->nodeID(), pBuffer);
