@@ -18,7 +18,7 @@
 
 #define PLAYBACK_SESSION_H_
 
-#include "Sender.h"
+#include "MediaSender.h"
 #include "VideoFormats.h"
 #include "WifiDisplaySource.h"
 
@@ -30,7 +30,7 @@ struct IHDCP;
 struct IGraphicBufferProducer;
 struct MediaPuller;
 struct MediaSource;
-struct TSPacketizer;
+struct MediaSender;
 
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
@@ -43,7 +43,7 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
 
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-            Sender::TransportMode transportMode,
+            RTPSender::TransportMode transportMode,
             bool enableAudio,
             bool usePCMAudio,
             bool enableVideo,
@@ -83,34 +83,31 @@ private:
         kWhatMediaPullerNotify,
         kWhatConverterNotify,
         kWhatTrackNotify,
-        kWhatSenderNotify,
         kWhatUpdateSurface,
-        kWhatFinishPlay,
-        kWhatPacketize,
         kWhatPause,
         kWhatResume,
+        kWhatMediaSenderNotify,
     };
 
     sp<ANetworkSession> mNetSession;
-    sp<Sender> mSender;
-    sp<ALooper> mSenderLooper;
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
+
+    sp<MediaSender> mMediaSender;
+    int32_t mLocalRTPPort;
+
     bool mWeAreDead;
     bool mPaused;
 
     int64_t mLastLifesignUs;
 
-    sp<TSPacketizer> mPacketizer;
     sp<BufferQueue> mBufferQueue;
 
     KeyedVector<size_t, sp<Track> > mTracks;
     ssize_t mVideoTrackIndex;
 
     int64_t mPrevTimeUs;
-
-    bool mAllTracksHavePacketizerIndex;
 
     status_t setupPacketizer(
             bool enableAudio,
@@ -132,26 +129,9 @@ private:
 
     status_t addAudioSource(bool usePCMAudio);
 
-    ssize_t appendTSData(
-            const void *data, size_t size, bool timeDiscontinuity, bool flush);
-
-    status_t onFinishPlay();
-    status_t onFinishPlay2();
-
-    bool allTracksHavePacketizerIndex();
-
-    status_t packetizeAccessUnit(
-            size_t trackIndex, sp<ABuffer> accessUnit,
-            sp<ABuffer> *packets);
-
-    status_t packetizeQueuedAccessUnits();
+    status_t onMediaSenderInitialized();
 
     void notifySessionDead();
-
-    void drainAccessUnits();
-
-    // Returns true iff an access unit was successfully drained.
-    bool drainAccessUnit();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };

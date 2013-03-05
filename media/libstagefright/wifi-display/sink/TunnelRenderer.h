@@ -34,15 +34,10 @@ struct IStreamListener;
 // and sends the resulting transport stream to a mediaplayer instance
 // for playback.
 struct TunnelRenderer : public AHandler {
-    TunnelRenderer(
-            const sp<AMessage> &notifyLost,
-            const sp<IGraphicBufferProducer> &bufferProducer);
+    TunnelRenderer(const sp<IGraphicBufferProducer> &bufferProducer);
 
+    void queueBuffer(const sp<ABuffer> &buffer);
     sp<ABuffer> dequeueBuffer();
-
-    enum {
-        kWhatQueueBuffer,
-    };
 
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -54,11 +49,10 @@ private:
 
     mutable Mutex mLock;
 
-    sp<AMessage> mNotifyLost;
     sp<IGraphicBufferProducer> mSurfaceTex;
 
-    List<sp<ABuffer> > mPackets;
-    int64_t mTotalBytesQueued;
+    bool mStartup;
+    List<sp<ABuffer> > mBuffers;
 
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
@@ -67,14 +61,8 @@ private:
     sp<IMediaPlayer> mPlayer;
     sp<StreamSource> mStreamSource;
 
-    int32_t mLastDequeuedExtSeqNo;
-    int64_t mFirstFailedAttemptUs;
-    bool mRequestedRetransmission;
-
     void initPlayer();
     void destroyPlayer();
-
-    void queueBuffer(const sp<ABuffer> &buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(TunnelRenderer);
 };

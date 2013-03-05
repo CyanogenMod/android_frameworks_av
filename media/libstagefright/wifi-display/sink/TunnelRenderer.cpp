@@ -158,175 +158,17 @@ void TunnelRenderer::StreamSource::doSomeWork() {
 ////////////////////////////////////////////////////////////////////////////////
 
 TunnelRenderer::TunnelRenderer(
-        const sp<AMessage> &notifyLost,
         const sp<IGraphicBufferProducer> &bufferProducer)
-    : mNotifyLost(notifyLost),
-      mSurfaceTex(bufferProducer),
-      mTotalBytesQueued(0ll),
-      mLastDequeuedExtSeqNo(-1),
-      mFirstFailedAttemptUs(-1ll),
-      mRequestedRetransmission(false) {
+    : mSurfaceTex(bufferProducer),
+      mStartup(true) {
 }
 
 TunnelRenderer::~TunnelRenderer() {
     destroyPlayer();
 }
 
-void TunnelRenderer::queueBuffer(const sp<ABuffer> &buffer) {
-    Mutex::Autolock autoLock(mLock);
-
-    mTotalBytesQueued += buffer->size();
-
-    if (mPackets.empty()) {
-        mPackets.push_back(buffer);
-        return;
-    }
-
-    int32_t newExtendedSeqNo = buffer->int32Data();
-
-    List<sp<ABuffer> >::iterator firstIt = mPackets.begin();
-    List<sp<ABuffer> >::iterator it = --mPackets.end();
-    for (;;) {
-        int32_t extendedSeqNo = (*it)->int32Data();
-
-        if (extendedSeqNo == newExtendedSeqNo) {
-            // Duplicate packet.
-            return;
-        }
-
-        if (extendedSeqNo < newExtendedSeqNo) {
-            // Insert new packet after the one at "it".
-            mPackets.insert(++it, buffer);
-            return;
-        }
-
-        if (it == firstIt) {
-            // Insert new packet before the first existing one.
-            mPackets.insert(it, buffer);
-            return;
-        }
-
-        --it;
-    }
-}
-
-sp<ABuffer> TunnelRenderer::dequeueBuffer() {
-    Mutex::Autolock autoLock(mLock);
-
-    sp<ABuffer> buffer;
-    int32_t extSeqNo;
-    while (!mPackets.empty()) {
-        buffer = *mPackets.begin();
-        extSeqNo = buffer->int32Data();
-
-        if (mLastDequeuedExtSeqNo < 0 || extSeqNo > mLastDequeuedExtSeqNo) {
-            break;
-        }
-
-        // This is a retransmission of a packet we've already returned.
-
-        mTotalBytesQueued -= buffer->size();
-        buffer.clear();
-        extSeqNo = -1;
-
-        mPackets.erase(mPackets.begin());
-    }
-
-    if (mPackets.empty()) {
-        if (mFirstFailedAttemptUs < 0ll) {
-            mFirstFailedAttemptUs = ALooper::GetNowUs();
-            mRequestedRetransmission = false;
-        } else {
-            ALOGV("no packets available for %.2f secs",
-                    (ALooper::GetNowUs() - mFirstFailedAttemptUs) / 1E6);
-        }
-
-        return NULL;
-    }
-
-    if (mLastDequeuedExtSeqNo < 0 || extSeqNo == mLastDequeuedExtSeqNo + 1) {
-        if (mRequestedRetransmission) {
-            ALOGI("Recovered after requesting retransmission of %d",
-                  extSeqNo);
-        }
-
-        mLastDequeuedExtSeqNo = extSeqNo;
-        mFirstFailedAttemptUs = -1ll;
-        mRequestedRetransmission = false;
-
-        mPackets.erase(mPackets.begin());
-
-        mTotalBytesQueued -= buffer->size();
-
-        return buffer;
-    }
-
-    if (mFirstFailedAttemptUs < 0ll) {
-        mFirstFailedAttemptUs = ALooper::GetNowUs();
-
-        ALOGV("failed to get the correct packet the first time.");
-        return NULL;
-    }
-
-    if (mFirstFailedAttemptUs + 50000ll > ALooper::GetNowUs()) {
-        // We're willing to wait a little while to get the right packet.
-
-#if 1
-        if (!mRequestedRetransmission) {
-            ALOGI("requesting retransmission of extSeqNo %d (seqNo %d)",
-                  mLastDequeuedExtSeqNo + 1,
-                  (mLastDequeuedExtSeqNo + 1) & 0xffff);
-
-            sp<AMessage> notify = mNotifyLost->dup();
-            notify->setInt32("seqNo", (mLastDequeuedExtSeqNo + 1) & 0xffff);
-            notify->post();
-
-            mRequestedRetransmission = true;
-        } else
-#endif
-        {
-            ALOGV("still waiting for the correct packet to arrive.");
-        }
-
-        return NULL;
-    }
-
-    ALOGI("dropping packet. extSeqNo %d didn't arrive in time",
-            mLastDequeuedExtSeqNo + 1);
-
-    // Permanent failure, we never received the packet.
-    mLastDequeuedExtSeqNo = extSeqNo;
-    mFirstFailedAttemptUs = -1ll;
-    mRequestedRetransmission = false;
-
-    mTotalBytesQueued -= buffer->size();
-
-    mPackets.erase(mPackets.begin());
-
-    return buffer;
-}
-
 void TunnelRenderer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
-        case kWhatQueueBuffer:
-        {
-            sp<ABuffer> buffer;
-            CHECK(msg->findBuffer("buffer", &buffer));
-
-            queueBuffer(buffer);
-
-            if (mStreamSource == NULL) {
-                if (mTotalBytesQueued > 0ll) {
-                    initPlayer();
-                } else {
-                    ALOGI("Have %lld bytes queued...", mTotalBytesQueued);
-                }
-            } else {
-                mStreamSource->doSomeWork();
-            }
-            break;
-        }
-
         default:
             TRESPASS();
     }
@@ -394,6 +236,32 @@ void TunnelRenderer::destroyPlayer() {
         mComposerClient->dispose();
         mComposerClient.clear();
     }
+}
+
+void TunnelRenderer::queueBuffer(const sp<ABuffer> &buffer) {
+    {
+        Mutex::Autolock autoLock(mLock);
+        mBuffers.push_back(buffer);
+    }
+
+    if (mStartup) {
+        initPlayer();
+        mStartup = false;
+    }
+
+    mStreamSource->doSomeWork();
+}
+
+sp<ABuffer> TunnelRenderer::dequeueBuffer() {
+    Mutex::Autolock autoLock(mLock);
+    if (mBuffers.empty()) {
+        return NULL;
+    }
+
+    sp<ABuffer> buf = *mBuffers.begin();
+    mBuffers.erase(mBuffers.begin());
+
+    return buf;
 }
 
 }  // namespace android
