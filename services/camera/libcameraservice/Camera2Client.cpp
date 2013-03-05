@@ -81,26 +81,10 @@ status_t Camera2Client::initialize(camera_module_t *module)
     ALOGV("%s: Initializing client for camera %d", __FUNCTION__, mCameraId);
     status_t res;
 
-    // Verify ops permissions
-    res = startCameraOps();
+    res = Camera2ClientBase::initialize(module);
     if (res != OK) {
         return res;
     }
-
-    if (mDevice == NULL) {
-        ALOGE("%s: Camera %d: No device connected",
-                __FUNCTION__, mCameraId);
-        return NO_INIT;
-    }
-
-    res = mDevice->initialize(module);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return NO_INIT;
-    }
-
-    res = mDevice->setNotifyCallback(this);
 
     SharedParameters::Lock l(mParameters);
 
