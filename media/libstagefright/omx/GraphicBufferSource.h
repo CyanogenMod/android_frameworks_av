@@ -67,10 +67,9 @@ public:
     // sitting in the BufferQueue, this will send them to the codec.
     void omxExecuting();
 
-    // This is called when OMX transitions to OMX_StateIdle.  If we were
-    // previously executing, this means we're about to be shut down.  (We
-    // also enter Idle on the way up.)
-    void omxIdling();
+    // This is called when OMX transitions to OMX_StateLoaded, indicating that
+    // we are shutting down.
+    void omxLoaded();
 
     // A "codec buffer", i.e. a buffer that can be used to pass data into
     // the encoder, has been allocated.  (This call does not call back into
@@ -84,7 +83,7 @@ public:
     // This is called after the last input frame has been submitted.  We
     // need to submit an empty buffer with the EOS flag set.  If we don't
     // have a codec buffer ready, we just set the mEndOfStream flag.
-    void signalEndOfInputStream();
+    status_t signalEndOfInputStream();
 
 protected:
     // BufferQueue::ConsumerListener interface, called when a new frame of
