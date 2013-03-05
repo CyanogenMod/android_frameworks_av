@@ -345,6 +345,17 @@ status_t OMX::useGraphicBuffer(
             port_index, graphicBuffer, buffer);
 }
 
+status_t OMX::createInputSurface(
+        node_id node, OMX_U32 port_index,
+        sp<IGraphicBufferProducer> *bufferProducer) {
+    return findInstance(node)->createInputSurface(
+            port_index, bufferProducer);
+}
+
+status_t OMX::signalEndOfInputStream(node_id node) {
+    return findInstance(node)->signalEndOfInputStream();
+}
+
 status_t OMX::allocateBuffer(
         node_id node, OMX_U32 port_index, size_t size,
         buffer_id *buffer, void **buffer_data) {
@@ -392,6 +403,9 @@ OMX_ERRORTYPE OMX::OnEvent(
         OMX_IN OMX_U32 nData2,
         OMX_IN OMX_PTR pEventData) {
     ALOGV("OnEvent(%d, %ld, %ld)", eEvent, nData1, nData2);
+
+    // Forward to OMXNodeInstance.
+    findInstance(node)->onEvent(eEvent, nData1, nData2);
 
     omx_message msg;
     msg.type = omx_message::EVENT;
