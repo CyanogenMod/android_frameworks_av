@@ -283,7 +283,14 @@ void Camera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
 void Camera::dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
                           camera_frame_metadata_t *metadata)
 {
-    return CameraBaseT::dataCallback(msgType, dataPtr, metadata);
+    sp<CameraListener> listener;
+    {
+        Mutex::Autolock _l(mLock);
+        listener = mListener;
+    }
+    if (listener != NULL) {
+        listener->postData(msgType, dataPtr, metadata);
+    }
 }
 
 // callback from camera service when timestamped frame is ready
@@ -302,7 +309,15 @@ void Camera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<
         return;
     }
 
-    if (!CameraBaseT::dataCallbackTimestamp(timestamp, msgType, dataPtr)) {
+    sp<CameraListener> listener;
+    {
+        Mutex::Autolock _l(mLock);
+        listener = mListener;
+    }
+
+    if (listener != NULL) {
+        listener->postDataTimestamp(timestamp, msgType, dataPtr);
+    } else {
         ALOGW("No listener was set. Drop a recording frame.");
         releaseRecordingFrame(dataPtr);
     }
