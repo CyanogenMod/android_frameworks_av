@@ -20,15 +20,13 @@
 
 #include "DirectRenderer.h"
 
-#include "AnotherPacketSource.h"
-#include "ATSParser.h"
-
 #include <gui/SurfaceComposerClient.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -36,30 +34,13 @@
 
 namespace android {
 
-#if 1
-// static
-const int64_t DirectRenderer::kPacketLostDelayUs = 80000ll;
-
-// static
-const int64_t DirectRenderer::kPacketLateDelayUs = 60000ll;
-#else
-// static
-const int64_t DirectRenderer::kPacketLostDelayUs = 1000000ll;
-
-// static
-const int64_t DirectRenderer::kPacketLateDelayUs = -1ll;
-#endif
-
 DirectRenderer::DirectRenderer(
-        const sp<AMessage> &notifyLost,
         const sp<IGraphicBufferProducer> &bufferProducer)
-    : mNotifyLost(notifyLost),
-      mSurfaceTex(bufferProducer),
-      mTSParser(new ATSParser(ATSParser::ALIGNED_VIDEO_DATA)),
+    : mSurfaceTex(bufferProducer),
       mVideoDecoderNotificationPending(false),
-      mAwaitingExtSeqNo(-1),
-      mRequestedRetransmission(false),
-      mPacketLostGeneration(0) {
+      mRenderPending(false),
+      mFirstRenderTimeUs(-1ll),
+      mFirstRenderRealUs(-1ll) {
 }
 
 DirectRenderer::~DirectRenderer() {
@@ -74,58 +55,15 @@ DirectRenderer::~DirectRenderer() {
 
 void DirectRenderer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
-        case kWhatQueueBuffer:
-        {
-            sp<ABuffer> buffer;
-            CHECK(msg->findBuffer("buffer", &buffer));
-
-            onQueueBuffer(buffer);
-
-            dequeueMore();
-            break;
-        }
-
-        case kWhatPacketLate:
-        case kWhatPacketLost:
-        {
-            int32_t generation;
-            CHECK(msg->findInt32("generation", &generation));
-
-            if (generation != mPacketLostGeneration) {
-                // stale.
-                break;
-            }
-
-            if (msg->what() == kWhatPacketLate) {
-                CHECK(!mRequestedRetransmission);
-                CHECK_GE(mAwaitingExtSeqNo, 0);
-
-                ALOGV("packet extSeqNo %d is late, requesting retransmission.",
-                      mAwaitingExtSeqNo);
-
-                sp<AMessage> notify = mNotifyLost->dup();
-                notify->setInt32("seqNo", (mAwaitingExtSeqNo & 0xffff));
-                notify->post();
-
-                mRequestedRetransmission = true;
-                break;
-            }
-
-            ALOGW("lost packet extSeqNo %d", mAwaitingExtSeqNo);
-
-            sp<AMessage> extra;
-            mTSParser->signalDiscontinuity(
-                    ATSParser::DISCONTINUITY_TIME, extra);
-
-            mAwaitingExtSeqNo = -1;
-            mRequestedRetransmission = false;
-            dequeueMore();
-            break;
-        }
-
         case kWhatVideoDecoderNotify:
         {
             onVideoDecoderNotify();
+            break;
+        }
+
+        case kWhatRender:
+        {
+            onRender();
             break;
         }
 
@@ -134,203 +72,67 @@ void DirectRenderer::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void DirectRenderer::onQueueBuffer(const sp<ABuffer> &buffer) {
-    int32_t newExtendedSeqNo = buffer->int32Data();
-
-    if (mPackets.empty()) {
-        mPackets.push_back(buffer);
+void DirectRenderer::setFormat(
+        size_t trackIndex, const sp<AMessage> &format) {
+    if (trackIndex == 1) {
+        // Ignore audio for now.
         return;
     }
 
-    if (mAwaitingExtSeqNo > 0 && newExtendedSeqNo < mAwaitingExtSeqNo) {
-        // We're no longer interested in these. They're old.
+    CHECK(mVideoDecoder == NULL);
+
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+
+    mVideoDecoderLooper = new ALooper;
+    mVideoDecoderLooper->setName("video codec looper");
+
+    mVideoDecoderLooper->start(
+            false /* runOnCallingThread */,
+            false /* canCallJava */,
+            PRIORITY_DEFAULT);
+
+    mVideoDecoder = MediaCodec::CreateByType(
+            mVideoDecoderLooper, mime.c_str(), false /* encoder */);
+
+    CHECK(mVideoDecoder != NULL);
+
+    status_t err = mVideoDecoder->configure(
+            format,
+            mSurfaceTex == NULL
+                ? NULL : new Surface(mSurfaceTex),
+            NULL /* crypto */,
+            0 /* flags */);
+    CHECK_EQ(err, (status_t)OK);
+
+    err = mVideoDecoder->start();
+    CHECK_EQ(err, (status_t)OK);
+
+    err = mVideoDecoder->getInputBuffers(
+            &mVideoDecoderInputBuffers);
+    CHECK_EQ(err, (status_t)OK);
+
+    scheduleVideoDecoderNotification();
+}
+
+void DirectRenderer::queueAccessUnit(
+        size_t trackIndex, const sp<ABuffer> &accessUnit) {
+    if (trackIndex == 1) {
+        // Ignore audio for now.
         return;
     }
 
-    List<sp<ABuffer> >::iterator firstIt = mPackets.begin();
-    List<sp<ABuffer> >::iterator it = --mPackets.end();
-    for (;;) {
-        int32_t extendedSeqNo = (*it)->int32Data();
+    if (mVideoDecoder == NULL) {
+        sp<AMessage> format = new AMessage;
+        format->setString("mime", "video/avc");
+        format->setInt32("width", 640);
+        format->setInt32("height", 360);
 
-        if (extendedSeqNo == newExtendedSeqNo) {
-            // Duplicate packet.
-            return;
-        }
-
-        if (extendedSeqNo < newExtendedSeqNo) {
-            // Insert new packet after the one at "it".
-            mPackets.insert(++it, buffer);
-            return;
-        }
-
-        if (it == firstIt) {
-            // Insert new packet before the first existing one.
-            mPackets.insert(it, buffer);
-            return;
-        }
-
-        --it;
-    }
-}
-
-void DirectRenderer::dequeueMore() {
-    if (mAwaitingExtSeqNo >= 0) {
-        // Remove all packets before the one we're looking for, they had
-        // their chance.
-        while (!mPackets.empty()
-                && (*mPackets.begin())->int32Data() < mAwaitingExtSeqNo) {
-            ALOGV("dropping late packet extSeqNo %d",
-                  (*mPackets.begin())->int32Data());
-
-            mPackets.erase(mPackets.begin());
-        }
+        setFormat(0, format);
     }
 
-    bool packetLostScheduled = (mAwaitingExtSeqNo >= 0);
-
-    while (!mPackets.empty()) {
-        sp<ABuffer> buffer = *mPackets.begin();
-        int32_t extSeqNo = buffer->int32Data();
-
-        if (mAwaitingExtSeqNo >= 0 && extSeqNo != mAwaitingExtSeqNo) {
-            break;
-        }
-
-        mPackets.erase(mPackets.begin());
-
-        if (packetLostScheduled) {
-            packetLostScheduled = false;
-            cancelPacketLost();
-        }
-
-        if (mRequestedRetransmission) {
-            ALOGV("recovered after requesting retransmission of extSeqNo %d",
-                  mAwaitingExtSeqNo);
-        }
-
-        CHECK_EQ(buffer->size() % 188, 0u);
-
-        for (size_t offset = 0; offset < buffer->size(); offset += 188) {
-            status_t err = mTSParser->feedTSPacket(
-                    buffer->data() + offset, 188);
-
-            CHECK_EQ(err, (status_t)OK);
-        }
-
-        mAwaitingExtSeqNo = extSeqNo + 1;
-        mRequestedRetransmission = false;
-    }
-
-    if (!packetLostScheduled && mAwaitingExtSeqNo >= 0) {
-        schedulePacketLost();
-    }
-
-    dequeueAccessUnits();
-}
-
-void DirectRenderer::dequeueAccessUnits() {
-    sp<AnotherPacketSource> audioSource =
-        static_cast<AnotherPacketSource *>(
-                mTSParser->getSource(ATSParser::AUDIO).get());
-
-    if (audioSource != NULL) {
-        status_t finalResult;
-        size_t n = 0;
-        while (audioSource->hasBufferAvailable(&finalResult)) {
-            sp<ABuffer> accessUnit;
-            status_t err = audioSource->dequeueAccessUnit(&accessUnit);
-            if (err == OK) {
-                ++n;
-            }
-        }
-
-        if (n > 0) {
-            ALOGV("dequeued %d audio access units.", n);
-        }
-    }
-
-    sp<AnotherPacketSource> videoSource =
-        static_cast<AnotherPacketSource *>(
-                mTSParser->getSource(ATSParser::VIDEO).get());
-
-    if (videoSource != NULL) {
-        if (mVideoDecoder == NULL) {
-            sp<MetaData> meta = videoSource->getFormat();
-            if (meta != NULL) {
-                sp<AMessage> videoFormat;
-                status_t err = convertMetaDataToMessage(meta, &videoFormat);
-                CHECK_EQ(err, (status_t)OK);
-
-                AString mime;
-                CHECK(videoFormat->findString("mime", &mime));
-
-                mVideoDecoderLooper = new ALooper;
-                mVideoDecoderLooper->setName("video codec looper");
-
-                mVideoDecoderLooper->start(
-                        false /* runOnCallingThread */,
-                        false /* canCallJava */,
-                        PRIORITY_DEFAULT);
-
-                mVideoDecoder = MediaCodec::CreateByType(
-                        mVideoDecoderLooper, mime.c_str(), false /* encoder */);
-
-                CHECK(mVideoDecoder != NULL);
-
-                err = mVideoDecoder->configure(
-                        videoFormat,
-                        mSurfaceTex == NULL
-                            ? NULL : new Surface(mSurfaceTex),
-                        NULL /* crypto */,
-                        0 /* flags */);
-
-                CHECK_EQ(err, (status_t)OK);
-
-                err = mVideoDecoder->start();
-                CHECK_EQ(err, (status_t)OK);
-
-                err = mVideoDecoder->getInputBuffers(
-                        &mVideoDecoderInputBuffers);
-                CHECK_EQ(err, (status_t)OK);
-
-                scheduleVideoDecoderNotification();
-            }
-        }
-
-        status_t finalResult;
-        size_t n = 0;
-        while (videoSource->hasBufferAvailable(&finalResult)) {
-            sp<ABuffer> accessUnit;
-            status_t err = videoSource->dequeueAccessUnit(&accessUnit);
-            if (err == OK) {
-                mVideoAccessUnits.push_back(accessUnit);
-                ++n;
-            }
-        }
-
-        if (n > 0) {
-            ALOGV("dequeued %d video access units.", n);
-            queueVideoDecoderInputBuffers();
-        }
-    }
-}
-
-void DirectRenderer::schedulePacketLost() {
-    sp<AMessage> msg;
-
-    if (kPacketLateDelayUs > 0ll) {
-        msg = new AMessage(kWhatPacketLate, id());
-        msg->setInt32("generation", mPacketLostGeneration);
-        msg->post(kPacketLateDelayUs);
-    }
-
-    msg = new AMessage(kWhatPacketLost, id());
-    msg->setInt32("generation", mPacketLostGeneration);
-    msg->post(kPacketLostDelayUs);
-}
-
-void DirectRenderer::cancelPacketLost() {
-    ++mPacketLostGeneration;
+    mVideoAccessUnits.push_back(accessUnit);
+    queueVideoDecoderInputBuffers();
 }
 
 void DirectRenderer::queueVideoDecoderInputBuffers() {
@@ -406,8 +208,7 @@ void DirectRenderer::onVideoDecoderNotify() {
                 &flags);
 
         if (err == OK) {
-            err = mVideoDecoder->renderOutputBufferAndRelease(index);
-            CHECK_EQ(err, (status_t)OK);
+            queueOutputBuffer(index, timeUs);
         } else if (err == INFO_OUTPUT_BUFFERS_CHANGED) {
             // We don't care.
         } else if (err == INFO_FORMAT_CHANGED) {
@@ -420,6 +221,62 @@ void DirectRenderer::onVideoDecoderNotify() {
     }
 
     scheduleVideoDecoderNotification();
+}
+
+void DirectRenderer::queueOutputBuffer(size_t index, int64_t timeUs) {
+#if 0
+    OutputInfo info;
+    info.mIndex = index;
+    info.mTimeUs = timeUs;
+    mOutputBuffers.push_back(info);
+
+    scheduleRenderIfNecessary();
+#else
+    status_t err = mVideoDecoder->renderOutputBufferAndRelease(index);
+    CHECK_EQ(err, (status_t)OK);
+#endif
+}
+
+void DirectRenderer::scheduleRenderIfNecessary() {
+    if (mRenderPending || mOutputBuffers.empty()) {
+        return;
+    }
+
+    mRenderPending = true;
+
+    int64_t timeUs = (*mOutputBuffers.begin()).mTimeUs;
+    int64_t nowUs = ALooper::GetNowUs();
+
+    if (mFirstRenderTimeUs < 0ll) {
+        mFirstRenderTimeUs = timeUs;
+        mFirstRenderRealUs = nowUs;
+    }
+
+    int64_t whenUs = timeUs - mFirstRenderTimeUs + mFirstRenderRealUs;
+    int64_t delayUs = whenUs - nowUs;
+
+    (new AMessage(kWhatRender, id()))->post(delayUs);
+}
+
+void DirectRenderer::onRender() {
+    mRenderPending = false;
+
+    int64_t nowUs = ALooper::GetNowUs();
+
+    while (!mOutputBuffers.empty()) {
+        const OutputInfo &info = *mOutputBuffers.begin();
+
+        if (info.mTimeUs > nowUs) {
+            break;
+        }
+
+        status_t err = mVideoDecoder->renderOutputBufferAndRelease(info.mIndex);
+        CHECK_EQ(err, (status_t)OK);
+
+        mOutputBuffers.erase(mOutputBuffers.begin());
+    }
+
+    scheduleRenderIfNecessary();
 }
 
 void DirectRenderer::scheduleVideoDecoderNotification() {
