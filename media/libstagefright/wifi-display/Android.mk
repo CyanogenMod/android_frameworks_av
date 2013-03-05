@@ -4,21 +4,23 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
         ANetworkSession.cpp             \
+        MediaReceiver.cpp               \
+        MediaSender.cpp                 \
         Parameters.cpp                  \
         ParsedMessage.cpp               \
+        rtp/RTPAssembler.cpp            \
+        rtp/RTPReceiver.cpp             \
+        rtp/RTPSender.cpp               \
         sink/DirectRenderer.cpp         \
-        sink/LinearRegression.cpp       \
-        sink/RTPSink.cpp                \
         sink/TunnelRenderer.cpp         \
         sink/WifiDisplaySink.cpp        \
+        SNTPClient.cpp                  \
         source/Converter.cpp            \
         source/MediaPuller.cpp          \
         source/PlaybackSession.cpp      \
         source/RepeaterSource.cpp       \
-        source/Sender.cpp               \
         source/TSPacketizer.cpp         \
         source/WifiDisplaySource.cpp    \
-        TimeSeries.cpp                  \
         VideoFormats.cpp                \
 
 LOCAL_C_INCLUDES:= \
@@ -81,6 +83,28 @@ LOCAL_SHARED_LIBRARIES:= \
         libutils                        \
 
 LOCAL_MODULE:= udptest
+
+LOCAL_MODULE_TAGS := debug
+
+include $(BUILD_EXECUTABLE)
+
+################################################################################
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \
+        rtptest.cpp                 \
+
+LOCAL_SHARED_LIBRARIES:= \
+        libbinder                       \
+        libgui                          \
+        libmedia                        \
+        libstagefright                  \
+        libstagefright_foundation       \
+        libstagefright_wfd              \
+        libutils                        \
+
+LOCAL_MODULE:= rtptest
 
 LOCAL_MODULE_TAGS := debug
 

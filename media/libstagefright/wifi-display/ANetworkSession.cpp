@@ -23,6 +23,7 @@
 
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <linux/tcp.h>
 #include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -313,6 +314,9 @@ status_t ANetworkSession::Session::readMore() {
 
             sp<ABuffer> packet = new ABuffer(packetSize);
             memcpy(packet->data(), mInBuffer.c_str() + 2, packetSize);
+
+            int64_t nowUs = ALooper::GetNowUs();
+            packet->meta()->setInt64("arrivalTimeUs", nowUs);
 
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("sessionID", mSessionID);
@@ -765,6 +769,14 @@ status_t ANetworkSession::createClientOrServer(
         }
 
         res = setsockopt(s, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
+
+        if (res < 0) {
+            err = -errno;
+            goto bail2;
+        }
+    } else if (mode == kModeCreateTCPDatagramSessionActive) {
+        int flag = 1;
+        res = setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
         if (res < 0) {
             err = -errno;

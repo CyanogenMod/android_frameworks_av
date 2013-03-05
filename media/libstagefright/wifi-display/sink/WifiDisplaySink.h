@@ -28,8 +28,12 @@
 namespace android {
 
 struct AMessage;
+struct DirectRenderer;
+struct MediaReceiver;
 struct ParsedMessage;
-struct RTPSink;
+struct TunnelRenderer;
+
+#define USE_TUNNEL_RENDERER     0
 
 // Represents the RTSP client acting as a wifi display sink.
 // Connects to a wifi display source and renders the incoming
@@ -68,8 +72,7 @@ private:
         kWhatStart,
         kWhatRTSPNotify,
         kWhatStop,
-        kWhatRequestIDRFrame,
-        kWhatRTPSinkNotify,
+        kWhatMediaReceiverNotify,
     };
 
     struct ResponseID {
@@ -100,9 +103,19 @@ private:
 
     KeyedVector<ResponseID, HandleRTSPResponseFunc> mResponseHandlers;
 
-    sp<RTPSink> mRTPSink;
+    sp<ALooper> mMediaReceiverLooper;
+    sp<MediaReceiver> mMediaReceiver;
+
+#if USE_TUNNEL_RENDERER
+    sp<TunnelRenderer> mRenderer;
+#else
+    sp<DirectRenderer> mRenderer;
+#endif
+
     AString mPlaybackSessionID;
     int32_t mPlaybackSessionTimeoutSecs;
+
+    bool mIDRFrameRequestPending;
 
     status_t sendM2(int32_t sessionID);
     status_t sendSetup(int32_t sessionID, const char *uri);
@@ -142,6 +155,8 @@ private:
             int32_t sessionID,
             int32_t cseq,
             const sp<ParsedMessage> &data);
+
+    void onMediaReceiverNotify(const sp<AMessage> &msg);
 
     void sendErrorResponse(
             int32_t sessionID,
