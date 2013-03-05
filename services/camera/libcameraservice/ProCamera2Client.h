@@ -48,8 +48,7 @@ public:
                                         bool streaming = false);
     virtual status_t      cancelRequest(int requestId);
 
-    virtual status_t      requestStream(int streamId);
-    virtual status_t      cancelStream(int streamId);
+    virtual status_t      deleteStream(int streamId);
 
     virtual status_t      createStream(
             int width,

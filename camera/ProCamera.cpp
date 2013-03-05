@@ -60,21 +60,6 @@ void ProCamera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
     return CameraBaseT::notifyCallback(msgType, ext1, ext2);
 }
 
-// callback from camera service when frame or image is ready
-void ProCamera::dataCallback(int32_t msgType, const sp<IMemory>& dataPtr,
-                          camera_frame_metadata_t *metadata)
-{
-    return CameraBaseT::dataCallback(msgType, dataPtr, metadata);
-}
-
-// callback from camera service when timestamped frame is ready
-void ProCamera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType,
-                                   const sp<IMemory>& dataPtr)
-{
-    CameraBaseT::dataCallbackTimestamp(timestamp, msgType, dataPtr);
-}
-
-
 void ProCamera::onLockStatusChanged(
                                  IProCameraCallbacks::LockStatus newLockStatus)
 {
@@ -185,7 +170,7 @@ status_t ProCamera::deleteStream(int streamId)
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
 
-    status_t s = c->cancelStream(streamId);
+    status_t s = c->deleteStream(streamId);
 
     mStreams.removeItem(streamId);
 
@@ -330,10 +315,7 @@ void ProCamera::onFrameAvailable(int streamId) {
     CpuConsumer::LockedBuffer buf;
 
     if (listener.get() != NULL) {
-        if (listener->useOnFrameAvailable()) {
-            listener->onFrameAvailable(streamId, stream.cpuConsumer);
-            return;
-        }
+        listener->onFrameAvailable(streamId, stream.cpuConsumer);
     }
 
     // Unblock waitForFrame(id) callers

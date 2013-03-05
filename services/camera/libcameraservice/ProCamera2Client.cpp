@@ -230,14 +230,7 @@ status_t ProCamera2Client::cancelRequest(int requestId) {
     return INVALID_OPERATION;
 }
 
-//TODO: Remove
-status_t ProCamera2Client::requestStream(int streamId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    return INVALID_OPERATION;
-}
-
-status_t ProCamera2Client::cancelStream(int streamId) {
+status_t ProCamera2Client::deleteStream(int streamId) {
     ATRACE_CALL();
     ALOGV("%s (streamId = 0x%x)", __FUNCTION__, streamId);
 

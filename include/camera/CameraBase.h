@@ -91,12 +91,6 @@ protected:
     ////////////////////////////////////////////////////////
     virtual void         notifyCallback(int32_t msgType, int32_t ext,
                                         int32_t ext2);
-    virtual void         dataCallback(int32_t msgType,
-                                      const sp<IMemory>& dataPtr,
-                                      camera_frame_metadata *metadata);
-    bool                 dataCallbackTimestamp(nsecs_t timestamp,
-                                               int32_t msgType,
-                                               const sp<IMemory>& dataPtr);
 
     ////////////////////////////////////////////////////////
     // Common instance variables
@@ -115,7 +109,7 @@ protected:
 
     const int                        mCameraId;
 
-    typedef CameraBase<TCam>        CameraBaseT;
+    typedef CameraBase<TCam>         CameraBaseT;
 };
 
 }; // namespace android
