@@ -19,8 +19,11 @@
 #include <utils/Log.h>
 
 #include "WifiDisplaySink.h"
+
+#include "DirectRenderer.h"
+#include "MediaReceiver.h"
 #include "ParsedMessage.h"
-#include "RTPSink.h"
+#include "TunnelRenderer.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -42,7 +45,8 @@ WifiDisplaySink::WifiDisplaySink(
       mUsingTCPTransport(false),
       mUsingTCPInterleaving(false),
       mSessionID(0),
-      mNextCSeq(1) {
+      mNextCSeq(1),
+      mIDRFrameRequestPending(false) {
 #if 1
     // We support any and all resolutions, but prefer 720p30
     mSinkSupportedVideoFormats.setNativeResolution(
@@ -50,11 +54,11 @@ WifiDisplaySink::WifiDisplaySink(
 
     mSinkSupportedVideoFormats.enableAll();
 #else
-    // We only support 800 x 600 p60.
+    // We only support 640 x 360 p30.
     mSinkSupportedVideoFormats.disableAll();
 
     mSinkSupportedVideoFormats.setNativeResolution(
-            VideoFormats::RESOLUTION_VESA, 1);  // 800 x 600 p60
+            VideoFormats::RESOLUTION_HH, 6);  // 640 x 360 p30
 #endif
 }
 
@@ -212,20 +216,6 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ANetworkSession::kWhatBinaryData:
-                {
-                    CHECK(mUsingTCPInterleaving);
-
-                    int32_t channel;
-                    CHECK(msg->findInt32("channel", &channel));
-
-                    sp<ABuffer> data;
-                    CHECK(msg->findBuffer("data", &data));
-
-                    mRTPSink->injectPacket(channel == 0 /* isRTP */, data);
-                    break;
-                }
-
                 default:
                     TRESPASS();
             }
@@ -238,15 +228,80 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatRequestIDRFrame:
+        case kWhatMediaReceiverNotify:
         {
-            ALOGI("requesting IDR frame");
-            sendIDRFrameRequest(mSessionID);
+            onMediaReceiverNotify(msg);
             break;
         }
 
-        case kWhatRTPSinkNotify:
+        default:
+            TRESPASS();
+    }
+}
+
+void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
+    int32_t what;
+    CHECK(msg->findInt32("what", &what));
+
+    switch (what) {
+        case MediaReceiver::kWhatInitDone:
         {
+            status_t err;
+            CHECK(msg->findInt32("err", &err));
+
+            ALOGI("MediaReceiver initialization completed w/ err %d", err);
+            break;
+        }
+
+        case MediaReceiver::kWhatError:
+        {
+            status_t err;
+            CHECK(msg->findInt32("err", &err));
+
+            ALOGE("MediaReceiver signaled error %d", err);
+            break;
+        }
+
+        case MediaReceiver::kWhatAccessUnit:
+        {
+            if (mRenderer == NULL) {
+#if USE_TUNNEL_RENDERER
+                mRenderer = new TunnelRenderer(mSurfaceTex);
+#else
+                mRenderer = new DirectRenderer(mSurfaceTex);
+#endif
+
+                looper()->registerHandler(mRenderer);
+            }
+
+            sp<ABuffer> accessUnit;
+            CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
+#if USE_TUNNEL_RENDERER
+            mRenderer->queueBuffer(accessUnit);
+#else
+            size_t trackIndex;
+            CHECK(msg->findSize("trackIndex", &trackIndex));
+
+            sp<AMessage> format;
+            if (msg->findMessage("format", &format)) {
+                mRenderer->setFormat(trackIndex, format);
+            }
+
+            mRenderer->queueAccessUnit(trackIndex, accessUnit);
+#endif
+            break;
+        }
+
+        case MediaReceiver::kWhatPacketLost:
+        {
+#if 0
+            if (!mIDRFrameRequestPending) {
+                ALOGI("requesting IDR frame");
+
+                sendIDRFrameRequest(mSessionID);
+            }
+#endif
             break;
         }
 
@@ -381,7 +436,8 @@ status_t WifiDisplaySink::configureTransport(const sp<ParsedMessage> &msg) {
         ALOGW("Server picked an odd numbered RTP port.");
     }
 
-    return mRTPSink->connect(sourceHost.c_str(), rtpPort, rtcpPort);
+    return mMediaReceiver->connectTrack(
+            0 /* trackIndex */, sourceHost.c_str(), rtpPort, rtcpPort);
 }
 
 status_t WifiDisplaySink::onReceivePlayResponse(
@@ -402,6 +458,9 @@ status_t WifiDisplaySink::onReceivePlayResponse(
 
 status_t WifiDisplaySink::onReceiveIDRFrameRequestResponse(
         int32_t sessionID, const sp<ParsedMessage> &msg) {
+    CHECK(mIDRFrameRequestPending);
+    mIDRFrameRequestPending = false;
+
     return OK;
 }
 
@@ -539,16 +598,48 @@ void WifiDisplaySink::onGetParameterRequest(
 }
 
 status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
-    sp<AMessage> notify = new AMessage(kWhatRTPSinkNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatMediaReceiverNotify, id());
 
-    mRTPSink = new RTPSink(mNetSession, mSurfaceTex, notify);
-    looper()->registerHandler(mRTPSink);
+    mMediaReceiverLooper = new ALooper;
+    mMediaReceiverLooper->setName("media_receiver");
 
-    status_t err = mRTPSink->init(mUsingTCPTransport, mUsingTCPInterleaving);
+    mMediaReceiverLooper->start(
+            false /* runOnCallingThread */,
+            false /* canCallJava */,
+            PRIORITY_AUDIO);
+
+    mMediaReceiver = new MediaReceiver(mNetSession, notify);
+    mMediaReceiverLooper->registerHandler(mMediaReceiver);
+
+    RTPReceiver::TransportMode mode = RTPReceiver::TRANSPORT_UDP;
+    if (mUsingTCPTransport) {
+        if (mUsingTCPInterleaving) {
+            mode = RTPReceiver::TRANSPORT_TCP_INTERLEAVED;
+        } else {
+            mode = RTPReceiver::TRANSPORT_TCP;
+        }
+    }
+
+    int32_t localRTPPort;
+    status_t err = mMediaReceiver->addTrack(mode, &localRTPPort);
+
+    if (err == OK) {
+        err = mMediaReceiver->initAsync(
+#if USE_TUNNEL_RENDERER
+                MediaReceiver::MODE_TRANSPORT_STREAM_RAW
+#else
+                MediaReceiver::MODE_TRANSPORT_STREAM
+#endif
+                );
+    }
 
     if (err != OK) {
-        looper()->unregisterHandler(mRTPSink->id());
-        mRTPSink.clear();
+        mMediaReceiverLooper->unregisterHandler(mMediaReceiver->id());
+        mMediaReceiver.clear();
+
+        mMediaReceiverLooper->stop();
+        mMediaReceiverLooper.clear();
+
         return err;
     }
 
@@ -556,17 +647,19 @@ status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
 
     AppendCommonResponse(&request, mNextCSeq);
 
-    if (mUsingTCPInterleaving) {
+    if (mode == RTPReceiver::TRANSPORT_TCP_INTERLEAVED) {
         request.append("Transport: RTP/AVP/TCP;interleaved=0-1\r\n");
-    } else {
-        int32_t rtpPort = mRTPSink->getRTPPort();
-
+    } else if (mode == RTPReceiver::TRANSPORT_TCP) {
         request.append(
                 StringPrintf(
-                    "Transport: RTP/AVP/%s;unicast;client_port=%d-%d\r\n",
-                    mUsingTCPTransport ? "TCP" : "UDP",
-                    rtpPort,
-                    rtpPort + 1));
+                    "Transport: RTP/AVP/TCP;unicast;client_port=%d\r\n",
+                    localRTPPort));
+    } else {
+        request.append(
+                StringPrintf(
+                    "Transport: RTP/AVP/UDP;unicast;client_port=%d-%d\r\n",
+                    localRTPPort,
+                    localRTPPort + 1));
     }
 
     request.append("\r\n");
@@ -611,6 +704,8 @@ status_t WifiDisplaySink::sendPlay(int32_t sessionID, const char *uri) {
 }
 
 status_t WifiDisplaySink::sendIDRFrameRequest(int32_t sessionID) {
+    CHECK(!mIDRFrameRequestPending);
+
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
 
     AppendCommonResponse(&request, mNextCSeq);
@@ -635,6 +730,8 @@ status_t WifiDisplaySink::sendIDRFrameRequest(int32_t sessionID) {
             &WifiDisplaySink::onReceiveIDRFrameRequestResponse);
 
     ++mNextCSeq;
+
+    mIDRFrameRequestPending = true;
 
     return OK;
 }

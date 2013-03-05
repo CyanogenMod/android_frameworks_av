@@ -23,7 +23,6 @@
 namespace android {
 
 struct ABuffer;
-struct ATSParser;
 struct IGraphicBufferProducer;
 struct MediaCodec;
 
@@ -32,13 +31,10 @@ struct MediaCodec;
 // delay. Primarily meant to finetune packet loss discovery and minimize
 // latency.
 struct DirectRenderer : public AHandler {
-    DirectRenderer(
-            const sp<AMessage> &notifyLost,
-            const sp<IGraphicBufferProducer> &bufferProducer);
+    DirectRenderer(const sp<IGraphicBufferProducer> &bufferProducer);
 
-    enum {
-        kWhatQueueBuffer = 'queB',
-    };
+    void setFormat(size_t trackIndex, const sp<AMessage> &format);
+    void queueAccessUnit(size_t trackIndex, const sp<ABuffer> &accessUnit);
 
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -46,21 +42,16 @@ protected:
 
 private:
     enum {
-        kWhatPacketLate,
-        kWhatPacketLost,
         kWhatVideoDecoderNotify,
+        kWhatRender,
     };
 
-    static const int64_t kPacketLateDelayUs;
-    static const int64_t kPacketLostDelayUs;
+    struct OutputInfo {
+        size_t mIndex;
+        int64_t mTimeUs;
+    };
 
-    sp<AMessage> mNotifyLost;
     sp<IGraphicBufferProducer> mSurfaceTex;
-
-    // Ordered by extended seq number.
-    List<sp<ABuffer> > mPackets;
-
-    sp<ATSParser> mTSParser;
 
     sp<ALooper> mVideoDecoderLooper;
     sp<MediaCodec> mVideoDecoder;
@@ -70,21 +61,19 @@ private:
 
     List<sp<ABuffer> > mVideoAccessUnits;
 
-    int32_t mAwaitingExtSeqNo;
-    bool mRequestedRetransmission;
-    int32_t mPacketLostGeneration;
+    List<OutputInfo> mOutputBuffers;
+    bool mRenderPending;
+    int64_t mFirstRenderTimeUs;
+    int64_t mFirstRenderRealUs;
 
-    void onQueueBuffer(const sp<ABuffer> &buffer);
     void onVideoDecoderNotify();
-
-    void dequeueMore();
-    void dequeueAccessUnits();
-
-    void schedulePacketLost();
-    void cancelPacketLost();
+    void onRender();
 
     void queueVideoDecoderInputBuffers();
     void scheduleVideoDecoderNotification();
+    void scheduleRenderIfNecessary();
+
+    void queueOutputBuffer(size_t index, int64_t timeUs);
 
     DISALLOW_EVIL_CONSTRUCTORS(DirectRenderer);
 };
