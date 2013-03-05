@@ -30,6 +30,7 @@
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/ACodec.h>
+#include <media/stagefright/BufferProducerWrapper.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/NativeWindowWrapper.h>
@@ -62,6 +63,7 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
     : mState(UNINITIALIZED),
       mLooper(looper),
       mCodec(new ACodec),
+      mReplyID(0),
       mFlags(0),
       mSoftRenderer(NULL),
       mDequeueInputTimeoutGeneration(0),
@@ -154,6 +156,28 @@ status_t MediaCodec::configure(
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::createInputSurface(
+        sp<IGraphicBufferProducer>* bufferProducer) {
+    sp<AMessage> msg = new AMessage(kWhatCreateInputSurface, id());
+
+    // TODO(fadden): require MediaFormat colorFormat == AndroidOpaque
+
+    sp<AMessage> response;
+    status_t err = PostAndAwaitResponse(msg, &response);
+    if (err == NO_ERROR) {
+        // unwrap the sp<IGraphicBufferProducer>
+        sp<RefBase> obj;
+        bool found = response->findObject("input-surface", &obj);
+        CHECK(found);
+        sp<BufferProducerWrapper> wrapper(
+                static_cast<BufferProducerWrapper*>(obj.get()));
+        *bufferProducer = wrapper->getBufferProducer();
+    } else {
+        ALOGW("createInputSurface failed, err=%d", err);
+    }
+    return err;
+}
+
 status_t MediaCodec::start() {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
 
@@ -232,6 +256,8 @@ status_t MediaCodec::queueSecureInputBuffer(
 }
 
 status_t MediaCodec::dequeueInputBuffer(size_t *index, int64_t timeoutUs) {
+    // TODO(fadden): fail if an input Surface has been configured
+
     sp<AMessage> msg = new AMessage(kWhatDequeueInputBuffer, id());
     msg->setInt64("timeoutUs", timeoutUs);
 
@@ -283,6 +309,13 @@ status_t MediaCodec::renderOutputBufferAndRelease(size_t index) {
 status_t MediaCodec::releaseOutputBuffer(size_t index) {
     sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, id());
     msg->setSize("index", index);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
+status_t MediaCodec::signalEndOfInputStream() {
+    sp<AMessage> msg = new AMessage(kWhatSignalEndOfInputStream, id());
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -574,6 +607,36 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     (new AMessage)->postReply(mReplyID);
                     break;
                 }
+
+                case ACodec::kWhatInputSurfaceCreated:
+                {
+                    // response to ACodec::kWhatCreateInputSurface
+                    status_t err = NO_ERROR;
+                    sp<AMessage> response = new AMessage();
+                    if (!msg->findInt32("err", &err)) {
+                        sp<RefBase> obj;
+                        msg->findObject("input-surface", &obj);
+                        CHECK(obj != NULL);
+                        response->setObject("input-surface", obj);
+                    } else {
+                        response->setInt32("err", err);
+                    }
+                    response->postReply(mReplyID);
+                    break;
+                }
+
+                case ACodec::kWhatSignaledInputEOS:
+                {
+                    // response to ACodec::kWhatSignalEndOfInputStream
+                    sp<AMessage> response = new AMessage();
+                    status_t err;
+                    if (msg->findInt32("err", &err)) {
+                        response->setInt32("err", err);
+                    }
+                    response->postReply(mReplyID);
+                    break;
+                }
+
 
                 case ACodec::kWhatBuffersAllocated:
                 {
@@ -881,6 +944,25 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatCreateInputSurface:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            // Must be configured, but can't have been started yet.
+            if (mState != CONFIGURED) {
+                sp<AMessage> response = new AMessage;
+                response->setInt32("err", INVALID_OPERATION);
+
+                response->postReply(replyID);
+                break;
+            }
+
+            mReplyID = replyID;
+            mCodec->initiateCreateInputSurface();
+            break;
+        }
+
         case kWhatStart:
         {
             uint32_t replyID;
@@ -947,6 +1029,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatDequeueInputBuffer:
         {
+            // TODO(fadden): make this fail if we're using an input Surface
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
@@ -1090,6 +1173,24 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
             response->postReply(replyID);
+            break;
+        }
+
+        case kWhatSignalEndOfInputStream:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+                sp<AMessage> response = new AMessage;
+                response->setInt32("err", INVALID_OPERATION);
+
+                response->postReply(replyID);
+                break;
+            }
+
+            mReplyID = replyID;
+            mCodec->signalEndOfInputStream();
             break;
         }
 

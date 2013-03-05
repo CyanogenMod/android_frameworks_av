@@ -43,6 +43,8 @@ struct ACodec : public AHierarchicalStateMachine {
         kWhatError               = 'erro',
         kWhatComponentAllocated  = 'cAll',
         kWhatComponentConfigured = 'cCon',
+        kWhatInputSurfaceCreated = 'isfc',
+        kWhatSignaledInputEOS    = 'seos',
         kWhatBuffersAllocated    = 'allc',
     };
 
@@ -55,9 +57,11 @@ struct ACodec : public AHierarchicalStateMachine {
     void initiateShutdown(bool keepComponentAllocated = false);
 
     void signalSetParameters(const sp<AMessage> &msg);
+    void signalEndOfInputStream();
 
     void initiateAllocateComponent(const sp<AMessage> &msg);
     void initiateConfigureComponent(const sp<AMessage> &msg);
+    void initiateCreateInputSurface();
     void initiateStart();
 
     void signalRequestIDRFrame();
@@ -105,6 +109,8 @@ private:
         kWhatDrainDeferredMessages   = 'drai',
         kWhatAllocateComponent       = 'allo',
         kWhatConfigureComponent      = 'conf',
+        kWhatCreateInputSurface      = 'cisf',
+        kWhatSignalEndOfInputStream  = 'eois',
         kWhatStart                   = 'star',
         kWhatRequestIDRFrame         = 'ridr',
         kWhatSetParameters           = 'setP',
