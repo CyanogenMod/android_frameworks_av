@@ -6,7 +6,7 @@
 #include <media/stagefright/foundation/AHandlerReflector.h>
 #include <media/stagefright/MediaSource.h>
 
-#define SUSPEND_VIDEO_IF_IDLE   1
+#define SUSPEND_VIDEO_IF_IDLE   0
 
 namespace android {
 
