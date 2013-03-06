@@ -459,6 +459,10 @@ void NuPlayer::RTSPSource::onConnected() {
 }
 
 void NuPlayer::RTSPSource::onDisconnected(const sp<AMessage> &msg) {
+    if (mState == DISCONNECTED) {
+        return;
+    }
+
     status_t err;
     CHECK(msg->findInt32("result", &err));
     CHECK_NE(err, (status_t)OK);
