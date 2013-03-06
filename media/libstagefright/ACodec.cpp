@@ -241,9 +241,6 @@ struct ACodec::ExecutingState : public ACodec::BaseState {
     // to fill with data.
     void resume();
 
-    // Send EOS on input stream.
-    void onSignalEndOfInputStream();
-
     // Returns true iff input and output buffers are in play.
     bool active() const { return mActive; }
 
@@ -3413,6 +3410,12 @@ bool ACodec::LoadedToIdleState::onMessageReceived(const sp<AMessage> &msg) {
             return true;
         }
 
+        case kWhatSignalEndOfInputStream:
+        {
+            mCodec->onSignalEndOfInputStream();
+            return true;
+        }
+
         default:
             return BaseState::onMessageReceived(msg);
     }
@@ -3455,6 +3458,12 @@ bool ACodec::IdleToExecutingState::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatShutdown:
         {
             mCodec->deferMessage(msg);
+            return true;
+        }
+
+        case kWhatSignalEndOfInputStream:
+        {
+            mCodec->onSignalEndOfInputStream();
             return true;
         }
 
@@ -3536,17 +3545,6 @@ void ACodec::ExecutingState::resume() {
     postFillThisBuffer(info);
 
     mActive = true;
-}
-
-void ACodec::ExecutingState::onSignalEndOfInputStream() {
-    sp<AMessage> notify = mCodec->mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatSignaledInputEOS);
-
-    status_t err = mCodec->mOMX->signalEndOfInputStream(mCodec->mNode);
-    if (err != OK) {
-        notify->setInt32("err", err);
-    }
-    notify->post();
 }
 
 void ACodec::ExecutingState::stateEntered() {
@@ -3640,7 +3638,7 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
 
         case ACodec::kWhatSignalEndOfInputStream:
         {
-            onSignalEndOfInputStream();
+            mCodec->onSignalEndOfInputStream();
             handled = true;
             break;
         }
@@ -3676,6 +3674,17 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
     }
 
     return OK;
+}
+
+void ACodec::onSignalEndOfInputStream() {
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", ACodec::kWhatSignaledInputEOS);
+
+    status_t err = mOMX->signalEndOfInputStream(mNode);
+    if (err != OK) {
+        notify->setInt32("err", err);
+    }
+    notify->post();
 }
 
 bool ACodec::ExecutingState::onOMXEvent(

@@ -212,6 +212,8 @@ private:
 
     sp<AMessage> mActivityNotify;
 
+    bool mHaveInputSurface;
+
     MediaCodec(const sp<ALooper> &looper);
 
     static status_t PostAndAwaitResponse(
