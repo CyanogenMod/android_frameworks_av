@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "GraphicBufferSource"
+//#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
 #include <GraphicBufferSource.h>
@@ -110,15 +111,12 @@ void GraphicBufferSource::omxExecuting() {
     }
 }
 
-void GraphicBufferSource::omxIdling(){
+void GraphicBufferSource::omxLoaded(){
     Mutex::Autolock autoLock(mMutex);
-    ALOGV("--> idling");
-    if (!mExecuting) {
-        // Transition from "loading" to "idling".  Nothing to do.
-        return;
-    }
+    ALOGV("--> loaded");
+    CHECK(mExecuting);
 
-    ALOGV("Dropped down to idle, avail=%d eos=%d eosSent=%d",
+    ALOGV("Dropped down to loaded, avail=%d eos=%d eosSent=%d",
             mNumFramesAvailable, mEndOfStream, mEndOfStreamSent);
 
     // Codec is no longer executing.  Discard all codec-related state.
@@ -282,10 +280,15 @@ status_t GraphicBufferSource::fillCodecBuffer_l() {
     return OK;
 }
 
-void GraphicBufferSource::signalEndOfInputStream() {
+status_t GraphicBufferSource::signalEndOfInputStream() {
     Mutex::Autolock autoLock(mMutex);
-    ALOGV("signalEndOfInputStream: exec=%d avail=%d",
-            mExecuting, mNumFramesAvailable);
+    ALOGV("signalEndOfInputStream: exec=%d avail=%d eos=%d",
+            mExecuting, mNumFramesAvailable, mEndOfStream);
+
+    if (mEndOfStream) {
+        ALOGE("EOS was already signaled");
+        return INVALID_OPERATION;
+    }
 
     // Set the end-of-stream flag.  If no frames are pending from the
     // BufferQueue, and a codec buffer is available, and we're executing,
@@ -300,6 +303,8 @@ void GraphicBufferSource::signalEndOfInputStream() {
     if (mExecuting && mNumFramesAvailable == 0) {
         submitEndOfInputStream_l();
     }
+
+    return OK;
 }
 
 status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
