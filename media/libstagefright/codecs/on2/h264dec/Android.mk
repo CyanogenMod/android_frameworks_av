@@ -119,7 +119,7 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
 
 LOCAL_SHARED_LIBRARIES := libstagefright_soft_h264dec
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE := decoder
 
