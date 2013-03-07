@@ -325,12 +325,31 @@ void TSPacketizer::Track::finalize() {
         mDescriptors.push_back(descriptor);
     }
 
-    int32_t hdcpVersion;
-    if (mFormat->findInt32("hdcp-version", &hdcpVersion)) {
+    mFinalized = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSPacketizer::TSPacketizer(uint32_t flags)
+    : mFlags(flags),
+      mPATContinuityCounter(0),
+      mPMTContinuityCounter(0) {
+    initCrcTable();
+
+    if (flags & (EMIT_HDCP20_DESCRIPTOR | EMIT_HDCP21_DESCRIPTOR)) {
+        int32_t hdcpVersion;
+        if (flags & EMIT_HDCP20_DESCRIPTOR) {
+            CHECK(!(flags & EMIT_HDCP21_DESCRIPTOR));
+            hdcpVersion = 0x20;
+        } else {
+            CHECK(!(flags & EMIT_HDCP20_DESCRIPTOR));
+
+            // HDCP2.0 _and_ HDCP 2.1 specs say to set the version
+            // inside the HDCP descriptor to 0x20!!!
+            hdcpVersion = 0x20;
+        }
+
         // HDCP descriptor
-
-        CHECK(hdcpVersion == 0x20 || hdcpVersion == 0x21);
-
         sp<ABuffer> descriptor = new ABuffer(7);
         uint8_t *data = descriptor->data();
         data[0] = 0x05;  // descriptor_tag
@@ -341,18 +360,8 @@ void TSPacketizer::Track::finalize() {
         data[5] = 'P';
         data[6] = hdcpVersion;
 
-        mDescriptors.push_back(descriptor);
+        mProgramInfoDescriptors.push_back(descriptor);
     }
-
-    mFinalized = true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSPacketizer::TSPacketizer()
-    : mPATContinuityCounter(0),
-      mPMTContinuityCounter(0) {
-    initCrcTable();
 }
 
 TSPacketizer::~TSPacketizer() {
@@ -605,8 +614,9 @@ status_t TSPacketizer::packetize(
         // reserved = b111
         // PCR_PID = kPCR_PID (13 bits)
         // reserved = b1111
-        // program_info_length = 0x000
-        //   one or more elementary stream descriptions follow:
+        // program_info_length = 0x???
+        //   program_info_descriptors follow
+        // one or more elementary stream descriptions follow:
         //   stream_type = 0x??
         //   reserved = b111
         //   elementary_PID = b? ???? ???? ???? (13 bits)
@@ -638,8 +648,21 @@ status_t TSPacketizer::packetize(
         *ptr++ = 0x00;
         *ptr++ = 0xe0 | (kPID_PCR >> 8);
         *ptr++ = kPID_PCR & 0xff;
-        *ptr++ = 0xf0;
-        *ptr++ = 0x00;
+
+        size_t program_info_length = 0;
+        for (size_t i = 0; i < mProgramInfoDescriptors.size(); ++i) {
+            program_info_length += mProgramInfoDescriptors.itemAt(i)->size();
+        }
+
+        CHECK_LT(program_info_length, 0x400);
+        *ptr++ = 0xf0 | (program_info_length >> 8);
+        *ptr++ = (program_info_length & 0xff);
+
+        for (size_t i = 0; i < mProgramInfoDescriptors.size(); ++i) {
+            const sp<ABuffer> &desc = mProgramInfoDescriptors.itemAt(i);
+            memcpy(ptr, desc->data(), desc->size());
+            ptr += desc->size();
+        }
 
         for (size_t i = 0; i < mTracks.size(); ++i) {
             const sp<Track> &track = mTracks.itemAt(i);
