@@ -60,7 +60,7 @@ struct VideoFormats {
             bool *interlaced);
 
     bool parseFormatSpec(const char *spec);
-    AString getFormatSpec() const;
+    AString getFormatSpec(bool forM4Message = false) const;
 
     static bool PickBestFormat(
             const VideoFormats &sinkSupported,
