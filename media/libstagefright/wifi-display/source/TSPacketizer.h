@@ -32,7 +32,11 @@ struct AMessage;
 // Emits metadata tables (PAT and PMT) and timestamp stream (PCR) based
 // on flags.
 struct TSPacketizer : public RefBase {
-    TSPacketizer();
+    enum {
+        EMIT_HDCP20_DESCRIPTOR = 1,
+        EMIT_HDCP21_DESCRIPTOR = 2,
+    };
+    TSPacketizer(uint32_t flags);
 
     // Returns trackIndex or error.
     ssize_t addTrack(const sp<AMessage> &format);
@@ -68,7 +72,10 @@ private:
 
     struct Track;
 
+    uint32_t mFlags;
     Vector<sp<Track> > mTracks;
+
+    Vector<sp<ABuffer> > mProgramInfoDescriptors;
 
     unsigned mPATContinuityCounter;
     unsigned mPMTContinuityCounter;
