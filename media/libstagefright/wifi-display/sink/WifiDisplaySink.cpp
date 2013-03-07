@@ -47,19 +47,11 @@ WifiDisplaySink::WifiDisplaySink(
       mSessionID(0),
       mNextCSeq(1),
       mIDRFrameRequestPending(false) {
-#if 1
     // We support any and all resolutions, but prefer 720p30
     mSinkSupportedVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280 x 720 p30
 
     mSinkSupportedVideoFormats.enableAll();
-#else
-    // We only support 640 x 360 p30.
-    mSinkSupportedVideoFormats.disableAll();
-
-    mSinkSupportedVideoFormats.setNativeResolution(
-            VideoFormats::RESOLUTION_HH, 6);  // 640 x 360 p30
-#endif
 }
 
 WifiDisplaySink::~WifiDisplaySink() {

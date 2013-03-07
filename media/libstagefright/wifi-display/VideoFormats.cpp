@@ -256,7 +256,7 @@ bool VideoFormats::parseFormatSpec(const char *spec) {
     return GetConfiguration(mNativeType, mNativeIndex, NULL, NULL, NULL, NULL);
 }
 
-AString VideoFormats::getFormatSpec() const {
+AString VideoFormats::getFormatSpec(bool forM4Message) const {
     CHECK_EQ(kNumResolutionTypes, 3);
 
     // wfd_video_formats:
@@ -277,7 +277,7 @@ AString VideoFormats::getFormatSpec() const {
 
     return StringPrintf(
             "%02x 00 02 02 %08x %08x %08x 00 0000 0000 00 none none",
-            (mNativeIndex << 3) | mNativeType,
+            forM4Message ? 0x00 : ((mNativeIndex << 3) | mNativeType),
             mResolutionEnabled[0],
             mResolutionEnabled[1],
             mResolutionEnabled[2]);
@@ -289,6 +289,10 @@ bool VideoFormats::PickBestFormat(
         const VideoFormats &sourceSupported,
         ResolutionType *chosenType,
         size_t *chosenIndex) {
+#if 0
+    // Support for the native format is a great idea, the spec includes
+    // these features, but nobody supports it and the tests don't validate it.
+
     ResolutionType nativeType;
     size_t nativeIndex;
     sinkSupported.getNativeResolution(&nativeType, &nativeIndex);
@@ -316,6 +320,7 @@ bool VideoFormats::PickBestFormat(
         ALOGW("Source advertised native resolution that it doesn't "
               "actually support... ignoring");
     }
+#endif
 
     bool first = true;
     uint32_t bestScore = 0;
