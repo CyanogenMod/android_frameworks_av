@@ -107,6 +107,8 @@ private:
 
     size_t mInitDoneCount;
 
+    FILE *mLogFile;
+
     void onSenderNotify(const sp<AMessage> &msg);
 
     void notifyInitDone(status_t err);
