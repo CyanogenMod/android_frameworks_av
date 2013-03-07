@@ -41,10 +41,16 @@ MediaSender::MediaSender(
       mMode(MODE_UNDEFINED),
       mGeneration(0),
       mPrevTimeUs(-1ll),
-      mInitDoneCount(0) {
+      mInitDoneCount(0),
+      mLogFile(NULL) {
+    // mLogFile = fopen("/data/misc/log.ts", "wb");
 }
 
 MediaSender::~MediaSender() {
+    if (mLogFile != NULL) {
+        fclose(mLogFile);
+        mLogFile = NULL;
+    }
 }
 
 status_t MediaSender::setHDCP(const sp<IHDCP> &hdcp) {
@@ -89,21 +95,19 @@ status_t MediaSender::initAsync(
             return INVALID_OPERATION;
         }
 
-        mTSPacketizer = new TSPacketizer;
+        uint32_t flags = 0;
+        if (mHDCP != NULL) {
+            // XXX Determine proper HDCP version.
+            flags |= TSPacketizer::EMIT_HDCP20_DESCRIPTOR;
+        }
+        mTSPacketizer = new TSPacketizer(flags);
 
         status_t err = OK;
         for (size_t i = 0; i < mTrackInfos.size(); ++i) {
             TrackInfo *info = &mTrackInfos.editItemAt(i);
 
-            sp<AMessage> trackFormat = info->mFormat;
-            if (mHDCP != NULL && !info->mIsAudio) {
-                // HDCP2.0 _and_ HDCP 2.1 specs say to set the version
-                // inside the HDCP descriptor to 0x20!!!
-                trackFormat->setInt32("hdcp-version", 0x20);
-            }
-
             ssize_t packetizerTrackIndex =
-                mTSPacketizer->addTrack(trackFormat);
+                mTSPacketizer->addTrack(info->mFormat);
 
             if (packetizerTrackIndex < 0) {
                 err = packetizerTrackIndex;
@@ -244,6 +248,10 @@ status_t MediaSender::queueAccessUnit(
                     minTrackIndex, accessUnit, &tsPackets);
 
             if (err == OK) {
+                if (mLogFile != NULL) {
+                    fwrite(tsPackets->data(), 1, tsPackets->size(), mLogFile);
+                }
+
                 err = mTSSender->queueBuffer(
                         tsPackets,
                         33 /* packetType */,
