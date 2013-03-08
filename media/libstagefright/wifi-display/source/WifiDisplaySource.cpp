@@ -59,18 +59,10 @@ WifiDisplaySource::WifiDisplaySource(
       mHDCPPort(0),
       mHDCPInitializationComplete(false),
       mSetupTriggerDeferred(false) {
-    mSupportedSourceVideoFormats.enableAll();
+    mSupportedSourceVideoFormats.disableAll();
 
     mSupportedSourceVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280x720 p30
-
-    // Disable resolutions above 1080p since the encoder won't be able to
-    // handle them.
-    mSupportedSourceVideoFormats.setResolutionEnabled(
-            VideoFormats::RESOLUTION_VESA, 28, false);  // 1920x1200 p30
-
-    mSupportedSourceVideoFormats.setResolutionEnabled(
-            VideoFormats::RESOLUTION_VESA, 29, false);  // 1920x1200 p60
 }
 
 WifiDisplaySource::~WifiDisplaySource() {
@@ -607,7 +599,7 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         chosenVideoFormat.setNativeResolution(
                 mChosenVideoResolutionType, mChosenVideoResolutionIndex);
 
-        body.append(chosenVideoFormat.getFormatSpec());
+        body.append(chosenVideoFormat.getFormatSpec(true /* forM4Message */));
         body.append("\r\n");
     }
 
