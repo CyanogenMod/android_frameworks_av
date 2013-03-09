@@ -561,6 +561,26 @@ status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCou
         return INVALID_OPERATION;
     }
 
+    if (loopCount < 0 && loopCount != -1) {
+        return BAD_VALUE;
+    }
+
+#if 0
+    // This will be for the new interpretation of loopStart and loopEnd
+
+    if (loopCount != 0) {
+        if (loopStart >= mFrameCount || loopEnd >= mFrameCount || loopStart >= loopEnd) {
+            return BAD_VALUE;
+        }
+        uint32_t periodFrames = loopEnd - loopStart;
+        if (periodFrames < PERIOD_FRAMES_MIN) {
+            return BAD_VALUE;
+        }
+    }
+
+    // The remainder of this code still uses the old interpretation
+#endif
+
     audio_track_cblk_t* cblk = mCblk;
 
     Mutex::Autolock _l(cblk->lock);
@@ -656,6 +676,16 @@ status_t AudioTrack::setPosition(uint32_t position)
         return INVALID_OPERATION;
     }
 
+#if 0
+    // This will be for the new interpretation of position
+
+    if (position >= mFrameCount) {
+        return BAD_VALUE;
+    }
+
+    // The remainder of this code still uses the old interpretation
+#endif
+
     audio_track_cblk_t* cblk = mCblk;
     Mutex::Autolock _l(cblk->lock);
 
@@ -679,6 +709,21 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
     return NO_ERROR;
 }
+
+#if 0
+status_t AudioTrack::getBufferPosition(uint32_t *position)
+{
+    if (mSharedBuffer == 0 || mIsTimed) {
+        return INVALID_OPERATION;
+    }
+    if (position == NULL) {
+        return BAD_VALUE;
+    }
+    *position = 0;
+
+    return NO_ERROR;
+}
+#endif
 
 status_t AudioTrack::reload()
 {
