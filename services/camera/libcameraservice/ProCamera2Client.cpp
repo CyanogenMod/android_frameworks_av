@@ -31,64 +31,38 @@
 namespace android {
 using namespace camera2;
 
-static int getCallingPid() {
-    return IPCThreadState::self()->getCallingPid();
-}
-
-static int getCallingUid() {
-    return IPCThreadState::self()->getCallingUid();
-}
-
 // Interface used by CameraService
 
 ProCamera2Client::ProCamera2Client(const sp<CameraService>& cameraService,
-        const sp<IProCameraCallbacks>& remoteCallback,
-        const String16& clientPackageName,
-        int cameraId,
-        int cameraFacing,
-        int clientPid,
-        uid_t clientUid,
-        int servicePid):
-        ProClient(cameraService, remoteCallback, clientPackageName,
-                cameraId, cameraFacing, clientPid, clientUid, servicePid),
-        mSharedCameraCallbacks(remoteCallback)
+                                   const sp<IProCameraCallbacks>& remoteCallback,
+                                   const String16& clientPackageName,
+                                   int cameraId,
+                                   int cameraFacing,
+                                   int clientPid,
+                                   uid_t clientUid,
+                                   int servicePid) :
+    Camera2ClientBase(cameraService, remoteCallback, clientPackageName,
+                cameraId, cameraFacing, clientPid, clientUid, servicePid)
 {
     ATRACE_CALL();
     ALOGI("ProCamera %d: Opened", cameraId);
 
-    mDevice = new Camera2Device(cameraId);
-
     mExclusiveLock = false;
-}
-
-status_t ProCamera2Client::checkPid(const char* checkLocation) const {
-    int callingPid = getCallingPid();
-    if (callingPid == mClientPid) return NO_ERROR;
-
-    ALOGE("%s: attempt to use a locked camera from a different process"
-            " (old pid %d, new pid %d)", checkLocation, mClientPid, callingPid);
-    return PERMISSION_DENIED;
 }
 
 status_t ProCamera2Client::initialize(camera_module_t *module)
 {
     ATRACE_CALL();
-    ALOGV("%s: Initializing client for camera %d", __FUNCTION__, mCameraId);
     status_t res;
 
-    res = mDevice->initialize(module);
+    res = Camera2ClientBase::initialize(module);
     if (res != OK) {
-        ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return NO_INIT;
+        return res;
     }
-
-    res = mDevice->setNotifyCallback(this);
 
     String8 threadName;
     mFrameProcessor = new ProFrameProcessor(this);
-    threadName = String8::format("PC2-%d-FrameProc",
-            mCameraId);
+    threadName = String8::format("PC2-%d-FrameProc", mCameraId);
     mFrameProcessor->run(threadName.string());
 
     mFrameProcessor->registerListener(FRAME_PROCESSOR_LISTENER_MIN_ID,
@@ -99,20 +73,13 @@ status_t ProCamera2Client::initialize(camera_module_t *module)
 }
 
 ProCamera2Client::~ProCamera2Client() {
-    ATRACE_CALL();
-
-    mDestructionStarted = true;
-
-    disconnect();
-
-    ALOGI("ProCamera %d: Closed", mCameraId);
 }
 
 status_t ProCamera2Client::exclusiveTryLock() {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (!mDevice.get()) return PERMISSION_DENIED;
@@ -143,7 +110,7 @@ status_t ProCamera2Client::exclusiveLock() {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (!mDevice.get()) return PERMISSION_DENIED;
@@ -177,7 +144,7 @@ status_t ProCamera2Client::exclusiveUnlock() {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     // don't allow unlocking if we have no lock
@@ -198,6 +165,7 @@ status_t ProCamera2Client::exclusiveUnlock() {
 }
 
 bool ProCamera2Client::hasExclusiveLock() {
+    Mutex::Autolock icl(mBinderSerializationLock);
     return mExclusiveLock;
 }
 
@@ -205,7 +173,7 @@ void ProCamera2Client::onExclusiveLockStolen() {
     ALOGV("%s: ProClient lost exclusivity (id %d)",
           __FUNCTION__, mCameraId);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (mExclusiveLock && mRemoteCallback.get() != NULL) {
@@ -224,7 +192,7 @@ status_t ProCamera2Client::submitRequest(camera_metadata_t* request,
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
@@ -248,7 +216,7 @@ status_t ProCamera2Client::cancelRequest(int requestId) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
@@ -256,10 +224,12 @@ status_t ProCamera2Client::cancelRequest(int requestId) {
         return PERMISSION_DENIED;
     }
 
+    // TODO: implement
     ALOGE("%s: not fully implemented yet", __FUNCTION__);
     return INVALID_OPERATION;
 }
 
+//TODO: Remove
 status_t ProCamera2Client::requestStream(int streamId) {
     ALOGE("%s: not implemented yet", __FUNCTION__);
 
@@ -273,7 +243,7 @@ status_t ProCamera2Client::cancelStream(int streamId) {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
     mDevice->clearStreamingRequest();
@@ -301,7 +271,7 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
@@ -332,7 +302,7 @@ status_t ProCamera2Client::createDefaultRequest(int templateId,
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
@@ -352,7 +322,7 @@ status_t ProCamera2Client::getCameraInfo(int cameraId,
         return INVALID_OPERATION;
     }
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
@@ -373,46 +343,10 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     // TODO: print dynamic/request section from most recent requests
     mFrameProcessor->dump(fd, args);
 
-#define CASE_APPEND_ENUM(x) case x: result.append(#x "\n"); break;
-
-    result = "  Device dump:\n";
-    write(fd, result.string(), result.size());
-
-    if (!mDevice.get()) {
-        result = "  *** Device is detached\n";
-        write(fd, result.string(), result.size());
-        return NO_ERROR;
-    }
-
-    status_t res = mDevice->dump(fd, args);
-    if (res != OK) {
-        result = String8::format("   Error dumping device: %s (%d)",
-                strerror(-res), res);
-        write(fd, result.string(), result.size());
-    }
-
-#undef CASE_APPEND_ENUM
-    return NO_ERROR;
+    return dumpDevice(fd, args);
 }
 
 // IProCameraUser interface
-
-void ProCamera2Client::disconnect() {
-    ATRACE_CALL();
-    Mutex::Autolock icl(mIProCameraUserLock);
-    status_t res;
-
-    // Allow both client and the media server to disconnect at all times
-    int callingPid = getCallingPid();
-    if (callingPid != mClientPid && callingPid != mServicePid) return;
-
-    ALOGV("Camera %d: Shutting down", mCameraId);
-
-    detachDevice();
-    ProClient::disconnect();
-
-    ALOGV("Camera %d: Shut down complete complete", mCameraId);
-}
 
 void ProCamera2Client::detachDevice() {
     if (mDevice == 0) return;
@@ -438,117 +372,16 @@ void ProCamera2Client::detachDevice() {
         }
     }
 
-    mDevice->disconnect();
-
-    mDevice.clear();
-
-    ALOGV("Camera %d: Detach complete", mCameraId);
-}
-
-status_t ProCamera2Client::connect(const sp<IProCameraCallbacks>& client) {
-    ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mIProCameraUserLock);
-
-    if (mClientPid != 0 && getCallingPid() != mClientPid) {
-        ALOGE("%s: Camera %d: Connection attempt from pid %d; "
-                "current locked to pid %d", __FUNCTION__,
-                mCameraId, getCallingPid(), mClientPid);
-        return BAD_VALUE;
-    }
-
-    mClientPid = getCallingPid();
-
-    mRemoteCallback = client;
-    mSharedCameraCallbacks = client;
-
-    return OK;
+    Camera2ClientBase::detachDevice();
 }
 
 /** Device-related methods */
-
-void ProCamera2Client::notifyError(int errorCode, int arg1, int arg2) {
-    ALOGE("Error condition %d reported by HAL, arguments %d, %d", errorCode,
-                                                                    arg1, arg2);
-}
-
-void ProCamera2Client::notifyShutter(int frameNumber, nsecs_t timestamp) {
-    ALOGV("%s: Shutter notification for frame %d at time %lld", __FUNCTION__,
-            frameNumber, timestamp);
-}
-
-void ProCamera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
-    ALOGV("%s: Autofocus state now %d, last trigger %d",
-            __FUNCTION__, newState, triggerId);
-
-    SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
-    if (l.mRemoteCallback != 0) {
-        l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
-                1, 0);
-    }
-    if (l.mRemoteCallback != 0) {
-        l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS,
-                1, 0);
-    }
-}
-
-void ProCamera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
-    ALOGV("%s: Autoexposure state now %d, last trigger %d",
-            __FUNCTION__, newState, triggerId);
-}
-
-void ProCamera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
-    ALOGV("%s: Auto-whitebalance state now %d, last trigger %d",
-            __FUNCTION__, newState, triggerId);
-}
-
-int ProCamera2Client::getCameraId() const {
-    return mCameraId;
-}
-
-const sp<Camera2Device>& ProCamera2Client::getCameraDevice() {
-    return mDevice;
-}
-
-const sp<CameraService>& ProCamera2Client::getCameraService() {
-    return mCameraService;
-}
-
-ProCamera2Client::SharedCameraCallbacks::Lock::Lock(
-                                                 SharedCameraCallbacks &client):
-        mRemoteCallback(client.mRemoteCallback),
-        mSharedClient(client) {
-    mSharedClient.mRemoteCallbackLock.lock();
-}
-
-ProCamera2Client::SharedCameraCallbacks::Lock::~Lock() {
-    mSharedClient.mRemoteCallbackLock.unlock();
-}
-
-ProCamera2Client::SharedCameraCallbacks::SharedCameraCallbacks
-                                         (const sp<IProCameraCallbacks>&client):
-        mRemoteCallback(client) {
-}
-
-ProCamera2Client::SharedCameraCallbacks&
-                             ProCamera2Client::SharedCameraCallbacks::operator=(
-        const sp<IProCameraCallbacks>&client) {
-    Mutex::Autolock l(mRemoteCallbackLock);
-    mRemoteCallback = client;
-    return *this;
-}
-
-void ProCamera2Client::SharedCameraCallbacks::clear() {
-    Mutex::Autolock l(mRemoteCallbackLock);
-    mRemoteCallback.clear();
-}
-
 void ProCamera2Client::onFrameAvailable(int32_t frameId,
                                         const CameraMetadata& frame) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mIProCameraUserLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (mRemoteCallback != NULL) {

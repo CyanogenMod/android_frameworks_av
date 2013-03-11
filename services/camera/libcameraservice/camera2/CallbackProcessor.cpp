@@ -278,11 +278,12 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
 
     // Call outside parameter lock to allow re-entrancy from notification
     {
-        Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
-        if (l.mCameraClient != 0) {
+        Camera2Client::SharedCameraCallbacks::Lock
+            l(client->mSharedCameraCallbacks);
+        if (l.mRemoteCallback != 0) {
             ALOGV("%s: Camera %d: Invoking client data callback",
                     __FUNCTION__, client->getCameraId());
-            l.mCameraClient->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
+            l.mRemoteCallback->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
                     mCallbackHeap->mBuffers[heapIdx], NULL);
         }
     }

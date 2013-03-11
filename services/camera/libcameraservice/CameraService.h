@@ -109,7 +109,7 @@ public:
         virtual void          disconnect() = 0;
 
         wp<IBinder>     getRemote() {
-            return mRemoteCallback;
+            return mRemoteBinder;
         }
 
     protected:
@@ -140,7 +140,7 @@ public:
         pid_t                           mServicePid;     // immutable after constructor
 
         // - The app-side Binder interface to receive callbacks from us
-        wp<IBinder>                     mRemoteCallback; // immutable after constructor
+        wp<IBinder>                     mRemoteBinder;   // immutable after constructor
 
         // permissions management
         status_t                        startCameraOps();
@@ -173,6 +173,8 @@ public:
     class Client : public BnCamera, public BasicClient
     {
     public:
+        typedef ICameraClient TCamCallbacks;
+
         // ICamera interface (see ICamera for details)
         virtual void          disconnect();
         virtual status_t      connect(const sp<ICameraClient>& client) = 0;
@@ -208,8 +210,8 @@ public:
         ~Client();
 
         // return our camera client
-        const sp<ICameraClient>&    getCameraClient() {
-            return mCameraClient;
+        const sp<ICameraClient>&    getRemoteCallback() {
+            return mRemoteCallback;
         }
 
     protected:
@@ -222,12 +224,14 @@ public:
         // Initialized in constructor
 
         // - The app-side Binder interface to receive callbacks from us
-        sp<ICameraClient>               mCameraClient;
+        sp<ICameraClient>               mRemoteCallback;
 
     }; // class Client
 
     class ProClient : public BnProCameraUser, public BasicClient {
     public:
+        typedef IProCameraCallbacks TCamCallbacks;
+
         ProClient(const sp<CameraService>& cameraService,
                 const sp<IProCameraCallbacks>& remoteCallback,
                 const String16& clientPackageName,

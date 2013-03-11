@@ -556,9 +556,9 @@ void StreamingProcessor::onFrameAvailable() {
     }
 
     // Call outside locked parameters to allow re-entrancy from notification
-    Camera2Client::SharedCameraClient::Lock l(client->mSharedCameraClient);
-    if (l.mCameraClient != 0) {
-        l.mCameraClient->dataCallbackTimestamp(timestamp,
+    Camera2Client::SharedCameraCallbacks::Lock l(client->mSharedCameraCallbacks);
+    if (l.mRemoteCallback != 0) {
+        l.mRemoteCallback->dataCallbackTimestamp(timestamp,
                 CAMERA_MSG_VIDEO_FRAME,
                 recordingHeap->mBuffers[heapIdx]);
     }
