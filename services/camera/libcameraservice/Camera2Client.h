@@ -26,6 +26,7 @@
 #include "camera2/ZslProcessor.h"
 #include "camera2/CaptureSequencer.h"
 #include "camera2/CallbackProcessor.h"
+#include "Camera2ClientBase.h"
 
 namespace android {
 
@@ -35,8 +36,7 @@ class IMemory;
  * CAMERA_DEVICE_API_VERSION_2_0 and 3_0.
  */
 class Camera2Client :
-        public CameraService::Client,
-        public CameraDeviceBase::NotificationListener
+        public Camera2ClientBase<CameraService::Client>
 {
 public:
     /**
@@ -90,19 +90,13 @@ public:
      * Interface used by CameraDeviceBase
      */
 
-    virtual void notifyError(int errorCode, int arg1, int arg2);
-    virtual void notifyShutter(int frameNumber, nsecs_t timestamp);
     virtual void notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
-    virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
 
     /**
      * Interface used by independent components of Camera2Client.
      */
 
-    int getCameraId() const;
-    const sp<CameraDeviceBase>& getCameraDevice();
-    const sp<CameraService>& getCameraService();
     camera2::SharedParameters& getParameters();
 
     int getPreviewStreamId() const;
@@ -118,27 +112,6 @@ public:
 
     status_t stopStream();
 
-    // Simple class to ensure that access to ICameraClient is serialized by
-    // requiring mCameraClientLock to be locked before access to mCameraClient
-    // is possible.
-    class SharedCameraClient {
-      public:
-        class Lock {
-          public:
-            Lock(SharedCameraClient &client);
-            ~Lock();
-            sp<ICameraClient> &mCameraClient;
-          private:
-            SharedCameraClient &mSharedClient;
-        };
-        SharedCameraClient(const sp<ICameraClient>& client);
-        SharedCameraClient& operator=(const sp<ICameraClient>& client);
-        void clear();
-      private:
-        sp<ICameraClient> mCameraClient;
-        mutable Mutex mCameraClientLock;
-    } mSharedCameraClient;
-
     static size_t calculateBufferSize(int width, int height,
             int format, int stride);
 
@@ -153,13 +126,6 @@ public:
 
 private:
     /** ICamera interface-related private members */
-
-    // Mutex that must be locked by methods implementing the ICamera interface.
-    // Ensures serialization between incoming ICamera calls. All methods below
-    // that append 'L' to the name assume that mICameraLock is locked when
-    // they're called
-    mutable Mutex mICameraLock;
-
     typedef camera2::Parameters Parameters;
 
     status_t setPreviewWindowL(const sp<IBinder>& binder,
@@ -213,17 +179,10 @@ private:
 
     bool mAfInMotion;
 
-    /** CameraDevice instance, wraps HAL camera device */
-
-    sp<CameraDeviceBase> mDevice;
-
     /** Utility members */
 
     // Wait until the camera device has received the latest control settings
     status_t syncWithDevice();
-
-    // Verify that caller is the owner of the camera
-    status_t checkPid(const char *checkLocation) const;
 };
 
 }; // namespace android

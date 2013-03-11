@@ -49,9 +49,8 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         uid_t clientUid,
         int servicePid,
         int deviceVersion):
-        Client(cameraService, cameraClient, clientPackageName,
+        Camera2ClientBase(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
-        mSharedCameraClient(cameraClient),
         mParameters(cameraId, cameraFacing)
 {
     ATRACE_CALL();
@@ -74,15 +73,6 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;
-}
-
-status_t Camera2Client::checkPid(const char* checkLocation) const {
-    int callingPid = getCallingPid();
-    if (callingPid == mClientPid) return NO_ERROR;
-
-    ALOGE("%s: attempt to use a locked camera from a different process"
-            " (old pid %d, new pid %d)", checkLocation, mClientPid, callingPid);
-    return PERMISSION_DENIED;
 }
 
 status_t Camera2Client::initialize(camera_module_t *module)
@@ -173,7 +163,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("Client2[%d] (%p) PID: %d, dump:\n",
             mCameraId,
-            getCameraClient()->asBinder().get(),
+            getRemoteCallback()->asBinder().get(),
             mClientPid);
     result.append("  State: ");
 #define CASE_APPEND_ENUM(x) case x: result.append(#x "\n"); break;
@@ -376,25 +366,15 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
     mZslProcessor->dump(fd, args);
 
-    result = "  Device dump:\n";
-    write(fd, result.string(), result.size());
-
-    status_t res = mDevice->dump(fd, args);
-    if (res != OK) {
-        result = String8::format("   Error dumping device: %s (%d)",
-                strerror(-res), res);
-        write(fd, result.string(), result.size());
-    }
-
+    return dumpDevice(fd, args);
 #undef CASE_APPEND_ENUM
-    return NO_ERROR;
 }
 
 // ICamera interface
 
 void Camera2Client::disconnect() {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     // Allow both client and the media server to disconnect at all times
     int callingPid = getCallingPid();
@@ -444,7 +424,7 @@ void Camera2Client::disconnect() {
 status_t Camera2Client::connect(const sp<ICameraClient>& client) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if (mClientPid != 0 && getCallingPid() != mClientPid) {
         ALOGE("%s: Camera %d: Connection attempt from pid %d; "
@@ -455,8 +435,8 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
 
     mClientPid = getCallingPid();
 
-    mCameraClient = client;
-    mSharedCameraClient = client;
+    mRemoteCallback = client;
+    mSharedCameraCallbacks = client;
 
     return OK;
 }
@@ -464,7 +444,7 @@ status_t Camera2Client::connect(const sp<ICameraClient>& client) {
 status_t Camera2Client::lock() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     ALOGV("%s: Camera %d: Lock call from pid %d; current client pid %d",
             __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
 
@@ -485,7 +465,7 @@ status_t Camera2Client::lock() {
 status_t Camera2Client::unlock() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     ALOGV("%s: Camera %d: Unlock call from pid %d; current client pid %d",
             __FUNCTION__, mCameraId, getCallingPid(), mClientPid);
 
@@ -497,8 +477,8 @@ status_t Camera2Client::unlock() {
             return INVALID_OPERATION;
         }
         mClientPid = 0;
-        mCameraClient.clear();
-        mSharedCameraClient.clear();
+        mRemoteCallback.clear();
+        mSharedCameraCallbacks.clear();
         return OK;
     }
 
@@ -511,7 +491,7 @@ status_t Camera2Client::setPreviewDisplay(
         const sp<Surface>& surface) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -529,7 +509,7 @@ status_t Camera2Client::setPreviewTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -598,7 +578,7 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
 void Camera2Client::setPreviewCallbackFlag(int flag) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Flag 0x%x", __FUNCTION__, mCameraId, flag);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if ( checkPid(__FUNCTION__) != OK) return;
 
@@ -637,7 +617,7 @@ void Camera2Client::setPreviewCallbackFlagL(Parameters &params, int flag) {
 status_t Camera2Client::startPreview() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
     SharedParameters::Lock l(mParameters);
@@ -753,7 +733,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
 void Camera2Client::stopPreview() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return;
     stopPreviewL();
@@ -801,7 +781,7 @@ void Camera2Client::stopPreviewL() {
 
 bool Camera2Client::previewEnabled() {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return false;
 
@@ -811,7 +791,7 @@ bool Camera2Client::previewEnabled() {
 
 status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -836,7 +816,7 @@ status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
 status_t Camera2Client::startRecording() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
     SharedParameters::Lock l(mParameters);
@@ -927,7 +907,7 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
 void Camera2Client::stopRecording() {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     SharedParameters::Lock l(mParameters);
 
     status_t res;
@@ -959,7 +939,7 @@ void Camera2Client::stopRecording() {
 
 bool Camera2Client::recordingEnabled() {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
 
     if ( checkPid(__FUNCTION__) != OK) return false;
 
@@ -976,7 +956,7 @@ bool Camera2Client::recordingEnabledL() {
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     if ( checkPid(__FUNCTION__) != OK) return;
 
     mStreamingProcessor->releaseRecordingFrame(mem);
@@ -984,7 +964,7 @@ void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
 
 status_t Camera2Client::autoFocus() {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -1022,9 +1002,9 @@ status_t Camera2Client::autoFocus() {
          * Send immediate notification back to client
          */
         if (notifyImmediately) {
-            SharedCameraClient::Lock l(mSharedCameraClient);
-            if (l.mCameraClient != 0) {
-                l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS,
+            SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+            if (l.mRemoteCallback != 0) {
+                l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS,
                         notifySuccess ? 1 : 0, 0);
             }
             return OK;
@@ -1055,7 +1035,7 @@ status_t Camera2Client::autoFocus() {
 
 status_t Camera2Client::cancelAutoFocus() {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -1087,7 +1067,7 @@ status_t Camera2Client::cancelAutoFocus() {
 
 status_t Camera2Client::takePicture(int msgType) {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -1146,7 +1126,7 @@ status_t Camera2Client::takePicture(int msgType) {
 status_t Camera2Client::setParameters(const String8& params) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -1163,7 +1143,7 @@ status_t Camera2Client::setParameters(const String8& params) {
 String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
     ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     if ( checkPid(__FUNCTION__) != OK) return String8();
 
     SharedParameters::ReadLock l(mParameters);
@@ -1173,7 +1153,7 @@ String8 Camera2Client::getParameters() const {
 
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
-    Mutex::Autolock icl(mICameraLock);
+    Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -1348,18 +1328,6 @@ status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
 }
 
 /** Device-related methods */
-
-void Camera2Client::notifyError(int errorCode, int arg1, int arg2) {
-    ALOGE("Error condition %d reported by HAL, arguments %d, %d", errorCode, arg1, arg2);
-}
-
-void Camera2Client::notifyShutter(int frameNumber, nsecs_t timestamp) {
-    (void)frameNumber;
-    (void)timestamp;
-    ALOGV("%s: Shutter notification for frame %d at time %lld", __FUNCTION__,
-            frameNumber, timestamp);
-}
-
 void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
     ALOGV("%s: Autofocus state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
@@ -1455,16 +1423,16 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
         }
     }
     if (sendMovingMessage) {
-        SharedCameraClient::Lock l(mSharedCameraClient);
-        if (l.mCameraClient != 0) {
-            l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
+        SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+        if (l.mRemoteCallback != 0) {
+            l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS_MOVE,
                     afInMotion ? 1 : 0, 0);
         }
     }
     if (sendCompletedMessage) {
-        SharedCameraClient::Lock l(mSharedCameraClient);
-        if (l.mCameraClient != 0) {
-            l.mCameraClient->notifyCallback(CAMERA_MSG_FOCUS,
+        SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+        if (l.mRemoteCallback != 0) {
+            l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS,
                     success ? 1 : 0, 0);
         }
     }
@@ -1474,25 +1442,6 @@ void Camera2Client::notifyAutoExposure(uint8_t newState, int triggerId) {
     ALOGV("%s: Autoexposure state now %d, last trigger %d",
             __FUNCTION__, newState, triggerId);
     mCaptureSequencer->notifyAutoExposure(newState, triggerId);
-}
-
-void Camera2Client::notifyAutoWhitebalance(uint8_t newState, int triggerId) {
-    (void)newState;
-    (void)triggerId;
-    ALOGV("%s: Auto-whitebalance state now %d, last trigger %d",
-            __FUNCTION__, newState, triggerId);
-}
-
-int Camera2Client::getCameraId() const {
-    return mCameraId;
-}
-
-const sp<CameraDeviceBase>& Camera2Client::getCameraDevice() {
-    return mDevice;
-}
-
-const sp<CameraService>& Camera2Client::getCameraService() {
-    return mCameraService;
 }
 
 camera2::SharedParameters& Camera2Client::getParameters() {
@@ -1531,32 +1480,6 @@ status_t Camera2Client::removeFrameListener(int32_t minId, int32_t maxId,
 
 status_t Camera2Client::stopStream() {
     return mStreamingProcessor->stopStream();
-}
-
-Camera2Client::SharedCameraClient::Lock::Lock(SharedCameraClient &client):
-        mCameraClient(client.mCameraClient),
-        mSharedClient(client) {
-    mSharedClient.mCameraClientLock.lock();
-}
-
-Camera2Client::SharedCameraClient::Lock::~Lock() {
-    mSharedClient.mCameraClientLock.unlock();
-}
-
-Camera2Client::SharedCameraClient::SharedCameraClient(const sp<ICameraClient>&client):
-        mCameraClient(client) {
-}
-
-Camera2Client::SharedCameraClient& Camera2Client::SharedCameraClient::operator=(
-        const sp<ICameraClient>&client) {
-    Mutex::Autolock l(mCameraClientLock);
-    mCameraClient = client;
-    return *this;
-}
-
-void Camera2Client::SharedCameraClient::clear() {
-    Mutex::Autolock l(mCameraClientLock);
-    mCameraClient.clear();
 }
 
 const int32_t Camera2Client::kPreviewRequestIdStart;
@@ -1659,5 +1582,6 @@ status_t Camera2Client::syncWithDevice() {
     }
     return res;
 }
+
 
 } // namespace android

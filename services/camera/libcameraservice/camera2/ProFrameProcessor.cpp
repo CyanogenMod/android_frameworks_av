@@ -22,7 +22,7 @@
 #include <utils/Trace.h>
 
 #include "ProFrameProcessor.h"
-#include "../Camera2Device.h"
+#include "../CameraDeviceBase.h"
 #include "../ProCamera2Client.h"
 
 namespace android {
@@ -62,7 +62,7 @@ status_t ProFrameProcessor::removeListener(int32_t minId,
     return OK;
 }
 
-void ProFrameProcessor::dump(int fd, const Vector<String16>& args) {
+void ProFrameProcessor::dump(int fd, const Vector<String16>& /*args*/) {
     String8 result("    Latest received frame:\n");
     write(fd, result.string(), result.size());
     mLastFrame.dump(fd, 2, 6);
@@ -71,7 +71,7 @@ void ProFrameProcessor::dump(int fd, const Vector<String16>& args) {
 bool ProFrameProcessor::threadLoop() {
     status_t res;
 
-    sp<Camera2Device> device;
+    sp<CameraDeviceBase> device;
     {
         sp<ProCamera2Client> client = mClient.promote();
         if (client == 0) return false;
@@ -125,7 +125,6 @@ void ProFrameProcessor::processNewFrames(sp<ProCamera2Client> &client) {
 
 status_t ProFrameProcessor::processListeners(const CameraMetadata &frame,
         sp<ProCamera2Client> &client) {
-    status_t res;
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
 

@@ -11,6 +11,7 @@ LOCAL_SRC_FILES:=               \
     CameraClient.cpp \
     Camera2Client.cpp \
     ProCamera2Client.cpp \
+    Camera2ClientBase.cpp \
     CameraDeviceBase.cpp \
     Camera2Device.cpp \
     Camera3Device.cpp \
