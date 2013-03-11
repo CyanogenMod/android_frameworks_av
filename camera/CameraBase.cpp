@@ -176,41 +176,6 @@ void CameraBase<TCam, TCamTraits>::notifyCallback(int32_t msgType,
     }
 }
 
-// callback from camera service when frame or image is ready
-template <typename TCam, typename TCamTraits>
-void CameraBase<TCam, TCamTraits>::dataCallback(int32_t msgType,
-                                                const sp<IMemory>& dataPtr,
-                                                camera_frame_metadata *metadata)
-{
-    sp<TCamListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postData(msgType, dataPtr, metadata);
-    }
-}
-
-// callback from camera service when timestamped frame is ready
-template <typename TCam, typename TCamTraits>
-bool CameraBase<TCam, TCamTraits>::dataCallbackTimestamp(nsecs_t timestamp,
-                                                         int32_t msgType,
-                                                   const sp<IMemory>& dataPtr)
-{
-    sp<TCamListener> listener;
-    {
-        Mutex::Autolock _l(mLock);
-        listener = mListener;
-    }
-    if (listener != NULL) {
-        listener->postDataTimestamp(timestamp, msgType, dataPtr);
-        return true;
-    }
-
-    return false;
-}
-
 template <typename TCam, typename TCamTraits>
 int CameraBase<TCam, TCamTraits>::getNumberOfCameras() {
     const sp<ICameraService> cs = getCameraService();

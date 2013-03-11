@@ -40,8 +40,7 @@ enum {
     HAS_EXCLUSIVE_LOCK,
     SUBMIT_REQUEST,
     CANCEL_REQUEST,
-    REQUEST_STREAM,
-    CANCEL_STREAM,
+    DELETE_STREAM,
     CREATE_STREAM,
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
@@ -200,22 +199,13 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t requestStream(int streamId)
+    virtual status_t deleteStream(int streamId)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
         data.writeInt32(streamId);
 
-        remote()->transact(REQUEST_STREAM, data, &reply);
-        return reply.readInt32();
-    }
-    virtual status_t cancelStream(int streamId)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
-        data.writeInt32(streamId);
-
-        remote()->transact(CANCEL_STREAM, data, &reply);
+        remote()->transact(DELETE_STREAM, data, &reply);
         return reply.readInt32();
     }
 
@@ -334,16 +324,10 @@ status_t BnProCameraUser::onTransact(
             reply->writeInt32(cancelRequest(requestId));
             return NO_ERROR;
         } break;
-        case REQUEST_STREAM: {
+        case DELETE_STREAM: {
             CHECK_INTERFACE(IProCameraUser, data, reply);
             int streamId = data.readInt32();
-            reply->writeInt32(requestStream(streamId));
-            return NO_ERROR;
-        } break;
-        case CANCEL_STREAM: {
-            CHECK_INTERFACE(IProCameraUser, data, reply);
-            int streamId = data.readInt32();
-            reply->writeInt32(cancelStream(streamId));
+            reply->writeInt32(deleteStream(streamId));
             return NO_ERROR;
         } break;
         case CREATE_STREAM: {
