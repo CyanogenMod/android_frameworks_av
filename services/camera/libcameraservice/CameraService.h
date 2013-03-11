@@ -108,6 +108,7 @@ public:
 
         virtual void          disconnect() = 0;
 
+        // Return the remote callback binder object (e.g. IProCameraCallbacks)
         wp<IBinder>     getRemote() {
             return mRemoteBinder;
         }
@@ -247,34 +248,24 @@ public:
             return mRemoteCallback;
         }
 
-        // BasicClient implementation
-        virtual status_t initialize(camera_module_t *module);
-
         /***
             IProCamera implementation
          ***/
+        virtual status_t      connect(const sp<IProCameraCallbacks>& callbacks)
+                                                                            = 0;
+        virtual status_t      exclusiveTryLock() = 0;
+        virtual status_t      exclusiveLock() = 0;
+        virtual status_t      exclusiveUnlock() = 0;
 
-
-        virtual status_t      connect(
-                                     const sp<IProCameraCallbacks>& callbacks);
-        virtual void          disconnect();
-
-        virtual status_t      exclusiveTryLock();
-        virtual status_t      exclusiveLock();
-        virtual status_t      exclusiveUnlock();
-
-        virtual bool          hasExclusiveLock();
+        virtual bool          hasExclusiveLock() = 0;
 
         // Note that the callee gets a copy of the metadata.
         virtual int           submitRequest(camera_metadata_t* metadata,
-                                            bool streaming = false);
-        virtual status_t      cancelRequest(int requestId);
-
-        virtual status_t      requestStream(int streamId);
-        virtual status_t      cancelStream(int streamId);
+                                            bool streaming = false) = 0;
+        virtual status_t      cancelRequest(int requestId) = 0;
 
         // Callbacks from camera service
-        virtual void          onExclusiveLockStolen();
+        virtual void          onExclusiveLockStolen() = 0;
 
     protected:
         virtual void          notifyError();
@@ -286,6 +277,22 @@ private:
 
     // Delay-load the Camera HAL module
     virtual void onFirstRef();
+
+    // Step 1. Check if we can connect, before we acquire the service lock.
+    bool                validateConnect(int cameraId,
+                                        /*inout*/
+                                        int& clientUid) const;
+
+    // Step 2. Check if we can connect, after we acquire the service lock.
+    bool                canConnectUnsafe(int cameraId,
+                                         const String16& clientPackageName,
+                                         const sp<IBinder>& remoteCallback,
+                                         /*out*/
+                                         sp<Client> &client);
+
+    // When connection is successful, initialize client and track its death
+    bool                connectFinishUnsafe(const sp<BasicClient>& client,
+                                            const sp<IBinder>& clientBinder);
 
     virtual sp<BasicClient>  getClientByRemote(const wp<IBinder>& cameraClient);
 
