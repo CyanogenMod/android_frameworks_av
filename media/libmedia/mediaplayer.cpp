@@ -807,4 +807,11 @@ status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
     return mPlayer->setNextPlayer(next == NULL ? NULL : next->mPlayer);
 }
 
+#ifdef SAMSUNG_CAMERA_LEGACY
+extern "C" int _ZN7android11MediaPlayer18setAudioStreamTypeE19audio_stream_type_t();
+extern "C" int _ZN7android11MediaPlayer18setAudioStreamTypeEi() {
+    return _ZN7android11MediaPlayer18setAudioStreamTypeE19audio_stream_type_t();
+}
+#endif
+
 }; // namespace android
