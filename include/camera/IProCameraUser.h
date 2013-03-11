@@ -61,8 +61,7 @@ public:
                                           bool streaming = false) = 0;
     virtual status_t        cancelRequest(int requestId) = 0;
 
-    virtual status_t        requestStream(int streamId) = 0;
-    virtual status_t        cancelStream(int streamId) = 0;
+    virtual status_t        deleteStream(int streamId) = 0;
     virtual status_t        createStream(
                                       int width, int height, int format,
                                       const sp<IGraphicBufferProducer>& bufferProducer,

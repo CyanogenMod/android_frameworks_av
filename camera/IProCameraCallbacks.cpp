@@ -34,8 +34,6 @@ namespace android {
 
 enum {
     NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
-    DATA_CALLBACK,
-    DATA_CALLBACK_TIMESTAMP,
     LOCK_STATUS_CHANGED,
     RESULT_RECEIVED,
 };
@@ -61,37 +59,6 @@ public:
         data.writeInt32(ext1);
         data.writeInt32(ext2);
         remote()->transact(NOTIFY_CALLBACK, data, &reply, IBinder::FLAG_ONEWAY);
-    }
-
-    // generic data callback from camera service to app with image data
-    void dataCallback(int32_t msgType, const sp<IMemory>& imageData,
-                      camera_frame_metadata_t *metadata)
-    {
-        ALOGV("dataCallback");
-        Parcel data, reply;
-        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
-        data.writeInt32(msgType);
-        data.writeStrongBinder(imageData->asBinder());
-        if (metadata) {
-            data.writeInt32(metadata->number_of_faces);
-            data.write(metadata->faces,
-                            sizeof(camera_face_t) * metadata->number_of_faces);
-        }
-        remote()->transact(DATA_CALLBACK, data, &reply, IBinder::FLAG_ONEWAY);
-    }
-
-    // generic data callback from camera service to app with image data
-    void dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType,
-                                                  const sp<IMemory>& imageData)
-    {
-        ALOGV("dataCallback");
-        Parcel data, reply;
-        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
-        data.writeInt64(timestamp);
-        data.writeInt32(msgType);
-        data.writeStrongBinder(imageData->asBinder());
-        remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply,
-                                                          IBinder::FLAG_ONEWAY);
     }
 
     void onLockStatusChanged(LockStatus newLockStatus) {
@@ -130,33 +97,6 @@ status_t BnProCameraCallbacks::onTransact(
             int32_t ext1 = data.readInt32();
             int32_t ext2 = data.readInt32();
             notifyCallback(msgType, ext1, ext2);
-            return NO_ERROR;
-        } break;
-        case DATA_CALLBACK: {
-            ALOGV("DATA_CALLBACK");
-            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
-            int32_t msgType = data.readInt32();
-            sp<IMemory> imageData = interface_cast<IMemory>(
-                                                       data.readStrongBinder());
-            camera_frame_metadata_t *metadata = NULL;
-            if (data.dataAvail() > 0) {
-                metadata = new camera_frame_metadata_t;
-                metadata->number_of_faces = data.readInt32();
-                metadata->faces = (camera_face_t *) data.readInplace(
-                        sizeof(camera_face_t) * metadata->number_of_faces);
-            }
-            dataCallback(msgType, imageData, metadata);
-            if (metadata) delete metadata;
-            return NO_ERROR;
-        } break;
-        case DATA_CALLBACK_TIMESTAMP: {
-            ALOGV("DATA_CALLBACK_TIMESTAMP");
-            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
-            nsecs_t timestamp = data.readInt64();
-            int32_t msgType = data.readInt32();
-            sp<IMemory> imageData = interface_cast<IMemory>(
-                                                       data.readStrongBinder());
-            dataCallbackTimestamp(timestamp, msgType, imageData);
             return NO_ERROR;
         } break;
         case LOCK_STATUS_CHANGED: {

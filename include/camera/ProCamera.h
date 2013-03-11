@@ -40,9 +40,11 @@ namespace android {
 
 // All callbacks on this class are concurrent
 // (they come from separate threads)
-class ProCameraListener : public CameraListener
+class ProCameraListener : virtual public RefBase
 {
 public:
+    virtual void notify(int32_t msgType, int32_t ext1, int32_t ext2) = 0;
+
     // Lock has been acquired. Write operations now available.
     virtual void onLockAcquired() = 0;
     // Lock has been released with exclusiveUnlock.
@@ -53,19 +55,9 @@ public:
     // Lock free.
     virtual void onTriggerNotify(int32_t msgType, int32_t ext1, int32_t ext2)
                                                                             = 0;
-
-    // OnBufferReceived and OnRequestReceived can come in with any order,
+    // onFrameAvailable and OnResultReceived can come in with any order,
     // use android.sensor.timestamp and LockedBuffer.timestamp to correlate them
 
-    // TODO: remove onBufferReceived
-
-    // A new frame buffer has been received for this stream.
-    // -- This callback only fires for createStreamCpu streams
-    // -- Use buf.timestamp to correlate with metadata's
-    //    android.sensor.timestamp
-    // -- The buffer must not be accessed after this function call completes
-    virtual void onBufferReceived(int streamId,
-                                  const CpuConsumer::LockedBuffer& buf) = 0;
     /**
       * A new metadata buffer has been received.
       * -- Ownership of request passes on to the callee, free with
@@ -77,17 +69,14 @@ public:
 
     // A new frame buffer has been received for this stream.
     // -- This callback only fires for createStreamCpu streams
-    // -- Use buf.timestamp to correlate with metadata's android.sensor.timestamp
+    // -- A buffer may be obtained by calling cpuConsumer->lockNextBuffer
+    // -- Use buf.timestamp to correlate with result's android.sensor.timestamp
     // -- The buffer should be accessed with CpuConsumer::lockNextBuffer
     //      and CpuConsumer::unlockBuffer
     virtual void onFrameAvailable(int /*streamId*/,
                                   const sp<CpuConsumer>& /*cpuConsumer*/) {
     }
 
-    // TODO: Remove useOnFrameAvailable
-    virtual bool useOnFrameAvailable() {
-        return false;
-    }
 };
 
 class ProCamera;
@@ -249,14 +238,10 @@ protected:
     ////////////////////////////////////////////////////////
     // IProCameraCallbacks implementation
     ////////////////////////////////////////////////////////
-    virtual void        notifyCallback(int32_t msgType, int32_t ext,
+    virtual void        notifyCallback(int32_t msgType,
+                                       int32_t ext,
                                        int32_t ext2);
-    virtual void        dataCallback(int32_t msgType,
-                                     const sp<IMemory>& dataPtr,
-                                     camera_frame_metadata_t *metadata);
-    virtual void        dataCallbackTimestamp(nsecs_t timestamp,
-                                              int32_t msgType,
-                                              const sp<IMemory>& dataPtr);
+
     virtual void        onLockStatusChanged(
                                 IProCameraCallbacks::LockStatus newLockStatus);
 
