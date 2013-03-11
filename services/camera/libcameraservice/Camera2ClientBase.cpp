@@ -76,6 +76,18 @@ status_t Camera2ClientBase<TClientBase>::initialize(camera_module_t *module) {
           TClientBase::mCameraId);
     status_t res;
 
+    // Verify ops permissions
+    res = TClientBase::startCameraOps();
+    if (res != OK) {
+        return res;
+    }
+
+    if (mDevice == NULL) {
+        ALOGE("%s: Camera %d: No device connected",
+                __FUNCTION__, TClientBase::mCameraId);
+        return NO_INIT;
+    }
+
     res = mDevice->initialize(module);
     if (res != OK) {
         ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
@@ -93,6 +105,8 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
     ATRACE_CALL();
 
     TClientBase::mDestructionStarted = true;
+
+    TClientBase::finishCameraOps();
 
     disconnect();
 
@@ -157,7 +171,7 @@ void Camera2ClientBase<TClientBase>::disconnect() {
 
     detachDevice();
 
-    TClientBase::disconnect();
+    CameraService::BasicClient::disconnect();
 
     ALOGV("Camera %d: Shut down complete complete", TClientBase::mCameraId);
 }

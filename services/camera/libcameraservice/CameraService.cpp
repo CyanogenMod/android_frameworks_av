@@ -176,17 +176,11 @@ bool CameraService::isValidCameraId(int cameraId) {
     return false;
 }
 
-sp<ICamera> CameraService::connect(
-        const sp<ICameraClient>& cameraClient,
-        int cameraId,
-        const String16& clientPackageName,
-        int clientUid) {
+bool CameraService::validateConnect(int cameraId,
+                                    /*inout*/
+                                    int& clientUid) const {
 
-    String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
-
-    LOG1("CameraService::connect E (pid %d \"%s\", id %d)", callingPid,
-            clientName8.string(), cameraId);
 
     if (clientUid == USE_CALLING_UID) {
         clientUid = getCallingUid();
@@ -195,20 +189,19 @@ sp<ICamera> CameraService::connect(
         if (callingPid != getpid()) {
             ALOGE("CameraService::connect X (pid %d) rejected (don't trust clientUid)",
                     callingPid);
-            return NULL;
+            return false;
         }
     }
 
     if (!mModule) {
         ALOGE("Camera HAL module not loaded");
-        return NULL;
+        return false;
     }
 
-    sp<Client> client;
     if (cameraId < 0 || cameraId >= mNumberOfCameras) {
         ALOGE("CameraService::connect X (pid %d) rejected (invalid cameraId %d).",
             callingPid, cameraId);
-        return NULL;
+        return false;
     }
 
     char value[PROPERTY_VALUE_MAX];
@@ -216,24 +209,32 @@ sp<ICamera> CameraService::connect(
     if (strcmp(value, "1") == 0) {
         // Camera is disabled by DevicePolicyManager.
         ALOGI("Camera is disabled. connect X (pid %d) rejected", callingPid);
-        return NULL;
+        return false;
     }
 
-    Mutex::Autolock lock(mServiceLock);
+    return true;
+}
+
+bool CameraService::canConnectUnsafe(int cameraId,
+                                     const String16& clientPackageName,
+                                     const sp<IBinder>& remoteCallback,
+                                     sp<Client> &client) {
+    String8 clientName8(clientPackageName);
+    int callingPid = getCallingPid();
+
     if (mClient[cameraId] != 0) {
         client = mClient[cameraId].promote();
         if (client != 0) {
-            if (cameraClient->asBinder() ==
-                client->getRemoteCallback()->asBinder()) {
-
+            if (remoteCallback == client->getRemoteCallback()->asBinder()) {
                 LOG1("CameraService::connect X (pid %d) (the same client)",
                      callingPid);
-                return client;
+                return true;
             } else {
-                // TODOSC: need to support 1 regular client, multiple shared clients here
-                ALOGW("CameraService::connect X (pid %d) rejected (existing client).",
-                      callingPid);
-                return NULL;
+                // TODOSC: need to support 1 regular client,
+                // multiple shared clients here
+                ALOGW("CameraService::connect X (pid %d) rejected"
+                      " (existing client).", callingPid);
+                return false;
             }
         }
         mClient[cameraId].clear();
@@ -249,16 +250,47 @@ sp<ICamera> CameraService::connect(
     would be fine
     */
     if (mBusy[cameraId]) {
-
         ALOGW("CameraService::connect X (pid %d, \"%s\") rejected"
                 " (camera %d is still busy).", callingPid,
                 clientName8.string(), cameraId);
+        return false;
+    }
+
+    return true;
+}
+
+sp<ICamera> CameraService::connect(
+        const sp<ICameraClient>& cameraClient,
+        int cameraId,
+        const String16& clientPackageName,
+        int clientUid) {
+
+    String8 clientName8(clientPackageName);
+    int callingPid = getCallingPid();
+
+    LOG1("CameraService::connect E (pid %d \"%s\", id %d)", callingPid,
+            clientName8.string(), cameraId);
+
+    if (!validateConnect(cameraId, /*inout*/clientUid)) {
         return NULL;
+    }
+
+    sp<Client> client;
+
+    Mutex::Autolock lock(mServiceLock);
+    if (!canConnectUnsafe(cameraId, clientPackageName,
+                          cameraClient->asBinder(),
+                          /*out*/client)) {
+        return NULL;
+    } else if (client.get() != NULL) {
+        return client;
     }
 
     int facing = -1;
     int deviceVersion = getDeviceVersion(cameraId, &facing);
 
+    // If there are other non-exclusive users of the camera,
+    //  this will tear them down before we can reuse the camera
     if (isValidCameraId(cameraId)) {
         updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE, cameraId);
     }
@@ -285,19 +317,28 @@ sp<ICamera> CameraService::connect(
         return NULL;
     }
 
-    if (client->initialize(mModule) != OK) {
+    if (!connectFinishUnsafe(client, client->asBinder())) {
         // this is probably not recoverable.. but maybe the client can try again
         updateStatus(ICameraServiceListener::STATUS_AVAILABLE, cameraId);
 
         return NULL;
     }
 
-    cameraClient->asBinder()->linkToDeath(this);
-
     mClient[cameraId] = client;
     LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId, getpid());
 
     return client;
+}
+
+bool CameraService::connectFinishUnsafe(const sp<BasicClient>& client,
+                                        const sp<IBinder>& clientBinder) {
+    if (client->initialize(mModule) != OK) {
+        return false;
+    }
+
+    clientBinder->linkToDeath(this);
+
+    return true;
 }
 
 sp<IProCameraUser> CameraService::connect(
@@ -309,38 +350,24 @@ sp<IProCameraUser> CameraService::connect(
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
 
-    // TODO: use clientPackageName and clientUid with appOpsMangr
+    LOG1("CameraService::connectPro E (pid %d \"%s\", id %d)", callingPid,
+            clientName8.string(), cameraId);
 
-    LOG1("CameraService::connectPro E (pid %d, id %d)", callingPid, cameraId);
-
-    if (!mModule) {
-        ALOGE("Camera HAL module not loaded");
+    if (!validateConnect(cameraId, /*inout*/clientUid)) {
         return NULL;
+    }
+
+    Mutex::Autolock lock(mServiceLock);
+    {
+        sp<Client> client;
+        if (!canConnectUnsafe(cameraId, clientPackageName,
+                              cameraCb->asBinder(),
+                              /*out*/client)) {
+            return NULL;
+        }
     }
 
     sp<ProClient> client;
-    if (cameraId < 0 || cameraId >= mNumberOfCameras) {
-        ALOGE("CameraService::connectPro X (pid %d) rejected (invalid cameraId %d).",
-            callingPid, cameraId);
-        return NULL;
-    }
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("sys.secpolicy.camera.disabled", value, "0");
-    if (strcmp(value, "1") == 0) {
-        // Camera is disabled by DevicePolicyManager.
-        ALOGI("Camera is disabled. connect X (pid %d) rejected", callingPid);
-        return NULL;
-    }
-
-    // TODO: allow concurrent connections with a ProCamera
-    if (mBusy[cameraId]) {
-
-        ALOGW("CameraService::connectPro X (pid %d, \"%s\") rejected"
-                " (camera %d is still busy).", callingPid,
-                clientName8.string(), cameraId);
-        return NULL;
-    }
 
     int facing = -1;
     int deviceVersion = getDeviceVersion(cameraId, &facing);
@@ -363,16 +390,15 @@ sp<IProCameraUser> CameraService::connect(
         return NULL;
     }
 
-    if (client->initialize(mModule) != OK) {
+    if (!connectFinishUnsafe(client, client->asBinder())) {
         return NULL;
     }
 
     mProClientList[cameraId].push(client);
 
-    cameraCb->asBinder()->linkToDeath(this);
-
     LOG1("CameraService::connectPro X (id %d, this pid is %d)", cameraId,
             getpid());
+
     return client;
 }
 
@@ -654,7 +680,6 @@ CameraService::Client::~Client() {
     mDestructionStarted = true;
 
     mCameraService->releaseSound();
-    finishCameraOps();
     // unconditionally disconnect. function is idempotent
     Client::disconnect();
 }
@@ -690,6 +715,11 @@ status_t CameraService::BasicClient::startCameraOps() {
     int32_t res;
 
     mOpsCallback = new OpsCallback(this);
+
+    {
+        ALOGV("%s: Start camera ops, package name = %s, client UID = %d",
+              __FUNCTION__, String8(mClientPackageName).string(), mClientUid);
+    }
 
     mAppOpsManager.startWatchingMode(AppOpsManager::OP_CAMERA,
             mClientPackageName, mOpsCallback);
@@ -812,79 +842,10 @@ CameraService::ProClient::ProClient(const sp<CameraService>& cameraService,
 }
 
 CameraService::ProClient::~ProClient() {
-    mDestructionStarted = true;
-
-    ProClient::disconnect();
-}
-
-status_t CameraService::ProClient::connect(const sp<IProCameraCallbacks>& callbacks) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    return INVALID_OPERATION;
-}
-
-void CameraService::ProClient::disconnect() {
-    BasicClient::disconnect();
-}
-
-status_t CameraService::ProClient::initialize(camera_module_t* module)
-{
-    ALOGW("%s: not implemented yet", __FUNCTION__);
-    return OK;
-}
-
-status_t CameraService::ProClient::exclusiveTryLock() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-    return INVALID_OPERATION;
-}
-
-status_t CameraService::ProClient::exclusiveLock() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-    return INVALID_OPERATION;
-}
-
-status_t CameraService::ProClient::exclusiveUnlock() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-    return INVALID_OPERATION;
-}
-
-bool CameraService::ProClient::hasExclusiveLock() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-    return false;
-}
-
-void CameraService::ProClient::onExclusiveLockStolen() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-}
-
-status_t CameraService::ProClient::submitRequest(camera_metadata_t* request, bool streaming) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    free_camera_metadata(request);
-
-    return INVALID_OPERATION;
-}
-
-status_t CameraService::ProClient::cancelRequest(int requestId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    return INVALID_OPERATION;
-}
-
-status_t CameraService::ProClient::requestStream(int streamId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    return INVALID_OPERATION;
-}
-
-status_t CameraService::ProClient::cancelStream(int streamId) {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
-
-    return INVALID_OPERATION;
 }
 
 void CameraService::ProClient::notifyError() {
-    ALOGE("%s: not implemented yet", __FUNCTION__);
+    mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
 }
 
 // ----------------------------------------------------------------------------
