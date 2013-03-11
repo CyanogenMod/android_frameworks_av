@@ -271,13 +271,11 @@ protected:
         free_camera_metadata(request);
     }
 
-    // TODO: remove
-
-    virtual void notify(int32_t , int32_t , int32_t ) {}
-    virtual void postData(int32_t , const sp<IMemory>& ,
-                          camera_frame_metadata_t *) {}
-    virtual void postDataTimestamp(nsecs_t , int32_t , const sp<IMemory>& ) {}
-
+    virtual void notify(int32_t msg, int32_t ext1, int32_t ext2) {
+        dout << "Notify received: msg " << std::hex << msg
+             << ", ext1: " << std::hex << ext1 << ", ext2: " << std::hex << ext2
+             << std::endl;
+    }
 
     Vector<ProEvent> mProEventList;
     Mutex             mListenerMutex;
@@ -717,6 +715,7 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
         return;
     }
 
+    // FIXME: Note this test is broken because onBufferReceived was removed
     mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
 
     int streamId = -1;
@@ -783,6 +782,7 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
         return;
     }
 
+    // FIXME: Note this test is broken because onBufferReceived was removed
     mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
 
     int streamId = -1;

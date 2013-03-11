@@ -28,19 +28,14 @@ struct camera_metadata;
 
 namespace android {
 
-class IProCameraCallbacks: public IInterface
+class IProCameraCallbacks : public IInterface
 {
 public:
     DECLARE_META_INTERFACE(ProCameraCallbacks);
 
-    virtual void            notifyCallback(int32_t msgType, int32_t ext1,
-                                                              int32_t ext2) = 0;
-    virtual void            dataCallback(int32_t msgType,
-                                         const sp<IMemory>& data,
-                                         camera_frame_metadata_t *metadata) = 0;
-    virtual void            dataCallbackTimestamp(nsecs_t timestamp,
-                                                  int32_t msgType,
-                                                  const sp<IMemory>& data) = 0;
+    virtual void            notifyCallback(int32_t msgType,
+                                           int32_t ext1,
+                                           int32_t ext2) = 0;
 
     enum LockStatus {
         LOCK_ACQUIRED,
@@ -53,12 +48,13 @@ public:
     /** Missing by design: implementation is client-side in ProCamera.cpp **/
     // virtual void onBufferReceived(int streamId,
     //                               const CpuConsumer::LockedBufer& buf);
-    virtual void onResultReceived(int32_t frameId, camera_metadata* result) = 0;
+    virtual void            onResultReceived(int32_t frameId,
+                                             camera_metadata* result) = 0;
 };
 
 // ----------------------------------------------------------------------------
 
-class BnProCameraCallbacks: public BnInterface<IProCameraCallbacks>
+class BnProCameraCallbacks : public BnInterface<IProCameraCallbacks>
 {
 public:
     virtual status_t    onTransact( uint32_t code,
