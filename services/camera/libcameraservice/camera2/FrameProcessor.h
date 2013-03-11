@@ -22,7 +22,9 @@
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <utils/List.h>
-#include "camera/CameraMetadata.h"
+#include <camera/CameraMetadata.h>
+
+#include "ProFrameProcessor.h"
 
 struct camera_frame_metadata;
 
@@ -35,51 +37,26 @@ namespace camera2 {
 /* Output frame metadata processing thread.  This thread waits for new
  * frames from the device, and analyzes them as necessary.
  */
-class FrameProcessor: public Thread {
+class FrameProcessor : public ProFrameProcessor {
   public:
-    FrameProcessor(wp<Camera2Client> client);
+    FrameProcessor(wp<CameraDeviceBase> device, wp<Camera2Client> client);
     ~FrameProcessor();
 
-    struct FilteredListener: virtual public RefBase {
-        virtual void onFrameAvailable(int32_t frameId,
-                const CameraMetadata &frame) = 0;
-    };
-
-    // Register a listener for a range of IDs [minId, maxId). Multiple listeners
-    // can be listening to the same range
-    status_t registerListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
-    status_t removeListener(int32_t minId, int32_t maxId, wp<FilteredListener> listener);
-
-    void dump(int fd, const Vector<String16>& args);
   private:
-    static const nsecs_t kWaitDuration = 10000000; // 10 ms
     wp<Camera2Client> mClient;
+    int mLastFrameNumberOfFaces;
 
-    virtual bool threadLoop();
+    void processNewFrames(const sp<Camera2Client> &client);
 
-    Mutex mInputMutex;
-
-    struct RangeListener {
-        int32_t minId;
-        int32_t maxId;
-        wp<FilteredListener> listener;
-    };
-    List<RangeListener> mRangeListeners;
-
-    void processNewFrames(sp<Camera2Client> &client);
+    virtual bool processSingleFrame(CameraMetadata &frame,
+                                    const sp<CameraDeviceBase> &device);
 
     status_t processFaceDetect(const CameraMetadata &frame,
-            sp<Camera2Client> &client);
-
-    status_t processListeners(const CameraMetadata &frame,
-            sp<Camera2Client> &client);
-
-    CameraMetadata mLastFrame;
-    int mLastFrameNumberOfFaces;
+            const sp<Camera2Client> &client);
 
     // Emit FaceDetection event to java if faces changed
     void callbackFaceDetection(sp<Camera2Client> client,
-                               camera_frame_metadata &metadata);
+                               const camera_frame_metadata &metadata);
 };
 
 

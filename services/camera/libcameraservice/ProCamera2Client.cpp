@@ -27,6 +27,7 @@
 #include "camera2/Parameters.h"
 #include "ProCamera2Client.h"
 #include "camera2/ProFrameProcessor.h"
+#include "CameraDeviceBase.h"
 
 namespace android {
 using namespace camera2;
@@ -61,7 +62,7 @@ status_t ProCamera2Client::initialize(camera_module_t *module)
     }
 
     String8 threadName;
-    mFrameProcessor = new ProFrameProcessor(this);
+    mFrameProcessor = new ProFrameProcessor(mDevice);
     threadName = String8::format("PC2-%d-FrameProc", mCameraId);
     mFrameProcessor->run(threadName.string());
 
