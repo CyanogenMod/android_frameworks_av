@@ -107,7 +107,7 @@ struct FastMixerDumpState {
 #ifdef FAST_MIXER_STATISTICS
     // Recently collected samples of per-cycle monotonic time, thread CPU time, and CPU frequency.
     // kSamplingN is the size of the sampling frame, and must be a power of 2 <= 0x8000.
-    static const uint32_t kSamplingN = 0x1000;
+    static const uint32_t kSamplingN = 0x8000;
     // The bounds define the interval of valid samples, and are represented as follows:
     //      newest open (excluded) endpoint   = lower 16 bits of bounds, modulo N
     //      oldest closed (included) endpoint = upper 16 bits of bounds, modulo N
