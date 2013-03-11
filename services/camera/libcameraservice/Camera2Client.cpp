@@ -115,7 +115,7 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
     mStreamingProcessor = new StreamingProcessor(this);
 
-    mFrameProcessor = new FrameProcessor(this);
+    mFrameProcessor = new FrameProcessor(mDevice, this);
     threadName = String8::format("C2-%d-FrameProc",
             mCameraId);
     mFrameProcessor->run(threadName.string());

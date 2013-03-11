@@ -47,6 +47,10 @@ Camera2Device::~Camera2Device()
     disconnect();
 }
 
+int Camera2Device::getId() const {
+    return mId;
+}
+
 status_t Camera2Device::initialize(camera_module_t *module)
 {
     ATRACE_CALL();

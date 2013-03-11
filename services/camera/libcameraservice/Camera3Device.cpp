@@ -50,6 +50,10 @@ Camera3Device::~Camera3Device()
     disconnect();
 }
 
+int Camera3Device::getId() const {
+    return mId;
+}
+
 status_t Camera3Device::initialize(camera_module_t *module)
 {
     ATRACE_CALL();
