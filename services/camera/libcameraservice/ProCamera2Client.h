@@ -20,6 +20,7 @@
 #include "Camera2Device.h"
 #include "CameraService.h"
 #include "camera2/ProFrameProcessor.h"
+#include "Camera2ClientBase.h"
 
 namespace android {
 
@@ -29,17 +30,13 @@ class IMemory;
  * meant for HAL2-level private API access.
  */
 class ProCamera2Client :
-        public CameraService::ProClient,
-        public Camera2Device::NotificationListener,
+        public Camera2ClientBase<CameraService::ProClient>,
         public camera2::ProFrameProcessor::FilteredListener
 {
 public:
     /**
      * IProCameraUser interface (see IProCameraUser for details)
      */
-    virtual status_t      connect(const sp<IProCameraCallbacks>& callbacks);
-    virtual void          disconnect();
-
     virtual status_t      exclusiveTryLock();
     virtual status_t      exclusiveLock();
     virtual status_t      exclusiveUnlock();
@@ -54,10 +51,13 @@ public:
     virtual status_t      requestStream(int streamId);
     virtual status_t      cancelStream(int streamId);
 
-    virtual status_t      createStream(int width, int height, int format,
-                                      const sp<IGraphicBufferProducer>& bufferProducer,
-                                      /*out*/
-                                      int* streamId);
+    virtual status_t      createStream(
+            int width,
+            int height,
+            int format,
+            const sp<IGraphicBufferProducer>& bufferProducer,
+            /*out*/
+            int* streamId);
 
     // Create a request object from a template.
     // -- Caller owns the newly allocated metadata
@@ -85,24 +85,9 @@ public:
             int servicePid);
     virtual ~ProCamera2Client();
 
-    status_t initialize(camera_module_t *module);
+    virtual status_t      initialize(camera_module_t *module);
 
-    virtual status_t dump(int fd, const Vector<String16>& args);
-
-    /**
-     * Interface used by Camera2Device
-     */
-
-    virtual void notifyError(int errorCode, int arg1, int arg2);
-    virtual void notifyShutter(int frameNumber, nsecs_t timestamp);
-    virtual void notifyAutoFocus(uint8_t newState, int triggerId);
-    virtual void notifyAutoExposure(uint8_t newState, int triggerId);
-    virtual void notifyAutoWhitebalance(uint8_t newState, int triggerId);
-
-
-    int getCameraId() const;
-    const sp<Camera2Device>& getCameraDevice();
-    const sp<CameraService>& getCameraService();
+    virtual status_t      dump(int fd, const Vector<String16>& args);
 
     // Callbacks from camera service
     virtual void onExclusiveLockStolen();
@@ -111,67 +96,26 @@ public:
      * Interface used by independent components of ProCamera2Client.
      */
 
-    // Simple class to ensure that access to IProCameraCallbacks is serialized
-    // by requiring mRemoteCallbackLock to be locked before access to
-    // mCameraClient is possible.
-    class SharedCameraCallbacks {
-      public:
-        class Lock {
-          public:
-            Lock(SharedCameraCallbacks &client);
-            ~Lock();
-            sp<IProCameraCallbacks> &mRemoteCallback;
-          private:
-            SharedCameraCallbacks &mSharedClient;
-        };
-        SharedCameraCallbacks(const sp<IProCameraCallbacks>& client);
-        SharedCameraCallbacks& operator=(const sp<IProCameraCallbacks>& client);
-        void clear();
-      private:
-        sp<IProCameraCallbacks> mRemoteCallback;
-        mutable Mutex mRemoteCallbackLock;
-    } mSharedCameraCallbacks;
-
 protected:
     /** FilteredListener implementation **/
-    virtual void onFrameAvailable(int32_t frameId, const CameraMetadata& frame);
+    virtual void          onFrameAvailable(int32_t frameId,
+                                           const CameraMetadata& frame);
+    virtual void          detachDevice();
 
 private:
     /** IProCameraUser interface-related private members */
-
-    // Mutex that must be locked by methods implementing the IProCameraUser
-    // interface. Ensures serialization between incoming IProCameraUser calls.
-    // All methods below that append 'L' to the name assume that
-    // mIProCameraUserLock is locked when they're called
-    mutable Mutex mIProCameraUserLock;
-
-    // Used with stream IDs
-    static const int NO_STREAM = -1;
-
-    /* Preview/Recording related members */
-
-    sp<IBinder> mPreviewSurface;
 
     /** Preview callback related members */
     sp<camera2::ProFrameProcessor> mFrameProcessor;
     static const int32_t FRAME_PROCESSOR_LISTENER_MIN_ID = 0;
     static const int32_t FRAME_PROCESSOR_LISTENER_MAX_ID = 0x7fffffffL;
 
-    /** Camera2Device instance wrapping HAL2 entry */
-
-    sp<Camera2Device> mDevice;
-
     /** Utility members */
-
-    // Verify that caller is the owner of the camera
-    status_t checkPid(const char *checkLocation) const;
 
     // Whether or not we have an exclusive lock on the device
     // - if no we can't modify the request queue.
     // note that creating/deleting streams we own is still OK
     bool mExclusiveLock;
-
-    void detachDevice();
 };
 
 }; // namespace android
