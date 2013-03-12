@@ -39,6 +39,12 @@ struct TunnelRenderer : public AHandler {
     void queueBuffer(const sp<ABuffer> &buffer);
     sp<ABuffer> dequeueBuffer();
 
+    void setTimeOffset(int64_t offset);
+
+    int64_t getAvgLatenessUs() {
+        return 0ll;
+    }
+
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
     virtual ~TunnelRenderer();

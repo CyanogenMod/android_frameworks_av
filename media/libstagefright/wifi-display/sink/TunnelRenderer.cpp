@@ -27,6 +27,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IStreamSource.h>
+#include <media/mediaplayer.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -60,6 +61,8 @@ struct TunnelRenderer::StreamSource : public BnStreamSource {
 
     void doSomeWork();
 
+    void setTimeOffset(int64_t offset);
+
 protected:
     virtual ~StreamSource();
 
@@ -75,6 +78,9 @@ private:
 
     size_t mNumDeqeued;
 
+    int64_t mTimeOffsetUs;
+    bool mTimeOffsetChanged;
+
     DISALLOW_EVIL_CONSTRUCTORS(StreamSource);
 };
 
@@ -82,7 +88,9 @@ private:
 
 TunnelRenderer::StreamSource::StreamSource(TunnelRenderer *owner)
     : mOwner(owner),
-      mNumDeqeued(0) {
+      mNumDeqeued(0),
+      mTimeOffsetUs(0ll),
+      mTimeOffsetChanged(false) {
 }
 
 TunnelRenderer::StreamSource::~StreamSource() {
@@ -110,7 +118,7 @@ void TunnelRenderer::StreamSource::onBufferAvailable(size_t index) {
 }
 
 uint32_t TunnelRenderer::StreamSource::flags() const {
-    return kFlagAlignedVideoData;
+    return kFlagAlignedVideoData | kFlagIsRealTimeData;
 }
 
 void TunnelRenderer::StreamSource::doSomeWork() {
@@ -124,21 +132,21 @@ void TunnelRenderer::StreamSource::doSomeWork() {
 
         ++mNumDeqeued;
 
-        if (mNumDeqeued == 1) {
-            ALOGI("fixing real time now.");
-
+        if (mTimeOffsetChanged) {
             sp<AMessage> extra = new AMessage;
 
             extra->setInt32(
                     IStreamListener::kKeyDiscontinuityMask,
-                    ATSParser::DISCONTINUITY_ABSOLUTE_TIME);
+                    ATSParser::DISCONTINUITY_TIME_OFFSET);
 
-            extra->setInt64("timeUs", ALooper::GetNowUs());
+            extra->setInt64("offset", mTimeOffsetUs);
 
             mListener->issueCommand(
                     IStreamListener::DISCONTINUITY,
                     false /* synchronous */,
                     extra);
+
+            mTimeOffsetChanged = false;
         }
 
         ALOGV("dequeue TS packet of size %d", srcBuffer->size());
@@ -155,16 +163,30 @@ void TunnelRenderer::StreamSource::doSomeWork() {
     }
 }
 
+void TunnelRenderer::StreamSource::setTimeOffset(int64_t offset) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (offset != mTimeOffsetUs) {
+        mTimeOffsetUs = offset;
+        mTimeOffsetChanged = true;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TunnelRenderer::TunnelRenderer(
         const sp<IGraphicBufferProducer> &bufferProducer)
     : mSurfaceTex(bufferProducer),
       mStartup(true) {
+    mStreamSource = new StreamSource(this);
 }
 
 TunnelRenderer::~TunnelRenderer() {
     destroyPlayer();
+}
+
+void TunnelRenderer::setTimeOffset(int64_t offset) {
+    mStreamSource->setTimeOffset(offset);
 }
 
 void TunnelRenderer::onMessageReceived(const sp<AMessage> &msg) {
@@ -209,8 +231,6 @@ void TunnelRenderer::initPlayer() {
     sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
     CHECK(service.get() != NULL);
 
-    mStreamSource = new StreamSource(this);
-
     mPlayerClient = new PlayerClient;
 
     mPlayer = service->create(mPlayerClient, 0);
@@ -225,6 +245,8 @@ void TunnelRenderer::initPlayer() {
 
 void TunnelRenderer::destroyPlayer() {
     mStreamSource.clear();
+
+    mPlayer->setVideoSurfaceTexture(NULL);
 
     mPlayer->stop();
     mPlayer.clear();

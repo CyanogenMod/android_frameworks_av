@@ -37,6 +37,9 @@ struct IStreamSource : public IInterface {
     enum {
         // Video PES packets contain exactly one (aligned) access unit.
         kFlagAlignedVideoData = 1,
+
+        // Timestamps are in ALooper::GetNowUs() units.
+        kFlagIsRealTimeData   = 2,
     };
     virtual uint32_t flags() const { return 0; }
 };
