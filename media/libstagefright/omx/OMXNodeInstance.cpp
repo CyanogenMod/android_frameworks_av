@@ -590,7 +590,8 @@ status_t OMXNodeInstance::createInputSurface(
     }
 
     GraphicBufferSource* bufferSource = new GraphicBufferSource(
-            this, def.format.video.nFrameWidth, def.format.video.nFrameHeight);
+            this, def.format.video.nFrameWidth, def.format.video.nFrameHeight,
+            def.nBufferCountActual);
     if ((err = bufferSource->initCheck()) != OK) {
         delete bufferSource;
         return err;
