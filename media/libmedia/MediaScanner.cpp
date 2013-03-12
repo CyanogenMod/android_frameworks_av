@@ -145,6 +145,7 @@ MediaScanResult MediaScanner::doProcessDirectory(
         if (access(path, F_OK) == 0) {
             ALOGV("found .nomedia, setting noMedia flag");
             noMedia = true;
+            return MEDIA_SCAN_RESULT_SKIPPED
         }
 
         // restore path
