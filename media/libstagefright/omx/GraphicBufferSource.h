@@ -47,7 +47,7 @@ namespace android {
 class GraphicBufferSource : public BufferQueue::ConsumerListener {
 public:
     GraphicBufferSource(OMXNodeInstance* nodeInstance,
-            uint32_t bufferWidth, uint32_t bufferHeight);
+            uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount);
     virtual ~GraphicBufferSource();
 
     // We can't throw an exception if the constructor fails, so we just set
@@ -124,7 +124,9 @@ private:
     // in the onFrameAvailable callback, or if we're in codecBufferEmptied
     // and mNumFramesAvailable is nonzero).  Returns without doing anything if
     // we don't have a codec buffer available.
-    status_t fillCodecBuffer_l();
+    //
+    // Returns true if we successfully filled a codec buffer with a BQ buffer.
+    bool fillCodecBuffer_l();
 
     // Marks the mCodecBuffers entry as in-use, copies the GraphicBuffer
     // reference into the codec buffer, and submits the data to the codec.
