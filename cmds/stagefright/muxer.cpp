@@ -55,7 +55,8 @@ static int muxing(
         const char *outputFileName,
         bool enableTrim,
         int trimStartTimeMs,
-        int trimEndTimeMs) {
+        int trimEndTimeMs,
+        int rotationDegrees) {
     sp<NuMediaExtractor> extractor = new NuMediaExtractor;
     if (extractor->setDataSource(path) != OK) {
         fprintf(stderr, "unable to instantiate extractor. %s\n", path);
@@ -141,6 +142,7 @@ static int muxing(
     size_t trackIndex = -1;
     sp<ABuffer> newBuffer = new ABuffer(bufferSize);
 
+    muxer->setOrientationHint(rotationDegrees);
     muxer->start();
 
     while (!sawInputEOS) {
@@ -210,12 +212,13 @@ int main(int argc, char **argv) {
     char *outputFileName = NULL;
     int trimStartTimeMs = -1;
     int trimEndTimeMs = -1;
+    int rotationDegrees = 0;
     // When trimStartTimeMs and trimEndTimeMs seems valid, we turn this switch
     // to true.
     bool enableTrim = false;
 
     int res;
-    while ((res = getopt(argc, argv, "h?avo:s:e:")) >= 0) {
+    while ((res = getopt(argc, argv, "h?avo:s:e:r:")) >= 0) {
         switch (res) {
             case 'a':
             {
@@ -244,6 +247,12 @@ int main(int argc, char **argv) {
             case 'e':
             {
                 trimEndTimeMs = atoi(optarg);
+                break;
+            }
+
+            case 'r':
+            {
+                rotationDegrees = atoi(optarg);
                 break;
             }
 
@@ -288,7 +297,7 @@ int main(int argc, char **argv) {
     looper->start();
 
     int result = muxing(looper, argv[0], useAudio, useVideo, outputFileName,
-                        enableTrim, trimStartTimeMs, trimEndTimeMs);
+                        enableTrim, trimStartTimeMs, trimEndTimeMs, rotationDegrees);
 
     looper->stop();
 
