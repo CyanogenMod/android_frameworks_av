@@ -36,6 +36,7 @@ struct RTPSender : public RTPBase, public AHandler {
     enum {
         kWhatInitDone,
         kWhatError,
+        kWhatNetworkStall,
     };
     RTPSender(
             const sp<ANetworkSession> &netSession,
@@ -103,6 +104,7 @@ private:
 
     void notifyInitDone(status_t err);
     void notifyError(status_t err);
+    void notifyNetworkStall(size_t numBytesQueued);
 
     DISALLOW_EVIL_CONSTRUCTORS(RTPSender);
 };

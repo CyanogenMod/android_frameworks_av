@@ -530,6 +530,18 @@ void RTPSender::onNetNotify(bool isRTP, const sp<AMessage> &msg) {
             }
             break;
         }
+
+        case ANetworkSession::kWhatNetworkStall:
+        {
+            size_t numBytesQueued;
+            CHECK(msg->findSize("numBytesQueued", &numBytesQueued));
+
+            notifyNetworkStall(numBytesQueued);
+            break;
+        }
+
+        default:
+            TRESPASS();
     }
 }
 
@@ -696,6 +708,13 @@ void RTPSender::notifyError(status_t err) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatError);
     notify->setInt32("err", err);
+    notify->post();
+}
+
+void RTPSender::notifyNetworkStall(size_t numBytesQueued) {
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatNetworkStall);
+    notify->setSize("numBytesQueued", numBytesQueued);
     notify->post();
 }
 
