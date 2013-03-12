@@ -32,7 +32,7 @@ static const bool EXTRA_CHECK = true;
 
 
 GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
-        uint32_t bufferWidth, uint32_t bufferHeight) :
+        uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount) :
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
     mExecuting(false),
@@ -40,19 +40,30 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mEndOfStream(false),
     mEndOfStreamSent(false) {
 
-    ALOGV("GraphicBufferSource w=%u h=%u", bufferWidth, bufferHeight);
+    ALOGV("GraphicBufferSource w=%u h=%u c=%u",
+            bufferWidth, bufferHeight, bufferCount);
 
     if (bufferWidth == 0 || bufferHeight == 0) {
-        ALOGE("Invalid dimensions %dx%d", bufferWidth, bufferHeight);
+        ALOGE("Invalid dimensions %ux%u", bufferWidth, bufferHeight);
         mInitCheck = BAD_VALUE;
         return;
     }
 
+    String8 name("GraphicBufferSource");
+
     mBufferQueue = new BufferQueue(true);
+    mBufferQueue->setConsumerName(name);
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
     mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
             GRALLOC_USAGE_HW_TEXTURE);
+
+    mInitCheck = mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
+    if (mInitCheck != NO_ERROR) {
+        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
+                bufferCount, mInitCheck);
+        return;
+    }
 
     // Note that we can't create an sp<...>(this) in a ctor that will not keep a
     // reference once the ctor ends, as that would cause the refcount of 'this'
@@ -64,21 +75,23 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     sp<BufferQueue::ConsumerListener> proxy;
     proxy = new BufferQueue::ProxyConsumerListener(listener);
 
-    status_t err = mBufferQueue->consumerConnect(proxy);
-    if (err != NO_ERROR) {
+    mInitCheck = mBufferQueue->consumerConnect(proxy);
+    if (mInitCheck != NO_ERROR) {
         ALOGE("Error connecting to BufferQueue: %s (%d)",
-                strerror(-err), err);
+                strerror(-mInitCheck), mInitCheck);
         return;
     }
 
-    mInitCheck = OK;
+    CHECK(mInitCheck == NO_ERROR);
 }
 
 GraphicBufferSource::~GraphicBufferSource() {
     ALOGV("~GraphicBufferSource");
-    status_t err = mBufferQueue->consumerDisconnect();
-    if (err != NO_ERROR) {
-        ALOGW("consumerDisconnect failed: %d", err);
+    if (mBufferQueue != NULL) {
+        status_t err = mBufferQueue->consumerDisconnect();
+        if (err != NO_ERROR) {
+            ALOGW("consumerDisconnect failed: %d", err);
+        }
     }
 }
 
@@ -98,8 +111,12 @@ void GraphicBufferSource::omxExecuting() {
     // one codec buffer simultaneously.  (We could instead try to submit
     // all BQ buffers whenever any codec buffer is freed, but if we get the
     // initial conditions right that will never be useful.)
-    while (mNumFramesAvailable && isCodecBufferAvailable_l()) {
-        fillCodecBuffer_l();
+    while (mNumFramesAvailable) {
+        if (!fillCodecBuffer_l()) {
+            ALOGV("stop load with frames available (codecAvail=%d)",
+                    isCodecBufferAvailable_l());
+            break;
+        }
     }
 
     ALOGV("done loading initial frames, avail=%d", mNumFramesAvailable);
@@ -166,7 +183,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // see if the GraphicBuffer reference was null, which should only ever
     // happen for EOS.
     if (codecBuffer.mGraphicBuffer == NULL) {
-        CHECK(mEndOfStream);
+        CHECK(mEndOfStream && mEndOfStreamSent);
         // No GraphicBuffer to deal with, no additional input or output is
         // expected, so just return.
         return;
@@ -216,8 +233,9 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
 
     if (mNumFramesAvailable) {
         // Fill this codec buffer.
-        CHECK(!mEndOfStream);
-        ALOGV("buffer freed, %d frames avail", mNumFramesAvailable);
+        CHECK(!mEndOfStreamSent);
+        ALOGV("buffer freed, %d frames avail (eos=%d)",
+                mNumFramesAvailable, mEndOfStream);
         fillCodecBuffer_l();
     } else if (mEndOfStream) {
         // No frames available, but EOS is pending, so use this buffer to
@@ -228,56 +246,58 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     return;
 }
 
-status_t GraphicBufferSource::fillCodecBuffer_l() {
+bool GraphicBufferSource::fillCodecBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable > 0);
+
     int cbi = findAvailableCodecBuffer_l();
     if (cbi < 0) {
         // No buffers available, bail.
         ALOGV("fillCodecBuffer_l: no codec buffers, avail now %d",
                 mNumFramesAvailable);
-    } else {
-        ALOGV("fillCodecBuffer_l: acquiring buffer, avail=%d",
-                mNumFramesAvailable);
-        BufferQueue::BufferItem item;
-        status_t err = mBufferQueue->acquireBuffer(&item);
-        if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
-            // shouldn't happen
-            ALOGW("fillCodecBuffer_l: frame was not available");
-            return err;
-        } else if (err != OK) {
-            // now what? fake end-of-stream?
-            ALOGW("fillCodecBuffer_l: acquireBuffer returned err=%d", err);
-            return err;
-        }
-
-        mNumFramesAvailable--;
-
-        // Wait for it to become available.
-        err = item.mFence->waitForever(1000,
-                "GraphicBufferSource::fillCodecBuffer_l");
-        if (err != OK) {
-            ALOGW("failed to wait for buffer fence: %d", err);
-            // keep going
-        }
-
-        // If this is the first time we're seeing this buffer, add it to our
-        // slot table.
-        if (item.mGraphicBuffer != NULL) {
-            ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mBuf);
-            mBufferSlot[item.mBuf] = item.mGraphicBuffer;
-        }
-
-        err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp, cbi);
-        if (err != OK) {
-            ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-            mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
-                EGL_NO_SYNC_KHR, Fence::NO_FENCE);
-        } else {
-            ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
-        }
+        return false;
     }
 
-    return OK;
+    ALOGV("fillCodecBuffer_l: acquiring buffer, avail=%d",
+            mNumFramesAvailable);
+    BufferQueue::BufferItem item;
+    status_t err = mBufferQueue->acquireBuffer(&item);
+    if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
+        // shouldn't happen
+        ALOGW("fillCodecBuffer_l: frame was not available");
+        return false;
+    } else if (err != OK) {
+        // now what? fake end-of-stream?
+        ALOGW("fillCodecBuffer_l: acquireBuffer returned err=%d", err);
+        return false;
+    }
+
+    mNumFramesAvailable--;
+
+    // Wait for it to become available.
+    err = item.mFence->waitForever(1000,
+            "GraphicBufferSource::fillCodecBuffer_l");
+    if (err != OK) {
+        ALOGW("failed to wait for buffer fence: %d", err);
+        // keep going
+    }
+
+    // If this is the first time we're seeing this buffer, add it to our
+    // slot table.
+    if (item.mGraphicBuffer != NULL) {
+        ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mBuf);
+        mBufferSlot[item.mBuf] = item.mGraphicBuffer;
+    }
+
+    err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp, cbi);
+    if (err != OK) {
+        ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
+        mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
+                EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+    } else {
+        ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
+    }
+
+    return true;
 }
 
 status_t GraphicBufferSource::signalEndOfInputStream() {
@@ -372,6 +392,7 @@ void GraphicBufferSource::submitEndOfInputStream_l() {
     } else {
         ALOGV("submitEndOfInputStream_l: buffer submitted, header=%p cbi=%d",
                 header, cbi);
+        mEndOfStreamSent = true;
     }
 }
 
@@ -400,7 +421,8 @@ int GraphicBufferSource::findMatchingCodecBuffer_l(
 void GraphicBufferSource::onFrameAvailable() {
     Mutex::Autolock autoLock(mMutex);
 
-    ALOGV("onFrameAvailable exec=%d avail=%d", mExecuting, mNumFramesAvailable);
+    ALOGV("onFrameAvailable exec=%d avail=%d",
+            mExecuting, mNumFramesAvailable);
 
     if (mEndOfStream) {
         // This should only be possible if a new buffer was queued after
