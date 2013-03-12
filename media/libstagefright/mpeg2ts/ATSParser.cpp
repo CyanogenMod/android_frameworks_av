@@ -452,6 +452,10 @@ int64_t ATSParser::Program::convertPTSToTimestamp(uint64_t PTS) {
         timeUs += mParser->mAbsoluteTimeAnchorUs;
     }
 
+    if (mParser->mTimeOffsetValid) {
+        timeUs += mParser->mTimeOffsetUs;
+    }
+
     return timeUs;
 }
 
@@ -930,6 +934,8 @@ sp<MediaSource> ATSParser::Stream::getSource(SourceType type) {
 ATSParser::ATSParser(uint32_t flags)
     : mFlags(flags),
       mAbsoluteTimeAnchorUs(-1ll),
+      mTimeOffsetValid(false),
+      mTimeOffsetUs(0ll),
       mNumTSPacketsParsed(0),
       mNumPCRs(0) {
     mPSISections.add(0 /* PID */, new PSISection);
@@ -959,6 +965,13 @@ void ATSParser::signalDiscontinuity(
 
         CHECK(mPrograms.empty());
         mAbsoluteTimeAnchorUs = timeUs;
+        return;
+    } else if (type == DISCONTINUITY_TIME_OFFSET) {
+        int64_t offset;
+        CHECK(extra->findInt64("offset", &offset));
+
+        mTimeOffsetValid = true;
+        mTimeOffsetUs = offset;
         return;
     }
 

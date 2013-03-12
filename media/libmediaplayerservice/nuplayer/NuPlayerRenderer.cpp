@@ -31,9 +31,11 @@ const int64_t NuPlayer::Renderer::kMinPositionUpdateDelayUs = 100000ll;
 
 NuPlayer::Renderer::Renderer(
         const sp<MediaPlayerBase::AudioSink> &sink,
-        const sp<AMessage> &notify)
+        const sp<AMessage> &notify,
+        uint32_t flags)
     : mAudioSink(sink),
       mNotify(notify),
+      mFlags(flags),
       mNumFramesWritten(0),
       mDrainAudioQueuePending(false),
       mDrainVideoQueuePending(false),
@@ -323,6 +325,11 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
     if (entry.mBuffer == NULL) {
         // EOS doesn't carry a timestamp.
         delayUs = 0;
+    } else if (mFlags & FLAG_REAL_TIME) {
+        int64_t mediaTimeUs;
+        CHECK(entry.mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
+
+        delayUs = mediaTimeUs - ALooper::GetNowUs();
     } else {
         int64_t mediaTimeUs;
         CHECK(entry.mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
@@ -368,12 +375,17 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         return;
     }
 
-    int64_t mediaTimeUs;
-    CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
+    int64_t realTimeUs;
+    if (mFlags & FLAG_REAL_TIME) {
+        CHECK(entry->mBuffer->meta()->findInt64("timeUs", &realTimeUs));
+    } else {
+        int64_t mediaTimeUs;
+        CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
-    int64_t realTimeUs = mediaTimeUs - mAnchorTimeMediaUs + mAnchorTimeRealUs;
+        realTimeUs = mediaTimeUs - mAnchorTimeMediaUs + mAnchorTimeRealUs;
+    }
+
     mVideoLateByUs = ALooper::GetNowUs() - realTimeUs;
-
     bool tooLate = (mVideoLateByUs > 40000);
 
     if (tooLate) {

@@ -378,6 +378,7 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
             int mode = request.readInt32();
             return mPlayer->setVideoScalingMode(mode);
         }
+
         default:
         {
             return INVALID_OPERATION;
