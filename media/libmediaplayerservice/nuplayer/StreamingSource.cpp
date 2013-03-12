@@ -182,5 +182,9 @@ status_t NuPlayer::StreamingSource::dequeueAccessUnit(
     return err;
 }
 
+bool NuPlayer::StreamingSource::isRealTime() const {
+    return mSource->flags() & IStreamSource::kFlagIsRealTimeData;
+}
+
 }  // namespace android
 

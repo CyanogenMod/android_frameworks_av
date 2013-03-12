@@ -27,6 +27,7 @@
 #include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 
 #include <media/stagefright/foundation/ABuffer.h>
@@ -506,6 +507,14 @@ status_t ANetworkSession::Session::writeMore() {
         notifyError(true /* send */, err, "Send failed.");
         mSawSendFailure = true;
     }
+
+#if 0
+    int numBytesQueued;
+    int res = ioctl(mSocket, SIOCOUTQ, &numBytesQueued);
+    if (res == 0 && numBytesQueued > 102400) {
+        ALOGI("numBytesQueued = %d", numBytesQueued);
+    }
+#endif
 
     return err;
 }

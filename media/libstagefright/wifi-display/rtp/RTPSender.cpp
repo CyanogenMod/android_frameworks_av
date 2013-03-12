@@ -577,6 +577,8 @@ status_t RTPSender::onRTCPData(const sp<ABuffer> &buffer) {
 
             case 202:  // SDES
             case 203:
+                break;
+
             case 204:  // APP
                 break;
 
