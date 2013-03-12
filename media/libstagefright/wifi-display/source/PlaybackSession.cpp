@@ -515,6 +515,16 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 }
             } else if (what == MediaSender::kWhatError) {
                 notifySessionDead();
+            } else if (what == MediaSender::kWhatNetworkStall) {
+                size_t numBytesQueued;
+                CHECK(msg->findSize("numBytesQueued", &numBytesQueued));
+
+                if (mVideoTrackIndex >= 0) {
+                    const sp<Track> &videoTrack =
+                        mTracks.valueFor(mVideoTrackIndex);
+
+                    videoTrack->converter()->dropAFrame();
+                }
             } else {
                 TRESPASS();
             }
