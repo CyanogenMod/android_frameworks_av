@@ -36,6 +36,10 @@ struct DirectRenderer : public AHandler {
     void setFormat(size_t trackIndex, const sp<AMessage> &format);
     void queueAccessUnit(size_t trackIndex, const sp<ABuffer> &accessUnit);
 
+    void setTimeOffset(int64_t offset);
+
+    int64_t getAvgLatenessUs();
+
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
     virtual ~DirectRenderer();
@@ -63,8 +67,14 @@ private:
 
     List<OutputInfo> mOutputBuffers;
     bool mRenderPending;
-    int64_t mFirstRenderTimeUs;
-    int64_t mFirstRenderRealUs;
+
+    int64_t mTimeOffsetUs;
+
+    int64_t mLatencySum;
+    size_t mLatencyCount;
+
+    int32_t mNumFramesLate;
+    int32_t mNumFrames;
 
     void onVideoDecoderNotify();
     void onRender();

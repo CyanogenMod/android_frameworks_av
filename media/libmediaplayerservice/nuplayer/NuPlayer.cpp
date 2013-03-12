@@ -381,9 +381,16 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             mSource->start();
 
+            uint32_t flags = 0;
+
+            if (mSource->isRealTime()) {
+                flags |= Renderer::FLAG_REAL_TIME;
+            }
+
             mRenderer = new Renderer(
                     mAudioSink,
-                    new AMessage(kWhatRendererNotify, id()));
+                    new AMessage(kWhatRendererNotify, id()),
+                    flags);
 
             looper()->registerHandler(mRenderer);
 

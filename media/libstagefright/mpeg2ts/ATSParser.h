@@ -39,6 +39,7 @@ struct ATSParser : public RefBase {
         DISCONTINUITY_AUDIO_FORMAT      = 2,
         DISCONTINUITY_VIDEO_FORMAT      = 4,
         DISCONTINUITY_ABSOLUTE_TIME     = 8,
+        DISCONTINUITY_TIME_OFFSET       = 16,
 
         DISCONTINUITY_SEEK              = DISCONTINUITY_TIME,
 
@@ -105,6 +106,9 @@ private:
     KeyedVector<unsigned, sp<PSISection> > mPSISections;
 
     int64_t mAbsoluteTimeAnchorUs;
+
+    bool mTimeOffsetValid;
+    int64_t mTimeOffsetUs;
 
     size_t mNumTSPacketsParsed;
 
