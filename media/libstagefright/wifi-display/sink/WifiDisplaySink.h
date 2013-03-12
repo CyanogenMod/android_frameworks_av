@@ -31,6 +31,7 @@ struct AMessage;
 struct DirectRenderer;
 struct MediaReceiver;
 struct ParsedMessage;
+struct TimeSyncer;
 struct TunnelRenderer;
 
 #define USE_TUNNEL_RENDERER     0
@@ -43,11 +44,16 @@ struct WifiDisplaySink : public AHandler {
         kWhatDisconnected,
     };
 
+    enum Flags {
+        FLAG_SPECIAL_MODE = 1,
+    };
+
     // If no notification message is specified (notify == NULL)
     // the sink will stop its looper() once the session ends,
     // otherwise it will post an appropriate notification but leave
     // the looper() running.
     WifiDisplaySink(
+            uint32_t flags,
             const sp<ANetworkSession> &netSession,
             const sp<IGraphicBufferProducer> &bufferProducer = NULL,
             const sp<AMessage> &notify = NULL);
@@ -73,6 +79,8 @@ private:
         kWhatRTSPNotify,
         kWhatStop,
         kWhatMediaReceiverNotify,
+        kWhatTimeSyncerNotify,
+        kWhatReportLateness,
     };
 
     struct ResponseID {
@@ -89,11 +97,15 @@ private:
     typedef status_t (WifiDisplaySink::*HandleRTSPResponseFunc)(
             int32_t sessionID, const sp<ParsedMessage> &msg);
 
+    static const int64_t kReportLatenessEveryUs = 1000000ll;
+
     State mState;
+    uint32_t mFlags;
     VideoFormats mSinkSupportedVideoFormats;
     sp<ANetworkSession> mNetSession;
     sp<IGraphicBufferProducer> mSurfaceTex;
     sp<AMessage> mNotify;
+    sp<TimeSyncer> mTimeSyncer;
     bool mUsingTCPTransport;
     bool mUsingTCPInterleaving;
     AString mRTSPHost;
@@ -116,6 +128,13 @@ private:
     int32_t mPlaybackSessionTimeoutSecs;
 
     bool mIDRFrameRequestPending;
+
+    int64_t mTimeOffsetUs;
+    bool mTimeOffsetValid;
+
+    int64_t mTargetLatencyUs;
+
+    bool mSetupDeferred;
 
     status_t sendM2(int32_t sessionID);
     status_t sendSetup(int32_t sessionID, const char *uri);

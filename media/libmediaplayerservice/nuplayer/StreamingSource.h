@@ -38,6 +38,8 @@ struct NuPlayer::StreamingSource : public NuPlayer::Source {
 
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
+    virtual bool isRealTime() const;
+
 protected:
     virtual ~StreamingSource();
 

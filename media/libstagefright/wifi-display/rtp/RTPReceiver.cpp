@@ -221,10 +221,12 @@ void RTPReceiver::Source::dequeueMore() {
 
             mNumDeclaredLostPrior = mNumDeclaredLost;
 
-            ALOGI("lost %lld packets (%.2f %%), declared %d lost\n",
-                  lostInterval,
-                  100.0f * lostInterval / expectedInterval,
-                  declaredLostInterval);
+            if (declaredLostInterval > 0) {
+                ALOGI("lost %lld packets (%.2f %%), declared %d lost\n",
+                      lostInterval,
+                      100.0f * lostInterval / expectedInterval,
+                      declaredLostInterval);
+            }
         }
 
         mNextReportTimeUs = nowUs + kReportIntervalUs;
@@ -526,6 +528,40 @@ status_t RTPReceiver::connect(
     }
 
     notifyInitDone(OK);
+
+    return OK;
+}
+
+status_t RTPReceiver::notifyLateness(int64_t latenessUs) {
+    sp<ABuffer> buf = new ABuffer(20);
+
+    uint8_t *ptr = buf->data();
+    ptr[0] = 0x80 | 0;
+    ptr[1] = 204;  // APP
+    ptr[2] = 0;
+
+    CHECK((buf->size() % 4) == 0u);
+    ptr[3] = (buf->size() / 4) - 1;
+
+    ptr[4] = kSourceID >> 24;  // SSRC
+    ptr[5] = (kSourceID >> 16) & 0xff;
+    ptr[6] = (kSourceID >> 8) & 0xff;
+    ptr[7] = kSourceID & 0xff;
+    ptr[8] = 'l';
+    ptr[9] = 'a';
+    ptr[10] = 't';
+    ptr[11] = 'e';
+
+    ptr[12] = latenessUs >> 56;
+    ptr[13] = (latenessUs >> 48) & 0xff;
+    ptr[14] = (latenessUs >> 40) & 0xff;
+    ptr[15] = (latenessUs >> 32) & 0xff;
+    ptr[16] = (latenessUs >> 24) & 0xff;
+    ptr[17] = (latenessUs >> 16) & 0xff;
+    ptr[18] = (latenessUs >> 8) & 0xff;
+    ptr[19] = latenessUs & 0xff;
+
+    mNetSession->sendRequest(mRTCPSessionID, buf->data(), buf->size());
 
     return OK;
 }
