@@ -60,6 +60,8 @@ struct MediaReceiver : public AHandler {
     };
     status_t initAsync(Mode mode);
 
+    status_t notifyLateness(size_t trackIndex, int64_t latenessUs);
+
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
     virtual ~MediaReceiver();

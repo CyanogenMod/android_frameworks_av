@@ -53,6 +53,11 @@ void RTPReceiver::TSAssembler::signalDiscontinuity() {
 }
 
 status_t RTPReceiver::TSAssembler::processPacket(const sp<ABuffer> &packet) {
+    int32_t rtpTime;
+    CHECK(packet->meta()->findInt32("rtp-time", &rtpTime));
+
+    packet->meta()->setInt64("timeUs", (rtpTime * 100ll) / 9);
+
     postAccessUnit(packet, mSawDiscontinuity);
 
     if (mSawDiscontinuity) {

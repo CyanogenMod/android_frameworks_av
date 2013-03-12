@@ -127,7 +127,10 @@ void MediaReceiver::onMessageReceived(const sp<AMessage> &msg) {
                 notifyInitDone(mInitStatus);
             }
 
-            mTSParser = new ATSParser(ATSParser::ALIGNED_VIDEO_DATA);
+            mTSParser = new ATSParser(
+                    ATSParser::ALIGNED_VIDEO_DATA
+                        | ATSParser::TS_TIMESTAMPS_ARE_ABSOLUTE);
+
             mFormatKnownMask = 0;
             break;
         }
@@ -304,6 +307,15 @@ void MediaReceiver::postAccessUnit(
     }
 
     notify->post();
+}
+
+status_t MediaReceiver::notifyLateness(size_t trackIndex, int64_t latenessUs) {
+    if (trackIndex >= mTrackInfos.size()) {
+        return -ERANGE;
+    }
+
+    TrackInfo *info = &mTrackInfos.editItemAt(trackIndex);
+    return info->mReceiver->notifyLateness(latenessUs);
 }
 
 }  // namespace android

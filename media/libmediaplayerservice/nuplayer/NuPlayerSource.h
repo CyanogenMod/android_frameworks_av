@@ -74,6 +74,10 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
+    virtual bool isRealTime() const {
+        return false;
+    }
+
 protected:
     virtual ~Source() {}
 

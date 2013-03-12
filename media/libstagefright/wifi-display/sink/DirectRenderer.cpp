@@ -39,8 +39,11 @@ DirectRenderer::DirectRenderer(
     : mSurfaceTex(bufferProducer),
       mVideoDecoderNotificationPending(false),
       mRenderPending(false),
-      mFirstRenderTimeUs(-1ll),
-      mFirstRenderRealUs(-1ll) {
+      mTimeOffsetUs(0ll),
+      mLatencySum(0ll),
+      mLatencyCount(0),
+      mNumFramesLate(0),
+      mNumFrames(0) {
 }
 
 DirectRenderer::~DirectRenderer() {
@@ -51,6 +54,29 @@ DirectRenderer::~DirectRenderer() {
         mVideoDecoderLooper->stop();
         mVideoDecoderLooper.clear();
     }
+}
+
+void DirectRenderer::setTimeOffset(int64_t offset) {
+    mTimeOffsetUs = offset;
+}
+
+int64_t DirectRenderer::getAvgLatenessUs() {
+    if (mLatencyCount == 0) {
+        return 0ll;
+    }
+
+    int64_t avgLatencyUs = mLatencySum / mLatencyCount;
+
+    mLatencySum = 0ll;
+    mLatencyCount = 0;
+
+    if (mNumFrames > 0) {
+        ALOGI("%d / %d frames late", mNumFramesLate, mNumFrames);
+        mNumFramesLate = 0;
+        mNumFrames = 0;
+    }
+
+    return avgLatencyUs;
 }
 
 void DirectRenderer::onMessageReceived(const sp<AMessage> &msg) {
@@ -224,14 +250,17 @@ void DirectRenderer::onVideoDecoderNotify() {
 }
 
 void DirectRenderer::queueOutputBuffer(size_t index, int64_t timeUs) {
-#if 0
+#if 1
     OutputInfo info;
     info.mIndex = index;
-    info.mTimeUs = timeUs;
+    info.mTimeUs = timeUs + mTimeOffsetUs;
     mOutputBuffers.push_back(info);
 
     scheduleRenderIfNecessary();
 #else
+    mLatencySum += ALooper::GetNowUs() - (timeUs + mTimeOffsetUs);
+    ++mLatencyCount;
+
     status_t err = mVideoDecoder->renderOutputBufferAndRelease(index);
     CHECK_EQ(err, (status_t)OK);
 #endif
@@ -247,13 +276,7 @@ void DirectRenderer::scheduleRenderIfNecessary() {
     int64_t timeUs = (*mOutputBuffers.begin()).mTimeUs;
     int64_t nowUs = ALooper::GetNowUs();
 
-    if (mFirstRenderTimeUs < 0ll) {
-        mFirstRenderTimeUs = timeUs;
-        mFirstRenderRealUs = nowUs;
-    }
-
-    int64_t whenUs = timeUs - mFirstRenderTimeUs + mFirstRenderRealUs;
-    int64_t delayUs = whenUs - nowUs;
+    int64_t delayUs = timeUs - nowUs;
 
     (new AMessage(kWhatRender, id()))->post(delayUs);
 }
@@ -269,6 +292,14 @@ void DirectRenderer::onRender() {
         if (info.mTimeUs > nowUs) {
             break;
         }
+
+        if (info.mTimeUs + 15000ll < nowUs) {
+            ++mNumFramesLate;
+        }
+        ++mNumFrames;
+
+        mLatencySum += nowUs - info.mTimeUs;
+        ++mLatencyCount;
 
         status_t err = mVideoDecoder->renderOutputBufferAndRelease(info.mIndex);
         CHECK_EQ(err, (status_t)OK);
