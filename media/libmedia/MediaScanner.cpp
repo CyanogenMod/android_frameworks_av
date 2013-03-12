@@ -139,6 +139,18 @@ MediaScanResult MediaScanner::doProcessDirectory(
         return MEDIA_SCAN_RESULT_OK;
     }
 
+    // Completely skip all directories containing a ".noscanandnomtp" file
+    if (pathRemaining >= 15 /* strlen(".noscanandnomtp") */ ) {
+        strcpy(fileSpot, ".noscanandnomtp");
+        if (access(path, F_OK) == 0) {
+            ALOGV("found .noscanandnomtp, completely skipping");
+            return MEDIA_SCAN_RESULT_SKIPPED;
+        }
+
+        // restore path
+        fileSpot[0] = 0;
+    }
+
     // Treat all files as non-media in directories that contain a  ".nomedia" file
     if (pathRemaining >= 8 /* strlen(".nomedia") */ ) {
         strcpy(fileSpot, ".nomedia");
