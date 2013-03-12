@@ -25,8 +25,12 @@ namespace android {
 struct ABuffer;
 
 struct NuPlayer::Renderer : public AHandler {
+    enum Flags {
+        FLAG_REAL_TIME = 1,
+    };
     Renderer(const sp<MediaPlayerBase::AudioSink> &sink,
-             const sp<AMessage> &notify);
+             const sp<AMessage> &notify,
+             uint32_t flags = 0);
 
     void queueBuffer(
             bool audio,
@@ -79,6 +83,7 @@ private:
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<AMessage> mNotify;
+    uint32_t mFlags;
     List<QueueEntry> mAudioQueue;
     List<QueueEntry> mVideoQueue;
     uint32_t mNumFramesWritten;
