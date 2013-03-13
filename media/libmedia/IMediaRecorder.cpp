@@ -87,12 +87,12 @@ public:
         return interface_cast<IGraphicBufferProducer>(reply.readStrongBinder());
     }
 
-    status_t setPreviewSurface(const sp<Surface>& surface)
+    status_t setPreviewSurface(const sp<IGraphicBufferProducer>& surface)
     {
         ALOGV("setPreviewSurface(%p)", surface.get());
         Parcel data, reply;
         data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
-        Surface::writeToParcel(surface, &data);
+        data.writeStrongBinder(surface->asBinder());
         remote()->transact(SET_PREVIEW_SURFACE, data, &reply);
         return reply.readInt32();
     }
@@ -443,7 +443,7 @@ status_t BnMediaRecorder::onTransact(
         case SET_PREVIEW_SURFACE: {
             ALOGV("SET_PREVIEW_SURFACE");
             CHECK_INTERFACE(IMediaRecorder, data, reply);
-            sp<Surface> surface = Surface::readFromParcel(data);
+            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
             reply->writeInt32(setPreviewSurface(surface));
             return NO_ERROR;
         } break;

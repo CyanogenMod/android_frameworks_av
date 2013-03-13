@@ -29,7 +29,6 @@ namespace android {
 
 enum {
     DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
-    SET_PREVIEW_DISPLAY,
     SET_PREVIEW_TEXTURE,
     SET_PREVIEW_CALLBACK_FLAG,
     START_PREVIEW,
@@ -66,17 +65,6 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
         remote()->transact(DISCONNECT, data, &reply);
-    }
-
-    // pass the buffered Surface to the camera service
-    status_t setPreviewDisplay(const sp<Surface>& surface)
-    {
-        ALOGV("setPreviewDisplay");
-        Parcel data, reply;
-        data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
-        Surface::writeToParcel(surface, &data);
-        remote()->transact(SET_PREVIEW_DISPLAY, data, &reply);
-        return reply.readInt32();
     }
 
     // pass the buffered IGraphicBufferProducer to the camera service
@@ -280,13 +268,6 @@ status_t BnCamera::onTransact(
             ALOGV("DISCONNECT");
             CHECK_INTERFACE(ICamera, data, reply);
             disconnect();
-            return NO_ERROR;
-        } break;
-        case SET_PREVIEW_DISPLAY: {
-            ALOGV("SET_PREVIEW_DISPLAY");
-            CHECK_INTERFACE(ICamera, data, reply);
-            sp<Surface> surface = Surface::readFromParcel(data);
-            reply->writeInt32(setPreviewDisplay(surface));
             return NO_ERROR;
         } break;
         case SET_PREVIEW_TEXTURE: {

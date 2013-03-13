@@ -35,7 +35,7 @@ public:
 
     virtual status_t setCamera(const sp<ICamera>& camera,
                                const sp<ICameraRecordingProxy>& proxy) = 0;
-    virtual status_t setPreviewSurface(const sp<Surface>& surface) = 0;
+    virtual status_t setPreviewSurface(const sp<IGraphicBufferProducer>& surface) = 0;
     virtual status_t setVideoSource(int vs) = 0;
     virtual status_t setAudioSource(int as) = 0;
     virtual status_t setOutputFormat(int of) = 0;

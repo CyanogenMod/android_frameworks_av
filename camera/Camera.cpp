@@ -96,32 +96,14 @@ status_t Camera::unlock()
     return c->unlock();
 }
 
-// pass the buffered Surface to the camera service
-status_t Camera::setPreviewDisplay(const sp<Surface>& surface)
-{
-    ALOGV("setPreviewDisplay(%p)", surface.get());
-    sp <ICamera> c = mCamera;
-    if (c == 0) return NO_INIT;
-    if (surface != 0) {
-        return c->setPreviewDisplay(surface);
-    } else {
-        ALOGD("app passed NULL surface");
-        return c->setPreviewDisplay(0);
-    }
-}
-
 // pass the buffered IGraphicBufferProducer to the camera service
 status_t Camera::setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)
 {
     ALOGV("setPreviewTexture(%p)", bufferProducer.get());
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
-    if (bufferProducer != 0) {
-        return c->setPreviewTexture(bufferProducer);
-    } else {
-        ALOGD("app passed NULL surface");
-        return c->setPreviewTexture(0);
-    }
+    ALOGD_IF(bufferProducer == 0, "app passed NULL surface");
+    return c->setPreviewTexture(bufferProducer);
 }
 
 // start preview mode
