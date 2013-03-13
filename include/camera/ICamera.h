@@ -46,9 +46,6 @@ public:
     // allow other processes to use this ICamera interface
     virtual status_t        unlock() = 0;
 
-    // pass the buffered Surface to the camera service
-    virtual status_t        setPreviewDisplay(const sp<Surface>& surface) = 0;
-
     // pass the buffered IGraphicBufferProducer to the camera service
     virtual status_t        setPreviewTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) = 0;
