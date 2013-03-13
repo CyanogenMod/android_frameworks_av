@@ -42,6 +42,7 @@ struct MediaSender : public AHandler {
     enum {
         kWhatInitDone,
         kWhatError,
+        kWhatNetworkStall,
     };
 
     MediaSender(
@@ -113,6 +114,7 @@ private:
 
     void notifyInitDone(status_t err);
     void notifyError(status_t err);
+    void notifyNetworkStall(size_t numBytesQueued);
 
     status_t packetizeAccessUnit(
             size_t trackIndex,

@@ -55,6 +55,7 @@ Converter::Converter(
       ,mInSilentMode(false)
 #endif
       ,mPrevVideoBitrate(-1)
+      ,mNumFramesToDrop(0)
     {
     AString mime;
     CHECK(mInputFormat->findString("mime", &mime));
@@ -327,6 +328,13 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
                 sp<ABuffer> accessUnit;
                 CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
+                if (mIsVideo && mNumFramesToDrop) {
+                    --mNumFramesToDrop;
+                    ALOGI("dropping frame.");
+                    ReleaseMediaBufferReference(accessUnit);
+                    break;
+                }
+
 #if 0
                 void *mbuf;
                 if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
@@ -419,6 +427,12 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             AString mime;
             CHECK(mInputFormat->findString("mime", &mime));
             ALOGI("encoder (%s) shut down.", mime.c_str());
+            break;
+        }
+
+        case kWhatDropAFrame:
+        {
+            ++mNumFramesToDrop;
             break;
         }
 
@@ -688,6 +702,10 @@ status_t Converter::doMoreWork() {
 
 void Converter::requestIDRFrame() {
     (new AMessage(kWhatRequestIDRFrame, id()))->post();
+}
+
+void Converter::dropAFrame() {
+    (new AMessage(kWhatDropAFrame, id()))->post();
 }
 
 }  // namespace android

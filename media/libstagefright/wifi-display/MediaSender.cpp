@@ -325,6 +325,15 @@ void MediaSender::onSenderNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatNetworkStall:
+        {
+            size_t numBytesQueued;
+            CHECK(msg->findSize("numBytesQueued", &numBytesQueued));
+
+            notifyNetworkStall(numBytesQueued);
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -341,6 +350,13 @@ void MediaSender::notifyError(status_t err) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatError);
     notify->setInt32("err", err);
+    notify->post();
+}
+
+void MediaSender::notifyNetworkStall(size_t numBytesQueued) {
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatNetworkStall);
+    notify->setSize("numBytesQueued", numBytesQueued);
     notify->post();
 }
 
