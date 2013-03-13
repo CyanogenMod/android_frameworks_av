@@ -337,12 +337,17 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
                 ALOGI("Assuming %lld ms of latency.", latencyUs / 1000ll);
             }
 
-            // We are the timesync _client_,
-            // client time = server time - time offset.
-            mRenderer->setTimeOffset(-mTimeOffsetUs + mTargetLatencyUs);
-
             sp<ABuffer> accessUnit;
             CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
+            int64_t timeUs;
+            CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
+            // We are the timesync _client_,
+            // client time = server time - time offset.
+            timeUs += mTargetLatencyUs - mTimeOffsetUs;
+
+            accessUnit->meta()->setInt64("timeUs", timeUs);
 
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
