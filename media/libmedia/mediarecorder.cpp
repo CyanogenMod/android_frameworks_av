@@ -49,7 +49,7 @@ status_t MediaRecorder::setCamera(const sp<ICamera>& camera, const sp<ICameraRec
     return ret;
 }
 
-status_t MediaRecorder::setPreviewSurface(const sp<Surface>& surface)
+status_t MediaRecorder::setPreviewSurface(const sp<IGraphicBufferProducer>& surface)
 {
     ALOGV("setPreviewSurface(%p)", surface.get());
     if (mMediaRecorder == NULL) {
