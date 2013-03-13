@@ -74,9 +74,6 @@ public:
             status_t    lock();
             status_t    unlock();
 
-            // pass the buffered Surface to the camera service
-            status_t    setPreviewDisplay(const sp<Surface>& surface);
-
             // pass the buffered IGraphicBufferProducer to the camera service
             status_t    setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer);
 
