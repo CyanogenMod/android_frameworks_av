@@ -40,7 +40,7 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
         uid_t clientUid,
         Size videoSize,
         int32_t videoFrameRate,
-        const sp<Surface>& surface,
+        const sp<IGraphicBufferProducer>& surface,
         int64_t timeBetweenFrameCaptureUs) {
 
     CameraSourceTimeLapse *source = new
@@ -66,7 +66,7 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
         uid_t clientUid,
         Size videoSize,
         int32_t videoFrameRate,
-        const sp<Surface>& surface,
+        const sp<IGraphicBufferProducer>& surface,
         int64_t timeBetweenFrameCaptureUs)
       : CameraSource(camera, proxy, cameraId, clientName, clientUid,
                 videoSize, videoFrameRate, surface, true),
