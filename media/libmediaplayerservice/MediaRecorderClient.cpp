@@ -81,7 +81,7 @@ status_t MediaRecorderClient::setCamera(const sp<ICamera>& camera,
     return mRecorder->setCamera(camera, proxy);
 }
 
-status_t MediaRecorderClient::setPreviewSurface(const sp<Surface>& surface)
+status_t MediaRecorderClient::setPreviewSurface(const sp<IGraphicBufferProducer>& surface)
 {
     ALOGV("setPreviewSurface");
     Mutex::Autolock lock(mLock);

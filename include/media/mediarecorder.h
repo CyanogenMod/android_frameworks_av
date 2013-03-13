@@ -207,7 +207,7 @@ public:
     void        died();
     status_t    initCheck();
     status_t    setCamera(const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy);
-    status_t    setPreviewSurface(const sp<Surface>& surface);
+    status_t    setPreviewSurface(const sp<IGraphicBufferProducer>& surface);
     status_t    setVideoSource(int vs);
     status_t    setAudioSource(int as);
     status_t    setOutputFormat(int of);
