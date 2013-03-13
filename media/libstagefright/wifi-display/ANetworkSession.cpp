@@ -104,6 +104,8 @@ private:
 
     AString mInBuffer;
 
+    int64_t mLastStallReportUs;
+
     void notifyError(bool send, status_t err, const char *detail);
     void notify(NotificationReason reason);
 
@@ -137,7 +139,8 @@ ANetworkSession::Session::Session(
       mSocket(s),
       mNotify(notify),
       mSawReceiveFailure(false),
-      mSawSendFailure(false) {
+      mSawSendFailure(false),
+      mLastStallReportUs(-1ll) {
     if (mState == CONNECTED) {
         struct sockaddr_in localAddr;
         socklen_t localAddrLen = sizeof(localAddr);
@@ -508,11 +511,26 @@ status_t ANetworkSession::Session::writeMore() {
         mSawSendFailure = true;
     }
 
-#if 0
+#if 1
     int numBytesQueued;
     int res = ioctl(mSocket, SIOCOUTQ, &numBytesQueued);
-    if (res == 0 && numBytesQueued > 102400) {
-        ALOGI("numBytesQueued = %d", numBytesQueued);
+    if (res == 0 && numBytesQueued > 50 * 1024) {
+        if (numBytesQueued > 409600) {
+            ALOGW("!!! numBytesQueued = %d", numBytesQueued);
+        }
+
+        int64_t nowUs = ALooper::GetNowUs();
+
+        if (mLastStallReportUs < 0ll
+                || nowUs > mLastStallReportUs + 500000ll) {
+            sp<AMessage> msg = mNotify->dup();
+            msg->setInt32("sessionID", mSessionID);
+            msg->setInt32("reason", kWhatNetworkStall);
+            msg->setSize("numBytesQueued", numBytesQueued);
+            msg->post();
+
+            mLastStallReportUs = nowUs;
+        }
     }
 #endif
 
