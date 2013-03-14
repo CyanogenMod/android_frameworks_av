@@ -428,6 +428,42 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
         ALOGE("Attempt to add source AFTER recording is started");
         return UNKNOWN_ERROR;
     }
+
+    // At most 2 tracks can be supported.
+    if (mTracks.size() >= 2) {
+        ALOGE("Too many tracks (%d) to add", mTracks.size());
+        return ERROR_UNSUPPORTED;
+    }
+
+    CHECK(source.get() != NULL);
+
+    // A track of type other than video or audio is not supported.
+    const char *mime;
+    source->getFormat()->findCString(kKeyMIMEType, &mime);
+    bool isAudio = !strncasecmp(mime, "audio/", 6);
+    bool isVideo = !strncasecmp(mime, "video/", 6);
+    if (!isAudio && !isVideo) {
+        ALOGE("Track (%s) other than video or audio is not supported",
+            mime);
+        return ERROR_UNSUPPORTED;
+    }
+
+    // At this point, we know the track to be added is either
+    // video or audio. Thus, we only need to check whether it
+    // is an audio track or not (if it is not, then it must be
+    // a video track).
+
+    // No more than one video or one audio track is supported.
+    for (List<Track*>::iterator it = mTracks.begin();
+         it != mTracks.end(); ++it) {
+        if ((*it)->isAudio() == isAudio) {
+            ALOGE("%s track already exists", isAudio? "Audio": "Video");
+            return ERROR_UNSUPPORTED;
+        }
+    }
+
+    // This is the first track of either audio or video.
+    // Go ahead to add the track.
     Track *track = new Track(this, source, 1 + mTracks.size());
     mTracks.push_back(track);
 
@@ -435,6 +471,11 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
 }
 
 status_t MPEG4Writer::startTracks(MetaData *params) {
+    if (mTracks.empty()) {
+        ALOGE("No source added");
+        return INVALID_OPERATION;
+    }
+
     for (List<Track *>::iterator it = mTracks.begin();
          it != mTracks.end(); ++it) {
         status_t err = (*it)->start(params);
