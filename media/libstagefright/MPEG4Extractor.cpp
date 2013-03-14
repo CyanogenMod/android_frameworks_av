@@ -2067,17 +2067,30 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         sampleRate = br.getBits(24);
         numChannels = br.getBits(4);
     } else {
-        static uint32_t kSamplingRate[] = {
-            96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
-            16000, 12000, 11025, 8000, 7350
-        };
-
-        if (freqIndex == 13 || freqIndex == 14) {
-            return ERROR_MALFORMED;
+        numChannels = br.getBits(4);
+        if (objectType == 5) {
+            // SBR specific config per 14496-3 table 1.13
+            freqIndex = br.getBits(4);
+            if (freqIndex == 15) {
+                if (csd_size < 8) {
+                    return ERROR_MALFORMED;
+                }
+                sampleRate = br.getBits(24);
+            }
         }
 
-        sampleRate = kSamplingRate[freqIndex];
-        numChannels = br.getBits(4);
+        if (sampleRate == 0) {
+            static uint32_t kSamplingRate[] = {
+                96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
+                16000, 12000, 11025, 8000, 7350
+            };
+
+            if (freqIndex == 13 || freqIndex == 14) {
+                return ERROR_MALFORMED;
+            }
+
+            sampleRate = kSamplingRate[freqIndex];
+        }
     }
 
     if (numChannels == 0) {
