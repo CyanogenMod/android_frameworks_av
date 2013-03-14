@@ -76,17 +76,17 @@ ssize_t MediaMuxer::addTrack(const sp<AMessage> &format) {
     convertMessageToMetaData(format, meta);
 
     sp<MediaAdapter> newTrack = new MediaAdapter(meta);
-    return mTrackList.add(newTrack);
+    status_t result = mWriter->addSource(newTrack);
+    if (result == OK) {
+        return mTrackList.add(newTrack);
+    }
+    return -1;
 }
 
 status_t MediaMuxer::start() {
     Mutex::Autolock autoLock(mMuxerLock);
-
     if (mState == INITED) {
         mState = STARTED;
-        for (size_t i = 0 ; i < mTrackList.size(); i++) {
-            mWriter->addSource(mTrackList[i]);
-        }
         return mWriter->start();
     } else {
         ALOGE("start() is called in invalid state %d", mState);
@@ -100,7 +100,9 @@ status_t MediaMuxer::stop() {
     if (mState == STARTED) {
         mState = STOPPED;
         for (size_t i = 0; i < mTrackList.size(); i++) {
-            mTrackList[i]->stop();
+            if (mTrackList[i]->stop() != OK) {
+                return INVALID_OPERATION;
+            }
         }
         return mWriter->stop();
     } else {
