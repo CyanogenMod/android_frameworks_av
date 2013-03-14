@@ -35,7 +35,13 @@ public:
     MPEG4Writer(const char *filename);
     MPEG4Writer(int fd);
 
+    // Limitations
+    // 1. No more than 2 tracks can be added
+    // 2. Only video or audio source can be added
+    // 3. No more than one video and/or one audio source can be added.
     virtual status_t addSource(const sp<MediaSource> &source);
+
+    // Returns INVALID_OPERATION if there is no source or track.
     virtual status_t start(MetaData *param = NULL);
     virtual status_t stop() { return reset(); }
     virtual status_t pause();
