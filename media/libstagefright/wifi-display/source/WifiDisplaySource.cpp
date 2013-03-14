@@ -272,6 +272,11 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
+                case ANetworkSession::kWhatNetworkStall:
+                {
+                    break;
+                }
+
                 default:
                     TRESPASS();
             }

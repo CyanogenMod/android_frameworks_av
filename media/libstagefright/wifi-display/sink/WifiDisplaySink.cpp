@@ -319,7 +319,7 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
 
             CHECK(mTimeOffsetValid);
 
-            int64_t latencyUs = 300000ll;  // 300ms by default
+            int64_t latencyUs = 200000ll;  // 200ms by default
 
             char val[PROPERTY_VALUE_MAX];
             if (property_get("media.wfd-sink.latency", val, NULL)) {
