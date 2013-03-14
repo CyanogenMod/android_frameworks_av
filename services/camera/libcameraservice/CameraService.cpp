@@ -277,55 +277,61 @@ sp<ICamera> CameraService::connect(
 
     sp<Client> client;
 
-    Mutex::Autolock lock(mServiceLock);
-    if (!canConnectUnsafe(cameraId, clientPackageName,
-                          cameraClient->asBinder(),
-                          /*out*/client)) {
-        return NULL;
-    } else if (client.get() != NULL) {
-        return client;
+    {
+        Mutex::Autolock lock(mServiceLock);
+        if (!canConnectUnsafe(cameraId, clientPackageName,
+                              cameraClient->asBinder(),
+                              /*out*/client)) {
+            return NULL;
+        } else if (client.get() != NULL) {
+            return client;
+        }
+
+        int facing = -1;
+        int deviceVersion = getDeviceVersion(cameraId, &facing);
+
+        // If there are other non-exclusive users of the camera,
+        //  this will tear them down before we can reuse the camera
+        if (isValidCameraId(cameraId)) {
+            updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE,
+                         cameraId);
+        }
+
+        switch(deviceVersion) {
+          case CAMERA_DEVICE_API_VERSION_1_0:
+            client = new CameraClient(this, cameraClient,
+                    clientPackageName, cameraId,
+                    facing, callingPid, clientUid, getpid());
+            break;
+          case CAMERA_DEVICE_API_VERSION_2_0:
+          case CAMERA_DEVICE_API_VERSION_2_1:
+          case CAMERA_DEVICE_API_VERSION_3_0:
+            client = new Camera2Client(this, cameraClient,
+                    clientPackageName, cameraId,
+                    facing, callingPid, clientUid, getpid(),
+                    deviceVersion);
+            break;
+          case -1:
+            ALOGE("Invalid camera id %d", cameraId);
+            return NULL;
+          default:
+            ALOGE("Unknown camera device HAL version: %d", deviceVersion);
+            return NULL;
+        }
+
+        if (!connectFinishUnsafe(client, client->asBinder())) {
+            // this is probably not recoverable.. maybe the client can try again
+            updateStatus(ICameraServiceListener::STATUS_AVAILABLE, cameraId);
+
+            return NULL;
+        }
+
+        mClient[cameraId] = client;
+        LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId,
+             getpid());
     }
-
-    int facing = -1;
-    int deviceVersion = getDeviceVersion(cameraId, &facing);
-
-    // If there are other non-exclusive users of the camera,
-    //  this will tear them down before we can reuse the camera
-    if (isValidCameraId(cameraId)) {
-        updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE, cameraId);
-    }
-
-    switch(deviceVersion) {
-      case CAMERA_DEVICE_API_VERSION_1_0:
-        client = new CameraClient(this, cameraClient,
-                clientPackageName, cameraId,
-                facing, callingPid, clientUid, getpid());
-        break;
-      case CAMERA_DEVICE_API_VERSION_2_0:
-      case CAMERA_DEVICE_API_VERSION_2_1:
-      case CAMERA_DEVICE_API_VERSION_3_0:
-        client = new Camera2Client(this, cameraClient,
-                clientPackageName, cameraId,
-                facing, callingPid, clientUid, getpid(),
-                deviceVersion);
-        break;
-      case -1:
-        ALOGE("Invalid camera id %d", cameraId);
-        return NULL;
-      default:
-        ALOGE("Unknown camera device HAL version: %d", deviceVersion);
-        return NULL;
-    }
-
-    if (!connectFinishUnsafe(client, client->asBinder())) {
-        // this is probably not recoverable.. but maybe the client can try again
-        updateStatus(ICameraServiceListener::STATUS_AVAILABLE, cameraId);
-
-        return NULL;
-    }
-
-    mClient[cameraId] = client;
-    LOG1("CameraService::connect X (id %d, this pid is %d)", cameraId, getpid());
+    // important: release the mutex here so the client can call back
+    //    into the service from its destructor (can be at the end of the call)
 
     return client;
 }
@@ -357,47 +363,51 @@ sp<IProCameraUser> CameraService::connect(
         return NULL;
     }
 
-    Mutex::Autolock lock(mServiceLock);
+    sp<ProClient> client;
     {
-        sp<Client> client;
-        if (!canConnectUnsafe(cameraId, clientPackageName,
-                              cameraCb->asBinder(),
-                              /*out*/client)) {
+        Mutex::Autolock lock(mServiceLock);
+        {
+            sp<Client> client;
+            if (!canConnectUnsafe(cameraId, clientPackageName,
+                                  cameraCb->asBinder(),
+                                  /*out*/client)) {
+                return NULL;
+            }
+        }
+
+        int facing = -1;
+        int deviceVersion = getDeviceVersion(cameraId, &facing);
+
+        switch(deviceVersion) {
+          case CAMERA_DEVICE_API_VERSION_1_0:
+            ALOGE("Camera id %d uses HALv1, doesn't support ProCamera",
+                  cameraId);
+            return NULL;
+            break;
+          case CAMERA_DEVICE_API_VERSION_2_0:
+          case CAMERA_DEVICE_API_VERSION_2_1:
+            client = new ProCamera2Client(this, cameraCb, String16(),
+                    cameraId, facing, callingPid, USE_CALLING_UID, getpid());
+            break;
+          case -1:
+            ALOGE("Invalid camera id %d", cameraId);
+            return NULL;
+          default:
+            ALOGE("Unknown camera device HAL version: %d", deviceVersion);
             return NULL;
         }
+
+        if (!connectFinishUnsafe(client, client->asBinder())) {
+            return NULL;
+        }
+
+        mProClientList[cameraId].push(client);
+
+        LOG1("CameraService::connectPro X (id %d, this pid is %d)", cameraId,
+                getpid());
     }
-
-    sp<ProClient> client;
-
-    int facing = -1;
-    int deviceVersion = getDeviceVersion(cameraId, &facing);
-
-    switch(deviceVersion) {
-      case CAMERA_DEVICE_API_VERSION_1_0:
-        ALOGE("Camera id %d uses HALv1, doesn't support ProCamera", cameraId);
-        return NULL;
-        break;
-      case CAMERA_DEVICE_API_VERSION_2_0:
-      case CAMERA_DEVICE_API_VERSION_2_1:
-        client = new ProCamera2Client(this, cameraCb, String16(),
-                cameraId, facing, callingPid, USE_CALLING_UID, getpid());
-        break;
-      case -1:
-        ALOGE("Invalid camera id %d", cameraId);
-        return NULL;
-      default:
-        ALOGE("Unknown camera device HAL version: %d", deviceVersion);
-        return NULL;
-    }
-
-    if (!connectFinishUnsafe(client, client->asBinder())) {
-        return NULL;
-    }
-
-    mProClientList[cameraId].push(client);
-
-    LOG1("CameraService::connectPro X (id %d, this pid is %d)", cameraId,
-            getpid());
+    // important: release the mutex here so the client can call back
+    //    into the service from its destructor (can be at the end of the call)
 
     return client;
 }
