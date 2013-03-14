@@ -140,7 +140,7 @@ CameraSource *CameraSource::CreateFromCamera(
     uid_t clientUid,
     Size videoSize,
     int32_t frameRate,
-    const sp<Surface>& surface,
+    const sp<IGraphicBufferProducer>& surface,
     bool storeMetaDataInVideoBuffers) {
 
     CameraSource *source = new CameraSource(camera, proxy, cameraId,
@@ -157,7 +157,7 @@ CameraSource::CameraSource(
     uid_t clientUid,
     Size videoSize,
     int32_t frameRate,
-    const sp<Surface>& surface,
+    const sp<IGraphicBufferProducer>& surface,
     bool storeMetaDataInVideoBuffers)
     : mCameraFlags(0),
       mNumInputBuffers(0),
@@ -536,7 +536,7 @@ status_t CameraSource::initWithCameraAccess(
     if (mSurface != NULL) {
         // This CHECK is good, since we just passed the lock/unlock
         // check earlier by calling mCamera->setParameters().
-        CHECK_EQ((status_t)OK, mCamera->setPreviewDisplay(mSurface));
+        CHECK_EQ((status_t)OK, mCamera->setPreviewTexture(mSurface));
     }
 
     // By default, do not store metadata in video buffers
