@@ -23,20 +23,16 @@
 namespace android {
 
 struct ABuffer;
+struct AudioTrack;
 struct IGraphicBufferProducer;
 struct MediaCodec;
 
-// An experimental renderer that only supports video and decodes video data
-// as soon as it arrives using a MediaCodec instance, rendering it without
-// delay. Primarily meant to finetune packet loss discovery and minimize
-// latency.
+// Renders audio and video data queued by calls to "queueAccessUnit".
 struct DirectRenderer : public AHandler {
     DirectRenderer(const sp<IGraphicBufferProducer> &bufferProducer);
 
     void setFormat(size_t trackIndex, const sp<AMessage> &format);
     void queueAccessUnit(size_t trackIndex, const sp<ABuffer> &accessUnit);
-
-    void setTimeOffset(int64_t offset);
 
     int64_t getAvgLatenessUs();
 
@@ -45,30 +41,28 @@ protected:
     virtual ~DirectRenderer();
 
 private:
+    struct DecoderContext;
+    struct AudioRenderer;
+
     enum {
-        kWhatVideoDecoderNotify,
-        kWhatRender,
+        kWhatDecoderNotify,
+        kWhatRenderVideo,
     };
 
     struct OutputInfo {
         size_t mIndex;
         int64_t mTimeUs;
+        sp<ABuffer> mBuffer;
     };
 
     sp<IGraphicBufferProducer> mSurfaceTex;
 
-    sp<ALooper> mVideoDecoderLooper;
-    sp<MediaCodec> mVideoDecoder;
-    Vector<sp<ABuffer> > mVideoDecoderInputBuffers;
-    List<size_t> mVideoDecoderInputBuffersAvailable;
-    bool mVideoDecoderNotificationPending;
+    sp<DecoderContext> mDecoderContext[2];
+    List<OutputInfo> mVideoOutputBuffers;
 
-    List<sp<ABuffer> > mVideoAccessUnits;
+    bool mVideoRenderPending;
 
-    List<OutputInfo> mOutputBuffers;
-    bool mRenderPending;
-
-    int64_t mTimeOffsetUs;
+    sp<AudioRenderer> mAudioRenderer;
 
     int64_t mLatencySum;
     size_t mLatencyCount;
@@ -76,14 +70,14 @@ private:
     int32_t mNumFramesLate;
     int32_t mNumFrames;
 
-    void onVideoDecoderNotify();
-    void onRender();
+    void onDecoderNotify(const sp<AMessage> &msg);
 
-    void queueVideoDecoderInputBuffers();
-    void scheduleVideoDecoderNotification();
-    void scheduleRenderIfNecessary();
+    void queueOutputBuffer(
+            size_t trackIndex,
+            size_t index, int64_t timeUs, const sp<ABuffer> &buffer);
 
-    void queueOutputBuffer(size_t index, int64_t timeUs);
+    void scheduleVideoRenderIfNecessary();
+    void onRenderVideo();
 
     DISALLOW_EVIL_CONSTRUCTORS(DirectRenderer);
 };
