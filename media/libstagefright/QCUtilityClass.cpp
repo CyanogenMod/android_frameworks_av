@@ -71,6 +71,11 @@ status_t QCUtilityClass::helper_StageFrightRecoder_hfr(sp<MetaData> &meta, sp<Me
             ALOGE("HFR mode is supported only upto WQVGA resolution");
             return INVALID_OPERATION;
         }
+    } else if (!strncmp(mDeviceName, "msm8974", 7)) {
+        if (hfr && (width * height > 1920*1088)) {
+            ALOGE("HFR mode is supported only upto 1080P resolution");
+            return INVALID_OPERATION;
+        }
     } else {
         if(hfr && ((videoEncoder != VIDEO_ENCODER_H264) || (width * height > 800*480))) {
             ALOGE("HFR mode is supported only upto WVGA and H264 codec.");
