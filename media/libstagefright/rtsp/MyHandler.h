@@ -422,6 +422,9 @@ struct MyHandler : public AHandler {
 
                     if (response->mStatusCode != 200) {
                         result = UNKNOWN_ERROR;
+                    } else if (response->mContent == NULL) {
+                        result = ERROR_MALFORMED;
+                        ALOGE("The response has no content.");
                     } else {
                         mSessionDesc = new ASessionDescription;
 
