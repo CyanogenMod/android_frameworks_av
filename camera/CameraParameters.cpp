@@ -230,6 +230,11 @@ const char CameraParameters::OBJECT_TRACKING_ON[] = "object-tracking";
 const char CameraParameters::OBJECT_TRACKING_OFF[] = "object-tracking";
 #endif
 
+#ifdef ZTE_CAMERA_HARDWARE
+const char CameraParameters::KEY_SHUTTER_SOUND_SELECT[] = "shutter-sound-select";
+const char CameraParameters::KEY_SHUTTER_SOUND[] = "shutter-sound";
+#endif
+
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";

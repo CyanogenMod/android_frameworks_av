@@ -709,6 +709,11 @@ public:
     static const char OBJECT_TRACKING_OFF[];
 #endif
 
+#ifdef ZTE_CAMERA_HARDWARE
+    static const char KEY_SHUTTER_SOUND_SELECT[];
+    static const char KEY_SHUTTER_SOUND[];
+#endif
+
     static const char KEY_AE_BRACKET_HDR[];
 
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
