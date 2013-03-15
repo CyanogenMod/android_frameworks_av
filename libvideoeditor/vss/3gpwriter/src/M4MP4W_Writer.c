@@ -2486,6 +2486,12 @@ M4OSA_ERR M4MP4W_processAU( M4OSA_Context context, M4SYS_StreamID streamID,
 
 #endif
 
+        if ((M4MP4W_Time32)auPtr->CTS < mMp4FileDataPtr->videoTrackPtr->CommonData.lastCTS) {
+            // Do not report as error, it will abort the entire filewrite. Just skip this frame.
+            M4OSA_TRACE1_0("Skip frame. Video frame has too old timestamp.");
+            return M4NO_ERROR;
+        }
+
         mMp4FileDataPtr->videoTrackPtr->currentPos += auPtr->size;
 
         /* Warning: time conversion cast 64to32! */
