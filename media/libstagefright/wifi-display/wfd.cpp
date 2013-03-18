@@ -200,6 +200,8 @@ static void createFileSource(
     CHECK_EQ((status_t)OK, source->start(iface.c_str()));
 
     client->waitUntilDone();
+
+    source->stop();
 }
 
 }  // namespace android

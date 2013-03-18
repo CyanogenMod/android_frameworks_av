@@ -194,6 +194,9 @@ status_t RTPSender::queueTSPackets(
         const sp<ABuffer> &tsPackets, uint8_t packetType) {
     CHECK_EQ(0, tsPackets->size() % 188);
 
+    int64_t timeUs;
+    CHECK(tsPackets->meta()->findInt64("timeUs", &timeUs));
+
     const size_t numTSPackets = tsPackets->size() / 188;
 
     size_t srcOffset = 0;
@@ -232,13 +235,19 @@ status_t RTPSender::queueTSPackets(
         memcpy(&rtp[12], tsPackets->data() + srcOffset, numTSPackets * 188);
 
         udpPacket->setRange(0, 12 + numTSPackets * 188);
-        status_t err = sendRTPPacket(udpPacket, true /* storeInHistory */);
+
+        srcOffset += numTSPackets * 188;
+        bool isLastPacket = (srcOffset == tsPackets->size());
+
+        status_t err = sendRTPPacket(
+                udpPacket,
+                true /* storeInHistory */,
+                isLastPacket /* timeValid */,
+                timeUs);
 
         if (err != OK) {
             return err;
         }
-
-        srcOffset += numTSPackets * 188;
     }
 
     return OK;
@@ -395,11 +404,13 @@ status_t RTPSender::queueAVCBuffer(
 }
 
 status_t RTPSender::sendRTPPacket(
-        const sp<ABuffer> &buffer, bool storeInHistory) {
+        const sp<ABuffer> &buffer, bool storeInHistory,
+        bool timeValid, int64_t timeUs) {
     CHECK(mRTPConnected);
 
     status_t err = mNetSession->sendRequest(
-            mRTPSessionID, buffer->data(), buffer->size());
+            mRTPSessionID, buffer->data(), buffer->size(),
+            timeValid, timeUs);
 
     if (err != OK) {
         return err;
