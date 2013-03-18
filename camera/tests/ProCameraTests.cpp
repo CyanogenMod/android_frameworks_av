@@ -1015,6 +1015,9 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/2,
                                                     /*requests*/REQUEST_COUNT));
 
+    int depthFrames = 0;
+    int greyFrames = 0;
+
     // Consume two frames simultaneously. Unsynchronized by timestamps.
     for (int i = 0; i < REQUEST_COUNT; ++i) {
 
@@ -1041,6 +1044,8 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
 
         EXPECT_OK(depthConsumer->unlockBuffer(depthBuffer));
 
+        depthFrames++;
+
 
         /** Consume Greyscale frames if there are any.
           * There may not be since it runs at half FPS */
@@ -1053,8 +1058,13 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
                 ", timestamp = " << greyBuffer.timestamp << std::endl;
 
             EXPECT_OK(consumer->unlockBuffer(greyBuffer));
+
+            greyFrames++;
         }
     }
+
+    dout << "Done, summary: depth frames " << std::dec << depthFrames
+         << ", grey frames " << std::dec << greyFrames << std::endl;
 
     // Done: clean up
     EXPECT_OK(mCamera->deleteStream(streamId));
