@@ -252,6 +252,10 @@ status_t MediaSender::queueAccessUnit(
                     fwrite(tsPackets->data(), 1, tsPackets->size(), mLogFile);
                 }
 
+                int64_t timeUs;
+                CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+                tsPackets->meta()->setInt64("timeUs", timeUs);
+
                 err = mTSSender->queueBuffer(
                         tsPackets,
                         33 /* packetType */,

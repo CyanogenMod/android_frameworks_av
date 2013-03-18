@@ -94,7 +94,9 @@ private:
     status_t queueTSPackets(const sp<ABuffer> &tsPackets, uint8_t packetType);
     status_t queueAVCBuffer(const sp<ABuffer> &accessUnit, uint8_t packetType);
 
-    status_t sendRTPPacket(const sp<ABuffer> &packet, bool storeInHistory);
+    status_t sendRTPPacket(
+            const sp<ABuffer> &packet, bool storeInHistory,
+            bool timeValid = false, int64_t timeUs = -1ll);
 
     void onNetNotify(bool isRTP, const sp<AMessage> &msg);
 
