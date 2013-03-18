@@ -42,6 +42,7 @@ static void usage(const char *me) {
             "           %s -c host[:port]\tconnect to wifi source\n"
             "               -u uri        \tconnect to an rtsp uri\n"
             "               -l ip[:port] \tlisten on the specified port "
+            "               -f(ilename)  \tstream media "
             "(create a sink)\n",
             me);
 }
@@ -93,22 +94,24 @@ void RemoteDisplayClient::onDisplayConnected(
     ALOGI("onDisplayConnected width=%u, height=%u, flags = 0x%08x",
           width, height, flags);
 
-    mSurfaceTexture = bufferProducer;
-    mDisplayBinder = mComposerClient->createDisplay(
-            String8("foo"), false /* secure */);
+    if (bufferProducer != NULL) {
+        mSurfaceTexture = bufferProducer;
+        mDisplayBinder = mComposerClient->createDisplay(
+                String8("foo"), false /* secure */);
 
-    SurfaceComposerClient::openGlobalTransaction();
-    mComposerClient->setDisplaySurface(mDisplayBinder, mSurfaceTexture);
+        SurfaceComposerClient::openGlobalTransaction();
+        mComposerClient->setDisplaySurface(mDisplayBinder, mSurfaceTexture);
 
-    Rect layerStackRect(1280, 720);  // XXX fix this.
-    Rect displayRect(1280, 720);
+        Rect layerStackRect(1280, 720);  // XXX fix this.
+        Rect displayRect(1280, 720);
 
-    mComposerClient->setDisplayProjection(
-            mDisplayBinder, 0 /* 0 degree rotation */,
-            layerStackRect,
-            displayRect);
+        mComposerClient->setDisplayProjection(
+                mDisplayBinder, 0 /* 0 degree rotation */,
+                layerStackRect,
+                displayRect);
 
-    SurfaceComposerClient::closeGlobalTransaction();
+        SurfaceComposerClient::closeGlobalTransaction();
+    }
 }
 
 void RemoteDisplayClient::onDisplayDisconnected() {
@@ -181,6 +184,24 @@ static void createSource(const AString &addr, int32_t port) {
     enableAudioSubmix(false /* enable */);
 }
 
+static void createFileSource(
+        const AString &addr, int32_t port, const char *path) {
+    sp<ANetworkSession> session = new ANetworkSession;
+    session->start();
+
+    sp<ALooper> looper = new ALooper;
+    looper->start();
+
+    sp<RemoteDisplayClient> client = new RemoteDisplayClient;
+    sp<WifiDisplaySource> source = new WifiDisplaySource(session, client, path);
+    looper->registerHandler(source);
+
+    AString iface = StringPrintf("%s:%d", addr.c_str(), port);
+    CHECK_EQ((status_t)OK, source->start(iface.c_str()));
+
+    client->waitUntilDone();
+}
+
 }  // namespace android
 
 int main(int argc, char **argv) {
@@ -197,8 +218,10 @@ int main(int argc, char **argv) {
     AString listenOnAddr;
     int32_t listenOnPort = -1;
 
+    AString path;
+
     int res;
-    while ((res = getopt(argc, argv, "hc:l:u:")) >= 0) {
+    while ((res = getopt(argc, argv, "hc:l:u:f:")) >= 0) {
         switch (res) {
             case 'c':
             {
@@ -225,6 +248,12 @@ int main(int argc, char **argv) {
             case 'u':
             {
                 uri = optarg;
+                break;
+            }
+
+            case 'f':
+            {
+                path = optarg;
                 break;
             }
 
@@ -266,7 +295,12 @@ int main(int argc, char **argv) {
     }
 
     if (listenOnPort >= 0) {
-        createSource(listenOnAddr, listenOnPort);
+        if (path.empty()) {
+            createSource(listenOnAddr, listenOnPort);
+        } else {
+            createFileSource(listenOnAddr, listenOnPort, path.c_str());
+        }
+
         exit(0);
     }
 
