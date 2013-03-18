@@ -426,7 +426,7 @@ status_t Camera2Device::waitUntilDrained() {
         totalTime += kSleepTime;
         if (totalTime > kMaxSleepTime) {
             ALOGE("%s: Waited %d us, %d requests still in flight", __FUNCTION__,
-                    mHal2Device->ops->get_in_progress_count(mHal2Device), totalTime);
+                    totalTime, mHal2Device->ops->get_in_progress_count(mHal2Device));
             return TIMED_OUT;
         }
     }
