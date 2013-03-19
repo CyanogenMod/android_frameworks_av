@@ -261,7 +261,7 @@ void TSPacketizer::Track::finalize() {
             data[0] = 40;  // descriptor_tag
             data[1] = 4;  // descriptor_length
 
-            CHECK_EQ(mCSD.size(), 1u);
+            CHECK_GE(mCSD.size(), 1u);
             const sp<ABuffer> &sps = mCSD.itemAt(0);
             CHECK(!memcmp("\x00\x00\x00\x01", sps->data(), 4));
             CHECK_GE(sps->size(), 7u);
