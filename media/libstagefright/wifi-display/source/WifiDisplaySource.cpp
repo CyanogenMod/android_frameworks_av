@@ -44,7 +44,8 @@ namespace android {
 
 WifiDisplaySource::WifiDisplaySource(
         const sp<ANetworkSession> &netSession,
-        const sp<IRemoteDisplayClient> &client)
+        const sp<IRemoteDisplayClient> &client,
+        const char *path)
     : mState(INITIALIZED),
       mNetSession(netSession),
       mClient(client),
@@ -59,7 +60,12 @@ WifiDisplaySource::WifiDisplaySource(
       mIsHDCP2_0(false),
       mHDCPPort(0),
       mHDCPInitializationComplete(false),
-      mSetupTriggerDeferred(false) {
+      mSetupTriggerDeferred(false),
+      mPlaybackSessionEstablished(false) {
+    if (path != NULL) {
+        mMediaPath.setTo(path);
+    }
+
     mSupportedSourceVideoFormats.disableAll();
 
     mSupportedSourceVideoFormats.setNativeResolution(
@@ -389,6 +395,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 mClient->onDisplayError(
                         IRemoteDisplayClient::kDisplayErrorUnknown);
             } else if (what == PlaybackSession::kWhatSessionEstablished) {
+                mPlaybackSessionEstablished = true;
+
                 if (mClient != NULL) {
                     if (!mSinkSupportsVideo) {
                         mClient->onDisplayConnected(
@@ -418,6 +426,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                     : 0);
                     }
                 }
+
+                finishPlay();
 
                 if (mState == ABOUT_TO_PLAY) {
                     mState = PLAYING;
@@ -1222,7 +1232,7 @@ status_t WifiDisplaySource::onSetupRequest(
 
     sp<PlaybackSession> playbackSession =
         new PlaybackSession(
-                mNetSession, notify, mInterfaceAddr, mHDCP);
+                mNetSession, notify, mInterfaceAddr, mHDCP, mMediaPath.c_str());
 
     looper()->registerHandler(playbackSession);
 
@@ -1332,16 +1342,18 @@ status_t WifiDisplaySource::onPlayRequest(
     }
 
     ALOGI("Received PLAY request.");
-
-    status_t err = playbackSession->play();
-    CHECK_EQ(err, (status_t)OK);
+    if (mPlaybackSessionEstablished) {
+        finishPlay();
+    } else {
+        ALOGI("deferring PLAY request until session established.");
+    }
 
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
     response.append("Range: npt=now-\r\n");
     response.append("\r\n");
 
-    err = mNetSession->sendRequest(sessionID, response.c_str());
+    status_t err = mNetSession->sendRequest(sessionID, response.c_str());
 
     if (err != OK) {
         return err;
@@ -1352,12 +1364,18 @@ status_t WifiDisplaySource::onPlayRequest(
         return OK;
     }
 
-    playbackSession->finishPlay();
-
     CHECK_EQ(mState, AWAITING_CLIENT_PLAY);
     mState = ABOUT_TO_PLAY;
 
     return OK;
+}
+
+void WifiDisplaySource::finishPlay() {
+    const sp<PlaybackSession> &playbackSession =
+        mClientInfo.mPlaybackSession;
+
+    status_t err = playbackSession->play();
+    CHECK_EQ(err, (status_t)OK);
 }
 
 status_t WifiDisplaySource::onPauseRequest(

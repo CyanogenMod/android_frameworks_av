@@ -39,6 +39,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/NuMediaExtractor.h>
 #include <media/stagefright/SurfaceMediaSource.h>
 #include <media/stagefright/Utils.h>
 
@@ -56,6 +57,8 @@ struct WifiDisplaySource::PlaybackSession::Track : public AHandler {
           const sp<ALooper> &codecLooper,
           const sp<MediaPuller> &mediaPuller,
           const sp<Converter> &converter);
+
+    Track(const sp<AMessage> &notify, const sp<AMessage> &format);
 
     void setRepeaterSource(const sp<RepeaterSource> &source);
 
@@ -104,6 +107,7 @@ private:
     sp<ALooper> mCodecLooper;
     sp<MediaPuller> mMediaPuller;
     sp<Converter> mConverter;
+    sp<AMessage> mFormat;
     bool mStarted;
     ssize_t mMediaSenderTrackIndex;
     bool mIsAudio;
@@ -133,6 +137,15 @@ WifiDisplaySource::PlaybackSession::Track::Track(
       mLastOutputBufferQueuedTimeUs(-1ll) {
 }
 
+WifiDisplaySource::PlaybackSession::Track::Track(
+        const sp<AMessage> &notify, const sp<AMessage> &format)
+    : mNotify(notify),
+      mFormat(format),
+      mStarted(false),
+      mIsAudio(IsAudioFormat(format)),
+      mLastOutputBufferQueuedTimeUs(-1ll) {
+}
+
 WifiDisplaySource::PlaybackSession::Track::~Track() {
     CHECK(!mStarted);
 }
@@ -147,7 +160,7 @@ bool WifiDisplaySource::PlaybackSession::Track::IsAudioFormat(
 }
 
 sp<AMessage> WifiDisplaySource::PlaybackSession::Track::getFormat() {
-    return mConverter->getOutputFormat();
+    return mFormat != NULL ? mFormat : mConverter->getOutputFormat();
 }
 
 bool WifiDisplaySource::PlaybackSession::Track::isAudio() const {
@@ -189,7 +202,9 @@ status_t WifiDisplaySource::PlaybackSession::Track::start() {
 void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
     ALOGV("Track::stopAsync isAudio=%d", mIsAudio);
 
-    mConverter->shutdownAsync();
+    if (mConverter != NULL) {
+        mConverter->shutdownAsync();
+    }
 
     sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, id());
 
@@ -201,6 +216,7 @@ void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
 
         mMediaPuller->stopAsync(msg);
     } else {
+        mStarted = false;
         msg->post();
     }
 }
@@ -324,7 +340,8 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
         const sp<ANetworkSession> &netSession,
         const sp<AMessage> &notify,
         const in_addr &interfaceAddr,
-        const sp<IHDCP> &hdcp)
+        const sp<IHDCP> &hdcp,
+        const char *path)
     : mNetSession(netSession),
       mNotify(notify),
       mInterfaceAddr(interfaceAddr),
@@ -334,7 +351,14 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
       mPaused(false),
       mLastLifesignUs(),
       mVideoTrackIndex(-1),
-      mPrevTimeUs(-1ll) {
+      mPrevTimeUs(-1ll),
+      mPullExtractorPending(false),
+      mPullExtractorGeneration(0),
+      mFirstSampleTimeRealUs(-1ll),
+      mFirstSampleTimeUs(-1ll) {
+    if (path != NULL) {
+        mMediaPath.setTo(path);
+    }
 }
 
 status_t WifiDisplaySource::PlaybackSession::init(
@@ -402,10 +426,6 @@ status_t WifiDisplaySource::PlaybackSession::play() {
 
     (new AMessage(kWhatResume, id()))->post();
 
-    return OK;
-}
-
-status_t WifiDisplaySource::PlaybackSession::finishPlay() {
     return OK;
 }
 
@@ -523,7 +543,10 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                     const sp<Track> &videoTrack =
                         mTracks.valueFor(mVideoTrackIndex);
 
-                    videoTrack->converter()->dropAFrame();
+                    sp<Converter> converter = videoTrack->converter();
+                    if (converter != NULL) {
+                        converter->dropAFrame();
+                    }
                 }
             } else {
                 TRESPASS();
@@ -564,6 +587,12 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         case kWhatPause:
         {
+            if (mExtractor != NULL) {
+                ++mPullExtractorGeneration;
+                mFirstSampleTimeRealUs = -1ll;
+                mFirstSampleTimeUs = -1ll;
+            }
+
             if (mPaused) {
                 break;
             }
@@ -578,6 +607,10 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         case kWhatResume:
         {
+            if (mExtractor != NULL) {
+                schedulePullExtractor();
+            }
+
             if (!mPaused) {
                 break;
             }
@@ -590,9 +623,150 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             break;
         }
 
+        case kWhatPullExtractorSample:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+
+            if (generation != mPullExtractorGeneration) {
+                break;
+            }
+
+            mPullExtractorPending = false;
+
+            onPullExtractor();
+            break;
+        }
+
         default:
             TRESPASS();
     }
+}
+
+status_t WifiDisplaySource::PlaybackSession::setupMediaPacketizer(
+        bool enableAudio, bool enableVideo) {
+    DataSource::RegisterDefaultSniffers();
+
+    mExtractor = new NuMediaExtractor;
+
+    status_t err = mExtractor->setDataSource(mMediaPath.c_str());
+
+    if (err != OK) {
+        return err;
+    }
+
+    size_t n = mExtractor->countTracks();
+    bool haveAudio = false;
+    bool haveVideo = false;
+    for (size_t i = 0; i < n; ++i) {
+        sp<AMessage> format;
+        err = mExtractor->getTrackFormat(i, &format);
+
+        if (err != OK) {
+            continue;
+        }
+
+        AString mime;
+        CHECK(format->findString("mime", &mime));
+
+        bool isAudio = !strncasecmp(mime.c_str(), "audio/", 6);
+        bool isVideo = !strncasecmp(mime.c_str(), "video/", 6);
+
+        if (isAudio && enableAudio && !haveAudio) {
+            haveAudio = true;
+        } else if (isVideo && enableVideo && !haveVideo) {
+            haveVideo = true;
+        } else {
+            continue;
+        }
+
+        err = mExtractor->selectTrack(i);
+
+        size_t trackIndex = mTracks.size();
+
+        sp<AMessage> notify = new AMessage(kWhatTrackNotify, id());
+        notify->setSize("trackIndex", trackIndex);
+
+        sp<Track> track = new Track(notify, format);
+        looper()->registerHandler(track);
+
+        mTracks.add(trackIndex, track);
+
+        mExtractorTrackToInternalTrack.add(i, trackIndex);
+
+        if (isVideo) {
+            mVideoTrackIndex = trackIndex;
+        }
+
+        uint32_t flags = MediaSender::FLAG_MANUALLY_PREPEND_SPS_PPS;
+
+        ssize_t mediaSenderTrackIndex =
+            mMediaSender->addTrack(format, flags);
+        CHECK_GE(mediaSenderTrackIndex, 0);
+
+        track->setMediaSenderTrackIndex(mediaSenderTrackIndex);
+
+        if ((haveAudio || !enableAudio) && (haveVideo || !enableVideo)) {
+            break;
+        }
+    }
+
+    return OK;
+}
+
+void WifiDisplaySource::PlaybackSession::schedulePullExtractor() {
+    if (mPullExtractorPending) {
+        return;
+    }
+
+    int64_t sampleTimeUs;
+    status_t err = mExtractor->getSampleTime(&sampleTimeUs);
+
+    int64_t nowUs = ALooper::GetNowUs();
+
+    if (mFirstSampleTimeRealUs < 0ll) {
+        mFirstSampleTimeRealUs = nowUs;
+        mFirstSampleTimeUs = sampleTimeUs;
+    }
+
+    int64_t whenUs = sampleTimeUs - mFirstSampleTimeUs + mFirstSampleTimeRealUs;
+
+    sp<AMessage> msg = new AMessage(kWhatPullExtractorSample, id());
+    msg->setInt32("generation", mPullExtractorGeneration);
+    msg->post(whenUs - nowUs);
+
+    mPullExtractorPending = true;
+}
+
+void WifiDisplaySource::PlaybackSession::onPullExtractor() {
+    sp<ABuffer> accessUnit = new ABuffer(1024 * 1024);
+    status_t err = mExtractor->readSampleData(accessUnit);
+    if (err != OK) {
+        // EOS.
+        return;
+    }
+
+    int64_t timeUs;
+    CHECK_EQ((status_t)OK, mExtractor->getSampleTime(&timeUs));
+
+    accessUnit->meta()->setInt64(
+            "timeUs", mFirstSampleTimeRealUs + timeUs - mFirstSampleTimeUs);
+
+    size_t trackIndex;
+    CHECK_EQ((status_t)OK, mExtractor->getSampleTrackIndex(&trackIndex));
+
+    sp<AMessage> msg = new AMessage(kWhatConverterNotify, id());
+
+    msg->setSize(
+            "trackIndex", mExtractorTrackToInternalTrack.valueFor(trackIndex));
+
+    msg->setInt32("what", Converter::kWhatAccessUnit);
+    msg->setBuffer("accessUnit", accessUnit);
+    msg->post();
+
+    mExtractor->advance();
+
+    schedulePullExtractor();
 }
 
 status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
@@ -602,6 +776,10 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
         VideoFormats::ResolutionType videoResolutionType,
         size_t videoResolutionIndex) {
     CHECK(enableAudio || enableVideo);
+
+    if (!mMediaPath.empty()) {
+        return setupMediaPacketizer(enableAudio, enableVideo);
+    }
 
     if (enableVideo) {
         status_t err = addVideoSource(
