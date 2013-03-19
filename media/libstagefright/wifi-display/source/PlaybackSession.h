@@ -31,6 +31,7 @@ struct IGraphicBufferProducer;
 struct MediaPuller;
 struct MediaSource;
 struct MediaSender;
+struct NuMediaExtractor;
 
 // Encapsulates the state of an RTP/RTCP session in the context of wifi
 // display.
@@ -39,7 +40,8 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const sp<ANetworkSession> &netSession,
             const sp<AMessage> &notify,
             const struct in_addr &interfaceAddr,
-            const sp<IHDCP> &hdcp);
+            const sp<IHDCP> &hdcp,
+            const char *path = NULL);
 
     status_t init(
             const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
@@ -87,12 +89,14 @@ private:
         kWhatPause,
         kWhatResume,
         kWhatMediaSenderNotify,
+        kWhatPullExtractorSample,
     };
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
     in_addr mInterfaceAddr;
     sp<IHDCP> mHDCP;
+    AString mMediaPath;
 
     sp<MediaSender> mMediaSender;
     int32_t mLocalRTPPort;
@@ -108,6 +112,15 @@ private:
     ssize_t mVideoTrackIndex;
 
     int64_t mPrevTimeUs;
+
+    sp<NuMediaExtractor> mExtractor;
+    KeyedVector<size_t, size_t> mExtractorTrackToInternalTrack;
+    bool mPullExtractorPending;
+    int32_t mPullExtractorGeneration;
+    int64_t mFirstSampleTimeRealUs;
+    int64_t mFirstSampleTimeUs;
+
+    status_t setupMediaPacketizer(bool enableAudio, bool enableVideo);
 
     status_t setupPacketizer(
             bool enableAudio,
@@ -132,6 +145,9 @@ private:
     status_t onMediaSenderInitialized();
 
     void notifySessionDead();
+
+    void schedulePullExtractor();
+    void onPullExtractor();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };
