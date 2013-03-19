@@ -39,7 +39,8 @@ struct WifiDisplaySource : public AHandler {
 
     WifiDisplaySource(
             const sp<ANetworkSession> &netSession,
-            const sp<IRemoteDisplayClient> &client);
+            const sp<IRemoteDisplayClient> &client,
+            const char *path = NULL);
 
     status_t start(const char *iface);
     status_t stop();
@@ -116,6 +117,7 @@ private:
     VideoFormats mSupportedSourceVideoFormats;
     sp<ANetworkSession> mNetSession;
     sp<IRemoteDisplayClient> mClient;
+    AString mMediaPath;
     sp<TimeSyncer> mTimeSyncer;
     struct in_addr mInterfaceAddr;
     int32_t mSessionID;
@@ -160,6 +162,8 @@ private:
 
     bool mHDCPInitializationComplete;
     bool mSetupTriggerDeferred;
+
+    bool mPlaybackSessionEstablished;
 
     status_t makeHDCP();
     // <<<< HDCP specific section
@@ -256,6 +260,8 @@ private:
     void disconnectClient2();
     void finishStopAfterDisconnectingClient();
     void finishStop2();
+
+    void finishPlay();
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySource);
 };
