@@ -36,18 +36,21 @@
 namespace android {
 
 MediaMuxer::MediaMuxer(const char *path, OutputFormat format)
-    : mState(UNINITED) {
+    : mState(UNINITIALIZED) {
     if (format == OUTPUT_FORMAT_MPEG_4) {
         mWriter = new MPEG4Writer(path);
-        mState = INITED;
+        mFileMeta = new MetaData;
+        mState = INITIALIZED;
     }
+
 }
 
 MediaMuxer::MediaMuxer(int fd, OutputFormat format)
-    : mState(UNINITED) {
+    : mState(UNINITIALIZED) {
     if (format == OUTPUT_FORMAT_MPEG_4) {
         mWriter = new MPEG4Writer(fd);
-        mState = INITED;
+        mFileMeta = new MetaData;
+        mState = INITIALIZED;
     }
 }
 
@@ -55,6 +58,7 @@ MediaMuxer::~MediaMuxer() {
     Mutex::Autolock autoLock(mMuxerLock);
 
     // Clean up all the internal resources.
+    mFileMeta.clear();
     mWriter.clear();
     mTrackList.clear();
 }
@@ -67,15 +71,15 @@ ssize_t MediaMuxer::addTrack(const sp<AMessage> &format) {
         return -EINVAL;
     }
 
-    if (mState != INITED) {
+    if (mState != INITIALIZED) {
         ALOGE("addTrack() must be called after constructor and before start().");
         return INVALID_OPERATION;
     }
 
-    sp<MetaData> meta = new MetaData;
-    convertMessageToMetaData(format, meta);
+    sp<MetaData> trackMeta = new MetaData;
+    convertMessageToMetaData(format, trackMeta);
 
-    sp<MediaAdapter> newTrack = new MediaAdapter(meta);
+    sp<MediaAdapter> newTrack = new MediaAdapter(trackMeta);
     status_t result = mWriter->addSource(newTrack);
     if (result == OK) {
         return mTrackList.add(newTrack);
@@ -83,11 +87,27 @@ ssize_t MediaMuxer::addTrack(const sp<AMessage> &format) {
     return -1;
 }
 
+status_t MediaMuxer::setOrientationHint(int degrees) {
+    Mutex::Autolock autoLock(mMuxerLock);
+    if (mState != INITIALIZED) {
+        ALOGE("setOrientationHint() must be called before start().");
+        return INVALID_OPERATION;
+    }
+
+    if (degrees != 0 && degrees != 90 && degrees != 180 && degrees != 270) {
+        ALOGE("setOrientationHint() get invalid degrees");
+        return -EINVAL;
+    }
+
+    mFileMeta->setInt32(kKeyRotation, degrees);
+    return OK;
+}
+
 status_t MediaMuxer::start() {
     Mutex::Autolock autoLock(mMuxerLock);
-    if (mState == INITED) {
+    if (mState == INITIALIZED) {
         mState = STARTED;
-        return mWriter->start();
+        return mWriter->start(mFileMeta.get());
     } else {
         ALOGE("start() is called in invalid state %d", mState);
         return INVALID_OPERATION;
@@ -135,13 +155,13 @@ status_t MediaMuxer::writeSampleData(const sp<ABuffer> &buffer, size_t trackInde
     mediaBuffer->add_ref(); // Released in MediaAdapter::signalBufferReturned().
     mediaBuffer->set_range(buffer->offset(), buffer->size());
 
-    sp<MetaData> metaData = mediaBuffer->meta_data();
-    metaData->setInt64(kKeyTime, timeUs);
+    sp<MetaData> sampleMetaData = mediaBuffer->meta_data();
+    sampleMetaData->setInt64(kKeyTime, timeUs);
     // Just set the kKeyDecodingTime as the presentation time for now.
-    metaData->setInt64(kKeyDecodingTime, timeUs);
+    sampleMetaData->setInt64(kKeyDecodingTime, timeUs);
 
     if (flags & SAMPLE_FLAG_SYNC) {
-        metaData->setInt32(kKeyIsSyncFrame, true);
+        sampleMetaData->setInt32(kKeyIsSyncFrame, true);
     }
 
     sp<MediaAdapter> currentTrack = mTrackList[trackIndex];
