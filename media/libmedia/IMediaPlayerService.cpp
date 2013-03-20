@@ -21,6 +21,7 @@
 #include <binder/Parcel.h>
 #include <binder/IMemory.h>
 #include <media/ICrypto.h>
+#include <media/IDrm.h>
 #include <media/IHDCP.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
@@ -42,6 +43,7 @@ enum {
     CREATE_METADATA_RETRIEVER,
     GET_OMX,
     MAKE_CRYPTO,
+    MAKE_DRM,
     MAKE_HDCP,
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
@@ -121,6 +123,13 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(MAKE_CRYPTO, data, &reply);
         return interface_cast<ICrypto>(reply.readStrongBinder());
+    }
+
+    virtual sp<IDrm> makeDrm() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        remote()->transact(MAKE_DRM, data, &reply);
+        return interface_cast<IDrm>(reply.readStrongBinder());
     }
 
     virtual sp<IHDCP> makeHDCP(bool createEncryptionModule) {
@@ -223,6 +232,12 @@ status_t BnMediaPlayerService::onTransact(
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<ICrypto> crypto = makeCrypto();
             reply->writeStrongBinder(crypto->asBinder());
+            return NO_ERROR;
+        } break;
+        case MAKE_DRM: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IDrm> drm = makeDrm();
+            reply->writeStrongBinder(drm->asBinder());
             return NO_ERROR;
         } break;
         case MAKE_HDCP: {

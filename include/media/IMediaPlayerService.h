@@ -32,6 +32,7 @@
 namespace android {
 
 struct ICrypto;
+struct IDrm;
 struct IHDCP;
 class IMediaRecorder;
 class IOMX;
@@ -52,6 +53,7 @@ public:
     virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat) = 0;
     virtual sp<IOMX>            getOMX() = 0;
     virtual sp<ICrypto>         makeCrypto() = 0;
+    virtual sp<IDrm>            makeDrm() = 0;
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule) = 0;
 
     // Connects to a remote display.
