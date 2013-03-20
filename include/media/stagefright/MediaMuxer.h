@@ -77,11 +77,20 @@ public:
     status_t start();
 
     /**
+     * Set the orientation hint.
+     * @param degrees The rotation degrees. It has to be either 0,
+     *                90, 180 or 270.
+     * @return OK if no error.
+     */
+    status_t setOrientationHint(int degrees);
+
+    /**
      * Stop muxing.
      * This method is a blocking call. Depending on how
      * much data is bufferred internally, the time needed for stopping
      * the muxer may be time consuming. UI thread is
      * not recommended for launching this call.
+     * @return OK if no error.
      */
     status_t stop();
 
@@ -104,12 +113,13 @@ public:
 private:
     sp<MPEG4Writer> mWriter;
     Vector< sp<MediaAdapter> > mTrackList;  // Each track has its MediaAdapter.
+    sp<MetaData> mFileMeta;  // Metadata for the whole file.
 
     Mutex mMuxerLock;
 
     enum State {
-        UNINITED,
-        INITED,
+        UNINITIALIZED,
+        INITIALIZED,
         STARTED,
         STOPPED
     };
