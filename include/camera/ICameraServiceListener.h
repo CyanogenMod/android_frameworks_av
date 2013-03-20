@@ -38,9 +38,8 @@ public:
      *     NOT_PRESENT         -> PRESENT
      *     NOT_PRESENT         -> ENUMERATING
      *     ENUMERATING         -> PRESENT
-     *     PRESENT             -> AVAILABLE
-     *     AVAILABLE           -> NOT_AVAILABLE
-     *     NOT_AVAILABLE       -> AVAILABLE
+     *     PRESENT             -> NOT_AVAILABLE
+     *     NOT_AVAILABLE       -> PRESENT
      *
      * A state will never immediately transition back to itself.
      */
@@ -48,15 +47,17 @@ public:
         // Device physically unplugged
         STATUS_NOT_PRESENT      = CAMERA_DEVICE_STATUS_NOT_PRESENT,
         // Device physically has been plugged in
+        //  and the camera can be used exlusively
         STATUS_PRESENT          = CAMERA_DEVICE_STATUS_PRESENT,
         // Device physically has been plugged in
         //   but it will not be connect-able until enumeration is complete
         STATUS_ENUMERATING      = CAMERA_DEVICE_STATUS_ENUMERATING,
 
         // Camera can be used exclusively
-        STATUS_AVAILABLE        = 0x80000000,
+        STATUS_AVAILABLE        = STATUS_PRESENT, // deprecated, will be removed
+
         // Camera is in use by another app and cannot be used exclusively
-        STATUS_NOT_AVAILABLE,
+        STATUS_NOT_AVAILABLE    = 0x80000000,
 
         // Use to initialize variables only
         STATUS_UNKNOWN          = 0xFFFFFFFF,
