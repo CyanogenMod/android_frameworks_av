@@ -1255,7 +1255,7 @@ status_t Camera2Client::commandStartFaceDetectionL(int /*type*/) {
             ANDROID_STATISTICS_FACE_DETECT_MODE_OFF) {
         ALOGE("%s: Camera %d: Face detection not supported",
                 __FUNCTION__, mCameraId);
-        return INVALID_OPERATION;
+        return BAD_VALUE;
     }
     if (l.mParameters.enableFaceDetect) return OK;
 
