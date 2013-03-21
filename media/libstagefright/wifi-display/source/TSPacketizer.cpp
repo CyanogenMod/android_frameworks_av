@@ -502,16 +502,121 @@ status_t TSPacketizer::packetize(
     // reserved = b1
     // the first fragment of "buffer" follows
 
+    // Each transport packet (except for the last one contributing to the PES
+    // payload) must contain a multiple of 16 bytes of payload per HDCP spec.
+    bool alignPayload =
+        (mFlags & (EMIT_HDCP20_DESCRIPTOR | EMIT_HDCP21_DESCRIPTOR));
+
+    /*
+       a) The very first PES transport stream packet contains
+
+       4 bytes of TS header
+       ... padding
+       14 bytes of static PES header
+       PES_private_data_len + 1 bytes (only if PES_private_data_len > 0)
+       numStuffingBytes bytes
+
+       followed by the payload
+
+       b) Subsequent PES transport stream packets contain
+
+       4 bytes of TS header
+       ... padding
+
+       followed by the payload
+    */
+
     size_t PES_packet_length = accessUnit->size() + 8 + numStuffingBytes;
     if (PES_private_data_len > 0) {
         PES_packet_length += PES_private_data_len + 1;
     }
 
-    size_t numTSPackets;
-    if (PES_packet_length <= 178) {
-        numTSPackets = 1;
-    } else {
-        numTSPackets = 1 + ((PES_packet_length - 178) + 183) / 184;
+    size_t numTSPackets = 1;
+
+    {
+        // Make sure the PES header fits into a single TS packet:
+        size_t PES_header_size = 14 + numStuffingBytes;
+        if (PES_private_data_len > 0) {
+            PES_header_size += PES_private_data_len + 1;
+        }
+
+        CHECK_LE(PES_header_size, 188u - 4u);
+
+        size_t sizeAvailableForPayload = 188 - 4 - PES_header_size;
+        size_t numBytesOfPayload = accessUnit->size();
+
+        if (numBytesOfPayload > sizeAvailableForPayload) {
+            numBytesOfPayload = sizeAvailableForPayload;
+
+            if (alignPayload && numBytesOfPayload > 16) {
+                numBytesOfPayload -= (numBytesOfPayload % 16);
+            }
+        }
+
+        // size_t numPaddingBytes = sizeAvailableForPayload - numBytesOfPayload;
+        ALOGV("packet 1 contains %zd padding bytes and %zd bytes of payload",
+              numPaddingBytes, numBytesOfPayload);
+
+        size_t numBytesOfPayloadRemaining = accessUnit->size() - numBytesOfPayload;
+
+#if 0
+        // The following hopefully illustrates the logic that led to the
+        // more efficient computation in the #else block...
+
+        while (numBytesOfPayloadRemaining > 0) {
+            size_t sizeAvailableForPayload = 188 - 4;
+
+            size_t numBytesOfPayload = numBytesOfPayloadRemaining;
+
+            if (numBytesOfPayload > sizeAvailableForPayload) {
+                numBytesOfPayload = sizeAvailableForPayload;
+
+                if (alignPayload && numBytesOfPayload > 16) {
+                    numBytesOfPayload -= (numBytesOfPayload % 16);
+                }
+            }
+
+            size_t numPaddingBytes = sizeAvailableForPayload - numBytesOfPayload;
+            ALOGI("packet %zd contains %zd padding bytes and %zd bytes of payload",
+                    numTSPackets + 1, numPaddingBytes, numBytesOfPayload);
+
+            numBytesOfPayloadRemaining -= numBytesOfPayload;
+            ++numTSPackets;
+        }
+#else
+        // This is how many bytes of payload each subsequent TS packet
+        // can contain at most.
+        sizeAvailableForPayload = 188 - 4;
+        size_t sizeAvailableForAlignedPayload = sizeAvailableForPayload;
+        if (alignPayload) {
+            // We're only going to use a subset of the available space
+            // since we need to make each fragment a multiple of 16 in size.
+            sizeAvailableForAlignedPayload -=
+                (sizeAvailableForAlignedPayload % 16);
+        }
+
+        size_t numFullTSPackets =
+            numBytesOfPayloadRemaining / sizeAvailableForAlignedPayload;
+
+        numTSPackets += numFullTSPackets;
+
+        numBytesOfPayloadRemaining -=
+            numFullTSPackets * sizeAvailableForAlignedPayload;
+
+        // numBytesOfPayloadRemaining < sizeAvailableForAlignedPayload
+        if (numFullTSPackets == 0 && numBytesOfPayloadRemaining > 0) {
+            // There wasn't enough payload left to form a full aligned payload,
+            // the last packet doesn't have to be aligned.
+            ++numTSPackets;
+        } else if (numFullTSPackets > 0
+                && numBytesOfPayloadRemaining
+                    + sizeAvailableForAlignedPayload > sizeAvailableForPayload) {
+            // The last packet emitted had a full aligned payload and together
+            // with the bytes remaining does exceed the unaligned payload
+            // size, so we need another packet.
+            ++numTSPackets;
+        }
+#endif
     }
 
     if (flags & EMIT_PAT_AND_PMT) {
@@ -755,8 +860,6 @@ status_t TSPacketizer::packetize(
 
     uint64_t PTS = (timeUs * 9ll) / 100ll;
 
-    bool padding = (PES_packet_length < (188 - 10));
-
     if (PES_packet_length >= 65536) {
         // This really should only happen for video.
         CHECK(track->isVideo());
@@ -765,19 +868,37 @@ status_t TSPacketizer::packetize(
         PES_packet_length = 0;
     }
 
+    size_t sizeAvailableForPayload = 188 - 4 - 14 - numStuffingBytes;
+    if (PES_private_data_len > 0) {
+        sizeAvailableForPayload -= PES_private_data_len + 1;
+    }
+
+    size_t copy = accessUnit->size();
+
+    if (copy > sizeAvailableForPayload) {
+        copy = sizeAvailableForPayload;
+
+        if (alignPayload && copy > 16) {
+            copy -= (copy % 16);
+        }
+    }
+
+    size_t numPaddingBytes = sizeAvailableForPayload - copy;
+
     uint8_t *ptr = packetDataStart;
     *ptr++ = 0x47;
     *ptr++ = 0x40 | (track->PID() >> 8);
     *ptr++ = track->PID() & 0xff;
-    *ptr++ = (padding ? 0x30 : 0x10) | track->incrementContinuityCounter();
 
-    if (padding) {
-        size_t paddingSize = 188 - 10 - PES_packet_length;
-        *ptr++ = paddingSize - 1;
-        if (paddingSize >= 2) {
+    *ptr++ = (numPaddingBytes > 0 ? 0x30 : 0x10)
+                | track->incrementContinuityCounter();
+
+    if (numPaddingBytes > 0) {
+        *ptr++ = numPaddingBytes - 1;
+        if (numPaddingBytes >= 2) {
             *ptr++ = 0x00;
-            memset(ptr, 0xff, paddingSize - 2);
-            ptr += paddingSize - 2;
+            memset(ptr, 0xff, numPaddingBytes - 2);
+            ptr += numPaddingBytes - 2;
         }
     }
 
@@ -813,25 +934,14 @@ status_t TSPacketizer::packetize(
         *ptr++ = 0xff;
     }
 
-    // 18 bytes of TS/PES header leave 188 - 18 = 170 bytes for the payload
-
-    size_t sizeLeft = packetDataStart + 188 - ptr;
-    size_t copy = accessUnit->size();
-    if (copy > sizeLeft) {
-        copy = sizeLeft;
-    }
-
     memcpy(ptr, accessUnit->data(), copy);
     ptr += copy;
-    CHECK_EQ(sizeLeft, copy);
-    memset(ptr, 0xff, sizeLeft - copy);
 
+    CHECK_EQ(ptr, packetDataStart + 188);
     packetDataStart += 188;
 
     size_t offset = copy;
     while (offset < accessUnit->size()) {
-        bool padding = (accessUnit->size() - offset) < (188 - 4);
-
         // for subsequent fragments of "buffer":
         // 0x47
         // transport_error_indicator = b0
@@ -843,35 +953,40 @@ status_t TSPacketizer::packetize(
         // continuity_counter = b????
         // the fragment of "buffer" follows.
 
+        size_t sizeAvailableForPayload = 188 - 4;
+
+        size_t copy = accessUnit->size() - offset;
+
+        if (copy > sizeAvailableForPayload) {
+            copy = sizeAvailableForPayload;
+
+            if (alignPayload && copy > 16) {
+                copy -= (copy % 16);
+            }
+        }
+
+        size_t numPaddingBytes = sizeAvailableForPayload - copy;
+
         uint8_t *ptr = packetDataStart;
         *ptr++ = 0x47;
         *ptr++ = 0x00 | (track->PID() >> 8);
         *ptr++ = track->PID() & 0xff;
 
-        *ptr++ = (padding ? 0x30 : 0x10) | track->incrementContinuityCounter();
+        *ptr++ = (numPaddingBytes > 0 ? 0x30 : 0x10)
+                    | track->incrementContinuityCounter();
 
-        if (padding) {
-            size_t paddingSize = 188 - 4 - (accessUnit->size() - offset);
-            *ptr++ = paddingSize - 1;
-            if (paddingSize >= 2) {
+        if (numPaddingBytes > 0) {
+            *ptr++ = numPaddingBytes - 1;
+            if (numPaddingBytes >= 2) {
                 *ptr++ = 0x00;
-                memset(ptr, 0xff, paddingSize - 2);
-                ptr += paddingSize - 2;
+                memset(ptr, 0xff, numPaddingBytes - 2);
+                ptr += numPaddingBytes - 2;
             }
-        }
-
-        // 4 bytes of TS header leave 188 - 4 = 184 bytes for the payload
-
-        size_t sizeLeft = packetDataStart + 188 - ptr;
-        size_t copy = accessUnit->size() - offset;
-        if (copy > sizeLeft) {
-            copy = sizeLeft;
         }
 
         memcpy(ptr, accessUnit->data() + offset, copy);
         ptr += copy;
-        CHECK_EQ(sizeLeft, copy);
-        memset(ptr, 0xff, sizeLeft - copy);
+        CHECK_EQ(ptr, packetDataStart + 188);
 
         offset += copy;
         packetDataStart += 188;
