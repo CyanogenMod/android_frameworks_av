@@ -534,6 +534,8 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         if (!noSceneModes) {
             params.set(CameraParameters::KEY_SUPPORTED_SCENE_MODES,
                     supportedSceneModes);
+        } else {
+            params.remove(CameraParameters::KEY_SCENE_MODE);
         }
     }
 
