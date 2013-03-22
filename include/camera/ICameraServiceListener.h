@@ -28,11 +28,30 @@ class ICameraServiceListener : public IInterface
 {
 public:
 
+    /**
+     * Initial status will be transmitted with onStatusChange immediately
+     * after this listener is added to the service listener list.
+     *
+     * Allowed transitions:
+     *
+     *     (Any)               -> NOT_PRESENT
+     *     NOT_PRESENT         -> PRESENT
+     *     NOT_PRESENT         -> ENUMERATING
+     *     ENUMERATING         -> PRESENT
+     *     PRESENT             -> AVAILABLE
+     *     AVAILABLE           -> NOT_AVAILABLE
+     *     NOT_AVAILABLE       -> AVAILABLE
+     *
+     * A state will never immediately transition back to itself.
+     */
     enum Status {
         // Device physically unplugged
-        STATUS_PRESENT          = CAMERA_DEVICE_STATUS_PRESENT,
-        // Device physically re-plugged
         STATUS_NOT_PRESENT      = CAMERA_DEVICE_STATUS_NOT_PRESENT,
+        // Device physically has been plugged in
+        STATUS_PRESENT          = CAMERA_DEVICE_STATUS_PRESENT,
+        // Device physically has been plugged in
+        //   but it will not be connect-able until enumeration is complete
+        STATUS_ENUMERATING      = CAMERA_DEVICE_STATUS_ENUMERATING,
 
         // Camera can be used exclusively
         STATUS_AVAILABLE        = 0x80000000,
