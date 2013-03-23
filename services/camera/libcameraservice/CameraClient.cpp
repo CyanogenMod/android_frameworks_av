@@ -297,8 +297,10 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
             result = mHardware->setPreviewWindow(window);
         }
 #ifdef QCOM_HARDWARE
+#ifndef QCOM_LEGACY_CAM_PARAMS
     } else {
         result = mHardware->setPreviewWindow(window);
+#endif
 #endif
     }
 
