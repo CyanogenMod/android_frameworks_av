@@ -48,7 +48,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
         return reply.readInt32();
     }
 
-    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) const {
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) {
         Parcel data, reply;
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
         data.write(uuid, 16);
