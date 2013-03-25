@@ -17,6 +17,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "Crypto"
 #include <utils/Log.h>
+#include <dirent.h>
+#include <dlfcn.h>
 
 #include "Crypto.h"
 
@@ -26,85 +28,174 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
 
-#include <dlfcn.h>
-
 namespace android {
+
+KeyedVector<Vector<uint8_t>, String8> Crypto::mUUIDToLibraryPathMap;
+KeyedVector<String8, wp<SharedLibrary> > Crypto::mLibraryPathToOpenLibraryMap;
+Mutex Crypto::mMapLock;
+
+static bool operator<(const Vector<uint8_t> &lhs, const Vector<uint8_t> &rhs) {
+    if (lhs.size() < rhs.size()) {
+        return true;
+    } else if (lhs.size() > rhs.size()) {
+        return false;
+    }
+
+    return memcmp((void *)lhs.array(), (void *)rhs.array(), rhs.size()) < 0;
+}
 
 Crypto::Crypto()
     : mInitCheck(NO_INIT),
-      mLibHandle(NULL),
       mFactory(NULL),
       mPlugin(NULL) {
-    mInitCheck = init();
 }
 
 Crypto::~Crypto() {
     delete mPlugin;
     mPlugin = NULL;
+    closeFactory();
+}
 
+void Crypto::closeFactory() {
     delete mFactory;
     mFactory = NULL;
-
-    if (mLibHandle != NULL) {
-        dlclose(mLibHandle);
-        mLibHandle = NULL;
-    }
+    mLibrary.clear();
 }
 
 status_t Crypto::initCheck() const {
     return mInitCheck;
 }
 
-status_t Crypto::init() {
-    mLibHandle = dlopen("libdrmdecrypt.so", RTLD_NOW);
+/*
+ * Search the plugins directory for a plugin that supports the scheme
+ * specified by uuid
+ *
+ * If found:
+ *    mLibrary holds a strong pointer to the dlopen'd library
+ *    mFactory is set to the library's factory method
+ *    mInitCheck is set to OK
+ *
+ * If not found:
+ *    mLibrary is cleared and mFactory are set to NULL
+ *    mInitCheck is set to an error (!OK)
+ */
+void Crypto::findFactoryForScheme(const uint8_t uuid[16]) {
 
-    if (mLibHandle == NULL) {
-        ALOGE("Unable to locate libdrmdecrypt.so");
+    closeFactory();
 
-        return ERROR_UNSUPPORTED;
+    // lock static maps
+    Mutex::Autolock autoLock(mMapLock);
+
+    // first check cache
+    Vector<uint8_t> uuidVector;
+    uuidVector.appendArray(uuid, sizeof(uuid));
+    ssize_t index = mUUIDToLibraryPathMap.indexOfKey(uuidVector);
+    if (index >= 0) {
+        if (loadLibraryForScheme(mUUIDToLibraryPathMap[index], uuid)) {
+            mInitCheck = OK;
+            return;
+        } else {
+            ALOGE("Failed to load from cached library path!");
+            mInitCheck = ERROR_UNSUPPORTED;
+            return;
+        }
+    }
+
+    // no luck, have to search
+    String8 dirPath("/vendor/lib/mediadrm");
+    String8 pluginPath;
+
+    DIR* pDir = opendir(dirPath.string());
+    if (pDir) {
+        struct dirent* pEntry;
+        while ((pEntry = readdir(pDir))) {
+
+            pluginPath = dirPath + "/" + pEntry->d_name;
+
+            if (pluginPath.getPathExtension() == ".so") {
+
+                if (loadLibraryForScheme(pluginPath, uuid)) {
+                    mUUIDToLibraryPathMap.add(uuidVector, pluginPath);
+                    mInitCheck = OK;
+                    closedir(pDir);
+                    return;
+                }
+            }
+        }
+
+        closedir(pDir);
+    }
+
+    // try the legacy libdrmdecrypt.so
+    pluginPath = "libdrmdecrypt.so";
+    if (loadLibraryForScheme(pluginPath, uuid)) {
+        mUUIDToLibraryPathMap.add(uuidVector, pluginPath);
+        mInitCheck = OK;
+        return;
+    }
+
+    ALOGE("Failed to find crypto plugin");
+    mInitCheck = ERROR_UNSUPPORTED;
+}
+
+bool Crypto::loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]) {
+
+    // get strong pointer to open shared library
+    ssize_t index = mLibraryPathToOpenLibraryMap.indexOfKey(path);
+    if (index >= 0) {
+        mLibrary = mLibraryPathToOpenLibraryMap[index].promote();
+    } else {
+        index = mLibraryPathToOpenLibraryMap.add(path, NULL);
+    }
+
+    if (!mLibrary.get()) {
+        mLibrary = new SharedLibrary(path);
+        if (!*mLibrary) {
+            return false;
+        }
+
+        mLibraryPathToOpenLibraryMap.replaceValueAt(index, mLibrary);
     }
 
     typedef CryptoFactory *(*CreateCryptoFactoryFunc)();
+
     CreateCryptoFactoryFunc createCryptoFactory =
-        (CreateCryptoFactoryFunc)dlsym(mLibHandle, "createCryptoFactory");
+        (CreateCryptoFactoryFunc)mLibrary->lookup("createCryptoFactory");
 
-    if (createCryptoFactory == NULL
-            || ((mFactory = createCryptoFactory()) == NULL)) {
-        if (createCryptoFactory == NULL) {
-            ALOGE("Unable to find symbol 'createCryptoFactory'.");
-        } else {
-            ALOGE("createCryptoFactory() failed.");
-        }
-
-        dlclose(mLibHandle);
-        mLibHandle = NULL;
-
-        return ERROR_UNSUPPORTED;
-    }
-
-    return OK;
-}
-
-bool Crypto::isCryptoSchemeSupported(const uint8_t uuid[16]) const {
-    Mutex::Autolock autoLock(mLock);
-
-    if (mInitCheck != OK) {
+    if (createCryptoFactory == NULL ||
+        (mFactory = createCryptoFactory()) == NULL ||
+        !mFactory->isCryptoSchemeSupported(uuid)) {
+        closeFactory();
         return false;
     }
+    return true;
+}
 
-    return mFactory->isCryptoSchemeSupported(uuid);
+bool Crypto::isCryptoSchemeSupported(const uint8_t uuid[16]) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mFactory && mFactory->isCryptoSchemeSupported(uuid)) {
+        return true;
+    }
+
+    findFactoryForScheme(uuid);
+    return (mInitCheck == OK);
 }
 
 status_t Crypto::createPlugin(
         const uint8_t uuid[16], const void *data, size_t size) {
     Mutex::Autolock autoLock(mLock);
 
-    if (mInitCheck != OK) {
-        return mInitCheck;
-    }
-
     if (mPlugin != NULL) {
         return -EINVAL;
+    }
+
+    if (!mFactory || !mFactory->isCryptoSchemeSupported(uuid)) {
+        findFactoryForScheme(uuid);
+    }
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
     }
 
     return mFactory->createPlugin(uuid, data, size, &mPlugin);
