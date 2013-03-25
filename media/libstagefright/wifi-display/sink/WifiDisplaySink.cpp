@@ -24,7 +24,6 @@
 #include "MediaReceiver.h"
 #include "ParsedMessage.h"
 #include "TimeSyncer.h"
-#include "TunnelRenderer.h"
 
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -341,12 +340,7 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
         case MediaReceiver::kWhatAccessUnit:
         {
             if (mRenderer == NULL) {
-#if USE_TUNNEL_RENDERER
-                mRenderer = new TunnelRenderer(mSurfaceTex);
-#else
                 mRenderer = new DirectRenderer(mSurfaceTex);
-#endif
-
                 looper()->registerHandler(mRenderer);
             }
 
@@ -378,16 +372,12 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
 
             // dumpDelay(trackIndex, timeUs);
 
-#if USE_TUNNEL_RENDERER
-            mRenderer->queueBuffer(accessUnit);
-#else
             sp<AMessage> format;
             if (msg->findMessage("format", &format)) {
                 mRenderer->setFormat(trackIndex, format);
             }
 
             mRenderer->queueAccessUnit(trackIndex, accessUnit);
-#endif
             break;
         }
 
@@ -726,13 +716,7 @@ status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
     status_t err = mMediaReceiver->addTrack(mode, &localRTPPort);
 
     if (err == OK) {
-        err = mMediaReceiver->initAsync(
-#if USE_TUNNEL_RENDERER
-                MediaReceiver::MODE_TRANSPORT_STREAM_RAW
-#else
-                MediaReceiver::MODE_TRANSPORT_STREAM
-#endif
-                );
+        err = mMediaReceiver->initAsync(MediaReceiver::MODE_TRANSPORT_STREAM);
     }
 
     if (err != OK) {
