@@ -12,7 +12,6 @@ LOCAL_SRC_FILES:= \
         rtp/RTPReceiver.cpp             \
         rtp/RTPSender.cpp               \
         sink/DirectRenderer.cpp         \
-        sink/TunnelRenderer.cpp         \
         sink/WifiDisplaySink.cpp        \
         SNTPClient.cpp                  \
         TimeSyncer.cpp                  \
