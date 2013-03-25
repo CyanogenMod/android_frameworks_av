@@ -269,12 +269,14 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
             if (mLatencyCount > 0) {
                 int64_t avgLatencyUs = mLatencySumUs / mLatencyCount;
 
-                ALOGI("avg. latency = %lld ms (max %lld ms)",
+                ALOGV("avg. latency = %lld ms (max %lld ms)",
                       avgLatencyUs / 1000ll,
                       mLatencyMaxUs / 1000ll);
 
-                mMediaReceiver->notifyLateness(
-                        0 /* trackIndex */, avgLatencyUs);
+                sp<AMessage> params = new AMessage;
+                params->setInt64("avgLatencyUs", avgLatencyUs);
+                params->setInt64("maxLatencyUs", mLatencyMaxUs);
+                mMediaReceiver->informSender(0 /* trackIndex */, params);
             }
 
             mLatencyCount = 0;
@@ -356,8 +358,6 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
             // client time = server time - time offset.
             timeUs -= mTimeOffsetUs;
 
-            accessUnit->meta()->setInt64("timeUs", timeUs);
-
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
 
@@ -371,6 +371,9 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
             ++mLatencyCount;
 
             // dumpDelay(trackIndex, timeUs);
+
+            timeUs += 220000ll;  // Assume 220 ms of latency
+            accessUnit->meta()->setInt64("timeUs", timeUs);
 
             sp<AMessage> format;
             if (msg->findMessage("format", &format)) {
@@ -486,7 +489,9 @@ status_t WifiDisplaySink::onReceiveSetupResponse(
 }
 
 status_t WifiDisplaySink::configureTransport(const sp<ParsedMessage> &msg) {
-    if (mUsingTCPTransport) {
+    if (mUsingTCPTransport && !(mFlags & FLAG_SPECIAL_MODE)) {
+        // In "special" mode we still use a UDP RTCP back-channel that
+        // needs connecting.
         return OK;
     }
 
@@ -703,17 +708,18 @@ status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
     mMediaReceiver = new MediaReceiver(mNetSession, notify);
     mMediaReceiverLooper->registerHandler(mMediaReceiver);
 
-    RTPReceiver::TransportMode mode = RTPReceiver::TRANSPORT_UDP;
+    RTPReceiver::TransportMode rtpMode = RTPReceiver::TRANSPORT_UDP;
     if (mUsingTCPTransport) {
         if (mUsingTCPInterleaving) {
-            mode = RTPReceiver::TRANSPORT_TCP_INTERLEAVED;
+            rtpMode = RTPReceiver::TRANSPORT_TCP_INTERLEAVED;
         } else {
-            mode = RTPReceiver::TRANSPORT_TCP;
+            rtpMode = RTPReceiver::TRANSPORT_TCP;
         }
     }
 
     int32_t localRTPPort;
-    status_t err = mMediaReceiver->addTrack(mode, &localRTPPort);
+    status_t err = mMediaReceiver->addTrack(
+            rtpMode, RTPReceiver::TRANSPORT_UDP /* rtcpMode */, &localRTPPort);
 
     if (err == OK) {
         err = mMediaReceiver->initAsync(MediaReceiver::MODE_TRANSPORT_STREAM);
@@ -733,13 +739,22 @@ status_t WifiDisplaySink::sendSetup(int32_t sessionID, const char *uri) {
 
     AppendCommonResponse(&request, mNextCSeq);
 
-    if (mode == RTPReceiver::TRANSPORT_TCP_INTERLEAVED) {
+    if (rtpMode == RTPReceiver::TRANSPORT_TCP_INTERLEAVED) {
         request.append("Transport: RTP/AVP/TCP;interleaved=0-1\r\n");
-    } else if (mode == RTPReceiver::TRANSPORT_TCP) {
-        request.append(
-                StringPrintf(
-                    "Transport: RTP/AVP/TCP;unicast;client_port=%d\r\n",
-                    localRTPPort));
+    } else if (rtpMode == RTPReceiver::TRANSPORT_TCP) {
+        if (mFlags & FLAG_SPECIAL_MODE) {
+            // This isn't quite true, since the RTP connection is through TCP
+            // and the RTCP connection through UDP...
+            request.append(
+                    StringPrintf(
+                        "Transport: RTP/AVP/TCP;unicast;client_port=%d-%d\r\n",
+                        localRTPPort, localRTPPort + 1));
+        } else {
+            request.append(
+                    StringPrintf(
+                        "Transport: RTP/AVP/TCP;unicast;client_port=%d\r\n",
+                        localRTPPort));
+        }
     } else {
         request.append(
                 StringPrintf(

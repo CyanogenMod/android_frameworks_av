@@ -622,6 +622,7 @@ status_t Converter::feedEncoderInputBuffers() {
 }
 
 status_t Converter::doMoreWork() {
+#if 0
     if (mIsVideo) {
         int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
         if (videoBitrate != mPrevVideoBitrate) {
@@ -633,6 +634,7 @@ status_t Converter::doMoreWork() {
             mPrevVideoBitrate = videoBitrate;
         }
     }
+#endif
 
     status_t err;
 
@@ -706,6 +708,21 @@ void Converter::requestIDRFrame() {
 
 void Converter::dropAFrame() {
     (new AMessage(kWhatDropAFrame, id()))->post();
+}
+
+int32_t Converter::getVideoBitrate() const {
+    return mPrevVideoBitrate;
+}
+
+void Converter::setVideoBitrate(int32_t bitRate) {
+    if (mIsVideo && mEncoder != NULL && bitRate != mPrevVideoBitrate) {
+        sp<AMessage> params = new AMessage;
+        params->setInt32("videoBitrate", bitRate);
+
+        mEncoder->setParameters(params);
+
+        mPrevVideoBitrate = bitRate;
+    }
 }
 
 }  // namespace android

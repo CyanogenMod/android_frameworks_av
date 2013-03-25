@@ -362,8 +362,11 @@ WifiDisplaySource::PlaybackSession::PlaybackSession(
 }
 
 status_t WifiDisplaySource::PlaybackSession::init(
-        const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-        RTPSender::TransportMode transportMode,
+        const char *clientIP,
+        int32_t clientRtp,
+        RTPSender::TransportMode rtpMode,
+        int32_t clientRtcp,
+        RTPSender::TransportMode rtcpMode,
         bool enableAudio,
         bool usePCMAudio,
         bool enableVideo,
@@ -385,10 +388,11 @@ status_t WifiDisplaySource::PlaybackSession::init(
     if (err == OK) {
         err = mMediaSender->initAsync(
                 -1 /* trackIndex */,
-                transportMode,
                 clientIP,
                 clientRtp,
+                rtpMode,
                 clientRtcp,
+                rtcpMode,
                 &mLocalRTPPort);
     }
 
@@ -548,6 +552,8 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                         converter->dropAFrame();
                     }
                 }
+            } else if (what == MediaSender::kWhatInformSender) {
+                onSinkFeedback(msg);
             } else {
                 TRESPASS();
             }
@@ -640,6 +646,46 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         default:
             TRESPASS();
+    }
+}
+
+void WifiDisplaySource::PlaybackSession::onSinkFeedback(const sp<AMessage> &msg) {
+    int64_t avgLatencyUs;
+    CHECK(msg->findInt64("avgLatencyUs", &avgLatencyUs));
+
+    int64_t maxLatencyUs;
+    CHECK(msg->findInt64("maxLatencyUs", &maxLatencyUs));
+
+    ALOGI("sink reports avg. latency of %lld ms (max %lld ms)",
+          avgLatencyUs / 1000ll,
+          maxLatencyUs / 1000ll);
+
+    if (mVideoTrackIndex >= 0) {
+        const sp<Track> &videoTrack = mTracks.valueFor(mVideoTrackIndex);
+        sp<Converter> converter = videoTrack->converter();
+        if (converter != NULL) {
+            int32_t videoBitrate = converter->getVideoBitrate();
+
+            if (avgLatencyUs > 300000ll) {
+                videoBitrate *= 0.6;
+
+                if (videoBitrate < 500000) {
+                    videoBitrate = 500000;  // cap at 500kbit/sec
+                }
+            } else if (avgLatencyUs < 100000ll) {
+                videoBitrate *= 1.1;
+
+                if (videoBitrate > 10000000) {
+                    videoBitrate = 10000000;  // cap at 10Mbit/sec
+                }
+            }
+
+            if (videoBitrate != converter->getVideoBitrate()) {
+                ALOGI("setting video bitrate to %d bps", videoBitrate);
+
+                converter->setVideoBitrate(videoBitrate);
+            }
+        }
     }
 }
 
