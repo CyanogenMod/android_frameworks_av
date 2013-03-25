@@ -38,7 +38,8 @@ RTPSender::RTPSender(
         const sp<AMessage> &notify)
     : mNetSession(netSession),
       mNotify(notify),
-      mMode(TRANSPORT_UNDEFINED),
+      mRTPMode(TRANSPORT_UNDEFINED),
+      mRTCPMode(TRANSPORT_UNDEFINED),
       mRTPSessionID(0),
       mRTCPSessionID(0),
       mRTPConnected(false),
@@ -74,18 +75,24 @@ int32_t RTPBase::PickRandomRTPPort() {
 }
 
 status_t RTPSender::initAsync(
-        TransportMode mode,
         const char *remoteHost,
         int32_t remoteRTPPort,
+        TransportMode rtpMode,
         int32_t remoteRTCPPort,
+        TransportMode rtcpMode,
         int32_t *outLocalRTPPort) {
-    if (mMode != TRANSPORT_UNDEFINED || mode == TRANSPORT_UNDEFINED) {
+    if (mRTPMode != TRANSPORT_UNDEFINED
+            || rtpMode == TRANSPORT_UNDEFINED
+            || rtpMode == TRANSPORT_NONE
+            || rtcpMode == TRANSPORT_UNDEFINED) {
         return INVALID_OPERATION;
     }
 
-    CHECK_NE(mMode, TRANSPORT_TCP_INTERLEAVED);
+    CHECK_NE(rtpMode, TRANSPORT_TCP_INTERLEAVED);
+    CHECK_NE(rtcpMode, TRANSPORT_TCP_INTERLEAVED);
 
-    if (mode == TRANSPORT_TCP && remoteRTCPPort >= 0) {
+    if (rtcpMode == TRANSPORT_NONE && remoteRTCPPort >= 0
+            || rtcpMode != TRANSPORT_NONE && remoteRTCPPort < 0) {
         return INVALID_OPERATION;
     }
 
@@ -105,7 +112,7 @@ status_t RTPSender::initAsync(
         localRTPPort = PickRandomRTPPort();
 
         status_t err;
-        if (mode == TRANSPORT_UDP) {
+        if (rtpMode == TRANSPORT_UDP) {
             err = mNetSession->createUDPSession(
                     localRTPPort,
                     remoteHost,
@@ -113,7 +120,7 @@ status_t RTPSender::initAsync(
                     rtpNotify,
                     &mRTPSessionID);
         } else {
-            CHECK_EQ(mode, TRANSPORT_TCP);
+            CHECK_EQ(rtpMode, TRANSPORT_TCP);
             err = mNetSession->createTCPDatagramSession(
                     localRTPPort,
                     remoteHost,
@@ -130,7 +137,7 @@ status_t RTPSender::initAsync(
             break;
         }
 
-        if (mode == TRANSPORT_UDP) {
+        if (rtcpMode == TRANSPORT_UDP) {
             err = mNetSession->createUDPSession(
                     localRTPPort + 1,
                     remoteHost,
@@ -138,7 +145,7 @@ status_t RTPSender::initAsync(
                     rtcpNotify,
                     &mRTCPSessionID);
         } else {
-            CHECK_EQ(mode, TRANSPORT_TCP);
+            CHECK_EQ(rtcpMode, TRANSPORT_TCP);
             err = mNetSession->createTCPDatagramSession(
                     localRTPPort + 1,
                     remoteHost,
@@ -155,15 +162,20 @@ status_t RTPSender::initAsync(
         mRTPSessionID = 0;
     }
 
-    if (mode == TRANSPORT_UDP) {
+    if (rtpMode == TRANSPORT_UDP) {
         mRTPConnected = true;
+    }
+
+    if (rtcpMode == TRANSPORT_UDP) {
         mRTCPConnected = true;
     }
 
-    mMode = mode;
+    mRTPMode = rtpMode;
+    mRTCPMode = rtcpMode;
     *outLocalRTPPort = localRTPPort;
 
-    if (mMode == TRANSPORT_UDP) {
+    if (mRTPMode == TRANSPORT_UDP
+            && (mRTCPMode == TRANSPORT_UDP || mRTCPMode == TRANSPORT_NONE)) {
         notifyInitDone(OK);
     }
 
@@ -496,12 +508,12 @@ void RTPSender::onNetNotify(bool isRTP, const sp<AMessage> &msg) {
                 mRTCPSessionID = 0;
             }
 
-            if (mMode == TRANSPORT_TCP) {
-                if (!mRTPConnected
-                        || (mRTCPSessionID > 0 && !mRTCPConnected)) {
-                    notifyInitDone(err);
-                    break;
-                }
+            if (!mRTPConnected
+                    || (mRTPMode != TRANSPORT_NONE && !mRTCPConnected)) {
+                // We haven't completed initialization, attach the error
+                // to the notification instead.
+                notifyInitDone(err);
+                break;
             }
 
             notifyError(err);
@@ -523,20 +535,21 @@ void RTPSender::onNetNotify(bool isRTP, const sp<AMessage> &msg) {
 
         case ANetworkSession::kWhatConnected:
         {
-            CHECK_EQ(mMode, TRANSPORT_TCP);
-
             int32_t sessionID;
             CHECK(msg->findInt32("sessionID", &sessionID));
 
             if  (isRTP) {
+                CHECK_EQ(mRTPMode, TRANSPORT_TCP);
                 CHECK_EQ(sessionID, mRTPSessionID);
                 mRTPConnected = true;
             } else {
+                CHECK_EQ(mRTCPMode, TRANSPORT_TCP);
                 CHECK_EQ(sessionID, mRTCPSessionID);
                 mRTCPConnected = true;
             }
 
-            if (mRTPConnected && (mRTCPSessionID == 0 || mRTCPConnected)) {
+            if (mRTPConnected
+                    && (mRTCPMode == TRANSPORT_NONE || mRTCPConnected)) {
                 notifyInitDone(OK);
             }
             break;
