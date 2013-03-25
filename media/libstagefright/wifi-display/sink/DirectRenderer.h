@@ -34,8 +34,6 @@ struct DirectRenderer : public AHandler {
     void setFormat(size_t trackIndex, const sp<AMessage> &format);
     void queueAccessUnit(size_t trackIndex, const sp<ABuffer> &accessUnit);
 
-    int64_t getAvgLatenessUs();
-
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
     virtual ~DirectRenderer();
@@ -63,9 +61,6 @@ private:
     bool mVideoRenderPending;
 
     sp<AudioRenderer> mAudioRenderer;
-
-    int64_t mLatencySum;
-    size_t mLatencyCount;
 
     int32_t mNumFramesLate;
     int32_t mNumFrames;

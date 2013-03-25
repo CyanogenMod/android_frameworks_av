@@ -132,9 +132,11 @@ private:
     int64_t mTimeOffsetUs;
     bool mTimeOffsetValid;
 
-    int64_t mTargetLatencyUs;
-
     bool mSetupDeferred;
+
+    size_t mLatencyCount;
+    int64_t mLatencySumUs;
+    int64_t mLatencyMaxUs;
 
     status_t sendM2(int32_t sessionID);
     status_t sendSetup(int32_t sessionID, const char *uri);
