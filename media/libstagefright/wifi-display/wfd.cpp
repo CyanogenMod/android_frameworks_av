@@ -43,7 +43,8 @@ static void usage(const char *me) {
             "               -u uri        \tconnect to an rtsp uri\n"
             "               -l ip[:port] \tlisten on the specified port "
             "               -f(ilename)  \tstream media "
-            "(create a sink)\n",
+            "(create a sink)\n"
+            "               -s(pecial)   \trun in 'special' mode\n",
             me);
 }
 
@@ -222,8 +223,10 @@ int main(int argc, char **argv) {
 
     AString path;
 
+    bool specialMode = false;
+
     int res;
-    while ((res = getopt(argc, argv, "hc:l:u:f:")) >= 0) {
+    while ((res = getopt(argc, argv, "hc:l:u:f:s")) >= 0) {
         switch (res) {
             case 'c':
             {
@@ -278,6 +281,12 @@ int main(int argc, char **argv) {
                         exit(1);
                     }
                 }
+                break;
+            }
+
+            case 's':
+            {
+                specialMode = true;
                 break;
             }
 
@@ -357,7 +366,7 @@ int main(int argc, char **argv) {
     sp<ALooper> looper = new ALooper;
 
     sp<WifiDisplaySink> sink = new WifiDisplaySink(
-            0 /* flags */,
+            specialMode ? WifiDisplaySink::FLAG_SPECIAL_MODE : 0 /* flags */,
             session,
             surface->getIGraphicBufferProducer());
 
