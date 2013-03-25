@@ -29,6 +29,7 @@ struct RTPBase {
 
     enum TransportMode {
         TRANSPORT_UNDEFINED,
+        TRANSPORT_NONE,
         TRANSPORT_UDP,
         TRANSPORT_TCP,
         TRANSPORT_TCP_INTERLEAVED,

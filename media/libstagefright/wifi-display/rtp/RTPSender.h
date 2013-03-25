@@ -43,10 +43,11 @@ struct RTPSender : public RTPBase, public AHandler {
             const sp<AMessage> &notify);
 
     status_t initAsync(
-              TransportMode mode,
               const char *remoteHost,
               int32_t remoteRTPPort,
+              TransportMode rtpMode,
               int32_t remoteRTCPPort,
+              TransportMode rtcpMode,
               int32_t *outLocalRTPPort);
 
     status_t queueBuffer(
@@ -72,7 +73,8 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
-    TransportMode mMode;
+    TransportMode mRTPMode;
+    TransportMode mRTCPMode;
     int32_t mRTPSessionID;
     int32_t mRTCPSessionID;
     bool mRTPConnected;

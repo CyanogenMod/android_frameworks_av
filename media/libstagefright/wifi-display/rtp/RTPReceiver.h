@@ -46,7 +46,10 @@ struct RTPReceiver : public RTPBase, public AHandler {
     status_t registerPacketType(
             uint8_t packetType, PacketizationMode mode);
 
-    status_t initAsync(TransportMode mode, int32_t *outLocalRTPPort);
+    status_t initAsync(
+            TransportMode rtpMode,
+            TransportMode rtcpMode,
+            int32_t *outLocalRTPPort);
 
     status_t connect(
             const char *remoteHost,
@@ -79,11 +82,15 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
-    TransportMode mMode;
+    TransportMode mRTPMode;
+    TransportMode mRTCPMode;
     int32_t mRTPSessionID;
     int32_t mRTCPSessionID;
+    bool mRTPConnected;
+    bool mRTCPConnected;
 
     int32_t mRTPClientSessionID;  // in TRANSPORT_TCP mode.
+    int32_t mRTCPClientSessionID;  // in TRANSPORT_TCP mode.
 
     KeyedVector<uint8_t, PacketizationMode> mPacketTypes;
     KeyedVector<uint32_t, sp<Source> > mSources;
