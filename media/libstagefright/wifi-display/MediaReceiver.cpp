@@ -73,7 +73,12 @@ ssize_t MediaReceiver::addTrack(
     info.mReceiver->registerPacketType(
             97, RTPReceiver::PACKETIZATION_H264);
 
-    status_t err = info.mReceiver->initAsync(transportMode, localRTPPort);
+    status_t err = info.mReceiver->initAsync(
+            transportMode,  // rtpMode
+            transportMode == RTPReceiver::TRANSPORT_UDP
+                ? transportMode
+                : RTPReceiver::TRANSPORT_NONE,  // rtcpMode
+            localRTPPort);
 
     if (err != OK) {
         looper()->unregisterHandler(info.mReceiver->id());

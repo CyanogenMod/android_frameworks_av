@@ -124,10 +124,14 @@ status_t MediaSender::initAsync(
             looper()->registerHandler(mTSSender);
 
             err = mTSSender->initAsync(
-                    transportMode,
                     remoteHost,
                     remoteRTPPort,
+                    transportMode,  // rtpMode
                     remoteRTCPPort,
+                    (transportMode == RTPSender::TRANSPORT_UDP
+                        && remoteRTCPPort >= 0)
+                        ? transportMode
+                        : RTPSender::TRANSPORT_NONE,  // rtcpMode
                     localRTPPort);
 
             if (err != OK) {
@@ -174,10 +178,13 @@ status_t MediaSender::initAsync(
     looper()->registerHandler(info->mSender);
 
     status_t err = info->mSender->initAsync(
-            transportMode,
             remoteHost,
             remoteRTPPort,
+            transportMode,  // rtpMode
             remoteRTCPPort,
+            (transportMode == RTPSender::TRANSPORT_UDP && remoteRTCPPort >= 0)
+                ? transportMode
+                : RTPSender::TRANSPORT_NONE,  // rtcpMode
             localRTPPort);
 
     if (err != OK) {
