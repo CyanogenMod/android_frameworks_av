@@ -467,32 +467,11 @@ DirectRenderer::DirectRenderer(
         const sp<IGraphicBufferProducer> &bufferProducer)
     : mSurfaceTex(bufferProducer),
       mVideoRenderPending(false),
-      mLatencySum(0ll),
-      mLatencyCount(0),
       mNumFramesLate(0),
       mNumFrames(0) {
 }
 
 DirectRenderer::~DirectRenderer() {
-}
-
-int64_t DirectRenderer::getAvgLatenessUs() {
-    if (mLatencyCount == 0) {
-        return 0ll;
-    }
-
-    int64_t avgLatencyUs = mLatencySum / mLatencyCount;
-
-    mLatencySum = 0ll;
-    mLatencyCount = 0;
-
-    if (mNumFrames > 0) {
-        ALOGI("%d / %d frames late", mNumFramesLate, mNumFrames);
-        mNumFramesLate = 0;
-        mNumFrames = 0;
-    }
-
-    return avgLatencyUs;
 }
 
 void DirectRenderer::onMessageReceived(const sp<AMessage> &msg) {
@@ -631,9 +610,6 @@ void DirectRenderer::onRenderVideo() {
             ++mNumFramesLate;
         }
         ++mNumFrames;
-
-        mLatencySum += nowUs - info.mTimeUs;
-        ++mLatencyCount;
 
         status_t err =
             mDecoderContext[0]->renderOutputBufferAndRelease(info.mIndex);

@@ -267,37 +267,6 @@ status_t MediaSender::queueAccessUnit(
                         tsPackets,
                         33 /* packetType */,
                         RTPSender::PACKETIZATION_TRANSPORT_STREAM);
-
-#if 0
-                {
-                    int64_t nowUs = ALooper::GetNowUs();
-
-                    int64_t timeUs;
-                    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
-
-                    int64_t delayMs = (nowUs - timeUs) / 1000ll;
-
-                    static const int64_t kMinDelayMs = 0;
-                    static const int64_t kMaxDelayMs = 300;
-
-                    const char *kPattern = "########################################";
-                    size_t kPatternSize = strlen(kPattern);
-
-                    int n = (kPatternSize * (delayMs - kMinDelayMs))
-                                / (kMaxDelayMs - kMinDelayMs);
-
-                    if (n < 0) {
-                        n = 0;
-                    } else if ((size_t)n > kPatternSize) {
-                        n = kPatternSize;
-                    }
-
-                    ALOGI("[%lld]: (%4lld ms) %s\n",
-                          timeUs / 1000,
-                          delayMs,
-                          kPattern + kPatternSize - n);
-                }
-#endif
             }
 
             if (err != OK) {
