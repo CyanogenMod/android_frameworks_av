@@ -85,10 +85,11 @@ ssize_t MediaSender::addTrack(const sp<AMessage> &format, uint32_t flags) {
 
 status_t MediaSender::initAsync(
         ssize_t trackIndex,
-        RTPSender::TransportMode transportMode,
         const char *remoteHost,
         int32_t remoteRTPPort,
+        RTPSender::TransportMode rtpMode,
         int32_t remoteRTCPPort,
+        RTPSender::TransportMode rtcpMode,
         int32_t *localRTPPort) {
     if (trackIndex < 0) {
         if (mMode != MODE_UNDEFINED) {
@@ -126,12 +127,9 @@ status_t MediaSender::initAsync(
             err = mTSSender->initAsync(
                     remoteHost,
                     remoteRTPPort,
-                    transportMode,  // rtpMode
+                    rtpMode,
                     remoteRTCPPort,
-                    (transportMode == RTPSender::TRANSPORT_UDP
-                        && remoteRTCPPort >= 0)
-                        ? transportMode
-                        : RTPSender::TRANSPORT_NONE,  // rtcpMode
+                    rtcpMode,
                     localRTPPort);
 
             if (err != OK) {
@@ -180,11 +178,9 @@ status_t MediaSender::initAsync(
     status_t err = info->mSender->initAsync(
             remoteHost,
             remoteRTPPort,
-            transportMode,  // rtpMode
+            rtpMode,
             remoteRTCPPort,
-            (transportMode == RTPSender::TRANSPORT_UDP && remoteRTCPPort >= 0)
-                ? transportMode
-                : RTPSender::TRANSPORT_NONE,  // rtcpMode
+            rtcpMode,
             localRTPPort);
 
     if (err != OK) {
@@ -342,6 +338,22 @@ void MediaSender::onSenderNotify(const sp<AMessage> &msg) {
             CHECK(msg->findSize("numBytesQueued", &numBytesQueued));
 
             notifyNetworkStall(numBytesQueued);
+            break;
+        }
+
+        case kWhatInformSender:
+        {
+            int64_t avgLatencyUs;
+            CHECK(msg->findInt64("avgLatencyUs", &avgLatencyUs));
+
+            int64_t maxLatencyUs;
+            CHECK(msg->findInt64("maxLatencyUs", &maxLatencyUs));
+
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("what", kWhatInformSender);
+            notify->setInt64("avgLatencyUs", avgLatencyUs);
+            notify->setInt64("maxLatencyUs", maxLatencyUs);
+            notify->post();
             break;
         }
 

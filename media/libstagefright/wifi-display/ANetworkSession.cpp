@@ -565,7 +565,7 @@ status_t ANetworkSession::Session::writeMore() {
         mSawSendFailure = true;
     }
 
-#if 1
+#if 0
     int numBytesQueued;
     int res = ioctl(mSocket, SIOCOUTQ, &numBytesQueued);
     if (res == 0 && numBytesQueued > 50 * 1024) {
@@ -576,7 +576,7 @@ status_t ANetworkSession::Session::writeMore() {
         int64_t nowUs = ALooper::GetNowUs();
 
         if (mLastStallReportUs < 0ll
-                || nowUs > mLastStallReportUs + 500000ll) {
+                || nowUs > mLastStallReportUs + 100000ll) {
             sp<AMessage> msg = mNotify->dup();
             msg->setInt32("sessionID", mSessionID);
             msg->setInt32("reason", kWhatNetworkStall);
