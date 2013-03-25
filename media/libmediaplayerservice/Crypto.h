@@ -20,6 +20,9 @@
 
 #include <media/ICrypto.h>
 #include <utils/threads.h>
+#include <utils/KeyedVector.h>
+
+#include "SharedLibrary.h"
 
 namespace android {
 
@@ -32,7 +35,7 @@ struct Crypto : public BnCrypto {
 
     virtual status_t initCheck() const;
 
-    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) const;
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]);
 
     virtual status_t createPlugin(
             const uint8_t uuid[16], const void *data, size_t size);
@@ -56,11 +59,17 @@ private:
     mutable Mutex mLock;
 
     status_t mInitCheck;
-    void *mLibHandle;
+    sp<SharedLibrary> mLibrary;
     CryptoFactory *mFactory;
     CryptoPlugin *mPlugin;
 
-    status_t init();
+    static KeyedVector<Vector<uint8_t>, String8> mUUIDToLibraryPathMap;
+    static KeyedVector<String8, wp<SharedLibrary> > mLibraryPathToOpenLibraryMap;
+    static Mutex mMapLock;
+
+    void findFactoryForScheme(const uint8_t uuid[16]);
+    bool loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]);
+    void closeFactory();
 
     DISALLOW_EVIL_CONSTRUCTORS(Crypto);
 };
