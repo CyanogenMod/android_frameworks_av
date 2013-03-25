@@ -106,7 +106,9 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
             int32_t receiverRTPPort;
             CHECK_EQ((status_t)OK,
                      mReceiver->initAsync(
-                         RTPReceiver::TRANSPORT_UDP, &receiverRTPPort));
+                         RTPReceiver::TRANSPORT_UDP,  // rtpMode
+                         RTPReceiver::TRANSPORT_UDP,  // rtcpMode
+                         &receiverRTPPort));
 
             printf("picked receiverRTPPort %d\n", receiverRTPPort);
 
@@ -155,10 +157,11 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
             int32_t senderRTPPort;
             CHECK_EQ((status_t)OK,
                      mSender->initAsync(
-                         RTPSender::TRANSPORT_UDP,
                          host.c_str(),
                          receiverRTPPort,
+                         RTPSender::TRANSPORT_UDP,  // rtpMode
                          receiverRTPPort + 1,
+                         RTPSender::TRANSPORT_UDP,  // rtcpMode
                          &senderRTPPort));
 
             printf("picked senderRTPPort %d\n", senderRTPPort);
