@@ -51,8 +51,10 @@ WifiDisplaySink::WifiDisplaySink(
       mIDRFrameRequestPending(false),
       mTimeOffsetUs(0ll),
       mTimeOffsetValid(false),
-      mTargetLatencyUs(-1ll),
-      mSetupDeferred(false) {
+      mSetupDeferred(false),
+      mLatencyCount(0),
+      mLatencySumUs(0ll),
+      mLatencyMaxUs(0ll) {
     // We support any and all resolutions, but prefer 720p30
     mSinkSupportedVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280 x 720 p30
@@ -265,13 +267,20 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatReportLateness:
         {
-            int64_t latenessUs = mRenderer->getAvgLatenessUs();
+            if (mLatencyCount > 0) {
+                int64_t avgLatencyUs = mLatencySumUs / mLatencyCount;
 
-            ALOGI("avg. lateness = %lld ms",
-                  (latenessUs + mTargetLatencyUs) / 1000ll);
+                ALOGI("avg. latency = %lld ms (max %lld ms)",
+                      avgLatencyUs / 1000ll,
+                      mLatencyMaxUs / 1000ll);
 
-            mMediaReceiver->notifyLateness(
-                    0 /* trackIndex */, latenessUs);
+                mMediaReceiver->notifyLateness(
+                        0 /* trackIndex */, avgLatencyUs);
+            }
+
+            mLatencyCount = 0;
+            mLatencySumUs = 0ll;
+            mLatencyMaxUs = 0ll;
 
             msg->post(kReportLatenessEveryUs);
             break;
@@ -280,6 +289,30 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
         default:
             TRESPASS();
     }
+}
+
+static void dumpDelay(size_t trackIndex, int64_t timeUs) {
+    int64_t delayMs = (ALooper::GetNowUs() - timeUs) / 1000ll;
+
+    static const int64_t kMinDelayMs = 0;
+    static const int64_t kMaxDelayMs = 300;
+
+    const char *kPattern = "########################################";
+    size_t kPatternSize = strlen(kPattern);
+
+    int n = (kPatternSize * (delayMs - kMinDelayMs))
+                / (kMaxDelayMs - kMinDelayMs);
+
+    if (n < 0) {
+        n = 0;
+    } else if ((size_t)n > kPatternSize) {
+        n = kPatternSize;
+    }
+
+    ALOGI("[%lld]: (%4lld ms) %s",
+          timeUs / 1000,
+          delayMs,
+          kPattern + kPatternSize - n);
 }
 
 void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
@@ -319,24 +352,6 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
 
             CHECK(mTimeOffsetValid);
 
-            int64_t latencyUs = 200000ll;  // 200ms by default
-
-            char val[PROPERTY_VALUE_MAX];
-            if (property_get("media.wfd-sink.latency", val, NULL)) {
-                char *end;
-                int64_t x = strtoll(val, &end, 10);
-
-                if (end > val && *end == '\0' && x >= 0ll) {
-                    latencyUs = x;
-                }
-            }
-
-            if (latencyUs != mTargetLatencyUs) {
-                mTargetLatencyUs = latencyUs;
-
-                ALOGI("Assuming %lld ms of latency.", latencyUs / 1000ll);
-            }
-
             sp<ABuffer> accessUnit;
             CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
@@ -345,12 +360,23 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
 
             // We are the timesync _client_,
             // client time = server time - time offset.
-            timeUs += mTargetLatencyUs - mTimeOffsetUs;
+            timeUs -= mTimeOffsetUs;
 
             accessUnit->meta()->setInt64("timeUs", timeUs);
 
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
+
+            int64_t nowUs = ALooper::GetNowUs();
+            int64_t delayUs = nowUs - timeUs;
+
+            mLatencySumUs += delayUs;
+            if (mLatencyCount == 0 || delayUs > mLatencyMaxUs) {
+                mLatencyMaxUs = delayUs;
+            }
+            ++mLatencyCount;
+
+            // dumpDelay(trackIndex, timeUs);
 
 #if USE_TUNNEL_RENDERER
             mRenderer->queueBuffer(accessUnit);
