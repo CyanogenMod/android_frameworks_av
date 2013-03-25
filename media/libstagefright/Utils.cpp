@@ -471,5 +471,24 @@ AString MakeUserAgent() {
     return ua;
 }
 
+status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
+                           const sp<MetaData>& meta)
+{
+    // stub
+    return OK;
+}
+
+status_t mapMimeToAudioFormat(audio_format_t& format, const char* mime)
+{
+    // stub
+    return BAD_VALUE;
+}
+
+bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, bool isStreaming)
+{
+    // stub
+    return false;
+}
+
 }  // namespace android
 

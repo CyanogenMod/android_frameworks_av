@@ -53,7 +53,8 @@ public:
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = 0,
-                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE) = 0;
+                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                        const audio_offload_info_t *offloadInfo = NULL) = 0;
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
                                  int session = 0) = 0;
@@ -95,6 +96,9 @@ public:
     virtual status_t queryDefaultPreProcessing(int audioSession,
                                               effect_descriptor_t *descriptors,
                                               uint32_t *count) = 0;
+   // Check if offload is possible for given format, stream type, sample rate,
+    // bit rate, duration, video and streaming or offload property is enabled
+    virtual bool isOffloadSupported(const audio_offload_info_t& info) = 0;
 };
 
 

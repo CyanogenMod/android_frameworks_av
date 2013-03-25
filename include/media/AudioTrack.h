@@ -60,6 +60,8 @@ public:
                                     // Not currently used by android.media.AudioTrack.
         EVENT_NEW_IAUDIOTRACK = 6,  // IAudioTrack was re-created, either due to re-routing and
                                     // voluntary invalidation by mediaserver, or mediaserver crash.
+        EVENT_STREAM_END = 7,       // Sent after all the buffers queued in AF and HW are played
+                                    // back (after stop is called)
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -175,7 +177,8 @@ public:
                                     void* user           = NULL,
                                     int notificationFrames = 0,
                                     int sessionId        = 0,
-                                    transfer_type transferType = TRANSFER_DEFAULT);
+                                    transfer_type transferType = TRANSFER_DEFAULT,
+                                    const audio_offload_info_t *offloadInfo = NULL);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -198,7 +201,8 @@ public:
                                     void* user          = NULL,
                                     int notificationFrames = 0,
                                     int sessionId       = 0,
-                                    transfer_type transferType = TRANSFER_DEFAULT);
+                                    transfer_type transferType = TRANSFER_DEFAULT,
+                                    const audio_offload_info_t *offloadInfo = NULL);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -233,7 +237,8 @@ public:
                             const sp<IMemory>& sharedBuffer = 0,
                             bool threadCanCallJava = false,
                             int sessionId       = 0,
-                            transfer_type transferType = TRANSFER_DEFAULT);
+                            transfer_type transferType = TRANSFER_DEFAULT,
+                            const audio_offload_info_t *offloadInfo = NULL);
 
     /* Result of constructing the AudioTrack. This must be checked
      * before using any AudioTrack API (except for set()), because using
@@ -521,6 +526,15 @@ private:
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
 public:
 
+//EL_FIXME to be reconciled with new obtainBuffer() return codes and control block proxy
+//            enum {
+//            NO_MORE_BUFFERS = 0x80000001,   // same name in AudioFlinger.h, ok to be different value
+//            TEAR_DOWN       = 0x80000002,
+//            STOPPED = 1,
+//            STREAM_END_WAIT,
+//            STREAM_END
+//        };
+
     /* Release a filled buffer of "audioBuffer->frameCount" frames for AudioFlinger to process. */
     // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed
             void        releaseBuffer(Buffer* audioBuffer);
@@ -549,6 +563,15 @@ public:
      * and thus which resulted in an underrun.  Reset to zero by stop().
      */
             uint32_t    getUnderrunFrames() const;
+
+    /* Get the flags */
+            audio_output_flags_t getFlags() const { return mFlags; }
+
+    /* Set parameters - only possible when using direct output */
+            status_t    setParameters(const String8& keyValuePairs);
+
+    /* Get parameters */
+            String8     getParameters(const String8& keys);
 
 protected:
     /* copying audio tracks is not allowed */
@@ -590,8 +613,11 @@ protected:
             //      NS_NEVER    never again
             static const nsecs_t NS_WHENEVER = -1, NS_INACTIVE = -2, NS_NEVER = -3;
             nsecs_t processAudioBuffer(const sp<AudioTrackThread>& thread);
+            status_t processStreamEnd(int32_t waitCount);
+
 
             // caller must hold lock on mLock for all _l methods
+
             status_t createTrack_l(audio_stream_type_t streamType,
                                  uint32_t sampleRate,
                                  audio_format_t format,
@@ -606,6 +632,8 @@ protected:
 
             void setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount);
             audio_io_handle_t getOutput_l();
+
+            status_t getPosition_l(uint32_t *position);
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);

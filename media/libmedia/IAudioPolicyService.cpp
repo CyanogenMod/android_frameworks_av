@@ -56,7 +56,8 @@ enum {
     GET_DEVICES_FOR_STREAM,
     QUERY_DEFAULT_PRE_PROCESSING,
     SET_EFFECT_ENABLED,
-    IS_STREAM_ACTIVE_REMOTELY
+    IS_STREAM_ACTIVE_REMOTELY,
+    IS_OFFLOAD_SUPPORTED
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -126,7 +127,8 @@ public:
                                         uint32_t samplingRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        audio_output_flags_t flags)
+                                        audio_output_flags_t flags,
+                                        const audio_offload_info_t *offloadInfo)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
@@ -373,6 +375,12 @@ public:
         }
         *count = retCount;
         return status;
+    }
+
+    virtual bool isOffloadSupported(const audio_offload_info_t& info)
+    {
+        // stub function
+        return false;
     }
 };
 

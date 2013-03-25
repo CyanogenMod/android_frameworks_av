@@ -128,8 +128,10 @@ public:
     // - BAD_VALUE: invalid parameter
     // NOTE: this feature is not supported on all hardware platforms and it is
     // necessary to check returned status before using the returned values.
-    static status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
-            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+    static status_t getRenderPosition(audio_io_handle_t output,
+                                      size_t *halFrames,
+                                      size_t *dspFrames,
+                                      audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
     static size_t getInputFramesLost(audio_io_handle_t ioHandle);
@@ -197,7 +199,8 @@ public:
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
-                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
+                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                        const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
                                 int session = 0);
@@ -244,6 +247,10 @@ public:
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     static uint32_t getPrimaryOutputSamplingRate();
     static size_t getPrimaryOutputFrameCount();
+
+    // Check if hw offload is possible for given format, stream type, sample rate,
+    // bit rate, duration, video and streaming or offload property is enabled
+    static bool isOffloadSupported(const audio_offload_info_t& info);
 
     // ----------------------------------------------------------------------------
 

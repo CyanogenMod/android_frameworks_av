@@ -94,7 +94,8 @@ class MediaPlayerService : public BnMediaPlayerService
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount,
                 AudioCallback cb, void *cookie,
-                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                const audio_offload_info_t *offloadInfo = NULL);
 
         virtual void            start();
         virtual ssize_t         write(const void* buffer, size_t size);
@@ -195,7 +196,8 @@ class MediaPlayerService : public BnMediaPlayerService
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount = 1,
                 AudioCallback cb = NULL, void *cookie = NULL,
-                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE);
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                const audio_offload_info_t *offloadInfo = NULL);
 
         virtual void            start();
         virtual ssize_t         write(const void* buffer, size_t size);

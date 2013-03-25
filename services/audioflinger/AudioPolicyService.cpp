@@ -222,15 +222,16 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags)
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
 {
     if (mpAudioPolicy == NULL) {
         return 0;
     }
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
-    return mpAudioPolicy->get_output(mpAudioPolicy, stream, samplingRate, format, channelMask,
-                                        flags);
+    return mpAudioPolicy->get_output(mpAudioPolicy, stream, samplingRate,
+                                    format, channelMask, flags, offloadInfo);
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -1055,6 +1056,11 @@ int AudioPolicyService::setVoiceVolume(float volume, int delayMs)
     return (int)mAudioCommandThread->voiceVolumeCommand(volume, delayMs);
 }
 
+bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
+{
+    return false;   // stub function
+}
+
 // ----------------------------------------------------------------------------
 // Audio pre-processing configuration
 // ----------------------------------------------------------------------------
@@ -1387,7 +1393,8 @@ static audio_io_handle_t aps_open_output_on_module(void *service,
                                                    audio_format_t *pFormat,
                                                    audio_channel_mask_t *pChannelMask,
                                                    uint32_t *pLatencyMs,
-                                                   audio_output_flags_t flags)
+                                                   audio_output_flags_t flags,
+                                                   const audio_offload_info_t *offloadInfo)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
