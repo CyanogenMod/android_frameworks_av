@@ -32,9 +32,6 @@ struct DirectRenderer;
 struct MediaReceiver;
 struct ParsedMessage;
 struct TimeSyncer;
-struct TunnelRenderer;
-
-#define USE_TUNNEL_RENDERER     0
 
 // Represents the RTSP client acting as a wifi display sink.
 // Connects to a wifi display source and renders the incoming
@@ -117,12 +114,7 @@ private:
 
     sp<ALooper> mMediaReceiverLooper;
     sp<MediaReceiver> mMediaReceiver;
-
-#if USE_TUNNEL_RENDERER
-    sp<TunnelRenderer> mRenderer;
-#else
     sp<DirectRenderer> mRenderer;
-#endif
 
     AString mPlaybackSessionID;
     int32_t mPlaybackSessionTimeoutSecs;
