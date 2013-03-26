@@ -885,6 +885,11 @@ bool ToneGenerator::startTone(tone_type toneType, int durationMs) {
     if ((toneType < 0) || (toneType >= NUM_TONES))
         return lResult;
 
+    toneType = getToneForRegion(toneType);
+    if (toneType == TONE_CDMA_SIGNAL_OFF) {
+        return true;
+    }
+
     if (mState == TONE_IDLE) {
         ALOGV("startTone: try to re-init AudioTrack");
         if (!initAudioTrack()) {
@@ -897,7 +902,6 @@ bool ToneGenerator::startTone(tone_type toneType, int durationMs) {
     mLock.lock();
 
     // Get descriptor for requested tone
-    toneType = getToneForRegion(toneType);
     mpNewToneDesc = &sToneDescriptors[toneType];
 
     mDurationMs = durationMs;
