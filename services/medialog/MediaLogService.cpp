@@ -19,6 +19,7 @@
 
 #include <sys/mman.h>
 #include <utils/Log.h>
+#include <binder/PermissionCache.h>
 #include <media/nbaio/NBLog.h>
 #include <private/android_filesystem_config.h>
 #include "MediaLogService.h"
@@ -55,6 +56,14 @@ void MediaLogService::unregisterWriter(const sp<IMemory>& shared)
 
 status_t MediaLogService::dump(int fd, const Vector<String16>& args)
 {
+    // FIXME merge with similar but not identical code at services/audioflinger/ServiceUtilities.cpp
+    static const String16 sDump("android.permission.DUMP");
+    if (!(IPCThreadState::self()->getCallingUid() == AID_MEDIA ||
+            PermissionCache::checkCallingPermission(sDump))) {
+        fdprintf(fd, "Permission denied.\n");
+        return NO_ERROR;
+    }
+
     Vector<NamedReader> namedReaders;
     {
         Mutex::Autolock _l(mLock);
