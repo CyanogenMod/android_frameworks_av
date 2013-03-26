@@ -21,7 +21,7 @@
 #include "include/ESDS.h"
 
 #include <arpa/inet.h>
-
+#include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -455,6 +455,21 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
 #endif
 }
 
+AString MakeUserAgent() {
+    AString ua;
+    ua.append("stagefright/1.2 (Linux;Android ");
+
+#if (PROPERTY_VALUE_MAX < 8)
+#error "PROPERTY_VALUE_MAX must be at least 8"
+#endif
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.build.version.release", value, "Unknown");
+    ua.append(value);
+    ua.append(")");
+
+    return ua;
+}
 
 }  // namespace android
 
