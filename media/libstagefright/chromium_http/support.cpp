@@ -36,8 +36,8 @@
 #include "include/ChromiumHTTPDataSource.h"
 
 #include <cutils/log.h>
-#include <cutils/properties.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/Utils.h>
 #include <string>
 
 namespace android {
@@ -156,19 +156,7 @@ net::NetLog::LogLevel SfNetLog::GetLogLevel() const {
 ////////////////////////////////////////////////////////////////////////////////
 
 SfRequestContext::SfRequestContext() {
-    AString ua;
-    ua.append("stagefright/1.2 (Linux;Android ");
-
-#if (PROPERTY_VALUE_MAX < 8)
-#error "PROPERTY_VALUE_MAX must be at least 8"
-#endif
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.build.version.release", value, "Unknown");
-    ua.append(value);
-    ua.append(")");
-
-    mUserAgent = ua.c_str();
+    mUserAgent = MakeUserAgent().c_str();
 
     set_net_log(new SfNetLog());
 

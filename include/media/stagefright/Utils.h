@@ -18,6 +18,7 @@
 
 #define UTILS_H_
 
+#include <media/stagefright/foundation/AString.h>
 #include <stdint.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -44,6 +45,8 @@ status_t convertMetaDataToMessage(
         const sp<MetaData> &meta, sp<AMessage> *format);
 void convertMessageToMetaData(
         const sp<AMessage> &format, sp<MetaData> &meta);
+
+AString MakeUserAgent();
 
 }  // namespace android
 
