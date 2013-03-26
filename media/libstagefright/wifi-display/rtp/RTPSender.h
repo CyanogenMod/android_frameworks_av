@@ -37,6 +37,7 @@ struct RTPSender : public RTPBase, public AHandler {
         kWhatInitDone,
         kWhatError,
         kWhatNetworkStall,
+        kWhatInformSender,
     };
     RTPSender(
             const sp<ANetworkSession> &netSession,
@@ -105,6 +106,7 @@ private:
     status_t onRTCPData(const sp<ABuffer> &data);
     status_t parseReceiverReport(const uint8_t *data, size_t size);
     status_t parseTSFB(const uint8_t *data, size_t size);
+    status_t parseAPP(const uint8_t *data, size_t size);
 
     void notifyInitDone(status_t err);
     void notifyError(status_t err);

@@ -91,8 +91,8 @@ status_t RTPSender::initAsync(
     CHECK_NE(rtpMode, TRANSPORT_TCP_INTERLEAVED);
     CHECK_NE(rtcpMode, TRANSPORT_TCP_INTERLEAVED);
 
-    if (rtcpMode == TRANSPORT_NONE && remoteRTCPPort >= 0
-            || rtcpMode != TRANSPORT_NONE && remoteRTCPPort < 0) {
+    if ((rtcpMode == TRANSPORT_NONE && remoteRTCPPort >= 0)
+            || (rtcpMode != TRANSPORT_NONE && remoteRTCPPort < 0)) {
         return INVALID_OPERATION;
     }
 
@@ -616,6 +616,7 @@ status_t RTPSender::onRTCPData(const sp<ABuffer> &buffer) {
                 break;
 
             case 204:  // APP
+                parseAPP(data, headerLength);
                 break;
 
             case 205:  // TSFB (transport layer specific feedback)
@@ -716,6 +717,21 @@ status_t RTPSender::parseTSFB(const uint8_t *data, size_t size) {
                 ALOGI("have seq numbers from %d - %d", earliest, latest);
             }
         }
+    }
+
+    return OK;
+}
+
+status_t RTPSender::parseAPP(const uint8_t *data, size_t size) {
+    if (!memcmp("late", &data[8], 4)) {
+        int64_t avgLatencyUs = (int64_t)U64_AT(&data[12]);
+        int64_t maxLatencyUs = (int64_t)U64_AT(&data[20]);
+
+        sp<AMessage> notify = mNotify->dup();
+        notify->setInt32("what", kWhatInformSender);
+        notify->setInt64("avgLatencyUs", avgLatencyUs);
+        notify->setInt64("maxLatencyUs", maxLatencyUs);
+        notify->post();
     }
 
     return OK;
