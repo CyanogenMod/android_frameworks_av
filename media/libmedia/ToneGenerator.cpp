@@ -976,20 +976,25 @@ void ToneGenerator::stopTone() {
     ALOGV("stopTone");
 
     mLock.lock();
-    if (mState == TONE_PLAYING || mState == TONE_STARTING || mState == TONE_RESTARTING) {
-        mState = TONE_STOPPING;
+    if (mState != TONE_IDLE && mState != TONE_INIT) {
+        if (mState == TONE_PLAYING || mState == TONE_STARTING || mState == TONE_RESTARTING) {
+            mState = TONE_STOPPING;
+        }
         ALOGV("waiting cond");
         status_t lStatus = mWaitCbkCond.waitRelative(mLock, seconds(3));
         if (lStatus == NO_ERROR) {
+            // If the tone was restarted exit now before calling clearWaveGens();
+            if (mState != TONE_INIT) {
+                return;
+            }
             ALOGV("track stop complete, time %d", (unsigned int)(systemTime()/1000000));
         } else {
             ALOGE("--- Stop timed out");
             mState = TONE_IDLE;
             mpAudioTrack->stop();
         }
+        clearWaveGens();
     }
-
-    clearWaveGens();
 
     mLock.unlock();
 }
@@ -1299,7 +1304,7 @@ audioCallback_EndLoop:
         }
 
         if (lSignal)
-            lpToneGen->mWaitCbkCond.signal();
+            lpToneGen->mWaitCbkCond.broadcast();
         lpToneGen->mLock.unlock();
     }
 }
