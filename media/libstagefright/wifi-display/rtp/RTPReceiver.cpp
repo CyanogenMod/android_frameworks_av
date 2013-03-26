@@ -567,8 +567,18 @@ status_t RTPReceiver::connect(
     return OK;
 }
 
-status_t RTPReceiver::notifyLateness(int64_t latenessUs) {
-    sp<ABuffer> buf = new ABuffer(20);
+status_t RTPReceiver::informSender(const sp<AMessage> &params) {
+    if (!mRTCPConnected) {
+        return INVALID_OPERATION;
+    }
+
+    int64_t avgLatencyUs;
+    CHECK(params->findInt64("avgLatencyUs", &avgLatencyUs));
+
+    int64_t maxLatencyUs;
+    CHECK(params->findInt64("maxLatencyUs", &maxLatencyUs));
+
+    sp<ABuffer> buf = new ABuffer(28);
 
     uint8_t *ptr = buf->data();
     ptr[0] = 0x80 | 0;
@@ -587,14 +597,23 @@ status_t RTPReceiver::notifyLateness(int64_t latenessUs) {
     ptr[10] = 't';
     ptr[11] = 'e';
 
-    ptr[12] = latenessUs >> 56;
-    ptr[13] = (latenessUs >> 48) & 0xff;
-    ptr[14] = (latenessUs >> 40) & 0xff;
-    ptr[15] = (latenessUs >> 32) & 0xff;
-    ptr[16] = (latenessUs >> 24) & 0xff;
-    ptr[17] = (latenessUs >> 16) & 0xff;
-    ptr[18] = (latenessUs >> 8) & 0xff;
-    ptr[19] = latenessUs & 0xff;
+    ptr[12] = avgLatencyUs >> 56;
+    ptr[13] = (avgLatencyUs >> 48) & 0xff;
+    ptr[14] = (avgLatencyUs >> 40) & 0xff;
+    ptr[15] = (avgLatencyUs >> 32) & 0xff;
+    ptr[16] = (avgLatencyUs >> 24) & 0xff;
+    ptr[17] = (avgLatencyUs >> 16) & 0xff;
+    ptr[18] = (avgLatencyUs >> 8) & 0xff;
+    ptr[19] = avgLatencyUs & 0xff;
+
+    ptr[20] = maxLatencyUs >> 56;
+    ptr[21] = (maxLatencyUs >> 48) & 0xff;
+    ptr[22] = (maxLatencyUs >> 40) & 0xff;
+    ptr[23] = (maxLatencyUs >> 32) & 0xff;
+    ptr[24] = (maxLatencyUs >> 24) & 0xff;
+    ptr[25] = (maxLatencyUs >> 16) & 0xff;
+    ptr[26] = (maxLatencyUs >> 8) & 0xff;
+    ptr[27] = maxLatencyUs & 0xff;
 
     mNetSession->sendRequest(mRTCPSessionID, buf->data(), buf->size());
 

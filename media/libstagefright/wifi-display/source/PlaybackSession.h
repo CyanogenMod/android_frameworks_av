@@ -44,8 +44,11 @@ struct WifiDisplaySource::PlaybackSession : public AHandler {
             const char *path = NULL);
 
     status_t init(
-            const char *clientIP, int32_t clientRtp, int32_t clientRtcp,
-            RTPSender::TransportMode transportMode,
+            const char *clientIP,
+            int32_t clientRtp,
+            RTPSender::TransportMode rtpMode,
+            int32_t clientRtcp,
+            RTPSender::TransportMode rtcpMode,
             bool enableAudio,
             bool usePCMAudio,
             bool enableVideo,
@@ -148,6 +151,8 @@ private:
 
     void schedulePullExtractor();
     void onPullExtractor();
+
+    void onSinkFeedback(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaybackSession);
 };

@@ -56,7 +56,7 @@ struct RTPReceiver : public RTPBase, public AHandler {
             int32_t remoteRTPPort,
             int32_t remoteRTCPPort);
 
-    status_t notifyLateness(int64_t latenessUs);
+    status_t informSender(const sp<AMessage> &params);
 
 protected:
     virtual ~RTPReceiver();
