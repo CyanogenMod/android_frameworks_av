@@ -43,6 +43,7 @@ struct MediaSender : public AHandler {
         kWhatInitDone,
         kWhatError,
         kWhatNetworkStall,
+        kWhatInformSender,
     };
 
     MediaSender(
@@ -59,10 +60,11 @@ struct MediaSender : public AHandler {
     // If trackIndex == -1, initialize for transport stream muxing.
     status_t initAsync(
             ssize_t trackIndex,
-            RTPSender::TransportMode transportMode,
             const char *remoteHost,
             int32_t remoteRTPPort,
+            RTPSender::TransportMode rtpMode,
             int32_t remoteRTCPPort,
+            RTPSender::TransportMode rtcpMode,
             int32_t *localRTPPort);
 
     status_t queueAccessUnit(

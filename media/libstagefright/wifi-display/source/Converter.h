@@ -70,6 +70,9 @@ struct Converter : public AHandler {
 
     void shutdownAsync();
 
+    int32_t getVideoBitrate() const;
+    void setVideoBitrate(int32_t bitrate);
+
 protected:
     virtual ~Converter();
     virtual void onMessageReceived(const sp<AMessage> &msg);

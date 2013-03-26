@@ -43,7 +43,8 @@ struct MediaReceiver : public AHandler {
             const sp<AMessage> &notify);
 
     ssize_t addTrack(
-            RTPReceiver::TransportMode transportMode,
+            RTPReceiver::TransportMode rtpMode,
+            RTPReceiver::TransportMode rtcpMode,
             int32_t *localRTPPort);
 
     status_t connectTrack(
@@ -60,7 +61,7 @@ struct MediaReceiver : public AHandler {
     };
     status_t initAsync(Mode mode);
 
-    status_t notifyLateness(size_t trackIndex, int64_t latenessUs);
+    status_t informSender(size_t trackIndex, const sp<AMessage> &params);
 
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
