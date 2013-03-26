@@ -28,13 +28,13 @@
 #include "ASessionDescription.h"
 
 #include <ctype.h>
-#include <cutils/properties.h>
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/Utils.h>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -55,19 +55,6 @@ static int64_t kDefaultKeepAliveTimeoutUs = 60000000ll;
 static int64_t kPauseDelayUs = 3000000ll;
 
 namespace android {
-
-static void MakeUserAgentString(AString *s) {
-    s->setTo("stagefright/1.1 (Linux;Android ");
-
-#if (PROPERTY_VALUE_MAX < 8)
-#error "PROPERTY_VALUE_MAX must be at least 8"
-#endif
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.build.version.release", value, "Unknown");
-    s->append(value);
-    s->append(")");
-}
 
 static bool GetAttribute(const char *s, const char *key, AString *value) {
     value->clear();
@@ -279,8 +266,7 @@ struct MyHandler : public AHandler {
 
         data[offset++] = 6;  // TOOL
 
-        AString tool;
-        MakeUserAgentString(&tool);
+        AString tool = MakeUserAgent();
 
         data[offset++] = tool.size();
 

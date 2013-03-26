@@ -113,6 +113,8 @@ private:
     static const int64_t kPlaybackSessionTimeoutUs =
         kPlaybackSessionTimeoutSecs * 1000000ll;
 
+    static const AString sUserAgent;
+
     State mState;
     VideoFormats mSupportedSourceVideoFormats;
     sp<ANetworkSession> mNetSession;

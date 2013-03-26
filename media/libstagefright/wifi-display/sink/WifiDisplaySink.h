@@ -96,6 +96,8 @@ private:
 
     static const int64_t kReportLatenessEveryUs = 1000000ll;
 
+    static const AString sUserAgent;
+
     State mState;
     uint32_t mFlags;
     VideoFormats mSinkSupportedVideoFormats;

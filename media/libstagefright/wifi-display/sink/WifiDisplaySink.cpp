@@ -30,8 +30,12 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/Utils.h>
 
 namespace android {
+
+// static
+const AString WifiDisplaySink::sUserAgent = MakeUserAgent();
 
 WifiDisplaySink::WifiDisplaySink(
         uint32_t flags,
@@ -892,7 +896,7 @@ void WifiDisplaySink::AppendCommonResponse(AString *response, int32_t cseq) {
     response->append(buf);
     response->append("\r\n");
 
-    response->append("User-Agent: stagefright/1.1 (Linux;Android 4.1)\r\n");
+    response->append(StringPrintf("User-Agent: %s\r\n", sUserAgent.c_str()));
 
     if (cseq >= 0) {
         response->append(StringPrintf("CSeq: %d\r\n", cseq));
