@@ -135,7 +135,9 @@ bool Converter::needToManuallyPrependSPSPPS() const {
     return mNeedToManuallyPrependSPSPPS;
 }
 
-static int32_t getBitrate(const char *propName, int32_t defaultValue) {
+// static
+int32_t Converter::GetInt32Property(
+        const char *propName, int32_t defaultValue) {
     char val[PROPERTY_VALUE_MAX];
     if (property_get(propName, val, NULL)) {
         char *end;
@@ -185,8 +187,8 @@ status_t Converter::initEncoder() {
 
     mOutputFormat->setString("mime", outputMIME.c_str());
 
-    int32_t audioBitrate = getBitrate("media.wfd.audio-bitrate", 128000);
-    int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
+    int32_t audioBitrate = GetInt32Property("media.wfd.audio-bitrate", 128000);
+    int32_t videoBitrate = GetInt32Property("media.wfd.video-bitrate", 5000000);
     mPrevVideoBitrate = videoBitrate;
 
     ALOGI("using audio bitrate of %d bps, video bitrate of %d bps",
@@ -622,20 +624,6 @@ status_t Converter::feedEncoderInputBuffers() {
 }
 
 status_t Converter::doMoreWork() {
-#if 0
-    if (mIsVideo) {
-        int32_t videoBitrate = getBitrate("media.wfd.video-bitrate", 5000000);
-        if (videoBitrate != mPrevVideoBitrate) {
-            sp<AMessage> params = new AMessage;
-
-            params->setInt32("videoBitrate", videoBitrate);
-            mEncoder->setParameters(params);
-
-            mPrevVideoBitrate = videoBitrate;
-        }
-    }
-#endif
-
     status_t err;
 
     for (;;) {

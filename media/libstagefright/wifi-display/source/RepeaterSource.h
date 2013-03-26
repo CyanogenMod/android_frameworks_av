@@ -28,6 +28,9 @@ struct RepeaterSource : public MediaSource {
     // send updates in a while, this is its wakeup call.
     void wakeUp();
 
+    double getFrameRate() const;
+    void setFrameRate(double rateHz);
+
 protected:
     virtual ~RepeaterSource();
 
