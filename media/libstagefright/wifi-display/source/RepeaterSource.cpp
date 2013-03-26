@@ -27,6 +27,25 @@ RepeaterSource::~RepeaterSource() {
     CHECK(!mStarted);
 }
 
+double RepeaterSource::getFrameRate() const {
+    return mRateHz;
+}
+
+void RepeaterSource::setFrameRate(double rateHz) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (rateHz == mRateHz) {
+        return;
+    }
+
+    if (mStartTimeUs >= 0ll) {
+        int64_t nextTimeUs = mStartTimeUs + (mFrameCount * 1000000ll) / mRateHz;
+        mStartTimeUs = nextTimeUs;
+        mFrameCount = 0;
+    }
+    mRateHz = rateHz;
+}
+
 status_t RepeaterSource::start(MetaData *params) {
     CHECK(!mStarted);
 
