@@ -73,6 +73,8 @@ struct Converter : public AHandler {
     int32_t getVideoBitrate() const;
     void setVideoBitrate(int32_t bitrate);
 
+    static int32_t GetInt32Property(const char *propName, int32_t defaultValue);
+
 protected:
     virtual ~Converter();
     virtual void onMessageReceived(const sp<AMessage> &msg);
