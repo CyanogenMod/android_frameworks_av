@@ -47,7 +47,8 @@ MediaReceiver::~MediaReceiver() {
 }
 
 ssize_t MediaReceiver::addTrack(
-        RTPReceiver::TransportMode transportMode,
+        RTPReceiver::TransportMode rtpMode,
+        RTPReceiver::TransportMode rtcpMode,
         int32_t *localRTPPort) {
     if (mMode != MODE_UNDEFINED) {
         return INVALID_OPERATION;
@@ -74,10 +75,8 @@ ssize_t MediaReceiver::addTrack(
             97, RTPReceiver::PACKETIZATION_H264);
 
     status_t err = info.mReceiver->initAsync(
-            transportMode,  // rtpMode
-            transportMode == RTPReceiver::TRANSPORT_UDP
-                ? transportMode
-                : RTPReceiver::TRANSPORT_NONE,  // rtcpMode
+            rtpMode,
+            rtcpMode,
             localRTPPort);
 
     if (err != OK) {
@@ -314,13 +313,14 @@ void MediaReceiver::postAccessUnit(
     notify->post();
 }
 
-status_t MediaReceiver::notifyLateness(size_t trackIndex, int64_t latenessUs) {
+status_t MediaReceiver::informSender(
+        size_t trackIndex, const sp<AMessage> &params) {
     if (trackIndex >= mTrackInfos.size()) {
         return -ERANGE;
     }
 
     TrackInfo *info = &mTrackInfos.editItemAt(trackIndex);
-    return info->mReceiver->notifyLateness(latenessUs);
+    return info->mReceiver->informSender(params);
 }
 
 }  // namespace android

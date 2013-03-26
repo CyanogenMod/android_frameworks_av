@@ -1159,7 +1159,7 @@ status_t WifiDisplaySource::onSetupRequest(
         return ERROR_MALFORMED;
     }
 
-    RTPSender::TransportMode transportMode = RTPSender::TRANSPORT_UDP;
+    RTPSender::TransportMode rtpMode = RTPSender::TRANSPORT_UDP;
 
     int clientRtp, clientRtcp;
     if (transport.startsWith("RTP/AVP/TCP;")) {
@@ -1168,7 +1168,7 @@ status_t WifiDisplaySource::onSetupRequest(
                     transport.c_str(), "interleaved", &interleaved)
                 && sscanf(interleaved.c_str(), "%d-%d",
                           &clientRtp, &clientRtcp) == 2) {
-            transportMode = RTPSender::TRANSPORT_TCP_INTERLEAVED;
+            rtpMode = RTPSender::TRANSPORT_TCP_INTERLEAVED;
         } else {
             bool badRequest = false;
 
@@ -1190,7 +1190,7 @@ status_t WifiDisplaySource::onSetupRequest(
                 return ERROR_MALFORMED;
             }
 
-            transportMode = RTPSender::TRANSPORT_TCP;
+            rtpMode = RTPSender::TRANSPORT_TCP;
         }
     } else if (transport.startsWith("RTP/AVP;unicast;")
             || transport.startsWith("RTP/AVP/UDP;unicast;")) {
@@ -1249,11 +1249,17 @@ status_t WifiDisplaySource::onSetupRequest(
         return ERROR_MALFORMED;
     }
 
+    RTPSender::TransportMode rtcpMode = RTPSender::TRANSPORT_UDP;
+    if (clientRtcp < 0) {
+        rtcpMode = RTPSender::TRANSPORT_NONE;
+    }
+
     status_t err = playbackSession->init(
             mClientInfo.mRemoteIP.c_str(),
             clientRtp,
+            rtpMode,
             clientRtcp,
-            transportMode,
+            rtcpMode,
             mSinkSupportsAudio,
             mUsingPCMAudio,
             mSinkSupportsVideo,
@@ -1282,7 +1288,7 @@ status_t WifiDisplaySource::onSetupRequest(
     AString response = "RTSP/1.0 200 OK\r\n";
     AppendCommonResponse(&response, cseq, playbackSessionID);
 
-    if (transportMode == RTPSender::TRANSPORT_TCP_INTERLEAVED) {
+    if (rtpMode == RTPSender::TRANSPORT_TCP_INTERLEAVED) {
         response.append(
                 StringPrintf(
                     "Transport: RTP/AVP/TCP;interleaved=%d-%d;",
@@ -1291,7 +1297,7 @@ status_t WifiDisplaySource::onSetupRequest(
         int32_t serverRtp = playbackSession->getRTPPort();
 
         AString transportString = "UDP";
-        if (transportMode == RTPSender::TRANSPORT_TCP) {
+        if (rtpMode == RTPSender::TRANSPORT_TCP) {
             transportString = "TCP";
         }
 
