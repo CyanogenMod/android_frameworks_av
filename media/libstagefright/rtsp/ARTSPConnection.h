@@ -74,6 +74,8 @@ private:
 
     static const int64_t kSelectTimeoutUs;
 
+    static const AString sUserAgent;
+
     bool mUIDValid;
     uid_t mUID;
     State mState;
@@ -88,8 +90,6 @@ private:
     KeyedVector<int32_t, sp<AMessage> > mPendingRequests;
 
     sp<AMessage> mObserveBinaryMessage;
-
-    AString mUserAgent;
 
     void performDisconnect();
 
@@ -121,8 +121,6 @@ private:
 
     static bool ParseSingleUnsignedLong(
             const char *from, unsigned long *x);
-
-    static void MakeUserAgent(AString *userAgent);
 
     DISALLOW_EVIL_CONSTRUCTORS(ARTSPConnection);
 };

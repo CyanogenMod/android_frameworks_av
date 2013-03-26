@@ -34,6 +34,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/Utils.h>
 
 #include <arpa/inet.h>
 #include <cutils/properties.h>
@@ -41,6 +42,9 @@
 #include <ctype.h>
 
 namespace android {
+
+// static
+const AString WifiDisplaySource::sUserAgent = MakeUserAgent();
 
 WifiDisplaySource::WifiDisplaySource(
         const sp<ANetworkSession> &netSession,
@@ -1559,7 +1563,7 @@ void WifiDisplaySource::AppendCommonResponse(
     response->append(buf);
     response->append("\r\n");
 
-    response->append("Server: Mine/1.0\r\n");
+    response->append(StringPrintf("Server: %s\r\n", sUserAgent.c_str()));
 
     if (cseq >= 0) {
         response->append(StringPrintf("CSeq: %d\r\n", cseq));
