@@ -271,6 +271,7 @@ private:
     float mVolume;  // Volume applied to audio track
     audio_stream_type_t mStreamType; // Audio stream used for output
     unsigned int mProcessSize;  // Size of audio blocks generated at a time by audioCallback() (in PCM frames).
+    struct timespec mStartTime; // tone start time: needed to guaranty actual tone duration
 
     bool initAudioTrack();
     static void audioCallback(int event, void* user, void *info);
