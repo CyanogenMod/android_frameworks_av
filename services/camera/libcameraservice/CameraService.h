@@ -45,7 +45,8 @@ class MediaPlayer;
 class CameraService :
     public BinderService<CameraService>,
     public BnCameraService,
-    public IBinder::DeathRecipient
+    public IBinder::DeathRecipient,
+    public camera_module_callbacks_t
 {
     friend class BinderService<CameraService>;
 public:
@@ -57,6 +58,11 @@ public:
 
                         CameraService();
     virtual             ~CameraService();
+
+    /////////////////////////////////////////////////////////////////////
+    // HAL Callbacks
+    virtual void        onDeviceStatusChanged(int cameraId,
+                                              int newStatus);
 
     /////////////////////////////////////////////////////////////////////
     // ICameraService
@@ -327,9 +333,13 @@ private:
                         mListenerList;
 
     // guard only mStatusList and the broadcasting of ICameraServiceListener
-    Mutex               mStatusMutex;
+    mutable Mutex       mStatusMutex;
     ICameraServiceListener::Status
                         mStatusList[MAX_CAMERAS];
+
+    // Read the current status (locks mStatusMutex)
+    ICameraServiceListener::Status
+                        getStatus(int cameraId) const;
 
     // Broadcast the new status if it changed (locks the service mutex)
     void                updateStatus(
