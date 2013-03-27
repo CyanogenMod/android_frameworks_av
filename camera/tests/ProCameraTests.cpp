@@ -587,14 +587,19 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
     sp<ServiceListener> listener = new ServiceListener();
     EXPECT_OK(ProCamera::addServiceListener(listener));
 
-    ServiceListener::Status currentStatus = ServiceListener::STATUS_AVAILABLE;
+    ServiceListener::Status currentStatus;
+
+    // when subscribing a new listener,
+    // we immediately get a callback to the current status
+    while (listener->waitForStatusChange(/*out*/currentStatus) != OK);
+    EXPECT_EQ(ServiceListener::STATUS_PRESENT, currentStatus);
 
     dout << "Will now stream and resume infinitely..." << std::endl;
     while (true) {
 
-        if (currentStatus == ServiceListener::STATUS_AVAILABLE) {
+        if (currentStatus == ServiceListener::STATUS_PRESENT) {
 
-            EXPECT_OK(mCamera->createStream(mDisplayW, mDisplayH, mDisplayFmt,
+            ASSERT_OK(mCamera->createStream(mDisplayW, mDisplayH, mDisplayFmt,
                                             surface,
                                             &depthStreamId));
             EXPECT_NE(-1, depthStreamId);
@@ -613,12 +618,15 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
         while (listener->waitForStatusChange(/*out*/stat) != OK);
 
         if (currentStatus != stat) {
-            if (stat == ServiceListener::STATUS_AVAILABLE) {
+            if (stat == ServiceListener::STATUS_PRESENT) {
                 dout << "Reconnecting to camera" << std::endl;
                 mCamera = ProCamera::connect(CAMERA_ID);
             } else if (stat == ServiceListener::STATUS_NOT_AVAILABLE) {
                 dout << "Disconnecting from camera" << std::endl;
                 mCamera->disconnect();
+            } else if (stat == ServiceListener::STATUS_NOT_PRESENT) {
+                dout << "Camera unplugged" << std::endl;
+                mCamera = NULL;
             } else {
                 dout << "Unknown status change "
                      << std::hex << stat << std::endl;
@@ -1219,7 +1227,7 @@ TEST_F(ProCameraTest, ServiceListenersFunctional) {
     }
 
     EXPECT_OK(listener->waitForStatusChange(/*out*/stat));
-    EXPECT_EQ(ServiceListener::STATUS_AVAILABLE, stat);
+    EXPECT_EQ(ServiceListener::STATUS_PRESENT, stat);
 
     EXPECT_OK(ProCamera::removeServiceListener(listener));
 }
