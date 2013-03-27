@@ -66,6 +66,20 @@ static int getCallingUid() {
     return IPCThreadState::self()->getCallingUid();
 }
 
+extern "C" {
+static void camera_device_status_change(
+        const struct camera_module_callbacks* callbacks,
+        int camera_id,
+        int new_status) {
+    sp<CameraService> cs = const_cast<CameraService*>(
+                                static_cast<const CameraService*>(callbacks));
+
+    cs->onDeviceStatusChanged(
+        camera_id,
+        new_status);
+}
+} // extern "C"
+
 // ----------------------------------------------------------------------------
 
 // This is ugly and only safe if we never re-create the CameraService, but
@@ -79,8 +93,10 @@ CameraService::CameraService()
     gCameraService = this;
 
     for (size_t i = 0; i < MAX_CAMERAS; ++i) {
-        mStatusList[i] = ICameraServiceListener::STATUS_AVAILABLE;
+        mStatusList[i] = ICameraServiceListener::STATUS_PRESENT;
     }
+
+    this->camera_device_status_change = android::camera_device_status_change;
 }
 
 void CameraService::onFirstRef()
@@ -105,6 +121,11 @@ void CameraService::onFirstRef()
         for (int i = 0; i < mNumberOfCameras; i++) {
             setCameraFree(i);
         }
+
+        if (mModule->common.module_api_version >=
+                CAMERA_MODULE_API_VERSION_2_1) {
+            mModule->set_callbacks(this);
+        }
     }
 }
 
@@ -116,6 +137,67 @@ CameraService::~CameraService() {
     }
 
     gCameraService = NULL;
+}
+
+void CameraService::onDeviceStatusChanged(int cameraId,
+                                          int newStatus)
+{
+    ALOGI("%s: Status changed for cameraId=%d, newStatus=%d", __FUNCTION__,
+          cameraId, newStatus);
+
+    if (cameraId < 0 || cameraId >= MAX_CAMERAS) {
+        ALOGE("%s: Bad camera ID %d", __FUNCTION__, cameraId);
+        return;
+    }
+
+    if ((int)getStatus(cameraId) == newStatus) {
+        ALOGE("%s: State transition to the same status 0x%x not allowed",
+              __FUNCTION__, (uint32_t)newStatus);
+        return;
+    }
+
+    /* don't do this in updateStatus
+       since it is also called from connect and we could get into a deadlock */
+    if (newStatus == CAMERA_DEVICE_STATUS_NOT_PRESENT) {
+        Vector<sp<BasicClient> > clientsToDisconnect;
+        {
+           Mutex::Autolock al(mServiceLock);
+
+           /* Find all clients that we need to disconnect */
+           sp<Client> client = mClient[cameraId].promote();
+           if (client.get() != NULL) {
+               clientsToDisconnect.push_back(client);
+           }
+
+           int i = cameraId;
+           for (size_t j = 0; j < mProClientList[i].size(); ++j) {
+               sp<ProClient> cl = mProClientList[i][j].promote();
+               if (cl != NULL) {
+                   clientsToDisconnect.push_back(cl);
+               }
+           }
+        }
+
+        /* now disconnect them. don't hold the lock
+           or we can get into a deadlock */
+
+        for (size_t i = 0; i < clientsToDisconnect.size(); ++i) {
+            sp<BasicClient> client = clientsToDisconnect[i];
+
+            client->disconnect();
+            /**
+             * The remote app will no longer be able to call methods on the
+             * client since the client PID will be reset to 0
+             */
+        }
+
+        ALOGV("%s: After unplug, disconnected %d clients",
+              __FUNCTION__, clientsToDisconnect.size());
+    }
+
+    updateStatus(
+            static_cast<ICameraServiceListener::Status>(newStatus), cameraId);
+
 }
 
 int32_t CameraService::getNumberOfCameras() {
@@ -212,6 +294,19 @@ bool CameraService::validateConnect(int cameraId,
         return false;
     }
 
+    ICameraServiceListener::Status currentStatus = getStatus(cameraId);
+    if (currentStatus == ICameraServiceListener::STATUS_NOT_PRESENT) {
+        ALOGI("Camera is not plugged in,"
+               " connect X (pid %d) rejected", callingPid);
+        return false;
+    } else if (currentStatus == ICameraServiceListener::STATUS_ENUMERATING) {
+        ALOGI("Camera is enumerating,"
+               " connect X (pid %d) rejected", callingPid);
+        return false;
+    }
+    // Else don't check for STATUS_NOT_AVAILABLE.
+    //  -- It's done implicitly in canConnectUnsafe /w the mBusy array
+
     return true;
 }
 
@@ -293,6 +388,7 @@ sp<ICamera> CameraService::connect(
         // If there are other non-exclusive users of the camera,
         //  this will tear them down before we can reuse the camera
         if (isValidCameraId(cameraId)) {
+            // transition from PRESENT -> NOT_AVAILABLE
             updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE,
                          cameraId);
         }
@@ -321,7 +417,8 @@ sp<ICamera> CameraService::connect(
 
         if (!connectFinishUnsafe(client, client->asBinder())) {
             // this is probably not recoverable.. maybe the client can try again
-            updateStatus(ICameraServiceListener::STATUS_AVAILABLE, cameraId);
+            // OK: we can only get here if we were originally in PRESENT state
+            updateStatus(ICameraServiceListener::STATUS_PRESENT, cameraId);
 
             return NULL;
         }
@@ -428,6 +525,15 @@ status_t CameraService::addListener(
     }
 
     mListenerList.push_back(listener);
+
+    /* Immediately signal current status to this listener only */
+    {
+        Mutex::Autolock m(mStatusMutex) ;
+        int numCams = getNumberOfCameras();
+        for (int i = 0; i < numCams; ++i) {
+            listener->onStatusChanged(mStatusList[i], i);
+        }
+    }
 
     return OK;
 }
@@ -719,6 +825,8 @@ CameraService::BasicClient::~BasicClient() {
 
 void CameraService::BasicClient::disconnect() {
     mCameraService->removeClientByRemote(mRemoteBinder);
+    // client shouldn't be able to call into us anymore
+    mClientPid = 0;
 }
 
 status_t CameraService::BasicClient::startCameraOps() {
@@ -816,7 +924,7 @@ void CameraService::Client::notifyError() {
 void CameraService::Client::disconnect() {
     BasicClient::disconnect();
     mCameraService->setCameraFree(mCameraId);
-    mCameraService->updateStatus(ICameraServiceListener::STATUS_AVAILABLE,
+    mCameraService->updateStatus(ICameraServiceListener::STATUS_PRESENT,
                                  mCameraId);
 }
 
@@ -1017,6 +1125,16 @@ void CameraService::updateStatusUnsafe(ICameraServiceListener::Status status,
         ALOGV("%s: Status has changed for camera ID %d from 0x%x to 0x%x",
               __FUNCTION__, cameraId, (uint32_t)oldStatus, (uint32_t)status);
 
+        if (oldStatus == ICameraServiceListener::STATUS_NOT_PRESENT &&
+            (status != ICameraServiceListener::STATUS_PRESENT &&
+             status != ICameraServiceListener::STATUS_ENUMERATING)) {
+
+            ALOGW("%s: From NOT_PRESENT can only transition into PRESENT"
+                  " or ENUMERATING", __FUNCTION__);
+            mStatusList[cameraId] = oldStatus;
+            return;
+        }
+
         /**
           * ProClients lose their exclusive lock.
           * - Done before the CameraClient can initialize the HAL device,
@@ -1039,6 +1157,16 @@ void CameraService::updateStatusUnsafe(ICameraServiceListener::Status status,
             (*it)->onStatusChanged(status, cameraId);
         }
     }
+}
+
+ICameraServiceListener::Status CameraService::getStatus(int cameraId) const {
+    if (cameraId < 0 || cameraId >= MAX_CAMERAS) {
+        ALOGE("%s: Invalid camera ID %d", __FUNCTION__, cameraId);
+        return ICameraServiceListener::STATUS_UNKNOWN;
+    }
+
+    Mutex::Autolock al(mStatusMutex);
+    return mStatusList[cameraId];
 }
 
 }; // namespace android
