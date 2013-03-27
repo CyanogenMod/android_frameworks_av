@@ -1021,6 +1021,9 @@ TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
     // Consume two frames simultaneously. Unsynchronized by timestamps.
     for (int i = 0; i < REQUEST_COUNT; ++i) {
 
+        // Exhaust event queue so it doesn't keep growing
+        while (mListener->ReadEvent() != UNKNOWN);
+
         // Get the metadata
         EXPECT_OK(mCamera->waitForFrameMetadata());
         CameraMetadata meta = mCamera->consumeFrameMetadata();

@@ -103,7 +103,7 @@ void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
     {
         Mutex::Autolock al(mWaitMutex);
         mMetadataReady = true;
-        mLatestMetadata = tmp;
+        mLatestMetadata = tmp; // make copy
         mWaitCondition.broadcast();
     }
 
@@ -312,8 +312,6 @@ void ProCamera::onFrameAvailable(int streamId) {
     sp<ProCameraListener> listener = mListener;
     StreamInfo& stream = getStreamInfo(streamId);
 
-    CpuConsumer::LockedBuffer buf;
-
     if (listener.get() != NULL) {
         listener->onFrameAvailable(streamId, stream.cpuConsumer);
     }
@@ -421,7 +419,7 @@ CameraMetadata ProCamera::consumeFrameMetadata() {
 
     // Destructive: Subsequent calls return empty metadatas
     CameraMetadata tmp = mLatestMetadata;
-    mLatestMetadata.release();
+    mLatestMetadata.clear();
 
     return tmp;
 }
