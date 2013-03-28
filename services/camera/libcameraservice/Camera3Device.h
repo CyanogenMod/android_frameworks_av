@@ -255,6 +255,33 @@ class Camera3Device :
     sp<RequestThread> mRequestThread;
 
     /**
+     * Output result queue and current HAL device 3A state
+     */
+
+    // Lock for output side of device
+    Mutex                  mOutputLock;
+
+    /**** Scope for mOutputLock ****/
+
+    List<CameraMetadata>   mResultQueue;
+    Condition              mResultSignal;
+    NotificationListener  *mListener;
+
+    struct AlgState {
+        camera_metadata_enum_android_control_ae_state  aeState;
+        camera_metadata_enum_android_control_af_state  afState;
+        camera_metadata_enum_android_control_awb_state awbState;
+
+        AlgState() :
+                aeState(ANDROID_CONTROL_AE_STATE_INACTIVE),
+                afState(ANDROID_CONTROL_AF_STATE_INACTIVE),
+                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE) {
+        }
+    } m3AState;
+
+    /**** End scope for mOutputLock ****/
+
+    /**
      * Callback functions from HAL device
      */
     void processCaptureResult(const camera3_capture_result *result);
