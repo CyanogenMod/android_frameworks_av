@@ -273,7 +273,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                         if (!strcasecmp(val, "pause") && mState == PLAYING) {
                             mState = PLAYING_TO_PAUSED;
                             sendTrigger(mClientSessionID, TRIGGER_PAUSE);
-                        } else if (!strcasecmp(val, "play") && mState == PAUSED) {
+                        } else if (!strcasecmp(val, "play")
+                                    && mState == PAUSED) {
                             mState = PAUSED_TO_PLAYING;
                             sendTrigger(mClientSessionID, TRIGGER_PLAY);
                         }
@@ -422,7 +423,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                     NULL /* interlaced */));
 
                         mClient->onDisplayConnected(
-                                mClientInfo.mPlaybackSession->getSurfaceTexture(),
+                                mClientInfo.mPlaybackSession
+                                    ->getSurfaceTexture(),
                                 width,
                                 height,
                                 mUsingHDCP
@@ -1351,6 +1353,15 @@ status_t WifiDisplaySource::onPlayRequest(
         return ERROR_MALFORMED;
     }
 
+    if (mState != AWAITING_CLIENT_PLAY) {
+        ALOGW("Received PLAY request but we're in state %d", mState);
+
+        sendErrorResponse(
+                sessionID, "455 Method Not Valid in This State", cseq);
+
+        return INVALID_OPERATION;
+    }
+
     ALOGI("Received PLAY request.");
     if (mPlaybackSessionEstablished) {
         finishPlay();
@@ -1673,7 +1684,10 @@ void WifiDisplaySource::HDCPObserver::notify(
 status_t WifiDisplaySource::makeHDCP() {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.player"));
-    sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
+
+    sp<IMediaPlayerService> service =
+        interface_cast<IMediaPlayerService>(binder);
+
     CHECK(service != NULL);
 
     mHDCP = service->makeHDCP(true /* createEncryptionModule */);
