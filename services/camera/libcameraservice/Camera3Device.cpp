@@ -38,7 +38,8 @@ namespace android {
 Camera3Device::Camera3Device(int id):
         mId(id),
         mHal3Device(NULL),
-        mStatus(STATUS_UNINITIALIZED)
+        mStatus(STATUS_UNINITIALIZED),
+        mListener(NULL)
 {
     ATRACE_CALL();
     camera3_callback_ops::notify = &sNotify;
@@ -652,31 +653,52 @@ status_t Camera3Device::waitUntilDrainedLocked() {
 
 status_t Camera3Device::setNotifyCallback(NotificationListener *listener) {
     ATRACE_CALL();
-    (void)listener;
+    Mutex::Autolock l(mOutputLock);
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    if (listener != NULL && mListener != NULL) {
+        ALOGW("%s: Replacing old callback listener", __FUNCTION__);
+    }
+    mListener = listener;
+
+    return OK;
 }
 
 status_t Camera3Device::waitForNextFrame(nsecs_t timeout) {
-    (void)timeout;
+    ATRACE_CALL();
+    status_t res;
+    Mutex::Autolock l(mOutputLock);
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    while (mResultQueue.empty()) {
+        res = mResultSignal.waitRelative(mOutputLock, timeout);
+        if (res == TIMED_OUT) {
+            return res;
+        } else if (res != OK) {
+            ALOGE("%s: Camera %d: Error waiting for frame: %s (%d)",
+                    __FUNCTION__, mId, strerror(-res), res);
+            return res;
+        }
+    }
+    return OK;
 }
 
 status_t Camera3Device::getNextFrame(CameraMetadata *frame) {
     ATRACE_CALL();
-    (void)frame;
+    Mutex::Autolock l(mOutputLock);
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    if (mResultQueue.empty()) {
+        return NOT_ENOUGH_DATA;
+    }
+
+    CameraMetadata &result = *(mResultQueue.begin());
+    frame->acquire(result);
+    mResultQueue.erase(mResultQueue.begin());
+
+    return OK;
 }
 
 status_t Camera3Device::triggerAutofocus(uint32_t id) {
     ATRACE_CALL();
     (void)id;
-
 
     ALOGE("%s: Unimplemented", __FUNCTION__);
     return INVALID_OPERATION;
@@ -853,15 +875,168 @@ status_t Camera3Device::configureStreamsLocked() {
  */
 
 void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
-    (void)result;
+    ATRACE_CALL();
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
+    status_t res;
+
+    if (result->result == NULL) {
+        // TODO: Report error upstream
+        ALOGW("%s: No metadata for frame %d", __FUNCTION__,
+                result->frame_number);
+        return;
+    }
+
+    nsecs_t timestamp = 0;
+    AlgState cur3aState;
+    AlgState new3aState;
+    int32_t aeTriggerId = 0;
+    int32_t afTriggerId = 0;
+
+    NotificationListener *listener;
+
+    {
+        Mutex::Autolock l(mOutputLock);
+
+        // Push result metadata into queue
+        mResultQueue.push_back(CameraMetadata());
+        CameraMetadata &captureResult = *(mResultQueue.end());
+
+        captureResult = result->result;
+        captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
+                (int32_t*)&result->frame_number, 1);
+
+        // Get timestamp from result metadata
+
+        camera_metadata_entry entry =
+                captureResult.find(ANDROID_SENSOR_TIMESTAMP);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No timestamp provided by HAL for frame %d!",
+                    __FUNCTION__, mId, result->frame_number);
+            // TODO: Report error upstream
+        } else {
+            timestamp = entry.data.i64[0];
+        }
+
+        // Get 3A states from result metadata
+
+        entry = captureResult.find(ANDROID_CONTROL_AE_STATE);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No AE state provided by HAL for frame %d!",
+                    __FUNCTION__, mId, result->frame_number);
+        } else {
+            new3aState.aeState =
+                    static_cast<camera_metadata_enum_android_control_ae_state>(
+                        entry.data.u8[0]);
+        }
+
+        entry = captureResult.find(ANDROID_CONTROL_AF_STATE);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No AF state provided by HAL for frame %d!",
+                    __FUNCTION__, mId, result->frame_number);
+        } else {
+            new3aState.afState =
+                    static_cast<camera_metadata_enum_android_control_af_state>(
+                        entry.data.u8[0]);
+        }
+
+        entry = captureResult.find(ANDROID_CONTROL_AWB_STATE);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No AWB state provided by HAL for frame %d!",
+                    __FUNCTION__, mId, result->frame_number);
+        } else {
+            new3aState.awbState =
+                    static_cast<camera_metadata_enum_android_control_awb_state>(
+                        entry.data.u8[0]);
+        }
+
+        entry = captureResult.find(ANDROID_CONTROL_AF_TRIGGER_ID);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No AF trigger ID provided by HAL for frame %d!",
+                    __FUNCTION__, mId, result->frame_number);
+        } else {
+            afTriggerId = entry.data.i32[0];
+        }
+
+        entry = captureResult.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
+        if (entry.count == 0) {
+            ALOGE("%s: Camera %d: No AE precapture trigger ID provided by HAL"
+                    " for frame %d!", __FUNCTION__, mId, result->frame_number);
+        } else {
+            aeTriggerId = entry.data.i32[0];
+        }
+
+        listener = mListener;
+        cur3aState = m3AState;
+
+        m3AState = new3aState;
+    } // scope for mOutputLock
+
+    // Return completed buffers to their streams
+    for (size_t i = 0; i < result->num_output_buffers; i++) {
+        Camera3Stream *stream =
+                Camera3Stream::cast(result->output_buffers[i].stream);
+        res = stream->returnBuffer(result->output_buffers[i], timestamp);
+        // Note: stream may be deallocated at this point, if this buffer was the
+        // last reference to it.
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't return buffer %d for frame %d to its"
+                    "  stream:%s (%d)",  __FUNCTION__, mId, i,
+                    result->frame_number, strerror(-res), res);
+            // TODO: Report error upstream
+        }
+    }
+
+    // Dispatch any 3A change events to listeners
+    if (listener != NULL) {
+        if (new3aState.aeState != cur3aState.aeState) {
+            listener->notifyAutoExposure(new3aState.aeState, aeTriggerId);
+        }
+        if (new3aState.afState != cur3aState.afState) {
+            listener->notifyAutoFocus(new3aState.afState, afTriggerId);
+        }
+        if (new3aState.awbState != cur3aState.awbState) {
+            listener->notifyAutoWhitebalance(new3aState.awbState, aeTriggerId);
+        }
+    }
+
 }
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
-    (void)msg;
+    NotificationListener *listener;
+    {
+        Mutex::Autolock l(mOutputLock);
+        if (mListener == NULL) return;
+        listener = mListener;
+    }
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
+    if (msg == NULL) {
+        ALOGE("%s: Camera %d: HAL sent NULL notify message!",
+                __FUNCTION__, mId);
+        return;
+    }
+
+    switch (msg->type) {
+        case CAMERA3_MSG_ERROR: {
+            int streamId = 0;
+            if (msg->message.error.error_stream != NULL) {
+                Camera3Stream *stream =
+                        Camera3Stream::cast(
+                                  msg->message.error.error_stream);
+                streamId = stream->getId();
+            }
+            listener->notifyError(msg->message.error.error_code,
+                    msg->message.error.frame_number, streamId);
+            break;
+        }
+        case CAMERA3_MSG_SHUTTER: {
+            listener->notifyShutter(msg->message.shutter.frame_number,
+                    msg->message.shutter.timestamp);
+            break;
+        }
+        default:
+            ALOGE("%s: Camera %d: Unknown notify message from HAL: %d",
+                    __FUNCTION__, mId, msg->type);
+    }
 }
 
 /**
