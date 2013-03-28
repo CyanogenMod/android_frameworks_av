@@ -922,6 +922,9 @@ bool ToneGenerator::startTone(tone_type toneType, int durationMs) {
             ALOGV("Immediate start, time %d", (unsigned int)(systemTime()/1000000));
             lResult = true;
             mState = TONE_STARTING;
+            if (clock_gettime(CLOCK_MONOTONIC, &mStartTime) != 0) {
+                mStartTime.tv_sec = 0;
+            }
             mLock.unlock();
             mpAudioTrack->start();
             mLock.lock();
@@ -940,6 +943,7 @@ bool ToneGenerator::startTone(tone_type toneType, int durationMs) {
     } else {
         ALOGV("Delayed start");
         mState = TONE_RESTARTING;
+        mStartTime.tv_sec = 0;
         lStatus = mWaitCbkCond.waitRelative(mLock, seconds(3));
         if (lStatus == NO_ERROR) {
             if (mState != TONE_IDLE) {
@@ -978,7 +982,30 @@ void ToneGenerator::stopTone() {
     mLock.lock();
     if (mState != TONE_IDLE && mState != TONE_INIT) {
         if (mState == TONE_PLAYING || mState == TONE_STARTING || mState == TONE_RESTARTING) {
-            mState = TONE_STOPPING;
+            struct timespec stopTime;
+            // If the start time is valid, make sure that the number of audio samples produced
+            // corresponds at least to the time between the start and stop commands.
+            // This is needed in case of cold start of the output stream.
+            if ((mStartTime. tv_sec != 0) && (clock_gettime(CLOCK_MONOTONIC, &stopTime) == 0)) {
+                time_t sec = stopTime.tv_sec - mStartTime.tv_sec;
+                long nsec = stopTime.tv_nsec - mStartTime.tv_nsec;
+                long durationMs;
+                if (nsec < 0) {
+                    --sec;
+                    nsec += 1000000000;
+                }
+
+                if ((sec + 1) > ((long)(INT_MAX / mSamplingRate))) {
+                    mMaxSmp = sec * mSamplingRate;
+                } else {
+                    // mSamplingRate is always > 1000
+                    sec = sec * 1000 + nsec / 1000000; // duration in milliseconds
+                    mMaxSmp = (sec * mSamplingRate) / 1000;
+                }
+                ALOGV("stopTone() forcing mMaxSmp to %d, total for far %d", mMaxSmp,  mTotalSmp);
+            } else {
+                mState = TONE_STOPPING;
+            }
         }
         ALOGV("waiting cond");
         status_t lStatus = mWaitCbkCond.waitRelative(mLock, seconds(3));
@@ -1263,6 +1290,9 @@ audioCallback_EndLoop:
             ALOGV("Cbk restarting track");
             if (lpToneGen->prepareWave()) {
                 lpToneGen->mState = TONE_STARTING;
+                if (clock_gettime(CLOCK_MONOTONIC, &lpToneGen->mStartTime) != 0) {
+                    lpToneGen->mStartTime.tv_sec = 0;
+                }
                 // must reload lpToneDesc as prepareWave() may change mpToneDesc
                 lpToneDesc = lpToneGen->mpToneDesc;
             } else {
