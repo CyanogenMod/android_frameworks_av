@@ -284,6 +284,26 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "input-buffer-sizes-are-bogus")) {
       quirks |= kInputBufferSizesAreBogus;
     }
+    if (list->codecHasQuirk(
+                index, "needs-flush-before-disable")) {
+      quirks |= kNeedsFlushBeforeDisable;
+    }
+    if (list->codecHasQuirk(
+                index, "decoder-lies-about-nubmer-of-channels")) {
+      quirks |= kDecoderLiesAboutNumberOfChannels;
+    }
+    if (list->codecHasQuirk(
+                index, "requires-flush-complete-emulation")) {
+      quirks |= kRequiresFlushCompleteEmulation;
+    }
+    if (list->codecHasQuirk(
+                index, "supports-multiple-frames-per-input-buffer")) {
+      quirks |= kSupportsMultipleFramesPerInputBuffer;
+    }
+    if (list->codecHasQuirk(
+                index, "input-buffer-sizes-are-bogus")) {
+      quirks |= kInputBufferSizesAreBogus;
+    }
 #endif
     return quirks;
 }
