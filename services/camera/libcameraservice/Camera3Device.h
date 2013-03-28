@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SERVERS_CAMERA_CAMERA3DEVICE_H
-#define ANDROID_SERVERS_CAMERA_CAMERA3DEVICE_H
+#ifndef ANDROID_SERVERS_CAMERA3DEVICE_H
+#define ANDROID_SERVERS_CAMERA3DEVICE_H
 
 #include <utils/Condition.h>
 #include <utils/Errors.h>
@@ -24,6 +24,8 @@
 #include <utils/Thread.h>
 
 #include "CameraDeviceBase.h"
+#include "camera3/Camera3Stream.h"
+#include "camera3/Camera3OutputStream.h"
 
 #include "hardware/camera3.h"
 
@@ -55,63 +57,202 @@ class Camera3Device :
     virtual ~Camera3Device();
 
     /**
-     * CameraDevice interface
+     * CameraDeviceBase interface
      */
+
     virtual int      getId() const;
+
+    // Transitions to idle state on success.
     virtual status_t initialize(camera_module_t *module);
     virtual status_t disconnect();
     virtual status_t dump(int fd, const Vector<String16> &args);
     virtual const CameraMetadata& info() const;
+
+    // Capture and setStreamingRequest will configure streams if currently in
+    // idle state
     virtual status_t capture(CameraMetadata &request);
     virtual status_t setStreamingRequest(const CameraMetadata &request);
     virtual status_t clearStreamingRequest();
+
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
+
+    // Actual stream creation/deletion is delayed until first request is submitted
+    // If adding streams while actively capturing, will pause device before adding
+    // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format, size_t size,
             int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
+
     virtual status_t getStreamInfo(int id,
             uint32_t *width, uint32_t *height, uint32_t *format);
     virtual status_t setStreamTransform(int id, int transform);
+
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
+
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
+
+    // Transitions to the idle state on success
     virtual status_t waitUntilDrained();
+
     virtual status_t setNotifyCallback(NotificationListener *listener);
     virtual status_t waitForNextFrame(nsecs_t timeout);
     virtual status_t getNextFrame(CameraMetadata *frame);
+
     virtual status_t triggerAutofocus(uint32_t id);
     virtual status_t triggerCancelAutofocus(uint32_t id);
     virtual status_t triggerPrecaptureMetering(uint32_t id);
+
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
   private:
-    const int              mId;
-    camera3_device_t      *mHal3Device;
+    static const nsecs_t       kShutdownTimeout = 5000000000; // 5 sec
 
-    CameraMetadata         mDeviceInfo;
-    vendor_tag_query_ops_t mVendorTagOps;
+
+    Mutex                      mLock;
+
+    /**** Scope for mLock ****/
+
+    const int                  mId;
+    camera3_device_t          *mHal3Device;
+
+    CameraMetadata             mDeviceInfo;
+    vendor_tag_query_ops_t     mVendorTagOps;
+
+    enum {
+        STATUS_ERROR,
+        STATUS_UNINITIALIZED,
+        STATUS_IDLE,
+        STATUS_ACTIVE
+    }                          mStatus;
+
+    // Mapping of stream IDs to stream instances
+    typedef KeyedVector<int, sp<camera3::Camera3OutputStream> > StreamSet;
+
+    StreamSet                  mOutputStreams;
+    sp<camera3::Camera3Stream> mInputStream;
+    int                        mNextStreamId;
+
+    // Need to hold on to stream references until configure completes.
+    Vector<sp<camera3::Camera3Stream> > mDeletedStreams;
+
+    /**** End scope for mLock ****/
+
+    class CaptureRequest : public LightRefBase<CaptureRequest> {
+      public:
+        CameraMetadata                      mSettings;
+        sp<camera3::Camera3Stream>          mInputStream;
+        Vector<sp<camera3::Camera3Stream> > mOutputStreams;
+    };
+    typedef List<sp<CaptureRequest> > RequestList;
+
+    /**
+     * Lock-held version of waitUntilDrained. Will transition to IDLE on
+     * success.
+     */
+    status_t           waitUntilDrainedLocked();
+
+    /**
+     * Do common work for setting up a streaming or single capture request.
+     * On success, will transition to ACTIVE if in IDLE.
+     */
+    sp<CaptureRequest> setUpRequestLocked(const CameraMetadata &request);
+
+    /**
+     * Build a CaptureRequest request from the CameraDeviceBase request
+     * settings.
+     */
+    sp<CaptureRequest> createCaptureRequest(const CameraMetadata &request);
+
+    /**
+     * Take the currently-defined set of streams and configure the HAL to use
+     * them. This is a long-running operation (may be several hundered ms).
+     */
+    status_t           configureStreamsLocked();
 
     /**
      * Thread for managing capture request submission to HAL device.
      */
-    class RequestThread: public Thread {
+    class RequestThread : public Thread {
 
       public:
 
-        RequestThread(wp<Camera3Device> parent);
+        RequestThread(wp<Camera3Device> parent,
+                camera3_device_t *hal3Device);
+
+        /**
+         * Call after stream (re)-configuration is completed.
+         */
+        void     configurationComplete();
+
+        /**
+         * Set or clear the list of repeating requests. Does not block
+         * on either. Use waitUntilPaused to wait until request queue
+         * has emptied out.
+         */
+        status_t setRepeatingRequests(const RequestList& requests);
+        status_t clearRepeatingRequests();
+
+        status_t queueRequest(sp<CaptureRequest> request);
+
+        /**
+         * Pause/unpause the capture thread. Doesn't block, so use
+         * waitUntilPaused to wait until the thread is paused.
+         */
+        void     setPaused(bool paused);
+
+        /**
+         * Wait until thread is paused, either due to setPaused(true)
+         * or due to lack of input requests. Returns TIMED_OUT in case
+         * the thread does not pause within the timeout.
+         */
+        status_t waitUntilPaused(nsecs_t timeout);
 
       protected:
 
         virtual bool threadLoop();
 
       private:
+        static const nsecs_t kRequestTimeout = 50e6; // 50 ms
 
-        wp<Camera3Device> mParent;
+        // Waits for a request, or returns NULL if times out.
+        sp<CaptureRequest> waitForNextRequest();
 
+        // Return buffers, etc, for a request that couldn't be fully
+        // constructed. The buffers will be returned in the ERROR state
+        // to mark them as not having valid data.
+        // All arguments will be modified.
+        void cleanUpFailedRequest(camera3_capture_request_t &request,
+                sp<CaptureRequest> &nextRequest,
+                Vector<camera3_stream_buffer_t> &outputBuffers);
+
+        // Pause handling
+        bool               waitIfPaused();
+
+        wp<Camera3Device>  mParent;
+        camera3_device_t  *mHal3Device;
+
+        Mutex              mRequestLock;
+        Condition          mRequestSignal;
+        RequestList        mRequestQueue;
+        RequestList        mRepeatingRequests;
+
+        bool               mReconfigured;
+
+        // Used by waitIfPaused, waitForNextRequest, and waitUntilPaused
+        Mutex              mPauseLock;
+        bool               mDoPause;
+        Condition          mDoPauseSignal;
+        bool               mPaused;
+        Condition          mPausedSignal;
+
+        sp<CaptureRequest> mPrevRequest;
+
+        int32_t            mFrameNumber;
     };
-    sp<RequestThread> requestThread;
+    sp<RequestThread> mRequestThread;
 
     /**
      * Callback functions from HAL device

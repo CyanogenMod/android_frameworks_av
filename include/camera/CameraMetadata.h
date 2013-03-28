@@ -49,6 +49,23 @@ class CameraMetadata {
     CameraMetadata &operator=(const camera_metadata_t *buffer);
 
     /**
+     * Get reference to the underlying metadata buffer. Ownership remains with
+     * the CameraMetadata object, but non-const CameraMetadata methods will not
+     * work until unlock() is called. Note that the lock has nothing to do with
+     * thread-safety, it simply prevents the camera_metadata_t pointer returned
+     * here from being accidentally invalidated by CameraMetadata operations.
+     */
+    const camera_metadata_t* getAndLock();
+
+    /**
+     * Unlock the CameraMetadata for use again. After this unlock, the pointer
+     * given from getAndLock() may no longer be used. The pointer passed out
+     * from getAndLock must be provided to guarantee that the right object is
+     * being unlocked.
+     */
+    status_t unlock(const camera_metadata_t *buffer);
+
+    /**
      * Release a raw metadata buffer to the caller. After this call,
      * CameraMetadata no longer references the buffer, and the caller takes
      * responsibility for freeing the raw metadata buffer (using
@@ -154,6 +171,7 @@ class CameraMetadata {
 
   private:
     camera_metadata_t *mBuffer;
+    bool               mLocked;
 
     /**
      * Check if tag has a given type
@@ -163,7 +181,7 @@ class CameraMetadata {
     /**
      * Base update entry method
      */
-    status_t update(uint32_t tag, const void *data, size_t data_count);
+    status_t updateImpl(uint32_t tag, const void *data, size_t data_count);
 
     /**
      * Resize metadata buffer if needed by reallocating it and copying it over.
