@@ -42,19 +42,23 @@ struct IDrm : public IInterface {
     virtual status_t closeSession(Vector<uint8_t> const &sessionId) = 0;
 
     virtual status_t
-        getLicenseRequest(Vector<uint8_t> const &sessionId,
-                          Vector<uint8_t> const &initData,
-                          String8 const &mimeType, DrmPlugin::LicenseType licenseType,
-                          KeyedVector<String8, String8> const &optionalParameters,
-                          Vector<uint8_t> &request, String8 &defaultUrl) = 0;
+        getKeyRequest(Vector<uint8_t> const &sessionId,
+                      Vector<uint8_t> const &initData,
+                      String8 const &mimeType, DrmPlugin::KeyType keyType,
+                      KeyedVector<String8, String8> const &optionalParameters,
+                      Vector<uint8_t> &request, String8 &defaultUrl) = 0;
 
-    virtual status_t provideLicenseResponse(Vector<uint8_t> const &sessionId,
-                                            Vector<uint8_t> const &response) = 0;
+    virtual status_t provideKeyResponse(Vector<uint8_t> const &sessionId,
+                                        Vector<uint8_t> const &response,
+                                        Vector<uint8_t> &keySetId) = 0;
 
-    virtual status_t removeLicense(Vector<uint8_t> const &sessionId) = 0;
+    virtual status_t removeKeys(Vector<uint8_t> const &keySetId) = 0;
 
-    virtual status_t queryLicenseStatus(Vector<uint8_t> const &sessionId,
-                                        KeyedVector<String8, String8> &infoMap) const = 0;
+    virtual status_t restoreKeys(Vector<uint8_t> const &sessionId,
+                                 Vector<uint8_t> const &keySetId) = 0;
+
+    virtual status_t queryKeyStatus(Vector<uint8_t> const &sessionId,
+                                    KeyedVector<String8, String8> &infoMap) const = 0;
 
     virtual status_t getProvisionRequest(Vector<uint8_t> &request,
                                          String8 &defaulUrl) = 0;
@@ -65,13 +69,42 @@ struct IDrm : public IInterface {
 
     virtual status_t releaseSecureStops(Vector<uint8_t> const &ssRelease) = 0;
 
-    virtual status_t getPropertyString(String8 const &name, String8 &value ) const = 0;
+    virtual status_t getPropertyString(String8 const &name, String8 &value) const = 0;
     virtual status_t getPropertyByteArray(String8 const &name,
-                                          Vector<uint8_t> &value ) const = 0;
+                                          Vector<uint8_t> &value) const = 0;
     virtual status_t setPropertyString(String8 const &name,
                                        String8 const &value ) const = 0;
     virtual status_t setPropertyByteArray(String8 const &name,
-                                          Vector<uint8_t> const &value ) const = 0;
+                                          Vector<uint8_t> const &value) const = 0;
+
+    virtual status_t setCipherAlgorithm(Vector<uint8_t> const &sessionId,
+                                        String8 const &algorithm) = 0;
+
+    virtual status_t setMacAlgorithm(Vector<uint8_t> const &sessionId,
+                                     String8 const &algorithm) = 0;
+
+    virtual status_t encrypt(Vector<uint8_t> const &sessionId,
+                             Vector<uint8_t> const &keyId,
+                             Vector<uint8_t> const &input,
+                             Vector<uint8_t> const &iv,
+                             Vector<uint8_t> &output) = 0;
+
+    virtual status_t decrypt(Vector<uint8_t> const &sessionId,
+                             Vector<uint8_t> const &keyId,
+                             Vector<uint8_t> const &input,
+                             Vector<uint8_t> const &iv,
+                             Vector<uint8_t> &output) = 0;
+
+    virtual status_t sign(Vector<uint8_t> const &sessionId,
+                          Vector<uint8_t> const &keyId,
+                          Vector<uint8_t> const &message,
+                          Vector<uint8_t> &signature) = 0;
+
+    virtual status_t verify(Vector<uint8_t> const &sessionId,
+                            Vector<uint8_t> const &keyId,
+                            Vector<uint8_t> const &message,
+                            Vector<uint8_t> const &signature,
+                            bool &match) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IDrm);
@@ -81,6 +114,9 @@ struct BnDrm : public BnInterface<IDrm> {
     virtual status_t onTransact(
             uint32_t code, const Parcel &data, Parcel *reply,
             uint32_t flags = 0);
+private:
+    void readVector(const Parcel &data, Vector<uint8_t> &vector) const;
+    void writeVector(Parcel *reply, Vector<uint8_t> const &vector) const;
 };
 
 }  // namespace android
