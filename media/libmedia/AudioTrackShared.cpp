@@ -37,7 +37,13 @@ audio_track_cblk_t::audio_track_cblk_t()
 Proxy::Proxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t frameSize,
         bool isOut, bool clientInServer)
     : mCblk(cblk), mBuffers(buffers), mFrameCount(frameCount), mFrameSize(frameSize),
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+      //Do not round the frame count for tunnel formats. Needed for tunnel amr wb encode and tunnel vocoders.
+      mFrameCountP2((mFrameSize == 1) ? frameCount : roundup(frameCount)),
+      mIsOut(isOut), mClientInServer(clientInServer),
+#else
       mFrameCountP2(roundup(frameCount)), mIsOut(isOut), mClientInServer(clientInServer),
+#endif
       mIsShutdown(false), mUnreleased(0)
 {
 }
@@ -144,11 +150,23 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         if (avail > 0) {
             // 'avail' may be non-contiguous, so return only the first contiguous chunk
             size_t part1;
+            // Use modulo operator instead of and operator.
+            // x &= (y-1) returns the remainder if y is even
+            // Use modulo operator to generalize it for all values.
+            // This is needed for tunnel voip and tunnel encode usecases.
             if (mIsOut) {
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+                rear %= mFrameCountP2;
+#else
                 rear &= mFrameCountP2 - 1;
+#endif
                 part1 = mFrameCountP2 - rear;
             } else {
-                front &= mFrameCountP2 - 1;
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+                front %= mFrameCountP2;
+#else
+                front &= mFrameCountP2;
+#endif
                 part1 = mFrameCountP2 - front;
             }
             if (part1 > avail) {
@@ -312,8 +330,14 @@ void ClientProxy::interrupt()
 size_t ClientProxy::getMisalignment()
 {
     audio_track_cblk_t* cblk = mCblk;
-    return (mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront)) &
-            (mFrameCountP2 - 1);
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+        return ((mFrameCountP2 -
+               (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront))
+               % mFrameCountP2);
+#else
+        return (mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront)) &
+               (mFrameCountP2 - 1);
+#endif
 }
 
 size_t ClientProxy::getFramesFilled() {
@@ -560,11 +584,23 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
     }
     // 'availToServer' may be non-contiguous, so return only the first contiguous chunk
     size_t part1;
+    // Use modulo operator instead of and operator.
+    // x &= (y-1) returns the remainder if y is even
+    // Use modulo operator to generalize it for all values.
+    // This is needed for tunnel voip and tunnel encode usecases.
     if (mIsOut) {
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+        front %= mFrameCountP2;
+#else
         front &= mFrameCountP2 - 1;
+#endif
         part1 = mFrameCountP2 - front;
     } else {
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+        rear %= mFrameCountP2;
+#else
         rear &= mFrameCountP2 - 1;
+#endif
         part1 = mFrameCountP2 - rear;
     }
     if (part1 > availToServer) {
