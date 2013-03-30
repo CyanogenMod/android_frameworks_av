@@ -427,6 +427,7 @@ private:
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
                                         int frameCount,
+                                        uint32_t flags,
                                         const sp<IMemory>& sharedBuffer,
                                         int sessionId);
             virtual             ~TrackBase();
@@ -506,6 +507,7 @@ private:
                                 // support dynamic rates, the current value is in control block
             const audio_format_t mFormat;
             bool                mStepServerFailed;
+            uint32_t            mFlags;
             const int           mSessionId;
             uint8_t             mChannelCount;
             audio_channel_mask_t mChannelMask;
@@ -1521,7 +1523,8 @@ private:
         sp<AudioFlinger> mAudioFlinger;
         sp<AudioFlingerDirectTrackClient> mAudioFlingerClient;
 
-	void clearPowerManager();
+        void clearPowerManager();
+
         class PMDeathRecipient : public IBinder::DeathRecipient {
             public:
                             PMDeathRecipient(void *obj){parentClass = (DirectAudioTrack *)obj;}
@@ -1592,6 +1595,7 @@ private:
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
                                         int frameCount,
+                                        uint32_t flags,
                                         int sessionId);
             virtual             ~RecordTrack();
 
