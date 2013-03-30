@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2008, The Android Open Source Project
+** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -60,10 +62,14 @@ status_t AudioRecord::getMinFrameCount(
     // We double the size of input buffer for ping pong use of record buffer.
     size <<= 1;
     uint32_t channelCount = popcount(channelMask);
+#ifdef QCOM_HARDWARE
     if (audio_is_linear_pcm(format))
+#endif
         size /= channelCount * audio_bytes_per_sample(format);
+#ifdef QCOM_HARDWARE
     else
         size /= sizeof(uint8_t);
+#endif
 
     *frameCount = size;
     return NO_ERROR;

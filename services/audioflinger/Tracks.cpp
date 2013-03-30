@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2012, The Android Open Source Project
+** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -118,7 +120,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
+    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
     size_t size = sizeof(audio_track_cblk_t);
 #ifdef QCOM_HARDWARE
 #ifdef QCOM_DIRECTTRACK

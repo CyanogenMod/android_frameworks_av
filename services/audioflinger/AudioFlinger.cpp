@@ -2,6 +2,8 @@
 ** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
 ** Not a Contribution.
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -1560,13 +1562,19 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         ALOGE("Bad audio input parameters: sampling rate %u, format %d, channels %d",  sampleRate, format, channelCount);
         goto Exit;
     }
-#else
+#elif defined(QCOM_HARDWARE)
+    if (format != AUDIO_FORMAT_PCM_16_BIT &&
+            !audio_is_compress_voip_format(format) &&
+            !audio_is_compress_capture_format(format)) {
+#else 
     if (format != AUDIO_FORMAT_PCM_16_BIT) {
+#endif
         ALOGE("openRecord() invalid format %d", format);
         lStatus = BAD_VALUE;
         goto Exit;
     }
 #endif
+
 
     // add client to list
     { // scope for mLock
