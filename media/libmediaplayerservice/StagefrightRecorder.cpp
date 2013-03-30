@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -877,9 +879,10 @@ status_t StagefrightRecorder::start() {
 }
 
 sp<MediaSource> StagefrightRecorder::createAudioSource() {
-#ifdef QCOM_DIRECTTRACK
+#ifdef QCOM_HARDWARE
     bool tunneledSource = false;
     const char *tunnelMime;
+#ifdef QCOM_DIRECTTRACK
     {
         AudioParameter param;
         String8 key("tunneled-input-formats");
@@ -910,6 +913,16 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             tunnelMime = MEDIA_MIMETYPE_AUDIO_AMR_WB;
         }
     }
+#else
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("tunnel.audio.encode", prop, "0");
+    if (!strncmp(prop, "true", 4)) {
+        if (mAudioEncoder == AUDIO_ENCODER_AMR_WB) {
+            tunneledSource = true;
+            tunnelMime = MEDIA_MIMETYPE_AUDIO_AMR_WB;
+        }
+    }
+#endif
     if ( tunneledSource ) {
         ALOGD("tunnel recording");
         sp<AudioSource> audioSource = NULL;
