@@ -57,21 +57,23 @@ namespace android {
         status_t openSession(Vector<uint8_t> &sessionId);
         status_t closeSession(Vector<uint8_t> const &sessionId);
 
-        status_t
-            getLicenseRequest(Vector<uint8_t> const &sessionId,
-                              Vector<uint8_t> const &initData,
-                              String8 const &mimeType, LicenseType licenseType,
-                              KeyedVector<String8, String8> const &optionalParameters,
-                              Vector<uint8_t> &request, String8 &defaultUrl);
+        status_t getKeyRequest(Vector<uint8_t> const &sessionId,
+                               Vector<uint8_t> const &initData,
+                               String8 const &mimeType, KeyType keyType,
+                               KeyedVector<String8, String8> const &optionalParameters,
+                               Vector<uint8_t> &request, String8 &defaultUrl);
 
-        status_t provideLicenseResponse(Vector<uint8_t> const &sessionId,
-                                                Vector<uint8_t> const &response);
+        status_t provideKeyResponse(Vector<uint8_t> const &sessionId,
+                                    Vector<uint8_t> const &response,
+                                    Vector<uint8_t> &keySetId);
 
-        status_t removeLicense(Vector<uint8_t> const &sessionId);
+        status_t removeKeys(Vector<uint8_t> const &keySetId);
 
-        status_t
-            queryLicenseStatus(Vector<uint8_t> const &sessionId,
-                               KeyedVector<String8, String8> &infoMap) const;
+        status_t restoreKeys(Vector<uint8_t> const &sessionId,
+                             Vector<uint8_t> const &keySetId);
+
+        status_t queryKeyStatus(Vector<uint8_t> const &sessionId,
+                                KeyedVector<String8, String8> &infoMap) const;
 
         status_t getProvisionRequest(Vector<uint8_t> &request,
                                              String8 &defaultUrl);
@@ -90,15 +92,46 @@ namespace android {
         status_t setPropertyByteArray(String8 const &name,
                                       Vector<uint8_t> const &value );
 
+        status_t setCipherAlgorithm(Vector<uint8_t> const &sessionId,
+                                    String8 const &algorithm);
+
+        status_t setMacAlgorithm(Vector<uint8_t> const &sessionId,
+                                 String8 const &algorithm);
+
+        status_t encrypt(Vector<uint8_t> const &sessionId,
+                         Vector<uint8_t> const &keyId,
+                         Vector<uint8_t> const &input,
+                         Vector<uint8_t> const &iv,
+                         Vector<uint8_t> &output);
+
+        status_t decrypt(Vector<uint8_t> const &sessionId,
+                         Vector<uint8_t> const &keyId,
+                         Vector<uint8_t> const &input,
+                         Vector<uint8_t> const &iv,
+                         Vector<uint8_t> &output);
+
+        status_t sign(Vector<uint8_t> const &sessionId,
+                      Vector<uint8_t> const &keyId,
+                      Vector<uint8_t> const &message,
+                      Vector<uint8_t> &signature);
+
+        status_t verify(Vector<uint8_t> const &sessionId,
+                        Vector<uint8_t> const &keyId,
+                        Vector<uint8_t> const &message,
+                        Vector<uint8_t> const &signature,
+                        bool &match);
+
     private:
         String8 vectorToString(Vector<uint8_t> const &vector) const;
         String8 arrayToString(uint8_t const *array, size_t len) const;
         String8 stringMapToString(KeyedVector<String8, String8> map) const;
 
         SortedVector<Vector<uint8_t> > mSessions;
+        SortedVector<Vector<uint8_t> > mKeySets;
 
         static const ssize_t kNotFound = -1;
         ssize_t findSession(Vector<uint8_t> const &sessionId) const;
+        ssize_t findKeySet(Vector<uint8_t> const &keySetId) const;
 
         Mutex mLock;
         KeyedVector<String8, String8> mStringProperties;
