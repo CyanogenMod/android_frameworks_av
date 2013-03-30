@@ -1722,6 +1722,7 @@ private:
                 // when < 0, maximum frames to drop before starting capture even if sync event is
                 // not received
                 ssize_t                             mFramestoDrop;
+                int16_t                             mInputSource;
     };
 
     // server side of the client's IAudioRecord
