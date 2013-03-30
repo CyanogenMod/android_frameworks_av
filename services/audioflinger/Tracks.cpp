@@ -81,7 +81,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mFormat(format),
         mChannelMask(channelMask),
         mChannelCount(popcount(channelMask)),
+#ifdef QCOM_HARDWARE
+        mFrameSize((audio_is_linear_pcm(format)||audio_is_supported_compressed(format)) ?
+#else
         mFrameSize(audio_is_linear_pcm(format) ?
+#endif
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mFrameCount(frameCount),
         mStepServerFailed(false),
@@ -236,13 +240,14 @@ void* AudioFlinger::ThreadBase::TrackBase::getBuffer(uint32_t offset, uint32_t f
     int8_t *bufferEnd = bufferStart + frames * mFrameSize;
 
     // Check validity of returned pointer in case the track control block would have been corrupted.
-    ALOG_ASSERT(!(bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd),
-            "TrackBase::getBuffer buffer out of range:\n"
+    if(bufferStart < mBuffer || bufferStart > bufferEnd || bufferEnd > mBufferEnd) {
+        ALOGE("TrackBase::getBuffer buffer out of range:\n"
                 "    start: %p, end %p , mBuffer %p mBufferEnd %p\n"
                 "    server %u, serverBase %u, user %u, userBase %u, frameSize %u",
                 bufferStart, bufferEnd, mBuffer, mBufferEnd,
                 cblk->server, cblk->serverBase, cblk->user, cblk->userBase, mFrameSize);
-
+        return 0;
+    }
     return bufferStart;
 }
 

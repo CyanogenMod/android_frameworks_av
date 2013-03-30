@@ -1482,13 +1482,25 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     RecordThread *thread;
     size_t inFrameCount;
     int lSessionId;
+#ifdef QCOM_HARDWARE
+    size_t inputBufferSize = 0;
+    uint32_t channelCount = popcount(channelMask);
+#endif
 
     // check calling permissions
     if (!recordingAllowed()) {
         lStatus = PERMISSION_DENIED;
         goto Exit;
     }
-
+#ifdef QCOM_HARDWARE
+    // Check that audio input stream accepts requested audio parameters
+    inputBufferSize = getInputBufferSize(sampleRate, format, channelCount);
+    if (inputBufferSize == 0) {
+        lStatus = BAD_VALUE;
+        ALOGE("Bad audio input parameters: sampling rate %u, format %d, channels %d",  sampleRate, format, channelCount);
+        goto Exit;
+    }
+#endif
     // add client to list
     { // scope for mLock
         Mutex::Autolock _l(mLock);
@@ -1510,6 +1522,34 @@ sp<IAudioRecord> AudioFlinger::openRecord(
                 *sessionId = lSessionId;
             }
         }
+#ifdef QCOM_HARDWARE
+        if ((format == AUDIO_FORMAT_PCM_16_BIT) ||
+            (format == AUDIO_FORMAT_PCM_8_BIT))
+        {
+          inFrameCount = inputBufferSize/channelCount/sizeof(short);
+        }
+        else if (format == AUDIO_FORMAT_AMR_NB)
+        {
+          inFrameCount = inputBufferSize/channelCount/32;
+        }
+        else if (format == AUDIO_FORMAT_EVRC)
+        {
+          inFrameCount = inputBufferSize/channelCount/23;
+        }
+        else if (format == AUDIO_FORMAT_QCELP)
+        {
+          inFrameCount = inputBufferSize/channelCount/35;
+        }
+        else if (format == AUDIO_FORMAT_AAC)
+        {
+          inFrameCount = inputBufferSize/2048;
+        }
+        else if (format == AUDIO_FORMAT_AMR_WB)
+        {
+          inFrameCount = inputBufferSize/channelCount/61;
+        }
+        frameCount = ((frameCount - 1)/inFrameCount + 1) * inFrameCount;
+#endif
         // create new record track.
         // The record track uses one track in mHardwareMixerThread by convention.
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,

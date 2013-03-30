@@ -813,6 +813,9 @@ private:
             // when < 0, maximum frames to drop before starting capture even if sync event is
             // not received
             ssize_t                             mFramestoDrop;
+#ifdef QCOM_HARDWARE
+            int16_t                             mInputSource;
+#endif
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
