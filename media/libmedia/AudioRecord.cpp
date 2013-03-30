@@ -159,6 +159,11 @@ status_t AudioRecord::set(
         inputSource = AUDIO_SOURCE_MIC;
     }
 
+#ifdef QCOM_HARDWARE
+    //update mInputSource before openRecord_l
+    mInputSource = inputSource;
+#endif
+
     if (sampleRate == 0) {
         sampleRate = DEFAULT_SAMPLE_RATE;
     }
@@ -279,7 +284,6 @@ status_t AudioRecord::set(
     if (notificationFrames == 0) {
         notificationFrames = frameCount/2;
     }
-
     // create the IAudioRecord
     status = openRecord_l(sampleRate, format, frameCount, input);
     if (status != NO_ERROR) {
@@ -307,7 +311,9 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
+#ifdef QCOM_HARDWARE
     mInputSource = inputSource;
+#endif
     mInput = input;
     AudioSystem::acquireAudioSessionId(mSessionId);
 
@@ -552,7 +558,11 @@ status_t AudioRecord::openRecord_l(
                                                        sampleRate, format,
                                                        mChannelMask,
                                                        frameCount,
+#ifdef QCOM_HARDWARE
+                                                       (int16_t)inputSource(),
+#else
                                                        IAudioFlinger::TRACK_DEFAULT,
+#endif
                                                        tid,
                                                        &mSessionId,
                                                        &status);

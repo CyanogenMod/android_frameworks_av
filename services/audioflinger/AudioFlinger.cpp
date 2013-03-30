@@ -1523,30 +1523,37 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             }
         }
 #ifdef QCOM_HARDWARE
-        if ((format == AUDIO_FORMAT_PCM_16_BIT) ||
-            (format == AUDIO_FORMAT_PCM_8_BIT))
-        {
-          inFrameCount = inputBufferSize/channelCount/sizeof(short);
-        }
-        else if (format == AUDIO_FORMAT_AMR_NB)
-        {
-          inFrameCount = inputBufferSize/channelCount/32;
-        }
-        else if (format == AUDIO_FORMAT_EVRC)
-        {
-          inFrameCount = inputBufferSize/channelCount/23;
-        }
-        else if (format == AUDIO_FORMAT_QCELP)
-        {
-          inFrameCount = inputBufferSize/channelCount/35;
-        }
-        else if (format == AUDIO_FORMAT_AAC)
-        {
-          inFrameCount = inputBufferSize/2048;
-        }
-        else if (format == AUDIO_FORMAT_AMR_WB)
-        {
-          inFrameCount = inputBufferSize/channelCount/61;
+        // frameCount must be a multiple of input buffer size
+        // Change for Codec type
+        uint8_t channelCount = popcount(channelMask);
+        if ((audio_source_t)((int16_t)flags) == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+             inFrameCount = inputBufferSize/channelCount/sizeof(short);
+        } else {
+            if ((format == AUDIO_FORMAT_PCM_16_BIT) ||
+                (format == AUDIO_FORMAT_PCM_8_BIT))
+            {
+              inFrameCount = inputBufferSize/channelCount/sizeof(short);
+            }
+            else if (format == AUDIO_FORMAT_AMR_NB)
+            {
+              inFrameCount = inputBufferSize/channelCount/AMR_FRAMESIZE;
+            }
+            else if (format == AUDIO_FORMAT_EVRC)
+            {
+              inFrameCount = inputBufferSize/channelCount/EVRC_FRAMESIZE;
+            }
+            else if (format == AUDIO_FORMAT_QCELP)
+            {
+              inFrameCount = inputBufferSize/channelCount/QCELP_FRAMESIZE;
+            }
+            else if (format == AUDIO_FORMAT_AAC)
+            {
+              inFrameCount = inputBufferSize/AAC_FRAMESIZE;
+            }
+            else if (format == AUDIO_FORMAT_AMR_WB)
+            {
+              inFrameCount = inputBufferSize/channelCount/AMR_WB_FRAMESIZE;
+            }
         }
         frameCount = ((frameCount - 1)/inFrameCount + 1) * inFrameCount;
 #endif

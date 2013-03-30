@@ -1220,7 +1220,15 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     }
 
     if (mType == DIRECT) {
-        if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
+        if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)
+#ifdef QCOM_HARDWARE
+              ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_NB)
+              ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_WB)
+              ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRC)
+              ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRCB)
+              ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRCWB)
+#endif 
+              ) {
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
                 ALOGE("createTrack_l() Bad parameter: sampleRate %u format %d, channelMask 0x%08x "
                         "for output %p with format %d",
@@ -3810,9 +3818,33 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                         if (framesOut && mFrameCount == mRsmpInIndex) {
                             void *readInto;
-                            if (framesOut == mFrameCount &&
+#ifdef QCOM_HARDWARE
+                            int InputBytes;
+                            if (( framesOut != mFrameCount) &&
+                                ((mFormat != AUDIO_FORMAT_PCM_16_BIT)&&
+                                  ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION))) {
+                                readInto = buffer.raw;
+                                InputBytes = buffer.frameCount * mFrameSize;
+                            } else if (framesOut == mFrameCount &&
                                 (mChannelCount == mReqChannelCount ||
-                                        mFormat != AUDIO_FORMAT_PCM_16_BIT)) {
+                                ((mFormat != AUDIO_FORMAT_PCM_16_BIT) &&
+                                  ((audio_source_t)mInputSource != AUDIO_SOURCE_VOICE_COMMUNICATION)))) {
+                                readInto = buffer.raw;
+                                InputBytes = mInputBytes;
+                                framesOut = 0;
+                            } else {
+                                readInto = mRsmpInBuffer;
+                                mRsmpInIndex = 0;
+                            }
+                            mBytesRead = mInput->stream->read(mInput->stream, readInto,
+                                    InputBytes);
+                            if( mBytesRead >= 0 ){
+                                  buffer.frameCount = mBytesRead/mFrameSize;
+                            }
+#else
+                            if (framesOut == mFrameCount &&
+                                    (mChannelCount == mReqChannelCount ||
+                                     mFormat != AUDIO_FORMAT_PCM_16_BIT)) {
                                 readInto = buffer.raw;
                                 framesOut = 0;
                             } else {
@@ -3821,6 +3853,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                             }
                             mBytesRead = mInput->stream->read(mInput->stream, readInto,
                                     mInputBytes);
+#endif
                             if (mBytesRead <= 0) {
                                 if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE))
                                 {
@@ -3960,7 +3993,11 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         Mutex::Autolock _l(mLock);
 
         track = new RecordTrack(this, client, sampleRate,
-                      format, channelMask, frameCount, sessionId);
+                      format, channelMask, frameCount,
+#ifdef QCOM_HARDWARE
+                      flags,
+#endif
+                      sessionId);
 
         if (track->getCblk() == 0) {
             lStatus = NO_MEMORY;
