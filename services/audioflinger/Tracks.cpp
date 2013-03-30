@@ -113,7 +113,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
-    size_t bufferSize = (buffer == NULL ? roundup(frameCount) : frameCount) * mFrameSize;
+    size_t bufferSize = (((buffer == NULL) && audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
     if (buffer == NULL && alloc == ALLOC_CBLK) {
         size += bufferSize;
     }

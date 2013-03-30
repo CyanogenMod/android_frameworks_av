@@ -37,7 +37,10 @@ audio_track_cblk_t::audio_track_cblk_t()
 Proxy::Proxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t frameSize,
         bool isOut, bool clientInServer)
     : mCblk(cblk), mBuffers(buffers), mFrameCount(frameCount), mFrameSize(frameSize),
-      mFrameCountP2(roundup(frameCount)), mIsOut(isOut), mClientInServer(clientInServer),
+      //Do not roundup the frame count for compress offload capture formats.
+      //Needed for compress offload amr wb encode and vocoders.
+      mFrameCountP2((mFrameSize == 1) ? frameCount : roundup(frameCount)),
+      mIsOut(isOut), mClientInServer(clientInServer),
       mIsShutdown(false), mUnreleased(0)
 {
 }
@@ -151,11 +154,15 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         if (avail > 0) {
             // 'avail' may be non-contiguous, so return only the first contiguous chunk
             size_t part1;
+            // Use modulo operator instead of and operator.
+            // x &= (y-1) returns the remainder if y is even
+            // Use modulo operator to generalize it for all values.
+            // This is needed for compress offload voip and encode usecases.
             if (mIsOut) {
-                rear &= mFrameCountP2 - 1;
+                rear %= mFrameCountP2;
                 part1 = mFrameCountP2 - rear;
             } else {
-                front &= mFrameCountP2 - 1;
+                front %= mFrameCountP2;
                 part1 = mFrameCountP2 - front;
             }
             if (part1 > avail) {
@@ -319,8 +326,8 @@ void ClientProxy::interrupt()
 size_t ClientProxy::getMisalignment()
 {
     audio_track_cblk_t* cblk = mCblk;
-    return (mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront)) &
-            (mFrameCountP2 - 1);
+    return ((mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront))
+           % mFrameCountP2);
 }
 
 size_t ClientProxy::getFramesFilled() {
@@ -572,11 +579,15 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
     }
     // 'availToServer' may be non-contiguous, so return only the first contiguous chunk
     size_t part1;
+    // Use modulo operator instead of and operator.
+    // x &= (y-1) returns the remainder if y is even
+    // Use modulo operator to generalize it for all values.
+    // This is needed for compress offload voip and encode usecases.
     if (mIsOut) {
-        front &= mFrameCountP2 - 1;
+        front %= mFrameCountP2;
         part1 = mFrameCountP2 - front;
     } else {
-        rear &= mFrameCountP2 - 1;
+        rear %= mFrameCountP2;
         part1 = mFrameCountP2 - rear;
     }
     if (part1 > availToServer) {

@@ -3529,6 +3529,7 @@ void OMXCodec::setRawAudioFormat(
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = portIndex;
+    def.format.audio.cMIMEType = NULL;
     status_t err = mOMX->getParameter(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
     CHECK_EQ(err, (status_t)OK);

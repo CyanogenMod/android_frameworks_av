@@ -23,6 +23,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <utils/List.h>
+#include <utils/String8.h>
 
 #include <system/audio.h>
 
@@ -103,6 +104,16 @@ private:
 
     AudioSource(const AudioSource &);
     AudioSource &operator=(const AudioSource &);
+
+    //additions for compress capture source
+public:
+    AudioSource(
+        audio_source_t inputSource, const sp<MetaData>& meta);
+
+private:
+    audio_format_t mFormat;
+    String8 mMime;
+    int32_t mMaxBufferSize;
 };
 
 }  // namespace android

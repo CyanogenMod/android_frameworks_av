@@ -1442,7 +1442,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     switch (mType) {
 
     case DIRECT:
-        if (audio_is_linear_pcm(format)) {
+        if (audio_is_linear_pcm(format) ||
+            audio_is_compress_voip_format(format) ||
+            audio_is_compress_capture_format(format)) {
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
                 ALOGE("createTrack_l() Bad parameter: sampleRate %u format %#x, channelMask 0x%08x "
                         "for output %p with format %#x",
@@ -4120,7 +4122,9 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
         } else {
             sleepTime = idleSleepTime;
         }
-    } else if (mBytesWritten != 0 && audio_is_linear_pcm(mFormat)) {
+    } else if (mBytesWritten != 0 && (audio_is_linear_pcm(mFormat) ||
+            audio_is_compress_voip_format(mFormat) ||
+            audio_is_compress_capture_format(mFormat))) {
         memset(mSinkBuffer, 0, mFrameCount * mFrameSize);
         sleepTime = 0;
     }
@@ -5206,7 +5210,11 @@ reacquire_wakelock:
         // If destination is non-contiguous, first read past the nominal end of buffer, then
         // copy to the right place.  Permitted because mRsmpInBuffer was over-allocated.
 
-        int32_t rear = mRsmpInRear & (mRsmpInFramesP2 - 1);
+        // Use modulo operator instead of and operator.
+        // x &= (y-1) returns the remainder if y is even
+        // Use modulo operator to generalize it for all values.
+        // This is needed for compress offload voip and encode usecases.
+        int32_t rear = mRsmpInRear % mRsmpInFramesP2;
         ssize_t framesRead;
 
         // If an NBAIO source is present, use it to read the normal capture's data
@@ -5308,13 +5316,19 @@ reacquire_wakelock:
                     }
                     int8_t *dst = activeTrack->mSink.i8;
                     while (framesIn > 0) {
-                        front &= mRsmpInFramesP2 - 1;
+                        // Use modulo operator instead of and operator.
+                        // x &= (y-1) returns the remainder if y is even
+                        // Use modulo operator to generalize it for all values.
+                        // This is needed for compress offload voip and encode usecases.
+                        front %= mRsmpInFramesP2;
                         size_t part1 = mRsmpInFramesP2 - front;
                         if (part1 > framesIn) {
                             part1 = framesIn;
                         }
                         int8_t *src = (int8_t *)mRsmpInBuffer + (front * mFrameSize);
-                        if (mChannelCount == activeTrack->mChannelCount) {
+                        if (mChannelCount == activeTrack->mChannelCount ||
+                                audio_is_compress_capture_format(mFormat) ||
+                                audio_is_compress_voip_format(mFormat)) {
                             memcpy(dst, src, part1 * mFrameSize);
                         } else if (mChannelCount == 1) {
                             upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (const int16_t *)src,
@@ -6105,8 +6119,10 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mChannelCount = audio_channel_count_from_in_mask(mChannelMask);
     mHALFormat = mInput->stream->common.get_format(&mInput->stream->common);
     mFormat = mHALFormat;
-    if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("HAL format %#x not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
+    if (mFormat != AUDIO_FORMAT_PCM_16_BIT &&
+            !audio_is_compress_voip_format(mFormat) &&
+            !audio_is_compress_capture_format(mFormat)) {
+        ALOGE("HAL format %#x not supported;", mFormat);
     }
     mFrameSize = audio_stream_in_frame_size(mInput->stream);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
@@ -6117,8 +6133,14 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The value is somewhat arbitrary, and could probably be even larger.
     // A larger value should allow more old data to be read after a track calls start(),
     // without increasing latency.
-    mRsmpInFrames = mFrameCount * 7;
-    mRsmpInFramesP2 = roundup(mRsmpInFrames);
+    if (audio_is_compress_voip_format(mFormat) ||
+        audio_is_compress_capture_format(mFormat)) {
+        mRsmpInFrames = mFrameCount;
+        mRsmpInFramesP2 = mRsmpInFrames;
+    } else {
+        mRsmpInFrames = mFrameCount * 7;
+        mRsmpInFramesP2 = roundup(mRsmpInFrames);
+    }
     delete[] mRsmpInBuffer;
 
     // TODO optimize audio capture buffer sizes ...

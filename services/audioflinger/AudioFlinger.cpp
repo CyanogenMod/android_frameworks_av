@@ -1385,9 +1385,10 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
-    // we don't yet support anything other than 16-bit PCM
-    if (!(audio_is_valid_format(format) &&
-            audio_is_linear_pcm(format) && format == AUDIO_FORMAT_PCM_16_BIT)) {
+    // we don't yet support anything other than 16-bit PCM and compress formats
+    if (format != AUDIO_FORMAT_PCM_16_BIT &&
+            !audio_is_compress_voip_format(format) &&
+            !audio_is_compress_capture_format(format)) {
         ALOGE("openRecord() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;

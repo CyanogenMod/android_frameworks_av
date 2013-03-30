@@ -65,6 +65,7 @@
 #endif
 
 #include "ARTPWriter.h"
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -942,6 +943,32 @@ status_t StagefrightRecorder::start() {
 }
 
 sp<MediaSource> StagefrightRecorder::createAudioSource() {
+    bool compressSource = false;
+    const char *compressMime;
+
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("tunnel.audio.encode", prop, "0");
+    if (!strncmp(prop, "true", 4)) {
+        if (mAudioEncoder == AUDIO_ENCODER_AMR_WB) {
+            compressSource = true;
+            compressMime = MEDIA_MIMETYPE_AUDIO_AMR_WB;
+        }
+    }
+
+    if (compressSource) {
+        ALOGD("compress offload capture");
+        sp<AudioSource> audioSource = NULL;
+        sp<MetaData> meta = new MetaData;
+        meta->setInt32(kKeyChannelCount, mAudioChannels);
+        meta->setInt32(kKeySampleRate, mSampleRate);
+        meta->setInt32(kKeyBitRate, mAudioBitRate);
+        if (mAudioTimeScale > 0) {
+            meta->setInt32(kKeyTimeScale, mAudioTimeScale);
+        }
+        meta->setCString(kKeyMIMEType, compressMime);
+        audioSource = new AudioSource(mAudioSource, meta);
+        return audioSource->initCheck() == OK ? audioSource : NULL;
+    }
     sp<AudioSource> audioSource =
         new AudioSource(
                 mAudioSource,

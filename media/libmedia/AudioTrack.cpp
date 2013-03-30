@@ -359,9 +359,9 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
-    if ((streamType == AUDIO_STREAM_VOICE_CALL) &&
-        (channelCount == 1) &&
-        (sampleRate == 8000 || sampleRate == 16000)) {
+    if ((mStreamType == AUDIO_STREAM_VOICE_CALL) &&
+        (mChannelCount == 1) &&
+        (mSampleRate == 8000 || mSampleRate == 16000)) {
         // Allow Voip direct output only if:
         // audio mode is MODE_IN_COMMUNCATION; AND
         // voip output is not opened already; AND
@@ -389,7 +389,7 @@ status_t AudioTrack::set(
         }
 
         if ((mode == AUDIO_MODE_IN_COMMUNICATION) && (voipOutCount == 0) &&
-            ((voipSampleRate == 0) || (voipSampleRate == sampleRate))) {
+            ((voipSampleRate == 0) || (voipSampleRate == mSampleRate))) {
             if (audio_is_linear_pcm(format)) {
                 char propValue[PROPERTY_VALUE_MAX] = {0};
                 property_get("use.voice.path.for.pcm.voip", propValue, "0");
