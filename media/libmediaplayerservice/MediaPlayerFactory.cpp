@@ -206,7 +206,8 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
             return 0.0;
 
         if (!strncasecmp("http://", url, 7)
-                || !strncasecmp("https://", url, 8)) {
+                || !strncasecmp("https://", url, 8)
+                || !strncasecmp("file://", url, 7)) {
             size_t len = strlen(url);
             if (len >= 5 && !strcasecmp(".m3u8", &url[len - 5])) {
                 return kOurScore;
