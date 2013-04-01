@@ -161,7 +161,8 @@ void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
 
 static bool IsHTTPLiveURL(const char *url) {
     if (!strncasecmp("http://", url, 7)
-            || !strncasecmp("https://", url, 8)) {
+            || !strncasecmp("https://", url, 8)
+            || !strncasecmp("file://", url, 7)) {
         size_t len = strlen(url);
         if (len >= 5 && !strcasecmp(".m3u8", &url[len - 5])) {
             return true;
@@ -833,14 +834,6 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
 
     (*decoder)->configure(format);
 
-    int64_t durationUs;
-    if (mDriver != NULL && mSource->getDuration(&durationUs) == OK) {
-        sp<NuPlayerDriver> driver = mDriver.promote();
-        if (driver != NULL) {
-            driver->notifyDuration(durationUs);
-        }
-    }
-
     return OK;
 }
 
@@ -1270,6 +1263,14 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
                 driver->notifyPrepareCompleted(err);
+            }
+
+            int64_t durationUs;
+            if (mDriver != NULL && mSource->getDuration(&durationUs) == OK) {
+                sp<NuPlayerDriver> driver = mDriver.promote();
+                if (driver != NULL) {
+                    driver->notifyDuration(durationUs);
+                }
             }
             break;
         }

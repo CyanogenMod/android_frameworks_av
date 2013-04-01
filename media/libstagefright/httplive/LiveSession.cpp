@@ -631,22 +631,20 @@ rinse_repeat:
             if (index < mPlaylist->size()) {
                 int32_t newSeqNumber = firstSeqNumberInPlaylist + index;
 
-                if (newSeqNumber != mSeqNumber) {
-                    ALOGI("seeking to seq no %d", newSeqNumber);
+                ALOGI("seeking to seq no %d", newSeqNumber);
 
-                    mSeqNumber = newSeqNumber;
+                mSeqNumber = newSeqNumber;
 
-                    mDataSource->reset();
+                mDataSource->reset();
 
-                    // reseting the data source will have had the
-                    // side effect of discarding any previously queued
-                    // bandwidth change discontinuity.
-                    // Therefore we'll need to treat these seek
-                    // discontinuities as involving a bandwidth change
-                    // even if they aren't directly.
-                    seekDiscontinuity = true;
-                    bandwidthChanged = true;
-                }
+                // reseting the data source will have had the
+                // side effect of discarding any previously queued
+                // bandwidth change discontinuity.
+                // Therefore we'll need to treat these seek
+                // discontinuities as involving a bandwidth change
+                // even if they aren't directly.
+                seekDiscontinuity = true;
+                bandwidthChanged = true;
             }
         }
 
