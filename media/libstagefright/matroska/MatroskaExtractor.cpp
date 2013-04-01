@@ -263,8 +263,8 @@ void BlockIterator::advance_l() {
                     mCluster, nextCluster, pos, len);
             ALOGV("ParseNext returned %ld", res);
 
-            if (res > 0) {
-                // EOF
+            if (res != 0) {
+                // EOF or error
 
                 mCluster = NULL;
                 break;
