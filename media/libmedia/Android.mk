@@ -20,6 +20,7 @@ LOCAL_SRC_FILES:= \
     IAudioRecord.cpp \
     ICrypto.cpp \
     IDrm.cpp \
+    IDrmClient.cpp \
     IHDCP.cpp \
     AudioRecord.cpp \
     AudioSystem.cpp \
