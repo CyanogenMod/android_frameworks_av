@@ -347,6 +347,12 @@ void CameraClient::setPreviewCallbackFlag(int callback_flag) {
     }
 }
 
+status_t CameraClient::setPreviewCallbackTarget(
+        const sp<IGraphicBufferProducer>& callbackProducer) {
+    ALOGE("%s: Unimplemented!", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
 // start preview mode
 status_t CameraClient::startPreview() {
     LOG1("startPreview (pid %d)", getCallingPid());

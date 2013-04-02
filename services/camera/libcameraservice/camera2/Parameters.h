@@ -142,6 +142,7 @@ struct Parameters {
 
     uint32_t previewCallbackFlags;
     bool previewCallbackOneShot;
+    bool previewCallbackSurface;
 
     bool zslMode;
 

@@ -787,6 +787,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     previewCallbackFlags = 0;
     previewCallbackOneShot = false;
+    previewCallbackSurface = false;
 
     char value[PROPERTY_VALUE_MAX];
     property_get("camera.disable_zsl_mode", value, "0");
