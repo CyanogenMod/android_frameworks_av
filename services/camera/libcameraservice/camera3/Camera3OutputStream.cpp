@@ -57,7 +57,14 @@ Camera3OutputStream::Camera3OutputStream(int id,
         uint32_t width, uint32_t height, size_t maxSize, int format) :
         Camera3Stream(id, CAMERA3_STREAM_OUTPUT,
                 width, height, maxSize, format),
-        mConsumer(consumer) {
+        mConsumer(consumer),
+        mTransform(0),
+        mTotalBufferCount(0),
+        mDequeuedBufferCount(0),
+        mFrameCount(0),
+        mLastTimestamp(0) {
+
+    mCombinedFence = new Fence();
 
     if (format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
