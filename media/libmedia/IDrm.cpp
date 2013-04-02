@@ -51,7 +51,8 @@ enum {
     ENCRYPT,
     DECRYPT,
     SIGN,
-    VERIFY
+    VERIFY,
+    SET_LISTENER
 };
 
 struct BpDrm : public BpInterface<IDrm> {
@@ -384,6 +385,14 @@ struct BpDrm : public BpInterface<IDrm> {
         return reply.readInt32();
     }
 
+    virtual status_t setListener(const sp<IDrmClient>& listener) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
+        data.writeStrongBinder(listener->asBinder());
+        remote()->transact(SET_LISTENER, data, &reply);
+        return reply.readInt32();
+    }
+
 private:
     void readVector(Parcel &reply, Vector<uint8_t> &vector) const {
         uint32_t size = reply.readInt32();
@@ -711,6 +720,14 @@ status_t BnDrm::onTransact(
             reply->writeInt32(result);
             return OK;
         }
+
+    case SET_LISTENER: {
+        CHECK_INTERFACE(IDrm, data, reply);
+        sp<IDrmClient> listener =
+            interface_cast<IDrmClient>(data.readStrongBinder());
+        reply->writeInt32(setListener(listener));
+        return NO_ERROR;
+    } break;
 
     default:
         return BBinder::onTransact(code, data, reply, flags);
