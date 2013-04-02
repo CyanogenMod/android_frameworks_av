@@ -44,6 +44,7 @@ class JpegProcessor:
     JpegProcessor(wp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     ~JpegProcessor();
 
+    // CpuConsumer listener implementation
     void onFrameAvailable();
 
     status_t updateStream(const Parameters &params);
