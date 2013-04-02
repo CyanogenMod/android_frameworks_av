@@ -899,11 +899,19 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         // Push result metadata into queue
         mResultQueue.push_back(CameraMetadata());
-        CameraMetadata &captureResult = *(mResultQueue.end());
+        // Lets avoid copies! Too bad there's not a #back method
+        CameraMetadata &captureResult = *(--mResultQueue.end());
 
         captureResult = result->result;
-        captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
-                (int32_t*)&result->frame_number, 1);
+        if (captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
+                (int32_t*)&result->frame_number, 1) != OK) {
+            ALOGE("%s: Camera %d: Failed to set frame# in metadata (%d)",
+                  __FUNCTION__, mId, result->frame_number);
+            // TODO: Report error upstream
+        } else {
+            ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
+                  __FUNCTION__, mId, result->frame_number);
+        }
 
         // Get timestamp from result metadata
 
