@@ -986,7 +986,7 @@ void ToneGenerator::stopTone() {
             // If the start time is valid, make sure that the number of audio samples produced
             // corresponds at least to the time between the start and stop commands.
             // This is needed in case of cold start of the output stream.
-            if ((mStartTime. tv_sec != 0) && (clock_gettime(CLOCK_MONOTONIC, &stopTime) == 0)) {
+            if ((mStartTime.tv_sec != 0) && (clock_gettime(CLOCK_MONOTONIC, &stopTime) == 0)) {
                 time_t sec = stopTime.tv_sec - mStartTime.tv_sec;
                 long nsec = stopTime.tv_nsec - mStartTime.tv_nsec;
                 long durationMs;
@@ -1000,7 +1000,7 @@ void ToneGenerator::stopTone() {
                 } else {
                     // mSamplingRate is always > 1000
                     sec = sec * 1000 + nsec / 1000000; // duration in milliseconds
-                    mMaxSmp = (sec * mSamplingRate) / 1000;
+                    mMaxSmp = (unsigned int)(((int64_t)sec * mSamplingRate) / 1000);
                 }
                 ALOGV("stopTone() forcing mMaxSmp to %d, total for far %d", mMaxSmp,  mTotalSmp);
             } else {
