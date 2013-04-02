@@ -270,6 +270,9 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
         processor->clearZslQueue();
     }
 
+    /**
+     * Fire the jpegCallback in Camera#takePicture(..., jpegCallback)
+     */
     if (mCaptureBuffer != 0 && res == OK) {
         Camera2Client::SharedCameraCallbacks::Lock
             l(client->mSharedCameraCallbacks);
@@ -367,6 +370,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslReprocessing(
 CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
         sp<Camera2Client> &client) {
     ATRACE_CALL();
+
+    // Get the onFrameAvailable callback when the requestID == mCaptureId
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
             this);
     {
@@ -426,6 +431,13 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
     SharedParameters::Lock l(client->getParameters());
     Vector<uint8_t> outputStreams;
 
+    /**
+     * Set up output streams in the request
+     *  - preview
+     *  - capture/jpeg
+     *  - callback (if preview callbacks enabled)
+     *  - recording (if recording enabled)
+     */
     outputStreams.push(client->getPreviewStreamId());
     outputStreams.push(client->getCaptureStreamId());
 
@@ -454,6 +466,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
+    // Create a capture copy since CameraDeviceBase#capture takes ownership
     CameraMetadata captureCopy = mCaptureRequest;
     if (captureCopy.entryCount() == 0) {
         ALOGE("%s: Camera %d: Unable to copy capture request for HAL device",
@@ -461,7 +474,12 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
         return DONE;
     }
 
+    /**
+     * Clear the streaming request for still-capture pictures
+     *   (as opposed to i.e. video snapshots)
+     */
     if (l.mParameters.state == Parameters::STILL_CAPTURE) {
+        // API definition of takePicture() - stop preview before taking pic
         res = client->stopStream();
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for still capture: "
@@ -488,6 +506,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
     status_t res;
     ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
+
+    // Wait for new metadata result (mNewFrame)
     while (!mNewFrameReceived) {
         res = mNewFrameSignal.waitRelative(mInputMutex, kWaitDuration);
         if (res == TIMED_OUT) {
@@ -495,12 +515,17 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             break;
         }
     }
+
+    // Approximation of the shutter being closed
+    // - TODO: use the hal3 exposure callback in Camera3Device instead
     if (mNewFrameReceived && !mShutterNotified) {
         SharedParameters::Lock l(client->getParameters());
         /* warning: this also locks a SharedCameraCallbacks */
         shutterNotifyLocked(l.mParameters, client, mMsgType);
         mShutterNotified = true;
     }
+
+    // Wait until jpeg was captured by JpegProcessor
     while (mNewFrameReceived && !mNewCaptureReceived) {
         res = mNewCaptureSignal.waitRelative(mInputMutex, kWaitDuration);
         if (res == TIMED_OUT) {
@@ -524,7 +549,9 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
         }
         if (entry.data.i64[0] != mCaptureTimestamp) {
             ALOGW("Mismatched capture timestamps: Metadata frame %lld,"
-                    " captured buffer %lld", entry.data.i64[0], mCaptureTimestamp);
+                    " captured buffer %lld",
+                    entry.data.i64[0],
+                    mCaptureTimestamp);
         }
         client->removeFrameListener(mCaptureId, mCaptureId + 1, this);
 
