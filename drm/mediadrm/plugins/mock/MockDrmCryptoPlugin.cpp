@@ -21,6 +21,7 @@
 
 #include "drm/DrmAPI.h"
 #include "MockDrmCryptoPlugin.h"
+#include "media/stagefright/MediaErrors.h"
 
 using namespace android;
 
@@ -98,17 +99,17 @@ namespace android {
     }
 
 
-    status_t MockDrmPlugin::getLicenseRequest(Vector<uint8_t> const &sessionId,
-                                              Vector<uint8_t> const &initData,
-                                              String8 const &mimeType, LicenseType licenseType,
-                                              KeyedVector<String8, String8> const &optionalParameters,
-                                              Vector<uint8_t> &request, String8 &defaultUrl)
+    status_t MockDrmPlugin::getKeyRequest(Vector<uint8_t> const &sessionId,
+                                          Vector<uint8_t> const &initData,
+                                          String8 const &mimeType, KeyType keyType,
+                                          KeyedVector<String8, String8> const &optionalParameters,
+                                          Vector<uint8_t> &request, String8 &defaultUrl)
     {
         Mutex::Autolock lock(mLock);
-        ALOGD("MockDrmPlugin::getLicenseRequest(sessionId=%s, initData=%s, mimeType=%s"
-              ", licenseType=%d, optionalParameters=%s))",
+        ALOGD("MockDrmPlugin::getKeyRequest(sessionId=%s, initData=%s, mimeType=%s"
+              ", keyType=%d, optionalParameters=%s))",
               vectorToString(sessionId).string(), vectorToString(initData).string(), mimeType.string(),
-              licenseType, stringMapToString(optionalParameters).string());
+              keyType, stringMapToString(optionalParameters).string());
 
         ssize_t index = findSession(sessionId);
         if (index == kNotFound) {
@@ -119,15 +120,15 @@ namespace android {
         // Properties used in mock test, set by mock plugin and verifed cts test app
         //   byte[] initData           -> mock-initdata
         //   string mimeType           -> mock-mimetype
-        //   string licenseType        -> mock-licensetype
+        //   string keyType            -> mock-keytype
         //   string optionalParameters -> mock-optparams formatted as {key1,value1},{key2,value2}
 
         mByteArrayProperties.add(String8("mock-initdata"), initData);
         mStringProperties.add(String8("mock-mimetype"), mimeType);
 
-        String8 licenseTypeStr;
-        licenseTypeStr.appendFormat("%d", (int)licenseType);
-        mStringProperties.add(String8("mock-licensetype"), licenseTypeStr);
+        String8 keyTypeStr;
+        keyTypeStr.appendFormat("%d", (int)keyType);
+        mStringProperties.add(String8("mock-keytype"), keyTypeStr);
 
         String8 params;
         for (size_t i = 0; i < optionalParameters.size(); i++) {
@@ -159,11 +160,12 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::provideLicenseResponse(Vector<uint8_t> const &sessionId,
-                                                   Vector<uint8_t> const &response)
+    status_t MockDrmPlugin::provideKeyResponse(Vector<uint8_t> const &sessionId,
+                                               Vector<uint8_t> const &response,
+                                               Vector<uint8_t> &keySetId)
     {
         Mutex::Autolock lock(mLock);
-        ALOGD("MockDrmPlugin::provideLicenseResponse(sessionId=%s, response=%s)",
+        ALOGD("MockDrmPlugin::provideKeyResponse(sessionId=%s, response=%s)",
               vectorToString(sessionId).string(), vectorToString(response).string());
         ssize_t index = findSession(sessionId);
         if (index == kNotFound) {
@@ -176,30 +178,61 @@ namespace android {
 
         // Properties used in mock test, set by mock plugin and verifed cts test app
         //   byte[] response            -> mock-response
-
         mByteArrayProperties.add(String8("mock-response"), response);
+
+        const size_t kKeySetIdSize = 8;
+
+        for (size_t i = 0; i < kKeySetIdSize / sizeof(long); i++) {
+            long r = random();
+            keySetId.appendArray((uint8_t *)&r, sizeof(long));
+        }
+        mKeySets.add(keySetId);
 
         return OK;
     }
 
-    status_t MockDrmPlugin::removeLicense(Vector<uint8_t> const &sessionId)
+    status_t MockDrmPlugin::removeKeys(Vector<uint8_t> const &keySetId)
     {
         Mutex::Autolock lock(mLock);
-        ALOGD("MockDrmPlugin::removeLicense(sessionId=%s)",
-              vectorToString(sessionId).string());
+        ALOGD("MockDrmPlugin::removeKeys(keySetId=%s)",
+              vectorToString(keySetId).string());
+
+        ssize_t index = findKeySet(keySetId);
+        if (index == kNotFound) {
+            ALOGD("Invalid keySetId");
+            return BAD_VALUE;
+        }
+        mKeySets.removeAt(index);
+
+        return OK;
+    }
+
+    status_t MockDrmPlugin::restoreKeys(Vector<uint8_t> const &sessionId,
+                                        Vector<uint8_t> const &keySetId)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::restoreKeys(sessionId=%s, keySetId=%s)",
+              vectorToString(sessionId).string(),
+              vectorToString(keySetId).string());
         ssize_t index = findSession(sessionId);
         if (index == kNotFound) {
             ALOGD("Invalid sessionId");
             return BAD_VALUE;
         }
 
+        index = findKeySet(keySetId);
+        if (index == kNotFound) {
+            ALOGD("Invalid keySetId");
+            return BAD_VALUE;
+        }
+
         return OK;
     }
 
-    status_t MockDrmPlugin::queryLicenseStatus(Vector<uint8_t> const &sessionId,
+    status_t MockDrmPlugin::queryKeyStatus(Vector<uint8_t> const &sessionId,
                                                KeyedVector<String8, String8> &infoMap) const
     {
-        ALOGD("MockDrmPlugin::queryLicenseStatus(sessionId=%s)",
+        ALOGD("MockDrmPlugin::queryKeyStatus(sessionId=%s)",
               vectorToString(sessionId).string());
 
         ssize_t index = findSession(sessionId);
@@ -324,6 +357,198 @@ namespace android {
         return OK;
     }
 
+    status_t MockDrmPlugin::setCipherAlgorithm(Vector<uint8_t> const &sessionId,
+                                               String8 const &algorithm)
+    {
+        Mutex::Autolock lock(mLock);
+
+        ALOGD("MockDrmPlugin::setCipherAlgorithm(sessionId=%s, algorithm=%s)",
+              vectorToString(sessionId).string(), algorithm.string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        if (algorithm == "AES/CBC/NoPadding") {
+            return OK;
+        }
+        return BAD_VALUE;
+    }
+
+    status_t MockDrmPlugin::setMacAlgorithm(Vector<uint8_t> const &sessionId,
+                                            String8 const &algorithm)
+    {
+        Mutex::Autolock lock(mLock);
+
+        ALOGD("MockDrmPlugin::setMacAlgorithm(sessionId=%s, algorithm=%s)",
+              vectorToString(sessionId).string(), algorithm.string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        if (algorithm == "HmacSHA256") {
+            return OK;
+        }
+        return BAD_VALUE;
+    }
+
+    status_t MockDrmPlugin::encrypt(Vector<uint8_t> const &sessionId,
+                                    Vector<uint8_t> const &keyId,
+                                    Vector<uint8_t> const &input,
+                                    Vector<uint8_t> const &iv,
+                                    Vector<uint8_t> &output)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::encrypt(sessionId=%s, keyId=%s, input=%s, iv=%s)",
+              vectorToString(sessionId).string(),
+              vectorToString(keyId).string(),
+              vectorToString(input).string(),
+              vectorToString(iv).string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] keyId              -> mock-keyid
+        //   byte[] input              -> mock-input
+        //   byte[] iv                 -> mock-iv
+        mByteArrayProperties.add(String8("mock-keyid"), keyId);
+        mByteArrayProperties.add(String8("mock-input"), input);
+        mByteArrayProperties.add(String8("mock-iv"), iv);
+
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   byte[] mock-output        -> output
+        index = mByteArrayProperties.indexOfKey(String8("mock-output"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-request' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            output = mByteArrayProperties.valueAt(index);
+        }
+        return OK;
+    }
+
+    status_t MockDrmPlugin::decrypt(Vector<uint8_t> const &sessionId,
+                                    Vector<uint8_t> const &keyId,
+                                    Vector<uint8_t> const &input,
+                                    Vector<uint8_t> const &iv,
+                                    Vector<uint8_t> &output)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::decrypt(sessionId=%s, keyId=%s, input=%s, iv=%s)",
+              vectorToString(sessionId).string(),
+              vectorToString(keyId).string(),
+              vectorToString(input).string(),
+              vectorToString(iv).string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] keyId              -> mock-keyid
+        //   byte[] input              -> mock-input
+        //   byte[] iv                 -> mock-iv
+        mByteArrayProperties.add(String8("mock-keyid"), keyId);
+        mByteArrayProperties.add(String8("mock-input"), input);
+        mByteArrayProperties.add(String8("mock-iv"), iv);
+
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   byte[] mock-output        -> output
+        index = mByteArrayProperties.indexOfKey(String8("mock-output"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-request' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            output = mByteArrayProperties.valueAt(index);
+        }
+        return OK;
+    }
+
+    status_t MockDrmPlugin::sign(Vector<uint8_t> const &sessionId,
+                                 Vector<uint8_t> const &keyId,
+                                 Vector<uint8_t> const &message,
+                                 Vector<uint8_t> &signature)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::sign(sessionId=%s, keyId=%s, message=%s)",
+              vectorToString(sessionId).string(),
+              vectorToString(keyId).string(),
+              vectorToString(message).string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] keyId              -> mock-keyid
+        //   byte[] message            -> mock-message
+        mByteArrayProperties.add(String8("mock-keyid"), keyId);
+        mByteArrayProperties.add(String8("mock-message"), message);
+
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   byte[] mock-signature        -> signature
+        index = mByteArrayProperties.indexOfKey(String8("mock-signature"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-request' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            signature = mByteArrayProperties.valueAt(index);
+        }
+        return OK;
+    }
+
+    status_t MockDrmPlugin::verify(Vector<uint8_t> const &sessionId,
+                                   Vector<uint8_t> const &keyId,
+                                   Vector<uint8_t> const &message,
+                                   Vector<uint8_t> const &signature,
+                                   bool &match)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::verify(sessionId=%s, keyId=%s, message=%s, signature=%s)",
+              vectorToString(sessionId).string(),
+              vectorToString(keyId).string(),
+              vectorToString(message).string(),
+              vectorToString(signature).string());
+
+        ssize_t index = findSession(sessionId);
+        if (index == kNotFound) {
+            ALOGD("Invalid sessionId");
+            return BAD_VALUE;
+        }
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] keyId              -> mock-keyid
+        //   byte[] message            -> mock-message
+        //   byte[] signature          -> mock-signature
+        mByteArrayProperties.add(String8("mock-keyid"), keyId);
+        mByteArrayProperties.add(String8("mock-message"), message);
+        mByteArrayProperties.add(String8("mock-signature"), signature);
+
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   String mock-match "1" or "0"         -> match
+        index = mStringProperties.indexOfKey(String8("mock-match"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-request' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            match = atol(mStringProperties.valueAt(index).string());
+        }
+        return OK;
+    }
+
     ssize_t MockDrmPlugin::findSession(Vector<uint8_t> const &sessionId) const
     {
         ALOGD("findSession: nsessions=%d, size=%d", mSessions.size(), sessionId.size());
@@ -334,6 +559,18 @@ namespace android {
         }
         return kNotFound;
     }
+
+    ssize_t MockDrmPlugin::findKeySet(Vector<uint8_t> const &keySetId) const
+    {
+        ALOGD("findKeySet: nkeySets=%d, size=%d", mKeySets.size(), keySetId.size());
+        for (size_t i = 0; i < mKeySets.size(); ++i) {
+            if (memcmp(mKeySets[i].array(), keySetId.array(), keySetId.size()) == 0) {
+                return i;
+            }
+        }
+        return kNotFound;
+    }
+
 
     // Conversion utilities
     String8 MockDrmPlugin::vectorToString(Vector<uint8_t> const &vector) const
