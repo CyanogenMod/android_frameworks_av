@@ -243,11 +243,11 @@ status_t Drm::closeSession(Vector<uint8_t> const &sessionId) {
     return mPlugin->closeSession(sessionId);
 }
 
-status_t Drm::getLicenseRequest(Vector<uint8_t> const &sessionId,
-                                Vector<uint8_t> const &initData,
-                                String8 const &mimeType, DrmPlugin::LicenseType licenseType,
-                                KeyedVector<String8, String8> const &optionalParameters,
-                                Vector<uint8_t> &request, String8 &defaultUrl) {
+status_t Drm::getKeyRequest(Vector<uint8_t> const &sessionId,
+                            Vector<uint8_t> const &initData,
+                            String8 const &mimeType, DrmPlugin::KeyType keyType,
+                            KeyedVector<String8, String8> const &optionalParameters,
+                            Vector<uint8_t> &request, String8 &defaultUrl) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -258,12 +258,13 @@ status_t Drm::getLicenseRequest(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
-    return mPlugin->getLicenseRequest(sessionId, initData, mimeType, licenseType,
-                                      optionalParameters, request, defaultUrl);
+    return mPlugin->getKeyRequest(sessionId, initData, mimeType, keyType,
+                                  optionalParameters, request, defaultUrl);
 }
 
-status_t Drm::provideLicenseResponse(Vector<uint8_t> const &sessionId,
-                                     Vector<uint8_t> const &response) {
+status_t Drm::provideKeyResponse(Vector<uint8_t> const &sessionId,
+                                 Vector<uint8_t> const &response,
+                                 Vector<uint8_t> &keySetId) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -274,10 +275,10 @@ status_t Drm::provideLicenseResponse(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
-    return mPlugin->provideLicenseResponse(sessionId, response);
+    return mPlugin->provideKeyResponse(sessionId, response, keySetId);
 }
 
-status_t Drm::removeLicense(Vector<uint8_t> const &sessionId) {
+status_t Drm::removeKeys(Vector<uint8_t> const &keySetId) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -288,11 +289,11 @@ status_t Drm::removeLicense(Vector<uint8_t> const &sessionId) {
         return -EINVAL;
     }
 
-    return mPlugin->removeLicense(sessionId);
+    return mPlugin->removeKeys(keySetId);
 }
 
-status_t Drm::queryLicenseStatus(Vector<uint8_t> const &sessionId,
-                                 KeyedVector<String8, String8> &infoMap) const {
+status_t Drm::restoreKeys(Vector<uint8_t> const &sessionId,
+                          Vector<uint8_t> const &keySetId) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -303,7 +304,22 @@ status_t Drm::queryLicenseStatus(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
-    return mPlugin->queryLicenseStatus(sessionId, infoMap);
+    return mPlugin->restoreKeys(sessionId, keySetId);
+}
+
+status_t Drm::queryKeyStatus(Vector<uint8_t> const &sessionId,
+                             KeyedVector<String8, String8> &infoMap) const {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->queryKeyStatus(sessionId, infoMap);
 }
 
 status_t Drm::getProvisionRequest(Vector<uint8_t> &request, String8 &defaultUrl) {
@@ -418,6 +434,108 @@ status_t Drm::setPropertyByteArray(String8 const &name,
     }
 
     return mPlugin->setPropertyByteArray(name, value);
+}
+
+
+status_t Drm::setCipherAlgorithm(Vector<uint8_t> const &sessionId,
+                                 String8 const &algorithm) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->setCipherAlgorithm(sessionId, algorithm);
+}
+
+status_t Drm::setMacAlgorithm(Vector<uint8_t> const &sessionId,
+                              String8 const &algorithm) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->setMacAlgorithm(sessionId, algorithm);
+}
+
+status_t Drm::encrypt(Vector<uint8_t> const &sessionId,
+                      Vector<uint8_t> const &keyId,
+                      Vector<uint8_t> const &input,
+                      Vector<uint8_t> const &iv,
+                      Vector<uint8_t> &output) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->encrypt(sessionId, keyId, input, iv, output);
+}
+
+status_t Drm::decrypt(Vector<uint8_t> const &sessionId,
+                      Vector<uint8_t> const &keyId,
+                      Vector<uint8_t> const &input,
+                      Vector<uint8_t> const &iv,
+                      Vector<uint8_t> &output) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->decrypt(sessionId, keyId, input, iv, output);
+}
+
+status_t Drm::sign(Vector<uint8_t> const &sessionId,
+                   Vector<uint8_t> const &keyId,
+                   Vector<uint8_t> const &message,
+                   Vector<uint8_t> &signature) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->sign(sessionId, keyId, message, signature);
+}
+
+status_t Drm::verify(Vector<uint8_t> const &sessionId,
+                     Vector<uint8_t> const &keyId,
+                     Vector<uint8_t> const &message,
+                     Vector<uint8_t> const &signature,
+                     bool &match) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->verify(sessionId, keyId, message, signature, match);
 }
 
 }  // namespace android

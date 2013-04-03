@@ -45,19 +45,23 @@ struct Drm : public BnDrm {
     virtual status_t closeSession(Vector<uint8_t> const &sessionId);
 
     virtual status_t
-        getLicenseRequest(Vector<uint8_t> const &sessionId,
-                          Vector<uint8_t> const &initData,
-                          String8 const &mimeType, DrmPlugin::LicenseType licenseType,
-                          KeyedVector<String8, String8> const &optionalParameters,
-                          Vector<uint8_t> &request, String8 &defaultUrl);
+        getKeyRequest(Vector<uint8_t> const &sessionId,
+                      Vector<uint8_t> const &initData,
+                      String8 const &mimeType, DrmPlugin::KeyType keyType,
+                      KeyedVector<String8, String8> const &optionalParameters,
+                      Vector<uint8_t> &request, String8 &defaultUrl);
 
-    virtual status_t provideLicenseResponse(Vector<uint8_t> const &sessionId,
-                                            Vector<uint8_t> const &response);
+    virtual status_t provideKeyResponse(Vector<uint8_t> const &sessionId,
+                                        Vector<uint8_t> const &response,
+                                        Vector<uint8_t> &keySetId);
 
-    virtual status_t removeLicense(Vector<uint8_t> const &sessionId);
+    virtual status_t removeKeys(Vector<uint8_t> const &keySetId);
 
-    virtual status_t queryLicenseStatus(Vector<uint8_t> const &sessionId,
-                                        KeyedVector<String8, String8> &infoMap) const;
+    virtual status_t restoreKeys(Vector<uint8_t> const &sessionId,
+                                 Vector<uint8_t> const &keySetId);
+
+    virtual status_t queryKeyStatus(Vector<uint8_t> const &sessionId,
+                                    KeyedVector<String8, String8> &infoMap) const;
 
     virtual status_t getProvisionRequest(Vector<uint8_t> &request,
                                          String8 &defaulUrl);
@@ -74,6 +78,35 @@ struct Drm : public BnDrm {
     virtual status_t setPropertyString(String8 const &name, String8 const &value ) const;
     virtual status_t setPropertyByteArray(String8 const &name,
                                           Vector<uint8_t> const &value ) const;
+
+    virtual status_t setCipherAlgorithm(Vector<uint8_t> const &sessionId,
+                                        String8 const &algorithm);
+
+    virtual status_t setMacAlgorithm(Vector<uint8_t> const &sessionId,
+                                     String8 const &algorithm);
+
+    virtual status_t encrypt(Vector<uint8_t> const &sessionId,
+                             Vector<uint8_t> const &keyId,
+                             Vector<uint8_t> const &input,
+                             Vector<uint8_t> const &iv,
+                             Vector<uint8_t> &output);
+
+    virtual status_t decrypt(Vector<uint8_t> const &sessionId,
+                             Vector<uint8_t> const &keyId,
+                             Vector<uint8_t> const &input,
+                             Vector<uint8_t> const &iv,
+                             Vector<uint8_t> &output);
+
+    virtual status_t sign(Vector<uint8_t> const &sessionId,
+                          Vector<uint8_t> const &keyId,
+                          Vector<uint8_t> const &message,
+                          Vector<uint8_t> &signature);
+
+    virtual status_t verify(Vector<uint8_t> const &sessionId,
+                            Vector<uint8_t> const &keyId,
+                            Vector<uint8_t> const &message,
+                            Vector<uint8_t> const &signature,
+                            bool &match);
 
 private:
     mutable Mutex mLock;
