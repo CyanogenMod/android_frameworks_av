@@ -225,12 +225,18 @@ void AudioFlinger::EffectModule::updateState() {
                    0,
                    mConfig.inputCfg.buffer.frameCount*sizeof(int32_t));
         }
-        start_l();
-        mState = ACTIVE;
+        if (start_l() == NO_ERROR) {
+            mState = ACTIVE;
+        } else {
+            mState = IDLE;
+        }
         break;
     case STOPPING:
-        stop_l();
-        mDisableWaitCnt = mMaxDisableWaitCnt;
+        if (stop_l() == NO_ERROR) {
+            mDisableWaitCnt = mMaxDisableWaitCnt;
+        } else {
+            mDisableWaitCnt = 1; // will cause immediate transition to IDLE
+        }
         mState = STOPPED;
         break;
     case STOPPED:
@@ -297,7 +303,7 @@ void AudioFlinger::EffectModule::process()
 
 void AudioFlinger::EffectModule::reset_l()
 {
-    if (mEffectInterface == NULL) {
+    if (mStatus != NO_ERROR || mEffectInterface == NULL) {
         return;
     }
     (*mEffectInterface)->command(mEffectInterface, EFFECT_CMD_RESET, 0, NULL, 0, NULL);
@@ -305,17 +311,24 @@ void AudioFlinger::EffectModule::reset_l()
 
 status_t AudioFlinger::EffectModule::configure()
 {
+    status_t status;
+    sp<ThreadBase> thread;
+    uint32_t size;
+    audio_channel_mask_t channelMask;
+
     if (mEffectInterface == NULL) {
-        return NO_INIT;
+        status = NO_INIT;
+        goto exit;
     }
 
-    sp<ThreadBase> thread = mThread.promote();
+    thread = mThread.promote();
     if (thread == 0) {
-        return DEAD_OBJECT;
+        status = DEAD_OBJECT;
+        goto exit;
     }
 
     // TODO: handle configuration of effects replacing track process
-    audio_channel_mask_t channelMask = thread->channelMask();
+    channelMask = thread->channelMask();
 
     if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_AUXILIARY) {
         mConfig.inputCfg.channels = AUDIO_CHANNEL_OUT_MONO;
@@ -357,8 +370,8 @@ status_t AudioFlinger::EffectModule::configure()
             this, thread.get(), mConfig.inputCfg.buffer.raw, mConfig.inputCfg.buffer.frameCount);
 
     status_t cmdStatus;
-    uint32_t size = sizeof(int);
-    status_t status = (*mEffectInterface)->command(mEffectInterface,
+    size = sizeof(int);
+    status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_SET_CONFIG,
                                                    sizeof(effect_config_t),
                                                    &mConfig,
@@ -396,6 +409,8 @@ status_t AudioFlinger::EffectModule::configure()
     mMaxDisableWaitCnt = (MAX_DISABLE_TIME_MS * mConfig.outputCfg.samplingRate) /
             (1000 * mConfig.outputCfg.buffer.frameCount);
 
+exit:
+    mStatus = status;
     return status;
 }
 
@@ -429,6 +444,9 @@ status_t AudioFlinger::EffectModule::start_l()
 {
     if (mEffectInterface == NULL) {
         return NO_INIT;
+    }
+    if (mStatus != NO_ERROR) {
+        return mStatus;
     }
     status_t cmdStatus;
     uint32_t size = sizeof(status_t);
@@ -466,6 +484,9 @@ status_t AudioFlinger::EffectModule::stop_l()
     if (mEffectInterface == NULL) {
         return NO_INIT;
     }
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
     status_t cmdStatus;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
@@ -502,6 +523,9 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
 
     if (mState == DESTROYED || mEffectInterface == NULL) {
         return NO_INIT;
+    }
+    if (mStatus != NO_ERROR) {
+        return mStatus;
     }
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    cmdCode,
@@ -592,6 +616,10 @@ bool AudioFlinger::EffectModule::isEnabled() const
 
 bool AudioFlinger::EffectModule::isProcessEnabled() const
 {
+    if (mStatus != NO_ERROR) {
+        return false;
+    }
+
     switch (mState) {
     case RESTART:
     case ACTIVE:
@@ -609,8 +637,10 @@ bool AudioFlinger::EffectModule::isProcessEnabled() const
 status_t AudioFlinger::EffectModule::setVolume(uint32_t *left, uint32_t *right, bool controller)
 {
     Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
     status_t status = NO_ERROR;
-
     // Send volume indication if EFFECT_FLAG_VOLUME_IND is set and read back altered volume
     // if controller flag is set (Note that controller == TRUE => EFFECT_FLAG_VOLUME_CTRL set)
     if (isProcessEnabled() &&
@@ -646,6 +676,9 @@ status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
     }
 
     Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
     status_t status = NO_ERROR;
     if (device && (mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
         status_t cmdStatus;
@@ -665,6 +698,9 @@ status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
 status_t AudioFlinger::EffectModule::setMode(audio_mode_t mode)
 {
     Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_AUDIO_MODE_MASK) == EFFECT_FLAG_AUDIO_MODE_IND) {
         status_t cmdStatus;
@@ -685,6 +721,9 @@ status_t AudioFlinger::EffectModule::setMode(audio_mode_t mode)
 status_t AudioFlinger::EffectModule::setAudioSource(audio_source_t source)
 {
     Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_AUDIO_SOURCE_MASK) == EFFECT_FLAG_AUDIO_SOURCE_IND) {
         uint32_t size = 0;
