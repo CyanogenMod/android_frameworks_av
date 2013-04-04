@@ -35,6 +35,8 @@
 #include <media/stagefright/NuMediaExtractor.h>
 #include <media/stagefright/Utils.h>
 
+#define MEDIA_FILENAME "/sdcard/Frame Counter HD 30FPS_1080p.mp4"
+
 namespace android {
 
 struct PacketSource : public RefBase {
@@ -54,8 +56,7 @@ struct MediaPacketSource : public PacketSource {
         : mMaxSampleSize(1024 * 1024) {
         mExtractor = new NuMediaExtractor;
         CHECK_EQ((status_t)OK,
-                 mExtractor->setDataSource(
-                         "/sdcard/Frame Counter HD 30FPS_1080p.mp4"));
+                 mExtractor->setDataSource(MEDIA_FILENAME));
 
         bool haveVideo = false;
         for (size_t i = 0; i < mExtractor->countTracks(); ++i) {

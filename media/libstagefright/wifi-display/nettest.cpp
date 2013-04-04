@@ -47,6 +47,10 @@ protected:
 
 private:
     enum {
+        kTimeSyncerPort = 8123,
+    };
+
+    enum {
         kWhatListen,
         kWhatConnect,
         kWhatTimeSyncerNotify,
@@ -156,7 +160,7 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> notify = new AMessage(kWhatTimeSyncerNotify, id());
             mTimeSyncer = new TimeSyncer(mNetSession, notify);
             looper()->registerHandler(mTimeSyncer);
-            mTimeSyncer->startServer(8123);
+            mTimeSyncer->startServer(kTimeSyncerPort);
 
             AString host;
             CHECK(msg->findString("host", &host));
@@ -200,7 +204,7 @@ void TestHandler::onMessageReceived(const sp<AMessage> &msg) {
                     AString clientIP;
                     CHECK(msg->findString("client-ip", &clientIP));
 
-                    mTimeSyncer->startClient(clientIP.c_str(), 8123);
+                    mTimeSyncer->startClient(clientIP.c_str(), kTimeSyncerPort);
                     break;
                 }
 
@@ -340,7 +344,7 @@ int main(int argc, char **argv) {
                 connectToPort = strtol(colonPos + 1, &end, 10);
 
                 if (*end != '\0' || end == colonPos + 1
-                        || connectToPort < 1 || connectToPort > 65535) {
+                        || connectToPort < 0 || connectToPort > 65535) {
                     fprintf(stderr, "Illegal port specified.\n");
                     exit(1);
                 }
@@ -352,8 +356,8 @@ int main(int argc, char **argv) {
                 char *end;
                 listenOnPort = strtol(optarg, &end, 10);
 
-                if (*end != '\0' || end == optarg + 1
-                        || listenOnPort < 1 || listenOnPort > 65535) {
+                if (*end != '\0' || end == optarg
+                        || listenOnPort < 0 || listenOnPort > 65535) {
                     fprintf(stderr, "Illegal port specified.\n");
                     exit(1);
                 }
