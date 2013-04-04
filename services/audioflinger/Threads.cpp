@@ -3122,16 +3122,15 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     Vector< sp<Track> > *tracksToRemove
 )
 {
-    sp<Track> trackToRemove;
-
+    size_t count = mActiveTracks.size();
     mixer_state mixerStatus = MIXER_IDLE;
 
     // find out which tracks need to be processed
-    if (mActiveTracks.size() != 0) {
-        sp<Track> t = mActiveTracks[0].promote();
+    for (size_t i = 0; i < count; i++) {
+        sp<Track> t = mActiveTracks[i].promote();
         // The track died recently
         if (t == 0) {
-            return MIXER_IDLE;
+            continue;
         }
 
         Track* const track = t.get();
@@ -3180,35 +3179,40 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 }
                 right = v_clamped/MAX_GAIN;
             }
+            // Only consider last track started for volume and mixer state control.
+            // This is the last entry in mActiveTracks unless a track underruns.
+            // As we only care about the transition phase between two tracks on a
+            // direct output, it is not a problem to ignore the underrun case.
+            if (i == (count - 1)) {
+                if (left != mLeftVolFloat || right != mRightVolFloat) {
+                    mLeftVolFloat = left;
+                    mRightVolFloat = right;
 
-            if (left != mLeftVolFloat || right != mRightVolFloat) {
-                mLeftVolFloat = left;
-                mRightVolFloat = right;
+                    // Convert volumes from float to 8.24
+                    uint32_t vl = (uint32_t)(left * (1 << 24));
+                    uint32_t vr = (uint32_t)(right * (1 << 24));
 
-                // Convert volumes from float to 8.24
-                uint32_t vl = (uint32_t)(left * (1 << 24));
-                uint32_t vr = (uint32_t)(right * (1 << 24));
-
-                // Delegate volume control to effect in track effect chain if needed
-                // only one effect chain can be present on DirectOutputThread, so if
-                // there is one, the track is connected to it
-                if (!mEffectChains.isEmpty()) {
-                    // Do not ramp volume if volume is controlled by effect
-                    mEffectChains[0]->setVolume_l(&vl, &vr);
-                    left = (float)vl / (1 << 24);
-                    right = (float)vr / (1 << 24);
+                    // Delegate volume control to effect in track effect chain if needed
+                    // only one effect chain can be present on DirectOutputThread, so if
+                    // there is one, the track is connected to it
+                    if (!mEffectChains.isEmpty()) {
+                        // Do not ramp volume if volume is controlled by effect
+                        mEffectChains[0]->setVolume_l(&vl, &vr);
+                        left = (float)vl / (1 << 24);
+                        right = (float)vr / (1 << 24);
+                    }
+                    mOutput->stream->set_volume(mOutput->stream, left, right);
                 }
-                mOutput->stream->set_volume(mOutput->stream, left, right);
-            }
 
-            // reset retry count
-            track->mRetryCount = kMaxTrackRetriesDirect;
-            mActiveTrack = t;
-            mixerStatus = MIXER_TRACKS_READY;
+                // reset retry count
+                track->mRetryCount = kMaxTrackRetriesDirect;
+                mActiveTrack = t;
+                mixerStatus = MIXER_TRACKS_READY;
+            }
         } else {
-            // clear effect chain input buffer if an active track underruns to avoid sending
-            // previous audio buffer again to effects
-            if (!mEffectChains.isEmpty()) {
+            // clear effect chain input buffer if the last active track started underruns
+            // to avoid sending previous audio buffer again to effects
+            if (!mEffectChains.isEmpty() && (i == (count -1))) {
                 mEffectChains[0]->clearInputBuffer();
             }
 
@@ -3224,33 +3228,36 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     if (track->isStopped()) {
                         track->reset();
                     }
-                    trackToRemove = track;
+                    tracksToRemove->add(track);
                 }
             } else {
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
+                // Only consider last track started for mixer state control
                 if (--(track->mRetryCount) <= 0) {
                     ALOGV("BUFFER TIMEOUT: remove(%d) from active list", track->name());
-                    trackToRemove = track;
-                } else {
+                    tracksToRemove->add(track);
+                } else if (i == (count -1)){
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
             }
         }
     }
 
-    // FIXME merge this with similar code for removing multiple tracks
     // remove all the tracks that need to be...
-    if (CC_UNLIKELY(trackToRemove != 0)) {
-        tracksToRemove->add(trackToRemove);
-        mActiveTracks.remove(trackToRemove);
-        if (!mEffectChains.isEmpty()) {
-            ALOGV("stopping track on chain %p for session Id: %d", mEffectChains[0].get(),
-                    trackToRemove->sessionId());
-            mEffectChains[0]->decActiveTrackCnt();
-        }
-        if (trackToRemove->isTerminated()) {
-            removeTrack_l(trackToRemove);
+    count = tracksToRemove->size();
+    if (CC_UNLIKELY(count)) {
+        for (size_t i = 0 ; i < count ; i++) {
+            const sp<Track>& track = tracksToRemove->itemAt(i);
+            mActiveTracks.remove(track);
+            if (!mEffectChains.isEmpty()) {
+                ALOGV("stopping track on chain %p for session Id: %d", mEffectChains[0].get(),
+                      track->sessionId());
+                mEffectChains[0]->decActiveTrackCnt();
+            }
+            if (track->isTerminated()) {
+                removeTrack_l(track);
+            }
         }
     }
 
