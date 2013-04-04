@@ -187,6 +187,10 @@ status_t RTPSender::queueBuffer(
     status_t err;
 
     switch (mode) {
+        case PACKETIZATION_NONE:
+            err = queueRawPacket(buffer, packetType);
+            break;
+
         case PACKETIZATION_TRANSPORT_STREAM:
             err = queueTSPackets(buffer, packetType);
             break;
@@ -200,6 +204,46 @@ status_t RTPSender::queueBuffer(
     }
 
     return err;
+}
+
+status_t RTPSender::queueRawPacket(
+        const sp<ABuffer> &packet, uint8_t packetType) {
+    CHECK_LE(packet->size(), kMaxUDPPacketSize - 12);
+
+    int64_t timeUs;
+    CHECK(packet->meta()->findInt64("timeUs", &timeUs));
+
+    sp<ABuffer> udpPacket = new ABuffer(12 + packet->size());
+
+    udpPacket->setInt32Data(mRTPSeqNo);
+
+    uint8_t *rtp = udpPacket->data();
+    rtp[0] = 0x80;
+    rtp[1] = packetType;
+
+    rtp[2] = (mRTPSeqNo >> 8) & 0xff;
+    rtp[3] = mRTPSeqNo & 0xff;
+    ++mRTPSeqNo;
+
+    uint32_t rtpTime = (timeUs * 9) / 100ll;
+
+    rtp[4] = rtpTime >> 24;
+    rtp[5] = (rtpTime >> 16) & 0xff;
+    rtp[6] = (rtpTime >> 8) & 0xff;
+    rtp[7] = rtpTime & 0xff;
+
+    rtp[8] = kSourceID >> 24;
+    rtp[9] = (kSourceID >> 16) & 0xff;
+    rtp[10] = (kSourceID >> 8) & 0xff;
+    rtp[11] = kSourceID & 0xff;
+
+    memcpy(&rtp[12], packet->data(), packet->size());
+
+    return sendRTPPacket(
+            udpPacket,
+            true /* storeInHistory */,
+            true /* timeValid */,
+            timeUs);
 }
 
 status_t RTPSender::queueTSPackets(
