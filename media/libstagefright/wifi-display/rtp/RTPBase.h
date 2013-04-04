@@ -25,6 +25,7 @@ struct RTPBase {
         PACKETIZATION_TRANSPORT_STREAM,
         PACKETIZATION_H264,
         PACKETIZATION_AAC,
+        PACKETIZATION_NONE,
     };
 
     enum TransportMode {
