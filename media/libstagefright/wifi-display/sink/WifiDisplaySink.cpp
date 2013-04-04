@@ -57,7 +57,8 @@ WifiDisplaySink::WifiDisplaySink(
       mSetupDeferred(false),
       mLatencyCount(0),
       mLatencySumUs(0ll),
-      mLatencyMaxUs(0ll) {
+      mLatencyMaxUs(0ll),
+      mMaxDelayMs(-1ll) {
     // We support any and all resolutions, but prefer 720p30
     mSinkSupportedVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280 x 720 p30
@@ -296,8 +297,12 @@ void WifiDisplaySink::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-static void dumpDelay(size_t trackIndex, int64_t timeUs) {
+void WifiDisplaySink::dumpDelay(size_t trackIndex, int64_t timeUs) {
     int64_t delayMs = (ALooper::GetNowUs() - timeUs) / 1000ll;
+
+    if (delayMs > mMaxDelayMs) {
+        mMaxDelayMs = delayMs;
+    }
 
     static const int64_t kMinDelayMs = 0;
     static const int64_t kMaxDelayMs = 300;
@@ -314,9 +319,10 @@ static void dumpDelay(size_t trackIndex, int64_t timeUs) {
         n = kPatternSize;
     }
 
-    ALOGI("[%lld]: (%4lld ms) %s",
+    ALOGI("[%lld]: (%4lld ms / %4lld ms) %s",
           timeUs / 1000,
           delayMs,
+          mMaxDelayMs,
           kPattern + kPatternSize - n);
 }
 
@@ -350,13 +356,18 @@ void WifiDisplaySink::onMediaReceiverNotify(const sp<AMessage> &msg) {
                 looper()->registerHandler(mRenderer);
             }
 
-            CHECK(mTimeOffsetValid);
-
             sp<ABuffer> accessUnit;
             CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
             int64_t timeUs;
             CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
+            if (!mTimeOffsetValid && !(mFlags & FLAG_SPECIAL_MODE)) {
+                mTimeOffsetUs = timeUs - ALooper::GetNowUs();
+                mTimeOffsetValid = true;
+            }
+
+            CHECK(mTimeOffsetValid);
 
             // We are the timesync _client_,
             // client time = server time - time offset.
