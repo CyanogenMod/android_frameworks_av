@@ -39,9 +39,14 @@ struct RTPReceiver : public RTPBase, public AHandler {
         kWhatAccessUnit,
         kWhatPacketLost,
     };
+
+    enum Flags {
+        FLAG_AUTO_CONNECT = 1,
+    };
     RTPReceiver(
             const sp<ANetworkSession> &netSession,
-            const sp<AMessage> &notify);
+            const sp<AMessage> &notify,
+            uint32_t flags = 0);
 
     status_t registerPacketType(
             uint8_t packetType, PacketizationMode mode);
@@ -82,6 +87,7 @@ private:
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
+    uint32_t mFlags;
     TransportMode mRTPMode;
     TransportMode mRTCPMode;
     int32_t mRTPSessionID;
