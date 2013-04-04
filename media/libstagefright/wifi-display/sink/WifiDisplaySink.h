@@ -132,6 +132,8 @@ private:
     int64_t mLatencySumUs;
     int64_t mLatencyMaxUs;
 
+    int64_t mMaxDelayMs;
+
     status_t sendM2(int32_t sessionID);
     status_t sendSetup(int32_t sessionID, const char *uri);
     status_t sendPlay(int32_t sessionID, const char *uri);
@@ -183,6 +185,8 @@ private:
     bool ParseURL(
             const char *url, AString *host, int32_t *port, AString *path,
             AString *user, AString *pass);
+
+    void dumpDelay(size_t trackIndex, int64_t timeUs);
 
     DISALLOW_EVIL_CONSTRUCTORS(WifiDisplaySink);
 };
