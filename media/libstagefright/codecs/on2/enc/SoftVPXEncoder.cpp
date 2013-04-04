@@ -655,7 +655,8 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
         vpx_codec_iter_t encoded_packet_iterator = NULL;
         const vpx_codec_cx_pkt_t* encoded_packet;
 
-        while (encoded_packet = vpx_codec_get_cx_data(mCodecContext, &encoded_packet_iterator)) {
+        while ((encoded_packet = vpx_codec_get_cx_data(
+                        mCodecContext, &encoded_packet_iterator))) {
             if (encoded_packet->kind == VPX_CODEC_CX_FRAME_PKT) {
                 outputBufferHeader->nTimeStamp = encoded_packet->data.frame.pts;
                 outputBufferHeader->nFlags = 0;
