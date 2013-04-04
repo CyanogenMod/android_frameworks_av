@@ -40,7 +40,6 @@ void RTPReceiver::Assembler::postAccessUnit(
     notify->setInt32("followsDiscontinuity", followsDiscontinuity);
     notify->post();
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 RTPReceiver::TSAssembler::TSAssembler(const sp<AMessage> &notify)
