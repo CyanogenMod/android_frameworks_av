@@ -257,7 +257,7 @@ OMX_ERRORTYPE SoftAMRNBEncoder::internalSetParameter(
             }
 
             if (pcmParams->nChannels != 1
-                    || pcmParams->nSamplingRate != kSampleRate) {
+                    || pcmParams->nSamplingRate != (OMX_U32)kSampleRate) {
                 return OMX_ErrorUndefined;
             }
 

@@ -481,7 +481,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
 
         void* inBuffer[]        = { (unsigned char *)mInputFrame };
         INT   inBufferIds[]     = { IN_AUDIO_DATA };
-        INT   inBufferSize[]    = { numBytesPerInputFrame };
+        INT   inBufferSize[]    = { (INT)numBytesPerInputFrame };
         INT   inBufferElSize[]  = { sizeof(int16_t) };
 
         AACENC_BufDesc inBufDesc;
