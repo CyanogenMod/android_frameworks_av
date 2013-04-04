@@ -709,8 +709,11 @@ void WifiDisplaySource::PlaybackSession::onSinkFeedback(const sp<AMessage> &msg)
                 Converter::GetInt32Property(
                         "media.wfd.video-framerate", -1);
 
-            if (rateHz < 0.0) {
-                rateHz = repeaterSource->getFrameRate();
+            char val[PROPERTY_VALUE_MAX];
+            if (rateHz < 0.0
+                    && property_get("media.wfd.video-framerate", val, NULL)
+                    && !strcasecmp("adaptive", val)) {
+                 rateHz = repeaterSource->getFrameRate();
 
                 if (avgLatencyUs > 300000ll) {
                     rateHz *= 0.9;
