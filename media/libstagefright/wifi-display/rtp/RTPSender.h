@@ -94,6 +94,7 @@ private:
 
     static uint64_t GetNowNTP();
 
+    status_t queueRawPacket(const sp<ABuffer> &tsPackets, uint8_t packetType);
     status_t queueTSPackets(const sp<ABuffer> &tsPackets, uint8_t packetType);
     status_t queueAVCBuffer(const sp<ABuffer> &accessUnit, uint8_t packetType);
 
