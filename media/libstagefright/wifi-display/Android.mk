@@ -109,3 +109,25 @@ LOCAL_MODULE:= rtptest
 LOCAL_MODULE_TAGS := optional 
 
 include $(BUILD_EXECUTABLE)
+
+################################################################################
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \
+        nettest.cpp                     \
+
+LOCAL_SHARED_LIBRARIES:= \
+        libbinder                       \
+        libgui                          \
+        libmedia                        \
+        libstagefright                  \
+        libstagefright_foundation       \
+        libstagefright_wfd              \
+        libutils                        \
+
+LOCAL_MODULE:= nettest
+
+LOCAL_MODULE_TAGS := debug
+
+include $(BUILD_EXECUTABLE)
