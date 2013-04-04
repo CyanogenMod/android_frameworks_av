@@ -362,9 +362,13 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             inInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inHeader);
 
-            if (mDecoderHasData) {
+            if (mDecoderHasData || mInputBufferCount) {
                 // flush out the decoder's delayed data by calling DecodeFrame
                 // one more time, with the AACDEC_FLUSH flag set
+
+                // for the use case where the first frame in the buffer is EOS,
+                // decode the header to update the sample rate and channel mode
+                // and flush out the buffer.
                 INT_PCM *outBuffer =
                         reinterpret_cast<INT_PCM *>(
                                 outHeader->pBuffer + outHeader->nOffset);
