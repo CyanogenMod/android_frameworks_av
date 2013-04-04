@@ -102,6 +102,10 @@ void TimeSyncer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSendPacket:
         {
+            if (mHistory.size() == 0) {
+                ALOGI("starting batch");
+            }
+
             TimeInfo ti;
             memset(&ti, 0, sizeof(ti));
 
@@ -228,6 +232,8 @@ void TimeSyncer::onMessageReceived(const sp<AMessage> &msg) {
                             postSendPacket(1000000ll / 30);
                         } else {
                             notifyOffset();
+
+                            ALOGI("batch done");
 
                             mHistory.clear();
                             postSendPacket(kBatchDelayUs);

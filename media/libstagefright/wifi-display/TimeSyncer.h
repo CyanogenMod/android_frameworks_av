@@ -75,7 +75,7 @@ private:
         kNumPacketsPerBatch = 30,
     };
     static const int64_t kTimeoutDelayUs = 500000ll;
-    static const int64_t kBatchDelayUs = 10000000ll;  // every 10 secs
+    static const int64_t kBatchDelayUs = 60000000ll;  // every minute
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
