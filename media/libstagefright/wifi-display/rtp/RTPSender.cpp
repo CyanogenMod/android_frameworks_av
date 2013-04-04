@@ -243,7 +243,7 @@ status_t RTPSender::queueRawPacket(
             udpPacket,
             true /* storeInHistory */,
             true /* timeValid */,
-            timeUs);
+            ALooper::GetNowUs());
 }
 
 status_t RTPSender::queueTSPackets(
