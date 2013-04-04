@@ -3416,6 +3416,21 @@ bool ACodec::LoadedToIdleState::onMessageReceived(const sp<AMessage> &msg) {
             return true;
         }
 
+        case kWhatResume:
+        {
+            // We'll be active soon enough.
+            return true;
+        }
+
+        case kWhatFlush:
+        {
+            // We haven't even started yet, so we're flushed alright...
+            sp<AMessage> notify = mCodec->mNotify->dup();
+            notify->setInt32("what", ACodec::kWhatFlushCompleted);
+            notify->post();
+            return true;
+        }
+
         default:
             return BaseState::onMessageReceived(msg);
     }
