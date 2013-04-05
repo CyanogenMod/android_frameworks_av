@@ -17,6 +17,7 @@
 #include <binder/IInterface.h>
 #include <media/stagefright/foundation/ABase.h>
 #include <media/drm/DrmAPI.h>
+#include <media/IDrmClient.h>
 
 #ifndef ANDROID_IDRM_H_
 
@@ -105,6 +106,8 @@ struct IDrm : public IInterface {
                             Vector<uint8_t> const &message,
                             Vector<uint8_t> const &signature,
                             bool &match) = 0;
+
+    virtual status_t setListener(const sp<IDrmClient>& listener) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IDrm);

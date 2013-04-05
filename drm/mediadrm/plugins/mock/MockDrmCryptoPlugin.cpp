@@ -343,7 +343,31 @@ namespace android {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::setPropertyString(name=%s, value=%s)",
               name.string(), value.string());
-        mStringProperties.add(name, value);
+
+        if (name == "mock-send-event") {
+            unsigned code, extra;
+            sscanf(value.string(), "%d %d", &code, &extra);
+            DrmPlugin::EventType eventType = (DrmPlugin::EventType)code;
+
+            Vector<uint8_t> const *pSessionId = NULL;
+            ssize_t index = mByteArrayProperties.indexOfKey(String8("mock-event-session-id"));
+            if (index >= 0) {
+                pSessionId = &mByteArrayProperties[index];
+            }
+
+            Vector<uint8_t> const *pData = NULL;
+            index = mByteArrayProperties.indexOfKey(String8("mock-event-data"));
+            if (index >= 0) {
+                pData = &mByteArrayProperties[index];
+            }
+            ALOGD("sending event from mock drm plugin: %d %d %s %s",
+                  (int)code, extra, pSessionId ? vectorToString(*pSessionId) : "{}",
+                  pData ? vectorToString(*pData) : "{}");
+
+            sendEvent(eventType, extra, pSessionId, pData);
+        } else {
+            mStringProperties.add(name, value);
+        }
         return OK;
     }
 
