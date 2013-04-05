@@ -109,7 +109,7 @@ class Camera3Device :
 
   private:
     static const nsecs_t       kShutdownTimeout = 5000000000; // 5 sec
-
+    struct                     RequestTrigger;
 
     Mutex                      mLock;
 
@@ -172,6 +172,23 @@ class Camera3Device :
      */
     status_t           configureStreamsLocked();
 
+    struct RequestTrigger {
+        // Metadata tag number, e.g. android.control.aePrecaptureTrigger
+        uint32_t metadataTag;
+        // Metadata value, e.g. 'START' or the trigger ID
+        int32_t entryValue;
+
+        // The last part of the fully qualified path, e.g. afTrigger
+        const char *getTagName() const {
+            return get_camera_metadata_tag_name(metadataTag) ?: "NULL";
+        }
+
+        // e.g. TYPE_BYTE, TYPE_INT32, etc.
+        int getTagType() const {
+            return get_camera_metadata_tag_type(metadataTag);
+        }
+    };
+
     /**
      * Thread for managing capture request submission to HAL device.
      */
@@ -198,6 +215,14 @@ class Camera3Device :
         status_t queueRequest(sp<CaptureRequest> request);
 
         /**
+         * Queue a trigger to be dispatched with the next outgoing
+         * process_capture_request. The settings for that request only
+         * will be temporarily rewritten to add the trigger tag/value.
+         * Subsequent requests will not be rewritten (for this tag).
+         */
+        status_t queueTrigger(RequestTrigger trigger[], size_t count);
+
+        /**
          * Pause/unpause the capture thread. Doesn't block, so use
          * waitUntilPaused to wait until the thread is paused.
          */
@@ -210,11 +235,27 @@ class Camera3Device :
          */
         status_t waitUntilPaused(nsecs_t timeout);
 
+        /**
+         * Wait until thread processes the capture request with settings'
+         * android.request.id == requestId.
+         *
+         * Returns TIMED_OUT in case the thread does not process the request
+         * within the timeout.
+         */
+        status_t waitUntilRequestProcessed(int32_t requestId, nsecs_t timeout);
+
       protected:
 
         virtual bool threadLoop();
 
       private:
+        status_t           queueTriggerLocked(RequestTrigger trigger);
+        // Mix-in queued triggers into this request
+        int32_t            insertTriggers(const sp<CaptureRequest> &request);
+        // Purge the queued triggers from this request,
+        //  restoring the old field values for those tags.
+        status_t           removeTriggers(const sp<CaptureRequest> &request);
+
         static const nsecs_t kRequestTimeout = 50e6; // 50 ms
 
         // Waits for a request, or returns NULL if times out.
@@ -249,8 +290,20 @@ class Camera3Device :
         Condition          mPausedSignal;
 
         sp<CaptureRequest> mPrevRequest;
+        int32_t            mPrevTriggers;
 
         int32_t            mFrameNumber;
+
+        Mutex              mLatestRequestMutex;
+        Condition          mLatestRequestSignal;
+        // android.request.id for latest process_capture_request
+        int32_t            mLatestRequestId;
+
+        typedef KeyedVector<uint32_t/*tag*/, RequestTrigger> TriggerMap;
+        Mutex              mTriggerMutex;
+        TriggerMap         mTriggerMap;
+        TriggerMap         mTriggerRemovedMap;
+        TriggerMap         mTriggerReplacedMap;
     };
     sp<RequestThread> mRequestThread;
 
