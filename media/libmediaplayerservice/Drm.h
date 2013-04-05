@@ -21,6 +21,7 @@
 #include "SharedLibrary.h"
 
 #include <media/IDrm.h>
+#include <media/IDrmClient.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -28,7 +29,7 @@ namespace android {
 struct DrmFactory;
 struct DrmPlugin;
 
-struct Drm : public BnDrm {
+struct Drm : public BnDrm, public DrmPluginListener {
     Drm();
     virtual ~Drm();
 
@@ -108,10 +109,21 @@ struct Drm : public BnDrm {
                             Vector<uint8_t> const &signature,
                             bool &match);
 
+    virtual status_t setListener(const sp<IDrmClient>& listener);
+
+    virtual void sendEvent(DrmPlugin::EventType eventType, int extra,
+                           Vector<uint8_t> const *sessionId,
+                           Vector<uint8_t> const *data);
+
 private:
     mutable Mutex mLock;
 
     status_t mInitCheck;
+
+    sp<IDrmClient> mListener;
+    mutable Mutex mEventLock;
+    mutable Mutex mNotifyLock;
+
     sp<SharedLibrary> mLibrary;
     DrmFactory *mFactory;
     DrmPlugin *mPlugin;
