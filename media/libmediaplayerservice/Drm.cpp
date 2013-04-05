@@ -47,6 +47,7 @@ static bool operator<(const Vector<uint8_t> &lhs, const Vector<uint8_t> &rhs) {
 
 Drm::Drm()
     : mInitCheck(NO_INIT),
+      mListener(NULL),
       mFactory(NULL),
       mPlugin(NULL) {
 }
@@ -67,6 +68,41 @@ status_t Drm::initCheck() const {
     return mInitCheck;
 }
 
+status_t Drm::setListener(const sp<IDrmClient>& listener)
+{
+    Mutex::Autolock lock(mEventLock);
+    mListener = listener;
+    return NO_ERROR;
+}
+
+void Drm::sendEvent(DrmPlugin::EventType eventType, int extra,
+                    Vector<uint8_t> const *sessionId,
+                    Vector<uint8_t> const *data)
+{
+    mEventLock.lock();
+    sp<IDrmClient> listener = mListener;
+    mEventLock.unlock();
+
+    if (listener != NULL) {
+        Parcel obj;
+        if (sessionId && sessionId->size()) {
+            obj.writeInt32(sessionId->size());
+            obj.write(sessionId->array(), sessionId->size());
+        } else {
+            obj.writeInt32(0);
+        }
+
+        if (data && data->size()) {
+            obj.writeInt32(data->size());
+            obj.write(data->array(), data->size());
+        } else {
+            obj.writeInt32(0);
+        }
+
+        Mutex::Autolock lock(mNotifyLock);
+        listener->notify(eventType, extra, &obj);
+    }
+}
 
 /*
  * Search the plugins directory for a plugin that supports the scheme
@@ -195,7 +231,9 @@ status_t Drm::createPlugin(const uint8_t uuid[16]) {
         return mInitCheck;
     }
 
-    return mFactory->createDrmPlugin(uuid, &mPlugin);
+    status_t result = mFactory->createDrmPlugin(uuid, &mPlugin);
+    mPlugin->setListener(this);
+    return result;
 }
 
 status_t Drm::destroyPlugin() {
