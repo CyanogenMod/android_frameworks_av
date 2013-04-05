@@ -262,6 +262,8 @@ status_t Camera3Device::capture(CameraMetadata &request) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
 
+    // TODO: take ownership of the request
+
     switch (mStatus) {
         case STATUS_ERROR:
             ALOGE("%s: Device has encountered a serious error", __FUNCTION__);
@@ -363,10 +365,8 @@ status_t Camera3Device::clearStreamingRequest() {
 
 status_t Camera3Device::waitUntilRequestReceived(int32_t requestId, nsecs_t timeout) {
     ATRACE_CALL();
-    (void)requestId; (void)timeout;
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    return mRequestThread->waitUntilRequestProcessed(requestId, timeout);
 }
 
 status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
@@ -698,28 +698,62 @@ status_t Camera3Device::getNextFrame(CameraMetadata *frame) {
 
 status_t Camera3Device::triggerAutofocus(uint32_t id) {
     ATRACE_CALL();
-    (void)id;
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    ALOGV("%s: Triggering autofocus, id %d", __FUNCTION__, id);
+    // Mix-in this trigger into the next request and only the next request.
+    RequestTrigger trigger[] = {
+        {
+            ANDROID_CONTROL_AF_TRIGGER,
+            ANDROID_CONTROL_AF_TRIGGER_START
+        },
+        {
+            ANDROID_CONTROL_AF_TRIGGER_ID,
+            static_cast<int32_t>(id)
+        },
+    };
+
+    return mRequestThread->queueTrigger(trigger,
+                                        sizeof(trigger)/sizeof(trigger[0]));
 }
 
 status_t Camera3Device::triggerCancelAutofocus(uint32_t id) {
     ATRACE_CALL();
-    (void)id;
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    ALOGV("%s: Triggering cancel autofocus, id %d", __FUNCTION__, id);
+    // Mix-in this trigger into the next request and only the next request.
+    RequestTrigger trigger[] = {
+        {
+            ANDROID_CONTROL_AF_TRIGGER,
+            ANDROID_CONTROL_AF_TRIGGER_CANCEL
+        },
+        {
+            ANDROID_CONTROL_AF_TRIGGER_ID,
+            static_cast<int32_t>(id)
+        },
+    };
 
+    return mRequestThread->queueTrigger(trigger,
+                                        sizeof(trigger)/sizeof(trigger[0]));
 }
 
 status_t Camera3Device::triggerPrecaptureMetering(uint32_t id) {
     ATRACE_CALL();
-    (void)id;
 
-    ALOGE("%s: Unimplemented", __FUNCTION__);
-    return INVALID_OPERATION;
+    ALOGV("%s: Triggering precapture metering, id %d", __FUNCTION__, id);
+    // Mix-in this trigger into the next request and only the next request.
+    RequestTrigger trigger[] = {
+        {
+            ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER,
+            ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER_START
+        },
+        {
+            ANDROID_CONTROL_AE_PRECAPTURE_ID,
+            static_cast<int32_t>(id)
+        },
+    };
 
+    return mRequestThread->queueTrigger(trigger,
+                                        sizeof(trigger)/sizeof(trigger[0]));
 }
 
 status_t Camera3Device::pushReprocessBuffer(int reprocessStreamId,
@@ -997,9 +1031,13 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     // Dispatch any 3A change events to listeners
     if (listener != NULL) {
         if (new3aState.aeState != cur3aState.aeState) {
+            ALOGVV("%s: AE state changed from 0x%x to 0x%x",
+                   __FUNCTION__, cur3aState.aeState, new3aState.aeState);
             listener->notifyAutoExposure(new3aState.aeState, aeTriggerId);
         }
         if (new3aState.afState != cur3aState.afState) {
+            ALOGVV("%s: AF state changed from 0x%x to 0x%x",
+                   __FUNCTION__, cur3aState.afState, new3aState.afState);
             listener->notifyAutoFocus(new3aState.afState, afTriggerId);
         }
         if (new3aState.awbState != cur3aState.awbState) {
@@ -1059,7 +1097,8 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mReconfigured(false),
         mDoPause(false),
         mPaused(true),
-        mFrameNumber(0) {
+        mFrameNumber(0),
+        mLatestRequestId(NAME_NOT_FOUND) {
 }
 
 void Camera3Device::RequestThread::configurationComplete() {
@@ -1071,6 +1110,57 @@ status_t Camera3Device::RequestThread::queueRequest(
          sp<CaptureRequest> request) {
     Mutex::Autolock l(mRequestLock);
     mRequestQueue.push_back(request);
+
+    return OK;
+}
+
+
+status_t Camera3Device::RequestThread::queueTrigger(
+        RequestTrigger trigger[],
+        size_t count) {
+
+    Mutex::Autolock l(mTriggerMutex);
+    status_t ret;
+
+    for (size_t i = 0; i < count; ++i) {
+        ret = queueTriggerLocked(trigger[i]);
+
+        if (ret != OK) {
+            return ret;
+        }
+    }
+
+    return OK;
+}
+
+status_t Camera3Device::RequestThread::queueTriggerLocked(
+        RequestTrigger trigger) {
+
+    uint32_t tag = trigger.metadataTag;
+    ssize_t index = mTriggerMap.indexOfKey(tag);
+
+    switch (trigger.getTagType()) {
+        case TYPE_BYTE:
+        // fall-through
+        case TYPE_INT32:
+            break;
+        default:
+            ALOGE("%s: Type not supported: 0x%x",
+                  __FUNCTION__,
+                  trigger.getTagType());
+            return INVALID_OPERATION;
+    }
+
+    /**
+     * Collect only the latest trigger, since we only have 1 field
+     * in the request settings per trigger tag, and can't send more than 1
+     * trigger per request.
+     */
+    if (index != NAME_NOT_FOUND) {
+        mTriggerMap.editValueAt(index) = trigger;
+    } else {
+        mTriggerMap.add(tag, trigger);
+    }
 
     return OK;
 }
@@ -1108,6 +1198,24 @@ status_t Camera3Device::RequestThread::waitUntilPaused(nsecs_t timeout) {
     return OK;
 }
 
+status_t Camera3Device::RequestThread::waitUntilRequestProcessed(
+        int32_t requestId, nsecs_t timeout) {
+    Mutex::Autolock l(mLatestRequestMutex);
+    status_t res;
+    while (mLatestRequestId != requestId) {
+        nsecs_t startTime = systemTime();
+
+        res = mLatestRequestSignal.waitRelative(mLatestRequestMutex, timeout);
+        if (res != OK) return res;
+
+        timeout -= (systemTime() - startTime);
+    }
+
+    return OK;
+}
+
+
+
 bool Camera3Device::RequestThread::threadLoop() {
 
     status_t res;
@@ -1125,16 +1233,55 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     // Create request to HAL
-
     camera3_capture_request_t request = camera3_capture_request_t();
+    Vector<camera3_stream_buffer_t> outputBuffers;
 
-    if (mPrevRequest != nextRequest) {
+    // Insert any queued triggers (before metadata is locked)
+    int32_t triggerCount;
+    res = insertTriggers(nextRequest);
+    if (res < 0) {
+        ALOGE("RequestThread: Unable to insert triggers "
+              "(capture request %d, HAL device: %s (%d)",
+              (mFrameNumber+1), strerror(-res), res);
+        cleanUpFailedRequest(request, nextRequest, outputBuffers);
+        return false;
+    }
+    triggerCount = res;
+
+    bool triggersMixedIn = (triggerCount > 0 || mPrevTriggers > 0);
+
+    // If the request is the same as last, or we had triggers last time
+    if (mPrevRequest != nextRequest || triggersMixedIn) {
+        /**
+         * The request should be presorted so accesses in HAL
+         *   are O(logn). Sidenote, sorting a sorted metadata is nop.
+         */
+        nextRequest->mSettings.sort();
         request.settings = nextRequest->mSettings.getAndLock();
         mPrevRequest = nextRequest;
-    } // else leave request.settings NULL to indicate 'reuse latest given'
+        ALOGVV("%s: Request settings are NEW", __FUNCTION__);
+
+        IF_ALOGV() {
+            camera_metadata_ro_entry_t e = camera_metadata_ro_entry_t();
+            find_camera_metadata_ro_entry(
+                    request.settings,
+                    ANDROID_CONTROL_AF_TRIGGER,
+                    &e
+            );
+            if (e.count > 0) {
+                ALOGV("%s: Request (frame num %d) had AF trigger 0x%x",
+                      __FUNCTION__,
+                      mFrameNumber+1,
+                      e.data.u8[0]);
+            }
+        }
+    } else {
+        // leave request.settings NULL to indicate 'reuse latest given'
+        ALOGVV("%s: Request settings are REUSED",
+               __FUNCTION__);
+    }
 
     camera3_stream_buffer_t inputBuffer;
-    Vector<camera3_stream_buffer_t> outputBuffers;
 
     // Fill in buffers
 
@@ -1168,6 +1315,7 @@ bool Camera3Device::RequestThread::threadLoop() {
 
     request.frame_number = mFrameNumber++;
 
+
     // Submit request and block until ready for next one
 
     res = mHal3Device->ops->process_capture_request(mHal3Device, &request);
@@ -1181,6 +1329,35 @@ bool Camera3Device::RequestThread::threadLoop() {
     if (request.settings != NULL) {
         nextRequest->mSettings.unlock(request.settings);
     }
+
+    // Remove any previously queued triggers (after unlock)
+    res = removeTriggers(mPrevRequest);
+    if (res != OK) {
+        ALOGE("RequestThread: Unable to remove triggers "
+              "(capture request %d, HAL device: %s (%d)",
+              request.frame_number, strerror(-res), res);
+        return false;
+    }
+    mPrevTriggers = triggerCount;
+
+    // Read android.request.id from the request settings metadata
+    // - inform waitUntilRequestProcessed thread of a new request ID
+    {
+        Mutex::Autolock al(mLatestRequestMutex);
+
+        camera_metadata_entry_t requestIdEntry =
+                nextRequest->mSettings.find(ANDROID_REQUEST_ID);
+        if (requestIdEntry.count > 0) {
+            mLatestRequestId = requestIdEntry.data.i32[0];
+        } else {
+            ALOGW("%s: Did not have android.request.id set in the request",
+                  __FUNCTION__);
+            mLatestRequestId = NAME_NOT_FOUND;
+        }
+
+        mLatestRequestSignal.signal();
+    }
+
     return true;
 }
 
@@ -1284,6 +1461,141 @@ bool Camera3Device::RequestThread::waitIfPaused() {
     // to further manage the paused state in case of starvation.
     return false;
 }
+
+status_t Camera3Device::RequestThread::insertTriggers(
+        const sp<CaptureRequest> &request) {
+
+    Mutex::Autolock al(mTriggerMutex);
+
+    CameraMetadata &metadata = request->mSettings;
+    size_t count = mTriggerMap.size();
+
+    for (size_t i = 0; i < count; ++i) {
+        RequestTrigger trigger = mTriggerMap.valueAt(i);
+
+        uint32_t tag = trigger.metadataTag;
+        camera_metadata_entry entry = metadata.find(tag);
+
+        if (entry.count > 0) {
+            /**
+             * Already has an entry for this trigger in the request.
+             * Rewrite it with our requested trigger value.
+             */
+            RequestTrigger oldTrigger = trigger;
+
+            oldTrigger.entryValue = entry.data.u8[0];
+
+            mTriggerReplacedMap.add(tag, oldTrigger);
+        } else {
+            /**
+             * More typical, no trigger entry, so we just add it
+             */
+            mTriggerRemovedMap.add(tag, trigger);
+        }
+
+        status_t res;
+
+        switch (trigger.getTagType()) {
+            case TYPE_BYTE: {
+                uint8_t entryValue = static_cast<uint8_t>(trigger.entryValue);
+                res = metadata.update(tag,
+                                      &entryValue,
+                                      /*count*/1);
+                break;
+            }
+            case TYPE_INT32:
+                res = metadata.update(tag,
+                                      &trigger.entryValue,
+                                      /*count*/1);
+                break;
+            default:
+                ALOGE("%s: Type not supported: 0x%x",
+                      __FUNCTION__,
+                      trigger.getTagType());
+                return INVALID_OPERATION;
+        }
+
+        if (res != OK) {
+            ALOGE("%s: Failed to update request metadata with trigger tag %s"
+                  ", value %d", __FUNCTION__, trigger.getTagName(),
+                  trigger.entryValue);
+            return res;
+        }
+
+        ALOGV("%s: Mixed in trigger %s, value %d", __FUNCTION__,
+              trigger.getTagName(),
+              trigger.entryValue);
+    }
+
+    mTriggerMap.clear();
+
+    return count;
+}
+
+status_t Camera3Device::RequestThread::removeTriggers(
+        const sp<CaptureRequest> &request) {
+    Mutex::Autolock al(mTriggerMutex);
+
+    CameraMetadata &metadata = request->mSettings;
+
+    /**
+     * Replace all old entries with their old values.
+     */
+    for (size_t i = 0; i < mTriggerReplacedMap.size(); ++i) {
+        RequestTrigger trigger = mTriggerReplacedMap.valueAt(i);
+
+        status_t res;
+
+        uint32_t tag = trigger.metadataTag;
+        switch (trigger.getTagType()) {
+            case TYPE_BYTE: {
+                uint8_t entryValue = static_cast<uint8_t>(trigger.entryValue);
+                res = metadata.update(tag,
+                                      &entryValue,
+                                      /*count*/1);
+                break;
+            }
+            case TYPE_INT32:
+                res = metadata.update(tag,
+                                      &trigger.entryValue,
+                                      /*count*/1);
+                break;
+            default:
+                ALOGE("%s: Type not supported: 0x%x",
+                      __FUNCTION__,
+                      trigger.getTagType());
+                return INVALID_OPERATION;
+        }
+
+        if (res != OK) {
+            ALOGE("%s: Failed to restore request metadata with trigger tag %s"
+                  ", trigger value %d", __FUNCTION__,
+                  trigger.getTagName(), trigger.entryValue);
+            return res;
+        }
+    }
+    mTriggerReplacedMap.clear();
+
+    /**
+     * Remove all new entries.
+     */
+    for (size_t i = 0; i < mTriggerRemovedMap.size(); ++i) {
+        RequestTrigger trigger = mTriggerRemovedMap.valueAt(i);
+        status_t res = metadata.erase(trigger.metadataTag);
+
+        if (res != OK) {
+            ALOGE("%s: Failed to erase metadata with trigger tag %s"
+                  ", trigger value %d", __FUNCTION__,
+                  trigger.getTagName(), trigger.entryValue);
+            return res;
+        }
+    }
+    mTriggerRemovedMap.clear();
+
+    return OK;
+}
+
+
 
 /**
  * Static callback forwarding methods from HAL to instance
