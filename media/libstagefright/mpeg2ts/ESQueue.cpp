@@ -147,9 +147,9 @@ status_t ElementaryStreamQueue::appendData(
                 }
 
                 if (startOffset > 0) {
-                    ALOGI("found something resembling an H.264/MPEG syncword at "
-                         "offset %ld",
-                         startOffset);
+                    ALOGI("found something resembling an H.264/MPEG syncword "
+                          "at offset %d",
+                          startOffset);
                 }
 
                 data = &ptr[startOffset];
@@ -180,9 +180,9 @@ status_t ElementaryStreamQueue::appendData(
                 }
 
                 if (startOffset > 0) {
-                    ALOGI("found something resembling an H.264/MPEG syncword at "
-                         "offset %ld",
-                         startOffset);
+                    ALOGI("found something resembling an H.264/MPEG syncword "
+                          "at offset %d",
+                          startOffset);
                 }
 
                 data = &ptr[startOffset];
@@ -213,8 +213,9 @@ status_t ElementaryStreamQueue::appendData(
                 }
 
                 if (startOffset > 0) {
-                    ALOGI("found something resembling an AAC syncword at offset %ld",
-                         startOffset);
+                    ALOGI("found something resembling an AAC syncword at "
+                          "offset %d",
+                          startOffset);
                 }
 
                 data = &ptr[startOffset];
@@ -241,8 +242,8 @@ status_t ElementaryStreamQueue::appendData(
 
                 if (startOffset > 0) {
                     ALOGI("found something resembling an MPEG audio "
-                         "syncword at offset %ld",
-                         startOffset);
+                          "syncword at offset %d",
+                          startOffset);
                 }
 
                 data = &ptr[startOffset];
@@ -394,10 +395,30 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
-    int64_t timeUs;
+    if (mBuffer->size() == 0) {
+        return NULL;
+    }
 
+    CHECK(!mRangeInfos.empty());
+
+    const RangeInfo &info = *mRangeInfos.begin();
+    if (mBuffer->size() < info.mLength) {
+        return NULL;
+    }
+
+    CHECK_GE(info.mTimestampUs, 0ll);
+
+    // The idea here is consume all AAC frames starting at offsets before
+    // info.mLength so we can assign a meaningful timestamp without
+    // having to interpolate.
+    // The final AAC frame may well extend into the next RangeInfo but
+    // that's ok.
     size_t offset = 0;
-    while (offset + 7 <= mBuffer->size()) {
+    while (offset < info.mLength) {
+        if (offset + 7 > mBuffer->size()) {
+            return NULL;
+        }
+
         ABitReader bits(mBuffer->data() + offset, mBuffer->size() - offset);
 
         // adts_fixed_header
@@ -450,24 +471,15 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
         }
 
         if (offset + aac_frame_length > mBuffer->size()) {
-            break;
+            return NULL;
         }
 
         size_t headerSize = protection_absent ? 7 : 9;
 
-        int64_t tmpUs = fetchTimestamp(aac_frame_length);
-        CHECK_GE(tmpUs, 0ll);
-
-        if (offset == 0) {
-            timeUs = tmpUs;
-        }
-
         offset += aac_frame_length;
     }
 
-    if (offset == 0) {
-        return NULL;
-    }
+    int64_t timeUs = fetchTimestamp(offset);
 
     sp<ABuffer> accessUnit = new ABuffer(offset);
     memcpy(accessUnit->data(), mBuffer->data(), offset);
@@ -492,7 +504,6 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
 
         if (first) {
             timeUs = info->mTimestampUs;
-            first = false;
         }
 
         if (info->mLength > size) {
@@ -509,6 +520,8 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
             mRangeInfos.erase(mRangeInfos.begin());
             info = NULL;
         }
+
+        first = false;
     }
 
     if (timeUs == 0ll) {
