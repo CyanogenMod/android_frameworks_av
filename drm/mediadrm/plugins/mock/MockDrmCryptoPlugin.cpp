@@ -291,16 +291,30 @@ namespace android {
     {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::getSecureStops()");
-        const uint8_t ss1[] = {0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89};
-        const uint8_t ss2[] = {0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99};
 
-        Vector<uint8_t> vec;
-        vec.appendArray(ss1, sizeof(ss1));
-        secureStops.push_back(vec);
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   byte[] mock-secure-stop1  -> first secure stop in list
+        //   byte[] mock-secure-stop2  -> second secure stop in list
 
-        vec.clear();
-        vec.appendArray(ss2, sizeof(ss2));
-        secureStops.push_back(vec);
+        Vector<uint8_t> ss1, ss2;
+        ssize_t index = mByteArrayProperties.indexOfKey(String8("mock-secure-stop1"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-secure-stop1' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            ss1 = mByteArrayProperties.valueAt(index);
+        }
+
+        index = mByteArrayProperties.indexOfKey(String8("mock-secure-stop2"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-secure-stop2' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            ss2 = mByteArrayProperties.valueAt(index);
+        }
+
+        secureStops.push_back(ss1);
+        secureStops.push_back(ss2);
         return OK;
     }
 
@@ -309,6 +323,11 @@ namespace android {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::releaseSecureStops(%s)",
               vectorToString(ssRelease).string());
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] secure-stop-release  -> mock-ssrelease
+        mByteArrayProperties.add(String8("mock-ssrelease"), ssRelease);
+
         return OK;
     }
 
