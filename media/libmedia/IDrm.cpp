@@ -590,6 +590,7 @@ status_t BnDrm::onTransact(
                 size_t size = iter->size();
                 reply->writeInt32(size);
                 reply->write(iter->array(), iter->size());
+                iter++;
             }
             reply->writeInt32(result);
             return OK;
