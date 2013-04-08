@@ -50,7 +50,16 @@ const char *MEDIA_MIMETYPE_AUDIO_DTS = "audio/dts";
 const char *MEDIA_MIMETYPE_AUDIO_DTS_LBR = "audio/dts-lbr";
 const char *MEDIA_MIMETYPE_AUDIO_EAC3 = "audio/eac3";
 const char *MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS = "audio/amr-wb-plus";
-const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG2TS = "video/qc-mp2ts";
 const char *MEDIA_MIMETYPE_VIDEO_HEVC = "video/hevc";
-}  // namespace android
+const char *MEDIA_MIMETYPE_CONTAINER_QCAMR_NB = "audio/qc-amr";
+const char *MEDIA_MIMETYPE_CONTAINER_QCAMR_WB = "audio/qc-amr-wb";
+const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG = "audio/qc-mpeg";
+const char *MEDIA_MIMETYPE_CONTAINER_QCWAV = "audio/qc-wav";
+const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG2TS = "video/qc-mp2ts";
+const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG2PS = "video/qc-mp2ps";
+const char *MEDIA_MIMETYPE_CONTAINER_QCMPEG4 = "video/qc-mp4";
+const char *MEDIA_MIMETYPE_CONTAINER_QCMATROSKA = "video/qc-matroska";
+const char *MEDIA_MIMETYPE_CONTAINER_QCOGG = "video/qc-ogg";
+const char *MEDIA_MIMETYPE_CONTAINER_QCFLV = "video/qc-flv";
 
+}  // namespace android
