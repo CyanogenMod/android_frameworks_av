@@ -58,6 +58,19 @@ bool DataSource::getUInt16(off64_t offset, uint16_t *x) {
     return true;
 }
 
+bool DataSource::getUInt24(off64_t offset, uint32_t *x) {
+    *x = 0;
+
+    uint8_t byte[3];
+    if (readAt(offset, byte, 3) != 3) {
+        return false;
+    }
+
+    *x = (byte[0] << 16) | (byte[1] << 8) | byte[2];
+
+    return true;
+}
+
 bool DataSource::getUInt32(off64_t offset, uint32_t *x) {
     *x = 0;
 
