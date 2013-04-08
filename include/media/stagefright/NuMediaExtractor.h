@@ -55,6 +55,8 @@ struct NuMediaExtractor : public RefBase {
     size_t countTracks() const;
     status_t getTrackFormat(size_t index, sp<AMessage> *format) const;
 
+    status_t getFileFormat(sp<AMessage> *format) const;
+
     status_t selectTrack(size_t index);
     status_t unselectTrack(size_t index);
 
