@@ -59,6 +59,11 @@ protected:
 
 private:
 
+    struct PsshInfo {
+        uint8_t uuid[16];
+        uint32_t datalen;
+        uint8_t *data;
+    };
     struct Track {
         Track *next;
         sp<MetaData> meta;
@@ -71,6 +76,8 @@ private:
     Vector<SidxEntry> mSidxEntries;
     uint64_t mSidxDuration;
     off64_t mMoofOffset;
+
+    Vector<PsshInfo> mPssh;
 
     sp<DataSource> mDataSource;
     status_t mInitCheck;
