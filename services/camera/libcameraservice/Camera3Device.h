@@ -108,7 +108,8 @@ class Camera3Device :
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
   private:
-    static const nsecs_t       kShutdownTimeout = 5000000000; // 5 sec
+    static const size_t        kInFlightWarnLimit = 20;
+    static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
     struct                     RequestTrigger;
 
     Mutex                      mLock;
@@ -262,6 +263,8 @@ class Camera3Device :
         virtual bool threadLoop();
 
       private:
+        static int         getId(const wp<Camera3Device> &device);
+
         status_t           queueTriggerLocked(RequestTrigger trigger);
         // Mix-in queued triggers into this request
         int32_t            insertTriggers(const sp<CaptureRequest> &request);
@@ -291,6 +294,8 @@ class Camera3Device :
         wp<Camera3Device>  mParent;
         camera3_device_t  *mHal3Device;
 
+        const int          mId;
+
         Mutex              mRequestLock;
         Condition          mRequestSignal;
         RequestList        mRequestQueue;
@@ -308,7 +313,7 @@ class Camera3Device :
         sp<CaptureRequest> mPrevRequest;
         int32_t            mPrevTriggers;
 
-        int32_t            mFrameNumber;
+        uint32_t           mFrameNumber;
 
         Mutex              mLatestRequestMutex;
         Condition          mLatestRequestSignal;
@@ -324,6 +329,39 @@ class Camera3Device :
     sp<RequestThread> mRequestThread;
 
     /**
+     * In-flight queue for tracking completion of capture requests.
+     */
+
+    struct InFlightRequest {
+        // Set by notify() SHUTTER call.
+        nsecs_t captureTimestamp;
+        // Set by process_capture_result call with valid metadata
+        bool    haveResultMetadata;
+        // Decremented by calls to process_capture_result with valid output
+        // buffers
+        int     numBuffersLeft;
+
+        InFlightRequest() :
+                captureTimestamp(0),
+                haveResultMetadata(false),
+                numBuffersLeft(0) {
+        }
+
+        explicit InFlightRequest(int numBuffers) :
+                captureTimestamp(0),
+                haveResultMetadata(false),
+                numBuffersLeft(numBuffers) {
+        }
+    };
+    // Map from frame number to the in-flight request state
+    typedef KeyedVector<uint32_t, InFlightRequest> InFlightMap;
+
+    Mutex                  mInFlightLock; // Protects mInFlightMap
+    InFlightMap            mInFlightMap;
+
+    status_t registerInFlight(int32_t frameNumber, int32_t numBuffers);
+
+    /**
      * Output result queue and current HAL device 3A state
      */
 
@@ -332,6 +370,8 @@ class Camera3Device :
 
     /**** Scope for mOutputLock ****/
 
+    uint32_t               mNextResultFrameNumber;
+    uint32_t               mNextShutterFrameNumber;
     List<CameraMetadata>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;
