@@ -3626,7 +3626,6 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
                      (status_t)OK);
 
             mCodec->changeState(mCodec->mFlushingState);
-
             handled = true;
             break;
         }
@@ -4140,6 +4139,10 @@ void ACodec::FlushingState::changeStateIfWeOwnAllBuffers() {
             mCodec->mPortEOS[kPortIndexOutput] = false;
 
         mCodec->mInputEOSResult = OK;
+
+        if (mCodec->mSkipCutBuffer != NULL) {
+            mCodec->mSkipCutBuffer->clear();
+        }
 
         mCodec->changeState(mCodec->mExecutingState);
     }
