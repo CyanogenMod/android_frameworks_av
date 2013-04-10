@@ -57,6 +57,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libaudioutils               \
     libbinder                   \
     libcutils                   \
+    liblog                      \
     libmedia                    \
     libstagefright              \
     libstagefright_foundation   \
@@ -96,4 +97,3 @@ LOCAL_CFLAGS += -Wno-multichar \
     -DDECODE_GIF_ON_SAVING
 
 include $(BUILD_SHARED_LIBRARY)
-

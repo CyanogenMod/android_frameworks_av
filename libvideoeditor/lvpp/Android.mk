@@ -50,6 +50,7 @@ LOCAL_SHARED_LIBRARIES :=     \
     libaudioutils             \
     libbinder                 \
     libcutils                 \
+    liblog                    \
     libEGL                    \
     libGLESv2                 \
     libgui                    \

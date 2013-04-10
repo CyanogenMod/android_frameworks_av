@@ -10,7 +10,7 @@ LOCAL_C_INCLUDES := \
         external/flac/include
 
 LOCAL_SHARED_LIBRARIES := \
-        libstagefright libstagefright_omx libstagefright_foundation libutils
+        libstagefright libstagefright_omx libstagefright_foundation libutils liblog
 
 LOCAL_STATIC_LIBRARIES := \
         libFLAC \

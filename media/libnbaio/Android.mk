@@ -30,6 +30,7 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libcommon_time_client \
     libcutils \
-    libutils
+    libutils \
+    liblog
 
 include $(BUILD_SHARED_LIBRARY)
