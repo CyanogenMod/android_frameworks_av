@@ -27,6 +27,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libbinder                   \
     libcamera_client            \
     libcutils                   \
+    liblog                      \
     libdl                       \
     libgui                      \
     libmedia                    \

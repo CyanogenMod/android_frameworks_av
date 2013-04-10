@@ -25,6 +25,7 @@ LOCAL_MODULE:= libdrmframework
 
 LOCAL_SHARED_LIBRARIES := \
     libutils \
+    liblog \
     libbinder \
     libdl
 

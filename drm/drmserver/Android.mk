@@ -24,6 +24,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
     libmedia \
     libutils \
+    liblog \
     libbinder \
     libdl
 
