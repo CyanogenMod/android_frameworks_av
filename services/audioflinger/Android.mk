@@ -22,7 +22,7 @@ LOCAL_SRC_FILES:=               \
     AudioResampler.cpp.arm      \
     AudioPolicyService.cpp      \
     ServiceUtilities.cpp        \
-	AudioResamplerCubic.cpp.arm \
+    AudioResamplerCubic.cpp.arm \
     AudioResamplerSinc.cpp.arm
 
 LOCAL_SRC_FILES += StateQueue.cpp
@@ -39,6 +39,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcommon_time_client \
     libcutils \
     libutils \
+    liblog \
     libbinder \
     libmedia \
     libnbaio \
@@ -94,9 +95,10 @@ LOCAL_SRC_FILES:=               \
     AudioResamplerSinc.cpp.arm
 
 LOCAL_SHARED_LIBRARIES := \
-	libdl \
+    libdl \
     libcutils \
-    libutils
+    libutils \
+    liblog
 
 LOCAL_MODULE:= test-resample
 

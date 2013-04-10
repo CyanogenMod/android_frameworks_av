@@ -24,7 +24,7 @@ LOCAL_MODULE := libmockdrmcryptoplugin
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/mediadrm
 
 LOCAL_SHARED_LIBRARIES := \
-    libutils
+    libutils liblog
 
 LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/include \

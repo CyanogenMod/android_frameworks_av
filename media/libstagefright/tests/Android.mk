@@ -26,6 +26,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libsync \
 	libui \
 	libutils \
+	liblog
 
 LOCAL_STATIC_LIBRARIES := \
 	libgtest \

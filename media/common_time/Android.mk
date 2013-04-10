@@ -16,6 +16,7 @@ LOCAL_SRC_FILES := cc_helper.cpp \
                    utils.cpp
 LOCAL_SHARED_LIBRARIES := libbinder \
                           libhardware \
-                          libutils
+                          libutils \
+                          liblog
 
 include $(BUILD_SHARED_LIBRARY)

@@ -22,6 +22,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libmedia \
 	libmediaplayerservice \
 	libutils \
+	liblog \
 	libbinder
 
 LOCAL_STATIC_LIBRARIES := \
