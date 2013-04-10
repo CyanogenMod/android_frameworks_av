@@ -36,6 +36,7 @@ LOCAL_SHARED_LIBRARIES := \
     libicui18n \
     libicuuc \
     libutils \
+    liblog \
     libdl \
     libcrypto \
     libssl \

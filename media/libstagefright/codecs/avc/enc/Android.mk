@@ -62,6 +62,7 @@ LOCAL_SHARED_LIBRARIES := \
         libstagefright_foundation \
         libstagefright_omx \
         libutils \
+        liblog \
         libui
 
 

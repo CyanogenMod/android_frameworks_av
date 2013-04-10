@@ -97,7 +97,7 @@ ifeq ($(ARCH_ARM_HAVE_NEON),true)
 endif
 
 LOCAL_SHARED_LIBRARIES := \
-	libstagefright libstagefright_omx libstagefright_foundation libutils \
+	libstagefright libstagefright_omx libstagefright_foundation libutils liblog \
 
 LOCAL_MODULE := libstagefright_soft_h264dec
 
@@ -124,4 +124,3 @@ LOCAL_MODULE_TAGS := debug
 LOCAL_MODULE := decoder
 
 include $(BUILD_EXECUTABLE)
-

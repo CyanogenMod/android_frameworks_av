@@ -130,7 +130,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrwbenc
 
 LOCAL_SHARED_LIBRARIES := \
-        libstagefright_omx libstagefright_foundation libutils \
+        libstagefright_omx libstagefright_foundation libutils liblog \
         libstagefright_enc_common
 
 LOCAL_MODULE := libstagefright_soft_amrwbenc

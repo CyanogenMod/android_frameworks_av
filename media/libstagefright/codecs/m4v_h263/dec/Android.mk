@@ -67,7 +67,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_m4vh263dec
 
 LOCAL_SHARED_LIBRARIES := \
-        libstagefright libstagefright_omx libstagefright_foundation libutils
+        libstagefright libstagefright_omx libstagefright_foundation libutils liblog
 
 LOCAL_MODULE := libstagefright_soft_mpeg4dec
 LOCAL_MODULE_TAGS := optional

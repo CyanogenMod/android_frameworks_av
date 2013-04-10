@@ -7,7 +7,7 @@ LOCAL_SRC_FILES:= \
 	EffectsFactory.c
 
 LOCAL_SHARED_LIBRARIES := \
-	libcutils
+	libcutils liblog
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)
 LOCAL_MODULE:= libeffects

@@ -20,6 +20,7 @@ LOCAL_C_INCLUDES:= \
 LOCAL_SHARED_LIBRARIES := \
         libbinder         \
         libutils          \
+        liblog
 
 LOCAL_CFLAGS += -Wno-multichar
 

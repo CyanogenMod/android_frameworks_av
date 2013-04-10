@@ -6,7 +6,8 @@ LOCAL_SRC_FILES:=               \
         YUVCanvas.cpp
 
 LOCAL_SHARED_LIBRARIES :=       \
-        libcutils
+        libcutils \
+        liblog
 
 LOCAL_MODULE:= libstagefright_yuv
 
