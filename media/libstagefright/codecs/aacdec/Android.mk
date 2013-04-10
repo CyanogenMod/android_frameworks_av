@@ -20,7 +20,7 @@ LOCAL_CFLAGS :=
 LOCAL_STATIC_LIBRARIES := libFraunhoferAAC
 
 LOCAL_SHARED_LIBRARIES := \
-      libstagefright_omx libstagefright_foundation libutils libcutils
+      libstagefright_omx libstagefright_foundation libutils libcutils liblog
 
 LOCAL_MODULE := libstagefright_soft_aacdec
 LOCAL_MODULE_TAGS := optional

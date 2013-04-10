@@ -11,10 +11,9 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SHARED_LIBRARIES := \
         libvorbisidec libstagefright libstagefright_omx \
-        libstagefright_foundation libutils
+        libstagefright_foundation libutils liblog
 
 LOCAL_MODULE := libstagefright_soft_vorbisdec
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
-

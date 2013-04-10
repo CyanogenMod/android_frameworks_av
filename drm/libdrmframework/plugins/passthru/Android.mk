@@ -25,6 +25,7 @@ LOCAL_STATIC_LIBRARIES := libdrmframeworkcommon
 
 LOCAL_SHARED_LIBRARIES := \
     libutils \
+    liblog \
     libdl
 
 

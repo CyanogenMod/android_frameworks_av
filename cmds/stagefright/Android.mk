@@ -9,7 +9,7 @@ LOCAL_SRC_FILES:=       \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright libmedia libutils libbinder libstagefright_foundation \
-        libjpeg libgui libcutils
+        libjpeg libgui libcutils liblog
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -189,4 +189,3 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= muxer
 
 include $(BUILD_EXECUTABLE)
-

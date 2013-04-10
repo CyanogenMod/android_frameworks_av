@@ -9,7 +9,7 @@ LOCAL_C_INCLUDES := \
         frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
-        libstagefright_omx libstagefright_foundation libutils
+        libstagefright_omx libstagefright_foundation libutils liblog
 
 LOCAL_MODULE := libstagefright_soft_rawdec
 LOCAL_MODULE_TAGS := optional

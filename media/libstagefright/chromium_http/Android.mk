@@ -22,6 +22,7 @@ LOCAL_SHARED_LIBRARIES += \
         libchromium_net \
         libutils \
         libcutils \
+        liblog \
         libstagefright_foundation \
         libstagefright \
         libdrmframework
