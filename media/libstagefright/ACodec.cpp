@@ -166,6 +166,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ACodec::DeathNotifier : public IBinder::DeathRecipient {
+    DeathNotifier(const sp<AMessage> &notify)
+        : mNotify(notify) {
+    }
+
+    virtual void binderDied(const wp<IBinder> &) {
+        mNotify->post();
+    }
+
+protected:
+    virtual ~DeathNotifier() {}
+
+private:
+    sp<AMessage> mNotify;
+
+    DISALLOW_EVIL_CONSTRUCTORS(DeathNotifier);
+};
+
 struct ACodec::UninitializedState : public ACodec::BaseState {
     UninitializedState(ACodec *codec);
 
@@ -176,6 +194,8 @@ protected:
 private:
     void onSetup(const sp<AMessage> &msg);
     bool onAllocateComponent(const sp<AMessage> &msg);
+
+    sp<DeathNotifier> mDeathNotifier;
 
     DISALLOW_EVIL_CONSTRUCTORS(UninitializedState);
 };
@@ -2487,6 +2507,13 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             return true;
         }
 
+        case ACodec::kWhatOMXDied:
+        {
+            ALOGE("OMX/mediaserver died, signalling error!");
+            mCodec->signalError(OMX_ErrorResourcesLost, DEAD_OBJECT);
+            break;
+        }
+
         default:
             return false;
     }
@@ -3035,6 +3062,18 @@ ACodec::UninitializedState::UninitializedState(ACodec *codec)
 
 void ACodec::UninitializedState::stateEntered() {
     ALOGV("Now uninitialized");
+
+    if (mDeathNotifier != NULL) {
+        mCodec->mOMX->asBinder()->unlinkToDeath(mDeathNotifier);
+        mDeathNotifier.clear();
+    }
+
+    mCodec->mNativeWindow.clear();
+    mCodec->mNode = NULL;
+    mCodec->mOMX.clear();
+    mCodec->mQuirks = 0;
+    mCodec->mFlags = 0;
+    mCodec->mComponentName.clear();
 }
 
 bool ACodec::UninitializedState::onMessageReceived(const sp<AMessage> &msg) {
@@ -3106,6 +3145,15 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     sp<IOMX> omx = client.interface();
 
+    sp<AMessage> notify = new AMessage(kWhatOMXDied, mCodec->id());
+
+    mDeathNotifier = new DeathNotifier(notify);
+    if (omx->asBinder()->linkToDeath(mDeathNotifier) != OK) {
+        // This was a local binder, if it dies so do we, we won't care
+        // about any notifications in the afterlife.
+        mDeathNotifier.clear();
+    }
+
     Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
     AString mime;
@@ -3170,7 +3218,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         return false;
     }
 
-    sp<AMessage> notify = new AMessage(kWhatOMXMessage, mCodec->id());
+    notify = new AMessage(kWhatOMXMessage, mCodec->id());
     observer->setNotificationMessage(notify);
 
     mCodec->mComponentName = componentName;
@@ -3223,13 +3271,6 @@ void ACodec::LoadedState::stateEntered() {
 void ACodec::LoadedState::onShutdown(bool keepComponentAllocated) {
     if (!keepComponentAllocated) {
         CHECK_EQ(mCodec->mOMX->freeNode(mCodec->mNode), (status_t)OK);
-
-        mCodec->mNativeWindow.clear();
-        mCodec->mNode = NULL;
-        mCodec->mOMX.clear();
-        mCodec->mQuirks = 0;
-        mCodec->mFlags = 0;
-        mCodec->mComponentName.clear();
 
         mCodec->changeState(mCodec->mUninitializedState);
     }
