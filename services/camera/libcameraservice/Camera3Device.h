@@ -128,6 +128,9 @@ class Camera3Device :
         STATUS_ACTIVE
     }                          mStatus;
 
+    // Tracking cause of fatal errors when in STATUS_ERROR
+    String8                    mErrorCause;
+
     // Mapping of stream IDs to stream instances
     typedef KeyedVector<int, sp<camera3::Camera3OutputStream> > StreamSet;
 
@@ -171,6 +174,16 @@ class Camera3Device :
      * them. This is a long-running operation (may be several hundered ms).
      */
     status_t           configureStreamsLocked();
+
+    /**
+     * Set device into an error state due to some fatal failure, and set an
+     * error message to indicate why. Only the first call's message will be
+     * used. The message is also sent to the log.
+     */
+    void               setErrorState(const char *fmt, ...);
+    void               setErrorStateV(const char *fmt, va_list args);
+    void               setErrorStateLocked(const char *fmt, ...);
+    void               setErrorStateLockedV(const char *fmt, va_list args);
 
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
@@ -271,6 +284,9 @@ class Camera3Device :
 
         // Pause handling
         bool               waitIfPaused();
+
+        // Relay error to parent device object setErrorState
+        void               setErrorState(const char *fmt, ...);
 
         wp<Camera3Device>  mParent;
         camera3_device_t  *mHal3Device;
