@@ -52,7 +52,7 @@ private:
     HANDLE_AACDECODER mAACDecoder;
     CStreamInfo *mStreamInfo;
     bool mIsADTS;
-    bool mIsFirst;
+    bool mDecoderHasData;
     size_t mInputBufferCount;
     bool mSignalledError;
     int64_t mAnchorTimeUs;
@@ -68,6 +68,7 @@ private:
     status_t initDecoder();
     bool isConfigured() const;
     void maybeConfigureDownmix() const;
+    void drainDecoder();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAAC2);
 };
