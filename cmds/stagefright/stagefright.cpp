@@ -523,7 +523,7 @@ static void writeSourcesToMP4(
     }
 
     sp<MetaData> params = new MetaData;
-    params->setInt32(kKeyNotRealTime, true);
+    params->setInt32(kKeyRealTimeRecording, false);
     CHECK_EQ(writer->start(params.get()), (status_t)OK);
 
     while (!writer->reachedEOS()) {
