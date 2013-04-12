@@ -46,6 +46,7 @@ struct ACodec : public AHierarchicalStateMachine {
         kWhatInputSurfaceCreated = 'isfc',
         kWhatSignaledInputEOS    = 'seos',
         kWhatBuffersAllocated    = 'allc',
+        kWhatOMXDied             = 'OMXd',
     };
 
     ACodec();
@@ -97,6 +98,7 @@ private:
     struct ExecutingToIdleState;
     struct IdleToLoadedState;
     struct FlushingState;
+    struct DeathNotifier;
 
     enum {
         kWhatSetup                   = 'setu',
