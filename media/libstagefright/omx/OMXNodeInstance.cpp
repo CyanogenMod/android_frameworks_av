@@ -292,15 +292,14 @@ status_t OMXNodeInstance::getState(OMX_STATETYPE* state) {
 status_t OMXNodeInstance::enableGraphicBuffers(
         OMX_U32 portIndex, OMX_BOOL enable) {
     Mutex::Autolock autoLock(mLock);
+    OMX_STRING name = const_cast<OMX_STRING>(
+            "OMX.google.android.index.enableAndroidNativeBuffers");
 
     OMX_INDEXTYPE index;
-    OMX_ERRORTYPE err = OMX_GetExtensionIndex(
-            mHandle,
-            const_cast<OMX_STRING>("OMX.google.android.index.enableAndroidNativeBuffers"),
-            &index);
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
 
     if (err != OMX_ErrorNone) {
-        ALOGE("OMX_GetExtensionIndex failed");
+        ALOGE("OMX_GetExtensionIndex %s failed", name);
 
         return StatusFromOMXError(err);
     }
@@ -331,14 +330,12 @@ status_t OMXNodeInstance::getGraphicBufferUsage(
     Mutex::Autolock autoLock(mLock);
 
     OMX_INDEXTYPE index;
-    OMX_ERRORTYPE err = OMX_GetExtensionIndex(
-            mHandle,
-            const_cast<OMX_STRING>(
-                    "OMX.google.android.index.getAndroidNativeBufferUsage"),
-            &index);
+    OMX_STRING name = const_cast<OMX_STRING>(
+            "OMX.google.android.index.getAndroidNativeBufferUsage");
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
 
     if (err != OMX_ErrorNone) {
-        ALOGE("OMX_GetExtensionIndex failed");
+        ALOGE("OMX_GetExtensionIndex %s failed", name);
 
         return StatusFromOMXError(err);
     }
@@ -381,7 +378,9 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
 
     OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
     if (err != OMX_ErrorNone) {
-        ALOGE("OMX_GetExtensionIndex %s failed", name);
+        if (enable) {
+            ALOGE("OMX_GetExtensionIndex %s failed", name);
+        }
         return StatusFromOMXError(err);
     }
 
@@ -507,13 +506,12 @@ status_t OMXNodeInstance::useGraphicBuffer(
         return useGraphicBuffer2_l(portIndex, graphicBuffer, buffer);
     }
 
-    OMX_ERRORTYPE err = OMX_GetExtensionIndex(
-            mHandle,
-            const_cast<OMX_STRING>("OMX.google.android.index.useAndroidNativeBuffer"),
-            &index);
+    OMX_STRING name = const_cast<OMX_STRING>(
+        "OMX.google.android.index.useAndroidNativeBuffer");
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
 
     if (err != OMX_ErrorNone) {
-        ALOGE("OMX_GetExtensionIndex failed");
+        ALOGE("OMX_GetExtensionIndex %s failed", name);
 
         return StatusFromOMXError(err);
     }
