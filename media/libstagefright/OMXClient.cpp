@@ -32,7 +32,7 @@ struct MuxOMX : public IOMX {
     MuxOMX(const sp<IOMX> &remoteOMX);
     virtual ~MuxOMX();
 
-    virtual IBinder *onAsBinder() { return NULL; }
+    virtual IBinder *onAsBinder() { return mRemoteOMX->asBinder().get(); }
 
     virtual bool livesLocally(node_id node, pid_t pid);
 
