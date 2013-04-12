@@ -74,6 +74,7 @@ private:
 
     int  mFd;
     status_t mInitCheck;
+    bool mIsRealTimeRecording;
     bool mUse4ByteNalLength;
     bool mUse32BitOffset;
     bool mIsFileSizeLimitExplicitlyRequested;
@@ -167,6 +168,13 @@ private:
     // Return whether the nal length is 4 bytes or 2 bytes
     // Only makes sense for H.264/AVC
     bool useNalLengthFour();
+
+    // Return whether the writer is used for real time recording.
+    // In real time recording mode, new samples will be allowed to buffered into
+    // chunks in higher priority thread, even though the file writer has not
+    // drained the chunks yet.
+    // By default, real time recording is on.
+    bool isRealTimeRecording() const;
 
     void lock();
     void unlock();

@@ -189,8 +189,8 @@ void displayMetaData(const sp<MetaData> meta) {
     if (meta->findInt64(kKeyTrackTimeStatus, &int64Data)) {
         LOG1("displayMetaData kKeyTrackTimeStatus %lld", int64Data);
     }
-    if (meta->findInt32(kKeyNotRealTime, &int32Data)) {
-        LOG1("displayMetaData kKeyNotRealTime %d", int32Data);
+    if (meta->findInt32(kKeyRealTimeRecording, &int32Data)) {
+        LOG1("displayMetaData kKeyRealTimeRecording %d", int32Data);
     }
 }
 
