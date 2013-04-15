@@ -212,7 +212,6 @@ private:
     int64_t mTrackDurationUs;
     int64_t mMaxChunkDurationUs;
 
-    bool mIsRealTimeRecording;
     int64_t mEstimatedTrackSizeBytes;
     int64_t mMdatSizeBytes;
     int32_t mTimeScale;
@@ -335,6 +334,7 @@ private:
 MPEG4Writer::MPEG4Writer(const char *filename)
     : mFd(-1),
       mInitCheck(NO_INIT),
+      mIsRealTimeRecording(true),
       mUse4ByteNalLength(true),
       mUse32BitOffset(true),
       mIsFileSizeLimitExplicitlyRequested(false),
@@ -359,6 +359,7 @@ MPEG4Writer::MPEG4Writer(const char *filename)
 MPEG4Writer::MPEG4Writer(int fd)
     : mFd(dup(fd)),
       mInitCheck(mFd < 0? NO_INIT: OK),
+      mIsRealTimeRecording(true),
       mUse4ByteNalLength(true),
       mUse32BitOffset(true),
       mIsFileSizeLimitExplicitlyRequested(false),
@@ -594,6 +595,11 @@ status_t MPEG4Writer::start(MetaData *param) {
         param->findInt32(kKey2ByteNalLength, &use2ByteNalLength) &&
         use2ByteNalLength) {
         mUse4ByteNalLength = false;
+    }
+
+    int32_t isRealTimeRecording;
+    if (param && param->findInt32(kKeyRealTimeRecording, &isRealTimeRecording)) {
+        mIsRealTimeRecording = isRealTimeRecording;
     }
 
     mStartTimestampUs = -1;
@@ -1640,12 +1646,18 @@ void MPEG4Writer::threadFunc() {
             mChunkReadyCondition.wait(mLock);
         }
 
-        // Actual write without holding the lock in order to
-        // reduce the blocking time for media track threads.
+        // In real time recording mode, write without holding the lock in order
+        // to reduce the blocking time for media track threads.
+        // Otherwise, hold the lock until the existing chunks get written to the
+        // file.
         if (chunkFound) {
-            mLock.unlock();
+            if (mIsRealTimeRecording) {
+                mLock.unlock();
+            }
             writeChunkToFile(&chunk);
-            mLock.lock();
+            if (mIsRealTimeRecording) {
+                mLock.lock();
+            }
         }
     }
 
@@ -1695,18 +1707,10 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
         mRotation = rotationDegrees;
     }
 
-    mIsRealTimeRecording = true;
-    {
-        int32_t isNotRealTime;
-        if (params && params->findInt32(kKeyNotRealTime, &isNotRealTime)) {
-            mIsRealTimeRecording = (isNotRealTime == 0);
-        }
-    }
-
     initTrackingProgressStatus(params);
 
     sp<MetaData> meta = new MetaData;
-    if (mIsRealTimeRecording && mOwner->numTracks() > 1) {
+    if (mOwner->isRealTimeRecording() && mOwner->numTracks() > 1) {
         /*
          * This extra delay of accepting incoming audio/video signals
          * helps to align a/v start time at the beginning of a recording
@@ -2084,7 +2088,10 @@ status_t MPEG4Writer::Track::threadEntry() {
     } else {
         prctl(PR_SET_NAME, (unsigned long)"VideoTrackEncoding", 0, 0, 0);
     }
-    androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
+
+    if (mOwner->isRealTimeRecording()) {
+        androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
+    }
 
     sp<MetaData> meta_data;
 
@@ -2245,7 +2252,7 @@ status_t MPEG4Writer::Track::threadEntry() {
 
         }
 
-        if (mIsRealTimeRecording) {
+        if (mOwner->isRealTimeRecording()) {
             if (mIsAudio) {
                 updateDriftTime(meta_data);
             }
@@ -2529,6 +2536,10 @@ int64_t MPEG4Writer::getDriftTimeUs() {
     ALOGV("getDriftTimeUs: %lld us", mDriftTimeUs);
     Mutex::Autolock autolock(mLock);
     return mDriftTimeUs;
+}
+
+bool MPEG4Writer::isRealTimeRecording() const {
+    return mIsRealTimeRecording;
 }
 
 bool MPEG4Writer::useNalLengthFour() {

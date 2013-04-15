@@ -107,6 +107,7 @@ status_t MediaMuxer::start() {
     Mutex::Autolock autoLock(mMuxerLock);
     if (mState == INITIALIZED) {
         mState = STARTED;
+        mFileMeta->setInt32(kKeyRealTimeRecording, false);
         return mWriter->start(mFileMeta.get());
     } else {
         ALOGE("start() is called in invalid state %d", mState);
