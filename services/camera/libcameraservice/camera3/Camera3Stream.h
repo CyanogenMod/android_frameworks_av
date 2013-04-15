@@ -157,6 +157,25 @@ class Camera3Stream :
             nsecs_t timestamp);
 
     /**
+     * Fill in the camera3_stream_buffer with the next valid buffer for this
+     * stream, to hand over to the HAL.
+     *
+     * This method may only be called once finishConfiguration has been called.
+     * For bidirectional streams, this method applies to the input-side
+     * buffers.
+     *
+     */
+    status_t         getInputBuffer(camera3_stream_buffer *buffer);
+
+    /**
+     * Return a buffer to the stream after use by the HAL.
+     *
+     * This method may only be called for buffers provided by getBuffer().
+     * For bidirectional streams, this method applies to the input-side buffers
+     */
+    status_t         returnInputBuffer(const camera3_stream_buffer &buffer);
+
+    /**
      * Whether any of the stream's buffers are currently in use by the HAL,
      * including buffers that have been returned but not yet had their
      * release fence signaled.
@@ -215,9 +234,12 @@ class Camera3Stream :
     // cast to camera3_stream*, implementations must increment the
     // refcount of the stream manually in getBufferLocked, and decrement it in
     // returnBufferLocked.
-    virtual status_t getBufferLocked(camera3_stream_buffer *buffer) = 0;
+    virtual status_t getBufferLocked(camera3_stream_buffer *buffer);
     virtual status_t returnBufferLocked(const camera3_stream_buffer &buffer,
-            nsecs_t timestamp) = 0;
+            nsecs_t timestamp);
+    virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
+    virtual status_t returnInputBufferLocked(
+            const camera3_stream_buffer &buffer);
     virtual bool     hasOutstandingBuffersLocked() const = 0;
     virtual status_t disconnectLocked() = 0;
 
