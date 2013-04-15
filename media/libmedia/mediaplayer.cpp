@@ -398,6 +398,13 @@ status_t MediaPlayer::getDuration_l(int *msec)
     if (mPlayer != 0 && isValidState) {
         int durationMs;
         status_t ret = mPlayer->getDuration(&durationMs);
+
+        if (ret != OK) {
+            // Do not enter error state just because no duration was available.
+            durationMs = -1;
+            ret = OK;
+        }
+
         if (msec) {
             *msec = durationMs;
         }
