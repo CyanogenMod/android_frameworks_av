@@ -592,6 +592,12 @@ void SoftAAC2::drainDecoder() {
 
 void SoftAAC2::onReset() {
     drainDecoder();
+    // reset the "configured" state
+    mInputBufferCount = 0;
+    mNumSamplesOutput = 0;
+    // To make the codec behave the same before and after a reset, we need to invalidate the
+    // streaminfo struct. This does that:
+    mStreamInfo->sampleRate = 0;
 }
 
 void SoftAAC2::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
