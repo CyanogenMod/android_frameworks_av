@@ -82,6 +82,9 @@ class Camera3Device :
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format, size_t size,
             int *id);
+    virtual status_t createInputStream(
+            uint32_t width, uint32_t height, int format,
+            int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
 
     virtual status_t getStreamInfo(int id,

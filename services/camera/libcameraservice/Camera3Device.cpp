@@ -30,6 +30,7 @@
 #include <utils/Timers.h>
 #include "Camera3Device.h"
 #include "camera3/Camera3OutputStream.h"
+#include "camera3/Camera3InputStream.h"
 
 using namespace android::camera3;
 
@@ -367,6 +368,69 @@ status_t Camera3Device::waitUntilRequestReceived(int32_t requestId, nsecs_t time
     ATRACE_CALL();
 
     return mRequestThread->waitUntilRequestProcessed(requestId, timeout);
+}
+
+status_t Camera3Device::createInputStream(
+        uint32_t width, uint32_t height, int format, int *id) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    status_t res;
+    bool wasActive = false;
+
+    switch (mStatus) {
+        case STATUS_ERROR:
+            ALOGE("%s: Device has encountered a serious error", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATUS_UNINITIALIZED:
+            ALOGE("%s: Device not initialized", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATUS_IDLE:
+            // OK
+            break;
+        case STATUS_ACTIVE:
+            ALOGV("%s: Stopping activity to reconfigure streams", __FUNCTION__);
+            mRequestThread->setPaused(true);
+            res = waitUntilDrainedLocked();
+            if (res != OK) {
+                ALOGE("%s: Can't pause captures to reconfigure streams!",
+                        __FUNCTION__);
+                mStatus = STATUS_ERROR;
+                return res;
+            }
+            wasActive = true;
+            break;
+        default:
+            ALOGE("%s: Unexpected status: %d", __FUNCTION__, mStatus);
+            return INVALID_OPERATION;
+    }
+    assert(mStatus == STATUS_IDLE);
+
+    if (mInputStream != 0) {
+        ALOGE("%s: Cannot create more than 1 input stream", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    sp<Camera3InputStream> newStream = new Camera3InputStream(mNextStreamId,
+                width, height, format);
+
+    mInputStream = newStream;
+
+    *id = mNextStreamId++;
+
+    // Continue captures if active at start
+    if (wasActive) {
+        ALOGV("%s: Restarting activity to reconfigure streams", __FUNCTION__);
+        res = configureStreamsLocked();
+        if (res != OK) {
+            ALOGE("%s: Can't reconfigure device for new stream %d: %s (%d)",
+                    __FUNCTION__, mNextStreamId, strerror(-res), res);
+            return res;
+        }
+        mRequestThread->setPaused(false);
+    }
+
+    return OK;
 }
 
 status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
@@ -1287,7 +1351,7 @@ bool Camera3Device::RequestThread::threadLoop() {
 
     if (nextRequest->mInputStream != NULL) {
         request.input_buffer = &inputBuffer;
-        res = nextRequest->mInputStream->getBuffer(&inputBuffer);
+        res = nextRequest->mInputStream->getInputBuffer(&inputBuffer);
         if (res != OK) {
             ALOGE("RequestThread: Can't get input buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
@@ -1358,6 +1422,23 @@ bool Camera3Device::RequestThread::threadLoop() {
         mLatestRequestSignal.signal();
     }
 
+    // Return input buffer back to framework
+    if (request.input_buffer != NULL) {
+        Camera3Stream *stream =
+            Camera3Stream::cast(request.input_buffer->stream);
+        res = stream->returnInputBuffer(*(request.input_buffer));
+        // Note: stream may be deallocated at this point, if this buffer was the
+        // last reference to it.
+        if (res != OK) {
+            ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
+                    "  its stream:%s (%d)",  __FUNCTION__,
+                    request.frame_number, strerror(-res), res);
+            // TODO: Report error upstream
+        }
+    }
+
+
+
     return true;
 }
 
@@ -1371,7 +1452,7 @@ void Camera3Device::RequestThread::cleanUpFailedRequest(
     }
     if (request.input_buffer != NULL) {
         request.input_buffer->status = CAMERA3_BUFFER_STATUS_ERROR;
-        nextRequest->mInputStream->returnBuffer(*(request.input_buffer), 0);
+        nextRequest->mInputStream->returnInputBuffer(*(request.input_buffer));
     }
     for (size_t i = 0; i < request.num_output_buffers; i++) {
         outputBuffers.editItemAt(i).status = CAMERA3_BUFFER_STATUS_ERROR;

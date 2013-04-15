@@ -188,6 +188,18 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     return returnBufferLocked(buffer, timestamp);
 }
 
+status_t Camera3Stream::getInputBuffer(camera3_stream_buffer *buffer) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+    return getInputBufferLocked(buffer);
+}
+
+status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+    return returnInputBufferLocked(buffer);
+}
+
 bool Camera3Stream::hasOutstandingBuffers() const {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
@@ -257,6 +269,25 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     }
 
     return res;
+}
+
+status_t Camera3Stream::getBufferLocked(camera3_stream_buffer *) {
+    ALOGE("%s: This type of stream does not support output", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::returnBufferLocked(const camera3_stream_buffer &,
+                                           nsecs_t) {
+    ALOGE("%s: This type of stream does not support output", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::getInputBufferLocked(camera3_stream_buffer *) {
+    ALOGE("%s: This type of stream does not support input", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::returnInputBufferLocked(
+        const camera3_stream_buffer &) {
+    ALOGE("%s: This type of stream does not support input", __FUNCTION__);
+    return INVALID_OPERATION;
 }
 
 }; // namespace camera3
