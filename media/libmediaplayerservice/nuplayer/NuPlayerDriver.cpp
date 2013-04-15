@@ -314,10 +314,10 @@ status_t NuPlayerDriver::getDuration(int *msec) {
     Mutex::Autolock autoLock(mLock);
 
     if (mDurationUs < 0) {
-        *msec = 0;
-    } else {
-        *msec = (mDurationUs + 500ll) / 1000;
+        return UNKNOWN_ERROR;
     }
+
+    *msec = (mDurationUs + 500ll) / 1000;
 
     return OK;
 }
