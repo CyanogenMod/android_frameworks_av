@@ -112,7 +112,7 @@ enum {
     // kKeyTrackTimeStatus is used to track progress in elapsed time
     kKeyTrackTimeStatus   = 'tktm',  // int64_t
 
-    kKeyNotRealTime       = 'ntrt',  // bool (int32_t)
+    kKeyRealTimeRecording = 'rtrc',  // bool (int32_t)
     kKeyNumBuffers        = 'nbbf',  // int32_t
 
     // Ogg files can be tagged to be automatically looping...
