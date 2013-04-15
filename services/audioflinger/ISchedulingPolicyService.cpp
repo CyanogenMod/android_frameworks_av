@@ -44,7 +44,7 @@ public:
         data.writeInt32(pid);
         data.writeInt32(tid);
         data.writeInt32(prio);
-        remote()->transact(REQUEST_PRIORITY_TRANSACTION, data, &reply);
+        remote()->transact(REQUEST_PRIORITY_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
         // fail on exception
         if (reply.readExceptionCode() != 0) return -1;
         return reply.readInt32();
