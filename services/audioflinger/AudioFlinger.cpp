@@ -143,6 +143,7 @@ AudioFlinger::AudioFlinger()
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
 {
+    getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
     bool doLog = (property_get("ro.test_harness", value, "0") > 0) && (atoi(value) == 1);
     if (doLog) {
