@@ -66,7 +66,9 @@ NuPlayer::RTSPSource::RTSPSource(
 }
 
 NuPlayer::RTSPSource::~RTSPSource() {
-   mLooper->stop();
+    if (mLooper != NULL) {
+        mLooper->stop();
+    }
 }
 
 void NuPlayer::RTSPSource::prepareAsync() {
