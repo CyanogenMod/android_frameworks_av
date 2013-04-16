@@ -29,6 +29,7 @@
 
 #define DRC_DEFAULT_MOBILE_REF_LEVEL 64  /* 64*-0.25dB = -16 dB below full scale for mobile conf */
 #define DRC_DEFAULT_MOBILE_DRC_CUT   127 /* maximum compression of dynamic range for mobile conf */
+#define DRC_DEFAULT_MOBILE_DRC_BOOST 127 /* maximum compression of dynamic range for mobile conf */
 #define MAX_CHANNEL_COUNT            6  /* maximum number of audio channels that can be decoded */
 // names of properties that can be used to override the default DRC settings
 #define PROP_DRC_OVERRIDE_REF_LEVEL  "aac_drc_reference_level"
@@ -146,6 +147,8 @@ status_t SoftAAC2::initDecoder() {
         unsigned boost = atoi(value);
         ALOGV("AAC decoder using AAC_DRC_BOOST_FACTOR of %d", boost);
         aacDecoder_SetParam(mAACDecoder, AAC_DRC_BOOST_FACTOR, boost);
+    } else {
+        aacDecoder_SetParam(mAACDecoder, AAC_DRC_BOOST_FACTOR, DRC_DEFAULT_MOBILE_DRC_BOOST);
     }
 
     return status;
