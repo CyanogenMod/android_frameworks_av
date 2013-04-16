@@ -149,6 +149,14 @@ struct MyHandler : public AHandler {
                           false /* canCallJava */,
                           PRIORITY_HIGHEST);
 
+        char value[PROPERTY_VALUE_MAX] = {0};
+        property_get("rtsp.transport.TCP", value, "false");
+        if (!strcasecmp(value, "true")) {
+            mTryTCPInterleaving = true;
+        } else {
+            mTryTCPInterleaving = false;
+        }
+
         // Strip any authentication info from the session url, we don't
         // want to transmit user/pass in cleartext.
         AString host, path, user, pass;
