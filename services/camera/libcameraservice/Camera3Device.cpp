@@ -51,6 +51,8 @@ Camera3Device::Camera3Device(int id):
         mId(id),
         mHal3Device(NULL),
         mStatus(STATUS_UNINITIALIZED),
+        mNextResultFrameNumber(0),
+        mNextShutterFrameNumber(0),
         mListener(NULL)
 {
     ATRACE_CALL();
@@ -246,8 +248,22 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
         mOutputStreams[i]->dump(fd,args);
     }
 
+    lines = String8("    In-flight requests:\n");
+    if (mInFlightMap.size() == 0) {
+        lines.append("      None\n");
+    } else {
+        for (size_t i = 0; i < mInFlightMap.size(); i++) {
+            InFlightRequest r = mInFlightMap.valueAt(i);
+            lines.appendFormat("      Frame %d |  Timestamp: %lld, metadata"
+                    " arrived: %s, buffers left: %d\n", mInFlightMap.keyAt(i),
+                    r.captureTimestamp, r.haveResultMetadata ? "true" : "false",
+                    r.numBuffersLeft);
+        }
+    }
+    write(fd, lines.string(), lines.size());
+
     if (mHal3Device != NULL) {
-        lines = String8("     HAL device dump:\n");
+        lines = String8("    HAL device dump:\n");
         write(fd, lines.string(), lines.size());
         mHal3Device->ops->dump(mHal3Device, fd);
     }
@@ -927,12 +943,33 @@ void Camera3Device::setErrorStateLocked(const char *fmt, ...) {
 }
 
 void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
-    // Only accept the first failure cause
+    // Print out all error messages to log
+    String8 errorCause = String8::formatV(fmt, args);
+    ALOGE("Camera %d: %s", mId, errorCause.string());
+
+    // But only do error state transition steps for the first error
     if (mStatus == STATUS_ERROR) return;
 
-    mErrorCause = String8::formatV(fmt, args);
-    ALOGE("Camera %d: %s", mId, mErrorCause.string());
+    mErrorCause = errorCause;
+
+    mRequestThread->setPaused(true);
     mStatus = STATUS_ERROR;
+}
+
+/**
+ * In-flight request management
+ */
+
+status_t Camera3Device::registerInFlight(int32_t frameNumber,
+        int32_t numBuffers) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mInFlightLock);
+
+    ssize_t res;
+    res = mInFlightMap.add(frameNumber, InFlightRequest(numBuffers));
+    if (res < 0) return res;
+
+    return OK;
 }
 
 /**
@@ -944,47 +981,107 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
     status_t res;
 
-    if (result->result == NULL) {
-        SET_ERR("No metadata provided by HAL for frame %d",
-                result->frame_number);
+    uint32_t frameNumber = result->frame_number;
+    if (result->result == NULL && result->num_output_buffers == 0) {
+        SET_ERR("No result data provided by HAL for frame %d",
+                frameNumber);
         return;
     }
 
+    // Get capture timestamp from list of in-flight requests, where it was added
+    // by the shutter notification for this frame. Then update the in-flight
+    // status and remove the in-flight entry if all result data has been
+    // received.
     nsecs_t timestamp = 0;
+    {
+        Mutex::Autolock l(mInFlightLock);
+        ssize_t idx = mInFlightMap.indexOfKey(frameNumber);
+        if (idx == NAME_NOT_FOUND) {
+            SET_ERR("Unknown frame number for capture result: %d",
+                    frameNumber);
+            return;
+        }
+        InFlightRequest &request = mInFlightMap.editValueAt(idx);
+        timestamp = request.captureTimestamp;
+        if (timestamp == 0) {
+            SET_ERR("Called before shutter notify for frame %d",
+                    frameNumber);
+            return;
+        }
+
+        if (result->result != NULL) {
+            if (request.haveResultMetadata) {
+                SET_ERR("Called multiple times with metadata for frame %d",
+                        frameNumber);
+                return;
+            }
+            request.haveResultMetadata = true;
+        }
+
+        request.numBuffersLeft -= result->num_output_buffers;
+
+        if (request.numBuffersLeft < 0) {
+            SET_ERR("Too many buffers returned for frame %d",
+                    frameNumber);
+            return;
+        }
+
+        if (request.haveResultMetadata && request.numBuffersLeft == 0) {
+            mInFlightMap.removeItemsAt(idx, 1);
+        }
+
+        // Sanity check - if we have too many in-flight frames, something has
+        // likely gone wrong
+        if (mInFlightMap.size() > kInFlightWarnLimit) {
+            CLOGE("In-flight list too large: %d", mInFlightMap.size());
+        }
+
+    }
+
     AlgState cur3aState;
     AlgState new3aState;
     int32_t aeTriggerId = 0;
     int32_t afTriggerId = 0;
 
-    NotificationListener *listener;
+    NotificationListener *listener = NULL;
 
-    {
+    // Process the result metadata, if provided
+    if (result->result != NULL) {
         Mutex::Autolock l(mOutputLock);
 
-        // Push result metadata into queue
-        mResultQueue.push_back(CameraMetadata());
-        // Lets avoid copies! Too bad there's not a #back method
-        CameraMetadata &captureResult = *(--mResultQueue.end());
+        if (frameNumber != mNextResultFrameNumber) {
+            SET_ERR("Out-of-order capture result metadata submitted! "
+                    "(got frame number %d, expecting %d)",
+                    frameNumber, mNextResultFrameNumber);
+            return;
+        }
+        mNextResultFrameNumber++;
+
+        CameraMetadata &captureResult =
+                *mResultQueue.insert(mResultQueue.end(), CameraMetadata());
 
         captureResult = result->result;
         if (captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
-                        (int32_t*)&result->frame_number, 1) != OK) {
+                        (int32_t*)&frameNumber, 1) != OK) {
             SET_ERR("Failed to set frame# in metadata (%d)",
-                    result->frame_number);
+                    frameNumber);
         } else {
             ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
-                    __FUNCTION__, mId, result->frame_number);
+                    __FUNCTION__, mId, frameNumber);
         }
 
-        // Get timestamp from result metadata
+        // Check that there's a timestamp in the result metadata
 
         camera_metadata_entry entry =
                 captureResult.find(ANDROID_SENSOR_TIMESTAMP);
         if (entry.count == 0) {
             SET_ERR("No timestamp provided by HAL for frame %d!",
-                    result->frame_number);
-        } else {
-            timestamp = entry.data.i64[0];
+                    frameNumber);
+        }
+        if (timestamp != entry.data.i64[0]) {
+            SET_ERR("Timestamp mismatch between shutter notify and result"
+                    " metadata for frame %d (%lld vs %lld respectively)",
+                    frameNumber, timestamp, entry.data.i64[0]);
         }
 
         // Get 3A states from result metadata
@@ -992,7 +1089,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         entry = captureResult.find(ANDROID_CONTROL_AE_STATE);
         if (entry.count == 0) {
             CLOGE("No AE state provided by HAL for frame %d!",
-                    result->frame_number);
+                    frameNumber);
         } else {
             new3aState.aeState =
                     static_cast<camera_metadata_enum_android_control_ae_state>(
@@ -1002,7 +1099,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         entry = captureResult.find(ANDROID_CONTROL_AF_STATE);
         if (entry.count == 0) {
             CLOGE("No AF state provided by HAL for frame %d!",
-                    result->frame_number);
+                    frameNumber);
         } else {
             new3aState.afState =
                     static_cast<camera_metadata_enum_android_control_af_state>(
@@ -1012,7 +1109,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         entry = captureResult.find(ANDROID_CONTROL_AWB_STATE);
         if (entry.count == 0) {
             CLOGE("No AWB state provided by HAL for frame %d!",
-                    result->frame_number);
+                    frameNumber);
         } else {
             new3aState.awbState =
                     static_cast<camera_metadata_enum_android_control_awb_state>(
@@ -1022,7 +1119,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         entry = captureResult.find(ANDROID_CONTROL_AF_TRIGGER_ID);
         if (entry.count == 0) {
             CLOGE("No AF trigger ID provided by HAL for frame %d!",
-                    result->frame_number);
+                    frameNumber);
         } else {
             afTriggerId = entry.data.i32[0];
         }
@@ -1030,7 +1127,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         entry = captureResult.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
         if (entry.count == 0) {
             CLOGE("No AE precapture trigger ID provided by HAL"
-                    " for frame %d!", result->frame_number);
+                    " for frame %d!", frameNumber);
         } else {
             aeTriggerId = entry.data.i32[0];
         }
@@ -1041,7 +1138,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         m3AState = new3aState;
     } // scope for mOutputLock
 
-    // Return completed buffers to their streams
+    // Return completed buffers to their streams with the timestamp
+
     for (size_t i = 0; i < result->num_output_buffers; i++) {
         Camera3Stream *stream =
                 Camera3Stream::cast(result->output_buffers[i].stream);
@@ -1050,20 +1148,21 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         // last reference to it.
         if (res != OK) {
             SET_ERR("Can't return buffer %d for frame %d to its stream: "
-                    " %s (%d)", i, result->frame_number, strerror(-res), res);
+                    " %s (%d)", i, frameNumber, strerror(-res), res);
         }
     }
 
-    // Dispatch any 3A change events to listeners
-    if (listener != NULL) {
+    // Finally, dispatch any 3A change events to listeners if we got metadata
+
+    if (result->result != NULL && listener != NULL) {
         if (new3aState.aeState != cur3aState.aeState) {
             ALOGVV("%s: AE state changed from 0x%x to 0x%x",
-                   __FUNCTION__, cur3aState.aeState, new3aState.aeState);
+                    __FUNCTION__, cur3aState.aeState, new3aState.aeState);
             listener->notifyAutoExposure(new3aState.aeState, aeTriggerId);
         }
         if (new3aState.afState != cur3aState.afState) {
             ALOGVV("%s: AF state changed from 0x%x to 0x%x",
-                   __FUNCTION__, cur3aState.afState, new3aState.afState);
+                    __FUNCTION__, cur3aState.afState, new3aState.afState);
             listener->notifyAutoFocus(new3aState.afState, afTriggerId);
         }
         if (new3aState.awbState != cur3aState.awbState) {
@@ -1077,12 +1176,11 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
     NotificationListener *listener;
     {
         Mutex::Autolock l(mOutputLock);
-        if (mListener == NULL) return;
         listener = mListener;
     }
 
     if (msg == NULL) {
-        SET_ERR_L("HAL sent NULL notify message!");
+        SET_ERR("HAL sent NULL notify message!");
         return;
     }
 
@@ -1095,17 +1193,50 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                                   msg->message.error.error_stream);
                 streamId = stream->getId();
             }
-            listener->notifyError(msg->message.error.error_code,
-                    msg->message.error.frame_number, streamId);
+            if (listener != NULL) {
+                listener->notifyError(msg->message.error.error_code,
+                        msg->message.error.frame_number, streamId);
+            }
             break;
         }
         case CAMERA3_MSG_SHUTTER: {
-            listener->notifyShutter(msg->message.shutter.frame_number,
-                    msg->message.shutter.timestamp);
+            ssize_t idx;
+            uint32_t frameNumber = msg->message.shutter.frame_number;
+            nsecs_t timestamp = msg->message.shutter.timestamp;
+            // Verify ordering of shutter notifications
+            {
+                Mutex::Autolock l(mOutputLock);
+                if (frameNumber != mNextShutterFrameNumber) {
+                    SET_ERR("Shutter notification out-of-order. Expected "
+                            "notification for frame %d, got frame %d",
+                            mNextShutterFrameNumber, frameNumber);
+                    break;
+                }
+                mNextShutterFrameNumber++;
+            }
+
+            // Set timestamp for the request in the in-flight tracking
+            {
+                Mutex::Autolock l(mInFlightLock);
+                idx = mInFlightMap.indexOfKey(frameNumber);
+                if (idx >= 0) {
+                    mInFlightMap.editValueAt(idx).captureTimestamp = timestamp;
+                }
+            }
+            if (idx < 0) {
+                SET_ERR("Shutter notification for non-existent frame number %d",
+                        frameNumber);
+                break;
+            }
+
+            // Call listener, if any
+            if (listener != NULL) {
+                listener->notifyShutter(frameNumber, timestamp);
+            }
             break;
         }
         default:
-            SET_ERR_L("Unknown notify message from HAL: %d",
+            SET_ERR("Unknown notify message from HAL: %d",
                     msg->type);
     }
 }
@@ -1119,6 +1250,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         Thread(false),
         mParent(parent),
         mHal3Device(hal3Device),
+        mId(getId(parent)),
         mReconfigured(false),
         mDoPause(false),
         mPaused(true),
@@ -1158,6 +1290,12 @@ status_t Camera3Device::RequestThread::queueTrigger(
     return OK;
 }
 
+int Camera3Device::RequestThread::getId(const wp<Camera3Device> &device) {
+    sp<Camera3Device> d = device.promote();
+    if (d != NULL) return d->mId;
+    return 0;
+}
+
 status_t Camera3Device::RequestThread::queueTriggerLocked(
         RequestTrigger trigger) {
 
@@ -1170,9 +1308,8 @@ status_t Camera3Device::RequestThread::queueTriggerLocked(
         case TYPE_INT32:
             break;
         default:
-            ALOGE("%s: Type not supported: 0x%x",
-                  __FUNCTION__,
-                  trigger.getTagType());
+            ALOGE("%s: Type not supported: 0x%x", __FUNCTION__,
+                    trigger.getTagType());
             return INVALID_OPERATION;
     }
 
@@ -1340,6 +1477,22 @@ bool Camera3Device::RequestThread::threadLoop() {
 
     request.frame_number = mFrameNumber++;
 
+    // Log request in the in-flight queue
+    sp<Camera3Device> parent = mParent.promote();
+    if (parent == NULL) {
+        CLOGE("RequestThread: Parent is gone");
+        cleanUpFailedRequest(request, nextRequest, outputBuffers);
+        return false;
+    }
+
+    res = parent->registerInFlight(request.frame_number,
+            request.num_output_buffers);
+    if (res != OK) {
+        SET_ERR("RequestThread: Unable to register new in-flight request:"
+                " %s (%d)", strerror(-res), res);
+        cleanUpFailedRequest(request, nextRequest, outputBuffers);
+        return false;
+    }
 
     // Submit request and block until ready for next one
 
