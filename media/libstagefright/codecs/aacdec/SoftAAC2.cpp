@@ -586,9 +586,12 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
 }
 
 void SoftAAC2::drainDecoder() {
-    short buf [2048];
-    aacDecoder_DecodeFrame(mAACDecoder, buf, 4096, AACDEC_FLUSH | AACDEC_CLRHIST | AACDEC_INTR);
-    aacDecoder_DecodeFrame(mAACDecoder, buf, 4096, AACDEC_FLUSH | AACDEC_CLRHIST | AACDEC_INTR);
+    // a buffer big enough for 6 channels of decoded HE-AAC
+    short buf [2048*6];
+    aacDecoder_DecodeFrame(mAACDecoder,
+            buf, sizeof(buf), AACDEC_FLUSH | AACDEC_CLRHIST | AACDEC_INTR);
+    aacDecoder_DecodeFrame(mAACDecoder,
+            buf, sizeof(buf), AACDEC_FLUSH | AACDEC_CLRHIST | AACDEC_INTR);
     aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
     mDecoderHasData = false;
 }
