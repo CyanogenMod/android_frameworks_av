@@ -1158,7 +1158,7 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
 void NuPlayer::performDecoderFlush() {
     ALOGV("performDecoderFlush");
 
-    if (mAudioDecoder != NULL && mVideoDecoder == NULL) {
+    if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
         return;
     }
 
@@ -1176,7 +1176,7 @@ void NuPlayer::performDecoderFlush() {
 void NuPlayer::performDecoderShutdown() {
     ALOGV("performDecoderShutdown");
 
-    if (mAudioDecoder != NULL && mVideoDecoder == NULL) {
+    if (mAudioDecoder == NULL && mVideoDecoder == NULL) {
         return;
     }
 
