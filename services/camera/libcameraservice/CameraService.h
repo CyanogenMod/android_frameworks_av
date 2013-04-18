@@ -190,6 +190,8 @@ public:
         virtual status_t      setPreviewDisplay(const sp<Surface>& surface) = 0;
         virtual status_t      setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)=0;
         virtual void          setPreviewCallbackFlag(int flag) = 0;
+        virtual status_t      setPreviewCallbackTarget(
+                const sp<IGraphicBufferProducer>& callbackProducer) = 0;
         virtual status_t      startPreview() = 0;
         virtual void          stopPreview() = 0;
         virtual bool          previewEnabled() = 0;

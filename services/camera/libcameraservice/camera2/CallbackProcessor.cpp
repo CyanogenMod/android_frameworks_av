@@ -34,6 +34,7 @@ CallbackProcessor::CallbackProcessor(wp<Camera2Client> client):
         Thread(false),
         mClient(client),
         mCallbackAvailable(false),
+        mCallbackToApp(false),
         mCallbackStreamId(NO_STREAM) {
 }
 
@@ -50,6 +51,35 @@ void CallbackProcessor::onFrameAvailable() {
     }
 }
 
+status_t CallbackProcessor::setCallbackWindow(
+        sp<ANativeWindow> callbackWindow) {
+    ATRACE_CALL();
+    status_t res;
+
+    Mutex::Autolock l(mInputMutex);
+
+    sp<Camera2Client> client = mClient.promote();
+    if (client == 0) return OK;
+    sp<CameraDeviceBase> device = client->getCameraDevice();
+
+    // If the window is changing, clear out stream if it already exists
+    if (mCallbackWindow != callbackWindow && mCallbackStreamId != NO_STREAM) {
+        res = device->deleteStream(mCallbackStreamId);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to delete old stream "
+                    "for callbacks: %s (%d)", __FUNCTION__,
+                    client->getCameraId(), strerror(-res), res);
+            return res;
+        }
+        mCallbackStreamId = NO_STREAM;
+        mCallbackConsumer.clear();
+    }
+    mCallbackWindow = callbackWindow;
+    mCallbackToApp = (mCallbackWindow != NULL);
+
+    return OK;
+}
+
 status_t CallbackProcessor::updateStream(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
@@ -60,14 +90,17 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
     if (client == 0) return OK;
     sp<CameraDeviceBase> device = client->getCameraDevice();
 
-    if (mCallbackConsumer == 0) {
-        // Create CPU buffer queue endpoint
+    if (!mCallbackToApp && mCallbackConsumer == 0) {
+        // Create CPU buffer queue endpoint, since app hasn't given us one
         mCallbackConsumer = new CpuConsumer(kCallbackHeapCount);
         mCallbackConsumer->setFrameAvailableListener(this);
         mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
         mCallbackWindow = new Surface(
             mCallbackConsumer->getProducerInterface());
     }
+
+    uint32_t targetFormat = mCallbackToApp ? (uint32_t)HAL_PIXEL_FORMAT_YV12 :
+            (uint32_t)params.previewFormat;
 
     if (mCallbackStreamId != NO_STREAM) {
         // Check if stream parameters have to change
@@ -82,17 +115,18 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         }
         if (currentWidth != (uint32_t)params.previewWidth ||
                 currentHeight != (uint32_t)params.previewHeight ||
-                currentFormat != (uint32_t)params.previewFormat) {
+                currentFormat != targetFormat) {
             // Since size should only change while preview is not running,
             // assuming that all existing use of old callback stream is
             // completed.
-            ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
-                __FUNCTION__, client->getCameraId(), mCallbackStreamId);
+            ALOGV("%s: Camera %d: Deleting stream %d since the buffer"
+                    " dimensions changed", __FUNCTION__,
+                    client->getCameraId(), mCallbackStreamId);
             res = device->deleteStream(mCallbackStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
-                        "for callbacks: %s (%d)", __FUNCTION__, client->getCameraId(),
-                        strerror(-res), res);
+                        "for callbacks: %s (%d)", __FUNCTION__,
+                        client->getCameraId(), strerror(-res), res);
                 return res;
             }
             mCallbackStreamId = NO_STREAM;
@@ -102,10 +136,10 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
     if (mCallbackStreamId == NO_STREAM) {
         ALOGV("Creating callback stream: %d %d format 0x%x",
                 params.previewWidth, params.previewHeight,
-                params.previewFormat);
+                targetFormat);
         res = device->createStream(mCallbackWindow,
                 params.previewWidth, params.previewHeight,
-                params.previewFormat, 0, &mCallbackStreamId);
+                targetFormat, 0, &mCallbackStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for callbacks: "
                     "%s (%d)", __FUNCTION__, client->getCameraId(),

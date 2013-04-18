@@ -121,7 +121,15 @@ public:
 
             void        setListener(const sp<CameraListener>& listener);
             void        setRecordingProxyListener(const sp<ICameraRecordingProxyListener>& listener);
+
+            // Configure preview callbacks to app. Only one of the older
+            // callbacks or the callback surface can be active at the same time;
+            // enabling one will disable the other if active. Flags can be
+            // disabled by calling it with CAMERA_FRAME_CALLBACK_FLAG_NOOP, and
+            // Target by calling it with a NULL interface.
             void        setPreviewCallbackFlags(int preview_callback_flag);
+            status_t    setPreviewCallbackTarget(
+                    const sp<IGraphicBufferProducer>& callbackProducer);
 
             sp<ICameraRecordingProxy> getRecordingProxy();
 

@@ -255,6 +255,14 @@ void Camera::setPreviewCallbackFlags(int flag)
     mCamera->setPreviewCallbackFlag(flag);
 }
 
+status_t Camera::setPreviewCallbackTarget(
+        const sp<IGraphicBufferProducer>& callbackProducer)
+{
+    sp <ICamera> c = mCamera;
+    if (c == 0) return NO_INIT;
+    return c->setPreviewCallbackTarget(callbackProducer);
+}
+
 // callback from camera service
 void Camera::notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
 {

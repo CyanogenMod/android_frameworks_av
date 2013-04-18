@@ -44,6 +44,8 @@ class CallbackProcessor:
 
     void onFrameAvailable();
 
+    // Set to NULL to disable the direct-to-app callback window
+    status_t setCallbackWindow(sp<ANativeWindow> callbackWindow);
     status_t updateStream(const Parameters &params);
     status_t deleteStream();
     int getStreamId() const;
@@ -61,6 +63,9 @@ class CallbackProcessor:
         NO_STREAM = -1
     };
 
+    // True if mCallbackWindow is a remote consumer, false if just the local
+    // mCallbackConsumer
+    bool mCallbackToApp;
     int mCallbackStreamId;
     static const size_t kCallbackHeapCount = 6;
     sp<CpuConsumer>    mCallbackConsumer;
