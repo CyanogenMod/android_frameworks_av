@@ -299,7 +299,9 @@ status_t OMXNodeInstance::enableGraphicBuffers(
     OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
 
     if (err != OMX_ErrorNone) {
-        ALOGE("OMX_GetExtensionIndex %s failed", name);
+        if (enable) {
+            ALOGE("OMX_GetExtensionIndex %s failed", name);
+        }
 
         return StatusFromOMXError(err);
     }
@@ -378,9 +380,8 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
 
     OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
     if (err != OMX_ErrorNone) {
-        if (enable) {
-            ALOGE("OMX_GetExtensionIndex %s failed", name);
-        }
+        ALOGE("OMX_GetExtensionIndex %s failed", name);
+
         return StatusFromOMXError(err);
     }
 
