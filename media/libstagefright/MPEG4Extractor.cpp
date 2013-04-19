@@ -83,7 +83,7 @@ private:
     uint8_t mCryptoKey[16]; // passed in from extractor
     uint32_t mCurrentAuxInfoType;
     uint32_t mCurrentAuxInfoTypeParameter;
-    uint32_t mCurrentDefaultSampleInfoSize;
+    int32_t mCurrentDefaultSampleInfoSize;
     uint32_t mCurrentSampleInfoCount;
     uint32_t mCurrentSampleInfoAllocSize;
     uint8_t* mCurrentSampleInfoSizes;
@@ -320,6 +320,21 @@ static const char *FourCC2MIME(uint32_t fourcc) {
     }
 }
 
+static bool AdjustChannelsAndRate(uint32_t fourcc, uint32_t *channels, uint32_t *rate) {
+    if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, FourCC2MIME(fourcc))) {
+        // AMR NB audio is always mono, 8kHz
+        *channels = 1;
+        *rate = 8000;
+        return true;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, FourCC2MIME(fourcc))) {
+        // AMR WB audio is always mono, 16kHz
+        *channels = 1;
+        *rate = 16000;
+        return true;
+    }
+    return false;
+}
+
 MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
     : mSidxDuration(0),
       mMoofOffset(0),
@@ -441,6 +456,14 @@ sp<MetaData> MPEG4Extractor::getTrackMetaData(
     }
 
     return track->meta;
+}
+
+static void MakeFourCCString(uint32_t x, char *s) {
+    s[0] = x >> 24;
+    s[1] = (x >> 16) & 0xff;
+    s[2] = (x >> 8) & 0xff;
+    s[3] = x & 0xff;
+    s[4] = '\0';
 }
 
 status_t MPEG4Extractor::readMetaData() {
@@ -673,14 +696,6 @@ status_t MPEG4Extractor::parseDrmSINF(off64_t *offset, off64_t data_offset) {
     return UNKNOWN_ERROR;  // Return a dummy error.
 }
 
-static void MakeFourCCString(uint32_t x, char *s) {
-    s[0] = x >> 24;
-    s[1] = (x >> 16) & 0xff;
-    s[2] = (x >> 8) & 0xff;
-    s[3] = x & 0xff;
-    s[4] = '\0';
-}
-
 struct PathAdder {
     PathAdder(Vector<uint32_t> *path, uint32_t chunkType)
         : mPath(path) {
@@ -891,13 +906,19 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('f', 'r', 'm', 'a'):
         {
-            int32_t original_fourcc;
+            uint32_t original_fourcc;
             if (mDataSource->readAt(data_offset, &original_fourcc, 4) < 4) {
                 return ERROR_IO;
             }
             original_fourcc = ntohl(original_fourcc);
             ALOGV("read original format: %d", original_fourcc);
             mLastTrack->meta->setCString(kKeyMIMEType, FourCC2MIME(original_fourcc));
+            uint32_t num_channels = 0;
+            uint32_t sample_rate = 0;
+            if (AdjustChannelsAndRate(original_fourcc, &num_channels, &sample_rate)) {
+                mLastTrack->meta->setInt32(kKeyChannelCount, num_channels);
+                mLastTrack->meta->setInt32(kKeySampleRate, sample_rate);
+            }
             *offset += chunk_size;
             break;
         }
@@ -1134,6 +1155,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         }
 
         case FOURCC('m', 'p', '4', 'a'):
+        case FOURCC('e', 'n', 'c', 'a'):
         case FOURCC('s', 'a', 'm', 'r'):
         case FOURCC('s', 'a', 'w', 'b'):
         {
@@ -1149,29 +1171,18 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
 
             uint16_t data_ref_index = U16_AT(&buffer[6]);
-            uint16_t num_channels = U16_AT(&buffer[16]);
+            uint32_t num_channels = U16_AT(&buffer[16]);
 
             uint16_t sample_size = U16_AT(&buffer[18]);
             uint32_t sample_rate = U32_AT(&buffer[24]) >> 16;
 
-            if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB,
-                            FourCC2MIME(chunk_type))) {
-                // AMR NB audio is always mono, 8kHz
-                num_channels = 1;
-                sample_rate = 8000;
-            } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB,
-                               FourCC2MIME(chunk_type))) {
-                // AMR WB audio is always mono, 16kHz
-                num_channels = 1;
-                sample_rate = 16000;
+            if (chunk_type != FOURCC('e', 'n', 'c', 'a')) {
+                // if the chunk type is enca, we'll get the type from the sinf/frma box later
+                mLastTrack->meta->setCString(kKeyMIMEType, FourCC2MIME(chunk_type));
+                AdjustChannelsAndRate(chunk_type, &num_channels, &sample_rate);
             }
-
-#if 0
-            printf("*** coding='%s' %d channels, size %d, rate %d\n",
+            ALOGV("*** coding='%s' %d channels, size %d, rate %d\n",
                    chunk, num_channels, sample_size, sample_rate);
-#endif
-
-            mLastTrack->meta->setCString(kKeyMIMEType, FourCC2MIME(chunk_type));
             mLastTrack->meta->setInt32(kKeyChannelCount, num_channels);
             mLastTrack->meta->setInt32(kKeySampleRate, sample_rate);
 
@@ -2297,6 +2308,7 @@ MPEG4Source::MPEG4Source(
       mSrcBuffer(NULL) {
 
     mFormat->findInt32(kKeyCryptoMode, &mCryptoMode);
+    mDefaultIVSize = 0;
     mFormat->findInt32(kKeyCryptoDefaultIVSize, &mDefaultIVSize);
     uint32_t keytype;
     const void *key;
@@ -2544,13 +2556,17 @@ status_t MPEG4Source::parseSampleAuxiliaryInformationSizes(off64_t offset, off64
     if (!mDataSource->getUInt32(offset, &smplcnt)) {
         return ERROR_MALFORMED;
     }
+    mCurrentSampleInfoCount = smplcnt;
     offset += 4;
 
+    if (mCurrentDefaultSampleInfoSize != 0) {
+        ALOGV("@@@@ using default sample info size of %d", mCurrentDefaultSampleInfoSize);
+        return OK;
+    }
     if (smplcnt > mCurrentSampleInfoAllocSize) {
         mCurrentSampleInfoSizes = (uint8_t*) realloc(mCurrentSampleInfoSizes, smplcnt);
         mCurrentSampleInfoAllocSize = smplcnt;
     }
-    mCurrentSampleInfoCount = smplcnt;
 
     mDataSource->readAt(offset, mCurrentSampleInfoSizes, smplcnt);
     return OK;
@@ -2608,7 +2624,8 @@ status_t MPEG4Source::parseSampleAuxiliaryInformationOffsets(off64_t offset, off
     drmoffset += mCurrentMoofOffset;
     int ivlength;
     CHECK(mFormat->findInt32(kKeyCryptoDefaultIVSize, &ivlength));
-    int foo = 1;
+
+    // read CencSampleAuxiliaryDataFormats
     for (size_t i = 0; i < mCurrentSampleInfoCount; i++) {
         Sample *smpl = &mCurrentSamples.editItemAt(i);
 
@@ -2619,24 +2636,33 @@ status_t MPEG4Source::parseSampleAuxiliaryInformationOffsets(off64_t offset, off
 
         drmoffset += ivlength;
 
-        uint16_t numsubsamples;
-        if (!mDataSource->getUInt16(drmoffset, &numsubsamples)) {
-            return ERROR_IO;
+        int32_t smplinfosize = mCurrentDefaultSampleInfoSize;
+        if (smplinfosize == 0) {
+            smplinfosize = mCurrentSampleInfoSizes[i];
         }
-        drmoffset += 2;
-        for (size_t j = 0; j < numsubsamples; j++) {
-            uint16_t numclear;
-            uint32_t numencrypted;
-            if (!mDataSource->getUInt16(drmoffset, &numclear)) {
+        if (smplinfosize > ivlength) {
+            uint16_t numsubsamples;
+            if (!mDataSource->getUInt16(drmoffset, &numsubsamples)) {
                 return ERROR_IO;
             }
             drmoffset += 2;
-            if (!mDataSource->getUInt32(drmoffset, &numencrypted)) {
-                return ERROR_IO;
+            for (size_t j = 0; j < numsubsamples; j++) {
+                uint16_t numclear;
+                uint32_t numencrypted;
+                if (!mDataSource->getUInt16(drmoffset, &numclear)) {
+                    return ERROR_IO;
+                }
+                drmoffset += 2;
+                if (!mDataSource->getUInt32(drmoffset, &numencrypted)) {
+                    return ERROR_IO;
+                }
+                drmoffset += 4;
+                smpl->clearsizes.add(numclear);
+                smpl->encryptedsizes.add(numencrypted);
             }
-            drmoffset += 4;
-            smpl->clearsizes.add(numclear);
-            smpl->encryptedsizes.add(numencrypted);
+        } else {
+            smpl->clearsizes.add(0);
+            smpl->encryptedsizes.add(smpl->size);
         }
     }
 
@@ -3293,6 +3319,21 @@ status_t MPEG4Source::fragmentedRead(
         }
     }
 
+    const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
+    const sp<MetaData> bufmeta = mBuffer->meta_data();
+    bufmeta->clear();
+    if (smpl->encryptedsizes.size()) {
+        // store clear/encrypted lengths in metadata
+        bufmeta->setData(kKeyPlainSizes, 0,
+                smpl->clearsizes.array(), smpl->clearsizes.size() * 4);
+        bufmeta->setData(kKeyEncryptedSizes, 0,
+                smpl->encryptedsizes.array(), smpl->encryptedsizes.size() * 4);
+        bufmeta->setData(kKeyCryptoIV, 0, smpl->iv, 16); // use 16 or the actual size?
+        bufmeta->setInt32(kKeyCryptoDefaultIVSize, mDefaultIVSize);
+        bufmeta->setInt32(kKeyCryptoMode, mCryptoMode);
+        bufmeta->setData(kKeyCryptoKey, 0, mCryptoKey, 16);
+    }
+
     if (!mIsAVC || mWantsNALFragments) {
         if (newBuffer) {
             ssize_t num_bytes_read =
@@ -3308,7 +3349,6 @@ status_t MPEG4Source::fragmentedRead(
 
             CHECK(mBuffer != NULL);
             mBuffer->set_range(0, size);
-            mBuffer->meta_data()->clear();
             mBuffer->meta_data()->setInt64(
                     kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
 
@@ -3432,7 +3472,6 @@ status_t MPEG4Source::fragmentedRead(
             mBuffer->set_range(0, dstOffset);
         }
 
-        mBuffer->meta_data()->clear();
         mBuffer->meta_data()->setInt64(
                 kKeyTime, ((int64_t)cts * 1000000) / mTimescale);
 
@@ -3443,20 +3482,6 @@ status_t MPEG4Source::fragmentedRead(
 
         if (isSyncSample) {
             mBuffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
-        }
-
-        const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
-        if (smpl->encryptedsizes.size()) {
-            // store clear/encrypted lengths in metadata
-            sp<MetaData> bufmeta = mBuffer->meta_data();
-            bufmeta->setData(kKeyPlainSizes, 0,
-                    smpl->clearsizes.array(), smpl->clearsizes.size() * 4);
-            bufmeta->setData(kKeyEncryptedSizes, 0,
-                    smpl->encryptedsizes.array(), smpl->encryptedsizes.size() * 4);
-            bufmeta->setData(kKeyCryptoIV, 0, smpl->iv, 16); // use 16 or the actual size?
-            bufmeta->setInt32(kKeyCryptoDefaultIVSize, mDefaultIVSize);
-            bufmeta->setInt32(kKeyCryptoMode, mCryptoMode);
-            bufmeta->setData(kKeyCryptoKey, 0, mCryptoKey, 16);
         }
 
         ++mCurrentSampleIndex;
