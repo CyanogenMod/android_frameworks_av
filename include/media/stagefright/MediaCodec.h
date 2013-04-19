@@ -176,6 +176,7 @@ private:
         kFlagDequeueInputPending        = 16,
         kFlagDequeueOutputPending       = 32,
         kFlagIsSecure                   = 64,
+        kFlagSawMediaServerDie          = 128,
     };
 
     struct BufferInfo {
