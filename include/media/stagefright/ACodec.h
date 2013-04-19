@@ -264,12 +264,16 @@ private:
 
     status_t pushBlankBuffersToNativeWindow();
 
-    // Returns true iff all buffers on the given port have status OWNED_BY_US.
+    // Returns true iff all buffers on the given port have status
+    // OWNED_BY_US or OWNED_BY_NATIVE_WINDOW.
     bool allYourBuffersAreBelongToUs(OMX_U32 portIndex);
 
     bool allYourBuffersAreBelongToUs();
 
+    void waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs();
+
     size_t countBuffersOwnedByComponent(OMX_U32 portIndex) const;
+    size_t countBuffersOwnedByNativeWindow() const;
 
     void deferMessage(const sp<AMessage> &msg);
     void processDeferredMessages();
