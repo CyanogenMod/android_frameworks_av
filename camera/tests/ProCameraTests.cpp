@@ -80,7 +80,7 @@ struct ServiceListener : public BnCameraServiceListener {
 
     void onStatusChanged(Status status, int32_t cameraId) {
         dout << "On status changed: 0x" << std::hex
-             << status << " cameraId " << cameraId
+             << (unsigned int) status << " cameraId " << cameraId
              << std::endl;
 
         Mutex::Autolock al(mMutex);
@@ -121,7 +121,7 @@ enum ProEvent {
     ACQUIRED,
     RELEASED,
     STOLEN,
-    BUFFER_RECEIVED,
+    FRAME_RECEIVED,
     RESULT_RECEIVED,
 };
 
@@ -158,6 +158,7 @@ public:
 
     ProCameraTestListener() {
         mEventMask = EVENT_MASK_ALL;
+        mDropFrames = false;
     }
 
     status_t WaitForEvent() {
@@ -208,12 +209,19 @@ public:
         mEventMask = eventMask;
     }
 
+    // Automatically acquire/release frames as they are available
+    void SetDropFrames(bool dropFrames) {
+        Mutex::Autolock al(mListenerMutex);
+        mDropFrames = dropFrames;
+    }
+
 private:
     void QueueEvent(ProEvent ev) {
         bool eventAdded = false;
         {
             Mutex::Autolock al(mListenerMutex);
 
+            // Drop events not part of mask
             if (ProEvent_Mask(ev) & mEventMask) {
                 mProEventList.push(ev);
                 eventAdded = true;
@@ -253,16 +261,30 @@ protected:
              << " " << ext3 << std::endl;
     }
 
-    virtual void onBufferReceived(int streamId,
-                                  const CpuConsumer::LockedBuffer& buf) {
+    virtual void onFrameAvailable(int streamId,
+                                  const sp<CpuConsumer>& consumer) {
 
-        dout << "Buffer received on streamId = " << streamId <<
-                ", dataPtr = " << (void*)buf.data <<
-                ", timestamp = " << buf.timestamp << std::endl;
+        QueueEvent(FRAME_RECEIVED);
 
-        QueueEvent(BUFFER_RECEIVED);
+        Mutex::Autolock al(mListenerMutex);
+        if (mDropFrames) {
+            CpuConsumer::LockedBuffer buf;
+            status_t ret;
 
+            EXPECT_OK(ret);
+            if (OK == (ret = consumer->lockNextBuffer(&buf))) {
+
+                dout << "Frame received on streamId = " << streamId <<
+                        ", dataPtr = " << (void*)buf.data <<
+                        ", timestamp = " << buf.timestamp << std::endl;
+
+                EXPECT_OK(consumer->unlockBuffer(buf));
+            }
+        } else {
+            dout << "Frame received on streamId = " << streamId << std::endl;
+        }
     }
+
     virtual void onResultReceived(int32_t frameId,
                                   camera_metadata* request) {
         dout << "Result received frameId = " << frameId
@@ -282,6 +304,7 @@ protected:
     Mutex             mConditionMutex;
     Condition         mListenerCondition;
     int               mEventMask;
+    bool              mDropFrames;
 };
 
 class ProCameraTest : public ::testing::Test {
@@ -723,8 +746,11 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
         return;
     }
 
-    // FIXME: Note this test is broken because onBufferReceived was removed
-    mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
+    mListener->SetEventMask(ProEvent_Mask(ACQUIRED) |
+                            ProEvent_Mask(STOLEN)   |
+                            ProEvent_Mask(RELEASED) |
+                            ProEvent_Mask(FRAME_RECEIVED));
+    mListener->SetDropFrames(true);
 
     int streamId = -1;
     sp<CpuConsumer> consumer;
@@ -776,7 +802,7 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
     // Consume a couple of frames
     for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
         EXPECT_EQ(OK, mListener->WaitForEvent());
-        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+        EXPECT_EQ(FRAME_RECEIVED, mListener->ReadEvent());
     }
 
     // Done: clean up
@@ -790,8 +816,8 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
         return;
     }
 
-    // FIXME: Note this test is broken because onBufferReceived was removed
-    mListener->SetEventMask(ProEvent_Mask(BUFFER_RECEIVED));
+    mListener->SetEventMask(ProEvent_Mask(FRAME_RECEIVED));
+    mListener->SetDropFrames(true);
 
     int streamId = -1;
     sp<CpuConsumer> consumer;
@@ -849,11 +875,11 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
     for (int i = 0; i < TEST_CPU_FRAME_COUNT; ++i) {
         // stream id 1
         EXPECT_EQ(OK, mListener->WaitForEvent());
-        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+        EXPECT_EQ(FRAME_RECEIVED, mListener->ReadEvent());
 
         // stream id 2
         EXPECT_EQ(OK, mListener->WaitForEvent());
-        EXPECT_EQ(BUFFER_RECEIVED, mListener->ReadEvent());
+        EXPECT_EQ(FRAME_RECEIVED, mListener->ReadEvent());
 
         //TODO: events should be a struct with some data like the stream id
     }
@@ -870,7 +896,8 @@ TEST_F(ProCameraTest, ResultReceiver) {
     }
 
     mListener->SetEventMask(ProEvent_Mask(RESULT_RECEIVED));
-    //FIXME: if this is run right after the previous test we get BUFFER_RECEIVED
+    mListener->SetDropFrames(true);
+    //FIXME: if this is run right after the previous test we get FRAME_RECEIVED
     // need to filter out events at read time
 
     int streamId = -1;
@@ -931,10 +958,13 @@ TEST_F(ProCameraTest, ResultReceiver) {
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
-TEST_F(ProCameraTest, WaitForResult) {
+// FIXME: This is racy and sometimes fails on waitForFrameMetadata
+TEST_F(ProCameraTest, DISABLED_WaitForResult) {
     if (HasFatalFailure()) {
         return;
     }
+
+    mListener->SetDropFrames(true);
 
     int streamId = -1;
     sp<CpuConsumer> consumer;
@@ -955,7 +985,6 @@ TEST_F(ProCameraTest, WaitForResult) {
     }
 
     // Done: clean up
-    consumer->abandon(); // since we didn't consume any of the buffers
     EXPECT_OK(mCamera->deleteStream(streamId));
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
@@ -996,7 +1025,8 @@ TEST_F(ProCameraTest, WaitForSingleStreamBuffer) {
     EXPECT_OK(mCamera->exclusiveUnlock());
 }
 
-TEST_F(ProCameraTest, WaitForDualStreamBuffer) {
+// FIXME: This is racy and sometimes fails on waitForFrameMetadata
+TEST_F(ProCameraTest, DISABLED_WaitForDualStreamBuffer) {
     if (HasFatalFailure()) {
         return;
     }
@@ -1142,6 +1172,7 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
     }
 
     const int NUM_REQUESTS = 20 * TEST_CPU_FRAME_COUNT;
+    const int CONSECUTIVE_FAILS_ASSUME_TIME_OUT = 5;
 
     int streamId = -1;
     sp<CpuConsumer> consumer;
@@ -1156,10 +1187,13 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
                                                      /*requests*/NUM_REQUESTS));
 
+    uint64_t lastFrameNumber = 0;
+    int numFrames;
+
     // Consume a couple of results
-    for (int i = 0; i < NUM_REQUESTS; ++i) {
-        int numFrames;
-        EXPECT_TRUE((numFrames = mCamera->waitForFrameBuffer(streamId)) > 0);
+    int i;
+    for (i = 0; i < NUM_REQUESTS && lastFrameNumber < NUM_REQUESTS; ++i) {
+        EXPECT_LT(0, (numFrames = mCamera->waitForFrameBuffer(streamId)));
 
         dout << "Dropped " << (numFrames - 1) << " frames" << std::endl;
 
@@ -1168,11 +1202,15 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
 
         // "Consume" the buffer
         CpuConsumer::LockedBuffer buf;
-        EXPECT_OK(consumer->lockNextBuffer(&buf));
+
+        EXPECT_EQ(OK, consumer->lockNextBuffer(&buf));
+
+        lastFrameNumber = buf.frameNumber;
 
         dout << "Buffer asynchronously received on streamId = " << streamId <<
                 ", dataPtr = " << (void*)buf.data <<
-                ", timestamp = " << buf.timestamp << std::endl;
+                ", timestamp = " << buf.timestamp <<
+                ", framenumber = " << buf.frameNumber << std::endl;
 
         // Process at 10fps, stream is at 15fps.
         // This means we will definitely fill up the buffer queue with
@@ -1181,6 +1219,8 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
 
         EXPECT_OK(consumer->unlockBuffer(buf));
     }
+
+    dout << "Done after " << i << " iterations " << std::endl;
 
     // Done: clean up
     EXPECT_OK(mCamera->deleteStream(streamId));
