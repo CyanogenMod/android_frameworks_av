@@ -18,7 +18,7 @@
 
 namespace android {
 
-extern const pid_t getpid_cached;
+extern pid_t getpid_cached;
 
 bool recordingAllowed();
 bool settingsAllowed();
