@@ -534,6 +534,20 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             // the shutdown complete notification.
 
                             sendErrorReponse = false;
+
+                            if (omxError == OMX_ErrorResourcesLost
+                                    && internalError == DEAD_OBJECT) {
+                                // MediaServer died, there definitely won't
+                                // be a shutdown complete notification after
+                                // all.
+
+                                // note that we're directly going from
+                                // STOPPING->UNINITIALIZED, instead of the
+                                // usual STOPPING->INITIALIZED state.
+                                setState(UNINITIALIZED);
+
+                                (new AMessage)->postReply(mReplyID);
+                            }
                             break;
                         }
 
@@ -1013,8 +1027,16 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (mState != INITIALIZED
                     && mState != CONFIGURED && mState != STARTED) {
+                // We may be in "UNINITIALIZED" state already without the
+                // client being aware of this if media server died while
+                // we were being stopped. The client would assume that
+                // after stop() returned, it would be safe to call release()
+                // and it should be in this case, no harm to allow a release()
+                // if we're already uninitialized.
                 sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
+                response->setInt32(
+                        "err",
+                        mState == UNINITIALIZED ? OK : INVALID_OPERATION);
 
                 response->postReply(replyID);
                 break;
