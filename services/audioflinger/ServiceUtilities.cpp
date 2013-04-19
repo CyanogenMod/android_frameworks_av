@@ -21,8 +21,9 @@
 
 namespace android {
 
-// This optimization assumes mediaserver process doesn't fork, which it doesn't
-const pid_t getpid_cached = getpid();
+// Not valid until initialized by AudioFlinger constructor.  It would have to be
+// re-initialized if the process containing AudioFlinger service forks (which it doesn't).
+pid_t getpid_cached;
 
 bool recordingAllowed() {
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
