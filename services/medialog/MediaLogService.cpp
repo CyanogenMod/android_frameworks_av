@@ -60,7 +60,9 @@ status_t MediaLogService::dump(int fd, const Vector<String16>& args)
     static const String16 sDump("android.permission.DUMP");
     if (!(IPCThreadState::self()->getCallingUid() == AID_MEDIA ||
             PermissionCache::checkCallingPermission(sDump))) {
-        fdprintf(fd, "Permission denied.\n");
+        fdprintf(fd, "Permission Denial: can't dump media.log from pid=%d, uid=%d\n",
+                IPCThreadState::self()->getCallingPid(),
+                IPCThreadState::self()->getCallingUid());
         return NO_ERROR;
     }
 
