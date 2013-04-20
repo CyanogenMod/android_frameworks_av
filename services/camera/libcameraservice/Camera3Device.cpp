@@ -907,6 +907,28 @@ status_t Camera3Device::configureStreamsLocked() {
         return res;
     }
 
+    // Finish all stream configuration immediately.
+    // TODO: Try to relax this later back to lazy completion, which should be
+    // faster
+
+    if (mInputStream != NULL) {
+        res = mInputStream->finishConfiguration(mHal3Device);
+        if (res != OK) {
+            SET_ERR_L("Can't finish configuring input stream %d: %s (%d)",
+                    mInputStream->getId(), strerror(-res), res);
+            return res;
+        }
+    }
+
+    for (size_t i = 0; i < mOutputStreams.size(); i++) {
+        res = mOutputStreams.editValueAt(i)->finishConfiguration(mHal3Device);
+        if (res != OK) {
+            SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",
+                    mOutputStreams[i]->getId(), strerror(-res), res);
+            return res;
+        }
+    }
+
     // Request thread needs to know to avoid using repeat-last-settings protocol
     // across configure_streams() calls
     mRequestThread->configurationComplete();
