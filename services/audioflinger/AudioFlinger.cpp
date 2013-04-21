@@ -6346,20 +6346,19 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
     LOGD("SRS_Processing - DirectAudioTrack - OutNotify_Init: %p TID %d\n", this, gettid());
     SRS_Processing::ProcessOutNotify(SRS_Processing::AUTO, this, false);
 #endif
-
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         requestAndWaitForEffectsThreadExit();
         mAudioFlinger->deregisterClient(mAudioFlingerClient);
         mAudioFlinger->deleteEffectSession();
         deallocateBufPool();
     }
+    AudioSystem::releaseOutput(mOutput);
     releaseWakeLock();
 
     if (mPowerManager != 0) {
         sp<IBinder> binder = mPowerManager->asBinder();
         binder->unlinkToDeath(mDeathRecipient);
     }
-    AudioSystem::releaseOutput(mOutput);
 }
 
 status_t AudioFlinger::DirectAudioTrack::start() {
