@@ -26,6 +26,7 @@
 #include "CameraDeviceBase.h"
 #include "camera3/Camera3Stream.h"
 #include "camera3/Camera3OutputStream.h"
+#include "camera3/Camera3ZslStream.h"
 
 #include "hardware/camera3.h"
 
@@ -85,6 +86,12 @@ class Camera3Device :
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
+    virtual status_t createZslStream(
+            uint32_t width, uint32_t height,
+            int depth,
+            /*out*/
+            int *id,
+            sp<camera3::Camera3ZslStream>* zslStream);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
 
     virtual status_t getStreamInfo(int id,
@@ -132,14 +139,15 @@ class Camera3Device :
     }                          mStatus;
 
     // Mapping of stream IDs to stream instances
-    typedef KeyedVector<int, sp<camera3::Camera3OutputStream> > StreamSet;
+    typedef KeyedVector<int, sp<camera3::Camera3OutputStreamInterface> >
+            StreamSet;
 
     StreamSet                  mOutputStreams;
     sp<camera3::Camera3Stream> mInputStream;
     int                        mNextStreamId;
 
     // Need to hold on to stream references until configure completes.
-    Vector<sp<camera3::Camera3Stream> > mDeletedStreams;
+    Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
 
     /**** End scope for mLock ****/
 
@@ -147,7 +155,8 @@ class Camera3Device :
       public:
         CameraMetadata                      mSettings;
         sp<camera3::Camera3Stream>          mInputStream;
-        Vector<sp<camera3::Camera3Stream> > mOutputStreams;
+        Vector<sp<camera3::Camera3OutputStreamInterface> >
+                                            mOutputStreams;
     };
     typedef List<sp<CaptureRequest> > RequestList;
 

@@ -23,7 +23,7 @@
 #include "camera2/FrameProcessor.h"
 #include "camera2/StreamingProcessor.h"
 #include "camera2/JpegProcessor.h"
-#include "camera2/ZslProcessor.h"
+#include "camera2/ZslProcessorInterface.h"
 #include "camera2/CaptureSequencer.h"
 #include "camera2/CallbackProcessor.h"
 #include "Camera2ClientBase.h"
@@ -154,6 +154,7 @@ private:
 
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(Parameters &params);
+    int mDeviceVersion;
 
     // Used with stream IDs
     static const int NO_STREAM = -1;
@@ -173,7 +174,8 @@ private:
 
     sp<camera2::CaptureSequencer> mCaptureSequencer;
     sp<camera2::JpegProcessor> mJpegProcessor;
-    sp<camera2::ZslProcessor> mZslProcessor;
+    sp<camera2::ZslProcessorInterface> mZslProcessor;
+    sp<Thread> mZslProcessorThread;
 
     /** Notification-related members */
 
