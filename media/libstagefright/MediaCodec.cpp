@@ -506,6 +506,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                           "(omx error 0x%08x, internalError %d)",
                           omxError, internalError);
 
+                    if (omxError == OMX_ErrorResourcesLost
+                            && internalError == DEAD_OBJECT) {
+                        mFlags |= kFlagSawMediaServerDie;
+                    }
+
                     bool sendErrorReponse = true;
 
                     switch (mState) {
@@ -535,8 +540,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                             sendErrorReponse = false;
 
-                            if (omxError == OMX_ErrorResourcesLost
-                                    && internalError == DEAD_OBJECT) {
+                            if (mFlags & kFlagSawMediaServerDie) {
                                 // MediaServer died, there definitely won't
                                 // be a shutdown complete notification after
                                 // all.
@@ -999,29 +1003,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
         }
 
         case kWhatStop:
-        {
-            uint32_t replyID;
-            CHECK(msg->senderAwaitsResponse(&replyID));
-
-            if (mState != INITIALIZED
-                    && mState != CONFIGURED && mState != STARTED) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
-                break;
-            }
-
-            mReplyID = replyID;
-            setState(STOPPING);
-
-            mCodec->initiateShutdown(true /* keepComponentAllocated */);
-            returnBuffersToCodec();
-            break;
-        }
-
         case kWhatRelease:
         {
+            State targetState =
+                (msg->what() == kWhatStop) ? INITIALIZED : UNINITIALIZED;
+
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
@@ -1033,19 +1019,30 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 // after stop() returned, it would be safe to call release()
                 // and it should be in this case, no harm to allow a release()
                 // if we're already uninitialized.
+                // Similarly stopping a stopped MediaCodec should be benign.
                 sp<AMessage> response = new AMessage;
                 response->setInt32(
                         "err",
-                        mState == UNINITIALIZED ? OK : INVALID_OPERATION);
+                        mState == targetState ? OK : INVALID_OPERATION);
 
                 response->postReply(replyID);
                 break;
             }
 
-            mReplyID = replyID;
-            setState(RELEASING);
+            if (mFlags & kFlagSawMediaServerDie) {
+                // It's dead, Jim. Don't expect initiateShutdown to yield
+                // any useful results now...
+                setState(UNINITIALIZED);
+                (new AMessage)->postReply(replyID);
+                break;
+            }
 
-            mCodec->initiateShutdown();
+            mReplyID = replyID;
+            setState(msg->what() == kWhatStop ? STOPPING : RELEASING);
+
+            mCodec->initiateShutdown(
+                    msg->what() == kWhatStop /* keepComponentAllocated */);
+
             returnBuffersToCodec();
             break;
         }
@@ -1422,6 +1419,11 @@ void MediaCodec::setState(State newState) {
 
     if (newState == UNINITIALIZED) {
         mComponentName.clear();
+
+        // The component is gone, mediaserver's probably back up already
+        // but should definitely be back up should we try to instantiate
+        // another component.. and the cycle continues.
+        mFlags &= ~kFlagSawMediaServerDie;
     }
 
     mState = newState;
