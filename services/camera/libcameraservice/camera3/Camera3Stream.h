@@ -21,8 +21,12 @@
 #include <utils/RefBase.h>
 #include <utils/String8.h>
 #include <utils/String16.h>
+#include <utils/List.h>
 
 #include "hardware/camera3.h"
+
+#include "Camera3StreamBufferListener.h"
+#include "Camera3StreamInterface.h"
 
 namespace android {
 
@@ -81,7 +85,8 @@ namespace camera3 {
  */
 class Camera3Stream :
         protected camera3_stream,
-        public LightRefBase<Camera3Stream> {
+        public virtual Camera3StreamInterface,
+        public virtual RefBase {
   public:
 
     virtual ~Camera3Stream();
@@ -205,6 +210,11 @@ class Camera3Stream :
      */
     virtual void     dump(int fd, const Vector<String16> &args) const = 0;
 
+    void             addBufferListener(
+            wp<Camera3StreamBufferListener> listener);
+    void             removeBufferListener(
+            const sp<Camera3StreamBufferListener>& listener);
+
   protected:
     const int mId;
     const String8 mName;
@@ -260,6 +270,10 @@ class Camera3Stream :
 
     // Gets all buffers from endpoint and registers them with the HAL.
     status_t registerBuffersLocked(camera3_device *hal3Device);
+
+    void fireBufferListenersLocked(const camera3_stream_buffer& buffer,
+                                  bool acquired, bool output);
+    List<wp<Camera3StreamBufferListener> > mBufferListenerList;
 
 }; // class Camera3Stream
 

@@ -433,6 +433,81 @@ status_t Camera3Device::createInputStream(
     return OK;
 }
 
+
+status_t Camera3Device::createZslStream(
+            uint32_t width, uint32_t height,
+            int depth,
+            /*out*/
+            int *id,
+            sp<Camera3ZslStream>* zslStream) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    status_t res;
+    bool wasActive = false;
+
+    switch (mStatus) {
+        case STATUS_ERROR:
+            ALOGE("%s: Device has encountered a serious error", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATUS_UNINITIALIZED:
+            ALOGE("%s: Device not initialized", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATUS_IDLE:
+            // OK
+            break;
+        case STATUS_ACTIVE:
+            ALOGV("%s: Stopping activity to reconfigure streams", __FUNCTION__);
+            mRequestThread->setPaused(true);
+            res = waitUntilDrainedLocked();
+            if (res != OK) {
+                ALOGE("%s: Can't pause captures to reconfigure streams!",
+                        __FUNCTION__);
+                mStatus = STATUS_ERROR;
+                return res;
+            }
+            wasActive = true;
+            break;
+        default:
+            ALOGE("%s: Unexpected status: %d", __FUNCTION__, mStatus);
+            return INVALID_OPERATION;
+    }
+    assert(mStatus == STATUS_IDLE);
+
+    if (mInputStream != 0) {
+        ALOGE("%s: Cannot create more than 1 input stream", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    sp<Camera3ZslStream> newStream = new Camera3ZslStream(mNextStreamId,
+                width, height, depth);
+
+    res = mOutputStreams.add(mNextStreamId, newStream);
+    if (res < 0) {
+        ALOGE("%s: Can't add new stream to set: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+    mInputStream = newStream;
+
+    *id = mNextStreamId++;
+    *zslStream = newStream;
+
+    // Continue captures if active at start
+    if (wasActive) {
+        ALOGV("%s: Restarting activity to reconfigure streams", __FUNCTION__);
+        res = configureStreamsLocked();
+        if (res != OK) {
+            ALOGE("%s: Can't reconfigure device for new stream %d: %s (%d)",
+                    __FUNCTION__, mNextStreamId, strerror(-res), res);
+            return res;
+        }
+        mRequestThread->setPaused(false);
+    }
+
+    return OK;
+}
+
 status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format, size_t size, int *id) {
     ATRACE_CALL();
@@ -588,7 +663,7 @@ status_t Camera3Device::deleteStream(int id) {
         return INVALID_OPERATION;
     }
 
-    sp<Camera3Stream> deletedStream;
+    sp<Camera3StreamInterface> deletedStream;
     if (mInputStream != NULL && id == mInputStream->getId()) {
         deletedStream = mInputStream;
         mInputStream.clear();
@@ -881,7 +956,8 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
                     __FUNCTION__, streams.data.u8[i]);
             return NULL;
         }
-        sp<Camera3OutputStream> stream = mOutputStreams.editValueAt(idx);
+        sp<Camera3OutputStreamInterface> stream =
+                mOutputStreams.editValueAt(idx);
 
         // Lazy completion of stream configuration (allocation/registration)
         // on first use
@@ -932,6 +1008,15 @@ status_t Camera3Device::configureStreamsLocked() {
     }
 
     for (size_t i = 0; i < mOutputStreams.size(); i++) {
+
+        // Don't configure bidi streams twice, nor add them twice to the list
+        if (mOutputStreams[i].get() ==
+            static_cast<Camera3StreamInterface*>(mInputStream.get())) {
+
+            config.num_streams--;
+            continue;
+        }
+
         camera3_stream_t *outputStream;
         outputStream = mOutputStreams.editValueAt(i)->startConfiguration();
         if (outputStream == NULL) {

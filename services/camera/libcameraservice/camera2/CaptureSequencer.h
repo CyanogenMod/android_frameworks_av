@@ -33,7 +33,7 @@ class Camera2Client;
 
 namespace camera2 {
 
-class ZslProcessor;
+class ZslProcessorInterface;
 class BurstCapture;
 
 /**
@@ -48,7 +48,7 @@ class CaptureSequencer:
     ~CaptureSequencer();
 
     // Get reference to the ZslProcessor, which holds the ZSL buffers and frames
-    void setZslProcessor(wp<ZslProcessor> processor);
+    void setZslProcessor(wp<ZslProcessorInterface> processor);
 
     // Begin still image capture
     status_t startCapture(int msgType);
@@ -105,7 +105,7 @@ class CaptureSequencer:
     static const int kMaxTimeoutsForCaptureEnd    = 40;  // 4 sec
 
     wp<Camera2Client> mClient;
-    wp<ZslProcessor> mZslProcessor;
+    wp<ZslProcessorInterface> mZslProcessor;
     sp<BurstCapture> mBurstCapture;
 
     enum CaptureState {

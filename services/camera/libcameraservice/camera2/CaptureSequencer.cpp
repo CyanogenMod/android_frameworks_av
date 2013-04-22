@@ -27,6 +27,7 @@
 #include "../Camera2Device.h"
 #include "../Camera2Client.h"
 #include "Parameters.h"
+#include "ZslProcessorInterface.h"
 
 namespace android {
 namespace camera2 {
@@ -54,7 +55,7 @@ CaptureSequencer::~CaptureSequencer() {
     ALOGV("%s: Exit", __FUNCTION__);
 }
 
-void CaptureSequencer::setZslProcessor(wp<ZslProcessor> processor) {
+void CaptureSequencer::setZslProcessor(wp<ZslProcessorInterface> processor) {
     Mutex::Autolock l(mInputMutex);
     mZslProcessor = processor;
 }
@@ -265,8 +266,10 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
                 res = INVALID_OPERATION;
         }
     }
-    sp<ZslProcessor> processor = mZslProcessor.promote();
+    sp<ZslProcessorInterface> processor = mZslProcessor.promote();
     if (processor != 0) {
+        ALOGV("%s: Memory optimization, clearing ZSL queue",
+              __FUNCTION__);
         processor->clearZslQueue();
     }
 
@@ -324,7 +327,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         sp<Camera2Client> &client) {
     ALOGV("%s", __FUNCTION__);
     status_t res;
-    sp<ZslProcessor> processor = mZslProcessor.promote();
+    sp<ZslProcessorInterface> processor = mZslProcessor.promote();
     if (processor == 0) {
         ALOGE("%s: No ZSL queue to use!", __FUNCTION__);
         return DONE;
