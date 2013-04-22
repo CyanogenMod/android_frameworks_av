@@ -2135,6 +2135,42 @@ size_t ACodec::countBuffersOwnedByComponent(OMX_U32 portIndex) const {
     return n;
 }
 
+size_t ACodec::countBuffersOwnedByNativeWindow() const {
+    size_t n = 0;
+
+    for (size_t i = 0; i < mBuffers[kPortIndexOutput].size(); ++i) {
+        const BufferInfo &info = mBuffers[kPortIndexOutput].itemAt(i);
+
+        if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
+            ++n;
+        }
+    }
+
+    return n;
+}
+
+void ACodec::waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs() {
+    if (mNativeWindow == NULL) {
+        return;
+    }
+
+    int minUndequeuedBufs = 0;
+    status_t err = mNativeWindow->query(
+            mNativeWindow.get(), NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+            &minUndequeuedBufs);
+
+    if (err != OK) {
+        ALOGE("[%s] NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d)",
+                mComponentName.c_str(), strerror(-err), -err);
+
+        minUndequeuedBufs = 0;
+    }
+
+    while (countBuffersOwnedByNativeWindow() > (size_t)minUndequeuedBufs
+            && dequeueBufferFromNativeWindow() != NULL) {
+    }
+}
+
 bool ACodec::allYourBuffersAreBelongToUs(
         OMX_U32 portIndex) {
     for (size_t i = 0; i < mBuffers[portIndex].size(); ++i) {
@@ -4177,6 +4213,10 @@ void ACodec::FlushingState::changeStateIfWeOwnAllBuffers() {
     if (mFlushComplete[kPortIndexInput]
             && mFlushComplete[kPortIndexOutput]
             && mCodec->allYourBuffersAreBelongToUs()) {
+        // We now own all buffers except possibly those still queued with
+        // the native window for rendering. Let's get those back as well.
+        mCodec->waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs();
+
         sp<AMessage> notify = mCodec->mNotify->dup();
         notify->setInt32("what", ACodec::kWhatFlushCompleted);
         notify->post();
