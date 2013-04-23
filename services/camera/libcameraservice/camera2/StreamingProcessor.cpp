@@ -31,8 +31,10 @@
 namespace android {
 namespace camera2 {
 
-StreamingProcessor::StreamingProcessor(wp<Camera2Client> client):
+StreamingProcessor::StreamingProcessor(sp<Camera2Client> client):
         mClient(client),
+        mDevice(client->getCameraDevice()),
+        mId(client->getCameraId()),
         mActiveRequest(NONE),
         mPreviewRequestId(Camera2Client::kPreviewRequestIdStart),
         mPreviewStreamId(NO_STREAM),
@@ -40,7 +42,6 @@ StreamingProcessor::StreamingProcessor(wp<Camera2Client> client):
         mRecordingStreamId(NO_STREAM),
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
-
 }
 
 StreamingProcessor::~StreamingProcessor() {
@@ -70,16 +71,19 @@ bool StreamingProcessor::haveValidPreviewWindow() const {
 status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     Mutex::Autolock m(mMutex);
     if (mPreviewRequest.entryCount() == 0) {
-        res = client->getCameraDevice()->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+        res = device->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
                 &mPreviewRequest);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create default preview request: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
     }
@@ -87,7 +91,7 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
     res = params.updateRequest(&mPreviewRequest);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of preview "
-                "request: %s (%d)", __FUNCTION__, client->getCameraId(),
+                "request: %s (%d)", __FUNCTION__, mId,
                 strerror(-res), res);
         return res;
     }
@@ -96,7 +100,7 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
             &mPreviewRequestId, 1);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update request id for preview: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
 
@@ -108,9 +112,11 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
     Mutex::Autolock m(mMutex);
 
     status_t res;
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     if (mPreviewStreamId != NO_STREAM) {
         // Check if stream parameters have to change
@@ -119,24 +125,24 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
                 &currentWidth, &currentHeight, 0);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying preview stream info: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
         if (currentWidth != (uint32_t)params.previewWidth ||
                 currentHeight != (uint32_t)params.previewHeight) {
             ALOGV("%s: Camera %d: Preview size switch: %d x %d -> %d x %d",
-                    __FUNCTION__, client->getCameraId(), currentWidth, currentHeight,
+                    __FUNCTION__, mId, currentWidth, currentHeight,
                     params.previewWidth, params.previewHeight);
             res = device->waitUntilDrained();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Error waiting for preview to drain: "
-                        "%s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                        "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
                 return res;
             }
             res = device->deleteStream(mPreviewStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
-                        "for preview: %s (%d)", __FUNCTION__, client->getCameraId(),
+                        "for preview: %s (%d)", __FUNCTION__, mId,
                         strerror(-res), res);
                 return res;
             }
@@ -151,7 +157,7 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
                 &mPreviewStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create preview stream: %s (%d)",
-                    __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
     }
@@ -160,7 +166,7 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
             params.previewTransform);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set preview stream transform: "
-                "%s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
 
@@ -174,12 +180,14 @@ status_t StreamingProcessor::deletePreviewStream() {
     Mutex::Autolock m(mMutex);
 
     if (mPreviewStreamId != NO_STREAM) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return INVALID_OPERATION;
-        sp<CameraDeviceBase> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = mDevice.promote();
+        if (device == 0) {
+            ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
 
         ALOGV("%s: for cameraId %d on streamId %d",
-            __FUNCTION__, client->getCameraId(), mPreviewStreamId);
+            __FUNCTION__, mId, mPreviewStreamId);
 
         res = device->waitUntilDrained();
         if (res != OK) {
@@ -206,11 +214,9 @@ int StreamingProcessor::getPreviewStreamId() const {
 status_t StreamingProcessor::setRecordingBufferCount(size_t count) {
     ATRACE_CALL();
     // 32 is the current upper limit on the video buffer count for BufferQueue
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
     if (count > 32) {
         ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
-                __FUNCTION__, client->getCameraId(), count);
+                __FUNCTION__, mId, count);
         return BAD_VALUE;
     }
 
@@ -233,15 +239,18 @@ status_t StreamingProcessor::updateRecordingRequest(const Parameters &params) {
     status_t res;
     Mutex::Autolock m(mMutex);
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     if (mRecordingRequest.entryCount() == 0) {
-        res = client->getCameraDevice()->createDefaultRequest(CAMERA2_TEMPLATE_VIDEO_RECORD,
+        res = device->createDefaultRequest(CAMERA2_TEMPLATE_VIDEO_RECORD,
                 &mRecordingRequest);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create default recording request:"
-                    " %s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
     }
@@ -249,7 +258,7 @@ status_t StreamingProcessor::updateRecordingRequest(const Parameters &params) {
     res = params.updateRequest(&mRecordingRequest);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update common entries of recording "
-                "request: %s (%d)", __FUNCTION__, client->getCameraId(),
+                "request: %s (%d)", __FUNCTION__, mId,
                 strerror(-res), res);
         return res;
     }
@@ -258,7 +267,7 @@ status_t StreamingProcessor::updateRecordingRequest(const Parameters &params) {
             &mRecordingRequestId, 1);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update request id for request: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
 
@@ -270,9 +279,11 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
     status_t res;
     Mutex::Autolock m(mMutex);
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     if (mRecordingConsumer == 0) {
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
@@ -296,7 +307,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
                 &currentWidth, &currentHeight, 0);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying recording output stream info: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -307,7 +318,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for recording: %s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
+                        mId, strerror(-res), res);
                 return res;
             }
             mRecordingStreamId = NO_STREAM;
@@ -321,7 +332,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
                 CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0, &mRecordingStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for recording: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -337,9 +348,11 @@ status_t StreamingProcessor::deleteRecordingStream() {
     Mutex::Autolock m(mMutex);
 
     if (mRecordingStreamId != NO_STREAM) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return INVALID_OPERATION;
-        sp<CameraDeviceBase> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = mDevice.promote();
+        if (device == 0) {
+            ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
 
         res = device->waitUntilDrained();
         if (res != OK) {
@@ -369,10 +382,13 @@ status_t StreamingProcessor::startStream(StreamType type,
 
     if (type == NONE) return INVALID_OPERATION;
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
-    ALOGV("%s: Camera %d: type = %d", __FUNCTION__, client->getCameraId(), type);
+    ALOGV("%s: Camera %d: type = %d", __FUNCTION__, mId, type);
 
     Mutex::Autolock m(mMutex);
 
@@ -384,22 +400,22 @@ status_t StreamingProcessor::startStream(StreamType type,
         outputStreams);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
 
     res = request.sort();
     if (res != OK) {
         ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
 
-    res = client->getCameraDevice()->setStreamingRequest(request);
+    res = device->setStreamingRequest(request);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
                 "%s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
     mActiveRequest = type;
@@ -413,16 +429,19 @@ status_t StreamingProcessor::stopStream() {
 
     Mutex::Autolock m(mMutex);
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return INVALID_OPERATION;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     res = device->clearStreamingRequest();
     if (res != OK) {
         ALOGE("%s: Camera %d: Can't clear stream request: %s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
         return res;
     }
+
     mActiveRequest = NONE;
 
     return OK;
@@ -466,7 +485,18 @@ void StreamingProcessor::onFrameAvailable() {
     nsecs_t timestamp;
 
     sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return;
+    if (client == 0) {
+        // Discard frames during shutdown
+        BufferItemConsumer::BufferItem imgBuffer;
+        res = mRecordingConsumer->acquireBuffer(&imgBuffer);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
+                    __FUNCTION__, mId, strerror(-res), res);
+            return;
+        }
+        mRecordingConsumer->releaseBuffer(imgBuffer);
+        return;
+    }
 
     {
         /* acquire SharedParameters before mMutex so we don't dead lock
@@ -477,7 +507,7 @@ void StreamingProcessor::onFrameAvailable() {
         res = mRecordingConsumer->acquireBuffer(&imgBuffer);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
-                    __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    __FUNCTION__, mId, strerror(-res), res);
             return;
         }
         timestamp = imgBuffer.mTimestamp;
@@ -490,7 +520,7 @@ void StreamingProcessor::onFrameAvailable() {
                 l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
             ALOGV("%s: Camera %d: Discarding recording image buffers "
                     "received after recording done", __FUNCTION__,
-                    client->getCameraId());
+                    mId);
             mRecordingConsumer->releaseBuffer(imgBuffer);
             return;
         }
@@ -498,14 +528,14 @@ void StreamingProcessor::onFrameAvailable() {
         if (mRecordingHeap == 0) {
             const size_t bufferSize = 4 + sizeof(buffer_handle_t);
             ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
-                    "size %d bytes", __FUNCTION__, client->getCameraId(),
+                    "size %d bytes", __FUNCTION__, mId,
                     mRecordingHeapCount, bufferSize);
 
             mRecordingHeap = new Camera2Heap(bufferSize, mRecordingHeapCount,
                     "Camera2Client::RecordingHeap");
             if (mRecordingHeap->mHeap->getSize() == 0) {
                 ALOGE("%s: Camera %d: Unable to allocate memory for recording",
-                        __FUNCTION__, client->getCameraId());
+                        __FUNCTION__, mId);
                 mRecordingConsumer->releaseBuffer(imgBuffer);
                 return;
             }
@@ -513,7 +543,7 @@ void StreamingProcessor::onFrameAvailable() {
                 if (mRecordingBuffers[i].mBuf !=
                         BufferItemConsumer::INVALID_BUFFER_SLOT) {
                     ALOGE("%s: Camera %d: Non-empty recording buffers list!",
-                            __FUNCTION__, client->getCameraId());
+                            __FUNCTION__, mId);
                 }
             }
             mRecordingBuffers.clear();
@@ -526,7 +556,7 @@ void StreamingProcessor::onFrameAvailable() {
 
         if ( mRecordingHeapFree == 0) {
             ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, mId);
             mRecordingConsumer->releaseBuffer(imgBuffer);
             return;
         }
@@ -536,7 +566,7 @@ void StreamingProcessor::onFrameAvailable() {
         mRecordingHeapFree--;
 
         ALOGV("%s: Camera %d: Timestamp %lld",
-                __FUNCTION__, client->getCameraId(), timestamp);
+                __FUNCTION__, mId, timestamp);
 
         ssize_t offset;
         size_t size;
@@ -549,7 +579,7 @@ void StreamingProcessor::onFrameAvailable() {
         *((uint32_t*)data) = type;
         *((buffer_handle_t*)(data + 4)) = imgBuffer.mGraphicBuffer->handle;
         ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
-                __FUNCTION__, client->getCameraId(),
+                __FUNCTION__, mId,
                 imgBuffer.mGraphicBuffer->handle);
         mRecordingBuffers.replaceAt(imgBuffer, heapIdx);
         recordingHeap = mRecordingHeap;
@@ -568,9 +598,6 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
     status_t res;
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return;
-
     Mutex::Autolock m(mMutex);
     // Make sure this is for the current heap
     ssize_t offset;
@@ -578,7 +605,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
     if (heap->getHeapID() != mRecordingHeap->mHeap->getHeapID()) {
         ALOGW("%s: Camera %d: Mismatched heap ID, ignoring release "
-                "(got %x, expected %x)", __FUNCTION__, client->getCameraId(),
+                "(got %x, expected %x)", __FUNCTION__, mId,
                 heap->getHeapID(), mRecordingHeap->mHeap->getHeapID());
         return;
     }
@@ -586,7 +613,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     uint32_t type = *(uint32_t*)data;
     if (type != kMetadataBufferTypeGrallocSource) {
         ALOGE("%s: Camera %d: Recording frame type invalid (got %x, expected %x)",
-                __FUNCTION__, client->getCameraId(), type,
+                __FUNCTION__, mId, type,
                 kMetadataBufferTypeGrallocSource);
         return;
     }
@@ -606,19 +633,19 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     }
     if (itemIndex == mRecordingBuffers.size()) {
         ALOGE("%s: Camera %d: Can't find buffer_handle_t %p in list of "
-                "outstanding buffers", __FUNCTION__, client->getCameraId(),
+                "outstanding buffers", __FUNCTION__, mId,
                 imgHandle);
         return;
     }
 
     ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__,
-            client->getCameraId(), imgHandle);
+            mId, imgHandle);
 
     res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to free recording frame "
                 "(buffer_handle_t: %p): %s (%d)", __FUNCTION__,
-                client->getCameraId(), imgHandle, strerror(-res), res);
+                mId, imgHandle, strerror(-res), res);
         return;
     }
     mRecordingBuffers.replaceAt(itemIndex);

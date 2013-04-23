@@ -1133,7 +1133,8 @@ cleanUpBuffers:
 status_t Camera2Device::StreamAdapter::release() {
     ATRACE_CALL();
     status_t res;
-    ALOGV("%s: Releasing stream %d", __FUNCTION__, mId);
+    ALOGV("%s: Releasing stream %d (%d x %d, format %d)", __FUNCTION__, mId,
+            mWidth, mHeight, mFormat);
     if (mState >= ALLOCATED) {
         res = mHal2Device->ops->release_stream(mHal2Device, mId);
         if (res != OK) {
