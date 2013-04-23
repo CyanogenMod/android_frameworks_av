@@ -18,7 +18,6 @@
 #define LOG_TAG "wfd"
 #include <utils/Log.h>
 
-#include "sink/WifiDisplaySink.h"
 #include "source/WifiDisplaySource.h"
 
 #include <binder/ProcessState.h>
@@ -39,12 +38,8 @@ namespace android {
 static void usage(const char *me) {
     fprintf(stderr,
             "usage:\n"
-            "           %s -c host[:port]\tconnect to wifi source\n"
-            "               -u uri        \tconnect to an rtsp uri\n"
-            "               -l ip[:port] \tlisten on the specified port "
-            "               -f(ilename)  \tstream media "
-            "(create a sink)\n"
-            "               -s(pecial)   \trun in 'special' mode\n",
+            "           %s -l iface[:port]\tcreate a wifi display source\n"
+            "               -f(ilename)  \tstream media\n",
             me);
 }
 
@@ -214,48 +209,14 @@ int main(int argc, char **argv) {
 
     DataSource::RegisterDefaultSniffers();
 
-    AString connectToHost;
-    int32_t connectToPort = -1;
-    AString uri;
-
     AString listenOnAddr;
     int32_t listenOnPort = -1;
 
     AString path;
 
-    bool specialMode = false;
-
     int res;
-    while ((res = getopt(argc, argv, "hc:l:u:f:s")) >= 0) {
+    while ((res = getopt(argc, argv, "hl:f:")) >= 0) {
         switch (res) {
-            case 'c':
-            {
-                const char *colonPos = strrchr(optarg, ':');
-
-                if (colonPos == NULL) {
-                    connectToHost = optarg;
-                    connectToPort = WifiDisplaySource::kWifiDisplayDefaultPort;
-                } else {
-                    connectToHost.setTo(optarg, colonPos - optarg);
-
-                    char *end;
-                    connectToPort = strtol(colonPos + 1, &end, 10);
-
-                    if (*end != '\0' || end == colonPos + 1
-                            || connectToPort < 1 || connectToPort > 65535) {
-                        fprintf(stderr, "Illegal port specified.\n");
-                        exit(1);
-                    }
-                }
-                break;
-            }
-
-            case 'u':
-            {
-                uri = optarg;
-                break;
-            }
-
             case 'f':
             {
                 path = optarg;
@@ -284,25 +245,12 @@ int main(int argc, char **argv) {
                 break;
             }
 
-            case 's':
-            {
-                specialMode = true;
-                break;
-            }
-
             case '?':
             case 'h':
             default:
                 usage(argv[0]);
                 exit(1);
         }
-    }
-
-    if (connectToPort >= 0 && listenOnPort >= 0) {
-        fprintf(stderr,
-                "You can connect to a source or create one, "
-                "but not both at the same time.\n");
-        exit(1);
     }
 
     if (listenOnPort >= 0) {
@@ -315,72 +263,7 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    if (connectToPort < 0 && uri.empty()) {
-        fprintf(stderr,
-                "You need to select either source host or uri.\n");
-
-        exit(1);
-    }
-
-    if (connectToPort >= 0 && !uri.empty()) {
-        fprintf(stderr,
-                "You need to either connect to a wfd host or an rtsp url, "
-                "not both.\n");
-        exit(1);
-    }
-
-    sp<SurfaceComposerClient> composerClient = new SurfaceComposerClient;
-    CHECK_EQ(composerClient->initCheck(), (status_t)OK);
-
-    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
-            ISurfaceComposer::eDisplayIdMain));
-    DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(display, &info);
-    ssize_t displayWidth = info.w;
-    ssize_t displayHeight = info.h;
-
-    ALOGV("display is %d x %d\n", displayWidth, displayHeight);
-
-    sp<SurfaceControl> control =
-        composerClient->createSurface(
-                String8("A Surface"),
-                displayWidth,
-                displayHeight,
-                PIXEL_FORMAT_RGB_565,
-                0);
-
-    CHECK(control != NULL);
-    CHECK(control->isValid());
-
-    SurfaceComposerClient::openGlobalTransaction();
-    CHECK_EQ(control->setLayer(INT_MAX), (status_t)OK);
-    CHECK_EQ(control->show(), (status_t)OK);
-    SurfaceComposerClient::closeGlobalTransaction();
-
-    sp<Surface> surface = control->getSurface();
-    CHECK(surface != NULL);
-
-    sp<ANetworkSession> session = new ANetworkSession;
-    session->start();
-
-    sp<ALooper> looper = new ALooper;
-
-    sp<WifiDisplaySink> sink = new WifiDisplaySink(
-            specialMode ? WifiDisplaySink::FLAG_SPECIAL_MODE : 0 /* flags */,
-            session,
-            surface->getIGraphicBufferProducer());
-
-    looper->registerHandler(sink);
-
-    if (connectToPort >= 0) {
-        sink->start(connectToHost.c_str(), connectToPort);
-    } else {
-        sink->start(uri.c_str());
-    }
-
-    looper->start(true /* runOnCallingThread */);
-
-    composerClient->dispose();
+    usage(argv[0]);
 
     return 0;
 }
