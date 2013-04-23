@@ -170,6 +170,10 @@ bool FastMixer::threadLoop()
                 if (old <= 0) {
                     __futex_syscall4(coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
+                int policy = sched_getscheduler(0);
+                if (!(policy == SCHED_FIFO || policy == SCHED_RR)) {
+                    ALOGE("did not receive expected priority boost");
+                }
                 // This may be overly conservative; there could be times that the normal mixer
                 // requests such a brief cold idle that it doesn't require resetting this flag.
                 isWarm = false;
