@@ -599,6 +599,7 @@ protected:
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
     AudioTrackClientProxy*  mProxy;
+    bool                    mAwaitBoost;    // thread should wait for priority boost before running
 };
 
 class TimedAudioTrack : public AudioTrack

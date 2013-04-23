@@ -373,7 +373,9 @@ void AudioFlinger::ThreadBase::processConfigEvents()
         switch(event->type()) {
             case CFG_EVENT_PRIO: {
                 PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
-                int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio());
+                // FIXME Need to understand why this has be done asynchronously
+                int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio(),
+                        true /*asynchronous*/);
                 if (err != 0) {
                     ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; "
                           "error %d",

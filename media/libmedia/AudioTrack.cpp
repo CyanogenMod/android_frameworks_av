@@ -893,9 +893,11 @@ status_t AudioTrack::createTrack_l(
         ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
     }
     frameCount = temp;
+    mAwaitBoost = false;
     if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", frameCount);
+            mAwaitBoost = true;
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
@@ -1219,6 +1221,25 @@ bool AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
     size_t writtenSize;
 
     mLock.lock();
+    if (mAwaitBoost) {
+        mAwaitBoost = false;
+        mLock.unlock();
+        static const int32_t kMaxTries = 5;
+        int32_t tryCounter = kMaxTries;
+        uint32_t pollUs = 10000;
+        do {
+            int policy = sched_getscheduler(0);
+            if (policy == SCHED_FIFO || policy == SCHED_RR) {
+                break;
+            }
+            usleep(pollUs);
+            pollUs <<= 1;
+        } while (tryCounter-- > 0);
+        if (tryCounter < 0) {
+            ALOGE("did not receive expected priority boost on time");
+        }
+        return true;
+    }
     // acquire a strong reference on the IMemory and IAudioTrack so that they cannot be destroyed
     // while we are accessing the cblk
     sp<IAudioTrack> audioTrack = mAudioTrack;

@@ -27,7 +27,7 @@ public:
     DECLARE_META_INTERFACE(SchedulingPolicyService);
 
     virtual int         requestPriority(/*pid_t*/int32_t pid, /*pid_t*/int32_t tid,
-                                                int32_t prio) = 0;
+                                                int32_t prio, bool asynchronous) = 0;
 
 };
 
