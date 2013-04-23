@@ -30,6 +30,7 @@
 namespace android {
 
 class Camera2Client;
+class CameraDeviceBase;
 
 namespace camera2 {
 
@@ -39,7 +40,7 @@ namespace camera2 {
 class CallbackProcessor:
             public Thread, public CpuConsumer::FrameAvailableListener {
   public:
-    CallbackProcessor(wp<Camera2Client> client);
+    CallbackProcessor(sp<Camera2Client> client);
     ~CallbackProcessor();
 
     void onFrameAvailable();
@@ -52,6 +53,8 @@ class CallbackProcessor:
   private:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
     wp<Camera2Client> mClient;
+    wp<CameraDeviceBase> mDevice;
+    int mId;
 
     mutable Mutex mInputMutex;
     bool mCallbackAvailable;
@@ -72,7 +75,8 @@ class CallbackProcessor:
     virtual bool threadLoop();
 
     status_t processNewCallback(sp<Camera2Client> &client);
-
+    // Used when shutting down
+    status_t discardNewCallback();
 };
 
 
