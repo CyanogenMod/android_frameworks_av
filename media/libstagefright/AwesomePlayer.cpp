@@ -74,6 +74,9 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
+static const int64_t kInitFrameDurationUs = 16000;
+static const int64_t kScheduleLagGapUs = 1000;
+static const int64_t kDefaultEventDelayUs = 10000;
 int AwesomePlayer::mTunnelAliveAP = 0;
 
 struct AwesomeEvent : public TimedEventQueue::Event {
@@ -205,6 +208,7 @@ AwesomePlayer::AwesomePlayer()
       mVideoBuffer(NULL),
       mDecryptHandle(NULL),
       mLastVideoTimeUs(-1),
+      mFrameDurationUs(kInitFrameDurationUs),
       mTextDriver(NULL) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
@@ -645,7 +649,7 @@ void AwesomePlayer::reset_l() {
 
     mBitrate = -1;
     mLastVideoTimeUs = -1;
-
+    mFrameDurationUs = kInitFrameDurationUs;
     {
         Mutex::Autolock autoLock(mStatsLock);
         mStats.mFd = -1;
@@ -1892,6 +1896,8 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
 
 void AwesomePlayer::onVideoEvent() {
     ATRACE_CALL();
+    int64_t eventStartTimeUs = mSystemTimeSource.getRealTimeUs();
+    int64_t earlyGapUs = kScheduleLagGapUs; // gap for in case of event scheduling lag
     Mutex::Autolock autoLock(mLock);
     if (!mVideoEventPending) {
         // The event has been cancelled in reset_l() but had already
@@ -2001,7 +2007,11 @@ void AwesomePlayer::onVideoEvent() {
 
     int64_t timeUs;
     CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &timeUs));
-
+    if ((mLastVideoTimeUs != timeUs)
+          && (mLastVideoTimeUs > 0)
+          && (mSeeking == NO_SEEK)) {
+        mFrameDurationUs = timeUs - mLastVideoTimeUs;
+    }
     mLastVideoTimeUs = timeUs;
 
     if (mSeeking == SEEK_VIDEO_ONLY) {
@@ -2128,8 +2138,10 @@ void AwesomePlayer::onVideoEvent() {
                     }
                     if(!(mFlags & AT_EOS)) logLate(timeUs,nowUs,latenessUs);
                 }
-
-                postVideoEvent_l();
+                int64_t eventDurationUs = mSystemTimeSource.getRealTimeUs() - eventStartTimeUs;
+                int64_t delayUs = mFrameDurationUs - eventDurationUs - latenessUs - earlyGapUs;
+                delayUs = delayUs > kDefaultEventDelayUs ? kDefaultEventDelayUs : delayUs;
+                postVideoEvent_l(delayUs > 0 ? delayUs : 0);
                 return;
             }
         }
@@ -2190,8 +2202,10 @@ void AwesomePlayer::onVideoEvent() {
         modifyFlags(SEEK_PREVIEW, CLEAR);
         return;
     }
-
-    postVideoEvent_l();
+    int64_t eventDurationUs = mSystemTimeSource.getRealTimeUs() - eventStartTimeUs;
+    int64_t delayUs = mFrameDurationUs - eventDurationUs - latenessUs - earlyGapUs;
+    delayUs = delayUs > kDefaultEventDelayUs ? kDefaultEventDelayUs : delayUs;
+    postVideoEvent_l(delayUs > 0 ? delayUs : 0);
 }
 
 void AwesomePlayer::postVideoEvent_l(int64_t delayUs) {
