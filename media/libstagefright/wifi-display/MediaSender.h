@@ -43,7 +43,6 @@ struct MediaSender : public AHandler {
         kWhatInitDone,
         kWhatError,
         kWhatNetworkStall,
-        kWhatInformSender,
     };
 
     MediaSender(
