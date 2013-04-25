@@ -1257,6 +1257,13 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
     switch (what) {
         case Source::kWhatPrepared:
         {
+            if (mSource == NULL) {
+                // This is a stale notification from a source that was
+                // asynchronously preparing when the client called reset().
+                // We handled the reset, the source is gone.
+                break;
+            }
+
             int32_t err;
             CHECK(msg->findInt32("err", &err));
 
