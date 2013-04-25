@@ -1415,6 +1415,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         // since client and server are in the same process,
         // the buffer has the same virtual address on both sides
         mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize);
+        mClientProxy->setVolumeLR((uint32_t(uint16_t(0x1000)) << 16) | uint16_t(0x1000));
+        mClientProxy->setSendLevel(0.0);
+        mClientProxy->setSampleRate(sampleRate);
     } else {
         ALOGW("Error creating output track on thread %p", playbackThread);
     }
