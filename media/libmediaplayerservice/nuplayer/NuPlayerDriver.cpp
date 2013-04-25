@@ -333,6 +333,14 @@ status_t NuPlayerDriver::reset() {
         case STATE_RESET_IN_PROGRESS:
             return INVALID_OPERATION;
 
+        case STATE_PREPARING:
+        {
+            CHECK(mIsAsyncPrepare);
+
+            notifyListener(MEDIA_PREPARED);
+            break;
+        }
+
         default:
             break;
     }
@@ -502,6 +510,14 @@ void NuPlayerDriver::notifySetDataSourceCompleted(status_t err) {
 
 void NuPlayerDriver::notifyPrepareCompleted(status_t err) {
     Mutex::Autolock autoLock(mLock);
+
+    if (mState != STATE_PREPARING) {
+        // We were preparing asynchronously when the client called
+        // reset(), we sent a premature "prepared" notification and
+        // then initiated the reset. This notification is stale.
+        CHECK(mState == STATE_RESET_IN_PROGRESS || mState == STATE_IDLE);
+        return;
+    }
 
     CHECK_EQ(mState, STATE_PREPARING);
 
