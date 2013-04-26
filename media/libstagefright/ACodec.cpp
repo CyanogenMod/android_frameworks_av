@@ -748,12 +748,10 @@ status_t ACodec::freeOutputBuffersNotOwnedByComponent() {
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
 
-        if (info->mStatus !=
-                BufferInfo::OWNED_BY_COMPONENT) {
-            // We shouldn't have sent out any buffers to the client at this
-            // point.
-            CHECK_NE((int)info->mStatus, (int)BufferInfo::OWNED_BY_DOWNSTREAM);
-
+        // At this time some buffers may still be with the component
+        // or being drained.
+        if (info->mStatus != BufferInfo::OWNED_BY_COMPONENT &&
+            info->mStatus != BufferInfo::OWNED_BY_DOWNSTREAM) {
             CHECK_EQ((status_t)OK, freeBuffer(kPortIndexOutput, i));
         }
     }
