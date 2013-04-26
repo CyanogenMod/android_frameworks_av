@@ -559,6 +559,8 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                         converter->dropAFrame();
                     }
                 }
+            } else if (what == MediaSender::kWhatInformSender) {
+                onSinkFeedback(msg);
             } else {
                 TRESPASS();
             }
@@ -651,6 +653,89 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         default:
             TRESPASS();
+    }
+}
+
+void WifiDisplaySource::PlaybackSession::onSinkFeedback(const sp<AMessage> &msg) {
+    int64_t avgLatencyUs;
+    CHECK(msg->findInt64("avgLatencyUs", &avgLatencyUs));
+
+    int64_t maxLatencyUs;
+    CHECK(msg->findInt64("maxLatencyUs", &maxLatencyUs));
+
+    ALOGI("sink reports avg. latency of %lld ms (max %lld ms)",
+          avgLatencyUs / 1000ll,
+          maxLatencyUs / 1000ll);
+
+    if (mVideoTrackIndex >= 0) {
+        const sp<Track> &videoTrack = mTracks.valueFor(mVideoTrackIndex);
+        sp<Converter> converter = videoTrack->converter();
+
+        if (converter != NULL) {
+            int32_t videoBitrate =
+                Converter::GetInt32Property("media.wfd.video-bitrate", -1);
+
+            char val[PROPERTY_VALUE_MAX];
+            if (videoBitrate < 0
+                    && property_get("media.wfd.video-bitrate", val, NULL)
+                    && !strcasecmp("adaptive", val)) {
+                videoBitrate = converter->getVideoBitrate();
+
+                if (avgLatencyUs > 300000ll) {
+                    videoBitrate *= 0.6;
+                } else if (avgLatencyUs < 100000ll) {
+                    videoBitrate *= 1.1;
+                }
+            }
+
+            if (videoBitrate > 0) {
+                if (videoBitrate < 500000) {
+                    videoBitrate = 500000;
+                } else if (videoBitrate > 10000000) {
+                    videoBitrate = 10000000;
+                }
+
+                if (videoBitrate != converter->getVideoBitrate()) {
+                    ALOGI("setting video bitrate to %d bps", videoBitrate);
+
+                    converter->setVideoBitrate(videoBitrate);
+                }
+            }
+        }
+
+        sp<RepeaterSource> repeaterSource = videoTrack->repeaterSource();
+        if (repeaterSource != NULL) {
+            double rateHz =
+                Converter::GetInt32Property(
+                        "media.wfd.video-framerate", -1);
+
+            char val[PROPERTY_VALUE_MAX];
+            if (rateHz < 0.0
+                    && property_get("media.wfd.video-framerate", val, NULL)
+                    && !strcasecmp("adaptive", val)) {
+                 rateHz = repeaterSource->getFrameRate();
+
+                if (avgLatencyUs > 300000ll) {
+                    rateHz *= 0.9;
+                } else if (avgLatencyUs < 200000ll) {
+                    rateHz *= 1.1;
+                }
+            }
+
+            if (rateHz > 0) {
+                if (rateHz < 5.0) {
+                    rateHz = 5.0;
+                } else if (rateHz > 30.0) {
+                    rateHz = 30.0;
+                }
+
+                if (rateHz != repeaterSource->getFrameRate()) {
+                    ALOGI("setting frame rate to %.2f Hz", rateHz);
+
+                    repeaterSource->setFrameRate(rateHz);
+                }
+            }
+        }
     }
 }
 

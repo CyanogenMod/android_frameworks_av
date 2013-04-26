@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef RTP_SENDER_H_
+#ifndef RTP_RECEIVER_H_
 
-#define RTP_SENDER_H_
+#define RTP_RECEIVER_H_
 
 #include "RTPBase.h"
 
@@ -27,53 +27,67 @@ namespace android {
 struct ABuffer;
 struct ANetworkSession;
 
-// An object of this class facilitates sending of media data over an RTP
+// An object of this class facilitates receiving of media data on an RTP
 // channel. The channel is established over a UDP or TCP connection depending
 // on which "TransportMode" was chosen. In addition different RTP packetization
 // schemes are supported such as "Transport Stream Packets over RTP",
 // or "AVC/H.264 encapsulation as specified in RFC 3984 (non-interleaved mode)"
-struct RTPSender : public RTPBase, public AHandler {
+struct RTPReceiver : public RTPBase, public AHandler {
     enum {
         kWhatInitDone,
         kWhatError,
-        kWhatNetworkStall,
-        kWhatInformSender,
+        kWhatAccessUnit,
+        kWhatPacketLost,
     };
-    RTPSender(
+
+    enum Flags {
+        FLAG_AUTO_CONNECT = 1,
+    };
+    RTPReceiver(
             const sp<ANetworkSession> &netSession,
-            const sp<AMessage> &notify);
+            const sp<AMessage> &notify,
+            uint32_t flags = 0);
+
+    status_t registerPacketType(
+            uint8_t packetType, PacketizationMode mode);
 
     status_t initAsync(
-              const char *remoteHost,
-              int32_t remoteRTPPort,
-              TransportMode rtpMode,
-              int32_t remoteRTCPPort,
-              TransportMode rtcpMode,
-              int32_t *outLocalRTPPort);
+            TransportMode rtpMode,
+            TransportMode rtcpMode,
+            int32_t *outLocalRTPPort);
 
-    status_t queueBuffer(
-            const sp<ABuffer> &buffer,
-            uint8_t packetType,
-            PacketizationMode mode);
+    status_t connect(
+            const char *remoteHost,
+            int32_t remoteRTPPort,
+            int32_t remoteRTCPPort);
+
+    status_t informSender(const sp<AMessage> &params);
 
 protected:
-    virtual ~RTPSender();
+    virtual ~RTPReceiver();
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 private:
     enum {
         kWhatRTPNotify,
         kWhatRTCPNotify,
+        kWhatSendRR,
     };
 
     enum {
-        kMaxNumTSPacketsPerRTPPacket = (kMaxUDPPacketSize - 12) / 188,
-        kMaxHistorySize              = 1024,
-        kSourceID                    = 0xdeadbeef,
+        kSourceID                       = 0xdeadbeef,
+        kPacketLostAfterUs              = 100000,
+        kRequestRetransmissionAfterUs   = -1,
     };
+
+    struct Assembler;
+    struct H264Assembler;
+    struct Source;
+    struct TSAssembler;
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
+    uint32_t mFlags;
     TransportMode mRTPMode;
     TransportMode mRTCPMode;
     int32_t mRTPSessionID;
@@ -81,41 +95,31 @@ private:
     bool mRTPConnected;
     bool mRTCPConnected;
 
-    uint64_t mLastNTPTime;
-    uint32_t mLastRTPTime;
-    uint32_t mNumRTPSent;
-    uint32_t mNumRTPOctetsSent;
-    uint32_t mNumSRsSent;
+    int32_t mRTPClientSessionID;  // in TRANSPORT_TCP mode.
+    int32_t mRTCPClientSessionID;  // in TRANSPORT_TCP mode.
 
-    uint32_t mRTPSeqNo;
-
-    List<sp<ABuffer> > mHistory;
-    size_t mHistorySize;
-
-    static uint64_t GetNowNTP();
-
-    status_t queueRawPacket(const sp<ABuffer> &tsPackets, uint8_t packetType);
-    status_t queueTSPackets(const sp<ABuffer> &tsPackets, uint8_t packetType);
-    status_t queueAVCBuffer(const sp<ABuffer> &accessUnit, uint8_t packetType);
-
-    status_t sendRTPPacket(
-            const sp<ABuffer> &packet, bool storeInHistory,
-            bool timeValid = false, int64_t timeUs = -1ll);
+    KeyedVector<uint8_t, PacketizationMode> mPacketTypes;
+    KeyedVector<uint32_t, sp<Source> > mSources;
 
     void onNetNotify(bool isRTP, const sp<AMessage> &msg);
-
+    status_t onRTPData(const sp<ABuffer> &data);
     status_t onRTCPData(const sp<ABuffer> &data);
-    status_t parseReceiverReport(const uint8_t *data, size_t size);
-    status_t parseTSFB(const uint8_t *data, size_t size);
-    status_t parseAPP(const uint8_t *data, size_t size);
+    void onSendRR();
+
+    void scheduleSendRR();
+    void addSDES(const sp<ABuffer> &buffer);
 
     void notifyInitDone(status_t err);
     void notifyError(status_t err);
-    void notifyNetworkStall(size_t numBytesQueued);
+    void notifyPacketLost();
 
-    DISALLOW_EVIL_CONSTRUCTORS(RTPSender);
+    sp<Assembler> makeAssembler(uint8_t packetType);
+
+    void requestRetransmission(uint32_t senderSSRC, int32_t extSeqNo);
+
+    DISALLOW_EVIL_CONSTRUCTORS(RTPReceiver);
 };
 
 }  // namespace android
 
-#endif  // RTP_SENDER_H_
+#endif  // RTP_RECEIVER_H_

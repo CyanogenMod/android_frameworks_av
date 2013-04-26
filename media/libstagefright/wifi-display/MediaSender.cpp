@@ -341,6 +341,22 @@ void MediaSender::onSenderNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatInformSender:
+        {
+            int64_t avgLatencyUs;
+            CHECK(msg->findInt64("avgLatencyUs", &avgLatencyUs));
+
+            int64_t maxLatencyUs;
+            CHECK(msg->findInt64("maxLatencyUs", &maxLatencyUs));
+
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("what", kWhatInformSender);
+            notify->setInt64("avgLatencyUs", avgLatencyUs);
+            notify->setInt64("maxLatencyUs", maxLatencyUs);
+            notify->post();
+            break;
+        }
+
         default:
             TRESPASS();
     }
