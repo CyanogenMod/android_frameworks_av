@@ -27,6 +27,7 @@
 namespace android {
 
 class Camera2Client;
+class CameraDeviceBase;
 class IMemory;
 
 namespace camera2 {
@@ -38,7 +39,7 @@ class Camera2Heap;
  */
 class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
   public:
-    StreamingProcessor(wp<Camera2Client> client);
+    StreamingProcessor(sp<Camera2Client> client);
     ~StreamingProcessor();
 
     status_t setPreviewWindow(sp<ANativeWindow> window);
@@ -86,6 +87,8 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     };
 
     wp<Camera2Client> mClient;
+    wp<CameraDeviceBase> mDevice;
+    int mId;
 
     StreamType mActiveRequest;
 
