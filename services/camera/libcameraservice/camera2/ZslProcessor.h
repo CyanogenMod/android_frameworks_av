@@ -46,7 +46,7 @@ class ZslProcessor:
             virtual public FrameProcessor::FilteredListener,
             virtual public CameraDeviceBase::BufferReleasedListener {
   public:
-    ZslProcessor(wp<Camera2Client> client, wp<CaptureSequencer> sequencer);
+    ZslProcessor(sp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     ~ZslProcessor();
 
     // From mZslConsumer
@@ -74,7 +74,9 @@ class ZslProcessor:
     } mState;
 
     wp<Camera2Client> mClient;
+    wp<CameraDeviceBase> mDevice;
     wp<CaptureSequencer> mSequencer;
+    int mId;
 
     mutable Mutex mInputMutex;
     bool mZslBufferAvailable;
@@ -109,7 +111,7 @@ class ZslProcessor:
 
     virtual bool threadLoop();
 
-    status_t processNewZslBuffer(sp<Camera2Client> &client);
+    status_t processNewZslBuffer();
 
     // Match up entries from frame list to buffers in ZSL queue
     void findMatchesLocked();
