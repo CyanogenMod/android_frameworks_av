@@ -793,6 +793,7 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
 
 // tear down the client
 CameraService::Client::~Client() {
+    ALOGV("~Client");
     mDestructionStarted = true;
 
     mCameraService->releaseSound();
@@ -820,10 +821,12 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
 }
 
 CameraService::BasicClient::~BasicClient() {
+    ALOGV("~BasicClient");
     mDestructionStarted = true;
 }
 
 void CameraService::BasicClient::disconnect() {
+    ALOGV("BasicClient::disconnect");
     mCameraService->removeClientByRemote(mRemoteBinder);
     // client shouldn't be able to call into us anymore
     mClientPid = 0;
@@ -922,6 +925,7 @@ void CameraService::Client::notifyError() {
 
 // NOTE: function is idempotent
 void CameraService::Client::disconnect() {
+    ALOGV("Client::disconnect");
     BasicClient::disconnect();
     mCameraService->setCameraFree(mCameraId);
     mCameraService->updateStatus(ICameraServiceListener::STATUS_PRESENT,
