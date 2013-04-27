@@ -38,12 +38,14 @@ namespace android {
 namespace camera2 {
 
 ZslProcessor::ZslProcessor(
-    wp<Camera2Client> client,
+    sp<Camera2Client> client,
     wp<CaptureSequencer> sequencer):
         Thread(false),
         mState(RUNNING),
         mClient(client),
+        mDevice(client->getCameraDevice()),
         mSequencer(sequencer),
+        mId(client->getCameraId()),
         mZslBufferAvailable(false),
         mZslStreamId(NO_STREAM),
         mZslReprocessStreamId(NO_STREAM),
@@ -69,7 +71,8 @@ void ZslProcessor::onFrameAvailable() {
     }
 }
 
-void ZslProcessor::onFrameAvailable(int32_t /*frameId*/, const CameraMetadata &frame) {
+void ZslProcessor::onFrameAvailable(int32_t /*frameId*/,
+        const CameraMetadata &frame) {
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;
     entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
@@ -113,8 +116,15 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
     Mutex::Autolock l(mInputMutex);
 
     sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return OK;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    if (client == 0) {
+        ALOGE("%s: Camera %d: Client does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     if (mZslConsumer == 0) {
         // Create CPU buffer queue endpoint
@@ -136,7 +146,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying capture output stream info: "
                     "%s (%d)", __FUNCTION__,
-                    client->getCameraId(), strerror(-res), res);
+                    mId, strerror(-res), res);
             return res;
         }
         if (currentWidth != (uint32_t)params.fastInfo.arrayWidth ||
@@ -145,16 +155,16 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old reprocess stream "
                         "for ZSL: %s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
+                        mId, strerror(-res), res);
                 return res;
             }
             ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
-                __FUNCTION__, client->getCameraId(), mZslStreamId);
+                __FUNCTION__, mId, mZslStreamId);
             res = device->deleteStream(mZslStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for ZSL: %s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
+                        mId, strerror(-res), res);
                 return res;
             }
             mZslStreamId = NO_STREAM;
@@ -173,7 +183,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                 &mZslStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for ZSL: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -181,7 +191,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                 &mZslReprocessStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create reprocess stream for ZSL: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -200,14 +210,18 @@ status_t ZslProcessor::deleteStream() {
     Mutex::Autolock l(mInputMutex);
 
     if (mZslStreamId != NO_STREAM) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return OK;
-        sp<CameraDeviceBase> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = mDevice.promote();
+        if (device == 0) {
+            ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
+
+        clearZslQueueLocked();
 
         res = device->deleteReprocessStream(mZslReprocessStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Cannot delete ZSL reprocessing stream %d: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     mZslReprocessStreamId, strerror(-res), res);
             return res;
         }
@@ -216,7 +230,7 @@ status_t ZslProcessor::deleteStream() {
         res = device->deleteStream(mZslStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Cannot delete ZSL output stream %d: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     mZslStreamId, strerror(-res), res);
             return res;
         }
@@ -246,7 +260,10 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
     status_t res;
     sp<Camera2Client> client = mClient.promote();
 
-    if (client == 0) return INVALID_OPERATION;
+    if (client == 0) {
+        ALOGE("%s: Camera %d: Client does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     IF_ALOGV() {
         dumpZslQueue(-1);
@@ -309,7 +326,7 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to stop preview for ZSL capture: "
                 "%s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                __FUNCTION__, mId, strerror(-res), res);
             return INVALID_OPERATION;
         }
         // TODO: have push-and-clear be atomic
@@ -328,7 +345,7 @@ status_t ZslProcessor::pushToReprocess(int32_t requestId) {
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to update JPEG entries of ZSL "
                         "capture request: %s (%d)", __FUNCTION__,
-                        client->getCameraId(),
+                        mId,
                         strerror(-res), res);
                 return res;
             }
@@ -397,26 +414,29 @@ bool ZslProcessor::threadLoop() {
     }
 
     do {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        res = processNewZslBuffer(client);
+        res = processNewZslBuffer();
     } while (res == OK);
 
     return true;
 }
 
-status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
+status_t ZslProcessor::processNewZslBuffer() {
     ATRACE_CALL();
     status_t res;
-
+    sp<BufferItemConsumer> zslConsumer;
+    {
+        Mutex::Autolock l(mInputMutex);
+        if (mZslConsumer == 0) return OK;
+        zslConsumer = mZslConsumer;
+    }
     ALOGVV("Trying to get next buffer");
     BufferItemConsumer::BufferItem item;
-    res = mZslConsumer->acquireBuffer(&item);
+    res = zslConsumer->acquireBuffer(&item);
     if (res != OK) {
         if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
             ALOGE("%s: Camera %d: Error receiving ZSL image buffer: "
                     "%s (%d)", __FUNCTION__,
-                    client->getCameraId(), strerror(-res), res);
+                    mId, strerror(-res), res);
         } else {
             ALOGVV("  No buffer");
         }
@@ -427,7 +447,7 @@ status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
 
     if (mState == LOCKED) {
         ALOGVV("In capture, discarding new ZSL buffers");
-        mZslConsumer->releaseBuffer(item);
+        zslConsumer->releaseBuffer(item);
         return OK;
     }
 
@@ -435,7 +455,7 @@ status_t ZslProcessor::processNewZslBuffer(sp<Camera2Client> &client) {
 
     if ( (mZslQueueHead + 1) % kZslBufferDepth == mZslQueueTail) {
         ALOGVV("Releasing oldest buffer");
-        mZslConsumer->releaseBuffer(mZslQueue[mZslQueueTail].buffer);
+        zslConsumer->releaseBuffer(mZslQueue[mZslQueueTail].buffer);
         mZslQueue.replaceAt(mZslQueueTail);
         mZslQueueTail = (mZslQueueTail + 1) % kZslBufferDepth;
     }
