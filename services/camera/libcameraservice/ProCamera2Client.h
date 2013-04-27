@@ -110,6 +110,7 @@ private:
     static const int32_t FRAME_PROCESSOR_LISTENER_MAX_ID = 0x7fffffffL;
 
     /** Utility members */
+    bool enforceRequestPermissions(CameraMetadata& metadata);
 
     // Whether or not we have an exclusive lock on the device
     // - if no we can't modify the request queue.
