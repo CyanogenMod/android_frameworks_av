@@ -659,15 +659,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     float minFocalLength = availableFocalLengths.data.f[0];
     params.setFloat(CameraParameters::KEY_FOCAL_LENGTH, minFocalLength);
 
-    camera_metadata_ro_entry_t sensorSize =
-        staticInfo(ANDROID_SENSOR_INFO_PHYSICAL_SIZE, 2, 2);
-    if (!sensorSize.count) return NO_INIT;
+    float horizFov, vertFov;
+    res = calculatePictureFovs(&horizFov, &vertFov);
+    if (res != OK) {
+        ALOGE("%s: Can't calculate field of views!", __FUNCTION__);
+        return res;
+    }
 
-    // The fields of view here assume infinity focus, maximum wide angle
-    float horizFov = 180 / M_PI *
-            2 * atanf(sensorSize.data.f[0] / (2 * minFocalLength));
-    float vertFov  = 180 / M_PI *
-            2 * atanf(sensorSize.data.f[1] / (2 * minFocalLength));
     params.setFloat(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE, horizFov);
     params.setFloat(CameraParameters::KEY_VERTICAL_VIEW_ANGLE, vertFov);
 
@@ -861,6 +859,10 @@ status_t Parameters::buildFastInfo() {
         staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE);
     bool fixedLens = (minFocusDistance.data.f[0] == 0);
 
+    camera_metadata_ro_entry_t availableFocalLengths =
+        staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+    if (!availableFocalLengths.count) return NO_INIT;
+
     if (sceneModeOverrides.count > 0) {
         // sceneModeOverrides is defined to have 3 entries for each scene mode,
         // which are AE, AWB, and AF override modes the HAL wants for that scene
@@ -928,6 +930,16 @@ status_t Parameters::buildFastInfo() {
     fastInfo.arrayHeight = arrayHeight;
     fastInfo.bestFaceDetectMode = bestFaceDetectMode;
     fastInfo.maxFaces = maxFaces;
+
+    // Find smallest (widest-angle) focal length to use as basis of still
+    // picture FOV reporting.
+    fastInfo.minFocalLength = availableFocalLengths.data.f[0];
+    for (size_t i = 1; i < availableFocalLengths.count; i++) {
+        if (fastInfo.minFocalLength > availableFocalLengths.data.f[i]) {
+            fastInfo.minFocalLength = availableFocalLengths.data.f[i];
+        }
+    }
+
     return OK;
 }
 
@@ -1576,6 +1588,21 @@ status_t Parameters::set(const String8& paramString) {
     /** Update internal parameters */
 
     *this = validatedParams;
+
+    /** Update external parameters calculated from the internal ones */
+
+    // HORIZONTAL/VERTICAL FIELD OF VIEW
+    float horizFov, vertFov;
+    res = calculatePictureFovs(&horizFov, &vertFov);
+    if (res != OK) {
+        ALOGE("%s: Can't calculate FOVs", __FUNCTION__);
+        // continue so parameters are at least consistent
+    }
+    newParams.setFloat(CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE,
+            horizFov);
+    newParams.setFloat(CameraParameters::KEY_VERTICAL_VIEW_ANGLE,
+            vertFov);
+    ALOGV("Current still picture FOV: %f x %f deg", horizFov, vertFov);
 
     // Need to flatten again in case of overrides
     paramsFlattened = newParams.flatten();
@@ -2244,7 +2271,7 @@ int Parameters::cropXToArray(int x) const {
 
     CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
     ALOG_ASSERT(x < previewCrop.width, "Crop-relative X coordinate = '%d' "
-                    "is out of bounds (upper = %d)", x, previewCrop.width);
+                    "is out of bounds (upper = %f)", x, previewCrop.width);
 
     int ret = x + previewCrop.left;
 
@@ -2260,7 +2287,7 @@ int Parameters::cropYToArray(int y) const {
 
     CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
     ALOG_ASSERT(y < previewCrop.height, "Crop-relative Y coordinate = '%d' is "
-                "out of bounds (upper = %d)", y, previewCrop.height);
+                "out of bounds (upper = %f)", y, previewCrop.height);
 
     int ret = y + previewCrop.top;
 
@@ -2464,6 +2491,90 @@ Parameters::CropRegion Parameters::calculateCropRegion(
 
     CropRegion crop = { zoomLeft, zoomTop, zoomWidth, zoomHeight };
     return crop;
+}
+
+status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
+        const {
+    camera_metadata_ro_entry_t sensorSize =
+            staticInfo(ANDROID_SENSOR_INFO_PHYSICAL_SIZE, 2, 2);
+    if (!sensorSize.count) return NO_INIT;
+
+    camera_metadata_ro_entry_t availableFocalLengths =
+            staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+    if (!availableFocalLengths.count) return NO_INIT;
+
+    float arrayAspect = static_cast<float>(fastInfo.arrayWidth) /
+            fastInfo.arrayHeight;
+    float stillAspect = static_cast<float>(pictureWidth) / pictureHeight;
+    ALOGV("Array aspect: %f, still aspect: %f", arrayAspect, stillAspect);
+
+    // The crop factors from the full sensor array to the still picture crop
+    // region
+    float horizCropFactor = 1.f;
+    float vertCropFactor = 1.f;
+
+    /**
+     * Need to calculate the still image field of view based on the total pixel
+     * array field of view, and the relative aspect ratios of the pixel array
+     * and output streams.
+     *
+     * Special treatment for quirky definition of crop region and relative
+     * stream cropping.
+     */
+    if (quirks.meteringCropRegion) {
+        /**
+         * All streams are the same in height, so narrower aspect ratios will
+         * get cropped on the sides.  First find the largest (widest) aspect
+         * ratio, then calculate the crop of the still FOV based on that.
+         */
+        float cropAspect = arrayAspect;
+        float aspects[] = {
+            stillAspect,
+            static_cast<float>(previewWidth) / previewHeight,
+            static_cast<float>(videoWidth) / videoHeight
+        };
+        for (size_t i = 0; i < sizeof(aspects)/sizeof(aspects[0]); i++) {
+            if (cropAspect < aspects[i]) cropAspect = aspects[i];
+        }
+        ALOGV("Widest crop aspect: %f", cropAspect);
+        // Horizontal crop of still is done based on fitting in the widest
+        // aspect ratio
+        horizCropFactor = stillAspect / cropAspect;
+        // Vertical crop is a function of the array aspect ratio and the
+        // widest aspect ratio.
+        vertCropFactor = arrayAspect / cropAspect;
+    } else {
+        /**
+         * Crop are just a function of just the still/array relative aspect
+         * ratios. Since each stream will maximize its area within the crop
+         * region, and for FOV we assume a full-sensor crop region, we only ever
+         * crop the FOV either vertically or horizontally, never both.
+         */
+        horizCropFactor = (arrayAspect > stillAspect) ?
+                (stillAspect / arrayAspect) : 1.f;
+        vertCropFactor = (arrayAspect < stillAspect) ?
+                (arrayAspect / stillAspect) : 1.f;
+    }
+    ALOGV("Horiz crop factor: %f, vert crop fact: %f",
+            horizCropFactor, vertCropFactor);
+    /**
+     * Basic field of view formula is:
+     *   angle of view = 2 * arctangent ( d / 2f )
+     * where d is the physical sensor dimension of interest, and f is
+     * the focal length. This only applies to rectilinear sensors, for focusing
+     * at distances >> f, etc.
+     */
+    if (horizFov != NULL) {
+        *horizFov = 180 / M_PI * 2 *
+                atanf(horizCropFactor * sensorSize.data.f[0] /
+                        (2 * fastInfo.minFocalLength));
+    }
+    if (vertFov != NULL) {
+        *vertFov = 180 / M_PI * 2 *
+                atanf(vertCropFactor * sensorSize.data.f[1] /
+                        (2 * fastInfo.minFocalLength));
+    }
+    return OK;
 }
 
 int32_t Parameters::fpsFromRange(int32_t /*min*/, int32_t max) const {
