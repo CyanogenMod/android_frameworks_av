@@ -1059,7 +1059,7 @@ status_t ATSParser::parsePID(
     ssize_t sectionIndex = mPSISections.indexOfKey(PID);
 
     if (sectionIndex >= 0) {
-        const sp<PSISection> &section = mPSISections.valueAt(sectionIndex);
+        sp<PSISection> section = mPSISections.valueAt(sectionIndex);
 
         if (payload_unit_start_indicator) {
             CHECK(section->isEmpty());
@@ -1067,7 +1067,6 @@ status_t ATSParser::parsePID(
             unsigned skip = br->getBits(8);
             br->skipBits(skip * 8);
         }
-
 
         CHECK((br->numBitsLeft() % 8) == 0);
         status_t err = section->append(br->data(), br->numBitsLeft() / 8);
@@ -1103,10 +1102,13 @@ status_t ATSParser::parsePID(
 
             if (!handled) {
                 mPSISections.removeItem(PID);
+                section.clear();
             }
         }
 
-        section->clear();
+        if (section != NULL) {
+            section->clear();
+        }
 
         return OK;
     }
