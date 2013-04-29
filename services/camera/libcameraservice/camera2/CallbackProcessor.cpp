@@ -30,9 +30,11 @@
 namespace android {
 namespace camera2 {
 
-CallbackProcessor::CallbackProcessor(wp<Camera2Client> client):
+CallbackProcessor::CallbackProcessor(sp<Camera2Client> client):
         Thread(false),
         mClient(client),
+        mDevice(client->getCameraDevice()),
+        mId(client->getCameraId()),
         mCallbackAvailable(false),
         mCallbackToApp(false),
         mCallbackStreamId(NO_STREAM) {
@@ -86,9 +88,11 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 
     Mutex::Autolock l(mInputMutex);
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return OK;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     if (!mCallbackToApp && mCallbackConsumer == 0) {
         // Create CPU buffer queue endpoint, since app hasn't given us one
@@ -109,7 +113,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
                 &currentWidth, &currentHeight, &currentFormat);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying callback output stream info: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -121,12 +125,12 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
             // completed.
             ALOGV("%s: Camera %d: Deleting stream %d since the buffer"
                     " dimensions changed", __FUNCTION__,
-                    client->getCameraId(), mCallbackStreamId);
+                    mId, mCallbackStreamId);
             res = device->deleteStream(mCallbackStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for callbacks: %s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
+                        mId, strerror(-res), res);
                 return res;
             }
             mCallbackStreamId = NO_STREAM;
@@ -142,7 +146,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
                 targetFormat, 0, &mCallbackStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for callbacks: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -153,15 +157,24 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 
 status_t CallbackProcessor::deleteStream() {
     ATRACE_CALL();
+    sp<CameraDeviceBase> device;
 
-    Mutex::Autolock l(mInputMutex);
+    {
+        Mutex::Autolock l(mInputMutex);
 
-    if (mCallbackStreamId != NO_STREAM) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return OK;
-        sp<CameraDeviceBase> device = client->getCameraDevice();
+        if (mCallbackStreamId == NO_STREAM) {
+            return OK;
+        }
+        device = mDevice.promote();
+        if (device == 0) {
+            ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
+    }
+    device->deleteStream(mCallbackStreamId);
 
-        device->deleteStream(mCallbackStreamId);
+    {
+        Mutex::Autolock l(mInputMutex);
 
         mCallbackHeap.clear();
         mCallbackWindow.clear();
@@ -195,11 +208,30 @@ bool CallbackProcessor::threadLoop() {
 
     do {
         sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        res = processNewCallback(client);
+        if (client == 0) {
+            res = discardNewCallback();
+        } else {
+            res = processNewCallback(client);
+        }
     } while (res == OK);
 
     return true;
+}
+
+status_t CallbackProcessor::discardNewCallback() {
+    ATRACE_CALL();
+    status_t res;
+    CpuConsumer::LockedBuffer imgBuffer;
+    res = mCallbackConsumer->lockNextBuffer(&imgBuffer);
+    if (res != OK) {
+        if (res != BAD_VALUE) {
+            ALOGE("%s: Camera %d: Error receiving next callback buffer: "
+                    "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
+        }
+        return res;
+    }
+    mCallbackConsumer->unlockBuffer(imgBuffer);
+    return OK;
 }
 
 status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
@@ -215,12 +247,12 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     if (res != OK) {
         if (res != BAD_VALUE) {
             ALOGE("%s: Camera %d: Error receiving next callback buffer: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(), strerror(-res), res);
+                    "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
         return res;
     }
     ALOGV("%s: Camera %d: Preview callback available", __FUNCTION__,
-            client->getCameraId());
+            mId);
 
     {
         SharedParameters::Lock l(client->getParameters());
@@ -229,7 +261,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
                 && l.mParameters.state != Parameters::RECORD
                 && l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
             ALOGV("%s: Camera %d: No longer streaming",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, mId);
             mCallbackConsumer->unlockBuffer(imgBuffer);
             return OK;
         }
@@ -250,7 +282,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
 
         if (imgBuffer.format != l.mParameters.previewFormat) {
             ALOGE("%s: Camera %d: Unexpected format for callback: "
-                    "%x, expected %x", __FUNCTION__, client->getCameraId(),
+                    "%x, expected %x", __FUNCTION__, mId,
                     imgBuffer.format, l.mParameters.previewFormat);
             mCallbackConsumer->unlockBuffer(imgBuffer);
             return INVALID_OPERATION;
@@ -275,7 +307,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
                 "Camera2Client::CallbackHeap");
         if (mCallbackHeap->mHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for callbacks",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, mId);
             mCallbackConsumer->unlockBuffer(imgBuffer);
             return INVALID_OPERATION;
         }
@@ -286,7 +318,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
 
     if (mCallbackHeapFree == 0) {
         ALOGE("%s: Camera %d: No free callback buffers, dropping frame",
-                __FUNCTION__, client->getCameraId());
+                __FUNCTION__, mId);
         mCallbackConsumer->unlockBuffer(imgBuffer);
         return OK;
     }
@@ -316,7 +348,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             l(client->mSharedCameraCallbacks);
         if (l.mRemoteCallback != 0) {
             ALOGV("%s: Camera %d: Invoking client data callback",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, mId);
             l.mRemoteCallback->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
                     mCallbackHeap->mBuffers[heapIdx], NULL);
         }

@@ -135,6 +135,7 @@ status_t Camera2Client::initialize(camera_module_t *module)
 
 Camera2Client::~Camera2Client() {
     ATRACE_CALL();
+    ALOGV("~Camera2Client");
 
     mDestructionStarted = true;
 
@@ -369,6 +370,12 @@ void Camera2Client::disconnect() {
 
     ALOGV("Camera %d: Shutting down", mCameraId);
 
+    /**
+     * disconnect() cannot call any methods that might need to promote a
+     * wp<Camera2Client>, since disconnect can be called from the destructor, at
+     * which point all such promotions will fail.
+     */
+
     stopPreviewL();
 
     {
@@ -538,7 +545,12 @@ status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
             break;
         case Parameters::PREVIEW:
             // Already running preview - need to stop and create a new stream
-            mStreamingProcessor->stopStream();
+            res = stopStream();
+            if (res != OK) {
+                ALOGE("%s: Unable to stop preview to swap windows: %s (%d)",
+                        __FUNCTION__, strerror(-res), res);
+                return res;
+            }
             state = Parameters::WAITING_FOR_PREVIEW_WINDOW;
             break;
     }
@@ -814,7 +826,11 @@ void Camera2Client::stopPreviewL() {
             // no break
         case Parameters::RECORD:
         case Parameters::PREVIEW:
-            mStreamingProcessor->stopStream();
+            res = stopStream();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
             res = mDevice->waitUntilDrained();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",

@@ -35,11 +35,12 @@ namespace android {
 namespace camera2 {
 
 JpegProcessor::JpegProcessor(
-    wp<Camera2Client> client,
+    sp<Camera2Client> client,
     wp<CaptureSequencer> sequencer):
         Thread(false),
-        mClient(client),
+        mDevice(client->getCameraDevice()),
         mSequencer(sequencer),
+        mId(client->getCameraId()),
         mCaptureAvailable(false),
         mCaptureStreamId(NO_STREAM) {
 }
@@ -64,16 +65,18 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
 
     Mutex::Autolock l(mInputMutex);
 
-    sp<Camera2Client> client = mClient.promote();
-    if (client == 0) return OK;
-    sp<CameraDeviceBase> device = client->getCameraDevice();
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
 
     // Find out buffer size for JPEG
     camera_metadata_ro_entry_t maxJpegSize =
             params.staticInfo(ANDROID_JPEG_MAX_SIZE);
     if (maxJpegSize.count == 0) {
         ALOGE("%s: Camera %d: Can't find ANDROID_JPEG_MAX_SIZE!",
-                __FUNCTION__, client->getCameraId());
+                __FUNCTION__, mId);
         return INVALID_OPERATION;
     }
 
@@ -89,7 +92,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
                                        "Camera2Client::CaptureHeap");
         if (mCaptureHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for capture",
-                    __FUNCTION__, client->getCameraId());
+                    __FUNCTION__, mId);
             return NO_MEMORY;
         }
     }
@@ -102,18 +105,18 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying capture output stream info: "
                     "%s (%d)", __FUNCTION__,
-                    client->getCameraId(), strerror(-res), res);
+                    mId, strerror(-res), res);
             return res;
         }
         if (currentWidth != (uint32_t)params.pictureWidth ||
                 currentHeight != (uint32_t)params.pictureHeight) {
             ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
-                __FUNCTION__, client->getCameraId(), mCaptureStreamId);
+                __FUNCTION__, mId, mCaptureStreamId);
             res = device->deleteStream(mCaptureStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for capture: %s (%d)", __FUNCTION__,
-                        client->getCameraId(), strerror(-res), res);
+                        mId, strerror(-res), res);
                 return res;
             }
             mCaptureStreamId = NO_STREAM;
@@ -128,7 +131,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
                 &mCaptureStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for capture: "
-                    "%s (%d)", __FUNCTION__, client->getCameraId(),
+                    "%s (%d)", __FUNCTION__, mId,
                     strerror(-res), res);
             return res;
         }
@@ -143,9 +146,11 @@ status_t JpegProcessor::deleteStream() {
     Mutex::Autolock l(mInputMutex);
 
     if (mCaptureStreamId != NO_STREAM) {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return OK;
-        sp<CameraDeviceBase> device = client->getCameraDevice();
+        sp<CameraDeviceBase> device = mDevice.promote();
+        if (device == 0) {
+            ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
 
         device->deleteStream(mCaptureStreamId);
 
@@ -180,15 +185,13 @@ bool JpegProcessor::threadLoop() {
     }
 
     do {
-        sp<Camera2Client> client = mClient.promote();
-        if (client == 0) return false;
-        res = processNewCapture(client);
+        res = processNewCapture();
     } while (res == OK);
 
     return true;
 }
 
-status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
+status_t JpegProcessor::processNewCapture() {
     ATRACE_CALL();
     status_t res;
     sp<Camera2Heap> captureHeap;
@@ -200,17 +203,17 @@ status_t JpegProcessor::processNewCapture(sp<Camera2Client> &client) {
         if (res != BAD_VALUE) {
             ALOGE("%s: Camera %d: Error receiving still image buffer: "
                     "%s (%d)", __FUNCTION__,
-                    client->getCameraId(), strerror(-res), res);
+                    mId, strerror(-res), res);
         }
         return res;
     }
 
     ALOGV("%s: Camera %d: Still capture available", __FUNCTION__,
-            client->getCameraId());
+            mId);
 
     if (imgBuffer.format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Camera %d: Unexpected format for still image: "
-                "%x, expected %x", __FUNCTION__, client->getCameraId(),
+                "%x, expected %x", __FUNCTION__, mId,
                 imgBuffer.format,
                 HAL_PIXEL_FORMAT_BLOB);
         mCaptureConsumer->unlockBuffer(imgBuffer);
