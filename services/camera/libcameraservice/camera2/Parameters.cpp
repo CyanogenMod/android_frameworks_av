@@ -1589,6 +1589,32 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     ATRACE_CALL();
     status_t res;
 
+    /**
+     * Mixin default important security values
+     * - android.led.transmit = defaulted ON
+     */
+    camera_metadata_ro_entry_t entry = staticInfo(ANDROID_LED_AVAILABLE_LEDS,
+                                                  /*minimumCount*/0);
+    for(size_t i = 0; i < entry.count; ++i) {
+        uint8_t led = entry.data.u8[i];
+
+        switch(led) {
+            // Transmit LED is unconditionally on when using
+            // the android.hardware.Camera API
+            case ANDROID_LED_AVAILABLE_LEDS_TRANSMIT: {
+                uint8_t transmitDefault = ANDROID_LED_TRANSMIT_ON;
+                res = request->update(ANDROID_LED_TRANSMIT,
+                                      &transmitDefault, 1);
+                if (res != OK) return res;
+                break;
+            }
+        }
+    }
+
+    /**
+     * Construct metadata from parameters
+     */
+
     uint8_t metadataMode = ANDROID_REQUEST_METADATA_MODE_FULL;
     res = request->update(ANDROID_REQUEST_METADATA_MODE,
             &metadataMode, 1);
