@@ -28,7 +28,8 @@ LOCAL_SRC_FILES:=               \
     camera3/Camera3Stream.cpp \
     camera3/Camera3InputStream.cpp \
     camera3/Camera3OutputStream.cpp \
-    camera3/Camera3ZslStream.cpp
+    camera3/Camera3ZslStream.cpp \
+    gui/RingBufferConsumer.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
