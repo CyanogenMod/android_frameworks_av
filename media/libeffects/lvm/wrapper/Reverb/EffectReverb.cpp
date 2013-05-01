@@ -616,10 +616,6 @@ int Reverb_setConfig(ReverbContext *pContext, effect_config_t *pConfig){
               || pConfig->outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE);
     CHECK_ARG(pConfig->inputCfg.format == AUDIO_FORMAT_PCM_16_BIT);
 
-    if(pConfig->inputCfg.samplingRate != 44100){
-        return -EINVAL;
-    }
-
     //ALOGV("\tReverb_setConfig calling memcpy");
     pContext->config = *pConfig;
 
@@ -648,7 +644,7 @@ int Reverb_setConfig(ReverbContext *pContext, effect_config_t *pConfig){
         return -EINVAL;
     }
 
-    if(pContext->SampleRate != SampleRate){
+    if (pContext->SampleRate != SampleRate) {
 
         LVREV_ControlParams_st    ActiveParams;
         LVREV_ReturnStatus_en     LvmStatus = LVREV_SUCCESS;
@@ -662,11 +658,14 @@ int Reverb_setConfig(ReverbContext *pContext, effect_config_t *pConfig){
         LVM_ERROR_CHECK(LvmStatus, "LVREV_GetControlParameters", "Reverb_setConfig")
         if(LvmStatus != LVREV_SUCCESS) return -EINVAL;
 
+        ActiveParams.SampleRate = SampleRate;
+
         LvmStatus = LVREV_SetControlParameters(pContext->hInstance, &ActiveParams);
 
         LVM_ERROR_CHECK(LvmStatus, "LVREV_SetControlParameters", "Reverb_setConfig")
+        if(LvmStatus != LVREV_SUCCESS) return -EINVAL;
         //ALOGV("\tReverb_setConfig Succesfully called LVREV_SetControlParameters\n");
-
+        pContext->SampleRate = SampleRate;
     }else{
         //ALOGV("\tReverb_setConfig keep sampling rate at %d", SampleRate);
     }
@@ -818,6 +817,7 @@ int Reverb_init(ReverbContext *pContext){
     /* General parameters */
     params.OperatingMode  = LVM_MODE_ON;
     params.SampleRate     = LVM_FS_44100;
+    pContext->SampleRate  = LVM_FS_44100;
 
     if(pContext->config.inputCfg.channels == AUDIO_CHANNEL_OUT_MONO){
         params.SourceFormat   = LVM_MONO;
