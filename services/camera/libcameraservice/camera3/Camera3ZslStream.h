@@ -19,8 +19,10 @@
 
 #include <utils/RefBase.h>
 #include <gui/Surface.h>
+#include <gui/RingBufferConsumer.h>
 
 #include "Camera3Stream.h"
+#include "Camera3OutputStreamInterface.h"
 
 namespace android {
 
@@ -32,32 +34,62 @@ namespace camera3 {
  * most output buffers, and when directed, pushes a buffer back to the HAL for
  * processing.
  */
-class Camera3ZslStream: public Camera3Stream {
+class Camera3ZslStream :
+        public Camera3Stream,
+        public Camera3OutputStreamInterface {
   public:
     /**
      * Set up a ZSL stream of a given resolution. Depth is the number of buffers
      * cached within the stream that can be retrieved for input.
      */
     Camera3ZslStream(int id, uint32_t width, uint32_t height, int depth);
+    ~Camera3ZslStream();
 
     virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
-    /**
-     * Get an input buffer matching a specific timestamp. If no buffer matching
-     * the timestamp is available, NO_MEMORY is returned.
-     */
-    status_t getInputBuffer(camera3_stream_buffer *buffer, nsecs_t timestamp);
+    enum { NO_BUFFER_AVAILABLE = BufferQueue::NO_BUFFER_AVAILABLE };
 
     /**
-     * Return input buffer from HAL. The buffer is then marked as unfilled, and
-     * returned to the output-side stream for refilling.
+     * Locate a buffer matching this timestamp in the RingBufferConsumer,
+     * and mark it to be queued at the next getInputBufferLocked invocation.
+     *
+     * Errors: Returns NO_BUFFER_AVAILABLE if we could not find a match.
+     *
      */
-    status_t returnInputBuffer(const camera3_stream_buffer &buffer);
+    status_t enqueueInputBufferByTimestamp(nsecs_t timestamp,
+                                           nsecs_t* actualTimestamp);
+
+    /**
+     * Clears the buffers that can be used by enqueueInputBufferByTimestamp
+     */
+    status_t clearInputRingBuffer();
+
+    /**
+     * Camera3OutputStreamInterface implementation
+     */
+    status_t setTransform(int transform);
 
   private:
 
     int mDepth;
+    // Input buffers pending to be queued into HAL
+    List<sp<RingBufferConsumer::PinnedBufferItem> > mInputBufferQueue;
+    sp<RingBufferConsumer>                          mProducer;
+    sp<ANativeWindow>                               mConsumer;
+
+    // Input buffers in flight to HAL
+    Vector<sp<RingBufferConsumer::PinnedBufferItem> > mBuffersInFlight;
+    size_t                                          mTotalBufferCount;
+    // sum of input and output buffers that are currently acquired by HAL
+    size_t                                          mDequeuedBufferCount;
+    Condition                                       mBufferReturnedSignal;
+    uint32_t                                        mFrameCount;
+    // Last received output buffer's timestamp
+    nsecs_t                                         mLastTimestamp;
+
+    // The merged release fence for all returned buffers
+    sp<Fence>                                       mCombinedFence;
 
     /**
      * Camera3Stream interface
@@ -67,8 +99,17 @@ class Camera3ZslStream: public Camera3Stream {
     virtual status_t getBufferLocked(camera3_stream_buffer *buffer);
     virtual status_t returnBufferLocked(const camera3_stream_buffer &buffer,
             nsecs_t timestamp);
+    // getInputBuffer/returnInputBuffer operate the input stream side of the
+    // ZslStream.
+    virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
+    virtual status_t returnInputBufferLocked(
+            const camera3_stream_buffer &buffer);
+
     virtual bool     hasOutstandingBuffersLocked() const;
     virtual status_t disconnectLocked();
+
+    virtual status_t configureQueueLocked();
+    virtual size_t   getBufferCountLocked();
 
 }; // class Camera3ZslStream
 
