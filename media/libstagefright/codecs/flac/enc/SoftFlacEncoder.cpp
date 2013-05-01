@@ -109,7 +109,7 @@ void SoftFlacEncoder::initPorts() {
     def.eDir = OMX_DirInput;
     def.nBufferCountMin = kNumBuffers;// TODO verify that 1 is enough
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kMaxNumSamplesPerFrame * sizeof(int16_t) * 2;
+    def.nBufferSize = kMaxInputBufferSize;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
@@ -234,6 +234,22 @@ OMX_ERRORTYPE SoftFlacEncoder::internalSetParameter(
             return OMX_ErrorNone;
         }
 
+        case OMX_IndexParamPortDefinition:
+        {
+            OMX_PARAM_PORTDEFINITIONTYPE *defParams =
+                (OMX_PARAM_PORTDEFINITIONTYPE *)params;
+
+            if (defParams->nPortIndex == 0) {
+                if (defParams->nBufferSize > kMaxInputBufferSize) {
+                    ALOGE("Input buffer size must be at most %zu bytes",
+                        kMaxInputBufferSize);
+                    return OMX_ErrorUnsupportedSetting;
+                }
+            }
+
+            // fall through
+        }
+
         default:
             ALOGV("SoftFlacEncoder::internalSetParameter(default)");
             return SimpleSoftOMXComponent::internalSetParameter(index, params);
@@ -273,7 +289,7 @@ void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
             return;
         }
 
-        if (inHeader->nFilledLen > kMaxNumSamplesPerFrame * sizeof(FLAC__int32) * 2) {
+        if (inHeader->nFilledLen > kMaxInputBufferSize) {
             ALOGE("input buffer too large (%ld).", inHeader->nFilledLen);
             mSignalledError = true;
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
@@ -290,6 +306,7 @@ void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
         const unsigned nbInputSamples = inHeader->nFilledLen / 2;
         const OMX_S16 * const pcm16 = reinterpret_cast<OMX_S16 *>(inHeader->pBuffer);
 
+        CHECK_LE(nbInputSamples, 2 * kMaxNumSamplesPerFrame);
         for (unsigned i=0 ; i < nbInputSamples ; i++) {
             mInputBufferPcm32[i] = (FLAC__int32) pcm16[i];
         }
