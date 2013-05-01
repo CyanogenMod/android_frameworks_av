@@ -177,6 +177,8 @@ private:
         kFlagDequeueOutputPending       = 32,
         kFlagIsSecure                   = 64,
         kFlagSawMediaServerDie          = 128,
+        kFlagIsEncoder                  = 256,
+        kFlagGatherCodecSpecificData    = 512,
     };
 
     struct BufferInfo {
@@ -243,6 +245,8 @@ private:
     void postActivityNotificationIfPossible();
 
     status_t onSetParameters(const sp<AMessage> &params);
+
+    status_t amendOutputFormatWithCodecSpecificData(const sp<ABuffer> &buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };

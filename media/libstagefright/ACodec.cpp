@@ -1468,24 +1468,47 @@ status_t ACodec::setSupportedOutputFormat() {
             &format, sizeof(format));
 }
 
+static const struct VideoCodingMapEntry {
+    const char *mMime;
+    OMX_VIDEO_CODINGTYPE mVideoCodingType;
+} kVideoCodingMapEntry[] = {
+    { MEDIA_MIMETYPE_VIDEO_AVC, OMX_VIDEO_CodingAVC },
+    { MEDIA_MIMETYPE_VIDEO_MPEG4, OMX_VIDEO_CodingMPEG4 },
+    { MEDIA_MIMETYPE_VIDEO_H263, OMX_VIDEO_CodingH263 },
+    { MEDIA_MIMETYPE_VIDEO_MPEG2, OMX_VIDEO_CodingMPEG2 },
+    { MEDIA_MIMETYPE_VIDEO_VPX, OMX_VIDEO_CodingVPX },
+};
+
 static status_t GetVideoCodingTypeFromMime(
         const char *mime, OMX_VIDEO_CODINGTYPE *codingType) {
-    if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
-        *codingType = OMX_VIDEO_CodingAVC;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
-        *codingType = OMX_VIDEO_CodingMPEG4;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
-        *codingType = OMX_VIDEO_CodingH263;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
-        *codingType = OMX_VIDEO_CodingMPEG2;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VPX, mime)) {
-        *codingType = OMX_VIDEO_CodingVPX;
-    } else {
-        *codingType = OMX_VIDEO_CodingUnused;
-        return ERROR_UNSUPPORTED;
+    for (size_t i = 0;
+         i < sizeof(kVideoCodingMapEntry) / sizeof(kVideoCodingMapEntry[0]);
+         ++i) {
+        if (!strcasecmp(mime, kVideoCodingMapEntry[i].mMime)) {
+            *codingType = kVideoCodingMapEntry[i].mVideoCodingType;
+            return OK;
+        }
     }
 
-    return OK;
+    *codingType = OMX_VIDEO_CodingUnused;
+
+    return ERROR_UNSUPPORTED;
+}
+
+static status_t GetMimeTypeForVideoCoding(
+        OMX_VIDEO_CODINGTYPE codingType, AString *mime) {
+    for (size_t i = 0;
+         i < sizeof(kVideoCodingMapEntry) / sizeof(kVideoCodingMapEntry[0]);
+         ++i) {
+        if (codingType == kVideoCodingMapEntry[i].mVideoCodingType) {
+            *mime = kVideoCodingMapEntry[i].mMime;
+            return OK;
+        }
+    }
+
+    mime->clear();
+
+    return ERROR_UNSUPPORTED;
 }
 
 status_t ACodec::setupVideoDecoder(
@@ -2225,49 +2248,61 @@ void ACodec::sendFormatChange() {
         {
             OMX_VIDEO_PORTDEFINITIONTYPE *videoDef = &def.format.video;
 
-            notify->setString("mime", MEDIA_MIMETYPE_VIDEO_RAW);
-            notify->setInt32("width", videoDef->nFrameWidth);
-            notify->setInt32("height", videoDef->nFrameHeight);
-            notify->setInt32("stride", videoDef->nStride);
-            notify->setInt32("slice-height", videoDef->nSliceHeight);
-            notify->setInt32("color-format", videoDef->eColorFormat);
-
-            OMX_CONFIG_RECTTYPE rect;
-            InitOMXParams(&rect);
-            rect.nPortIndex = kPortIndexOutput;
-
-            if (mOMX->getConfig(
-                        mNode, OMX_IndexConfigCommonOutputCrop,
-                        &rect, sizeof(rect)) != OK) {
-                rect.nLeft = 0;
-                rect.nTop = 0;
-                rect.nWidth = videoDef->nFrameWidth;
-                rect.nHeight = videoDef->nFrameHeight;
+            AString mime;
+            if (!mIsEncoder) {
+                notify->setString("mime", MEDIA_MIMETYPE_VIDEO_RAW);
+            } else if (GetMimeTypeForVideoCoding(
+                        videoDef->eCompressionFormat, &mime) != OK) {
+                notify->setString("mime", "application/octet-stream");
+            } else {
+                notify->setString("mime", mime.c_str());
             }
 
-            CHECK_GE(rect.nLeft, 0);
-            CHECK_GE(rect.nTop, 0);
-            CHECK_GE(rect.nWidth, 0u);
-            CHECK_GE(rect.nHeight, 0u);
-            CHECK_LE(rect.nLeft + rect.nWidth - 1, videoDef->nFrameWidth);
-            CHECK_LE(rect.nTop + rect.nHeight - 1, videoDef->nFrameHeight);
+            notify->setInt32("width", videoDef->nFrameWidth);
+            notify->setInt32("height", videoDef->nFrameHeight);
 
-            notify->setRect(
-                    "crop",
-                    rect.nLeft,
-                    rect.nTop,
-                    rect.nLeft + rect.nWidth - 1,
-                    rect.nTop + rect.nHeight - 1);
+            if (!mIsEncoder) {
+                notify->setInt32("stride", videoDef->nStride);
+                notify->setInt32("slice-height", videoDef->nSliceHeight);
+                notify->setInt32("color-format", videoDef->eColorFormat);
 
-            if (mNativeWindow != NULL) {
-                android_native_rect_t crop;
-                crop.left = rect.nLeft;
-                crop.top = rect.nTop;
-                crop.right = rect.nLeft + rect.nWidth;
-                crop.bottom = rect.nTop + rect.nHeight;
+                OMX_CONFIG_RECTTYPE rect;
+                InitOMXParams(&rect);
+                rect.nPortIndex = kPortIndexOutput;
 
-                CHECK_EQ(0, native_window_set_crop(
-                            mNativeWindow.get(), &crop));
+                if (mOMX->getConfig(
+                            mNode, OMX_IndexConfigCommonOutputCrop,
+                            &rect, sizeof(rect)) != OK) {
+                    rect.nLeft = 0;
+                    rect.nTop = 0;
+                    rect.nWidth = videoDef->nFrameWidth;
+                    rect.nHeight = videoDef->nFrameHeight;
+                }
+
+                CHECK_GE(rect.nLeft, 0);
+                CHECK_GE(rect.nTop, 0);
+                CHECK_GE(rect.nWidth, 0u);
+                CHECK_GE(rect.nHeight, 0u);
+                CHECK_LE(rect.nLeft + rect.nWidth - 1, videoDef->nFrameWidth);
+                CHECK_LE(rect.nTop + rect.nHeight - 1, videoDef->nFrameHeight);
+
+                notify->setRect(
+                        "crop",
+                        rect.nLeft,
+                        rect.nTop,
+                        rect.nLeft + rect.nWidth - 1,
+                        rect.nTop + rect.nHeight - 1);
+
+                if (mNativeWindow != NULL) {
+                    android_native_rect_t crop;
+                    crop.left = rect.nLeft;
+                    crop.top = rect.nTop;
+                    crop.right = rect.nLeft + rect.nWidth;
+                    crop.bottom = rect.nTop + rect.nHeight;
+
+                    CHECK_EQ(0, native_window_set_crop(
+                                mNativeWindow.get(), &crop));
+                }
             }
             break;
         }
@@ -2275,41 +2310,108 @@ void ACodec::sendFormatChange() {
         case OMX_PortDomainAudio:
         {
             OMX_AUDIO_PORTDEFINITIONTYPE *audioDef = &def.format.audio;
-            CHECK_EQ((int)audioDef->eEncoding, (int)OMX_AUDIO_CodingPCM);
 
-            OMX_AUDIO_PARAM_PCMMODETYPE params;
-            InitOMXParams(&params);
-            params.nPortIndex = kPortIndexOutput;
+            switch (audioDef->eEncoding) {
+                case OMX_AUDIO_CodingPCM:
+                {
+                    OMX_AUDIO_PARAM_PCMMODETYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = kPortIndexOutput;
 
-            CHECK_EQ(mOMX->getParameter(
-                        mNode, OMX_IndexParamAudioPcm,
-                        &params, sizeof(params)),
-                     (status_t)OK);
+                    CHECK_EQ(mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioPcm,
+                                &params, sizeof(params)),
+                             (status_t)OK);
 
-            CHECK(params.nChannels == 1 || params.bInterleaved);
-            CHECK_EQ(params.nBitPerSample, 16u);
-            CHECK_EQ((int)params.eNumData, (int)OMX_NumericalDataSigned);
-            CHECK_EQ((int)params.ePCMMode, (int)OMX_AUDIO_PCMModeLinear);
+                    CHECK(params.nChannels == 1 || params.bInterleaved);
+                    CHECK_EQ(params.nBitPerSample, 16u);
+                    CHECK_EQ((int)params.eNumData, (int)OMX_NumericalDataSigned);
+                    CHECK_EQ((int)params.ePCMMode, (int)OMX_AUDIO_PCMModeLinear);
 
-            notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
-            notify->setInt32("channel-count", params.nChannels);
-            notify->setInt32("sample-rate", params.nSamplingRate);
-            if (mEncoderDelay + mEncoderPadding) {
-                size_t frameSize = params.nChannels * sizeof(int16_t);
-                if (mSkipCutBuffer != NULL) {
-                    size_t prevbufsize = mSkipCutBuffer->size();
-                    if (prevbufsize != 0) {
-                        ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbufsize);
+                    notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
+                    notify->setInt32("channel-count", params.nChannels);
+                    notify->setInt32("sample-rate", params.nSamplingRate);
+                    if (mEncoderDelay + mEncoderPadding) {
+                        size_t frameSize = params.nChannels * sizeof(int16_t);
+                        if (mSkipCutBuffer != NULL) {
+                            size_t prevbufsize = mSkipCutBuffer->size();
+                            if (prevbufsize != 0) {
+                                ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbufsize);
+                            }
+                        }
+                        mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay * frameSize,
+                                                           mEncoderPadding * frameSize);
                     }
+
+                    if (mChannelMaskPresent) {
+                        notify->setInt32("channel-mask", mChannelMask);
+                    }
+                    break;
                 }
-                mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay * frameSize,
-                                                   mEncoderPadding * frameSize);
-            }
 
-            if (mChannelMaskPresent) {
-                notify->setInt32("channel-mask", mChannelMask);
-            }
+                case OMX_AUDIO_CodingAAC:
+                {
+                    OMX_AUDIO_PARAM_AACPROFILETYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = kPortIndexOutput;
 
+                    CHECK_EQ(mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioAac,
+                                &params, sizeof(params)),
+                             (status_t)OK);
+
+                    notify->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
+                    notify->setInt32("channel-count", params.nChannels);
+                    notify->setInt32("sample-rate", params.nSampleRate);
+                    break;
+                }
+
+                case OMX_AUDIO_CodingAMR:
+                {
+                    OMX_AUDIO_PARAM_AMRTYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = kPortIndexOutput;
+
+                    CHECK_EQ(mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioAmr,
+                                &params, sizeof(params)),
+                             (status_t)OK);
+
+                    notify->setInt32("channel-count", 1);
+                    if (params.eAMRBandMode >= OMX_AUDIO_AMRBandModeWB0) {
+                        notify->setString(
+                                "mime", MEDIA_MIMETYPE_AUDIO_AMR_WB);
+
+                        notify->setInt32("sample-rate", 16000);
+                    } else {
+                        notify->setString(
+                                "mime", MEDIA_MIMETYPE_AUDIO_AMR_NB);
+
+                        notify->setInt32("sample-rate", 8000);
+                    }
+                    break;
+                }
+
+                case OMX_AUDIO_CodingFLAC:
+                {
+                    OMX_AUDIO_PARAM_FLACTYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = kPortIndexOutput;
+
+                    CHECK_EQ(mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioFlac,
+                                &params, sizeof(params)),
+                             (status_t)OK);
+
+                    notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
+                    notify->setInt32("channel-count", params.nChannels);
+                    notify->setInt32("sample-rate", params.nSampleRate);
+                    break;
+                }
+
+                default:
+                    TRESPASS();
+            }
             break;
         }
 
@@ -2955,7 +3057,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 break;
             }
 
-            if (!mCodec->mIsEncoder && !mCodec->mSentFormat) {
+            if (!mCodec->mSentFormat) {
                 mCodec->sendFormatChange();
             }
 
