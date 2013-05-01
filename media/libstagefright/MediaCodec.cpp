@@ -31,9 +31,12 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/BufferProducerWrapper.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/NativeWindowWrapper.h>
+
+#include "include/avc_utils.h"
 
 namespace android {
 
@@ -741,8 +744,16 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     }
 
                     mOutputFormat = msg;
-                    mFlags |= kFlagOutputFormatChanged;
-                    postActivityNotificationIfPossible();
+
+                    if (mFlags & kFlagIsEncoder) {
+                        // Before we announce the format change we should
+                        // collect codec specific data and amend the output
+                        // format as necessary.
+                        mFlags |= kFlagGatherCodecSpecificData;
+                    } else {
+                        mFlags |= kFlagOutputFormatChanged;
+                        postActivityNotificationIfPossible();
+                    }
                     break;
                 }
 
@@ -811,6 +822,25 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findInt32("flags", &omxFlags));
 
                     buffer->meta()->setInt32("omxFlags", omxFlags);
+
+                    if (mFlags & kFlagGatherCodecSpecificData) {
+                        // This is the very first output buffer after a
+                        // format change was signalled, it'll either contain
+                        // the one piece of codec specific data we can expect
+                        // or there won't be codec specific data.
+                        if (omxFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+                            status_t err =
+                                amendOutputFormatWithCodecSpecificData(buffer);
+
+                            if (err != OK) {
+                                ALOGE("Codec spit out malformed codec "
+                                      "specific data!");
+                            }
+                        }
+
+                        mFlags &= ~kFlagGatherCodecSpecificData;
+                        mFlags |= kFlagOutputFormatChanged;
+                    }
 
                     if (mFlags & kFlagDequeueOutputPending) {
                         CHECK(handleDequeueOutputBuffer(mDequeueOutputReplyID));
@@ -955,6 +985,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (flags & CONFIGURE_FLAG_ENCODE) {
                 format->setInt32("encoder", true);
+                mFlags |= kFlagIsEncoder;
             }
 
             extractCSD(format);
@@ -1413,6 +1444,8 @@ void MediaCodec::setState(State newState) {
         mFlags &= ~kFlagOutputFormatChanged;
         mFlags &= ~kFlagOutputBuffersChanged;
         mFlags &= ~kFlagStickyError;
+        mFlags &= ~kFlagIsEncoder;
+        mFlags &= ~kFlagGatherCodecSpecificData;
 
         mActivityNotify.clear();
     }
@@ -1716,6 +1749,47 @@ status_t MediaCodec::setParameters(const sp<AMessage> &params) {
 
 status_t MediaCodec::onSetParameters(const sp<AMessage> &params) {
     mCodec->signalSetParameters(params);
+
+    return OK;
+}
+
+status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
+        const sp<ABuffer> &buffer) {
+    AString mime;
+    CHECK(mOutputFormat->findString("mime", &mime));
+
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)) {
+        // Codec specific data should be SPS and PPS in a single buffer,
+        // each prefixed by a startcode (0x00 0x00 0x00 0x01).
+        // We separate the two and put them into the output format
+        // under the keys "csd-0" and "csd-1".
+
+        unsigned csdIndex = 0;
+
+        const uint8_t *data = buffer->data();
+        size_t size = buffer->size();
+
+        const uint8_t *nalStart;
+        size_t nalSize;
+        while (getNextNALUnit(&data, &size, &nalStart, &nalSize, true) == OK) {
+            sp<ABuffer> csd = new ABuffer(nalSize + 4);
+            memcpy(csd->data(), "\x00\x00\x00\x01", 4);
+            memcpy(csd->data() + 4, nalStart, nalSize);
+
+            mOutputFormat->setBuffer(
+                    StringPrintf("csd-%u", csdIndex).c_str(), csd);
+
+            ++csdIndex;
+        }
+
+        if (csdIndex != 2) {
+            return ERROR_MALFORMED;
+        }
+    } else {
+        // For everything else we just stash the codec specific data into
+        // the output format as a single piece of csd under "csd-0".
+        mOutputFormat->setBuffer("csd-0", buffer);
+    }
 
     return OK;
 }
