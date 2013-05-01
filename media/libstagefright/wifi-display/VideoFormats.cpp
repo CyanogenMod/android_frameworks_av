@@ -249,11 +249,20 @@ bool VideoFormats::parseFormatSpec(const char *spec) {
     mNativeIndex = native >> 3;
     mNativeType = (ResolutionType)(native & 7);
 
+    bool success;
     if (mNativeType >= kNumResolutionTypes) {
-        return false;
+        success = false;
+    } else {
+        success = GetConfiguration(
+                mNativeType, mNativeIndex, NULL, NULL, NULL, NULL);
     }
 
-    return GetConfiguration(mNativeType, mNativeIndex, NULL, NULL, NULL, NULL);
+    if (!success) {
+        ALOGW("sink advertised an illegal native resolution, fortunately "
+              "this value is ignored for the time being...");
+    }
+
+    return true;
 }
 
 AString VideoFormats::getFormatSpec(bool forM4Message) const {
