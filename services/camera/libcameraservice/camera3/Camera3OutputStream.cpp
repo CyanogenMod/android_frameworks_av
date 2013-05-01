@@ -298,7 +298,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
 
     switch (mState) {
         case STATE_IN_RECONFIG:
-            res = disconnect();
+            res = disconnectLocked();
             if (res != OK) {
                 return res;
             }

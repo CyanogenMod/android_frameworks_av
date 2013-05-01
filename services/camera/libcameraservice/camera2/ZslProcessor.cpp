@@ -248,11 +248,6 @@ int ZslProcessor::getStreamId() const {
     return mZslStreamId;
 }
 
-int ZslProcessor::getReprocessStreamId() const {
-    Mutex::Autolock l(mInputMutex);
-    return mZslReprocessStreamId;
-}
-
 status_t ZslProcessor::pushToReprocess(int32_t requestId) {
     ALOGV("%s: Send in reprocess request with id %d",
             __FUNCTION__, requestId);
