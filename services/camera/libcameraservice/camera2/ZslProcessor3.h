@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SERVERS_CAMERA_CAMERA2_ZSLPROCESSOR_H
-#define ANDROID_SERVERS_CAMERA_CAMERA2_ZSLPROCESSOR_H
+#ifndef ANDROID_SERVERS_CAMERA_CAMERA2_ZSLPROCESSOR3_H
+#define ANDROID_SERVERS_CAMERA_CAMERA2_ZSLPROCESSOR3_H
 
 #include <utils/Thread.h>
 #include <utils/String16.h>
@@ -29,6 +29,7 @@
 #include "Camera2Heap.h"
 #include "../CameraDeviceBase.h"
 #include "ZslProcessorInterface.h"
+#include "../camera3/Camera3ZslStream.h"
 
 namespace android {
 
@@ -41,22 +42,17 @@ class CaptureSequencer;
 /***
  * ZSL queue processing
  */
-class ZslProcessor:
+class ZslProcessor3 :
+                    public ZslProcessorInterface,
+                    public camera3::Camera3StreamBufferListener,
             virtual public Thread,
-            virtual public BufferItemConsumer::FrameAvailableListener,
-            virtual public FrameProcessor::FilteredListener,
-            virtual public CameraDeviceBase::BufferReleasedListener,
-                    public ZslProcessorInterface {
+            virtual public FrameProcessor::FilteredListener {
   public:
-    ZslProcessor(sp<Camera2Client> client, wp<CaptureSequencer> sequencer);
-    ~ZslProcessor();
+    ZslProcessor3(sp<Camera2Client> client, wp<CaptureSequencer> sequencer);
+    ~ZslProcessor3();
 
-    // From mZslConsumer
-    virtual void onFrameAvailable();
     // From FrameProcessor
     virtual void onFrameAvailable(int32_t frameId, const CameraMetadata &frame);
-
-    virtual void onBufferReleased(buffer_handle_t *handle);
 
     /**
      ****************************************
@@ -64,14 +60,27 @@ class ZslProcessor:
      ****************************************
      */
 
-    status_t updateStream(const Parameters &params);
-    status_t deleteStream();
-    int getStreamId() const;
+    virtual status_t updateStream(const Parameters &params);
+    virtual status_t deleteStream();
+    virtual int getStreamId() const;
 
-    status_t pushToReprocess(int32_t requestId);
-    status_t clearZslQueue();
+    virtual status_t pushToReprocess(int32_t requestId);
+    virtual status_t clearZslQueue();
 
     void dump(int fd, const Vector<String16>& args) const;
+
+  protected:
+    /**
+     **********************************************
+     * Camera3StreamBufferListener implementation *
+     **********************************************
+     */
+    typedef camera3::Camera3StreamBufferListener::BufferInfo BufferInfo;
+    // Buffer was acquired by the HAL
+    virtual void onBufferAcquired(const BufferInfo& bufferInfo);
+    // Buffer was released by the HAL
+    virtual void onBufferReleased(const BufferInfo& bufferInfo);
+
   private:
     static const nsecs_t kWaitDuration = 10000000; // 10 ms
 
@@ -81,22 +90,18 @@ class ZslProcessor:
     } mState;
 
     wp<Camera2Client> mClient;
-    wp<CameraDeviceBase> mDevice;
     wp<CaptureSequencer> mSequencer;
-    int mId;
+
+    const int mId;
 
     mutable Mutex mInputMutex;
-    bool mZslBufferAvailable;
-    Condition mZslBufferAvailableSignal;
 
     enum {
         NO_STREAM = -1
     };
 
     int mZslStreamId;
-    int mZslReprocessStreamId;
-    sp<BufferItemConsumer> mZslConsumer;
-    sp<ANativeWindow>      mZslWindow;
+    sp<camera3::Camera3ZslStream> mZslStream;
 
     struct ZslPair {
         BufferItemConsumer::BufferItem buffer;
@@ -118,14 +123,11 @@ class ZslProcessor:
 
     virtual bool threadLoop();
 
-    status_t processNewZslBuffer();
-
-    // Match up entries from frame list to buffers in ZSL queue
-    void findMatchesLocked();
-
     status_t clearZslQueueLocked();
 
     void dumpZslQueue(int id) const;
+
+    nsecs_t getCandidateTimestampLocked(size_t* metadataIdx) const;
 };
 
 

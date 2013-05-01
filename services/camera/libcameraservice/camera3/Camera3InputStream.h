@@ -29,6 +29,10 @@ namespace camera3 {
 
 /**
  * A class for managing a single stream of input data to the camera device.
+ *
+ * This class serves as a consumer adapter for the HAL, and will consume the
+ * buffers by feeding them into the HAL, as well as releasing the buffers back
+ * the buffers once the HAL is done with them.
  */
 class Camera3InputStream : public Camera3Stream {
   public:
@@ -36,6 +40,7 @@ class Camera3InputStream : public Camera3Stream {
      * Set up a stream for formats that have fixed size, such as RAW and YUV.
      */
     Camera3InputStream(int id, uint32_t width, uint32_t height, int format);
+    ~Camera3InputStream();
 
     virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
@@ -49,17 +54,31 @@ class Camera3InputStream : public Camera3Stream {
 
   private:
 
+    typedef BufferItemConsumer::BufferItem BufferItem;
+
     sp<BufferItemConsumer> mConsumer;
+    Vector<BufferItem> mBuffersInFlight;
+    size_t            mTotalBufferCount;
+    size_t            mDequeuedBufferCount;
+    Condition         mBufferReturnedSignal;
+    uint32_t          mFrameCount;
+    nsecs_t           mLastTimestamp;
+
+    // The merged release fence for all returned buffers
+    sp<Fence>         mCombinedFence;
 
     /**
      * Camera3Stream interface
      */
 
-    virtual status_t getBufferLocked(camera3_stream_buffer *buffer);
-    virtual status_t returnBufferLocked(const camera3_stream_buffer &buffer,
-            nsecs_t timestamp);
+    virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
+    virtual status_t returnInputBufferLocked(
+            const camera3_stream_buffer &buffer);
     virtual bool     hasOutstandingBuffersLocked() const;
     virtual status_t disconnectLocked();
+
+    virtual status_t configureQueueLocked();
+    virtual size_t   getBufferCountLocked();
 
 }; // class Camera3InputStream
 
