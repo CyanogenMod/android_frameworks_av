@@ -178,14 +178,75 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
-    return getBufferLocked(buffer);
+
+    status_t res = getBufferLocked(buffer);
+    if (res == OK) {
+        fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/true);
+    }
+
+    return res;
 }
 
 status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
         nsecs_t timestamp) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
-    return returnBufferLocked(buffer, timestamp);
+
+    status_t res = returnBufferLocked(buffer, timestamp);
+    if (res == OK) {
+        fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/true);
+    }
+
+    return res;
+}
+
+status_t Camera3Stream::getInputBuffer(camera3_stream_buffer *buffer) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    status_t res = getInputBufferLocked(buffer);
+    if (res == OK) {
+        fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/false);
+    }
+
+    return res;
+}
+
+status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    status_t res = returnInputBufferLocked(buffer);
+    if (res == OK) {
+        fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/false);
+    }
+    return res;
+}
+
+void Camera3Stream::fireBufferListenersLocked(
+        const camera3_stream_buffer& /*buffer*/, bool acquired, bool output) {
+    List<wp<Camera3StreamBufferListener> >::iterator it, end;
+
+    // TODO: finish implementing
+
+    Camera3StreamBufferListener::BufferInfo info =
+        Camera3StreamBufferListener::BufferInfo();
+    info.mOutput = output;
+    // TODO: rest of fields
+
+    for (it = mBufferListenerList.begin(), end = mBufferListenerList.end();
+         it != end;
+         ++it) {
+
+        sp<Camera3StreamBufferListener> listener = it->promote();
+        if (listener != 0) {
+            if (acquired) {
+                listener->onBufferAcquired(info);
+            } else {
+                listener->onBufferReleased(info);
+            }
+        }
+    }
 }
 
 bool Camera3Stream::hasOutstandingBuffers() const {
@@ -257,6 +318,55 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     }
 
     return res;
+}
+
+status_t Camera3Stream::getBufferLocked(camera3_stream_buffer *) {
+    ALOGE("%s: This type of stream does not support output", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::returnBufferLocked(const camera3_stream_buffer &,
+                                           nsecs_t) {
+    ALOGE("%s: This type of stream does not support output", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::getInputBufferLocked(camera3_stream_buffer *) {
+    ALOGE("%s: This type of stream does not support input", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::returnInputBufferLocked(
+        const camera3_stream_buffer &) {
+    ALOGE("%s: This type of stream does not support input", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+void Camera3Stream::addBufferListener(
+        wp<Camera3StreamBufferListener> listener) {
+    Mutex::Autolock l(mLock);
+    mBufferListenerList.push_back(listener);
+}
+
+void Camera3Stream::removeBufferListener(
+        const sp<Camera3StreamBufferListener>& listener) {
+    Mutex::Autolock l(mLock);
+
+    bool erased = true;
+    List<wp<Camera3StreamBufferListener> >::iterator it, end;
+    for (it = mBufferListenerList.begin(), end = mBufferListenerList.end();
+         it != end;
+         ) {
+
+        if (*it == listener) {
+            it = mBufferListenerList.erase(it);
+            erased = true;
+        } else {
+            ++it;
+        }
+    }
+
+    if (!erased) {
+        ALOGW("%s: Could not find listener to remove, already removed",
+              __FUNCTION__);
+    }
 }
 
 }; // namespace camera3

@@ -28,6 +28,9 @@
 #include "Camera2Device.h"
 #include "Camera3Device.h"
 
+#include "camera2/ZslProcessor.h"
+#include "camera2/ZslProcessor3.h"
+
 #define ALOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define ALOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
 
@@ -51,12 +54,13 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int deviceVersion):
         Camera2ClientBase(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
-        mParameters(cameraId, cameraFacing)
+        mParameters(cameraId, cameraFacing),
+        mDeviceVersion(deviceVersion)
 {
     ATRACE_CALL();
     ALOGI("Camera %d: Opened", cameraId);
 
-    switch (deviceVersion) {
+    switch (mDeviceVersion) {
         case CAMERA_DEVICE_API_VERSION_2_0:
             mDevice = new Camera2Device(cameraId);
             break;
@@ -65,7 +69,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
             break;
         default:
             ALOGE("Camera %d: Unknown HAL device version %d",
-                    cameraId, deviceVersion);
+                    cameraId, mDeviceVersion);
             mDevice = NULL;
             break;
     }
@@ -114,10 +118,27 @@ status_t Camera2Client::initialize(camera_module_t *module)
             mCameraId);
     mJpegProcessor->run(threadName.string());
 
-    mZslProcessor = new ZslProcessor(this, mCaptureSequencer);
+    switch (mDeviceVersion) {
+        case CAMERA_DEVICE_API_VERSION_2_0: {
+            sp<ZslProcessor> zslProc =
+                    new ZslProcessor(this, mCaptureSequencer);
+            mZslProcessor = zslProc;
+            mZslProcessorThread = zslProc;
+            break;
+        }
+        case CAMERA_DEVICE_API_VERSION_3_0:{
+            sp<ZslProcessor3> zslProc =
+                    new ZslProcessor3(this, mCaptureSequencer);
+            mZslProcessor = zslProc;
+            mZslProcessorThread = zslProc;
+            break;
+        }
+        default:
+            break;
+    }
     threadName = String8::format("C2-%d-ZslProc",
             mCameraId);
-    mZslProcessor->run(threadName.string());
+    mZslProcessorThread->run(threadName.string());
 
     mCallbackProcessor = new CallbackProcessor(this);
     threadName = String8::format("C2-%d-CallbkProc",
@@ -393,7 +414,7 @@ void Camera2Client::disconnect() {
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
     mJpegProcessor->requestExit();
-    mZslProcessor->requestExit();
+    mZslProcessorThread->requestExit();
     mCallbackProcessor->requestExit();
 
     ALOGV("Camera %d: Waiting for threads", mCameraId);
@@ -401,7 +422,7 @@ void Camera2Client::disconnect() {
     mFrameProcessor->join();
     mCaptureSequencer->join();
     mJpegProcessor->join();
-    mZslProcessor->join();
+    mZslProcessorThread->join();
     mCallbackProcessor->join();
 
     ALOGV("Camera %d: Disconnecting device", mCameraId);
