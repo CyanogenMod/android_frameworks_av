@@ -341,14 +341,12 @@ private:
     ICameraServiceListener::Status
                         getStatus(int cameraId) const;
 
+    typedef Vector<ICameraServiceListener::Status> StatusVector;
     // Broadcast the new status if it changed (locks the service mutex)
     void                updateStatus(
                             ICameraServiceListener::Status status,
-                            int32_t cameraId);
-    // Call this one when the service mutex is already held (idempotent)
-    void                updateStatusUnsafe(
-                            ICameraServiceListener::Status status,
-                            int32_t cameraId);
+                            int32_t cameraId,
+                            const StatusVector *rejectSourceStates = NULL);
 
     // IBinder::DeathRecipient implementation
     virtual void        binderDied(const wp<IBinder> &who);
