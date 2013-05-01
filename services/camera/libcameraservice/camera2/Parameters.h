@@ -214,7 +214,7 @@ struct Parameters {
     // max/minCount means to do no bounds check in that direction. In case of
     // error, the entry data pointer is null and the count is 0.
     camera_metadata_ro_entry_t staticInfo(uint32_t tag,
-            size_t minCount=0, size_t maxCount=0) const;
+            size_t minCount=0, size_t maxCount=0, bool required=true) const;
 
     // Validate and update camera parameters based on new settings
     status_t set(const String8 &paramString);

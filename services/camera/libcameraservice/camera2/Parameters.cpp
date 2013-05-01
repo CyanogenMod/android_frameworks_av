@@ -953,10 +953,10 @@ status_t Parameters::buildQuirks() {
 }
 
 camera_metadata_ro_entry_t Parameters::staticInfo(uint32_t tag,
-        size_t minCount, size_t maxCount) const {
+        size_t minCount, size_t maxCount, bool required) const {
     camera_metadata_ro_entry_t entry = info->find(tag);
 
-    if (CC_UNLIKELY( entry.count == 0 )) {
+    if (CC_UNLIKELY( entry.count == 0 ) && required) {
         const char* tagSection = get_camera_metadata_section_name(tag);
         if (tagSection == NULL) tagSection = "<unknown>";
         const char* tagName = get_camera_metadata_tag_name(tag);
@@ -1594,7 +1594,9 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
      * - android.led.transmit = defaulted ON
      */
     camera_metadata_ro_entry_t entry = staticInfo(ANDROID_LED_AVAILABLE_LEDS,
-                                                  /*minimumCount*/0);
+                                                  /*minimumCount*/0,
+                                                  /*maximumCount*/0,
+                                                  /*required*/false);
     for(size_t i = 0; i < entry.count; ++i) {
         uint8_t led = entry.data.u8[i];
 
