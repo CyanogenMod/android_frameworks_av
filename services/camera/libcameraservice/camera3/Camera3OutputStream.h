@@ -21,6 +21,7 @@
 #include <gui/Surface.h>
 
 #include "Camera3Stream.h"
+#include "Camera3OutputStreamInterface.h"
 
 namespace android {
 
@@ -29,7 +30,9 @@ namespace camera3 {
 /**
  * A class for managing a single stream of output data from the camera device.
  */
-class Camera3OutputStream : public Camera3Stream {
+class Camera3OutputStream :
+        public Camera3Stream,
+        public Camera3OutputStreamInterface {
   public:
     /**
      * Set up a stream for formats that have 2 dimensions, such as RAW and YUV.
