@@ -184,6 +184,7 @@ struct Parameters {
             }
         };
         DefaultKeyedVector<uint8_t, OverrideModes> sceneModeOverrides;
+        float minFocalLength;
     } fastInfo;
 
     // Quirks information; these are short-lived flags to enable workarounds for
@@ -243,6 +244,9 @@ struct Parameters {
         };
     };
     CropRegion calculateCropRegion(CropRegion::Outputs outputs) const;
+
+    // Calculate the field of view of the high-resolution JPEG capture
+    status_t calculatePictureFovs(float *horizFov, float *vertFov) const;
 
     // Static methods for debugging and converting between camera1 and camera2
     // parameters
