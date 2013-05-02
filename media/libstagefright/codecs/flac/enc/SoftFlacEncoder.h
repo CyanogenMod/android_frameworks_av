@@ -52,6 +52,7 @@ private:
     enum {
         kNumBuffers = 2,
         kMaxNumSamplesPerFrame = 1152,
+        kMaxInputBufferSize = kMaxNumSamplesPerFrame * sizeof(int16_t) * 2,
         kMaxOutputBufferSize = 65536,    //TODO check if this can be reduced
     };
 
