@@ -331,6 +331,13 @@ status_t OMX::storeMetaDataInBuffers(
     return findInstance(node)->storeMetaDataInBuffers(port_index, enable);
 }
 
+status_t OMX::prepareForAdaptivePlayback(
+        node_id node, OMX_U32 portIndex, OMX_BOOL enable,
+        OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
+    return findInstance(node)->prepareForAdaptivePlayback(
+            portIndex, enable, maxFrameWidth, maxFrameHeight);
+}
+
 status_t OMX::useBuffer(
         node_id node, OMX_U32 port_index, const sp<IMemory> &params,
         buffer_id *buffer) {
