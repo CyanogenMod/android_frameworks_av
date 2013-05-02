@@ -649,6 +649,13 @@ status_t Converter::doMoreWork() {
                 &bufferIndex, &offset, &size, &timeUs, &flags);
 
         if (err != OK) {
+            if (err == INFO_FORMAT_CHANGED) {
+                continue;
+            } else if (err == INFO_OUTPUT_BUFFERS_CHANGED) {
+                mEncoder->getOutputBuffers(&mEncoderOutputBuffers);
+                continue;
+            }
+
             if (err == -EAGAIN) {
                 err = OK;
             }
