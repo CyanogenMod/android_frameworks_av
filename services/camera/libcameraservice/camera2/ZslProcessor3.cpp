@@ -305,7 +305,10 @@ status_t ZslProcessor3::clearZslQueue() {
 }
 
 status_t ZslProcessor3::clearZslQueueLocked() {
-    return mZslStream->clearInputRingBuffer();
+    if (mZslStream != 0) {
+        return mZslStream->clearInputRingBuffer();
+    }
+    return OK;
 }
 
 void ZslProcessor3::dump(int fd, const Vector<String16>& /*args*/) const {
