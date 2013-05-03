@@ -21,7 +21,10 @@ namespace android {
 
 // Request elevated priority for thread tid, whose thread group leader must be pid.
 // The priority parameter is currently restricted to either 1 or 2.
-int requestPriority(pid_t pid, pid_t tid, int32_t prio);
+// The asynchronous parameter should be 'true' to return immediately,
+// after the request is enqueued but not necessarily executed.
+// The default value 'false' means to return after request has been enqueued and executed.
+int requestPriority(pid_t pid, pid_t tid, int32_t prio, bool asynchronous = false);
 
 }   // namespace android
 

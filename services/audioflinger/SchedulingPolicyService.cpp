@@ -25,7 +25,7 @@ static sp<ISchedulingPolicyService> sSchedulingPolicyService;
 static const String16 _scheduling_policy("scheduling_policy");
 static Mutex sMutex;
 
-int requestPriority(pid_t pid, pid_t tid, int32_t prio)
+int requestPriority(pid_t pid, pid_t tid, int32_t prio, bool asynchronous)
 {
     // FIXME merge duplicated code related to service lookup, caching, and error recovery
     sp<ISchedulingPolicyService> sps;
@@ -46,7 +46,7 @@ int requestPriority(pid_t pid, pid_t tid, int32_t prio)
         }
         sleep(1);
     }
-    return sps->requestPriority(pid, tid, prio);
+    return sps->requestPriority(pid, tid, prio, asynchronous);
 }
 
 }   // namespace android

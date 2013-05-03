@@ -37,14 +37,15 @@ public:
     {
     }
 
-    virtual int requestPriority(int32_t pid, int32_t tid, int32_t prio)
+    virtual int requestPriority(int32_t pid, int32_t tid, int32_t prio, bool asynchronous)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ISchedulingPolicyService::getInterfaceDescriptor());
         data.writeInt32(pid);
         data.writeInt32(tid);
         data.writeInt32(prio);
-        remote()->transact(REQUEST_PRIORITY_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
+        uint32_t flags = asynchronous ? IBinder::FLAG_ONEWAY : 0;
+        remote()->transact(REQUEST_PRIORITY_TRANSACTION, data, &reply, flags);
         // fail on exception
         if (reply.readExceptionCode() != 0) return -1;
         return reply.readInt32();
