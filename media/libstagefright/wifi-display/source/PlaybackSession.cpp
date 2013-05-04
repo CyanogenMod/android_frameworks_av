@@ -378,7 +378,9 @@ status_t WifiDisplaySource::PlaybackSession::init(
         bool usePCMAudio,
         bool enableVideo,
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     sp<AMessage> notify = new AMessage(kWhatMediaSenderNotify, id());
     mMediaSender = new MediaSender(mNetSession, notify);
     looper()->registerHandler(mMediaSender);
@@ -390,7 +392,9 @@ status_t WifiDisplaySource::PlaybackSession::init(
             usePCMAudio,
             enableVideo,
             videoResolutionType,
-            videoResolutionIndex);
+            videoResolutionIndex,
+            videoProfileType,
+            videoLevelType);
 
     if (err == OK) {
         err = mMediaSender->initAsync(
@@ -870,7 +874,9 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
         bool usePCMAudio,
         bool enableVideo,
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     CHECK(enableAudio || enableVideo);
 
     if (!mMediaPath.empty()) {
@@ -879,7 +885,8 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
 
     if (enableVideo) {
         status_t err = addVideoSource(
-                videoResolutionType, videoResolutionIndex);
+                videoResolutionType, videoResolutionIndex, videoProfileType,
+                videoLevelType);
 
         if (err != OK) {
             return err;
@@ -895,9 +902,13 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
 
 status_t WifiDisplaySource::PlaybackSession::addSource(
         bool isVideo, const sp<MediaSource> &source, bool isRepeaterSource,
-        bool usePCMAudio, size_t *numInputBuffers) {
+        bool usePCMAudio, unsigned profileIdc, unsigned levelIdc,
+        unsigned constraintSet, size_t *numInputBuffers) {
     CHECK(!usePCMAudio || !isVideo);
     CHECK(!isRepeaterSource || isVideo);
+    CHECK(!profileIdc || isVideo);
+    CHECK(!levelIdc || isVideo);
+    CHECK(!constraintSet || isVideo);
 
     sp<ALooper> pullLooper = new ALooper;
     pullLooper->setName("pull_looper");
@@ -927,9 +938,12 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     if (isVideo) {
         format->setInt32("store-metadata-in-buffers", true);
-
+        format->setInt32("store-metadata-in-buffers-output", (mHDCP != NULL));
         format->setInt32(
                 "color-format", OMX_COLOR_FormatAndroidOpaque);
+        format->setInt32("profile-idc", profileIdc);
+        format->setInt32("level-idc", levelIdc);
+        format->setInt32("constraint-set", constraintSet);
     }
 
     notify = new AMessage(kWhatConverterNotify, id());
@@ -990,7 +1004,9 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
 status_t WifiDisplaySource::PlaybackSession::addVideoSource(
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     size_t width, height, framesPerSecond;
     bool interlaced;
     CHECK(VideoFormats::GetConfiguration(
@@ -1000,6 +1016,14 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
                 &height,
                 &framesPerSecond,
                 &interlaced));
+
+    unsigned profileIdc, levelIdc, constraintSet;
+    CHECK(VideoFormats::GetProfileLevel(
+                videoProfileType,
+                videoLevelType,
+                &profileIdc,
+                &levelIdc,
+                &constraintSet));
 
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(width, height);
 
@@ -1011,7 +1035,8 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
     size_t numInputBuffers;
     status_t err = addSource(
             true /* isVideo */, videoSource, true /* isRepeaterSource */,
-            false /* usePCMAudio */, &numInputBuffers);
+            false /* usePCMAudio */, profileIdc, levelIdc, constraintSet,
+            &numInputBuffers);
 
     if (err != OK) {
         return err;
@@ -1034,7 +1059,8 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
     if (audioSource->initCheck() == OK) {
         return addSource(
                 false /* isVideo */, audioSource, false /* isRepeaterSource */,
-                usePCMAudio, NULL /* numInputBuffers */);
+                usePCMAudio, 0 /* profileIdc */, 0 /* levelIdc */,
+                0 /* constraintSet */, NULL /* numInputBuffers */);
     }
 
     ALOGW("Unable to instantiate audio source");

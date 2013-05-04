@@ -74,6 +74,11 @@ WifiDisplaySource::WifiDisplaySource(
 
     mSupportedSourceVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280x720 p30
+
+    mSupportedSourceVideoFormats.setProfileLevel(
+            VideoFormats::RESOLUTION_CEA, 5,
+            VideoFormats::PROFILE_CHP,  // Constrained High Profile
+            VideoFormats::LEVEL_32);    // Level 3.2
 }
 
 WifiDisplaySource::~WifiDisplaySource() {
@@ -631,6 +636,9 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         chosenVideoFormat.disableAll();
         chosenVideoFormat.setNativeResolution(
                 mChosenVideoResolutionType, mChosenVideoResolutionIndex);
+        chosenVideoFormat.setProfileLevel(
+                mChosenVideoResolutionType, mChosenVideoResolutionIndex,
+                mChosenVideoProfile, mChosenVideoLevel);
 
         body.append(chosenVideoFormat.getFormatSpec(true /* forM4Message */));
         body.append("\r\n");
@@ -859,7 +867,9 @@ status_t WifiDisplaySource::onReceiveM3Response(
                     mSupportedSinkVideoFormats,
                     mSupportedSourceVideoFormats,
                     &mChosenVideoResolutionType,
-                    &mChosenVideoResolutionIndex)) {
+                    &mChosenVideoResolutionIndex,
+                    &mChosenVideoProfile,
+                    &mChosenVideoLevel)) {
             ALOGE("Sink and source share no commonly supported video "
                   "formats.");
 
@@ -878,6 +888,9 @@ status_t WifiDisplaySource::onReceiveM3Response(
 
         ALOGI("Picked video resolution %u x %u %c%u",
               width, height, interlaced ? 'i' : 'p', framesPerSecond);
+
+        ALOGI("Picked AVC profile %d, level %d",
+              mChosenVideoProfile, mChosenVideoLevel);
     } else {
         ALOGI("Sink doesn't support video at all.");
     }
@@ -1271,7 +1284,9 @@ status_t WifiDisplaySource::onSetupRequest(
             mUsingPCMAudio,
             mSinkSupportsVideo,
             mChosenVideoResolutionType,
-            mChosenVideoResolutionIndex);
+            mChosenVideoResolutionIndex,
+            mChosenVideoProfile,
+            mChosenVideoLevel);
 
     if (err != OK) {
         looper()->unregisterHandler(playbackSession->id());

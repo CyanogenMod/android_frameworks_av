@@ -35,6 +35,11 @@ struct HDCP : public BnHDCP {
             const void *inData, size_t size, uint32_t streamCTR,
             uint64_t *outInputCTR, void *outData);
 
+    virtual status_t encryptNative(
+            const sp<GraphicBuffer> &graphicBuffer,
+            size_t offset, size_t size, uint32_t streamCTR,
+            uint64_t *outInputCTR, void *outData);
+
     virtual status_t decrypt(
             const void *inData, size_t size,
             uint32_t streamCTR, uint64_t outInputCTR, void *outData);

@@ -134,6 +134,8 @@ private:
 
     VideoFormats::ResolutionType mChosenVideoResolutionType;
     size_t mChosenVideoResolutionIndex;
+    VideoFormats::ProfileType mChosenVideoProfile;
+    VideoFormats::LevelType mChosenVideoLevel;
 
     bool mSinkSupportsAudio;
 

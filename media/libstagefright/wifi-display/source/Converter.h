@@ -66,6 +66,7 @@ struct Converter : public AHandler {
         kWhatMediaPullerNotify,
         kWhatEncoderActivity,
         kWhatDropAFrame,
+        kWhatReleaseOutputBuffer,
     };
 
     void shutdownAsync();

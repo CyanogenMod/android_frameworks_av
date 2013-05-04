@@ -116,6 +116,24 @@ status_t HDCP::encrypt(
     return mHDCPModule->encrypt(inData, size, streamCTR, outInputCTR, outData);
 }
 
+status_t HDCP::encryptNative(
+        const sp<GraphicBuffer> &graphicBuffer,
+        size_t offset, size_t size, uint32_t streamCTR,
+        uint64_t *outInputCTR, void *outData) {
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK(mIsEncryptionModule);
+
+    if (mHDCPModule == NULL) {
+        *outInputCTR = 0;
+
+        return NO_INIT;
+    }
+
+    return mHDCPModule->encryptNative(graphicBuffer->handle,
+                    offset, size, streamCTR, outInputCTR, outData);
+}
+
 status_t HDCP::decrypt(
         const void *inData, size_t size,
         uint32_t streamCTR, uint64_t outInputCTR, void *outData) {

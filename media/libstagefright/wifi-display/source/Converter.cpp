@@ -438,6 +438,17 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatReleaseOutputBuffer:
+        {
+            if (mEncoder != NULL) {
+                size_t bufferIndex;
+                CHECK(msg->findInt32("bufferIndex", (int32_t*)&bufferIndex));
+                CHECK(bufferIndex < mEncoderOutputBuffers.size());
+                mEncoder->releaseOutputBuffer(bufferIndex);
+            }
+            break;
+        }
+
         default:
             TRESPASS();
     }
@@ -645,6 +656,7 @@ status_t Converter::doMoreWork() {
         size_t size;
         int64_t timeUs;
         uint32_t flags;
+        native_handle_t* handle = NULL;
         err = mEncoder->dequeueOutputBuffer(
                 &bufferIndex, &offset, &size, &timeUs, &flags);
 
@@ -667,18 +679,43 @@ status_t Converter::doMoreWork() {
             notify->setInt32("what", kWhatEOS);
             notify->post();
         } else {
-            sp<ABuffer> buffer = new ABuffer(size);
+            sp<ABuffer> buffer;
+            sp<ABuffer> outbuf = mEncoderOutputBuffers.itemAt(bufferIndex);
+
+            if (outbuf->meta()->findPointer("handle", (void**)&handle) &&
+                    handle != NULL) {
+                int32_t rangeLength, rangeOffset;
+                CHECK(outbuf->meta()->findInt32("rangeOffset", &rangeOffset));
+                CHECK(outbuf->meta()->findInt32("rangeLength", &rangeLength));
+                outbuf->meta()->setPointer("handle", NULL);
+
+                // MediaSender will post the following message when HDCP
+                // is done, to release the output buffer back to encoder.
+                sp<AMessage> notify(new AMessage(
+                        kWhatReleaseOutputBuffer, id()));
+                notify->setInt32("bufferIndex", bufferIndex);
+
+                buffer = new ABuffer(
+                        rangeLength > (int32_t)size ? rangeLength : size);
+                buffer->meta()->setPointer("handle", handle);
+                buffer->meta()->setInt32("rangeOffset", rangeOffset);
+                buffer->meta()->setInt32("rangeLength", rangeLength);
+                buffer->meta()->setMessage("notify", notify);
+            } else {
+                buffer = new ABuffer(size);
+            }
+
             buffer->meta()->setInt64("timeUs", timeUs);
 
             ALOGV("[%s] time %lld us (%.2f secs)",
                   mIsVideo ? "video" : "audio", timeUs, timeUs / 1E6);
 
-            memcpy(buffer->data(),
-                   mEncoderOutputBuffers.itemAt(bufferIndex)->base() + offset,
-                   size);
+            memcpy(buffer->data(), outbuf->base() + offset, size);
 
             if (flags & MediaCodec::BUFFER_FLAG_CODECCONFIG) {
-                mOutputFormat->setBuffer("csd-0", buffer);
+                if (!handle) {
+                    mOutputFormat->setBuffer("csd-0", buffer);
+                }
             } else {
                 sp<AMessage> notify = mNotify->dup();
                 notify->setInt32("what", kWhatAccessUnit);
@@ -687,7 +724,9 @@ status_t Converter::doMoreWork() {
             }
         }
 
-        mEncoder->releaseOutputBuffer(bufferIndex);
+        if (!handle) {
+            mEncoder->releaseOutputBuffer(bufferIndex);
+        }
 
         if (flags & MediaCodec::BUFFER_FLAG_EOS) {
             break;

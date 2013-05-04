@@ -261,12 +261,24 @@ void TSPacketizer::Track::finalize() {
             data[0] = 40;  // descriptor_tag
             data[1] = 4;  // descriptor_length
 
-            CHECK_GE(mCSD.size(), 1u);
-            const sp<ABuffer> &sps = mCSD.itemAt(0);
-            CHECK(!memcmp("\x00\x00\x00\x01", sps->data(), 4));
-            CHECK_GE(sps->size(), 7u);
-            // profile_idc, constraint_set*, level_idc
-            memcpy(&data[2], sps->data() + 4, 3);
+            if (mCSD.size() > 0) {
+                CHECK_GE(mCSD.size(), 1u);
+                const sp<ABuffer> &sps = mCSD.itemAt(0);
+                CHECK(!memcmp("\x00\x00\x00\x01", sps->data(), 4));
+                CHECK_GE(sps->size(), 7u);
+                // profile_idc, constraint_set*, level_idc
+                memcpy(&data[2], sps->data() + 4, 3);
+            } else {
+                int32_t profileIdc, levelIdc, constraintSet;
+                CHECK(mFormat->findInt32("profile-idc", &profileIdc));
+                CHECK(mFormat->findInt32("level-idc", &levelIdc));
+                CHECK(mFormat->findInt32("constraint-set", &constraintSet));
+                CHECK_GE(profileIdc, 0u);
+                CHECK_GE(levelIdc, 0u);
+                data[2] = profileIdc;    // profile_idc
+                data[3] = constraintSet; // constraint_set*
+                data[4] = levelIdc;      // level_idc
+            }
 
             // AVC_still_present=0, AVC_24_hour_picture_flag=0, reserved
             data[5] = 0x3f;

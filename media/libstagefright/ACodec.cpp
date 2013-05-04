@@ -359,6 +359,7 @@ ACodec::ACodec()
       mNode(NULL),
       mSentFormat(false),
       mIsEncoder(false),
+      mUseMetadataOnEncoderOutput(false),
       mShutdownInProgress(false),
       mEncoderDelay(0),
       mEncoderPadding(0),
@@ -483,7 +484,8 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                         ? OMXCodec::kRequiresAllocateBufferOnInputPorts
                         : OMXCodec::kRequiresAllocateBufferOnOutputPorts;
 
-                if (portIndex == kPortIndexInput && (mFlags & kFlagIsSecure)) {
+                if ((portIndex == kPortIndexInput && (mFlags & kFlagIsSecure))
+                        || mUseMetadataOnEncoderOutput) {
                     mem.clear();
 
                     void *ptr;
@@ -491,7 +493,10 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                             mNode, portIndex, def.nBufferSize, &info.mBufferID,
                             &ptr);
 
-                    info.mData = new ABuffer(ptr, def.nBufferSize);
+                    int32_t bufSize = mUseMetadataOnEncoderOutput ?
+                            (4 + sizeof(buffer_handle_t)) : def.nBufferSize;
+
+                    info.mData = new ABuffer(ptr, bufSize);
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
                             mNode, portIndex, mem, &info.mBufferID);
@@ -912,14 +917,14 @@ status_t ACodec::configureCodec(
         err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE);
 
         if (err != OK) {
-            ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
-                  mComponentName.c_str(), err);
+              ALOGE("[%s] storeMetaDataInBuffers (input) failed w/ err %d",
+                    mComponentName.c_str(), err);
 
-            return err;
-        }
-    }
+              return err;
+          }
+      }
 
-    int32_t prependSPSPPS;
+    int32_t prependSPSPPS = 0;
     if (encoder
             && msg->findInt32("prepend-sps-pps-to-idr-frames", &prependSPSPPS)
             && prependSPSPPS != 0) {
@@ -946,7 +951,27 @@ status_t ACodec::configureCodec(
         }
     }
 
-    if (!strncasecmp(mime, "video/", 6)) {
+    // Only enable metadata mode on encoder output if encoder can prepend
+    // sps/pps to idr frames, since in metadata mode the bitstream is in an
+    // opaque handle, to which we don't have access.
+    int32_t video = !strncasecmp(mime, "video/", 6);
+    if (encoder && video) {
+        OMX_BOOL enable = (OMX_BOOL) (prependSPSPPS
+            && msg->findInt32("store-metadata-in-buffers-output", &storeMeta)
+            && storeMeta != 0);
+
+        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, enable);
+
+        if (err != OK) {
+            ALOGE("[%s] storeMetaDataInBuffers (output) failed w/ err %d",
+                mComponentName.c_str(), err);
+            mUseMetadataOnEncoderOutput = 0;
+        } else {
+            mUseMetadataOnEncoderOutput = enable;
+        }
+    }
+
+    if (video) {
         if (encoder) {
             err = setupVideoEncoder(mime, msg);
         } else {
@@ -3061,7 +3086,15 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 mCodec->sendFormatChange();
             }
 
-            info->mData->setRange(rangeOffset, rangeLength);
+            if (mCodec->mUseMetadataOnEncoderOutput) {
+                native_handle_t* handle =
+                        *(native_handle_t**)(info->mData->data() + 4);
+                info->mData->meta()->setPointer("handle", handle);
+                info->mData->meta()->setInt32("rangeOffset", rangeOffset);
+                info->mData->meta()->setInt32("rangeLength", rangeLength);
+            } else {
+                info->mData->setRange(rangeOffset, rangeLength);
+            }
 #if 0
             if (mCodec->mNativeWindow == NULL) {
                 if (IsIDR(info->mData)) {
@@ -3215,6 +3248,7 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
+    mCodec->mUseMetadataOnEncoderOutput = 0;
     mCodec->mComponentName.clear();
 }
 

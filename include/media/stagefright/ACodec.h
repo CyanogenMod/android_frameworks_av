@@ -182,7 +182,7 @@ private:
 
     bool mSentFormat;
     bool mIsEncoder;
-
+    bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;
 
     // If "mKeepComponentAllocated" we only transition back to Loaded state

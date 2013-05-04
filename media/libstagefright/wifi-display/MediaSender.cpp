@@ -27,9 +27,11 @@
 #include "include/avc_utils.h"
 
 #include <media/IHDCP.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <ui/GraphicBuffer.h>
 
 namespace android {
 
@@ -408,11 +410,36 @@ status_t MediaSender::packetizeAccessUnit(
                     info.mPacketizerTrackIndex, accessUnit);
         }
 
-        status_t err = mHDCP->encrypt(
-                accessUnit->data(), accessUnit->size(),
-                trackIndex  /* streamCTR */,
-                &inputCTR,
-                accessUnit->data());
+        status_t err;
+        native_handle_t* handle;
+        if (accessUnit->meta()->findPointer("handle", (void**)&handle)
+                && handle != NULL) {
+            int32_t rangeLength, rangeOffset;
+            sp<AMessage> notify;
+            CHECK(accessUnit->meta()->findInt32("rangeOffset", &rangeOffset));
+            CHECK(accessUnit->meta()->findInt32("rangeLength", &rangeLength));
+            CHECK(accessUnit->meta()->findMessage("notify", &notify)
+                    && notify != NULL);
+            CHECK_GE(accessUnit->size(), rangeLength);
+
+            sp<GraphicBuffer> grbuf(new GraphicBuffer(
+                    rangeOffset + rangeLength, 1, HAL_PIXEL_FORMAT_Y8,
+                    GRALLOC_USAGE_HW_VIDEO_ENCODER, rangeOffset + rangeLength,
+                    handle, false));
+
+            err = mHDCP->encryptNative(
+                    grbuf, rangeOffset, rangeLength,
+                    trackIndex  /* streamCTR */,
+                    &inputCTR,
+                    accessUnit->data());
+            notify->post();
+        } else {
+            err = mHDCP->encrypt(
+                    accessUnit->data(), accessUnit->size(),
+                    trackIndex  /* streamCTR */,
+                    &inputCTR,
+                    accessUnit->data());
+        }
 
         if (err != OK) {
             ALOGE("Failed to HDCP-encrypt media data (err %d)",
