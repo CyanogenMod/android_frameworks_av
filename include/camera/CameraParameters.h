@@ -687,6 +687,11 @@ public:
     static const char CONTI_BURST_CAPTURE_DONE[];
     static const char APP_OIS_SETTING_FALSE[];
     static const char APP_OIS_SETTING_TRUE[];
+    static const char KEY_GPU_EFFECT[];
+    static const char KEY_GPU_EFFECT_PARAM_0[];
+    static const char KEY_GPU_EFFECT_PARAM_1[];
+    static const char KEY_GPU_EFFECT_PARAM_2[];
+    static const char KEY_GPU_EFFECT_PARAM_3[];
 #endif
 
     static const char KEY_AE_BRACKET_HDR[];
