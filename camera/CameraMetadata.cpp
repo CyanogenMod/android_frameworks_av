@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// #define LOG_NDEBUG 0
+
 #define LOG_TAG "Camera2-Metadata"
 #include <utils/Log.h>
 #include <utils/Errors.h>
@@ -112,6 +114,10 @@ void CameraMetadata::acquire(camera_metadata_t *buffer) {
     }
     clear();
     mBuffer = buffer;
+
+    ALOGE_IF(validate_camera_metadata_structure(mBuffer, /*size*/NULL) != OK,
+             "%s: Failed to validate metadata structure %p",
+             __FUNCTION__, buffer);
 }
 
 void CameraMetadata::acquire(CameraMetadata &other) {
@@ -289,6 +295,15 @@ status_t CameraMetadata::updateImpl(uint32_t tag, const void *data,
                 __FUNCTION__, get_camera_metadata_section_name(tag),
                 get_camera_metadata_tag_name(tag), tag, strerror(-res), res);
     }
+
+    IF_ALOGV() {
+        ALOGE_IF(validate_camera_metadata_structure(mBuffer, /*size*/NULL) !=
+                 OK,
+
+                 "%s: Failed to validate metadata structure after update %p",
+                 __FUNCTION__, mBuffer);
+    }
+
     return res;
 }
 
