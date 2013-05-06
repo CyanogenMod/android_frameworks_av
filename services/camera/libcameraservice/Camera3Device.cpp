@@ -1060,7 +1060,7 @@ status_t Camera3Device::configureStreamsLocked() {
     // TODO: Try to relax this later back to lazy completion, which should be
     // faster
 
-    if (mInputStream != NULL) {
+    if (mInputStream != NULL && mInputStream->isConfiguring()) {
         res = mInputStream->finishConfiguration(mHal3Device);
         if (res != OK) {
             SET_ERR_L("Can't finish configuring input stream %d: %s (%d)",
@@ -1070,11 +1070,15 @@ status_t Camera3Device::configureStreamsLocked() {
     }
 
     for (size_t i = 0; i < mOutputStreams.size(); i++) {
-        res = mOutputStreams.editValueAt(i)->finishConfiguration(mHal3Device);
-        if (res != OK) {
-            SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",
-                    mOutputStreams[i]->getId(), strerror(-res), res);
-            return res;
+        sp<Camera3OutputStreamInterface> outputStream =
+            mOutputStreams.editValueAt(i);
+        if (outputStream->isConfiguring()) {
+            res = outputStream->finishConfiguration(mHal3Device);
+            if (res != OK) {
+                SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",
+                        outputStream->getId(), strerror(-res), res);
+                return res;
+            }
         }
     }
 
