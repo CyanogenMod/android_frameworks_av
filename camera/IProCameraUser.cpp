@@ -50,17 +50,30 @@ enum {
   * Caller becomes the owner of the new metadata
   * 'const Parcel' doesnt prevent us from calling the read functions.
   *  which is interesting since it changes the internal state
+  *
+  * NULL can be returned when no metadata was sent, OR if there was an issue
+  * unpacking the serialized data (i.e. bad parcel or invalid structure).
   */
 void readMetadata(const Parcel& data, camera_metadata_t** out) {
-    camera_metadata_t* metadata;
+
+    status_t err = OK;
+
+    camera_metadata_t* metadata = NULL;
+
+    if (out) {
+        *out = NULL;
+    }
 
     // arg0 = metadataSize (int32)
-    size_t metadataSize = static_cast<size_t>(data.readInt32());
+    int32_t metadataSizeTmp = -1;
+    if ((err = data.readInt32(&metadataSizeTmp)) != OK) {
+        ALOGE("%s: Failed to read metadata size (error %d %s)",
+              __FUNCTION__, err, strerror(-err));
+        return;
+    }
+    const size_t metadataSize = static_cast<size_t>(metadataSizeTmp);
 
     if (metadataSize == 0) {
-        if (out) {
-            *out = NULL;
-        }
         return;
     }
 
@@ -70,21 +83,23 @@ void readMetadata(const Parcel& data, camera_metadata_t** out) {
 
     ReadableBlob blob;
     // arg1 = metadata (blob)
-    {
-        data.readBlob(metadataSize, &blob);
+    do {
+        if ((err = data.readBlob(metadataSize, &blob)) != OK) {
+            ALOGE("%s: Failed to read metadata blob (sized %d). Possible "
+                  " serialization bug. Error %d %s",
+                  __FUNCTION__, metadataSize, err, strerror(-err));
+            break;
+        }
         const camera_metadata_t* tmp =
                        reinterpret_cast<const camera_metadata_t*>(blob.data());
-        size_t entry_capacity = get_camera_metadata_entry_capacity(tmp);
-        size_t data_capacity = get_camera_metadata_data_capacity(tmp);
 
-        metadata = allocate_camera_metadata(entry_capacity, data_capacity);
-        copy_camera_metadata(metadata, metadataSize, tmp);
-    }
+        metadata = allocate_copy_camera_metadata_checked(tmp, metadataSize);
+    } while(0);
     blob.release();
 
     if (out) {
         *out = metadata;
-    } else {
+    } else if (metadata != NULL) {
         free_camera_metadata(metadata);
     }
 }
@@ -95,14 +110,13 @@ void readMetadata(const Parcel& data, camera_metadata_t** out) {
   */
 void writeMetadata(Parcel& data, camera_metadata_t* metadata) {
     // arg0 = metadataSize (int32)
-    size_t metadataSize;
 
     if (metadata == NULL) {
         data.writeInt32(0);
         return;
     }
 
-    metadataSize = get_camera_metadata_compact_size(metadata);
+    const size_t metadataSize = get_camera_metadata_compact_size(metadata);
     data.writeInt32(static_cast<int32_t>(metadataSize));
 
     // arg1 = metadata (blob)
@@ -110,6 +124,25 @@ void writeMetadata(Parcel& data, camera_metadata_t* metadata) {
     {
         data.writeBlob(metadataSize, &blob);
         copy_camera_metadata(blob.data(), metadataSize, metadata);
+
+        IF_ALOGV() {
+            if (validate_camera_metadata_structure(
+                        (const camera_metadata_t*)blob.data(),
+                        &metadataSize) != OK) {
+                ALOGV("%s: Failed to validate metadata %p after writing blob",
+                       __FUNCTION__, blob.data());
+            } else {
+                ALOGV("%s: Metadata written to blob. Validation success",
+                        __FUNCTION__);
+            }
+        }
+
+        // Not too big of a problem since receiving side does hard validation
+        if (validate_camera_metadata_structure(metadata, &metadataSize) != OK) {
+            ALOGW("%s: Failed to validate metadata %p before writing blob",
+                   __FUNCTION__, metadata);
+        }
+
     }
     blob.release();
 }
