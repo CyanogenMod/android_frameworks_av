@@ -588,11 +588,12 @@ private:
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
 
-#ifdef TEE_SINK
+// do not use #ifdef here, since AudioFlinger.h is included by more than one module
+//#ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change
     sp<NBAIO_Sink>   mRecordTeeSink;
     sp<NBAIO_Source> mRecordTeeSource;
-#endif
+//#endif
 
 public:
 
