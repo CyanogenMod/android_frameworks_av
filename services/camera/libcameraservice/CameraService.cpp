@@ -928,8 +928,15 @@ void CameraService::Client::disconnect() {
     ALOGV("Client::disconnect");
     BasicClient::disconnect();
     mCameraService->setCameraFree(mCameraId);
+
+    StatusVector rejectSourceStates;
+    rejectSourceStates.push_back(ICameraServiceListener::STATUS_NOT_PRESENT);
+    rejectSourceStates.push_back(ICameraServiceListener::STATUS_ENUMERATING);
+
+    // Transition to PRESENT if the camera is not in either of above 2 states
     mCameraService->updateStatus(ICameraServiceListener::STATUS_PRESENT,
-                                 mCameraId);
+                                 mCameraId,
+                                 &rejectSourceStates);
 }
 
 CameraService::Client::OpsCallback::OpsCallback(wp<BasicClient> client):
@@ -1111,15 +1118,11 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 }
 
 void CameraService::updateStatus(ICameraServiceListener::Status status,
-                                 int32_t cameraId) {
+                                 int32_t cameraId,
+                                 const StatusVector *rejectSourceStates) {
     // do not lock mServiceLock here or can get into a deadlock from
     //  connect() -> ProClient::disconnect -> updateStatus
     Mutex::Autolock lock(mStatusMutex);
-    updateStatusUnsafe(status, cameraId);
-}
-
-void CameraService::updateStatusUnsafe(ICameraServiceListener::Status status,
-                                       int32_t cameraId) {
 
     ICameraServiceListener::Status oldStatus = mStatusList[cameraId];
 
@@ -1137,6 +1140,26 @@ void CameraService::updateStatusUnsafe(ICameraServiceListener::Status status,
                   " or ENUMERATING", __FUNCTION__);
             mStatusList[cameraId] = oldStatus;
             return;
+        }
+
+        if (rejectSourceStates != NULL) {
+            const StatusVector &rejectList = *rejectSourceStates;
+            StatusVector::const_iterator it = rejectList.begin();
+
+            /**
+             * Sometimes we want to conditionally do a transition.
+             * For example if a client disconnects, we want to go to PRESENT
+             * only if we weren't already in NOT_PRESENT or ENUMERATING.
+             */
+            for (; it != rejectList.end(); ++it) {
+                if (oldStatus == *it) {
+                    ALOGV("%s: Rejecting status transition for Camera ID %d, "
+                          " since the source state was was in one of the bad "
+                          " states.", __FUNCTION__, cameraId);
+                    mStatusList[cameraId] = oldStatus;
+                    return;
+                }
+            }
         }
 
         /**
