@@ -1845,13 +1845,14 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             CropRegion::OUTPUT_PREVIEW     |
             CropRegion::OUTPUT_VIDEO       |
             CropRegion::OUTPUT_PICTURE    ));
-    int32_t reqCropRegion[3] = {
+    int32_t reqCropRegion[4] = {
         static_cast<int32_t>(crop.left),
         static_cast<int32_t>(crop.top),
-        static_cast<int32_t>(crop.width)
+        static_cast<int32_t>(crop.width),
+        static_cast<int32_t>(crop.height)
     };
     res = request->update(ANDROID_SCALER_CROP_REGION,
-            reqCropRegion, 3);
+            reqCropRegion, 4);
     if (res != OK) return res;
 
     uint8_t reqVstabMode = videoStabilization ?
