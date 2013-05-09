@@ -36,6 +36,27 @@ struct AString;
 struct VideoFormats {
     VideoFormats();
 
+    struct config_t {
+        size_t width, height, framesPerSecond;
+        bool interlaced;
+        unsigned char profile, level;
+    };
+
+    enum ProfileType {
+        PROFILE_CBP = 0,
+        PROFILE_CHP,
+        kNumProfileTypes,
+    };
+
+    enum LevelType {
+        LEVEL_31 = 0,
+        LEVEL_32,
+        LEVEL_40,
+        LEVEL_41,
+        LEVEL_42,
+        kNumLevelTypes,
+    };
+
     enum ResolutionType {
         RESOLUTION_CEA,
         RESOLUTION_VESA,
@@ -69,10 +90,12 @@ struct VideoFormats {
             size_t *chosenIndex);
 
 private:
+    bool parseH264Codec(const char *spec);
     ResolutionType mNativeType;
     size_t mNativeIndex;
 
     uint32_t mResolutionEnabled[kNumResolutionTypes];
+    static config_t mConfigs[kNumResolutionTypes][32];
 
     DISALLOW_EVIL_CONSTRUCTORS(VideoFormats);
 };

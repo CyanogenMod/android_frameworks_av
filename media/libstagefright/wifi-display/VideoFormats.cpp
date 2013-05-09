@@ -24,6 +24,114 @@
 
 namespace android {
 
+VideoFormats::config_t VideoFormats::mConfigs[][32] = {
+    {
+        // CEA Resolutions
+        { 640, 480, 60, false, 0, 0},
+        { 720, 480, 60, false, 0, 0},
+        { 720, 480, 60, true, 0, 0},
+        { 720, 576, 50, false, 0, 0},
+        { 720, 576, 50, true, 0, 0},
+        { 1280, 720, 30, false, 0, 0},
+        { 1280, 720, 60, false, 0, 0},
+        { 1920, 1080, 30, false, 0, 0},
+        { 1920, 1080, 60, false, 0, 0},
+        { 1920, 1080, 60, true, 0, 0},
+        { 1280, 720, 25, false, 0, 0},
+        { 1280, 720, 50, false, 0, 0},
+        { 1920, 1080, 25, false, 0, 0},
+        { 1920, 1080, 50, false, 0, 0},
+        { 1920, 1080, 50, true, 0, 0},
+        { 1280, 720, 24, false, 0, 0},
+        { 1920, 1080, 24, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+    },
+    {
+        // VESA Resolutions
+        { 800, 600, 30, false, 0, 0},
+        { 800, 600, 60, false, 0, 0},
+        { 1024, 768, 30, false, 0, 0},
+        { 1024, 768, 60, false, 0, 0},
+        { 1152, 864, 30, false, 0, 0},
+        { 1152, 864, 60, false, 0, 0},
+        { 1280, 768, 30, false, 0, 0},
+        { 1280, 768, 60, false, 0, 0},
+        { 1280, 800, 30, false, 0, 0},
+        { 1280, 800, 60, false, 0, 0},
+        { 1360, 768, 30, false, 0, 0},
+        { 1360, 768, 60, false, 0, 0},
+        { 1366, 768, 30, false, 0, 0},
+        { 1366, 768, 60, false, 0, 0},
+        { 1280, 1024, 30, false, 0, 0},
+        { 1280, 1024, 60, false, 0, 0},
+        { 1400, 1050, 30, false, 0, 0},
+        { 1400, 1050, 60, false, 0, 0},
+        { 1440, 900, 30, false, 0, 0},
+        { 1440, 900, 60, false, 0, 0},
+        { 1600, 900, 30, false, 0, 0},
+        { 1600, 900, 60, false, 0, 0},
+        { 1600, 1200, 30, false, 0, 0},
+        { 1600, 1200, 60, false, 0, 0},
+        { 1680, 1024, 30, false, 0, 0},
+        { 1680, 1024, 60, false, 0, 0},
+        { 1680, 1050, 30, false, 0, 0},
+        { 1680, 1050, 60, false, 0, 0},
+        { 1920, 1200, 30, false, 0, 0},
+        { 1920, 1200, 60, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+    },
+    {
+        // HH Resolutions
+        { 800, 480, 30, false, 0, 0},
+        { 800, 480, 60, false, 0, 0},
+        { 854, 480, 30, false, 0, 0},
+        { 854, 480, 60, false, 0, 0},
+        { 864, 480, 30, false, 0, 0},
+        { 864, 480, 60, false, 0, 0},
+        { 640, 360, 30, false, 0, 0},
+        { 640, 360, 60, false, 0, 0},
+        { 960, 540, 30, false, 0, 0},
+        { 960, 540, 60, false, 0, 0},
+        { 848, 480, 30, false, 0, 0},
+        { 848, 480, 60, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+        { 0, 0, 0, false, 0, 0},
+    }
+};
+
 VideoFormats::VideoFormats() {
     for (size_t i = 0; i < kNumResolutionTypes; ++i) {
         mResolutionEnabled[i] = 0;
@@ -51,12 +159,19 @@ void VideoFormats::getNativeResolution(
 void VideoFormats::disableAll() {
     for (size_t i = 0; i < kNumResolutionTypes; ++i) {
         mResolutionEnabled[i] = 0;
+        for (size_t j = 0; j < 32; j++) {
+            mConfigs[i][j].profile = mConfigs[i][j].level = 0;
+        }
     }
 }
 
 void VideoFormats::enableAll() {
     for (size_t i = 0; i < kNumResolutionTypes; ++i) {
         mResolutionEnabled[i] = 0xffffffff;
+        for (size_t j = 0; j < 32; j++) {
+            mConfigs[i][j].profile = (1ul << PROFILE_CBP);
+            mConfigs[i][j].level = (1ul << LEVEL_31);
+        }
     }
 }
 
@@ -92,118 +207,7 @@ bool VideoFormats::GetConfiguration(
         return false;
     }
 
-    static const struct config_t {
-        size_t width, height, framesPerSecond;
-        bool interlaced;
-    } kConfigs[kNumResolutionTypes][32] = {
-        {
-            // CEA Resolutions
-            { 640, 480, 60, false },
-            { 720, 480, 60, false },
-            { 720, 480, 60, true },
-            { 720, 576, 50, false },
-            { 720, 576, 50, true },
-            { 1280, 720, 30, false },
-            { 1280, 720, 60, false },
-            { 1920, 1080, 30, false },
-            { 1920, 1080, 60, false },
-            { 1920, 1080, 60, true },
-            { 1280, 720, 25, false },
-            { 1280, 720, 50, false },
-            { 1920, 1080, 25, false },
-            { 1920, 1080, 50, false },
-            { 1920, 1080, 50, true },
-            { 1280, 720, 24, false },
-            { 1920, 1080, 24, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-        },
-        {
-            // VESA Resolutions
-            { 800, 600, 30, false },
-            { 800, 600, 60, false },
-            { 1024, 768, 30, false },
-            { 1024, 768, 60, false },
-            { 1152, 864, 30, false },
-            { 1152, 864, 60, false },
-            { 1280, 768, 30, false },
-            { 1280, 768, 60, false },
-            { 1280, 800, 30, false },
-            { 1280, 800, 60, false },
-            { 1360, 768, 30, false },
-            { 1360, 768, 60, false },
-            { 1366, 768, 30, false },
-            { 1366, 768, 60, false },
-            { 1280, 1024, 30, false },
-            { 1280, 1024, 60, false },
-            { 1400, 1050, 30, false },
-            { 1400, 1050, 60, false },
-            { 1440, 900, 30, false },
-            { 1440, 900, 60, false },
-            { 1600, 900, 30, false },
-            { 1600, 900, 60, false },
-            { 1600, 1200, 30, false },
-            { 1600, 1200, 60, false },
-            { 1680, 1024, 30, false },
-            { 1680, 1024, 60, false },
-            { 1680, 1050, 30, false },
-            { 1680, 1050, 60, false },
-            { 1920, 1200, 30, false },
-            { 1920, 1200, 60, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-        },
-        {
-            // HH Resolutions
-            { 800, 480, 30, false },
-            { 800, 480, 60, false },
-            { 854, 480, 30, false },
-            { 854, 480, 60, false },
-            { 864, 480, 30, false },
-            { 864, 480, 60, false },
-            { 640, 360, 30, false },
-            { 640, 360, 60, false },
-            { 960, 540, 30, false },
-            { 960, 540, 60, false },
-            { 848, 480, 30, false },
-            { 848, 480, 60, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-            { 0, 0, 0, false },
-        }
-    };
-
-    const config_t *config = &kConfigs[type][index];
+    const config_t *config = &mConfigs[type][index];
 
     if (config->width == 0) {
         return false;
@@ -228,22 +232,53 @@ bool VideoFormats::GetConfiguration(
     return true;
 }
 
+bool VideoFormats::parseH264Codec(const char *spec) {
+    unsigned profile, level, res[3];
+
+    if (sscanf(
+            spec,
+            "%02x %02x %08X %08X %08X",
+            &profile,
+            &level,
+            &res[0],
+            &res[1],
+            &res[2]) != 5) {
+        return false;
+    }
+
+    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
+        for (size_t j = 0; j < 32; ++j) {
+            if (res[i] & (1ul << j)){
+                mResolutionEnabled[i] |= (1ul << j);
+                if (profile > mConfigs[i][j].profile) {
+                    mConfigs[i][j].profile = profile;
+                    if (level > mConfigs[i][j].level)
+                        mConfigs[i][j].level = level;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 bool VideoFormats::parseFormatSpec(const char *spec) {
     CHECK_EQ(kNumResolutionTypes, 3);
 
     unsigned native, dummy;
+    unsigned res[3];
+    size_t size = strlen(spec);
+    size_t offset = 0;
 
-    if (sscanf(
-            spec,
-            "%02x %02x %02x %02x %08X %08X %08X",
-            &native,
-            &dummy,
-            &dummy,
-            &dummy,
-            &mResolutionEnabled[0],
-            &mResolutionEnabled[1],
-            &mResolutionEnabled[2]) != 7) {
+    if (sscanf(spec, "%02x %02x ", &native, &dummy) != 2) {
         return false;
+    }
+
+    offset += 6; // skip native and preferred-display-mode-supported
+    CHECK_LE(offset + 58, size);
+    while (offset < size) {
+        parseH264Codec(spec + offset);
+        offset += 60; // skip H.264-codec + ", "
     }
 
     mNativeIndex = native >> 3;
