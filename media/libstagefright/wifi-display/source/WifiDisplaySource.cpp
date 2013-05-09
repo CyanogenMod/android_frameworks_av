@@ -635,8 +635,9 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
                 "wfd_presentation_URL: rtsp://%s/wfd1.0/streamid=0 none\r\n",
                 mClientInfo.mLocalIP.c_str()));
 
-    body.append(mWfdClientRtpPorts);
-    body.append("\r\n");
+    body.append(
+            StringPrintf(
+                "wfd_client_rtp_ports: %s\r\n", mWfdClientRtpPorts.c_str()));
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
