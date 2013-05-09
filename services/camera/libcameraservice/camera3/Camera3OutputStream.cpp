@@ -152,15 +152,23 @@ status_t Camera3OutputStream::returnBufferLocked(
                 mId);
         return INVALID_OPERATION;
     }
+
+    sp<Fence> releaseFence;
+
+    /**
+     * Fence management - calculate Release Fence
+     */
     if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
-        res = mConsumer->cancelBuffer(mConsumer.get(),
-                container_of(buffer.buffer, ANativeWindowBuffer, handle),
-                buffer.release_fence);
-        if (res != OK) {
-            ALOGE("%s: Stream %d: Error cancelling buffer to native window:"
-                    " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
-            return res;
+        if (buffer.release_fence != -1) {
+            ALOGE("%s: Stream %d: HAL should not set release_fence(%d) when "
+                  "there is an error", __FUNCTION__, mId, buffer.release_fence);
+            close(buffer.release_fence);
         }
+
+        /**
+         * Reassign release fence as the acquire fence in case of error
+         */
+        releaseFence = new Fence(buffer.acquire_fence);
     } else {
         res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
         if (res != OK) {
@@ -169,21 +177,39 @@ status_t Camera3OutputStream::returnBufferLocked(
             return res;
         }
 
-        sp<Fence> releaseFence = new Fence(buffer.release_fence);
-        int anwReleaseFence = releaseFence->dup();
+        releaseFence = new Fence(buffer.release_fence);
+    }
 
+    int anwReleaseFence = releaseFence->dup();
+
+    /**
+     * Return buffer back to ANativeWindow
+     */
+    if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
+        // Cancel buffer
+        res = mConsumer->cancelBuffer(mConsumer.get(),
+                container_of(buffer.buffer, ANativeWindowBuffer, handle),
+                anwReleaseFence);
+        if (res != OK) {
+            ALOGE("%s: Stream %d: Error cancelling buffer to native window:"
+                    " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
+        }
+    } else {
         res = mConsumer->queueBuffer(mConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
         if (res != OK) {
             ALOGE("%s: Stream %d: Error queueing buffer to native window: %s (%d)",
                     __FUNCTION__, mId, strerror(-res), res);
-            close(anwReleaseFence);
-            return res;
         }
-
-        mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
     }
+
+    if (res != OK) {
+        close(anwReleaseFence);
+        return res;
+    }
+
+    mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
 
     mDequeuedBufferCount--;
     mBufferReturnedSignal.signal();
