@@ -19,13 +19,14 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <cutils/compiler.h>
 
 #include <media/AudioBufferProvider.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
 
-class AudioResampler {
+class ANDROID_API AudioResampler {
 public:
     // Determines quality of SRC.
     //  LOW_QUALITY: linear interpolator (1st order)

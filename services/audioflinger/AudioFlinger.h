@@ -24,6 +24,8 @@
 
 #include <common_time/cc_helper.h>
 
+#include <cutils/compiler.h>
+
 #include <media/IAudioFlinger.h>
 #include <media/IAudioFlingerClient.h>
 #include <media/IAudioTrack.h>
@@ -89,7 +91,7 @@ class AudioFlinger :
 {
     friend class BinderService<AudioFlinger>;   // for AudioFlinger()
 public:
-    static const char* getServiceName() { return "media.audio_flinger"; }
+    static const char* getServiceName() ANDROID_API { return "media.audio_flinger"; }
 
     virtual     status_t    dump(int fd, const Vector<String16>& args);
 
@@ -278,7 +280,7 @@ private:
 
                 bool        btNrecIsOff() const { return mBtNrecIsOff; }
 
-                            AudioFlinger();
+                            AudioFlinger() ANDROID_API;
     virtual                 ~AudioFlinger();
 
     // call in any IAudioFlinger method that accesses mPrimaryHardwareDev

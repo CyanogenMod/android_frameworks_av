@@ -81,6 +81,8 @@ else
     LOCAL_CFLAGS += -DANDROID_SMP=0
 endif
 
+LOCAL_CFLAGS += -fvisibility=hidden
+
 include $(BUILD_SHARED_LIBRARY)
 
 #

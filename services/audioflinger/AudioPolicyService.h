@@ -19,6 +19,7 @@
 
 #include <cutils/misc.h>
 #include <cutils/config_utils.h>
+#include <cutils/compiler.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
@@ -44,7 +45,7 @@ class AudioPolicyService :
 
 public:
     // for BinderService
-    static const char *getServiceName() { return "media.audio_policy"; }
+    static const char *getServiceName() ANDROID_API { return "media.audio_policy"; }
 
     virtual status_t    dump(int fd, const Vector<String16>& args);
 
@@ -137,7 +138,7 @@ public:
     virtual status_t setVoiceVolume(float volume, int delayMs = 0);
 
 private:
-                        AudioPolicyService();
+                        AudioPolicyService() ANDROID_API;
     virtual             ~AudioPolicyService();
 
             status_t dumpInternals(int fd);
