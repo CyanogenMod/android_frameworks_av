@@ -18,9 +18,6 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
-// This is needed for stdint.h to define INT64_MAX in C++
-#define __STDC_LIMIT_MACROS
-
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include "Camera3OutputStream.h"
@@ -37,15 +34,11 @@ namespace camera3 {
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format) :
-        Camera3Stream(id, CAMERA3_STREAM_OUTPUT, width, height, 0, format),
+        Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
+                            /*maxSize*/0, format),
         mConsumer(consumer),
-        mTransform(0),
-        mTotalBufferCount(0),
-        mDequeuedBufferCount(0),
-        mFrameCount(0),
-        mLastTimestamp(0) {
+        mTransform(0) {
 
-    mCombinedFence = new Fence();
     if (mConsumer == NULL) {
         ALOGE("%s: Consumer is NULL!", __FUNCTION__);
         mState = STATE_ERROR;
@@ -55,16 +48,10 @@ Camera3OutputStream::Camera3OutputStream(int id,
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, size_t maxSize, int format) :
-        Camera3Stream(id, CAMERA3_STREAM_OUTPUT,
-                width, height, maxSize, format),
+        Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
+                            format),
         mConsumer(consumer),
-        mTransform(0),
-        mTotalBufferCount(0),
-        mDequeuedBufferCount(0),
-        mFrameCount(0),
-        mLastTimestamp(0) {
-
-    mCombinedFence = new Fence();
+        mTransform(0) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
@@ -78,6 +65,18 @@ Camera3OutputStream::Camera3OutputStream(int id,
     }
 }
 
+Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
+                                         uint32_t width, uint32_t height,
+                                         int format) :
+        Camera3IOStreamBase(id, type, width, height,
+                            /*maxSize*/0,
+                            format),
+        mTransform(0) {
+
+    // Subclasses expected to initialize mConsumer themselves
+}
+
+
 Camera3OutputStream::~Camera3OutputStream() {
     disconnectLocked();
 }
@@ -86,21 +85,8 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     status_t res;
 
-    // Allow dequeue during IN_[RE]CONFIG for registration
-    if (mState != STATE_CONFIGURED &&
-            mState != STATE_IN_CONFIG && mState != STATE_IN_RECONFIG) {
-        ALOGE("%s: Stream %d: Can't get buffers in unconfigured state %d",
-                __FUNCTION__, mId, mState);
-        return INVALID_OPERATION;
-    }
-
-    // Only limit dequeue amount when fully configured
-    if (mState == STATE_CONFIGURED &&
-            mDequeuedBufferCount == camera3_stream::max_buffers) {
-        ALOGE("%s: Stream %d: Already dequeued maximum number of simultaneous"
-                " buffers (%d)", __FUNCTION__, mId,
-                camera3_stream::max_buffers);
-        return INVALID_OPERATION;
+    if ((res = getBufferPreconditionCheckLocked()) != OK) {
+        return res;
     }
 
     ANativeWindowBuffer* anb;
@@ -113,15 +99,12 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
         return res;
     }
 
-    // Handing out a raw pointer to this object. Increment internal refcount.
-    incStrong(this);
-    buffer->stream = this;
-    buffer->buffer = &(anb->handle);
-    buffer->acquire_fence = fenceFd;
-    buffer->release_fence = -1;
-    buffer->status = CAMERA3_BUFFER_STATUS_OK;
-
-    mDequeuedBufferCount++;
+    /**
+     * FenceFD now owned by HAL except in case of error,
+     * in which case we reassign it to acquire_fence
+     */
+    handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
+                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
 
     return OK;
 }
@@ -130,29 +113,29 @@ status_t Camera3OutputStream::returnBufferLocked(
         const camera3_stream_buffer &buffer,
         nsecs_t timestamp) {
     ATRACE_CALL();
+
+    status_t res = returnAnyBufferLocked(buffer, timestamp, /*output*/true);
+
+    if (res != OK) {
+        return res;
+    }
+
+    mLastTimestamp = timestamp;
+
+    return OK;
+}
+
+status_t Camera3OutputStream::returnBufferCheckedLocked(
+            const camera3_stream_buffer &buffer,
+            nsecs_t timestamp,
+            bool output,
+            /*out*/
+            sp<Fence> *releaseFenceOut) {
+
+    (void)output;
+    ALOG_ASSERT(output, "Expected output to be true");
+
     status_t res;
-
-    // returnBuffer may be called from a raw pointer, not a sp<>, and we'll be
-    // decrementing the internal refcount next. In case this is the last ref, we
-    // might get destructed on the decStrong(), so keep an sp around until the
-    // end of the call - otherwise have to sprinkle the decStrong on all exit
-    // points.
-    sp<Camera3OutputStream> keepAlive(this);
-    decStrong(this);
-
-    // Allow buffers to be returned in the error state, to allow for disconnect
-    // and in the in-config states for registration
-    if (mState == STATE_CONSTRUCTED) {
-        ALOGE("%s: Stream %d: Can't return buffers in unconfigured state %d",
-                __FUNCTION__, mId, mState);
-        return INVALID_OPERATION;
-    }
-    if (mDequeuedBufferCount == 0) {
-        ALOGE("%s: Stream %d: No buffers outstanding to return", __FUNCTION__,
-                mId);
-        return INVALID_OPERATION;
-    }
-
     sp<Fence> releaseFence;
 
     /**
@@ -173,7 +156,7 @@ status_t Camera3OutputStream::returnBufferLocked(
         res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
         if (res != OK) {
             ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
-                    __FUNCTION__, mId, strerror(-res), res);
+                  __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
 
@@ -192,15 +175,15 @@ status_t Camera3OutputStream::returnBufferLocked(
                 anwReleaseFence);
         if (res != OK) {
             ALOGE("%s: Stream %d: Error cancelling buffer to native window:"
-                    " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
+                  " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     } else {
         res = mConsumer->queueBuffer(mConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
         if (res != OK) {
-            ALOGE("%s: Stream %d: Error queueing buffer to native window: %s (%d)",
-                    __FUNCTION__, mId, strerror(-res), res);
+            ALOGE("%s: Stream %d: Error queueing buffer to native window: "
+                  "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     }
 
@@ -209,89 +192,18 @@ status_t Camera3OutputStream::returnBufferLocked(
         return res;
     }
 
-    mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
-
-    mDequeuedBufferCount--;
-    mBufferReturnedSignal.signal();
-    mLastTimestamp = timestamp;
+    *releaseFenceOut = releaseFence;
 
     return OK;
-}
-
-bool Camera3OutputStream::hasOutstandingBuffersLocked() const {
-    nsecs_t signalTime = mCombinedFence->getSignalTime();
-    ALOGV("%s: Stream %d: Has %d outstanding buffers,"
-            " buffer signal time is %lld",
-            __FUNCTION__, mId, mDequeuedBufferCount, signalTime);
-    if (mDequeuedBufferCount > 0 || signalTime == INT64_MAX) {
-        return true;
-    }
-    return false;
-}
-
-status_t Camera3OutputStream::waitUntilIdle(nsecs_t timeout) {
-    status_t res;
-    {
-        Mutex::Autolock l(mLock);
-        while (mDequeuedBufferCount > 0) {
-            if (timeout != TIMEOUT_NEVER) {
-                nsecs_t startTime = systemTime();
-                res = mBufferReturnedSignal.waitRelative(mLock, timeout);
-                if (res == TIMED_OUT) {
-                    return res;
-                } else if (res != OK) {
-                    ALOGE("%s: Error waiting for outstanding buffers: %s (%d)",
-                            __FUNCTION__, strerror(-res), res);
-                    return res;
-                }
-                nsecs_t deltaTime = systemTime() - startTime;
-                if (timeout <= deltaTime) {
-                    timeout = 0;
-                } else {
-                    timeout -= deltaTime;
-                }
-            } else {
-                res = mBufferReturnedSignal.wait(mLock);
-                if (res != OK) {
-                    ALOGE("%s: Error waiting for outstanding buffers: %s (%d)",
-                            __FUNCTION__, strerror(-res), res);
-                    return res;
-                }
-            }
-        }
-    }
-
-    // No lock
-
-    unsigned int timeoutMs;
-    if (timeout == TIMEOUT_NEVER) {
-        timeoutMs = Fence::TIMEOUT_NEVER;
-    } else if (timeout == 0) {
-        timeoutMs = 0;
-    } else {
-        // Round up to wait at least 1 ms
-        timeoutMs = (timeout + 999999) / 1000000;
-    }
-
-    return mCombinedFence->wait(timeoutMs);
 }
 
 void Camera3OutputStream::dump(int fd, const Vector<String16> &args) const {
     (void) args;
     String8 lines;
     lines.appendFormat("    Stream[%d]: Output\n", mId);
-    lines.appendFormat("      State: %d\n", mState);
-    lines.appendFormat("      Dims: %d x %d, format 0x%x\n",
-            camera3_stream::width, camera3_stream::height,
-            camera3_stream::format);
-    lines.appendFormat("      Max size: %d\n", mMaxSize);
-    lines.appendFormat("      Usage: %d, max HAL buffers: %d\n",
-            camera3_stream::usage, camera3_stream::max_buffers);
-    lines.appendFormat("      Frames produced: %d, last timestamp: %lld ns\n",
-            mFrameCount, mLastTimestamp);
-    lines.appendFormat("      Total buffers: %d, currently dequeued: %d\n",
-            mTotalBufferCount, mDequeuedBufferCount);
     write(fd, lines.string(), lines.size());
+
+    Camera3IOStreamBase::dump(fd, args);
 }
 
 status_t Camera3OutputStream::setTransform(int transform) {
@@ -322,20 +234,11 @@ status_t Camera3OutputStream::setTransformLocked(int transform) {
 status_t Camera3OutputStream::configureQueueLocked() {
     status_t res;
 
-    switch (mState) {
-        case STATE_IN_RECONFIG:
-            res = disconnectLocked();
-            if (res != OK) {
-                return res;
-            }
-            break;
-        case STATE_IN_CONFIG:
-            // OK
-            break;
-        default:
-            ALOGE("%s: Bad state: %d", __FUNCTION__, mState);
-            return INVALID_OPERATION;
+    if ((res = Camera3IOStreamBase::configureQueueLocked()) != OK) {
+        return res;
     }
+
+    ALOG_ASSERT(mConsumer != 0, "mConsumer should never be NULL");
 
     // Configure consumer-side ANativeWindow interface
     res = native_window_api_connect(mConsumer.get(),
@@ -420,30 +323,15 @@ status_t Camera3OutputStream::configureQueueLocked() {
     return OK;
 }
 
-size_t Camera3OutputStream::getBufferCountLocked() {
-    return mTotalBufferCount;
-}
-
 status_t Camera3OutputStream::disconnectLocked() {
     status_t res;
 
-    switch (mState) {
-        case STATE_IN_RECONFIG:
-        case STATE_CONFIGURED:
-            // OK
-            break;
-        default:
-            // No connection, nothing to do
-            return OK;
+    if ((res = Camera3IOStreamBase::disconnectLocked()) != OK) {
+        return res;
     }
 
-    if (mDequeuedBufferCount > 0) {
-        ALOGE("%s: Can't disconnect with %d buffers still dequeued!",
-                __FUNCTION__, mDequeuedBufferCount);
-        return INVALID_OPERATION;
-    }
-
-    res = native_window_api_disconnect(mConsumer.get(), NATIVE_WINDOW_API_CAMERA);
+    res = native_window_api_disconnect(mConsumer.get(),
+                                       NATIVE_WINDOW_API_CAMERA);
 
     /**
      * This is not an error. if client calling process dies, the window will
@@ -455,13 +343,15 @@ status_t Camera3OutputStream::disconnectLocked() {
                 " native window died from under us", __FUNCTION__, mId);
     }
     else if (res != OK) {
-        ALOGE("%s: Unable to disconnect stream %d from native window (error %d %s)",
-                __FUNCTION__, mId, res, strerror(-res));
+        ALOGE("%s: Unable to disconnect stream %d from native window "
+              "(error %d %s)",
+              __FUNCTION__, mId, res, strerror(-res));
         mState = STATE_ERROR;
         return res;
     }
 
-    mState = (mState == STATE_IN_RECONFIG) ? STATE_IN_CONFIG : STATE_CONSTRUCTED;
+    mState = (mState == STATE_IN_RECONFIG) ? STATE_IN_CONFIG
+                                           : STATE_CONSTRUCTED;
     return OK;
 }
 
