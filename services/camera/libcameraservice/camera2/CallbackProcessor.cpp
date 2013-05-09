@@ -26,6 +26,7 @@
 #include "../CameraDeviceBase.h"
 #include "../Camera2Client.h"
 
+#define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
 
 namespace android {
 namespace camera2 {
@@ -64,6 +65,14 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         return INVALID_OPERATION;
     }
 
+    // If possible, use the flexible YUV format
+    int32_t callbackFormat = params.previewFormat;
+    if (params.fastInfo.useFlexibleYuv &&
+            (params.previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP ||
+             params.previewFormat == HAL_PIXEL_FORMAT_YV12) ) {
+        callbackFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
+    }
+
     if (mCallbackConsumer == 0) {
         // Create CPU buffer queue endpoint
         mCallbackConsumer = new CpuConsumer(kCallbackHeapCount);
@@ -86,12 +95,12 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         }
         if (currentWidth != (uint32_t)params.previewWidth ||
                 currentHeight != (uint32_t)params.previewHeight ||
-                currentFormat != (uint32_t)params.previewFormat) {
+                currentFormat != (uint32_t)callbackFormat) {
             // Since size should only change while preview is not running,
             // assuming that all existing use of old callback stream is
             // completed.
-            ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
-                __FUNCTION__, mId, mCallbackStreamId);
+            ALOGV("%s: Camera %d: Deleting stream %d since the buffer "
+                    "parameters changed", __FUNCTION__, mId, mCallbackStreamId);
             res = device->deleteStream(mCallbackStreamId);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
@@ -104,12 +113,12 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
     }
 
     if (mCallbackStreamId == NO_STREAM) {
-        ALOGV("Creating callback stream: %d %d format 0x%x",
+        ALOGV("Creating callback stream: %d x %d, format 0x%x, API format 0x%x",
                 params.previewWidth, params.previewHeight,
-                params.previewFormat);
+                callbackFormat, params.previewFormat);
         res = device->createStream(mCallbackWindow,
                 params.previewWidth, params.previewHeight,
-                params.previewFormat, 0, &mCallbackStreamId);
+                callbackFormat, 0, &mCallbackStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for callbacks: "
                     "%s (%d)", __FUNCTION__, mId,
@@ -220,6 +229,8 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     ALOGV("%s: Camera %d: Preview callback available", __FUNCTION__,
             mId);
 
+    bool useFlexibleYuv = false;
+    int32_t previewFormat = 0;
     {
         SharedParameters::Lock l(client->getParameters());
 
@@ -246,10 +257,18 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             return OK;
         }
 
-        if (imgBuffer.format != l.mParameters.previewFormat) {
+        previewFormat = l.mParameters.previewFormat;
+        useFlexibleYuv = l.mParameters.fastInfo.useFlexibleYuv &&
+                (previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP ||
+                 previewFormat == HAL_PIXEL_FORMAT_YV12);
+
+        int32_t expectedFormat = useFlexibleYuv ?
+                HAL_PIXEL_FORMAT_YCbCr_420_888 : previewFormat;
+
+        if (imgBuffer.format != expectedFormat) {
             ALOGE("%s: Camera %d: Unexpected format for callback: "
-                    "%x, expected %x", __FUNCTION__, mId,
-                    imgBuffer.format, l.mParameters.previewFormat);
+                    "0x%x, expected 0x%x", __FUNCTION__, mId,
+                    imgBuffer.format, expectedFormat);
             mCallbackConsumer->unlockBuffer(imgBuffer);
             return INVALID_OPERATION;
         }
@@ -262,9 +281,28 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
         }
     }
 
+    uint32_t destYStride = 0;
+    uint32_t destCStride = 0;
+    if (useFlexibleYuv) {
+        if (previewFormat == HAL_PIXEL_FORMAT_YV12) {
+            // Strides must align to 16 for YV12
+            destYStride = ALIGN(imgBuffer.width, 16);
+            destCStride = ALIGN(destYStride / 2, 16);
+        } else {
+            // No padding for NV21
+            ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP,
+                    "Unexpected preview format 0x%x", previewFormat);
+            destYStride = imgBuffer.width;
+            destCStride = destYStride / 2;
+        }
+    } else {
+        destYStride = imgBuffer.stride;
+        // don't care about cStride
+    }
+
     size_t bufferSize = Camera2Client::calculateBufferSize(
             imgBuffer.width, imgBuffer.height,
-            imgBuffer.format, imgBuffer.stride);
+            previewFormat, destYStride);
     size_t currentBufferSize = (mCallbackHeap == 0) ?
             0 : (mCallbackHeap->mHeap->getSize() / kCallbackHeapCount);
     if (bufferSize != currentBufferSize) {
@@ -294,7 +332,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     mCallbackHeapHead = (mCallbackHeapHead + 1) & kCallbackHeapCount;
     mCallbackHeapFree--;
 
-    // TODO: Get rid of this memcpy by passing the gralloc queue all the way
+    // TODO: Get rid of this copy by passing the gralloc queue all the way
     // to app
 
     ssize_t offset;
@@ -303,7 +341,20 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             mCallbackHeap->mBuffers[heapIdx]->getMemory(&offset,
                     &size);
     uint8_t *data = (uint8_t*)heap->getBase() + offset;
-    memcpy(data, imgBuffer.data, bufferSize);
+
+    if (!useFlexibleYuv) {
+        // Can just memcpy when HAL format matches API format
+        memcpy(data, imgBuffer.data, bufferSize);
+    } else {
+        res = convertFromFlexibleYuv(previewFormat, data, imgBuffer,
+                destYStride, destCStride);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't convert between 0x%x and 0x%x formats!",
+                    __FUNCTION__, mId, imgBuffer.format, previewFormat);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return BAD_VALUE;
+        }
+    }
 
     ALOGV("%s: Freeing buffer", __FUNCTION__);
     mCallbackConsumer->unlockBuffer(imgBuffer);
@@ -324,6 +375,73 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     mCallbackHeapFree++;
 
     ALOGV("%s: exit", __FUNCTION__);
+
+    return OK;
+}
+
+status_t CallbackProcessor::convertFromFlexibleYuv(int32_t previewFormat,
+        uint8_t *dst,
+        const CpuConsumer::LockedBuffer &src,
+        uint32_t dstYStride,
+        uint32_t dstCStride) const {
+
+    if (previewFormat != HAL_PIXEL_FORMAT_YCrCb_420_SP &&
+            previewFormat != HAL_PIXEL_FORMAT_YV12) {
+        ALOGE("%s: Camera %d: Unexpected preview format when using "
+                "flexible YUV: 0x%x", __FUNCTION__, mId, previewFormat);
+        return INVALID_OPERATION;
+    }
+
+    // Copy Y plane, adjusting for stride
+    const uint8_t *ySrc = src.data;
+    uint8_t *yDst = dst;
+    for (size_t row = 0; row < src.height; row++) {
+        memcpy(yDst, ySrc, src.width);
+        ySrc += src.stride;
+        yDst += dstYStride;
+    }
+
+    // Copy/swizzle chroma planes, 4:2:0 subsampling
+    const uint8_t *uSrc = src.dataCb;
+    const uint8_t *vSrc = src.dataCr;
+    size_t chromaHeight = src.height / 2;
+    size_t chromaWidth = src.width / 2;
+    ssize_t chromaGap = src.chromaStride -
+            (chromaWidth * src.chromaStep);
+    size_t dstChromaGap = dstCStride - chromaWidth;
+
+    if (previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+        // NV21
+        uint8_t *vuDst = yDst;
+        for (size_t row = 0; row < chromaHeight; row++) {
+            for (size_t col = 0; col < chromaWidth; col++) {
+                *(vuDst++) = *vSrc;
+                *(vuDst++) = *uSrc;
+                vSrc += src.chromaStep;
+                uSrc += src.chromaStep;
+            }
+            vSrc += chromaGap;
+            uSrc += chromaGap;
+        }
+    } else {
+        // YV12
+        ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YV12,
+                "Unexpected preview format 0x%x", previewFormat);
+        uint8_t *vDst = yDst;
+        uint8_t *uDst = yDst + chromaHeight * dstCStride;
+        for (size_t row = 0; row < chromaHeight; row++) {
+            for (size_t col = 0; col < chromaWidth; col++) {
+                *(vDst++) = *vSrc;
+                *(uDst++) = *uSrc;
+                vSrc += src.chromaStep;
+                uSrc += src.chromaStep;
+            }
+            vSrc += chromaGap;
+            uSrc += chromaGap;
+            vDst += dstChromaGap;
+            uDst += dstChromaGap;
+        }
+    }
 
     return OK;
 }
