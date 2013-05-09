@@ -185,6 +185,7 @@ struct Parameters {
         };
         DefaultKeyedVector<uint8_t, OverrideModes> sceneModeOverrides;
         float minFocalLength;
+        bool useFlexibleYuv;
     } fastInfo;
 
     // Quirks information; these are short-lived flags to enable workarounds for

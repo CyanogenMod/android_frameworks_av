@@ -82,6 +82,13 @@ class CallbackProcessor:
     status_t processNewCallback(sp<Camera2Client> &client);
     // Used when shutting down
     status_t discardNewCallback();
+
+    // Convert from flexible YUV to NV21 or YV12
+    status_t convertFromFlexibleYuv(int32_t previewFormat,
+            uint8_t *dst,
+            const CpuConsumer::LockedBuffer &src,
+            uint32_t dstYStride,
+            uint32_t dstCStride) const;
 };
 
 

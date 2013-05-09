@@ -152,7 +152,16 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                 supportedPreviewFormats +=
                     CameraParameters::PIXEL_FORMAT_RGBA8888;
                 break;
+            case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                // Flexible YUV allows both YV12 and NV21
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV420P;
+                supportedPreviewFormats += ",";
+                supportedPreviewFormats +=
+                    CameraParameters::PIXEL_FORMAT_YUV420SP;
+                break;
             // Not advertizing JPEG, RAW_SENSOR, etc, for preview formats
+            case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
             case HAL_PIXEL_FORMAT_RAW_SENSOR:
             case HAL_PIXEL_FORMAT_BLOB:
                 addComma = false;
@@ -864,6 +873,11 @@ status_t Parameters::buildFastInfo() {
         staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
     if (!availableFocalLengths.count) return NO_INIT;
 
+    camera_metadata_ro_entry_t availableFormats =
+        staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
+    if (!availableFormats.count) return NO_INIT;
+
+
     if (sceneModeOverrides.count > 0) {
         // sceneModeOverrides is defined to have 3 entries for each scene mode,
         // which are AE, AWB, and AF override modes the HAL wants for that scene
@@ -940,6 +954,17 @@ status_t Parameters::buildFastInfo() {
             fastInfo.minFocalLength = availableFocalLengths.data.f[i];
         }
     }
+
+    // Check if the HAL supports HAL_PIXEL_FORMAT_YCbCr_420_888
+    fastInfo.useFlexibleYuv = false;
+    for (size_t i = 0; i < availableFormats.count; i++) {
+        if (availableFormats.data.i32[i] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+            fastInfo.useFlexibleYuv = true;
+            break;
+        }
+    }
+    ALOGV("Camera %d: Flexible YUV %s supported",
+            cameraId, fastInfo.useFlexibleYuv ? "is" : "is not");
 
     return OK;
 }
@@ -1086,15 +1111,24 @@ status_t Parameters::set(const String8& paramString) {
         }
         camera_metadata_ro_entry_t availableFormats =
             staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
-        for (i = 0; i < availableFormats.count; i++) {
-            if (availableFormats.data.i32[i] == validatedParams.previewFormat)
-                break;
-        }
-        if (i == availableFormats.count) {
-            ALOGE("%s: Requested preview format %s (0x%x) is not supported",
-                    __FUNCTION__, newParams.getPreviewFormat(),
-                    validatedParams.previewFormat);
-            return BAD_VALUE;
+        // If using flexible YUV, always support NV21/YV12. Otherwise, check
+        // HAL's list.
+        if (! (fastInfo.useFlexibleYuv &&
+                (validatedParams.previewFormat ==
+                        HAL_PIXEL_FORMAT_YCrCb_420_SP ||
+                 validatedParams.previewFormat ==
+                        HAL_PIXEL_FORMAT_YV12) ) ) {
+            // Not using flexible YUV format, so check explicitly
+            for (i = 0; i < availableFormats.count; i++) {
+                if (availableFormats.data.i32[i] ==
+                        validatedParams.previewFormat) break;
+            }
+            if (i == availableFormats.count) {
+                ALOGE("%s: Requested preview format %s (0x%x) is not supported",
+                        __FUNCTION__, newParams.getPreviewFormat(),
+                        validatedParams.previewFormat);
+                return BAD_VALUE;
+            }
         }
     }
 
