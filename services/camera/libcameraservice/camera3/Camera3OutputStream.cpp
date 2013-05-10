@@ -361,11 +361,6 @@ status_t Camera3OutputStream::configureQueueLocked() {
         return res;
     }
 
-    res = setTransformLocked(0);
-    if (res != OK) {
-        return res;
-    }
-
     if (mMaxSize == 0) {
         // For buffers of known size
         res = native_window_set_buffers_geometry(mConsumer.get(),
