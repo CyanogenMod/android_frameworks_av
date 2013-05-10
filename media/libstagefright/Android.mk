@@ -66,6 +66,11 @@ LOCAL_SRC_FILES+=                         \
         FMA2DPWriter.cpp
 endif
 
+ifeq ($(BOARD_USES_BLITENGINE),true)
+LOCAL_SRC_FILES+=                         \
+        BlitEngine.cpp
+endif
+
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
