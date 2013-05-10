@@ -219,12 +219,12 @@ int main(int argc, char* argv[]) {
 
         memset(output_vaddr, 0, output_size);
         timespec start, end;
-        clock_gettime(CLOCK_MONOTONIC_HR, &start);
+        clock_gettime(CLOCK_MONOTONIC, &start);
         resampler->resample((int*) output_vaddr, out_frames, &provider);
         resampler->resample((int*) output_vaddr, out_frames, &provider);
         resampler->resample((int*) output_vaddr, out_frames, &provider);
         resampler->resample((int*) output_vaddr, out_frames, &provider);
-        clock_gettime(CLOCK_MONOTONIC_HR, &end);
+        clock_gettime(CLOCK_MONOTONIC, &end);
         int64_t start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
         int64_t end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
         int64_t time = (end_ns - start_ns)/4;
