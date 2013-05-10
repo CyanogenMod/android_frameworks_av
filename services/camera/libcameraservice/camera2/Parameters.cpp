@@ -2559,27 +2559,24 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
      * stream cropping.
      */
     if (quirks.meteringCropRegion) {
-        /**
-         * All streams are the same in height, so narrower aspect ratios will
-         * get cropped on the sides.  First find the largest (widest) aspect
-         * ratio, then calculate the crop of the still FOV based on that.
-         */
-        float cropAspect = arrayAspect;
-        float aspects[] = {
-            stillAspect,
-            static_cast<float>(previewWidth) / previewHeight,
-            static_cast<float>(videoWidth) / videoHeight
-        };
-        for (size_t i = 0; i < sizeof(aspects)/sizeof(aspects[0]); i++) {
-            if (cropAspect < aspects[i]) cropAspect = aspects[i];
+        // Use max of preview and video as first crop
+        float previewAspect = static_cast<float>(previewWidth) / previewHeight;
+        float videoAspect = static_cast<float>(videoWidth) / videoHeight;
+        if (videoAspect > previewAspect) {
+            previewAspect = videoAspect;
         }
-        ALOGV("Widest crop aspect: %f", cropAspect);
-        // Horizontal crop of still is done based on fitting in the widest
-        // aspect ratio
-        horizCropFactor = stillAspect / cropAspect;
-        // Vertical crop is a function of the array aspect ratio and the
-        // widest aspect ratio.
-        vertCropFactor = arrayAspect / cropAspect;
+        // First crop sensor to preview aspect ratio
+        if (arrayAspect < previewAspect) {
+            vertCropFactor = arrayAspect / previewAspect;
+        } else {
+            horizCropFactor = previewAspect / arrayAspect;
+        }
+        // Second crop to still aspect ratio
+        if (stillAspect < previewAspect) {
+            horizCropFactor *= stillAspect / previewAspect;
+        } else {
+            vertCropFactor *= previewAspect / stillAspect;
+        }
     } else {
         /**
          * Crop are just a function of just the still/array relative aspect
