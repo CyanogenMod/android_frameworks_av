@@ -445,35 +445,61 @@ status_t CallbackProcessor::convertFromFlexibleYuv(int32_t previewFormat,
     size_t dstChromaGap = dstCStride - chromaWidth;
 
     if (previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
-        // NV21
+        // Flexible YUV chroma to NV21 chroma
         uint8_t *vuDst = yDst;
-        for (size_t row = 0; row < chromaHeight; row++) {
-            for (size_t col = 0; col < chromaWidth; col++) {
-                *(vuDst++) = *vSrc;
-                *(vuDst++) = *uSrc;
-                vSrc += src.chromaStep;
-                uSrc += src.chromaStep;
+        // Check for shortcuts
+        if (uSrc == vSrc + 1 && src.chromaStep == 2) {
+            // Source has semiplanar CrCb chroma layout, can copy by rows
+            for (size_t row = 0; row < chromaHeight; row++) {
+                memcpy(vuDst, uSrc, src.width);
+                vuDst += src.width;
+                uSrc += src.chromaStride;
             }
-            vSrc += chromaGap;
-            uSrc += chromaGap;
+        } else {
+            // Generic copy, always works but not very efficient
+            for (size_t row = 0; row < chromaHeight; row++) {
+                for (size_t col = 0; col < chromaWidth; col++) {
+                    *(vuDst++) = *vSrc;
+                    *(vuDst++) = *uSrc;
+                    vSrc += src.chromaStep;
+                    uSrc += src.chromaStep;
+                }
+                vSrc += chromaGap;
+                uSrc += chromaGap;
+            }
         }
     } else {
-        // YV12
+        // flexible YUV chroma to YV12 chroma
         ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YV12,
                 "Unexpected preview format 0x%x", previewFormat);
         uint8_t *vDst = yDst;
         uint8_t *uDst = yDst + chromaHeight * dstCStride;
-        for (size_t row = 0; row < chromaHeight; row++) {
-            for (size_t col = 0; col < chromaWidth; col++) {
-                *(vDst++) = *vSrc;
-                *(uDst++) = *uSrc;
-                vSrc += src.chromaStep;
-                uSrc += src.chromaStep;
+        if (src.chromaStep == 1) {
+            // Source has planar chroma layout, can copy by row
+            for (size_t row = 0; row < chromaHeight; row++) {
+                memcpy(vDst, vSrc, chromaWidth);
+                vDst += dstCStride;
+                vSrc += src.chromaStride;
             }
-            vSrc += chromaGap;
-            uSrc += chromaGap;
-            vDst += dstChromaGap;
-            uDst += dstChromaGap;
+            for (size_t row = 0; row < chromaHeight; row++) {
+                memcpy(uDst, uSrc, chromaWidth);
+                uDst += dstCStride;
+                uSrc += src.chromaStride;
+            }
+        } else {
+            // Generic copy, always works but not very efficient
+            for (size_t row = 0; row < chromaHeight; row++) {
+                for (size_t col = 0; col < chromaWidth; col++) {
+                    *(vDst++) = *vSrc;
+                    *(uDst++) = *uSrc;
+                    vSrc += src.chromaStep;
+                    uSrc += src.chromaStep;
+                }
+                vSrc += chromaGap;
+                uSrc += chromaGap;
+                vDst += dstChromaGap;
+                uDst += dstChromaGap;
+            }
         }
     }
 
