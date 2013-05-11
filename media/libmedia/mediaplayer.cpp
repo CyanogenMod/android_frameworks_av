@@ -575,8 +575,8 @@ status_t MediaPlayer::setAudioSessionId(int sessionId)
         return BAD_VALUE;
     }
     if (sessionId != mAudioSessionId) {
-        AudioSystem::releaseAudioSessionId(mAudioSessionId);
         AudioSystem::acquireAudioSessionId(sessionId);
+        AudioSystem::releaseAudioSessionId(mAudioSessionId);
         mAudioSessionId = sessionId;
     }
     return NO_ERROR;
