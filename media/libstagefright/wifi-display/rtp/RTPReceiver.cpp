@@ -489,6 +489,8 @@ void RTPReceiver::Source::addReportBlock(
     ptr[21] = 0x00;
     ptr[22] = 0x00;
     ptr[23] = 0x00;
+
+    buf->setRange(buf->offset(), buf->size() + 24);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1012,7 +1014,6 @@ void RTPReceiver::scheduleSendRR() {
 }
 
 void RTPReceiver::onSendRR() {
-#if 0
     sp<ABuffer> buf = new ABuffer(kMaxUDPPacketSize);
     buf->setRange(0, 0);
 
@@ -1053,7 +1054,6 @@ void RTPReceiver::onSendRR() {
     addSDES(buf);
 
     mNetSession->sendRequest(mRTCPSessionID, buf->data(), buf->size());
-#endif
 
     scheduleSendRR();
 }
