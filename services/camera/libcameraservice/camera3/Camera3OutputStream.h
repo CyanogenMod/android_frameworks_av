@@ -21,6 +21,7 @@
 #include <gui/Surface.h>
 
 #include "Camera3Stream.h"
+#include "Camera3IOStreamBase.h"
 #include "Camera3OutputStreamInterface.h"
 
 namespace android {
@@ -31,7 +32,7 @@ namespace camera3 {
  * A class for managing a single stream of output data from the camera device.
  */
 class Camera3OutputStream :
-        public Camera3Stream,
+        public Camera3IOStreamBase,
         public Camera3OutputStreamInterface {
   public:
     /**
@@ -53,7 +54,6 @@ class Camera3OutputStream :
      * Camera3Stream interface
      */
 
-    virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
     /**
@@ -62,19 +62,22 @@ class Camera3OutputStream :
      */
     status_t         setTransform(int transform);
 
-  private:
+  protected:
+    Camera3OutputStream(int id, camera3_stream_type_t type,
+            uint32_t width, uint32_t height, int format);
+
+    virtual status_t returnBufferCheckedLocked(
+            const camera3_stream_buffer &buffer,
+            nsecs_t timestamp,
+            bool output,
+            /*out*/
+            sp<Fence> *releaseFenceOut);
+
     sp<ANativeWindow> mConsumer;
+  private:
     int               mTransform;
-    size_t            mTotalBufferCount;
-    size_t            mDequeuedBufferCount;
-    Condition         mBufferReturnedSignal;
-    uint32_t          mFrameCount;
-    nsecs_t           mLastTimestamp;
 
-    // The merged release fence for all returned buffers
-    sp<Fence>         mCombinedFence;
-
-    status_t         setTransformLocked(int transform);
+    virtual status_t  setTransformLocked(int transform);
 
     /**
      * Internal Camera3Stream interface
@@ -83,12 +86,9 @@ class Camera3OutputStream :
     virtual status_t returnBufferLocked(
             const camera3_stream_buffer &buffer,
             nsecs_t timestamp);
-    virtual bool     hasOutstandingBuffersLocked() const;
 
     virtual status_t configureQueueLocked();
-    virtual size_t   getBufferCountLocked();
     virtual status_t disconnectLocked();
-
 }; // class Camera3OutputStream
 
 } // namespace camera3
