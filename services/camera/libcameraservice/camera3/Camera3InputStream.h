@@ -21,7 +21,7 @@
 #include <gui/Surface.h>
 #include <gui/BufferItemConsumer.h>
 
-#include "Camera3Stream.h"
+#include "Camera3IOStreamBase.h"
 
 namespace android {
 
@@ -34,7 +34,7 @@ namespace camera3 {
  * buffers by feeding them into the HAL, as well as releasing the buffers back
  * the buffers once the HAL is done with them.
  */
-class Camera3InputStream : public Camera3Stream {
+class Camera3InputStream : public Camera3IOStreamBase {
   public:
     /**
      * Set up a stream for formats that have fixed size, such as RAW and YUV.
@@ -42,7 +42,6 @@ class Camera3InputStream : public Camera3Stream {
     Camera3InputStream(int id, uint32_t width, uint32_t height, int format);
     ~Camera3InputStream();
 
-    virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
     /**
@@ -58,14 +57,16 @@ class Camera3InputStream : public Camera3Stream {
 
     sp<BufferItemConsumer> mConsumer;
     Vector<BufferItem> mBuffersInFlight;
-    size_t            mTotalBufferCount;
-    size_t            mDequeuedBufferCount;
-    Condition         mBufferReturnedSignal;
-    uint32_t          mFrameCount;
-    nsecs_t           mLastTimestamp;
 
-    // The merged release fence for all returned buffers
-    sp<Fence>         mCombinedFence;
+    /**
+     * Camera3IOStreamBase
+     */
+    virtual status_t returnBufferCheckedLocked(
+            const camera3_stream_buffer &buffer,
+            nsecs_t timestamp,
+            bool output,
+            /*out*/
+            sp<Fence> *releaseFenceOut);
 
     /**
      * Camera3Stream interface
@@ -74,11 +75,9 @@ class Camera3InputStream : public Camera3Stream {
     virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
     virtual status_t returnInputBufferLocked(
             const camera3_stream_buffer &buffer);
-    virtual bool     hasOutstandingBuffersLocked() const;
     virtual status_t disconnectLocked();
 
     virtual status_t configureQueueLocked();
-    virtual size_t   getBufferCountLocked();
 
 }; // class Camera3InputStream
 
