@@ -21,8 +21,7 @@
 #include <gui/Surface.h>
 #include <gui/RingBufferConsumer.h>
 
-#include "Camera3Stream.h"
-#include "Camera3OutputStreamInterface.h"
+#include "Camera3OutputStream.h"
 
 namespace android {
 
@@ -35,8 +34,7 @@ namespace camera3 {
  * processing.
  */
 class Camera3ZslStream :
-        public Camera3Stream,
-        public Camera3OutputStreamInterface {
+        public Camera3OutputStream {
   public:
     /**
      * Set up a ZSL stream of a given resolution. Depth is the number of buffers
@@ -45,7 +43,6 @@ class Camera3ZslStream :
     Camera3ZslStream(int id, uint32_t width, uint32_t height, int depth);
     ~Camera3ZslStream();
 
-    virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
     enum { NO_BUFFER_AVAILABLE = BufferQueue::NO_BUFFER_AVAILABLE };
@@ -65,6 +62,8 @@ class Camera3ZslStream :
      */
     status_t clearInputRingBuffer();
 
+  protected:
+
     /**
      * Camera3OutputStreamInterface implementation
      */
@@ -76,41 +75,27 @@ class Camera3ZslStream :
     // Input buffers pending to be queued into HAL
     List<sp<RingBufferConsumer::PinnedBufferItem> > mInputBufferQueue;
     sp<RingBufferConsumer>                          mProducer;
-    sp<ANativeWindow>                               mConsumer;
 
     // Input buffers in flight to HAL
     Vector<sp<RingBufferConsumer::PinnedBufferItem> > mBuffersInFlight;
-    size_t                                          mTotalBufferCount;
-    // sum of input and output buffers that are currently acquired by HAL
-    size_t                                          mDequeuedBufferCount;
-    Condition                                       mBufferReturnedSignal;
-    uint32_t                                        mFrameCount;
-    // Last received output buffer's timestamp
-    nsecs_t                                         mLastTimestamp;
-
-    // The merged release fence for all returned buffers
-    sp<Fence>                                       mCombinedFence;
 
     /**
      * Camera3Stream interface
      */
 
-    // getBuffer/returnBuffer operate the output stream side of the ZslStream.
-    virtual status_t getBufferLocked(camera3_stream_buffer *buffer);
-    virtual status_t returnBufferLocked(const camera3_stream_buffer &buffer,
-            nsecs_t timestamp);
     // getInputBuffer/returnInputBuffer operate the input stream side of the
     // ZslStream.
     virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
     virtual status_t returnInputBufferLocked(
             const camera3_stream_buffer &buffer);
 
-    virtual bool     hasOutstandingBuffersLocked() const;
-    virtual status_t disconnectLocked();
-
-    virtual status_t configureQueueLocked();
-    virtual size_t   getBufferCountLocked();
-
+    // Actual body to return either input or output buffers
+    virtual status_t returnBufferCheckedLocked(
+            const camera3_stream_buffer &buffer,
+            nsecs_t timestamp,
+            bool output,
+            /*out*/
+            sp<Fence> *releaseFenceOut);
 }; // class Camera3ZslStream
 
 }; // namespace camera3

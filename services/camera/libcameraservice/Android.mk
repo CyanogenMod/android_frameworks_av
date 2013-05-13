@@ -27,6 +27,7 @@ LOCAL_SRC_FILES:=               \
     camera2/ProFrameProcessor.cpp \
     camera2/ZslProcessor3.cpp \
     camera3/Camera3Stream.cpp \
+    camera3/Camera3IOStreamBase.cpp \
     camera3/Camera3InputStream.cpp \
     camera3/Camera3OutputStream.cpp \
     camera3/Camera3ZslStream.cpp \
