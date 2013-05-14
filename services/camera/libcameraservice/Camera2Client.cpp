@@ -759,7 +759,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         outputStreams.push(getCallbackStreamId());
     }
     if (params.zslMode && !params.recordingHint) {
-        res = mZslProcessor->updateStream(params);
+        res = updateProcessorStream(mZslProcessor, params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to update ZSL stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -787,7 +787,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         // assumption that the user will record video. To optimize recording
         // startup time, create the necessary output streams for recording and
         // video snapshot now if they don't already exist.
-        res = mJpegProcessor->updateStream(params);
+        res = updateProcessorStream(mJpegProcessor, params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't pre-configure still image "
                     "stream: %s (%d)",
@@ -1196,7 +1196,7 @@ status_t Camera2Client::takePicture(int msgType) {
 
         ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
-        res = mJpegProcessor->updateStream(l.mParameters);
+        res = updateProcessorStream(mJpegProcessor, l.mParameters);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1676,5 +1676,47 @@ status_t Camera2Client::syncWithDevice() {
     return res;
 }
 
+template <typename ProcessorT>
+status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
+                                              camera2::Parameters params) {
+    status_t res;
+
+    res = processor->updateStream(params);
+
+    /**
+     * Can't update the stream if it's busy?
+     *
+     * Then we need to stop the device (by temporarily clearing the request
+     * queue) and then try again. Resume streaming once we're done.
+     */
+    if (res == -EBUSY) {
+        res = mStreamingProcessor->togglePauseStream(/*pause*/true);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't pause streaming: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+
+        res = mDevice->waitUntilDrained();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+
+        res = processor->updateStream(params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Failed to update processing stream "
+                  " despite having halted streaming first: %s (%d)",
+                  __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+
+        res = mStreamingProcessor->togglePauseStream(/*pause*/false);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't unpause streaming: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+    }
+
+    return res;
+}
 
 } // namespace android

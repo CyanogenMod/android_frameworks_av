@@ -113,7 +113,11 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
             ALOGV("%s: Camera %d: Deleting stream %d since the buffer dimensions changed",
                 __FUNCTION__, mId, mCaptureStreamId);
             res = device->deleteStream(mCaptureStreamId);
-            if (res != OK) {
+            if (res == -EBUSY) {
+                ALOGV("%s: Camera %d: Device is busy, call updateStream again "
+                      " after it becomes idle", __FUNCTION__, mId);
+                return res;
+            } else if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for capture: %s (%d)", __FUNCTION__,
                         mId, strerror(-res), res);
