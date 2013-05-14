@@ -65,6 +65,9 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     status_t startStream(StreamType type,
             const Vector<uint8_t> &outputStreams);
 
+    // Toggle between paused and unpaused. Stream must be started first.
+    status_t togglePauseStream(bool pause);
+
     status_t stopStream();
 
     // Returns the request ID for the currently streaming request
@@ -91,6 +94,7 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     int mId;
 
     StreamType mActiveRequest;
+    bool mPaused;
 
     // Preview-related members
     int32_t mPreviewRequestId;

@@ -36,6 +36,7 @@ StreamingProcessor::StreamingProcessor(sp<Camera2Client> client):
         mDevice(client->getCameraDevice()),
         mId(client->getCameraId()),
         mActiveRequest(NONE),
+        mPaused(false),
         mPreviewRequestId(Camera2Client::kPreviewRequestIdStart),
         mPreviewStreamId(NO_STREAM),
         mRecordingRequestId(Camera2Client::kRecordingRequestIdStart),
@@ -419,7 +420,56 @@ status_t StreamingProcessor::startStream(StreamType type,
         return res;
     }
     mActiveRequest = type;
+    mPaused = false;
 
+    return OK;
+}
+
+status_t StreamingProcessor::togglePauseStream(bool pause) {
+    ATRACE_CALL();
+    status_t res;
+
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    ALOGV("%s: Camera %d: toggling pause to %d", __FUNCTION__, mId, pause);
+
+    Mutex::Autolock m(mMutex);
+
+    if (mActiveRequest == NONE) {
+        ALOGE("%s: Camera %d: Can't toggle pause, streaming was not started",
+              __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    if (mPaused == pause) {
+        return OK;
+    }
+
+    if (pause) {
+        res = device->clearStreamingRequest();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't clear stream request: %s (%d)",
+                    __FUNCTION__, mId, strerror(-res), res);
+            return res;
+        }
+    } else {
+        CameraMetadata &request =
+                (mActiveRequest == PREVIEW) ? mPreviewRequest
+                                            : mRecordingRequest;
+        res = device->setStreamingRequest(request);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to set preview request to resume: "
+                    "%s (%d)",
+                    __FUNCTION__, mId, strerror(-res), res);
+            return res;
+        }
+    }
+
+    mPaused = pause;
     return OK;
 }
 
@@ -443,6 +493,7 @@ status_t StreamingProcessor::stopStream() {
     }
 
     mActiveRequest = NONE;
+    mPaused = false;
 
     return OK;
 }
@@ -662,19 +713,28 @@ status_t StreamingProcessor::dump(int fd, const Vector<String16>& /*args*/) {
         result.append("    Preview request:\n");
         write(fd, result.string(), result.size());
         mPreviewRequest.dump(fd, 2, 6);
+        result.clear();
     } else {
         result.append("    Preview request: undefined\n");
-        write(fd, result.string(), result.size());
     }
 
     if (mRecordingRequest.entryCount() != 0) {
         result = "    Recording request:\n";
         write(fd, result.string(), result.size());
         mRecordingRequest.dump(fd, 2, 6);
+        result.clear();
     } else {
         result = "    Recording request: undefined\n";
-        write(fd, result.string(), result.size());
     }
+
+    const char* streamTypeString[] = {
+        "none", "preview", "record"
+    };
+    result.append(String8::format("   Active request: %s (paused: %s)\n",
+                                  streamTypeString[mActiveRequest],
+                                  mPaused ? "yes" : "no"));
+
+    write(fd, result.string(), result.size());
 
     return OK;
 }
