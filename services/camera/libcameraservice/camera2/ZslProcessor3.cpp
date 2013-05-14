@@ -112,7 +112,11 @@ status_t ZslProcessor3::updateStream(const Parameters &params) {
                   "dimensions changed",
                 __FUNCTION__, client->getCameraId(), mZslStreamId);
             res = device->deleteStream(mZslStreamId);
-            if (res != OK) {
+            if (res == -EBUSY) {
+                ALOGV("%s: Camera %d: Device is busy, call updateStream again "
+                      " after it becomes idle", __FUNCTION__, mId);
+                return res;
+            } else if(res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for ZSL: %s (%d)", __FUNCTION__,
                         client->getCameraId(), strerror(-res), res);
