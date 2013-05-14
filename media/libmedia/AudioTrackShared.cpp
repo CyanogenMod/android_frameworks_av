@@ -200,7 +200,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             ts = &remaining;
             break;
         default:
-            LOG_FATAL("%s timeout=%d", timeout);
+            LOG_FATAL("obtainBuffer() timeout=%d", timeout);
             ts = NULL;
             break;
         }
@@ -259,8 +259,9 @@ end:
         requested = &kNonBlocking;
     }
     if (measure) {
-        ALOGV("requested %d.%03d elapsed %d.%03d", requested->tv_sec, requested->tv_nsec / 1000000,
-                total.tv_sec, total.tv_nsec / 1000000);
+        ALOGV("requested %ld.%03ld elapsed %ld.%03ld",
+              requested->tv_sec, requested->tv_nsec / 1000000,
+              total.tv_sec, total.tv_nsec / 1000000);
     }
     return status;
 }
@@ -323,11 +324,118 @@ void AudioTrackClientProxy::flush()
 }
 
 bool AudioTrackClientProxy::clearStreamEndDone() {
-    return android_atomic_and(~CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE;
+    return (android_atomic_and(~CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE) != 0;
 }
 
 bool AudioTrackClientProxy::getStreamEndDone() const {
     return (mCblk->flags & CBLK_STREAM_END_DONE) != 0;
+}
+
+status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *requested)
+{
+    struct timespec total;          // total elapsed time spent waiting
+    total.tv_sec = 0;
+    total.tv_nsec = 0;
+    audio_track_cblk_t* cblk = mCblk;
+    status_t status;
+    enum {
+        TIMEOUT_ZERO,       // requested == NULL || *requested == 0
+        TIMEOUT_INFINITE,   // *requested == infinity
+        TIMEOUT_FINITE,     // 0 < *requested < infinity
+        TIMEOUT_CONTINUE,   // additional chances after TIMEOUT_FINITE
+    } timeout;
+    if (requested == NULL) {
+        timeout = TIMEOUT_ZERO;
+    } else if (requested->tv_sec == 0 && requested->tv_nsec == 0) {
+        timeout = TIMEOUT_ZERO;
+    } else if (requested->tv_sec == INT_MAX) {
+        timeout = TIMEOUT_INFINITE;
+    } else {
+        timeout = TIMEOUT_FINITE;
+    }
+    for (;;) {
+        int32_t flags = android_atomic_and(~(CBLK_INTERRUPT|CBLK_STREAM_END_DONE), &cblk->flags);
+        // check for track invalidation by server, or server death detection
+        if (flags & CBLK_INVALID) {
+            ALOGV("Track invalidated");
+            status = DEAD_OBJECT;
+            goto end;
+        }
+        if (flags & CBLK_STREAM_END_DONE) {
+            ALOGV("stream end received");
+            status = NO_ERROR;
+            goto end;
+        }
+        // check for obtainBuffer interrupted by client
+        // check for obtainBuffer interrupted by client
+        if (flags & CBLK_INTERRUPT) {
+            ALOGV("waitStreamEndDone() interrupted by client");
+            status = -EINTR;
+            goto end;
+        }
+        struct timespec remaining;
+        const struct timespec *ts;
+        switch (timeout) {
+        case TIMEOUT_ZERO:
+            status = WOULD_BLOCK;
+            goto end;
+        case TIMEOUT_INFINITE:
+            ts = NULL;
+            break;
+        case TIMEOUT_FINITE:
+            timeout = TIMEOUT_CONTINUE;
+            if (MAX_SEC == 0) {
+                ts = requested;
+                break;
+            }
+            // fall through
+        case TIMEOUT_CONTINUE:
+            // FIXME we do not retry if requested < 10ms? needs documentation on this state machine
+            if (requested->tv_sec < total.tv_sec ||
+                    (requested->tv_sec == total.tv_sec && requested->tv_nsec <= total.tv_nsec)) {
+                status = TIMED_OUT;
+                goto end;
+            }
+            remaining.tv_sec = requested->tv_sec - total.tv_sec;
+            if ((remaining.tv_nsec = requested->tv_nsec - total.tv_nsec) < 0) {
+                remaining.tv_nsec += 1000000000;
+                remaining.tv_sec++;
+            }
+            if (0 < MAX_SEC && MAX_SEC < remaining.tv_sec) {
+                remaining.tv_sec = MAX_SEC;
+                remaining.tv_nsec = 0;
+            }
+            ts = &remaining;
+            break;
+        default:
+            LOG_FATAL("waitStreamEndDone() timeout=%d", timeout);
+            ts = NULL;
+            break;
+        }
+        int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
+        if (!(old & CBLK_FUTEX_WAKE)) {
+            int rc;
+            int ret = __futex_syscall4(&cblk->mFutex,
+                    mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
+            switch (ret) {
+            case 0:             // normal wakeup by server, or by binderDied()
+            case -EWOULDBLOCK:  // benign race condition with server
+            case -EINTR:        // wait was interrupted by signal or other spurious wakeup
+            case -ETIMEDOUT:    // time-out expired
+                break;
+            default:
+                ALOGE("%s unexpected error %d", __func__, ret);
+                status = -ret;
+                goto end;
+            }
+        }
+    }
+
+end:
+    if (requested == NULL) {
+        requested = &kNonBlocking;
+    }
+    return status;
 }
 
 // ---------------------------------------------------------------------------
@@ -393,13 +501,19 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
     if (mIsOut) {
         int32_t flush = cblk->u.mStreaming.mFlush;
         rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
+        front = cblk->u.mStreaming.mFront;
         if (flush != mFlush) {
-            front = rear;
             mFlush = flush;
             // effectively obtain then release whatever is in the buffer
             android_atomic_release_store(rear, &cblk->u.mStreaming.mFront);
-        } else {
-            front = cblk->u.mStreaming.mFront;
+            if (front != rear) {
+                int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
+                if (!(old & CBLK_FUTEX_WAKE)) {
+                    (void) __futex_syscall3(&cblk->mFutex,
+                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
+                }
+            }
+            front = rear;
         }
     } else {
         front = android_atomic_acquire_load(&cblk->u.mStreaming.mFront);
@@ -517,6 +631,11 @@ size_t AudioTrackServerProxy::framesReady()
         return 0;
     }
     audio_track_cblk_t* cblk = mCblk;
+
+    int32_t flush = cblk->u.mStreaming.mFlush;
+    if (flush != mFlush) {
+        return mFrameCount;
+    }
     // the acquire might not be necessary since not doing a subsequent read
     int32_t rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
     ssize_t filled = rear - cblk->u.mStreaming.mFront;

@@ -277,7 +277,7 @@ public:
      * make it active. If set, the callback will start being called.
      * If the track was previously paused, volume is ramped up over the first mix buffer.
      */
-            void        start();
+            status_t        start();
 
     /* Stop a track.
      * In static buffer mode, the track is stopped immediately.
@@ -635,10 +635,11 @@ protected:
             void setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount);
             audio_io_handle_t getOutput_l();
 
-            status_t getPosition_l(uint32_t *position);
-
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);
+
+            bool     isOffloaded() const
+                { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
 
     // may be changed if IAudioTrack is re-created
     sp<IAudioTrack>         mAudioTrack;
@@ -676,7 +677,9 @@ protected:
         STATE_ACTIVE,
         STATE_STOPPED,
         STATE_PAUSED,
+        STATE_PAUSED_STOPPING,
         STATE_FLUSHED,
+        STATE_STOPPING,
     }                       mState;
 
     callback_t              mCbf;                   // callback handler for events, or NULL
@@ -694,7 +697,7 @@ protected:
     // These are private to processAudioBuffer(), and are not protected by a lock
     uint32_t                mRemainingFrames;       // number of frames to request in obtainBuffer()
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
-    int                     mObservedSequence;      // last observed value of mSequence
+    uint32_t                mObservedSequence;      // last observed value of mSequence
 
     sp<IMemory>             mSharedBuffer;
     uint32_t                mLoopPeriod;            // in frames, zero means looping is disabled
@@ -736,6 +739,7 @@ private:
 
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
+    audio_io_handle_t       mOutput;                // cached output io handle
 };
 
 class TimedAudioTrack : public AudioTrack

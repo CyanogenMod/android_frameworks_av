@@ -372,7 +372,6 @@ public:
         audio_channel_mask_t channelMask = pChannelMask != NULL ?
                 *pChannelMask : (audio_channel_mask_t)0;
         uint32_t latency = pLatencyMs != NULL ? *pLatencyMs : 0;
-
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(module);
         data.writeInt32(devices);
@@ -381,6 +380,12 @@ public:
         data.writeInt32(channelMask);
         data.writeInt32(latency);
         data.writeInt32((int32_t) flags);
+        if (offloadInfo == NULL) {
+            data.writeInt32(0);
+        } else {
+            data.writeInt32(1);
+            data.write(offloadInfo, sizeof(audio_offload_info_t));
+        }
         remote()->transact(OPEN_OUTPUT, data, &reply);
         audio_io_handle_t output = (audio_io_handle_t) reply.readInt32();
         ALOGV("openOutput() returned output, %d", output);
@@ -881,13 +886,19 @@ status_t BnAudioFlinger::onTransact(
             audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
             uint32_t latency = data.readInt32();
             audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
+            bool hasOffloadInfo = data.readInt32() != 0;
+            audio_offload_info_t offloadInfo;
+            if (hasOffloadInfo) {
+                data.read(&offloadInfo, sizeof(audio_offload_info_t));
+            }
             audio_io_handle_t output = openOutput(module,
                                                  &devices,
                                                  &samplingRate,
                                                  &format,
                                                  &channelMask,
                                                  &latency,
-                                                 flags);
+                                                 flags,
+                                                 hasOffloadInfo ? &offloadInfo : NULL);
             ALOGV("OPEN_OUTPUT output, %p", output);
             reply->writeInt32((int32_t) output);
             reply->writeInt32(devices);

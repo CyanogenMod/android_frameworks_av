@@ -137,6 +137,12 @@ public:
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
         data.writeInt32(static_cast <uint32_t>(flags));
+        if (offloadInfo == NULL) {
+            data.writeInt32(0);
+        } else {
+            data.writeInt32(1);
+            data.write(offloadInfo, sizeof(audio_offload_info_t));
+        }
         remote()->transact(GET_OUTPUT, data, &reply);
         return static_cast <audio_io_handle_t> (reply.readInt32());
     }
@@ -379,9 +385,11 @@ public:
 
     virtual bool isOffloadSupported(const audio_offload_info_t& info)
     {
-        // stub function
-        return false;
-    }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.write(&info, sizeof(audio_offload_info_t));
+        remote()->transact(IS_OFFLOAD_SUPPORTED, data, &reply);
+        return reply.readInt32();    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -450,12 +458,17 @@ status_t BnAudioPolicyService::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             audio_output_flags_t flags =
                     static_cast <audio_output_flags_t>(data.readInt32());
-
+            bool hasOffloadInfo = data.readInt32() != 0;
+            audio_offload_info_t offloadInfo;
+            if (hasOffloadInfo) {
+                data.read(&offloadInfo, sizeof(audio_offload_info_t));
+            }
             audio_io_handle_t output = getOutput(stream,
                                                  samplingRate,
                                                  format,
                                                  channelMask,
-                                                 flags);
+                                                 flags,
+                                                 hasOffloadInfo ? &offloadInfo : NULL);
             reply->writeInt32(static_cast <int>(output));
             return NO_ERROR;
         } break;
@@ -660,6 +673,15 @@ status_t BnAudioPolicyService::onTransact(
             }
             delete[] descriptors;
             return status;
+        }
+
+        case IS_OFFLOAD_SUPPORTED: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_offload_info_t info;
+            data.read(&info, sizeof(audio_offload_info_t));
+            bool isSupported = isOffloadSupported(info);
+            reply->writeInt32(isSupported);
+            return NO_ERROR;
         }
 
         default:

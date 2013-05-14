@@ -296,6 +296,7 @@ public:
 
     bool        getStreamEndDone() const;
 
+    status_t    waitStreamEndDone(const struct timespec *requested);
 };
 
 class StaticAudioTrackClientProxy : public AudioTrackClientProxy {
@@ -379,8 +380,8 @@ public:
 
 protected:
     size_t      mAvailToClient; // estimated frames available to client prior to releaseBuffer()
-private:
     int32_t     mFlush;         // our copy of cblk->u.mStreaming.mFlush, for streaming output only
+private:
     bool        mDeferWake;     // whether another releaseBuffer() is expected soon
 };
 
