@@ -94,7 +94,7 @@ class MediaPlayerService : public BnMediaPlayerService
                 audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                 const audio_offload_info_t *offloadInfo = NULL);
 
-        virtual void            start();
+        virtual status_t        start();
         virtual ssize_t         write(const void* buffer, size_t size);
         virtual void            stop();
         virtual void            flush();
@@ -112,11 +112,14 @@ class MediaPlayerService : public BnMediaPlayerService
                 void            setNextOutput(const sp<AudioOutput>& nextOutput);
                 void            switchToNextOutput();
         virtual bool            needsTrailingPadding() { return mNextOutput == NULL; }
+        virtual status_t        setParameters(const String8& keyValuePairs);
+        virtual String8         getParameters(const String8& keys);
 
     private:
         static void             setMinBufferCount();
         static void             CallbackWrapper(
                 int event, void *me, void *info);
+               void             deleteRecycledTrack();
 
         sp<AudioTrack>          mTrack;
         sp<AudioTrack>          mRecycledTrack;
@@ -196,7 +199,7 @@ class MediaPlayerService : public BnMediaPlayerService
                 audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                 const audio_offload_info_t *offloadInfo = NULL);
 
-        virtual void            start();
+        virtual status_t        start();
         virtual ssize_t         write(const void* buffer, size_t size);
         virtual void            stop();
         virtual void            flush() {}

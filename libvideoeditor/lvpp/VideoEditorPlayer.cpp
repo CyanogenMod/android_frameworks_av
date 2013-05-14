@@ -468,14 +468,18 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
     return NO_ERROR;
 }
 
-void VideoEditorPlayer::VeAudioOutput::start() {
+status_t VideoEditorPlayer::VeAudioOutput::start() {
 
     ALOGV("start");
     if (mTrack != 0) {
         mTrack->setVolume(mLeftVolume, mRightVolume);
-        mTrack->start();
-        mTrack->getPosition(&mNumFramesWritten);
+        status_t status = mTrack->start();
+        if (status == NO_ERROR) {
+            mTrack->getPosition(&mNumFramesWritten);
+        }
+        return status;
     }
+    return NO_INIT;
 }
 
 void VideoEditorPlayer::VeAudioOutput::snoopWrite(

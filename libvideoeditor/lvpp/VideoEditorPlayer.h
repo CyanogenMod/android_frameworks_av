@@ -55,7 +55,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
                 AudioCallback cb, void *cookie, audio_output_flags_t flags,
                 const audio_offload_info_t *offloadInfo);
 
-        virtual void            start();
+        virtual status_t        start();
         virtual ssize_t         write(const void* buffer, size_t size);
         virtual void            stop();
         virtual void            flush();
