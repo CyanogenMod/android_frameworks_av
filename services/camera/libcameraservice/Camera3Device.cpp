@@ -680,8 +680,8 @@ status_t Camera3Device::deleteStream(int id) {
     // CameraDevice semantics require device to already be idle before
     // deleteStream is called, unlike for createStream.
     if (mStatus != STATUS_IDLE) {
-        CLOGE("Device not idle");
-        return INVALID_OPERATION;
+        ALOGV("%s: Camera %d: Device not idle", __FUNCTION__, mId);
+        return -EBUSY;
     }
 
     sp<Camera3StreamInterface> deletedStream;
