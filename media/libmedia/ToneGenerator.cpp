@@ -1012,6 +1012,7 @@ void ToneGenerator::stopTone() {
         if (lStatus == NO_ERROR) {
             // If the tone was restarted exit now before calling clearWaveGens();
             if (mState != TONE_INIT) {
+                mLock.unlock();
                 return;
             }
             ALOGV("track stop complete, time %d", (unsigned int)(systemTime()/1000000));
