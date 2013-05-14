@@ -149,7 +149,7 @@ void VideoEditorAudioPlayer::clear() {
     mStarted = false;
 }
 
-void VideoEditorAudioPlayer::resume() {
+status_t VideoEditorAudioPlayer::resume() {
     ALOGV("resume");
 
     AudioMixSettings audioMixSettings;
@@ -180,6 +180,7 @@ void VideoEditorAudioPlayer::resume() {
     } else {
         mAudioTrack->start();
     }
+    return OK;
 }
 
 status_t VideoEditorAudioPlayer::seekTo(int64_t time_us) {

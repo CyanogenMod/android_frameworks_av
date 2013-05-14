@@ -38,7 +38,10 @@ public:
 
     enum {
         ALLOW_DEEP_BUFFERING = 0x01,
-        USE_OFFLOAD = 0x02
+        USE_OFFLOAD = 0x02,
+        HAS_VIDEO   = 0x1000,
+        IS_STREAMING = 0x2000
+
     };
 
     AudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
@@ -56,7 +59,7 @@ public:
     status_t start(bool sourceAlreadyStarted = false);
 
     void pause(bool playPendingSamples = false);
-    void resume();
+    status_t resume();
 
     // Returns the timestamp of the last buffer played (in us).
     int64_t getMediaTimeUs();
@@ -104,10 +107,12 @@ private:
     MediaBuffer *mFirstBuffer;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
-    bool mAllowDeepBuffering;       // allow audio deep audio buffers. Helps with low power audio
-                                    // playback but implies high latency
     AwesomePlayer *mObserver;
     int64_t mPinnedTimeUs;
+
+    bool mPlaying;
+    int64_t mStartPosUs;
+    const uint32_t mCreateFlags;
 
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);
@@ -125,6 +130,9 @@ private:
 
     uint32_t getNumFramesPendingPlayout() const;
     int64_t getOutputPlayPositionUs_l() const;
+
+    bool allowDeepBuffering() const { return (mCreateFlags & ALLOW_DEEP_BUFFERING) != 0; }
+    bool useOffload() const { return (mCreateFlags & USE_OFFLOAD) != 0; }
 
     AudioPlayer(const AudioPlayer &);
     AudioPlayer &operator=(const AudioPlayer &);

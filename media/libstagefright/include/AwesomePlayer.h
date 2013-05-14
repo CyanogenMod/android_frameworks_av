@@ -226,7 +226,7 @@ private:
     void postStreamDoneEvent_l(status_t status);
     void postCheckAudioStatusEvent(int64_t delayUs);
     void postVideoLagEvent_l();
-    void postAudioTearDownEvent();
+    void postAudioTearDownEvent(int64_t delayUs);
 
     status_t play_l();
 

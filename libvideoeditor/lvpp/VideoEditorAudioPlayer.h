@@ -58,7 +58,7 @@ public:
 
     status_t start(bool sourceAlreadyStarted = false);
     void pause(bool playPendingSamples = false);
-    void resume();
+    status_t resume();
     status_t seekTo(int64_t time_us);
     bool isSeeking();
     bool reachedEOS(status_t *finalStatus);

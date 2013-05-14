@@ -100,6 +100,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_mpeg2ts \
         libstagefright_id3 \
         libFLAC \
+        libmedia_helper
 
 LOCAL_SRC_FILES += \
         chromium_http_stub.cpp
