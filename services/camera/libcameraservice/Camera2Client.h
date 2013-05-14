@@ -159,6 +159,9 @@ private:
     // Used with stream IDs
     static const int NO_STREAM = -1;
 
+    template <typename ProcessorT>
+    status_t updateProcessorStream(sp<ProcessorT> processor, Parameters params);
+
     sp<camera2::FrameProcessor> mFrameProcessor;
 
     /* Preview/Recording related members */
