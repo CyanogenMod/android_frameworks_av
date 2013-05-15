@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#undef NDEBUG
-#include <cassert>
-
 //#define LOG_NDEBUG 0
 #define LOG_TAG "RingBufferConsumer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -29,6 +26,9 @@
 #define BI_LOGI(x, ...) ALOGI("[%s] "x, mName.string(), ##__VA_ARGS__)
 #define BI_LOGW(x, ...) ALOGW("[%s] "x, mName.string(), ##__VA_ARGS__)
 #define BI_LOGE(x, ...) ALOGE("[%s] "x, mName.string(), ##__VA_ARGS__)
+
+#undef assert
+#define assert(x) ALOG_ASSERT((x), #x)
 
 typedef android::RingBufferConsumer::PinnedBufferItem PinnedBufferItem;
 
