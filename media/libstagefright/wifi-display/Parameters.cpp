@@ -65,7 +65,9 @@ status_t Parameters::parse(const char *data, size_t size) {
 
         mDict.add(name, value);
 
-        i += 2;
+        while (i + 1 < size && data[i] == '\r' && data[i + 1] == '\n') {
+            i += 2;
+        }
     }
 
     return OK;
