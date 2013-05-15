@@ -402,8 +402,8 @@ status_t CallbackProcessor::convertFromFlexibleYuv(int32_t previewFormat,
     }
 
     // Copy/swizzle chroma planes, 4:2:0 subsampling
-    const uint8_t *uSrc = src.dataCb;
-    const uint8_t *vSrc = src.dataCr;
+    const uint8_t *cbSrc = src.dataCb;
+    const uint8_t *crSrc = src.dataCr;
     size_t chromaHeight = src.height / 2;
     size_t chromaWidth = src.width / 2;
     ssize_t chromaGap = src.chromaStride -
@@ -412,59 +412,63 @@ status_t CallbackProcessor::convertFromFlexibleYuv(int32_t previewFormat,
 
     if (previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
         // Flexible YUV chroma to NV21 chroma
-        uint8_t *vuDst = yDst;
+        uint8_t *crcbDst = yDst;
         // Check for shortcuts
-        if (uSrc == vSrc + 1 && src.chromaStep == 2) {
+        if (cbSrc == crSrc + 1 && src.chromaStep == 2) {
+            ALOGV("%s: Fast NV21->NV21", __FUNCTION__);
             // Source has semiplanar CrCb chroma layout, can copy by rows
             for (size_t row = 0; row < chromaHeight; row++) {
-                memcpy(vuDst, uSrc, src.width);
-                vuDst += src.width;
-                uSrc += src.chromaStride;
+                memcpy(crcbDst, crSrc, src.width);
+                crcbDst += src.width;
+                crSrc += src.chromaStride;
             }
         } else {
+            ALOGV("%s: Generic->NV21", __FUNCTION__);
             // Generic copy, always works but not very efficient
             for (size_t row = 0; row < chromaHeight; row++) {
                 for (size_t col = 0; col < chromaWidth; col++) {
-                    *(vuDst++) = *vSrc;
-                    *(vuDst++) = *uSrc;
-                    vSrc += src.chromaStep;
-                    uSrc += src.chromaStep;
+                    *(crcbDst++) = *crSrc;
+                    *(crcbDst++) = *cbSrc;
+                    crSrc += src.chromaStep;
+                    cbSrc += src.chromaStep;
                 }
-                vSrc += chromaGap;
-                uSrc += chromaGap;
+                crSrc += chromaGap;
+                cbSrc += chromaGap;
             }
         }
     } else {
         // flexible YUV chroma to YV12 chroma
         ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YV12,
                 "Unexpected preview format 0x%x", previewFormat);
-        uint8_t *vDst = yDst;
-        uint8_t *uDst = yDst + chromaHeight * dstCStride;
+        uint8_t *crDst = yDst;
+        uint8_t *cbDst = yDst + chromaHeight * dstCStride;
         if (src.chromaStep == 1) {
+            ALOGV("%s: Fast YV12->YV12", __FUNCTION__);
             // Source has planar chroma layout, can copy by row
             for (size_t row = 0; row < chromaHeight; row++) {
-                memcpy(vDst, vSrc, chromaWidth);
-                vDst += dstCStride;
-                vSrc += src.chromaStride;
+                memcpy(crDst, crSrc, chromaWidth);
+                crDst += dstCStride;
+                crSrc += src.chromaStride;
             }
             for (size_t row = 0; row < chromaHeight; row++) {
-                memcpy(uDst, uSrc, chromaWidth);
-                uDst += dstCStride;
-                uSrc += src.chromaStride;
+                memcpy(cbDst, cbSrc, chromaWidth);
+                cbDst += dstCStride;
+                cbSrc += src.chromaStride;
             }
         } else {
+            ALOGV("%s: Generic->YV12", __FUNCTION__);
             // Generic copy, always works but not very efficient
             for (size_t row = 0; row < chromaHeight; row++) {
                 for (size_t col = 0; col < chromaWidth; col++) {
-                    *(vDst++) = *vSrc;
-                    *(uDst++) = *uSrc;
-                    vSrc += src.chromaStep;
-                    uSrc += src.chromaStep;
+                    *(crDst++) = *crSrc;
+                    *(cbDst++) = *cbSrc;
+                    crSrc += src.chromaStep;
+                    cbSrc += src.chromaStep;
                 }
-                vSrc += chromaGap;
-                uSrc += chromaGap;
-                vDst += dstChromaGap;
-                uDst += dstChromaGap;
+                crSrc += chromaGap;
+                cbSrc += chromaGap;
+                crDst += dstChromaGap;
+                cbDst += dstChromaGap;
             }
         }
     }
