@@ -206,24 +206,15 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // Find matching entry in our cached copy of the BufferQueue slots.
     // If we find a match, release that slot.  If we don't, the BufferQueue
     // has dropped that GraphicBuffer, and there's nothing for us to release.
-    //
-    // (We could store "id" in CodecBuffer and avoid the slot search.)
-    int id;
-    for (id = 0; id < BufferQueue::NUM_BUFFER_SLOTS; id++) {
-        if (mBufferSlot[id] == NULL) {
-            continue;
-        }
+    int id = codecBuffer.mBuf;
+    if (mBufferSlot[id] != NULL &&
+        mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
+        ALOGV("cbi %d matches bq slot %d, handle=%p",
+                cbi, id, mBufferSlot[id]->handle);
 
-        if (mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
-            ALOGV("cbi %d matches bq slot %d, handle=%p",
-                    cbi, id, mBufferSlot[id]->handle);
-
-            mBufferQueue->releaseBuffer(id, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
-                    Fence::NO_FENCE);
-            break;
-        }
-    }
-    if (id == BufferQueue::NUM_BUFFER_SLOTS) {
+        mBufferQueue->releaseBuffer(id, codecBuffer.mFrameNumber,
+                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+    } else {
         ALOGV("codecBufferEmptied: no match for emptied buffer in cbi %d",
                 cbi);
     }
@@ -287,11 +278,11 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         mBufferSlot[item.mBuf] = item.mGraphicBuffer;
     }
 
-    err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp / 1000, cbi);
+    err = submitBuffer_l(item, cbi);
     if (err != OK) {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-        mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
-                EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+        mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
     }
@@ -326,11 +317,13 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
     return OK;
 }
 
-status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
-        int64_t timestampUsec, int cbi) {
+status_t GraphicBufferSource::submitBuffer_l(
+        const BufferQueue::BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
-    codecBuffer.mGraphicBuffer = graphicBuffer;
+    codecBuffer.mGraphicBuffer = mBufferSlot[item.mBuf];
+    codecBuffer.mBuf = item.mBuf;
+    codecBuffer.mFrameNumber = item.mFrameNumber;
 
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
     CHECK(header->nAllocLen >= 4 + sizeof(buffer_handle_t));
@@ -342,7 +335,7 @@ status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
 
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
-            timestampUsec);
+            item.mTimestamp / 1000);
     if (err != OK) {
         ALOGW("WARNING: emptyDirectBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
@@ -431,8 +424,8 @@ void GraphicBufferSource::onFrameAvailable() {
         BufferQueue::BufferItem item;
         status_t err = mBufferQueue->acquireBuffer(&item);
         if (err == OK) {
-            mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
-                EGL_NO_SYNC_KHR, item.mFence);
+            mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
         }
         return;
     }

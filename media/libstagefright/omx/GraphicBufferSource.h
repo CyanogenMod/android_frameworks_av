@@ -104,6 +104,13 @@ private:
     // (mGraphicBuffer == NULL) or in use by the codec.
     struct CodecBuffer {
         OMX_BUFFERHEADERTYPE* mHeader;
+
+        // buffer producer's frame-number for buffer
+        uint64_t mFrameNumber;
+
+        // buffer producer's buffer slot for buffer
+        int mBuf;
+
         sp<GraphicBuffer> mGraphicBuffer;
     };
 
@@ -130,8 +137,7 @@ private:
 
     // Marks the mCodecBuffers entry as in-use, copies the GraphicBuffer
     // reference into the codec buffer, and submits the data to the codec.
-    status_t submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
-            int64_t timestampUsec, int cbi);
+    status_t submitBuffer_l(const BufferQueue::BufferItem &item, int cbi);
 
     // Submits an empty buffer, with the EOS flag set.   Returns without
     // doing anything if we don't have a codec buffer available.

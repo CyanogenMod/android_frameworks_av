@@ -214,7 +214,11 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
         // In case the object was never pinned, pass the acquire fence
         // back to the release fence. If the fence was already waited on,
         // it'll just be a no-op to wait on it again.
-        err = addReleaseFenceLocked(item.mBuf, item.mFence);
+
+        // item.mGraphicBuffer was populated with the proper graphic-buffer
+        // at acquire even if it was previously acquired
+        err = addReleaseFenceLocked(item.mBuf,
+                item.mGraphicBuffer, item.mFence);
 
         if (err != OK) {
             BI_LOGE("Failed to add release fence to buffer "
@@ -226,7 +230,9 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
         BI_LOGV("Attempting to release buffer timestamp %lld, frame %lld",
                 item.mTimestamp, item.mFrameNumber);
 
-        err = releaseBufferLocked(item.mBuf,
+        // item.mGraphicBuffer was populated with the proper graphic-buffer
+        // at acquire even if it was previously acquired
+        err = releaseBufferLocked(item.mBuf, item.mGraphicBuffer,
                                   EGL_NO_DISPLAY,
                                   EGL_NO_SYNC_KHR);
         if (err != OK) {
@@ -310,7 +316,8 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
 
         RingBufferItem& find = *it;
         if (item.mGraphicBuffer == find.mGraphicBuffer) {
-            status_t res = addReleaseFenceLocked(item.mBuf, item.mFence);
+            status_t res = addReleaseFenceLocked(item.mBuf,
+                    item.mGraphicBuffer, item.mFence);
 
             if (res != OK) {
                 BI_LOGE("Failed to add release fence to buffer "
