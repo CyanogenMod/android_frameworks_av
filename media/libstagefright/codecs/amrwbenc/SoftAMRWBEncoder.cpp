@@ -78,7 +78,7 @@ void SoftAMRWBEncoder::initPorts() {
     def.eDir = OMX_DirInput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kNumSamplesPerFrame * sizeof(int16_t);
+    def.nBufferSize = kNumSamplesPerFrame * sizeof(int16_t) * 4;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
