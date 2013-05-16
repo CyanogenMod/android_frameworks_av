@@ -39,6 +39,7 @@
 namespace android {
 
 static const size_t kMaxUDPSize = 1500;
+static const int32_t kMaxUDPRetries = 200;
 
 struct ANetworkSession::NetworkThread : public Thread {
     NetworkThread(ANetworkSession *session);
@@ -105,6 +106,7 @@ private:
     int mSocket;
     sp<AMessage> mNotify;
     bool mSawReceiveFailure, mSawSendFailure;
+    int32_t mUDPRetries;
 
     List<Fragment> mOutFragments;
 
@@ -148,6 +150,7 @@ ANetworkSession::Session::Session(
       mNotify(notify),
       mSawReceiveFailure(false),
       mSawSendFailure(false),
+      mUDPRetries(kMaxUDPRetries),
       mLastStallReportUs(-1ll) {
     if (mState == CONNECTED) {
         struct sockaddr_in localAddr;
@@ -286,8 +289,17 @@ status_t ANetworkSession::Session::readMore() {
         }
 
         if (err != OK) {
-            notifyError(false /* send */, err, "Recvfrom failed.");
-            mSawReceiveFailure = true;
+            if (!mUDPRetries) {
+                notifyError(false /* send */, err, "Recvfrom failed.");
+                mSawReceiveFailure = true;
+            } else {
+                mUDPRetries--;
+                ALOGE("Recvfrom failed, %d/%d retries left",
+                        mUDPRetries, kMaxUDPRetries);
+                err = OK;
+            }
+        } else {
+            mUDPRetries = kMaxUDPRetries;
         }
 
         return err;
@@ -479,8 +491,17 @@ status_t ANetworkSession::Session::writeMore() {
         }
 
         if (err != OK) {
-            notifyError(true /* send */, err, "Send datagram failed.");
-            mSawSendFailure = true;
+            if (!mUDPRetries) {
+                notifyError(true /* send */, err, "Send datagram failed.");
+                mSawSendFailure = true;
+            } else {
+                mUDPRetries--;
+                ALOGE("Send datagram failed, %d/%d retries left",
+                        mUDPRetries, kMaxUDPRetries);
+                err = OK;
+            }
+        } else {
+            mUDPRetries = kMaxUDPRetries;
         }
 
         return err;
