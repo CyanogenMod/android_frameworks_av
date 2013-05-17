@@ -131,7 +131,7 @@ private:
     // Marks the mCodecBuffers entry as in-use, copies the GraphicBuffer
     // reference into the codec buffer, and submits the data to the codec.
     status_t submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
-            int64_t timestamp, int cbi);
+            int64_t timestampUsec, int cbi);
 
     // Submits an empty buffer, with the EOS flag set.   Returns without
     // doing anything if we don't have a codec buffer available.
