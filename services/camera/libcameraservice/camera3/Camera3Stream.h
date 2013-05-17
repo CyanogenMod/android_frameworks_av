@@ -263,8 +263,6 @@ class Camera3Stream :
     virtual size_t   getBufferCountLocked() = 0;
 
   private:
-    static const unsigned int kRegisterFenceTimeoutMs = 5000;
-
     uint32_t oldUsage;
     uint32_t oldMaxBuffers;
 
