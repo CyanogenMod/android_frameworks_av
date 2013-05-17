@@ -288,7 +288,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         mBufferSlot[item.mBuf] = item.mGraphicBuffer;
     }
 
-    err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp, cbi);
+    err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp / 1000, cbi);
     if (err != OK) {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
         mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
@@ -328,7 +328,7 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
 }
 
 status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
-        int64_t timestamp, int cbi) {
+        int64_t timestampUsec, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
     codecBuffer.mGraphicBuffer = graphicBuffer;
@@ -343,7 +343,7 @@ status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
 
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
-            timestamp);
+            timestampUsec);
     if (err != OK) {
         ALOGW("WARNING: emptyDirectBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
