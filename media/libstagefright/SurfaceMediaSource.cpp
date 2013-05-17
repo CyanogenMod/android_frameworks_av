@@ -298,7 +298,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
             // wait for a buffer to be queued
             mFrameAvailableCondition.wait(mMutex);
         } else if (err == OK) {
-            err = item.mFence->waitForever(1000, "SurfaceMediaSource::read");
+            err = item.mFence->waitForever("SurfaceMediaSource::read");
             if (err) {
                 ALOGW("read: failed to wait for buffer fence: %d", err);
             }
