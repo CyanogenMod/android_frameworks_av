@@ -1329,6 +1329,10 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
     // Finally, dispatch any 3A change events to listeners if we got metadata
 
+    if (result->result != NULL) {
+        mResultSignal.signal();
+    }
+
     if (result->result != NULL && listener != NULL) {
         if (new3aState.aeState != cur3aState.aeState) {
             ALOGVV("%s: AE state changed from 0x%x to 0x%x",
