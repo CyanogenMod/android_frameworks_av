@@ -296,8 +296,7 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
         }
 
         sp<Fence> fence = new Fence(streamBuffers[bufferIdx].acquire_fence);
-        fence->waitForever(kRegisterFenceTimeoutMs,
-                "Camera3Stream::registerBuffers");
+        fence->waitForever("Camera3Stream::registerBuffers");
 
         buffers.editItemAt(bufferIdx) = streamBuffers[bufferIdx].buffer;
     }

@@ -274,8 +274,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
     mNumFramesAvailable--;
 
     // Wait for it to become available.
-    err = item.mFence->waitForever(1000,
-            "GraphicBufferSource::fillCodecBuffer_l");
+    err = item.mFence->waitForever("GraphicBufferSource::fillCodecBuffer_l");
     if (err != OK) {
         ALOGW("failed to wait for buffer fence: %d", err);
         // keep going
