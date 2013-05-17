@@ -108,7 +108,7 @@ sp<PinnedBufferItem> RingBufferConsumer::pinSelectedBuffer(
     }
 
     if (waitForFence) {
-        status_t err = pinnedBuffer->getBufferItem().mFence->waitForever(1000,
+        status_t err = pinnedBuffer->getBufferItem().mFence->waitForever(
                 "RingBufferConsumer::pinSelectedBuffer");
         if (err != OK) {
             BI_LOGE("Failed to wait for fence of acquired buffer: %s (%d)",
