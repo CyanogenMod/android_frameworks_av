@@ -495,7 +495,8 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l()
         sp<IBinder> binder = new BBinder();
         status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                                                          binder,
-                                                         String16(mName));
+                                                         String16(mName),
+                                                         String16("media"));
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
         }
