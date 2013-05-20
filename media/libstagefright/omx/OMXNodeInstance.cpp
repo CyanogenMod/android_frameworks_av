@@ -779,6 +779,23 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
             static_cast<BufferMeta *>(buffer->pAppPrivate);
 
         buffer_meta->CopyFromOMX(buffer);
+    } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
+        const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+
+        if (bufferSource != NULL) {
+            // This is one of the buffers used exclusively by
+            // GraphicBufferSource.
+            // Don't dispatch a message back to ACodec, since it doesn't
+            // know that anyone asked to have the buffer emptied and will
+            // be very confused.
+
+            OMX_BUFFERHEADERTYPE *buffer =
+                static_cast<OMX_BUFFERHEADERTYPE *>(
+                        msg.u.buffer_data.buffer);
+
+            bufferSource->codecBufferEmptied(buffer);
+            return;
+        }
     }
 
     mObserver->onMessage(msg);
@@ -837,17 +854,6 @@ OMX_ERRORTYPE OMXNodeInstance::OnEmptyBufferDone(
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
     if (instance->mDying) {
-        return OMX_ErrorNone;
-    }
-    const sp<GraphicBufferSource>& bufferSource(
-            instance->getGraphicBufferSource());
-    if (bufferSource != NULL) {
-        bufferSource->codecBufferEmptied(pBuffer);
-
-        // This is one of the buffers used exclusively by GraphicBufferSource.
-        // Don't dispatch a message back to ACodec, since it doesn't
-        // know that anyone asked to have the buffer emptied and will
-        // be very confused.
         return OMX_ErrorNone;
     }
     return instance->owner()->OnEmptyBufferDone(instance->nodeID(), pBuffer);
