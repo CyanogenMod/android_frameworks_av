@@ -158,7 +158,7 @@ struct Parameters {
     } state;
 
     // Number of zoom steps to simulate
-    static const unsigned int NUM_ZOOM_STEPS = 30;
+    static const unsigned int NUM_ZOOM_STEPS = 100;
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.
