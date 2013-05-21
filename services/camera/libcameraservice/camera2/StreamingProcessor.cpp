@@ -316,7 +316,13 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
                 currentHeight != (uint32_t)params.videoHeight) {
             // TODO: Should wait to be sure previous recording has finished
             res = device->deleteStream(mRecordingStreamId);
-            if (res != OK) {
+
+            if (res == -EBUSY) {
+                ALOGV("%s: Camera %d: Device is busy, call "
+                      "updateRecordingStream after it becomes idle",
+                      __FUNCTION__, mId);
+                return res;
+            } else if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to delete old output stream "
                         "for recording: %s (%d)", __FUNCTION__,
                         mId, strerror(-res), res);
