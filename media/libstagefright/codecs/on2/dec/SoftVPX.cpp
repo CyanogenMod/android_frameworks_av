@@ -226,6 +226,7 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
 
     List<BufferInfo *> &inQueue = getPortQueue(0);
     List<BufferInfo *> &outQueue = getPortQueue(1);
+    bool EOSseen = false;
 
     while (!inQueue.empty() && !outQueue.empty()) {
         BufferInfo *inInfo = *inQueue.begin();
@@ -235,17 +236,20 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
 
         if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
-            inQueue.erase(inQueue.begin());
-            inInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inHeader);
+            EOSseen = true;
+            if (inHeader->nFilledLen == 0) {
+                inQueue.erase(inQueue.begin());
+                inInfo->mOwnedByUs = false;
+                notifyEmptyBufferDone(inHeader);
 
-            outHeader->nFilledLen = 0;
-            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+                outHeader->nFilledLen = 0;
+                outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
-            outQueue.erase(outQueue.begin());
-            outInfo->mOwnedByUs = false;
-            notifyFillBufferDone(outHeader);
-            return;
+                outQueue.erase(outQueue.begin());
+                outInfo->mOwnedByUs = false;
+                notifyFillBufferDone(outHeader);
+                return;
+            }
         }
 
         if (vpx_codec_decode(
@@ -282,7 +286,7 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
 
             outHeader->nOffset = 0;
             outHeader->nFilledLen = (width * height * 3) / 2;
-            outHeader->nFlags = 0;
+            outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
             outHeader->nTimeStamp = inHeader->nTimeStamp;
 
             const uint8_t *srcLine = (const uint8_t *)img->planes[PLANE_Y];
