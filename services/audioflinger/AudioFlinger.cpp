@@ -89,6 +89,10 @@
 
 #include "SchedulingPolicyService.h"
 
+#ifdef USES_AUDIO_AMPLIFIER
+#include <audio_amplifier.h>
+#endif
+
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -921,6 +925,10 @@ status_t AudioFlinger::setMode(audio_mode_t mode)
         audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
         mHardwareStatus = AUDIO_HW_SET_MODE;
         ret = dev->set_mode(dev, mode);
+#ifdef USES_AUDIO_AMPLIFIER
+        if (amplifier_set_mode(mode) != 0)
+            ALOGE("Failed setting amplifier mode.");
+#endif
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 

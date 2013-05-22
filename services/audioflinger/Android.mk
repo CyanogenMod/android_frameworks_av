@@ -56,6 +56,12 @@ LOCAL_STATIC_LIBRARIES := \
     libcpustats \
     libmedia_helper
 
+ifneq ($(BOARD_AUDIO_AMPLIFIER),)
+LOCAL_CFLAGS += -DUSES_AUDIO_AMPLIFIER
+LOCAL_SHARED_LIBRARIES += libaudioamp
+LOCAL_C_INCLUDES += $(BOARD_AUDIO_AMPLIFIER)
+endif
+
 LOCAL_MODULE:= libaudioflinger
 
 LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp
