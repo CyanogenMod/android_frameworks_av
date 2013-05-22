@@ -101,12 +101,6 @@ sp<PinnedBufferItem> RingBufferConsumer::pinSelectedBuffer(
 
     } // end scope of mMutex autolock
 
-    if (pinnedBuffer != 0) {
-        BI_LOGV("Pinned buffer frame %lld, timestamp %lld",
-                pinnedBuffer->getBufferItem().mFrameNumber,
-                pinnedBuffer->getBufferItem().mTimestamp);
-    }
-
     if (waitForFence) {
         status_t err = pinnedBuffer->getBufferItem().mFence->waitForever(
                 "RingBufferConsumer::pinSelectedBuffer");
@@ -172,6 +166,9 @@ void RingBufferConsumer::pinBufferLocked(const BufferItem& item) {
     if (it == end) {
         BI_LOGE("Failed to pin buffer (timestamp %lld, framenumber %lld)",
                  item.mTimestamp, item.mFrameNumber);
+    } else {
+        BI_LOGV("Pinned buffer (frame %lld, timestamp %lld)",
+                item.mFrameNumber, item.mTimestamp);
     }
 }
 
@@ -182,7 +179,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
 
     it = mBufferItemList.begin();
     end = mBufferItemList.end();
-    accIt = it;
+    accIt = end;
 
     if (it == end) {
         /**
@@ -197,12 +194,17 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
 
     for (; it != end; ++it) {
         RingBufferItem& find = *it;
-        if (find.mTimestamp < accIt->mTimestamp && find.mPinCount <= 0) {
-            accIt = it;
+
+        if (find.mPinCount > 0) {
+            if (pinnedFrames != NULL) {
+                ++(*pinnedFrames);
+            }
+            // Filter out pinned frame when searching for buffer to release
+            continue;
         }
 
-        if (find.mPinCount > 0 && pinnedFrames != NULL) {
-            ++(*pinnedFrames);
+        if (find.mTimestamp < accIt->mTimestamp || accIt == end) {
+            accIt = it;
         }
     }
 
@@ -323,7 +325,11 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
     }
 
     if (it == end) {
-        BI_LOGE("Failed to unpin buffer (timestamp %lld, framenumber %lld",
+        // This should never happen. If it happens, we have a bug.
+        BI_LOGE("Failed to unpin buffer (timestamp %lld, framenumber %lld)",
+                 item.mTimestamp, item.mFrameNumber);
+    } else {
+        BI_LOGV("Unpinned buffer (timestamp %lld, framenumber %lld)",
                  item.mTimestamp, item.mFrameNumber);
     }
 }

@@ -402,6 +402,8 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                 minTimestamp = frameTimestamp;
                 idx = j;
             }
+
+            ALOGVV("%s: Saw timestamp %lld", __FUNCTION__, frameTimestamp);
         }
     }
 
