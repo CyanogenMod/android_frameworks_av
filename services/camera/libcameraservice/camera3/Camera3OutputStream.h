@@ -66,6 +66,9 @@ class Camera3OutputStream :
     Camera3OutputStream(int id, camera3_stream_type_t type,
             uint32_t width, uint32_t height, int format);
 
+    /**
+     * Note that we release the lock briefly in this function
+     */
     virtual status_t returnBufferCheckedLocked(
             const camera3_stream_buffer &buffer,
             nsecs_t timestamp,
