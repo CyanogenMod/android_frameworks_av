@@ -384,7 +384,7 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                 continue;
             }
             nsecs_t frameTimestamp = entry.data.i64[0];
-            if (minTimestamp > frameTimestamp) {
+            if (minTimestamp > frameTimestamp || minTimestamp == -1) {
 
                 entry = frame.find(ANDROID_CONTROL_AE_STATE);
                 if (entry.count == 0) {
