@@ -958,7 +958,10 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         }
     }
 
-    res = mStreamingProcessor->updateRecordingStream(params);
+    res = updateProcessorStream<
+            StreamingProcessor,
+            &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
+                                                        params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1679,9 +1682,20 @@ status_t Camera2Client::syncWithDevice() {
 template <typename ProcessorT>
 status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
                                               camera2::Parameters params) {
+    // No default template arguments until C++11, so we need this overload
+    return updateProcessorStream<ProcessorT, &ProcessorT::updateStream>(
+            processor, params);
+}
+
+template <typename ProcessorT,
+          status_t (ProcessorT::*updateStreamF)(const Parameters &)>
+status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
+                                              Parameters params) {
     status_t res;
 
-    res = processor->updateStream(params);
+    // Get raw pointer since sp<T> doesn't have operator->*
+    ProcessorT *processorPtr = processor.get();
+    res = (processorPtr->*updateStreamF)(params);
 
     /**
      * Can't update the stream if it's busy?
@@ -1702,7 +1716,7 @@ status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
                     __FUNCTION__, mCameraId, strerror(-res), res);
         }
 
-        res = processor->updateStream(params);
+        res = (processorPtr->*updateStreamF)(params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Failed to update processing stream "
                   " despite having halted streaming first: %s (%d)",
