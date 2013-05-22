@@ -161,6 +161,9 @@ private:
 
     template <typename ProcessorT>
     status_t updateProcessorStream(sp<ProcessorT> processor, Parameters params);
+    template <typename ProcessorT,
+              status_t (ProcessorT::*updateStreamF)(const Parameters &)>
+    status_t updateProcessorStream(sp<ProcessorT> processor, Parameters params);
 
     sp<camera2::FrameProcessor> mFrameProcessor;
 
