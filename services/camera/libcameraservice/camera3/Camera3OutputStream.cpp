@@ -166,11 +166,20 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
     int anwReleaseFence = releaseFence->dup();
 
     /**
+     * Release the lock briefly to avoid deadlock with
+     * StreamingProcessor::startStream -> Camera3Stream::isConfiguring (this
+     * thread will go into StreamingProcessor::onFrameAvailable) during
+     * queueBuffer
+     */
+    sp<ANativeWindow> currentConsumer = mConsumer;
+    mLock.unlock();
+
+    /**
      * Return buffer back to ANativeWindow
      */
     if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
         // Cancel buffer
-        res = mConsumer->cancelBuffer(mConsumer.get(),
+        res = currentConsumer->cancelBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
         if (res != OK) {
@@ -178,7 +187,7 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
                   " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     } else {
-        res = mConsumer->queueBuffer(mConsumer.get(),
+        res = currentConsumer->queueBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
         if (res != OK) {
@@ -186,7 +195,7 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
                   "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     }
-
+    mLock.lock();
     if (res != OK) {
         close(anwReleaseFence);
         return res;
