@@ -93,6 +93,9 @@ void ProFrameProcessor::processNewFrames(const sp<CameraDeviceBase> &device) {
     status_t res;
     ATRACE_CALL();
     CameraMetadata frame;
+
+    ALOGV("%s: Camera %d: Process new frames", __FUNCTION__, device->getId());
+
     while ( (res = device->getNextFrame(&frame)) == OK) {
 
         camera_metadata_entry_t entry;
@@ -124,6 +127,8 @@ void ProFrameProcessor::processNewFrames(const sp<CameraDeviceBase> &device) {
 
 bool ProFrameProcessor::processSingleFrame(CameraMetadata &frame,
                                            const sp<CameraDeviceBase> &device) {
+    ALOGV("%s: Camera %d: Process single frame (is empty? %d)",
+          __FUNCTION__, device->getId(), frame.isEmpty());
     return processListeners(frame, device) == OK;
 }
 

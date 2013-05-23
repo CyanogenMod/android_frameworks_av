@@ -373,9 +373,15 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
 
     size_t idx = 0;
     nsecs_t minTimestamp = -1;
+
+    size_t emptyCount = mFrameList.size();
+
     for (size_t j = 0; j < mFrameList.size(); j++) {
         const CameraMetadata &frame = mFrameList[j];
         if (!frame.isEmpty()) {
+
+            emptyCount--;
+
             camera_metadata_ro_entry_t entry;
             entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
             if (entry.count == 0) {
@@ -387,7 +393,12 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
             if (minTimestamp > frameTimestamp || minTimestamp == -1) {
 
                 entry = frame.find(ANDROID_CONTROL_AE_STATE);
+
                 if (entry.count == 0) {
+                    /**
+                     * This is most likely a HAL bug. The aeState field is
+                     * mandatory, so it should always be in a metadata packet.
+                     */
                     ALOGW("%s: ZSL queue frame has no AE state field!",
                             __FUNCTION__);
                     continue;
@@ -404,6 +415,25 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
             }
         }
     }
+
+    if (emptyCount == mFrameList.size()) {
+        /**
+         * This could be mildly bad and means our ZSL was triggered before
+         * there were any frames yet received by the camera framework.
+         *
+         * This is a fairly corner case which can happen under:
+         * + a user presses the shutter button real fast when the camera starts
+         *     (startPreview followed immediately by takePicture).
+         * + burst capture case (hitting shutter button as fast possible)
+         *
+         * If this happens in steady case (preview running for a while, call
+         *     a single takePicture) then this might be a fwk bug.
+         */
+        ALOGW("%s: ZSL queue has no metadata frames", __FUNCTION__);
+    }
+
+    ALOGV("%s: Candidate timestamp %lld (idx %d), empty frames: %d",
+          __FUNCTION__, minTimestamp, idx, emptyCount);
 
     if (metadataIdx) {
         *metadataIdx = idx;
