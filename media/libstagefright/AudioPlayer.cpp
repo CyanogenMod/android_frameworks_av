@@ -1,6 +1,9 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
  *
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -310,6 +313,13 @@ size_t AudioPlayer::AudioSinkCallback(
         void *buffer, size_t size, void *cookie) {
     AudioPlayer *me = (AudioPlayer *)cookie;
 
+#ifdef QCOM_HARDWARE
+    if (buffer == NULL) {
+        //Not applicable for AudioPlayer
+        ALOGE("This indicates the event underrun case for LPA/Tunnel");
+        return 0;
+    }
+#endif
     return me->fillBuffer(buffer, size);
 }
 
