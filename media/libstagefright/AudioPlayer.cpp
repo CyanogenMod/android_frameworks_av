@@ -409,6 +409,12 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                 mIsFirstBuffer = false;
             } else {
                 err = mSource->read(&mInputBuffer, &options);
+#ifdef QCOM_HARDWARE
+                if (err == OK && mInputBuffer == NULL && mSourcePaused) {
+                    ALOGV("mSourcePaused, return 0 from fillBuffer");
+                    return 0;
+                }
+#endif
             }
 
             CHECK((err == OK && mInputBuffer != NULL)
