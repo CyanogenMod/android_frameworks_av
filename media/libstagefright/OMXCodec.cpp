@@ -4017,6 +4017,13 @@ status_t OMXCodec::read(
 
     while (mState != ERROR && !mNoMoreOutputData && mFilledBuffers.empty()) {
         if ((err = waitForBufferFilled_l()) != OK) {
+            if ((err == -ETIMEDOUT) && (mPaused == true) && !mIsVideo) {
+                // When the audio playback is paused, the fill buffer maybe timed out
+                // if input data is not available to decode. Hence, considering the
+                // timed out as a valid case.
+                ALOGV("returned OK instead of timedout from read() as mPaused is true");
+                err = OK;
+            }
             return err;
         }
     }
