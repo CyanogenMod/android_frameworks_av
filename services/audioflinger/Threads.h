@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2012, The Android Open Source Project
+** Copyright (c) 2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -137,6 +139,9 @@ public:
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
     virtual     void        audioConfigChanged_l(int event, int param = 0) = 0;
+#ifdef QCOM_HARDWARE
+                void        effectConfigChanged();
+#endif
                 void        sendIoConfigEvent(int event, int param = 0);
                 void        sendIoConfigEvent_l(int event, int param = 0);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);

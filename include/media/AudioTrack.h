@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +33,10 @@
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
+#ifdef QCOM_HARDWARE
+#include <media/IDirectTrackClient.h>
+#endif
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -39,8 +45,12 @@ class audio_track_cblk_t;
 class AudioTrackClientProxy;
 
 // ----------------------------------------------------------------------------
-
+#ifdef QCOM_HARDWARE
+class AudioTrack : public BnDirectTrackClient,
+                   virtual public RefBase
+#else
 class AudioTrack : virtual public RefBase
+#endif
 {
 public:
     enum channel_index {
@@ -64,7 +74,8 @@ public:
                                     // (See setMarkerPosition()).
         EVENT_NEW_POS = 4,          // Playback head is at a new position
                                     // (See setPositionUpdatePeriod()).
-        EVENT_BUFFER_END = 5        // Playback head is at the end of the buffer.
+        EVENT_BUFFER_END = 5,       // Playback head is at the end of the buffer.
+        EVENT_HW_FAIL = 6,          // ADSP failure.
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -485,6 +496,11 @@ public:
      */
             status_t dump(int fd, const Vector<String16>& args) const;
 
+#ifdef QCOM_HARDWARE
+            virtual void notify(int msg);
+            virtual status_t getTimeStamp(uint64_t *tstamp);
+#endif
+
 protected:
     /* copying audio tracks is not allowed */
                         AudioTrack(const AudioTrack& other);
@@ -533,6 +549,9 @@ protected:
             status_t restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart);
             bool stopped_l() const { return !mActive; }
 
+#ifdef QCOM_HARDWARE
+    sp<IDirectTrack>        mDirectTrack;
+#endif
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     sp<AudioTrackThread>    mAudioTrackThread;
@@ -586,6 +605,10 @@ protected:
 
     bool                    mFlushed; // FIXME will be made obsolete by making flush() synchronous
     audio_output_flags_t    mFlags;
+#ifdef QCOM_HARDWARE
+    sp<IAudioFlinger>       mAudioFlinger;
+    audio_io_handle_t       mAudioDirectOutput;
+#endif
     int                     mSessionId;
     int                     mAuxEffectId;
 
@@ -594,7 +617,9 @@ protected:
     //      2. mCblk->lock
     // It is OK to lock only mCblk->lock.
     mutable Mutex           mLock;
-
+#ifdef QCOM_HARDWARE
+    void*                   mObserver;
+#endif
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
