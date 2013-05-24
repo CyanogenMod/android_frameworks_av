@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,6 +112,8 @@ public:
 
         virtual status_t    setPlaybackRatePermille(int32_t rate) { return INVALID_OPERATION; }
         virtual bool        needsTrailingPadding() { return true; }
+        virtual ssize_t     sampleRate() const {return 0;};
+        virtual status_t    getTimeStamp(uint64_t *tstamp) {return 0;};
     };
 
                         MediaPlayerBase() : mCookie(0), mNotify(0) {}

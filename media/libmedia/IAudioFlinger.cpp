@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -73,6 +75,7 @@ enum {
     LOAD_HW_MODULE,
     GET_PRIMARY_OUTPUT_SAMPLING_RATE,
     GET_PRIMARY_OUTPUT_FRAME_COUNT,
+    CREATE_DIRECT_TRACK,
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -128,6 +131,47 @@ public:
             }
             lStatus = reply.readInt32();
             track = interface_cast<IAudioTrack>(reply.readStrongBinder());
+        }
+        if (status) {
+            *status = lStatus;
+        }
+        return track;
+    }
+
+    virtual sp<IDirectTrack> createDirectTrack(
+                                pid_t pid,
+                                uint32_t sampleRate,
+                                audio_channel_mask_t channelMask,
+                                audio_io_handle_t output,
+                                int *sessionId,
+                                IDirectTrackClient* client,
+                                audio_stream_type_t streamType,
+                                status_t *status)
+    {
+        Parcel data, reply;
+        sp<IDirectTrack> track;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(pid);
+        data.writeInt32(sampleRate);
+        data.writeInt32(channelMask);
+        data.writeInt32((int32_t)output);
+        int lSessionId = 0;
+        if (sessionId != NULL) {
+            lSessionId = *sessionId;
+        }
+        data.writeInt32(lSessionId);
+        data.write(client, sizeof(IDirectTrackClient));
+        data.writeInt32((int32_t) streamType);
+        status_t lStatus = remote()->transact(CREATE_DIRECT_TRACK, data, &reply);
+        if (lStatus != NO_ERROR) {
+            ALOGE("createDirectTrack error: %s", strerror(-lStatus));
+        } else {
+            lSessionId = reply.readInt32();
+            if (sessionId != NULL) {
+                *sessionId = lSessionId;
+            }
+            lStatus = reply.readInt32();
+            track = interface_cast<IDirectTrack>(reply.readStrongBinder());
         }
         if (status) {
             *status = lStatus;
@@ -722,6 +766,24 @@ status_t BnAudioFlinger::onTransact(
                     (audio_stream_type_t) streamType, sampleRate, format,
                     channelMask, frameCount, &flags, buffer, output, tid, &sessionId, &status);
             reply->writeInt32(flags);
+            reply->writeInt32(sessionId);
+            reply->writeInt32(status);
+            reply->writeStrongBinder(track->asBinder());
+            return NO_ERROR;
+        } break;
+        case CREATE_DIRECT_TRACK: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            pid_t pid = data.readInt32();
+            uint32_t sampleRate = data.readInt32();
+            audio_channel_mask_t channelMask = data.readInt32();
+            audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
+            int sessionId = data.readInt32();
+            IDirectTrackClient* client;
+            data.read(client,sizeof(IDirectTrackClient));
+            int streamType = data.readInt32();
+            status_t status;
+            sp<IDirectTrack> track = createDirectTrack(pid,
+                    sampleRate, channelMask, output, &sessionId, client,(audio_stream_type_t) streamType, &status);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(track->asBinder());

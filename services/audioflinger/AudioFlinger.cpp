@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2007, The Android Open Source Project
+** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -539,9 +541,121 @@ Exit:
     return trackHandle;
 }
 
+sp<IDirectTrack> AudioFlinger::createDirectTrack(
+        pid_t pid,
+        uint32_t sampleRate,
+        audio_channel_mask_t channelMask,
+        audio_io_handle_t output,
+        int *sessionId,
+        IDirectTrackClient *client,
+        audio_stream_type_t streamType,
+        status_t *status)
+{
+    *status = NO_ERROR;
+    status_t lStatus = NO_ERROR;
+    sp<IDirectTrack> track = NULL;
+    DirectAudioTrack* directTrack = NULL;
+    Mutex::Autolock _l(mLock);
+
+    ALOGV("createDirectTrack() sessionId: %d sampleRate %d channelMask %d",
+         *sessionId, sampleRate, channelMask);
+    AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+    if(desc == NULL) {
+        ALOGE("Error: Invalid output (%d) to create direct audio track", output);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+    desc->mStreamType = streamType;
+    if (desc->flag & AUDIO_OUTPUT_FLAG_LPA) {
+        if (sessionId != NULL && *sessionId != AUDIO_SESSION_OUTPUT_MIX) {
+            for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+                sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
+                // Check if the session ID is already associated with a track
+                uint32_t sessions = t->hasAudioSession(*sessionId);
+
+                // check if an effect with same session ID is waiting for a ssession to be created
+                ALOGV("check if an effect with same session ID is waiting for a ssession to be created");
+                if ((mLPAEffectChain == NULL) && (sessions & PlaybackThread::EFFECT_SESSION)) {
+                    // Clear reference to previous effect chain if any
+                    t->mLock.lock();
+                    ALOGV("getting the LPA effect chain and setting LPA flag to true.");
+                    mLPAEffectChain = t->getEffectChain_l(*sessionId);
+                    t->mLock.unlock();
+                }
+            }
+            mLPASessionId = *sessionId;
+            if (mLPAEffectChain != NULL) {
+                mLPAEffectChain->setLPAFlag(true);
+                // For LPA, the volume will be applied in DSP. No need for volume
+                // control in the Effect chain, so setting it to unity.
+                uint32_t volume = 0x1000000; // Equals to 1.0 in 8.24 format
+                mLPAEffectChain->setVolume_l(&volume,&volume);
+            } else {
+                ALOGW("There was no effectChain created for the sessionId(%d)", mLPASessionId);
+            }
+            mLPASampleRate  = sampleRate;
+            mLPANumChannels = popcount(channelMask);
+        } else {
+            if(sessionId != NULL) {
+                ALOGE("Error: Invalid sessionID (%d) for direct audio track", *sessionId);
+            }
+        }
+    }
+    mLock.unlock();
+    directTrack = new DirectAudioTrack(this, output, desc, client, desc->flag);
+    desc->trackRefPtr = dynamic_cast<void *>(directTrack);
+    mLock.lock();
+    if (directTrack != 0) {
+        track = dynamic_cast<IDirectTrack *>(directTrack);
+        AudioEventObserver* obv = dynamic_cast<AudioEventObserver *>(directTrack);
+        ALOGE("setting observer mOutputDesc track %p, obv %p", track.get(), obv);
+        desc->stream->set_observer(desc->stream, reinterpret_cast<void *>(obv));
+    } else {
+        lStatus = BAD_VALUE;
+    }
+Exit:
+    if(lStatus) {
+        if (track != NULL) {
+            track.clear();
+        }
+        *status = lStatus;
+    }
+    return track;
+}
+
+void AudioFlinger::deleteEffectSession()
+{
+    Mutex::Autolock _l(mLock);
+    ALOGV("deleteSession");
+    // -2 is invalid session ID
+    mLPASessionId = -2;
+    if (mLPAEffectChain != NULL) {
+        mLPAEffectChain->setLPAFlag(false);
+        size_t i, numEffects = mLPAEffectChain->getNumEffects();
+        for(i = 0; i < numEffects; i++) {
+            sp<EffectModule> effect = mLPAEffectChain->getEffectFromIndex_l(i);
+            effect->setInBuffer(mLPAEffectChain->inBuffer());
+            if (i == numEffects-1) {
+                effect->setOutBuffer(mLPAEffectChain->outBuffer());
+            } else {
+                effect->setOutBuffer(mLPAEffectChain->inBuffer());
+            }
+            effect->configure();
+        }
+        mLPAEffectChain.clear();
+        mLPAEffectChain = NULL;
+    }
+}
+
 uint32_t AudioFlinger::sampleRate(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
+    if (!mDirectAudioTracks.isEmpty()) {
+        AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+        if(desc != NULL) {
+            return desc->stream->common.get_sample_rate(&desc->stream->common);
+        }
+    }
     PlaybackThread *thread = checkPlaybackThread_l(output);
     if (thread == NULL) {
         ALOGW("sampleRate() unknown thread %d", output);
@@ -553,6 +667,10 @@ uint32_t AudioFlinger::sampleRate(audio_io_handle_t output) const
 int AudioFlinger::channelCount(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
+    AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+    if(desc != NULL) {
+        return desc->stream->common.get_channels(&desc->stream->common);
+    }
     PlaybackThread *thread = checkPlaybackThread_l(output);
     if (thread == NULL) {
         ALOGW("channelCount() unknown thread %d", output);
@@ -575,6 +693,10 @@ audio_format_t AudioFlinger::format(audio_io_handle_t output) const
 size_t AudioFlinger::frameCount(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
+    AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+    if(desc != NULL) {
+        return desc->stream->common.get_buffer_size(&desc->stream->common);
+    }
     PlaybackThread *thread = checkPlaybackThread_l(output);
     if (thread == NULL) {
         ALOGW("frameCount() unknown thread %d", output);
@@ -776,10 +898,29 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
     }
 
     AutoMutex lock(mLock);
+    ALOGV("setStreamVolume stream %d, output %d, value %f",stream, output, value);
+    AudioSessionDescriptor *desc = NULL;
+    if (!mDirectAudioTracks.isEmpty()) {
+        desc = mDirectAudioTracks.valueFor(output);
+        if (desc != NULL) {
+            ALOGV("setStreamVolume for mAudioTracks size %d desc %p",mDirectAudioTracks.size(),desc);
+            if (desc->mStreamType == stream) {
+                mStreamTypes[stream].volume = value;
+                desc->mVolumeScale = value;
+                desc->stream->set_volume(desc->stream,
+                                         desc->mVolumeLeft * mStreamTypes[stream].volume,
+                                         desc->mVolumeRight* mStreamTypes[stream].volume);
+                return NO_ERROR;
+            }
+        }
+    }
     PlaybackThread *thread = NULL;
     if (output) {
         thread = checkPlaybackThread_l(output);
         if (thread == NULL) {
+            if (desc != NULL) {
+                return NO_ERROR;
+            }
             return BAD_VALUE;
         }
     }
@@ -907,6 +1048,24 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             }
         }
         return final_result;
+    }
+
+    AudioSessionDescriptor *desc = NULL;
+    if (!mDirectAudioTracks.isEmpty()) {
+        desc = mDirectAudioTracks.valueFor(ioHandle);
+        if (desc != NULL) {
+            ALOGV("setParameters for mAudioTracks size %d desc %p",mDirectAudioTracks.size(),desc);
+            desc->stream->common.set_parameters(&desc->stream->common, keyValuePairs.string());
+            AudioParameter param = AudioParameter(keyValuePairs);
+            String8 key = String8(AudioParameter::keyRouting);
+            int device;
+            if (param.getInt(key, device) == NO_ERROR) {
+                if(mLPAEffectChain != NULL){
+                    mLPAEffectChain->setDevice_l(device);
+                    audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
+                }
+            }
+        }
     }
 
     // hold a strong ref on thread in case closeOutput() or closeInput() is called
@@ -1068,6 +1227,21 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
     }
 }
 
+status_t AudioFlinger::deregisterClient(const sp<IAudioFlingerClient>& client)
+{
+    ALOGV("deregisterClient() %p, tid %d, calling tid %d", client.get(), gettid(), IPCThreadState::self()->getCallingPid());
+    Mutex::Autolock _l(mLock);
+
+    pid_t pid = IPCThreadState::self()->getCallingPid();
+    int index = mNotificationClients.indexOfKey(pid);
+    if (index >= 0) {
+        mNotificationClients.removeItemsAt(index);
+        return true;
+    }
+
+    return false;
+}
+
 void AudioFlinger::removeNotificationClient(pid_t pid)
 {
     Mutex::Autolock _l(mLock);
@@ -1098,6 +1272,10 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
 // audioConfigChanged_l() must be called with AudioFlinger::mLock held
 void AudioFlinger::audioConfigChanged_l(int event, audio_io_handle_t ioHandle, const void *param2)
 {
+    ALOGV("AudioFlinger::audioConfigChanged_l: event %d", event);
+    if (event == AudioSystem::EFFECT_CONFIG_CHANGED) {
+        mIsEffectConfigChanged = true;
+    }
     size_t size = mNotificationClients.size();
     for (size_t i = 0; i < size; i++) {
         mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event, ioHandle,
@@ -1441,8 +1619,16 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
     if (status == NO_ERROR && outStream != NULL) {
         AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream);
-
-        if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
+        if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL ) {
+            AudioSessionDescriptor *desc = new AudioSessionDescriptor(hwDevHal, outStream, flags);
+            desc->mActive = true;
+            //TODO: no stream type
+            //desc->mStreamType = streamType;
+            desc->mVolumeLeft = 1.0;
+            desc->mVolumeRight = 1.0;
+            desc->device = *pDevices;
+            mDirectAudioTracks.add(id, desc);
+        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
             (config.format != AUDIO_FORMAT_PCM_16_BIT) ||
             (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
             thread = new DirectOutputThread(this, output, id, *pDevices);
@@ -1451,21 +1637,30 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             thread = new MixerThread(this, output, id, *pDevices);
             ALOGV("openOutput() created mixer output: ID %d thread %p", id, thread);
         }
-        mPlaybackThreads.add(id, thread);
+        if (thread != NULL) {
+            mPlaybackThreads.add(id, thread);
+        }
 
         if (pSamplingRate != NULL) *pSamplingRate = config.sample_rate;
         if (pFormat != NULL) *pFormat = config.format;
         if (pChannelMask != NULL) *pChannelMask = config.channel_mask;
-        if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
-
-        // notify client processes of the new output creation
-        thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
+        if (thread != NULL) {
+            if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
+            // notify client processes of the new output creation
+            thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
+        }
+        else {
+            *pLatencyMs = 0;
+            if ((flags & AUDIO_OUTPUT_FLAG_LPA) || (flags & AUDIO_OUTPUT_FLAG_TUNNEL)) {
+                AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(id);
+                *pLatencyMs = desc->stream->get_latency(desc->stream);
+            }
+        }
 
         // the first primary output opened designates the primary hw device
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = outHwDev;
-
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_MODE;
             hwDevHal->set_mode(hwDevHal, mMode);
@@ -1508,6 +1703,19 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
 {
     // keep strong reference on the playback thread so that
     // it is not destroyed while exit() is executed
+    AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+    if (desc) {
+        ALOGV("Closing DirectTrack output %d", output);
+        desc->mActive = false;
+        desc->stream->common.standby(&desc->stream->common);
+        desc->hwDev->close_output_stream(desc->hwDev, desc->stream);
+        desc->trackRefPtr = NULL;
+        mDirectAudioTracks.removeItem(output);
+        audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
+        delete desc;
+        return NO_ERROR;
+    }
+
     sp<PlaybackThread> thread;
     {
         Mutex::Autolock _l(mLock);
@@ -2364,8 +2572,6 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
     }
 }
 #endif
-
-// ----------------------------------------------------------------------------
 
 status_t AudioFlinger::onTransact(
         uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
