@@ -251,6 +251,7 @@ class Camera3Stream :
     virtual status_t returnInputBufferLocked(
             const camera3_stream_buffer &buffer);
     virtual bool     hasOutstandingBuffersLocked() const = 0;
+    // Can return -ENOTCONN when we are already disconnected (not an error)
     virtual status_t disconnectLocked() = 0;
 
     // Configure the buffer queue interface to the other end of the stream,

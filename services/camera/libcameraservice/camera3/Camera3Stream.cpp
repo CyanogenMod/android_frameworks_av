@@ -258,7 +258,15 @@ bool Camera3Stream::hasOutstandingBuffers() const {
 status_t Camera3Stream::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
-    return disconnectLocked();
+    ALOGV("%s: Stream %d: Disconnecting...", __FUNCTION__, mId);
+    status_t res = disconnectLocked();
+
+    if (res == -ENOTCONN) {
+        // "Already disconnected" -- not an error
+        return OK;
+    } else {
+        return res;
+    }
 }
 
 status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
