@@ -159,7 +159,9 @@ status_t Camera3IOStreamBase::disconnectLocked() {
             break;
         default:
             // No connection, nothing to do
-            return OK;
+            ALOGV("%s: Stream %d: Already disconnected",
+                  __FUNCTION__, mId);
+            return -ENOTCONN;
     }
 
     if (mDequeuedBufferCount > 0) {
