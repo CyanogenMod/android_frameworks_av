@@ -677,6 +677,8 @@ status_t Camera3Device::deleteStream(int id) {
     Mutex::Autolock l(mLock);
     status_t res;
 
+    ALOGV("%s: Camera %d: Deleting stream %d", __FUNCTION__, mId, id);
+
     // CameraDevice semantics require device to already be idle before
     // deleteStream is called, unlike for createStream.
     if (mStatus != STATUS_IDLE) {
