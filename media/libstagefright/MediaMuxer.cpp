@@ -161,7 +161,7 @@ status_t MediaMuxer::writeSampleData(const sp<ABuffer> &buffer, size_t trackInde
     // Just set the kKeyDecodingTime as the presentation time for now.
     sampleMetaData->setInt64(kKeyDecodingTime, timeUs);
 
-    if (flags & SAMPLE_FLAG_SYNC) {
+    if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
         sampleMetaData->setInt32(kKeyIsSyncFrame, true);
     }
 
