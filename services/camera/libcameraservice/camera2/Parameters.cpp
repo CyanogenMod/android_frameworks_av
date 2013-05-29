@@ -292,8 +292,11 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::WHITE_BALANCE_AUTO);
 
     camera_metadata_ro_entry_t availableWhiteBalanceModes =
-        staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
-    {
+        staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES, 0, 0, false);
+    if (!availableWhiteBalanceModes.count) {
+        params.set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE,
+                CameraParameters::WHITE_BALANCE_AUTO);
+    } else {
         String8 supportedWhiteBalance;
         bool addComma = false;
         for (size_t i=0; i < availableWhiteBalanceModes.count; i++) {
@@ -353,9 +356,11 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::EFFECT_NONE);
 
     camera_metadata_ro_entry_t availableEffects =
-        staticInfo(ANDROID_CONTROL_AVAILABLE_EFFECTS);
-    if (!availableEffects.count) return NO_INIT;
-    {
+        staticInfo(ANDROID_CONTROL_AVAILABLE_EFFECTS, 0, 0, false);
+    if (!availableEffects.count) {
+        params.set(CameraParameters::KEY_SUPPORTED_EFFECTS,
+                CameraParameters::EFFECT_NONE);
+    } else {
         String8 supportedEffects;
         bool addComma = false;
         for (size_t i=0; i < availableEffects.count; i++) {
@@ -413,9 +418,11 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::ANTIBANDING_AUTO);
 
     camera_metadata_ro_entry_t availableAntibandingModes =
-        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES);
-    if (!availableAntibandingModes.count) return NO_INIT;
-    {
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES, 0, 0, false);
+    if (!availableAntibandingModes.count) {
+        params.set(CameraParameters::KEY_SUPPORTED_ANTIBANDING,
+                CameraParameters::ANTIBANDING_OFF);
+    } else {
         String8 supportedAntibanding;
         bool addComma = false;
         for (size_t i=0; i < availableAntibandingModes.count; i++) {
@@ -455,9 +462,10 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::SCENE_MODE_AUTO);
 
     camera_metadata_ro_entry_t availableSceneModes =
-        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
-    if (!availableSceneModes.count) return NO_INIT;
-    {
+        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES, 0, 0, false);
+    if (!availableSceneModes.count) {
+        params.remove(CameraParameters::KEY_SCENE_MODE);
+    } else {
         String8 supportedSceneModes(CameraParameters::SCENE_MODE_AUTO);
         bool addComma = true;
         bool noSceneModes = false;
@@ -548,15 +556,17 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         }
     }
 
+    bool isFlashAvailable = false;
     camera_metadata_ro_entry_t flashAvailable =
-        staticInfo(ANDROID_FLASH_INFO_AVAILABLE, 1, 1);
-    if (!flashAvailable.count) return NO_INIT;
+        staticInfo(ANDROID_FLASH_INFO_AVAILABLE, 0, 1, false);
+    if (flashAvailable.count) {
+        isFlashAvailable = flashAvailable.data.u8[0];
+    }
 
     camera_metadata_ro_entry_t availableAeModes =
-        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES);
-    if (!availableAeModes.count) return NO_INIT;
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES, 0, 0, false);
 
-    if (flashAvailable.data.u8[0]) {
+    if (isFlashAvailable) {
         flashMode = Parameters::FLASH_MODE_OFF;
         params.set(CameraParameters::KEY_FLASH_MODE,
                 CameraParameters::FLASH_MODE_OFF);
@@ -585,14 +595,12 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     }
 
     camera_metadata_ro_entry_t minFocusDistance =
-        staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE, 1, 1);
-    if (!minFocusDistance.count) return NO_INIT;
+        staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE, 0, 1, false);
 
     camera_metadata_ro_entry_t availableAfModes =
-        staticInfo(ANDROID_CONTROL_AF_AVAILABLE_MODES);
-    if (!availableAfModes.count) return NO_INIT;
+        staticInfo(ANDROID_CONTROL_AF_AVAILABLE_MODES, 0, 0, false);
 
-    if (minFocusDistance.data.f[0] == 0) {
+    if (!minFocusDistance.count || minFocusDistance.data.f[0] == 0) {
         // Fixed-focus lens
         focusMode = Parameters::FOCUS_MODE_FIXED;
         params.set(CameraParameters::KEY_FOCUS_MODE,
@@ -662,7 +670,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     focusingAreas.add(Parameters::Area(0,0,0,0,0));
 
     camera_metadata_ro_entry_t availableFocalLengths =
-        staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+        staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS, 0, 0, false);
     if (!availableFocalLengths.count) return NO_INIT;
 
     float minFocalLength = availableFocalLengths.data.f[0];
@@ -768,8 +776,8 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             CameraParameters::FALSE);
 
     camera_metadata_ro_entry_t availableVideoStabilizationModes =
-        staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
-    if (!availableVideoStabilizationModes.count) return NO_INIT;
+        staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES, 0, 0,
+                false);
 
     if (availableVideoStabilizationModes.count > 1) {
         params.set(CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED,
@@ -797,7 +805,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     previewCallbackSurface = false;
 
     camera_metadata_ro_entry_t supportedHardwareLevel =
-        staticInfo(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL);
+        staticInfo(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL, 0, 0, false);
     if (!supportedHardwareLevel.count || (supportedHardwareLevel.data.u8[0] ==
             ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED)) {
         ALOGI("Camera %d: ZSL mode disabled for limited mode HALs", cameraId);
@@ -835,8 +843,8 @@ status_t Parameters::buildFastInfo() {
     int32_t arrayHeight = activeArraySize.data.i32[1];
 
     camera_metadata_ro_entry_t availableFaceDetectModes =
-        staticInfo(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES);
-    if (!availableFaceDetectModes.count) return NO_INIT;
+        staticInfo(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES, 0, 0,
+                false);
 
     uint8_t bestFaceDetectMode =
         ANDROID_STATISTICS_FACE_DETECT_MODE_OFF;
@@ -863,19 +871,21 @@ status_t Parameters::buildFastInfo() {
         }
     }
 
+    int32_t maxFaces = 0;
     camera_metadata_ro_entry_t maxFacesDetected =
-        staticInfo(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT, 1, 1);
-    if (!maxFacesDetected.count) return NO_INIT;
-
-    int32_t maxFaces = maxFacesDetected.data.i32[0];
+        staticInfo(ANDROID_STATISTICS_INFO_MAX_FACE_COUNT, 0, 1, false);
+    if (maxFacesDetected.count) {
+        maxFaces = maxFacesDetected.data.i32[0];
+    }
 
     camera_metadata_ro_entry_t availableSceneModes =
-        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
+        staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES, 0, 0, false);
     camera_metadata_ro_entry_t sceneModeOverrides =
-        staticInfo(ANDROID_CONTROL_SCENE_MODE_OVERRIDES);
+        staticInfo(ANDROID_CONTROL_SCENE_MODE_OVERRIDES, 0, 0, false);
     camera_metadata_ro_entry_t minFocusDistance =
-        staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE);
-    bool fixedLens = (minFocusDistance.data.f[0] == 0);
+        staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE, 0, 0, false);
+    bool fixedLens = minFocusDistance.count == 0 ||
+        minFocusDistance.data.f[0] == 0;
 
     camera_metadata_ro_entry_t availableFocalLengths =
         staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
@@ -1466,7 +1476,7 @@ status_t Parameters::set(const String8& paramString) {
     }
     if (validatedParams.wbMode != wbMode) {
         camera_metadata_ro_entry_t availableWbModes =
-            staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
+            staticInfo(ANDROID_CONTROL_AWB_AVAILABLE_MODES, 0, 0, false);
         for (i = 0; i < availableWbModes.count; i++) {
             if (validatedParams.wbMode == availableWbModes.data.u8[i]) break;
         }
@@ -1497,8 +1507,9 @@ status_t Parameters::set(const String8& paramString) {
         validatedParams.currentAfTriggerId = -1;
         if (validatedParams.focusMode != Parameters::FOCUS_MODE_FIXED) {
             camera_metadata_ro_entry_t minFocusDistance =
-                staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE);
-            if (minFocusDistance.data.f[0] == 0) {
+                staticInfo(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE, 0, 0,
+                        false);
+            if (minFocusDistance.count && minFocusDistance.data.f[0] == 0) {
                 ALOGE("%s: Requested focus mode \"%s\" is not available: "
                         "fixed focus lens",
                         __FUNCTION__,
@@ -1618,7 +1629,8 @@ status_t Parameters::set(const String8& paramString) {
     validatedParams.videoStabilization = boolFromString(
         newParams.get(CameraParameters::KEY_VIDEO_STABILIZATION) );
     camera_metadata_ro_entry_t availableVideoStabilizationModes =
-        staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+        staticInfo(ANDROID_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES, 0, 0,
+                false);
     if (validatedParams.videoStabilization &&
             availableVideoStabilizationModes.count == 1) {
         ALOGE("%s: Video stabilization not supported", __FUNCTION__);
@@ -2544,10 +2556,6 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
     camera_metadata_ro_entry_t sensorSize =
             staticInfo(ANDROID_SENSOR_INFO_PHYSICAL_SIZE, 2, 2);
     if (!sensorSize.count) return NO_INIT;
-
-    camera_metadata_ro_entry_t availableFocalLengths =
-            staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
-    if (!availableFocalLengths.count) return NO_INIT;
 
     float arrayAspect = static_cast<float>(fastInfo.arrayWidth) /
             fastInfo.arrayHeight;
