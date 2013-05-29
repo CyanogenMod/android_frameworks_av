@@ -23,6 +23,10 @@
 namespace android {
 extern "C" {
 HTTPBase *createChromiumHTTPDataSource(uint32_t flags);
+
+status_t UpdateChromiumHTTPDataSourceProxyConfig(
+        const char *host, int32_t port, const char *exclusionList);
+
 DataSource *createDataUriSource(const char *uri);
 }
 }

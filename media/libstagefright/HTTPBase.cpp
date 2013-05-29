@@ -58,6 +58,16 @@ sp<HTTPBase> HTTPBase::Create(uint32_t flags) {
     }
 }
 
+// static
+status_t HTTPBase::UpdateProxyConfig(
+        const char *host, int32_t port, const char *exclusionList) {
+#if CHROMIUM_AVAILABLE
+    return UpdateChromiumHTTPDataSourceProxyConfig(host, port, exclusionList);
+#else
+    return INVALID_OPERATION;
+#endif
+}
+
 void HTTPBase::addBandwidthMeasurement(
         size_t numBytes, int64_t delayUs) {
     Mutex::Autolock autoLock(mLock);

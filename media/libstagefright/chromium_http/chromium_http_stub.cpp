@@ -26,6 +26,11 @@ HTTPBase *createChromiumHTTPDataSource(uint32_t flags) {
     return new ChromiumHTTPDataSource(flags);
 }
 
+status_t UpdateChromiumHTTPDataSourceProxyConfig(
+        const char *host, int32_t port, const char *exclusionList) {
+    return ChromiumHTTPDataSource::UpdateProxyConfig(host, port, exclusionList);
+}
+
 DataSource *createDataUriSource(const char *uri) {
     return new DataUriSource(uri);
 }
