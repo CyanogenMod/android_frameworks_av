@@ -210,7 +210,8 @@ boolean JpegCompressor::jpegEmptyOutputBuffer(j_compress_ptr /*cinfo*/) {
     return true;
 }
 
-void JpegCompressor::jpegTermDestination(j_compress_ptr /*cinfo*/) {
+void JpegCompressor::jpegTermDestination(j_compress_ptr cinfo) {
+    (void) cinfo; // TODO: clean up
     ALOGV("%s", __FUNCTION__);
     ALOGV("%s: Done writing JPEG data. %d bytes left in buffer",
             __FUNCTION__, cinfo->dest->free_in_buffer);
