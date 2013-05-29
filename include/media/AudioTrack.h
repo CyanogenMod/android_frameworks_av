@@ -63,7 +63,12 @@ public:
         EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from loop start if loop count was not 0.
         EVENT_MARKER = 3,           // Playback head is at the specified marker position (See setMarkerPosition()).
         EVENT_NEW_POS = 4,          // Playback head is at a new position (See setPositionUpdatePeriod()).
+#ifdef STE_AUDIO
+        EVENT_BUFFER_END = 5,       // Playback head is at the end of the buffer.
+        EVENT_LATENCY_CHANGED = 6   // Audio sink latency has changed.
+#else
         EVENT_BUFFER_END = 5        // Playback head is at the end of the buffer.
+#endif
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -508,6 +513,10 @@ protected:
             audio_io_handle_t getOutput_l();
             status_t restoreTrack_l(audio_track_cblk_t*& cblk, bool fromStart);
             bool stopped_l() const { return !mActive; }
+#ifdef STE_AUDIO
+            static void LatencyCallback(void *cookie, audio_io_handle_t output,
+                                 uint32_t sinkLatency);
+#endif
 
 #ifdef QCOM_HARDWARE
     sp<IDirectTrack>        mDirectTrack;
@@ -559,6 +568,9 @@ protected:
     bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
+#ifdef STE_AUDIO
+    int                     mLatencyClientId;
+#endif
 };
 
 class TimedAudioTrack : public AudioTrack

@@ -39,6 +39,9 @@ const char * const AudioParameter::keyVoipCheck = AUDIO_PARAMETER_KEY_VOIP_CHECK
 const char * const AudioParameter::keyFluenceType = AUDIO_PARAMETER_KEY_FLUENCE_TYPE;
 const char * const AudioParameter::keyHandleA2dpDevice = AUDIO_PARAMETER_KEY_HANDLE_A2DP_DEVICE;
 #endif
+#ifdef STE_AUDIO
+const char *AudioParameter::keySinkLatency = "sink_latency";
+#endif
 
 AudioParameter::AudioParameter(const String8& keyValuePairs)
 {

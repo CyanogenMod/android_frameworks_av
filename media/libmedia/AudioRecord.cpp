@@ -80,8 +80,18 @@ status_t AudioRecord::getMinFrameCount(
 
 AudioRecord::AudioRecord()
     : mStatus(NO_INIT), mSessionId(0),
+#ifdef STE_AUDIO
+      mpInputClientId(NULL),
+#endif
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        mpInputClientId = (audio_input_clients*)audioFlinger->addInputClient(
+                                                 (uint32_t)AUDIO_INPUT_CLIENT_RECORD);
+    }
+#endif
 }
 
 AudioRecord::AudioRecord(
@@ -96,8 +106,19 @@ AudioRecord::AudioRecord(
         int notificationFrames,
         int sessionId)
     : mStatus(NO_INIT), mSessionId(0),
+#ifdef STE_AUDIO
+      mpInputClientId(NULL),
+#endif
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        mpInputClientId = (audio_input_clients*)audioFlinger->addInputClient(
+                                                 (uint32_t)AUDIO_INPUT_CLIENT_RECORD);
+    }
+#endif
+
     mStatus = set(inputSource, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames, sessionId);
 }
@@ -149,6 +170,12 @@ AudioRecord::~AudioRecord()
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
     }
+#ifdef STE_AUDIO
+    const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
+    if (audioFlinger != 0) {
+        audioFlinger->removeInputClient((uint32_t*)mpInputClientId);
+    }
+#endif
 }
 
 status_t AudioRecord::set(
@@ -212,7 +239,12 @@ status_t AudioRecord::set(
                                                     format,
                                                     channelMask,
                                                     (audio_in_acoustics_t)flags,
+#ifdef STE_AUDIO
+                                                    mSessionId,
+                                                    mpInputClientId);
+#else
                                                     mSessionId);
+#endif
     if (input == 0) {
         ALOGE("Could not get audio input for record source %d", inputSource);
         return BAD_VALUE;
@@ -283,7 +315,9 @@ status_t AudioRecord::set(
         notificationFrames = frameCount/2;
     }
 
+#ifndef STE_AUDIO
     mInputSource = inputSource;
+#endif
     // create the IAudioRecord
 #ifdef QCOM_HARDWARE
     status_t status = openRecord_l(sampleRate, format, channelMask,
@@ -319,6 +353,9 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
+#ifdef STE_AUDIO
+    mInputSource = inputSource;
+#endif
     mFlags = flags;
     mInput = input;
 #ifdef QCOM_HARDWARE

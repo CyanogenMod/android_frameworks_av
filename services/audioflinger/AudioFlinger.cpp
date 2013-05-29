@@ -1320,6 +1320,20 @@ unsigned int AudioFlinger::getInputFramesLost(audio_io_handle_t ioHandle) const
     return 0;
 }
 
+#ifdef STE_AUDIO
+size_t AudioFlinger::readInput(audio_io_handle_t input, audio_input_clients inputClientId,
+        void *buffer, uint32_t bytes, uint32_t *pOverwrittenBytes)
+{
+    if (input == 0 || buffer == NULL) {
+        return 0;
+    }
+
+    AudioStreamIn* InStream = (AudioStreamIn*)input;
+
+    return 0;
+}
+#endif
+
 status_t AudioFlinger::setVoiceVolume(float value)
 {
     status_t ret = initCheck();
@@ -2392,6 +2406,9 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
         break;
 
     case AudioSystem::STREAM_CONFIG_CHANGED:
+#ifdef STE_AUDIO
+    case AudioSystem::SINK_LATENCY_CHANGED:
+#endif
         param2 = &param;
     case AudioSystem::OUTPUT_CLOSED:
     default:
@@ -3936,6 +3953,11 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                 mEffectChains[i]->setDevice_l(mDevice);
             }
         }
+#ifdef STE_AUDIO
+        if (param.getInt(String8(AudioParameter::keySinkLatency), value) == NO_ERROR) {
+            sendConfigEvent_l(AudioSystem::SINK_LATENCY_CHANGED, value);
+        }
+#endif
 
         if (status == NO_ERROR) {
             status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
@@ -6872,7 +6894,12 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          uint32_t sampleRate,
                                          uint32_t channels,
                                          audio_io_handle_t id,
+#ifdef STE_AUDIO
+                                         uint32_t device,
+                                         audio_input_clients pInputClientId) :
+#else
                                          uint32_t device) :
+#endif
     ThreadBase(audioFlinger, id, device, RECORD),
     mInput(input), mTrack(NULL), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mInputBytes set by readInputParameters()
@@ -6887,6 +6914,9 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
 
+#ifdef STE_AUDIO
+    mInputClientId = pInputClientId;
+#endif
     readInputParameters();
 }
 
@@ -7845,7 +7875,11 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         }
 #endif
         // the first primary output opened designates the primary hw device
+#ifdef STE_AUDIO
+        if ( mPrimaryHardwareDev == NULL ) {
+#else
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
+#endif
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = outHwDev;
 
@@ -8009,11 +8043,50 @@ status_t AudioFlinger::restoreOutput(audio_io_handle_t output)
     return NO_ERROR;
 }
 
+#ifdef STE_AUDIO
+uint32_t *AudioFlinger::addInputClient(uint32_t clientId)
+{
+    Mutex::Autolock _l(mLock);
+
+    uint32_t *pNewClient = new uint32_t;
+    if (pNewClient) {
+        *pNewClient = clientId;
+        mInputClients.add(pNewClient);
+    }
+
+    return pNewClient;
+}
+
+status_t AudioFlinger::removeInputClient(uint32_t *pClientId)
+{
+    status_t result = NO_ERROR;
+
+    Mutex::Autolock _l(mLock);
+
+    if (pClientId == NULL) {
+        result = BAD_VALUE;
+    } else if (mInputClients.remove(pClientId) < 0) {
+        result = BAD_VALUE;
+    } else {
+        // the pointer was found in the vector and is non-NULL, so it must point to memory
+        // allocated by addInputClient => free it.
+        delete pClientId;
+    }
+
+    return result;
+}
+#endif
+
 audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                           audio_devices_t *pDevices,
                                           uint32_t *pSamplingRate,
                                           audio_format_t *pFormat,
+#ifdef STE_AUDIO
+                                          uint32_t *pChannelMask,
+                                          audio_input_clients *pInputClientId)
+#else
                                           uint32_t *pChannelMask)
+#endif
 {
     status_t status;
     RecordThread *thread = NULL;
@@ -8027,6 +8100,10 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_channel_mask_t reqChannels = config.channel_mask;
     audio_stream_in_t *inStream = NULL;
     audio_hw_device_t *inHwDev;
+#ifdef STE_AUDIO
+    bool returnRecordThread = true;
+    audio_input_clients inputClientId;
+#endif
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;
@@ -8037,6 +8114,12 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     inHwDev = findSuitableHwDev_l(module, *pDevices);
     if (inHwDev == NULL)
         return 0;
+
+#ifdef STE_AUDIO
+    if (pInputClientId != NULL && *pInputClientId == AUDIO_INPUT_CLIENT_PLAYBACK) {
+        returnRecordThread = false;
+    }
+#endif
 
     audio_io_handle_t id = nextUniqueId();
 
@@ -8055,12 +8138,24 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
             config.sample_rate,
             config.format,
             config.channel_mask,
+#ifdef STE_AUDIO
+            status,
+            pInputClientId);
+#else
             status);
+#endif
 
     // If the input could not be opened with the requested parameters and we can handle the conversion internally,
     // try to open again with the proposed parameters. The AudioFlinger can resample the input and do mono to stereo
     // or stereo to mono conversions on 16 bit PCM inputs.
+#ifdef STE_AUDIO
+    if (inStream == NULL && status == ALREADY_EXISTS) {
+        ALOGD("Input already exists");
+        return 0;
+    } else if (inStream == NULL && status == BAD_VALUE &&
+#else
     if (status == BAD_VALUE &&
+#endif
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
         (config.sample_rate <= 2 * reqSamplingRate) &&
 #ifdef QCOM_HARDWARE
@@ -8094,14 +8189,25 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                   reqSamplingRate,
                                   reqChannels,
                                   id,
+#ifdef STE_AUDIO
+                                  device,
+                                  inputClientId);
+#else
                                   device);
+#endif
         mRecordThreads.add(id, thread);
         ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
         if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
         if (pFormat != NULL) *pFormat = config.format;
         if (pChannelMask != NULL) *pChannelMask = reqChannels;
 
+#ifdef STE_AUDIO
+        if (pInputClientId != NULL) {
+            *pInputClientId = inputClientId;
+        }
+#else
         input->stream->common.standby(&input->stream->common);
+#endif
 
         // notify client processes of the new input creation
         thread->audioConfigChanged_l(AudioSystem::INPUT_OPENED);
@@ -8111,6 +8217,40 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     return 0;
 }
 
+#ifdef STE_AUDIO
+status_t AudioFlinger::closeInput(audio_io_handle_t input, audio_input_clients *inputClientId)
+{
+    // keep strong reference on the record thread so that
+    // it is not destroyed while exit() is executed
+    Mutex::Autolock _l(mLock);
+    AudioStreamIn* stream = (AudioStreamIn*)input;
+    audio_input_clients clientId = (audio_input_clients) *inputClientId;
+    sp <RecordThread> thread;
+    thread = checkRecordThread_l(input);
+    if (thread != NULL) {
+        stream = thread->getInput();
+    }
+    if (inputClientId == NULL) {
+        if (thread == NULL) {
+            return BAD_VALUE;
+        }
+        ALOGV("closeInput() %d", input);
+        void *param2 = 0;
+        audioConfigChanged_l(AudioSystem::INPUT_CLOSED, input, param2);
+        mRecordThreads.removeItem(input);
+    }
+
+    AudioStreamIn *in = (AudioStreamIn *)stream;
+    in->hwDev->close_input_stream(in->hwDev, in->stream);
+    delete in;
+
+    if (thread != NULL) {
+        thread->exit();
+    }
+
+    return NO_ERROR;
+}
+#else
 status_t AudioFlinger::closeInput(audio_io_handle_t input)
 {
     // keep strong reference on the record thread so that
@@ -8139,6 +8279,7 @@ status_t AudioFlinger::closeInput(audio_io_handle_t input)
 
     return NO_ERROR;
 }
+#endif
 
 status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
 {

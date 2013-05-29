@@ -65,7 +65,12 @@ public:
                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                     uint32_t channels = 0,
                                     audio_in_acoustics_t acoustics = (audio_in_acoustics_t)0,
+#ifdef STE_AUDIO
+                                    int audioSession = 0,
+                                    audio_input_clients *inputClientId = NULL) = 0;
+#else
                                     int audioSession = 0) = 0;
+#endif
     virtual status_t startInput(audio_io_handle_t input) = 0;
     virtual status_t stopInput(audio_io_handle_t input) = 0;
     virtual void releaseInput(audio_io_handle_t input) = 0;
