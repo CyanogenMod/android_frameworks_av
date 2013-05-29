@@ -340,5 +340,11 @@ status_t ChromiumHTTPDataSource::reconnectAtOffset(off64_t offset) {
     return err;
 }
 
+// static
+status_t ChromiumHTTPDataSource::UpdateProxyConfig(
+        const char *host, int32_t port, const char *exclusionList) {
+    return SfDelegate::UpdateProxyConfig(host, port, exclusionList);
+}
+
 }  // namespace android
 
