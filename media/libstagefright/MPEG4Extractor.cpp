@@ -921,6 +921,8 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             if (entry_count != 1) {
                 // we only support a single entry at the moment, for gapless playback
                 ALOGW("ignoring edit list with %d entries", entry_count);
+            } else if (mLastTrack->timescale == 0) {
+                ALOGW("ignoring edit list because timescale is 0");
             } else {
                 off64_t entriesoffset = data_offset + 8;
                 uint64_t segment_duration;
