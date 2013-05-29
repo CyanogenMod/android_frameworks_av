@@ -66,7 +66,11 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
 #ifdef CAMERA_MM_HEAP
             GRALLOC_USAGE_PRIVATE_MM_HEAP | GRALLOC_USAGE_PRIVATE_UNCACHED |
 #endif
+#ifdef STE_HARDWARE
+            GRALLOC_USAGE_HW_2D);
+#else
             GRALLOC_USAGE_HW_TEXTURE);
+#endif
 
     sp<ISurfaceComposer> composer(ComposerService::getComposerService());
 
