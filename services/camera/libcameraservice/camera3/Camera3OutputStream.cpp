@@ -301,8 +301,13 @@ status_t Camera3OutputStream::configureQueueLocked() {
         return res;
     }
 
-    ALOGV("%s: Consumer wants %d buffers", __FUNCTION__,
-            maxConsumerBuffers);
+    ALOGV("%s: Consumer wants %d buffers, HAL wants %d", __FUNCTION__,
+            maxConsumerBuffers, camera3_stream::max_buffers);
+    if (camera3_stream::max_buffers == 0) {
+        ALOGE("%s: Camera HAL requested no max_buffers, requires at least 1",
+                __FUNCTION__, camera3_stream::max_buffers);
+        return INVALID_OPERATION;
+    }
 
     mTotalBufferCount = maxConsumerBuffers + camera3_stream::max_buffers;
     mDequeuedBufferCount = 0;
