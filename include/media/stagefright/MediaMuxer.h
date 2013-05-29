@@ -41,12 +41,6 @@ struct MPEG4Writer;
 struct MediaMuxer : public RefBase {
 public:
     // Please update media/java/android/media/MediaMuxer.java if the
-    // SampleFlags is updated.
-    enum SampleFlags {
-        SAMPLE_FLAG_SYNC = 1,
-    };
-
-    // Please update media/java/android/media/MediaMuxer.java if the
     // OutputFormat is updated.
     enum OutputFormat {
         OUTPUT_FORMAT_MPEG_4 = 0,
