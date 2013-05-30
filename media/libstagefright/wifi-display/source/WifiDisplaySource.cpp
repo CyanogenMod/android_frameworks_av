@@ -1369,7 +1369,9 @@ status_t WifiDisplaySource::onPlayRequest(
         return ERROR_MALFORMED;
     }
 
-    if (mState != AWAITING_CLIENT_PLAY) {
+    if (mState != AWAITING_CLIENT_PLAY
+     && mState != PAUSED_TO_PLAYING
+     && mState != PAUSED) {
         ALOGW("Received PLAY request but we're in state %d", mState);
 
         sendErrorResponse(
@@ -1396,7 +1398,7 @@ status_t WifiDisplaySource::onPlayRequest(
         return err;
     }
 
-    if (mState == PAUSED_TO_PLAYING) {
+    if (mState == PAUSED_TO_PLAYING || mPlaybackSessionEstablished) {
         mState = PLAYING;
         return OK;
     }
@@ -1430,7 +1432,7 @@ status_t WifiDisplaySource::onPauseRequest(
 
     ALOGI("Received PAUSE request.");
 
-    if (mState != PLAYING_TO_PAUSED) {
+    if (mState != PLAYING_TO_PAUSED && mState != PLAYING) {
         return INVALID_OPERATION;
     }
 
