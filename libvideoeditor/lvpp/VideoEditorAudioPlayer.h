@@ -91,7 +91,7 @@ private:
     int64_t mBGAudioStoryBoardCurrentMediaVolumeVal;
 
     sp<MediaSource> mSource;
-    AudioTrack *mAudioTrack;
+    sp<AudioTrack> mAudioTrack;
 
     MediaBuffer *mInputBuffer;
 

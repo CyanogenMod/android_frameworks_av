@@ -36,8 +36,7 @@ AudioPlayer::AudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
         bool allowDeepBuffering,
         AwesomePlayer *observer)
-    : mAudioTrack(NULL),
-      mInputBuffer(NULL),
+    : mInputBuffer(NULL),
       mSampleRate(0),
       mLatencyUs(0),
       mFrameSize(0),
@@ -166,8 +165,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
                 0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
-            delete mAudioTrack;
-            mAudioTrack = NULL;
+            mAudioTrack.clear();
 
             if (mFirstBuffer != NULL) {
                 mFirstBuffer->release();
@@ -235,8 +233,7 @@ void AudioPlayer::reset() {
     } else {
         mAudioTrack->stop();
 
-        delete mAudioTrack;
-        mAudioTrack = NULL;
+        mAudioTrack.clear();
     }
 
     // Make sure to release any buffer we hold onto so that the
@@ -297,7 +294,7 @@ bool AudioPlayer::reachedEOS(status_t *finalStatus) {
 status_t AudioPlayer::setPlaybackRatePermille(int32_t ratePermille) {
     if (mAudioSink.get() != NULL) {
         return mAudioSink->setPlaybackRatePermille(ratePermille);
-    } else if (mAudioTrack != NULL){
+    } else if (mAudioTrack != 0){
         return mAudioTrack->setSampleRate(ratePermille * mSampleRate / 1000);
     } else {
         return NO_INIT;

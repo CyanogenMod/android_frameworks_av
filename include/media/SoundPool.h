@@ -118,7 +118,7 @@ protected:
 class SoundChannel : public SoundEvent {
 public:
     enum state { IDLE, RESUMING, STOPPING, PAUSED, PLAYING };
-    SoundChannel() : mAudioTrack(NULL), mState(IDLE), mNumChannels(1),
+    SoundChannel() : mState(IDLE), mNumChannels(1),
             mPos(0), mToggle(0), mAutoPaused(false) {}
     ~SoundChannel();
     void init(SoundPool* soundPool);
@@ -148,7 +148,7 @@ private:
     bool doStop_l();
 
     SoundPool*          mSoundPool;
-    AudioTrack*         mAudioTrack;
+    sp<AudioTrack>      mAudioTrack;
     SoundEvent          mNextEvent;
     Mutex               mLock;
     int                 mState;

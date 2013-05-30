@@ -1295,8 +1295,6 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId)
       mSessionId(sessionId),
       mFlags(AUDIO_OUTPUT_FLAG_NONE) {
     ALOGV("AudioOutput(%d)", sessionId);
-    mTrack = 0;
-    mRecycledTrack = 0;
     mStreamType = AUDIO_STREAM_MUSIC;
     mLeftVolume = 1.0;
     mRightVolume = 1.0;
@@ -1311,7 +1309,6 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId)
 MediaPlayerService::AudioOutput::~AudioOutput()
 {
     close();
-    delete mRecycledTrack;
     delete mCallbackData;
 }
 
@@ -1422,7 +1419,7 @@ status_t MediaPlayerService::AudioOutput::open(
         }
     }
 
-    AudioTrack *t;
+    sp<AudioTrack> t;
     CallbackData *newcbd = NULL;
     if (mCallback != NULL) {
         newcbd = new CallbackData(this);
@@ -1453,13 +1450,12 @@ status_t MediaPlayerService::AudioOutput::open(
 
     if ((t == 0) || (t->initCheck() != NO_ERROR)) {
         ALOGE("Unable to create audio track");
-        delete t;
         delete newcbd;
         return NO_INIT;
     }
 
 
-    if (mRecycledTrack) {
+    if (mRecycledTrack != 0) {
         // check if the existing track can be reused as-is, or if a new track needs to be created.
 
         bool reuse = true;
@@ -1484,11 +1480,10 @@ status_t MediaPlayerService::AudioOutput::open(
             ALOGV("chaining to next output");
             close();
             mTrack = mRecycledTrack;
-            mRecycledTrack = NULL;
+            mRecycledTrack.clear();
             if (mCallbackData != NULL) {
                 mCallbackData->setOutput(this);
             }
-            delete t;
             delete newcbd;
             return OK;
         }
@@ -1499,8 +1494,7 @@ status_t MediaPlayerService::AudioOutput::open(
             mCallbackData->endTrackSwitch();
         }
         mRecycledTrack->flush();
-        delete mRecycledTrack;
-        mRecycledTrack = NULL;
+        mRecycledTrack.clear();
         delete mCallbackData;
         mCallbackData = NULL;
         close();
@@ -1533,7 +1527,7 @@ void MediaPlayerService::AudioOutput::start()
     if (mCallbackData != NULL) {
         mCallbackData->endTrackSwitch();
     }
-    if (mTrack) {
+    if (mTrack != 0) {
         mTrack->setVolume(mLeftVolume, mRightVolume);
         mTrack->setAuxEffectSendLevel(mSendLevel);
         mTrack->start();
@@ -1555,7 +1549,7 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
         mNextOutput->mCallbackData = mCallbackData;
         mCallbackData = NULL;
         mNextOutput->mRecycledTrack = mTrack;
-        mTrack = NULL;
+        mTrack.clear();
         mNextOutput->mSampleRateHz = mSampleRateHz;
         mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
         mNextOutput->mBytesWritten = mBytesWritten;
@@ -1568,7 +1562,7 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size)
     LOG_FATAL_IF(mCallback != NULL, "Don't call write if supplying a callback.");
 
     //ALOGV("write(%p, %u)", buffer, size);
-    if (mTrack) {
+    if (mTrack != 0) {
         ssize_t ret = mTrack->write(buffer, size);
         mBytesWritten += ret;
         return ret;
@@ -1579,26 +1573,25 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size)
 void MediaPlayerService::AudioOutput::stop()
 {
     ALOGV("stop");
-    if (mTrack) mTrack->stop();
+    if (mTrack != 0) mTrack->stop();
 }
 
 void MediaPlayerService::AudioOutput::flush()
 {
     ALOGV("flush");
-    if (mTrack) mTrack->flush();
+    if (mTrack != 0) mTrack->flush();
 }
 
 void MediaPlayerService::AudioOutput::pause()
 {
     ALOGV("pause");
-    if (mTrack) mTrack->pause();
+    if (mTrack != 0) mTrack->pause();
 }
 
 void MediaPlayerService::AudioOutput::close()
 {
     ALOGV("close");
-    delete mTrack;
-    mTrack = 0;
+    mTrack.clear();
 }
 
 void MediaPlayerService::AudioOutput::setVolume(float left, float right)
@@ -1606,7 +1599,7 @@ void MediaPlayerService::AudioOutput::setVolume(float left, float right)
     ALOGV("setVolume(%f, %f)", left, right);
     mLeftVolume = left;
     mRightVolume = right;
-    if (mTrack) {
+    if (mTrack != 0) {
         mTrack->setVolume(left, right);
     }
 }
@@ -1615,7 +1608,7 @@ status_t MediaPlayerService::AudioOutput::setPlaybackRatePermille(int32_t ratePe
 {
     ALOGV("setPlaybackRatePermille(%d)", ratePermille);
     status_t res = NO_ERROR;
-    if (mTrack) {
+    if (mTrack != 0) {
         res = mTrack->setSampleRate(ratePermille * mSampleRateHz / 1000);
     } else {
         res = NO_INIT;
@@ -1631,7 +1624,7 @@ status_t MediaPlayerService::AudioOutput::setAuxEffectSendLevel(float level)
 {
     ALOGV("setAuxEffectSendLevel(%f)", level);
     mSendLevel = level;
-    if (mTrack) {
+    if (mTrack != 0) {
         return mTrack->setAuxEffectSendLevel(level);
     }
     return NO_ERROR;
@@ -1641,7 +1634,7 @@ status_t MediaPlayerService::AudioOutput::attachAuxEffect(int effectId)
 {
     ALOGV("attachAuxEffect(%d)", effectId);
     mAuxEffectId = effectId;
-    if (mTrack) {
+    if (mTrack != 0) {
         return mTrack->attachAuxEffect(effectId);
     }
     return NO_ERROR;

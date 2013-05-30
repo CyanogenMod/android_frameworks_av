@@ -70,7 +70,7 @@ public:
 private:
     friend class VideoEditorAudioPlayer;
     sp<MediaSource> mSource;
-    AudioTrack *mAudioTrack;
+    sp<AudioTrack> mAudioTrack;
 
     MediaBuffer *mInputBuffer;
 

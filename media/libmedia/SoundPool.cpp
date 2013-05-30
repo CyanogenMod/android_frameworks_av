@@ -547,8 +547,8 @@ void SoundChannel::init(SoundPool* soundPool)
 void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftVolume,
         float rightVolume, int priority, int loop, float rate)
 {
-    AudioTrack* oldTrack;
-    AudioTrack* newTrack;
+    sp<AudioTrack> oldTrack;
+    sp<AudioTrack> newTrack;
     status_t status;
 
     { // scope for the lock
@@ -620,7 +620,7 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
             ALOGE("Error creating AudioTrack");
             goto exit;
         }
-        ALOGV("setVolume %p", newTrack);
+        ALOGV("setVolume %p", newTrack.get());
         newTrack->setVolume(leftVolume, rightVolume);
         newTrack->setLoop(0, frameCount, loop);
 
@@ -643,11 +643,9 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
     }
 
 exit:
-    ALOGV("delete oldTrack %p", oldTrack);
-    delete oldTrack;
+    ALOGV("delete oldTrack %p", oldTrack.get());
     if (status != NO_ERROR) {
-        delete newTrack;
-        mAudioTrack = NULL;
+        mAudioTrack.clear();
     }
 }
 
@@ -884,7 +882,7 @@ SoundChannel::~SoundChannel()
     }
     // do not call AudioTrack destructor with mLock held as it will wait for the AudioTrack
     // callback thread to exit which may need to execute process() and acquire the mLock.
-    delete mAudioTrack;
+    mAudioTrack.clear();
 }
 
 void SoundChannel::dump()

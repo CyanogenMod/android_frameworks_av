@@ -78,7 +78,7 @@ class MediaPlayerService : public BnMediaPlayerService
                                 AudioOutput(int sessionId);
         virtual                 ~AudioOutput();
 
-        virtual bool            ready() const { return mTrack != NULL; }
+        virtual bool            ready() const { return mTrack != 0; }
         virtual bool            realtime() const { return true; }
         virtual ssize_t         bufferSize() const;
         virtual ssize_t         frameCount() const;
@@ -120,8 +120,8 @@ class MediaPlayerService : public BnMediaPlayerService
         static void             CallbackWrapper(
                 int event, void *me, void *info);
 
-        AudioTrack*             mTrack;
-        AudioTrack*             mRecycledTrack;
+        sp<AudioTrack>          mTrack;
+        sp<AudioTrack>          mRecycledTrack;
         sp<AudioOutput>         mNextOutput;
         AudioCallback           mCallback;
         void *                  mCallbackCookie;
