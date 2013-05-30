@@ -723,7 +723,7 @@ status_t Camera3Device::deleteReprocessStream(int id) {
 status_t Camera3Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
     ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGV("%s: for template %d", __FUNCTION__, templateId);
     Mutex::Autolock l(mLock);
 
     switch (mStatus) {
@@ -1254,8 +1254,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         if (entry.count == 0) {
             SET_ERR("No timestamp provided by HAL for frame %d!",
                     frameNumber);
-        }
-        if (timestamp != entry.data.i64[0]) {
+        } else if (timestamp != entry.data.i64[0]) {
             SET_ERR("Timestamp mismatch between shutter notify and result"
                     " metadata for frame %d (%lld vs %lld respectively)",
                     frameNumber, timestamp, entry.data.i64[0]);
