@@ -341,6 +341,7 @@ MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
       mDataSource(source),
       mInitCheck(NO_INIT),
       mHasVideo(false),
+      mHeaderTimescale(0),
       mFirstTrack(NULL),
       mLastTrack(NULL),
       mFileMetaData(new MetaData),
@@ -921,7 +922,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             if (entry_count != 1) {
                 // we only support a single entry at the moment, for gapless playback
                 ALOGW("ignoring edit list with %d entries", entry_count);
-            } else if (mLastTrack->timescale == 0) {
+            } else if (mHeaderTimescale == 0) {
                 ALOGW("ignoring edit list because timescale is 0");
             } else {
                 off64_t entriesoffset = data_offset + 8;
@@ -946,9 +947,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return ERROR_IO;
                 }
 
-                uint64_t halfscale = mLastTrack->timescale / 2;
-                segment_duration = (segment_duration * 1000000 + halfscale)/ mLastTrack->timescale;
-                media_time = (media_time * 1000000 + halfscale) / mLastTrack->timescale;
+                uint64_t halfscale = mHeaderTimescale / 2;
+                segment_duration = (segment_duration * 1000000 + halfscale)/ mHeaderTimescale;
+                media_time = (media_time * 1000000 + halfscale) / mHeaderTimescale;
 
                 int64_t duration;
                 int32_t samplerate;
@@ -1627,24 +1628,26 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('m', 'v', 'h', 'd'):
         {
-            if (chunk_data_size < 12) {
+            if (chunk_data_size < 24) {
                 return ERROR_MALFORMED;
             }
 
-            uint8_t header[12];
+            uint8_t header[24];
             if (mDataSource->readAt(
                         data_offset, header, sizeof(header))
                     < (ssize_t)sizeof(header)) {
                 return ERROR_IO;
             }
 
-            int64_t creationTime;
+            uint64_t creationTime;
             if (header[0] == 1) {
                 creationTime = U64_AT(&header[4]);
+                mHeaderTimescale = U32_AT(&header[20]);
             } else if (header[0] != 0) {
                 return ERROR_MALFORMED;
             } else {
                 creationTime = U32_AT(&header[4]);
+                mHeaderTimescale = U32_AT(&header[12]);
             }
 
             String8 s;
