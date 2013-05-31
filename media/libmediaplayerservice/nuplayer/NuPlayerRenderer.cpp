@@ -95,11 +95,11 @@ void NuPlayer::Renderer::flush(bool audio) {
 }
 
 void NuPlayer::Renderer::signalTimeDiscontinuity() {
-    CHECK(mAudioQueue.empty());
-    CHECK(mVideoQueue.empty());
+    // CHECK(mAudioQueue.empty());
+    // CHECK(mVideoQueue.empty());
     mAnchorTimeMediaUs = -1;
     mAnchorTimeRealUs = -1;
-    mSyncQueues = mHasAudio && mHasVideo;
+    mSyncQueues = false;
 }
 
 void NuPlayer::Renderer::pause() {

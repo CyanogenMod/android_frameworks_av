@@ -34,6 +34,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libsonivox                  \
     libstagefright              \
     libstagefright_foundation   \
+    libstagefright_httplive     \
     libstagefright_omx          \
     libstagefright_wfd          \
     libutils                    \

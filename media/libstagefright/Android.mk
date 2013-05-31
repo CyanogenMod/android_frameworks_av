@@ -69,7 +69,6 @@ LOCAL_C_INCLUDES:= \
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
         libcamera_client \
-        libcrypto \
         libcutils \
         libdl \
         libdrmframework \
@@ -97,7 +96,6 @@ LOCAL_STATIC_LIBRARIES := \
         libvpx \
         libwebm \
         libstagefright_mpeg2ts \
-        libstagefright_httplive \
         libstagefright_id3 \
         libFLAC \
 

@@ -2348,10 +2348,15 @@ void ACodec::sendFormatChange() {
                                 &params, sizeof(params)),
                              (status_t)OK);
 
+                    CHECK_GT(params.nChannels, 0);
                     CHECK(params.nChannels == 1 || params.bInterleaved);
                     CHECK_EQ(params.nBitPerSample, 16u);
-                    CHECK_EQ((int)params.eNumData, (int)OMX_NumericalDataSigned);
-                    CHECK_EQ((int)params.ePCMMode, (int)OMX_AUDIO_PCMModeLinear);
+
+                    CHECK_EQ((int)params.eNumData,
+                             (int)OMX_NumericalDataSigned);
+
+                    CHECK_EQ((int)params.ePCMMode,
+                             (int)OMX_AUDIO_PCMModeLinear);
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
                     notify->setInt32("channel-count", params.nChannels);
@@ -2361,11 +2366,14 @@ void ACodec::sendFormatChange() {
                         if (mSkipCutBuffer != NULL) {
                             size_t prevbufsize = mSkipCutBuffer->size();
                             if (prevbufsize != 0) {
-                                ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbufsize);
+                                ALOGW("Replacing SkipCutBuffer holding %d "
+                                      "bytes",
+                                      prevbufsize);
                             }
                         }
-                        mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay * frameSize,
-                                                           mEncoderPadding * frameSize);
+                        mSkipCutBuffer = new SkipCutBuffer(
+                                mEncoderDelay * frameSize,
+                                mEncoderPadding * frameSize);
                     }
 
                     if (mChannelMaskPresent) {
