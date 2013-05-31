@@ -26,6 +26,9 @@ namespace android {
 
 class ICameraServiceListener : public IInterface
 {
+    /**
+     * Keep up-to-date with ICameraServiceListener.aidl in frameworks/base
+     */
 public:
 
     /**

@@ -32,6 +32,9 @@ class ICameraServiceListener;
 class ICameraService : public IInterface
 {
 public:
+    /**
+     * Keep up-to-date with ICameraService.aidl in frameworks/base
+     */
     enum {
         GET_NUMBER_OF_CAMERAS = IBinder::FIRST_CALL_TRANSACTION,
         GET_CAMERA_INFO,

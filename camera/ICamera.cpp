@@ -66,6 +66,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
         remote()->transact(DISCONNECT, data, &reply);
+        reply.readExceptionCode();
     }
 
     // pass the buffered IGraphicBufferProducer to the camera service
@@ -281,6 +282,7 @@ status_t BnCamera::onTransact(
             ALOGV("DISCONNECT");
             CHECK_INTERFACE(ICamera, data, reply);
             disconnect();
+            reply->writeNoException();
             return NO_ERROR;
         } break;
         case SET_PREVIEW_TEXTURE: {
