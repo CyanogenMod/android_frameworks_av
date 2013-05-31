@@ -1453,10 +1453,18 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         }
         mPlaybackThreads.add(id, thread);
 
-        if (pSamplingRate != NULL) *pSamplingRate = config.sample_rate;
-        if (pFormat != NULL) *pFormat = config.format;
-        if (pChannelMask != NULL) *pChannelMask = config.channel_mask;
-        if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
+        if (pSamplingRate != NULL) {
+            *pSamplingRate = config.sample_rate;
+        }
+        if (pFormat != NULL) {
+            *pFormat = config.format;
+        }
+        if (pChannelMask != NULL) {
+            *pChannelMask = config.channel_mask;
+        }
+        if (pLatencyMs != NULL) {
+            *pLatencyMs = thread->latency();
+        }
 
         // notify client processes of the new output creation
         thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
@@ -1698,9 +1706,15 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                   );
         mRecordThreads.add(id, thread);
         ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
-        if (pSamplingRate != NULL) *pSamplingRate = reqSamplingRate;
-        if (pFormat != NULL) *pFormat = config.format;
-        if (pChannelMask != NULL) *pChannelMask = reqChannels;
+        if (pSamplingRate != NULL) {
+            *pSamplingRate = reqSamplingRate;
+        }
+        if (pFormat != NULL) {
+            *pFormat = config.format;
+        }
+        if (pChannelMask != NULL) {
+            *pChannelMask = reqChannels;
+        }
 
         // notify client processes of the new input creation
         thread->audioConfigChanged_l(AudioSystem::INPUT_OPENED);

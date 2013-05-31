@@ -563,7 +563,7 @@ create_new_record:
                 }
             }
             // read the server count again
-        start_loop_here:
+start_loop_here:
             framesReady = mProxy->framesReady();
         }
         cblk->lock.unlock();
