@@ -178,6 +178,29 @@ void VideoFormats::enableAll() {
     }
 }
 
+void VideoFormats::enableResolutionUpto(
+        ResolutionType type, size_t index,
+        ProfileType profile, LevelType level) {
+    size_t width, height, fps, score;
+    bool interlaced;
+    if (!GetConfiguration(type, index, &width, &height,
+            &fps, &interlaced)) {
+        ALOGE("Maximum resolution not found!");
+        return;
+    }
+    score = width * height * fps * (!interlaced + 1);
+    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
+        for (size_t j = 0; j < 32; j++) {
+            if (GetConfiguration((ResolutionType)i, j,
+                    &width, &height, &fps, &interlaced)
+                    && score >= width * height * fps * (!interlaced + 1)) {
+                setResolutionEnabled((ResolutionType)i, j);
+                setProfileLevel((ResolutionType)i, j, profile, level);
+            }
+        }
+    }
+}
+
 void VideoFormats::setResolutionEnabled(
         ResolutionType type, size_t index, bool enabled) {
     CHECK_LT(type, kNumResolutionTypes);

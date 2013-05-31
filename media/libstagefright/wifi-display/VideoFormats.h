@@ -69,6 +69,9 @@ struct VideoFormats {
 
     void disableAll();
     void enableAll();
+    void enableResolutionUpto(
+            ResolutionType type, size_t index,
+            ProfileType profile, LevelType level);
 
     void setResolutionEnabled(
             ResolutionType type, size_t index, bool enabled = true);
