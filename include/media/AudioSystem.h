@@ -17,20 +17,18 @@
 #ifndef ANDROID_AUDIOSYSTEM_H_
 #define ANDROID_AUDIOSYSTEM_H_
 
-#include <utils/RefBase.h>
-#include <utils/threads.h>
-#include <media/IAudioFlinger.h>
-
+#include <hardware/audio_effect.h>
+#include <media/IAudioFlingerClient.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
-
-/* XXX: Should be include by all the users instead */
-#include <media/AudioParameter.h>
+#include <utils/Errors.h>
+#include <utils/Mutex.h>
 
 namespace android {
 
 typedef void (*audio_error_callback)(status_t err);
 
+class IAudioFlinger;
 class IAudioPolicyService;
 class String8;
 

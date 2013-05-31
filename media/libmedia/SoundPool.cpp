@@ -20,14 +20,8 @@
 
 //#define USE_SHARED_MEM_BUFFER
 
-// XXX needed for timing latency
-#include <utils/Timers.h>
-
 #include <media/AudioTrack.h>
 #include <media/mediaplayer.h>
-
-#include <system/audio.h>
-
 #include <media/SoundPool.h>
 #include "SoundPoolThread.h"
 

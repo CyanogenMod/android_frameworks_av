@@ -16,13 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ToneGenerator"
-#include <utils/threads.h>
 
-#include <stdio.h>
 #include <math.h>
 #include <utils/Log.h>
-#include <utils/RefBase.h>
-#include <utils/Timers.h>
 #include <cutils/properties.h>
 #include "media/ToneGenerator.h"
 

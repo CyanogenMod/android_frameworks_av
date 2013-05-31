@@ -28,6 +28,7 @@
 
 #include <media/Visualizer.h>
 #include <audio_utils/fixedfft.h>
+#include <utils/Thread.h>
 
 namespace android {
 

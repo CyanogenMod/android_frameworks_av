@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <cutils/properties.h>
 #include <cutils/compiler.h>
+#include <media/AudioParameter.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 

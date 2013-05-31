@@ -23,9 +23,7 @@
 namespace android {
 
 struct ABuffer;
-struct AudioTrack;
 struct IGraphicBufferProducer;
-struct MediaCodec;
 
 // Renders audio and video data queued by calls to "queueAccessUnit".
 struct DirectRenderer : public AHandler {

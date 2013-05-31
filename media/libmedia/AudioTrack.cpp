@@ -25,6 +25,7 @@
 #include <media/AudioTrack.h>
 #include <utils/Log.h>
 #include <private/media/AudioTrackShared.h>
+#include <media/IAudioFlinger.h>
 
 #define WAIT_PERIOD_MS          10
 

@@ -20,6 +20,7 @@
 #include <utils/Log.h>
 #include <binder/IServiceManager.h>
 #include <media/AudioSystem.h>
+#include <media/IAudioFlinger.h>
 #include <media/IAudioPolicyService.h>
 #include <math.h>
 

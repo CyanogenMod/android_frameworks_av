@@ -18,8 +18,6 @@
 #define LOG_TAG "JetPlayer-C"
 
 #include <utils/Log.h>
-#include <utils/threads.h>
-
 #include <media/JetPlayer.h>
 
 

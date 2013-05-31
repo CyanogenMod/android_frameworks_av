@@ -40,6 +40,7 @@
 #include <system/audio_policy.h>
 #include <hardware/audio_policy.h>
 #include <audio_effects/audio_effects_conf.h>
+#include <media/AudioParameter.h>
 
 namespace android {
 

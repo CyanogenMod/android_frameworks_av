@@ -19,7 +19,7 @@
 
 #include <media/AudioEffect.h>
 #include <audio_effects/effect_visualizer.h>
-#include <string.h>
+#include <utils/Thread.h>
 
 /**
  * The Visualizer class enables application to retrieve part of the currently playing audio for

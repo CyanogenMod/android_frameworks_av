@@ -38,9 +38,6 @@
 #include <cutils/properties.h>
 #include <cutils/compiler.h>
 
-//#include <private/media/AudioTrackShared.h>
-//#include <private/media/AudioEffectShared.h>
-
 #include <system/audio.h>
 #include <hardware/audio.h>
 
@@ -58,12 +55,12 @@
 #include <powermanager/PowerManager.h>
 
 #include <common_time/cc_helper.h>
-//#include <common_time/local_clock.h>
 
 #include <media/IMediaLogService.h>
 
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
+#include <media/AudioParameter.h>
 
 // ----------------------------------------------------------------------------
 
