@@ -688,8 +688,8 @@ void AudioFlinger::deleteEffectSession()
             }
             effect->configure();
         }
-        mLPAEffectChain.clear();
         mLPAEffectChain->unlock();
+        mLPAEffectChain.clear();
         mLPAEffectChain = NULL;
     }
 }
