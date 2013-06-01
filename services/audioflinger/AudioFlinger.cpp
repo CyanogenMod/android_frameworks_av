@@ -6531,7 +6531,6 @@ int64_t AudioFlinger::DirectAudioTrack::getTimeStamp() {
 }
 
 void AudioFlinger::DirectAudioTrack::postEOS(int64_t delayUs) {
-#ifdef QCOM_HARDWARE
     if (delayUs == 0 ) {
        ALOGV("Notify Audio Track of EOS event");
        mClient->notify(DIRECT_TRACK_EOS);
@@ -6539,10 +6538,6 @@ void AudioFlinger::DirectAudioTrack::postEOS(int64_t delayUs) {
        ALOGV("Notify Audio Track of hardware failure event");
        mClient->notify(DIRECT_TRACK_HW_FAIL);
     }
-#else
-    ALOGV("Notify Audio Track of EOS event");
-    mClient->notify(DIRECT_TRACK_EOS);
-#endif
 }
 
 void AudioFlinger::DirectAudioTrack::allocateBufPool() {
