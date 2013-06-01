@@ -2171,6 +2171,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
+#ifdef QCOM_BSP
     err = mNativeWindow.get()->perform(mNativeWindow.get(),
                              NATIVE_WINDOW_SET_BUFFERS_SIZE, def.nBufferSize);
     if (err != 0) {
@@ -2178,6 +2179,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
                 -err);
         return err;
     }
+#endif
     CODEC_LOGV("allocating %lu buffers from a native window of size %lu on "
             "output port", def.nBufferCountActual, def.nBufferSize);
 
@@ -3055,6 +3057,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 mPortStatus[kPortIndexOutput] = ENABLED;
 
                 if (mNativeWindow != NULL) {
+#ifdef QCOM_BSP
                     /*
                      * reset buffer size field with SurfaceTexture
                      * back to 0. This will ensure proper size
@@ -3069,7 +3072,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                         ALOGE("set_buffers_size failed: %s (%d)", strerror(-err),
                              -err);
                     }
-
+#endif
                     if (mFlags & kEnableGrallocUsageProtected) {
                         // We push enough 1x1 blank buffers to ensure that one of
                         // them has made it to the display.  This allows the OMX
