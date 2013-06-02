@@ -1083,7 +1083,7 @@ status_t AwesomePlayer::play_l() {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
             bool sendErrorNotification = false;
-#ifdef IS_TUNNEL_MODE
+#ifdef USE_TUNNEL_MODE
             if(mIsTunnelAudio) {
                 // For tunnel Audio error has to be posted to the client
                 sendErrorNotification = true;
