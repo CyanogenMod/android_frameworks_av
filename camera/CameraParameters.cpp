@@ -251,7 +251,11 @@ const char CameraParameters::SCENE_MODE_BARCODE[] = "barcode";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::SCENE_MODE_AR[] = "AR";
 #ifdef QCOM_SONY_HARDWARE
+#ifdef QCOM_SONY_NEW_CAMERA
+const char CameraParameters::SCENE_MODE_DOCUMENT[] = "document";
+#else
 const char CameraParameters::EX_SCENE_MODE_DOCUMENT[] = "document";
+#endif
 #endif
 const char CameraParameters::SCENE_MODE_OFF[] = "off";
 
