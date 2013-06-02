@@ -747,7 +747,7 @@ public:
     static const char SCENE_MODE_FLOWERS[];
     static const char SCENE_MODE_AR[];
 #ifdef QCOM_SONY_HARDWARE
-    static const char EX_SCENE_MODE_DOCUMENT[];
+    static const char SCENE_MODE_DOCUMENT[];
 #endif
     static const char SCENE_MODE_OFF[];
 #endif
