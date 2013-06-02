@@ -2016,6 +2016,18 @@ void AwesomePlayer::postCheckAudioStatusEvent(int64_t delayUs) {
         return;
     }
     mAudioStatusEventPending = true;
+
+#ifdef EXYNOS4_ENHANCEMENTS
+    /*
+     * Do not honor delay when audio reached EOS
+     * in order to change immediately time source from AudioPlayer to SystemTime
+     */
+    status_t finalStatus;
+    if (mWatchForAudioEOS && mAudioPlayer->reachedEOS(&finalStatus)) {
+        delayUs = 0;
+    }
+#endif
+
     // Do not honor delay when looping in order to limit audio gap
     if (mFlags & (LOOPING | AUTO_LOOPING)) {
         delayUs = 0;
