@@ -75,7 +75,8 @@ WifiDisplaySource::WifiDisplaySource(
     mSupportedSourceVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280x720 p30
 
-    mSupportedSourceVideoFormats.setProfileLevel(
+    // Enable all resolutions up to 1280x720p30
+    mSupportedSourceVideoFormats.enableResolutionUpto(
             VideoFormats::RESOLUTION_CEA, 5,
             VideoFormats::PROFILE_CHP,  // Constrained High Profile
             VideoFormats::LEVEL_32);    // Level 3.2
@@ -751,6 +752,8 @@ status_t WifiDisplaySource::sendM16(int32_t sessionID) {
 
     ++mNextCSeq;
 
+    scheduleKeepAlive(sessionID);
+
     return OK;
 }
 
@@ -1021,8 +1024,6 @@ status_t WifiDisplaySource::onReceiveM16Response(
 
     if (mClientInfo.mPlaybackSession != NULL) {
         mClientInfo.mPlaybackSession->updateLiveness();
-
-        scheduleKeepAlive(sessionID);
     }
 
     return OK;
