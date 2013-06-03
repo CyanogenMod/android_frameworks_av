@@ -160,7 +160,7 @@ public:
     bool isInited() { return (mState == TONE_IDLE)?false:true;}
 
     // returns the audio session this ToneGenerator belongs to or 0 if an error occured.
-    int getSessionId() { return (mpAudioTrack == NULL) ? 0 : mpAudioTrack->getSessionId(); }
+    int getSessionId() { return (mpAudioTrack == 0) ? 0 : mpAudioTrack->getSessionId(); }
 
 private:
 
@@ -264,7 +264,7 @@ private:
     unsigned short mLoopCounter; // Current tone loopback count
 
     uint32_t mSamplingRate;  // AudioFlinger Sampling rate
-    AudioTrack *mpAudioTrack;  // Pointer to audio track used for playback
+    sp<AudioTrack> mpAudioTrack;  // Pointer to audio track used for playback
     Mutex mLock;  // Mutex to control concurent access to ToneGenerator object from audio callback and application API
     Mutex mCbkCondLock; // Mutex associated to mWaitCbkCond
     Condition mWaitCbkCond; // condition enabling interface to wait for audio callback completion after a change is requested

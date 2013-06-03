@@ -71,7 +71,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         static void             CallbackWrapper(
                 int event, void *me, void *info);
 
-        AudioTrack*             mTrack;
+        sp<AudioTrack>          mTrack;
         AudioCallback           mCallback;
         void *                  mCallbackCookie;
         audio_stream_type_t     mStreamType;

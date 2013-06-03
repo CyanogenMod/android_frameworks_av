@@ -88,7 +88,7 @@ private:
     EAS_DATA_HANDLE     mEasData;
     EAS_FILE_LOCATOR    mEasJetFileLoc;
     EAS_PCM*            mAudioBuffer;// EAS renders the MIDI data into this buffer,
-    AudioTrack*         mAudioTrack; // and we play it in this audio track
+    sp<AudioTrack>      mAudioTrack; // and we play it in this audio track
     int                 mTrackBufferSize;
     S_JET_STATUS        mJetStatus;
     S_JET_STATUS        mPreviousJetStatus;

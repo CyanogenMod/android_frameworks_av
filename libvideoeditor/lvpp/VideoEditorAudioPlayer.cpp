@@ -35,8 +35,7 @@ namespace android {
 VideoEditorAudioPlayer::VideoEditorAudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
         PreviewPlayer *observer)
-    : mAudioTrack(NULL),
-      mInputBuffer(NULL),
+    : mInputBuffer(NULL),
       mSampleRate(0),
       mLatencyUs(0),
       mFrameSize(0),
@@ -111,8 +110,7 @@ void VideoEditorAudioPlayer::clear() {
     } else {
         mAudioTrack->stop();
 
-        delete mAudioTrack;
-        mAudioTrack = NULL;
+        mAudioTrack.clear();
     }
 
     // Make sure to release any buffer we hold onto so that the
@@ -538,8 +536,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
                 0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
-            delete mAudioTrack;
-            mAudioTrack = NULL;
+            mAudioTrack.clear();
 
             if (mFirstBuffer != NULL) {
                 mFirstBuffer->release();

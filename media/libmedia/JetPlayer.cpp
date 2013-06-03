@@ -39,7 +39,6 @@ JetPlayer::JetPlayer(void *javaJetPlayer, int maxTracks, int trackBufferSize) :
         mMaxTracks(maxTracks),
         mEasData(NULL),
         mEasJetFileLoc(NULL),
-        mAudioTrack(NULL),
         mTrackBufferSize(trackBufferSize)
 {
     ALOGV("JetPlayer constructor");
@@ -140,11 +139,10 @@ int JetPlayer::release()
         free(mEasJetFileLoc);
         mEasJetFileLoc = NULL;
     }
-    if (mAudioTrack) {
+    if (mAudioTrack != 0) {
         mAudioTrack->stop();
         mAudioTrack->flush();
-        delete mAudioTrack;
-        mAudioTrack = NULL;
+        mAudioTrack.clear();
     }
     if (mAudioBuffer) {
         delete mAudioBuffer;

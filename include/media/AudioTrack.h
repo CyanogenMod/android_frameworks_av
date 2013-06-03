@@ -191,7 +191,9 @@ public:
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
      */
-                        ~AudioTrack();
+protected:
+                        virtual ~AudioTrack();
+public:
 
     /* Initialize an uninitialized AudioTrack.
      * Returned status (from utils/Errors.h) can be:
