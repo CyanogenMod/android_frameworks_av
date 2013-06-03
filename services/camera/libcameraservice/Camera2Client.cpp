@@ -1007,8 +1007,12 @@ status_t Camera2Client::autoFocus() {
           * If the camera does not support auto-focus, it is a no-op and
           * onAutoFocus(boolean, Camera) callback will be called immediately
           * with a fake value of success set to true.
+          *
+          * Similarly, if focus mode is set to INFINITY, there's no reason to
+          * bother the HAL.
           */
-        if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED) {
+        if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED ||
+                l.mParameters.focusMode == Parameters::FOCUS_MODE_INFINITY) {
             notifyImmediately = true;
             notifySuccess = true;
         }
@@ -1068,6 +1072,11 @@ status_t Camera2Client::cancelAutoFocus() {
     int triggerId;
     {
         SharedParameters::Lock l(mParameters);
+        // Canceling does nothing in FIXED or INFINITY modes
+        if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED ||
+                l.mParameters.focusMode == Parameters::FOCUS_MODE_INFINITY) {
+            return OK;
+        }
         triggerId = ++l.mParameters.afTriggerCounter;
 
         // When using triggerAfWithAuto quirk, may need to reset focus mode to
