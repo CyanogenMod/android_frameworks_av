@@ -40,6 +40,7 @@ protected:
     virtual void onQueueFilled(OMX_U32 portIndex);
     virtual void onPortFlushCompleted(OMX_U32 portIndex);
     virtual void onPortEnableCompleted(OMX_U32 portIndex, bool enabled);
+    virtual void onReset();
 
 private:
     enum {

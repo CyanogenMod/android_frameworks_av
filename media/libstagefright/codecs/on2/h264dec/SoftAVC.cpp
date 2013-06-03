@@ -530,6 +530,11 @@ void SoftAVC::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     }
 }
 
+void SoftAVC::onReset() {
+    mSignalledError = false;
+    mOutputPortSettingsChange = NONE;
+}
+
 void SoftAVC::updatePortDefinitions() {
     OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(0)->mDef;
     def->format.video.nFrameWidth = mWidth;
