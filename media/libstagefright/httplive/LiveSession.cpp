@@ -651,7 +651,7 @@ size_t LiveSession::getBandwidthIndex() {
 
 #if 1
     char value[PROPERTY_VALUE_MAX];
-    ssize_t index;
+    ssize_t index = -1;
     if (property_get("media.httplive.bw-index", value, NULL)) {
         char *end;
         index = strtol(value, &end, 10);
