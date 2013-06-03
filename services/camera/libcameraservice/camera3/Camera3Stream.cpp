@@ -312,8 +312,10 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
         // Got all buffers, register with HAL
         ALOGV("%s: Registering %d buffers with camera HAL",
                 __FUNCTION__, bufferCount);
+        ATRACE_BEGIN("camera3->register_stream_buffers");
         res = hal3Device->ops->register_stream_buffers(hal3Device,
                 &bufferSet);
+        ATRACE_END();
     }
 
     // Return all valid buffers to stream, in ERROR state to indicate

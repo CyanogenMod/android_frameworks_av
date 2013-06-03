@@ -128,7 +128,10 @@ status_t Camera3Device::initialize(camera_module_t *module)
 
     /** Initialize device with callback functions */
 
+    ATRACE_BEGIN("camera3->initialize");
     res = device->ops->initialize(device, this);
+    ATRACE_END();
+
     if (res != OK) {
         SET_ERR_L("Unable to initialize HAL device: %s (%d)",
                 strerror(-res), res);
@@ -140,7 +143,9 @@ status_t Camera3Device::initialize(camera_module_t *module)
 
     mVendorTagOps.get_camera_vendor_section_name = NULL;
 
+    ATRACE_BEGIN("camera3->get_metadata_vendor_tag_ops");
     device->ops->get_metadata_vendor_tag_ops(device, &mVendorTagOps);
+    ATRACE_END();
 
     if (mVendorTagOps.get_camera_vendor_section_name != NULL) {
         res = set_camera_metadata_vendor_tag_ops(&mVendorTagOps);
@@ -743,8 +748,10 @@ status_t Camera3Device::createDefaultRequest(int templateId,
     }
 
     const camera_metadata_t *rawRequest;
+    ATRACE_BEGIN("camera3->construct_default_request_settings");
     rawRequest = mHal3Device->ops->construct_default_request_settings(
         mHal3Device, templateId);
+    ATRACE_END();
     if (rawRequest == NULL) {
         SET_ERR_L("HAL is unable to construct default settings for template %d",
                 templateId);
@@ -1049,8 +1056,9 @@ status_t Camera3Device::configureStreamsLocked() {
 
     // Do the HAL configuration; will potentially touch stream
     // max_buffers, usage, priv fields.
-
+    ATRACE_BEGIN("camera3->configure_streams");
     res = mHal3Device->ops->configure_streams(mHal3Device, &config);
+    ATRACE_END();
 
     if (res != OK) {
         SET_ERR_L("Unable to configure streams with HAL: %s (%d)",
@@ -1204,6 +1212,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
 
         if (request.haveResultMetadata && request.numBuffersLeft == 0) {
+            ATRACE_ASYNC_END("frame capture", frameNumber);
             mInFlightMap.removeItemsAt(idx, 1);
         }
 
@@ -1353,6 +1362,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 }
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
+    ATRACE_CALL();
     NotificationListener *listener;
     {
         Mutex::Autolock l(mOutputLock);
@@ -1373,6 +1383,9 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                                   msg->message.error.error_stream);
                 streamId = stream->getId();
             }
+            ALOGV("Camera %d: %s: HAL error, frame %d, stream %d: %d",
+                    mId, __FUNCTION__, msg->message.error.frame_number,
+                    streamId, msg->message.error.error_code);
             if (listener != NULL) {
                 listener->notifyError(msg->message.error.error_code,
                         msg->message.error.frame_number, streamId);
@@ -1408,7 +1421,8 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                         frameNumber);
                 break;
             }
-
+            ALOGVV("Camera %d: %s: Shutter fired for frame %d at %lld",
+                    mId, __FUNCTION__, frameNumber, timestamp);
             // Call listener, if any
             if (listener != NULL) {
                 listener->notifyShutter(frameNumber, timestamp);
@@ -1529,6 +1543,7 @@ void Camera3Device::RequestThread::setPaused(bool paused) {
 }
 
 status_t Camera3Device::RequestThread::waitUntilPaused(nsecs_t timeout) {
+    ATRACE_CALL();
     status_t res;
     Mutex::Autolock l(mPauseLock);
     while (!mPaused) {
@@ -1675,8 +1690,11 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     // Submit request and block until ready for next one
-
+    ATRACE_ASYNC_BEGIN("frame capture", request.frame_number);
+    ATRACE_BEGIN("camera3->process_capture_request");
     res = mHal3Device->ops->process_capture_request(mHal3Device, &request);
+    ATRACE_END();
+
     if (res != OK) {
         SET_ERR("RequestThread: Unable to submit capture request %d to HAL"
                 " device: %s (%d)", request.frame_number, strerror(-res), res);
