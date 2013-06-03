@@ -604,6 +604,9 @@ void SoftAAC2::onReset() {
     // To make the codec behave the same before and after a reset, we need to invalidate the
     // streaminfo struct. This does that:
     mStreamInfo->sampleRate = 0;
+
+    mSignalledError = false;
+    mOutputPortSettingsChange = NONE;
 }
 
 void SoftAAC2::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {

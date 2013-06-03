@@ -358,6 +358,10 @@ void SoftVPX::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     }
 }
 
+void SoftVPX::onReset() {
+    mOutputPortSettingsChange = NONE;
+}
+
 void SoftVPX::updatePortDefinitions() {
     OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(0)->mDef;
     def->format.video.nFrameWidth = mWidth;

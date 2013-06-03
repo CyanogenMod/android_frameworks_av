@@ -571,6 +571,11 @@ void SoftMPEG4::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     }
 }
 
+void SoftMPEG4::onReset() {
+    mSignalledError = false;
+    mOutputPortSettingsChange = NONE;
+}
+
 void SoftMPEG4::updatePortDefinitions() {
     OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(0)->mDef;
     def->format.video.nFrameWidth = mWidth;

@@ -457,6 +457,11 @@ void SoftAMR::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
     }
 }
 
+void SoftAMR::onReset() {
+    mSignalledError = false;
+    mOutputPortSettingsChange = NONE;
+}
+
 }  // namespace android
 
 android::SoftOMXComponent *createSoftOMXComponent(
