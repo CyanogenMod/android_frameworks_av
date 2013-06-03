@@ -27,7 +27,12 @@
 #include "net/base/io_buffer.h"
 
 #include <utils/KeyedVector.h>
+#include <utils/Mutex.h>
 #include <utils/String8.h>
+
+namespace net {
+    struct ProxyConfigServiceAndroid;
+};
 
 namespace android {
 
@@ -55,8 +60,14 @@ struct SfRequestContext : public net::URLRequestContext {
 
     virtual const std::string &GetUserAgent(const GURL &url) const;
 
+    status_t updateProxyConfig(
+            const char *host, int32_t port, const char *exclusionList);
+
 private:
+    Mutex mProxyConfigLock;
+
     std::string mUserAgent;
+    net::ProxyConfigServiceAndroid *mProxyConfigService;
 
     DISALLOW_EVIL_CONSTRUCTORS(SfRequestContext);
 };
@@ -119,6 +130,9 @@ struct SfDelegate : public net::URLRequest::Delegate {
     virtual void OnResponseStarted(net::URLRequest *request);
 
     virtual void OnReadCompleted(net::URLRequest *request, int bytes_read);
+
+    static status_t UpdateProxyConfig(
+            const char *host, int32_t port, const char *exclusionList);
 
 private:
     typedef Delegate inherited;

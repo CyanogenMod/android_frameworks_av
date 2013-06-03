@@ -48,6 +48,9 @@ struct HTTPBase : public DataSource {
 
     virtual status_t setBandwidthStatCollectFreq(int32_t freqMs);
 
+    static status_t UpdateProxyConfig(
+            const char *host, int32_t port, const char *exclusionList);
+
     void setUID(uid_t uid);
     bool getUID(uid_t *uid) const;
 
