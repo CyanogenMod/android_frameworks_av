@@ -37,7 +37,8 @@ class Camera2Heap;
 /**
  * Management and processing for preview and recording streams
  */
-class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
+class StreamingProcessor:
+            public Thread, public BufferItemConsumer::FrameAvailableListener {
   public:
     StreamingProcessor(sp<Camera2Client> client);
     ~StreamingProcessor();
@@ -103,6 +104,8 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     sp<ANativeWindow> mPreviewWindow;
 
     // Recording-related members
+    static const nsecs_t kWaitDuration = 50000000; // 50 ms
+
     int32_t mRecordingRequestId;
     int mRecordingStreamId;
     int mRecordingFrameCount;
@@ -111,11 +114,17 @@ class StreamingProcessor: public BufferItemConsumer::FrameAvailableListener {
     CameraMetadata mRecordingRequest;
     sp<camera2::Camera2Heap> mRecordingHeap;
 
+    bool mRecordingFrameAvailable;
+    Condition mRecordingFrameAvailableSignal;
+
     static const size_t kDefaultRecordingHeapCount = 8;
     size_t mRecordingHeapCount;
     Vector<BufferItemConsumer::BufferItem> mRecordingBuffers;
     size_t mRecordingHeapHead, mRecordingHeapFree;
 
+    virtual bool threadLoop();
+
+    status_t processRecordingFrame();
 };
 
 

@@ -102,6 +102,9 @@ status_t Camera2Client::initialize(camera_module_t *module)
     String8 threadName;
 
     mStreamingProcessor = new StreamingProcessor(this);
+    threadName = String8::format("C2-%d-StreamProc",
+            mCameraId);
+    mStreamingProcessor->run(threadName.string());
 
     mFrameProcessor = new FrameProcessor(mDevice, this);
     threadName = String8::format("C2-%d-FrameProc",
@@ -411,6 +414,7 @@ void Camera2Client::disconnect() {
     mCallbackProcessor->deleteStream();
     mZslProcessor->deleteStream();
 
+    mStreamingProcessor->requestExit();
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
     mJpegProcessor->requestExit();
@@ -419,6 +423,7 @@ void Camera2Client::disconnect() {
 
     ALOGV("Camera %d: Waiting for threads", mCameraId);
 
+    mStreamingProcessor->join();
     mFrameProcessor->join();
     mCaptureSequencer->join();
     mJpegProcessor->join();
