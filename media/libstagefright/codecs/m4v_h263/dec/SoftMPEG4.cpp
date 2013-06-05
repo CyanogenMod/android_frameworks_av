@@ -574,6 +574,11 @@ void SoftMPEG4::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
 void SoftMPEG4::onReset() {
     mSignalledError = false;
     mOutputPortSettingsChange = NONE;
+    mFramesConfigured = false;
+    if (mInitialized) {
+        PVCleanUpVideoDecoder(mHandle);
+        mInitialized = false;
+    }
 }
 
 void SoftMPEG4::updatePortDefinitions() {
