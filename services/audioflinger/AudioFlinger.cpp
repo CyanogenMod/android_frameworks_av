@@ -1289,7 +1289,7 @@ void AudioFlinger::audioConfigChanged_l(int event, audio_io_handle_t ioHandle, c
         size_t dsize = mDirectAudioTracks.size();
         for(size_t i = 0; i < dsize; i++) {
             AudioSessionDescriptor *desc = mDirectAudioTracks.valueAt(i);
-            if(desc) {
+            if(desc && ((DirectAudioTrack*)desc->trackRefPtr)) {
                 ALOGV("signalling directAudioTrack ");
                 ((DirectAudioTrack*)desc->trackRefPtr)->signalEffect();
             } else{
