@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2010 - 2013, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +42,7 @@
 
 #include <OMX_Audio.h>
 #include <OMX_Component.h>
-
+#include <media/stagefright/ExtendedCodec.h>
 #include "include/avc_utils.h"
 
 namespace android {
@@ -249,6 +250,8 @@ uint32_t OMXCodec::getComponentQuirks(
         quirks |= kOutputBuffersAreUnreadable;
     }
 
+    quirks |= ExtendedCodec::getComponentQuirks(list,index);
+
     return quirks;
 }
 
@@ -329,6 +332,8 @@ sp<MediaSource> OMXCodec::Create(
                 return softwareCodec;
             }
         }
+
+        ExtendedCodec::overrideComponentName(quirks, meta, componentName);
 
         ALOGV("Attempting to allocate OMX node '%s'", componentName);
 
@@ -492,7 +497,20 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
             CHECK(meta->findData(kKeyVorbisBooks, &type, &data, &size));
             addCodecSpecificData(data, size);
+        } else {
+            ExtendedCodec::getRawCodecSpecificData(meta, data, size);
+            if (size) {
+                addCodecSpecificData(data, size);
+            }
         }
+    }
+
+    status_t errRetVal = ExtendedCodec::configureDIVXCodec(
+            meta, mMIME, mOMX, mNode,
+            (OMXCodec::mIsEncoder ?
+            kPortIndexOutput : kPortIndexInput));
+    if(OK != errRetVal) {
+        return errRetVal;
     }
 
     int32_t bitRate = 0;
@@ -550,6 +568,18 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
 
         setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+    } else {
+        if (mIsEncoder && !mIsVideo) {
+            int32_t numChannels, sampleRate;
+            CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
+            CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+            setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+        }
+        status_t err = ExtendedCodec::setAudioFormat(
+                meta, mMIME, mOMX, mNode, mIsEncoder);
+        if(OK != err) {
+            return err;
+        }
     }
 
     if (!strncasecmp(mMIME, "video/", 6)) {
@@ -803,8 +833,11 @@ void OMXCodec::setVideoInputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
         compressionFormat = OMX_VIDEO_CodingH263;
     } else {
-        ALOGE("Not a supported video mime type: %s", mime);
-        CHECK(!"Should not be here. Not a supported video mime type.");
+        status_t err = ExtendedCodec::setVideoInputFormat(mime, &compressionFormat);
+        if(err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            CHECK(!"Should not be here. Not a supported video mime type.");
+        }
     }
 
     OMX_COLOR_FORMATTYPE colorFormat;
@@ -1200,8 +1233,12 @@ status_t OMXCodec::setVideoOutputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
         compressionFormat = OMX_VIDEO_CodingMPEG2;
     } else {
-        ALOGE("Not a supported video mime type: %s", mime);
-        CHECK(!"Should not be here. Not a supported video mime type.");
+        status_t err = ExtendedCodec::setVideoOutputFormat(mime,&compressionFormat);
+
+        if(err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            CHECK(!"Should not be here. Not a supported video mime type.");
+        }
     }
 
     status_t err = setVideoPortFormatType(
@@ -1409,6 +1446,7 @@ void OMXCodec::setComponentRole(
     }
 
     if (i == kNumMimeToRole) {
+        ExtendedCodec::setSupportedRole(omx, node, isEncoder, mime);
         return;
     }
 
@@ -4425,7 +4463,21 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 mOutputFormat->setInt32(kKeySampleRate, sampleRate);
                 mOutputFormat->setInt32(kKeyBitRate, bitRate);
             } else {
-                CHECK(!"Should not be here. Unknown audio encoding.");
+                AString mimeType;
+                if (OK == ExtendedCodec::handleSupportedAudioFormats(
+                        audio_def->eEncoding, &mimeType)) {
+                    mOutputFormat->setCString(
+                            kKeyMIMEType, mimeType.c_str());
+                    int32_t numChannels, sampleRate, bitRate;
+                    inputFormat->findInt32(kKeyChannelCount, &numChannels);
+                    inputFormat->findInt32(kKeySampleRate, &sampleRate);
+                    inputFormat->findInt32(kKeyBitRate, &bitRate);
+                    mOutputFormat->setInt32(kKeyChannelCount, numChannels);
+                    mOutputFormat->setInt32(kKeySampleRate, sampleRate);
+                    mOutputFormat->setInt32(kKeyBitRate, bitRate);
+                } else {
+                    CHECK(!"Should not be here. Unknown audio encoding.");
+                }
             }
             break;
         }
