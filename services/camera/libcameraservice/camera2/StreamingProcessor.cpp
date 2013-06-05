@@ -41,6 +41,7 @@ StreamingProcessor::StreamingProcessor(sp<Camera2Client> client):
         mPreviewStreamId(NO_STREAM),
         mRecordingRequestId(Camera2Client::kRecordingRequestIdStart),
         mRecordingStreamId(NO_STREAM),
+        mRecordingFrameAvailable(false),
         mRecordingHeapCount(kDefaultRecordingHeapCount)
 {
 }
@@ -536,6 +537,36 @@ status_t StreamingProcessor::incrementStreamingIds() {
 
 void StreamingProcessor::onFrameAvailable() {
     ATRACE_CALL();
+    Mutex::Autolock l(mMutex);
+    if (!mRecordingFrameAvailable) {
+        mRecordingFrameAvailable = true;
+        mRecordingFrameAvailableSignal.signal();
+    }
+
+}
+
+bool StreamingProcessor::threadLoop() {
+    status_t res;
+
+    {
+        Mutex::Autolock l(mMutex);
+        while (!mRecordingFrameAvailable) {
+            res = mRecordingFrameAvailableSignal.waitRelative(
+                mMutex, kWaitDuration);
+            if (res == TIMED_OUT) return true;
+        }
+        mRecordingFrameAvailable = false;
+    }
+
+    do {
+        res = processRecordingFrame();
+    } while (res == OK);
+
+    return true;
+}
+
+status_t StreamingProcessor::processRecordingFrame() {
+    ATRACE_CALL();
     status_t res;
     sp<Camera2Heap> recordingHeap;
     size_t heapIdx = 0;
@@ -547,12 +578,14 @@ void StreamingProcessor::onFrameAvailable() {
         BufferItemConsumer::BufferItem imgBuffer;
         res = mRecordingConsumer->acquireBuffer(&imgBuffer);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
-                    __FUNCTION__, mId, strerror(-res), res);
-            return;
+            if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
+                ALOGE("%s: Camera %d: Can't acquire recording buffer: %s (%d)",
+                        __FUNCTION__, mId, strerror(-res), res);
+            }
+            return res;
         }
         mRecordingConsumer->releaseBuffer(imgBuffer);
-        return;
+        return OK;
     }
 
     {
@@ -563,23 +596,24 @@ void StreamingProcessor::onFrameAvailable() {
         BufferItemConsumer::BufferItem imgBuffer;
         res = mRecordingConsumer->acquireBuffer(&imgBuffer);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Error receiving recording buffer: %s (%d)",
-                    __FUNCTION__, mId, strerror(-res), res);
-            return;
+            if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
+                ALOGE("%s: Camera %d: Can't acquire recording buffer: %s (%d)",
+                        __FUNCTION__, mId, strerror(-res), res);
+            }
+            return res;
         }
         timestamp = imgBuffer.mTimestamp;
 
         mRecordingFrameCount++;
         ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
 
-        // TODO: Signal errors here upstream
         if (l.mParameters.state != Parameters::RECORD &&
                 l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
             ALOGV("%s: Camera %d: Discarding recording image buffers "
                     "received after recording done", __FUNCTION__,
                     mId);
             mRecordingConsumer->releaseBuffer(imgBuffer);
-            return;
+            return INVALID_OPERATION;
         }
 
         if (mRecordingHeap == 0) {
@@ -594,7 +628,7 @@ void StreamingProcessor::onFrameAvailable() {
                 ALOGE("%s: Camera %d: Unable to allocate memory for recording",
                         __FUNCTION__, mId);
                 mRecordingConsumer->releaseBuffer(imgBuffer);
-                return;
+                return NO_MEMORY;
             }
             for (size_t i = 0; i < mRecordingBuffers.size(); i++) {
                 if (mRecordingBuffers[i].mBuf !=
@@ -615,7 +649,7 @@ void StreamingProcessor::onFrameAvailable() {
             ALOGE("%s: Camera %d: No free recording buffers, dropping frame",
                     __FUNCTION__, mId);
             mRecordingConsumer->releaseBuffer(imgBuffer);
-            return;
+            return NO_MEMORY;
         }
 
         heapIdx = mRecordingHeapHead;
@@ -649,6 +683,7 @@ void StreamingProcessor::onFrameAvailable() {
                 CAMERA_MSG_VIDEO_FRAME,
                 recordingHeap->mBuffers[heapIdx]);
     }
+    return OK;
 }
 
 void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
