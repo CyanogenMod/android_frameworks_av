@@ -19,6 +19,7 @@
 #define SOFT_MPEG4_H_
 
 #include "SimpleSoftOMXComponent.h"
+#include <utils/KeyedVector.h>
 
 struct tagvideoDecControls;
 
@@ -70,6 +71,8 @@ private:
     bool mFramesConfigured;
 
     int32_t mNumSamplesOutput;
+    int32_t mPvTime;
+    KeyedVector<int32_t, OMX_TICKS> mPvToOmxTimeMap;
 
     enum {
         NONE,

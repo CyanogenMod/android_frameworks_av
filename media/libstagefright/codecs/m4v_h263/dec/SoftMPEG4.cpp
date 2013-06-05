@@ -76,6 +76,7 @@ SoftMPEG4::SoftMPEG4(
       mInitialized(false),
       mFramesConfigured(false),
       mNumSamplesOutput(0),
+      mPvTime(0),
       mOutputPortSettingsChange(NONE) {
     if (!strcmp(name, "OMX.google.h263.decoder")) {
         mMode = MODE_H263;
@@ -415,9 +416,14 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
 
         uint32_t useExtTimestamp = (inHeader->nOffset == 0);
 
-        // decoder deals in ms, OMX in us.
-        uint32_t timestamp =
-            useExtTimestamp ? (inHeader->nTimeStamp + 500) / 1000 : 0xFFFFFFFF;
+        // decoder deals in ms (int32_t), OMX in us (int64_t)
+        // so use fake timestamp instead
+        uint32_t timestamp = 0xFFFFFFFF;
+        if (useExtTimestamp) {
+            mPvToOmxTimeMap.add(mPvTime, inHeader->nTimeStamp);
+            timestamp = mPvTime;
+            mPvTime++;
+        }
 
         int32_t bufferSize = inHeader->nFilledLen;
         int32_t tmp = bufferSize;
@@ -441,7 +447,8 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
         }
 
         // decoder deals in ms, OMX in us.
-        outHeader->nTimeStamp = timestamp * 1000;
+        outHeader->nTimeStamp = mPvToOmxTimeMap.valueFor(timestamp);
+        mPvToOmxTimeMap.removeItem(timestamp);
 
         inHeader->nOffset += bufferSize;
         inHeader->nFilledLen = 0;
@@ -572,6 +579,7 @@ void SoftMPEG4::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
 }
 
 void SoftMPEG4::onReset() {
+    mPvToOmxTimeMap.clear();
     mSignalledError = false;
     mOutputPortSettingsChange = NONE;
     mFramesConfigured = false;
