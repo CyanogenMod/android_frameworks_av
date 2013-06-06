@@ -19,10 +19,6 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-ifneq (true,$(ANDROID_BUILD_EMBEDDED))
-LOCAL_MODULE_TAGS := debug
-endif
-
 LOCAL_MODULE:= stagefright
 
 include $(BUILD_EXECUTABLE)

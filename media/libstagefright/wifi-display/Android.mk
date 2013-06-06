@@ -64,8 +64,6 @@ LOCAL_SHARED_LIBRARIES:= \
 
 LOCAL_MODULE:= wfd
 
-LOCAL_MODULE_TAGS := debug
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -86,8 +84,6 @@ LOCAL_SHARED_LIBRARIES:= \
         liblog                          \
 
 LOCAL_MODULE:= udptest
-
-LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_EXECUTABLE)
 
@@ -110,8 +106,6 @@ LOCAL_SHARED_LIBRARIES:= \
 
 LOCAL_MODULE:= rtptest
 
-LOCAL_MODULE_TAGS := debug
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -132,7 +126,5 @@ LOCAL_SHARED_LIBRARIES:= \
         liblog                          \
 
 LOCAL_MODULE:= nettest
-
-LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_EXECUTABLE)
