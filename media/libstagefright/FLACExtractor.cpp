@@ -536,9 +536,9 @@ status_t FLACParser::init()
         case 32000:
         case 44100:
         case 48000:
+        case 96000:
             break;
         default:
-            // 96000 would require a proper downsampler in AudioFlinger
             ALOGE("unsupported sample rate %u", getSampleRate());
             return NO_INIT;
         }
