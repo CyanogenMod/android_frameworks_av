@@ -1125,7 +1125,7 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
     ALOGE("Camera %d: %s", mId, errorCause.string());
 
     // But only do error state transition steps for the first error
-    if (mStatus == STATUS_ERROR) return;
+    if (mStatus == STATUS_ERROR || mStatus == STATUS_UNINITIALIZED) return;
 
     mErrorCause = errorCause;
 
