@@ -182,6 +182,13 @@ bool CallbackProcessor::threadLoop() {
     }
 
     do {
+        Mutex::Autolock l(mInputMutex);
+        if (mCallbackStreamId == NO_STREAM) {
+            ALOGV("%s: Camera %d:No stream is available"
+                    , __FUNCTION__, mId);
+            break;
+        }
+
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) {
             res = discardNewCallback();
