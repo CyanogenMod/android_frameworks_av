@@ -38,7 +38,7 @@ public:
     }
 
     void onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
-            uint32_t width, uint32_t height, uint32_t flags)
+            uint32_t width, uint32_t height, uint32_t flags, uint32_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IRemoteDisplayClient::getInterfaceDescriptor());
@@ -46,6 +46,7 @@ public:
         data.writeInt32(width);
         data.writeInt32(height);
         data.writeInt32(flags);
+        data.writeInt32(session);
         remote()->transact(ON_DISPLAY_CONNECTED, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
@@ -80,7 +81,8 @@ status_t BnRemoteDisplayClient::onTransact(
             uint32_t width = data.readInt32();
             uint32_t height = data.readInt32();
             uint32_t flags = data.readInt32();
-            onDisplayConnected(surfaceTexture, width, height, flags);
+            uint32_t session = data.readInt32();
+            onDisplayConnected(surfaceTexture, width, height, flags, session);
             return NO_ERROR;
         }
         case ON_DISPLAY_DISCONNECTED: {
