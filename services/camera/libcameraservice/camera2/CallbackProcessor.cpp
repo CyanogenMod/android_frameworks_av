@@ -182,13 +182,6 @@ bool CallbackProcessor::threadLoop() {
     }
 
     do {
-        Mutex::Autolock l(mInputMutex);
-        if (mCallbackStreamId == NO_STREAM) {
-            ALOGV("%s: Camera %d:No stream is available"
-                    , __FUNCTION__, mId);
-            break;
-        }
-
         sp<Camera2Client> client = mClient.promote();
         if (client == 0) {
             res = discardNewCallback();
@@ -221,25 +214,33 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
     status_t res;
 
     sp<Camera2Heap> callbackHeap;
-    size_t heapIdx;
-
-    CpuConsumer::LockedBuffer imgBuffer;
-    ALOGV("%s: Getting buffer", __FUNCTION__);
-    res = mCallbackConsumer->lockNextBuffer(&imgBuffer);
-    if (res != OK) {
-        if (res != BAD_VALUE) {
-            ALOGE("%s: Camera %d: Error receiving next callback buffer: "
-                    "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
-        }
-        return res;
-    }
-    ALOGV("%s: Camera %d: Preview callback available", __FUNCTION__,
-            mId);
-
     bool useFlexibleYuv = false;
     int32_t previewFormat = 0;
+    size_t heapIdx;
+
     {
+        /* acquire SharedParameters before mMutex so we don't dead lock
+            with Camera2Client code calling into StreamingProcessor */
         SharedParameters::Lock l(client->getParameters());
+        Mutex::Autolock m(mInputMutex);
+        CpuConsumer::LockedBuffer imgBuffer;
+        if (mCallbackStreamId == NO_STREAM) {
+            ALOGV("%s: Camera %d:No stream is available"
+                    , __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
+
+        ALOGV("%s: Getting buffer", __FUNCTION__);
+        res = mCallbackConsumer->lockNextBuffer(&imgBuffer);
+        if (res != OK) {
+            if (res != BAD_VALUE) {
+                ALOGE("%s: Camera %d: Error receiving next callback buffer: "
+                        "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
+            }
+            return res;
+        }
+        ALOGV("%s: Camera %d: Preview callback available", __FUNCTION__,
+                mId);
 
         if ( l.mParameters.state != Parameters::PREVIEW
                 && l.mParameters.state != Parameters::RECORD
@@ -286,85 +287,85 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             ALOGV("%s: clearing oneshot", __FUNCTION__);
             l.mParameters.previewCallbackOneShot = false;
         }
-    }
 
-    uint32_t destYStride = 0;
-    uint32_t destCStride = 0;
-    if (useFlexibleYuv) {
-        if (previewFormat == HAL_PIXEL_FORMAT_YV12) {
-            // Strides must align to 16 for YV12
-            destYStride = ALIGN(imgBuffer.width, 16);
-            destCStride = ALIGN(destYStride / 2, 16);
+        uint32_t destYStride = 0;
+        uint32_t destCStride = 0;
+        if (useFlexibleYuv) {
+            if (previewFormat == HAL_PIXEL_FORMAT_YV12) {
+                // Strides must align to 16 for YV12
+                destYStride = ALIGN(imgBuffer.width, 16);
+                destCStride = ALIGN(destYStride / 2, 16);
+            } else {
+                // No padding for NV21
+                ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP,
+                        "Unexpected preview format 0x%x", previewFormat);
+                destYStride = imgBuffer.width;
+                destCStride = destYStride / 2;
+            }
         } else {
-            // No padding for NV21
-            ALOG_ASSERT(previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP,
-                    "Unexpected preview format 0x%x", previewFormat);
-            destYStride = imgBuffer.width;
-            destCStride = destYStride / 2;
+            destYStride = imgBuffer.stride;
+            // don't care about cStride
         }
-    } else {
-        destYStride = imgBuffer.stride;
-        // don't care about cStride
-    }
 
-    size_t bufferSize = Camera2Client::calculateBufferSize(
-            imgBuffer.width, imgBuffer.height,
-            previewFormat, destYStride);
-    size_t currentBufferSize = (mCallbackHeap == 0) ?
-            0 : (mCallbackHeap->mHeap->getSize() / kCallbackHeapCount);
-    if (bufferSize != currentBufferSize) {
-        mCallbackHeap.clear();
-        mCallbackHeap = new Camera2Heap(bufferSize, kCallbackHeapCount,
-                "Camera2Client::CallbackHeap");
-        if (mCallbackHeap->mHeap->getSize() == 0) {
-            ALOGE("%s: Camera %d: Unable to allocate memory for callbacks",
+        size_t bufferSize = Camera2Client::calculateBufferSize(
+                imgBuffer.width, imgBuffer.height,
+                previewFormat, destYStride);
+        size_t currentBufferSize = (mCallbackHeap == 0) ?
+                0 : (mCallbackHeap->mHeap->getSize() / kCallbackHeapCount);
+        if (bufferSize != currentBufferSize) {
+            mCallbackHeap.clear();
+            mCallbackHeap = new Camera2Heap(bufferSize, kCallbackHeapCount,
+                    "Camera2Client::CallbackHeap");
+            if (mCallbackHeap->mHeap->getSize() == 0) {
+                ALOGE("%s: Camera %d: Unable to allocate memory for callbacks",
+                        __FUNCTION__, mId);
+                mCallbackConsumer->unlockBuffer(imgBuffer);
+                return INVALID_OPERATION;
+            }
+
+            mCallbackHeapHead = 0;
+            mCallbackHeapFree = kCallbackHeapCount;
+        }
+
+        if (mCallbackHeapFree == 0) {
+            ALOGE("%s: Camera %d: No free callback buffers, dropping frame",
                     __FUNCTION__, mId);
             mCallbackConsumer->unlockBuffer(imgBuffer);
-            return INVALID_OPERATION;
+            return OK;
         }
 
-        mCallbackHeapHead = 0;
-        mCallbackHeapFree = kCallbackHeapCount;
-    }
+        heapIdx = mCallbackHeapHead;
 
-    if (mCallbackHeapFree == 0) {
-        ALOGE("%s: Camera %d: No free callback buffers, dropping frame",
-                __FUNCTION__, mId);
+        mCallbackHeapHead = (mCallbackHeapHead + 1) & kCallbackHeapCount;
+        mCallbackHeapFree--;
+
+        // TODO: Get rid of this copy by passing the gralloc queue all the way
+        // to app
+
+        ssize_t offset;
+        size_t size;
+        sp<IMemoryHeap> heap =
+                mCallbackHeap->mBuffers[heapIdx]->getMemory(&offset,
+                        &size);
+        uint8_t *data = (uint8_t*)heap->getBase() + offset;
+
+        if (!useFlexibleYuv) {
+            // Can just memcpy when HAL format matches API format
+            memcpy(data, imgBuffer.data, bufferSize);
+        } else {
+            res = convertFromFlexibleYuv(previewFormat, data, imgBuffer,
+                    destYStride, destCStride);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't convert between 0x%x and 0x%x formats!",
+                        __FUNCTION__, mId, imgBuffer.format, previewFormat);
+                mCallbackConsumer->unlockBuffer(imgBuffer);
+                return BAD_VALUE;
+            }
+        }
+
+        ALOGV("%s: Freeing buffer", __FUNCTION__);
         mCallbackConsumer->unlockBuffer(imgBuffer);
-        return OK;
     }
-
-    heapIdx = mCallbackHeapHead;
-
-    mCallbackHeapHead = (mCallbackHeapHead + 1) & kCallbackHeapCount;
-    mCallbackHeapFree--;
-
-    // TODO: Get rid of this copy by passing the gralloc queue all the way
-    // to app
-
-    ssize_t offset;
-    size_t size;
-    sp<IMemoryHeap> heap =
-            mCallbackHeap->mBuffers[heapIdx]->getMemory(&offset,
-                    &size);
-    uint8_t *data = (uint8_t*)heap->getBase() + offset;
-
-    if (!useFlexibleYuv) {
-        // Can just memcpy when HAL format matches API format
-        memcpy(data, imgBuffer.data, bufferSize);
-    } else {
-        res = convertFromFlexibleYuv(previewFormat, data, imgBuffer,
-                destYStride, destCStride);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't convert between 0x%x and 0x%x formats!",
-                    __FUNCTION__, mId, imgBuffer.format, previewFormat);
-            mCallbackConsumer->unlockBuffer(imgBuffer);
-            return BAD_VALUE;
-        }
-    }
-
-    ALOGV("%s: Freeing buffer", __FUNCTION__);
-    mCallbackConsumer->unlockBuffer(imgBuffer);
 
     // Call outside parameter lock to allow re-entrancy from notification
     {
