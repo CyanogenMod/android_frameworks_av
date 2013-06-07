@@ -680,7 +680,7 @@ status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
         return mStatus;
     }
     status_t status = NO_ERROR;
-    if (device && (mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
+    if ((mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
         status_t cmdStatus;
         uint32_t size = sizeof(status_t);
         uint32_t cmd = audio_is_output_devices(device) ? EFFECT_CMD_SET_DEVICE :
