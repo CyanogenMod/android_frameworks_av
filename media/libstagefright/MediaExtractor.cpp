@@ -29,6 +29,7 @@
 #include "include/WVMExtractor.h"
 #include "include/FLACExtractor.h"
 #include "include/AACExtractor.h"
+#include "include/ExtendedExtractor.h"
 
 #include "matroska/MatroskaExtractor.h"
 
@@ -124,6 +125,12 @@ sp<MediaExtractor> MediaExtractor::Create(
        } else {
            ret->setDrmFlag(false);
        }
+    }
+
+    if(ret == NULL) {
+        //Create Extended Extractor only if default extractor are not selected
+        ALOGV("Using ExtendedExtractor\n");
+        ret =  ExtendedExtractor::Create(source, mime);
     }
 
     return ret;
