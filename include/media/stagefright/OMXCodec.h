@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -103,6 +106,10 @@ struct OMXCodec : public MediaSource,
 #if defined(OMAP_ENHANCEMENT)
         kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
+#ifdef QCOM_HARDWARE
+        kRequiresGlobalFlush                  = 0x20000000, // 2^29
+        kRequiresWMAProComponent              = 0x40000000, //2^30
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -146,6 +153,7 @@ private:
     };
 
     enum {
+        kPortIndexBoth   = -1,
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
@@ -367,6 +375,10 @@ private:
 
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
+    status_t setWMAFormat(const sp<MetaData> &inputFormat);
+    void setAC3Format(int32_t numChannels, int32_t sampleRate);
+
+    bool mNumBFrames;
 };
 
 struct CodecCapabilities {

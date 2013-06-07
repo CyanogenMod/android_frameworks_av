@@ -39,6 +39,7 @@ LOCAL_SRC_FILES:=                         \
         NuMediaExtractor.cpp              \
         OMXClient.cpp                     \
         OMXCodec.cpp                      \
+        ExtendedCodec.cpp                 \
         OggExtractor.cpp                  \
         SampleIterator.cpp                \
         SampleTable.cpp                   \
@@ -52,11 +53,14 @@ LOCAL_SRC_FILES:=                         \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
+        WAVEWriter.cpp                    \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
         mp4/FragmentedMP4Parser.cpp       \
         mp4/TrackFragment.cpp             \
+        ExtendedExtractor.cpp             \
+        QCUtils.cpp                       \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
@@ -171,6 +175,14 @@ endif
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
+
+
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+       LOCAL_CFLAGS += -DENABLE_QC_AV_ENHANCEMENTS
+       LOCAL_SRC_FILES  += ExtendedWriter.cpp
+       LOCAL_SRC_FILES  += QCMediaDefs.cpp
+       LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
 
 include $(BUILD_SHARED_LIBRARY)
 

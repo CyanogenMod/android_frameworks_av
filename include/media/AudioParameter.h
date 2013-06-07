@@ -58,6 +58,7 @@ public:
     static const char * const keyHandleA2dpDevice;
     static const char * const keyADSPStatus;
     static const char * const keyCanOpenProxy;
+    static const char * const keyFmVolume;
 
     String8 toString();
 
