@@ -1979,6 +1979,9 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMixerStatusIgnoringFastTracks(MIXER_IDLE),
         standbyDelay(AudioFlinger::mStandbyTimeInNsecs),
         mScreenState(gScreenState),
+#ifdef QCOM_HARDWARE
+        mOutputFlags(AUDIO_OUTPUT_FLAG_NONE),
+#endif
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
 {
@@ -8077,11 +8080,13 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             ALOGV("openOutput() created mixer output: ID %d thread %p", id, thread);
         }
 #ifdef QCOM_HARDWARE
-        if (thread != NULL)
+        if (thread != NULL) {
 #endif
             mPlaybackThreads.add(id, thread);
-
 #ifdef QCOM_HARDWARE
+            thread->mOutputFlags = flags;
+        }
+
         // if the device is a A2DP, then this is an A2DP Output
         if ( true == audio_is_a2dp_device((audio_devices_t) *pDevices) )
         {
@@ -8385,7 +8390,14 @@ status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_hand
 
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+#ifdef QCOM_HARDWARE
+        // Do not invalidate voip stream which uses directoutput thread
+        if(!(thread->type() == ThreadBase::DIRECT && (thread->mOutputFlags & AUDIO_OUTPUT_FLAG_VOIP_RX))) {
+            thread->invalidateTracks(stream);
+        }
+#else
         thread->invalidateTracks(stream);
+#endif
     }
 #ifdef QCOM_HARDWARE
     if ( mA2DPHandle == output ) {

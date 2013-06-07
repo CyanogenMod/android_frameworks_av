@@ -1242,6 +1242,11 @@ public:
         int                             mNumWrites;
         int                             mNumDelayedWrites;
         bool                            mInWrite;
+#ifdef QCOM_HARDWARE
+        // cache the flags here. Based on falgs type of output(normal/direct) to be open
+        // is decided  in createtrack_l()
+        audio_output_flags_t            mOutputFlags;
+#endif
 
         // FIXME rename these former local variables of threadLoop to standard "m" names
         nsecs_t                         standbyTime;
