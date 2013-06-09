@@ -53,6 +53,8 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#include "QCUtils.h"
+
 #include <system/audio.h>
 #ifdef ENABLE_QC_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
@@ -111,6 +113,10 @@ status_t StagefrightRecorder::setAudioSource(audio_source_t as) {
         return BAD_VALUE;
     }
 
+    if (QCUtils::ShellProp::isAudioDisabled()) {
+        return OK;
+    }
+
     if (as == AUDIO_SOURCE_DEFAULT) {
         mAudioSource = AUDIO_SOURCE_MIC;
     } else {
@@ -160,6 +166,10 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
         ae >= AUDIO_ENCODER_LIST_END) {
         ALOGE("Invalid audio encoder: %d", ae);
         return BAD_VALUE;
+    }
+
+    if (QCUtils::ShellProp::isAudioDisabled()) {
+        return OK;
     }
 
     if (ae == AUDIO_ENCODER_DEFAULT) {
@@ -1512,6 +1522,15 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (mVideoTimeScale > 0) {
         enc_meta->setInt32(kKeyTimeScale, mVideoTimeScale);
     }
+
+    status_t retVal = QCUtils::HFR::reCalculateFileDuration(
+            meta, enc_meta, mMaxFileDurationUs, mFrameRate, mVideoEncoder);
+    if(retVal != OK) {
+        return retVal;
+    }
+
+    QCUtils::ShellProp::setEncoderprofile(mVideoEncoder, mVideoEncoderProfile);
+
     if (mVideoEncoderProfile != -1) {
         enc_meta->setInt32(kKeyVideoProfile, mVideoEncoderProfile);
     }
