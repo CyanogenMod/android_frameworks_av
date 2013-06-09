@@ -131,13 +131,22 @@ MtpDevice* MtpDevice::open(const char* deviceName, int fd) {
             struct usb_endpoint_descriptor *ep_in_desc = NULL;
             struct usb_endpoint_descriptor *ep_out_desc = NULL;
             struct usb_endpoint_descriptor *ep_intr_desc = NULL;
+            //USB3 add USB_DT_SS_ENDPOINT_COMP as companion descriptor;
+            struct usb_ss_ep_comp_descriptor *ep_ss_ep_comp_desc = NULL;
             for (int i = 0; i < 3; i++) {
                 ep = (struct usb_endpoint_descriptor *)usb_descriptor_iter_next(&iter);
+                if (ep && ep->bDescriptorType == USB_DT_SS_ENDPOINT_COMP) {
+                    ALOGD("Descriptor type is USB_DT_SS_ENDPOINT_COMP for USB3 \n");
+                    ep_ss_ep_comp_desc = (usb_ss_ep_comp_descriptor*)ep;
+                    ep = (struct usb_endpoint_descriptor *)usb_descriptor_iter_next(&iter);
+                 }
+
                 if (!ep || ep->bDescriptorType != USB_DT_ENDPOINT) {
                     ALOGE("endpoints not found\n");
                     usb_device_close(device);
                     return NULL;
                 }
+
                 if (ep->bmAttributes == USB_ENDPOINT_XFER_BULK) {
                     if (ep->bEndpointAddress & USB_ENDPOINT_DIR_MASK)
                         ep_in_desc = ep;
