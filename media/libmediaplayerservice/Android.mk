@@ -51,6 +51,10 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/native/include/media/openmax                  \
     $(TOP)/external/tremolo/Tremolo                                 \
 
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS), true)
+    LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+endif
+
 LOCAL_MODULE:= libmediaplayerservice
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
