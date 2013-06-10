@@ -6463,6 +6463,9 @@ status_t AudioFlinger::DirectAudioTrack::start() {
         mOutputDesc->stream->start(mOutputDesc->stream);
     }
     mOutputDesc->mActive = true;
+    mOutputDesc->stream->set_volume(mOutputDesc->stream,
+                                    mOutputDesc->mVolumeLeft * mOutputDesc->mVolumeScale,
+                                    mOutputDesc->mVolumeRight* mOutputDesc->mVolumeScale);
     return NO_ERROR;
 }
 
@@ -6519,12 +6522,18 @@ void AudioFlinger::DirectAudioTrack::mute(bool muted) {
 
 void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
     ALOGV("DirectAudioTrack::setVolume left: %f, right: %f", left, right);
-    if(mOutputDesc && mOutputDesc->mActive) {
+    if(mOutputDesc) {
         mOutputDesc->mVolumeLeft = left;
         mOutputDesc->mVolumeRight = right;
-        mOutputDesc->stream->set_volume(mOutputDesc->stream,
+        if(mOutputDesc->mActive &&  mOutputDesc->stream) {
+            mOutputDesc->stream->set_volume(mOutputDesc->stream,
                                     left * mOutputDesc->mVolumeScale,
                                     right* mOutputDesc->mVolumeScale);
+        } else {
+            ALOGD("stream is not active, so cache and send when stream is active");
+        }
+    } else {
+        ALOGD("output descriptor is not valid to set the volume");
     }
 }
 
@@ -8174,6 +8183,7 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
         desc->stream->common.standby(&desc->stream->common);
         desc->hwDev->close_output_stream(desc->hwDev, desc->stream);
         desc->trackRefPtr = NULL;
+        desc->stream = NULL;
         mDirectAudioTracks.removeItem(output);
         audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
         delete desc;
