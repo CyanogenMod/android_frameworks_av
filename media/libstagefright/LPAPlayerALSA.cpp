@@ -202,7 +202,9 @@ status_t LPAPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mAudioSink->start();
     ALOGV("Waking up decoder thread");
-    pthread_cond_signal(&mDecoderCv);
+    mLock.lock();
+    mDecoderCv.signal();
+    mLock.unlock();
 
     return OK;
 }
@@ -239,7 +241,7 @@ status_t LPAPlayer::seekTo(int64_t time_us) {
         mReachedOutputEOS = false;
         if(mPaused == false) {
             ALOGV("Going to signal decoder thread since playback is already going on ");
-            pthread_cond_signal(&mDecoderCv);
+            mDecoderCv.signal();
             ALOGV("Signalled extractor thread.");
         }
     }
@@ -294,7 +296,7 @@ void LPAPlayer::resume() {
         }
         mPaused = false;
         mAudioSink->start();
-        pthread_cond_signal(&mDecoderCv);
+        mDecoderCv.signal();
     }
 }
 
@@ -331,7 +333,7 @@ void LPAPlayer::reset() {
 
     // make sure Decoder thread has exited
     ALOGD("Closing all the threads");
-    requestAndWaitForDecoderThreadExit();
+    requestAndWaitForDecoderThreadExit_l();
 
     ALOGD("Close the Sink");
     if (mIsAudioRouted) {
@@ -395,18 +397,17 @@ void *LPAPlayer::decoderThreadWrapper(void *me) {
 
 void LPAPlayer::decoderThreadEntry() {
 
-    pthread_mutex_lock(&mDecoderMutex);
-
+    mLock.lock();
     pid_t tid  = gettid();
     androidSetThreadPriority(tid, ANDROID_PRIORITY_AUDIO);
     prctl(PR_SET_NAME, (unsigned long)"LPA DecodeThread", 0, 0, 0);
 
     ALOGV("mDecoderThreadEntry wait for signal \n");
     if (!mStarted) {
-        pthread_cond_wait(&mDecoderCv, &mDecoderMutex);
+        mDecoderCv.wait(mLock);
     }
-    ALOGV("mDecoderThreadEntry ready to work \n");
-    pthread_mutex_unlock(&mDecoderMutex);
+    ALOGV("decoderThreadEntry ready to work \n");
+    mLock.unlock();
     if (mKillDecoderThread) {
         return;
     }
@@ -433,9 +434,9 @@ void LPAPlayer::decoderThreadEntry() {
             ALOGV("Going to sleep before write since "
                   "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
                   mReachedEOS, mPaused, mIsAudioRouted);
-            pthread_mutex_lock(&mDecoderMutex);
-            pthread_cond_wait(&mDecoderCv, &mDecoderMutex);
-            pthread_mutex_unlock(&mDecoderMutex);
+            mDecoderMutex.lock();
+            mDecoderCv.wait(mDecoderMutex);
+            mDecoderMutex.unlock();
             ALOGV("Woke up from sleep before write since "
                   "mReachedEOS %d, mPaused %d, mIsAudioRouted %d",
                   mReachedEOS, mPaused, mIsAudioRouted);
@@ -465,18 +466,18 @@ void LPAPlayer::decoderThreadEntry() {
                 //write only if player is not in paused state. Sleep on lock
                 // resume is called
                 ALOGV("Going to sleep in decodethreadiwrite since sink is paused");
-                pthread_mutex_lock(&mDecoderMutex);
-                pthread_cond_wait(&mDecoderCv, &mDecoderMutex);
+                mDecoderMutex.lock();
+                mDecoderCv.wait(mDecoderMutex);
                 ALOGV("Going to unlock n decodethreadwrite since sink "
                       "resumed mPaused %d, mIsAudioRouted %d, mReachedEOS %d",
                       mPaused, mIsAudioRouted, mReachedEOS);
-                pthread_mutex_unlock(&mDecoderMutex);
+                mDecoderMutex.unlock();
             }
             mLock.lock();
             lSeeking = mSeeking||mInternalSeeking;
             mLock.unlock();
 
-           if(lSeeking == false && (mKillDecoderThread == false)){
+            if(lSeeking == false && (mKillDecoderThread == false)){
                 //if we are seeking, ignore write, otherwise write
                 ALOGV("Fillbuffer before seeling flag %d", mSeeking);
                 int lWrittenBytes = mAudioSink->write(local_buf, bytesWritten);
@@ -494,10 +495,7 @@ void LPAPlayer::decoderThreadEntry() {
 
 void LPAPlayer::createThreads() {
 
-    //Initialize all the Mutexes and Condition Variables
-    pthread_mutex_init(&mDecoderMutex, NULL);
-    pthread_cond_init (&mDecoderCv, NULL);
-
+    // Create 4 threads Effect, decoder, event and A2dp
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -673,7 +671,7 @@ bool LPAPlayer::getMediaTimeMapping(
 }
 
 //lock taken in reset()
-void LPAPlayer::requestAndWaitForDecoderThreadExit() {
+void LPAPlayer::requestAndWaitForDecoderThreadExit_l() {
 
     if (!mDecoderThreadAlive)
         return;
@@ -684,7 +682,7 @@ void LPAPlayer::requestAndWaitForDecoderThreadExit() {
     if (!mReachedOutputEOS && mIsAudioRouted)
         mAudioSink->flush();
 
-    pthread_cond_signal(&mDecoderCv);
+    mDecoderCv.signal();
     mLock.unlock();
     pthread_join(mDecoderThread,NULL);
     mLock.lock();
