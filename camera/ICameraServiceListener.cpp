@@ -54,6 +54,8 @@ public:
                            data,
                            &reply,
                            IBinder::FLAG_ONEWAY);
+
+        reply.readExceptionCode();
     }
 };
 
@@ -73,6 +75,7 @@ status_t BnCameraServiceListener::onTransact(
             int32_t cameraId = data.readInt32();
 
             onStatusChanged(status, cameraId);
+            reply->writeNoException();
 
             return NO_ERROR;
         } break;

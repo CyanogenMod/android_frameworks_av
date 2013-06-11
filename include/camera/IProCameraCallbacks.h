@@ -30,6 +30,9 @@ namespace android {
 
 class IProCameraCallbacks : public IInterface
 {
+    /**
+     * Keep up-to-date with IProCameraCallbacks.aidl in frameworks/base
+     */
 public:
     DECLARE_META_INTERFACE(ProCameraCallbacks);
 

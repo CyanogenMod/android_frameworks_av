@@ -28,6 +28,9 @@ namespace android {
 
 class ICameraClient: public IInterface
 {
+    /**
+     * Keep up-to-date with ICameraClient.aidl in frameworks/base
+     */
 public:
     DECLARE_META_INTERFACE(CameraClient);
 

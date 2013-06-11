@@ -162,6 +162,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
         remote()->transact(DISCONNECT, data, &reply);
+        reply.readExceptionCode();
     }
 
     virtual status_t connect(const sp<IProCameraCallbacks>& cameraClient)
@@ -307,6 +308,7 @@ status_t BnProCameraUser::onTransact(
             ALOGV("DISCONNECT");
             CHECK_INTERFACE(IProCameraUser, data, reply);
             disconnect();
+            reply->writeNoException();
             return NO_ERROR;
         } break;
         case CONNECT: {

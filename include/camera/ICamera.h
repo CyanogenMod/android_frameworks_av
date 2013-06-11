@@ -32,6 +32,9 @@ class Surface;
 
 class ICamera: public IInterface
 {
+    /**
+     * Keep up-to-date with ICamera.aidl in frameworks/base
+     */
 public:
     DECLARE_META_INTERFACE(Camera);
 
