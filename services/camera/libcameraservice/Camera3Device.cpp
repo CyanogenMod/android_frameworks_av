@@ -175,6 +175,7 @@ status_t Camera3Device::initialize(camera_module_t *module)
     mHal3Device = device;
     mStatus = STATUS_IDLE;
     mNextStreamId = 0;
+    mNeedConfig = true;
 
     return OK;
 }
@@ -587,6 +588,7 @@ status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
     }
 
     *id = mNextStreamId++;
+    mNeedConfig = true;
 
     // Continue captures if active at start
     if (wasActive) {
@@ -712,6 +714,7 @@ status_t Camera3Device::deleteStream(int id) {
         // fall through since we want to still list the stream as deleted.
     }
     mDeletedStreams.add(deletedStream);
+    mNeedConfig = true;
 
     return res;
 }
@@ -1014,6 +1017,11 @@ status_t Camera3Device::configureStreamsLocked() {
         return INVALID_OPERATION;
     }
 
+    if (!mNeedConfig) {
+        ALOGV("%s: Skipping config, no stream changes", __FUNCTION__);
+        return OK;
+    }
+
     // Start configuring the streams
 
     camera3_stream_configuration config;
@@ -1099,6 +1107,7 @@ status_t Camera3Device::configureStreamsLocked() {
     // Finish configuring the streams lazily on first reference
 
     mStatus = STATUS_ACTIVE;
+    mNeedConfig = false;
 
     return OK;
 }
