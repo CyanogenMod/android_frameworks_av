@@ -40,14 +40,13 @@ namespace android {
 Converter::Converter(
         const sp<AMessage> &notify,
         const sp<ALooper> &codecLooper,
-        const sp<AMessage> &format,
-        bool usePCMAudio)
+        const sp<AMessage> &outputFormat)
     : mInitCheck(NO_INIT),
       mNotify(notify),
       mCodecLooper(codecLooper),
-      mInputFormat(format),
+      mOutputFormat(outputFormat),
       mIsVideo(false),
-      mIsPCMAudio(usePCMAudio),
+      mIsPCMAudio(false),
       mNeedToManuallyPrependSPSPPS(false),
       mDoMoreWorkPending(false)
 #if ENABLE_SILENCE_DETECTION
@@ -58,13 +57,13 @@ Converter::Converter(
       ,mNumFramesToDrop(0)
     {
     AString mime;
-    CHECK(mInputFormat->findString("mime", &mime));
+    CHECK(mOutputFormat->findString("mime", &mime));
 
     if (!strncasecmp("video/", mime.c_str(), 6)) {
         mIsVideo = true;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_RAW, mime.c_str())) {
+        mIsPCMAudio = true;
     }
-
-    CHECK(!usePCMAudio || !mIsVideo);
 
     mInitCheck = initEncoder();
 
@@ -152,23 +151,10 @@ int32_t Converter::GetInt32Property(
 }
 
 status_t Converter::initEncoder() {
-    AString inputMIME;
-    CHECK(mInputFormat->findString("mime", &inputMIME));
-
     AString outputMIME;
-    bool isAudio = false;
-    if (!strcasecmp(inputMIME.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
-        if (mIsPCMAudio) {
-            outputMIME = MEDIA_MIMETYPE_AUDIO_RAW;
-        } else {
-            outputMIME = MEDIA_MIMETYPE_AUDIO_AAC;
-        }
-        isAudio = true;
-    } else if (!strcasecmp(inputMIME.c_str(), MEDIA_MIMETYPE_VIDEO_RAW)) {
-        outputMIME = MEDIA_MIMETYPE_VIDEO_AVC;
-    } else {
-        TRESPASS();
-    }
+    CHECK(mOutputFormat->findString("mime", &outputMIME));
+
+    bool isAudio = !strncasecmp(outputMIME.c_str(), "audio/", 6);
 
     if (!mIsPCMAudio) {
         mEncoder = MediaCodec::CreateByType(
@@ -179,13 +165,9 @@ status_t Converter::initEncoder() {
         }
     }
 
-    mOutputFormat = mInputFormat->dup();
-
     if (mIsPCMAudio) {
         return OK;
     }
-
-    mOutputFormat->setString("mime", outputMIME.c_str());
 
     int32_t audioBitrate = GetInt32Property("media.wfd.audio-bitrate", 128000);
     int32_t videoBitrate = GetInt32Property("media.wfd.video-bitrate", 5000000);
@@ -427,7 +409,7 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
             releaseEncoder();
 
             AString mime;
-            CHECK(mInputFormat->findString("mime", &mime));
+            CHECK(mOutputFormat->findString("mime", &mime));
             ALOGI("encoder (%s) shut down.", mime.c_str());
             break;
         }
@@ -679,6 +661,15 @@ status_t Converter::doMoreWork() {
             notify->setInt32("what", kWhatEOS);
             notify->post();
         } else {
+#if 0
+            if (mIsVideo) {
+                int32_t videoBitrate = GetInt32Property(
+                        "media.wfd.video-bitrate", 5000000);
+
+                setVideoBitrate(videoBitrate);
+            }
+#endif
+
             sp<ABuffer> buffer;
             sp<ABuffer> outbuf = mEncoderOutputBuffers.itemAt(bufferIndex);
 

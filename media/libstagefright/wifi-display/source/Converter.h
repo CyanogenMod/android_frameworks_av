@@ -33,11 +33,9 @@ struct MediaCodec;
 // media access unit of a different format.
 // Right now this'll convert raw video into H.264 and raw audio into AAC.
 struct Converter : public AHandler {
-    Converter(
-            const sp<AMessage> &notify,
-            const sp<ALooper> &codecLooper,
-            const sp<AMessage> &format,
-            bool usePCMAudio);
+    Converter(const sp<AMessage> &notify,
+              const sp<ALooper> &codecLooper,
+              const sp<AMessage> &outputFormat);
 
     status_t initCheck() const;
 
@@ -84,10 +82,9 @@ private:
     status_t mInitCheck;
     sp<AMessage> mNotify;
     sp<ALooper> mCodecLooper;
-    sp<AMessage> mInputFormat;
+    sp<AMessage> mOutputFormat;
     bool mIsVideo;
     bool mIsPCMAudio;
-    sp<AMessage> mOutputFormat;
     bool mNeedToManuallyPrependSPSPPS;
 
     sp<MediaCodec> mEncoder;

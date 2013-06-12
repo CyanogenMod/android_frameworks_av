@@ -937,6 +937,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     CHECK_EQ(err, (status_t)OK);
 
     if (isVideo) {
+        format->setString("mime", MEDIA_MIMETYPE_VIDEO_AVC);
         format->setInt32("store-metadata-in-buffers", true);
         format->setInt32("store-metadata-in-buffers-output", (mHDCP != NULL));
         format->setInt32(
@@ -944,13 +945,17 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
         format->setInt32("profile-idc", profileIdc);
         format->setInt32("level-idc", levelIdc);
         format->setInt32("constraint-set", constraintSet);
+    } else {
+        format->setString(
+                "mime",
+                usePCMAudio
+                    ? MEDIA_MIMETYPE_AUDIO_RAW : MEDIA_MIMETYPE_AUDIO_AAC);
     }
 
     notify = new AMessage(kWhatConverterNotify, id());
     notify->setSize("trackIndex", trackIndex);
 
-    sp<Converter> converter =
-        new Converter(notify, codecLooper, format, usePCMAudio);
+    sp<Converter> converter = new Converter(notify, codecLooper, format);
 
     err = converter->initCheck();
     if (err != OK) {
