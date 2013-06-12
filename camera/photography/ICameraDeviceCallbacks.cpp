@@ -16,7 +16,7 @@
 */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "IProCameraCallbacks"
+#define LOG_TAG "ICameraDeviceCallbacks"
 #include <utils/Log.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -26,23 +26,21 @@
 #include <gui/Surface.h>
 #include <utils/Mutex.h>
 
-#include <camera/IProCameraCallbacks.h>
-
+#include <camera/photography/ICameraDeviceCallbacks.h>
 #include "camera/CameraMetadata.h"
 
 namespace android {
 
 enum {
     NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
-    LOCK_STATUS_CHANGED,
     RESULT_RECEIVED,
 };
 
-class BpProCameraCallbacks: public BpInterface<IProCameraCallbacks>
+class BpCameraDeviceCallbacks: public BpInterface<ICameraDeviceCallbacks>
 {
 public:
-    BpProCameraCallbacks(const sp<IBinder>& impl)
-        : BpInterface<IProCameraCallbacks>(impl)
+    BpCameraDeviceCallbacks(const sp<IBinder>& impl)
+        : BpInterface<ICameraDeviceCallbacks>(impl)
     {
     }
 
@@ -51,66 +49,53 @@ public:
     {
         ALOGV("notifyCallback");
         Parcel data, reply;
-        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
+        data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
         data.writeInt32(msgType);
         data.writeInt32(ext1);
         data.writeInt32(ext2);
         remote()->transact(NOTIFY_CALLBACK, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeNoException();
     }
 
-    void onLockStatusChanged(LockStatus newLockStatus) {
-        ALOGV("onLockStatusChanged");
-        Parcel data, reply;
-        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
-        data.writeInt32(newLockStatus);
-        remote()->transact(LOCK_STATUS_CHANGED, data, &reply,
-                           IBinder::FLAG_ONEWAY);
-    }
-
-    void onResultReceived(int32_t frameId, camera_metadata* result) {
+    void onResultReceived(int32_t frameId, const CameraMetadata& result) {
         ALOGV("onResultReceived");
         Parcel data, reply;
-        data.writeInterfaceToken(IProCameraCallbacks::getInterfaceDescriptor());
+        data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
         data.writeInt32(frameId);
-        CameraMetadata::writeToParcel(data, result);
+        result.writeToParcel(&data);
         remote()->transact(RESULT_RECEIVED, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeNoException();
     }
 };
 
-IMPLEMENT_META_INTERFACE(ProCameraCallbacks,
-                                        "android.hardware.IProCameraCallbacks");
+IMPLEMENT_META_INTERFACE(CameraDeviceCallbacks,
+                         "android.hardware.photography.ICameraDeviceCallbacks");
 
 // ----------------------------------------------------------------------
 
-status_t BnProCameraCallbacks::onTransact(
+status_t BnCameraDeviceCallbacks::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
     ALOGV("onTransact - code = %d", code);
     switch(code) {
         case NOTIFY_CALLBACK: {
             ALOGV("NOTIFY_CALLBACK");
-            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
+            CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
             int32_t msgType = data.readInt32();
             int32_t ext1 = data.readInt32();
             int32_t ext2 = data.readInt32();
             notifyCallback(msgType, ext1, ext2);
-            return NO_ERROR;
-        } break;
-        case LOCK_STATUS_CHANGED: {
-            ALOGV("LOCK_STATUS_CHANGED");
-            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
-            LockStatus newLockStatus
-                                 = static_cast<LockStatus>(data.readInt32());
-            onLockStatusChanged(newLockStatus);
+            data.readExceptionCode();
             return NO_ERROR;
         } break;
         case RESULT_RECEIVED: {
             ALOGV("RESULT_RECEIVED");
-            CHECK_INTERFACE(IProCameraCallbacks, data, reply);
+            CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
             int32_t frameId = data.readInt32();
-            camera_metadata_t *result = NULL;
-            CameraMetadata::readFromParcel(data, &result);
+            CameraMetadata result;
+            result.readFromParcel(const_cast<Parcel*>(&data));
             onResultReceived(frameId, result);
+            data.readExceptionCode();
             return NO_ERROR;
             break;
         }

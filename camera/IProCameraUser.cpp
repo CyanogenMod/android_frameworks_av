@@ -15,7 +15,7 @@
 ** limitations under the License.
 */
 
-//#define LOG_NDEBUG 0
+// #define LOG_NDEBUG 0
 #define LOG_TAG "IProCameraUser"
 #include <utils/Log.h>
 #include <stdint.h>
@@ -24,12 +24,9 @@
 #include <camera/IProCameraUser.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
-#include <system/camera_metadata.h>
+#include "camera/CameraMetadata.h"
 
 namespace android {
-
-typedef Parcel::WritableBlob WritableBlob;
-typedef Parcel::ReadableBlob ReadableBlob;
 
 enum {
     DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
@@ -45,107 +42,6 @@ enum {
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
 };
-
-/**
-  * Caller becomes the owner of the new metadata
-  * 'const Parcel' doesnt prevent us from calling the read functions.
-  *  which is interesting since it changes the internal state
-  *
-  * NULL can be returned when no metadata was sent, OR if there was an issue
-  * unpacking the serialized data (i.e. bad parcel or invalid structure).
-  */
-void readMetadata(const Parcel& data, camera_metadata_t** out) {
-
-    status_t err = OK;
-
-    camera_metadata_t* metadata = NULL;
-
-    if (out) {
-        *out = NULL;
-    }
-
-    // arg0 = metadataSize (int32)
-    int32_t metadataSizeTmp = -1;
-    if ((err = data.readInt32(&metadataSizeTmp)) != OK) {
-        ALOGE("%s: Failed to read metadata size (error %d %s)",
-              __FUNCTION__, err, strerror(-err));
-        return;
-    }
-    const size_t metadataSize = static_cast<size_t>(metadataSizeTmp);
-
-    if (metadataSize == 0) {
-        return;
-    }
-
-    // NOTE: this doesn't make sense to me. shouldnt the blob
-    // know how big it is? why do we have to specify the size
-    // to Parcel::readBlob ?
-
-    ReadableBlob blob;
-    // arg1 = metadata (blob)
-    do {
-        if ((err = data.readBlob(metadataSize, &blob)) != OK) {
-            ALOGE("%s: Failed to read metadata blob (sized %d). Possible "
-                  " serialization bug. Error %d %s",
-                  __FUNCTION__, metadataSize, err, strerror(-err));
-            break;
-        }
-        const camera_metadata_t* tmp =
-                       reinterpret_cast<const camera_metadata_t*>(blob.data());
-
-        metadata = allocate_copy_camera_metadata_checked(tmp, metadataSize);
-    } while(0);
-    blob.release();
-
-    if (out) {
-        *out = metadata;
-    } else if (metadata != NULL) {
-        free_camera_metadata(metadata);
-    }
-}
-
-/**
-  * Caller retains ownership of metadata
-  * - Write 2 (int32 + blob) args in the current position
-  */
-void writeMetadata(Parcel& data, camera_metadata_t* metadata) {
-    // arg0 = metadataSize (int32)
-
-    if (metadata == NULL) {
-        data.writeInt32(0);
-        return;
-    }
-
-    const size_t metadataSize = get_camera_metadata_compact_size(metadata);
-    data.writeInt32(static_cast<int32_t>(metadataSize));
-
-    // arg1 = metadata (blob)
-    WritableBlob blob;
-    {
-        data.writeBlob(metadataSize, &blob);
-        copy_camera_metadata(blob.data(), metadataSize, metadata);
-
-        IF_ALOGV() {
-            if (validate_camera_metadata_structure(
-                        (const camera_metadata_t*)blob.data(),
-                        &metadataSize) != OK) {
-                ALOGV("%s: Failed to validate metadata %p after writing blob",
-                       __FUNCTION__, blob.data());
-            } else {
-                ALOGV("%s: Metadata written to blob. Validation success",
-                        __FUNCTION__);
-            }
-        }
-
-        // Not too big of a problem since receiving side does hard validation
-        if (validate_camera_metadata_structure(metadata, &metadataSize) != OK) {
-            ALOGW("%s: Failed to validate metadata %p before writing blob",
-                   __FUNCTION__, metadata);
-        }
-
-    }
-    blob.release();
-}
 
 class BpProCameraUser: public BpInterface<IProCameraUser>
 {
@@ -214,7 +110,7 @@ public:
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
 
         // arg0+arg1
-        writeMetadata(data, metadata);
+        CameraMetadata::writeToParcel(data, metadata);
 
         // arg2 = streaming (bool)
         data.writeInt32(streaming);
@@ -275,7 +171,7 @@ public:
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
         data.writeInt32(templateId);
         remote()->transact(CREATE_DEFAULT_REQUEST, data, &reply);
-        readMetadata(reply, /*out*/request);
+        CameraMetadata::readFromParcel(reply, /*out*/request);
         return reply.readInt32();
     }
 
@@ -286,7 +182,7 @@ public:
         data.writeInterfaceToken(IProCameraUser::getInterfaceDescriptor());
         data.writeInt32(cameraId);
         remote()->transact(GET_CAMERA_INFO, data, &reply);
-        readMetadata(reply, /*out*/info);
+        CameraMetadata::readFromParcel(reply, /*out*/info);
         return reply.readInt32();
     }
 
@@ -343,7 +239,7 @@ status_t BnProCameraUser::onTransact(
         case SUBMIT_REQUEST: {
             CHECK_INTERFACE(IProCameraUser, data, reply);
             camera_metadata_t* metadata;
-            readMetadata(data, /*out*/&metadata);
+            CameraMetadata::readFromParcel(data, /*out*/&metadata);
 
             // arg2 = streaming (bool)
             bool streaming = data.readInt32();
@@ -395,7 +291,7 @@ status_t BnProCameraUser::onTransact(
             status_t ret;
             ret = createDefaultRequest(templateId, &request);
 
-            writeMetadata(*reply, request);
+            CameraMetadata::writeToParcel(*reply, request);
             reply->writeInt32(ret);
 
             free_camera_metadata(request);
@@ -411,7 +307,7 @@ status_t BnProCameraUser::onTransact(
             status_t ret;
             ret = getCameraInfo(cameraId, &info);
 
-            writeMetadata(*reply, info);
+            CameraMetadata::writeToParcel(*reply, info);
             reply->writeInt32(ret);
 
             free_camera_metadata(info);

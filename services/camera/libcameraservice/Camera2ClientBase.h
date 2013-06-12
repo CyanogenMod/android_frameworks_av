@@ -101,6 +101,10 @@ public:
 
 protected:
 
+    virtual sp<IBinder> asBinderWrapper() {
+        return IInterface::asBinder();
+    }
+
     virtual status_t      dumpDevice(int fd, const Vector<String16>& args);
 
     /** Binder client interface-related private members */

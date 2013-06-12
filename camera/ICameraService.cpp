@@ -31,6 +31,8 @@
 #include <camera/IProCameraCallbacks.h>
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
+#include <camera/photography/ICameraDeviceUser.h>
+#include <camera/photography/ICameraDeviceCallbacks.h>
 
 namespace android {
 
@@ -117,7 +119,7 @@ public:
         return result;
     }
 
-    // connect to camera service
+    // connect to camera service (android.hardware.Camera)
     virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
                                 const String16 &clientPackageName, int clientUid)
     {
@@ -147,6 +149,25 @@ public:
 
         if (readExceptionCode(reply)) return NULL;
         return interface_cast<IProCameraUser>(reply.readStrongBinder());
+    }
+
+    // connect to camera service (android.hardware.photography.CameraDevice)
+    virtual sp<ICameraDeviceUser> connect(
+            const sp<ICameraDeviceCallbacks>& cameraCb,
+            int cameraId,
+            const String16& clientPackageName,
+            int clientUid)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(cameraCb->asBinder());
+        data.writeInt32(cameraId);
+        data.writeString16(clientPackageName);
+        data.writeInt32(clientUid);
+        remote()->transact(BnCameraService::CONNECT_DEVICE, data, &reply);
+
+        if (readExceptionCode(reply)) return NULL;
+        return interface_cast<ICameraDeviceUser>(reply.readStrongBinder());
     }
 
     virtual status_t addListener(const sp<ICameraServiceListener>& listener)
@@ -221,6 +242,19 @@ status_t BnCameraService::onTransact(
             const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
             sp<IProCameraUser> camera = connect(cameraClient, cameraId,
+                                                clientName, clientUid);
+            reply->writeNoException();
+            reply->writeStrongBinder(camera->asBinder());
+            return NO_ERROR;
+        } break;
+        case CONNECT_DEVICE: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<ICameraDeviceCallbacks> cameraClient =
+                interface_cast<ICameraDeviceCallbacks>(data.readStrongBinder());
+            int32_t cameraId = data.readInt32();
+            const String16 clientName = data.readString16();
+            int32_t clientUid = data.readInt32();
+            sp<ICameraDeviceUser> camera = connect(cameraClient, cameraId,
                                                 clientName, clientUid);
             reply->writeNoException();
             reply->writeStrongBinder(camera->asBinder());

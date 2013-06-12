@@ -16,6 +16,9 @@ LOCAL_SRC_FILES:= \
 	ICameraRecordingProxyListener.cpp \
 	IProCameraUser.cpp \
 	IProCameraCallbacks.cpp \
+	photography/ICameraDeviceUser.cpp \
+	photography/ICameraDeviceCallbacks.cpp \
+	photography/CaptureRequest.cpp \
 	ProCamera.cpp \
 	CameraBase.cpp \
 

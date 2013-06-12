@@ -28,6 +28,8 @@
 #include "Camera2ClientBase.h"
 #include "camera2/ProFrameProcessor.h"
 
+#include "photography/CameraDeviceClient.h"
+
 #include "Camera2Device.h"
 
 namespace android {
@@ -325,5 +327,6 @@ void Camera2ClientBase<TClientBase>::SharedCameraCallbacks::clear() {
 
 template class Camera2ClientBase<CameraService::ProClient>;
 template class Camera2ClientBase<CameraService::Client>;
+template class Camera2ClientBase<CameraDeviceClientBase>;
 
 } // namespace android

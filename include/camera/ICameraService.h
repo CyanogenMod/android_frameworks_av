@@ -28,6 +28,8 @@ class ICameraClient;
 class IProCameraUser;
 class IProCameraCallbacks;
 class ICameraServiceListener;
+class ICameraDeviceUser;
+class ICameraDeviceCallbacks;
 
 class ICameraService : public IInterface
 {
@@ -40,6 +42,7 @@ public:
         GET_CAMERA_INFO,
         CONNECT,
         CONNECT_PRO,
+        CONNECT_DEVICE,
         ADD_LISTENER,
         REMOVE_LISTENER,
     };
@@ -74,6 +77,12 @@ public:
             int clientUid) = 0;
 
     virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
+            int cameraId,
+            const String16& clientPackageName,
+            int clientUid) = 0;
+
+    virtual sp<ICameraDeviceUser> connect(
+            const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
             const String16& clientPackageName,
             int clientUid) = 0;
