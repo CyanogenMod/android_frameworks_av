@@ -1331,13 +1331,11 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         track->mResetDone = false;
         track->mPresentationCompleteFrames = 0;
         mActiveTracks.add(track);
-        if (track->mainBuffer() != mMixBuffer) {
-            sp<EffectChain> chain = getEffectChain_l(track->sessionId());
-            if (chain != 0) {
-                ALOGV("addTrack_l() starting track on chain %p for session %d", chain.get(),
-                        track->sessionId());
-                chain->incActiveTrackCnt();
-            }
+        sp<EffectChain> chain = getEffectChain_l(track->sessionId());
+        if (chain != 0) {
+            ALOGV("addTrack_l() starting track on chain %p for session %d", chain.get(),
+                    track->sessionId());
+            chain->incActiveTrackCnt();
         }
 
         status = NO_ERROR;
