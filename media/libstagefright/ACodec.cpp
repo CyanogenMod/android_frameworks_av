@@ -2254,7 +2254,7 @@ void ACodec::processDeferredMessages() {
     }
 }
 
-void ACodec::sendFormatChange() {
+void ACodec::sendFormatChange(const sp<AMessage> &reply) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatOutputFormatChanged);
 
@@ -2319,14 +2319,12 @@ void ACodec::sendFormatChange() {
                         rect.nTop + rect.nHeight - 1);
 
                 if (mNativeWindow != NULL) {
-                    android_native_rect_t crop;
-                    crop.left = rect.nLeft;
-                    crop.top = rect.nTop;
-                    crop.right = rect.nLeft + rect.nWidth;
-                    crop.bottom = rect.nTop + rect.nHeight;
-
-                    CHECK_EQ(0, native_window_set_crop(
-                                mNativeWindow.get(), &crop));
+                    reply->setRect(
+                            "crop",
+                            rect.nLeft,
+                            rect.nTop,
+                            rect.nLeft + rect.nWidth,
+                            rect.nTop + rect.nHeight);
                 }
             }
             break;
@@ -3090,8 +3088,11 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 break;
             }
 
+            sp<AMessage> reply =
+                new AMessage(kWhatOutputBufferDrained, mCodec->id());
+
             if (!mCodec->mSentFormat) {
-                mCodec->sendFormatChange();
+                mCodec->sendFormatChange(reply);
             }
 
             if (mCodec->mUseMetadataOnEncoderOutput) {
@@ -3121,9 +3122,6 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             notify->setPointer("buffer-id", info->mBufferID);
             notify->setBuffer("buffer", info->mData);
             notify->setInt32("flags", flags);
-
-            sp<AMessage> reply =
-                new AMessage(kWhatOutputBufferDrained, mCodec->id());
 
             reply->setPointer("buffer-id", info->mBufferID);
 
@@ -3167,6 +3165,13 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     BufferInfo *info =
         mCodec->findBufferByID(kPortIndexOutput, bufferID, &index);
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_DOWNSTREAM);
+
+    android_native_rect_t crop;
+    if (msg->findRect("crop",
+            &crop.left, &crop.top, &crop.right, &crop.bottom)) {
+        CHECK_EQ(0, native_window_set_crop(
+                mCodec->mNativeWindow.get(), &crop));
+    }
 
     int32_t render;
     if (mCodec->mNativeWindow != NULL

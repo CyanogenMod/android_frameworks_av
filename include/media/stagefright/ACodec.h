@@ -278,7 +278,7 @@ private:
     void deferMessage(const sp<AMessage> &msg);
     void processDeferredMessages();
 
-    void sendFormatChange();
+    void sendFormatChange(const sp<AMessage> &reply);
 
     void signalError(
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
