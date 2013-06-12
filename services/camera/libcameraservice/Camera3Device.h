@@ -149,6 +149,7 @@ class Camera3Device :
     StreamSet                  mOutputStreams;
     sp<camera3::Camera3Stream> mInputStream;
     int                        mNextStreamId;
+    bool                       mNeedConfig;
 
     // Need to hold on to stream references until configure completes.
     Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
