@@ -837,10 +837,17 @@ String8 Parameters::get() const {
 status_t Parameters::buildFastInfo() {
 
     camera_metadata_ro_entry_t activeArraySize =
-        staticInfo(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE, 2, 2);
+        staticInfo(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE, 2, 4);
     if (!activeArraySize.count) return NO_INIT;
-    int32_t arrayWidth = activeArraySize.data.i32[0];
-    int32_t arrayHeight = activeArraySize.data.i32[1];
+    int32_t arrayWidth;
+    int32_t arrayHeight;
+    if (activeArraySize.count == 2) {
+        arrayWidth = activeArraySize.data.i32[0];
+        arrayHeight = activeArraySize.data.i32[1];
+    } else if (activeArraySize.count == 4) {
+        arrayWidth = activeArraySize.data.i32[2];
+        arrayHeight = activeArraySize.data.i32[3];
+    } else return NO_INIT;
 
     camera_metadata_ro_entry_t availableFaceDetectModes =
         staticInfo(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES, 0, 0,
