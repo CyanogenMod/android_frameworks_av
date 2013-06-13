@@ -161,7 +161,9 @@ public:
     /* Terminates the AudioRecord and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioRecord.
      */
-                        ~AudioRecord();
+protected:
+                        virtual ~AudioRecord();
+public:
 
     /* Initialize an AudioRecord that was created using the AudioRecord() constructor.
      * Don't call set() more than once, or after an AudioRecord() constructor that takes parameters.
