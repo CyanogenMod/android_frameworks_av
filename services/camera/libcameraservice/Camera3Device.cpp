@@ -181,23 +181,28 @@ status_t Camera3Device::disconnect() {
 
     ALOGV("%s: E", __FUNCTION__);
 
-    status_t res;
-    if (mStatus == STATUS_UNINITIALIZED) return OK;
+    status_t res = OK;
+    if (mStatus == STATUS_UNINITIALIZED) return res;
 
     if (mStatus == STATUS_ACTIVE ||
             (mStatus == STATUS_ERROR && mRequestThread != NULL)) {
         res = mRequestThread->clearRepeatingRequests();
         if (res != OK) {
             SET_ERR_L("Can't stop streaming");
-            return res;
-        }
-        res = waitUntilDrainedLocked();
-        if (res != OK) {
-            SET_ERR_L("Timeout waiting for HAL to drain");
-            return res;
+            // Continue to close device even in case of error
+        } else {
+            res = waitUntilDrainedLocked();
+            if (res != OK) {
+                SET_ERR_L("Timeout waiting for HAL to drain");
+                // Continue to close device even in case of error
+            }
         }
     }
     assert(mStatus == STATUS_IDLE || mStatus == STATUS_ERROR);
+
+    if (mStatus == STATUS_ERROR) {
+        CLOGE("Shutting down in an error state");
+    }
 
     if (mRequestThread != NULL) {
         mRequestThread->requestExit();
@@ -207,7 +212,12 @@ status_t Camera3Device::disconnect() {
     mInputStream.clear();
 
     if (mRequestThread != NULL) {
-        mRequestThread->join();
+        if (mStatus != STATUS_ERROR) {
+            // HAL may be in a bad state, so waiting for request thread
+            // (which may be stuck in the HAL processCaptureRequest call)
+            // could be dangerous.
+            mRequestThread->join();
+        }
         mRequestThread.clear();
     }
 
@@ -219,7 +229,7 @@ status_t Camera3Device::disconnect() {
     mStatus = STATUS_UNINITIALIZED;
 
     ALOGV("%s: X", __FUNCTION__);
-    return OK;
+    return res;
 }
 
 status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
