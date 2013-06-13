@@ -1019,6 +1019,7 @@ status_t Camera3Device::configureStreamsLocked() {
 
     if (!mNeedConfig) {
         ALOGV("%s: Skipping config, no stream changes", __FUNCTION__);
+        mStatus = STATUS_ACTIVE;
         return OK;
     }
 
