@@ -749,6 +749,22 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         return res;
     }
 
+    // We could wait to create the JPEG output stream until first actual use
+    // (first takePicture call). However, this would substantially increase the
+    // first capture latency on HAL3 devices, and potentially on some HAL2
+    // devices. So create it unconditionally at preview start. As a drawback,
+    // this increases gralloc memory consumption for applications that don't
+    // ever take a picture.
+    // TODO: Find a better compromise, though this likely would involve HAL
+    // changes.
+    res = updateProcessorStream(mJpegProcessor, params);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't pre-configure still image "
+                "stream: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
     Vector<uint8_t> outputStreams;
     bool callbacksEnabled = (params.previewCallbackFlags &
             CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK) ||
@@ -788,18 +804,6 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         res = mStreamingProcessor->startStream(StreamingProcessor::PREVIEW,
                 outputStreams);
     } else {
-        // With recording hint set, we're going to be operating under the
-        // assumption that the user will record video. To optimize recording
-        // startup time, create the necessary output streams for recording and
-        // video snapshot now if they don't already exist.
-        res = updateProcessorStream(mJpegProcessor, params);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't pre-configure still image "
-                    "stream: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
-
         if (!restart) {
             res = mStreamingProcessor->updateRecordingRequest(params);
             if (res != OK) {
