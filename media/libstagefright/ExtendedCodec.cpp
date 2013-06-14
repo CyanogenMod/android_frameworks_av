@@ -272,7 +272,12 @@ status_t ExtendedCodec::handleSupportedAudioFormats(int format, AString* meta) {
 
 void ExtendedCodec::configureVideoCodec(
         const sp<MetaData> &meta, sp<IOMX> OMXhandle,
-        IOMX::node_id nodeID, char* componentName ) {
+        const uint32_t flags, IOMX::node_id nodeID, char* componentName ) {
+    if (strncmp(componentName, "OMX.qcom.", 9)) {
+        //do nothing for non QC component
+        return;
+    }
+
     int32_t arbitraryMode = 1;
     bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
     bool useArbitraryMode = true;
@@ -311,6 +316,30 @@ void ExtendedCodec::configureVideoCodec(
         if(err != OK) {
             ALOGW("Failed to enable timestamp reordering");
         }
+    }
+
+    // Enable Sync-frame decode mode for thumbnails
+    if (flags & OMXCodec::kClientNeedsFramebuffer) {
+        ALOGV("Enabling thumbnail mode.");
+        QOMX_ENABLETYPE enableType;
+        OMX_INDEXTYPE indexType;
+
+        status_t err = OMXhandle->getExtensionIndex(
+                nodeID, OMX_QCOM_INDEX_PARAM_VIDEO_SYNCFRAMEDECODINGMODE,
+                &indexType);
+        if(err != OK) {
+            ALOGW("Failed to get extension for SYNCFRAMEDECODINGMODE");
+            return;
+        }
+
+        enableType.bEnable = OMX_TRUE;
+        err = OMXhandle->setParameter(nodeID,indexType,
+                   (void *)&enableType, sizeof(enableType));
+        if(err != OK) {
+            ALOGW("Failed to get extension for SYNCFRAMEDECODINGMODE");
+            return;
+        }
+        ALOGI("Thumbnail mode enabled.");
     }
 }
 
@@ -683,7 +712,7 @@ namespace android {
 
     void ExtendedCodec::configureVideoCodec(
         const sp<MetaData> &meta, sp<IOMX> OMXhandle,
-        IOMX::node_id nodeID, char* componentName ) {
+        const uint32_t flags, IOMX::node_id nodeID, char* componentName ) {
     }
 
 } //namespace android
