@@ -91,7 +91,7 @@ struct ExtendedCodec {
 
     static void configureVideoCodec(
             const sp<MetaData> &meta, sp<IOMX> OMXhandle,
-            IOMX::node_id nodeID, char* componentName );
+            const uint32_t flags, IOMX::node_id nodeID, char* componentName );
 
 private:
 
