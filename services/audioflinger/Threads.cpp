@@ -1188,7 +1188,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         // This is probably too conservative, but legacy application code may depend on it.
         // If you change this calculation, also review the start threshold which is related.
         uint32_t latencyMs = mOutput->stream->get_latency(mOutput->stream);
-        uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
+        uint32_t minBufCount = 0;
+        if(mSampleRate)
+            minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
         if (minBufCount < 2) {
             minBufCount = 2;
         }
@@ -2295,7 +2297,10 @@ uint32_t AudioFlinger::MixerThread::correctLatency_l(uint32_t latency) const
 {
     if (mFastMixer != NULL) {
         MonoPipe *pipe = (MonoPipe *)mPipeSink.get();
-        latency += (pipe->getAvgFrames() * 1000) / mSampleRate;
+        if(mSampleRate)
+            latency += (pipe->getAvgFrames() * 1000) / mSampleRate;
+        else
+            ALOGW("SampleRate is 0");
     }
     return latency;
 }
@@ -2650,7 +2655,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 minFrames = mNormalFrameCount;
             } else {
                 // +1 for rounding and +1 for additional sample needed for interpolation
-                minFrames = (mNormalFrameCount * t->sampleRate()) / mSampleRate + 1 + 1;
+                if(mSampleRate)
+                    minFrames = (mNormalFrameCount * t->sampleRate()) / mSampleRate + 1 + 1;
+                else {
+                    minFrames = 2;
+                    ALOGW("SampleRate is 0");
+                }
                 // add frames already consumed but not yet released by the resampler
                 // because cblk->framesReady() will include these frames
                 minFrames += mAudioMixer->getUnreleasedFrames(track->name());
@@ -3535,7 +3545,10 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
 {
     Mutex::Autolock _l(mLock);
     // FIXME explain this formula
-    size_t frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
+    int sampleRate = thread->sampleRate();
+    int frameCount = 0;
+    if (sampleRate)
+        frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
     OutputTrack *outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
