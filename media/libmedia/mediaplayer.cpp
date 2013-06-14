@@ -124,7 +124,7 @@ status_t MediaPlayer::attachNewPlayer(const sp<IMediaPlayer>& player)
             mCurrentState = MEDIA_PLAYER_INITIALIZED;
             err = NO_ERROR;
         } else {
-            ALOGE("Unable to to create media player");
+            ALOGE("Unable to create media player");
         }
     }
 
