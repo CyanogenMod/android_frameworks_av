@@ -70,25 +70,30 @@ status_t AudioTrack::getMinFrameCount(
     //          audio_format_t format
     //          audio_channel_mask_t channelMask
     //          audio_output_flags_t flags
-    uint32_t afSampleRate;
+    uint32_t afSampleRate = 0;
     if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
         return NO_INIT;
     }
-    size_t afFrameCount;
+    size_t afFrameCount = 0;
     if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
         return NO_INIT;
     }
-    uint32_t afLatency;
+    uint32_t afLatency = 0;
     if (AudioSystem::getOutputLatency(&afLatency, streamType) != NO_ERROR) {
         return NO_INIT;
     }
 
+    if(!afSampleRate || !afFrameCount) {
+        ALOGW("samplerate or framecount 0");
+        return NO_INIT;
+    }
     // Ensure that buffer depth covers at least audio hardware latency
     uint32_t minBufCount = afLatency / ((1000 * afFrameCount) / afSampleRate);
     if (minBufCount < 2) minBufCount = 2;
 
     *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
-            afFrameCount * minBufCount * sampleRate / afSampleRate;
+                afFrameCount * minBufCount * sampleRate / afSampleRate;
+
     ALOGV("getMinFrameCount=%d: afFrameCount=%d, minBufCount=%d, afSampleRate=%d, afLatency=%d",
             *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
@@ -934,12 +939,17 @@ status_t AudioTrack::createTrack_l(
     } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
 
         // FIXME move these calculations and associated checks to server
-        uint32_t afSampleRate;
+        uint32_t afSampleRate = 0;
         if (AudioSystem::getSamplingRate(output, streamType, &afSampleRate) != NO_ERROR) {
             return NO_INIT;
         }
-        size_t afFrameCount;
+        size_t afFrameCount = 0;
         if (AudioSystem::getFrameCount(output, streamType, &afFrameCount) != NO_ERROR) {
+            return NO_INIT;
+        }
+
+        if(!afSampleRate && !afFrameCount) {
+            ALOGW("samplerate or framecount zero");
             return NO_INIT;
         }
 
@@ -1048,8 +1058,10 @@ status_t AudioTrack::createTrack_l(
     cblk->waitTimeMs = 0;
     mRemainingFrames = mNotificationFramesAct;
     // FIXME don't believe this lie
-    mLatency = afLatency + (1000*frameCount) / sampleRate;
-    mFrameCount = frameCount;
+    if(sampleRate)
+        mLatency = afLatency + (1000*frameCount) / sampleRate;
+    else
+        mLatency = afLatency;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
     if (frameCount > mReqFrameCount) {
