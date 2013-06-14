@@ -109,13 +109,21 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
 
     List<BufferInfo *> &inQueue = getPortQueue(kInputPortIndex);
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
+
+    if (mHeadersDecoded) {
+        // Dequeue any already decoded output frames to free up space
+        // in the output queue.
+
+        drainAllOutputBuffers(false /* eos */);
+    }
+
     H264SwDecRet ret = H264SWDEC_PIC_RDY;
     bool portSettingsChanged = false;
     while ((mEOSStatus != INPUT_DATA_AVAILABLE || !inQueue.empty())
             && outQueue.size() == kNumOutputBuffers) {
 
         if (mEOSStatus == INPUT_EOS_SEEN) {
-            drainAllOutputBuffers();
+            drainAllOutputBuffers(true /* eos */);
             return;
         }
 
@@ -203,15 +211,7 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             mFirstPictureId = -1;
         }
 
-        while (!outQueue.empty() &&
-                mHeadersDecoded &&
-                H264SwDecNextPicture(mHandle, &decodedPicture, 0)
-                    == H264SWDEC_PIC_RDY) {
-
-            int32_t picId = decodedPicture.picId;
-            uint8_t *data = (uint8_t *) decodedPicture.pOutputPicture;
-            drainOneOutputBuffer(picId, data);
-        }
+        drainAllOutputBuffers(false /* eos */);
     }
 }
 
@@ -272,43 +272,38 @@ void SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
     notifyFillBufferDone(outHeader);
 }
 
-bool SoftAVC::drainAllOutputBuffers() {
+void SoftAVC::drainAllOutputBuffers(bool eos) {
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
     H264SwDecPicture decodedPicture;
+
+    if (mHeadersDecoded) {
+        while (!outQueue.empty()
+                && H264SWDEC_PIC_RDY == H264SwDecNextPicture(
+                    mHandle, &decodedPicture, eos /* flush */)) {
+            int32_t picId = decodedPicture.picId;
+            uint8_t *data = (uint8_t *) decodedPicture.pOutputPicture;
+            drainOneOutputBuffer(picId, data);
+        }
+    }
+
+    if (!eos) {
+        return;
+    }
 
     while (!outQueue.empty()) {
         BufferInfo *outInfo = *outQueue.begin();
         outQueue.erase(outQueue.begin());
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
-        if (mHeadersDecoded &&
-            H264SWDEC_PIC_RDY ==
-                H264SwDecNextPicture(mHandle, &decodedPicture, 1 /* flush */)) {
 
-            int32_t picId = decodedPicture.picId;
-            CHECK(mPicToHeaderMap.indexOfKey(picId) >= 0);
-
-            memcpy(outHeader->pBuffer + outHeader->nOffset,
-                decodedPicture.pOutputPicture,
-                mPictureSize);
-
-            OMX_BUFFERHEADERTYPE *header = mPicToHeaderMap.valueFor(picId);
-            outHeader->nTimeStamp = header->nTimeStamp;
-            outHeader->nFlags = header->nFlags;
-            outHeader->nFilledLen = mPictureSize;
-            mPicToHeaderMap.removeItem(picId);
-            delete header;
-        } else {
-            outHeader->nTimeStamp = 0;
-            outHeader->nFilledLen = 0;
-            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
-            mEOSStatus = OUTPUT_FRAMES_FLUSHED;
-        }
+        outHeader->nTimeStamp = 0;
+        outHeader->nFilledLen = 0;
+        outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
         outInfo->mOwnedByUs = false;
         notifyFillBufferDone(outHeader);
-    }
 
-    return true;
+        mEOSStatus = OUTPUT_FRAMES_FLUSHED;
+    }
 }
 
 void SoftAVC::onPortFlushCompleted(OMX_U32 portIndex) {
