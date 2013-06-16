@@ -102,7 +102,7 @@ struct AwesomePlayer {
 
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
-
+    void printFileName(int fd);
     status_t dump(int fd, const Vector<String16> &args) const;
 
 private:
