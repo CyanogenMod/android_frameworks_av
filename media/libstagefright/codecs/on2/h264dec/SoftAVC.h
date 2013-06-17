@@ -72,7 +72,7 @@ private:
     bool mSignalledError;
 
     status_t initDecoder();
-    bool drainAllOutputBuffers();
+    void drainAllOutputBuffers(bool eos);
     void drainOneOutputBuffer(int32_t picId, uint8_t *data);
     void saveFirstOutputBuffer(int32_t pidId, uint8_t *data);
     bool handleCropRectEvent(const CropParams* crop);
