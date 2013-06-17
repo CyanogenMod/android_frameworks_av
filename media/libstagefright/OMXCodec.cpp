@@ -5353,7 +5353,8 @@ status_t QueryCodec(
     OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
     InitOMXParams(&portFormat);
     portFormat.nPortIndex = !isEncoder ? 0 : 1;
-    for (portFormat.nIndex = 0;; ++portFormat.nIndex)  {
+    for (OMX_U32 index = 0;;index++)  {
+        portFormat.nIndex = index;
         err = omx->getParameter(
                 node, OMX_IndexParamVideoPortFormat,
                 &portFormat, sizeof(portFormat));
