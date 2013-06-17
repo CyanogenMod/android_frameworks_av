@@ -357,17 +357,22 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
         }
 
         if (flags & 2) {
-            // Unsynchronization added.
+            // This file has "unsynchronization", so we have to replace occurrences
+            // of 0xff 0x00 with just 0xff in order to get the real data.
 
+            size_t readOffset = offset + 11;
+            size_t writeOffset = offset + 11;
             for (size_t i = 0; i + 1 < dataSize; ++i) {
-                if (mData[offset + 10 + i] == 0xff
-                        && mData[offset + 11 + i] == 0x00) {
-                    memmove(&mData[offset + 11 + i], &mData[offset + 12 + i],
-                            mSize - offset - 12 - i);
+                if (mData[readOffset - 1] == 0xff
+                        && mData[readOffset] == 0x00) {
+                    ++readOffset;
                     --mSize;
                     --dataSize;
                 }
+                mData[writeOffset++] = mData[readOffset++];
             }
+            // move the remaining data following this frame
+            memmove(&mData[writeOffset], &mData[readOffset], oldSize - readOffset);
 
             flags &= ~2;
         }
