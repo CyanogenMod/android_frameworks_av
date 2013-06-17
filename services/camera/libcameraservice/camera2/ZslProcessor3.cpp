@@ -329,8 +329,9 @@ void ZslProcessor3::dump(int fd, const Vector<String16>& /*args*/) const {
 }
 
 bool ZslProcessor3::threadLoop() {
-    // TODO: remove dependency on thread
-    return true;
+    // TODO: remove dependency on thread. For now, shut thread down right
+    // away.
+    return false;
 }
 
 void ZslProcessor3::dumpZslQueue(int fd) const {
