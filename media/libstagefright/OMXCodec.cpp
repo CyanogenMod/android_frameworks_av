@@ -5353,7 +5353,9 @@ status_t QueryCodec(
     OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
     InitOMXParams(&portFormat);
     portFormat.nPortIndex = !isEncoder ? 0 : 1;
-    for (portFormat.nIndex = 0;; ++portFormat.nIndex)  {
+    OMX_U32 index = 0;
+    portFormat.nIndex = index;
+    for (;;)  {
         err = omx->getParameter(
                 node, OMX_IndexParamVideoPortFormat,
                 &portFormat, sizeof(portFormat));
@@ -5361,6 +5363,9 @@ status_t QueryCodec(
             break;
         }
         caps->mColorFormats.push(portFormat.eColorFormat);
+
+        ++index;
+        portFormat.nIndex = index;
     }
 
     CHECK_EQ(omx->freeNode(node), (status_t)OK);
