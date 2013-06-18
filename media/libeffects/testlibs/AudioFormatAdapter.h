@@ -75,6 +75,7 @@ public:
         while (numSamples > 0) {
             uint32_t numSamplesIter = min(numSamples, mMaxSamplesPerCall);
             uint32_t nSamplesChannels = numSamplesIter * mNumChannels;
+            // This branch of "if" is untested
             if (mPcmFormat == AUDIO_FORMAT_PCM_8_24_BIT) {
                 if (mBehavior == EFFECT_BUFFER_ACCESS_WRITE) {
                     mpProcessor->process(

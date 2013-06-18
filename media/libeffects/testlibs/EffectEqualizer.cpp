@@ -234,8 +234,7 @@ int Equalizer_setConfig(EqualizerContext *pContext, effect_config_t *pConfig)
               (pConfig->inputCfg.channels == AUDIO_CHANNEL_OUT_STEREO));
     CHECK_ARG(pConfig->outputCfg.accessMode == EFFECT_BUFFER_ACCESS_WRITE
               || pConfig->outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE);
-    CHECK_ARG(pConfig->inputCfg.format == AUDIO_FORMAT_PCM_8_24_BIT
-              || pConfig->inputCfg.format == AUDIO_FORMAT_PCM_16_BIT);
+    CHECK_ARG(pConfig->inputCfg.format == AUDIO_FORMAT_PCM_16_BIT);
 
     int channelCount;
     if (pConfig->inputCfg.channels == AUDIO_CHANNEL_OUT_MONO) {
