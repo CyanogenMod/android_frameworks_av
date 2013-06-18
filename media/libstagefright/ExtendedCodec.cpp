@@ -144,7 +144,9 @@ status_t ExtendedCodec::setAudioFormat(
         int32_t numChannels, sampleRate;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
-        setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
+        /* Commenting follwoing call as AC3 soft decoder does not
+         need it and it causes issue with playback*/
+        //setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
