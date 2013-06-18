@@ -77,6 +77,9 @@ enum audio_encoder {
     AUDIO_ENCODER_AAC = 3,
     AUDIO_ENCODER_HE_AAC = 4,
     AUDIO_ENCODER_AAC_ELD = 5,
+    AUDIO_ENCODER_EVRC = 6,
+    AUDIO_ENCODER_QCELP = 7,
+    AUDIO_ENCODER_LPCM = 8,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };
