@@ -3268,6 +3268,7 @@ status_t AwesomePlayer::suspend() {
 
     // Shutdown the video decoder
     mVideoRenderer.clear();
+    printStats();
     if (mVideoSource != NULL) {
         shutdownVideoDecoder_l();
     }
