@@ -365,6 +365,9 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
 
         ALOGV("%s: Freeing buffer", __FUNCTION__);
         mCallbackConsumer->unlockBuffer(imgBuffer);
+
+        // mCallbackHeap may get freed up once input mutex is released
+        callbackHeap = mCallbackHeap;
     }
 
     // Call outside parameter lock to allow re-entrancy from notification
@@ -375,7 +378,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             ALOGV("%s: Camera %d: Invoking client data callback",
                     __FUNCTION__, mId);
             l.mRemoteCallback->dataCallback(CAMERA_MSG_PREVIEW_FRAME,
-                    mCallbackHeap->mBuffers[heapIdx], NULL);
+                    callbackHeap->mBuffers[heapIdx], NULL);
         }
     }
 
