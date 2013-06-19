@@ -1675,6 +1675,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             desc->mVolumeLeft = 1.0;
             desc->mVolumeRight = 1.0;
             desc->device = *pDevices;
+            desc->trackRefPtr = NULL;
             mDirectAudioTracks.add(id, desc);
             mDirectDevice = desc->device;
         } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
