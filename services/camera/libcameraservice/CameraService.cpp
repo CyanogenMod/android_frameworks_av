@@ -42,6 +42,7 @@
 #include "Camera2Client.h"
 #include "ProCamera2Client.h"
 #include "photography/CameraDeviceClient.h"
+#include "CameraDeviceFactory.h"
 
 namespace android {
 
@@ -127,6 +128,8 @@ void CameraService::onFirstRef()
                 CAMERA_MODULE_API_VERSION_2_1) {
             mModule->set_callbacks(this);
         }
+
+        CameraDeviceFactory::registerService(this);
     }
 }
 

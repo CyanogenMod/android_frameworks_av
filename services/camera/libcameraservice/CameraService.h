@@ -106,6 +106,10 @@ public:
     void                playSound(sound_kind kind);
     void                releaseSound();
 
+    /////////////////////////////////////////////////////////////////////
+    // CameraDeviceFactory functionality
+    int                 getDeviceVersion(int cameraId, int* facing = NULL);
+
 
     /////////////////////////////////////////////////////////////////////
     // CameraClient functionality
@@ -372,7 +376,6 @@ private:
     virtual void        binderDied(const wp<IBinder> &who);
 
     // Helpers
-    int                 getDeviceVersion(int cameraId, int* facing);
 
     bool                isValidCameraId(int cameraId);
 };

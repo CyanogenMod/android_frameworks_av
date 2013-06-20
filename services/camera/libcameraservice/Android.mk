@@ -15,6 +15,7 @@ LOCAL_SRC_FILES:=               \
     CameraDeviceBase.cpp \
     Camera2Device.cpp \
     Camera3Device.cpp \
+    CameraDeviceFactory.cpp \
     camera2/Parameters.cpp \
     camera2/FrameProcessor.cpp \
     camera2/StreamingProcessor.cpp \

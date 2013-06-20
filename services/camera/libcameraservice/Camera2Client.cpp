@@ -58,22 +58,6 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         mDeviceVersion(deviceVersion)
 {
     ATRACE_CALL();
-    ALOGI("Camera %d: Opened", cameraId);
-
-    switch (mDeviceVersion) {
-        case CAMERA_DEVICE_API_VERSION_2_0:
-            mDevice = new Camera2Device(cameraId);
-            break;
-        case CAMERA_DEVICE_API_VERSION_3_0:
-            mDevice = new Camera3Device(cameraId);
-            break;
-        default:
-            ALOGE("Camera %d: Unknown HAL device version %d",
-                    cameraId, mDeviceVersion);
-            mDevice = NULL;
-            break;
-    }
-
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;

@@ -30,7 +30,8 @@
 
 #include "photography/CameraDeviceClient.h"
 
-#include "Camera2Device.h"
+#include "CameraDeviceBase.h"
+#include "CameraDeviceFactory.h"
 
 namespace android {
 using namespace camera2;
@@ -56,7 +57,9 @@ Camera2ClientBase<TClientBase>::Camera2ClientBase(
         mSharedCameraCallbacks(remoteCallback)
 {
     ALOGI("Camera %d: Opened", cameraId);
-    mDevice = new Camera2Device(cameraId);
+
+    mDevice = CameraDeviceFactory::createDevice(cameraId);
+    LOG_ALWAYS_FATAL_IF(mDevice == 0, "Device should never be NULL here.");
 }
 
 template <typename TClientBase>
