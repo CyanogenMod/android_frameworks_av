@@ -792,6 +792,10 @@ public:
 #ifdef QCOM_HARDWARE
     static const char SCENE_MODE_BACKLIGHT[];
     static const char SCENE_MODE_FLOWERS[];
+#ifdef SEMC_CAMERA_HARDWARE
+    static const char SCENE_MODE_BACKLIGHT_PORTRAIT[];
+    static const char SCENE_MODE_DOCUMENT[];
+#endif
     static const char SCENE_MODE_AR[];
 #endif
     // Applications are looking for a barcode. Camera driver will be optimized

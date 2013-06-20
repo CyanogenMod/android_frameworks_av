@@ -99,12 +99,16 @@ const char CameraParameters::KEY_SUPPORTED_SCENE_MODES[] = "scene-mode-values";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::KEY_SCENE_DETECT[] = "scene-detect";
 const char CameraParameters::KEY_SUPPORTED_SCENE_DETECT[] = "scene-detect-values";
-#endif QCOM_HARDWARE
+#endif
 const char CameraParameters::KEY_FLASH_MODE[] = "flash-mode";
 const char CameraParameters::KEY_SUPPORTED_FLASH_MODES[] = "flash-mode-values";
 const char CameraParameters::KEY_FOCUS_MODE[] = "focus-mode";
 const char CameraParameters::KEY_SUPPORTED_FOCUS_MODES[] = "focus-mode-values";
+#ifdef SEMC_CAMERA_HARDWARE
+const char CameraParameters::KEY_MAX_NUM_FOCUS_AREAS[] = "semc-max-multi-focus-num";
+#else
 const char CameraParameters::KEY_MAX_NUM_FOCUS_AREAS[] = "max-num-focus-areas";
+#endif
 const char CameraParameters::KEY_FOCUS_AREAS[] = "focus-areas";
 const char CameraParameters::KEY_FOCAL_LENGTH[] = "focal-length";
 const char CameraParameters::KEY_HORIZONTAL_VIEW_ANGLE[] = "horizontal-view-angle";
@@ -131,12 +135,18 @@ const char CameraParameters::KEY_ISO_MODE[] = "iso";
 const char CameraParameters::KEY_SUPPORTED_ISO_MODES[] = "iso-values";
 const char CameraParameters::KEY_LENSSHADE[] = "lensshade";
 const char CameraParameters::KEY_SUPPORTED_LENSSHADE_MODES[] = "lensshade-values";
-#ifdef SAMSUNG_CAMERA_LEGACY
+#if defined(SAMSUNG_CAMERA_LEGACY)
 const char CameraParameters::KEY_AUTO_EXPOSURE[] = "metering";
+#elif defined(SEMC_CAMERA_HARDWARE)
+const char CameraParameters::KEY_AUTO_EXPOSURE[] = "semc-metering-mode";
 #else
 const char CameraParameters::KEY_AUTO_EXPOSURE[] = "auto-exposure";
 #endif
+#ifdef SEMC_CAMERA_HARDWARE
+const char CameraParameters::KEY_SUPPORTED_AUTO_EXPOSURE[] = "semc-metering-mode-values";
+#else
 const char CameraParameters::KEY_SUPPORTED_AUTO_EXPOSURE[] = "auto-exposure-values";
+#endif
 const char CameraParameters::KEY_DENOISE[] = "denoise";
 const char CameraParameters::KEY_SUPPORTED_DENOISE[] = "denoise-values";
 const char CameraParameters::KEY_SELECTABLE_ZONE_AF[] = "selectable-zone-af";
@@ -312,6 +322,10 @@ const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "back-light";
 const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "backlight";
 #endif
 const char CameraParameters::SCENE_MODE_FLOWERS[] = "flowers";
+#ifdef SEMC_CAMERA_HARDWARE
+const char CameraParameters::SCENE_MODE_BACKLIGHT_PORTRAIT[] = "backlight-portrait";
+const char CameraParameters::SCENE_MODE_DOCUMENT[] = "document";
+#endif
 #endif
 const char CameraParameters::SCENE_MODE_BARCODE[] = "barcode";
 
@@ -378,7 +392,11 @@ const char CameraParameters::LENSSHADE_DISABLE[] = "disable";
 // Values for auto exposure settings.
 const char CameraParameters::AUTO_EXPOSURE_FRAME_AVG[] = "frame-average";
 const char CameraParameters::AUTO_EXPOSURE_CENTER_WEIGHTED[] = "center-weighted";
+#ifdef SEMC_CAMERA_HARDWARE
+const char CameraParameters::AUTO_EXPOSURE_SPOT_METERING[] = "spot";
+#else
 const char CameraParameters::AUTO_EXPOSURE_SPOT_METERING[] = "spot-metering";
+#endif
 
 const char CameraParameters::KEY_GPS_LATITUDE_REF[] = "gps-latitude-ref";
 const char CameraParameters::KEY_GPS_LONGITUDE_REF[] = "gps-longitude-ref";
