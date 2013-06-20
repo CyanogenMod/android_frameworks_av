@@ -1016,6 +1016,72 @@ public:
     static const char SCENE_MODE_TEXT[];
 #endif
 
+#ifdef SONY_CAMERA_HARDWARE
+    static const char EX_EXTENSION_VERSION[];
+    static const char EX_IS_AUTO[];
+    static const char EX_IS_ON_STILL_HDR[];
+    static const char EX_IS_ON[];
+    static const char EX_IS_OFF[];
+    static const char EX_AE_MODE_MANUAL[];
+    static const char EX_AE_MODE_SHUTTER_PRIO[];
+    static const char EX_AE_MODE_ISO_PRIO[];
+    static const char EX_AE_MODE_AUTO[];
+    static const char EX_FOCUS_AREA_USER[];
+    static const char EX_FOCUS_AREA_MULTI[];
+    static const char EX_FOCUS_AREA_CENTER[];
+    static const char EX_SCENE_MODE_HIGH_SENSITIVITY[];
+    static const char EX_SCENE_MODE_HANDHELD_TWILIGHT[];
+    static const char EX_SCENE_MODE_ANTI_MOTION_BLUR[];
+    static const char EX_SCENE_MODE_SOFT_SKIN[];
+    static const char EX_SCENE_MODE_SPOT_LIGHT[];
+    static const char EX_SCENE_MODE_BABY[];
+    static const char EX_SCENE_MODE_PET[];
+    static const char EX_SCENE_MODE_DISH[];
+    static const char EX_SCENE_MODE_DARK[];
+    static const char EX_SCENE_MODE_SWEEP_STITCH[];
+    static const char EX_SCENE_MODE_BACKLIGHT_PORTRAIT[];
+    static const char EX_SCENE_MODE_BACKLIGHT[];
+    static const char EX_SCENE_MODE_DOCUMENT[];
+    static const char EX_METERING_MODE_SPOT[];
+    static const char EX_METERING_MODE_FRAME_AVERAGE[];
+    static const char EX_METERING_MODE_CENTER_WEIGHTED[];
+    static const char EX_OFF[];
+    static const char EX_ON[];
+    static const char EX_FALSE[];
+    static const char EX_TRUE[];
+    static const char KEY_EX_EXTENSION_VERSION[];
+    static const char KEY_EX_OBJECT_TRACKING_SUPPORTED[];
+    static const char KEY_EX_MAX_BURST_SHOT_SIZE[];
+    static const char KEY_EX_SUPPORTED_BURST_SHOTS[];
+    static const char KEY_EX_BURST_SHOT[];
+    static const char KEY_EX_MAX_VIDEO_HDR_SIZE[];
+    static const char KEY_EX_SUPPORTED_VIDEO_HDRS[];
+    static const char KEY_EX_VIDEO_HDR[];
+    static const char KEY_EX_MAX_STILL_HDR_LEVEL[];
+    static const char KEY_EX_STILL_HDR_LEVEL[];
+    static const char KEY_EX_SHUTTER_SPEED_STEP[];
+    static const char KEY_EX_MIN_SHUTTER_SPEED[];
+    static const char KEY_EX_MAX_SHUTTER_SPEED[];
+    static const char KEY_EX_SHUTTER_SPEED[];
+    static const char KEY_EX_SUPPORTED_ISO[];
+    static const char KEY_EX_ISO[];
+    static const char KEY_EX_SUPPORTED_AE_MODES[];
+    static const char KEY_EX_AE_MODE[];
+    static const char KEY_EX_MULTI_FOCUS_RECTS[];
+    static const char KEY_EX_MAX_MULTI_FOCUS_NUM[];
+    static const char KEY_EX_SUPPORTED_FOCUS_AREAS[];
+    static const char KEY_EX_FOCUS_AREA[];
+    static const char KEY_EX_SUPPORTED_SMILE_DETECTIONS[];
+    static const char KEY_EX_SMILE_DETECTION[];
+    static const char KEY_EX_SCENE_DETECTION_SUPPORTED[];
+    static const char KEY_EX_SUPPORTED_VIDEO_STABILIZERS[];
+    static const char KEY_EX_VIDEO_STABILIZER[];
+    static const char KEY_EX_SUPPORTED_IMAGE_STABILIZERS[];
+    static const char KEY_EX_IMAGE_STABILIZER[];
+    static const char KEY_EX_SUPPORTED_METERING_MODES[];
+    static const char KEY_EX_METERING_MODE[];
+#endif
+
    // Values for Redeye Reduction settings.
    // static const char REDEYE_REDUCTION_ENABLE[];
    // static const char REDEYE_REDUCTION_DISABLE[];
