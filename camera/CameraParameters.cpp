@@ -475,6 +475,45 @@ const char CameraParameters::SCENE_MODE_FALL_COLOR[] = "fall-color";
 const char CameraParameters::SCENE_MODE_TEXT[] = "text";
 #endif
 
+#ifdef SEMC_CAMERA_HARDWARE
+const char CameraParameters::EX_FOCUS_AREA_USER[] = "user";
+const char CameraParameters::EX_FOCUS_AREA_MULTI[] = "multi";
+const char CameraParameters::EX_FOCUS_AREA_CENTER[] = "center";
+const char CameraParameters::EX_SCENE_MODE_BACKLIGHT_PORTRAIT[] = "backlight-portrait";
+const char CameraParameters::EX_SCENE_MODE_BACKLIGHT[] = "backlight";
+const char CameraParameters::EX_SCENE_MODE_DOCUMENT[] = "document";
+const char CameraParameters::EX_METERING_MODE_SPOT[] = "spot";
+const char CameraParameters::EX_METERING_MODE_FRAME_AVERAGE[] = "frame-average";
+const char CameraParameters::EX_METERING_MODE_CENTER_WEIGHTED[] = "center-weighted";
+const char CameraParameters::EX_OFF[] = "off";
+const char CameraParameters::EX_ON[] = "on";
+const char CameraParameters::EX_FALSE[] = "false";
+const char CameraParameters::EX_TRUE[] = "true";
+const char CameraParameters::KEY_EX_EXTENSION_VERSION[] = "semc-extension-version";
+const char CameraParameters::KEY_EX_MAX_MULTI_FOCUS_NUM[] = "semc-max-multi-focus-num";
+const char CameraParameters::KEY_EX_SUPPORTED_FOCUS_AREAS[] = "semc-focus-area-values";
+const char CameraParameters::KEY_EX_FOCUS_AREA[] = "semc-focus-area";
+const char CameraParameters::KEY_EX_SUPPORTED_SMILE_DETECTIONS[] = "semc-smile-detect-values";
+const char CameraParameters::KEY_EX_SMILE_DETECTION[] = "semc-smile-detect";
+const char CameraParameters::KEY_EX_SUPPORTED_SCENE_DETECTIONS[] = "semc-scene-detect-supported";
+const char CameraParameters::KEY_EX_SUPPORTED_VIDEO_STABILIZERS[] = "semc-vs-values";
+const char CameraParameters::KEY_EX_VIDEO_STABILIZER[] = "semc-vs";
+const char CameraParameters::KEY_EX_SUPPORTED_IMAGE_STABILIZERS[] = "semc-is-values";
+const char CameraParameters::KEY_EX_IMAGE_STABILIZER[] = "semc-is";
+const char CameraParameters::KEY_EX_SUPPORTED_METERING_MODES[] = "semc-metering-mode-values";
+const char CameraParameters::KEY_EX_METERING_MODE[] = "semc-metering-mode";
+const char CameraParameters::KEY_EX_MAX_ZOOM[] = "semc-max-zoom";
+const char CameraParameters::KEY_EX_POSTVIEW_FORMAT[] = "semc-postview-format";
+const char CameraParameters::KEY_EX_SUPPORTED_POSTVIEW_FORMATS[] = "semc-postview-format-values";
+const char CameraParameters::KEY_EX_SUPPORTED_FACE_DETECTIONS[] = "semc-face-detect-supported";
+const char CameraParameters::KEY_EX_USER_FOCUS_AREA_X[] = "semc-user-focus-area-x";
+const char CameraParameters::KEY_EX_USER_FOCUS_AREA_Y[] = "semc-user-focus-area-y";
+const char CameraParameters::KEY_EX_MAX_FOCUS_AREA_WIDTH[] = "semc-max-focus-area-width";
+const char CameraParameters::KEY_EX_MAX_FOCUS_AREA_HEIGHT[] = "semc-max-focus-area-height";
+const char CameraParameters::KEY_EX_VIDEO_MODE[] = "semc-video-mode";
+const char CameraParameters::KEY_EX_SUPPORTED_VIDEO_MODES[] = "semc-video-mode-values";
+#endif
+
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 

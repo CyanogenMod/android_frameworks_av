@@ -1016,6 +1016,45 @@ public:
     static const char SCENE_MODE_TEXT[];
 #endif
 
+#ifdef SEMC_CAMERA_HARDWARE
+    static const char EX_FOCUS_AREA_USER[];
+    static const char EX_FOCUS_AREA_MULTI[];
+    static const char EX_FOCUS_AREA_CENTER[];
+    static const char EX_SCENE_MODE_BACKLIGHT_PORTRAIT[];
+    static const char EX_SCENE_MODE_BACKLIGHT[];
+    static const char EX_SCENE_MODE_DOCUMENT[];
+    static const char EX_METERING_MODE_SPOT[];
+    static const char EX_METERING_MODE_FRAME_AVERAGE[];
+    static const char EX_METERING_MODE_CENTER_WEIGHTED[];
+    static const char EX_OFF[];
+    static const char EX_ON[];
+    static const char EX_FALSE[];
+    static const char EX_TRUE[];
+    static const char KEY_EX_EXTENSION_VERSION[];
+    static const char KEY_EX_MAX_MULTI_FOCUS_NUM[];
+    static const char KEY_EX_SUPPORTED_FOCUS_AREAS[];
+    static const char KEY_EX_FOCUS_AREA[];
+    static const char KEY_EX_SUPPORTED_SMILE_DETECTIONS[];
+    static const char KEY_EX_SMILE_DETECTION[];
+    static const char KEY_EX_SUPPORTED_SCENE_DETECTIONS[];
+    static const char KEY_EX_SUPPORTED_VIDEO_STABILIZERS[];
+    static const char KEY_EX_VIDEO_STABILIZER[];
+    static const char KEY_EX_SUPPORTED_IMAGE_STABILIZERS[];
+    static const char KEY_EX_IMAGE_STABILIZER[];
+    static const char KEY_EX_SUPPORTED_METERING_MODES[];
+    static const char KEY_EX_METERING_MODE[];
+    static const char KEY_EX_MAX_ZOOM[];
+    static const char KEY_EX_POSTVIEW_FORMAT[];
+    static const char KEY_EX_SUPPORTED_POSTVIEW_FORMATS[];
+    static const char KEY_EX_SUPPORTED_FACE_DETECTIONS[];
+    static const char KEY_EX_USER_FOCUS_AREA_X[];
+    static const char KEY_EX_USER_FOCUS_AREA_Y[];
+    static const char KEY_EX_MAX_FOCUS_AREA_WIDTH[];
+    static const char KEY_EX_MAX_FOCUS_AREA_HEIGHT[];
+    static const char KEY_EX_VIDEO_MODE[];
+    static const char KEY_EX_SUPPORTED_VIDEO_MODES[];
+#endif
+
    // Values for Redeye Reduction settings.
    // static const char REDEYE_REDUCTION_ENABLE[];
    // static const char REDEYE_REDUCTION_DISABLE[];
