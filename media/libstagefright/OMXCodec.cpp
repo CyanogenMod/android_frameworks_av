@@ -4835,7 +4835,7 @@ status_t QueryCodec(
     // Color format query
     OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
     InitOMXParams(&portFormat);
-    portFormat.nPortIndex = !isEncoder ? 0 : 1;
+    portFormat.nPortIndex = !isEncoder ? 1 : 0;
     for (portFormat.nIndex = 0;; ++portFormat.nIndex)  {
         err = omx->getParameter(
                 node, OMX_IndexParamVideoPortFormat,
