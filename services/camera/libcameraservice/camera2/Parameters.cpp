@@ -842,6 +842,8 @@ status_t Parameters::buildFastInfo() {
     int32_t arrayWidth;
     int32_t arrayHeight;
     if (activeArraySize.count == 2) {
+        ALOGW("%s: Camera %d: activeArraySize is missing xmin/ymin!",
+                __FUNCTION__, cameraId);
         arrayWidth = activeArraySize.data.i32[0];
         arrayHeight = activeArraySize.data.i32[1];
     } else if (activeArraySize.count == 4) {
