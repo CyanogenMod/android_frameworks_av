@@ -148,8 +148,16 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
     // XXX:
     // Once all vendors support OMX_COLOR_FormatYUV420Planar, we can
     // remove this check and always set the decoder output color format
+    // skip this check for software decoders
+#ifndef QCOM_HARDWARE
     if (isYUV420PlanarSupported(client, trackMeta)) {
         format->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420Planar);
+#else
+    if (!(flags & OMXCodec::kSoftwareCodecsOnly)) {
+        if (isYUV420PlanarSupported(client, trackMeta)) {
+            format->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420Planar);
+        }
+#endif
     }
 
     sp<MediaSource> decoder =
@@ -382,7 +390,11 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
 
     VideoFrame *frame =
         extractVideoFrameWithCodecFlags(
+#ifndef QCOM_HARDWARE
                 &mClient, trackMeta, source, OMXCodec::kPreferSoftwareCodecs,
+#else
+                &mClient, trackMeta, source, OMXCodec::kSoftwareCodecsOnly,
+#endif
                 timeUs, option);
 
     if (frame == NULL) {
