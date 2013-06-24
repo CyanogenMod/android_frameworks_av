@@ -290,6 +290,9 @@ AwesomePlayer::~AwesomePlayer() {
     mIsTunnelAudio = false;
 #endif
     mClient.disconnect();
+#ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::drainSecurePool();
+#endif
 }
 
 void AwesomePlayer::printStats() {
@@ -379,6 +382,10 @@ status_t AwesomePlayer::setDataSource_l(
 
     mUri = uri;
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::prefetchSecurePool(uri);
+#endif
+
     if (headers) {
         mUriHeaders = *headers;
 
@@ -427,8 +434,12 @@ status_t AwesomePlayer::setDataSource(
     ALOGD("Before reset_l");
     reset_l();
 
-    if(fd)
+    if (fd) {
         printFileName(fd);
+#ifdef ENABLE_AV_ENHANCEMENTS
+        ExtendedUtils::prefetchSecurePool(fd);
+#endif
+    }
 
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
