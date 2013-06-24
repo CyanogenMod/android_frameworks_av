@@ -207,15 +207,15 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             ts = NULL;
             break;
         }
-        int32_t old = android_atomic_dec(&cblk->mFutex);
-        if (old <= 0) {
+        int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
+        if (!(old & CBLK_FUTEX_WAKE)) {
             int rc;
             if (measure && !beforeIsValid) {
                 clock_gettime(CLOCK_MONOTONIC, &before);
                 beforeIsValid = true;
             }
             int ret = __futex_syscall4(&cblk->mFutex,
-                    mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old - 1, ts);
+                    mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
             // update total elapsed time spent waiting
             if (measure) {
                 struct timespec after;
@@ -484,9 +484,8 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
     }
     if (!mDeferWake && mAvailToClient + stepCount >= minimum) {
         ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
-        // could client be sleeping, or not need this increment and counter overflows?
-        int32_t old = android_atomic_inc(&cblk->mFutex);
-        if (old == -1) {
+        int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
+        if (!(old & CBLK_FUTEX_WAKE)) {
             (void) __futex_syscall3(&cblk->mFutex,
                     mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
         }
