@@ -175,7 +175,7 @@ class SoftVPXEncoder : public SimpleSoftOMXComponent {
         const OMX_VIDEO_PARAM_PORTFORMATTYPE* format);
 
     // Verifies the component role tried to be set to this OMX component is
-    // strictly video_encoder.vpx
+    // strictly video_encoder.vp8
     OMX_ERRORTYPE internalSetRoleParams(
         const OMX_PARAM_COMPONENTROLETYPE* role);
 

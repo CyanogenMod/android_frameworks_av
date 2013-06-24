@@ -31,16 +31,20 @@ namespace android {
 
 SoftVPX::SoftVPX(
         const char *name,
+        const char *componentRole,
+        OMX_VIDEO_CODINGTYPE codingType,
         const OMX_CALLBACKTYPE *callbacks,
         OMX_PTR appData,
         OMX_COMPONENTTYPE **component)
     : SoftVideoDecoderOMXComponent(
-            name, "video_decoder.vpx", OMX_VIDEO_CodingVPX,
+            name, componentRole, codingType,
             NULL /* profileLevels */, 0 /* numProfileLevels */,
             320 /* width */, 240 /* height */, callbacks, appData, component),
+      mMode(codingType == OMX_VIDEO_CodingVP8 ? MODE_VP8 : MODE_VP9),
       mCtx(NULL) {
     initPorts(kNumBuffers, 768 * 1024 /* inputBufferSize */,
-            kNumBuffers, MEDIA_MIMETYPE_VIDEO_VPX);
+            kNumBuffers,
+            codingType == OMX_VIDEO_CodingVP8 ? MEDIA_MIMETYPE_VIDEO_VP8 : MEDIA_MIMETYPE_VIDEO_VP9);
 
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
@@ -71,7 +75,9 @@ status_t SoftVPX::initDecoder() {
     memset(&cfg, 0, sizeof(vpx_codec_dec_cfg_t));
     cfg.threads = GetCPUCoreCount();
     if ((vpx_err = vpx_codec_dec_init(
-                (vpx_codec_ctx_t *)mCtx, &vpx_codec_vp8_dx_algo, &cfg, 0))) {
+                (vpx_codec_ctx_t *)mCtx,
+                 mMode == MODE_VP8 ? &vpx_codec_vp8_dx_algo : &vpx_codec_vp9_dx_algo,
+                 &cfg, 0))) {
         ALOGE("on2 decoder failed to initialize. (%d)", vpx_err);
         return UNKNOWN_ERROR;
     }
@@ -194,6 +200,15 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
 android::SoftOMXComponent *createSoftOMXComponent(
         const char *name, const OMX_CALLBACKTYPE *callbacks,
         OMX_PTR appData, OMX_COMPONENTTYPE **component) {
-    return new android::SoftVPX(name, callbacks, appData, component);
+    if (!strcmp(name, "OMX.google.vp8.decoder")) {
+        return new android::SoftVPX(
+                name, "video_decoder.vp8", OMX_VIDEO_CodingVP8,
+                callbacks, appData, component);
+    } else if (!strcmp(name, "OMX.google.vp9.decoder")) {
+        return new android::SoftVPX(
+                name, "video_decoder.vp9", OMX_VIDEO_CodingVP9,
+                callbacks, appData, component);
+    } else {
+        CHECK(!"Unknown component");
+    }
 }
-

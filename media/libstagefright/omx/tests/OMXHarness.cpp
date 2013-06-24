@@ -449,7 +449,8 @@ static const char *GetMimeFromComponentRole(const char *componentRole) {
         { "video_decoder.avc", "video/avc" },
         { "video_decoder.mpeg4", "video/mp4v-es" },
         { "video_decoder.h263", "video/3gpp" },
-        { "video_decoder.vpx", "video/x-vnd.on2.vp8" },
+        { "video_decoder.vp8", "video/x-vnd.on2.vp8" },
+        { "video_decoder.vp9", "video/x-vnd.on2.vp9" },
 
         // we appear to use this as a synonym to amrnb.
         { "audio_decoder.amr", "audio/3gpp" },

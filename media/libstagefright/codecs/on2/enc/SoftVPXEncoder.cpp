@@ -165,8 +165,8 @@ void SoftVPXEncoder::initPorts() {
     outputPort.eDir = OMX_DirOutput;
     outputPort.nBufferAlignment = kOutputBufferAlignment;
     outputPort.format.video.cMIMEType =
-        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_VPX);
-    outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVPX;
+        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_VP8);
+    outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVP8;
     outputPort.format.video.eColorFormat = OMX_COLOR_FormatUnused;
     outputPort.format.video.pNativeWindow = NULL;
     outputPort.nBufferSize = 256 * 1024;  // arbitrary
@@ -315,7 +315,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
                 formatParams->xFramerate = (1000000/mFrameDurationUs) << 16;
                 return OMX_ErrorNone;
             } else if (formatParams->nPortIndex == kOutputPortIndex) {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingVPX;
+                formatParams->eCompressionFormat = OMX_VIDEO_CodingVP8;
                 formatParams->eColorFormat = OMX_COLOR_FormatUnused;
                 formatParams->xFramerate = 0;
                 return OMX_ErrorNone;
@@ -513,7 +513,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetFormatParams(
             return OMX_ErrorUnsupportedSetting;
         }
     } else if (format->nPortIndex == kOutputPortIndex) {
-        if (format->eCompressionFormat == OMX_VIDEO_CodingVPX) {
+        if (format->eCompressionFormat == OMX_VIDEO_CodingVP8) {
             return OMX_ErrorNone;
         } else {
             return OMX_ErrorUnsupportedSetting;
@@ -529,7 +529,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetRoleParams(
     const char* roleText = (const char*)role->cRole;
     const size_t roleTextMaxSize = OMX_MAX_STRINGNAME_SIZE - 1;
 
-    if (strncmp(roleText, "video_encoder.vpx", roleTextMaxSize)) {
+    if (strncmp(roleText, "video_encoder.vp8", roleTextMaxSize)) {
         ALOGE("Unsupported component role");
         return OMX_ErrorBadParameter;
     }

@@ -24,6 +24,8 @@ namespace android {
 
 struct SoftVPX : public SoftVideoDecoderOMXComponent {
     SoftVPX(const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component);
@@ -37,6 +39,11 @@ private:
     enum {
         kNumBuffers = 4
     };
+
+    enum {
+        MODE_VP8,
+        MODE_VP9
+    } mMode;
 
     void *mCtx;
 
