@@ -21,8 +21,12 @@
 #include <utils/Errors.h>
 
 #include <camera/CameraMetadata.h>
+#include <binder/Parcel.h>
 
 namespace android {
+
+typedef Parcel::WritableBlob WritableBlob;
+typedef Parcel::ReadableBlob ReadableBlob;
 
 CameraMetadata::CameraMetadata() :
         mBuffer(NULL), mLocked(false) {
@@ -406,6 +410,177 @@ status_t CameraMetadata::resizeIfNeeded(size_t extraEntries, size_t extraData) {
         }
     }
     return OK;
+}
+
+status_t CameraMetadata::readFromParcel(const Parcel& data,
+                                        camera_metadata_t** out) {
+
+    status_t err = OK;
+
+    camera_metadata_t* metadata = NULL;
+
+    if (out) {
+        *out = NULL;
+    }
+
+    // arg0 = metadataSize (int32)
+    int32_t metadataSizeTmp = -1;
+    if ((err = data.readInt32(&metadataSizeTmp)) != OK) {
+        ALOGE("%s: Failed to read metadata size (error %d %s)",
+              __FUNCTION__, err, strerror(-err));
+        return err;
+    }
+    const size_t metadataSize = static_cast<size_t>(metadataSizeTmp);
+
+    if (metadataSize == 0) {
+        ALOGV("%s: Read 0-sized metadata", __FUNCTION__);
+        return OK;
+    }
+
+    // NOTE: this doesn't make sense to me. shouldnt the blob
+    // know how big it is? why do we have to specify the size
+    // to Parcel::readBlob ?
+
+    ReadableBlob blob;
+    // arg1 = metadata (blob)
+    do {
+        if ((err = data.readBlob(metadataSize, &blob)) != OK) {
+            ALOGE("%s: Failed to read metadata blob (sized %d). Possible "
+                  " serialization bug. Error %d %s",
+                  __FUNCTION__, metadataSize, err, strerror(-err));
+            break;
+        }
+        const camera_metadata_t* tmp =
+                       reinterpret_cast<const camera_metadata_t*>(blob.data());
+
+        metadata = allocate_copy_camera_metadata_checked(tmp, metadataSize);
+        if (metadata == NULL) {
+            // We consider that allocation only fails if the validation
+            // also failed, therefore the readFromParcel was a failure.
+            err = BAD_VALUE;
+        }
+    } while(0);
+    blob.release();
+
+    if (out) {
+        ALOGV("%s: Set out metadata to %p", __FUNCTION__, metadata);
+        *out = metadata;
+    } else if (metadata != NULL) {
+        ALOGV("%s: Freed camera metadata at %p", __FUNCTION__, metadata);
+        free_camera_metadata(metadata);
+    }
+
+    return err;
+}
+
+status_t CameraMetadata::writeToParcel(Parcel& data,
+                                       const camera_metadata_t* metadata) {
+    status_t res = OK;
+
+    // arg0 = metadataSize (int32)
+
+    if (metadata == NULL) {
+        return data.writeInt32(0);
+    }
+
+    const size_t metadataSize = get_camera_metadata_compact_size(metadata);
+    res = data.writeInt32(static_cast<int32_t>(metadataSize));
+    if (res != OK) {
+        return res;
+    }
+
+    // arg1 = metadata (blob)
+    WritableBlob blob;
+    do {
+        res = data.writeBlob(metadataSize, &blob);
+        if (res != OK) {
+            break;
+        }
+        copy_camera_metadata(blob.data(), metadataSize, metadata);
+
+        IF_ALOGV() {
+            if (validate_camera_metadata_structure(
+                        (const camera_metadata_t*)blob.data(),
+                        &metadataSize) != OK) {
+                ALOGV("%s: Failed to validate metadata %p after writing blob",
+                       __FUNCTION__, blob.data());
+            } else {
+                ALOGV("%s: Metadata written to blob. Validation success",
+                        __FUNCTION__);
+            }
+        }
+
+        // Not too big of a problem since receiving side does hard validation
+        // Don't check the size since the compact size could be larger
+        if (validate_camera_metadata_structure(metadata, /*size*/NULL) != OK) {
+            ALOGW("%s: Failed to validate metadata %p before writing blob",
+                   __FUNCTION__, metadata);
+        }
+
+    } while(false);
+    blob.release();
+
+    return res;
+}
+
+status_t CameraMetadata::readFromParcel(Parcel *parcel) {
+
+    ALOGV("%s: parcel = %p", __FUNCTION__, parcel);
+
+    status_t res = OK;
+
+    if (parcel == NULL) {
+        ALOGE("%s: parcel is null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (mLocked) {
+        ALOGE("%s: CameraMetadata is locked", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    camera_metadata *buffer = NULL;
+    // TODO: reading should return a status code, in case validation fails
+    res = CameraMetadata::readFromParcel(*parcel, &buffer);
+
+    if (res != NO_ERROR) {
+        ALOGE("%s: Failed to read from parcel. Metadata is unchanged.",
+              __FUNCTION__);
+        return res;
+    }
+
+    clear();
+    mBuffer = buffer;
+
+    return OK;
+}
+
+status_t CameraMetadata::writeToParcel(Parcel *parcel) const {
+
+    ALOGV("%s: parcel = %p", __FUNCTION__, parcel);
+
+    if (parcel == NULL) {
+        ALOGE("%s: parcel is null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    return CameraMetadata::writeToParcel(*parcel, mBuffer);
+}
+
+void CameraMetadata::swap(CameraMetadata& other) {
+    if (mLocked) {
+        ALOGE("%s: CameraMetadata is locked", __FUNCTION__);
+        return;
+    } else if (other.mLocked) {
+        ALOGE("%s: Other CameraMetadata is locked", __FUNCTION__);
+        return;
+    }
+
+    camera_metadata* thisBuf = mBuffer;
+    camera_metadata* otherBuf = other.mBuffer;
+
+    other.mBuffer = thisBuf;
+    mBuffer = otherBuf;
 }
 
 }; // namespace android

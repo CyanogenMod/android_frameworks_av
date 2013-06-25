@@ -15,6 +15,7 @@ LOCAL_SRC_FILES:=               \
     CameraDeviceBase.cpp \
     Camera2Device.cpp \
     Camera3Device.cpp \
+    CameraDeviceFactory.cpp \
     camera2/Parameters.cpp \
     camera2/FrameProcessor.cpp \
     camera2/StreamingProcessor.cpp \
@@ -31,6 +32,7 @@ LOCAL_SRC_FILES:=               \
     camera3/Camera3InputStream.cpp \
     camera3/Camera3OutputStream.cpp \
     camera3/Camera3ZslStream.cpp \
+    photography/CameraDeviceClient.cpp \
     gui/RingBufferConsumer.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \
