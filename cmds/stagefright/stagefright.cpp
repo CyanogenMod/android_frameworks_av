@@ -616,7 +616,7 @@ static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
         MEDIA_MIMETYPE_AUDIO_AMR_NB, MEDIA_MIMETYPE_AUDIO_AMR_WB,
         MEDIA_MIMETYPE_AUDIO_MPEG, MEDIA_MIMETYPE_AUDIO_G711_MLAW,
         MEDIA_MIMETYPE_AUDIO_G711_ALAW, MEDIA_MIMETYPE_AUDIO_VORBIS,
-        MEDIA_MIMETYPE_VIDEO_VPX
+        MEDIA_MIMETYPE_VIDEO_VP8, MEDIA_MIMETYPE_VIDEO_VP9
     };
 
     const char *codecType = queryDecoders? "decoder" : "encoder";

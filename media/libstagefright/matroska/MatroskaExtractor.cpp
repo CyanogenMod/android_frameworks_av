@@ -870,7 +870,9 @@ void MatroskaExtractor::addTracks() {
                         continue;
                     }
                 } else if (!strcmp("V_VP8", codecID)) {
-                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VPX);
+                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP8);
+                } else if (!strcmp("V_VP9", codecID)) {
+                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP9);
                 } else {
                     ALOGW("%s is not supported.", codecID);
                     continue;

@@ -949,8 +949,10 @@ status_t ACodec::setComponentRole(
             "video_decoder.mpeg4", "video_encoder.mpeg4" },
         { MEDIA_MIMETYPE_VIDEO_H263,
             "video_decoder.h263", "video_encoder.h263" },
-        { MEDIA_MIMETYPE_VIDEO_VPX,
-            "video_decoder.vpx", "video_encoder.vpx" },
+        { MEDIA_MIMETYPE_VIDEO_VP8,
+            "video_decoder.vp8", "video_encoder.vp8" },
+        { MEDIA_MIMETYPE_VIDEO_VP9,
+            "video_decoder.vp9", "video_encoder.vp9" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
         { MEDIA_MIMETYPE_AUDIO_FLAC,
@@ -1632,7 +1634,8 @@ static const struct VideoCodingMapEntry {
     { MEDIA_MIMETYPE_VIDEO_MPEG4, OMX_VIDEO_CodingMPEG4 },
     { MEDIA_MIMETYPE_VIDEO_H263, OMX_VIDEO_CodingH263 },
     { MEDIA_MIMETYPE_VIDEO_MPEG2, OMX_VIDEO_CodingMPEG2 },
-    { MEDIA_MIMETYPE_VIDEO_VPX, OMX_VIDEO_CodingVPX },
+    { MEDIA_MIMETYPE_VIDEO_VP8, OMX_VIDEO_CodingVP8 },
+    { MEDIA_MIMETYPE_VIDEO_VP9, OMX_VIDEO_CodingVP9 },
 };
 
 static status_t GetVideoCodingTypeFromMime(
