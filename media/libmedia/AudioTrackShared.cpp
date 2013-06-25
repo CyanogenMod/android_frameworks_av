@@ -38,7 +38,7 @@ Proxy::Proxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t 
         bool isOut, bool clientInServer)
     : mCblk(cblk), mBuffers(buffers), mFrameCount(frameCount), mFrameSize(frameSize),
       mFrameCountP2(roundup(frameCount)), mIsOut(isOut), mClientInServer(clientInServer),
-      mIsShutdown(false)
+      mIsShutdown(false), mUnreleased(0)
 {
 }
 
@@ -64,10 +64,7 @@ const struct timespec ClientProxy::kNonBlocking = {0 /*tv_sec*/, 0 /*tv_nsec*/};
 status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *requested,
         struct timespec *elapsed)
 {
-    if (buffer == NULL || buffer->mFrameCount == 0) {
-        ALOGE("%s BAD_VALUE", __func__);
-        return BAD_VALUE;
-    }
+    LOG_ALWAYS_FATAL_IF(buffer == NULL || buffer->mFrameCount == 0);
     struct timespec total;          // total elapsed time spent waiting
     total.tv_sec = 0;
     total.tv_nsec = 0;
@@ -164,7 +161,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             buffer->mRaw = part1 > 0 ?
                     &((char *) mBuffers)[(mIsOut ? rear : front) * mFrameSize] : NULL;
             buffer->mNonContig = avail - part1;
-            // mUnreleased = part1;
+            mUnreleased = part1;
             status = NO_ERROR;
             break;
         }
@@ -238,6 +235,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             case -EWOULDBLOCK:  // benign race condition with server
             case -EINTR:        // wait was interrupted by signal or other spurious wakeup
             case -ETIMEDOUT:    // time-out expired
+                // FIXME these error/non-0 status are being dropped
                 break;
             default:
                 ALOGE("%s unexpected error %d", __func__, ret);
@@ -252,6 +250,7 @@ end:
         buffer->mFrameCount = 0;
         buffer->mRaw = NULL;
         buffer->mNonContig = 0;
+        mUnreleased = 0;
     }
     if (elapsed != NULL) {
         *elapsed = total;
@@ -268,14 +267,17 @@ end:
 
 void ClientProxy::releaseBuffer(Buffer* buffer)
 {
+    LOG_ALWAYS_FATAL_IF(buffer == NULL);
     size_t stepCount = buffer->mFrameCount;
-    // FIXME
-    //  check mUnreleased
-    //  verify that stepCount <= frameCount returned by the last obtainBuffer()
-    //  verify stepCount not > total frame count of pipe
-    if (stepCount == 0) {
+    if (stepCount == 0 || mIsShutdown) {
+        // prevent accidental re-use of buffer
+        buffer->mFrameCount = 0;
+        buffer->mRaw = NULL;
+        buffer->mNonContig = 0;
         return;
     }
+    LOG_ALWAYS_FATAL_IF(!(stepCount <= mUnreleased && mUnreleased <= mFrameCount));
+    mUnreleased -= stepCount;
     audio_track_cblk_t* cblk = mCblk;
     // Both of these barriers are required
     if (mIsOut) {
@@ -362,20 +364,18 @@ size_t StaticAudioTrackClientProxy::getBufferPosition()
 
 ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
-    : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer), mUnreleased(0),
+    : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer),
       mAvailToClient(0), mFlush(0), mDeferWake(false)
 {
 }
 
 status_t ServerProxy::obtainBuffer(Buffer* buffer)
 {
+    LOG_ALWAYS_FATAL_IF(buffer == NULL || buffer->mFrameCount == 0);
     if (mIsShutdown) {
-        buffer->mFrameCount = 0;
-        buffer->mRaw = NULL;
-        buffer->mNonContig = 0;
-        mUnreleased = 0;
-        return NO_INIT;
+        goto no_init;
     }
+    {
     audio_track_cblk_t* cblk = mCblk;
     // compute number of frames available to write (AudioTrack) or read (AudioRecord),
     // or use previous cached value from framesReady(), with added barrier if it omits.
@@ -402,11 +402,7 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
         mIsShutdown = true;
     }
     if (mIsShutdown) {
-        buffer->mFrameCount = 0;
-        buffer->mRaw = NULL;
-        buffer->mNonContig = 0;
-        mUnreleased = 0;
-        return NO_INIT;
+        goto no_init;
     }
     // don't allow filling pipe beyond the nominal size
     size_t availToServer;
@@ -443,23 +439,27 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
     // FIXME need to test for recording
     mDeferWake = part1 < ask && availToServer >= ask;
     return part1 > 0 ? NO_ERROR : WOULD_BLOCK;
+    }
+no_init:
+    buffer->mFrameCount = 0;
+    buffer->mRaw = NULL;
+    buffer->mNonContig = 0;
+    mUnreleased = 0;
+    return NO_INIT;
 }
 
 void ServerProxy::releaseBuffer(Buffer* buffer)
 {
-    if (mIsShutdown) {
+    LOG_ALWAYS_FATAL_IF(buffer == NULL);
+    size_t stepCount = buffer->mFrameCount;
+    if (stepCount == 0 || mIsShutdown) {
+        // prevent accidental re-use of buffer
         buffer->mFrameCount = 0;
         buffer->mRaw = NULL;
         buffer->mNonContig = 0;
         return;
     }
-    size_t stepCount = buffer->mFrameCount;
-    LOG_ALWAYS_FATAL_IF(stepCount > mUnreleased);
-    if (stepCount == 0) {
-        buffer->mRaw = NULL;
-        buffer->mNonContig = 0;
-        return;
-    }
+    LOG_ALWAYS_FATAL_IF(!(stepCount <= mUnreleased && mUnreleased <= mFrameCount));
     mUnreleased -= stepCount;
     audio_track_cblk_t* cblk = mCblk;
     if (mIsOut) {
@@ -637,8 +637,9 @@ status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer)
 void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
 {
     size_t stepCount = buffer->mFrameCount;
-    LOG_ALWAYS_FATAL_IF(stepCount > mUnreleased);
+    LOG_ALWAYS_FATAL_IF(!(stepCount <= mUnreleased));
     if (stepCount == 0) {
+        // prevent accidental re-use of buffer
         buffer->mRaw = NULL;
         buffer->mNonContig = 0;
         return;
