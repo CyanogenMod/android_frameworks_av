@@ -94,8 +94,9 @@ struct audio_track_cblk_t
                                             // parameter
                                             // renamed to "_" to detect incorrect use
 
-    volatile    int32_t     mFutex;     // semaphore: down (P) by client,
+    volatile    int32_t     mFutex;     // event flag: down (P) by client,
                                         // up (V) by server or binderDied() or interrupt()
+#define CBLK_FUTEX_WAKE 1               // if event flag bit is set, then a deferred wake is pending
 
 private:
 
