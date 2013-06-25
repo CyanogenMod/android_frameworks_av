@@ -244,6 +244,7 @@ const char CameraParameters::SCENE_MODE_SPORTS[] = "sports";
 const char CameraParameters::SCENE_MODE_PARTY[] = "party";
 const char CameraParameters::SCENE_MODE_CANDLELIGHT[] = "candlelight";
 #ifdef STE_SAMSUNG_HARDWARE
+const char CameraParameters::SCENE_MODE_AQUA[] = "aqua";
 const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "backlight";
 const char CameraParameters::SCENE_MODE_DUSKDAWN[] = "duskdawn";
 const char CameraParameters::SCENE_MODE_FALLCOLOR[] = "fallcolor";

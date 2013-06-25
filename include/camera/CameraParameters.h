@@ -743,6 +743,7 @@ public:
     static const char SCENE_MODE_PARTY[];
     static const char SCENE_MODE_CANDLELIGHT[];
 #ifdef STE_SAMSUNG_HARDWARE
+    static const char SCENE_MODE_AQUA[];
     static const char SCENE_MODE_BACKLIGHT[];
     static const char SCENE_MODE_DUSKDAWN[];
     static const char SCENE_MODE_FALLCOLOR[];
