@@ -482,7 +482,8 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
     } else if (minimum > half) {
         minimum = half;
     }
-    if (!mDeferWake && mAvailToClient + stepCount >= minimum) {
+    // FIXME AudioRecord wakeup needs to be optimized; it currently wakes up client every time
+    if (!mIsOut || (!mDeferWake && mAvailToClient + stepCount >= minimum)) {
         ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
