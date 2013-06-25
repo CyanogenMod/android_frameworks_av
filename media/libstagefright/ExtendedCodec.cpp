@@ -347,6 +347,30 @@ void ExtendedCodec::configureVideoCodec(
     }
 }
 
+void ExtendedCodec::enableSmoothStreaming(
+        const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
+        const char* componentName) {
+    *isEnabled = false;
+#ifndef ENABLE_DEFAULT_SMOOTHSTREAMING
+    return;
+#endif
+    //ignore non QC components
+    if (strncmp(componentName, "OMX.qcom.", 9)) {
+        return;
+    }
+    status_t err = omx->setParameter(
+            nodeID,
+            (OMX_INDEXTYPE)OMX_QcomIndexParamEnableSmoothStreaming,
+            &err, sizeof(status_t));
+    if (err != OK) {
+        ALOGE("Failed to enable Smoothstreaming!");
+        return;
+    }
+    *isEnabled = true;
+    ALOGI("Smoothstreaming Enabled");
+    return;
+}
+
 //private methods
 void ExtendedCodec::setEVRCFormat(
         int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
@@ -717,6 +741,13 @@ namespace android {
     void ExtendedCodec::configureVideoCodec(
         const sp<MetaData> &meta, sp<IOMX> OMXhandle,
         const uint32_t flags, IOMX::node_id nodeID, char* componentName ) {
+    }
+
+    void ExtendedCodec::enableSmoothStreaming(
+            const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
+            const char* componentName) {
+        *isEnabled = false;
+        return;
     }
 
 } //namespace android

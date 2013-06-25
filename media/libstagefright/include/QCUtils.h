@@ -35,6 +35,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <camera/CameraParameters.h>
 #include <OMX_Video.h>
+#include <android/native_window.h>
 
 #define MIN_BITERATE_AAC 24000
 #define MAX_BITERATE_AAC 192000
@@ -114,6 +115,9 @@ struct QCUtils {
 
     static bool isAVCProfileSupported(int32_t profile);
 
+    //notify stride change to ANW
+    static void updateNativeWindowBufferGeometry(ANativeWindow* anw,
+            OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
 };
 
 }

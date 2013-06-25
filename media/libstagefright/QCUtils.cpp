@@ -385,6 +385,20 @@ bool QCUtils::isAVCProfileSupported(int32_t  profile){
    }
 }
 
+void QCUtils::updateNativeWindowBufferGeometry(ANativeWindow* anw,
+        OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat) {
+    if (anw != NULL) {
+        ALOGI("Calling native window update buffer geometry [%lu x %lu]",
+                width, height);
+        status_t err = anw->perform(
+                anw, NATIVE_WINDOW_UPDATE_BUFFERS_GEOMETRY,
+                width, height, colorFormat);
+        if (err != OK) {
+            ALOGE("UPDATE_BUFFER_GEOMETRY failed %d", err);
+        }
+    }
+}
+
 }
 
 #else //ENABLE_QC_AV_ENHANCEMENTS
@@ -447,5 +461,10 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
 bool QCUtils::isAVCProfileSupported(int32_t  profile){
      return false;
 }
+
+void QCUtils::updateNativeWindowBufferGeometry(ANativeWindow* anw,
+        OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat) {
+}
+
 }
 #endif //ENABLE_QC_AV_ENHANCEMENTS
