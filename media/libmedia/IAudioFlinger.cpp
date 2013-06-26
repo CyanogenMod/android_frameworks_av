@@ -117,7 +117,7 @@ public:
         }
         data.writeInt32((int32_t) output);
         data.writeInt32((int32_t) tid);
-        int lSessionId = 0;
+        int lSessionId = AUDIO_SESSION_ALLOCATE;
         if (sessionId != NULL) {
             lSessionId = *sessionId;
         }
@@ -167,7 +167,7 @@ public:
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
         data.writeInt32((int32_t) tid);
-        int lSessionId = 0;
+        int lSessionId = AUDIO_SESSION_ALLOCATE;
         if (sessionId != NULL) {
             lSessionId = *sessionId;
         }

@@ -185,7 +185,7 @@ public:
                                     callback_t cbf       = NULL,
                                     void* user           = NULL,
                                     int notificationFrames = 0,
-                                    int sessionId        = 0,
+                                    int sessionId        = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1);
@@ -210,7 +210,7 @@ public:
                                     callback_t cbf      = NULL,
                                     void* user          = NULL,
                                     int notificationFrames = 0,
-                                    int sessionId       = 0,
+                                    int sessionId       = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1);
@@ -248,7 +248,7 @@ public:
                             int notificationFrames = 0,
                             const sp<IMemory>& sharedBuffer = 0,
                             bool threadCanCallJava = false,
-                            int sessionId       = 0,
+                            int sessionId       = AUDIO_SESSION_ALLOCATE,
                             transfer_type transferType = TRANSFER_DEFAULT,
                             const audio_offload_info_t *offloadInfo = NULL,
                             int uid = -1);
