@@ -3294,11 +3294,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
 void AudioFlinger::DirectOutputThread::threadLoop_mix()
 {
-    AudioBufferProvider::Buffer buffer;
     size_t frameCount = mFrameCount;
     int8_t *curBuf = (int8_t *)mMixBuffer;
     // output audio to hardware
     while (frameCount) {
+        AudioBufferProvider::Buffer buffer;
         buffer.frameCount = frameCount;
         mActiveTrack->getNextBuffer(&buffer);
         if (CC_UNLIKELY(buffer.raw == NULL)) {
