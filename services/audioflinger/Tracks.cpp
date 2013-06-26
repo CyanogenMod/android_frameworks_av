@@ -1130,10 +1130,12 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
             }
         }
 
+        uint32_t sr = sampleRate();
+
         // adjust the head buffer's PTS to reflect the portion of the head buffer
         // that has already been consumed
         int64_t effectivePTS = headLocalPTS +
-                ((head.position() / mFrameSize) * mLocalTimeFreq / sampleRate());
+                ((head.position() / mFrameSize) * mLocalTimeFreq / sr);
 
         // Calculate the delta in samples between the head of the input buffer
         // queue and the start of the next output buffer that will be written.
@@ -1165,7 +1167,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::getNextBuffer(
         // the current output position is within this threshold, then we will
         // concatenate the next input samples to the previous output
         const int64_t kSampleContinuityThreshold =
-                (static_cast<int64_t>(sampleRate()) << 32) / 250;
+                (static_cast<int64_t>(sr) << 32) / 250;
 
         // if this is the first buffer of audio that we're emitting from this track
         // then it should be almost exactly on time.

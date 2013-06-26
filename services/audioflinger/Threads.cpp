@@ -2427,7 +2427,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
     }
 
     for (size_t i=0 ; i<count ; i++) {
-        sp<Track> t = mActiveTracks[i].promote();
+        const sp<Track> t = mActiveTracks[i].promote();
         if (t == 0) {
             continue;
         }
@@ -2597,11 +2597,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // hence the test on (mMixerStatus == MIXER_TRACKS_READY) meaning the track was mixed
         // during last round
         size_t desiredFrames;
-        if (t->sampleRate() == mSampleRate) {
+        uint32_t sr = track->sampleRate();
+        if (sr == mSampleRate) {
             desiredFrames = mNormalFrameCount;
         } else {
             // +1 for rounding and +1 for additional sample needed for interpolation
-            desiredFrames = (mNormalFrameCount * t->sampleRate()) / mSampleRate + 1 + 1;
+            desiredFrames = (mNormalFrameCount * sr) / mSampleRate + 1 + 1;
             // add frames already consumed but not yet released by the resampler
             // because cblk->framesReady() will include these frames
             desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
