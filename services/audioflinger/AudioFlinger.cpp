@@ -1424,7 +1424,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
     config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
     config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
-    if (offloadInfo) {
+    if (offloadInfo != NULL) {
         config.offload_info = *offloadInfo;
     }
 
