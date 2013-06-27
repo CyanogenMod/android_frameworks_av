@@ -436,6 +436,9 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
 }
 
 void SoftAMR::onPortFlushCompleted(OMX_U32 portIndex) {
+        ALOGE("onPortFlushCompleted portindex %d, resetting frame ",portIndex);
+        if(portIndex == 0)
+           Speech_Decode_Frame_reset(mState);
 }
 
 void SoftAMR::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {
