@@ -818,6 +818,7 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mServicePid = servicePid;
     mOpsActive = false;
     mDestructionStarted = false;
+    mBurstCnt = 0;
 }
 
 CameraService::BasicClient::~BasicClient() {
