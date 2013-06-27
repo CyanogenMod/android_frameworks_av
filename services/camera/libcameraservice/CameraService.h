@@ -176,6 +176,9 @@ public:
         pid_t                           mClientPid;
         uid_t                           mClientUid;      // immutable after constructor
         pid_t                           mServicePid;     // immutable after constructor
+#ifdef QCOM_HARDWARE
+        int                             mBurstCnt;
+#endif
 
         // - The app-side Binder interface to receive callbacks from us
         sp<IBinder>                     mRemoteBinder;   // immutable after constructor
