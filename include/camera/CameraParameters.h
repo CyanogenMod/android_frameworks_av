@@ -692,6 +692,7 @@ public:
     static const char KEY_GPU_EFFECT_PARAM_1[];
     static const char KEY_GPU_EFFECT_PARAM_2[];
     static const char KEY_GPU_EFFECT_PARAM_3[];
+    static const char KEY_FORCE_USE_AUDIO_ENABLED[];
 #endif
 
     static const char KEY_AE_BRACKET_HDR[];

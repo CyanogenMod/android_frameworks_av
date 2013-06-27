@@ -226,6 +226,7 @@ const char CameraParameters::KEY_GPU_EFFECT_PARAM_0[] = "GE-param0";
 const char CameraParameters::KEY_GPU_EFFECT_PARAM_1[] = "GE-param1";
 const char CameraParameters::KEY_GPU_EFFECT_PARAM_2[] = "GE-param2";
 const char CameraParameters::KEY_GPU_EFFECT_PARAM_3[] = "GE-param3";
+const char CameraParameters::KEY_FORCE_USE_AUDIO_ENABLED[] = "forceuseaudio";
 #endif
 
 const char CameraParameters::TRUE[] = "true";
