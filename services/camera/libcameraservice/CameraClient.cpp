@@ -582,6 +582,12 @@ status_t CameraClient::takePicture(int msgType) {
     disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 #endif
     enableMsgType(picMsgType);
+#ifdef QCOM_HARDWARE
+    mBurstCnt = mHardware->getParameters().getInt("num-snaps-per-shutter");
+    if(mBurstCnt <= 0)
+        mBurstCnt = 1;
+    LOG1("mBurstCnt = %d", mBurstCnt);
+#endif
 
     return mHardware->takePicture();
 }
@@ -929,7 +935,17 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
 
 // picture callback - compressed picture ready
 void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
-    disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+#ifdef QCOM_HARDWARE
+    if (mBurstCnt)
+        mBurstCnt--;
+
+    if (!mBurstCnt) {
+        LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
+#endif
+        disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+#ifdef QCOM_HARDWARE
+    }
+#endif
 
     sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();
