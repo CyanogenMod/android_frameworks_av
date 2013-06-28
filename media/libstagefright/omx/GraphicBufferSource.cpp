@@ -251,7 +251,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
     ALOGV("fillCodecBuffer_l: acquiring buffer, avail=%d",
             mNumFramesAvailable);
     BufferQueue::BufferItem item;
-    status_t err = mBufferQueue->acquireBuffer(&item);
+    status_t err = mBufferQueue->acquireBuffer(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
         // shouldn't happen
         ALOGW("fillCodecBuffer_l: frame was not available");
@@ -422,7 +422,7 @@ void GraphicBufferSource::onFrameAvailable() {
         ALOGW("onFrameAvailable: EOS is set, ignoring frame");
 
         BufferQueue::BufferItem item;
-        status_t err = mBufferQueue->acquireBuffer(&item);
+        status_t err = mBufferQueue->acquireBuffer(&item, 0);
         if (err == OK) {
             mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
                     EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
