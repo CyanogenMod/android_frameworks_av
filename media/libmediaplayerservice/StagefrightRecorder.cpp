@@ -415,6 +415,11 @@ status_t StagefrightRecorder::setParamMaxFileSizeBytes(int64_t bytes) {
         ALOGW("Target file size (%lld bytes) is too small to be respected", bytes);
     }
 
+    if (bytes >= 0xffffffffLL) {
+        ALOGW("Target file size (%lld bytes) too larger than supported, clip to 4GB", bytes);
+        bytes = 0xffffffffLL;
+    }
+
     mMaxFileSizeBytes = bytes;
     return OK;
 }
@@ -738,7 +743,18 @@ status_t StagefrightRecorder::setClientName(const String16& clientName) {
 }
 
 status_t StagefrightRecorder::prepare() {
-    return OK;
+  ALOGV(" %s E", __func__ );
+
+  if(mVideoSource != VIDEO_SOURCE_LIST_END && mVideoEncoder != VIDEO_ENCODER_LIST_END && mVideoHeight && mVideoWidth &&             /*Video recording*/
+         (mMaxFileDurationUs <=0 ||             /*Max duration is not set*/
+         (mVideoHeight * mVideoWidth < 720 * 1280 && mMaxFileDurationUs > 30*60*1000*1000) ||
+         (mVideoHeight * mVideoWidth >= 720 * 1280 && mMaxFileDurationUs > 10*60*1000*1000))) {
+    /*Above Check can be further optimized for lower resolutions to reduce file size*/
+    ALOGV("File is huge so setting 64 bit file offsets");
+    setParam64BitFileOffset(true);
+  }
+  ALOGV(" %s X", __func__ );
+  return OK;
 }
 
 status_t StagefrightRecorder::start() {
