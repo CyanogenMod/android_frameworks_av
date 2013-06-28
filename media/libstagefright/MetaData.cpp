@@ -282,6 +282,7 @@ void MetaData::typed_data::freeStorage() {
     if (!usesReservoir()) {
         if (u.ext_data) {
             free(u.ext_data);
+            u.ext_data = NULL;
         }
     }
 
