@@ -250,6 +250,10 @@ void AudioFlinger::TrackHandle::pause() {
     mTrack->pause();
 }
 
+status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) {
+    return INVALID_OPERATION;   // stub function
+}
+
 status_t AudioFlinger::TrackHandle::attachAuxEffect(int EffectId)
 {
     return mTrack->attachAuxEffect(EffectId);

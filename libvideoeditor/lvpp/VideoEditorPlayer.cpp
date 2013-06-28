@@ -391,7 +391,8 @@ status_t VideoEditorPlayer::VeAudioOutput::getFramesWritten(uint32_t *written) c
 status_t VideoEditorPlayer::VeAudioOutput::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie, audio_output_flags_t flags) {
+        AudioCallback cb, void *cookie, audio_output_flags_t flags,
+        const audio_offload_info_t *offloadInfo) {
 
     mCallback = cb;
     mCallbackCookie = cookie;
@@ -545,7 +546,8 @@ void VideoEditorPlayer::VeAudioOutput::CallbackWrapper(
     AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
 
     size_t actualSize = (*me->mCallback)(
-            me, buffer->raw, buffer->size, me->mCallbackCookie);
+            me, buffer->raw, buffer->size, me->mCallbackCookie,
+            MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER);
 
     buffer->size = actualSize;
 

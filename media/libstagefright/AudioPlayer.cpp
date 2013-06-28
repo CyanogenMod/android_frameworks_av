@@ -34,7 +34,7 @@ namespace android {
 
 AudioPlayer::AudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
-        bool allowDeepBuffering,
+        uint32_t flags,
         AwesomePlayer *observer)
     : mInputBuffer(NULL),
       mSampleRate(0),
@@ -52,7 +52,7 @@ AudioPlayer::AudioPlayer(
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
       mAudioSink(audioSink),
-      mAllowDeepBuffering(allowDeepBuffering),
+      mAllowDeepBuffering((flags & ALLOW_DEEP_BUFFERING) != 0),
       mObserver(observer),
       mPinnedTimeUs(-1ll) {
 }
@@ -304,7 +304,8 @@ status_t AudioPlayer::setPlaybackRatePermille(int32_t ratePermille) {
 // static
 size_t AudioPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie) {
+        void *buffer, size_t size, void *cookie,
+        MediaPlayerBase::AudioSink::cb_event_t event) {
     AudioPlayer *me = (AudioPlayer *)cookie;
 
     return me->fillBuffer(buffer, size);

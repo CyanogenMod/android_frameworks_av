@@ -361,7 +361,8 @@ public:
                                          audio_format_t *pFormat,
                                          audio_channel_mask_t *pChannelMask,
                                          uint32_t *pLatencyMs,
-                                         audio_output_flags_t flags)
+                                         audio_output_flags_t flags,
+                                         const audio_offload_info_t *offloadInfo)
     {
         Parcel data, reply;
         audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;

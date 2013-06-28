@@ -575,10 +575,15 @@ void VideoEditorAudioPlayer::reset() {
 
 size_t VideoEditorAudioPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie) {
+        void *buffer, size_t size, void *cookie,
+        MediaPlayerBase::AudioSink::cb_event_t event) {
     VideoEditorAudioPlayer *me = (VideoEditorAudioPlayer *)cookie;
 
-    return me->fillBuffer(buffer, size);
+    if (event == MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER ) {
+        return me->fillBuffer(buffer, size);
+    } else {
+        return 0;
+    }
 }
 
 

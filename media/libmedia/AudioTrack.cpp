@@ -97,7 +97,8 @@ AudioTrack::AudioTrack(
         void* user,
         int notificationFrames,
         int sessionId,
-        transfer_type transferType)
+        transfer_type transferType,
+        const audio_offload_info_t *offloadInfo)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -105,7 +106,7 @@ AudioTrack::AudioTrack(
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
-            0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType);
+            0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo);
 }
 
 AudioTrack::AudioTrack(
@@ -119,7 +120,8 @@ AudioTrack::AudioTrack(
         void* user,
         int notificationFrames,
         int sessionId,
-        transfer_type transferType)
+        transfer_type transferType,
+        const audio_offload_info_t *offloadInfo)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -127,7 +129,7 @@ AudioTrack::AudioTrack(
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
-            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType);
+            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo);
 }
 
 AudioTrack::~AudioTrack()
@@ -164,7 +166,8 @@ status_t AudioTrack::set(
         const sp<IMemory>& sharedBuffer,
         bool threadCanCallJava,
         int sessionId,
-        transfer_type transferType)
+        transfer_type transferType,
+        const audio_offload_info_t *offloadInfo)
 {
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -284,7 +287,8 @@ status_t AudioTrack::set(
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
                                     sampleRate, format, channelMask,
-                                    flags);
+                                    flags,
+                                    offloadInfo);
 
     if (output == 0) {
         ALOGE("Could not get audio output for stream type %d", streamType);
@@ -1541,6 +1545,21 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     }
 
     return result;
+}
+
+status_t AudioTrack::setParameters(const String8& keyValuePairs)
+{
+    AutoMutex lock(mLock);
+    if (mAudioTrack != 0) {
+        return mAudioTrack->setParameters(keyValuePairs);
+    } else {
+        return NO_INIT;
+    }
+}
+
+String8 AudioTrack::getParameters(const String8& keys)
+{
+    return String8::empty();
 }
 
 status_t AudioTrack::dump(int fd, const Vector<String16>& args) const

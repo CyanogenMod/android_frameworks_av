@@ -49,6 +49,7 @@ public:
         TRACK_DEFAULT = 0,  // client requests a default AudioTrack
         TRACK_TIMED   = 1,  // client requests a TimedAudioTrack
         TRACK_FAST    = 2,  // client requests a fast AudioTrack or AudioRecord
+        TRACK_OFFLOAD = 4,  // client requests offload to hw codec
     };
     typedef uint32_t track_flags_t;
 
@@ -137,7 +138,8 @@ public:
                                          audio_format_t *pFormat,
                                          audio_channel_mask_t *pChannelMask,
                                          uint32_t *pLatencyMs,
-                                         audio_output_flags_t flags) = 0;
+                                         audio_output_flags_t flags,
+                                         const audio_offload_info_t *offloadInfo = NULL) = 0;
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                     audio_io_handle_t output2) = 0;
     virtual status_t closeOutput(audio_io_handle_t output) = 0;

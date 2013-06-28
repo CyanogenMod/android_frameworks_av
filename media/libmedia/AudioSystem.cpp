@@ -361,8 +361,8 @@ status_t AudioSystem::setVoiceVolume(float value)
     return af->setVoiceVolume(value);
 }
 
-status_t AudioSystem::getRenderPosition(size_t *halFrames, size_t *dspFrames,
-        audio_stream_type_t stream)
+status_t AudioSystem::getRenderPosition(audio_io_handle_t output, size_t *halFrames,
+                                        size_t *dspFrames, audio_stream_type_t stream)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
@@ -371,7 +371,11 @@ status_t AudioSystem::getRenderPosition(size_t *halFrames, size_t *dspFrames,
         stream = AUDIO_STREAM_MUSIC;
     }
 
-    return af->getRenderPosition(halFrames, dspFrames, getOutput(stream));
+    if (output == 0) {
+        output = getOutput(stream);
+    }
+
+    return af->getRenderPosition(halFrames, dspFrames, output);
 }
 
 size_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle) {
@@ -585,11 +589,12 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags)
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
-    return aps->getOutput(stream, samplingRate, format, channelMask, flags);
+    return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,
@@ -769,6 +774,14 @@ void AudioSystem::clearAudioConfigCache()
     Mutex::Autolock _l(gLock);
     ALOGV("clearAudioConfigCache()");
     gOutputs.clear();
+}
+
+bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
+{
+    ALOGV("isOffloadSupported()");
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return false;
+    return aps->isOffloadSupported(info);
 }
 
 // ---------------------------------------------------------------------------

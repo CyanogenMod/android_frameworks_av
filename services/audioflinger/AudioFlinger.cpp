@@ -981,11 +981,12 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
 
     AutoMutex lock(mHardwareLock);
     mHardwareStatus = AUDIO_HW_GET_INPUT_BUFFER_SIZE;
-    struct audio_config config = {
-        sample_rate: sampleRate,
-        channel_mask: channelMask,
-        format: format,
-    };
+    struct audio_config config;
+    memset(&config, 0, sizeof(config));
+    config.sample_rate = sampleRate;
+    config.channel_mask = channelMask;
+    config.format = format;
+
     audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     size_t size = dev->get_input_buffer_size(dev, &config);
     mHardwareStatus = AUDIO_HW_IDLE;
@@ -1388,15 +1389,19 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_format_t *pFormat,
                                            audio_channel_mask_t *pChannelMask,
                                            uint32_t *pLatencyMs,
-                                           audio_output_flags_t flags)
+                                           audio_output_flags_t flags,
+                                           const audio_offload_info_t *offloadInfo)
 {
     status_t status;
     PlaybackThread *thread = NULL;
-    struct audio_config config = {
-        sample_rate: pSamplingRate ? *pSamplingRate : 0,
-        channel_mask: pChannelMask ? *pChannelMask : 0,
-        format: pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT,
-    };
+    struct audio_config config;
+    config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
+    config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
+    config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
+    if (offloadInfo) {
+        config.offload_info = *offloadInfo;
+    }
+
     audio_stream_out_t *outStream = NULL;
     AudioHwDevice *outHwDev;
 
@@ -1591,11 +1596,11 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
 {
     status_t status;
     RecordThread *thread = NULL;
-    struct audio_config config = {
-        sample_rate: pSamplingRate ? *pSamplingRate : 0,
-        channel_mask: pChannelMask ? *pChannelMask : 0,
-        format: pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT,
-    };
+    struct audio_config config;
+    config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
+    config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
+    config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
+
     uint32_t reqSamplingRate = config.sample_rate;
     audio_format_t reqFormat = config.format;
     audio_channel_mask_t reqChannels = config.channel_mask;

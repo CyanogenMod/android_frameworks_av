@@ -39,6 +39,7 @@ enum {
     ALLOCATE_TIMED_BUFFER,
     QUEUE_TIMED_BUFFER,
     SET_MEDIA_TIME_TRANSFORM,
+    SET_PARAMETERS
 };
 
 class BpAudioTrack : public BpInterface<IAudioTrack>
@@ -154,6 +155,17 @@ public:
         }
         return status;
     }
+
+    virtual status_t setParameters(const String8& keyValuePairs) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
+        data.writeString8(keyValuePairs);
+        status_t status = remote()->transact(SET_PARAMETERS, data, &reply);
+        if (status == NO_ERROR) {
+            status = reply.readInt32();
+        }
+        return status;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioTrack, "android.media.IAudioTrack");
@@ -221,6 +233,12 @@ status_t BnAudioTrack::onTransact(
             xform.a_to_b_denom = data.readInt32();
             int target = data.readInt32();
             reply->writeInt32(setMediaTimeTransform(xform, target));
+            return NO_ERROR;
+        } break;
+        case SET_PARAMETERS: {
+            CHECK_INTERFACE(IAudioTrack, data, reply);
+            String8 keyValuePairs(data.readString8());
+            reply->writeInt32(setParameters(keyValuePairs));
             return NO_ERROR;
         } break;
         default:

@@ -67,7 +67,8 @@ public:
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = 0,
                                         audio_output_flags_t flags =
-                                                AUDIO_OUTPUT_FLAG_NONE);
+                                                AUDIO_OUTPUT_FLAG_NONE,
+                                        const audio_offload_info_t *offloadInfo = NULL);
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
                                  int session = 0);
@@ -136,6 +137,7 @@ public:
     virtual status_t startTone(audio_policy_tone_t tone, audio_stream_type_t stream);
     virtual status_t stopTone();
     virtual status_t setVoiceVolume(float volume, int delayMs = 0);
+    virtual bool isOffloadSupported(const audio_offload_info_t &config);
 
 private:
                         AudioPolicyService() ANDROID_API;

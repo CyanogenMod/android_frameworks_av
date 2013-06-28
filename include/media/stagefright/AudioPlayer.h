@@ -36,8 +36,13 @@ public:
         SEEK_COMPLETE
     };
 
+    enum {
+        ALLOW_DEEP_BUFFERING = 0x01,
+        USE_OFFLOAD = 0x02
+    };
+
     AudioPlayer(const sp<MediaPlayerBase::AudioSink> &audioSink,
-                bool allowDeepBuffering = false,
+                uint32_t flags = 0,
                 AwesomePlayer *audioObserver = NULL);
 
     virtual ~AudioPlayer();
@@ -66,6 +71,8 @@ public:
     bool reachedEOS(status_t *finalStatus);
 
     status_t setPlaybackRatePermille(int32_t ratePermille);
+
+    void notifyAudioEOS();
 
 private:
     friend class VideoEditorAudioPlayer;
@@ -107,7 +114,8 @@ private:
 
     static size_t AudioSinkCallback(
             MediaPlayerBase::AudioSink *audioSink,
-            void *data, size_t size, void *me);
+            void *data, size_t size, void *me,
+            MediaPlayerBase::AudioSink::cb_event_t event);
 
     size_t fillBuffer(void *data, size_t size);
 
@@ -116,6 +124,7 @@ private:
     void reset();
 
     uint32_t getNumFramesPendingPlayout() const;
+    int64_t getOutputPlayPositionUs_l() const;
 
     AudioPlayer(const AudioPlayer &);
     AudioPlayer &operator=(const AudioPlayer &);
