@@ -109,7 +109,9 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 
     if (!mCallbackToApp && mCallbackConsumer == 0) {
         // Create CPU buffer queue endpoint, since app hasn't given us one
-        mCallbackConsumer = new CpuConsumer(kCallbackHeapCount);
+        // Make it async to avoid disconnect deadlocks
+        mCallbackConsumer = new CpuConsumer(kCallbackHeapCount,
+                /*synchronized*/ false);
         mCallbackConsumer->setFrameAvailableListener(this);
         mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
         mCallbackWindow = new Surface(
@@ -167,7 +169,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
 status_t CallbackProcessor::deleteStream() {
     ATRACE_CALL();
     sp<CameraDeviceBase> device;
-
+    status_t res;
     {
         Mutex::Autolock l(mInputMutex);
 
@@ -180,7 +182,19 @@ status_t CallbackProcessor::deleteStream() {
             return INVALID_OPERATION;
         }
     }
-    device->deleteStream(mCallbackStreamId);
+    res = device->waitUntilDrained();
+    if (res != OK) {
+        ALOGE("%s: Error waiting for HAL to drain: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    res = device->deleteStream(mCallbackStreamId);
+    if (res != OK) {
+        ALOGE("%s: Unable to delete callback stream: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
 
     {
         Mutex::Autolock l(mInputMutex);
