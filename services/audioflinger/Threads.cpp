@@ -340,10 +340,8 @@ status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
 }
 
 void AudioFlinger::ThreadBase::effectConfigChanged() {
-    mAudioFlinger->mLock.lock();
     ALOGV("New effect is being added to LPA chain, Notifying LPA Direct Track");
     mAudioFlinger->audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
-    mAudioFlinger->mLock.unlock();
 }
 
 void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
