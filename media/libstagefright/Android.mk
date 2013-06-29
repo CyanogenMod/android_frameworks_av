@@ -95,8 +95,13 @@ LOCAL_SRC_FILES += \
         ExtendedExtractor.cpp             \
         QCUtilityClass.cpp
 
+ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+LOCAL_C_INCLUDES += \
+        $(TOP)/hardware/qcom/media-caf/mm-core/inc
+else
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media/mm-core/inc
+endif
 
 ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
     ifeq ($(call is-board-platform-in-list,msm8660 msm7x27a msm7x30),true)

@@ -52,9 +52,12 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/native/include/media/openmax                  \
     $(TOP)/external/tremolo/Tremolo
 
-ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
 LOCAL_C_INCLUDES += \
-    $(TOP)/hardware/qcom/media/mm-core/inc
+        $(TOP)/hardware/qcom/media-caf/mm-core/inc
+else
+LOCAL_C_INCLUDES += \
+        $(TOP)/hardware/qcom/media/mm-core/inc
 endif
 
 LOCAL_MODULE:= libmediaplayerservice
