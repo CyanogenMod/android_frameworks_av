@@ -566,7 +566,11 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef STE_HARDWARE
+            OMXCodec::OmxToHALFormat(def.format.video.eColorFormat));
+#else
             def.format.video.eColorFormat);
+#endif
 #endif
 
     if (err != 0) {
@@ -1587,6 +1591,9 @@ status_t ACodec::setSupportedOutputFormat() {
            || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
            || format.eColorFormat == OMX_QCOM_COLOR_FormatYVU420SemiPlanar
            || format.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka
+#ifdef STE_HARDWARE
+           || format.eColorFormat == OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB
+#endif
            || format.eColorFormat == OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar32m );
 
     return mOMX->setParameter(
