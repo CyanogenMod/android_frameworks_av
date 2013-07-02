@@ -365,11 +365,12 @@ public:
                                          const audio_offload_info_t *offloadInfo)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
-        uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
-        audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
-        uint32_t latency = pLatencyMs ? *pLatencyMs : 0;
+        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
+        audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
+        audio_channel_mask_t channelMask = pChannelMask != NULL ?
+                *pChannelMask : (audio_channel_mask_t)0;
+        uint32_t latency = pLatencyMs != NULL ? *pLatencyMs : 0;
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(module);
@@ -383,15 +384,15 @@ public:
         audio_io_handle_t output = (audio_io_handle_t) reply.readInt32();
         ALOGV("openOutput() returned output, %d", output);
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices) *pDevices = devices;
+        if (pDevices != NULL) *pDevices = devices;
         samplingRate = reply.readInt32();
-        if (pSamplingRate) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
-        if (pFormat) *pFormat = format;
+        if (pFormat != NULL) *pFormat = format;
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) *pChannelMask = channelMask;
         latency = reply.readInt32();
-        if (pLatencyMs) *pLatencyMs = latency;
+        if (pLatencyMs != NULL) *pLatencyMs = latency;
         return output;
     }
 
@@ -440,10 +441,11 @@ public:
                                         audio_channel_mask_t *pChannelMask)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
-        uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
-        audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
+        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
+        audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
+        audio_channel_mask_t channelMask = pChannelMask != NULL ?
+                *pChannelMask : (audio_channel_mask_t)0;
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(module);
@@ -454,13 +456,13 @@ public:
         remote()->transact(OPEN_INPUT, data, &reply);
         audio_io_handle_t input = (audio_io_handle_t) reply.readInt32();
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices) *pDevices = devices;
+        if (pDevices != NULL) *pDevices = devices;
         samplingRate = reply.readInt32();
-        if (pSamplingRate) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
-        if (pFormat) *pFormat = format;
+        if (pFormat != NULL) *pFormat = format;
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) *pChannelMask = channelMask;
         return input;
     }
 
