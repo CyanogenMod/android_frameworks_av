@@ -97,6 +97,8 @@ class StreamingProcessor:
     StreamType mActiveRequest;
     bool mPaused;
 
+    Vector<uint8_t> mActiveStreamIds;
+
     // Preview-related members
     int32_t mPreviewRequestId;
     int mPreviewStreamId;
@@ -125,6 +127,13 @@ class StreamingProcessor:
     virtual bool threadLoop();
 
     status_t processRecordingFrame();
+
+    // Unilaterally free any buffers still outstanding to stagefright
+    void releaseAllRecordingFramesLocked();
+
+    // Determine if the specified stream is currently in use
+    static bool isStreamActive(const Vector<uint8_t> &streams,
+            uint8_t recordingStreamId);
 };
 
 
