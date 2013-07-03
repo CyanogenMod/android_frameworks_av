@@ -3318,6 +3318,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 if (--(track->mRetryCount) <= 0) {
                     ALOGV("BUFFER TIMEOUT: remove(%d) from active list", track->name());
                     tracksToRemove->add(track);
+                    // indicate to client process that the track was disabled because of underrun
+                    // it will then automatically call start() when data is available
+                    android_atomic_or(CBLK_DISABLED, &cblk->flags);
                 } else if (i == (count -1)){
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
