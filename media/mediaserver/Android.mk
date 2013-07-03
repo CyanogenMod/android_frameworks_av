@@ -20,6 +20,11 @@ ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
 	LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO
 endif
 
+# extra check to prevent bootanim loop waiting media service
+ifeq ($(TARGET_BINDER_SERVICE_PUBLISH_CHECK),true)
+	LOCAL_CFLAGS += -DBINDER_SERVICE_PUBLISH_CHECK
+endif
+
 # FIXME The duplicate audioflinger is temporary
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
