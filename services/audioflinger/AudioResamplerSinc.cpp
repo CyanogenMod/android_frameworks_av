@@ -497,6 +497,15 @@ void AudioResamplerSinc::init() {
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
+void AudioResamplerSinc::reset(){
+    mInputIndex = 0;
+    mPhaseFraction = 0;
+    mBuffer.frameCount = 0;
+    const Constants& c(*mConstants);
+    const size_t stateSize = (2*c.halfNumCoefs) * mChannelCount * 2;
+    memset(mState, 0, sizeof(int16_t)*stateSize);
+}
+
 void AudioResamplerSinc::setVolume(int16_t left, int16_t right) {
     AudioResampler::setVolume(left, right);
     mVolumeSIMD[0] = int32_t(left)<<16;
