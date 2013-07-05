@@ -52,6 +52,7 @@ private:
     static const int kPreInterpShift = kNumPhaseBits - kNumInterpBits;
 
     void init() {}
+    void reset();
     void resampleMono16(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
     void resampleStereo16(int32_t* out, size_t outFrameCount,
@@ -292,6 +293,14 @@ void AudioResamplerOrder1::resample(int32_t* out, size_t outFrameCount,
         resampleStereo16(out, outFrameCount, provider);
         break;
     }
+}
+
+void AudioResamplerOrder1::reset() {
+    mInputIndex = 0;
+    mPhaseFraction = 0;
+    mBuffer.frameCount = 0;
+    mX0L = 0;
+    mX0R = 0;
 }
 
 void AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
