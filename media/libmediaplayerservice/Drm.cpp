@@ -71,6 +71,12 @@ status_t Drm::initCheck() const {
 status_t Drm::setListener(const sp<IDrmClient>& listener)
 {
     Mutex::Autolock lock(mEventLock);
+    if (mListener != NULL){
+        mListener->asBinder()->unlinkToDeath(this);
+    }
+    if (listener != NULL) {
+        listener->asBinder()->linkToDeath(this);
+    }
     mListener = listener;
     return NO_ERROR;
 }
@@ -574,6 +580,14 @@ status_t Drm::verify(Vector<uint8_t> const &sessionId,
     }
 
     return mPlugin->verify(sessionId, keyId, message, signature, match);
+}
+
+void Drm::binderDied(const wp<IBinder> &the_late_who)
+{
+    delete mPlugin;
+    mPlugin = NULL;
+    closeFactory();
+    mListener.clear();
 }
 
 }  // namespace android

@@ -29,7 +29,9 @@ namespace android {
 struct DrmFactory;
 struct DrmPlugin;
 
-struct Drm : public BnDrm, public DrmPluginListener {
+struct Drm : public BnDrm,
+             public IBinder::DeathRecipient,
+             public DrmPluginListener {
     Drm();
     virtual ~Drm();
 
@@ -114,6 +116,8 @@ struct Drm : public BnDrm, public DrmPluginListener {
     virtual void sendEvent(DrmPlugin::EventType eventType, int extra,
                            Vector<uint8_t> const *sessionId,
                            Vector<uint8_t> const *data);
+
+    virtual void binderDied(const wp<IBinder> &the_late_who);
 
 private:
     mutable Mutex mLock;
