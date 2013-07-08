@@ -17,6 +17,13 @@
 #define LOG_TAG "Camera2-StreamingProcessor"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
+//#define LOG_NNDEBUG 0 // Per-frame verbose logging
+
+#ifdef LOG_NNDEBUG
+#define ALOGVV(...) ALOGV(__VA_ARGS__)
+#else
+#define ALOGVV(...) ((void)0)
+#endif
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -42,7 +49,8 @@ StreamingProcessor::StreamingProcessor(sp<Camera2Client> client):
         mRecordingRequestId(Camera2Client::kRecordingRequestIdStart),
         mRecordingStreamId(NO_STREAM),
         mRecordingFrameAvailable(false),
-        mRecordingHeapCount(kDefaultRecordingHeapCount)
+        mRecordingHeapCount(kDefaultRecordingHeapCount),
+        mRecordingHeapFree(kDefaultRecordingHeapCount)
 {
 }
 
@@ -215,22 +223,39 @@ int StreamingProcessor::getPreviewStreamId() const {
 
 status_t StreamingProcessor::setRecordingBufferCount(size_t count) {
     ATRACE_CALL();
-    // 32 is the current upper limit on the video buffer count for BufferQueue
-    if (count > 32) {
-        ALOGE("%s: Camera %d: Error setting %d as video buffer count value",
-                __FUNCTION__, mId, count);
+    // Make sure we can support this many buffer slots
+    if (count > BufferQueue::NUM_BUFFER_SLOTS) {
+        ALOGE("%s: Camera %d: Too many recording buffers requested: %d, max %d",
+                __FUNCTION__, mId, count, BufferQueue::NUM_BUFFER_SLOTS);
         return BAD_VALUE;
     }
 
     Mutex::Autolock m(mMutex);
 
-    // Need to reallocate memory for heap
+    ALOGV("%s: Camera %d: New recording buffer count from encoder: %d",
+            __FUNCTION__, mId, count);
+
+    // Need to re-size consumer and heap
     if (mRecordingHeapCount != count) {
-        if  (mRecordingHeap != 0) {
+        ALOGV("%s: Camera %d: Resetting recording heap and consumer",
+            __FUNCTION__, mId);
+
+        if (isStreamActive(mActiveStreamIds, mRecordingStreamId)) {
+            ALOGE("%s: Camera %d: Setting recording buffer count when "
+                    "recording stream is already active!", __FUNCTION__,
+                    mId);
+            return INVALID_OPERATION;
+        }
+
+        releaseAllRecordingFramesLocked();
+
+        if (mRecordingHeap != 0) {
             mRecordingHeap.clear();
-            mRecordingHeap = NULL;
         }
         mRecordingHeapCount = count;
+        mRecordingHeapFree = count;
+
+        mRecordingConsumer.clear();
     }
 
     return OK;
@@ -287,7 +312,10 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         return INVALID_OPERATION;
     }
 
+    bool newConsumer = false;
     if (mRecordingConsumer == 0) {
+        ALOGV("%s: Camera %d: Creating recording consumer with %d + 1 "
+                "consumer-side buffers", __FUNCTION__, mId, mRecordingHeapCount);
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
         // always acquire and free a buffer when the heap is full; otherwise the consumer
         // will have buffers in flight we'll never clear out.
@@ -299,6 +327,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         mRecordingConsumer->setName(String8("Camera2-RecordingConsumer"));
         mRecordingWindow = new Surface(
             mRecordingConsumer->getProducerInterface());
+        newConsumer = true;
         // Allocate memory later, since we don't know buffer size until receipt
     }
 
@@ -314,7 +343,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
             return res;
         }
         if (currentWidth != (uint32_t)params.videoWidth ||
-                currentHeight != (uint32_t)params.videoHeight) {
+                currentHeight != (uint32_t)params.videoHeight || newConsumer) {
             // TODO: Should wait to be sure previous recording has finished
             res = device->deleteStream(mRecordingStreamId);
 
@@ -400,6 +429,17 @@ status_t StreamingProcessor::startStream(StreamType type,
 
     Mutex::Autolock m(mMutex);
 
+    // If a recording stream is being started up, free up any
+    // outstanding buffers left from the previous recording session.
+    // There should never be any, so if there are, warn about it.
+    if (isStreamActive(outputStreams, mRecordingStreamId)) {
+        releaseAllRecordingFramesLocked();
+    }
+
+    ALOGV("%s: Camera %d: %s started, recording heap has %d free of %d",
+            __FUNCTION__, mId, (type == PREVIEW) ? "preview" : "recording",
+            mRecordingHeapFree, mRecordingHeapCount);
+
     CameraMetadata &request = (type == PREVIEW) ?
             mPreviewRequest : mRecordingRequest;
 
@@ -428,7 +468,7 @@ status_t StreamingProcessor::startStream(StreamType type,
     }
     mActiveRequest = type;
     mPaused = false;
-
+    mActiveStreamIds = outputStreams;
     return OK;
 }
 
@@ -500,6 +540,7 @@ status_t StreamingProcessor::stopStream() {
     }
 
     mActiveRequest = NONE;
+    mActiveStreamIds.clear();
     mPaused = false;
 
     return OK;
@@ -605,7 +646,7 @@ status_t StreamingProcessor::processRecordingFrame() {
         timestamp = imgBuffer.mTimestamp;
 
         mRecordingFrameCount++;
-        ALOGV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
+        ALOGVV("OnRecordingFrame: Frame %d", mRecordingFrameCount);
 
         if (l.mParameters.state != Parameters::RECORD &&
                 l.mParameters.state != Parameters::VIDEO_SNAPSHOT) {
@@ -656,7 +697,7 @@ status_t StreamingProcessor::processRecordingFrame() {
         mRecordingHeapHead = (mRecordingHeapHead + 1) % mRecordingHeapCount;
         mRecordingHeapFree--;
 
-        ALOGV("%s: Camera %d: Timestamp %lld",
+        ALOGVV("%s: Camera %d: Timestamp %lld",
                 __FUNCTION__, mId, timestamp);
 
         ssize_t offset;
@@ -669,7 +710,7 @@ status_t StreamingProcessor::processRecordingFrame() {
         uint32_t type = kMetadataBufferTypeGrallocSource;
         *((uint32_t*)data) = type;
         *((buffer_handle_t*)(data + 4)) = imgBuffer.mGraphicBuffer->handle;
-        ALOGV("%s: Camera %d: Sending out buffer_handle_t %p",
+        ALOGVV("%s: Camera %d: Sending out buffer_handle_t %p",
                 __FUNCTION__, mId,
                 imgBuffer.mGraphicBuffer->handle);
         mRecordingBuffers.replaceAt(imgBuffer, heapIdx);
@@ -682,7 +723,10 @@ status_t StreamingProcessor::processRecordingFrame() {
         l.mRemoteCallback->dataCallbackTimestamp(timestamp,
                 CAMERA_MSG_VIDEO_FRAME,
                 recordingHeap->mBuffers[heapIdx]);
+    } else {
+        ALOGW("%s: Camera %d: Remote callback gone", __FUNCTION__, mId);
     }
+
     return OK;
 }
 
@@ -730,7 +774,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
         return;
     }
 
-    ALOGV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__,
+    ALOGVV("%s: Camera %d: Freeing buffer_handle_t %p", __FUNCTION__,
             mId, imgHandle);
 
     res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
@@ -743,6 +787,58 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     mRecordingBuffers.replaceAt(itemIndex);
 
     mRecordingHeapFree++;
+    ALOGV_IF(mRecordingHeapFree == mRecordingHeapCount,
+            "%s: Camera %d: All %d recording buffers returned",
+            __FUNCTION__, mId, mRecordingHeapCount);
+}
+
+void StreamingProcessor::releaseAllRecordingFramesLocked() {
+    ATRACE_CALL();
+    status_t res;
+
+    if (mRecordingConsumer == 0) {
+        return;
+    }
+
+    ALOGV("%s: Camera %d: Releasing all recording buffers", __FUNCTION__,
+            mId);
+
+    size_t releasedCount = 0;
+    for (size_t itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
+        const BufferItemConsumer::BufferItem item =
+                mRecordingBuffers[itemIndex];
+        if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT) {
+            res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to free recording frame "
+                        "(buffer_handle_t: %p): %s (%d)", __FUNCTION__,
+                        mId, item.mGraphicBuffer->handle, strerror(-res), res);
+            }
+            mRecordingBuffers.replaceAt(itemIndex);
+            releasedCount++;
+        }
+    }
+
+    if (releasedCount > 0) {
+        ALOGW("%s: Camera %d: Force-freed %d outstanding buffers "
+                "from previous recording session", __FUNCTION__, mId, releasedCount);
+        ALOGE_IF(releasedCount != mRecordingHeapCount - mRecordingHeapFree,
+            "%s: Camera %d: Force-freed %d buffers, but expected %d",
+            __FUNCTION__, mId, releasedCount, mRecordingHeapCount - mRecordingHeapFree);
+    }
+
+    mRecordingHeapHead = 0;
+    mRecordingHeapFree = mRecordingHeapCount;
+}
+
+bool StreamingProcessor::isStreamActive(const Vector<uint8_t> &streams,
+        uint8_t recordingStreamId) {
+    for (size_t i = 0; i < streams.size(); i++) {
+        if (streams[i] == recordingStreamId) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
