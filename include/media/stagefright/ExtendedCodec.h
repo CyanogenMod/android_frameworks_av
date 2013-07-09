@@ -78,9 +78,8 @@ struct ExtendedCodec {
 
     static status_t handleSupportedAudioFormats(int format, AString* meta);
 
-    static void overrideComponentName(
-            uint32_t quirks, const sp<MetaData> &meta,
-            const char* componentName);
+    static const char* overrideComponentName(
+            uint32_t quirks, const sp<MetaData> &meta);
 
     static void getRawCodecSpecificData(
             const sp<MetaData> &meta, const void* &data, size_t& size);

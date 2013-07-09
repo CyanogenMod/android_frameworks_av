@@ -420,7 +420,10 @@ sp<MediaSource> OMXCodec::Create(
             return softwareCodec;
         }
 
-        ExtendedCodec::overrideComponentName(quirks, meta, componentName);
+        const char* ext_componentName = ExtendedCodec::overrideComponentName(quirks, meta);
+        if(ext_componentName != NULL) {
+          componentName = ext_componentName;
+        }
 
         ALOGV("Attempting to allocate OMX node '%s'", componentName);
 

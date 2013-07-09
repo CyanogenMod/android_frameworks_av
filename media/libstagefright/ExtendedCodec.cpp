@@ -60,8 +60,9 @@ uint32_t ExtendedCodec::getComponentQuirks(
     return quirks;
 }
 
-void ExtendedCodec::overrideComponentName(
-        uint32_t quirks, const sp<MetaData> &meta, const char* componentName) {
+const char* ExtendedCodec::overrideComponentName(
+        uint32_t quirks, const sp<MetaData> &meta) {
+    const char* componentName = NULL;
     if(quirks & kRequiresWMAProComponent)
     {
        int32_t version = 0;
@@ -69,11 +70,12 @@ void ExtendedCodec::overrideComponentName(
        if(version==kTypeWMA) {
           componentName = "OMX.qcom.audio.decoder.wma";
        } else if(version==kTypeWMAPro) {
-          componentName= "OMX.qcom.audio.decoder.wma10Pro";
+          componentName = "OMX.qcom.audio.decoder.wma10Pro";
        } else if(version==kTypeWMALossLess) {
-          componentName= "OMX.qcom.audio.decoder.wmaLossLess";
+          componentName = "OMX.qcom.audio.decoder.wmaLossLess";
        }
     }
+    return componentName;
 }
 
 template<class T>
@@ -672,9 +674,9 @@ namespace android {
         return UNKNOWN_ERROR;
     }
 
-    void ExtendedCodec::overrideComponentName (
-            uint32_t quirks, const sp<MetaData> &meta,
-            const char* componentName) {
+    const char* ExtendedCodec::overrideComponentName (
+            uint32_t quirks, const sp<MetaData> &meta) {
+        return NULL;
     }
 
     void ExtendedCodec::getRawCodecSpecificData(
