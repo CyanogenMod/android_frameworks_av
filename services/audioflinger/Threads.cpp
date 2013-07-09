@@ -4554,6 +4554,12 @@ void AudioFlinger::DirectAudioTrack::signalEffect() {
         mEffectConfigChanged = true;
         mEffectCv.signal();
     }
+#ifdef SRS_PROCESSING
+    if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL){
+        mEffectConfigChanged = true;
+        mEffectCv.signal();
+    }
+#endif
 }
 
 AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
