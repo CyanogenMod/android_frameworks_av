@@ -4830,7 +4830,7 @@ status_t QueryCodec(
     // Color format query
     OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
     InitOMXParams(&portFormat);
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
     portFormat.nPortIndex = !isEncoder ? 0 : 1;
 #else
     portFormat.nPortIndex = !isEncoder ? 1 : 0;
