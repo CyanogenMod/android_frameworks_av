@@ -143,6 +143,7 @@ private:
         TEXTPLAYER_INITIALIZED  = 0x20000,
 
         SLOW_DECODER_HACK   = 0x40000,
+        PAUSE               = 0x80000,
     };
 
     mutable Mutex mLock;
@@ -228,6 +229,9 @@ private:
     bool mIsAsyncPrepare;
     status_t mPrepareResult;
     status_t mStreamDoneStatus;
+
+    String8 mUseCase;
+    bool mUseCaseFlag;
 
     void postVideoEvent_l(int64_t delayUs = -1);
     void postBufferingEvent_l();
@@ -380,10 +384,13 @@ private:
 
     size_t countTracks() const;
 
+    bool updateConcurrencyParam(bool pauseFlag);
+
 #ifdef QCOM_HARDWARE
 #ifdef USE_TUNNEL_MODE
     bool inSupportedTunnelFormats(const char * mime);
 #endif
+
     //Flag to check if tunnel mode audio is enabled
     bool mIsTunnelAudio;
 #endif

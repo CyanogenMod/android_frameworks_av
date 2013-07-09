@@ -511,6 +511,8 @@ private:
         virtual int64_t     getTimeStamp();
         virtual void        postEOS(int64_t delayUs);
         void                signalEffect();
+        void                restoreDirectTrack();
+        void                suspendDirectTrack();
 
         virtual status_t    onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
@@ -521,6 +523,7 @@ private:
         int  mOutput;
         bool mIsPaused;
         audio_output_flags_t mFlag;
+        bool mSuspendDirectTrack;
 
         class BufferInfo {
         public:

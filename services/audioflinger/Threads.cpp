@@ -2347,7 +2347,6 @@ uint32_t AudioFlinger::MixerThread::correctLatency_l(uint32_t latency) const
     return latency;
 }
 
-
 void AudioFlinger::MixerThread::threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove)
 {
     PlaybackThread::threadLoop_removeTracks(tracksToRemove);
@@ -4667,6 +4666,8 @@ AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
 }
 
 status_t AudioFlinger::DirectAudioTrack::start() {
+
+    ALOGV("DirectAudioTrack::stop");
     AudioSystem::startOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType);
     if(mIsPaused) {
         mIsPaused = false;
@@ -4687,6 +4688,7 @@ void AudioFlinger::DirectAudioTrack::stop() {
 }
 
 void AudioFlinger::DirectAudioTrack::pause() {
+    ALOGV("pause");
     if(!mIsPaused) {
         mIsPaused = true;
         mOutputDesc->stream->pause(mOutputDesc->stream);
@@ -4885,8 +4887,7 @@ void AudioFlinger::DirectAudioTrack::acquireWakeLock()
 
 void AudioFlinger::DirectAudioTrack::releaseWakeLock()
 {
-   Mutex::Autolock _l(pmLock);
-
+    Mutex::Autolock _l(pmLock);
     if (mWakeLockToken != 0) {
         ALOGV("releaseWakeLock()");
         if (mPowerManager != 0) {
@@ -4901,6 +4902,18 @@ void AudioFlinger::DirectAudioTrack::clearPowerManager()
     releaseWakeLock();
     Mutex::Autolock _l(pmLock);
     mPowerManager.clear();
+}
+
+
+void AudioFlinger::DirectAudioTrack::suspendDirectTrack() {
+    //TODO - might need to stop output  if there is concurrency
+    //       with DSP decoder writing silence even after CMD_PAUSE.
+}
+
+void AudioFlinger::DirectAudioTrack::restoreDirectTrack() {
+
+    //TODO - might need to stop output  if there is concurrency
+    //       with DSP decoder writing silence even after CMD_PAUSE.
 }
 
 void AudioFlinger::DirectAudioTrack::PMDeathRecipient::binderDied(const wp<IBinder>& who)

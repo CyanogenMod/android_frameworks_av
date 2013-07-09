@@ -109,6 +109,12 @@ struct MediaSource : public virtual RefBase {
         return ERROR_UNSUPPORTED;
     }
 
+    // AwesomePlayer uses MediaSource interface to talk to OMXCodec. Add
+    // the virtual function in MediaSource to update concurrency parameters.
+    virtual status_t updateConcurrencyParam(bool pauseflag) {
+        return NO_ERROR;
+    }
+
 protected:
     virtual ~MediaSource();
 

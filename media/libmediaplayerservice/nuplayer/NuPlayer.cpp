@@ -742,14 +742,31 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(mRenderer != NULL);
             mSource->pause();
             mRenderer->pause();
+
+            if (mAudioDecoder != NULL) {
+                mAudioDecoder->signalConcurrencyParam(true);
+            }
+            if (mVideoDecoder != NULL) {
+                mVideoDecoder->signalConcurrencyParam(true);
+            }
+
             break;
         }
 
         case kWhatResume:
         {
+
             CHECK(mRenderer != NULL);
             mSource->resume();
             mRenderer->resume();
+
+            if (mAudioDecoder != NULL) {
+                mAudioDecoder->signalConcurrencyParam(false);
+            }
+            if (mVideoDecoder != NULL) {
+                mVideoDecoder->signalConcurrencyParam(false);
+            }
+
             break;
         }
 
@@ -811,7 +828,6 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
     if (*decoder != NULL) {
         return OK;
     }
-
     sp<AMessage> format = mSource->getFormat(audio);
 
     if (format == NULL) {

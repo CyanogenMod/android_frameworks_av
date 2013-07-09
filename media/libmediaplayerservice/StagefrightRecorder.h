@@ -117,6 +117,9 @@ private:
 
     String8 mParams;
 
+    String8 mUseCase;
+    bool mUseCaseFlag;
+
     bool mIsMetaDataStoredInVideoBuffers;
     MediaProfiles *mEncoderProfiles;
 
