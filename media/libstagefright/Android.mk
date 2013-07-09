@@ -20,7 +20,11 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-include frameworks/av/media/libstagefright/codecs/common/Config.mk
+# RESOURCE MANAGER
+ifeq ($(strip $(BOARD_USES_RESOURCE_MANAGER)),true)
+LOCAL_CFLAGS += -DRESOURCE_MANAGER
+endif
+# RESOURCE MANAGER
 
 ifeq ($(BOARD_HTC_3D_SUPPORT),true)
    LOCAL_CFLAGS += -DHTC_3D_SUPPORT
@@ -84,6 +88,7 @@ LOCAL_SRC_FILES:=                         \
         mp4/TrackFragment.cpp             \
         ExtendedExtractor.cpp             \
         QCUtils.cpp                       \
+        ResourceManager.cpp             \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
@@ -158,6 +163,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libvorbisidec \
         libz \
+        libaudioparameter \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \

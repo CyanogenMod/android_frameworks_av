@@ -1976,15 +1976,22 @@ status_t AudioFlinger::suspendOutput(audio_io_handle_t output)
 {
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = checkPlaybackThread_l(output);
-
-    if (thread == NULL) {
-        return BAD_VALUE;
+    if(thread != NULL) {
+        ALOGW("suspendOutput() %d", output);
+        thread->suspend();
+        return NO_ERROR;
     }
-
-    ALOGV("suspendOutput() %d", output);
-    thread->suspend();
-
-    return NO_ERROR;
+#ifdef RESOURCE_MANAGER
+    AudioSessionDescriptor *desc = NULL;
+    if (!mDirectAudioTracks.isEmpty()) {
+        desc = mDirectAudioTracks.valueFor(output);
+        if(desc && ((DirectAudioTrack*)desc->trackRefPtr)) {
+            ALOGV("No Suspend for valid  direct track should be already paused  ");
+        }
+       return NO_ERROR;
+    }
+#endif
+    return BAD_VALUE;
 }
 
 status_t AudioFlinger::restoreOutput(audio_io_handle_t output)
@@ -1992,15 +1999,23 @@ status_t AudioFlinger::restoreOutput(audio_io_handle_t output)
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = checkPlaybackThread_l(output);
 
-    if (thread == NULL) {
-        return BAD_VALUE;
+    if (thread != NULL) {
+        ALOGW("restoreOutput() %d", output);
+        thread->restore();
+        return NO_ERROR;
     }
 
-    ALOGV("restoreOutput() %d", output);
-
-    thread->restore();
-
-    return NO_ERROR;
+#ifdef RESOURCE_MANAGER
+    AudioSessionDescriptor *desc = NULL;
+    if (!mDirectAudioTracks.isEmpty()) {
+        desc = mDirectAudioTracks.valueFor(output);
+        if (desc != NULL) {
+            ALOGV("No Resume for valid  direct track should be already paused  ");
+        }
+       return NO_ERROR;
+    }
+#endif
+    return BAD_VALUE;
 }
 
 audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,

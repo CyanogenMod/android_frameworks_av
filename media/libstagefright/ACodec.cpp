@@ -71,6 +71,8 @@
 #ifdef DOLBY_UDC
  #include <QCMediaDefs.h>
 #endif //DOLBY_UDC
+#include "include/ResourceManager.h"
+
 namespace android {
 
 template<class T>
@@ -397,6 +399,10 @@ ACodec::ACodec()
       mChannelMaskPresent(false),
       mChannelMask(0),
       mInSmoothStreamingMode(false) {
+
+    mUseCase = "";
+    mUseCaseFlag = false;
+
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -417,6 +423,7 @@ ACodec::ACodec()
 }
 
 ACodec::~ACodec() {
+
 }
 
 void ACodec::setNotificationMessage(const sp<AMessage> &msg) {
@@ -476,6 +483,12 @@ void ACodec::initiateShutdown(bool keepComponentAllocated) {
 
 void ACodec::signalRequestIDRFrame() {
     (new AMessage(kWhatRequestIDRFrame, id()))->post();
+}
+
+void ACodec::signalConcurrencyParam(bool streamPaused) {
+    sp<AMessage> msg = new AMessage(kWhatConcurrencyParam, id());
+    msg->setInt32("streamPaused", streamPaused);
+    msg->post();
 }
 
 status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
@@ -2769,6 +2782,16 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatConcurrencyParam:
+        {
+            status_t err = OK;
+            err = ResourceManager::AudioConcurrencyInfo::updateConcurrencyParam(
+                    msg, mCodec->mUseCase,  mCodec->mUseCaseFlag);
+            if(err != OK) {
+                    mCodec->signalError(OMX_ErrorUndefined, INVALID_OPERATION);
+            }
+            break;
+        }
         default:
             return false;
     }
@@ -3337,6 +3360,10 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
     mCodec->mComponentName.clear();
+
+    ResourceManager::AudioConcurrencyInfo::resetParameter(
+        mCodec->mUseCase, mCodec->mUseCaseFlag);
+
 }
 
 bool ACodec::UninitializedState::onMessageReceived(const sp<AMessage> &msg) {
@@ -3420,8 +3447,9 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
     AString mime;
-
+    int32_t encoder = 0;
     AString componentName;
+
     uint32_t quirks = 0;
     if (msg->findString("componentName", &componentName)) {
         ssize_t index = matchingCodecs.add();
@@ -3435,7 +3463,6 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     } else {
         CHECK(msg->findString("mime", &mime));
 
-        int32_t encoder;
         if (!msg->findInt32("encoder", &encoder)) {
             encoder = false;
         }
@@ -3463,11 +3490,18 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         status_t err = omx->allocateNode(componentName.c_str(), observer, &node);
         androidSetThreadPriority(tid, prevPriority);
 
+        if(err == OK) {
+            err = ResourceManager::AudioConcurrencyInfo::findUseCaseAndSetParameter(
+                mime.c_str(), componentName.c_str(), !encoder, mCodec->mUseCase, mCodec->mUseCaseFlag);
+        }
+
         if (err == OK) {
             break;
         }
-
-        node = NULL;
+        if(node != NULL) {
+            CHECK_EQ(omx->freeNode(node), (status_t)OK);
+            node = NULL;
+        }
     }
 
     if (node == NULL) {

@@ -35,7 +35,7 @@ struct NuPlayer::Decoder : public AHandler {
     void signalFlush();
     void signalResume();
     void initiateShutdown();
-
+    void signalConcurrencyParam(bool streamPaused);
 protected:
     virtual ~Decoder();
 

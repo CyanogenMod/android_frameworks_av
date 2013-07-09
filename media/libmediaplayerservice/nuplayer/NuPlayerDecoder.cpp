@@ -160,5 +160,10 @@ void NuPlayer::Decoder::initiateShutdown() {
     }
 }
 
+void NuPlayer::Decoder::signalConcurrencyParam(bool streamPaused) {
+    if (mCodec != NULL) {
+        mCodec->signalConcurrencyParam(streamPaused);
+    }
+}
 }  // namespace android
 
