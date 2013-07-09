@@ -40,6 +40,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/OMXCodec.h>
 #include <cutils/properties.h>
+#include <media/stagefright/MediaExtractor.h>
 
 #include "include/QCUtils.h"
 
@@ -47,6 +48,8 @@
 
 #include <QCMetaData.h>
 #include <QCMediaDefs.h>
+
+#include "include/ExtendedExtractor.h"
 
 namespace android {
 
@@ -241,6 +244,87 @@ void QCUtils::setBFrames(
     return;
 }
 
+sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
+                                                            const sp<DataSource> &source,
+                                                            const char *mime) {
+    bool bCheckExtendedExtractor = false;
+    bool videoOnly = true;
+    bool amrwbAudio = false;
+    if (defaultExt != NULL) {
+        for (size_t i = 0; i < defaultExt->countTracks(); ++i) {
+            sp<MetaData> meta = defaultExt->getTrackMetaData(i);
+            const char *_mime;
+            CHECK(meta->findCString(kKeyMIMEType, &_mime));
+
+            String8 mime = String8(_mime);
+
+            if (!strncasecmp(mime.string(), "audio/", 6)) {
+                videoOnly = false;
+
+                amrwbAudio = !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_AMR_WB,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
+                if (amrwbAudio) {
+                  break;
+                }
+            }
+        }
+        bCheckExtendedExtractor = videoOnly || amrwbAudio;
+    } else {
+        bCheckExtendedExtractor = true;
+    }
+
+    if (!bCheckExtendedExtractor) {
+        ALOGD("extended extractor not needed, return default");
+        return defaultExt;
+    }
+
+    sp<MediaExtractor> retextParser;
+
+    //Create Extended Extractor only if default extractor are not selected
+    ALOGD("Try creating ExtendedExtractor");
+    retextParser = ExtendedExtractor::Create(source, mime);
+
+    if (retextParser == NULL) {
+        ALOGD("Couldn't create the extended extractor, return default one");
+        return defaultExt;
+    }
+
+    if (defaultExt == NULL) {
+        ALOGD("default one is NULL, return extended extractor");
+        return retextParser;
+    }
+
+    //bCheckExtendedExtractor is true which means default extractor was found
+    //but we want to give preference to extended extractor based on certain
+    //conditions.
+
+    //needed to prevent a leak in case both extractors are valid
+    //but we still dont want to use the extended one. we need
+    //to delete the new one
+    bool bUseDefaultExtractor = true;
+
+    for (size_t i = 0; (i < retextParser->countTracks()); ++i) {
+        sp<MetaData> meta = retextParser->getTrackMetaData(i);
+        const char *mime;
+        bool success = meta->findCString(kKeyMIMEType, &mime);
+        if ((success == true) && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) {
+            ALOGD("Discarding default extractor and using the extended one");
+            bUseDefaultExtractor = false;
+            break;
+        }
+    }
+
+    if (bUseDefaultExtractor) {
+        ALOGD("using default extractor inspite of having a new extractor");
+        retextParser.clear();
+        return defaultExt;
+    } else {
+        defaultExt.clear();
+        return retextParser;
+    }
+  }
+
 }
 
 #else //ENABLE_QC_AV_ENHANCEMENTS
@@ -288,5 +372,12 @@ void QCUtils::setBFrames(
         OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
         int32_t iFramesInterval, int32_t frameRate) {
 }
+
+
+sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
+                                                            const sp<DataSource> &source,
+                                                            const char *mime) {
+                   return defaultExt;
+ }
 }
 #endif //ENABLE_QC_AV_ENHANCEMENTS
