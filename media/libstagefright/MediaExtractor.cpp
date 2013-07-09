@@ -40,6 +40,8 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 
+#include "include/QCUtils.h"
+
 namespace android {
 
 sp<MetaData> MediaExtractor::getMetaData() {
@@ -127,13 +129,7 @@ sp<MediaExtractor> MediaExtractor::Create(
        }
     }
 
-    if(ret == NULL) {
-        //Create Extended Extractor only if default extractor are not selected
-        ALOGV("Using ExtendedExtractor\n");
-        ret =  ExtendedExtractor::Create(source, mime);
-    }
-
-    return ret;
+    return QCUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
 }
 
 }  // namespace android

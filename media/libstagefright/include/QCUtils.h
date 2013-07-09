@@ -32,8 +32,10 @@
 #include <media/Metadata.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/MediaRecorderBase.h>
+#include <media/stagefright/MediaExtractor.h>
 #include <camera/CameraParameters.h>
 #include <OMX_Video.h>
+
 
 namespace android {
 
@@ -102,6 +104,9 @@ struct QCUtils {
     //set B frames for H264
     static void setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
             int32_t iFramesInterval, int32_t frameRate);
+
+    static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
+              const sp<DataSource> &source, const char *mime);
 
 };
 
