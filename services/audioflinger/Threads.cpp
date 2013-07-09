@@ -962,6 +962,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMixerStatusIgnoringFastTracks(MIXER_IDLE),
         standbyDelay(AudioFlinger::mStandbyTimeInNsecs),
         mScreenState(AudioFlinger::mScreenState),
+        mOutputFlags(AUDIO_OUTPUT_FLAG_NONE),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
 {
