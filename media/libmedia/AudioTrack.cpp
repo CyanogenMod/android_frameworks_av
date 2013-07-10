@@ -1238,7 +1238,8 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
         if (tryCounter < 0) {
             ALOGE("did not receive expected priority boost on time");
         }
-        return true;
+        // Run again immediately
+        return 0;
     }
 
     // Can only reference mCblk while locked
