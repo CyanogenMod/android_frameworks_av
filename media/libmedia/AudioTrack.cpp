@@ -505,7 +505,7 @@ void AudioTrack::flush()
     AutoMutex lock(mLock);
         if(mDirectTrack != NULL) {
             mDirectTrack->flush();
-        } else {
+        } else if(!mActive && mSharedBuffer == 0) {
             flush_l();
         }
 }
