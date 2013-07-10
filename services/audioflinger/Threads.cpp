@@ -891,7 +891,8 @@ void AudioFlinger::ThreadBase::lockEffectChains_l(
 {
     effectChains = mEffectChains;
     for (size_t i = 0; i < mEffectChains.size(); i++) {
-        mEffectChains[i]->lock();
+        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+            mEffectChains[i]->lock();
     }
 }
 
@@ -899,7 +900,8 @@ void AudioFlinger::ThreadBase::unlockEffectChains(
         const Vector< sp<AudioFlinger::EffectChain> >& effectChains)
 {
     for (size_t i = 0; i < effectChains.size(); i++) {
-        effectChains[i]->unlock();
+        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+            effectChains[i]->unlock();
     }
 }
 
