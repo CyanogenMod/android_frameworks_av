@@ -426,7 +426,7 @@ status_t ZslProcessor::processNewZslBuffer() {
     }
     ALOGVV("Trying to get next buffer");
     BufferItemConsumer::BufferItem item;
-    res = zslConsumer->acquireBuffer(&item);
+    res = zslConsumer->acquireBuffer(&item, 0);
     if (res != OK) {
         if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
             ALOGE("%s: Camera %d: Error receiving ZSL image buffer: "

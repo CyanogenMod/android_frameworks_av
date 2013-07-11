@@ -293,7 +293,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
     // wait here till the frames come in from the client side
     while (mStarted) {
 
-        status_t err = mBufferQueue->acquireBuffer(&item);
+        status_t err = mBufferQueue->acquireBuffer(&item, 0);
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             // wait for a buffer to be queued
             mFrameAvailableCondition.wait(mMutex);

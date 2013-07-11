@@ -284,7 +284,7 @@ void RingBufferConsumer::onFrameAvailable() {
         /**
          * Acquire new frame
          */
-        err = acquireBufferLocked(&item);
+        err = acquireBufferLocked(&item, 0);
         if (err != OK) {
             if (err != NO_BUFFER_AVAILABLE) {
                 BI_LOGE("Error acquiring buffer: %s (%d)", strerror(err), err);

@@ -617,7 +617,7 @@ status_t StreamingProcessor::processRecordingFrame() {
     if (client == 0) {
         // Discard frames during shutdown
         BufferItemConsumer::BufferItem imgBuffer;
-        res = mRecordingConsumer->acquireBuffer(&imgBuffer);
+        res = mRecordingConsumer->acquireBuffer(&imgBuffer, 0);
         if (res != OK) {
             if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
                 ALOGE("%s: Camera %d: Can't acquire recording buffer: %s (%d)",
@@ -635,7 +635,7 @@ status_t StreamingProcessor::processRecordingFrame() {
         SharedParameters::Lock l(client->getParameters());
         Mutex::Autolock m(mMutex);
         BufferItemConsumer::BufferItem imgBuffer;
-        res = mRecordingConsumer->acquireBuffer(&imgBuffer);
+        res = mRecordingConsumer->acquireBuffer(&imgBuffer, 0);
         if (res != OK) {
             if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
                 ALOGE("%s: Camera %d: Can't acquire recording buffer: %s (%d)",
