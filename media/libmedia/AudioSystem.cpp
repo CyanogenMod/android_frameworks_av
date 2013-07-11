@@ -537,6 +537,8 @@ const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
     return gAudioPolicyService;
 }
 
+// ---------------------------------------------------------------------------
+
 status_t AudioSystem::setDeviceConnectionState(audio_devices_t device,
                                                audio_policy_dev_state_t state,
                                                const char *device_address)

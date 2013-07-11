@@ -429,6 +429,8 @@ public:
 
                 virtual status_t setSyncEvent(const sp<SyncEvent>& event);
                 virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
+
+                // called with AudioFlinger lock held
                         void     invalidateTracks(audio_stream_type_t streamType);
 
 

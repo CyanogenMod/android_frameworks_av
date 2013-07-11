@@ -585,6 +585,7 @@ void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 
 status_t AudioTrack::setMarkerPosition(uint32_t marker)
 {
+    // The only purpose of setting marker position is to get a callback
     if (mCbf == NULL) {
         return INVALID_OPERATION;
     }
@@ -610,6 +611,7 @@ status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
 
 status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
 {
+    // The only purpose of setting position update period is to get a callback
     if (mCbf == NULL) {
         return INVALID_OPERATION;
     }
@@ -1220,6 +1222,11 @@ status_t TimedAudioTrack::setMediaTimeTransform(const LinearTransform& xform,
 
 nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
 {
+    // Currently the AudioTrack thread is not created if there are no callbacks.
+    // Would it ever make sense to run the thread, even without callbacks?
+    // If so, then replace this by checks at each use for mCbf != NULL.
+    LOG_ALWAYS_FATAL_IF(mCblk == NULL);
+
     mLock.lock();
     if (mAwaitBoost) {
         mAwaitBoost = false;

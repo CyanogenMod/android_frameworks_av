@@ -422,7 +422,7 @@ status_t MidiFile::setLooping(int loop)
 
 status_t MidiFile::createOutputTrack() {
     if (mAudioSink->open(pLibConfig->sampleRate, pLibConfig->numChannels,
-            CHANNEL_MASK_USE_CHANNEL_ORDER, AUDIO_FORMAT_PCM_16_BIT, 2) != NO_ERROR) {
+            CHANNEL_MASK_USE_CHANNEL_ORDER, AUDIO_FORMAT_PCM_16_BIT, 2 /*bufferCount*/) != NO_ERROR) {
         ALOGE("mAudioSink open failed");
         return ERROR_OPEN_FAILED;
     }

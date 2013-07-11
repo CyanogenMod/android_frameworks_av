@@ -125,7 +125,9 @@ public:
     virtual     String8     getParameters(audio_io_handle_t ioHandle, const String8& keys)
                                     const = 0;
 
-    // register a current process for audio output change notifications
+    // Register an object to receive audio input/output change and track notifications.
+    // For a given calling pid, AudioFlinger disregards any registrations after the first.
+    // Thus the IAudioFlingerClient must be a singleton per process.
     virtual void registerClient(const sp<IAudioFlingerClient>& client) = 0;
 
     // retrieve the audio recording buffer size

@@ -90,6 +90,8 @@ public:
     virtual ~Timeline();
 #endif
 
+    // Input parameter 'size' is the desired size of the timeline in byte units.
+    // Returns the size rounded up to a power-of-2, plus the constant size overhead for indices.
     static size_t sharedSize(size_t size);
 
 #if 0
@@ -110,8 +112,12 @@ private:
 class Writer : public RefBase {
 public:
     Writer();                   // dummy nop implementation without shared memory
+
+    // Input parameter 'size' is the desired size of the timeline in byte units.
+    // The size of the shared memory must be at least Timeline::sharedSize(size).
     Writer(size_t size, void *shared);
     Writer(size_t size, const sp<IMemory>& iMemory);
+
     virtual ~Writer() { }
 
     virtual void    log(const char *string);
@@ -165,8 +171,12 @@ private:
 
 class Reader : public RefBase {
 public:
+
+    // Input parameter 'size' is the desired size of the timeline in byte units.
+    // The size of the shared memory must be at least Timeline::sharedSize(size).
     Reader(size_t size, const void *shared);
     Reader(size_t size, const sp<IMemory>& iMemory);
+
     virtual ~Reader() { }
 
     void    dump(int fd, size_t indent = 0);
