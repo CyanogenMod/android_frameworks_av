@@ -168,6 +168,7 @@ protected:
     const bool      mIsOut;             // true for AudioTrack, false for AudioRecord
     const bool      mClientInServer;    // true for OutputTrack, false for AudioTrack & AudioRecord
     bool            mIsShutdown;        // latch set to true when shared memory corruption detected
+    size_t          mUnreleased;        // unreleased frames remaining from most recent obtainBuffer
 };
 
 // ----------------------------------------------------------------------------
@@ -213,7 +214,7 @@ public:
     //  DEAD_OBJECT Server has died or invalidated, caller should destroy this proxy and re-create.
     //  -EINTR      Call has been interrupted.  Look around to see why, and then perhaps try again.
     //  NO_INIT     Shared memory is corrupt.
-    //  BAD_VALUE   On entry buffer == NULL or buffer->mFrameCount == 0.
+    // Assertion failure on entry, if buffer == NULL or buffer->mFrameCount == 0.
     status_t    obtainBuffer(Buffer* buffer, const struct timespec *requested = NULL,
             struct timespec *elapsed = NULL);
 
@@ -372,7 +373,6 @@ public:
     virtual void        releaseBuffer(Buffer* buffer);
 
 protected:
-    size_t      mUnreleased;    // unreleased frames remaining from most recent obtainBuffer()
     size_t      mAvailToClient; // estimated frames available to client prior to releaseBuffer()
 private:
     int32_t     mFlush;         // our copy of cblk->u.mStreaming.mFlush, for streaming output only
