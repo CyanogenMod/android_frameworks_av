@@ -698,14 +698,6 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         }
     }
 
-    status_t errRetVal = ExtendedCodec::configureDIVXCodec(
-            meta, mMIME, mOMX, mNode,
-            (OMXCodec::mIsEncoder ?
-            kPortIndexOutput : kPortIndexInput));
-    if(OK != errRetVal) {
-        return errRetVal;
-    }
-
     int32_t bitRate = 0;
     if (mIsEncoder) {
         CHECK(meta->findInt32(kKeyBitRate, &bitRate));
@@ -801,8 +793,10 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
 
-            ExtendedCodec::configureVideoCodec(
-                    meta, mOMX, mFlags, mNode, mComponentName);
+            ExtendedCodec::configureVideoDecoder(
+                    meta, mMIME, mOMX, mFlags, mNode, mComponentName);
+            ExtendedCodec::configureFramePackingFormat(
+                    meta, mOMX, mNode);
             ExtendedCodec::enableSmoothStreaming(
                     mOMX, mNode, &mInSmoothStreamingMode, mComponentName);
         }

@@ -34,6 +34,7 @@
 #include <media/IOMX.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaSource.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/AString.h>
 #include <utils/threads.h>
 
@@ -55,16 +56,19 @@ struct ExtendedCodec {
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
+    static status_t convertMetaDataToMessage(
+            const sp<MetaData> &meta, sp<AMessage> *format);
 
     static uint32_t getComponentQuirks (
             const MediaCodecList *list, size_t index);
 
-    static status_t configureDIVXCodec(
-            const sp<MetaData> &meta, char* mime,
-            sp<IOMX> OMXhandle,IOMX::node_id nodeID, int port_index);
+    static status_t setAudioFormat(
+            const sp<MetaData> &meta, const char* mime,
+            sp<IOMX> OMXhandle,IOMX::node_id nodeID,
+            bool isEncoder);
 
     static status_t setAudioFormat(
-            const sp<MetaData> &meta, char* mime,
+            const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle,IOMX::node_id nodeID,
             bool isEncoder);
 
@@ -76,21 +80,60 @@ struct ExtendedCodec {
             const char *mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat);
 
-    static status_t handleSupportedAudioFormats(int format, AString* meta);
+    static status_t getSupportedAudioFormatInfo(
+            const AString* mime,
+            sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID,
+            int portIndex,
+            int* channelCount);
+
+    static status_t handleSupportedAudioFormats(
+            int format, AString* mime);
 
     static const char* overrideComponentName(
             uint32_t quirks, const sp<MetaData> &meta);
 
+    static void overrideComponentName(
+            uint32_t quirks, const sp<AMessage> &msg,
+            AString* componentName);
+
     static void getRawCodecSpecificData(
-            const sp<MetaData> &meta, const void* &data, size_t& size);
+            const sp<MetaData> &meta,
+            const void* &data,
+            size_t& size);
 
-    static void setSupportedRole(
+    static sp<ABuffer> getRawCodecSpecificData(
+            const sp<AMessage> &msg);
+
+    static void getAacCodecSpecificData(
+            const sp<MetaData> &meta,
+            const void* &data,
+            size_t& size);
+
+    static sp<ABuffer> getAacCodecSpecificData(
+            const sp<AMessage> &msg);
+
+    static status_t setSupportedRole(
             const sp<IOMX> &omx, IOMX::node_id node,
-            bool isEncoder,const char *mime);
+            bool isEncoder, const char *mime);
 
-    static void configureVideoCodec(
+    static void configureFramePackingFormat(
+            const sp<AMessage> &msg, sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID);
+
+    static void configureFramePackingFormat(
             const sp<MetaData> &meta, sp<IOMX> OMXhandle,
-            const uint32_t flags, IOMX::node_id nodeID, char* componentName );
+            IOMX::node_id nodeID);
+
+    static void configureVideoDecoder(
+            const sp<MetaData> &meta, const char* mime,
+            sp<IOMX> OMXhandle, const uint32_t flags,
+            IOMX::node_id nodeID, const char* componentName);
+
+    static void configureVideoDecoder(
+            const sp<AMessage> &msg, const char* mime,
+            sp<IOMX> OMXhandle, const uint32_t flags,
+            IOMX::node_id nodeID, const char* componentName);
 
     static void enableSmoothStreaming(
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
@@ -103,9 +146,14 @@ struct ExtendedCodec {
     static bool useHWAACDecoder(const char *mime);
 
 private:
+    static const char* getMsgKey(int key );
 
     static status_t setWMAFormat(
             const sp<MetaData> &meta, sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID, bool isEncoder );
+
+    static status_t setWMAFormat(
+            const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID, bool isEncoder );
 
     static void setEVRCFormat(
@@ -121,6 +169,10 @@ private:
     static void setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID);
+
+    static status_t setDIVXFormat(
+            const sp<AMessage> &msg, const char* mime,
+            sp<IOMX> OMXhandle,IOMX::node_id nodeID, int port_index);
 
 };
 
