@@ -498,91 +498,91 @@ bool FastMixer::threadLoop()
                     }
                 }
                 sleepNs = -1;
-              if (isWarm) {
-                if (sec > 0 || nsec > underrunNs) {
-                    ATRACE_NAME("underrun");
-                    // FIXME only log occasionally
-                    ALOGV("underrun: time since last cycle %d.%03ld sec",
-                            (int) sec, nsec / 1000000L);
-                    dumpState->mUnderruns++;
-                    ignoreNextOverrun = true;
-                } else if (nsec < overrunNs) {
-                    if (ignoreNextOverrun) {
-                        ignoreNextOverrun = false;
-                    } else {
+                if (isWarm) {
+                    if (sec > 0 || nsec > underrunNs) {
+                        ATRACE_NAME("underrun");
                         // FIXME only log occasionally
-                        ALOGV("overrun: time since last cycle %d.%03ld sec",
+                        ALOGV("underrun: time since last cycle %d.%03ld sec",
                                 (int) sec, nsec / 1000000L);
-                        dumpState->mOverruns++;
-                    }
-                    // This forces a minimum cycle time. It:
-                    //   - compensates for an audio HAL with jitter due to sample rate conversion
-                    //   - works with a variable buffer depth audio HAL that never pulls at a rate
-                    //     < than overrunNs per buffer.
-                    //   - recovers from overrun immediately after underrun
-                    // It doesn't work with a non-blocking audio HAL.
-                    sleepNs = forceNs - nsec;
-                } else {
-                    ignoreNextOverrun = false;
-                }
-              }
-#ifdef FAST_MIXER_STATISTICS
-              if (isWarm) {
-                // advance the FIFO queue bounds
-                size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
-                bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
-                if (full) {
-                    bounds += 0x10000;
-                } else if (!(bounds & (FastMixerDumpState::kSamplingN - 1))) {
-                    full = true;
-                }
-                // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
-                uint32_t monotonicNs = nsec;
-                if (sec > 0 && sec < 4) {
-                    monotonicNs += sec * 1000000000;
-                }
-                // compute the raw CPU load = delta value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
-                uint32_t loadNs = 0;
-                struct timespec newLoad;
-                rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &newLoad);
-                if (rc == 0) {
-                    if (oldLoadValid) {
-                        sec = newLoad.tv_sec - oldLoad.tv_sec;
-                        nsec = newLoad.tv_nsec - oldLoad.tv_nsec;
-                        if (nsec < 0) {
-                            --sec;
-                            nsec += 1000000000;
+                        dumpState->mUnderruns++;
+                        ignoreNextOverrun = true;
+                    } else if (nsec < overrunNs) {
+                        if (ignoreNextOverrun) {
+                            ignoreNextOverrun = false;
+                        } else {
+                            // FIXME only log occasionally
+                            ALOGV("overrun: time since last cycle %d.%03ld sec",
+                                    (int) sec, nsec / 1000000L);
+                            dumpState->mOverruns++;
                         }
-                        loadNs = nsec;
-                        if (sec > 0 && sec < 4) {
-                            loadNs += sec * 1000000000;
-                        }
+                        // This forces a minimum cycle time. It:
+                        //  - compensates for an audio HAL with jitter due to sample rate conversion
+                        //  - works with a variable buffer depth audio HAL that never pulls at a
+                        //    rate < than overrunNs per buffer.
+                        //  - recovers from overrun immediately after underrun
+                        // It doesn't work with a non-blocking audio HAL.
+                        sleepNs = forceNs - nsec;
                     } else {
-                        // first time through the loop
-                        oldLoadValid = true;
+                        ignoreNextOverrun = false;
                     }
-                    oldLoad = newLoad;
                 }
+#ifdef FAST_MIXER_STATISTICS
+                if (isWarm) {
+                    // advance the FIFO queue bounds
+                    size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
+                    bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
+                    if (full) {
+                        bounds += 0x10000;
+                    } else if (!(bounds & (FastMixerDumpState::kSamplingN - 1))) {
+                        full = true;
+                    }
+                    // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
+                    uint32_t monotonicNs = nsec;
+                    if (sec > 0 && sec < 4) {
+                        monotonicNs += sec * 1000000000;
+                    }
+                    // compute raw CPU load = delta value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
+                    uint32_t loadNs = 0;
+                    struct timespec newLoad;
+                    rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &newLoad);
+                    if (rc == 0) {
+                        if (oldLoadValid) {
+                            sec = newLoad.tv_sec - oldLoad.tv_sec;
+                            nsec = newLoad.tv_nsec - oldLoad.tv_nsec;
+                            if (nsec < 0) {
+                                --sec;
+                                nsec += 1000000000;
+                            }
+                            loadNs = nsec;
+                            if (sec > 0 && sec < 4) {
+                                loadNs += sec * 1000000000;
+                            }
+                        } else {
+                            // first time through the loop
+                            oldLoadValid = true;
+                        }
+                        oldLoad = newLoad;
+                    }
 #ifdef CPU_FREQUENCY_STATISTICS
-                // get the absolute value of CPU clock frequency in kHz
-                int cpuNum = sched_getcpu();
-                uint32_t kHz = tcu.getCpukHz(cpuNum);
-                kHz = (kHz << 4) | (cpuNum & 0xF);
+                    // get the absolute value of CPU clock frequency in kHz
+                    int cpuNum = sched_getcpu();
+                    uint32_t kHz = tcu.getCpukHz(cpuNum);
+                    kHz = (kHz << 4) | (cpuNum & 0xF);
 #endif
-                // save values in FIFO queues for dumpsys
-                // these stores #1, #2, #3 are not atomic with respect to each other,
-                // or with respect to store #4 below
-                dumpState->mMonotonicNs[i] = monotonicNs;
-                dumpState->mLoadNs[i] = loadNs;
+                    // save values in FIFO queues for dumpsys
+                    // these stores #1, #2, #3 are not atomic with respect to each other,
+                    // or with respect to store #4 below
+                    dumpState->mMonotonicNs[i] = monotonicNs;
+                    dumpState->mLoadNs[i] = loadNs;
 #ifdef CPU_FREQUENCY_STATISTICS
-                dumpState->mCpukHz[i] = kHz;
+                    dumpState->mCpukHz[i] = kHz;
 #endif
-                // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
-                // the newest open and oldest closed halves are atomic with respect to each other
-                dumpState->mBounds = bounds;
-                ATRACE_INT("cycle_ms", monotonicNs / 1000000);
-                ATRACE_INT("load_us", loadNs / 1000);
-              }
+                    // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
+                    // the newest open & oldest closed halves are atomic with respect to each other
+                    dumpState->mBounds = bounds;
+                    ATRACE_INT("cycle_ms", monotonicNs / 1000000);
+                    ATRACE_INT("load_us", loadNs / 1000);
+                }
 #endif
             } else {
                 // first time through the loop
