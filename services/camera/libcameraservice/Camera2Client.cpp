@@ -600,6 +600,7 @@ void Camera2Client::setPreviewCallbackFlagL(Parameters &params, int flag) {
         case Parameters::STOPPED:
         case Parameters::WAITING_FOR_PREVIEW_WINDOW:
         case Parameters::PREVIEW:
+        case Parameters::STILL_CAPTURE:
             // OK
             break;
         default:
