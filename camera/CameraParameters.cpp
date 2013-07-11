@@ -256,6 +256,15 @@ const char CameraParameters::EFFECT_POSTERIZE[] = "posterize";
 const char CameraParameters::EFFECT_WHITEBOARD[] = "whiteboard";
 const char CameraParameters::EFFECT_BLACKBOARD[] = "blackboard";
 const char CameraParameters::EFFECT_AQUA[] = "aqua";
+#ifdef SAMSUNG_CAMERA_HARDWARE
+const char CameraParameters::EFFECT_CARTOONIZE[] = "cartoonize";
+const char CameraParameters::EFFECT_POINT_RED_YELLOW[] = "point-red-yellow";
+const char CameraParameters::EFFECT_POINT_GREEN[] = "point-green";
+const char CameraParameters::EFFECT_POINT_BLUE[] = "point-blue";
+const char CameraParameters::EFFECT_VINTAGE_COLD[] = "vintage-cold";
+const char CameraParameters::EFFECT_VINTAGE_WARM[] = "vintage-warm";
+const char CameraParameters::EFFECT_WASHED[] = "washed";
+#endif
 #ifdef QCOM_HARDWARE
 const char CameraParameters::EFFECT_EMBOSS[] = "emboss";
 const char CameraParameters::EFFECT_SKETCH[] = "sketch";
