@@ -284,17 +284,6 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
-#ifdef QCOM_HARDWARE
-    if ((streamType == AUDIO_STREAM_VOICE_CALL)
-         && (channelMask == AUDIO_CHANNEL_OUT_MONO)
-         && ((sampleRate == 8000 || sampleRate == 16000)))
-    {
-        ALOGD("Turn on Direct Output for VOIP RX");
-        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_VOIP_RX|AUDIO_OUTPUT_FLAG_DIRECT);
-    }
-#endif
-
-
     if (!audio_is_output_channel(channelMask)) {
         ALOGE("Invalid channel mask %#x", channelMask);
         return BAD_VALUE;
@@ -304,6 +293,14 @@ status_t AudioTrack::set(
     mChannelCount = channelCount;
 
 #ifdef QCOM_HARDWARE
+    if ((streamType == AUDIO_STREAM_VOICE_CALL)
+         && (channelCount == 1)
+         && ((sampleRate == 8000 || sampleRate == 16000)))
+    {
+        ALOGD("Turn on Direct Output for VOIP RX");
+        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_VOIP_RX|AUDIO_OUTPUT_FLAG_DIRECT);
+    }
+
     if ((audio_stream_type_t)streamType == AUDIO_STREAM_VOICE_CALL) {
         if (audio_is_linear_pcm(format)) {
             mFrameSize = channelCount * audio_bytes_per_sample(format);
