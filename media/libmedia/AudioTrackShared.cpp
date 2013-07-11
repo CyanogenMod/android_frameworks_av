@@ -388,6 +388,8 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
         if (flush != mFlush) {
             front = rear;
             mFlush = flush;
+            // effectively obtain then release whatever is in the buffer
+            android_atomic_release_store(rear, &cblk->u.mStreaming.mFront);
         } else {
             front = cblk->u.mStreaming.mFront;
         }
