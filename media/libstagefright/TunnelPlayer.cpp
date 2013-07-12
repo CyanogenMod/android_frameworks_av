@@ -54,6 +54,8 @@ static const char   mName[] = "TunnelPlayer";
 
 namespace android {
 int TunnelPlayer::mTunnelObjectsAlive = 0;
+bool TunnelPlayer::mTunnelObjectEarlyDeletable = false;
+bool TunnelPlayer::mTunnelObjectEarlyDeleted = false;
 
 TunnelPlayer::TunnelPlayer(
                     const sp<MediaPlayerBase::AudioSink> &audioSink, bool &initCheck,
@@ -332,6 +334,7 @@ size_t TunnelPlayer::AudioSinkCallback(
                 //in the case of seek all these flags will be reset
                 me->mReachedOutputEOS = true;
                 ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+                mTunnelObjectEarlyDeletable = true;
                 me->mObserver->postAudioEOS(0);
             }else {
                 ALOGV("postAudioEOS ignored since %d", me->mSeeking);
