@@ -545,104 +545,114 @@ void AwesomePlayer::reset() {
 }
 
 void AwesomePlayer::reset_l() {
-    mVideoRenderingStarted = false;
-    mActiveAudioTrackIndex = -1;
-    mDisplayWidth = 0;
-    mDisplayHeight = 0;
+#ifdef USE_TUNNEL_MODE
+  if( !TunnelPlayer::mTunnelObjectEarlyDeleted ) {
+#endif
+      mVideoRenderingStarted = false;
+      mActiveAudioTrackIndex = -1;
+      mDisplayWidth = 0;
+      mDisplayHeight = 0;
 
-    if (mDecryptHandle != NULL) {
-            mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                    Playback::STOP, 0);
-            mDecryptHandle = NULL;
-            mDrmManagerClient = NULL;
-    }
+      if (mDecryptHandle != NULL) {
+              mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                      Playback::STOP, 0);
+              mDecryptHandle = NULL;
+              mDrmManagerClient = NULL;
+      }
 
-    if (mFlags & PLAYING) {
-        uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
-        if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
-            params |= IMediaPlayerService::kBatteryDataTrackAudio;
-        }
-        if (mVideoSource != NULL) {
-            params |= IMediaPlayerService::kBatteryDataTrackVideo;
-        }
-        addBatteryData(params);
-    }
+      if (mFlags & PLAYING) {
+          uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
+          if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
+              params |= IMediaPlayerService::kBatteryDataTrackAudio;
+          }
+          if (mVideoSource != NULL) {
+              params |= IMediaPlayerService::kBatteryDataTrackVideo;
+          }
+          addBatteryData(params);
+      }
 
-    if (mFlags & PREPARING) {
-        modifyFlags(PREPARE_CANCELLED, SET);
-        if (mConnectingDataSource != NULL) {
-            ALOGI("interrupting the connection process");
-            mConnectingDataSource->disconnect();
-        }
+      if (mFlags & PREPARING) {
+          modifyFlags(PREPARE_CANCELLED, SET);
+          if (mConnectingDataSource != NULL) {
+              ALOGI("interrupting the connection process");
+              mConnectingDataSource->disconnect();
+          }
 
-        if (mFlags & PREPARING_CONNECTED) {
-            // We are basically done preparing, we're just buffering
-            // enough data to start playback, we can safely interrupt that.
-            finishAsyncPrepare_l();
-        }
-    }
+          if (mFlags & PREPARING_CONNECTED) {
+              // We are basically done preparing, we're just buffering
+              // enough data to start playback, we can safely interrupt that.
+              finishAsyncPrepare_l();
+          }
+      }
 
-    while (mFlags & PREPARING) {
-        mPreparedCondition.wait(mLock);
-    }
+      while (mFlags & PREPARING) {
+          mPreparedCondition.wait(mLock);
+      }
 
-    cancelPlayerEvents();
+      cancelPlayerEvents();
 
-    mWVMExtractor.clear();
-    mCachedSource.clear();
-    mAudioTrack.clear();
-    mVideoTrack.clear();
-    mExtractor.clear();
+      mWVMExtractor.clear();
+      mCachedSource.clear();
+      mAudioTrack.clear();
+      mVideoTrack.clear();
+      mExtractor.clear();
 
-    // Shutdown audio first, so that the respone to the reset request
-    // appears to happen instantaneously as far as the user is concerned
-    // If we did this later, audio would continue playing while we
-    // shutdown the video-related resources and the player appear to
-    // not be as responsive to a reset request.
-    if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
-            && mAudioSource != NULL) {
-        // If we had an audio player, it would have effectively
-        // taken possession of the audio source and stopped it when
-        // _it_ is stopped. Otherwise this is still our responsibility.
-        mAudioSource->stop();
-    }
-    mAudioSource.clear();
+      // Shutdown audio first, so that the respone to the reset request
+      // appears to happen instantaneously as far as the user is concerned
+      // If we did this later, audio would continue playing while we
+      // shutdown the video-related resources and the player appear to
+      // not be as responsive to a reset request.
+      if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+              && mAudioSource != NULL) {
+          // If we had an audio player, it would have effectively
+          // taken possession of the audio source and stopped it when
+          // _it_ is stopped. Otherwise this is still our responsibility.
+          mAudioSource->stop();
+      }
 
-    mTimeSource = NULL;
+      mAudioSource.clear();
 
-    delete mAudioPlayer;
-    mAudioPlayer = NULL;
+     
+     
+      mTimeSource = NULL;
 
-    if (mTextDriver != NULL) {
-        delete mTextDriver;
-        mTextDriver = NULL;
-    }
+      delete mAudioPlayer;
 
-    mVideoRenderer.clear();
+      mAudioPlayer = NULL;
 
-    modifyFlags(PLAYING, CLEAR);
-    printStats();
-    if (mVideoSource != NULL) {
-        shutdownVideoDecoder_l();
-    }
+      if (mTextDriver != NULL) {
+          delete mTextDriver;
+          mTextDriver = NULL;
+      }
 
-    mDurationUs = -1;
-    modifyFlags(0, ASSIGN);
-    mExtractorFlags = 0;
-    mTimeSourceDeltaUs = 0;
-    mVideoTimeUs = 0;
+      mVideoRenderer.clear();
 
-    mSeeking = NO_SEEK;
-    mSeekNotificationSent = true;
-    mSeekTimeUs = 0;
+      modifyFlags(PLAYING, CLEAR);
+      printStats();
+      if (mVideoSource != NULL) {
+          shutdownVideoDecoder_l();
+      }
 
-    mUri.setTo("");
-    mUriHeaders.clear();
+      mDurationUs = -1;
+      modifyFlags(0, ASSIGN);
+      mExtractorFlags = 0;
+      mTimeSourceDeltaUs = 0;
+      mVideoTimeUs = 0;
 
-    mFileSource.clear();
+      mSeeking = NO_SEEK;
+      mSeekNotificationSent = true;
+      mSeekTimeUs = 0;
 
-    mBitrate = -1;
-    mLastVideoTimeUs = -1;
+      mUri.setTo("");
+      mUriHeaders.clear();
+
+      mFileSource.clear();
+
+      mBitrate = -1;
+      mLastVideoTimeUs = -1;
+#ifdef USE_TUNNEL_MODE
+  }
+#endif
 
     {
         Mutex::Autolock autoLock(mStatsLock);
@@ -670,9 +680,13 @@ void AwesomePlayer::reset_l() {
         mStats.mLastSeekToTimeMs = 0;
         mStats.mFirstFrameLatencyUs = 0;
     }
-
     mWatchForAudioSeekComplete = false;
     mWatchForAudioEOS = false;
+#ifdef USE_TUNNEL_MODE
+    TunnelPlayer::mTunnelObjectEarlyDeleted = false;
+    TunnelPlayer::mTunnelObjectEarlyDeletable = false;
+#endif
+
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
@@ -928,11 +942,139 @@ void AwesomePlayer::onStreamDone() {
         }
     } else {
         ALOGV("MEDIA_PLAYBACK_COMPLETE");
-        notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+        
+#ifdef USE_TUNNEL_MODE
+        // If TunnelPlayer is EOS it is deletable and it should be deleted before notify so that the dsp processsor is free again
+        ALOGV("mIsTunnelAudio=%d, TunnelPlayer::mTunnelObjectEarlyDeletable=%d", mIsTunnelAudio,TunnelPlayer::mTunnelObjectEarlyDeletable);
+        if ( mIsTunnelAudio && TunnelPlayer::mTunnelObjectEarlyDeletable ) {
+            ALOGV("Start early cleanup of tunnel player");
+            pause_l(true /* at eos */);
+            cancelPlayerEvents();
+            mVideoRenderingStarted = false;
+            mActiveAudioTrackIndex = -1;
+            mDisplayWidth = 0;
+            mDisplayHeight = 0;
 
-        pause_l(true /* at eos */);
+            if (mDecryptHandle != NULL) {
+                  mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                  Playback::STOP, 0);
+                  mDecryptHandle = NULL;
+                  mDrmManagerClient = NULL;
+            }
 
-        modifyFlags(AT_EOS, SET);
+            if (mFlags & PLAYING) {
+                uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
+                if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
+                  params |= IMediaPlayerService::kBatteryDataTrackAudio;
+                }
+                if (mVideoSource != NULL) {
+                  params |= IMediaPlayerService::kBatteryDataTrackVideo;
+                }
+                addBatteryData(params);
+            }
+
+            if (mFlags & PREPARING) {
+                modifyFlags(PREPARE_CANCELLED, SET);
+                if (mConnectingDataSource != NULL) {
+                    ALOGI("interrupting the connection process");
+                    mConnectingDataSource->disconnect();
+                }
+
+                if (mFlags & PREPARING_CONNECTED) {
+                    // We are basically done preparing, we're just buffering
+                    // enough data to start playback, we can safely interrupt that.
+                    finishAsyncPrepare_l();
+                }
+            }
+
+            while (mFlags & PREPARING) {
+                mPreparedCondition.wait(mLock);
+            }
+
+            cancelPlayerEvents();
+
+            mWVMExtractor.clear();
+            mCachedSource.clear();
+            mAudioTrack.clear();
+            mVideoTrack.clear();
+            mExtractor.clear();
+            
+
+            // Shutdown audio first, so that the respone to the reset request
+            // appears to happen instantaneously as far as the user is concerned
+            // If we did this later, audio would continue playing while we
+            // shutdown the video-related resources and the player appear to
+            // not be as responsive to a reset request.
+            if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+                    && mAudioSource != NULL) {
+                // If we had an audio player, it would have effectively
+                // taken possession of the audio source and stopped it when
+                // _it_ is stopped. Otherwise this is still our responsibility.
+                mAudioSource->stop();
+            }
+            
+            
+            mTimeSource = NULL;
+
+
+            delete mAudioPlayer;
+            mAudioPlayer = NULL;
+            TunnelPlayer::mTunnelObjectEarlyDeleted = true;
+
+            mAudioSource.clear();
+            if (mTextDriver != NULL) {
+                delete mTextDriver;
+                mTextDriver = NULL;
+            }
+
+            mVideoRenderer.clear();
+
+            modifyFlags(PLAYING, CLEAR);
+            printStats();
+            if (mVideoSource != NULL) {
+                shutdownVideoDecoder_l();
+            }
+
+            mDurationUs = -1;
+            modifyFlags(0, ASSIGN);
+            mExtractorFlags = 0;
+            mTimeSourceDeltaUs = 0;
+            mVideoTimeUs = 0;
+
+            mSeeking = NO_SEEK;
+            mSeekNotificationSent = true;
+            mSeekTimeUs = 0;
+
+            mUri.setTo("");
+            mUriHeaders.clear();
+
+            mFileSource.clear();
+
+            mBitrate = -1;
+            mLastVideoTimeUs = -1;
+
+            
+            // Disable Tunnel Mode Audio
+            if (mIsTunnelAudio) {
+                if(mTunnelAliveAP > 0) {
+                    mTunnelAliveAP--;
+                    ALOGV("mTunnelAliveAP = %d", mTunnelAliveAP);
+                }
+            }
+            mIsTunnelAudio = false;
+            ALOGV("Cleanup finished");
+            modifyFlags(AT_EOS, SET);
+            notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+        }
+        else 
+#endif
+        {
+            notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+
+            pause_l(true /* at eos */);
+
+            modifyFlags(AT_EOS, SET);
+        }
     }
 }
 
@@ -973,6 +1115,37 @@ status_t AwesomePlayer::play_l() {
         mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
                 Playback::START, position / 1000);
     }
+    
+#ifdef USE_TUNNEL_MODE
+    // Delayed Codec initialization for Tunnel audio
+    if( !isStreamingHTTP() ) {
+        if (mVideoTrack != NULL && mVideoSource == NULL) {
+            status_t err = initVideoDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+        
+        if (mVideoSource == NULL) {
+            notifyListener_l(MEDIA_SET_VIDEO_SIZE, 0, 0);
+        } else {
+            notifyVideoSize_l();
+        }
+        
+        //Delay audiocodec init for tunnel audio
+
+        if (mAudioTrack != NULL && mAudioSource == NULL) {
+            status_t err = initAudioDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+    }
+#endif
 
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
@@ -1026,7 +1199,7 @@ status_t AwesomePlayer::play_l() {
                         delete mAudioPlayer;
                         mAudioPlayer = NULL;
                     }
-                }
+                }            
                 tunnelObjectsAlive = (TunnelPlayer::mTunnelObjectsAlive);
 #endif
                 int32_t nchannels = 0;
@@ -2576,7 +2749,10 @@ void AwesomePlayer::onPrepareAsyncEvent() {
             return;
         }
     }
-
+    
+#ifdef USE_TUNNEL_MODE
+    if( isStreamingHTTP() ) {
+#endif
     if (mVideoTrack != NULL && mVideoSource == NULL) {
         status_t err = initVideoDecoder();
 
@@ -2585,6 +2761,8 @@ void AwesomePlayer::onPrepareAsyncEvent() {
             return;
         }
     }
+    
+    //Delay init for tunnel audio
 
     if (mAudioTrack != NULL && mAudioSource == NULL) {
         status_t err = initAudioDecoder();
@@ -2594,6 +2772,9 @@ void AwesomePlayer::onPrepareAsyncEvent() {
             return;
         }
     }
+#ifdef USE_TUNNEL_MODE
+    }
+#endif
 
     modifyFlags(PREPARING_CONNECTED, SET);
 
