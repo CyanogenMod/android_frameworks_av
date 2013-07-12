@@ -212,6 +212,10 @@ private:
     static int mTunnelAliveAP;
 #endif
 
+#ifdef USE_TUNNEL_MODE
+    bool mDelayedInitialization;
+#endif
+
     sp<TimedEventQueue::Event> mVideoEvent;
     bool mVideoEventPending;
     sp<TimedEventQueue::Event> mStreamDoneEvent;

@@ -71,6 +71,8 @@ public:
 
     static int mTunnelObjectsAlive;
     static const int getTunnelObjectsAliveMax();
+    static bool mTunnelObjectEarlyDeletable;
+    static bool mTunnelObjectEarlyDeleted;
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
