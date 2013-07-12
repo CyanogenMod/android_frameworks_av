@@ -1062,6 +1062,7 @@ status_t AudioTrack::createTrack_l(
         mLatency = afLatency + (1000*frameCount) / sampleRate;
     else
         mLatency = afLatency;
+    mFrameCount = frameCount;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
     if (frameCount > mReqFrameCount) {
