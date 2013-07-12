@@ -2783,7 +2783,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     }
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &track->mCblk->flags);
+                    android_atomic_or(CBLK_DISABLED, &track->mCblk->mFlags);
                     // remove from active list, but state remains ACTIVE [confusing but true]
                     isActive = false;
                     break;
@@ -3061,7 +3061,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // we missed desiredFrames whatever the actual number of frames missing was
                 cblk->u.mStreaming.mUnderrunFrames += desiredFrames;
                 // FIXME also wake futex so that underrun is noticed more quickly
-                (void) android_atomic_or(CBLK_UNDERRUN, &cblk->flags);
+                (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
             }
             // clear effect chain input buffer if an active track underruns to avoid sending
             // previous audio buffer again to effects
@@ -3094,7 +3094,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &cblk->flags);
+                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 // If one track is not ready, mark the mixer also not ready if:
                 //  - the mixer was ready during previous round OR
                 //  - no other track is ready

@@ -389,7 +389,7 @@ status_t AudioTrack::start()
         mProxy->setEpoch(mProxy->getEpoch() - mProxy->getPosition());
     }
     mNewPosition = mProxy->getPosition() + mUpdatePeriod;
-    int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->flags);
+    int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
 
     sp<AudioTrackThread> t = mAudioTrackThread;
     if (t != 0) {
@@ -1182,7 +1182,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
     // restart track if it was disabled by audioflinger due to previous underrun
     if (mState == STATE_ACTIVE) {
         audio_track_cblk_t* cblk = mCblk;
-        if (android_atomic_and(~CBLK_DISABLED, &cblk->flags) & CBLK_DISABLED) {
+        if (android_atomic_and(~CBLK_DISABLED, &cblk->mFlags) & CBLK_DISABLED) {
             ALOGW("releaseBuffer() track %p name=%#x disabled due to previous underrun, restarting",
                     this, cblk->mName);
             // FIXME ignoring status
@@ -1261,16 +1261,16 @@ status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
     // fails indicating that the server is dead, flag the track as invalid so
     // we can attempt to restore in just a bit.
     audio_track_cblk_t* cblk = mCblk;
-    if (!(cblk->flags & CBLK_INVALID)) {
+    if (!(cblk->mFlags & CBLK_INVALID)) {
         result = mAudioTrack->allocateTimedBuffer(size, buffer);
         if (result == DEAD_OBJECT) {
-            android_atomic_or(CBLK_INVALID, &cblk->flags);
+            android_atomic_or(CBLK_INVALID, &cblk->mFlags);
         }
     }
 
     // If the track is invalid at this point, attempt to restore it. and try the
     // allocation one more time.
-    if (cblk->flags & CBLK_INVALID) {
+    if (cblk->mFlags & CBLK_INVALID) {
         result = restoreTrack_l("allocateTimedBuffer");
 
         if (result == NO_ERROR) {
@@ -1290,8 +1290,8 @@ status_t TimedAudioTrack::queueTimedBuffer(const sp<IMemory>& buffer,
         audio_track_cblk_t* cblk = mCblk;
         // restart track if it was disabled by audioflinger due to previous underrun
         if (buffer->size() != 0 && status == NO_ERROR &&
-                (mState == STATE_ACTIVE) && (cblk->flags & CBLK_DISABLED)) {
-            android_atomic_and(~CBLK_DISABLED, &cblk->flags);
+                (mState == STATE_ACTIVE) && (cblk->mFlags & CBLK_DISABLED)) {
+            android_atomic_and(~CBLK_DISABLED, &cblk->mFlags);
             ALOGW("queueTimedBuffer() track %p disabled, restarting", this);
             // FIXME ignoring status
             mAudioTrack->start();
@@ -1339,7 +1339,7 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
 
     // Can only reference mCblk while locked
     int32_t flags = android_atomic_and(
-        ~(CBLK_UNDERRUN | CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL | CBLK_BUFFER_END), &mCblk->flags);
+        ~(CBLK_UNDERRUN | CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL | CBLK_BUFFER_END), &mCblk->mFlags);
 
     // Check for track invalidation
     if (flags & CBLK_INVALID) {
@@ -1681,7 +1681,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
             // the actual amount of audio frames played (e.g SoundPool) receives them.
             if (mSharedBuffer == 0) {
                 // restart playback even if buffer is not completely filled.
-                android_atomic_or(CBLK_FORCEREADY, &mCblk->flags);
+                android_atomic_or(CBLK_FORCEREADY, &mCblk->mFlags);
             }
         }
 #endif

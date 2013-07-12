@@ -128,7 +128,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         } else {
             mBuffer = sharedBuffer->pointer();
 #if 0
-            mCblk->flags = CBLK_FORCEREADY;     // FIXME hack, need to fix the track ready logic
+            mCblk->mFlags = CBLK_FORCEREADY;    // FIXME hack, need to fix the track ready logic
 #endif
         }
 
@@ -471,7 +471,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mCblk->mServer,
             (int)mMainBuffer,
             (int)mAuxBuffer,
-            mCblk->flags,
+            mCblk->mFlags,
             mUnderrunCount,
             nowInUnderrun);
 }
@@ -494,7 +494,7 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
         // only implemented so far for normal tracks, not fast tracks
         mCblk->u.mStreaming.mUnderrunFrames += desiredFrames;
         // FIXME also wake futex so that underrun is noticed more quickly
-        (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
+        (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
     }
     return status;
 }
@@ -518,9 +518,9 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
     }
 
     if (framesReady() >= mFrameCount ||
-            (mCblk->flags & CBLK_FORCEREADY)) {
+            (mCblk->mFlags & CBLK_FORCEREADY)) {
         mFillingUpStatus = FS_FILLED;
-        android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
+        android_atomic_and(~CBLK_FORCEREADY, &mCblk->mFlags);
         return true;
     }
     return false;
@@ -694,7 +694,7 @@ void AudioFlinger::PlaybackThread::Track::reset()
     if (!mResetDone) {
         // Force underrun condition to avoid false underrun callback until first data is
         // written to buffer
-        android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
+        android_atomic_and(~CBLK_FORCEREADY, &mCblk->mFlags);
         mFillingUpStatus = FS_FILLING;
         mResetDone = true;
         if (mState == FLUSHED) {
@@ -856,7 +856,7 @@ void AudioFlinger::PlaybackThread::Track::invalidate()
 {
     // FIXME should use proxy, and needs work
     audio_track_cblk_t* cblk = mCblk;
-    android_atomic_or(CBLK_INVALID, &cblk->flags);
+    android_atomic_or(CBLK_INVALID, &cblk->mFlags);
     android_atomic_release_store(0x40000000, &cblk->mFutex);
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) __futex_syscall3(&cblk->mFutex, FUTEX_WAKE, INT_MAX);
@@ -1679,7 +1679,7 @@ status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvi
     buffer->raw = buf.mRaw;
     if (buf.mFrameCount == 0) {
         // FIXME also wake futex so that overrun is noticed more quickly
-        (void) android_atomic_or(CBLK_OVERRUN, &mCblk->flags);
+        (void) android_atomic_or(CBLK_OVERRUN, &mCblk->mFlags);
     }
     return status;
 }

@@ -27,7 +27,7 @@ namespace android {
 
 audio_track_cblk_t::audio_track_cblk_t()
     : mServer(0), frameCount_(0), mFutex(0), mMinimum(0),
-    mVolumeLR(0x10001000), mSampleRate(0), mSendLevel(0), mName(0), flags(0)
+    mVolumeLR(0x10001000), mSampleRate(0), mSendLevel(0), mName(0), mFlags(0)
 {
     memset(&u, 0, sizeof(u));
 }
@@ -99,7 +99,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         goto end;
     }
     for (;;) {
-        int32_t flags = android_atomic_and(~CBLK_INTERRUPT, &cblk->flags);
+        int32_t flags = android_atomic_and(~CBLK_INTERRUPT, &cblk->mFlags);
         // check for track invalidation by server, or server death detection
         if (flags & CBLK_INVALID) {
             ALOGV("Track invalidated");
@@ -293,7 +293,7 @@ void ClientProxy::releaseBuffer(Buffer* buffer)
 void ClientProxy::binderDied()
 {
     audio_track_cblk_t* cblk = mCblk;
-    if (!(android_atomic_or(CBLK_INVALID, &cblk->flags) & CBLK_INVALID)) {
+    if (!(android_atomic_or(CBLK_INVALID, &cblk->mFlags) & CBLK_INVALID)) {
         // it seems that a FUTEX_WAKE_PRIVATE will not wake a FUTEX_WAIT, even within same process
         (void) __futex_syscall3(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
                 1);
@@ -303,7 +303,7 @@ void ClientProxy::binderDied()
 void ClientProxy::interrupt()
 {
     audio_track_cblk_t* cblk = mCblk;
-    if (!(android_atomic_or(CBLK_INTERRUPT, &cblk->flags) & CBLK_INTERRUPT)) {
+    if (!(android_atomic_or(CBLK_INTERRUPT, &cblk->mFlags) & CBLK_INTERRUPT)) {
         (void) __futex_syscall3(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
                 1);
     }
@@ -324,11 +324,11 @@ void AudioTrackClientProxy::flush()
 }
 
 bool AudioTrackClientProxy::clearStreamEndDone() {
-    return (android_atomic_and(~CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE) != 0;
+    return (android_atomic_and(~CBLK_STREAM_END_DONE, &mCblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
 }
 
 bool AudioTrackClientProxy::getStreamEndDone() const {
-    return (mCblk->flags & CBLK_STREAM_END_DONE) != 0;
+    return (mCblk->mFlags & CBLK_STREAM_END_DONE) != 0;
 }
 
 status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *requested)
@@ -354,7 +354,7 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
         timeout = TIMEOUT_FINITE;
     }
     for (;;) {
-        int32_t flags = android_atomic_and(~(CBLK_INTERRUPT|CBLK_STREAM_END_DONE), &cblk->flags);
+        int32_t flags = android_atomic_and(~(CBLK_INTERRUPT|CBLK_STREAM_END_DONE), &cblk->mFlags);
         // check for track invalidation by server, or server death detection
         if (flags & CBLK_INVALID) {
             ALOGV("Track invalidated");
@@ -653,7 +653,7 @@ size_t AudioTrackServerProxy::framesReady()
 
 bool  AudioTrackServerProxy::setStreamEndDone() {
     bool old =
-            (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->flags) & CBLK_STREAM_END_DONE) != 0;
+            (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
     if (!old) {
         (void) __futex_syscall3(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
                 1);
@@ -808,7 +808,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     cblk->mServer += stepCount;
     cblk->u.mStatic.mBufferPosition = newPosition;
     if (setFlags != 0) {
-        (void) android_atomic_or(setFlags, &cblk->flags);
+        (void) android_atomic_or(setFlags, &cblk->mFlags);
         // this would be a good place to wake a futex
     }
 

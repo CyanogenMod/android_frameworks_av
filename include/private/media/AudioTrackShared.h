@@ -31,6 +31,7 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
+// for audio_track_cblk_t::mFlags
 #define CBLK_UNDERRUN   0x01 // set by server immediately on output underrun, cleared by client
 #define CBLK_FORCEREADY 0x02 // set: track is considered ready immediately by AudioFlinger,
                              // clear: track is ready when buffer full
@@ -127,7 +128,7 @@ public:
                 // read-only for client, server writes once at initialization and is then read-only
                 uint8_t     mName;           // normal tracks: track name, fast tracks: track index
 
-    volatile    int32_t     flags;
+    volatile    int32_t     mFlags;         // combinations of CBLK_*
 
                 // Cache line boundary (32 bytes)
 

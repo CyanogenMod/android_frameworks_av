@@ -300,7 +300,7 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     mProxy->setEpoch(mProxy->getEpoch() - mProxy->getPosition());
 
     mNewPosition = mProxy->getPosition() + mUpdatePeriod;
-    int32_t flags = android_atomic_acquire_load(&mCblk->flags);
+    int32_t flags = android_atomic_acquire_load(&mCblk->mFlags);
 
     status_t status = NO_ERROR;
     if (!(flags & CBLK_INVALID)) {
@@ -667,7 +667,7 @@ nsecs_t AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
     mLock.lock();
 
     // Can only reference mCblk while locked
-    int32_t flags = android_atomic_and(~CBLK_OVERRUN, &mCblk->flags);
+    int32_t flags = android_atomic_and(~CBLK_OVERRUN, &mCblk->mFlags);
 
     // Check for track invalidation
     if (flags & CBLK_INVALID) {
