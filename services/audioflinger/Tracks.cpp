@@ -468,7 +468,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             mAudioTrackServerProxy->getSampleRate(),
             20.0 * log10((vlr & 0xFFFF) / 4096.0),
             20.0 * log10((vlr >> 16) / 4096.0),
-            mCblk->server,
+            mCblk->mServer,
             (int)mMainBuffer,
             (int)mAuxBuffer,
             mCblk->flags,
@@ -1739,7 +1739,7 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
             mChannelMask,
             mSessionId,
             mState,
-            mCblk->server,
+            mCblk->mServer,
             mFrameCount);
 }
 

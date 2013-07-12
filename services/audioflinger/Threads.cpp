@@ -2903,7 +2903,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         if ((framesReady >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
-            ALOGVV("track %d s=%08x [OK] on thread %p", name, cblk->server, this);
+            ALOGVV("track %d s=%08x [OK] on thread %p", name, cblk->mServer, this);
 
             mixedTracks++;
 
@@ -2932,7 +2932,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     param = AudioMixer::RAMP_VOLUME;
                 }
                 mAudioMixer->setParameter(name, AudioMixer::RESAMPLE, AudioMixer::RESET, NULL);
-            } else if (cblk->server != 0) {
+            // FIXME should not make a decision based on mServer
+            } else if (cblk->mServer != 0) {
                 // If the track is stopped before the first frame was mixed,
                 // do not apply ramp
                 param = AudioMixer::RAMP_VOLUME;
@@ -3069,7 +3070,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 chain->clearInputBuffer();
             }
 
-            ALOGVV("track %d s=%08x [NOT READY] on thread %p", name, cblk->server, this);
+            ALOGVV("track %d s=%08x [NOT READY] on thread %p", name, cblk->mServer, this);
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -3483,7 +3484,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
-            ALOGVV("track %d u=%08x, s=%08x [OK]", track->name(), cblk->user, cblk->server);
+            ALOGVV("track %d s=%08x [OK]", track->name(), cblk->mServer);
 
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
@@ -3508,7 +3509,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 mEffectChains[0]->clearInputBuffer();
             }
 
-            ALOGVV("track %d u=%08x, s=%08x [NOT READY]", track->name(), cblk->user, cblk->server);
+            ALOGVV("track %d s=%08x [NOT READY]", track->name(), cblk->mServer);
             if ((track->sharedBuffer() != 0) || track->isTerminated() ||
                     track->isStopped() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
@@ -3847,7 +3848,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             tracksToRemove->add(track);
         } else if (track->framesReady() && track->isReady() &&
                 !track->isPaused() && !track->isTerminated()) {
-            ALOGVV("OffloadThread: track %d s=%08x [OK]", track->name(), cblk->server);
+            ALOGVV("OffloadThread: track %d s=%08x [OK]", track->name(), cblk->mServer);
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
                 mLeftVolFloat = mRightVolFloat = 0;
@@ -3875,7 +3876,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 mixerStatus = MIXER_TRACKS_READY;
             }
         } else {
-            ALOGVV("OffloadThread: track %d s=%08x [NOT READY]", track->name(), cblk->server);
+            ALOGVV("OffloadThread: track %d s=%08x [NOT READY]", track->name(), cblk->mServer);
             if (track->isStopping_1()) {
                 // Hardware buffer can hold a large amount of audio so we must
                 // wait for all current track's data to drain before we say

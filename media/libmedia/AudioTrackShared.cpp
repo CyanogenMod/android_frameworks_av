@@ -26,7 +26,7 @@ extern "C" {
 namespace android {
 
 audio_track_cblk_t::audio_track_cblk_t()
-    : server(0), frameCount_(0), mFutex(0), mMinimum(0),
+    : mServer(0), frameCount_(0), mFutex(0), mMinimum(0),
     mVolumeLR(0x10001000), mSampleRate(0), mSendLevel(0), mName(0), flags(0)
 {
     memset(&u, 0, sizeof(u));
@@ -594,7 +594,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         android_atomic_release_store(stepCount + rear, &cblk->u.mStreaming.mRear);
     }
 
-    mCblk->server += stepCount;
+    mCblk->mServer += stepCount;
 
     size_t half = mFrameCount / 2;
     if (half == 0) {
@@ -805,7 +805,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     }
     mPosition = newPosition;
 
-    cblk->server += stepCount;
+    cblk->mServer += stepCount;
     cblk->u.mStatic.mBufferPosition = newPosition;
     if (setFlags != 0) {
         (void) android_atomic_or(setFlags, &cblk->flags);

@@ -89,8 +89,11 @@ struct audio_track_cblk_t
     // The data members are grouped so that members accessed frequently and in the same context
     // are in the same line of data cache.
 
-    volatile    uint32_t    server;     // updated asynchronously by server,
-                                        // "for entertainment purposes only"
+                uint32_t    mServer;    // Number of filled frames consumed by server (mIsOut),
+                                        // or filled frames provided by server (!mIsOut).
+                                        // It is updated asynchronously by server without a barrier.
+                                        // The value should be used "for entertainment purposes only",
+                                        // which means don't make important decisions based on it.
 
                 size_t      frameCount_;    // used during creation to pass actual track buffer size
                                             // from AudioFlinger to client, and not referenced again
@@ -235,7 +238,7 @@ public:
     void        interrupt();
 
     size_t      getPosition() {
-        return mEpoch + mCblk->server;
+        return mEpoch + mCblk->mServer;
     }
 
     void        setEpoch(size_t epoch) {
