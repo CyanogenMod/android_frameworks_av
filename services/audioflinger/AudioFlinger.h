@@ -108,6 +108,7 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
+                                String8& name,
                                 status_t *status);
 
     virtual sp<IAudioRecord> openRecord(

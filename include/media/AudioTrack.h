@@ -726,6 +726,7 @@ protected:
     sp<AudioTrackClientProxy>       mProxy;         // primary owner of the memory
 
     bool                    mInUnderrun;            // whether track is currently in underrun state
+    String8                 mName;                  // server's name for this IAudioTrack
 
 private:
     class DeathNotifier : public IBinder::DeathRecipient {

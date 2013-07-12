@@ -122,11 +122,9 @@ private:
                 // client write-only, server read-only
                 uint16_t    mSendLevel;      // Fixed point U4.12 so 0x1000 means 1.0
 
-                uint8_t     mPad2;           // unused
+                uint16_t    mPad2;           // unused
 
 public:
-                // read-only for client, server writes once at initialization and is then read-only
-                uint8_t     mName;           // normal tracks: track name, fast tracks: track index
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
 

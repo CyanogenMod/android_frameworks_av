@@ -106,6 +106,7 @@ public:
     bool isInvalid() const { return mIsInvalid; }
     virtual bool isTimedTrack() const { return false; }
     bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+    int fastIndex() const { return mFastIndex; }
 
 protected:
 
