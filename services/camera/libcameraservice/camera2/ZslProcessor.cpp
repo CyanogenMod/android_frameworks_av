@@ -128,7 +128,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
 
     if (mZslConsumer == 0) {
         // Create CPU buffer queue endpoint
-        mZslConsumer = new BufferItemConsumer(
+        sp<BufferQueue> bq = new BufferQueue();
+        mZslConsumer = new BufferItemConsumer(bq,
             GRALLOC_USAGE_HW_CAMERA_ZSL,
             kZslBufferDepth,
             true);

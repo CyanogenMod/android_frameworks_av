@@ -568,7 +568,8 @@ void NativeWindowRenderer::destroyRenderInput(RenderInput* input) {
 RenderInput::RenderInput(NativeWindowRenderer* renderer, GLuint textureId)
     : mRenderer(renderer)
     , mTextureId(textureId) {
-    mST = new GLConsumer(mTextureId);
+    sp<BufferQueue> bq = new BufferQueue();
+    mST = new GLConsumer(bq, mTextureId);
     mSTC = new Surface(mST->getBufferQueue());
     native_window_connect(mSTC.get(), NATIVE_WINDOW_API_MEDIA);
 }
