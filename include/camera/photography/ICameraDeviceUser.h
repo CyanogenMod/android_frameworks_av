@@ -58,9 +58,8 @@ public:
                                                  /*out*/
                                                  CameraMetadata* request) = 0;
     // Get static camera metadata
-    virtual status_t        getCameraInfo(int cameraId,
-                                          /*out*/
-                                          camera_metadata** info) = 0;
+    virtual status_t        getCameraInfo(/*out*/
+                                          CameraMetadata* info) = 0;
 
 };
 

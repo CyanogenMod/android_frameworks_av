@@ -151,21 +151,22 @@ public:
     }
 
 
-    virtual status_t getCameraInfo(int cameraId, camera_metadata** info)
+    virtual status_t getCameraInfo(CameraMetadata* info)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
-        data.writeInt32(cameraId);
         remote()->transact(GET_CAMERA_INFO, data, &reply);
-
 
         reply.readExceptionCode();
         status_t result = reply.readInt32();
 
+        CameraMetadata out;
         if (reply.readInt32() != 0) {
-            CameraMetadata::readFromParcel(reply, /*out*/info);
-        } else if (info) {
-            *info = NULL;
+            out.readFromParcel(&reply);
+        }
+
+        if (info != NULL) {
+            info->swap(out);
         }
 
         return result;
@@ -273,6 +274,7 @@ status_t BnCameraDeviceUser::onTransact(
             reply->writeNoException();
             reply->writeInt32(ret);
 
+            // out-variables are after exception and return value
             reply->writeInt32(1); // to mark presence of metadata object
             request.writeToParcel(const_cast<Parcel*>(reply));
 
@@ -281,19 +283,16 @@ status_t BnCameraDeviceUser::onTransact(
         case GET_CAMERA_INFO: {
             CHECK_INTERFACE(ICameraDeviceUser, data, reply);
 
-            int cameraId = data.readInt32();
-
-            camera_metadata_t* info = NULL;
+            CameraMetadata info;
             status_t ret;
-            ret = getCameraInfo(cameraId, &info);
-
-            reply->writeInt32(1); // to mark presence of metadata object
-            CameraMetadata::writeToParcel(*reply, info);
+            ret = getCameraInfo(&info);
 
             reply->writeNoException();
             reply->writeInt32(ret);
 
-            free_camera_metadata(info);
+            // out-variables are after exception and return value
+            reply->writeInt32(1); // to mark presence of metadata object
+            info.writeToParcel(reply);
 
             return NO_ERROR;
         } break;

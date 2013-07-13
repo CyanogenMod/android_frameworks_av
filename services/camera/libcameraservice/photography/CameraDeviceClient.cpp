@@ -391,19 +391,12 @@ status_t CameraDeviceClient::createDefaultRequest(int templateId,
     return res;
 }
 
-status_t CameraDeviceClient::getCameraInfo(int cameraId,
-                                         /*out*/
-                                         camera_metadata** info)
+status_t CameraDeviceClient::getCameraInfo(/*out*/CameraMetadata* info)
 {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
     status_t res = OK;
-
-    // TODO: remove cameraId. this should be device-specific info, not static.
-    if (cameraId != mCameraId) {
-        return INVALID_OPERATION;
-    }
 
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
@@ -411,8 +404,10 @@ status_t CameraDeviceClient::getCameraInfo(int cameraId,
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
-    CameraMetadata deviceInfo = mDevice->info();
-    *info = deviceInfo.release();
+    if (info != NULL) {
+        *info = mDevice->info(); // static camera metadata
+        // TODO: merge with device-specific camera metadata
+    }
 
     return res;
 }

@@ -85,9 +85,7 @@ public:
 
     // Get the static metadata for the camera
     // -- Caller owns the newly allocated metadata
-    virtual status_t      getCameraInfo(int cameraId,
-                                        /*out*/
-                                        camera_metadata** info);
+    virtual status_t      getCameraInfo(/*out*/CameraMetadata* info);
 
     /**
      * Interface used by CameraService
