@@ -134,7 +134,6 @@ void Crypto::findFactoryForScheme(const uint8_t uuid[16]) {
         return;
     }
 
-    ALOGE("Failed to find crypto plugin");
     mInitCheck = ERROR_UNSUPPORTED;
 }
 
@@ -151,6 +150,7 @@ bool Crypto::loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]) {
     if (!mLibrary.get()) {
         mLibrary = new SharedLibrary(path);
         if (!*mLibrary) {
+            ALOGE("loadLibraryForScheme failed:%s", mLibrary->lastError());
             return false;
         }
 
@@ -165,6 +165,7 @@ bool Crypto::loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]) {
     if (createCryptoFactory == NULL ||
         (mFactory = createCryptoFactory()) == NULL ||
         !mFactory->isCryptoSchemeSupported(uuid)) {
+        ALOGE("createCryptoFactory failed:%s", mLibrary->lastError());
         closeFactory();
         return false;
     }

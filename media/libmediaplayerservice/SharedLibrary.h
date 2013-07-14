@@ -29,6 +29,7 @@ namespace android {
 
         bool operator!() const;
         void *lookup(const char *symbol) const;
+        const char *lastError() const;
 
     private:
         void *mLibHandle;

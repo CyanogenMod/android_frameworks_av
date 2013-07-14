@@ -46,4 +46,10 @@ namespace android {
         }
         return dlsym(mLibHandle, symbol);
     }
+
+    const char *SharedLibrary::lastError() const {
+        const char *error = dlerror();
+        return error ? error : "No errors or unknown error";
+    }
+
 };
