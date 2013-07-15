@@ -246,6 +246,8 @@ public:
     static uint32_t getPrimaryOutputSamplingRate();
     static size_t getPrimaryOutputFrameCount();
 
+    static status_t setLowRamDevice(bool isLowRamDevice);
+
     // Check if hw offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming or offload property is enabled
     static bool isOffloadSupported(const audio_offload_info_t& info);

@@ -73,6 +73,7 @@ enum {
     LOAD_HW_MODULE,
     GET_PRIMARY_OUTPUT_SAMPLING_RATE,
     GET_PRIMARY_OUTPUT_FRAME_COUNT,
+    SET_LOW_RAM_DEVICE,
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -698,6 +699,15 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t setLowRamDevice(bool isLowRamDevice)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int) isLowRamDevice);
+        remote()->transact(SET_LOW_RAM_DEVICE, data, &reply);
+        return reply.readInt32();
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1057,6 +1067,12 @@ status_t BnAudioFlinger::onTransact(
         case GET_PRIMARY_OUTPUT_FRAME_COUNT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32(getPrimaryOutputFrameCount());
+            return NO_ERROR;
+        } break;
+        case SET_LOW_RAM_DEVICE: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            bool isLowRamDevice = data.readInt32() != 0;
+            reply->writeInt32(setLowRamDevice(isLowRamDevice));
             return NO_ERROR;
         } break;
         default:

@@ -220,6 +220,8 @@ public:
     virtual uint32_t getPrimaryOutputSamplingRate();
     virtual size_t getPrimaryOutputFrameCount();
 
+    virtual status_t setLowRamDevice(bool isLowRamDevice);
+
     virtual     status_t    onTransact(
                                 uint32_t code,
                                 const Parcel& data,
@@ -623,6 +625,15 @@ public:
     static const size_t kTeeSinkTrackFramesDefault = 0x1000;
 #endif
 
+    // This method reads from a variable without mLock, but the variable is updated under mLock.  So
+    // we might read a stale value, or a value that's inconsistent with respect to other variables.
+    // In this case, it's safe because the return value isn't used for making an important decision.
+    // The reason we don't want to take mLock is because it could block the caller for a long time.
+    bool    isLowRamDevice() const { return mIsLowRamDevice; }
+
+private:
+    bool    mIsLowRamDevice;
+    bool    mIsDeviceTypeKnown;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H

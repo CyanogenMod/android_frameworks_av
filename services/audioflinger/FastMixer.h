@@ -85,10 +85,14 @@ struct FastTrackDump {
 // Only POD types are permitted, and the contents shouldn't be trusted (i.e. do range checks).
 // It has a different lifetime than the FastMixer, and so it can't be a member of FastMixer.
 struct FastMixerDumpState {
-    FastMixerDumpState();
+    FastMixerDumpState(
+#ifdef FAST_MIXER_STATISTICS
+            uint32_t samplingN = kSamplingNforLowRamDevice
+#endif
+            );
     /*virtual*/ ~FastMixerDumpState();
 
-    void dump(int fd);          // should only be called on a stable copy, not the original
+    void dump(int fd) const;    // should only be called on a stable copy, not the original
 
     FastMixerState::Command mCommand;   // current command
     uint32_t mWriteSequence;    // incremented before and after each write()
@@ -106,8 +110,15 @@ struct FastMixerDumpState {
 
 #ifdef FAST_MIXER_STATISTICS
     // Recently collected samples of per-cycle monotonic time, thread CPU time, and CPU frequency.
-    // kSamplingN is the size of the sampling frame, and must be a power of 2 <= 0x8000.
+    // kSamplingN is max size of sampling frame (statistics), and must be a power of 2 <= 0x8000.
+    // The sample arrays are virtually allocated based on this compile-time constant,
+    // but are only initialized and used based on the runtime parameter mSamplingN.
     static const uint32_t kSamplingN = 0x8000;
+    // Compile-time constant for a "low RAM device", must be a power of 2 <= kSamplingN.
+    // This value was chosen such that each array uses 1 small page (4 Kbytes).
+    static const uint32_t kSamplingNforLowRamDevice = 0x400;
+    // Corresponding runtime maximum size of sample arrays, must be a power of 2 <= kSamplingN.
+    uint32_t mSamplingN;
     // The bounds define the interval of valid samples, and are represented as follows:
     //      newest open (excluded) endpoint   = lower 16 bits of bounds, modulo N
     //      oldest closed (included) endpoint = upper 16 bits of bounds, modulo N
@@ -119,6 +130,8 @@ struct FastMixerDumpState {
 #ifdef CPU_FREQUENCY_STATISTICS
     uint32_t mCpukHz[kSamplingN];       // absolute CPU clock frequency in kHz, bits 0-3 are CPU#
 #endif
+    // Increase sampling window after construction, must be a power of 2 <= kSamplingN
+    void    increaseSamplingN(uint32_t samplingN);
 #endif
 };
 

@@ -197,6 +197,10 @@ public:
     virtual uint32_t getPrimaryOutputSamplingRate() = 0;
     virtual size_t getPrimaryOutputFrameCount() = 0;
 
+    // Intended for AudioService to inform AudioFlinger of device's low RAM attribute,
+    // and should be called at most once.  For a definition of what "low RAM" means, see
+    // android.app.ActivityManager.isLowRamDevice().
+    virtual status_t setLowRamDevice(bool isLowRamDevice) = 0;
 };
 
 
