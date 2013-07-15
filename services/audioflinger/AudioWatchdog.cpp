@@ -17,8 +17,11 @@
 #define LOG_TAG "AudioWatchdog"
 //#define LOG_NDEBUG 0
 
+#include "Configuration.h"
 #include <utils/Log.h>
 #include "AudioWatchdog.h"
+
+#ifdef AUDIO_WATCHDOG
 
 namespace android {
 
@@ -132,3 +135,5 @@ void AudioWatchdog::setDump(AudioWatchdogDump *dump)
 }
 
 }   // namespace android
+
+#endif // AUDIO_WATCHDOG

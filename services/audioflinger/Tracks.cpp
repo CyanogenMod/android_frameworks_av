@@ -19,6 +19,7 @@
 #define LOG_TAG "AudioFlinger"
 //#define LOG_NDEBUG 0
 
+#include "Configuration.h"
 #include <math.h>
 #include <cutils/compiler.h>
 #include <utils/Log.h>

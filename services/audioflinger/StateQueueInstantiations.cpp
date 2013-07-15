@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "Configuration.h"
 #include "FastMixerState.h"
 #include "StateQueue.h"
 
