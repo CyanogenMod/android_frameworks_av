@@ -266,10 +266,9 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         audio_devices_t outDevice, audio_devices_t inDevice, type_t type)
     :   Thread(false /*canCallJava*/),
         mType(type),
-        mAudioFlinger(audioFlinger), mSampleRate(0), mFrameCount(0), mNormalFrameCount(0),
-        // mChannelMask
-        mChannelCount(0),
-        mFrameSize(1), mFormat(AUDIO_FORMAT_INVALID),
+        mAudioFlinger(audioFlinger),
+        // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, and mFormat are
+        // set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
         mParamStatus(NO_ERROR),
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
@@ -424,8 +423,6 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
     snprintf(buffer, SIZE, "Sample rate: %u\n", mSampleRate);
     result.append(buffer);
     snprintf(buffer, SIZE, "HAL frame count: %d\n", mFrameCount);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Normal frame count: %d\n", mNormalFrameCount);
     result.append(buffer);
     snprintf(buffer, SIZE, "Channel Count: %u\n", mChannelCount);
     result.append(buffer);
@@ -932,6 +929,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              audio_devices_t device,
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
+        mNormalFrameCount(0), mMixBuffer(NULL),
         mAllocMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
@@ -1053,6 +1051,8 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     String8 result;
 
     snprintf(buffer, SIZE, "\nOutput thread %p internals\n", this);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "Normal frame count: %d\n", mNormalFrameCount);
     result.append(buffer);
     snprintf(buffer, SIZE, "last write occurred (msecs): %llu\n",
             ns2ms(systemTime() - mLastWriteTime));
@@ -4920,7 +4920,6 @@ void AudioFlinger::RecordThread::readInputParameters()
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mInputBytes = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mInputBytes / mFrameSize;
-    mNormalFrameCount = mFrameCount; // not used by record, but used by input effects
     mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2)

@@ -126,10 +126,8 @@ public:
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
                 audio_format_t format() const { return mFormat; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
-                // and returns the normal mix buffer's frame count.
-                size_t      frameCount() const { return mNormalFrameCount; }
-                // Return's the HAL's frame count i.e. fast mixer buffer size.
-                size_t      frameCountHAL() const { return mFrameCount; }
+                // and returns the [normal mix] buffer's frame count.
+    virtual     size_t      frameCount() const = 0;
                 size_t      frameSize() const { return mFrameSize; }
 
     // Should be "virtual status_t requestExitAndWait()" and override same
@@ -263,9 +261,11 @@ protected:
                 Condition               mWaitWorkCV;
 
                 const sp<AudioFlinger>  mAudioFlinger;
+
+                // updated by PlaybackThread::readOutputParameters() or
+                // RecordThread::readInputParameters()
                 uint32_t                mSampleRate;
                 size_t                  mFrameCount;       // output HAL, direct output, record
-                size_t                  mNormalFrameCount; // normal mixer and effects
                 audio_channel_mask_t    mChannelMask;
                 uint32_t                mChannelCount;
                 size_t                  mFrameSize;
@@ -461,8 +461,15 @@ public:
                 // called with AudioFlinger lock held
                         void     invalidateTracks(audio_stream_type_t streamType);
 
+    virtual     size_t      frameCount() const { return mNormalFrameCount; }
+
+                // Return's the HAL's frame count i.e. fast mixer buffer size.
+                size_t      frameCountHAL() const { return mFrameCount; }
 
 protected:
+    // updated by readOutputParameters()
+    size_t                          mNormalFrameCount;  // normal mixer and effects
+
     int16_t*                        mMixBuffer;         // frame size aligned mix buffer
     int8_t*                         mAllocMixBuffer;    // mixer buffer allocation address
 
@@ -871,6 +878,8 @@ public:
     static void syncStartEventCallback(const wp<SyncEvent>& event);
            void handleSyncStartEvent(const sp<SyncEvent>& event);
 
+    virtual size_t      frameCount() const { return mFrameCount; }
+
 private:
             void clearSyncStartEvent();
 
@@ -886,6 +895,8 @@ private:
             // is used together with mStartStopCond to indicate start()/stop() progress
             sp<RecordTrack>                     mActiveTrack;
             Condition                           mStartStopCond;
+
+            // updated by RecordThread::readInputParameters()
             AudioResampler                      *mResampler;
             int32_t                             *mRsmpOutBuffer;
             int16_t                             *mRsmpInBuffer;
