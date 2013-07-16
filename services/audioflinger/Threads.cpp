@@ -1385,16 +1385,13 @@ void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
 
 String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
 {
-    String8 out_s8 = String8("");
-    char *s;
-
     Mutex::Autolock _l(mLock);
     if (initCheck() != NO_ERROR) {
-        return out_s8;
+        return String8();
     }
 
-    s = mOutput->stream->common.get_parameters(&mOutput->stream->common, keys.string());
-    out_s8 = String8(s);
+    char *s = mOutput->stream->common.get_parameters(&mOutput->stream->common, keys.string());
+    const String8 out_s8(s);
     free(s);
     return out_s8;
 }
@@ -4317,16 +4314,13 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
 
 String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
 {
-    char *s;
-    String8 out_s8 = String8();
-
     Mutex::Autolock _l(mLock);
     if (initCheck() != NO_ERROR) {
-        return out_s8;
+        return String8();
     }
 
-    s = mInput->stream->common.get_parameters(&mInput->stream->common, keys.string());
-    out_s8 = String8(s);
+    char *s = mInput->stream->common.get_parameters(&mInput->stream->common, keys.string());
+    const String8 out_s8(s);
     free(s);
     return out_s8;
 }
