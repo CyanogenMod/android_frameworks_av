@@ -50,6 +50,7 @@
 #include <QCMediaDefs.h>
 
 #include "include/ExtendedExtractor.h"
+#include "include/avc_utils.h"
 
 namespace android {
 
@@ -455,6 +456,7 @@ bool QCUtils::checkIsThumbNailMode(const uint32_t flags, char* componentName) {
     return isInThumbnailMode;
 }
 
+
 void QCUtils::helper_mpeg4extractor_checkAC3EAC3(MediaBuffer *buffer,
                                                         sp<MetaData> &format,
                                                         size_t size) {
@@ -475,6 +477,38 @@ void QCUtils::helper_mpeg4extractor_checkAC3EAC3(MediaBuffer *buffer,
             *((uint8_t *)buffer->data() + count+1) = tmp;
         }
     }
+}
+
+void QCUtils::setArbitraryModeIfInterlaced(
+        const uint8_t *ptr, const sp<MetaData> &meta) {
+
+    if (ptr == NULL) {
+        return;
+    }
+    uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
+    int32_t width = 0, height = 0, isInterlaced = 0;
+    const uint8_t *spsStart = &ptr[8];
+
+    sp<ABuffer> seqParamSet = new ABuffer(spsSize);
+    memcpy(seqParamSet->data(), spsStart, spsSize);
+    FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL, &isInterlaced);
+
+    ALOGV("height is %d, width is %d, isInterlaced is %d\n", height, width, isInterlaced);
+    if (isInterlaced) {
+        meta->setInt32(kKeyUseArbitraryMode, 1);
+        meta->setInt32(kKeyInterlace, 1);
+    }
+    return;
+}
+
+int32_t QCUtils::checkIsInterlace(sp<MetaData> &meta) {
+    int32_t isInterlaceFormat = 0;
+
+    if(!meta->findInt32(kKeyInterlace, &isInterlaceFormat)) {
+        ALOGW("interlace format not detected");
+    }
+
+    return isInterlaceFormat;
 }
 
 }
@@ -554,6 +588,14 @@ bool QCUtils::checkIsThumbNailMode(const uint32_t flags, char* componentName) {
 void QCUtils::helper_mpeg4extractor_checkAC3EAC3(MediaBuffer *buffer,
                                                         sp<MetaData> &format,
                                                         size_t size) {
+}
+
+void QCUtils::setArbitraryModeIfInterlaced(
+        const uint8_t *ptr, const sp<MetaData> &meta) {
+}
+
+int32_t QCUtils::checkIsInterlace(sp<MetaData> &meta) {
+    return false;
 }
 
 }

@@ -661,6 +661,8 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
 
+            QCUtils::setArbitraryModeIfInterlaced((const uint8_t *)data, meta);
+
             CODEC_LOGI(
                     "AVC profile = %u (%s), level = %u",
                     profile, AVCProfileToString(profile), level);
@@ -3559,6 +3561,8 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
     size_t offset = 0;
     int32_t n = 0;
+    int32_t InterlaceFormatDetected = false;
+    int32_t InterlaceFrameCount = 0;
 
 
     for (;;) {
@@ -3605,6 +3609,9 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
             mBufferFilled.signal();
             break;
         }
+
+        sp<MetaData> metaData = mSource->getFormat();
+        InterlaceFormatDetected = QCUtils::checkIsInterlace(metaData);
 
         if (mFlags & kUseSecureInputBuffers) {
             info = findInputBufferByDataPointer(srcBuffer->data());
@@ -3764,9 +3771,14 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
     OMX_U32 flags = OMX_BUFFERFLAG_ENDOFFRAME;
 
+    if(InterlaceFormatDetected) {
+        InterlaceFrameCount++;
+    }
+
     if (signalEOS) {
         flags |= OMX_BUFFERFLAG_EOS;
-    } else if(QCUtils::checkIsThumbNailMode(mFlags, mComponentName)) {
+    } else if(QCUtils::checkIsThumbNailMode(mFlags, mComponentName)
+                   && (!InterlaceFormatDetected || InterlaceFrameCount>= 2)) {
         // Because we don't get an EOS after getting the first frame, we
         // need to notify the component with OMX_BUFFERFLAG_EOS, set
         // mNoMoreOutputData to false so fillOutputBuffer gets called on
