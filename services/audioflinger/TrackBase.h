@@ -124,7 +124,7 @@ protected:
                         // support dynamic rates, the current value is in control block
     const audio_format_t mFormat;
     const audio_channel_mask_t mChannelMask;
-    const uint8_t       mChannelCount;
+    const uint32_t      mChannelCount;
     const size_t        mFrameSize; // AudioFlinger's view of frame size in shared memory,
                                     // where for AudioTrack (but not AudioRecord),
                                     // 8-bit PCM samples are stored as 16-bit
