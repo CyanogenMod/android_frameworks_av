@@ -82,7 +82,8 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
 
     if (mCaptureConsumer == 0) {
         // Create CPU buffer queue endpoint
-        mCaptureConsumer = new CpuConsumer(1);
+        sp<BufferQueue> bq = new BufferQueue();
+        mCaptureConsumer = new CpuConsumer(bq, 1);
         mCaptureConsumer->setFrameAvailableListener(this);
         mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
         mCaptureWindow = new Surface(

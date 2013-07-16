@@ -319,7 +319,8 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
         // always acquire and free a buffer when the heap is full; otherwise the consumer
         // will have buffers in flight we'll never clear out.
-        mRecordingConsumer = new BufferItemConsumer(
+        sp<BufferQueue> bq = new BufferQueue();
+        mRecordingConsumer = new BufferItemConsumer(bq,
                 GRALLOC_USAGE_HW_VIDEO_ENCODER,
                 mRecordingHeapCount + 1,
                 true);

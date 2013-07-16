@@ -211,7 +211,8 @@ status_t Camera3InputStream::configureQueueLocked() {
     mFrameCount = 0;
 
     if (mConsumer.get() == 0) {
-        mConsumer = new BufferItemConsumer(camera3_stream::usage,
+        sp<BufferQueue> bq = new BufferQueue();
+        mConsumer = new BufferItemConsumer(bq, camera3_stream::usage,
                                            mTotalBufferCount,
                                            /*synchronousMode*/true);
         mConsumer->setName(String8::format("Camera3-InputStream-%d", mId));
