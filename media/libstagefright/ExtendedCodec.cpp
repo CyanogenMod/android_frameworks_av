@@ -282,16 +282,14 @@ void ExtendedCodec::configureVideoCodec(
         return;
     }
 
-    int32_t arbitraryMode = 1;
+    int32_t arbitraryMode = 0;
     bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
-    bool useArbitraryMode = true;
-    if (success) {
-        useArbitraryMode = arbitraryMode ? true : false;
+    bool useFrameByFrameMode = true; //default option
+    if (success && arbitraryMode) {
+        useFrameByFrameMode = false;
     }
 
-    if (useArbitraryMode) {
-        ALOGI("Decoder should be in arbitrary mode");
-    } else{
+    if (useFrameByFrameMode) {
         ALOGI("Enable frame by frame mode");
         OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
         portFmt.nPortIndex = kPortIndexInput;
@@ -301,6 +299,8 @@ void ExtendedCodec::configureVideoCodec(
         if(err != OK) {
             ALOGW("Failed to set frame packing format on component");
         }
+    } else {
+        ALOGI("Decoder should be in arbitrary mode");
     }
 
     // Enable timestamp reordering only for AVI/mpeg4 and vc1 clips
