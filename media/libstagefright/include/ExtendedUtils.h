@@ -131,6 +131,10 @@ struct ExtendedUtils {
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 
+    static void setArbitraryModeIfInterlaced(
+            const uint8_t *ptr, const sp<MetaData> &meta);
+
+    static int32_t checkIsInterlace(sp<MetaData> &meta);
 };
 
 }
