@@ -2739,8 +2739,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             track->mObservedUnderruns = underruns;
             // don't count underruns that occur while stopping or pausing
             // or stopped which can occur when flush() is called while active
-            if (!(track->isStopping() || track->isPausing() || track->isStopped())) {
-                track->mUnderrunCount += recentUnderruns;
+            if (!(track->isStopping() || track->isPausing() || track->isStopped()) &&
+                    recentUnderruns > 0) {
+                // FIXME fast mixer will pull & mix partial buffers, but we count as a full underrun
+                track->mAudioTrackServerProxy->tallyUnderrunFrames(recentUnderruns * mFrameCount);
             }
 
             // This is similar to the state machine for normal tracks,
@@ -3056,12 +3058,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 mixerStatus = MIXER_TRACKS_READY;
             }
         } else {
-            // only implemented for normal tracks, not fast tracks
             if (framesReady < desiredFrames && !track->isStopped() && !track->isPaused()) {
-                // we missed desiredFrames whatever the actual number of frames missing was
-                cblk->u.mStreaming.mUnderrunFrames += desiredFrames;
-                // FIXME also wake futex so that underrun is noticed more quickly
-                (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
+                track->mAudioTrackServerProxy->tallyUnderrunFrames(desiredFrames);
             }
             // clear effect chain input buffer if an active track underruns to avoid sending
             // previous audio buffer again to effects
@@ -3086,7 +3084,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     tracksToRemove->add(track);
                 }
             } else {
-                track->mUnderrunCount++;
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
                 if (--(track->mRetryCount) <= 0) {

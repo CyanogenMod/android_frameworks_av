@@ -661,6 +661,14 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
     return old;
 }
 
+void AudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
+{
+    mCblk->u.mStreaming.mUnderrunFrames += frameCount;
+
+    // FIXME also wake futex so that underrun is noticed more quickly
+    (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
+}
+
 // ---------------------------------------------------------------------------
 
 StaticAudioTrackServerProxy::StaticAudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers,
@@ -815,6 +823,17 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     buffer->mFrameCount = 0;
     buffer->mRaw = NULL;
     buffer->mNonContig = 0;
+}
+
+void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
+{
+    // Unlike AudioTrackServerProxy::tallyUnderrunFrames() used for streaming tracks,
+    // we don't have a location to count underrun frames.  The underrun frame counter
+    // only exists in AudioTrackSharedStreaming.  Fortunately, underruns are not
+    // possible for static buffer tracks other than at end of buffer, so this is not a loss.
+
+    // FIXME also wake futex so that underrun is noticed more quickly
+    (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
 }
 
 // ---------------------------------------------------------------------------

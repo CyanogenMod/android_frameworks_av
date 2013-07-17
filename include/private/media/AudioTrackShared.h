@@ -415,6 +415,13 @@ public:
     virtual void        framesReadyIsCalledByMultipleThreads() { }
 
     bool     setStreamEndDone();    // and return previous value
+
+    // Add to the tally of underrun frames, and inform client of underrun
+    virtual void        tallyUnderrunFrames(uint32_t frameCount);
+
+    // Return the total number of frames which AudioFlinger desired but were unavailable,
+    // and thus which resulted in an underrun.
+    virtual uint32_t    getUnderrunFrames() const { return mCblk->u.mStreaming.mUnderrunFrames; }
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {
@@ -429,6 +436,8 @@ public:
     virtual void        framesReadyIsCalledByMultipleThreads();
     virtual status_t    obtainBuffer(Buffer* buffer);
     virtual void        releaseBuffer(Buffer* buffer);
+    virtual void        tallyUnderrunFrames(uint32_t frameCount);
+    virtual uint32_t    getUnderrunFrames() const { return 0; }
 
 private:
     ssize_t             pollPosition(); // poll for state queue update, and return current position

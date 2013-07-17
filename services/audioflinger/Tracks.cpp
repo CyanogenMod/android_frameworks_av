@@ -316,7 +316,6 @@ AudioFlinger::PlaybackThread::Track::Track(
     mPresentationCompleteFrames(0),
     mFlags(flags),
     mFastIndex(-1),
-    mUnderrunCount(0),
     mCachedVolume(1.0),
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
@@ -389,7 +388,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
     result.append("   Name Client Type Fmt Chn mask Session fCount S F SRate  "
-                  "L dB  R dB    Server Main buf  Aux Buf Flags Underruns\n");
+                  "L dB  R dB    Server Main buf  Aux Buf Flags UndFrmCnt\n");
 }
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
@@ -470,7 +469,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
             (int)mMainBuffer,
             (int)mAuxBuffer,
             mCblk->mFlags,
-            mUnderrunCount,
+            mAudioTrackServerProxy->getUnderrunFrames(),
             nowInUnderrun);
 }
 
@@ -489,10 +488,7 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
     buffer->frameCount = buf.mFrameCount;
     buffer->raw = buf.mRaw;
     if (buf.mFrameCount == 0) {
-        // only implemented so far for normal tracks, not fast tracks
-        mCblk->u.mStreaming.mUnderrunFrames += desiredFrames;
-        // FIXME also wake futex so that underrun is noticed more quickly
-        (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
+        mAudioTrackServerProxy->tallyUnderrunFrames(desiredFrames);
     }
     return status;
 }
