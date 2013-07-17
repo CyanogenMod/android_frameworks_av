@@ -245,10 +245,6 @@ void AudioFlinger::TrackHandle::pause() {
     mTrack->pause();
 }
 
-status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) {
-    return mTrack->setParameters(keyValuePairs);
-}
-
 status_t AudioFlinger::TrackHandle::attachAuxEffect(int EffectId)
 {
     return mTrack->attachAuxEffect(EffectId);
@@ -284,6 +280,10 @@ status_t AudioFlinger::TrackHandle::setMediaTimeTransform(
             reinterpret_cast<PlaybackThread::TimedTrack*>(mTrack.get());
     return tt->setMediaTimeTransform(
         xform, static_cast<TimedAudioTrack::TargetTimeline>(target));
+}
+
+status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) {
+    return mTrack->setParameters(keyValuePairs);
 }
 
 status_t AudioFlinger::TrackHandle::onTransact(
