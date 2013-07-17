@@ -454,7 +454,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         } break;
     case OUTPUT_CLOSED: {
         if (gOutputs.indexOfKey(ioHandle) < 0) {
-            ALOGW("ioConfigChanged() closing unknow output! %d", ioHandle);
+            ALOGW("ioConfigChanged() closing unknown output! %d", ioHandle);
             break;
         }
         ALOGV("ioConfigChanged() output %d closed", ioHandle);
@@ -465,7 +465,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
     case OUTPUT_CONFIG_CHANGED: {
         int index = gOutputs.indexOfKey(ioHandle);
         if (index < 0) {
-            ALOGW("ioConfigChanged() modifying unknow output! %d", ioHandle);
+            ALOGW("ioConfigChanged() modifying unknown output! %d", ioHandle);
             break;
         }
         if (param2 == NULL) break;
