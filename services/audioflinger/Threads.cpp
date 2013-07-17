@@ -282,6 +282,12 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
 
 AudioFlinger::ThreadBase::~ThreadBase()
 {
+    // mConfigEvents should be empty, but just in case it isn't, free the memory it owns
+    for (size_t i = 0; i < mConfigEvents.size(); i++) {
+        delete mConfigEvents[i];
+    }
+    mConfigEvents.clear();
+
     mParamCond.broadcast();
     // do not lock the mutex in destructor
     releaseWakeLock_l();

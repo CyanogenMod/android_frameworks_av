@@ -290,6 +290,7 @@ protected:
                 Vector<String8>         mNewParameters;
                 status_t                mParamStatus;
 
+                // vector owns each ConfigEvent *, so must delete after removing
                 Vector<ConfigEvent *>     mConfigEvents;
 
                 // These fields are written and read by thread itself without lock or barrier,
