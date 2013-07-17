@@ -113,6 +113,13 @@ struct MuxOMX : public IOMX {
             const char *parameter_name,
             OMX_INDEXTYPE *index);
 
+    virtual status_t setInternalOption(
+            node_id node,
+            OMX_U32 port_index,
+            InternalOptionType type,
+            const void *data,
+            size_t size);
+
 private:
     mutable Mutex mLock;
 
@@ -329,6 +336,15 @@ status_t MuxOMX::getExtensionIndex(
         const char *parameter_name,
         OMX_INDEXTYPE *index) {
     return getOMX(node)->getExtensionIndex(node, parameter_name, index);
+}
+
+status_t MuxOMX::setInternalOption(
+        node_id node,
+        OMX_U32 port_index,
+        InternalOptionType type,
+        const void *data,
+        size_t size) {
+    return getOMX(node)->setInternalOption(node, port_index, type, data, size);
 }
 
 OMXClient::OMXClient() {

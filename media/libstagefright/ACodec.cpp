@@ -4106,6 +4106,19 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
         }
     }
 
+    int32_t dropInputFrames;
+    if (params->findInt32("drop-input-frames", &dropInputFrames)) {
+        bool suspend = dropInputFrames != 0;
+
+        CHECK_EQ((status_t)OK,
+                 mOMX->setInternalOption(
+                     mNode,
+                     kPortIndexInput,
+                     IOMX::INTERNAL_OPTION_SUSPEND,
+                     &suspend,
+                     sizeof(suspend)));
+    }
+
     return OK;
 }
 

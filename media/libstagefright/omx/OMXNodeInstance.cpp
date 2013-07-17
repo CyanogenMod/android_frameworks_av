@@ -238,6 +238,18 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+    if (bufferSource != NULL
+            && cmd == OMX_CommandStateSet
+            && param == OMX_StateLoaded) {
+        // Initiating transition from Executing -> Loaded
+        // Buffers are about to be freed.
+        bufferSource->omxLoaded();
+        setGraphicBufferSource(NULL);
+
+        // fall through
+    }
+
     Mutex::Autolock autoLock(mLock);
 
     OMX_ERRORTYPE err = OMX_SendCommand(mHandle, cmd, param, NULL);
@@ -769,6 +781,36 @@ status_t OMXNodeInstance::getExtensionIndex(
     return StatusFromOMXError(err);
 }
 
+status_t OMXNodeInstance::setInternalOption(
+        OMX_U32 portIndex,
+        IOMX::InternalOptionType type,
+        const void *data,
+        size_t size) {
+    switch (type) {
+        case IOMX::INTERNAL_OPTION_SUSPEND:
+        {
+            const sp<GraphicBufferSource> &bufferSource =
+                getGraphicBufferSource();
+
+            if (bufferSource == NULL || portIndex != kPortIndexInput) {
+                return ERROR_UNSUPPORTED;
+            }
+
+            if (size != sizeof(bool)) {
+                return INVALID_OPERATION;
+            }
+
+            bool suspend = *(bool *)data;
+            bufferSource->suspend(suspend);
+
+            return OK;
+        }
+
+        default:
+            return ERROR_UNSUPPORTED;
+    }
+}
+
 void OMXNodeInstance::onMessage(const omx_message &msg) {
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
@@ -818,16 +860,11 @@ void OMXNodeInstance::onEvent(
         OMX_EVENTTYPE event, OMX_U32 arg1, OMX_U32 arg2) {
     const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
 
-    if (bufferSource != NULL && event == OMX_EventCmdComplete &&
-            arg1 == OMX_CommandStateSet) {
-        if (arg2 == OMX_StateExecuting) {
-            bufferSource->omxExecuting();
-        } else if (arg2 == OMX_StateLoaded) {
-            // Must be shutting down -- won't have a GraphicBufferSource
-            // on the way up.
-            bufferSource->omxLoaded();
-            setGraphicBufferSource(NULL);
-        }
+    if (bufferSource != NULL
+            && event == OMX_EventCmdComplete
+            && arg1 == OMX_CommandStateSet
+            && arg2 == OMX_StateExecuting) {
+        bufferSource->omxExecuting();
     }
 }
 
