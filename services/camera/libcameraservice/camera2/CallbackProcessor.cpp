@@ -111,8 +111,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         // Create CPU buffer queue endpoint, since app hasn't given us one
         // Make it async to avoid disconnect deadlocks
         sp<BufferQueue> bq = new BufferQueue();
-        mCallbackConsumer = new CpuConsumer(bq, kCallbackHeapCount,
-                /*synchronized*/ false);
+        mCallbackConsumer = new CpuConsumer(bq, kCallbackHeapCount);
         mCallbackConsumer->setFrameAvailableListener(this);
         mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
         mCallbackWindow = new Surface(

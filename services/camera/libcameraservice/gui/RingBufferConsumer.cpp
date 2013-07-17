@@ -36,11 +36,10 @@ namespace android {
 
 RingBufferConsumer::RingBufferConsumer(uint32_t consumerUsage,
         int bufferCount) :
-    ConsumerBase(new BufferQueue(true)),
+    ConsumerBase(new BufferQueue()),
     mBufferCount(bufferCount)
 {
     mBufferQueue->setConsumerUsageBits(consumerUsage);
-    mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
 
     assert(bufferCount > 0);

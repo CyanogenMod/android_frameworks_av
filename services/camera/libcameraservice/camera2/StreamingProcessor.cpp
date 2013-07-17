@@ -322,8 +322,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         sp<BufferQueue> bq = new BufferQueue();
         mRecordingConsumer = new BufferItemConsumer(bq,
                 GRALLOC_USAGE_HW_VIDEO_ENCODER,
-                mRecordingHeapCount + 1,
-                true);
+                mRecordingHeapCount + 1);
         mRecordingConsumer->setFrameAvailableListener(this);
         mRecordingConsumer->setName(String8("Camera2-RecordingConsumer"));
         mRecordingWindow = new Surface(
