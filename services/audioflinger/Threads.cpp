@@ -1410,7 +1410,7 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
     switch (event) {
     case AudioSystem::OUTPUT_OPENED:
     case AudioSystem::OUTPUT_CONFIG_CHANGED:
-        desc.channels = mChannelMask;
+        desc.channelMask = mChannelMask;
         desc.samplingRate = mSampleRate;
         desc.format = mFormat;
         desc.frameCount = mNormalFrameCount; // FIXME see
@@ -2974,7 +2974,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
             }
         }
         if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
-            if (value != AUDIO_CHANNEL_OUT_STEREO) {
+            if ((audio_channel_mask_t) value != AUDIO_CHANNEL_OUT_STEREO) {
                 status = BAD_VALUE;
             } else {
                 reconfig = true;
@@ -4338,7 +4338,7 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param) {
     switch (event) {
     case AudioSystem::INPUT_OPENED:
     case AudioSystem::INPUT_CONFIG_CHANGED:
-        desc.channels = mChannelMask;
+        desc.channelMask = mChannelMask;
         desc.samplingRate = mSampleRate;
         desc.format = mFormat;
         desc.frameCount = mFrameCount;
