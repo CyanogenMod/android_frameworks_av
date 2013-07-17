@@ -23,6 +23,8 @@
 #include <OMX_VideoExt.h>
 #include <OMX_IndexExt.h>
 
+#include <hardware/gralloc.h>
+
 #include "vpx/vpx_encoder.h"
 #include "vpx/vpx_codec.h"
 #include "vpx/vp8cx.h"
@@ -57,14 +59,13 @@ namespace android {
 //    - OMX timestamps are in microseconds, therefore
 // encoder timebase is fixed to 1/1000000
 
-class SoftVPXEncoder : public SimpleSoftOMXComponent {
- public:
+struct SoftVPXEncoder : public SimpleSoftOMXComponent {
     SoftVPXEncoder(const char *name,
                    const OMX_CALLBACKTYPE *callbacks,
                    OMX_PTR appData,
                    OMX_COMPONENTTYPE **component);
 
- protected:
+protected:
     virtual ~SoftVPXEncoder();
 
     // Returns current values for requested OMX
@@ -83,7 +84,10 @@ class SoftVPXEncoder : public SimpleSoftOMXComponent {
     // encoding of the frame
     virtual void onQueueFilled(OMX_U32 portIndex);
 
- private:
+    virtual OMX_ERRORTYPE getExtensionIndex(
+            const char *name, OMX_INDEXTYPE *index);
+
+private:
     // number of buffers allocated per port
     static const uint32_t kNumBuffers = 4;
 
@@ -155,6 +159,9 @@ class SoftVPXEncoder : public SimpleSoftOMXComponent {
     // It is only allocated if input format is
     // indeed YUV420SemiPlanar.
     uint8_t* mConversionBuffer;
+
+    bool mInputDataIsMeta;
+    const hw_module_t *mGrallocModule;
 
     // Initializes input and output OMX ports with sensible
     // default values.
