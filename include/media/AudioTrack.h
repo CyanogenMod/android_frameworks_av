@@ -75,8 +75,10 @@ public:
         size_t      frameCount;   // number of sample frames corresponding to size;
                                   // on input it is the number of frames desired,
                                   // on output is the number of frames actually filled
+                                  // (currently ignored, but will make the primary field in future)
 
         size_t      size;         // input/output in bytes == frameCount * frameSize
+                                  // on output is the number of bytes actually filled
                                   // FIXME this is redundant with respect to frameCount,
                                   // and TRANSFER_OBTAIN mode is broken for 8-bit data
                                   // since we don't define the frame format

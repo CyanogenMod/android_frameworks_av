@@ -31,8 +31,14 @@
 //        and this may result in an audible artifact
 //      needs read-only access to a recent stable state,
 //        but not necessarily the most current one
+//      only allocate and free memory when configuration changes
+//      avoid conventional logging, as this is a form of I/O and could block
+//      defer computation to other threads when feasible; for example
+//        cycle times are collected by fast mixer thread but the floating-point
+//        statistical calculations on these cycle times are computed by normal mixer
+//      these requirements also apply to callouts such as AudioBufferProvider and VolumeProvider
 //  Normal mixer thread:
-//      periodic with typical period ~40 ms
+//      periodic with typical period ~20 ms
 //      SCHED_OTHER scheduling policy and nice priority == urgent audio
 //      ok to block, but prefer to avoid as much as possible
 //      needs read/write access to state
