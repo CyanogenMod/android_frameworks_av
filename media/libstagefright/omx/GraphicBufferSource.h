@@ -85,6 +85,10 @@ public:
     // have a codec buffer ready, we just set the mEndOfStream flag.
     status_t signalEndOfInputStream();
 
+    // If suspend is true, all incoming buffers (including those currently
+    // in the BufferQueue) will be discarded until the suspension is lifted.
+    void suspend(bool suspend);
+
 protected:
     // BufferQueue::ConsumerListener interface, called when a new frame of
     // data is available.  If we're executing and a codec buffer is
@@ -154,6 +158,8 @@ private:
 
     // Set by omxExecuting() / omxIdling().
     bool mExecuting;
+
+    bool mSuspended;
 
     // We consume graphic buffers from this.
     sp<BufferQueue> mBufferQueue;

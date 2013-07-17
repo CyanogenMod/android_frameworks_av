@@ -36,6 +36,7 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
     mExecuting(false),
+    mSuspended(false),
     mNumFramesAvailable(0),
     mEndOfStream(false),
     mEndOfStreamSent(false) {
@@ -237,8 +238,42 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     return;
 }
 
+void GraphicBufferSource::suspend(bool suspend) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (suspend) {
+        mSuspended = true;
+
+        while (mNumFramesAvailable > 0) {
+            BufferQueue::BufferItem item;
+            status_t err = mBufferQueue->acquireBuffer(&item, 0);
+
+            if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
+                // shouldn't happen.
+                ALOGW("suspend: frame was not available");
+                break;
+            } else if (err != OK) {
+                ALOGW("suspend: acquireBuffer returned err=%d", err);
+                break;
+            }
+
+            --mNumFramesAvailable;
+
+            mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+        }
+        return;
+    }
+
+    mSuspended = false;
+}
+
 bool GraphicBufferSource::fillCodecBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable > 0);
+
+    if (mSuspended) {
+        return false;
+    }
 
     int cbi = findAvailableCodecBuffer_l();
     if (cbi < 0) {
@@ -416,10 +451,15 @@ void GraphicBufferSource::onFrameAvailable() {
     ALOGV("onFrameAvailable exec=%d avail=%d",
             mExecuting, mNumFramesAvailable);
 
-    if (mEndOfStream) {
-        // This should only be possible if a new buffer was queued after
-        // EOS was signaled, i.e. the app is misbehaving.
-        ALOGW("onFrameAvailable: EOS is set, ignoring frame");
+    if (mEndOfStream || mSuspended) {
+        if (mEndOfStream) {
+            // This should only be possible if a new buffer was queued after
+            // EOS was signaled, i.e. the app is misbehaving.
+
+            ALOGW("onFrameAvailable: EOS is set, ignoring frame");
+        } else {
+            ALOGV("onFrameAvailable: suspended, ignoring frame");
+        }
 
         BufferQueue::BufferItem item;
         status_t err = mBufferQueue->acquireBuffer(&item, 0);

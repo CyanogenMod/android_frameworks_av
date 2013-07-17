@@ -109,6 +109,13 @@ public:
             const char *parameter_name,
             OMX_INDEXTYPE *index);
 
+    virtual status_t setInternalOption(
+            node_id node,
+            OMX_U32 port_index,
+            InternalOptionType type,
+            const void *data,
+            size_t size);
+
     virtual void binderDied(const wp<IBinder> &the_late_who);
 
     OMX_ERRORTYPE OnEvent(

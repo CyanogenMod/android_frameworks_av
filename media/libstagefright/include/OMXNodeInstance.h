@@ -96,6 +96,12 @@ struct OMXNodeInstance {
     status_t getExtensionIndex(
             const char *parameterName, OMX_INDEXTYPE *index);
 
+    status_t setInternalOption(
+            OMX_U32 portIndex,
+            IOMX::InternalOptionType type,
+            const void *data,
+            size_t size);
+
     void onMessage(const omx_message &msg);
     void onObserverDied(OMXMaster *master);
     void onGetHandleFailed();
