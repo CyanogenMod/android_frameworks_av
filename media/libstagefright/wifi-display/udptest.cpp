@@ -18,11 +18,11 @@
 #define LOG_TAG "udptest"
 #include <utils/Log.h>
 
-#include "ANetworkSession.h"
 #include "TimeSyncer.h"
 
 #include <binder/ProcessState.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 
 namespace android {
 

@@ -18,12 +18,11 @@
 
 #define WIFI_DISPLAY_SINK_H_
 
-#include "ANetworkSession.h"
-
 #include "VideoFormats.h"
 
 #include <gui/Surface.h>
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 
 namespace android {
 

@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/hexdump.h>
 
 namespace android {
 
@@ -89,6 +90,7 @@ ssize_t ParsedMessage::parse(const char *data, size_t size, bool noMoreData) {
     ssize_t lastDictIndex = -1;
 
     size_t offset = 0;
+    bool headersComplete = false;
     while (offset < size) {
         size_t lineEndOffset = offset;
         while (lineEndOffset + 1 < size
@@ -113,6 +115,8 @@ ssize_t ParsedMessage::parse(const char *data, size_t size, bool noMoreData) {
         }
 
         if (lineEndOffset == offset) {
+            // An empty line separates headers from body.
+            headersComplete = true;
             offset += 2;
             break;
         }
@@ -146,11 +150,16 @@ ssize_t ParsedMessage::parse(const char *data, size_t size, bool noMoreData) {
         offset = lineEndOffset + 2;
     }
 
+    if (!headersComplete && (!noMoreData || offset == 0)) {
+        // We either saw the empty line separating headers from body
+        // or we saw at least the status line and know that no more data
+        // is going to follow.
+        return -1;
+    }
+
     for (size_t i = 0; i < mDict.size(); ++i) {
         mDict.editValueAt(i).trim();
     }
-
-    // Found the end of headers.
 
     int32_t contentLength;
     if (!findInt32("content-length", &contentLength) || contentLength < 0) {
@@ -168,13 +177,17 @@ ssize_t ParsedMessage::parse(const char *data, size_t size, bool noMoreData) {
     return totalLength;
 }
 
-void ParsedMessage::getRequestField(size_t index, AString *field) const {
+bool ParsedMessage::getRequestField(size_t index, AString *field) const {
     AString line;
     CHECK(findString("_", &line));
 
     size_t prevOffset = 0;
     size_t offset = 0;
     for (size_t i = 0; i <= index; ++i) {
+        if (offset >= line.size()) {
+            return false;
+        }
+
         ssize_t spacePos = line.find(" ", offset);
 
         if (spacePos < 0) {
@@ -186,11 +199,16 @@ void ParsedMessage::getRequestField(size_t index, AString *field) const {
     }
 
     field->setTo(line, prevOffset, offset - prevOffset - 1);
+
+    return true;
 }
 
 bool ParsedMessage::getStatusCode(int32_t *statusCode) const {
     AString statusCodeString;
-    getRequestField(1, &statusCodeString);
+    if (!getRequestField(1, &statusCodeString)) {
+        *statusCode = 0;
+        return false;
+    }
 
     char *end;
     *statusCode = strtol(statusCodeString.c_str(), &end, 10);

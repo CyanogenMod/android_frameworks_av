@@ -93,6 +93,9 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
                 err = mSource->start(params.get());
             } else {
                 err = mSource->start();
+                if (err != OK) {
+                    ALOGE("source failed to start w/ err %d", err);
+                }
             }
 
             if (err == OK) {

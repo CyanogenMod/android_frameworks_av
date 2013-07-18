@@ -22,13 +22,13 @@
 
 #include "DirectRenderer.h"
 #include "MediaReceiver.h"
-#include "ParsedMessage.h"
 #include "TimeSyncer.h"
 
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ParsedMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 

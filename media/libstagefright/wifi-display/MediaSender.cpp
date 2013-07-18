@@ -20,7 +20,6 @@
 
 #include "MediaSender.h"
 
-#include "ANetworkSession.h"
 #include "rtp/RTPSender.h"
 #include "source/TSPacketizer.h"
 
@@ -31,6 +30,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 #include <ui/GraphicBuffer.h>
 
 namespace android {

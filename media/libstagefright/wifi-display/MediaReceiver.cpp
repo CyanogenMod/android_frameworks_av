@@ -20,13 +20,13 @@
 
 #include "MediaReceiver.h"
 
-#include "ANetworkSession.h"
 #include "AnotherPacketSource.h"
 #include "rtp/RTPReceiver.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 

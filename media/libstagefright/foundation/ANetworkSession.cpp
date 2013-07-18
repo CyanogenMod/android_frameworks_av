@@ -34,9 +34,20 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/hexdump.h>
-#include <media/stagefright/Utils.h>
 
 namespace android {
+
+static uint16_t U16_AT(const uint8_t *ptr) {
+    return ptr[0] << 8 | ptr[1];
+}
+
+static uint32_t U32_AT(const uint8_t *ptr) {
+    return ptr[0] << 24 | ptr[1] << 16 | ptr[2] << 8 | ptr[3];
+}
+
+static uint64_t U64_AT(const uint8_t *ptr) {
+    return ((uint64_t)U32_AT(ptr)) << 32 | U32_AT(ptr + 4);
+}
 
 static const size_t kMaxUDPSize = 1500;
 static const int32_t kMaxUDPRetries = 200;
@@ -56,6 +67,12 @@ private:
 };
 
 struct ANetworkSession::Session : public RefBase {
+    enum Mode {
+        MODE_RTSP,
+        MODE_DATAGRAM,
+        MODE_WEBSOCKET,
+    };
+
     enum State {
         CONNECTING,
         CONNECTED,
@@ -85,7 +102,9 @@ struct ANetworkSession::Session : public RefBase {
     status_t sendRequest(
             const void *data, ssize_t size, bool timeValid, int64_t timeUs);
 
-    void setIsRTSPConnection(bool yesno);
+    void setMode(Mode mode);
+
+    status_t switchToWebSocketMode();
 
 protected:
     virtual ~Session();
@@ -102,7 +121,7 @@ private:
 
     int32_t mSessionID;
     State mState;
-    bool mIsRTSPConnection;
+    Mode mMode;
     int mSocket;
     sp<AMessage> mNotify;
     bool mSawReceiveFailure, mSawSendFailure;
@@ -145,7 +164,7 @@ ANetworkSession::Session::Session(
         const sp<AMessage> &notify)
     : mSessionID(sessionID),
       mState(state),
-      mIsRTSPConnection(false),
+      mMode(MODE_DATAGRAM),
       mSocket(s),
       mNotify(notify),
       mSawReceiveFailure(false),
@@ -209,8 +228,18 @@ int ANetworkSession::Session::socket() const {
     return mSocket;
 }
 
-void ANetworkSession::Session::setIsRTSPConnection(bool yesno) {
-    mIsRTSPConnection = yesno;
+void ANetworkSession::Session::setMode(Mode mode) {
+    mMode = mode;
+}
+
+status_t ANetworkSession::Session::switchToWebSocketMode() {
+    if (mState != CONNECTED || mMode != MODE_RTSP) {
+        return INVALID_OPERATION;
+    }
+
+    mMode = MODE_WEBSOCKET;
+
+    return OK;
 }
 
 sp<AMessage> ANetworkSession::Session::getNotificationMessage() const {
@@ -238,6 +267,8 @@ bool ANetworkSession::Session::wantsToWrite() {
 
 status_t ANetworkSession::Session::readMore() {
     if (mState == DATAGRAM) {
+        CHECK_EQ(mMode, MODE_DATAGRAM);
+
         status_t err;
         do {
             sp<ABuffer> buf = new ABuffer(kMaxUDPSize);
@@ -326,7 +357,7 @@ status_t ANetworkSession::Session::readMore() {
         err = -ECONNRESET;
     }
 
-    if (!mIsRTSPConnection) {
+    if (mMode == MODE_DATAGRAM) {
         // TCP stream carrying 16-bit length-prefixed datagrams.
 
         while (mInBuffer.size() >= 2) {
@@ -350,7 +381,7 @@ status_t ANetworkSession::Session::readMore() {
 
             mInBuffer.erase(0, packetSize + 2);
         }
-    } else {
+    } else if (mMode == MODE_RTSP) {
         for (;;) {
             size_t length;
 
@@ -416,6 +447,69 @@ status_t ANetworkSession::Session::readMore() {
             if (err != OK) {
                 break;
             }
+        }
+    } else {
+        CHECK_EQ(mMode, MODE_WEBSOCKET);
+
+        const uint8_t *data = (const uint8_t *)mInBuffer.c_str();
+        // hexdump(data, mInBuffer.size());
+
+        while (mInBuffer.size() >= 2) {
+            size_t offset = 2;
+
+            unsigned payloadLen = data[1] & 0x7f;
+            if (payloadLen == 126) {
+                if (offset + 2 > mInBuffer.size()) {
+                    break;
+                }
+
+                payloadLen = U16_AT(&data[offset]);
+                offset += 2;
+            } else if (payloadLen == 127) {
+                if (offset + 8 > mInBuffer.size()) {
+                    break;
+                }
+
+                payloadLen = U64_AT(&data[offset]);
+                offset += 8;
+            }
+
+            uint32_t mask = 0;
+            if (data[1] & 0x80) {
+                // MASK==1
+                if (offset + 4 > mInBuffer.size()) {
+                    break;
+                }
+
+                mask = U32_AT(&data[offset]);
+                offset += 4;
+            }
+
+            if (offset + payloadLen > mInBuffer.size()) {
+                break;
+            }
+
+            // We have the full message.
+
+            sp<ABuffer> packet = new ABuffer(payloadLen);
+            memcpy(packet->data(), &data[offset], payloadLen);
+
+            if (mask != 0) {
+                for (size_t i = 0; i < payloadLen; ++i) {
+                    packet->data()[i] =
+                        data[offset + i]
+                            ^ ((mask >> (8 * (3 - (i % 4)))) & 0xff);
+                }
+            }
+
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("sessionID", mSessionID);
+            notify->setInt32("reason", kWhatWebSocketMessage);
+            notify->setBuffer("data", packet);
+            notify->setInt32("headerByte", data[0]);
+            notify->post();
+
+            mInBuffer.erase(0, offset + payloadLen);
         }
     }
 
@@ -608,13 +702,61 @@ status_t ANetworkSession::Session::sendRequest(
 
     sp<ABuffer> buffer;
 
-    if (mState == CONNECTED && !mIsRTSPConnection) {
+    if (mState == CONNECTED && mMode == MODE_DATAGRAM) {
         CHECK_LE(size, 65535);
 
         buffer = new ABuffer(size + 2);
         buffer->data()[0] = size >> 8;
         buffer->data()[1] = size & 0xff;
         memcpy(buffer->data() + 2, data, size);
+    } else if (mState == CONNECTED && mMode == MODE_WEBSOCKET) {
+        static const bool kUseMask = false;  // Chromium doesn't like it.
+
+        size_t numHeaderBytes = 2 + (kUseMask ? 4 : 0);
+        if (size > 65535) {
+            numHeaderBytes += 8;
+        } else if (size > 125) {
+            numHeaderBytes += 2;
+        }
+
+        buffer = new ABuffer(numHeaderBytes + size);
+        buffer->data()[0] = 0x81;  // FIN==1 | opcode=1 (text)
+        buffer->data()[1] = kUseMask ? 0x80 : 0x00;
+
+        if (size > 65535) {
+            buffer->data()[1] |= 127;
+            buffer->data()[2] = 0x00;
+            buffer->data()[3] = 0x00;
+            buffer->data()[4] = 0x00;
+            buffer->data()[5] = 0x00;
+            buffer->data()[6] = (size >> 24) & 0xff;
+            buffer->data()[7] = (size >> 16) & 0xff;
+            buffer->data()[8] = (size >> 8) & 0xff;
+            buffer->data()[9] = size & 0xff;
+        } else if (size > 125) {
+            buffer->data()[1] |= 126;
+            buffer->data()[2] = (size >> 8) & 0xff;
+            buffer->data()[3] = size & 0xff;
+        } else {
+            buffer->data()[1] |= size;
+        }
+
+        if (kUseMask) {
+            uint32_t mask = rand();
+
+            buffer->data()[numHeaderBytes - 4] = (mask >> 24) & 0xff;
+            buffer->data()[numHeaderBytes - 3] = (mask >> 16) & 0xff;
+            buffer->data()[numHeaderBytes - 2] = (mask >> 8) & 0xff;
+            buffer->data()[numHeaderBytes - 1] = mask & 0xff;
+
+            for (size_t i = 0; i < (size_t)size; ++i) {
+                buffer->data()[numHeaderBytes + i] =
+                    ((const uint8_t *)data)[i]
+                        ^ ((mask >> (8 * (3 - (i % 4)))) & 0xff);
+            }
+        } else {
+            memcpy(buffer->data() + numHeaderBytes, data, size);
+        }
     } else {
         buffer = new ABuffer(size);
         memcpy(buffer->data(), data, size);
@@ -1001,9 +1143,9 @@ status_t ANetworkSession::createClientOrServer(
             notify);
 
     if (mode == kModeCreateTCPDatagramSessionActive) {
-        session->setIsRTSPConnection(false);
+        session->setMode(Session::MODE_DATAGRAM);
     } else if (mode == kModeCreateRTSPClient) {
-        session->setIsRTSPConnection(true);
+        session->setMode(Session::MODE_RTSP);
     }
 
     mSessions.add(session->sessionID(), session);
@@ -1078,6 +1220,19 @@ status_t ANetworkSession::sendRequest(
     interrupt();
 
     return err;
+}
+
+status_t ANetworkSession::switchToWebSocketMode(int32_t sessionID) {
+    Mutex::Autolock autoLock(mLock);
+
+    ssize_t index = mSessions.indexOfKey(sessionID);
+
+    if (index < 0) {
+        return -ENOENT;
+    }
+
+    const sp<Session> session = mSessions.valueAt(index);
+    return session->switchToWebSocketMode();
 }
 
 void ANetworkSession::interrupt() {
@@ -1213,8 +1368,10 @@ void ANetworkSession::threadLoop() {
                                         clientSocket,
                                         session->getNotificationMessage());
 
-                            clientSession->setIsRTSPConnection(
-                                    session->isRTSPServer());
+                            clientSession->setMode(
+                                    session->isRTSPServer()
+                                        ? Session::MODE_RTSP
+                                        : Session::MODE_DATAGRAM);
 
                             sessionsToAdd.push_back(clientSession);
                         }
