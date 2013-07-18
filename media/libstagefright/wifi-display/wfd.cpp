@@ -175,7 +175,8 @@ static void createSource(const AString &addr, int32_t port) {
     iface.append(StringPrintf(":%d", port).c_str());
 
     sp<RemoteDisplayClient> client = new RemoteDisplayClient;
-    sp<IRemoteDisplay> display = service->listenForRemoteDisplay(client, iface);
+    sp<IRemoteDisplay> display =
+        service->listenForRemoteDisplay(client, iface);
 
     client->waitUntilDone();
 

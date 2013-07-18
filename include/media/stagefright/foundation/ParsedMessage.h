@@ -32,7 +32,7 @@ struct ParsedMessage : public RefBase {
 
     const char *getContent() const;
 
-    void getRequestField(size_t index, AString *field) const;
+    bool getRequestField(size_t index, AString *field) const;
     bool getStatusCode(int32_t *statusCode) const;
 
     AString debugString() const;

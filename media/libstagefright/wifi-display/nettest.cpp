@@ -18,7 +18,6 @@
 #define LOG_TAG "nettest"
 #include <utils/Log.h>
 
-#include "ANetworkSession.h"
 #include "TimeSyncer.h"
 
 #include <binder/ProcessState.h>
@@ -27,6 +26,7 @@
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaDefs.h>

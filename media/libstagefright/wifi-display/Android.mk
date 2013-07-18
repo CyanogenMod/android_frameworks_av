@@ -3,11 +3,9 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-        ANetworkSession.cpp             \
         MediaReceiver.cpp               \
         MediaSender.cpp                 \
         Parameters.cpp                  \
-        ParsedMessage.cpp               \
         rtp/RTPAssembler.cpp            \
         rtp/RTPReceiver.cpp             \
         rtp/RTPSender.cpp               \

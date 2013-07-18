@@ -18,10 +18,10 @@
 
 #define WIFI_DISPLAY_SOURCE_H_
 
-#include "ANetworkSession.h"
 #include "VideoFormats.h"
 
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 
 #include <netinet/in.h>
 
