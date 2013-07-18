@@ -244,6 +244,58 @@ void QCUtils::setBFrames(
     return;
 }
 
+/*
+QCOM HW AAC encoder allowed bitrates
+------------------------------------------------------------------------------------------------------------------
+Bitrate limit |AAC-LC(Mono)           | AAC-LC(Stereo)        |AAC+(Mono)            | AAC+(Stereo)            | eAAC+                      |
+Minimum     |Min(24000,0.5 * f_s)   |Min(24000,f_s)           | 24000                      |24000                        |  24000                       |
+Maximum    |Min(192000,6 * f_s)    |Min(192000,12 * f_s)  | Min(192000,6 * f_s)  | Min(192000,12 * f_s)  |  Min(192000,12 * f_s) |
+------------------------------------------------------------------------------------------------------------------
+*/
+bool QCUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t BitRate,int32_t SampleRate)
+{
+    bool ret = false;
+    int minBiteRate = -1;
+    int maxBiteRate = -1;
+    char propValue[PROPERTY_VALUE_MAX] = {0};
+
+    property_get("qcom.hw.aac.encoder",propValue,NULL);
+    if (!strncmp(propValue,"true",sizeof("true"))) {
+        //check for QCOM's HW AAC encoder only when qcom.aac.encoder =  true;
+        ALOGV("qcom.aac.encoder enabled, check AAC encoder(%d) allowed bitrates",Encoder);
+        switch (Encoder) {
+        case AUDIO_ENCODER_AAC:// for AAC-LC format
+            if (Channel == 1) {//mono
+                minBiteRate = MIN_BITERATE_AAC<(SampleRate/2)?MIN_BITERATE_AAC:(SampleRate/2);
+                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*6)?MAX_BITERATE_AAC:(SampleRate*6);
+            } else if (Channel == 2) {//stereo
+                minBiteRate = MIN_BITERATE_AAC<SampleRate?MIN_BITERATE_AAC:SampleRate;
+                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*12)?MAX_BITERATE_AAC:(SampleRate*12);
+            }
+            break;
+        case AUDIO_ENCODER_HE_AAC:// for AAC+ format
+            if (Channel == 1) {//mono
+                minBiteRate = MIN_BITERATE_AAC;
+                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*6)?MAX_BITERATE_AAC:(SampleRate*6);
+            } else if (Channel == 2) {//stereo
+                minBiteRate = MIN_BITERATE_AAC;
+                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*12)?MAX_BITERATE_AAC:(SampleRate*12);
+            }
+            break;
+        default:
+            ALOGV("encoder:%d not supported by QCOM HW AAC encoder",Encoder);
+
+        }
+
+        //return true only when 1. minBiteRate and maxBiteRate are updated(not -1) 2. minBiteRate <= SampleRate <= maxBiteRate
+        if (SampleRate >= minBiteRate && SampleRate <= maxBiteRate) {
+            ret = true;
+        }
+    }
+
+    return ret;
+}
+
 sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
                                                             const sp<DataSource> &source,
                                                             const char *mime) {
@@ -381,6 +433,10 @@ void QCUtils::setBFrames(
         int32_t iFramesInterval, int32_t frameRate) {
 }
 
+bool QCUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,
+    int32_t BitRate,int32_t SampleRate) {
+    return false;
+}
 
 sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
                                                             const sp<DataSource> &source,

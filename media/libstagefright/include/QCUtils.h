@@ -36,6 +36,8 @@
 #include <camera/CameraParameters.h>
 #include <OMX_Video.h>
 
+#define MIN_BITERATE_AAC 24000
+#define MAX_BITERATE_AAC 192000
 
 namespace android {
 
@@ -104,6 +106,8 @@ struct QCUtils {
     //set B frames for H264
     static void setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
             int32_t iFramesInterval, int32_t frameRate);
+
+    static bool UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t BitRate, int32_t SampleRate);
 
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
               const sp<DataSource> &source, const char *mime);
