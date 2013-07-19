@@ -78,6 +78,9 @@ protected:
     virtual OMX_ERRORTYPE internalSetParameter(
             OMX_INDEXTYPE index, const OMX_PTR param);
 
+    virtual OMX_ERRORTYPE setConfig(
+            OMX_INDEXTYPE index, const OMX_PTR params);
+
     // OMX callback when buffers available
     // Note that both an input and output buffer
     // is expected to be available to carry out
@@ -162,6 +165,8 @@ private:
 
     bool mInputDataIsMeta;
     const hw_module_t *mGrallocModule;
+
+    bool mKeyFrameRequested;
 
     // Initializes input and output OMX ports with sensible
     // default values.

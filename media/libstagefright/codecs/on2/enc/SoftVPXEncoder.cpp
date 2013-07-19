@@ -149,7 +149,8 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mLevel(OMX_VIDEO_VP8Level_Version0),
       mConversionBuffer(NULL),
       mInputDataIsMeta(false),
-      mGrallocModule(NULL) {
+      mGrallocModule(NULL),
+      mKeyFrameRequested(false) {
     initPorts();
 }
 
@@ -519,6 +520,27 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetParameter(OMX_INDEXTYPE index,
     }
 }
 
+OMX_ERRORTYPE SoftVPXEncoder::setConfig(
+        OMX_INDEXTYPE index, const OMX_PTR _params) {
+    switch (index) {
+        case OMX_IndexConfigVideoIntraVOPRefresh:
+        {
+            OMX_CONFIG_INTRAREFRESHVOPTYPE *params =
+                (OMX_CONFIG_INTRAREFRESHVOPTYPE *)_params;
+
+            if (params->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            mKeyFrameRequested = params->IntraRefreshVOP;
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return SimpleSoftOMXComponent::setConfig(index, _params);
+    }
+}
+
 OMX_ERRORTYPE SoftVPXEncoder::internalSetProfileLevel(
         const OMX_VIDEO_PARAM_PROFILELEVELTYPE* profileAndLevel) {
     if (profileAndLevel->nPortIndex != kOutputPortIndex) {
@@ -750,12 +772,19 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
         vpx_image_t raw_frame;
         vpx_img_wrap(&raw_frame, VPX_IMG_FMT_I420, mWidth, mHeight,
                      kInputBufferAlignment, source);
+
+        vpx_enc_frame_flags_t flags = 0;
+        if (mKeyFrameRequested) {
+            flags |= VPX_EFLAG_FORCE_KF;
+            mKeyFrameRequested = false;
+        }
+
         codec_return = vpx_codec_encode(
                 mCodecContext,
                 &raw_frame,
                 inputBufferHeader->nTimeStamp,  // in timebase units
                 mFrameDurationUs,  // frame duration in timebase units
-                0,  // frame flags
+                flags,  // frame flags
                 VPX_DL_REALTIME);  // encoding deadline
         if (codec_return != VPX_CODEC_OK) {
             ALOGE("vpx encoder failed to encode frame");
