@@ -29,9 +29,8 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaCodec.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/MetaData.h>
-#include <media/stagefright/Utils.h>
 
 namespace android {
 
@@ -488,12 +487,38 @@ void DirectRenderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatQueueAccessUnit:
+            onQueueAccessUnit(msg);
+            break;
+
+        case kWhatSetFormat:
+            onSetFormat(msg);
+            break;
+
         default:
             TRESPASS();
     }
 }
 
 void DirectRenderer::setFormat(size_t trackIndex, const sp<AMessage> &format) {
+    sp<AMessage> msg = new AMessage(kWhatSetFormat, id());
+    msg->setSize("trackIndex", trackIndex);
+    msg->setMessage("format", format);
+    msg->post();
+}
+
+void DirectRenderer::onSetFormat(const sp<AMessage> &msg) {
+    size_t trackIndex;
+    CHECK(msg->findSize("trackIndex", &trackIndex));
+
+    sp<AMessage> format;
+    CHECK(msg->findMessage("format", &format));
+
+    internalSetFormat(trackIndex, format);
+}
+
+void DirectRenderer::internalSetFormat(
+        size_t trackIndex, const sp<AMessage> &format) {
     CHECK_LT(trackIndex, 2u);
 
     CHECK(mDecoderContext[trackIndex] == NULL);
@@ -517,18 +542,21 @@ void DirectRenderer::setFormat(size_t trackIndex, const sp<AMessage> &format) {
 
 void DirectRenderer::queueAccessUnit(
         size_t trackIndex, const sp<ABuffer> &accessUnit) {
+    sp<AMessage> msg = new AMessage(kWhatQueueAccessUnit, id());
+    msg->setSize("trackIndex", trackIndex);
+    msg->setBuffer("accessUnit", accessUnit);
+    msg->post();
+}
+
+void DirectRenderer::onQueueAccessUnit(const sp<AMessage> &msg) {
+    size_t trackIndex;
+    CHECK(msg->findSize("trackIndex", &trackIndex));
+
+    sp<ABuffer> accessUnit;
+    CHECK(msg->findBuffer("accessUnit", &accessUnit));
+
     CHECK_LT(trackIndex, 2u);
-
-    if (mDecoderContext[trackIndex] == NULL) {
-        CHECK_EQ(trackIndex, 0u);
-
-        sp<AMessage> format = new AMessage;
-        format->setString("mime", "video/avc");
-        format->setInt32("width", 640);
-        format->setInt32("height", 360);
-
-        setFormat(trackIndex, format);
-    }
+    CHECK(mDecoderContext[trackIndex] != NULL);
 
     mDecoderContext[trackIndex]->queueInputBuffer(accessUnit);
 }

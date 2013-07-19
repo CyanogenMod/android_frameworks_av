@@ -521,7 +521,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 if (mTracks.isEmpty()) {
                     ALOGI("Reached EOS");
                 }
-            } else {
+            } else if (what != Converter::kWhatShutdownCompleted) {
                 CHECK_EQ(what, Converter::kWhatError);
 
                 status_t err;
@@ -957,13 +957,15 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
     sp<Converter> converter = new Converter(notify, codecLooper, format);
 
-    err = converter->initCheck();
+    looper()->registerHandler(converter);
+
+    err = converter->init();
     if (err != OK) {
         ALOGE("%s converter returned err %d", isVideo ? "video" : "audio", err);
+
+        looper()->unregisterHandler(converter->id());
         return err;
     }
-
-    looper()->registerHandler(converter);
 
     notify = new AMessage(Converter::kWhatMediaPullerNotify, converter->id());
     notify->setSize("trackIndex", trackIndex);

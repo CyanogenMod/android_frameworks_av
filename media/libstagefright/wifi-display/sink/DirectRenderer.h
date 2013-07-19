@@ -43,6 +43,8 @@ private:
     enum {
         kWhatDecoderNotify,
         kWhatRenderVideo,
+        kWhatQueueAccessUnit,
+        kWhatSetFormat,
     };
 
     struct OutputInfo {
@@ -71,6 +73,11 @@ private:
 
     void scheduleVideoRenderIfNecessary();
     void onRenderVideo();
+
+    void onSetFormat(const sp<AMessage> &msg);
+    void onQueueAccessUnit(const sp<AMessage> &msg);
+
+    void internalSetFormat(size_t trackIndex, const sp<AMessage> &format);
 
     DISALLOW_EVIL_CONSTRUCTORS(DirectRenderer);
 };
