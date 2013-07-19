@@ -33,6 +33,9 @@ FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
     ProFrameProcessor(device),
     mClient(client),
     mLastFrameNumberOfFaces(0) {
+
+    sp<CameraDeviceBase> d = device.promote();
+    mSynthesize3ANotify = !(d->willNotify3A());
 }
 
 FrameProcessor::~FrameProcessor() {
@@ -48,6 +51,11 @@ bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
 
     if (processFaceDetect(frame, client) != OK) {
         return false;
+    }
+
+    if (mSynthesize3ANotify) {
+        // Ignoring missing fields for now
+        process3aState(frame, client);
     }
 
     if (!ProFrameProcessor::processSingleFrame(frame, device)) {
@@ -184,6 +192,99 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
 
     return OK;
 }
+
+status_t FrameProcessor::process3aState(const CameraMetadata &frame,
+        const sp<Camera2Client> &client) {
+
+    ATRACE_CALL();
+    camera_metadata_ro_entry_t entry;
+    int mId = client->getCameraId();
+
+    entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
+    int32_t frameNumber = entry.data.i32[0];
+
+    // Get 3A states from result metadata
+    bool gotAllStates = true;
+
+    AlgState new3aState;
+
+    entry = frame.find(ANDROID_CONTROL_AE_STATE);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No AE state provided by HAL for frame %d!",
+                __FUNCTION__, mId, frameNumber);
+        gotAllStates = false;
+    } else {
+        new3aState.aeState =
+                static_cast<camera_metadata_enum_android_control_ae_state>(
+                    entry.data.u8[0]);
+    }
+
+    entry = frame.find(ANDROID_CONTROL_AF_STATE);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No AF state provided by HAL for frame %d!",
+                __FUNCTION__, mId, frameNumber);
+        gotAllStates = false;
+    } else {
+        new3aState.afState =
+                static_cast<camera_metadata_enum_android_control_af_state>(
+                    entry.data.u8[0]);
+    }
+
+    entry = frame.find(ANDROID_CONTROL_AWB_STATE);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No AWB state provided by HAL for frame %d!",
+                __FUNCTION__, mId, frameNumber);
+        gotAllStates = false;
+    } else {
+        new3aState.awbState =
+                static_cast<camera_metadata_enum_android_control_awb_state>(
+                    entry.data.u8[0]);
+    }
+
+    int32_t afTriggerId = 0;
+    entry = frame.find(ANDROID_CONTROL_AF_TRIGGER_ID);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No AF trigger ID provided by HAL for frame %d!",
+                __FUNCTION__, mId, frameNumber);
+        gotAllStates = false;
+    } else {
+        afTriggerId = entry.data.i32[0];
+    }
+
+    int32_t aeTriggerId = 0;
+    entry = frame.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No AE precapture trigger ID provided by HAL"
+                " for frame %d!",
+                __FUNCTION__, mId, frameNumber);
+        gotAllStates = false;
+    } else {
+        aeTriggerId = entry.data.i32[0];
+    }
+
+    if (!gotAllStates) return BAD_VALUE;
+
+    if (new3aState.aeState != m3aState.aeState) {
+        ALOGV("%s: AE state changed from 0x%x to 0x%x",
+                __FUNCTION__, m3aState.aeState, new3aState.aeState);
+        client->notifyAutoExposure(new3aState.aeState, aeTriggerId);
+    }
+    if (new3aState.afState != m3aState.afState) {
+        ALOGV("%s: AF state changed from 0x%x to 0x%x",
+                __FUNCTION__, m3aState.afState, new3aState.afState);
+        client->notifyAutoFocus(new3aState.afState, afTriggerId);
+    }
+    if (new3aState.awbState != m3aState.awbState) {
+        ALOGV("%s: AWB state changed from 0x%x to 0x%x",
+                __FUNCTION__, m3aState.awbState, new3aState.awbState);
+        client->notifyAutoWhitebalance(new3aState.awbState, aeTriggerId);
+    }
+
+    m3aState = new3aState;
+
+    return OK;
+}
+
 
 void FrameProcessor::callbackFaceDetection(sp<Camera2Client> client,
                                      const camera_frame_metadata &metadata) {

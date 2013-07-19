@@ -59,6 +59,7 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
     virtual status_t waitUntilDrained();
     virtual status_t setNotifyCallback(NotificationListener *listener);
+    virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
     virtual status_t getNextFrame(CameraMetadata *frame);
     virtual status_t triggerAutofocus(uint32_t id);

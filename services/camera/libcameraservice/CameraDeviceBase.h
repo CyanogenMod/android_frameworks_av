@@ -156,6 +156,13 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t setNotifyCallback(NotificationListener *listener) = 0;
 
     /**
+     * Whether the device supports calling notifyAutofocus, notifyAutoExposure,
+     * and notifyAutoWhitebalance; if this returns false, the client must
+     * synthesize these notifications from received frame metadata.
+     */
+    virtual bool     willNotify3A() = 0;
+
+    /**
      * Wait for a new frame to be produced, with timeout in nanoseconds.
      * Returns TIMED_OUT when no frame produced within the specified duration
      */
