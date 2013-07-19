@@ -44,6 +44,9 @@ class FrameProcessor : public ProFrameProcessor {
 
   private:
     wp<Camera2Client> mClient;
+
+    bool mSynthesize3ANotify;
+
     int mLastFrameNumberOfFaces;
 
     void processNewFrames(const sp<Camera2Client> &client);
@@ -53,6 +56,22 @@ class FrameProcessor : public ProFrameProcessor {
 
     status_t processFaceDetect(const CameraMetadata &frame,
             const sp<Camera2Client> &client);
+
+    // Send 3A state change notifications to client based on frame metadata
+    status_t process3aState(const CameraMetadata &frame,
+            const sp<Camera2Client> &client);
+
+    struct AlgState {
+        camera_metadata_enum_android_control_ae_state  aeState;
+        camera_metadata_enum_android_control_af_state  afState;
+        camera_metadata_enum_android_control_awb_state awbState;
+
+        AlgState() :
+                aeState(ANDROID_CONTROL_AE_STATE_INACTIVE),
+                afState(ANDROID_CONTROL_AF_STATE_INACTIVE),
+                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE) {
+        }
+    } m3aState;
 
     // Emit FaceDetection event to java if faces changed
     void callbackFaceDetection(sp<Camera2Client> client,

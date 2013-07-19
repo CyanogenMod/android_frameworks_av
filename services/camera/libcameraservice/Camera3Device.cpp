@@ -837,6 +837,10 @@ status_t Camera3Device::setNotifyCallback(NotificationListener *listener) {
     return OK;
 }
 
+bool Camera3Device::willNotify3A() {
+    return false;
+}
+
 status_t Camera3Device::waitForNextFrame(nsecs_t timeout) {
     ATRACE_CALL();
     status_t res;
@@ -1235,13 +1239,6 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
     }
 
-    AlgState cur3aState;
-    AlgState new3aState;
-    int32_t aeTriggerId = 0;
-    int32_t afTriggerId = 0;
-
-    NotificationListener *listener = NULL;
-
     // Process the result metadata, if provided
     if (result->result != NULL) {
         Mutex::Autolock l(mOutputLock);
@@ -1280,59 +1277,6 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                     " metadata for frame %d (%lld vs %lld respectively)",
                     frameNumber, timestamp, entry.data.i64[0]);
         }
-
-        // Get 3A states from result metadata
-
-        entry = captureResult.find(ANDROID_CONTROL_AE_STATE);
-        if (entry.count == 0) {
-            CLOGE("No AE state provided by HAL for frame %d!",
-                    frameNumber);
-        } else {
-            new3aState.aeState =
-                    static_cast<camera_metadata_enum_android_control_ae_state>(
-                        entry.data.u8[0]);
-        }
-
-        entry = captureResult.find(ANDROID_CONTROL_AF_STATE);
-        if (entry.count == 0) {
-            CLOGE("No AF state provided by HAL for frame %d!",
-                    frameNumber);
-        } else {
-            new3aState.afState =
-                    static_cast<camera_metadata_enum_android_control_af_state>(
-                        entry.data.u8[0]);
-        }
-
-        entry = captureResult.find(ANDROID_CONTROL_AWB_STATE);
-        if (entry.count == 0) {
-            CLOGE("No AWB state provided by HAL for frame %d!",
-                    frameNumber);
-        } else {
-            new3aState.awbState =
-                    static_cast<camera_metadata_enum_android_control_awb_state>(
-                        entry.data.u8[0]);
-        }
-
-        entry = captureResult.find(ANDROID_CONTROL_AF_TRIGGER_ID);
-        if (entry.count == 0) {
-            CLOGE("No AF trigger ID provided by HAL for frame %d!",
-                    frameNumber);
-        } else {
-            afTriggerId = entry.data.i32[0];
-        }
-
-        entry = captureResult.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
-        if (entry.count == 0) {
-            CLOGE("No AE precapture trigger ID provided by HAL"
-                    " for frame %d!", frameNumber);
-        } else {
-            aeTriggerId = entry.data.i32[0];
-        }
-
-        listener = mListener;
-        cur3aState = m3AState;
-
-        m3AState = new3aState;
     } // scope for mOutputLock
 
     // Return completed buffers to their streams with the timestamp
@@ -1349,29 +1293,15 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
     }
 
-    // Finally, dispatch any 3A change events to listeners if we got metadata
+    // Finally, signal any waiters for new frames
 
     if (result->result != NULL) {
         mResultSignal.signal();
     }
 
-    if (result->result != NULL && listener != NULL) {
-        if (new3aState.aeState != cur3aState.aeState) {
-            ALOGVV("%s: AE state changed from 0x%x to 0x%x",
-                    __FUNCTION__, cur3aState.aeState, new3aState.aeState);
-            listener->notifyAutoExposure(new3aState.aeState, aeTriggerId);
-        }
-        if (new3aState.afState != cur3aState.afState) {
-            ALOGVV("%s: AF state changed from 0x%x to 0x%x",
-                    __FUNCTION__, cur3aState.afState, new3aState.afState);
-            listener->notifyAutoFocus(new3aState.afState, afTriggerId);
-        }
-        if (new3aState.awbState != cur3aState.awbState) {
-            listener->notifyAutoWhitebalance(new3aState.awbState, aeTriggerId);
-        }
-    }
-
 }
+
+
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
     NotificationListener *listener;

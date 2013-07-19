@@ -107,6 +107,7 @@ class Camera3Device :
     virtual status_t waitUntilDrained();
 
     virtual status_t setNotifyCallback(NotificationListener *listener);
+    virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
     virtual status_t getNextFrame(CameraMetadata *frame);
 
@@ -388,18 +389,6 @@ class Camera3Device :
     List<CameraMetadata>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;
-
-    struct AlgState {
-        camera_metadata_enum_android_control_ae_state  aeState;
-        camera_metadata_enum_android_control_af_state  afState;
-        camera_metadata_enum_android_control_awb_state awbState;
-
-        AlgState() :
-                aeState(ANDROID_CONTROL_AE_STATE_INACTIVE),
-                afState(ANDROID_CONTROL_AF_STATE_INACTIVE),
-                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE) {
-        }
-    } m3AState;
 
     /**** End scope for mOutputLock ****/
 
