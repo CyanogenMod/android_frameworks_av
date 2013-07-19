@@ -20,6 +20,7 @@
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
+#include "Configuration.h"
 #include <math.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -54,14 +55,11 @@
 #include "ServiceUtilities.h"
 #include "SchedulingPolicyService.h"
 
-#undef ADD_BATTERY_DATA
-
 #ifdef ADD_BATTERY_DATA
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaDeathNotifier.h>
 #endif
 
-// #define DEBUG_CPU_USAGE 10  // log statistics every n wall clock seconds
 #ifdef DEBUG_CPU_USAGE
 #include <cpustats/CentralTendencyStatistics.h>
 #include <cpustats/ThreadCpuUsage.h>

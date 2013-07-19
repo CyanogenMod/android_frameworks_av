@@ -17,6 +17,7 @@
 #define LOG_TAG "StateQueue"
 //#define LOG_NDEBUG 0
 
+#include "Configuration.h"
 #include <time.h>
 #include <cutils/atomic.h>
 #include <utils/Log.h>

@@ -25,6 +25,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
+#include "Configuration.h"
 #include <sys/atomics.h>
 #include <time.h>
 #include <utils/Log.h>
@@ -142,7 +143,9 @@ bool FastMixer::threadLoop()
                     preIdle = *current;
                     current = &preIdle;
                     oldTsValid = false;
+#ifdef FAST_MIXER_STATISTICS
                     oldLoadValid = false;
+#endif
                     ignoreNextOverrun = true;
                 }
                 previous = current;
@@ -182,8 +185,10 @@ bool FastMixer::threadLoop()
                 warmupCycles = 0;
                 sleepNs = -1;
                 coldGen = current->mColdGen;
+#ifdef FAST_MIXER_STATISTICS
                 bounds = 0;
                 full = false;
+#endif
                 oldTsValid = !clock_gettime(CLOCK_MONOTONIC, &oldTs);
             } else {
                 sleepNs = FAST_HOT_IDLE_NS;
@@ -614,12 +619,14 @@ FastMixerDumpState::FastMixerDumpState() :
 {
     mMeasuredWarmupTs.tv_sec = 0;
     mMeasuredWarmupTs.tv_nsec = 0;
+#ifdef FAST_MIXER_STATISTICS
     // sample arrays aren't accessed atomically with respect to the bounds,
     // so clearing reduces chance for dumpsys to read random uninitialized samples
     memset(&mMonotonicNs, 0, sizeof(mMonotonicNs));
     memset(&mLoadNs, 0, sizeof(mLoadNs));
 #ifdef CPU_FREQUENCY_STATISTICS
     memset(&mCpukHz, 0, sizeof(mCpukHz));
+#endif
 #endif
 }
 

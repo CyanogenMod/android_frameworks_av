@@ -18,6 +18,7 @@
 #define LOG_TAG "AudioMixer"
 //#define LOG_NDEBUG 0
 
+#include "Configuration.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
