@@ -445,6 +445,10 @@ status_t Camera2Device::setNotifyCallback(NotificationListener *listener) {
     return res;
 }
 
+bool Camera2Device::willNotify3A() {
+    return true;
+}
+
 void Camera2Device::notificationCallback(int32_t msg_type,
         int32_t ext1,
         int32_t ext2,
