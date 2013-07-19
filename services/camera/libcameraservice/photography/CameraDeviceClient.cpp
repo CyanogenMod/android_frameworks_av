@@ -176,7 +176,7 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
             ALOGE("%s: Camera %d:  Got error %d after trying to set streaming "
                   "request", __FUNCTION__, mCameraId, res);
         } else {
-            mStreamingRequestList.push_back(mRequestIdCounter);
+            mStreamingRequestList.push_back(requestId);
         }
     } else {
         res = mDevice->capture(metadata);
