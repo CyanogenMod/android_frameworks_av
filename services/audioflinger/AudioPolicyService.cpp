@@ -50,7 +50,7 @@ static const char kCmdDeadlockedString[] = "AudioPolicyService command thread ma
 static const int kDumpLockRetries = 50;
 static const int kDumpLockSleepUs = 20000;
 
-static const nsecs_t kAudioCommandTimeout = 3000000000; // 3 seconds
+static const nsecs_t kAudioCommandTimeout = 3000000000LL; // 3 seconds
 
 namespace {
     extern struct audio_policy_service_ops aps_ops;
