@@ -399,6 +399,14 @@ void QCUtils::updateNativeWindowBufferGeometry(ANativeWindow* anw,
     }
 }
 
+bool QCUtils::checkIsThumbNailMode(const uint32_t flags, char* componentName) {
+    bool isInThumbnailMode = false;
+    if ((flags & OMXCodec::kClientNeedsFramebuffer) && !strncmp(componentName, "OMX.qcom.", 9)) {
+        isInThumbnailMode = true;
+    }
+    return isInThumbnailMode;
+}
+
 }
 
 #else //ENABLE_QC_AV_ENHANCEMENTS
@@ -464,6 +472,10 @@ bool QCUtils::isAVCProfileSupported(int32_t  profile){
 
 void QCUtils::updateNativeWindowBufferGeometry(ANativeWindow* anw,
         OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat) {
+}
+
+bool QCUtils::checkIsThumbNailMode(const uint32_t flags, char* componentName) {
+    return false;
 }
 
 }

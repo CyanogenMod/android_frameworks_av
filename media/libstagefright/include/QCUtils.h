@@ -118,6 +118,8 @@ struct QCUtils {
     //notify stride change to ANW
     static void updateNativeWindowBufferGeometry(ANativeWindow* anw,
             OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
+
+    static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 };
 
 }
