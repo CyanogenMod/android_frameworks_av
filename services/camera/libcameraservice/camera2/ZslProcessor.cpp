@@ -131,8 +131,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
         sp<BufferQueue> bq = new BufferQueue();
         mZslConsumer = new BufferItemConsumer(bq,
             GRALLOC_USAGE_HW_CAMERA_ZSL,
-            kZslBufferDepth,
-            true);
+            kZslBufferDepth);
         mZslConsumer->setFrameAvailableListener(this);
         mZslConsumer->setName(String8("Camera2Client::ZslConsumer"));
         mZslWindow = new Surface(

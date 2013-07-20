@@ -21,7 +21,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <OMX_IVCommon.h>
-#include <MetadataBufferType.h>
+#include <media/hardware/MetadataBufferType.h>
 
 #include <ui/GraphicBuffer.h>
 #include <gui/ISurfaceComposer.h>
@@ -54,9 +54,8 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
         ALOGE("Invalid dimensions %dx%d", bufferWidth, bufferHeight);
     }
 
-    mBufferQueue = new BufferQueue(true);
+    mBufferQueue = new BufferQueue();
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
             GRALLOC_USAGE_HW_TEXTURE);
 
@@ -71,7 +70,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     listener = static_cast<BufferQueue::ConsumerListener*>(this);
     proxy = new BufferQueue::ProxyConsumerListener(listener);
 
-    status_t err = mBufferQueue->consumerConnect(proxy);
+    status_t err = mBufferQueue->consumerConnect(proxy, false);
     if (err != NO_ERROR) {
         ALOGE("SurfaceMediaSource: error connecting to BufferQueue: %s (%d)",
                 strerror(-err), err);

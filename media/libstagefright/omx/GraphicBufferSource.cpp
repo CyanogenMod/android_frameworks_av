@@ -18,12 +18,12 @@
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
-#include <GraphicBufferSource.h>
+#include "GraphicBufferSource.h"
 
 #include <OMX_Core.h>
 #include <media/stagefright/foundation/ADebug.h>
 
-#include <MetadataBufferType.h>
+#include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
 
 namespace android {
@@ -52,10 +52,9 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
 
     String8 name("GraphicBufferSource");
 
-    mBufferQueue = new BufferQueue(true);
+    mBufferQueue = new BufferQueue();
     mBufferQueue->setConsumerName(name);
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
             GRALLOC_USAGE_HW_TEXTURE);
 
@@ -76,7 +75,7 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     sp<BufferQueue::ConsumerListener> proxy;
     proxy = new BufferQueue::ProxyConsumerListener(listener);
 
-    mInitCheck = mBufferQueue->consumerConnect(proxy);
+    mInitCheck = mBufferQueue->consumerConnect(proxy, false);
     if (mInitCheck != NO_ERROR) {
         ALOGE("Error connecting to BufferQueue: %s (%d)",
                 strerror(-mInitCheck), mInitCheck);
