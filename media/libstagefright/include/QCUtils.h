@@ -108,6 +108,8 @@ struct QCUtils {
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
               const sp<DataSource> &source, const char *mime);
 
+    static bool isAVCProfileSupported(int32_t profile);
+
 };
 
 }

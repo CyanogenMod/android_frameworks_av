@@ -323,7 +323,15 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
         defaultExt.clear();
         return retextParser;
     }
-  }
+}
+
+bool QCUtils::isAVCProfileSupported(int32_t  profile){
+   if(profile == OMX_VIDEO_AVCProfileMain || profile == OMX_VIDEO_AVCProfileHigh || profile == OMX_VIDEO_AVCProfileBaseline){
+      return true;
+   } else {
+      return false;
+   }
+}
 
 }
 
@@ -378,6 +386,10 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
                                                             const sp<DataSource> &source,
                                                             const char *mime) {
                    return defaultExt;
- }
+}
+
+bool QCUtils::isAVCProfileSupported(int32_t  profile){
+     return false;
+}
 }
 #endif //ENABLE_QC_AV_ENHANCEMENTS

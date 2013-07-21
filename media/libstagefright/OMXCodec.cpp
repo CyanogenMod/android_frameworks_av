@@ -1327,7 +1327,9 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     if ((strncmp(mComponentName, "OMX.TI.DUCATI1", 14) != 0)
             && (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline)) {
 #else
-    if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
+    if (QCUtils::isAVCProfileSupported(h264type.eProfile)){
+        ALOGI("Profile type is  %d ",h264type.eProfile);
+    } else if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
 #endif
         ALOGW("Use baseline profile instead of %d for AVC recording",
             h264type.eProfile);
