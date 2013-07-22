@@ -700,7 +700,9 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
 
         if (first) {
             timeUs = info->mTimestampUs;
-            first = false;
+            if(mMode != AAC) {
+               first = false;
+            }
         }
 
         if (info->mLength > size) {
