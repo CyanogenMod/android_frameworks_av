@@ -106,6 +106,7 @@ endif
 ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
     ifeq ($(call is-board-platform-in-list,msm8660 msm7x27a msm7x30),true)
         LOCAL_SRC_FILES += LPAPlayer.cpp
+        LOCAL_CFLAGS += -DQCOM_LEGACY_AUDIO
     else
         LOCAL_SRC_FILES += LPAPlayerALSA.cpp
     endif

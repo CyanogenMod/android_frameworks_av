@@ -210,7 +210,7 @@ public:
                                     audio_io_handle_t dstOutput) = 0;
 
     virtual audio_module_handle_t loadHwModule(const char *name) = 0;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
     virtual status_t deregisterClient(const sp<IAudioFlingerClient>& client) { return false; };
 #endif
 

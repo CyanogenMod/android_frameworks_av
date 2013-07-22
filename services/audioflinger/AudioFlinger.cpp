@@ -262,7 +262,7 @@ AudioFlinger::AudioFlinger()
 void AudioFlinger::onFirstRef()
 {
     int rc = 0;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
     mA2DPHandle = -1;
 #endif
 
@@ -886,7 +886,7 @@ status_t AudioFlinger::setMasterVolume(float value)
         return PERMISSION_DENIED;
     }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
     mA2DPHandle = -1;
 #endif
     Mutex::Autolock _l(mLock);
@@ -1457,7 +1457,7 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
             mRecordThreads.valueAt(i)->sendIoConfigEvent(AudioSystem::INPUT_OPENED);
         }
     }
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
     // Send the notification to the client only once.
     if (mA2DPHandle != -1) {
         ALOGV("A2DP active. Notifying the registered client");
@@ -8098,7 +8098,9 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 #ifdef QCOM_HARDWARE
             thread->mOutputFlags = flags;
         }
+#endif
 
+#ifdef QCOM_LEGACY_AUDIO
         // if the device is a A2DP, then this is an A2DP Output
         if ( true == audio_is_a2dp_device((audio_devices_t) *pDevices) )
         {
@@ -8212,7 +8214,7 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
         }
         audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
         mPlaybackThreads.removeItem(output);
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
         if (mA2DPHandle == output)
         {
             mA2DPHandle = -1;
@@ -8412,7 +8414,7 @@ status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_hand
         thread->invalidateTracks(stream);
 #endif
     }
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_AUDIO
     if ( mA2DPHandle == output ) {
         ALOGV("A2DP Activated and hence notifying the client");
         audioConfigChanged_l(AudioSystem::A2DP_OUTPUT_STATE, mA2DPHandle, &output);

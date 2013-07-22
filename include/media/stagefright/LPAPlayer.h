@@ -82,7 +82,9 @@ public:
     virtual bool reachedEOS(status_t *finalStatus);
 
     static int objectsAlive;
+#ifdef QCOM_LEGACY_AUDIO
     static bool mLpaInProgress;
+#endif
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
