@@ -772,6 +772,13 @@ size_t AudioSystem::getPrimaryOutputFrameCount()
     return af->getPrimaryOutputFrameCount();
 }
 
+status_t AudioSystem::setLowRamDevice(bool isLowRamDevice)
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
+    return af->setLowRamDevice(isLowRamDevice);
+}
+
 void AudioSystem::clearAudioConfigCache()
 {
     Mutex::Autolock _l(gLock);

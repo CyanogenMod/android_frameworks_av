@@ -83,7 +83,7 @@ bool FastMixer::threadLoop()
     struct timespec oldLoad = {0, 0};    // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
     bool oldLoadValid = false;  // whether oldLoad is valid
     uint32_t bounds = 0;
-    bool full = false;      // whether we have collected at least kSamplingN samples
+    bool full = false;      // whether we have collected at least mSamplingN samples
 #ifdef CPU_FREQUENCY_STATISTICS
     ThreadCpuUsage tcu;     // for reading the current CPU clock frequency in kHz
 #endif
@@ -534,11 +534,11 @@ bool FastMixer::threadLoop()
 #ifdef FAST_MIXER_STATISTICS
                 if (isWarm) {
                     // advance the FIFO queue bounds
-                    size_t i = bounds & (FastMixerDumpState::kSamplingN - 1);
+                    size_t i = bounds & (dumpState->mSamplingN - 1);
                     bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
                     if (full) {
                         bounds += 0x10000;
-                    } else if (!(bounds & (FastMixerDumpState::kSamplingN - 1))) {
+                    } else if (!(bounds & (dumpState->mSamplingN - 1))) {
                         full = true;
                     }
                     // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
@@ -608,27 +608,43 @@ bool FastMixer::threadLoop()
     // never return 'true'; Thread::_threadLoop() locks mutex which can result in priority inversion
 }
 
-FastMixerDumpState::FastMixerDumpState() :
+FastMixerDumpState::FastMixerDumpState(
+#ifdef FAST_MIXER_STATISTICS
+        uint32_t samplingN
+#endif
+        ) :
     mCommand(FastMixerState::INITIAL), mWriteSequence(0), mFramesWritten(0),
     mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
     mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0),
     mTrackMask(0)
 #ifdef FAST_MIXER_STATISTICS
-    , mBounds(0)
+    , mSamplingN(0), mBounds(0)
 #endif
 {
     mMeasuredWarmupTs.tv_sec = 0;
     mMeasuredWarmupTs.tv_nsec = 0;
 #ifdef FAST_MIXER_STATISTICS
-    // sample arrays aren't accessed atomically with respect to the bounds,
-    // so clearing reduces chance for dumpsys to read random uninitialized samples
-    memset(&mMonotonicNs, 0, sizeof(mMonotonicNs));
-    memset(&mLoadNs, 0, sizeof(mLoadNs));
-#ifdef CPU_FREQUENCY_STATISTICS
-    memset(&mCpukHz, 0, sizeof(mCpukHz));
-#endif
+    increaseSamplingN(samplingN);
 #endif
 }
+
+#ifdef FAST_MIXER_STATISTICS
+void FastMixerDumpState::increaseSamplingN(uint32_t samplingN)
+{
+    if (samplingN <= mSamplingN || samplingN > kSamplingN || roundup(samplingN) != samplingN) {
+        return;
+    }
+    uint32_t additional = samplingN - mSamplingN;
+    // sample arrays aren't accessed atomically with respect to the bounds,
+    // so clearing reduces chance for dumpsys to read random uninitialized samples
+    memset(&mMonotonicNs[mSamplingN], 0, sizeof(mMonotonicNs[0]) * additional);
+    memset(&mLoadNs[mSamplingN], 0, sizeof(mLoadNs[0]) * additional);
+#ifdef CPU_FREQUENCY_STATISTICS
+    memset(&mCpukHz[mSamplingN], 0, sizeof(mCpukHz[0]) * additional);
+#endif
+    mSamplingN = samplingN;
+}
+#endif
 
 FastMixerDumpState::~FastMixerDumpState()
 {
@@ -648,7 +664,7 @@ static int compare_uint32_t(const void *pa, const void *pb)
     }
 }
 
-void FastMixerDumpState::dump(int fd)
+void FastMixerDumpState::dump(int fd) const
 {
     if (mCommand == FastMixerState::INITIAL) {
         fdprintf(fd, "FastMixer not initialized\n");
@@ -699,9 +715,9 @@ void FastMixerDumpState::dump(int fd)
     uint32_t newestOpen = bounds & 0xFFFF;
     uint32_t oldestClosed = bounds >> 16;
     uint32_t n = (newestOpen - oldestClosed) & 0xFFFF;
-    if (n > kSamplingN) {
+    if (n > mSamplingN) {
         ALOGE("too many samples %u", n);
-        n = kSamplingN;
+        n = mSamplingN;
     }
     // statistics for monotonic (wall clock) time, thread raw CPU load in time, CPU clock frequency,
     // and adjusted CPU load in MHz normalized for CPU clock frequency
@@ -717,7 +733,7 @@ void FastMixerDumpState::dump(int fd)
     uint32_t *tail = n >= kTailDenominator ? new uint32_t[n] : NULL;
     // loop over all the samples
     for (uint32_t j = 0; j < n; ++j) {
-        size_t i = oldestClosed++ & (kSamplingN - 1);
+        size_t i = oldestClosed++ & (mSamplingN - 1);
         uint32_t wallNs = mMonotonicNs[i];
         if (tail != NULL) {
             tail[j] = wallNs;

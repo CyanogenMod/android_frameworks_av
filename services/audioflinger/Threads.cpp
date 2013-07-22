@@ -2285,6 +2285,8 @@ void AudioFlinger::MixerThread::threadLoop_write()
 #endif
             }
             state->mCommand = FastMixerState::MIX_WRITE;
+            mFastMixerDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
+                    FastMixerDumpState::kSamplingNforLowRamDevice : FastMixerDumpState::kSamplingN);
             sq->end();
             sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
             if (kUseFastMixer == FastMixer_Dynamic) {
@@ -3085,7 +3087,7 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
     write(fd, result.string(), result.size());
 
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
-    FastMixerDumpState copy = mFastMixerDumpState;
+    const FastMixerDumpState copy(mFastMixerDumpState);
     copy.dump(fd);
 
 #ifdef STATE_QUEUE_DUMP

@@ -62,6 +62,7 @@
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
 #include <media/AudioParameter.h>
+#include <private/android_filesystem_config.h>
 
 // ----------------------------------------------------------------------------
 
@@ -139,7 +140,9 @@ AudioFlinger::AudioFlinger()
       mMasterMute(false),
       mNextUniqueId(1),
       mMode(AUDIO_MODE_INVALID),
-      mBtNrecIsOff(false)
+      mBtNrecIsOff(false),
+      mIsLowRamDevice(true),
+      mIsDeviceTypeKnown(false)
 {
     getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
@@ -1377,6 +1380,23 @@ size_t AudioFlinger::getPrimaryOutputFrameCount()
     Mutex::Autolock _l(mLock);
     PlaybackThread *thread = primaryPlaybackThread_l();
     return thread != NULL ? thread->frameCountHAL() : 0;
+}
+
+// ----------------------------------------------------------------------------
+
+status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
+{
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    if (uid != AID_SYSTEM) {
+        return PERMISSION_DENIED;
+    }
+    Mutex::Autolock _l(mLock);
+    if (mIsDeviceTypeKnown) {
+        return INVALID_OPERATION;
+    }
+    mIsLowRamDevice = isLowRamDevice;
+    mIsDeviceTypeKnown = true;
+    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------
