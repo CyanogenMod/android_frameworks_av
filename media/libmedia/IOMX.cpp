@@ -52,6 +52,7 @@ enum {
     OBSERVER_ON_MSG,
     GET_GRAPHIC_BUFFER_USAGE,
     SET_INTERNAL_OPTION,
+    UPDATE_GRAPHIC_BUFFER_IN_META,
 };
 
 class BpOMX : public BpInterface<IOMX> {
@@ -280,6 +281,21 @@ public:
 
         *buffer = (void*)reply.readIntPtr();
 
+        return err;
+    }
+
+    virtual status_t updateGraphicBufferInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        data.writeInt32(port_index);
+        data.write(*graphicBuffer);
+        data.writeIntPtr((intptr_t)buffer);
+        remote()->transact(UPDATE_GRAPHIC_BUFFER_IN_META, data, &reply);
+
+        status_t err = reply.readInt32();
         return err;
     }
 
@@ -687,6 +703,23 @@ status_t BnOMX::onTransact(
             if (err == OK) {
                 reply->writeIntPtr((intptr_t)buffer);
             }
+
+            return NO_ERROR;
+        }
+
+        case UPDATE_GRAPHIC_BUFFER_IN_META:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (void*)data.readIntPtr();
+            OMX_U32 port_index = data.readInt32();
+            sp<GraphicBuffer> graphicBuffer = new GraphicBuffer();
+            data.read(*graphicBuffer);
+            buffer_id buffer = (void*)data.readIntPtr();
+
+            status_t err = updateGraphicBufferInMeta(
+                    node, port_index, graphicBuffer, buffer);
+            reply->writeInt32(err);
 
             return NO_ERROR;
         }

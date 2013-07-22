@@ -97,6 +97,10 @@ public:
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer) = 0;
 
+    virtual status_t updateGraphicBufferInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) = 0;
+
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer) = 0;
