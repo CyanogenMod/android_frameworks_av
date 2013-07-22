@@ -175,21 +175,6 @@ DrmMetadata* DrmManager::getMetadata(int uniqueId, const String8* path) {
     return NULL;
 }
 
-status_t DrmManager::installDrmEngine(int uniqueId, const String8& absolutePath) {
-    Mutex::Autolock _l(mLock);
-    mPlugInManager.loadPlugIn(absolutePath);
-
-    IDrmEngine& rDrmEngine = mPlugInManager.getPlugIn(absolutePath);
-    rDrmEngine.initialize(uniqueId);
-    rDrmEngine.setOnInfoListener(uniqueId, this);
-
-    DrmSupportInfo* info = rDrmEngine.getSupportInfo(0);
-    mSupportInfoToPlugInIdMap.add(*info, absolutePath);
-    delete info;
-
-    return DRM_NO_ERROR;
-}
-
 bool DrmManager::canHandle(int uniqueId, const String8& path, const String8& mimeType) {
     Mutex::Autolock _l(mLock);
     const String8 plugInId = getSupportedPlugInId(mimeType);
