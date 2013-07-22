@@ -86,15 +86,6 @@ status_t DrmManagerClientImpl::setOnInfoListener(
             (NULL != infoListener.get()) ? this : NULL);
 }
 
-status_t DrmManagerClientImpl::installDrmEngine(
-        int uniqueId, const String8& drmEngineFile) {
-    status_t status = DRM_ERROR_UNKNOWN;
-    if (EMPTY_STRING != drmEngineFile) {
-        status = getDrmManagerService()->installDrmEngine(uniqueId, drmEngineFile);
-    }
-    return status;
-}
-
 DrmConstraints* DrmManagerClientImpl::getConstraints(
         int uniqueId, const String8* path, const int action) {
     DrmConstraints *drmConstraints = NULL;
