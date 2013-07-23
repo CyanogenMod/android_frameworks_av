@@ -489,6 +489,7 @@ sp<IProCameraUser> CameraService::connect(
             break;
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
+          case CAMERA_DEVICE_API_VERSION_3_0:
             client = new ProCamera2Client(this, cameraCb, String16(),
                     cameraId, facing, callingPid, USE_CALLING_UID, getpid());
             break;
