@@ -64,6 +64,9 @@ public:
 
     virtual status_t dump(int fd, const Vector<String16> &args) const;
 
+    virtual status_t suspend();
+    virtual status_t resume();
+
 private:
     AwesomePlayer *mPlayer;
 

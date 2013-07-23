@@ -218,7 +218,8 @@ AwesomePlayer::AwesomePlayer()
       mDecryptHandle(NULL),
       mLastVideoTimeUs(-1),
       mFrameDurationUs(kInitFrameDurationUs),
-      mTextDriver(NULL) {
+      mTextDriver(NULL),
+      mIsFirstFrameAfterResume(false) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
     DataSource::RegisterDefaultSniffers();
@@ -1986,11 +1987,19 @@ void AwesomePlayer::onVideoEvent() {
         if (mSeeking != NO_SEEK) {
             ALOGV("seeking to %lld us (%.2f secs)", mSeekTimeUs, mSeekTimeUs / 1E6);
 
+            MediaSource::ReadOptions::SeekMode seekmode = (mSeeking == SEEK_VIDEO_ONLY)
+                                                            ? MediaSource::ReadOptions::SEEK_NEXT_SYNC
+                                                            : MediaSource::ReadOptions::SEEK_CLOSEST_SYNC;
+
+            // Seek to the next key-frame after resuming from suspend
+            if (mCachedSource != NULL && mIsFirstFrameAfterResume) {
+                seekmode = MediaSource::ReadOptions::SEEK_NEXT_SYNC;
+                mIsFirstFrameAfterResume = false;
+            }
+
             options.setSeekTo(
                     mSeekTimeUs,
-                    mSeeking == SEEK_VIDEO_ONLY
-                        ? MediaSource::ReadOptions::SEEK_NEXT_SYNC
-                        : MediaSource::ReadOptions::SEEK_CLOSEST_SYNC);
+                    seekmode);
         }
         for (;;) {
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
@@ -3206,6 +3215,77 @@ void AwesomePlayer::checkTunnelExceptions()
     return;
 }
 #endif
+
+// Suspend releases the decoders, renderers and buffers while keeping the tracks persistent
+// During resume, this cuts down the time in setting up the tracks and cache-fetching
+// Releasing decoders eliminates draining power in suspended state.
+status_t AwesomePlayer::suspend() {
+    Mutex::Autolock autoLock(mLock);
+
+    // A message MEDIA_INFO_RENDERING_START will be send to the upper layer,
+    // when the first frame is rendered after suspend
+    mVideoRenderingStarted = false;
+
+    // Set PAUSE to DrmManagerClient which will be set START in play_l()
+    if (mDecryptHandle != NULL) {
+        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                    Playback::PAUSE, 0);
+    }
+
+    // Cancel all the events in the queue.
+    // Use the default param (false), to cancel all the notification event,
+    // because the decoder has been destroyed, no further operation should be called
+    cancelPlayerEvents();
+
+    // Shutdown audio first, so that the response to the reset request
+    // apears to happen instantaneously as far as the user is concerned.
+
+    // Shutdown the audio decoder
+    if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+            && mAudioSource != NULL) {
+        // Stop the audio decoder if it exists
+        mAudioSource->stop();
+    }
+    mAudioSource.clear();
+    delete mAudioPlayer;
+    mAudioPlayer = NULL;
+
+    // Clear this flag, to make sure the audio player can start while resuming
+    modifyFlags(AUDIO_RUNNING | AUDIOPLAYER_STARTED, CLEAR);
+
+    // Shutdown the video decoder
+    // In some user case of suspend, the surface will be destroyed,
+    // so video render should be create again with the new surface
+    mVideoRenderer.clear();
+    if (mVideoSource != NULL) {
+        shutdownVideoDecoder_l();
+    }
+
+    // Clear the status flag of the player
+    modifyFlags(PLAYING, CLEAR);
+
+    return OK;
+}
+
+status_t AwesomePlayer::resume() {
+    Mutex::Autolock autoLock(mLock);
+    if (mVideoTrack != NULL && mVideoSource == NULL) {
+        status_t err = initVideoDecoder();
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    if (mAudioTrack != NULL && mAudioSource == NULL) {
+        status_t err = initAudioDecoder();
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    mIsFirstFrameAfterResume = true;
+    return OK;
+}
 
 inline void AwesomePlayer::logFirstFrame() {
     mStats.mFirstFrameLatencyUs = getTimeOfDayUs()-mStats.mFirstFrameLatencyStartUs;
