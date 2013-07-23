@@ -847,7 +847,7 @@ struct MyHandler : public AHandler {
                             HTTPBase::UnRegisterSocketUserTag(info->mRTPSocket);
                             HTTPBase::UnRegisterSocketUserMark(info->mRTPSocket);
                             HTTPBase::UnRegisterSocketUserTag(info->mRTCPSocket);
-                            HTTPBase::UnRegisterSocketUserMark(info->mRTPCSocket);
+                            HTTPBase::UnRegisterSocketUserMark(info->mRTCPSocket);
                         }
 
                         close(info->mRTPSocket);
