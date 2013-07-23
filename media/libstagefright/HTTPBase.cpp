@@ -30,6 +30,8 @@
 #include <cutils/properties.h>
 #include <cutils/qtaguid.h>
 
+#include <ConnectivityManager.h>
+
 namespace android {
 
 HTTPBase::HTTPBase()
@@ -162,6 +164,16 @@ void HTTPBase::UnRegisterSocketUserTag(int sockfd) {
     if (res != 0) {
         ALOGE("Failed untagging socket %d (My UID=%d)", sockfd, geteuid());
     }
+}
+
+// static
+void HTTPBase::RegisterSocketUserMark(int sockfd, uid_t uid) {
+    ConnectivityManager::markSocketAsUser(sockfd, uid);
+}
+
+// static
+void HTTPBase::UnRegisterSocketUserMark(int sockfd) {
+    RegisterSocketUserMark(sockfd, geteuid());
 }
 
 }  // namespace android
