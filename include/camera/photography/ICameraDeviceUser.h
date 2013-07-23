@@ -61,6 +61,8 @@ public:
     virtual status_t        getCameraInfo(/*out*/
                                           CameraMetadata* info) = 0;
 
+    // Wait until all the submitted requests have finished processing
+    virtual status_t        waitUntilIdle() =  0;
 };
 
 // ----------------------------------------------------------------------------

@@ -87,6 +87,8 @@ public:
     // -- Caller owns the newly allocated metadata
     virtual status_t      getCameraInfo(/*out*/CameraMetadata* info);
 
+    // Wait until all the submitted requests have finished processing
+    virtual status_t      waitUntilIdle();
     /**
      * Interface used by CameraService
      */
