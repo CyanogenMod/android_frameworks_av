@@ -130,10 +130,12 @@ void GraphicBufferSource::omxExecuting() {
 
 void GraphicBufferSource::omxLoaded(){
     Mutex::Autolock autoLock(mMutex);
-    ALOGV("--> loaded");
-    CHECK(mExecuting);
+    if (!mExecuting) {
+        // This can happen if something failed very early.
+        ALOGW("Dropped back down to Loaded without Executing");
+    }
 
-    ALOGV("Dropped down to loaded, avail=%d eos=%d eosSent=%d",
+    ALOGV("--> loaded; avail=%d eos=%d eosSent=%d",
             mNumFramesAvailable, mEndOfStream, mEndOfStreamSent);
 
     // Codec is no longer executing.  Discard all codec-related state.
