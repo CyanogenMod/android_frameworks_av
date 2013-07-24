@@ -32,6 +32,7 @@
 #include <utils/Log.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaCodecList.h>
 
@@ -372,6 +373,170 @@ void ExtendedCodec::enableSmoothStreaming(
     *isEnabled = true;
     ALOGI("Smoothstreaming Enabled");
     return;
+}
+
+bool ExtendedCodec::checkDPFromCodecSpecificData(const uint8_t *data, size_t size)
+{
+    bool retVal = false;
+    size_t offset = 0, start_code_offset = -1;
+    int VOL_START_CODE = 0x20;
+    const char StartCode[]="\x00\x00\x01";
+    size_t max_header_size = 28;
+
+    if (!data && (((size < 4) || (size > max_header_size)))) {
+        return retVal;
+    }
+
+    while (offset < size - 3) {
+           if ((data[offset + 3] & 0xf0) == VOL_START_CODE) {
+                if (!memcmp(&data[offset], StartCode, 3)) {
+                    start_code_offset = offset;
+                    break;
+                 }
+            }
+            offset++;
+    }
+    if (start_code_offset > 0) {
+        retVal = checkDPFromVOLHeader((const uint8_t*) &data[start_code_offset],
+                                       size);
+    }
+
+    return retVal;
+}
+
+bool ExtendedCodec::checkDPFromVOLHeader(const uint8_t *data, size_t size)
+{
+    bool retVal = false;
+    size_t min_header_size = 5;
+    size_t max_header_size = 28;
+
+    if (!data && (size < min_header_size)) {
+        return false;
+    }
+
+    ABitReader br(&data[4], size);
+    br.skipBits(1);  // random_accessible_vol
+
+    unsigned video_object_type_indication = br.getBits(8);
+
+    if (video_object_type_indication == 0x12u) {
+        return false;
+    }
+
+    unsigned video_object_layer_verid = 1;
+    unsigned video_object_layer_priority;
+    if (br.getBits(1)) {
+        video_object_layer_verid = br.getBits(4);
+        video_object_layer_priority = br.getBits(3);
+    }
+    unsigned aspect_ratio_info = br.getBits(4);
+    if (aspect_ratio_info == 0x0f /* extended PAR */) {
+        br.skipBits(8);  // par_width
+        br.skipBits(8);  // par_height
+    }
+
+    if (br.getBits(1)) {  // vol_control_parameters
+        br.skipBits(2);  // chroma_format
+        br.skipBits(1);  // low_delay
+        if (br.getBits(1)) {  // vbv_parameters
+            br.skipBits(15);  // first_half_bit_rate
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15);  // latter_half_bit_rate
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15);  // first_half_vbv_buffer_size
+            br.skipBits(1);  // marker_bit
+            br.skipBits(3);  // latter_half_vbv_buffer_size
+            br.skipBits(11);  // first_half_vbv_occupancy
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15);  // latter_half_vbv_occupancy
+            br.skipBits(1);  // marker_bit
+        }
+    }
+
+    unsigned video_object_layer_shape = br.getBits(2);
+    if (video_object_layer_shape != 0x00u /* rectangular */) {
+        return false;
+    }
+
+    br.skipBits(1);  // marker_bit
+
+    unsigned vop_time_increment_resolution = br.getBits(16);
+    br.skipBits(1);  // marker_bit
+
+    if (br.getBits(1)) {  // fixed_vop_rate
+        // range [0..vop_time_increment_resolution)
+
+        // vop_time_increment_resolution
+        // 2 => 0..1, 1 bit
+        // 3 => 0..2, 2 bits
+        // 4 => 0..3, 2 bits
+        // 5 => 0..4, 3 bits
+        // ...
+
+        if (vop_time_increment_resolution <= 0u) {
+            return BAD_VALUE;
+        }
+        --vop_time_increment_resolution;
+
+        unsigned numBits = 0;
+        while (vop_time_increment_resolution > 0) {
+            ++numBits;
+            vop_time_increment_resolution >>= 1;
+        }
+
+        br.skipBits(numBits);  // fixed_vop_time_increment
+    }
+
+    br.skipBits(1);  // marker_bit
+    unsigned video_object_layer_width = br.getBits(13);
+    br.skipBits(1);  // marker_bit
+    unsigned video_object_layer_height = br.getBits(13);
+    br.skipBits(1);  // marker_bit
+
+    unsigned interlaced = br.getBits(1);
+    unsigned obmc_disable = br.getBits(1);
+    unsigned sprite_enable = 0;
+    if (video_object_layer_verid == 1) {
+        sprite_enable = br.getBits(1);
+    } else {
+        sprite_enable = br.getBits(2);
+    }
+
+    unsigned not_8_bit = br.getBits(1);
+    if (not_8_bit) {
+        unsigned quant_precision = br.getBits(4);
+        unsigned bits_per_pixel = br.getBits(4);
+    }
+
+    unsigned quant_type = br.getBits(1);
+    if (quant_type) {
+        unsigned load_intra_quant_mat = br.getBits(1);
+        if (load_intra_quant_mat) {
+            unsigned intra_quant_mat = 1;
+            for (int i=0; i<64 && intra_quant_mat; i++) {
+                 intra_quant_mat = br.getBits(8);
+            }
+        }
+        unsigned load_nonintra_quant_mat = br.getBits(1);
+        if (load_nonintra_quant_mat) {
+            unsigned nonintra_quant_mat = 1;
+            for (int i=0; i<64 && nonintra_quant_mat; i++) {
+                 nonintra_quant_mat = br.getBits(8);
+            }
+        }
+    } /*quant_type*/
+
+    if (video_object_layer_verid != 1) {
+        unsigned quarter_sample = br.getBits(1);
+    }
+
+    unsigned complexity_estimation_disable = br.getBits(1);
+    unsigned resync_marker_disable = br.getBits(1);
+    unsigned data_partitioned = br.getBits(1);
+    if (data_partitioned) {
+        retVal = true;
+    }
+    return retVal;
 }
 
 //private methods

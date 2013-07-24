@@ -96,6 +96,10 @@ struct ExtendedCodec {
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
             const char* componentName);
 
+    static bool checkDPFromVOLHeader(const uint8_t *ptr, size_t size);
+
+    static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
+
 private:
 
     static status_t setWMAFormat(
