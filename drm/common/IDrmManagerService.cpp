@@ -153,18 +153,6 @@ status_t BpDrmManagerService::setDrmServiceListener(
     return reply.readInt32();
 }
 
-status_t BpDrmManagerService::installDrmEngine(int uniqueId, const String8& drmEngineFile) {
-    ALOGV("Install DRM Engine");
-    Parcel data, reply;
-
-    data.writeInterfaceToken(IDrmManagerService::getInterfaceDescriptor());
-    data.writeInt32(uniqueId);
-    data.writeString8(drmEngineFile);
-
-    remote()->transact(INSTALL_DRM_ENGINE, data, &reply);
-    return reply.readInt32();
-}
-
 DrmConstraints* BpDrmManagerService::getConstraints(
             int uniqueId, const String8* path, const int action) {
     ALOGV("Get Constraints");
@@ -850,19 +838,6 @@ status_t BnDrmManagerService::onTransact(
             = interface_cast<IDrmServiceListener> (data.readStrongBinder());
 
         status_t status = setDrmServiceListener(uniqueId, drmServiceListener);
-
-        reply->writeInt32(status);
-        return DRM_NO_ERROR;
-    }
-
-    case INSTALL_DRM_ENGINE:
-    {
-        ALOGV("BnDrmManagerService::onTransact :INSTALL_DRM_ENGINE");
-        CHECK_INTERFACE(IDrmManagerService, data, reply);
-
-        const int uniqueId = data.readInt32();
-        const String8 engineFile = data.readString8();
-        status_t status = installDrmEngine(uniqueId, engineFile);
 
         reply->writeInt32(status);
         return DRM_NO_ERROR;

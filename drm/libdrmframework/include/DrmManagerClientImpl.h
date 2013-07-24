@@ -410,17 +410,6 @@ public:
     status_t notify(const DrmInfoEvent& event);
 
 private:
-    /**
-     * Install new DRM Engine Plug-in at the runtime
-     *
-     * @param[in] uniqueId Unique identifier for a session
-     * @param[in] drmEngine Shared Object(so) File in which DRM Engine defined
-     * @return status_t
-     *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
-     */
-    status_t installDrmEngine(int uniqueId, const String8& drmEngineFile);
-
-private:
     Mutex mLock;
     sp<DrmManagerClient::OnInfoListener> mOnInfoListener;
 
