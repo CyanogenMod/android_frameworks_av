@@ -40,6 +40,7 @@ enum {
     CREATE_STREAM,
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
+    WAIT_UNTIL_IDLE,
 };
 
 class BpCameraDeviceUser : public BpInterface<ICameraDeviceUser>
@@ -172,6 +173,15 @@ public:
         return result;
     }
 
+    virtual status_t waitUntilIdle()
+    {
+        ALOGV("waitUntilIdle");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        remote()->transact(WAIT_UNTIL_IDLE, data, &reply);
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
 
 private:
 
@@ -294,6 +304,12 @@ status_t BnCameraDeviceUser::onTransact(
             reply->writeInt32(1); // to mark presence of metadata object
             info.writeToParcel(reply);
 
+            return NO_ERROR;
+        } break;
+        case WAIT_UNTIL_IDLE: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            reply->writeNoException();
+            reply->writeInt32(waitUntilIdle());
             return NO_ERROR;
         } break;
         default:
