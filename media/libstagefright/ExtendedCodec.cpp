@@ -82,8 +82,10 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWMABitspersample     , "wma-bits-per-sample"    , INT32},  // int32_t
    {kKeyWMAVirPktSize        , "wma-vir-pkt-size"       , INT32},  // int32_t
    {kKeyWMAChannelMask       , "wma-channel-mask"       , INT32},  // int32_t
-
+   {kKeyWMVVersion           , "wmv-version"            , INT32},
    {kKeyFileFormat           , "file-format"            , STRING},  // cstring
+   {kKeyBlockAlign           , "block-align"            , INT32},
+   {kKeyRVVersion            , "rv-version"             , INT32},
 
    {kkeyAacFormatAdif        , "aac-format-adif"        , INT32},  // bool (int32_t)
    {kkeyAacFormatLtp         , "aac-format-ltp"         , INT32},
@@ -395,13 +397,26 @@ status_t ExtendedCodec::setAudioFormat(
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         err = setAMRWBPLUSFormat(numChannels, sampleRate, OMXhandle, nodeID);
+    } else {
+        err = BAD_VALUE;
     }
     return err;
 }
 
 status_t ExtendedCodec::setVideoFormat(
-        const char *mime, OMX_VIDEO_CODINGTYPE *compressionFormat) {
+        const sp<MetaData> &meta, const char* mime,
+        OMX_VIDEO_CODINGTYPE *compressionFormat) {
+    sp<AMessage> msg = new AMessage();
+    msg->clear();
+    convertMetaDataToMessage(meta, &msg);
+    return setVideoFormat(msg, mime, compressionFormat);
+}
+
+status_t ExtendedCodec::setVideoFormat(
+        const sp<AMessage> &msg, const char* mime,
+        OMX_VIDEO_CODINGTYPE *compressionFormat) {
     status_t retVal = OK;
+    ALOGV("setVideoFormat: %s", msg->debugString(0).c_str());
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
         *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
@@ -409,6 +424,13 @@ status_t ExtendedCodec::setVideoFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
         *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
+        int32_t wmvVersion = 0;
+        if (msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
+            if (wmvVersion == 1) {
+                ALOGE("Unsupported WMV version %d", wmvVersion);
+                return ERROR_UNSUPPORTED;
+            }
+        }
         *compressionFormat = OMX_VIDEO_CodingWMV;
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)) {
         *compressionFormat = OMX_VIDEO_CodingMPEG2;
@@ -958,7 +980,10 @@ status_t ExtendedCodec::setWMAFormat(
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         CHECK(msg->findInt32(getMsgKey(kKeyBitRate), &bitRate));
-        CHECK(msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions));
+        if (!msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
+            ALOGE("Unsupported encode options");
+            return ERROR_UNSUPPORTED;
+        }
         CHECK(msg->findInt32(getMsgKey(kKeyWMABlockAlign), &blockAlign));
         ALOGV("Channels: %d, SampleRate: %d, BitRate; %d"
                    "EncodeOptions: %d, blockAlign: %d", numChannels,
@@ -1215,7 +1240,7 @@ namespace android {
         ARG_TOUCH(OMXhandle);
         ARG_TOUCH(nodeID);
         ARG_TOUCH(isEncoder);
-        return OK;
+        return ERROR_UNSUPPORTED;
     }
 
     status_t ExtendedCodec::setAudioFormat(
@@ -1227,7 +1252,7 @@ namespace android {
         ARG_TOUCH(OMXhandle);
         ARG_TOUCH(nodeID);
         ARG_TOUCH(isEncoder);
-        return OK;
+        return ERROR_UNSUPPORTED;
     }
 
     status_t ExtendedCodec::setVideoFormat(
@@ -1235,7 +1260,7 @@ namespace android {
             OMX_VIDEO_CODINGTYPE *compressionFormat) {
         ARG_TOUCH(mime);
         ARG_TOUCH(compressionFormat);
-        return OK;
+        return ERROR_UNSUPPORTED;
     }
 
     status_t ExtendedCodec::getSupportedAudioFormatInfo(
@@ -1348,7 +1373,7 @@ namespace android {
         ARG_TOUCH(node);
         ARG_TOUCH(isEncoder);
         ARG_TOUCH(mime);
-        return OK;
+        return BAD_VALUE;
     }
 
     status_t ExtendedCodec::setWMAFormat(

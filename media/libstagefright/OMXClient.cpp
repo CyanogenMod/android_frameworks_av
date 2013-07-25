@@ -173,14 +173,14 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 }
 
 // static
+
 bool MuxOMX::CanLiveLocally(const char *name) {
 #ifdef __LP64__
     (void)name; // disable unused parameter warning
     // 64 bit processes always run OMX remote on MediaServer
     return false;
 #else
-    // 32 bit processes run only OMX.google.* components locally
-    return !strncasecmp(name, "OMX.google.", 11);
+    return !strncasecmp(name, "OMX.google.", 11) || !strncasecmp(name, "OMX.ffmpeg.", 11);
 #endif
 }
 

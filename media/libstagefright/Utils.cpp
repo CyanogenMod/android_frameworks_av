@@ -276,7 +276,7 @@ status_t convertMetaDataToMessage(
         const uint8_t *ptr = (const uint8_t *)data;
 
         CHECK(size >= 7);
-        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
+        //CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
         uint8_t profile = ptr[1] & 31;
         uint8_t level = ptr[12];
         ptr += 22;
