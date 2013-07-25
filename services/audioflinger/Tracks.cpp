@@ -76,7 +76,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mCblk(NULL),
         // mBuffer
         // mBufferEnd
-        mStepCount(0),
         mState(IDLE),
         mSampleRate(sampleRate),
         mFormat(format),
@@ -85,7 +84,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mFrameSize(audio_is_linear_pcm(format) ?
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mFrameCount(frameCount),
-        mStepServerFailed(false),
         mSessionId(sessionId),
         mIsOut(isOut),
         mServerProxy(NULL),
@@ -395,8 +393,8 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt        Chn mask   Session StpCnt fCount S F SRate  "
-                  "L dB  R dB    Server    Main buf    Aux Buf  Flags Underruns\n");
+    result.append("   Name Client Type Fmt Chn mask Session fCount S F SRate  "
+                  "L dB  R dB    Server Main buf  Aux Buf Flags Underruns\n");
 }
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
@@ -460,14 +458,13 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[7], size-7, " %6d %4u 0x%08x 0x%08x %7u %6u %6u %1c %1d %5u %5.2g %5.2g  "
-            "0x%08x 0x%08x 0x%08x %#5x %9u%c\n",
+    snprintf(&buffer[7], size-7, " %6u %4u %3u %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
+                                 "%08X %08X %08X 0x%03X %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
             mFormat,
             mChannelMask,
             mSessionId,
-            mStepCount,
             mFrameCount,
             stateChar,
             mFillingUpStatus,
@@ -1732,17 +1729,16 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("   Clien Fmt Chn mask   Session Step S Serv   FrameCount\n");
+    result.append("Client Fmt Chn mask Session S   Server fCount\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
 {
-    snprintf(buffer, size, "   %05d %03u 0x%08x %05d   %04u %01d %08x %05d\n",
+    snprintf(buffer, size, "%6u %3u %08X %7u %1d %08X %6u\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
             mChannelMask,
             mSessionId,
-            mStepCount,
             mState,
             mCblk->server,
             mFrameCount);

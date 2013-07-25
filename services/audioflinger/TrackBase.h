@@ -108,8 +108,6 @@ protected:
         mTerminated = true;
     }
 
-    bool step();    // mStepCount is an implicit input
-
     bool isOut() const { return mIsOut; }
                                     // true for Track and TimedTrack, false for RecordTrack,
                                     // this could be a track type if needed later
@@ -122,8 +120,6 @@ protected:
                                     // except for OutputTrack when it is in local memory
     void*               mBufferEnd; // &mBuffer[mFrameCount * frameSize], where frameSize
                                     //   is based on mChannelCount and 16-bit samples
-    uint32_t            mStepCount; // saves AudioBufferProvider::Buffer::frameCount as of
-                                    // time of releaseBuffer() for later use by step()
     // we don't really need a lock for these
     track_state         mState;
     const uint32_t      mSampleRate;    // initial sample rate only; for tracks which
@@ -137,7 +133,6 @@ protected:
     const size_t        mFrameCount;// size of track buffer given at createTrack() or
                                     // openRecord(), and then adjusted as needed
 
-    bool                mStepServerFailed;
     const int           mSessionId;
     Vector < sp<SyncEvent> >mSyncEvents;
     const bool          mIsOut;
