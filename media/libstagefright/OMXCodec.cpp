@@ -273,6 +273,8 @@ uint32_t OMXCodec::OmxToHALFormat(OMX_COLOR_FORMATTYPE omxValue) {
     switch (omxValue) {
         case OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB:
             return HAL_PIXEL_FORMAT_YCBCR42XMBN;
+        case OMX_COLOR_FormatYUV420Planar:
+            return HAL_PIXEL_FORMAT_YCbCr_420_P;
         default:
             ALOGI("Unknown OMX pixel format (0x%X), passing it on unchanged", omxValue);
             return omxValue;
@@ -312,6 +314,12 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "input-buffer-sizes-are-bogus")) {
       quirks |= kInputBufferSizesAreBogus;
     }
+#ifdef STE_HARDWARE
+    if (list->codecHasQuirk(
+                index, "requires-store-metadata-before-idle")) {
+      quirks |= kRequiresStoreMetaDataBeforeIdle;
+    }
+#endif
 #ifdef QCOM_HARDWARE
     if (list->codecHasQuirk(
                 index, "requires-global-flush")) {
@@ -1783,6 +1791,10 @@ void OMXCodec::setComponentRole(
             "video_decoder.mpeg4", "video_encoder.mpeg4" },
         { MEDIA_MIMETYPE_VIDEO_H263,
             "video_decoder.h263", "video_encoder.h263" },
+#ifdef STE_HARDWARE
+        { MEDIA_MIMETYPE_VIDEO_VC1,
+            "video_decoder.vc1", "video_encoder.vc1" },
+#endif
         { MEDIA_MIMETYPE_VIDEO_VPX,
             "video_decoder.vpx", "video_encoder.vpx" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
@@ -2185,7 +2197,11 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 #ifdef QCOM_HARDWARE
             format
 #else
+#ifdef STE_HARDWARE
+	    OmxToHALFormat(def.format.video.eColorFormat)
+#else
             def.format.video.eColorFormat
+#endif
 #endif
           );
 #else
@@ -2227,11 +2243,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
-#ifdef STE_HARDWARE
-	    OmxToHALFormat(def.format.video.eColorFormat));
-#else
             eColorFormat);
-#endif
 #endif
 
     if (err != 0) {
