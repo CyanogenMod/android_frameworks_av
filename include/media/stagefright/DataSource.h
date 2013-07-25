@@ -62,7 +62,10 @@ public:
 private:
     Mutex mSnifferMutex;
     List<SnifferFunc> mSniffers;
+    List<SnifferFunc> mExtraSniffers;
     List<SnifferFunc>::iterator extendedSnifferPosition;
+
+    void registerSnifferPlugin();
 
     Sniffer(const Sniffer &);
     Sniffer &operator=(const Sniffer &);
@@ -145,6 +148,7 @@ protected:
     sp<Sniffer> mSniffer;
 
     static void RegisterSniffer_l(SnifferFunc func);
+    static void RegisterSnifferPlugin();
 
     DataSource(const DataSource &);
     DataSource &operator=(const DataSource &);
