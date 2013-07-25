@@ -31,6 +31,8 @@ LOCAL_CFLAGS := -DQTI_FLAC_DECODER
 endif
 endif
 
+LOCAL_CFLAGS += -DLOG_NDEBUG=0
+
 LOCAL_MODULE:= libstagefright_nuplayer
 
 LOCAL_MODULE_TAGS := eng
