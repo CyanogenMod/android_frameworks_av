@@ -66,6 +66,7 @@ LOCAL_SRC_FILES:=                         \
         ExtendedUtils.cpp                 \
         ExtendedStats.cpp                 \
         APE.cpp                           \
+        FFMPEGSoftCodec.cpp               \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
@@ -168,6 +169,8 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
        LOCAL_CFLAGS     += -DFLAC_OFFLOAD_ENABLED
 endif
 endif
+
+LOCAL_CFLAGS += -DLOG_NDEBUG=0
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \
