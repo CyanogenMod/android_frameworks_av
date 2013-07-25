@@ -105,7 +105,6 @@ protected:
     }
 
     bool step();    // mStepCount is an implicit input
-    void reset();
 
     bool isOut() const { return mIsOut; }
                                     // true for Track and TimedTrack, false for RecordTrack,
