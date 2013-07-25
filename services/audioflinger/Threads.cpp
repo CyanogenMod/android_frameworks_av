@@ -4031,8 +4031,9 @@ void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event
     }
 }
 
-bool AudioFlinger::RecordThread::stop_l(RecordThread::RecordTrack* recordTrack) {
+bool AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
     ALOGV("RecordThread::stop");
+    AutoMutex _l(mLock);
     if (recordTrack != mActiveTrack.get() || recordTrack->mState == TrackBase::PAUSING) {
         return false;
     }
