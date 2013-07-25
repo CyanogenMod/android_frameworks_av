@@ -47,9 +47,12 @@
 #include <utils/String8.h>
 
 #include <cutils/properties.h>
+#include <cutils/log.h>
 
 #include <private/android_filesystem_config.h>
 #include <stagefright/AVExtensions.h>
+
+#include <media/stagefright/FFMPEGSoftCodec.h>
 
 namespace android {
 
@@ -119,6 +122,8 @@ bool DataSource::gSniffersRegistered = false;
 
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
+
+
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
@@ -130,18 +135,28 @@ bool DataSource::sniff(
         }
     }
 
+    String8 newMimeType;
+    if (mimeType != NULL) {
+        newMimeType.setTo(*mimeType);
+    }
+
     for (List<SnifferFunc>::iterator it = gSniffers.begin();
          it != gSniffers.end(); ++it) {
-        String8 newMimeType;
-        float newConfidence;
-        sp<AMessage> newMeta;
-        if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
+        int64_t sniffStart = ALooper::GetNowUs();
+        String8 newMimeType = *mimeType;
+        float newConfidence = *confidence;
+        sp<AMessage> newMeta = *meta;
+        if (*it != NULL && (*it)(this, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
                 *mimeType = newMimeType;
                 *confidence = newConfidence;
                 *meta = newMeta;
             }
         }
+
+        ALOGV("Sniffer (%p) completed in %.2f ms (mime=%s confidence=%.2f",
+                this, ((float)(ALooper::GetNowUs() - sniffStart) / 1000.0f),
+                mimeType == NULL ? NULL : (*mimeType).string(), *confidence);
     }
 
     return *confidence > 0.0;
@@ -182,12 +197,14 @@ void DataSource::RegisterDefaultSniffers() {
     }
     RegisterSniffer_l(SniffMidi);
     RegisterSniffer_l(AVUtils::get()->getExtendedSniffer());
+    RegisterSniffer_l(FFMPEGSoftCodec::getSniffer());
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)
             && (!strcmp(value, "1") || !strcasecmp(value, "true"))) {
         RegisterSniffer_l(SniffDRM);
     }
+
     gSniffersRegistered = true;
 }
 
