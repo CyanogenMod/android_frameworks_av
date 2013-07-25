@@ -118,8 +118,6 @@ protected:
     audio_track_cblk_t* mCblk;
     void*               mBuffer;    // start of track buffer, typically in shared memory
                                     // except for OutputTrack when it is in local memory
-    void*               mBufferEnd; // &mBuffer[mFrameCount * frameSize], where frameSize
-                                    //   is based on mChannelCount and 16-bit samples
     // we don't really need a lock for these
     track_state         mState;
     const uint32_t      mSampleRate;    // initial sample rate only; for tracks which
