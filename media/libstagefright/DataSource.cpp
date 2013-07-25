@@ -47,10 +47,27 @@
 #include <utils/String8.h>
 
 #include <cutils/properties.h>
+#include <cutils/log.h>
+
+#include <dlfcn.h>
 
 #include <stagefright/AVExtensions.h>
 
 namespace android {
+
+static void *loadExtractorPlugin() {
+    void *ret = NULL;
+    char lib[PROPERTY_VALUE_MAX];
+    if (property_get("media.sf.extractor-plugin", lib, NULL)) {
+        if (void *extractorLib = ::dlopen(lib, RTLD_LAZY)) {
+            ret = ::dlsym(extractorLib, "getExtractorPlugin");
+            ALOGW_IF(!ret, "Failed to find symbol, dlerror: %s", ::dlerror());
+        } else {
+            ALOGV("Failed to load %s, dlerror: %s", lib, ::dlerror());
+        }
+    }
+    return ret;
+}
 
 bool DataSource::getUInt16(off64_t offset, uint16_t *x) {
     *x = 0;
@@ -119,7 +136,7 @@ bool DataSource::sniff(
 }
 
 // static
-void DataSource::RegisterSniffer_l(SnifferFunc func) {
+void DataSource::RegisterSniffer_l(SnifferFunc /* func */) {
     return;
 }
 
@@ -136,6 +153,13 @@ Sniffer::Sniffer() {
 
 bool Sniffer::sniff(
         DataSource *source, String8 *mimeType, float *confidence, sp<AMessage> *meta) {
+
+    bool forceExtraSniffers = false;
+
+    if (*confidence == 3.14f) {
+       // Magic value, as set by MediaExtractor when a video container looks incomplete
+       forceExtraSniffers = true;
+    }
 
     *mimeType = "";
     *confidence = 0.0f;
@@ -156,6 +180,23 @@ bool Sniffer::sniff(
         }
     }
 
+    /* Only do the deeper sniffers if the results are null or in doubt */
+    if (mimeType->length() == 0 || *confidence < 0.21f || forceExtraSniffers) {
+        for (List<SnifferFunc>::iterator it = mExtraSniffers.begin();
+                it != mExtraSniffers.end(); ++it) {
+            String8 newMimeType;
+            float newConfidence;
+            sp<AMessage> newMeta;
+            if ((*it)(source, &newMimeType, &newConfidence, &newMeta)) {
+                if (newConfidence > *confidence) {
+                    *mimeType = newMimeType;
+                    *confidence = newConfidence;
+                    *meta = newMeta;
+                }
+            }
+        }
+    }
+
     return *confidence > 0.0;
 }
 
@@ -169,6 +210,26 @@ void Sniffer::registerSniffer_l(SnifferFunc func) {
     }
 
     mSniffers.push_back(func);
+}
+
+void Sniffer::registerSnifferPlugin() {
+    static void (*getExtractorPlugin)(MediaExtractor::Plugin *) =
+            (void (*)(MediaExtractor::Plugin *))loadExtractorPlugin();
+
+    MediaExtractor::Plugin *plugin = MediaExtractor::getPlugin();
+    if (!plugin->sniff && getExtractorPlugin) {
+        getExtractorPlugin(plugin);
+    }
+    if (plugin->sniff) {
+        for (List<SnifferFunc>::iterator it = mExtraSniffers.begin();
+             it != mExtraSniffers.end(); ++it) {
+            if (*it == plugin->sniff) {
+                return;
+            }
+        }
+
+        mExtraSniffers.push_back(plugin->sniff);
+    }
 }
 
 void Sniffer::registerDefaultSniffers() {
@@ -185,8 +246,9 @@ void Sniffer::registerDefaultSniffers() {
     registerSniffer_l(SniffAAC);
     registerSniffer_l(SniffMPEG2PS);
     registerSniffer_l(SniffWVM);
-    RegisterSniffer_l(SniffMidi);
-    RegisterSniffer_l(AVUtils::get()->getExtendedSniffer());
+    registerSniffer_l(SniffMidi);
+    registerSniffer_l(AVUtils::get()->getExtendedSniffer());
+    registerSnifferPlugin();
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)

@@ -181,6 +181,7 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 }
 
 // static
+
 bool MuxOMX::CanLiveLocally(const char *name) {
 #ifdef __LP64__
     (void)name; // disable unused parameter warning
