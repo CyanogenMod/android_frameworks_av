@@ -20,10 +20,10 @@
 
 #include <media/IMediaExtractor.h>
 #include <media/IMediaSource.h>
+#include <media/stagefright/DataSource.h>
 
 namespace android {
 
-class DataSource;
 class MediaSource;
 class MetaData;
 

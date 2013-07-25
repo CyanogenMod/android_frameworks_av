@@ -226,7 +226,7 @@ MuxOMX::node_location MuxOMX::getPreferredCodecLocation(const char *name) {
         return MEDIAPROCESS;
 #else
         // 32 bit processes run only OMX.google.* components locally
-        if (!strncasecmp(name, "OMX.google.", 11)) {
+        if (!strncasecmp(name, "OMX.google.", 11) || !strncasecmp(name, "OMX.ffmpeg.", 11)) {
             return LOCAL;
         }
         return MEDIAPROCESS;
