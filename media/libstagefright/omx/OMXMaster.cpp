@@ -68,6 +68,9 @@ void OMXMaster::addPlugin(const char *libname) {
 }
 
 void OMXMaster::addPlugin(OMXPluginBase *plugin) {
+    if (plugin == 0) {
+       return;
+    }
     Mutex::Autolock autoLock(mLock);
 
     mPlugins.push_back(plugin);
