@@ -65,6 +65,8 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_C_INCLUDES += $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 endif
 
+LOCAL_CFLAGS += -DLOG_NDEBUG=0
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(call all-makefiles-under,$(LOCAL_PATH))
