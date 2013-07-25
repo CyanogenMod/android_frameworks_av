@@ -66,6 +66,41 @@ extern const char *MEDIA_MIMETYPE_TEXT_VTT;
 extern const char *MEDIA_MIMETYPE_TEXT_CEA_608;
 extern const char *MEDIA_MIMETYPE_DATA_TIMED_ID3;
 
+extern const char *MEDIA_MIMETYPE_AUDIO_EAC3_JOC;
+extern const char *MEDIA_MIMETYPE_AUDIO_EAC3;
+
+extern const char *MEDIA_MIMETYPE_VIDEO_FLV1;
+extern const char *MEDIA_MIMETYPE_VIDEO_MJPEG;
+extern const char *MEDIA_MIMETYPE_VIDEO_RV;
+extern const char *MEDIA_MIMETYPE_VIDEO_VC1;
+extern const char *MEDIA_MIMETYPE_VIDEO_WMV;
+extern const char *MEDIA_MIMETYPE_VIDEO_HEVC;
+extern const char *MEDIA_MIMETYPE_VIDEO_FFMPEG;
+
+extern const char *MEDIA_MIMETYPE_AUDIO_AC3;
+extern const char *MEDIA_MIMETYPE_AUDIO_PCM;
+extern const char *MEDIA_MIMETYPE_AUDIO_RA;
+extern const char *MEDIA_MIMETYPE_AUDIO_WMA;
+extern const char *MEDIA_MIMETYPE_AUDIO_FFMPEG;
+
+extern const char *MEDIA_MIMETYPE_CONTAINER_APE;
+extern const char *MEDIA_MIMETYPE_CONTAINER_DIVX;
+extern const char *MEDIA_MIMETYPE_CONTAINER_DTS;
+extern const char *MEDIA_MIMETYPE_CONTAINER_FLAC;
+extern const char *MEDIA_MIMETYPE_CONTAINER_FLV;
+extern const char *MEDIA_MIMETYPE_CONTAINER_MOV;
+extern const char *MEDIA_MIMETYPE_CONTAINER_MP2;
+extern const char *MEDIA_MIMETYPE_CONTAINER_MPG;
+extern const char *MEDIA_MIMETYPE_CONTAINER_RA;
+extern const char *MEDIA_MIMETYPE_CONTAINER_RM;
+extern const char *MEDIA_MIMETYPE_CONTAINER_TS;
+extern const char *MEDIA_MIMETYPE_CONTAINER_WEBM;
+extern const char *MEDIA_MIMETYPE_CONTAINER_VC1;
+extern const char *MEDIA_MIMETYPE_CONTAINER_HEVC;
+extern const char *MEDIA_MIMETYPE_CONTAINER_WMA;
+extern const char *MEDIA_MIMETYPE_CONTAINER_WMV;
+extern const char *MEDIA_MIMETYPE_CONTAINER_FFMPEG;
+
 }  // namespace android
 
 #include <media/stagefright/ExtendedMediaDefs.h>

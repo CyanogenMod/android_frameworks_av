@@ -39,6 +39,10 @@ public:
 
     virtual status_t getSize(off64_t *size);
 
+    virtual String8 getUri() {
+        return mUri;
+    }
+
     virtual sp<DecryptHandle> DrmInitialization(const char *mime);
 
     virtual void getDrmInfo(sp<DecryptHandle> &handle, DrmManagerClient **client);
@@ -48,6 +52,7 @@ protected:
 
 private:
     int mFd;
+    String8 mUri;
     int64_t mOffset;
     int64_t mLength;
     Mutex mLock;
@@ -60,6 +65,7 @@ private:
     unsigned char *mDrmBuf;
 
     ssize_t readAtDRM(off64_t offset, void *data, size_t size);
+    void fetchUriFromFd(int fd);
 
     FileSource(const FileSource &);
     FileSource &operator=(const FileSource &);
