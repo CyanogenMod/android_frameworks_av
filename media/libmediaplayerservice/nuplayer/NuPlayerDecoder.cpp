@@ -260,6 +260,10 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     if (mCodec == NULL) {
         mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
     }
+
+    //ExtendedCodec::overrideMimeType(format, &mime);
+    //ExtendedCodec::overrideComponentName(0, format, &mComponentName, &mime, false);
+
     int32_t secure = 0;
     if (format->findInt32("secure", &secure) && secure != 0) {
         if (mCodec != NULL) {

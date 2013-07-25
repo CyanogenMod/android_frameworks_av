@@ -44,6 +44,8 @@
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/SurfaceUtils.h>
+#include <media/stagefright/FFMPEGSoftCodec.h>
+
 #include <media/hardware/HardwareAPI.h>
 
 #include <OMX_AudioExt.h>
@@ -1587,7 +1589,13 @@ status_t ACodec::setComponentRole(
     }
 
     if (i == kNumMimeToRole) {
-        return ERROR_UNSUPPORTED;
+        status_t err = ERROR_UNSUPPORTED;
+        if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setSupportedRole(mOMX, mNode, isEncoder, mime);
+        }
+        if (err != OK) {
+            return err;
+        }
     }
 
     const char *role =
@@ -1908,7 +1916,8 @@ status_t ACodec::configureCodec(
     if (video) {
         // determine need for software renderer
         bool usingSwRenderer = false;
-        if (haveNativeWindow && mComponentName.startsWith("OMX.google.")) {
+        if (haveNativeWindow && (mComponentName.startsWith("OMX.google.") ||
+                                 mComponentName.startsWith("OMX.ffmpeg."))) {
             usingSwRenderer = true;
             haveNativeWindow = false;
         }
@@ -2107,9 +2116,12 @@ status_t ACodec::configureCodec(
                 || !msg->findInt32("sample-rate", &sampleRate)) {
             err = INVALID_OPERATION;
         } else {
-            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+            int32_t bitsPerSample = 16;
+            msg->findInt32("bit-width", &bitsPerSample);
+            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels, bitsPerSample);
         }
-    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3)) {
+    } else if (!strncmp(mComponentName.c_str(), "OMX.google.", 11)
+            && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3)) {
         int32_t numChannels;
         int32_t sampleRate;
         if (!msg->findInt32("channel-count", &numChannels)
@@ -2125,10 +2137,16 @@ status_t ACodec::configureCodec(
                 || !msg->findInt32("sample-rate", &sampleRate)) {
             err = INVALID_OPERATION;
         } else {
-            err = setupEAC3Codec(encoder, numChannels, sampleRate);
+            int32_t bitsPerSample = 16;
+            msg->findInt32("bit-width", &bitsPerSample);
+            err = setupEAC3Codec(encoder, numChannels, sampleRate, bitsPerSample);
         }
     } else {
         err = setupCustomCodec(err, mime, msg);
+        if(!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setAudioFormat(
+                    msg, mime, mOMX, mNode, mIsEncoder);
+        }
     }
 
     if (err != OK) {
@@ -2480,9 +2498,9 @@ status_t ACodec::setupAC3Codec(
 }
 
 status_t ACodec::setupEAC3Codec(
-        bool encoder, int32_t numChannels, int32_t sampleRate) {
+        bool encoder, int32_t numChannels, int32_t sampleRate, int32_t bitsPerSample) {
     status_t err = setupRawAudioFormat(
-            encoder ? kPortIndexInput : kPortIndexOutput, sampleRate, numChannels);
+            encoder ? kPortIndexInput : kPortIndexOutput, sampleRate, numChannels, bitsPerSample);
 
     if (err != OK) {
         return err;
@@ -2628,7 +2646,7 @@ status_t ACodec::setupFlacCodec(
 }
 
 status_t ACodec::setupRawAudioFormat(
-        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels) {
+        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels, int32_t bitsPerSample) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = portIndex;
@@ -2663,7 +2681,7 @@ status_t ACodec::setupRawAudioFormat(
     pcmParams.nChannels = numChannels;
     pcmParams.eNumData = OMX_NumericalDataSigned;
     pcmParams.bInterleaved = OMX_TRUE;
-    pcmParams.nBitPerSample = 16;
+    pcmParams.nBitPerSample = bitsPerSample;
     pcmParams.nSamplingRate = sampleRate;
     pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
 
@@ -2890,7 +2908,13 @@ status_t ACodec::setupVideoDecoder(
     status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        return err;
+        if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
+        if (err != OK) {
+            return err;
+        }
     }
 
     err = setVideoPortFormatType(
@@ -3040,7 +3064,14 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
     err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        return err;
+        if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
+        if (err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            return err;
+        }
     }
 
     err = setVideoPortFormatType(
@@ -4208,6 +4239,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
                     notify->setInt32("bit-width", params.nBitPerSample);
+
                     if (mChannelMaskPresent) {
                         notify->setInt32("channel-mask", mChannelMask);
                     }

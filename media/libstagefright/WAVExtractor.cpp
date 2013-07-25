@@ -285,6 +285,7 @@ status_t WAVExtractor::init() {
                     case WAVE_FORMAT_PCM:
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+                        mTrackMeta->setInt32(kKeyBitsPerSample, mBitsPerSample);
                         break;
                     case WAVE_FORMAT_ALAW:
                         mTrackMeta->setCString(

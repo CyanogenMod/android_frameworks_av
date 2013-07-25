@@ -36,6 +36,7 @@
 #include <media/AudioParameter.h>
 
 #include <stagefright/AVExtensions.h>
+#include <media/stagefright/FFMPEGSoftCodec.h>
 
 namespace android {
 
@@ -106,7 +107,7 @@ status_t convertMetaDataToMessage(
 
     int avgBitRate;
     if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
-        msg->setInt32("bit-rate", avgBitRate);
+        msg->setInt32("bitrate", avgBitRate);
     }
 
     int32_t isSync;
@@ -203,6 +204,11 @@ status_t convertMetaDataToMessage(
     int32_t fps;
     if (meta->findInt32(kKeyFrameRate, &fps)) {
         msg->setInt32("frame-rate", fps);
+    }
+
+    int32_t bitsPerSample;
+    if (meta->findInt32(kKeyBitsPerSample, &bitsPerSample)) {
+        msg->setInt32("bit-width", bitsPerSample);
     }
 
     uint32_t type;
@@ -436,7 +442,14 @@ status_t convertMetaDataToMessage(
     }
 
     AVUtils::get()->convertMetaDataToMessage(meta, &msg);
+
     *format = msg;
+
+#if 0
+    ALOGI("converted:");
+    meta->dumpToLog();
+    ALOGI("  to: %s", msg->debugString(0).c_str());
+#endif
 
     return OK;
 }
@@ -629,6 +642,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         if (msg->findInt32("is-adts", &isADTS)) {
             meta->setInt32(kKeyIsADTS, isADTS);
         }
+
+        int32_t bitsPerSample;
+        if (msg->findInt32("bit-width", &bitsPerSample)) {
+            meta->setInt32(kKeyBitsPerSample, bitsPerSample);
+        }
     }
 
     int32_t maxInputSize;
@@ -679,6 +697,8 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     }
 
     // XXX TODO add whatever other keys there are
+
+    FFMPEGSoftCodec::convertMessageToMetaData(msg, meta);
 
 #if 0
     ALOGI("converted %s to:", msg->debugString(0).c_str());
@@ -829,6 +849,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     if (AVUtils::get()->canOffloadAPE(meta) != true) {
         return false;
     }
+    ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info.format);
 
     // Redefine aac format according to its profile
     // Offloading depends on audio DSP capabilities.
