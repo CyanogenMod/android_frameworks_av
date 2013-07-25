@@ -77,8 +77,20 @@ void AVNuUtils::setKeyPCMFormat(const sp<MetaData> &, audio_format_t /*audioForm
 
 }
 
-audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &) {
-    return AUDIO_FORMAT_PCM_16_BIT;
+audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &format) {
+    int32_t bitWidth = 16;
+    format->findInt32("bit-width", &bitWidth);
+
+    audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+    if (bitWidth == 8) {
+        audioFormat = AUDIO_FORMAT_PCM_8_BIT;
+    } else if (bitWidth == 24) {
+        audioFormat = AUDIO_FORMAT_PCM_8_24_BIT;
+    } else if (bitWidth == 32) {
+        audioFormat = AUDIO_FORMAT_PCM_FLOAT;
+    }
+
+    return audioFormat;
 }
 
 void AVNuUtils::setPCMFormat(const sp<AMessage> &, audio_format_t /*audioFormat*/) {
