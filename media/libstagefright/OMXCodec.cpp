@@ -53,14 +53,17 @@
 #include <OMX_Component.h>
 #include <OMX_IndexExt.h>
 
-#include <media/stagefright/ExtendedCodec.h>
 #include "include/ExtendedUtils.h"
+
 #include "include/avc_utils.h"
+
+#include <media/stagefright/FFMPEGSoftCodec.h>
 
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #include <QCMetaData.h>
 #include <QOMX_AudioExtensions.h>
+#include <media/stagefright/ExtendedCodec.h>
 #endif
 
 #ifdef QTI_FLAC_DECODER
@@ -188,7 +191,9 @@ static void InitOMXParams(T *params) {
 }
 
 static bool IsSoftwareCodec(const char *componentName) {
-    if (!strncmp("OMX.google.", componentName, 11)) {
+    if (!strncmp("OMX.google.", componentName, 11)
+        || !strncmp("OMX.ffmpeg.", componentName, 11)
+        || !strncmp("OMX.PV.", componentName, 7)) {
         return true;
     }
 
@@ -333,7 +338,9 @@ uint32_t OMXCodec::getComponentQuirks(
         quirks |= kRequiresGlobalFlush;
     }
 
+#ifdef ENABLE_AV_ENHANCEMENTS
     quirks |= ExtendedCodec::getComponentQuirks(info);
+#endif
 
     return quirks;
 }
@@ -436,10 +443,12 @@ sp<MediaSource> OMXCodec::Create(
             return softwareCodec;
         }
 
+#ifdef ENABLE_AV_ENHANCEMENTS
         const char* ext_componentName = ExtendedCodec::overrideComponentName(quirks, meta, mime, createEncoder);
         if(ext_componentName != NULL) {
           componentName = ext_componentName;
         }
+#endif
 
         ALOGV("Attempting to allocate OMX node '%s'", componentName);
 
@@ -680,18 +689,20 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             addCodecSpecificData(data, size);
             CHECK(meta->findData(kKeyOpusSeekPreRoll, &type, &data, &size));
             addCodecSpecificData(data, size);
-#ifdef ENABLE_AV_ENHANCEMENTS
         } else if (meta->findData(kKeyRawCodecSpecificData, &type, &data, &size)) {
             ALOGV("OMXCodec::configureCodec found kKeyRawCodecSpecificData of size %d\n", size);
             addCodecSpecificData(data, size);
-#endif
+#ifdef ENABLE_AV_ENHANCEMENTS
         } else {
             ExtendedCodec::getRawCodecSpecificData(meta, data, size);
             if (size) {
                 addCodecSpecificData(data, size);
             }
+#endif
         }
     }
+
+    if (!strncasecmp(mMIME, "audio/", 6)) {
 
     int32_t bitRate = 0;
     if (mIsEncoder) {
@@ -777,11 +788,22 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
             setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
         }
-        status_t err = ExtendedCodec::setAudioFormat(
-                meta, mMIME, mOMX, mNode, mIsEncoder);
-        if(OK != err) {
+        status_t err = ERROR_UNSUPPORTED;
+
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+            err = ExtendedCodec::setAudioFormat(
+                    meta, mMIME, mOMX, mNode, mIsEncoder);
+        }
+#endif
+        if (OK != err && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setAudioFormat(
+                    meta, mMIME, mOMX, mNode, mIsEncoder);
+        }
+        if (OK != err) {
             return err;
         }
+    }
     }
 
     if (!strncasecmp(mMIME, "video/", 6)) {
@@ -789,16 +811,18 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         if (mIsEncoder) {
             setVideoInputFormat(mMIME, meta);
         } else {
+#ifdef ENABLE_AV_ENHANCEMENTS
             ExtendedCodec::configureVideoDecoder(
                     meta, mMIME, mOMX, mFlags, mNode, mComponentName);
-
+#endif
             status_t err = setVideoOutputFormat(mMIME, meta);
             if (err != OK) {
                 return err;
             }
-
+#ifdef ENABLE_AV_ENHANCEMENTS
             ExtendedCodec::enableSmoothStreaming(
                     mOMX, mNode, &mInSmoothStreamingMode, mComponentName);
+#endif
         }
     }
 
@@ -927,6 +951,7 @@ status_t OMXCodec::setVideoPortFormatType(
     }
 
     if (!found) {
+        CODEC_LOGE("not found a match.");
         return UNKNOWN_ERROR;
     }
 
@@ -1042,7 +1067,16 @@ void OMXCodec::setVideoInputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
         compressionFormat = OMX_VIDEO_CodingH263;
     } else {
-        status_t err = ExtendedCodec::setVideoFormat(mime, &compressionFormat);
+        status_t err = ERROR_UNSUPPORTED;
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+            err = ExtendedCodec::setVideoFormat(meta, mime, &compressionFormat);
+        }
+#endif
+        if (err != OK && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    meta, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
         if (err != OK) {
             ALOGE("Not a supported video mime type: %s", mime);
             CHECK(!"Should not be here. Not a supported video mime type.");
@@ -1133,6 +1167,7 @@ void OMXCodec::setVideoInputFormat(
 
         default:
         {
+#ifdef ENABLE_AV_ENHANCEMENTS
             bool retVal = ExtendedCodec::checkIfCompressionHEVC((int)compressionFormat);
             if (retVal) {
                 CHECK_EQ(ExtendedCodec::setupHEVCEncoderParameters(meta, mOMX,
@@ -1140,6 +1175,7 @@ void OMXCodec::setVideoInputFormat(
             } else {
                 CHECK(!"Support for this compressionFormat to be implemented.");
             }
+#endif
             break;
         }
     }
@@ -1454,8 +1490,17 @@ status_t OMXCodec::setVideoOutputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
         compressionFormat = OMX_VIDEO_CodingMPEG2;
     } else {
-        status_t err = ExtendedCodec::setVideoFormat(mime, &compressionFormat);
-        if(err != OK) {
+        status_t err = ERROR_UNSUPPORTED;
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+            err = ExtendedCodec::setVideoFormat(meta, mime, &compressionFormat);
+        }
+#endif
+        if(err != OK && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    meta, mMIME, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
+        if (err != OK) {
             ALOGE("Not a supported video mime type: %s", mime);
             CHECK(!"Should not be here. Not a supported video mime type.");
         }
@@ -1601,7 +1646,8 @@ OMXCodec::OMXCodec(
       mLeftOverBuffer(NULL),
       mPaused(false),
       mNativeWindow(
-              (!strncmp(componentName, "OMX.google.", 11))
+              (!strncmp(componentName, "OMX.google.", 11)
+              || !strncmp(componentName, "OMX.ffmpeg.", 11))
                         ? NULL : nativeWindow),
       mNumBFrames(0),
       mInSmoothStreamingMode(false),
@@ -1696,7 +1742,13 @@ void OMXCodec::setComponentRole(
     }
 
     if (i == kNumMimeToRole) {
-        ExtendedCodec::setSupportedRole(omx, node, isEncoder, mime);
+        status_t err = ERROR_UNSUPPORTED;
+#ifdef ENABLE_AV_ENHANCEMENTS
+        err = ExtendedCodec::setSupportedRole(omx, node, isEncoder, mime);
+#endif
+        if (err != OK) {
+            err = FFMPEGSoftCodec::setSupportedRole(omx, node, isEncoder, mime);
+        }
         return;
     }
 
@@ -1830,7 +1882,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         return err;
     }
 
-    CODEC_LOGV("allocating %lu buffers of size %lu on %s port",
+    CODEC_LOGI("allocating %lu buffers of size %lu on %s port",
             def.nBufferCountActual, def.nBufferSize,
             portIndex == kPortIndexInput ? "input" : "output");
 
@@ -1904,7 +1956,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
         mPortBuffers[portIndex].push(info);
 
-        CODEC_LOGV("allocated buffer %p on %s port", buffer,
+        CODEC_LOGI("allocated buffer %p on %s port", buffer,
              portIndex == kPortIndexInput ? "input" : "output");
     }
 
@@ -4518,6 +4570,29 @@ static const char *colorFormatString(OMX_COLOR_FORMATTYPE type) {
     }
 }
 
+static const char *vendorVideoCompressionFormatString(OMX_VIDEO_CODINGTYPE type) {
+    static const char *kVendorNames[] = {
+        "OMX_VIDEO_CodingVendorStartUnused",
+        "OMX_VIDEO_CodingVC1",
+        "OMX_VIDEO_CodingFLV1",
+        "OMX_VIDEO_CodingDIVX",
+        "OMX_VIDEO_CodingHEVC",
+        "OMX_VIDEO_CodingFFMPEG",
+    };
+
+    CHECK_GE(type, OMX_VIDEO_CodingVendorStartUnused);
+
+    size_t index = (size_t)type - (size_t)OMX_VIDEO_CodingVendorStartUnused;
+
+    size_t numNames = sizeof(kVendorNames) / sizeof(kVendorNames[0]);
+
+    if (index >= numNames) {
+        return "UNKNOWN";
+    } else {
+        return kVendorNames[index];
+    }
+}
+
 static const char *videoCompressionFormatString(OMX_VIDEO_CODINGTYPE type) {
     static const char *kNames[] = {
         "OMX_VIDEO_CodingUnused",
@@ -4529,7 +4604,12 @@ static const char *videoCompressionFormatString(OMX_VIDEO_CODINGTYPE type) {
         "OMX_VIDEO_CodingRV",
         "OMX_VIDEO_CodingAVC",
         "OMX_VIDEO_CodingMJPEG",
+        "OMX_VIDEO_CodingVPX",
     };
+
+    if (type >= OMX_VIDEO_CodingVendorStartUnused) {
+        return vendorVideoCompressionFormatString(type);
+    }
 
     size_t numNames = sizeof(kNames) / sizeof(kNames[0]);
 
@@ -4537,6 +4617,29 @@ static const char *videoCompressionFormatString(OMX_VIDEO_CODINGTYPE type) {
         return "UNKNOWN";
     } else {
         return kNames[type];
+    }
+}
+
+static const char *vendorAudioCodingTypeString(OMX_AUDIO_CODINGTYPE type) {
+    static const char *kVendorNames[] = {
+        "OMX_AUDIO_CodingVendorStartUnused",
+        "OMX_AUDIO_CodingMP2",
+        "OMX_AUDIO_CodingAC3",
+        "OMX_AUDIO_CodingAPE",
+        "OMX_AUDIO_CodingDTS",
+        "OMX_AUDIO_CodingFFMPEG",
+    };
+
+    CHECK_GE(type, OMX_AUDIO_CodingVendorStartUnused);
+
+    size_t index = (size_t)type - (size_t)OMX_AUDIO_CodingVendorStartUnused;
+
+    size_t numNames = sizeof(kVendorNames) / sizeof(kVendorNames[0]);
+
+    if (index >= numNames) {
+        return "UNKNOWN";
+    } else {
+        return kVendorNames[index];
     }
 }
 
@@ -4571,7 +4674,12 @@ static const char *audioCodingTypeString(OMX_AUDIO_CODINGTYPE type) {
         "OMX_AUDIO_CodingWMA",
         "OMX_AUDIO_CodingRA",
         "OMX_AUDIO_CodingMIDI",
+        "OMX_AUDIO_CodingFLAC",
     };
+
+    if (type >= OMX_AUDIO_CodingVendorStartUnused) {
+        return vendorAudioCodingTypeString(type);
+    }
 
     size_t numNames = sizeof(kNames) / sizeof(kNames[0]);
 
@@ -4846,14 +4954,14 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 inputFormat->findInt32(kKeySampleRate, &sampleRate);
 
                 if ((OMX_U32)numChannels != params.nChannels) {
-                    ALOGV("Codec outputs a different number of channels than "
+                    ALOGI("Codec outputs a different number of channels than "
                          "the input stream contains (contains %d channels, "
                          "codec outputs %ld channels).",
                          numChannels, params.nChannels);
                 }
 
                 if (sampleRate != (int32_t)params.nSamplingRate) {
-                    ALOGV("Codec outputs at different sampling rate than "
+                    ALOGI("Codec outputs at different sampling rate than "
                          "what the input stream contains (contains data at "
                          "%d Hz, codec outputs %lu Hz)",
                          sampleRate, params.nSamplingRate);
@@ -4920,8 +5028,16 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 mOutputFormat->setInt32(kKeyBitRate, bitRate);
             } else {
                 AString mimeType;
-                if (OK == ExtendedCodec::handleSupportedAudioFormats(
-                        audio_def->eEncoding, &mimeType)) {
+                err = BAD_VALUE;
+#ifdef ENABLE_AV_ENHANCEMENTS
+                err = ExtendedCodec::handleSupportedAudioFormats(
+                        audio_def->eEncoding, &mimeType);
+#endif
+                if (err != OK) {
+                    err = FFMPEGSoftCodec::handleSupportedAudioFormats(
+                            audio_def->eEncoding, &mimeType);
+                }
+                if (err == OK) {
                     mOutputFormat->setCString(
                             kKeyMIMEType, mimeType.c_str());
                     int32_t numChannels, sampleRate, bitRate;
@@ -4956,8 +5072,16 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                         kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
             } else {
                 AString mimeType;
-                if (OK == ExtendedCodec::handleSupportedVideoFormats(
-                        video_def->eCompressionFormat, &mimeType)) {
+                err = BAD_VALUE;
+#ifdef ENABLE_AV_ENHANCEMENTS
+                err = ExtendedCodec::handleSupportedVideoFormats(
+                        video_def->eCompressionFormat, &mimeType);
+#endif
+                if (err != OK) {
+                    err = FFMPEGSoftCodec::handleSupportedVideoFormats(
+                            video_def->eCompressionFormat, &mimeType);
+                }
+                if (err == OK) {
                     mOutputFormat->setCString(kKeyMIMEType, mimeType.c_str());
                 } else {
                     CHECK(!"Unknown compression format.");

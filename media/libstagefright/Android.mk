@@ -66,6 +66,7 @@ LOCAL_SRC_FILES:=                         \
         ExtendedUtils.cpp                 \
         ExtendedStats.cpp                 \
         APE.cpp                           \
+        FFMPEGSoftCodec.cpp               \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
