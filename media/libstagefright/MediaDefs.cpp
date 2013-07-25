@@ -64,4 +64,32 @@ const char *MEDIA_MIMETYPE_TEXT_VTT = "text/vtt";
 const char *MEDIA_MIMETYPE_TEXT_CEA_608 = "text/cea-608";
 const char *MEDIA_MIMETYPE_DATA_TIMED_ID3 = "application/x-id3v4";
 
+const char *MEDIA_MIMETYPE_VIDEO_FLV1 = "video/x-flv";
+const char *MEDIA_MIMETYPE_VIDEO_MJPEG = "video/x-jpeg";
+const char *MEDIA_MIMETYPE_VIDEO_RV = "video/vnd.rn-realvideo";
+const char *MEDIA_MIMETYPE_VIDEO_VC1 = "video/vc1";
+const char *MEDIA_MIMETYPE_VIDEO_FFMPEG = "video/ffmpeg";
+
+const char *MEDIA_MIMETYPE_AUDIO_PCM = "audio/x-pcm";
+const char *MEDIA_MIMETYPE_AUDIO_RA = "audio/vnd.rn-realaudio";
+const char *MEDIA_MIMETYPE_AUDIO_FFMPEG = "audio/ffmpeg";
+
+const char *MEDIA_MIMETYPE_CONTAINER_APE = "audio/x-ape";
+const char *MEDIA_MIMETYPE_CONTAINER_DIVX = "video/divx";
+const char *MEDIA_MIMETYPE_CONTAINER_DTS = "audio/vnd.dts";
+const char *MEDIA_MIMETYPE_CONTAINER_FLAC = "audio/flac";
+const char *MEDIA_MIMETYPE_CONTAINER_FLV = "video/x-flv";
+const char *MEDIA_MIMETYPE_CONTAINER_MOV = "video/quicktime";
+const char *MEDIA_MIMETYPE_CONTAINER_MP2 = "audio/mpeg2";
+const char *MEDIA_MIMETYPE_CONTAINER_MPG = "video/mpeg";
+const char *MEDIA_MIMETYPE_CONTAINER_RA = "audio/vnd.rn-realaudio";
+const char *MEDIA_MIMETYPE_CONTAINER_RM = "video/vnd.rn-realvideo";
+const char *MEDIA_MIMETYPE_CONTAINER_TS = "video/mp2t";
+const char *MEDIA_MIMETYPE_CONTAINER_WEBM = "video/webm";
+const char *MEDIA_MIMETYPE_CONTAINER_WMA = "audio/x-ms-wma";
+const char *MEDIA_MIMETYPE_CONTAINER_WMV = "video/x-ms-wmv";
+const char *MEDIA_MIMETYPE_CONTAINER_VC1 = "video/vc1";
+const char *MEDIA_MIMETYPE_CONTAINER_HEVC = "video/hevc";
+const char *MEDIA_MIMETYPE_CONTAINER_FFMPEG = "video/ffmpeg";
+
 }  // namespace android

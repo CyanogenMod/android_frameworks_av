@@ -56,6 +56,8 @@
 
 #include "include/avc_utils.h"
 
+#include <media/stagefright/FFMPEGSoftCodec.h>
+
 namespace android {
 
 // Treat time out as an error if we have not received any output
@@ -150,7 +152,8 @@ static void InitOMXParams(T *params) {
 }
 
 static bool IsSoftwareCodec(const char *componentName) {
-    if (!strncmp("OMX.google.", componentName, 11)) {
+    if (!strncmp("OMX.google.", componentName, 11)
+        || !strncmp("OMX.ffmpeg.", componentName, 11)) {
         return true;
     }
 
@@ -393,7 +396,7 @@ status_t OMXCodec::parseHEVCCodecSpecificData(
     const uint8_t *ptr = (const uint8_t *)data;
 
     // verify minimum size and configurationVersion == 1.
-    if (size < 7 || ptr[0] != 1) {
+    if (size < 7) {
         return ERROR_MALFORMED;
     }
 
@@ -576,8 +579,13 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             addCodecSpecificData(data, size);
             CHECK(meta->findData(kKeyOpusSeekPreRoll, &type, &data, &size));
             addCodecSpecificData(data, size);
+        } else if (meta->findData(kKeyRawCodecSpecificData, &type, &data, &size)) {
+            ALOGV("OMXCodec::configureCodec found kKeyRawCodecSpecificData of size %d\n", size);
+            addCodecSpecificData(data, size);
         }
     }
+
+    if (!strncasecmp(mMIME, "audio/", 6)) {
 
     int32_t bitRate = 0;
     if (mIsEncoder) {
@@ -649,6 +657,15 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
 
         setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+
+        if (!strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            status_t err = FFMPEGSoftCodec::setAudioFormat(
+                    meta, mMIME, mOMX, mNode, mIsEncoder);
+            if (OK != err) {
+                return err;
+            }
+        }
+    }
     }
 
     if (!strncasecmp(mMIME, "video/", 6)) {
@@ -790,6 +807,7 @@ status_t OMXCodec::setVideoPortFormatType(
     }
 
     if (!found) {
+        CODEC_LOGE("not found a match.");
         return UNKNOWN_ERROR;
     }
 
@@ -905,8 +923,15 @@ void OMXCodec::setVideoInputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
         compressionFormat = OMX_VIDEO_CodingH263;
     } else {
-        ALOGE("Not a supported video mime type: %s", mime);
-        CHECK(!"Should not be here. Not a supported video mime type.");
+        status_t err = ERROR_UNSUPPORTED;
+        if (err != OK && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    meta, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
+        if (err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            CHECK(!"Should not be here. Not a supported video mime type.");
+        }
     }
 
     OMX_COLOR_FORMATTYPE colorFormat;
@@ -1305,8 +1330,15 @@ status_t OMXCodec::setVideoOutputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
         compressionFormat = OMX_VIDEO_CodingMPEG2;
     } else {
-        ALOGE("Not a supported video mime type: %s", mime);
-        CHECK(!"Should not be here. Not a supported video mime type.");
+        status_t err = ERROR_UNSUPPORTED;
+        if(err != OK && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+            err = FFMPEGSoftCodec::setVideoFormat(
+                    meta, mMIME, mOMX, mNode, mIsEncoder, &compressionFormat);
+        }
+        if (err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            return err;
+        }
     }
 
     status_t err = setVideoPortFormatType(
@@ -1449,7 +1481,8 @@ OMXCodec::OMXCodec(
       mLeftOverBuffer(NULL),
       mPaused(false),
       mNativeWindow(
-              (!strncmp(componentName, "OMX.google.", 11))
+              (!strncmp(componentName, "OMX.google.", 11)
+              || !strncmp(componentName, "OMX.ffmpeg.", 11))
                         ? NULL : nativeWindow) {
     mPortStatus[kPortIndexInput] = ENABLED;
     mPortStatus[kPortIndexOutput] = ENABLED;
@@ -1523,6 +1556,7 @@ void OMXCodec::setComponentRole(
     }
 
     if (i == kNumMimeToRole) {
+        FFMPEGSoftCodec::setSupportedRole(omx, node, isEncoder, mime);
         return;
     }
 
@@ -4088,14 +4122,14 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 inputFormat->findInt32(kKeySampleRate, &sampleRate);
 
                 if ((OMX_U32)numChannels != params.nChannels) {
-                    ALOGV("Codec outputs a different number of channels than "
+                    ALOGI("Codec outputs a different number of channels than "
                          "the input stream contains (contains %d channels, "
                          "codec outputs %u channels).",
                          numChannels, params.nChannels);
                 }
 
                 if (sampleRate != (int32_t)params.nSamplingRate) {
-                    ALOGV("Codec outputs at different sampling rate than "
+                    ALOGI("Codec outputs at different sampling rate than "
                          "what the input stream contains (contains data at "
                          "%d Hz, codec outputs %u Hz)",
                          sampleRate, params.nSamplingRate);
@@ -4161,7 +4195,22 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 mOutputFormat->setInt32(kKeySampleRate, sampleRate);
                 mOutputFormat->setInt32(kKeyBitRate, bitRate);
             } else {
-                CHECK(!"Should not be here. Unknown audio encoding.");
+                AString mimeType;
+                err = FFMPEGSoftCodec::handleSupportedAudioFormats(
+                        audio_def->eEncoding, &mimeType);
+                if (err == OK) {
+                    mOutputFormat->setCString(
+                            kKeyMIMEType, mimeType.c_str());
+                    int32_t numChannels, sampleRate, bitRate;
+                    inputFormat->findInt32(kKeyChannelCount, &numChannels);
+                    inputFormat->findInt32(kKeySampleRate, &sampleRate);
+                    inputFormat->findInt32(kKeyBitRate, &bitRate);
+                    mOutputFormat->setInt32(kKeyChannelCount, numChannels);
+                    mOutputFormat->setInt32(kKeySampleRate, sampleRate);
+                    mOutputFormat->setInt32(kKeyBitRate, bitRate);
+                } else {
+                    CHECK(!"Should not be here. Unknown audio encoding.");
+                }
             }
             break;
         }
@@ -4183,7 +4232,14 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 mOutputFormat->setCString(
                         kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
             } else {
-                CHECK(!"Unknown compression format.");
+                AString mimeType;
+                err = FFMPEGSoftCodec::handleSupportedVideoFormats(
+                        video_def->eCompressionFormat, &mimeType);
+                if (err == OK) {
+                    mOutputFormat->setCString(kKeyMIMEType, mimeType.c_str());
+                } else {
+                    CHECK(!"Unknown compression format.");
+                }
             }
 
             mOutputFormat->setInt32(kKeyWidth, video_def->nFrameWidth);
