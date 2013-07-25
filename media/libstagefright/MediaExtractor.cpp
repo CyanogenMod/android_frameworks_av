@@ -49,7 +49,7 @@
 #include <utils/String8.h>
 #include <private/android_filesystem_config.h>
 
-
+#include <media/stagefright/FFMPEGSoftCodec.h>
 #include <stagefright/AVExtensions.h>
 
 namespace android {
@@ -63,7 +63,6 @@ MediaExtractor::MediaExtractor():
     }
 
 }
-
 
 sp<MetaData> MediaExtractor::getMetaData() {
     return new MetaData;
@@ -198,9 +197,15 @@ sp<MediaExtractor> MediaExtractor::CreateFromService(
 
     sp<AMessage> meta;
 
+    bool secondPass = false;
+
     String8 tmp;
-    if (mime == NULL) {
+retry:
+    if (secondPass || mime == NULL) {
         float confidence;
+        if (secondPass) {
+            confidence = 3.14f;
+        }
         if (!source->sniff(&tmp, &confidence, &meta)) {
             ALOGV("FAILED to autodetect media content.");
 
@@ -235,7 +240,11 @@ sp<MediaExtractor> MediaExtractor::CreateFromService(
     }
 
     MediaExtractor *ret = NULL;
+    AString extractorName;
     if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta)) != NULL) {
+    } else if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
+            && (ret = FFMPEGSoftCodec::createExtractor(source, mime, meta)) != NULL) {
+        ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
         ret = new MPEG4Extractor(source);
@@ -263,6 +272,16 @@ sp<MediaExtractor> MediaExtractor::CreateFromService(
         ret = new MPEG2PSExtractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MIDI)) {
         ret = new MidiExtractor(source);
+    } else if (!isDrm) {
+        ret = FFMPEGSoftCodec::createExtractor(source, mime, meta);
+    }
+
+    if (ret != NULL) {
+        if (!secondPass && ( ret->countTracks() == 0 ||
+                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2) ) ) {
+            secondPass = true;
+            goto retry;
+        }
     }
 
     return ret;

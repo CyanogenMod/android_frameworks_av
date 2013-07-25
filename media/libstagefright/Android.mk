@@ -63,6 +63,7 @@ LOCAL_SRC_FILES:=                         \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
+        FFMPEGSoftCodec.cpp               \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
@@ -142,6 +143,9 @@ endif
 
 LOCAL_CLANG := true
 LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
+
+# FFMPEG plugin
+LOCAL_C_INCLUDES += $(TOP)/external/stagefright-plugins/include
 
 LOCAL_MODULE:= libstagefright
 

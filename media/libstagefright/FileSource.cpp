@@ -31,6 +31,7 @@ namespace android {
 
 FileSource::FileSource(const char *filename)
     : mFd(-1),
+      mUri(filename),
       mOffset(0),
       mLength(-1),
       mName("<null>"),
@@ -97,6 +98,7 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
             (long long) mOffset,
             (long long) mLength);
 
+    fetchUriFromFd(fd);
 }
 
 FileSource::~FileSource() {
@@ -225,6 +227,20 @@ ssize_t FileSource::readAtDRM(off64_t offset, void *data, size_t size) {
     } else {
         /* Too big chunk to cache. Call DRM directly */
         return mDrmManagerClient->pread(mDecryptHandle, data, size, offset + mOffset);
+    }
+}
+
+void FileSource::fetchUriFromFd(int fd) {
+    ssize_t len = 0;
+    char path[PATH_MAX] = {0};
+    char link[PATH_MAX] = {0};
+
+    mUri.clear();
+
+    snprintf(path, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd);
+    if ((len = readlink(path, link, sizeof(link)-1)) != -1) {
+        link[len] = '\0';
+        mUri.setTo(link);
     }
 }
 }  // namespace android
