@@ -74,7 +74,11 @@ struct ExtendedCodec {
             bool isEncoder);
 
     static status_t setVideoFormat(
-            const char *mime,
+            const sp<MetaData> &meta, const char *mime,
+            OMX_VIDEO_CODINGTYPE *compressionFormat);
+
+    static status_t setVideoFormat(
+            const sp<AMessage> &msg, const char *mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat);
 
     static status_t getSupportedAudioFormatInfo(
