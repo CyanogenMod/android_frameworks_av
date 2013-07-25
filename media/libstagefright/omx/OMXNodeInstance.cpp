@@ -596,7 +596,8 @@ status_t OMXNodeInstance::createInputSurface(
     CHECK(oerr == OMX_ErrorNone);
 
     if (def.format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque) {
-        ALOGE("createInputSurface requires AndroidOpaque color format");
+        ALOGE("createInputSurface requires COLOR_FormatSurface "
+              "(AndroidOpaque) color format");
         return INVALID_OPERATION;
     }
 
