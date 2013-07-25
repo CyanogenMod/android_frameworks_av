@@ -3035,10 +3035,8 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                                                        keyValuePair.string());
             }
             if (status == NO_ERROR && reconfig) {
-                delete mAudioMixer;
-                // for safety in case readOutputParameters() accesses mAudioMixer (it doesn't)
-                mAudioMixer = NULL;
                 readOutputParameters();
+                delete mAudioMixer;
                 mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
                     int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
