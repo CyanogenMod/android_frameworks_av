@@ -35,6 +35,7 @@
 #include <media/stagefright/MediaErrors.h>
 
 #include <stagefright/AVExtensions.h>
+#include <stagefright/FFMPEGSoftCodec.h>
 #include <gui/Surface.h>
 
 #include "avc_utils.h"
@@ -260,6 +261,9 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     if (mCodec == NULL) {
         mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
     }
+
+    FFMPEGSoftCodec::overrideComponentName(0, format, &mComponentName, &mime, false);
+
     int32_t secure = 0;
     if (format->findInt32("secure", &secure) && secure != 0) {
         if (mCodec != NULL) {

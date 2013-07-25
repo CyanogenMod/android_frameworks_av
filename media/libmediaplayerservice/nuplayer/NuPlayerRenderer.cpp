@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/AWakeLock.h>
 #include <media/stagefright/MediaClock.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
@@ -1678,13 +1679,17 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
 
+    int32_t bitWidth = 16;
+    format->findInt32("bit-width", &bitWidth);
+
     int32_t sampleRate;
     CHECK(format->findInt32("sample-rate", &sampleRate));
 
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+
     if (offloadingAudio()) {
         audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
-        AString mime;
-        CHECK(format->findString("mime", &mime));
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
 
         if (err != OK) {
@@ -1692,15 +1697,11 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
-            int32_t bitWidth = 16;
-            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
-                    mime.c_str(), audioFormat);
-
             audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
 
             bitWidth = AVUtils::get()->getAudioSampleBits(format);
             int avgBitRate = -1;
-            format->findInt32("bit-rate", &avgBitRate);
+            format->findInt32("bitrate", &avgBitRate);
 
             int32_t aacProfile = -1;
             if (audioFormat == AUDIO_FORMAT_AAC
