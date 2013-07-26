@@ -203,11 +203,6 @@ void AudioFlinger::ThreadBase::TrackBase::releaseBuffer(AudioBufferProvider::Buf
     mServerProxy->releaseBuffer(&buf);
 }
 
-void AudioFlinger::ThreadBase::TrackBase::reset() {
-    ALOGV("TrackBase::reset");
-    // FIXME still needed?
-}
-
 status_t AudioFlinger::ThreadBase::TrackBase::setSyncEvent(const sp<SyncEvent>& event)
 {
     mSyncEvents.add(event);
@@ -703,7 +698,6 @@ void AudioFlinger::PlaybackThread::Track::reset()
     // Do not reset twice to avoid discarding data written just after a flush and before
     // the audioflinger thread detects the track is stopped.
     if (!mResetDone) {
-        TrackBase::reset();
         // Force underrun condition to avoid false underrun callback until first data is
         // written to buffer
         android_atomic_and(~CBLK_FORCEREADY, &mCblk->flags);
@@ -1714,7 +1708,6 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
         recordThread->mLock.lock();
         bool doStop = recordThread->stop_l(this);
         if (doStop) {
-            TrackBase::reset();
             // Force overrun condition to avoid false overrun callback until first data is
             // read from buffer
             android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
