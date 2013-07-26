@@ -33,6 +33,10 @@
 #include <media/stagefright/Utils.h>
 #include <media/AudioParameter.h>
 
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#include "QCMetaData.h"
+#endif
+
 namespace android {
 
 uint16_t U16_AT(const uint8_t *ptr) {
@@ -128,6 +132,30 @@ status_t convertMetaDataToMessage(
         if (meta->findInt32(kKeyIsADTS, &isADTS)) {
             msg->setInt32("is-adts", true);
         }
+
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+        uint32_t type;
+        const void *data;
+        size_t size;
+
+        if (meta->findData(kKeyAacCodecSpecificData, &type, &data, &size)) {
+            if (size > 0 && data != NULL) {
+                sp<ABuffer> buffer = new ABuffer(size);
+                if (buffer != NULL) {
+                    memcpy(buffer->data(), data, size);
+                    buffer->meta()->setInt32("csd", true);
+                    buffer->meta()->setInt64("timeUs", 0);
+                    msg->setBuffer("csd-0", buffer);
+                }
+                else {
+                    ALOGE("kKeyAacCodecSpecificData ABuffer Allocation failed");
+                }
+            }
+            else {
+                ALOGE("Not a valid data pointer or size == 0");
+            }
+       }
+#endif
     }
 
     int32_t maxInputSize;
