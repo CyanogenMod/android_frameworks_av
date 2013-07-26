@@ -1543,10 +1543,25 @@ int AudioFlinger::PlaybackThread::asyncCallback(stream_callback_event_t event,
 
 void AudioFlinger::PlaybackThread::readOutputParameters()
 {
+    // unfortunately we have no way of recovering from errors here, hence the LOG_FATAL
     mSampleRate = mOutput->stream->common.get_sample_rate(&mOutput->stream->common);
     mChannelMask = mOutput->stream->common.get_channels(&mOutput->stream->common);
+    if (!audio_is_output_channel(mChannelMask)) {
+        LOG_FATAL("HAL channel mask %#x not valid for output", mChannelMask);
+    }
+    if ((mType == MIXER || mType == DUPLICATING) && mChannelMask != AUDIO_CHANNEL_OUT_STEREO) {
+        LOG_FATAL("HAL channel mask %#x not supported for mixed output; "
+                "must be AUDIO_CHANNEL_OUT_STEREO", mChannelMask);
+    }
     mChannelCount = (uint16_t)popcount(mChannelMask);
     mFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
+    if (!audio_is_valid_format(mFormat)) {
+        LOG_FATAL("HAL format %d not valid for output", mFormat);
+    }
+    if ((mType == MIXER || mType == DUPLICATING) && mFormat != AUDIO_FORMAT_PCM_16_BIT) {
+        LOG_FATAL("HAL format %d not supported for mixed output; must be AUDIO_FORMAT_PCM_16_BIT",
+                mFormat);
+    }
     mFrameSize = audio_stream_frame_size(&mOutput->stream->common);
     mFrameCount = mOutput->stream->common.get_buffer_size(&mOutput->stream->common) / mFrameSize;
     if (mFrameCount & 15) {

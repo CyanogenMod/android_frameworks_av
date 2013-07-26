@@ -45,6 +45,8 @@
 #define MIN_WARMUP_CYCLES          2    // minimum number of loop cycles to wait for warmup
 #define MAX_WARMUP_CYCLES         10    // maximum number of loop cycles to wait for warmup
 
+#define FCC_2                       2   // fixed channel count assumption
+
 namespace android {
 
 // Fast mixer thread
@@ -225,7 +227,7 @@ bool FastMixer::threadLoop()
                 } else {
                     format = outputSink->format();
                     sampleRate = Format_sampleRate(format);
-                    ALOG_ASSERT(Format_channelCount(format) == 2);
+                    ALOG_ASSERT(Format_channelCount(format) == FCC_2);
                 }
                 dumpState->mSampleRate = sampleRate;
             }
@@ -241,7 +243,7 @@ bool FastMixer::threadLoop()
                     //       implementation; it would be better to have normal mixer allocate for us
                     //       to avoid blocking here and to prevent possible priority inversion
                     mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-                    mixBuffer = new short[frameCount * 2];
+                    mixBuffer = new short[frameCount * FCC_2];
                     periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
                     underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
                     overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
@@ -438,7 +440,7 @@ bool FastMixer::threadLoop()
         //bool didFullWrite = false;    // dumpsys could display a count of partial writes
         if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
             if (mixBufferState == UNDEFINED) {
-                memset(mixBuffer, 0, frameCount * 2 * sizeof(short));
+                memset(mixBuffer, 0, frameCount * FCC_2 * sizeof(short));
                 mixBufferState = ZEROED;
             }
             if (teeSink != NULL) {
