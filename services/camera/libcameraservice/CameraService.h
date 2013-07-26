@@ -29,8 +29,8 @@
 #include <camera/ICameraClient.h>
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
-#include <camera/photography/ICameraDeviceUser.h>
-#include <camera/photography/ICameraDeviceCallbacks.h>
+#include <camera/camera2/ICameraDeviceUser.h>
+#include <camera/camera2/ICameraDeviceCallbacks.h>
 
 #include <camera/ICameraServiceListener.h>
 

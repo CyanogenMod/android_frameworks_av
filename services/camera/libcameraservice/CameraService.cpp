@@ -38,10 +38,10 @@
 #include <utils/String16.h>
 
 #include "CameraService.h"
-#include "CameraClient.h"
-#include "Camera2Client.h"
-#include "ProCamera2Client.h"
-#include "photography/CameraDeviceClient.h"
+#include "api1/CameraClient.h"
+#include "api1/Camera2Client.h"
+#include "api_pro/ProCamera2Client.h"
+#include "api2/CameraDeviceClient.h"
 #include "CameraDeviceFactory.h"
 
 namespace android {

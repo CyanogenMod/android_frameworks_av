@@ -18,11 +18,11 @@
 #define LOG_TAG "CameraDeviceFactory"
 #include <utils/Log.h>
 
-#include "CameraDeviceBase.h"
-#include "Camera2Device.h"
-#include "Camera3Device.h"
 #include "CameraService.h"
 #include "CameraDeviceFactory.h"
+#include "common/CameraDeviceBase.h"
+#include "device2/Camera2Device.h"
+#include "device3/Camera3Device.h"
 
 namespace android {
 
@@ -69,4 +69,3 @@ void CameraDeviceFactory::registerService(wp<CameraService> service) {
 }
 
 }; // namespace android
-

@@ -31,8 +31,8 @@
 #include <camera/IProCameraCallbacks.h>
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
-#include <camera/photography/ICameraDeviceUser.h>
-#include <camera/photography/ICameraDeviceCallbacks.h>
+#include <camera/camera2/ICameraDeviceUser.h>
+#include <camera/camera2/ICameraDeviceCallbacks.h>
 
 namespace android {
 
@@ -151,7 +151,7 @@ public:
         return interface_cast<IProCameraUser>(reply.readStrongBinder());
     }
 
-    // connect to camera service (android.hardware.photography.CameraDevice)
+    // connect to camera service (android.hardware.camera2.CameraDevice)
     virtual sp<ICameraDeviceUser> connect(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,

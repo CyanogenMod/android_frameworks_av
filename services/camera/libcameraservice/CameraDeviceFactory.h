@@ -20,6 +20,7 @@
 #include <utils/RefBase.h>
 
 namespace android {
+
 class CameraDeviceBase;
 class CameraService;
 
