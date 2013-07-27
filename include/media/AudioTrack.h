@@ -661,7 +661,7 @@ protected:
     sp<AudioTrackThread>    mAudioTrackThread;
     float                   mVolume[2];
     float                   mSendLevel;
-    uint32_t                mSampleRate;
+    mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it.
     size_t                  mFrameCount;            // corresponds to current IAudioTrack
     size_t                  mReqFrameCount;         // frame count to request the next time a new
                                                     // IAudioTrack is needed
