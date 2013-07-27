@@ -582,6 +582,10 @@ status_t CameraClient::takePicture(int msgType) {
     disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 #endif
     enableMsgType(picMsgType);
+    mBurstCnt = mHardware->getParameters().getInt("num-snaps-per-shutter");
+    if(mBurstCnt <= 0)
+        mBurstCnt = 1;
+    LOG1("mBurstCnt = %d", mBurstCnt);
 
     return mHardware->takePicture();
 }
@@ -675,6 +679,10 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     } else if (cmd == CAMERA_CMD_PING) {
         // If mHardware is 0, checkPidAndHardware will return error.
         return OK;
+    } else if (cmd == CAMERA_CMD_HISTOGRAM_ON) {
+        enableMsgType(CAMERA_MSG_STATS_DATA);
+    } else if (cmd == CAMERA_CMD_HISTOGRAM_OFF) {
+        disableMsgType(CAMERA_MSG_STATS_DATA);
     }
 
     return mHardware->sendCommand(cmd, arg1, arg2);
@@ -923,7 +931,13 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
 
 // picture callback - compressed picture ready
 void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
-    disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+    if (mBurstCnt)
+        mBurstCnt--;
+
+    if (!mBurstCnt) {
+        LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
+        disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+    }
 
     sp<ICameraClient> c = mRemoteCallback;
     mLock.unlock();

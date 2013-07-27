@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +34,7 @@ extern const char *MEDIA_MIMETYPE_VIDEO_RAW;
 
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_NB;
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_WB;
+extern const char *MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS;
 extern const char *MEDIA_MIMETYPE_AUDIO_MPEG;           // layer III
 extern const char *MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_I;
 extern const char *MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II;
