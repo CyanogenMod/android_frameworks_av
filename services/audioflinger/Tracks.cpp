@@ -1708,9 +1708,6 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
         recordThread->mLock.lock();
         bool doStop = recordThread->stop_l(this);
         if (doStop) {
-            // Force overrun condition to avoid false overrun callback until first data is
-            // read from buffer
-            android_atomic_or(CBLK_UNDERRUN, &mCblk->flags);
         }
         recordThread->mLock.unlock();
         if (doStop) {
