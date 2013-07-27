@@ -585,4 +585,11 @@ int VideoEditorPlayer::VeAudioOutput::getSessionId() const {
     return mSessionId;
 }
 
+uint32_t VideoEditorPlayer::VeAudioOutput::getSampleRate() const {
+    if (mMsecsPerFrame == 0) {
+        return 0;
+    }
+    return (uint32_t)(1.e3 / mMsecsPerFrame);
+}
+
 }  // namespace android

@@ -1930,6 +1930,12 @@ int MediaPlayerService::AudioOutput::getSessionId() const
     return mSessionId;
 }
 
+uint32_t MediaPlayerService::AudioOutput::getSampleRate() const
+{
+    if (mTrack == 0) return 0;
+    return mTrack->getSampleRate();
+}
+
 #undef LOG_TAG
 #define LOG_TAG "AudioCache"
 MediaPlayerService::AudioCache::AudioCache(const sp<IMemoryHeap>& heap) :
@@ -2137,6 +2143,14 @@ void MediaPlayerService::AudioCache::notify(
 int MediaPlayerService::AudioCache::getSessionId() const
 {
     return 0;
+}
+
+uint32_t MediaPlayerService::AudioCache::getSampleRate() const
+{
+    if (mMsecsPerFrame == 0) {
+        return 0;
+    }
+    return (uint32_t)(1.e3 / mMsecsPerFrame);
 }
 
 void MediaPlayerService::addBatteryData(uint32_t params)
