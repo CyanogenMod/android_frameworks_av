@@ -69,6 +69,7 @@ public:
                                 status_t *status) = 0;
 
     virtual sp<IAudioRecord> openRecord(
+                                pid_t pid,
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,

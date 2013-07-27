@@ -136,6 +136,7 @@ public:
     }
 
     virtual sp<IAudioRecord> openRecord(
+                                pid_t pid,
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -149,6 +150,7 @@ public:
         Parcel data, reply;
         sp<IAudioRecord> record;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int32_t) pid);
         data.writeInt32((int32_t) input);
         data.writeInt32(sampleRate);
         data.writeInt32(format);
@@ -729,6 +731,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case OPEN_RECORD: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
+            pid_t pid = (pid_t) data.readInt32();
             audio_io_handle_t input = (audio_io_handle_t) data.readInt32();
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
@@ -738,7 +741,7 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             status_t status;
-            sp<IAudioRecord> record = openRecord(input,
+            sp<IAudioRecord> record = openRecord(pid, input,
                     sampleRate, format, channelMask, frameCount, flags, tid, &sessionId, &status);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
