@@ -727,6 +727,7 @@ status_t AudioFlinger::setMasterMute(bool muted)
     Mutex::Autolock _l(mLock);
     mMasterMute = muted;
 
+#ifndef ICS_AUDIO_BLOB
     // Set master mute in the HALs which support it.
     for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
         AutoMutex lock(mHardwareLock);
@@ -738,6 +739,7 @@ status_t AudioFlinger::setMasterMute(bool muted)
         }
         mHardwareStatus = AUDIO_HW_IDLE;
     }
+#endif
 
     // Now set the master mute in each playback thread.  Playback threads
     // assigned to HALs which do not have master mute support will apply master
