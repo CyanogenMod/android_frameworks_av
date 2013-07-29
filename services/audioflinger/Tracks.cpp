@@ -75,7 +75,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mClient(client),
         mCblk(NULL),
         // mBuffer
-        // mBufferEnd
         mState(IDLE),
         mSampleRate(sampleRate),
         mFormat(format),
@@ -133,7 +132,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             mCblk->flags = CBLK_FORCEREADY;     // FIXME hack, need to fix the track ready logic
 #endif
         }
-        mBufferEnd = (uint8_t *)mBuffer + bufferSize;
 
 #ifdef TEE_SINK
         if (mTeeSinkTrackEnabled) {
@@ -1399,9 +1397,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
         ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, "
-                "mCblk->frameCount_ %u, mChannelMask 0x%08x mBufferEnd %p",
+                "mCblk->frameCount_ %u, mChannelMask 0x%08x",
                 mCblk, mBuffer,
-                mCblk->frameCount_, mChannelMask, mBufferEnd);
+                mCblk->frameCount_, mChannelMask);
         // since client and server are in the same process,
         // the buffer has the same virtual address on both sides
         mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize);
@@ -1656,7 +1654,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, false /*isOut*/),
         mOverflow(false)
 {
-    ALOGV("RecordTrack constructor, size %d", (int)mBufferEnd - (int)mBuffer);
+    ALOGV("RecordTrack constructor");
     if (mCblk != NULL) {
         mAudioRecordServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
                 mFrameSize);
