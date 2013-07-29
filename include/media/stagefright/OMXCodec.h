@@ -111,6 +111,9 @@ struct OMXCodec : public MediaSource,
 #if defined(OMAP_ENHANCEMENT)
 	kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
+#ifdef STE_HARDWARE
+        kRequiresStoreMetaDataBeforeIdle      = 16384,
+#endif
     };
 
     struct CodecNameAndQuirks {
