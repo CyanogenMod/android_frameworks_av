@@ -1410,7 +1410,6 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_output_flags_t flags,
                                            const audio_offload_info_t *offloadInfo)
 {
-    status_t status;
     PlaybackThread *thread = NULL;
     struct audio_config config;
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
@@ -1448,7 +1447,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
 
-    status = hwDevHal->open_output_stream(hwDevHal,
+    status_t status = hwDevHal->open_output_stream(hwDevHal,
                                           id,
                                           *pDevices,
                                           (audio_output_flags_t)flags,
