@@ -1705,12 +1705,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
-        recordThread->mLock.lock();
-        bool doStop = recordThread->stop_l(this);
-        if (doStop) {
-        }
-        recordThread->mLock.unlock();
-        if (doStop) {
+        if (recordThread->stop(this)) {
             AudioSystem::stopInput(recordThread->id());
         }
     }

@@ -840,7 +840,7 @@ public:
 
             // ask the thread to stop the specified track, and
             // return true if the caller should then do it's part of the stopping process
-            bool        stop_l(RecordTrack* recordTrack);
+            bool        stop(RecordTrack* recordTrack);
 
             void        dump(int fd, const Vector<String16>& args);
             AudioStreamIn* clearInput();
