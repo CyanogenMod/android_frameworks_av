@@ -267,7 +267,7 @@ protected:
                 size_t                  mFrameCount;       // output HAL, direct output, record
                 size_t                  mNormalFrameCount; // normal mixer and effects
                 audio_channel_mask_t    mChannelMask;
-                uint16_t                mChannelCount;
+                uint32_t                mChannelCount;
                 size_t                  mFrameSize;
                 audio_format_t          mFormat;
 

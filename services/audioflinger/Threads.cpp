@@ -427,7 +427,7 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
     result.append(buffer);
     snprintf(buffer, SIZE, "Normal frame count: %d\n", mNormalFrameCount);
     result.append(buffer);
-    snprintf(buffer, SIZE, "Channel Count: %d\n", mChannelCount);
+    snprintf(buffer, SIZE, "Channel Count: %u\n", mChannelCount);
     result.append(buffer);
     snprintf(buffer, SIZE, "Channel Mask: 0x%08x\n", mChannelMask);
     result.append(buffer);
@@ -1553,7 +1553,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
         LOG_FATAL("HAL channel mask %#x not supported for mixed output; "
                 "must be AUDIO_CHANNEL_OUT_STEREO", mChannelMask);
     }
-    mChannelCount = (uint16_t)popcount(mChannelMask);
+    mChannelCount = popcount(mChannelMask);
     mFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
     if (!audio_is_valid_format(mFormat)) {
         LOG_FATAL("HAL format %d not valid for output", mFormat);
@@ -2317,7 +2317,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mNormalSink below
 {
     ALOGV("MixerThread() id=%d device=%#x type=%d", id, device, type);
-    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%d, mFormat=%d, mFrameSize=%u, "
+    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%u, mFormat=%d, mFrameSize=%u, "
             "mFrameCount=%d, mNormalFrameCount=%d",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
             mNormalFrameCount);
@@ -4921,7 +4921,7 @@ void AudioFlinger::RecordThread::readInputParameters()
 
     mSampleRate = mInput->stream->common.get_sample_rate(&mInput->stream->common);
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
-    mChannelCount = (uint16_t)popcount(mChannelMask);
+    mChannelCount = popcount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mInputBytes = mInput->stream->common.get_buffer_size(&mInput->stream->common);
