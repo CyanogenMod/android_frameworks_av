@@ -176,10 +176,16 @@ LOCAL_MODULE_TAGS := optional
 
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
-       LOCAL_CFLAGS += -DENABLE_QC_AV_ENHANCEMENTS
-       LOCAL_SRC_FILES  += ExtendedWriter.cpp
-       LOCAL_SRC_FILES  += QCMediaDefs.cpp
-       LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+    LOCAL_CFLAGS += -DENABLE_QC_AV_ENHANCEMENTS
+    LOCAL_SRC_FILES  += ExtendedWriter.cpp
+    LOCAL_SRC_FILES  += QCMediaDefs.cpp
+    ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media-caf/mm-core/inc
+    else
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media/mm-core/inc
+    endif
 endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
 
 include $(BUILD_SHARED_LIBRARY)
