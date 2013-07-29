@@ -182,17 +182,19 @@ AudioTrack::~AudioTrack()
         }
 #ifdef QCOM_HARDWARE
         if (mAudioTrack != 0) {
-#endif
             mAudioTrack.clear();
-#ifdef QCOM_HARDWARE
             AudioSystem::releaseAudioSessionId(mSessionId);
         }
 
         if (mDirectTrack != 0) {
             mDirectTrack.clear();
         }
-#endif
         IPCThreadState::self()->flushCommands();
+#else
+        mAudioTrack.clear();
+        IPCThreadState::self()->flushCommands();
+        AudioSystem::releaseAudioSessionId(mSessionId);
+#endif
     }
     delete mProxy;
 }
@@ -372,7 +374,10 @@ status_t AudioTrack::set(
 
     mStreamType = streamType;
     mFormat = format;
-
+#ifndef QCOM_HARDWARE
+    mSharedBuffer = sharedBuffer;
+    mUserData = user;
+#endif
     mActive = false;
     mLoopCount = 0;
     mMarkerPosition = 0;
@@ -380,6 +385,9 @@ status_t AudioTrack::set(
     mNewPosition = 0;
     mUpdatePeriod = 0;
     mFlushed = false;
+#ifndef QCOM_HARDWARE
+    AudioSystem::acquireAudioSessionId(mSessionId);
+#endif
     return NO_ERROR;
 }
 
