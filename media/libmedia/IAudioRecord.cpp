@@ -42,6 +42,18 @@ public:
     {
     }
 
+    virtual sp<IMemory> getCblk() const
+    {
+        Parcel data, reply;
+        sp<IMemory> cblk;
+        data.writeInterfaceToken(IAudioRecord::getInterfaceDescriptor());
+        status_t status = remote()->transact(GET_CBLK, data, &reply);
+        if (status == NO_ERROR) {
+            cblk = interface_cast<IMemory>(reply.readStrongBinder());
+        }
+        return cblk;
+    }
+
     virtual status_t start(int /*AudioSystem::sync_event_t*/ event, int triggerSession)
     {
         Parcel data, reply;
@@ -64,17 +76,6 @@ public:
         remote()->transact(STOP, data, &reply);
     }
 
-    virtual sp<IMemory> getCblk() const
-    {
-        Parcel data, reply;
-        sp<IMemory> cblk;
-        data.writeInterfaceToken(IAudioRecord::getInterfaceDescriptor());
-        status_t status = remote()->transact(GET_CBLK, data, &reply);
-        if (status == NO_ERROR) {
-            cblk = interface_cast<IMemory>(reply.readStrongBinder());
-        }
-        return cblk;
-    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioRecord, "android.media.IAudioRecord");
