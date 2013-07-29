@@ -325,8 +325,8 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
 
     // FIXME: remove this override since the default format should be
     //       IMPLEMENTATION_DEFINED. b/9487482
-    if (format != HAL_PIXEL_FORMAT_BLOB &&
-        format != HAL_PIXEL_FORMAT_YCbCr_420_888) {
+    if (format >= HAL_PIXEL_FORMAT_RGBA_8888 &&
+        format <= HAL_PIXEL_FORMAT_BGRA_8888) {
         ALOGW("%s: Camera %d: Overriding format 0x%x to IMPLEMENTATION_DEFINED",
               __FUNCTION__, mCameraId, format);
         format = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
