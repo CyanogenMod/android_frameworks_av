@@ -447,9 +447,9 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
         OutputDescriptor *outputDesc =  new OutputDescriptor(*desc);
         gOutputs.add(ioHandle, outputDesc);
-        ALOGV("ioConfigChanged() new output samplingRate %u, format %d channels %#x frameCount %u "
+        ALOGV("ioConfigChanged() new output samplingRate %u, format %d channel mask %#x frameCount %u "
                 "latency %d",
-                outputDesc->samplingRate, outputDesc->format, outputDesc->channels,
+                outputDesc->samplingRate, outputDesc->format, outputDesc->channelMask,
                 outputDesc->frameCount, outputDesc->latency);
         } break;
     case OUTPUT_CLOSED: {
@@ -471,10 +471,10 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         if (param2 == NULL) break;
         desc = (const OutputDescriptor *)param2;
 
-        ALOGV("ioConfigChanged() new config for output %d samplingRate %u, format %d channels %#x "
+        ALOGV("ioConfigChanged() new config for output %d samplingRate %u, format %d channel mask %#x "
                 "frameCount %d latency %d",
                 ioHandle, desc->samplingRate, desc->format,
-                desc->channels, desc->frameCount, desc->latency);
+                desc->channelMask, desc->frameCount, desc->latency);
         OutputDescriptor *outputDesc = gOutputs.valueAt(index);
         delete outputDesc;
         outputDesc =  new OutputDescriptor(*desc);

@@ -155,11 +155,11 @@ public:
     class OutputDescriptor {
     public:
         OutputDescriptor()
-        : samplingRate(0), format(AUDIO_FORMAT_DEFAULT), channels(0), frameCount(0), latency(0)  {}
+        : samplingRate(0), format(AUDIO_FORMAT_DEFAULT), channelMask(0), frameCount(0), latency(0)  {}
 
         uint32_t samplingRate;
         int32_t format;
-        int32_t channels;
+        audio_channel_mask_t channelMask;
         size_t frameCount;
         uint32_t latency;
     };
