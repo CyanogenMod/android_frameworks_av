@@ -77,6 +77,8 @@ class Camera3IOStreamBase :
 
     virtual size_t   getBufferCountLocked();
 
+    virtual status_t getEndpointUsage(uint32_t *usage) = 0;
+
     status_t getBufferPreconditionCheckLocked() const;
     status_t returnBufferPreconditionCheckLocked() const;
 
