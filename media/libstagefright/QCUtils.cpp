@@ -202,6 +202,15 @@ void QCUtils::ShellProp::setEncoderprofile(
     }
 }
 
+bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("mm.enable.smoothstreaming", prop, "0");
+    if (!strncmp(prop, "true", 4) || atoi(prop)) {
+        return true;
+    }
+    return false;
+}
+
 void QCUtils::setBFrames(
         OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames) {
     if (mpeg4type.eProfile > OMX_VIDEO_MPEG4ProfileSimple) {
@@ -444,6 +453,10 @@ bool QCUtils::ShellProp::isAudioDisabled() {
 
 void QCUtils::ShellProp::setEncoderprofile(
         video_encoder &videoEncoder, int32_t &videoEncoderProfile) {
+}
+
+bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
+    return false;
 }
 
 void QCUtils::setBFrames(

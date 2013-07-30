@@ -46,6 +46,7 @@
 #include <OMX_QCOMExtns.h>
 #include <OMX_Component.h>
 #include <QOMX_AudioExtensions.h>
+#include "include/QCUtils.h"
 
 namespace android {
 
@@ -351,9 +352,11 @@ void ExtendedCodec::enableSmoothStreaming(
         const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
         const char* componentName) {
     *isEnabled = false;
-#ifndef ENABLE_DEFAULT_SMOOTHSTREAMING
-    return;
-#endif
+
+    if (!QCUtils::ShellProp::isSmoothStreamingEnabled()) {
+        return;
+    }
+
     //ignore non QC components
     if (strncmp(componentName, "OMX.qcom.", 9)) {
         return;

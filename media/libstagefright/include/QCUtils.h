@@ -99,6 +99,8 @@ struct QCUtils {
         //helper function to set encoding profiles
         static void setEncoderprofile(video_encoder &videoEncoder,
                 int32_t &videoEncoderProfile);
+
+        static bool isSmoothStreamingEnabled();
     };
 
     //set B frames for MPEG4
