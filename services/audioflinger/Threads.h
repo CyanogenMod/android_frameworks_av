@@ -794,8 +794,9 @@ private:
             sp<RecordTrack>                     mActiveTrack;
             Condition                           mStartStopCond;
             AudioResampler                      *mResampler;
+            // interleaved stereo pairs of fixed-point signed Q19.12
             int32_t                             *mRsmpOutBuffer;
-            int16_t                             *mRsmpInBuffer;
+            int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
             size_t                              mRsmpInIndex;
             size_t                              mInputBytes;
             const uint32_t                      mReqChannelCount;

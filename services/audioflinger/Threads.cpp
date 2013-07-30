@@ -3787,7 +3787,8 @@ bool AudioFlinger::RecordThread::threadLoop()
                 } else {
                     // resampling
 
-                    memset(mRsmpOutBuffer, 0, framesOut * 2 * sizeof(int32_t));
+                    // resampler accumulates, but we only have one source track
+                    memset(mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
                     // alter output frame count as if we were expecting stereo samples
                     if (mChannelCount == 1 && mReqChannelCount == 1) {
                         framesOut >>= 1;
@@ -3797,6 +3798,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                     // ditherAndClamp() works as long as all buffers returned by
                     // mActiveTrack->getNextBuffer() are 32 bit aligned which should be always true.
                     if (mChannelCount == 2 && mReqChannelCount == 1) {
+                        // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
                         ditherAndClamp(mRsmpOutBuffer, mRsmpOutBuffer, framesOut);
                         // the resampler always outputs stereo samples:
                         // do post stereo to mono conversion
@@ -3805,6 +3807,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                     } else {
                         ditherAndClamp((int32_t *)buffer.raw, mRsmpOutBuffer, framesOut);
                     }
+                    // now done with mRsmpOutBuffer
 
                 }
                 if (mFramestoDrop == 0) {
@@ -4385,7 +4388,7 @@ void AudioFlinger::RecordThread::readInputParameters()
         mResampler = AudioResampler::create(16, channelCount, mReqSampleRate);
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
-        mRsmpOutBuffer = new int32_t[mFrameCount * 2];
+        mRsmpOutBuffer = new int32_t[mFrameCount * FCC_2];
 
         // optmization: if mono to mono, alter input frame count as if we were inputing
         // stereo samples
