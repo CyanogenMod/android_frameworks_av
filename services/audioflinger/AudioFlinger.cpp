@@ -1227,6 +1227,12 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
+    if (format != AUDIO_FORMAT_PCM_16_BIT) {
+        ALOGE("openRecord() invalid format %d", format);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     // add client to list
     { // scope for mLock
         Mutex::Autolock _l(mLock);

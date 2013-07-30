@@ -190,6 +190,11 @@ status_t AudioRecord::set(
         ALOGE("Invalid format %d", format);
         return BAD_VALUE;
     }
+    // Temporary restriction: AudioFlinger currently supports 16-bit PCM only
+    if (format != AUDIO_FORMAT_PCM_16_BIT) {
+        ALOGE("Format %d is not supported", format);
+        return BAD_VALUE;
+    }
     mFormat = format;
 
     if (!audio_is_input_channel(channelMask)) {

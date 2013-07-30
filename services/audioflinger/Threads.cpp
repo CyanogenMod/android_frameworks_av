@@ -4290,8 +4290,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 framesIn = framesOut;
                             mRsmpInIndex += framesIn;
                             framesOut -= framesIn;
-                            if (mChannelCount == mReqChannelCount ||
-                                mFormat != AUDIO_FORMAT_PCM_16_BIT) {
+                            if (mChannelCount == mReqChannelCount) {
                                 memcpy(dst, src, framesIn * mFrameSize);
                             } else {
                                 if (mChannelCount == 1) {
@@ -4305,9 +4304,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                         if (framesOut && mFrameCount == mRsmpInIndex) {
                             void *readInto;
-                            if (framesOut == mFrameCount &&
-                                (mChannelCount == mReqChannelCount ||
-                                        mFormat != AUDIO_FORMAT_PCM_16_BIT)) {
+                            if (framesOut == mFrameCount && mChannelCount == mReqChannelCount) {
                                 readInto = buffer.raw;
                                 framesOut = 0;
                             } else {
@@ -4779,8 +4776,12 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             reconfig = true;
         }
         if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
-            reqFormat = (audio_format_t) value;
-            reconfig = true;
+            if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
+                status = BAD_VALUE;
+            } else {
+                reqFormat = (audio_format_t) value;
+                reconfig = true;
+            }
         }
         if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
             reqChannelCount = popcount(value);
@@ -4918,6 +4919,9 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
     mChannelCount = popcount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
+    if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
+        ALOGE("HAL format %d not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
+    }
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
