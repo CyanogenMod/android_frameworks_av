@@ -898,8 +898,9 @@ private:
 
             // updated by RecordThread::readInputParameters()
             AudioResampler                      *mResampler;
+            // interleaved stereo pairs of fixed-point signed Q19.12
             int32_t                             *mRsmpOutBuffer;
-            int16_t                             *mRsmpInBuffer;
+            int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
             size_t                              mRsmpInIndex;
             size_t                              mBufferSize;    // stream buffer size for read()
             const uint32_t                      mReqChannelCount;

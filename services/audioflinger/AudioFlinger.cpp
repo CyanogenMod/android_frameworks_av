@@ -1744,7 +1744,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         AudioStreamIn *input = new AudioStreamIn(inHwDev, inStream);
 
         // Start record thread
-        // RecorThread require both input and output device indication to forward to audio
+        // RecordThread requires both input and output device indication to forward to audio
         // pre processing modules
         thread = new RecordThread(this,
                                   input,
