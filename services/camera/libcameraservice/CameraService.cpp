@@ -829,6 +829,9 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mServicePid = servicePid;
     mOpsActive = false;
     mDestructionStarted = false;
+#ifdef QCOM_HARDWARE
+    mBurstCnt = 0;
+#endif
 }
 
 CameraService::BasicClient::~BasicClient() {
