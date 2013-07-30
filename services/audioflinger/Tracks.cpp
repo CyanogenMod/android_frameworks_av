@@ -21,7 +21,6 @@
 
 #include "Configuration.h"
 #include <math.h>
-#include <cutils/compiler.h>
 #include <utils/Log.h>
 
 #include <private/media/AudioTrackShared.h>

@@ -37,7 +37,6 @@
 
 #include <cutils/bitops.h>
 #include <cutils/properties.h>
-#include <cutils/compiler.h>
 
 #include <system/audio.h>
 #include <hardware/audio.h>

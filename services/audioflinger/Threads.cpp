@@ -25,7 +25,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <cutils/properties.h>
-#include <cutils/compiler.h>
 #include <media/AudioParameter.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -1754,7 +1753,7 @@ void AudioFlinger::PlaybackThread::threadLoop_removeTracks(
         const Vector< sp<Track> >& tracksToRemove)
 {
     size_t count = tracksToRemove.size();
-    if (CC_UNLIKELY(count)) {
+    if (count) {
         for (size_t i = 0 ; i < count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             if (!track->isOutputTrack()) {
@@ -2282,7 +2281,7 @@ if (mType == MIXER) {
 void AudioFlinger::PlaybackThread::removeTracks_l(const Vector< sp<Track> >& tracksToRemove)
 {
     size_t count = tracksToRemove.size();
-    if (CC_UNLIKELY(count)) {
+    if (count) {
         for (size_t i=0 ; i<count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             mActiveTracks.remove(track);
@@ -3551,7 +3550,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
         AudioBufferProvider::Buffer buffer;
         buffer.frameCount = frameCount;
         mActiveTrack->getNextBuffer(&buffer);
-        if (CC_UNLIKELY(buffer.raw == NULL)) {
+        if (buffer.raw == NULL) {
             memset(curBuf, 0, frameCount * mFrameSize);
             break;
         }
@@ -3852,7 +3851,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 track->mFillingUpStatus = Track::FS_ACTIVE;
                 mLeftVolFloat = mRightVolFloat = 0;
                 if (track->mState == TrackBase::RESUMING) {
-                    if (CC_UNLIKELY(mPausedBytesRemaining)) {
+                    if (mPausedBytesRemaining) {
                         // Need to continue write that was interrupted
                         mCurrentWriteLength = mPausedWriteLength;
                         mBytesRemaining = mPausedBytesRemaining;
@@ -4274,7 +4273,7 @@ bool AudioFlinger::RecordThread::threadLoop()
 
             buffer.frameCount = mFrameCount;
             status_t status = mActiveTrack->getNextBuffer(&buffer);
-            if (CC_LIKELY(status == NO_ERROR)) {
+            if (status == NO_ERROR) {
                 readOnce = true;
                 size_t framesOut = buffer.frameCount;
                 if (mResampler == NULL) {
