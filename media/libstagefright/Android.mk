@@ -83,15 +83,13 @@ LOCAL_SRC_FILES += \
         PCMExtractor.cpp
 endif
 
-ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
     ifeq ($(BOARD_USES_ALSA_AUDIO),true)
         LOCAL_SRC_FILES += LPAPlayerALSA.cpp
     endif
-    ifeq ($(USE_TUNNEL_MODE),true)
+    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
         LOCAL_SRC_FILES += TunnelPlayer.cpp
         LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-    endif
-    ifeq ($(TUNNEL_MODE_SUPPORTS_AMRWB),true)
         LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
     endif
     ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
