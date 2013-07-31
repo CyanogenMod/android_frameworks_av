@@ -72,6 +72,10 @@ ALooper::ALooper()
 
 ALooper::~ALooper() {
     stop();
+
+    // Since this looper is "dead" (or as good as dead by now),
+    // have ALooperRoster unregister any handlers still registered for it.
+    gLooperRoster.unregisterStaleHandlers();
 }
 
 void ALooper::setName(const char *name) {
