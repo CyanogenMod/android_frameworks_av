@@ -809,6 +809,7 @@ status_t OMXNodeInstance::setInternalOption(
         size_t size) {
     switch (type) {
         case IOMX::INTERNAL_OPTION_SUSPEND:
+        case IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY:
         {
             const sp<GraphicBufferSource> &bufferSource =
                 getGraphicBufferSource();
@@ -817,12 +818,22 @@ status_t OMXNodeInstance::setInternalOption(
                 return ERROR_UNSUPPORTED;
             }
 
-            if (size != sizeof(bool)) {
-                return INVALID_OPERATION;
-            }
+            if (type == IOMX::INTERNAL_OPTION_SUSPEND) {
+                if (size != sizeof(bool)) {
+                    return INVALID_OPERATION;
+                }
 
-            bool suspend = *(bool *)data;
-            bufferSource->suspend(suspend);
+                bool suspend = *(bool *)data;
+                bufferSource->suspend(suspend);
+            } else {
+                if (size != sizeof(int64_t)) {
+                    return INVALID_OPERATION;
+                }
+
+                int64_t delayUs = *(int64_t *)data;
+
+                return bufferSource->setRepeatPreviousFrameDelayUs(delayUs);
+            }
 
             return OK;
         }
