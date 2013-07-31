@@ -143,7 +143,7 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
                 __FUNCTION__, device->getId());
         return BAD_VALUE;
     }
-    int32_t frameId = entry.data.i32[0];
+    int32_t requestId = entry.data.i32[0];
 
     List<sp<FilteredListener> > listeners;
     {
@@ -151,8 +151,8 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
 
         List<RangeListener>::iterator item = mRangeListeners.begin();
         while (item != mRangeListeners.end()) {
-            if (frameId >= item->minId &&
-                    frameId < item->maxId) {
+            if (requestId >= item->minId &&
+                    requestId < item->maxId) {
                 sp<FilteredListener> listener = item->listener.promote();
                 if (listener == 0) {
                     item = mRangeListeners.erase(item);
@@ -167,7 +167,7 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
     ALOGV("Got %d range listeners out of %d", listeners.size(), mRangeListeners.size());
     List<sp<FilteredListener> >::iterator item = listeners.begin();
     for (; item != listeners.end(); item++) {
-        (*item)->onFrameAvailable(frameId, frame);
+        (*item)->onFrameAvailable(requestId, frame);
     }
     return OK;
 }
