@@ -879,6 +879,7 @@ public:
            void handleSyncStartEvent(const sp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
+            bool        hasFastRecorder() const { return false; }
 
 private:
             void clearSyncStartEvent();

@@ -4446,6 +4446,57 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         goto Exit;
     }
 
+    // client expresses a preference for FAST, but we get the final say
+    if (*flags & IAudioFlinger::TRACK_FAST) {
+      if (
+            // use case: callback handler and frame count is default or at least as large as HAL
+            (
+                (tid != -1) &&
+                ((frameCount == 0) ||
+                (frameCount >= (mFrameCount * kFastTrackMultiplier)))
+            ) &&
+            // FIXME when record supports non-PCM data, also check for audio_is_linear_pcm(format)
+            // mono or stereo
+            ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
+              (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
+            // hardware sample rate
+            (sampleRate == mSampleRate) &&
+            // record thread has an associated fast recorder
+            hasFastRecorder()
+            // FIXME test that RecordThread for this fast track has a capable output HAL
+            // FIXME add a permission test also?
+        ) {
+        // if frameCount not specified, then it defaults to fast recorder (HAL) frame count
+        if (frameCount == 0) {
+            frameCount = mFrameCount * kFastTrackMultiplier;
+        }
+        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
+                frameCount, mFrameCount);
+      } else {
+        ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%d "
+                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
+                "hasFastRecorder=%d tid=%d",
+                frameCount, mFrameCount, format,
+                audio_is_linear_pcm(format),
+                channelMask, sampleRate, mSampleRate, hasFastRecorder(), tid);
+        *flags &= ~IAudioFlinger::TRACK_FAST;
+        // For compatibility with AudioRecord calculation, buffer depth is forced
+        // to be at least 2 x the record thread frame count and cover audio hardware latency.
+        // This is probably too conservative, but legacy application code may depend on it.
+        // If you change this calculation, also review the start threshold which is related.
+        uint32_t latencyMs = 50; // FIXME mInput->stream->get_latency(mInput->stream);
+        size_t mNormalFrameCount = 2048; // FIXME
+        uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
+        if (minBufCount < 2) {
+            minBufCount = 2;
+        }
+        size_t minFrameCount = mNormalFrameCount * minBufCount;
+        if (frameCount < minFrameCount) {
+            frameCount = minFrameCount;
+        }
+      }
+    }
+
     // FIXME use flags and tid similar to createTrack_l()
 
     { // scope for mLock
@@ -4465,6 +4516,13 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
                         mAudioFlinger->btNrecIsOff();
         setEffectSuspended_l(FX_IID_AEC, suspend, sessionId);
         setEffectSuspended_l(FX_IID_NS, suspend, sessionId);
+
+        if ((*flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+            pid_t callingPid = IPCThreadState::self()->getCallingPid();
+            // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
+            // so ask activity manager to do this on our behalf
+            sendPrioConfigEvent_l(callingPid, tid, kPriorityAudioApp);
+        }
     }
     lStatus = NO_ERROR;
 
