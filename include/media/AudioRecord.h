@@ -144,6 +144,7 @@ public:
      *                     frames are ready in record track output buffer.
      * sessionId:          Not yet supported.
      * transferType:       How data is transferred from AudioRecord.
+     * flags:              See comments on audio_input_flags_t in <system/audio.h>
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
      */
 
@@ -156,7 +157,8 @@ public:
                                     void* user = NULL,
                                     int notificationFrames = 0,
                                     int sessionId = 0,
-                                    transfer_type transferType = TRANSFER_DEFAULT);
+                                    transfer_type transferType = TRANSFER_DEFAULT,
+                                    audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
 
     /* Terminates the AudioRecord and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioRecord.
@@ -188,7 +190,8 @@ public:
                             int notificationFrames = 0,
                             bool threadCanCallJava = false,
                             int sessionId = 0,
-                            transfer_type transferType = TRANSFER_DEFAULT);
+                            transfer_type transferType = TRANSFER_DEFAULT,
+                            audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
 
     /* Result of constructing the AudioRecord. This must be checked
      * before using any AudioRecord API (except for set()), because using
@@ -464,6 +467,7 @@ private:
     audio_source_t          mInputSource;
     uint32_t                mLatency;           // in ms
     audio_channel_mask_t    mChannelMask;
+    audio_input_flags_t     mFlags;
     int                     mSessionId;
     transfer_type           mTransfer;
 

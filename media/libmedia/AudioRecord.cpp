@@ -87,7 +87,8 @@ AudioRecord::AudioRecord(
         void* user,
         int notificationFrames,
         int sessionId,
-        transfer_type transferType)
+        transfer_type transferType,
+        audio_input_flags_t flags)
     : mStatus(NO_INIT), mSessionId(0),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
@@ -129,7 +130,8 @@ status_t AudioRecord::set(
         int notificationFrames,
         bool threadCanCallJava,
         int sessionId,
-        transfer_type transferType)
+        transfer_type transferType,
+        audio_input_flags_t flags)
 {
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -217,6 +219,8 @@ status_t AudioRecord::set(
         mSessionId = sessionId;
     }
     ALOGV("set(): mSessionId %d", mSessionId);
+
+    mFlags = flags;
 
     audio_io_handle_t input = AudioSystem::getInput(inputSource,
                                                     sampleRate,
