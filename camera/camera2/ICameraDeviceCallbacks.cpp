@@ -57,11 +57,12 @@ public:
         data.writeNoException();
     }
 
-    void onResultReceived(int32_t frameId, const CameraMetadata& result) {
+    void onResultReceived(int32_t requestId, const CameraMetadata& result) {
         ALOGV("onResultReceived");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
-        data.writeInt32(frameId);
+        data.writeInt32(requestId);
+        data.writeInt32(1); // to mark presence of metadata object
         result.writeToParcel(&data);
         remote()->transact(RESULT_RECEIVED, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
@@ -91,10 +92,14 @@ status_t BnCameraDeviceCallbacks::onTransact(
         case RESULT_RECEIVED: {
             ALOGV("RESULT_RECEIVED");
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
-            int32_t frameId = data.readInt32();
+            int32_t requestId = data.readInt32();
             CameraMetadata result;
-            result.readFromParcel(const_cast<Parcel*>(&data));
-            onResultReceived(frameId, result);
+            if (data.readInt32() != 0) {
+                result.readFromParcel(const_cast<Parcel*>(&data));
+            } else {
+                ALOGW("No metadata object is present in result");
+            }
+            onResultReceived(requestId, result);
             data.readExceptionCode();
             return NO_ERROR;
             break;
