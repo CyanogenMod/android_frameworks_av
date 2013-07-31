@@ -62,6 +62,7 @@ public:
         size_t      frameCount;     // number of sample frames corresponding to size;
                                     // on input it is the number of frames available,
                                     // on output is the number of frames actually drained
+                                    // (currently ignored, but will make the primary field in future)
 
         size_t      size;           // input/output in bytes == frameCount * frameSize
                                     // FIXME this is redundant with respect to frameCount,
@@ -363,7 +364,12 @@ public:
      * Input parameter 'size' is in byte units.
      * This is implemented on top of obtainBuffer/releaseBuffer. For best
      * performance use callbacks. Returns actual number of bytes read >= 0,
-     * or a negative status code.
+     * or one of the following negative status codes:
+     *      INVALID_OPERATION   AudioRecord is configured for streaming mode
+     *      BAD_VALUE           size is invalid
+     *      WOULD_BLOCK         when obtainBuffer() returns same, or
+     *                          AudioRecord was stopped during the read
+     *      or any other error code returned by IAudioRecord::start() or restoreRecord_l().
      */
             ssize_t     read(void* buffer, size_t size);
 
@@ -437,7 +443,7 @@ private:
 
     // for client callback handler
     callback_t              mCbf;               // callback handler for events, or NULL
-    void*                   mUserData;          // for client callback handler
+    void*                   mUserData;
 
     // for notification APIs
     uint32_t                mNotificationFrames; // frames between each notification callback
@@ -481,6 +487,7 @@ private:
     // multi-thread safe.
     // An exception is that a blocking ClientProxy::obtainBuffer() may be called without a lock,
     // provided that the caller also holds an extra reference to the proxy and shared memory to keep
+    // them around in case they are replaced during the obtainBuffer().
     sp<AudioRecordClientProxy> mProxy;
 
     bool                    mInOverrun;         // whether recorder is currently in overrun state
