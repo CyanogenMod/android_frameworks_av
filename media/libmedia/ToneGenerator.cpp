@@ -702,18 +702,18 @@ const ToneGenerator::ToneDescriptor ToneGenerator::sToneDescriptors[] = {
           { segments: { { duration: 0, waveFreq: { 0 }, 0, 0 }},
           repeatCnt: 0,
           repeatSegment: 0 },                            // TONE_CDMA_SIGNAL_OFF
-        { segments: { { duration: 300, waveFreq: { 440, 0 }, 0, 0 },
-                      { duration: 300, waveFreq: { 440, 0 }, 0, 0 },
+        { segments: { { duration: 300, waveFreq: { 450, 0 }, 0, 0 },
+                      { duration: 300, waveFreq: { 450, 0 }, 0, 0 },
                       { duration: 5000, waveFreq: { 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
           repeatSegment: 0 },                              // TONE_LOCAL_CW
-        { segments: { { duration: 500, waveFreq: { 440, 0 }, 0, 0 },
+        { segments: { { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
                       { duration: 3000, waveFreq: { 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
           repeatSegment: 0 },                              // TONE_SUPERVISORY_CW
-        { segments: { { duration: 500, waveFreq: { 440, 0 }, 0, 0 },
+        { segments: { { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
                       { duration: 15000, waveFreq: { 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
