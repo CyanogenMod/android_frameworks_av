@@ -176,7 +176,8 @@ status_t AudioRecord::set(
     }
 
     if (sampleRate == 0) {
-        sampleRate = DEFAULT_SAMPLE_RATE;
+        ALOGE("Invalid sample rate %u", sampleRate);
+        return BAD_VALUE;
     }
     mSampleRate = sampleRate;
 
