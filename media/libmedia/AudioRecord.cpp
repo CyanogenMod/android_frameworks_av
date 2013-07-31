@@ -665,6 +665,26 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
 nsecs_t AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
 {
     mLock.lock();
+    if (mAwaitBoost) {
+        mAwaitBoost = false;
+        mLock.unlock();
+        static const int32_t kMaxTries = 5;
+        int32_t tryCounter = kMaxTries;
+        uint32_t pollUs = 10000;
+        do {
+            int policy = sched_getscheduler(0);
+            if (policy == SCHED_FIFO || policy == SCHED_RR) {
+                break;
+            }
+            usleep(pollUs);
+            pollUs <<= 1;
+        } while (tryCounter-- > 0);
+        if (tryCounter < 0) {
+            ALOGE("did not receive expected priority boost on time");
+        }
+        // Run again immediately
+        return 0;
+    }
 
     // Can only reference mCblk while locked
     int32_t flags = android_atomic_and(~CBLK_OVERRUN, &mCblk->mFlags);
