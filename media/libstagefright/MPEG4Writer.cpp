@@ -441,7 +441,8 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
 
     // A track of type other than video or audio is not supported.
     const char *mime;
-    source->getFormat()->findCString(kKeyMIMEType, &mime);
+    sp<MetaData> meta = source->getFormat();
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
     bool isAudio = !strncasecmp(mime, "audio/", 6);
     bool isVideo = !strncasecmp(mime, "video/", 6);
     if (!isAudio && !isVideo) {
