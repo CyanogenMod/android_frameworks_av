@@ -4911,9 +4911,9 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param) {
 
 void AudioFlinger::RecordThread::readInputParameters()
 {
-    delete mRsmpInBuffer;
+    delete[] mRsmpInBuffer;
     // mRsmpInBuffer is always assigned a new[] below
-    delete mRsmpOutBuffer;
+    delete[] mRsmpOutBuffer;
     mRsmpOutBuffer = NULL;
     delete mResampler;
     mResampler = NULL;
