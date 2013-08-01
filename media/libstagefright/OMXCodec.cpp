@@ -215,6 +215,20 @@ void OMXCodec::findMatchingCodecs(
     }
 
     size_t index = 0;
+
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+    //Check if application specially reuqested for  aac hardware encoder
+    //This is not a part of  mediacodec list
+    if (matchComponentName && !strcmp("OMX.qcom.audio.encoder.aac", matchComponentName)) {
+        matchingCodecs->add();
+
+        CodecNameAndQuirks *entry = &matchingCodecs->editItemAt(index);
+        entry->mName = String8("OMX.qcom.audio.encoder.aac");
+        entry->mQuirks = 0;
+        return;
+    }
+#endif
+
     for (;;) {
         ssize_t matchIndex =
             list->findCodecByType(mime, createEncoder, index);
@@ -296,6 +310,14 @@ bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
     if (list == NULL) {
         return false;
     }
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+    //Check for aac hardware encoder
+    //This is not a part of  mediacodec list
+    if (componentName && !strcmp("OMX.qcom.audio.encoder.aac", componentName)) {
+        *quirks = 0;
+        return true;
+    }
+#endif
 
     ssize_t index = list->findCodecByName(componentName);
 
