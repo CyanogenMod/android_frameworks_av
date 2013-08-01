@@ -1454,6 +1454,13 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
                 schedulePollDuration();
             }
 
+            if (mDriver != NULL) {
+                sp<NuPlayerDriver> driver = mDriver.promote();
+                if (driver != NULL) {
+                    driver->notifyFlagsChanged(flags);
+                }
+            }
+
             mSourceFlags = flags;
             break;
         }
