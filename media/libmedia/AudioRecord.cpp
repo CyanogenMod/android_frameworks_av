@@ -270,7 +270,8 @@ status_t AudioRecord::set(
 
     mActive = false;
     mCbf = cbf;
-    mNotificationFrames = notificationFrames;
+    mNotificationFramesReq = notificationFrames;
+    mNotificationFramesAct = 0;
     mRefreshRemaining = true;
     mUserData = user;
     // TODO: add audio hardware input latency here
@@ -458,7 +459,8 @@ status_t AudioRecord::openRecord_l(
         if ((mTransfer != TRANSFER_CALLBACK) || (mAudioRecordThread == 0)) {
             ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
             // once denied, do not request again if IAudioRecord is re-created
-            mFlags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
+            flags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
+            mFlags = flags;
         } else {
             trackFlags |= IAudioFlinger::TRACK_FAST;
             tid = mAudioRecordThread->getTid();
@@ -494,6 +496,27 @@ status_t AudioRecord::openRecord_l(
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
     mCblk = cblk;
+    // FIXME missing fast track frameCount logic
+    mAwaitBoost = false;
+    mNotificationFramesAct = mNotificationFramesReq;
+    if (flags & AUDIO_INPUT_FLAG_FAST) {
+        if (trackFlags & IAudioFlinger::TRACK_FAST) {
+            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", frameCount);
+            mAwaitBoost = true;
+            // double-buffering is not required for fast tracks, due to tighter scheduling
+            if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount) {
+                mNotificationFramesAct = frameCount;
+            }
+        } else {
+            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
+            // once denied, do not request again if IAudioRecord is re-created
+            flags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
+            mFlags = flags;
+            if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
+                mNotificationFramesAct = frameCount/2;
+            }
+        }
+    }
 
     // starting address of buffers in shared memory
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
@@ -501,7 +524,7 @@ status_t AudioRecord::openRecord_l(
     // update proxy
     mProxy = new AudioRecordClientProxy(cblk, buffers, frameCount, mFrameSize);
     mProxy->setEpoch(epoch);
-    mProxy->setMinimum(mNotificationFrames);
+    mProxy->setMinimum(mNotificationFramesAct);
 
     mDeathNotifier = new DeathNotifier(this);
     mAudioRecord->asBinder()->linkToDeath(mDeathNotifier, this);
@@ -748,7 +771,7 @@ nsecs_t AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
     }
 
     // Cache other fields that will be needed soon
-    size_t notificationFrames = mNotificationFrames;
+    size_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
         mRemainingFrames = notificationFrames;
