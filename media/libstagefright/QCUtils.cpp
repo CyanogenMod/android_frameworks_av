@@ -305,32 +305,67 @@ bool QCUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t Bi
     return ret;
 }
 
+
+//- returns NULL if we dont really need a new extractor (or cannot),
+//  valid extractor is returned otherwise
+//- caller needs to check for NULL
+//  ----------------------------------------
+//  defaultExt - the existing extractor
+//  source - file source
+//  mime - container mime
+//  ----------------------------------------
+//  Note: defaultExt will be deleted in this function if the new parser is selected
+
 sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
                                                             const sp<DataSource> &source,
                                                             const char *mime) {
     bool bCheckExtendedExtractor = false;
-    bool videoOnly = true;
-    bool amrwbAudio = false;
+    bool videoTrackFound         = false;
+    bool audioTrackFound         = false;
+    bool amrwbAudio              = false;
+    int  numOfTrack              = 0;
+
     if (defaultExt != NULL) {
-        for (size_t i = 0; i < defaultExt->countTracks(); ++i) {
-            sp<MetaData> meta = defaultExt->getTrackMetaData(i);
+        for (size_t trackItt = 0; trackItt < defaultExt->countTracks(); ++trackItt) {
+            ++numOfTrack;
+            sp<MetaData> meta = defaultExt->getTrackMetaData(trackItt);
             const char *_mime;
             CHECK(meta->findCString(kKeyMIMEType, &_mime));
 
             String8 mime = String8(_mime);
 
             if (!strncasecmp(mime.string(), "audio/", 6)) {
-                videoOnly = false;
+                audioTrackFound = true;
 
                 amrwbAudio = !strncasecmp(mime.string(),
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
                 if (amrwbAudio) {
-                  break;
+                    break;
                 }
+            }else if(!strncasecmp(mime.string(), "video/", 6)) {
+                videoTrackFound = true;
             }
         }
-        bCheckExtendedExtractor = videoOnly || amrwbAudio;
+
+        if(amrwbAudio) {
+            bCheckExtendedExtractor = true;
+        }else if (numOfTrack  == 0) {
+            bCheckExtendedExtractor = true;
+        } else if(numOfTrack == 1) {
+            if((videoTrackFound) ||
+                (!videoTrackFound && !audioTrackFound)){
+                bCheckExtendedExtractor = true;
+            }
+        } else if (numOfTrack >= 2){
+            if(videoTrackFound && audioTrackFound) {
+                if(amrwbAudio) {
+                    bCheckExtendedExtractor = true;
+                }
+            } else {
+                bCheckExtendedExtractor = true;
+            }
+        }
     } else {
         bCheckExtendedExtractor = true;
     }
@@ -340,20 +375,18 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
         return defaultExt;
     }
 
-    sp<MediaExtractor> retextParser;
-
-    //Create Extended Extractor only if default extractor are not selected
+    //Create Extended Extractor only if default extractor is not selected
     ALOGD("Try creating ExtendedExtractor");
-    retextParser = ExtendedExtractor::Create(source, mime);
+    sp<MediaExtractor>  retExtExtractor = ExtendedExtractor::Create(source, mime);
 
-    if (retextParser == NULL) {
+    if (retExtExtractor == NULL) {
         ALOGD("Couldn't create the extended extractor, return default one");
         return defaultExt;
     }
 
     if (defaultExt == NULL) {
-        ALOGD("default one is NULL, return extended extractor");
-        return retextParser;
+        ALOGD("default extractor is NULL, return extended extractor");
+        return retExtExtractor;
     }
 
     //bCheckExtendedExtractor is true which means default extractor was found
@@ -365,11 +398,16 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
     //to delete the new one
     bool bUseDefaultExtractor = true;
 
-    for (size_t i = 0; (i < retextParser->countTracks()); ++i) {
-        sp<MetaData> meta = retextParser->getTrackMetaData(i);
+    for (size_t trackItt = 0; (trackItt < retExtExtractor->countTracks()); ++trackItt) {
+        sp<MetaData> meta = retExtExtractor->getTrackMetaData(trackItt);
         const char *mime;
         bool success = meta->findCString(kKeyMIMEType, &mime);
-        if ((success == true) && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) {
+        if ((success == true) &&
+            (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
+                                strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) ||
+             !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
+                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) )) {
+
             ALOGD("Discarding default extractor and using the extended one");
             bUseDefaultExtractor = false;
             break;
@@ -378,12 +416,13 @@ sp<MediaExtractor> QCUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtractor> def
 
     if (bUseDefaultExtractor) {
         ALOGD("using default extractor inspite of having a new extractor");
-        retextParser.clear();
+        retExtExtractor.clear();
         return defaultExt;
     } else {
         defaultExt.clear();
-        return retextParser;
+        return retExtExtractor;
     }
+
 }
 
 bool QCUtils::isAVCProfileSupported(int32_t  profile){
