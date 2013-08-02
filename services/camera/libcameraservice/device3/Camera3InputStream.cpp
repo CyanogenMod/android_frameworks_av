@@ -182,10 +182,6 @@ status_t Camera3InputStream::disconnectLocked() {
     return OK;
 }
 
-sp<IGraphicBufferProducer> Camera3InputStream::getProducerInterface() const {
-    return mConsumer->getProducerInterface();
-}
-
 void Camera3InputStream::dump(int fd, const Vector<String16> &args) const {
     (void) args;
     String8 lines;

@@ -87,8 +87,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         mCaptureConsumer = new CpuConsumer(bq, 1);
         mCaptureConsumer->setFrameAvailableListener(this);
         mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
-        mCaptureWindow = new Surface(
-            mCaptureConsumer->getProducerInterface());
+        mCaptureWindow = new Surface(bq);
         // Create memory for API consumption
         mCaptureHeap = new MemoryHeapBase(maxJpegSize.data.i32[0], 0,
                                        "Camera2Client::CaptureHeap");

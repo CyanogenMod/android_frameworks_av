@@ -65,7 +65,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     // reference once the ctor ends, as that would cause the refcount of 'this'
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
     // that's what we create.
-    wp<BufferQueue::ConsumerListener> listener = static_cast<BufferQueue::ConsumerListener*>(this);
+    wp<ConsumerListener> listener = static_cast<ConsumerListener*>(this);
     sp<BufferQueue::ProxyConsumerListener> proxy = new BufferQueue::ProxyConsumerListener(listener);
 
     status_t err = mBufferQueue->consumerConnect(proxy, false);
@@ -105,7 +105,7 @@ void SurfaceMediaSource::dump(String8& result, const char* prefix,
     Mutex::Autolock lock(mMutex);
 
     result.append(buffer);
-    mBufferQueue->dump(result);
+    mBufferQueue->dump(result, "");
 }
 
 status_t SurfaceMediaSource::setFrameRate(int32_t fps)

@@ -63,7 +63,7 @@ class RingBufferConsumer : public ConsumerBase,
     // the consumer usage flags passed to the graphics allocator. The
     // bufferCount parameter specifies how many buffers can be pinned for user
     // access at the same time.
-    RingBufferConsumer(uint32_t consumerUsage,
+    RingBufferConsumer(const sp<IGraphicBufferConsumer>& consumer, uint32_t consumerUsage,
             int bufferCount = BufferQueue::MIN_UNDEQUEUED_BUFFERS);
 
     virtual ~RingBufferConsumer();
@@ -71,8 +71,6 @@ class RingBufferConsumer : public ConsumerBase,
     // set the name of the RingBufferConsumer that will be used to identify it in
     // log messages.
     void setName(const String8& name);
-
-    sp<IGraphicBufferProducer> getProducerInterface() const { return getBufferQueue(); }
 
     // setDefaultBufferSize is used to set the size of buffers returned by
     // requestBuffers when a with and height of zero is requested.

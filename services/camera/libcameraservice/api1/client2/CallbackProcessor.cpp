@@ -114,8 +114,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         mCallbackConsumer = new CpuConsumer(bq, kCallbackHeapCount);
         mCallbackConsumer->setFrameAvailableListener(this);
         mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
-        mCallbackWindow = new Surface(
-            mCallbackConsumer->getProducerInterface());
+        mCallbackWindow = new Surface(bq);
     }
 
     if (mCallbackStreamId != NO_STREAM) {

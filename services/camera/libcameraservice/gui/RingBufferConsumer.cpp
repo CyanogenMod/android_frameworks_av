@@ -34,13 +34,14 @@ typedef android::RingBufferConsumer::PinnedBufferItem PinnedBufferItem;
 
 namespace android {
 
-RingBufferConsumer::RingBufferConsumer(uint32_t consumerUsage,
+RingBufferConsumer::RingBufferConsumer(const sp<IGraphicBufferConsumer>& consumer,
+        uint32_t consumerUsage,
         int bufferCount) :
-    ConsumerBase(new BufferQueue()),
+    ConsumerBase(consumer),
     mBufferCount(bufferCount)
 {
-    mBufferQueue->setConsumerUsageBits(consumerUsage);
-    mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
+    mConsumer->setConsumerUsageBits(consumerUsage);
+    mConsumer->setMaxAcquiredBufferCount(bufferCount);
 
     assert(bufferCount > 0);
 }
@@ -51,7 +52,7 @@ RingBufferConsumer::~RingBufferConsumer() {
 void RingBufferConsumer::setName(const String8& name) {
     Mutex::Autolock _l(mMutex);
     mName = name;
-    mBufferQueue->setConsumerName(name);
+    mConsumer->setConsumerName(name);
 }
 
 sp<PinnedBufferItem> RingBufferConsumer::pinSelectedBuffer(
@@ -342,17 +343,17 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
 
 status_t RingBufferConsumer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setDefaultBufferSize(w, h);
+    return mConsumer->setDefaultBufferSize(w, h);
 }
 
 status_t RingBufferConsumer::setDefaultBufferFormat(uint32_t defaultFormat) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setDefaultBufferFormat(defaultFormat);
+    return mConsumer->setDefaultBufferFormat(defaultFormat);
 }
 
 status_t RingBufferConsumer::setConsumerUsage(uint32_t usage) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setConsumerUsageBits(usage);
+    return mConsumer->setConsumerUsageBits(usage);
 }
 
 } // namespace android

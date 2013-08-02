@@ -56,7 +56,7 @@ class GraphicBuffer;
 
 class SurfaceMediaSource : public MediaSource,
                                 public MediaBufferObserver,
-                                protected BufferQueue::ConsumerListener {
+                                protected ConsumerListener {
 public:
     enum { MIN_UNDEQUEUED_BUFFERS = 4};
 

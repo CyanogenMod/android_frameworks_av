@@ -570,7 +570,7 @@ RenderInput::RenderInput(NativeWindowRenderer* renderer, GLuint textureId)
     , mTextureId(textureId) {
     sp<BufferQueue> bq = new BufferQueue();
     mST = new GLConsumer(bq, mTextureId);
-    mSTC = new Surface(mST->getBufferQueue());
+    mSTC = new Surface(bq);
     native_window_connect(mSTC.get(), NATIVE_WINDOW_API_MEDIA);
 }
 

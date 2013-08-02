@@ -113,11 +113,11 @@ Camera3ZslStream::Camera3ZslStream(int id, uint32_t width, uint32_t height,
         Camera3OutputStream(id, CAMERA3_STREAM_BIDIRECTIONAL,
                             width, height,
                             HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
-        mDepth(depth),
-        mProducer(new RingBufferConsumer(GRALLOC_USAGE_HW_CAMERA_ZSL,
-                                         depth)) {
+        mDepth(depth) {
 
-        mConsumer = new Surface(mProducer->getProducerInterface());
+    sp<BufferQueue> bq = new BufferQueue();
+    mProducer = new RingBufferConsumer(bq, GRALLOC_USAGE_HW_CAMERA_ZSL, depth);
+    mConsumer = new Surface(bq);
 }
 
 Camera3ZslStream::~Camera3ZslStream() {

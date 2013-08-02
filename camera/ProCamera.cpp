@@ -251,8 +251,7 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     sp<CpuConsumer> cc = new CpuConsumer(bq, heapCount/*, synchronousMode*/);
     cc->setName(String8("ProCamera::mCpuConsumer"));
 
-    sp<Surface> stc = new Surface(
-        cc->getProducerInterface());
+    sp<Surface> stc = new Surface(bq);
 
     status_t s = createStream(width, height, format,
                               stc->getIGraphicBufferProducer(),

@@ -134,8 +134,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
             kZslBufferDepth);
         mZslConsumer->setFrameAvailableListener(this);
         mZslConsumer->setName(String8("Camera2Client::ZslConsumer"));
-        mZslWindow = new Surface(
-            mZslConsumer->getProducerInterface());
+        mZslWindow = new Surface(bq);
     }
 
     if (mZslStreamId != NO_STREAM) {

@@ -44,13 +44,6 @@ class Camera3InputStream : public Camera3IOStreamBase {
 
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
-    /**
-     * Get the producer interface for this stream, to hand off to a producer.
-     * The producer must be connected to the provided interface before
-     * finishConfigure is called on this stream.
-     */
-    sp<IGraphicBufferProducer> getProducerInterface() const;
-
   private:
 
     typedef BufferItemConsumer::BufferItem BufferItem;

@@ -325,8 +325,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
                 mRecordingHeapCount + 1);
         mRecordingConsumer->setFrameAvailableListener(this);
         mRecordingConsumer->setName(String8("Camera2-RecordingConsumer"));
-        mRecordingWindow = new Surface(
-            mRecordingConsumer->getProducerInterface());
+        mRecordingWindow = new Surface(bq);
         newConsumer = true;
         // Allocate memory later, since we don't know buffer size until receipt
     }
