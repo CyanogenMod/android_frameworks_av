@@ -140,7 +140,6 @@ private:
                                     // but the slot is only used if track is active
     FastTrackUnderruns  mObservedUnderruns; // Most recently observed value of
                                     // mFastMixerDumpState.mTracks[mFastIndex].mUnderruns
-    uint32_t            mUnderrunCount; // Counter of total number of underruns, never reset
     volatile float      mCachedVolume;  // combined master volume and stream type volume;
                                         // 'volatile' means accessed without lock or
                                         // barrier, but is read/written atomically
