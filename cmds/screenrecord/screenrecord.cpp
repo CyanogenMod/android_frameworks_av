@@ -44,8 +44,9 @@ using namespace android;
 // Command-line parameters.
 static bool gVerbose = false;               // chatty on stdout
 static bool gRotate = false;                // rotate 90 degrees
-static uint32_t gVideoWidth = 1280;         // 720p
-static uint32_t gVideoHeight = 720;
+static bool gSizeSpecified = false;         // was size explicitly requested?
+static uint32_t gVideoWidth = 0;            // default width+height
+static uint32_t gVideoHeight = 0;
 static uint32_t gBitRate = 4000000;         // 4Mbps
 
 // Set by signal handler to stop recording.
@@ -107,12 +108,25 @@ static status_t configureSignals()
 }
 
 /*
+ * Returns "true" if the device is rotated 90 degrees.
+ */
+static bool isDeviceRotated(int orientation) {
+    return orientation != DISPLAY_ORIENTATION_0 &&
+            orientation != DISPLAY_ORIENTATION_180;
+}
+
+/*
  * Configures and starts the MediaCodec encoder.  Obtains an input surface
  * from the codec.
  */
 static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
         sp<IGraphicBufferProducer>* pBufferProducer) {
     status_t err;
+
+    if (gVerbose) {
+        printf("Configuring recorder for %dx%d video at %.2fMbps\n",
+                gVideoWidth, gVideoHeight, gBitRate / 1000000.0);
+    }
 
     sp<AMessage> format = new AMessage;
     format->setInt32("width", gVideoWidth);
@@ -152,6 +166,7 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
         return err;
     }
 
+    ALOGV("Codec prepared");
     *pCodec = codec;
     *pBufferProducer = bufferProducer;
     return 0;
@@ -169,8 +184,7 @@ static status_t prepareVirtualDisplay(const DisplayInfo& mainDpyInfo,
     // Set the region of the layer stack we're interested in, which in our
     // case is "all of it".  If the app is rotated (so that the width of the
     // app is based on the height of the display), reverse width/height.
-    bool deviceRotated = mainDpyInfo.orientation != DISPLAY_ORIENTATION_0 &&
-            mainDpyInfo.orientation != DISPLAY_ORIENTATION_180;
+    bool deviceRotated = isDeviceRotated(mainDpyInfo.orientation);
     uint32_t sourceWidth, sourceHeight;
     if (!deviceRotated) {
         sourceWidth = mainDpyInfo.w;
@@ -295,6 +309,12 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
                         bufIndex, size, ptsUsec);
                 CHECK(trackIdx != -1);
 
+                // If the virtual display isn't providing us with timestamps,
+                // use the current time.
+                if (ptsUsec == 0) {
+                    ptsUsec = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
+                }
+
                 // The MediaMuxer docs are unclear, but it appears that we
                 // need to pass either the full set of BufferInfo flags, or
                 // (flags & BUFFER_FLAG_SYNCFRAME).
@@ -370,11 +390,6 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
 static status_t recordScreen(const char* fileName) {
     status_t err;
 
-    if (gVerbose) {
-        printf("Recording %dx%d video at %.2fMbps\n",
-                gVideoWidth, gVideoHeight, gBitRate / 1000000.0);
-    }
-
     // Configure signal handler.
     err = configureSignals();
     if (err != NO_ERROR) return err;
@@ -399,11 +414,31 @@ static status_t recordScreen(const char* fileName) {
                 mainDpyInfo.orientation);
     }
 
+    bool rotated = isDeviceRotated(mainDpyInfo.orientation);
+    if (gVideoWidth == 0) {
+        gVideoWidth = rotated ? mainDpyInfo.h : mainDpyInfo.w;
+    }
+    if (gVideoHeight == 0) {
+        gVideoHeight = rotated ? mainDpyInfo.w : mainDpyInfo.h;
+    }
+
     // Configure and start the encoder.
     sp<MediaCodec> encoder;
     sp<IGraphicBufferProducer> bufferProducer;
     err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
-    if (err != NO_ERROR) return err;
+    if (err != NO_ERROR && !gSizeSpecified) {
+        ALOGV("Retrying with 720p");
+        if (gVideoWidth != 1280 && gVideoHeight != 720) {
+            fprintf(stderr, "WARNING: failed at %dx%d, retrying at 720p\n",
+                    gVideoWidth, gVideoHeight);
+            gVideoWidth = 1280;
+            gVideoHeight = 720;
+            err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
+        }
+    }
+    if (err != NO_ERROR) {
+        return err;
+    }
 
     // Configure virtual display.
     sp<IBinder> dpy;
@@ -478,6 +513,8 @@ static void usage() {
     fprintf(stderr,
         "Usage: screenrecord [options] <filename>\n"
         "\n"
+        "Records the device's display to a .mp4 file.\n"
+        "\n"
         "Options:\n"
         "--size WIDTHxHEIGHT\n"
         "    Set the video size, e.g. \"1280x720\".  For best results, use\n"
@@ -485,8 +522,7 @@ static void usage() {
         "--bit-rate RATE\n"
         "    Set the video bit rate, in megabits per second.  Default 4Mbps.\n"
         "--rotate\n"
-        "    Rotate the output 90 degrees.  Useful for filling the frame\n"
-        "    when in portrait mode.\n"
+        "    Rotate the output 90 degrees.\n"
         "--verbose\n"
         "    Display interesting information on stdout.\n"
         "--help\n"
@@ -536,6 +572,7 @@ int main(int argc, char* const argv[]) {
                     gVideoWidth, gVideoHeight);
                 return 2;
             }
+            gSizeSpecified = true;
             break;
         case 'b':
             gBitRate = atoi(optarg);
