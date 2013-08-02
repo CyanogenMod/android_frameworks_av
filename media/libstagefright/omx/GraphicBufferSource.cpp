@@ -69,11 +69,8 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     // reference once the ctor ends, as that would cause the refcount of 'this'
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
     // that's what we create.
-    wp<BufferQueue::ConsumerListener> listener;
-    listener = static_cast<BufferQueue::ConsumerListener*>(this);
-
-    sp<BufferQueue::ConsumerListener> proxy;
-    proxy = new BufferQueue::ProxyConsumerListener(listener);
+    wp<BufferQueue::ConsumerListener> listener = static_cast<BufferQueue::ConsumerListener*>(this);
+    sp<BufferQueue::ProxyConsumerListener> proxy = new BufferQueue::ProxyConsumerListener(listener);
 
     mInitCheck = mBufferQueue->consumerConnect(proxy, false);
     if (mInitCheck != NO_ERROR) {
