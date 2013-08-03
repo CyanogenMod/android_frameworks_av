@@ -101,7 +101,7 @@ status_t AudioTrack::getMinFrameCount(
 
 // ---------------------------------------------------------------------------
 
-#ifdef USE_KINETO_COMPATIBILITY
+#if 0//def USE_KINETO_COMPATIBILITY
 // Really dirty hack to give a Froyo-compatible constructor
 extern "C" AudioTrack *_ZN7android10AudioTrackC1EijiiijPFviPvS1_ES1_ii(
         AudioTrack *This,
