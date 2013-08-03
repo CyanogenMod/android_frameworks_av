@@ -282,16 +282,14 @@ void ExtendedCodec::configureVideoCodec(
         return;
     }
 
-    int32_t arbitraryMode = 1;
+    int32_t arbitraryMode = 0;
     bool success = meta->findInt32(kKeyUseArbitraryMode, &arbitraryMode);
-    bool useArbitraryMode = true;
-    if (success) {
-        useArbitraryMode = arbitraryMode ? true : false;
+    bool useFrameByFrameMode = true; //default option
+    if (success && arbitraryMode) {
+        useFrameByFrameMode = false;
     }
 
-    if (useArbitraryMode) {
-        ALOGI("Decoder should be in arbitrary mode");
-    } else{
+    if (useFrameByFrameMode) {
         ALOGI("Enable frame by frame mode");
         OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
         portFmt.nPortIndex = kPortIndexInput;
@@ -301,6 +299,8 @@ void ExtendedCodec::configureVideoCodec(
         if(err != OK) {
             ALOGW("Failed to set frame packing format on component");
         }
+    } else {
+        ALOGI("Decoder should be in arbitrary mode");
     }
 
     // Enable timestamp reordering only for AVI/mpeg4 and vc1 clips
@@ -345,6 +345,30 @@ void ExtendedCodec::configureVideoCodec(
         }
         ALOGI("Thumbnail mode enabled.");
     }
+}
+
+void ExtendedCodec::enableSmoothStreaming(
+        const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
+        const char* componentName) {
+    *isEnabled = false;
+#ifndef ENABLE_DEFAULT_SMOOTHSTREAMING
+    return;
+#endif
+    //ignore non QC components
+    if (strncmp(componentName, "OMX.qcom.", 9)) {
+        return;
+    }
+    status_t err = omx->setParameter(
+            nodeID,
+            (OMX_INDEXTYPE)OMX_QcomIndexParamEnableSmoothStreaming,
+            &err, sizeof(status_t));
+    if (err != OK) {
+        ALOGE("Failed to enable Smoothstreaming!");
+        return;
+    }
+    *isEnabled = true;
+    ALOGI("Smoothstreaming Enabled");
+    return;
 }
 
 //private methods
@@ -717,6 +741,13 @@ namespace android {
     void ExtendedCodec::configureVideoCodec(
         const sp<MetaData> &meta, sp<IOMX> OMXhandle,
         const uint32_t flags, IOMX::node_id nodeID, char* componentName ) {
+    }
+
+    void ExtendedCodec::enableSmoothStreaming(
+            const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
+            const char* componentName) {
+        *isEnabled = false;
+        return;
     }
 
 } //namespace android

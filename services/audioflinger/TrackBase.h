@@ -43,6 +43,9 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
+#ifdef QCOM_HARDWARE
+                                uint32_t flags,
+#endif
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 bool isOut);
@@ -135,6 +138,9 @@ protected:
                                     // openRecord(), and then adjusted as needed
 
     bool                mStepServerFailed;
+#ifdef QCOM_HARDWARE
+    uint32_t            mFlags;
+#endif
     const int           mSessionId;
     Vector < sp<SyncEvent> >mSyncEvents;
     const bool          mIsOut;

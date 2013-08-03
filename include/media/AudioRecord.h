@@ -186,7 +186,11 @@ public:
             audio_format_t format() const;
             uint32_t    channelCount() const;
             size_t      frameCount() const;
-            size_t      frameSize() const { return mFrameSize; }
+#ifdef QCOM_HARDWARE
+            size_t      frameSize() const;
+#else
+            size_t      frameSize() const { return mFrameSize; };
+#endif
             audio_source_t inputSource() const;
 
 

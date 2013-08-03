@@ -35,7 +35,10 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <camera/CameraParameters.h>
 #include <OMX_Video.h>
+#include <android/native_window.h>
 
+#define MIN_BITERATE_AAC 24000
+#define MAX_BITERATE_AAC 192000
 
 namespace android {
 
@@ -105,11 +108,18 @@ struct QCUtils {
     static void setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
             int32_t iFramesInterval, int32_t frameRate);
 
+    static bool UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t BitRate, int32_t SampleRate);
+
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
               const sp<DataSource> &source, const char *mime);
 
     static bool isAVCProfileSupported(int32_t profile);
 
+    //notify stride change to ANW
+    static void updateNativeWindowBufferGeometry(ANativeWindow* anw,
+            OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
+
+    static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 };
 
 }
