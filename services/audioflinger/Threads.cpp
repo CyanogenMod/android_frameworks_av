@@ -4433,7 +4433,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         audio_channel_mask_t channelMask,
         size_t frameCount,
         int sessionId,
-        IAudioFlinger::track_flags_t flags,
+        IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         status_t *status)
 {
