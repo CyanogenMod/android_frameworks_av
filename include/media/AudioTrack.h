@@ -116,6 +116,7 @@ public:
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful operation
      *  - NO_INIT: audio server or audio hardware not initialized
+     *  - BAD_VALUE: unsupported configuration
      */
 
     static status_t getMinFrameCount(size_t* frameCount,
@@ -682,8 +683,9 @@ protected:
         STATE_STOPPING,
     }                       mState;
 
+    // for client callback handler
     callback_t              mCbf;                   // callback handler for events, or NULL
-    void*                   mUserData;              // for client callback handler
+    void*                   mUserData;
 
     // for notification APIs
     uint32_t                mNotificationFramesReq; // requested number of frames between each
