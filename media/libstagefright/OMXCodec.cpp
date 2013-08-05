@@ -13,6 +13,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2012 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 //#define LOG_NDEBUG 0
@@ -193,6 +212,11 @@ static void InitOMXParams(T *params) {
 }
 
 static bool IsSoftwareCodec(const char *componentName) {
+#ifdef DOLBY_UDC
+    if (!strncmp("OMX.dolby.", componentName, 10)) {
+        return true;
+    }
+#endif // DOLBY_UDC
     if (!strncmp("OMX.google.", componentName, 11)
         || !strncmp("OMX.PV.", componentName, 7)) {
         return true;
@@ -369,6 +393,17 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "defers-output-buffer-allocation")) {
         quirks |= kDefersOutputBufferAllocation;
     }
+
+#ifdef DOLBY_UDC
+    if (list->codecHasQuirk(
+                index, "needs-flush-before-disable")) {
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+    if (list->codecHasQuirk(
+                index, "requires-flush-complete-emulation")) {
+        quirks |= kRequiresFlushCompleteEmulation;
+    }
+#endif // DOLBY_UDC
 
     quirks |= ExtendedCodec::getComponentQuirks(list,index);
 
@@ -4835,6 +4870,9 @@ static const char *audioCodingTypeString(OMX_AUDIO_CODINGTYPE type) {
         "OMX_AUDIO_CodingWMA",
         "OMX_AUDIO_CodingRA",
         "OMX_AUDIO_CodingMIDI",
+#ifdef DOLBY_UDC
+        "OMX_AUDIO_CodingDDP",
+#endif // DOLBY_UDC
     };
 
     size_t numNames = sizeof(kNames) / sizeof(kNames[0]);

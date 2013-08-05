@@ -15,6 +15,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2012 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 //#define LOG_NDEBUG 0
@@ -35,6 +54,30 @@
 
 namespace android {
 
+#ifdef DOLBY_UDC_MULTICHANNEL
+struct AudioPlayerEvent : public TimedEventQueue::Event {
+    AudioPlayerEvent(
+            AudioPlayer *player,
+            void (AudioPlayer::*method)())
+        : mAudioPlayer(player),
+          mMethod(method) {
+    }
+
+protected:
+    virtual ~AudioPlayerEvent() {}
+
+    virtual void fire(TimedEventQueue *queue, int64_t /* now_us */) {
+        (mAudioPlayer->*mMethod)();
+    }
+
+private:
+    AudioPlayer *mAudioPlayer;
+    void (AudioPlayer::*mMethod)();
+
+    AudioPlayerEvent(const AudioPlayerEvent &);
+    AudioPlayerEvent &operator=(const AudioPlayerEvent &);
+};
+#endif // DOLBY_UDC_MULTICHANNEL
 AudioPlayer::AudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
         bool allowDeepBuffering,
@@ -62,12 +105,22 @@ AudioPlayer::AudioPlayer(
       mAllowDeepBuffering(allowDeepBuffering),
       mObserver(observer),
       mPinnedTimeUs(-1ll) {
+#ifdef DOLBY_UDC_MULTICHANNEL
+    mPortSettingsChangedEvent = new AudioPlayerEvent(this, &AudioPlayer::onPortSettingsChangedEvent);
+    mPortSettingsChangedEventPending = false;
+    mQueueStarted = false;
+#endif // DOLBY_UDC_MULTICHANNEL
 }
 
 AudioPlayer::~AudioPlayer() {
     if (mStarted) {
         reset();
     }
+#ifdef DOLBY_UDC_MULTICHANNEL
+    if (mQueueStarted) {
+        mQueue.stop();
+    }
+#endif // DOLBY_UDC_MULTICHANNEL
 }
 
 void AudioPlayer::setSource(const sp<MediaSource> &source) {
@@ -90,6 +143,12 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             return err;
         }
     }
+#ifdef DOLBY_UDC_MULTICHANNEL
+    if (!mQueueStarted) {
+        mQueue.start();
+        mQueueStarted = true;
+    }
+#endif // DOLBY_UDC_MULTICHANNEL
 
     // We allow an optional INFO_FORMAT_CHANGED at the very beginning
     // of playback, if there is one, getFormat below will retrieve the
@@ -356,6 +415,134 @@ void AudioPlayer::AudioCallback(int event, void *info) {
     buffer->size = numBytesWritten;
 }
 
+#ifdef DOLBY_UDC_MULTICHANNEL
+void AudioPlayer::onPortSettingsChangedEvent() {
+    ALOGV("Port Settings Changed!");
+
+    status_t err = OK;
+    bool success;
+    sp<MetaData> format;
+    Mutex::Autolock autoLock(mLock);
+
+    if (!mPortSettingsChangedEventPending) {
+        goto onPortSettingsChangedEvent_exit;
+    }
+
+    // close exisiting playback
+    if (mAudioSink.get() != NULL) {
+        mAudioSink->stop();
+        mAudioSink->close();
+    } else {
+        mAudioTrack->stop();
+        delete mAudioTrack;
+        mAudioTrack = NULL;
+    }
+
+    // open new
+    format = mSource->getFormat();
+    const char *mime;
+    success = format->findCString(kKeyMIMEType, &mime);
+    CHECK(success);
+    CHECK(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW));
+
+    success = format->findInt32(kKeySampleRate, &mSampleRate);
+    CHECK(success);
+
+    int32_t numChannels, channelMask;
+    success = format->findInt32(kKeyChannelCount, &numChannels);
+    CHECK(success);
+
+    if(!format->findInt32(kKeyChannelMask, &channelMask)) {
+        // log only when there's a risk of ambiguity of channel mask selection
+        ALOGI_IF(numChannels > 2,
+                "source format didn't specify channel mask, using (%d) channel order", numChannels);
+        channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+    }
+
+    ALOGV("AudioPlayer::New sample rate %d channels %d channelMask %d", mSampleRate, numChannels, channelMask);
+
+    err = reOpenSink(numChannels, channelMask);
+    if (err == OK)
+    {
+        if (mAudioSink.get() != NULL)
+        {
+            mAudioSink->start();
+        }
+        else
+        {
+            mAudioTrack->start();
+        }
+    }
+
+onPortSettingsChangedEvent_exit:
+
+    mPortSettingsChangedEventPending = false;
+
+    if (err != OK) {
+        if (mObserver && !mReachedEOS) {
+            mObserver->postAudioEOS();
+        }
+
+        mReachedEOS = true;
+        mFinalStatus = err;
+    }
+
+    return;
+}
+int AudioPlayer::reOpenSink(int numChannels, int channelMask)
+{
+    int err;
+
+    if (mAudioSink.get() != NULL) {
+        status_t err = mAudioSink->open(
+                mSampleRate, numChannels, channelMask, AUDIO_FORMAT_PCM_16_BIT,
+                DEFAULT_AUDIOSINK_BUFFERCOUNT,
+                &AudioPlayer::AudioSinkCallback,
+                this,
+                (mAllowDeepBuffering ?
+                            AUDIO_OUTPUT_FLAG_DEEP_BUFFER :
+                            AUDIO_OUTPUT_FLAG_NONE));
+        if (err != OK) {
+            ALOGE("mAudioSink->open error : %d", err);
+                return err;
+        }
+
+        mLatencyUs = (int64_t)mAudioSink->latency() * 1000;
+        mFrameSize = mAudioSink->frameSize();
+
+    } else {
+        int channels = 0;
+        int outputflag = 0;
+
+        // playing to an AudioTrack, set up mask if necessary
+        audio_channel_mask_t audioMask = channelMask == CHANNEL_MASK_USE_CHANNEL_ORDER ?
+                audio_channel_out_mask_from_count(numChannels) : channelMask;
+        if (0 == audioMask) {
+            return BAD_VALUE;
+        }
+
+        mAudioTrack = new AudioTrack(
+                AUDIO_STREAM_MUSIC, mSampleRate, AUDIO_FORMAT_PCM_16_BIT, audioMask,
+                0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
+
+
+        if ((err = mAudioTrack->initCheck()) != OK) {
+
+            ALOGE("AudioTrack error : %d", err);
+
+            delete mAudioTrack;
+            mAudioTrack = NULL;
+
+            return err;
+        }
+
+        mLatencyUs = (int64_t)mAudioTrack->latency() * 1000;
+        mFrameSize = mAudioTrack->frameSize();
+
+    }
+    return OK;
+}
+#endif // DOLBY_UDC_MULTICHANNEL
 uint32_t AudioPlayer::getNumFramesPendingPlayout() const {
     uint32_t numFramesPlayedOut;
     status_t err;
@@ -388,6 +575,14 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
     bool postSeekComplete = false;
     bool postEOS = false;
     int64_t postEOSDelayUs = 0;
+#ifdef DOLBY_UDC_MULTICHANNEL
+    if (true == mPortSettingsChangedEventPending) {
+        ALOGV("Waiting for reconfig to finish... filling zeros");
+        memset(data, 0, size);
+
+        return size;
+    }
+#endif // DOLBY_UDC_MULTICHANNEL
 
     size_t size_done = 0;
     size_t size_remaining = size;
@@ -438,6 +633,19 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                 }
 #endif
             }
+#ifdef DOLBY_UDC_MULTICHANNEL
+            if (err == INFO_FORMAT_CHANGED) {
+                ALOGV("INFO_FORMAT_CHANGED - pending port settings changed = true");
+                mPortSettingsChangedEventPending = true;
+
+                // Since we are breaking out of the loop, we must check for postSeekComplete.
+                // Typical use-case is pause, change endpoint, seek and then resume.
+                if (postSeekComplete) {
+                    mObserver->postAudioSeekComplete();
+                }
+               break;
+            }
+#endif // DOLBY_UDC_MULTICHANNEL
 
             CHECK((err == OK && mInputBuffer != NULL)
                    || (err != OK && mInputBuffer == NULL));
@@ -538,6 +746,13 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
             mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
             mPinnedTimeUs = -1ll;
         }
+#ifdef DOLBY_UDC_MULTICHANNEL
+        if(mPortSettingsChangedEventPending) {
+            ALOGV("portsettingschangedevent received ... posting event");
+            mQueue.postEvent(mPortSettingsChangedEvent);
+            return size_done;
+        }
+#endif // DOLBY_UDC_MULTICHANNEL
     }
 
     if (postEOS) {
