@@ -311,7 +311,7 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-#ifdef QCOM_HARDWARE
+#ifndef QCOM_HARDWARE
     mInputSource = inputSource;
 #endif
     mInput = input;

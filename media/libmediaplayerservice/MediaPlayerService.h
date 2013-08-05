@@ -215,6 +215,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            close() {}
                 void            setAudioStreamType(audio_stream_type_t streamType) {}
                 void            setVolume(float left, float right) {}
+        virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }  
 #ifndef QCOM_HARDWARE
                 uint32_t        sampleRate() const { return mSampleRate; }
 #endif
