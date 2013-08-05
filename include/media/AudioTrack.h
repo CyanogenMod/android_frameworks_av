@@ -170,9 +170,9 @@ public:
      */
 
                         AudioTrack( audio_stream_type_t streamType,
-                                    uint32_t sampleRate  = 0,
-                                    audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    audio_channel_mask_t channelMask = 0,
+                                    uint32_t sampleRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t,
                                     int frameCount       = 0,
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf       = NULL,
@@ -194,10 +194,10 @@ public:
      */
 
                         AudioTrack( audio_stream_type_t streamType,
-                                    uint32_t sampleRate = 0,
-                                    audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    audio_channel_mask_t channelMask = 0,
-                                    const sp<IMemory>& sharedBuffer = 0,
+                                    uint32_t sampleRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    const sp<IMemory>& sharedBuffer,
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf      = NULL,
                                     void* user          = NULL,
@@ -227,10 +227,10 @@ public:
      *
      * threadCanCallJava:  Whether callbacks are made from an attached thread and thus can call JNI.
      */
-            status_t    set(audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT,
-                            uint32_t sampleRate = 0,
-                            audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                            audio_channel_mask_t channelMask = 0,
+            status_t    set(audio_stream_type_t streamType,
+                            uint32_t sampleRate,
+                            audio_format_t format,
+                            audio_channel_mask_t channelMask,
                             int frameCount      = 0,
                             audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                             callback_t cbf      = NULL,
