@@ -263,6 +263,10 @@ class Camera3Stream :
     // Get the total number of buffers in the queue
     virtual size_t   getBufferCountLocked() = 0;
 
+    // Get the usage flags for the other endpoint, or return
+    // INVALID_OPERATION if they cannot be obtained.
+    virtual status_t getEndpointUsage(uint32_t *usage) = 0;
+
   private:
     uint32_t oldUsage;
     uint32_t oldMaxBuffers;

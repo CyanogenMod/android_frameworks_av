@@ -234,6 +234,12 @@ status_t Camera3InputStream::configureQueueLocked() {
     return OK;
 }
 
+status_t Camera3InputStream::getEndpointUsage(uint32_t *usage) {
+    // Per HAL3 spec, input streams have 0 for their initial usage field.
+    *usage = 0;
+    return OK;
+}
+
 }; // namespace camera3
 
 }; // namespace android

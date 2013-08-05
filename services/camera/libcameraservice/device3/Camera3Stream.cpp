@@ -77,7 +77,9 @@ int Camera3Stream::getFormat() const {
 }
 
 camera3_stream* Camera3Stream::startConfiguration() {
+    ATRACE_CALL();
     Mutex::Autolock l(mLock);
+    status_t res;
 
     switch (mState) {
         case STATE_ERROR:
@@ -107,8 +109,15 @@ camera3_stream* Camera3Stream::startConfiguration() {
             return NULL;
     }
 
-    oldUsage = usage;
-    oldMaxBuffers = max_buffers;
+    oldUsage = camera3_stream::usage;
+    oldMaxBuffers = camera3_stream::max_buffers;
+
+    res = getEndpointUsage(&(camera3_stream::usage));
+    if (res != OK) {
+        ALOGE("%s: Cannot query consumer endpoint usage!",
+                __FUNCTION__);
+        return NULL;
+    }
 
     if (mState == STATE_CONSTRUCTED) {
         mState = STATE_IN_CONFIG;
@@ -125,6 +134,7 @@ bool Camera3Stream::isConfiguring() const {
 }
 
 status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
+    ATRACE_CALL();
     Mutex::Autolock l(mLock);
     switch (mState) {
         case STATE_ERROR:
@@ -147,8 +157,8 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
     // Check if the stream configuration is unchanged, and skip reallocation if
     // so. As documented in hardware/camera3.h:configure_streams().
     if (mState == STATE_IN_RECONFIG &&
-            oldUsage == usage &&
-            oldMaxBuffers == max_buffers) {
+            oldUsage == camera3_stream::usage &&
+            oldMaxBuffers == camera3_stream::max_buffers) {
         mState = STATE_CONFIGURED;
         return OK;
     }

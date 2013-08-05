@@ -364,6 +364,17 @@ status_t Camera3OutputStream::disconnectLocked() {
     return OK;
 }
 
+status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) {
+
+    status_t res;
+    int32_t u = 0;
+    res = mConsumer->query(mConsumer.get(),
+            NATIVE_WINDOW_CONSUMER_USAGE_BITS, &u);
+    *usage = u;
+
+    return res;
+}
+
 }; // namespace camera3
 
 }; // namespace android
