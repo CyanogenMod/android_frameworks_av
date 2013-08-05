@@ -444,7 +444,8 @@ private:
                                                     // notification callback
     uint32_t                mNotificationFramesAct; // actual number of frames between each
                                                     // notification callback
-    bool                    mRefreshRemaining;  // processAudioBuffer() should refresh next 2
+    bool                    mRefreshRemaining;      // processAudioBuffer() should refresh
+                                                    // mRemainingFrames and mRetryOnPartialBuffer
 
     // These are private to processAudioBuffer(), and are not protected by a lock
     uint32_t                mRemainingFrames;       // number of frames to request in obtainBuffer()
