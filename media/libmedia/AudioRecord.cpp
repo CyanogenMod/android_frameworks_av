@@ -60,10 +60,9 @@ status_t AudioRecord::getMinFrameCount(
     // We double the size of input buffer for ping pong use of record buffer.
     size <<= 1;
 
-    if (audio_is_linear_pcm(format)) {
-        uint32_t channelCount = popcount(channelMask);
-        size /= channelCount * audio_bytes_per_sample(format);
-    }
+    // Assumes audio_is_linear_pcm(format)
+    uint32_t channelCount = popcount(channelMask);
+    size /= channelCount * audio_bytes_per_sample(format);
 
     *frameCount = size;
     return NO_ERROR;
@@ -205,11 +204,8 @@ status_t AudioRecord::set(
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
 
-    if (audio_is_linear_pcm(format)) {
-        mFrameSize = channelCount * audio_bytes_per_sample(format);
-    } else {
-        mFrameSize = sizeof(uint8_t);
-    }
+    // Assumes audio_is_linear_pcm(format), else sizeof(uint8_t)
+    mFrameSize = channelCount * audio_bytes_per_sample(format);
 
     if (sessionId == 0 ) {
         mSessionId = AudioSystem::newAudioSessionId();
