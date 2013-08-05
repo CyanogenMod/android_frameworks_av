@@ -474,6 +474,7 @@ private:
 
     int                     mPreviousPriority;  // before start()
     SchedPolicy             mPreviousSchedulingGroup;
+    bool                    mAwaitBoost;    // thread should wait for priority boost before running
 
     // The proxy should only be referenced while a lock is held because the proxy isn't
     // multi-thread safe.
