@@ -105,8 +105,13 @@ ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media-caf/mm-core/inc
 else
-LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media/mm-core/inc
+    ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media-legacy/mm-core/inc
+    else
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media/mm-core/inc
+endif
 endif
 
 LOCAL_SHARED_LIBRARIES := \
@@ -187,8 +192,13 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
         LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media-caf/mm-core/inc
     else
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media/mm-core/inc
+        ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
+            LOCAL_C_INCLUDES += \
+                $(TOP)/hardware/qcom/media-legacy/mm-core/inc
+        else
+            LOCAL_C_INCLUDES += \
+                $(TOP)/hardware/qcom/media/mm-core/inc
+        endif
     endif
 endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
 
