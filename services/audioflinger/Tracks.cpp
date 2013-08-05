@@ -1651,9 +1651,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
 {
     ALOGV("RecordTrack constructor");
     if (mCblk != NULL) {
-        mAudioRecordServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
-                mFrameSize);
-        mServerProxy = mAudioRecordServerProxy;
+        mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
     }
 }
 
