@@ -117,7 +117,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-                                IAudioFlinger::track_flags_t flags,
+                                IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
                                 status_t *status);

@@ -144,7 +144,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-                                track_flags_t flags,
+                                track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
                                 status_t *status)
@@ -157,7 +157,8 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         data.writeInt32(frameCount);
-        data.writeInt32(flags);
+        track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
+        data.writeInt32(lFlags);
         data.writeInt32((int32_t) tid);
         int lSessionId = 0;
         if (sessionId != NULL) {
@@ -168,6 +169,10 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("openRecord error: %s", strerror(-lStatus));
         } else {
+            lFlags = reply.readInt32();
+            if (flags != NULL) {
+                *flags = lFlags;
+            }
             lSessionId = reply.readInt32();
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
@@ -761,7 +766,8 @@ status_t BnAudioFlinger::onTransact(
             int sessionId = data.readInt32();
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, frameCount, flags, tid, &sessionId, &status);
+                    sampleRate, format, channelMask, frameCount, &flags, tid, &sessionId, &status);
+            reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(record->asBinder());

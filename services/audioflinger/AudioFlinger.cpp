@@ -1212,7 +1212,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         audio_format_t format,
         audio_channel_mask_t channelMask,
         size_t frameCount,
-        IAudioFlinger::track_flags_t flags,
+        IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         int *sessionId,
         status_t *status)
@@ -1261,7 +1261,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         // create new record track.
         // The record track uses one track in mHardwareMixerThread by convention.
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
-                                                  frameCount, lSessionId, flags, tid, &lStatus);
+                                                  frameCount, lSessionId, *flags, tid, &lStatus);
     }
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the

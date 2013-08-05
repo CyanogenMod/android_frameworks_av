@@ -79,7 +79,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-                                track_flags_t flags,
+                                track_flags_t *flags,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
                                 status_t *status) = 0;
