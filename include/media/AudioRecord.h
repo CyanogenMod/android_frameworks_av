@@ -35,8 +35,6 @@ class AudioRecord : public RefBase
 {
 public:
 
-    static const int DEFAULT_SAMPLE_RATE = 8000;
-
     /* Events used by AudioRecord callback function (callback_t).
      * Keep in sync with frameworks/base/media/java/android/media/AudioRecord.java NATIVE_EVENT_*.
      */
