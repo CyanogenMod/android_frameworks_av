@@ -47,6 +47,7 @@ public:
                                 int sessionId,
                                 bool isOut);
     virtual             ~TrackBase();
+    virtual status_t    initCheck() const { return getCblk() != 0 ? NO_ERROR : NO_MEMORY; }
 
     virtual status_t    start(AudioSystem::sync_event_t event,
                              int triggerSession) = 0;

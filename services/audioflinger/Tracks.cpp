@@ -361,6 +361,15 @@ AudioFlinger::PlaybackThread::Track::~Track()
     ALOGV("PlaybackThread::Track destructor");
 }
 
+status_t AudioFlinger::PlaybackThread::Track::initCheck() const
+{
+    status_t status = TrackBase::initCheck();
+    if (status == NO_ERROR && mName < 0) {
+        status = NO_MEMORY;
+    }
+    return status;
+}
+
 void AudioFlinger::PlaybackThread::Track::destroy()
 {
     // NOTE: destroyTrack_l() can remove a strong reference to this Track

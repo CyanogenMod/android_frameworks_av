@@ -1271,7 +1271,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     // return to handle to client
     recordHandle = new RecordHandle(recordTrack);
-    lStatus = NO_ERROR;
 
 Exit:
     *status = lStatus;

@@ -1248,8 +1248,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId);
         }
-        if (track == 0 || track->getCblk() == 0 || track->name() < 0) {
-            lStatus = NO_MEMORY;
+
+        // new Track always returns non-NULL,
+        // but TimedTrack::create() is a factory that could fail by returning NULL
+        lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
+        if (lStatus != NO_ERROR) {
+            track.clear();
             goto Exit;
         }
 
@@ -4497,8 +4501,9 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         track = new RecordTrack(this, client, sampleRate,
                       format, channelMask, frameCount, sessionId);
 
-        if (track->getCblk() == 0) {
-            lStatus = NO_MEMORY;
+        lStatus = track->initCheck();
+        if (lStatus != NO_ERROR) {
+            track.clear();
             goto Exit;
         }
         mTracks.add(track);
