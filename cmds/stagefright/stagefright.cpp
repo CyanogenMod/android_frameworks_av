@@ -939,7 +939,7 @@ int main(int argc, char **argv) {
 
             sp<BufferQueue> bq = new BufferQueue();
             sp<GLConsumer> texture = new GLConsumer(bq, 0 /* tex */);
-            gSurface = new Surface(texture->getBufferQueue());
+            gSurface = new Surface(bq);
         }
 
         CHECK_EQ((status_t)OK,
