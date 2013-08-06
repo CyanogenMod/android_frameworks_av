@@ -250,7 +250,7 @@ status_t AudioRecord::set(
     }
 
     // create the IAudioRecord
-    status = openRecord_l(sampleRate, format, frameCount, input, 0 /*epoch*/);
+    status = openRecord_l(sampleRate, format, frameCount, mFlags, input, 0 /*epoch*/);
     if (status != NO_ERROR) {
         return status;
     }
@@ -435,6 +435,7 @@ status_t AudioRecord::openRecord_l(
         uint32_t sampleRate,
         audio_format_t format,
         size_t frameCount,
+        audio_input_flags_t flags,
         audio_io_handle_t input,
         size_t epoch)
 {
@@ -908,7 +909,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     // It will also delete the strong references on previous IAudioRecord and IMemory
     size_t position = mProxy->getPosition();
     mNewPosition = position + mUpdatePeriod;
-    result = openRecord_l(mSampleRate, mFormat, mFrameCount, getInput_l(), position);
+    result = openRecord_l(mSampleRate, mFormat, mFrameCount, mFlags, getInput_l(), position);
     if (result == NO_ERROR) {
         if (mActive) {
             // callback thread or sync event hasn't changed

@@ -427,6 +427,7 @@ private:
             status_t openRecord_l(uint32_t sampleRate,
                                 audio_format_t format,
                                 size_t frameCount,
+                                audio_input_flags_t flags,
                                 audio_io_handle_t input,
                                 size_t epoch);
 
