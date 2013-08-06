@@ -446,10 +446,22 @@ status_t AudioRecord::openRecord_l(
         return NO_INIT;
     }
 
-    pid_t tid = -1;
-    // FIXME see similar logic at AudioTrack for tid
-
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
+    pid_t tid = -1;
+
+    // Client can only express a preference for FAST.  Server will perform additional tests.
+    // The only supported use case for FAST is callback transfer mode.
+    if (flags & AUDIO_INPUT_FLAG_FAST) {
+        if ((mTransfer != TRANSFER_CALLBACK) || (mAudioRecordThread == 0)) {
+            ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
+            // once denied, do not request again if IAudioRecord is re-created
+            mFlags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
+        } else {
+            trackFlags |= IAudioFlinger::TRACK_FAST;
+            tid = mAudioRecordThread->getTid();
+        }
+    }
+
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        sampleRate, format,
