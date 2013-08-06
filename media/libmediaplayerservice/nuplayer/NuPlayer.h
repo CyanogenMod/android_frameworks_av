@@ -60,6 +60,8 @@ struct NuPlayer : public AHandler {
     void seekToAsync(int64_t seekTimeUs);
 
     status_t setVideoScalingMode(int32_t mode);
+    status_t getTrackInfo(Parcel* reply) const;
+    status_t selectTrack(size_t trackIndex, bool select);
 
 protected:
     virtual ~NuPlayer();
@@ -101,6 +103,8 @@ private:
         kWhatResume                     = 'rsme',
         kWhatPollDuration               = 'polD',
         kWhatSourceNotify               = 'srcN',
+        kWhatGetTrackInfo               = 'gTrI',
+        kWhatSelectTrack                = 'selT',
     };
 
     wp<NuPlayerDriver> mDriver;
@@ -157,7 +161,7 @@ private:
     status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
     void renderBuffer(bool audio, const sp<AMessage> &msg);
 
-    void notifyListener(int msg, int ext1, int ext2);
+    void notifyListener(int msg, int ext1, int ext2, const Parcel *in = NULL);
 
     void finishFlushIfPossible();
 

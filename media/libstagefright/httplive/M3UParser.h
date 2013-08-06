@@ -41,6 +41,9 @@ struct M3UParser : public RefBase {
     bool itemAt(size_t index, AString *uri, sp<AMessage> *meta = NULL);
 
     void pickRandomMediaItems();
+    status_t selectTrack(size_t index, bool select);
+    status_t getTrackInfo(Parcel* reply) const;
+    ssize_t getSelectedIndex() const;
 
     bool getAudioURI(size_t index, AString *uri) const;
     bool getVideoURI(size_t index, AString *uri) const;
@@ -67,6 +70,7 @@ private:
 
     sp<AMessage> mMeta;
     Vector<Item> mItems;
+    ssize_t mSelectedIndex;
 
     // Media groups keyed by group ID.
     KeyedVector<AString, sp<MediaGroup> > mMediaGroups;

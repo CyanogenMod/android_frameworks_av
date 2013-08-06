@@ -42,6 +42,7 @@ struct NuPlayer::Source : public AHandler {
         kWhatVideoSizeChanged,
         kWhatBufferingStart,
         kWhatBufferingEnd,
+        kWhatSubtitleData,
         kWhatQueueDecoderShutdown,
     };
 
@@ -68,6 +69,14 @@ struct NuPlayer::Source : public AHandler {
             bool audio, sp<ABuffer> *accessUnit) = 0;
 
     virtual status_t getDuration(int64_t *durationUs) {
+        return INVALID_OPERATION;
+    }
+
+    virtual status_t getTrackInfo(Parcel* reply) const {
+        return INVALID_OPERATION;
+    }
+
+    virtual status_t selectTrack(size_t trackIndex, bool select) {
         return INVALID_OPERATION;
     }
 

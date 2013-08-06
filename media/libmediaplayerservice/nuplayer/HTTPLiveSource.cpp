@@ -43,7 +43,8 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
       mUID(uid),
       mFlags(0),
       mFinalResult(OK),
-      mOffset(0) {
+      mOffset(0),
+      mFetchSubtitleDataGeneration(0) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -120,6 +121,28 @@ status_t NuPlayer::HTTPLiveSource::getDuration(int64_t *durationUs) {
     return mLiveSession->getDuration(durationUs);
 }
 
+status_t NuPlayer::HTTPLiveSource::getTrackInfo(Parcel *reply) const {
+    return mLiveSession->getTrackInfo(reply);
+}
+
+status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
+    status_t err = mLiveSession->selectTrack(trackIndex, select);
+
+    if (err == OK) {
+        mFetchSubtitleDataGeneration++;
+        if (select) {
+            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, id());
+            msg->setInt32("generation", mFetchSubtitleDataGeneration);
+            msg->post();
+        }
+    }
+
+    // LiveSession::selectTrack returns BAD_VALUE when selecting the currently
+    // selected track, or unselecting a non-selected track. In this case it's an
+    // no-op so we return OK.
+    return (err == OK || err == BAD_VALUE) ? OK : err;
+}
+
 status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
     return mLiveSession->seekTo(seekTimeUs);
 }
@@ -129,6 +152,39 @@ void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatSessionNotify:
         {
             onSessionNotify(msg);
+            break;
+        }
+
+        case kWhatFetchSubtitleData:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+
+            if (generation != mFetchSubtitleDataGeneration) {
+                // stale
+                break;
+            }
+
+            sp<ABuffer> buffer;
+            if (mLiveSession->dequeueAccessUnit(
+                    LiveSession::STREAMTYPE_SUBTITLES, &buffer) == OK) {
+                sp<AMessage> notify = dupNotify();
+                notify->setInt32("what", kWhatSubtitleData);
+                notify->setBuffer("buffer", buffer);
+                notify->post();
+
+                int64_t timeUs, baseUs, durationUs, delayUs;
+                CHECK(buffer->meta()->findInt64("baseUs", &baseUs));
+                CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+                CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
+                delayUs = baseUs + timeUs - ALooper::GetNowUs();
+
+                msg->post(delayUs > 0ll ? delayUs : 0ll);
+            } else {
+                // try again in 1 second
+                msg->post(1000000ll);
+            }
+
             break;
         }
 
