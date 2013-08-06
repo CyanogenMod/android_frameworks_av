@@ -448,7 +448,10 @@ private:
     void*                   mUserData;
 
     // for notification APIs
-    uint32_t                mNotificationFrames; // frames between each notification callback
+    uint32_t                mNotificationFramesReq; // requested number of frames between each
+                                                    // notification callback
+    uint32_t                mNotificationFramesAct; // actual number of frames between each
+                                                    // notification callback
     bool                    mRefreshRemaining;  // processAudioBuffer() should refresh next 2
 
     // These are private to processAudioBuffer(), and are not protected by a lock
