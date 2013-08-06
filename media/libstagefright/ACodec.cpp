@@ -833,15 +833,20 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         oldest->mGraphicBuffer = new GraphicBuffer(buf, false);
         oldest->mStatus = BufferInfo::OWNED_BY_US;
 
-        struct VideoDecoderOutputMetaData metaData;
-        metaData.eType = kMetadataBufferTypeGrallocSource;
-        metaData.pHandle = oldest->mGraphicBuffer->handle;
-        memcpy(oldest->mData->base(), &metaData, sizeof(metaData));
+        mOMX->updateGraphicBufferInMeta(
+                mNode, kPortIndexOutput, oldest->mGraphicBuffer,
+                oldest->mBufferID);
 
-        ALOGV("replaced oldest buffer #%u with age %u (%p stored in %p)",
+        VideoDecoderOutputMetaData *metaData =
+            reinterpret_cast<VideoDecoderOutputMetaData *>(
+                    oldest->mData->base());
+        CHECK_EQ(metaData->eType, kMetadataBufferTypeGrallocSource);
+
+        ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
                 oldest - &mBuffers[kPortIndexOutput][0],
                 mDequeueCounter - oldest->mDequeuedAt,
-                metaData.pHandle, oldest->mData->base());
+                metaData->pHandle,
+                oldest->mGraphicBuffer->handle, oldest->mData->base());
 
         return oldest;
     }

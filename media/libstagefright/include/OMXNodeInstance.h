@@ -66,6 +66,10 @@ struct OMXNodeInstance {
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
             OMX::buffer_id *buffer);
 
+    status_t updateGraphicBufferInMeta(
+            OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
+            OMX::buffer_id buffer);
+
     status_t createInputSurface(
             OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer);
 

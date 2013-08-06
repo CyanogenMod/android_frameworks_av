@@ -83,6 +83,10 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer);
 
+    virtual status_t updateGraphicBufferInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer);
+
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer);
@@ -284,6 +288,13 @@ status_t MuxOMX::useGraphicBuffer(
         node_id node, OMX_U32 port_index,
         const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer) {
     return getOMX(node)->useGraphicBuffer(
+            node, port_index, graphicBuffer, buffer);
+}
+
+status_t MuxOMX::updateGraphicBufferInMeta(
+        node_id node, OMX_U32 port_index,
+        const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
+    return getOMX(node)->updateGraphicBufferInMeta(
             node, port_index, graphicBuffer, buffer);
 }
 
