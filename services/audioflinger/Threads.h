@@ -471,7 +471,6 @@ protected:
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
     int16_t*                        mMixBuffer;         // frame size aligned mix buffer
-    int8_t*                         mAllocMixBuffer;    // mixer buffer allocation address
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
