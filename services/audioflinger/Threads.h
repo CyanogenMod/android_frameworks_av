@@ -270,6 +270,7 @@ protected:
                 uint32_t                mChannelCount;
                 size_t                  mFrameSize;
                 audio_format_t          mFormat;
+                size_t                  mBufferSize;       // HAL buffer size for read() or write()
 
                 // Parameter sequence by client: binder thread calling setParameters():
                 //  1. Lock mLock
@@ -902,7 +903,6 @@ private:
             int32_t                             *mRsmpOutBuffer;
             int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
             size_t                              mRsmpInIndex;
-            size_t                              mBufferSize;    // stream buffer size for read()
             const uint32_t                      mReqChannelCount;
             const uint32_t                      mReqSampleRate;
             ssize_t                             mBytesRead;

@@ -266,8 +266,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
     :   Thread(false /*canCallJava*/),
         mType(type),
         mAudioFlinger(audioFlinger),
-        // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, and mFormat are
-        // set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
+        // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, mFormat, mBufferSize
+        // are set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
         mParamStatus(NO_ERROR),
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
@@ -422,6 +422,8 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
     snprintf(buffer, SIZE, "Sample rate: %u\n", mSampleRate);
     result.append(buffer);
     snprintf(buffer, SIZE, "HAL frame count: %d\n", mFrameCount);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "HAL buffer size: %u bytes\n", mBufferSize);
     result.append(buffer);
     snprintf(buffer, SIZE, "Channel Count: %u\n", mChannelCount);
     result.append(buffer);
@@ -1559,7 +1561,8 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
                 mFormat);
     }
     mFrameSize = audio_stream_frame_size(&mOutput->stream->common);
-    mFrameCount = mOutput->stream->common.get_buffer_size(&mOutput->stream->common) / mFrameSize;
+    mBufferSize = mOutput->stream->common.get_buffer_size(&mOutput->stream->common);
+    mFrameCount = mBufferSize / mFrameSize;
     if (mFrameCount & 15) {
         ALOGW("HAL output buffer size is %u frames but AudioMixer requires multiples of 16 frames",
                 mFrameCount);
@@ -4159,7 +4162,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
-    // mRsmpInIndex and mBufferSize set by readInputParameters()
+    // mRsmpInIndex set by readInputParameters()
     mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
