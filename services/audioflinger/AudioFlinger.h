@@ -109,7 +109,7 @@ public:
                                 pid_t tid,
                                 int *sessionId,
                                 String8& name,
-                                status_t *status);
+                                status_t *status /*non-NULL*/);
 
     virtual sp<IAudioRecord> openRecord(
                                 audio_io_handle_t input,
@@ -120,7 +120,7 @@ public:
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
-                                status_t *status);
+                                status_t *status /*non-NULL*/);
 
     virtual     uint32_t    sampleRate(audio_io_handle_t output) const;
     virtual     int         channelCount(audio_io_handle_t output) const;
@@ -209,7 +209,7 @@ public:
                         int32_t priority,
                         audio_io_handle_t io,
                         int sessionId,
-                        status_t *status,
+                        status_t *status /*non-NULL*/,
                         int *id,
                         int *enabled);
 

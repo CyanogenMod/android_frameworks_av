@@ -695,8 +695,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         int sessionId,
         effect_descriptor_t *desc,
         int *enabled,
-        status_t *status
-        )
+        status_t *status)
 {
     sp<EffectModule> effect;
     sp<EffectHandle> handle;
@@ -796,9 +795,7 @@ Exit:
         handle.clear();
     }
 
-    if (status != NULL) {
-        *status = lStatus;
-    }
+    *status = lStatus;
     return handle;
 }
 
@@ -1277,9 +1274,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     lStatus = NO_ERROR;
 
 Exit:
-    if (status) {
-        *status = lStatus;
-    }
+    *status = lStatus;
     return track;
 }
 
@@ -4524,9 +4519,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
     lStatus = NO_ERROR;
 
 Exit:
-    if (status) {
-        *status = lStatus;
-    }
+    *status = lStatus;
     return track;
 }
 

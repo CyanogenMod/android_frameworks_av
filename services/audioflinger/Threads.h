@@ -158,7 +158,7 @@ public:
                                     int sessionId,
                                     effect_descriptor_t *desc,
                                     int *enabled,
-                                    status_t *status);
+                                    status_t *status /*non-NULL*/);
                 void disconnectEffect(const sp< EffectModule>& effect,
                                       EffectHandle *handle,
                                       bool unpinIfLast);
@@ -421,7 +421,7 @@ public:
                                 int sessionId,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
-                                status_t *status);
+                                status_t *status /*non-NULL*/);
 
                 AudioStreamOut* getOutput() const;
                 AudioStreamOut* clearOutput();
@@ -839,7 +839,7 @@ public:
                     int sessionId,
                     IAudioFlinger::track_flags_t *flags,
                     pid_t tid,
-                    status_t *status);
+                    status_t *status /*non-NULL*/);
 
             status_t    start(RecordTrack* recordTrack,
                               AudioSystem::sync_event_t event,
