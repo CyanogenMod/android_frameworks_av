@@ -61,6 +61,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
+    virtual status_t setSourcePause(bool pause);
     virtual status_t stop();
     virtual status_t close();
     virtual status_t reset();
@@ -80,6 +81,9 @@ private:
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
+    sp<MediaSource> mVideoSourceNode;
+    sp<MediaSource> mVideoEncoderOMX;
+    sp<MediaSource> mAudioEncoderOMX;
 
     audio_source_t mAudioSource;
     video_source mVideoSource;
@@ -120,6 +124,7 @@ private:
     MediaProfiles *mEncoderProfiles;
 
     bool mStarted;
+    bool mRecPaused;
     // Needed when GLFrames are encoded.
     // An <IGraphicBufferProducer> pointer
     // will be sent to the client side using which the
