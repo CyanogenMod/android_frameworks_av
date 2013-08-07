@@ -332,11 +332,6 @@ public:
     /* Enables looping and sets the start and end points of looping.
      * Only supported for static buffer mode.
      *
-     * FIXME The comments below are for the new planned interpretation which is not yet implemented.
-     * Currently the legacy behavior is still implemented, where loopStart and loopEnd
-     * are in wrapping (overflow) frame units like the return value of getPosition().
-     * The plan is to fix all callers to use the new version at same time implementation changes.
-     *
      * Parameters:
      *
      * loopStart:   loop start in frames relative to start of buffer.
@@ -394,11 +389,6 @@ public:
     /* Sets playback head position.
      * Only supported for static buffer mode.
      *
-     * FIXME The comments below are for the new planned interpretation which is not yet implemented.
-     * Currently the legacy behavior is still implemented, where the new position
-     * is in wrapping (overflow) frame units like the return value of getPosition().
-     * The plan is to fix all callers to use the new version at same time implementation changes.
-     *
      * Parameters:
      *
      * position:  New playback head position in frames relative to start of buffer.
@@ -428,7 +418,7 @@ public:
             status_t    getPosition(uint32_t *position) const;
 
     /* For static buffer mode only, this returns the current playback position in frames
-     * relative to start of buffer.  It is analogous to the new API for
+     * relative to start of buffer.  It is analogous to the position units used by
      * setLoop() and setPosition().  After underrun, the position will be at end of buffer.
      */
             status_t    getBufferPosition(uint32_t *position);
@@ -518,8 +508,7 @@ public:
                                 __attribute__((__deprecated__));
 
 private:
-    /* New internal API
-     * If nonContig is non-NULL, it is an output parameter that will be set to the number of
+    /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
      * additional non-contiguous frames that are available immediately.
      * FIXME We could pass an array of Buffers instead of only one Buffer to obtainBuffer(),
      * in case the requested amount of frames is in two or more non-contiguous regions.
@@ -547,12 +536,11 @@ public:
      * This is implemented on top of obtainBuffer/releaseBuffer. For best
      * performance use callbacks. Returns actual number of bytes written >= 0,
      * or one of the following negative status codes:
-     *      INVALID_OPERATION   AudioTrack is configured for shared buffer mode
+     *      INVALID_OPERATION   AudioTrack is configured for static buffer or streaming mode
      *      BAD_VALUE           size is invalid
      *      WOULD_BLOCK         when obtainBuffer() returns same, or
      *                          AudioTrack was stopped during the write
      *      or any other error code returned by IAudioTrack::start() or restoreTrack_l().
-     * Not supported for static buffer mode.
      */
             ssize_t     write(const void* buffer, size_t size);
 

@@ -346,8 +346,7 @@ public:
                                 __attribute__((__deprecated__));
 
 private:
-    /* New internal API.
-     * If nonContig is non-NULL, it is an output parameter that will be set to the number of
+    /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
      * additional non-contiguous frames that are available immediately.
      * FIXME We could pass an array of Buffers instead of only one Buffer to obtainBuffer(),
      * in case the requested amount of frames is in two or more non-contiguous regions.
