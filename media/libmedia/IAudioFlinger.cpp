@@ -132,7 +132,7 @@ public:
             lStatus = reply.readInt32();
             track = interface_cast<IAudioTrack>(reply.readStrongBinder());
         }
-        if (status) {
+        if (status != NULL) {
             *status = lStatus;
         }
         return track;
@@ -180,7 +180,7 @@ public:
             lStatus = reply.readInt32();
             record = interface_cast<IAudioRecord>(reply.readStrongBinder());
         }
-        if (status) {
+        if (status != NULL) {
             *status = lStatus;
         }
         return record;
@@ -397,15 +397,25 @@ public:
         audio_io_handle_t output = (audio_io_handle_t) reply.readInt32();
         ALOGV("openOutput() returned output, %d", output);
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices != NULL) *pDevices = devices;
+        if (pDevices != NULL) {
+            *pDevices = devices;
+        }
         samplingRate = reply.readInt32();
-        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) {
+            *pSamplingRate = samplingRate;
+        }
         format = (audio_format_t) reply.readInt32();
-        if (pFormat != NULL) *pFormat = format;
+        if (pFormat != NULL) {
+            *pFormat = format;
+        }
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask != NULL) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) {
+            *pChannelMask = channelMask;
+        }
         latency = reply.readInt32();
-        if (pLatencyMs != NULL) *pLatencyMs = latency;
+        if (pLatencyMs != NULL) {
+            *pLatencyMs = latency;
+        }
         return output;
     }
 
@@ -469,13 +479,21 @@ public:
         remote()->transact(OPEN_INPUT, data, &reply);
         audio_io_handle_t input = (audio_io_handle_t) reply.readInt32();
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices != NULL) *pDevices = devices;
+        if (pDevices != NULL) {
+            *pDevices = devices;
+        }
         samplingRate = reply.readInt32();
-        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) {
+            *pSamplingRate = samplingRate;
+        }
         format = (audio_format_t) reply.readInt32();
-        if (pFormat != NULL) *pFormat = format;
+        if (pFormat != NULL) {
+            *pFormat = format;
+        }
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask != NULL) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) {
+            *pChannelMask = channelMask;
+        }
         return input;
     }
 
@@ -517,11 +535,11 @@ public:
         status_t status = reply.readInt32();
         if (status == NO_ERROR) {
             uint32_t tmp = reply.readInt32();
-            if (halFrames) {
+            if (halFrames != NULL) {
                 *halFrames = tmp;
             }
             tmp = reply.readInt32();
-            if (dspFrames) {
+            if (dspFrames != NULL) {
                 *dspFrames = tmp;
             }
         }
@@ -639,7 +657,7 @@ public:
 
         if (pDesc == NULL) {
             return effect;
-            if (status) {
+            if (status != NULL) {
                 *status = BAD_VALUE;
             }
         }
@@ -657,7 +675,7 @@ public:
         } else {
             lStatus = reply.readInt32();
             int tmp = reply.readInt32();
-            if (id) {
+            if (id != NULL) {
                 *id = tmp;
             }
             tmp = reply.readInt32();
@@ -667,7 +685,7 @@ public:
             effect = interface_cast<IEffect>(reply.readStrongBinder());
             reply.read(pDesc, sizeof(effect_descriptor_t));
         }
-        if (status) {
+        if (status != NULL) {
             *status = lStatus;
         }
 
