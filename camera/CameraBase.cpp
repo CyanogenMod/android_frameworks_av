@@ -92,20 +92,25 @@ const sp<ICameraService>& CameraBase<TCam, TCamTraits>::getCameraService()
 
 template <typename TCam, typename TCamTraits>
 sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
-                                         const String16& clientPackageName,
+                                               const String16& clientPackageName,
                                                int clientUid)
 {
     ALOGV("%s: connect", __FUNCTION__);
     sp<TCam> c = new TCam(cameraId);
     sp<TCamCallbacks> cl = c;
+    status_t status = NO_ERROR;
     const sp<ICameraService>& cs = getCameraService();
+
     if (cs != 0) {
-        c->mCamera = cs->connect(cl, cameraId, clientPackageName, clientUid);
+        TCamConnectService fnConnectService = TCamTraits::fnConnectService;
+        status = (cs.get()->*fnConnectService)(cl, cameraId, clientPackageName, clientUid,
+                                             /*out*/ c->mCamera);
     }
-    if (c->mCamera != 0) {
+    if (status == OK && c->mCamera != 0) {
         c->mCamera->asBinder()->linkToDeath(c);
         c->mStatus = NO_ERROR;
     } else {
+        ALOGW("An error occurred while connecting to camera: %d", cameraId);
         c.clear();
     }
     return c;
