@@ -106,6 +106,13 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addNALUnit(
         ++mNextExpectedSeqNo;
 
         return success ? OK : MALFORMED_PACKET;
+    } else if (nalType == 0) {
+        ALOGV("Ignoring undefined nal type.");
+
+        queue->erase(queue->begin());
+        ++mNextExpectedSeqNo;
+
+        return OK;
     } else {
         ALOGV("Ignoring unsupported buffer (nalType=%d)", nalType);
 
