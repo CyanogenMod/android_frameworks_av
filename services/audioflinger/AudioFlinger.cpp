@@ -150,6 +150,9 @@ AudioFlinger::AudioFlinger()
       mNextUniqueId(1),
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false)
+#ifdef QCOM_HARDWARE
+      ,mAllChainsLocked(false)
+#endif
 {
     getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
