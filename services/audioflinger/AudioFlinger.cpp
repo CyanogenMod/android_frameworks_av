@@ -1421,6 +1421,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 {
     PlaybackThread *thread = NULL;
     struct audio_config config;
+    memset(&config, 0, sizeof(config));
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
     config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
     config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
@@ -1645,6 +1646,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     status_t status;
     RecordThread *thread = NULL;
     struct audio_config config;
+    memset(&config, 0, sizeof(config));
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
     config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
     config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
