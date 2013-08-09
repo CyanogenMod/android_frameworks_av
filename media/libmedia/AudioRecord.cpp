@@ -245,9 +245,8 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
 
-    if (notificationFrames == 0) {
-        notificationFrames = frameCount/2;
-    }
+    mNotificationFramesReq = notificationFrames;
+    mNotificationFramesAct = 0;
 
     // create the IAudioRecord
     status = openRecord_l(sampleRate, format, frameCount, mFlags, input, 0 /*epoch*/);
@@ -267,8 +266,6 @@ status_t AudioRecord::set(
 
     mActive = false;
     mCbf = cbf;
-    mNotificationFramesReq = notificationFrames;
-    mNotificationFramesAct = 0;
     mRefreshRemaining = true;
     mUserData = user;
     // TODO: add audio hardware input latency here
@@ -464,6 +461,15 @@ status_t AudioRecord::openRecord_l(
         }
     }
 
+    mNotificationFramesAct = mNotificationFramesReq;
+
+    if (!(flags & AUDIO_INPUT_FLAG_FAST)) {
+        // Make sure that application is notified with sufficient margin before overrun
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
+            mNotificationFramesAct = frameCount/2;
+        }
+    }
+
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        sampleRate, format,
@@ -495,7 +501,6 @@ status_t AudioRecord::openRecord_l(
     mCblk = cblk;
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
-    mNotificationFramesAct = mNotificationFramesReq;
     if (flags & AUDIO_INPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", frameCount);
