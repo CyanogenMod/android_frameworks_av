@@ -1250,7 +1250,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId);
         }
-        if (track == 0 || track->getCblk() == NULL || track->name() < 0) {
+        if (track == 0 || track->getCblk() == 0 || track->name() < 0) {
             lStatus = NO_MEMORY;
             goto Exit;
         }
