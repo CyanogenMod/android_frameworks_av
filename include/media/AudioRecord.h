@@ -60,7 +60,7 @@ public:
         size_t      frameCount;     // number of sample frames corresponding to size;
                                     // on input it is the number of frames available,
                                     // on output is the number of frames actually drained
-                                    // (currently ignored, but will make the primary field in future)
+                                    // (currently ignored but will make the primary field in future)
 
         size_t      size;           // input/output in bytes == frameCount * frameSize
                                     // FIXME this is redundant with respect to frameCount,
