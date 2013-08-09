@@ -702,7 +702,9 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 // must be called with mLock held
 status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    if (mSharedBuffer == 0 || mIsTimed) {
+    // SoundPool streaming implementation uses AudioTrack EVENT_MORE_DATA callback mode,
+    // and relies on being able to loop the data provided by the most recent callback.
+    if (/*mSharedBuffer == 0 ||*/ mIsTimed) {
         return INVALID_OPERATION;
     }
 
