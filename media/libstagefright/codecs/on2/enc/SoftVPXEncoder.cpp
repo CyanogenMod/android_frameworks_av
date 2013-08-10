@@ -677,6 +677,9 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
         def->format.video.nFrameHeight = mHeight;
         def->format.video.xFramerate = port->format.video.xFramerate;
         def->format.video.eColorFormat = mColorFormat;
+        def = &editPortInfo(kOutputPortIndex)->mDef;
+        def->format.video.nFrameWidth = mWidth;
+        def->format.video.nFrameHeight = mHeight;
 
         return OMX_ErrorNone;
     } else if (port->nPortIndex == kOutputPortIndex) {
