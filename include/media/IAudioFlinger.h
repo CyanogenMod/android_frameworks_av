@@ -222,6 +222,9 @@ public:
                                     audio_io_handle_t dstOutput) = 0;
 
     virtual audio_module_handle_t loadHwModule(const char *name) = 0;
+#ifdef QCOM_DIRECTTRACK
+    virtual status_t deregisterClient(const sp<IAudioFlingerClient>& client) { return false; };
+#endif
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     // FIXME move these APIs to AudioPolicy to permit a more accurate implementation
