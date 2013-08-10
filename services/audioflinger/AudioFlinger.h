@@ -740,6 +740,7 @@ private:
                 DefaultKeyedVector<audio_io_handle_t, AudioSessionDescriptor *> mDirectAudioTracks;
                 // protected by mLock
                 volatile bool                       mIsEffectConfigChanged;
+                int                                 mA2DPHandle; // Handle to notify connection status
 #endif
                 Vector<AudioSessionRef*> mAudioSessionRefs;
 #ifdef QCOM_HARDWARE
