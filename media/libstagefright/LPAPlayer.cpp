@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "LPAPlayer"
 
 #include <utils/Log.h>
@@ -49,8 +49,8 @@
 
 static const char   mName[] = "LPAPlayer";
 
-#define MEM_BUFFER_SIZE 524288
-#define MEM_BUFFER_COUNT 2
+#define MEM_BUFFER_SIZE 262144
+#define MEM_BUFFER_COUNT 4
 
 #define PCM_FORMAT 2
 #define NUM_FDS 2
@@ -820,7 +820,7 @@ size_t LPAPlayer::AudioCallback(void *cookie, void *buffer, size_t size) {
         return 0;
      } else {
         size_done = fillBuffer(buffer, size);
-        ALOGD("RegularTrack:fillbuffersize %d %d", size_done, size);
+        ALOGV("RegularTrack:fillbuffersize %d %d", size_done, size);
         if(mReachedEOS) {
             me->mReachedOutputEOS = true;
             me->mObserver->postAudioEOS();
