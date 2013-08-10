@@ -117,11 +117,9 @@ LPAPlayer::~LPAPlayer() {
     }
 
     reset();
-#if 0
     if (mAudioFlinger != NULL) {
         mAudioFlinger->deregisterClient(AudioFlingerClient);
     }
-#endif
     mObjectsAlive--;
     mLpaInProgress = false;
 
@@ -166,7 +164,6 @@ void LPAPlayer::AudioFlingerLPAdecodeClient::binderDied(const wp<IBinder>& who) 
 void LPAPlayer::AudioFlingerLPAdecodeClient::ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2) {
     ALOGV("ioConfigChanged() event %d", event);
 
-#if 0
     if (event != AudioSystem::A2DP_OUTPUT_STATE) {
         return;
     }
@@ -197,7 +194,6 @@ void LPAPlayer::AudioFlingerLPAdecodeClient::ioConfigChanged(int event, audio_io
         }
         break;
     }
-#endif
     ALOGV("ioConfigChanged Out");
 
 }
