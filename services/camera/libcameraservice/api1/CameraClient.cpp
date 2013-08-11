@@ -716,6 +716,14 @@ void CameraClient::disableMsgType(int32_t msgType) {
 bool CameraClient::lockIfMessageWanted(int32_t msgType) {
     int sleepCount = 0;
     while (mMsgEnabled & msgType) {
+#ifdef QCOM_HARDWARE
+        if ((msgType == CAMERA_MSG_PREVIEW_FRAME) &&
+              (mMsgEnabled & CAMERA_MSG_COMPRESSED_IMAGE)) {
+           LOG1("lockIfMessageWanted(%d): Don't try to acquire mlock if "
+                "both Preview and Compressed are enabled", msgType);
+           return false;
+        }
+#endif
         if (mLock.tryLock() == NO_ERROR) {
             if (sleepCount > 0) {
                 LOG1("lockIfMessageWanted(%d): waited for %d ms",
