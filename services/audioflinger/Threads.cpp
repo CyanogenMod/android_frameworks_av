@@ -931,7 +931,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
         mNormalFrameCount(0), mMixBuffer(NULL),
-        mAllocMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
+        mSuspended(0), mBytesWritten(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
         mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
@@ -985,7 +985,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
 AudioFlinger::PlaybackThread::~PlaybackThread()
 {
     mAudioFlinger->unregisterWriter(mNBLogWriter);
-    delete [] mAllocMixBuffer;
+    delete[] mMixBuffer;
 }
 
 void AudioFlinger::PlaybackThread::dump(int fd, const Vector<String16>& args)
@@ -1618,11 +1618,11 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
     ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
-    delete[] mAllocMixBuffer;
-    size_t align = (mFrameSize < sizeof(int16_t)) ? sizeof(int16_t) : mFrameSize;
-    mAllocMixBuffer = new int8_t[mNormalFrameCount * mFrameSize + align - 1];
-    mMixBuffer = (int16_t *) ((((size_t)mAllocMixBuffer + align - 1) / align) * align);
-    memset(mMixBuffer, 0, mNormalFrameCount * mFrameSize);
+    delete[] mMixBuffer;
+    size_t normalBufferSize = mNormalFrameCount * mFrameSize;
+    // For historical reasons mMixBuffer is int16_t[], but mFrameSize can be odd (such as 1)
+    mMixBuffer = new int16_t[(normalBufferSize + 1) >> 1];
+    memset(mMixBuffer, 0, normalBufferSize);
 
     // force reconfiguration of effect chains and engines to take new buffer size and audio
     // parameters into account
