@@ -826,6 +826,10 @@ status_t CameraSource::read(
 void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         int32_t msgType, const sp<IMemory> &data) {
     ALOGV("dataCallbackTimestamp: timestamp %lld us", timestampUs);
+    if (!mStarted) {
+       ALOGD("Stop recording issued. Return here.");
+       return;
+    }
     Mutex::Autolock autoLock(mLock);
     if (!mStarted || (mNumFramesReceived == 0 && timestampUs < mStartTimeUs)) {
         ALOGV("Drop frame at %lld/%lld us", timestampUs, mStartTimeUs);
