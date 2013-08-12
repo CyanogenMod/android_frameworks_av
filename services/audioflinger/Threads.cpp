@@ -293,6 +293,17 @@ AudioFlinger::ThreadBase::~ThreadBase()
     }
 }
 
+status_t AudioFlinger::ThreadBase::readyToRun()
+{
+    status_t status = initCheck();
+    if (status == NO_ERROR) {
+        ALOGI("AudioFlinger's thread %p ready to run", this);
+    } else {
+        ALOGE("No working audio driver found.");
+    }
+    return status;
+}
+
 void AudioFlinger::ThreadBase::exit()
 {
     ALOGV("ThreadBase::exit");
@@ -1075,16 +1086,6 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
 }
 
 // Thread virtuals
-status_t AudioFlinger::PlaybackThread::readyToRun()
-{
-    status_t status = initCheck();
-    if (status == NO_ERROR) {
-        ALOGI("AudioFlinger's thread %p ready to run", this);
-    } else {
-        ALOGE("No working audio driver found.");
-    }
-    return status;
-}
 
 void AudioFlinger::PlaybackThread::onFirstRef()
 {
@@ -4188,13 +4189,6 @@ AudioFlinger::RecordThread::~RecordThread()
 void AudioFlinger::RecordThread::onFirstRef()
 {
     run(mName, PRIORITY_URGENT_AUDIO);
-}
-
-status_t AudioFlinger::RecordThread::readyToRun()
-{
-    status_t status = initCheck();
-    ALOGW_IF(status != NO_ERROR,"RecordThread %p could not initialize", this);
-    return status;
 }
 
 bool AudioFlinger::RecordThread::threadLoop()

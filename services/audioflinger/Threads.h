@@ -36,6 +36,8 @@ public:
                 audio_devices_t outDevice, audio_devices_t inDevice, type_t type);
     virtual             ~ThreadBase();
 
+    virtual status_t    readyToRun();
+
     void dumpBase(int fd, const Vector<String16>& args);
     void dumpEffectChains(int fd, const Vector<String16>& args);
 
@@ -354,7 +356,6 @@ public:
                 void        dump(int fd, const Vector<String16>& args);
 
     // Thread virtuals
-    virtual     status_t    readyToRun();
     virtual     bool        threadLoop();
 
     // RefBase
@@ -824,7 +825,6 @@ public:
 
     // Thread virtuals
     virtual bool        threadLoop();
-    virtual status_t    readyToRun();
 
     // RefBase
     virtual void        onFirstRef();
