@@ -4123,13 +4123,28 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
     if (params->findInt32("drop-input-frames", &dropInputFrames)) {
         bool suspend = dropInputFrames != 0;
 
-        CHECK_EQ((status_t)OK,
-                 mOMX->setInternalOption(
+        status_t err =
+            mOMX->setInternalOption(
                      mNode,
                      kPortIndexInput,
                      IOMX::INTERNAL_OPTION_SUSPEND,
                      &suspend,
-                     sizeof(suspend)));
+                     sizeof(suspend));
+
+        if (err != OK) {
+            ALOGE("Failed to set parameter 'drop-input-frames' (err %d)", err);
+            return err;
+        }
+    }
+
+    int32_t dummy;
+    if (params->findInt32("request-sync", &dummy)) {
+        status_t err = requestIDRFrame();
+
+        if (err != OK) {
+            ALOGE("Requesting a sync frame failed w/ err %d", err);
+            return err;
+        }
     }
 
     return OK;
