@@ -2884,7 +2884,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // +1 for rounding and +1 for additional sample needed for interpolation
             desiredFrames = (mNormalFrameCount * sr) / mSampleRate + 1 + 1;
             // add frames already consumed but not yet released by the resampler
-            // because cblk->framesReady() will include these frames
+            // because mAudioTrackServerProxy->framesReady() will include these frames
             desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
             // the minimum track buffer size is normally twice the number of frames necessary
             // to fill one buffer and the resampler should not leave more than one buffer worth
@@ -3222,6 +3222,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
             if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
                 status = BAD_VALUE;
             } else {
+                // no need to save value, since it's constant
                 reconfig = true;
             }
         }
@@ -3229,6 +3230,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
             if ((audio_channel_mask_t) value != AUDIO_CHANNEL_OUT_STEREO) {
                 status = BAD_VALUE;
             } else {
+                // no need to save value, since it's constant
                 reconfig = true;
             }
         }
