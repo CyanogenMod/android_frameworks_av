@@ -4281,8 +4281,9 @@ bool AudioFlinger::RecordThread::threadLoop()
                             int8_t *src = (int8_t *)mRsmpInBuffer + mRsmpInIndex * mFrameSize;
                             int8_t *dst = buffer.i8 + (buffer.frameCount - framesOut) *
                                     mActiveTrack->mFrameSize;
-                            if (framesIn > framesOut)
+                            if (framesIn > framesOut) {
                                 framesIn = framesOut;
+                            }
                             mRsmpInIndex += framesIn;
                             framesOut -= framesIn;
                             if (mChannelCount == mReqChannelCount) {
@@ -4989,8 +4990,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mFrameCount = mBufferSize / mFrameSize;
     mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
 
-    if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2)
-    {
+    if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2) {
         int channelCount;
         // optimization: if mono to mono, use the resampler in stereo to stereo mode to avoid
         // stereo to mono post process as the resampler always outputs stereo.

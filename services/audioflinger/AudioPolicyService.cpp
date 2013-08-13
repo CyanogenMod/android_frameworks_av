@@ -77,24 +77,28 @@ AudioPolicyService::AudioPolicyService()
     mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
     /* instantiate the audio policy manager */
     rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
-    if (rc)
+    if (rc) {
         return;
+    }
 
     rc = audio_policy_dev_open(module, &mpAudioPolicyDev);
     ALOGE_IF(rc, "couldn't open audio policy device (%s)", strerror(-rc));
-    if (rc)
+    if (rc) {
         return;
+    }
 
     rc = mpAudioPolicyDev->create_audio_policy(mpAudioPolicyDev, &aps_ops, this,
                                                &mpAudioPolicy);
     ALOGE_IF(rc, "couldn't create audio policy (%s)", strerror(-rc));
-    if (rc)
+    if (rc) {
         return;
+    }
 
     rc = mpAudioPolicy->init_check(mpAudioPolicy);
     ALOGE_IF(rc, "couldn't init_check the audio policy (%s)", strerror(-rc));
-    if (rc)
+    if (rc) {
         return;
+    }
 
     ALOGI("Loaded audio policy from %s (%s)", module->name, module->id);
 
@@ -126,10 +130,12 @@ AudioPolicyService::~AudioPolicyService()
     }
     mInputs.clear();
 
-    if (mpAudioPolicy != NULL && mpAudioPolicyDev != NULL)
+    if (mpAudioPolicy != NULL && mpAudioPolicyDev != NULL) {
         mpAudioPolicyDev->destroy_audio_policy(mpAudioPolicyDev, mpAudioPolicy);
-    if (mpAudioPolicyDev != NULL)
+    }
+    if (mpAudioPolicyDev != NULL) {
         audio_policy_dev_close(mpAudioPolicyDev);
+    }
 }
 
 status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
@@ -1105,11 +1111,13 @@ int AudioPolicyService::setStreamVolume(audio_stream_type_t stream,
 int AudioPolicyService::startTone(audio_policy_tone_t tone,
                                   audio_stream_type_t stream)
 {
-    if (tone != AUDIO_POLICY_TONE_IN_CALL_NOTIFICATION)
+    if (tone != AUDIO_POLICY_TONE_IN_CALL_NOTIFICATION) {
         ALOGE("startTone: illegal tone requested (%d)", tone);
-    if (stream != AUDIO_STREAM_VOICE_CALL)
+    }
+    if (stream != AUDIO_STREAM_VOICE_CALL) {
         ALOGE("startTone: illegal stream (%d) requested for tone %d", stream,
             tone);
+    }
     mTonePlaybackThread->startToneCommand(ToneGenerator::TONE_SUP_CALL_WAITING,
                                           AUDIO_STREAM_VOICE_CALL);
     return 0;
@@ -1500,8 +1508,9 @@ static audio_io_handle_t aps_open_dup_output(void *service,
 static int aps_close_output(void *service, audio_io_handle_t output)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0)
+    if (af == 0) {
         return PERMISSION_DENIED;
+    }
 
     return af->closeOutput(output);
 }
@@ -1564,8 +1573,9 @@ static audio_io_handle_t aps_open_input_on_module(void *service,
 static int aps_close_input(void *service, audio_io_handle_t input)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0)
+    if (af == 0) {
         return PERMISSION_DENIED;
+    }
 
     return af->closeInput(input);
 }
@@ -1574,8 +1584,9 @@ static int aps_set_stream_output(void *service, audio_stream_type_t stream,
                                      audio_io_handle_t output)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0)
+    if (af == 0) {
         return PERMISSION_DENIED;
+    }
 
     return af->setStreamOutput(stream, output);
 }
@@ -1585,8 +1596,9 @@ static int aps_move_effects(void *service, int session,
                                 audio_io_handle_t dst_output)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0)
+    if (af == 0) {
         return PERMISSION_DENIED;
+    }
 
     return af->moveEffects(session, src_output, dst_output);
 }

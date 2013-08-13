@@ -157,12 +157,15 @@ AudioFlinger::AudioFlinger()
         (void) property_get("af.tee", value, "0");
         teeEnabled = atoi(value);
     }
-    if (teeEnabled & 1)
+    if (teeEnabled & 1) {
         mTeeSinkInputEnabled = true;
-    if (teeEnabled & 2)
+    }
+    if (teeEnabled & 2) {
         mTeeSinkOutputEnabled = true;
-    if (teeEnabled & 4)
+    }
+    if (teeEnabled & 4) {
         mTeeSinkTrackEnabled = true;
+    }
 #endif
 }
 
@@ -1449,8 +1452,9 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     Mutex::Autolock _l(mLock);
 
     outHwDev = findSuitableHwDev_l(module, *pDevices);
-    if (outHwDev == NULL)
+    if (outHwDev == NULL) {
         return 0;
+    }
 
     audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
     audio_io_handle_t id = nextUniqueId();
@@ -1664,8 +1668,9 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     Mutex::Autolock _l(mLock);
 
     inHwDev = findSuitableHwDev_l(module, *pDevices);
-    if (inHwDev == NULL)
+    if (inHwDev == NULL) {
         return 0;
+    }
 
     audio_hw_device_t *inHwHal = inHwDev->hwDevice();
     audio_io_handle_t id = nextUniqueId();
