@@ -116,8 +116,9 @@ status_t AudioFlinger::EffectModule::addHandle(EffectHandle *handle)
             continue;
         }
         // first non destroyed handle is considered in control
-        if (controlHandle == NULL)
+        if (controlHandle == NULL) {
             controlHandle = h;
+        }
         if (h->priority() <= priority) {
             break;
         }

@@ -339,8 +339,9 @@ void AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
             out[outputIndex++] += vl * Interp(mX0L, in[0], phaseFraction);
             out[outputIndex++] += vr * Interp(mX0R, in[1], phaseFraction);
             Advance(&inputIndex, &phaseFraction, phaseIncrement);
-            if (outputIndex == outputSampleCount)
+            if (outputIndex == outputSampleCount) {
                 break;
+            }
         }
 
         // process input samples
@@ -434,8 +435,9 @@ void AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
             out[outputIndex++] += vl * sample;
             out[outputIndex++] += vr * sample;
             Advance(&inputIndex, &phaseFraction, phaseIncrement);
-            if (outputIndex == outputSampleCount)
+            if (outputIndex == outputSampleCount) {
                 break;
+            }
         }
 
         // process input samples

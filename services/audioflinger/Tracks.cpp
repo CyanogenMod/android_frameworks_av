@@ -943,15 +943,17 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::allocateTimedBuffer(
 
         mTimedMemoryDealer = new MemoryDealer(kTimedBufferHeapSize,
                                               "AudioFlingerTimed");
-        if (mTimedMemoryDealer == NULL)
+        if (mTimedMemoryDealer == NULL) {
             return NO_MEMORY;
+        }
     }
 
     sp<IMemory> newBuffer = mTimedMemoryDealer->allocate(size);
     if (newBuffer == NULL) {
         newBuffer = mTimedMemoryDealer->allocate(size);
-        if (newBuffer == NULL)
+        if (newBuffer == NULL) {
             return NO_MEMORY;
+        }
     }
 
     *buffer = newBuffer;

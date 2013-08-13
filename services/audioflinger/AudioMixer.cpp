@@ -752,8 +752,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
             const int i = 31 - __builtin_clz(en);
             en &= ~(1<<i);
             track_t& t = state->tracks[i];
-            if (!t.doesResample() && t.volumeRL == 0)
-            {
+            if (!t.doesResample() && t.volumeRL == 0) {
                 t.needs |= NEEDS_MUTE_ENABLED;
                 t.hook = track__nop;
             } else {
@@ -1124,8 +1123,9 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
         t.in = t.buffer.raw;
         // t.in == NULL can happen if the track was flushed just after having
         // been enabled for mixing.
-        if (t.in == NULL)
+        if (t.in == NULL) {
             enabledTracks &= ~(1<<i);
+        }
     }
 
     e0 = enabledTracks;
@@ -1445,8 +1445,9 @@ void AudioMixer::process__TwoTracks16BitsStereoNoResampling(state_t* state,
 int64_t AudioMixer::calculateOutputPTS(const track_t& t, int64_t basePTS,
                                        int outputFrameIndex)
 {
-    if (AudioBufferProvider::kInvalidPTS == basePTS)
+    if (AudioBufferProvider::kInvalidPTS == basePTS) {
         return AudioBufferProvider::kInvalidPTS;
+    }
 
     return basePTS + ((outputFrameIndex * sLocalTimeFreq) / t.sampleRate);
 }

@@ -427,8 +427,9 @@ bool FastMixer::threadLoop()
             }
 
             int64_t pts;
-            if (outputSink == NULL || (OK != outputSink->getNextWriteTimestamp(&pts)))
+            if (outputSink == NULL || (OK != outputSink->getNextWriteTimestamp(&pts))) {
                 pts = AudioBufferProvider::kInvalidPTS;
+            }
 
             // process() is CPU-bound
             mixer->process(pts);
