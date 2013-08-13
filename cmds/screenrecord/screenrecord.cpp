@@ -36,6 +36,7 @@
 #include <media/ICrypto.h>
 
 #include <stdio.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <getopt.h>
 
@@ -599,7 +600,19 @@ int main(int argc, char* const argv[]) {
         return 2;
     }
 
-    status_t err = recordScreen(argv[optind]);
+    // MediaMuxer tries to create the file in the constructor, but we don't
+    // learn about the failure until muxer.start(), which returns a generic
+    // error code without logging anything.  We attempt to create the file
+    // now for better diagnostics.
+    const char* fileName = argv[optind];
+    int fd = open(fileName, O_CREAT | O_RDWR, 0644);
+    if (fd < 0) {
+        fprintf(stderr, "Unable to open '%s': %s\n", fileName, strerror(errno));
+        return 1;
+    }
+    close(fd);
+
+    status_t err = recordScreen(fileName);
     ALOGD(err == NO_ERROR ? "success" : "failed");
     return (int) err;
 }
