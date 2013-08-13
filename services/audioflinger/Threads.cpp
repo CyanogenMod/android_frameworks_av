@@ -384,7 +384,7 @@ void AudioFlinger::ThreadBase::processConfigEvents()
         // release mLock before locking AudioFlinger mLock: lock order is always
         // AudioFlinger then ThreadBase to avoid cross deadlock
         mLock.unlock();
-        switch(event->type()) {
+        switch (event->type()) {
             case CFG_EVENT_PRIO: {
                 PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
                 // FIXME Need to understand why this has be done asynchronously
@@ -2658,7 +2658,7 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
-        memset (mMixBuffer, 0, mixBufferSize);
+        memset(mMixBuffer, 0, mixBufferSize);
         sleepTime = 0;
         ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
@@ -4424,7 +4424,7 @@ void AudioFlinger::RecordThread::inputStandBy()
     mInput->stream->common.standby(&mInput->stream->common);
 }
 
-sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createRecordTrack_l(
+sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRecordTrack_l(
         const sp<AudioFlinger::Client>& client,
         uint32_t sampleRate,
         audio_format_t format,
@@ -4894,6 +4894,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             }
             mAudioSource = (audio_source_t)value;
         }
+
         if (status == NO_ERROR) {
             status = mInput->stream->common.set_parameters(&mInput->stream->common,
                     keyValuePair.string());

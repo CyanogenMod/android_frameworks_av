@@ -48,7 +48,7 @@ namespace android {
 #define CBLK_STREAM_END_DONE 0x400 // set by server on render completion, cleared by client
 
 //EL_FIXME 20 seconds may not be enough and must be reconciled with new obtainBuffer implementation
-#define MAX_RUN_OFFLOADED_TIMEOUT_MS 20000 //assuming upto a maximum of 20 seconds of offloaded
+#define MAX_RUN_OFFLOADED_TIMEOUT_MS 20000 // assuming up to a maximum of 20 seconds of offloaded
 
 struct AudioTrackSharedStreaming {
     // similar to NBAIO MonoPipe

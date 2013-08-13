@@ -643,7 +643,6 @@ protected:
     size_t                  mReqFrameCount;         // frame count to request the next time a new
                                                     // IAudioTrack is needed
 
-
     // constant after constructor or set()
     audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
     audio_stream_type_t     mStreamType;
