@@ -175,6 +175,7 @@ status_t AudioRecord::set(
     if (inputSource == AUDIO_SOURCE_DEFAULT) {
         inputSource = AUDIO_SOURCE_MIC;
     }
+    mInputSource = inputSource;
 
     if (sampleRate == 0) {
         ALOGE("Invalid sample rate %u", sampleRate);
@@ -210,28 +211,10 @@ status_t AudioRecord::set(
     // Assumes audio_is_linear_pcm(format), else sizeof(uint8_t)
     mFrameSize = channelCount * audio_bytes_per_sample(format);
 
-    if (sessionId == 0 ) {
-        mSessionId = AudioSystem::newAudioSessionId();
-    } else {
-        mSessionId = sessionId;
-    }
-    ALOGV("set(): mSessionId %d", mSessionId);
-
-    mFlags = flags;
-
-    audio_io_handle_t input = AudioSystem::getInput(inputSource,
-                                                    sampleRate,
-                                                    format,
-                                                    channelMask,
-                                                    mSessionId);
-    if (input == 0) {
-        ALOGE("Could not get audio input for record source %d", inputSource);
-        return BAD_VALUE;
-    }
-
     // validate framecount
     size_t minFrameCount = 0;
-    status_t status = getMinFrameCount(&minFrameCount, sampleRate, format, channelMask);
+    status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
+            sampleRate, format, channelMask);
     if (status != NO_ERROR) {
         ALOGE("getMinFrameCount() failed; status %d", status);
         return status;
@@ -244,13 +227,23 @@ status_t AudioRecord::set(
         ALOGE("frameCount %u < minFrameCount %u", frameCount, minFrameCount);
         return BAD_VALUE;
     }
+    mFrameCount = frameCount;
 
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
 
+    if (sessionId == 0 ) {
+        mSessionId = AudioSystem::newAudioSessionId();
+    } else {
+        mSessionId = sessionId;
+    }
+    ALOGV("set(): mSessionId %d", mSessionId);
+
+    mFlags = flags;
+
     // create the IAudioRecord
-    status = openRecord_l(sampleRate, format, frameCount, mFlags, input, 0 /*epoch*/);
-    if (status != NO_ERROR) {
+    status = openRecord_l(0 /*epoch*/);
+    if (status) {
         return status;
     }
 
@@ -274,8 +267,6 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-    mInputSource = inputSource;
-    mInput = input;
     AudioSystem::acquireAudioSessionId(mSessionId);
     mSequence = 1;
     mObservedSequence = mSequence;
@@ -429,13 +420,7 @@ unsigned int AudioRecord::getInputFramesLost() const
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-status_t AudioRecord::openRecord_l(
-        uint32_t sampleRate,
-        audio_format_t format,
-        size_t frameCount,
-        audio_input_flags_t flags,
-        audio_io_handle_t input,
-        size_t epoch)
+status_t AudioRecord::openRecord_l(size_t epoch)
 {
     status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
@@ -449,12 +434,11 @@ status_t AudioRecord::openRecord_l(
 
     // Client can only express a preference for FAST.  Server will perform additional tests.
     // The only supported use case for FAST is callback transfer mode.
-    if (flags & AUDIO_INPUT_FLAG_FAST) {
+    if (mFlags & AUDIO_INPUT_FLAG_FAST) {
         if ((mTransfer != TRANSFER_CALLBACK) || (mAudioRecordThread == 0)) {
             ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
             // once denied, do not request again if IAudioRecord is re-created
-            flags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
-            mFlags = flags;
+            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
         } else {
             trackFlags |= IAudioFlinger::TRACK_FAST;
             tid = mAudioRecordThread->getTid();
@@ -463,18 +447,25 @@ status_t AudioRecord::openRecord_l(
 
     mNotificationFramesAct = mNotificationFramesReq;
 
-    if (!(flags & AUDIO_INPUT_FLAG_FAST)) {
+    if (!(mFlags & AUDIO_INPUT_FLAG_FAST)) {
         // Make sure that application is notified with sufficient margin before overrun
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
-            mNotificationFramesAct = frameCount/2;
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount/2) {
+            mNotificationFramesAct = mFrameCount/2;
         }
+    }
+
+    audio_io_handle_t input = AudioSystem::getInput(mInputSource, mSampleRate, mFormat,
+            mChannelMask, mSessionId);
+    if (input == 0) {
+        ALOGE("Could not get audio input for record source %d", mInputSource);
+        return BAD_VALUE;
     }
 
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
-                                                       sampleRate, format,
+                                                       mSampleRate, mFormat,
                                                        mChannelMask,
-                                                       frameCount,
+                                                       mFrameCount,
                                                        &trackFlags,
                                                        tid,
                                                        &mSessionId,
@@ -484,6 +475,7 @@ status_t AudioRecord::openRecord_l(
 
     if (record == 0) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
+        AudioSystem::releaseInput(input);
         return status;
     }
     sp<IMemory> iMem = record->getCblk();
@@ -495,27 +487,27 @@ status_t AudioRecord::openRecord_l(
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
     }
+    mInput = input;
     mAudioRecord = record;
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
     mCblk = cblk;
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
-    if (flags & AUDIO_INPUT_FLAG_FAST) {
+    if (mFlags & AUDIO_INPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", frameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", mFrameCount);
             mAwaitBoost = true;
             // double-buffering is not required for fast tracks, due to tighter scheduling
-            if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount) {
-                mNotificationFramesAct = frameCount;
+            if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount) {
+                mNotificationFramesAct = mFrameCount;
             }
         } else {
-            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", mFrameCount);
             // once denied, do not request again if IAudioRecord is re-created
-            flags = (audio_input_flags_t) (flags & ~AUDIO_INPUT_FLAG_FAST);
-            mFlags = flags;
-            if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
-                mNotificationFramesAct = frameCount/2;
+            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
+            if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount/2) {
+                mNotificationFramesAct = mFrameCount/2;
             }
         }
     }
@@ -524,7 +516,7 @@ status_t AudioRecord::openRecord_l(
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     // update proxy
-    mProxy = new AudioRecordClientProxy(cblk, buffers, frameCount, mFrameSize);
+    mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
     mProxy->setEpoch(epoch);
     mProxy->setMinimum(mNotificationFramesAct);
 
@@ -648,17 +640,6 @@ void AudioRecord::releaseBuffer(Buffer* audioBuffer)
 audio_io_handle_t AudioRecord::getInput() const
 {
     AutoMutex lock(mLock);
-    return mInput;
-}
-
-// must be called with mLock held
-audio_io_handle_t AudioRecord::getInput_l()
-{
-    mInput = AudioSystem::getInput(mInputSource,
-                                mSampleRate,
-                                mFormat,
-                                mChannelMask,
-                                mSessionId);
     return mInput;
 }
 
@@ -949,7 +930,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     // It will also delete the strong references on previous IAudioRecord and IMemory
     size_t position = mProxy->getPosition();
     mNewPosition = position + mUpdatePeriod;
-    result = openRecord_l(mSampleRate, mFormat, mFrameCount, mFlags, getInput_l(), position);
+    result = openRecord_l(position);
     if (result == NO_ERROR) {
         if (mActive) {
             // callback thread or sync event hasn't changed

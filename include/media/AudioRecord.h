@@ -423,14 +423,7 @@ private:
             nsecs_t processAudioBuffer(const sp<AudioRecordThread>& thread);
 
             // caller must hold lock on mLock for all _l methods
-            status_t openRecord_l(uint32_t sampleRate,
-                                audio_format_t format,
-                                size_t frameCount,
-                                audio_input_flags_t flags,
-                                audio_io_handle_t input,
-                                size_t epoch);
-
-            audio_io_handle_t getInput_l();
+            status_t openRecord_l(size_t epoch);
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreRecord_l(const char *from);
