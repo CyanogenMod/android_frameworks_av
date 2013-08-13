@@ -525,7 +525,9 @@ sp<IAudioTrack> AudioFlinger::createTrack(
                 }
             }
         }
+
     }
+
     if (lStatus == NO_ERROR) {
         // s for server's pid, n for normal mixer name, f for fast index
         name = String8::format("s:%d;n:%d;f:%d", getpid_cached, track->name() - AudioMixer::TRACK0,
@@ -1263,6 +1265,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
                                                   frameCount, lSessionId, flags, tid, &lStatus);
     }
+
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the
         // Client destructor is called by the TrackBase destructor with mLock held
@@ -1437,7 +1440,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
               config.channel_mask,
               flags);
     ALOGV("openOutput(), offloadInfo %p version 0x%04x",
-          offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version );
+          offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version);
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;
@@ -1911,7 +1914,7 @@ void AudioFlinger::purgeStaleEffects_l() {
             }
         }
         if (!found) {
-            Mutex::Autolock _l (t->mLock);
+            Mutex::Autolock _l(t->mLock);
             // remove all effects from the chain
             while (ec->mEffects.size()) {
                 sp<EffectModule> effect = ec->mEffects[0];
