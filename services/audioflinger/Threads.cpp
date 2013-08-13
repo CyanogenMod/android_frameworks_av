@@ -4232,25 +4232,41 @@ bool AudioFlinger::RecordThread::threadLoop()
                 if (mActiveTrack->isTerminated()) {
                     removeTrack_l(mActiveTrack);
                     mActiveTrack.clear();
-                } else if (mActiveTrack->mState == TrackBase::PAUSING) {
-                    standby();
-                    mActiveTrack.clear();
-                    mStartStopCond.broadcast();
-                } else if (mActiveTrack->mState == TrackBase::RESUMING) {
-                    if (mReqChannelCount != mActiveTrack->channelCount()) {
+                } else {
+                    switch (mActiveTrack->mState) {
+                    case TrackBase::PAUSING:
+                        standby();
                         mActiveTrack.clear();
                         mStartStopCond.broadcast();
-                    } else if (readOnce) {
-                        // record start succeeds only if first read from audio input
-                        // succeeds
-                        if (mBytesRead >= 0) {
-                            mActiveTrack->mState = TrackBase::ACTIVE;
-                        } else {
+                        break;
+
+                    case TrackBase::RESUMING:
+                        if (mReqChannelCount != mActiveTrack->channelCount()) {
                             mActiveTrack.clear();
+                            mStartStopCond.broadcast();
+                        } else if (readOnce) {
+                            // record start succeeds only if first read from audio input
+                            // succeeds
+                            if (mBytesRead >= 0) {
+                                mActiveTrack->mState = TrackBase::ACTIVE;
+                            } else {
+                                mActiveTrack.clear();
+                            }
+                            mStartStopCond.broadcast();
                         }
-                        mStartStopCond.broadcast();
+                        mStandby = false;
+                        break;
+
+                    case TrackBase::ACTIVE:
+                        break;
+
+                    case TrackBase::IDLE:
+                        break;
+
+                    default:
+                        LOG_FATAL("Unexpected mActiveTrack->mState %d", mActiveTrack->mState);
                     }
-                    mStandby = false;
+
                 }
             }
             lockEffectChains_l(effectChains);
