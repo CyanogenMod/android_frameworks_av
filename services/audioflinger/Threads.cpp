@@ -4822,7 +4822,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
         int value;
         audio_format_t reqFormat = mFormat;
         uint32_t reqSamplingRate = mReqSampleRate;
-        uint32_t reqChannelCount = mReqChannelCount;
+        audio_channel_mask_t reqChannelMask = audio_channel_in_mask_from_count(mReqChannelCount);
 
         if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
             reqSamplingRate = value;
@@ -4837,8 +4837,13 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             }
         }
         if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
-            reqChannelCount = popcount(value);
-            reconfig = true;
+            audio_channel_mask_t mask = (audio_channel_mask_t) value;
+            if (mask != AUDIO_CHANNEL_IN_MONO && mask != AUDIO_CHANNEL_IN_STEREO) {
+                status = BAD_VALUE;
+            } else {
+                reqChannelMask = mask;
+                reconfig = true;
+            }
         }
         if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
             // do not accept frame count changes if tracks are open as the track buffer
@@ -4903,7 +4908,8 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                             <= (2 * reqSamplingRate)) &&
                     popcount(mInput->stream->common.get_channels(&mInput->stream->common))
                             <= FCC_2 &&
-                    (reqChannelCount <= FCC_2)) {
+                    (reqChannelMask == AUDIO_CHANNEL_IN_MONO ||
+                            reqChannelMask == AUDIO_CHANNEL_IN_STEREO)) {
                     status = NO_ERROR;
                 }
                 if (status == NO_ERROR) {
