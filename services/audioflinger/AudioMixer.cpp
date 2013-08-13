@@ -229,7 +229,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
 
 void AudioMixer::invalidateState(uint32_t mask)
 {
-    if (mask) {
+    if (mask != 0) {
         mState.needsChanged |= mask;
         mState.hook = process__validate;
     }
@@ -709,7 +709,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
 
     // select the processing hooks
     state->hook = process__nop;
-    if (countActiveTracks) {
+    if (countActiveTracks > 0) {
         if (resampling) {
             if (!state->outputTemp) {
                 state->outputTemp = new int32_t[MAX_NUM_CHANNELS * state->frameCount];
@@ -745,7 +745,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
 
     // Now that the volume ramp has been done, set optimal state and
     // track hooks for subsequent mixer process
-    if (countActiveTracks) {
+    if (countActiveTracks > 0) {
         bool allMuted = true;
         uint32_t en = state->enabledTracks;
         while (en) {
@@ -1162,7 +1162,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                 }
                 while (outFrames) {
                     size_t inFrames = (t.frameCount > outFrames)?outFrames:t.frameCount;
-                    if (inFrames) {
+                    if (inFrames > 0) {
                         t.hook(&t, outTemp + (BLOCKSIZE-outFrames)*MAX_NUM_CHANNELS, inFrames,
                                 state->resampleTemp, aux);
                         t.frameCount -= inFrames;

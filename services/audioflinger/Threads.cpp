@@ -1756,7 +1756,7 @@ void AudioFlinger::PlaybackThread::threadLoop_removeTracks(
         const Vector< sp<Track> >& tracksToRemove)
 {
     size_t count = tracksToRemove.size();
-    if (count) {
+    if (count > 0) {
         for (size_t i = 0 ; i < count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             if (!track->isOutputTrack()) {
@@ -2284,7 +2284,7 @@ if (mType == MIXER) {
 void AudioFlinger::PlaybackThread::removeTracks_l(const Vector< sp<Track> >& tracksToRemove)
 {
     size_t count = tracksToRemove.size();
-    if (count) {
+    if (count > 0) {
         for (size_t i=0 ; i<count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             mActiveTracks.remove(track);
@@ -4277,7 +4277,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                     // no resampling
                     while (framesOut) {
                         size_t framesIn = mFrameCount - mRsmpInIndex;
-                        if (framesIn) {
+                        if (framesIn > 0) {
                             int8_t *src = (int8_t *)mRsmpInBuffer + mRsmpInIndex * mFrameSize;
                             int8_t *dst = buffer.i8 + (buffer.frameCount - framesOut) *
                                     mActiveTrack->mFrameSize;
@@ -4298,7 +4298,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 }
                             }
                         }
-                        if (framesOut && mFrameCount == mRsmpInIndex) {
+                        if (framesOut > 0 && mFrameCount == mRsmpInIndex) {
                             void *readInto;
                             if (framesOut == mFrameCount && mChannelCount == mReqChannelCount) {
                                 readInto = buffer.raw;
