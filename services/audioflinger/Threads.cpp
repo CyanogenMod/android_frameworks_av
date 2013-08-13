@@ -376,7 +376,12 @@ void AudioFlinger::ThreadBase::sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32
 
 void AudioFlinger::ThreadBase::processConfigEvents()
 {
-    mLock.lock();
+    Mutex::Autolock _l(mLock);
+    processConfigEvents_l();
+}
+
+void AudioFlinger::ThreadBase::processConfigEvents_l()
+{
     while (!mConfigEvents.isEmpty()) {
         ALOGV("processConfigEvents() remaining events %d", mConfigEvents.size());
         ConfigEvent *event = mConfigEvents[0];
@@ -408,7 +413,6 @@ void AudioFlinger::ThreadBase::processConfigEvents()
         delete event;
         mLock.lock();
     }
-    mLock.unlock();
 }
 
 void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args)
