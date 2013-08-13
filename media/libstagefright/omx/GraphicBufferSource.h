@@ -25,6 +25,8 @@
 #include <OMX_Core.h>
 #include "../include/OMXNodeInstance.h"
 #include <media/stagefright/foundation/ABase.h>
+#include <media/stagefright/foundation/AHandlerReflector.h>
+#include <media/stagefright/foundation/ALooper.h>
 
 namespace android {
 
@@ -89,6 +91,15 @@ public:
     // in the BufferQueue) will be discarded until the suspension is lifted.
     void suspend(bool suspend);
 
+    // Specifies the interval after which we requeue the buffer previously
+    // queued to the encoder. This is useful in the case of surface flinger
+    // providing the input surface if the resulting encoded stream is to
+    // be displayed "live". If we were not to push through the extra frame
+    // the decoder on the remote end would be unable to decode the latest frame.
+    // This API must be called before transitioning the encoder to "executing"
+    // state and once this behaviour is specified it cannot be reset.
+    status_t setRepeatPreviousFrameDelayUs(int64_t repeatAfterUs);
+
 protected:
     // BufferQueue::ConsumerListener interface, called when a new frame of
     // data is available.  If we're executing and a codec buffer is
@@ -147,6 +158,9 @@ private:
     // doing anything if we don't have a codec buffer available.
     void submitEndOfInputStream_l();
 
+    void setLatestSubmittedBuffer_l(const BufferQueue::BufferItem &item);
+    bool repeatLatestSubmittedBuffer_l();
+
     // Lock, covers all member variables.
     mutable Mutex mMutex;
 
@@ -180,6 +194,30 @@ private:
 
     // Tracks codec buffers.
     Vector<CodecBuffer> mCodecBuffers;
+
+    ////
+    friend class AHandlerReflector<GraphicBufferSource>;
+
+    enum {
+        kWhatRepeatLastFrame,
+    };
+
+    int64_t mRepeatAfterUs;
+
+    sp<ALooper> mLooper;
+    sp<AHandlerReflector<GraphicBufferSource> > mReflector;
+
+    int32_t mRepeatLastFrameGeneration;
+
+    int mLatestSubmittedBufferId;
+    uint64_t mLatestSubmittedBufferFrameNum;
+    int32_t mLatestSubmittedBufferUseCount;
+
+    // The previously submitted buffer should've been repeated but
+    // no codec buffer was available at the time.
+    bool mRepeatBufferDeferred;
+
+    void onMessageReceived(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(GraphicBufferSource);
 };

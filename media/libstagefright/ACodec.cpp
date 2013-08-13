@@ -369,7 +369,8 @@ ACodec::ACodec()
       mChannelMask(0),
       mDequeueCounter(0),
       mStoreMetaDataInOutputBuffers(false),
-      mMetaDataBuffersToSubmit(0) {
+      mMetaDataBuffersToSubmit(0),
+      mRepeatFrameDelayUs(-1ll) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -1088,6 +1089,12 @@ status_t ACodec::configureCodec(
             mUseMetadataOnEncoderOutput = 0;
         } else {
             mUseMetadataOnEncoderOutput = enable;
+        }
+
+        if (!msg->findInt64(
+                    "repeat-previous-frame-after",
+                    &mRepeatFrameDelayUs)) {
+            mRepeatFrameDelayUs = -1ll;
         }
     }
 
@@ -3611,6 +3618,7 @@ void ACodec::LoadedState::stateEntered() {
 
     mCodec->mDequeueCounter = 0;
     mCodec->mMetaDataBuffersToSubmit = 0;
+    mCodec->mRepeatFrameDelayUs = -1ll;
 
     if (mCodec->mShutdownInProgress) {
         bool keepComponentAllocated = mCodec->mKeepComponentAllocated;
@@ -3742,6 +3750,23 @@ void ACodec::LoadedState::onCreateInputSurface(
 
     err = mCodec->mOMX->createInputSurface(mCodec->mNode, kPortIndexInput,
             &bufferProducer);
+
+    if (err == OK && mCodec->mRepeatFrameDelayUs > 0ll) {
+        err = mCodec->mOMX->setInternalOption(
+                mCodec->mNode,
+                kPortIndexInput,
+                IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY,
+                &mCodec->mRepeatFrameDelayUs,
+                sizeof(mCodec->mRepeatFrameDelayUs));
+
+        if (err != OK) {
+            ALOGE("[%s] Unable to configure option to repeat previous "
+                  "frames (err %d)",
+                  mCodec->mComponentName.c_str(),
+                  err);
+        }
+    }
+
     if (err == OK) {
         notify->setObject("input-surface",
                 new BufferProducerWrapper(bufferProducer));
