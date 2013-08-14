@@ -4567,7 +4567,7 @@ status_t QueryCodec(
         CodecCapabilities *caps) {
     if (strncmp(componentName, "OMX.", 4)) {
         // Not an OpenMax component but a software codec.
-
+        caps->mFlags = 0;
         caps->mComponentName = componentName;
         return OK;
     }
@@ -4582,7 +4582,14 @@ status_t QueryCodec(
 
     OMXCodec::setComponentRole(omx, node, isEncoder, mime);
 
+    caps->mFlags = 0;
     caps->mComponentName = componentName;
+
+    if (!isEncoder && !strncmp(mime, "video/", 6) &&
+            omx->storeMetaDataInBuffers(
+                    node, 1 /* port index */, OMX_TRUE) == OK) {
+        caps->mFlags |= CodecCapabilities::kFlagSupportsAdaptivePlayback;
+    }
 
     OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
     InitOMXParams(&param);
