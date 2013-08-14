@@ -4244,48 +4244,49 @@ bool AudioFlinger::RecordThread::threadLoop()
                 acquireWakeLock_l();
                 continue;
             }
+
             if (activeTrack->isTerminated()) {
                 removeTrack_l(activeTrack);
                 mActiveTrack.clear();
-            } else {
-                switch (activeTrack->mState) {
-                case TrackBase::PAUSING:
-                    standby();
-                    mActiveTrack.clear();
-                    mStartStopCond.broadcast();
-                    break;
-
-                case TrackBase::RESUMING:
-                    if (mReqChannelCount != activeTrack->channelCount()) {
-                        mActiveTrack.clear();
-                        mStartStopCond.broadcast();
-                    } else if (readOnce) {
-                        // record start succeeds only if first read from audio input
-                        // succeeds
-                        if (mBytesRead >= 0) {
-                            activeTrack->mState = TrackBase::ACTIVE;
-                        } else {
-                            mActiveTrack.clear();
-                        }
-                        mStartStopCond.broadcast();
-                    }
-                    mStandby = false;
-                    break;
-
-                case TrackBase::ACTIVE:
-                    break;
-
-                case TrackBase::IDLE:
-                    break;
-
-                default:
-                    LOG_FATAL("Unexpected activeTrack->mState %d", activeTrack->mState);
-                }
-
-            }
-            if (mActiveTrack == 0) {
                 continue;
             }
+
+            switch (activeTrack->mState) {
+            case TrackBase::PAUSING:
+                standby();
+                mActiveTrack.clear();
+                mStartStopCond.broadcast();
+                doSleep = true;
+                continue;
+
+            case TrackBase::RESUMING:
+                mStandby = false;
+                if (mReqChannelCount != activeTrack->channelCount()) {
+                    mActiveTrack.clear();
+                    mStartStopCond.broadcast();
+                    continue;
+                }
+                if (readOnce) {
+                    mStartStopCond.broadcast();
+                    // record start succeeds only if first read from audio input succeeds
+                    if (mBytesRead < 0) {
+                        mActiveTrack.clear();
+                        continue;
+                    }
+                    activeTrack->mState = TrackBase::ACTIVE;
+                }
+                break;
+
+            case TrackBase::ACTIVE:
+                break;
+
+            case TrackBase::IDLE:
+                break;
+
+            default:
+                LOG_FATAL("Unexpected activeTrack->mState %d", activeTrack->mState);
+            }
+
             lockEffectChains_l(effectChains);
         }
 
