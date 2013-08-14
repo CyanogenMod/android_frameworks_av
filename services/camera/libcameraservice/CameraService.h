@@ -267,11 +267,11 @@ public:
 
         virtual void         notifyError();
 
-        // Initialized in constructor
 
         // - The app-side Binder interface to receive callbacks from us
         sp<ICameraClient>               mRemoteCallback;
 
+        bool                 mLongshotEnabled;
     }; // class Client
 
     class ProClient : public BnProCameraUser, public BasicClient {
