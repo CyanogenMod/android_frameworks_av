@@ -4209,10 +4209,19 @@ bool AudioFlinger::RecordThread::threadLoop()
     // used to verify we've read at least once before evaluating how many bytes were read
     bool readOnce = false;
 
+    // used to request a deferred sleep, to be executed later while mutex is unlocked
+    bool doSleep = false;
+
     // start recording
     for (;;) {
         sp<RecordTrack> activeTrack;
         Vector< sp<EffectChain> > effectChains;
+
+        // sleep with mutex unlocked
+        if (doSleep) {
+            doSleep = false;
+            usleep(kRecordThreadSleepUs);
+        }
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
@@ -4285,7 +4294,7 @@ bool AudioFlinger::RecordThread::threadLoop()
         if (activeTrack->mState != TrackBase::ACTIVE &&
             activeTrack->mState != TrackBase::RESUMING) {
             unlockEffectChains(effectChains);
-            usleep(kRecordThreadSleepUs);
+            doSleep = true;
             continue;
         }
         for (size_t i = 0; i < effectChains.size(); i ++) {
@@ -4342,8 +4351,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 // Force input into standby so that it tries to
                                 // recover at next read attempt
                                 inputStandBy();
-                                // FIXME sleep with effect chains locked
-                                usleep(kRecordThreadSleepUs);
+                                doSleep = true;
                             }
                             mRsmpInIndex = mFrameCount;
                             framesOut = 0;
@@ -4417,8 +4425,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             // Release the processor for a while before asking for a new buffer.
             // This will give the application more chance to read from the buffer and
             // clear the overflow.
-            // FIXME sleep with effect chains locked
-            usleep(kRecordThreadSleepUs);
+            doSleep = true;
         }
 
         // enable changes in effect chain
@@ -4819,6 +4826,7 @@ status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* 
                 // Force input into standby so that it tries to
                 // recover at next read attempt
                 inputStandBy();
+                // FIXME an awkward place to sleep, consider using doSleep when this is pulled up
                 usleep(kRecordThreadSleepUs);
             }
             buffer->raw = NULL;
