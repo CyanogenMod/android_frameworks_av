@@ -402,9 +402,10 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
         } break;
         case CFG_EVENT_IO: {
             IoConfigEvent *ioEvent = static_cast<IoConfigEvent *>(event);
-            mAudioFlinger->mLock.lock();
-            audioConfigChanged_l(ioEvent->event(), ioEvent->param());
-            mAudioFlinger->mLock.unlock();
+            {
+                Mutex::Autolock _l(mAudioFlinger->mLock);
+                audioConfigChanged_l(ioEvent->event(), ioEvent->param());
+            }
         } break;
         default:
             ALOGE("processConfigEvents() unknown event type %d", event->type());
