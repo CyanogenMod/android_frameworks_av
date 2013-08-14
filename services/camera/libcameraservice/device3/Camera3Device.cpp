@@ -952,6 +952,16 @@ status_t Camera3Device::pushReprocessBuffer(int reprocessStreamId,
     return INVALID_OPERATION;
 }
 
+status_t Camera3Device::flush() {
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d: Flushing all requests", __FUNCTION__, mId);
+
+    Mutex::Autolock l(mLock);
+
+    mRequestThread->clear();
+    return mHal3Device->ops->flush(mHal3Device);
+}
+
 /**
  * Camera3Device private methods
  */
@@ -1485,6 +1495,14 @@ status_t Camera3Device::RequestThread::setRepeatingRequests(
 status_t Camera3Device::RequestThread::clearRepeatingRequests() {
     Mutex::Autolock l(mRequestLock);
     mRepeatingRequests.clear();
+    return OK;
+}
+
+status_t Camera3Device::RequestThread::clear() {
+    Mutex::Autolock l(mRequestLock);
+    mRepeatingRequests.clear();
+    mRequestQueue.clear();
+    mTriggerMap.clear();
     return OK;
 }
 

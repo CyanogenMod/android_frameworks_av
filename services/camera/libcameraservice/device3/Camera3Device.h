@@ -124,6 +124,8 @@ class Camera3Device :
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
+    virtual status_t flush();
+
   private:
     static const size_t        kInFlightWarnLimit = 20;
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
@@ -247,6 +249,11 @@ class Camera3Device :
         status_t clearRepeatingRequests();
 
         status_t queueRequest(sp<CaptureRequest> request);
+
+        /**
+         * Remove all queued and repeating requests, and pending triggers
+         */
+        status_t clear();
 
         /**
          * Queue a trigger to be dispatched with the next outgoing
