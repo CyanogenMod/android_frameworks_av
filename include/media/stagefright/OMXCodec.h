@@ -361,9 +361,14 @@ private:
 };
 
 struct CodecCapabilities {
+    enum {
+        kFlagSupportsAdaptivePlayback = 1 << 0,
+    };
+
     String8 mComponentName;
     Vector<CodecProfileLevel> mProfileLevels;
     Vector<OMX_U32> mColorFormats;
+    uint32_t mFlags;
 };
 
 // Return a vector of componentNames with supported profile/level pairs
