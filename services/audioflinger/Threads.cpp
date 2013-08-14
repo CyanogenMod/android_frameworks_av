@@ -4220,7 +4220,8 @@ bool AudioFlinger::RecordThread::threadLoop()
         Vector< sp<EffectChain> > effectChains;
         { // scope for mLock
             Mutex::Autolock _l(mLock);
-            checkForNewParameters_l();
+            // return value 'reconfig' is currently unused
+            bool reconfig = checkForNewParameters_l();
             if (mActiveTrack == 0 && mConfigEvents.isEmpty()) {
                 standby();
 
