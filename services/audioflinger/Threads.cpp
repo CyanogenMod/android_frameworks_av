@@ -380,6 +380,7 @@ void AudioFlinger::ThreadBase::processConfigEvents()
     processConfigEvents_l();
 }
 
+// post condition: mConfigEvents.isEmpty()
 void AudioFlinger::ThreadBase::processConfigEvents_l()
 {
     while (!mConfigEvents.isEmpty()) {
@@ -4214,15 +4215,14 @@ bool AudioFlinger::RecordThread::threadLoop()
     //       It is only set to true while mLock held, but we don't hold mLock yet.
     //       Probably a benign race, but it would be safer to check exitPending with mLock held.
     while (!exitPending()) {
-
-        processConfigEvents();
-
         Vector< sp<EffectChain> > effectChains;
+
         { // scope for mLock
             Mutex::Autolock _l(mLock);
+            processConfigEvents_l();
             // return value 'reconfig' is currently unused
             bool reconfig = checkForNewParameters_l();
-            if (mActiveTrack == 0 && mConfigEvents.isEmpty()) {
+            if (mActiveTrack == 0) {
                 standby();
 
                 if (exitPending()) {
