@@ -460,17 +460,9 @@ static status_t recordScreen(const char* fileName) {
         printf("Stopping encoder and muxer\n");
     }
 
-    // Shut everything down.
-    //
-    // The virtual display will continue to produce frames until "dpy"
-    // goes out of scope (and something causes the Binder traffic to transmit;
-    // can be forced with IPCThreadState::self()->flushCommands()).  This
-    // could cause SurfaceFlinger to get stuck trying to feed us, so we want
-    // to set a NULL Surface to make the virtual display "dormant".
+    // Shut everything down, starting with the producer side.
     bufferProducer = NULL;
-    SurfaceComposerClient::openGlobalTransaction();
-    SurfaceComposerClient::setDisplaySurface(dpy, bufferProducer);
-    SurfaceComposerClient::closeGlobalTransaction();
+    SurfaceComposerClient::destroyDisplay(dpy);
 
     encoder->stop();
     muxer->stop();
