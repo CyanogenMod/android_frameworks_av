@@ -143,6 +143,10 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     looper->start();
     ALOGV("Creating codec");
     sp<MediaCodec> codec = MediaCodec::CreateByType(looper, "video/avc", true);
+    if (codec == NULL) {
+        fprintf(stderr, "ERROR: unable to create video/avc codec instance\n");
+        return UNKNOWN_ERROR;
+    }
     err = codec->configure(format, NULL, NULL,
             MediaCodec::CONFIGURE_FLAG_ENCODE);
     if (err != NO_ERROR) {
