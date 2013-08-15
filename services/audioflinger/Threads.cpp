@@ -385,26 +385,25 @@ void AudioFlinger::ThreadBase::processConfigEvents()
         // AudioFlinger then ThreadBase to avoid cross deadlock
         mLock.unlock();
         switch (event->type()) {
-            case CFG_EVENT_PRIO: {
-                PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
-                // FIXME Need to understand why this has be done asynchronously
-                int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio(),
-                        true /*asynchronous*/);
-                if (err != 0) {
-                    ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; "
-                          "error %d",
-                          prioEvent->prio(), prioEvent->pid(), prioEvent->tid(), err);
-                }
-            } break;
-            case CFG_EVENT_IO: {
-                IoConfigEvent *ioEvent = static_cast<IoConfigEvent *>(event);
-                mAudioFlinger->mLock.lock();
-                audioConfigChanged_l(ioEvent->event(), ioEvent->param());
-                mAudioFlinger->mLock.unlock();
-            } break;
-            default:
-                ALOGE("processConfigEvents() unknown event type %d", event->type());
-                break;
+        case CFG_EVENT_PRIO: {
+            PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
+            // FIXME Need to understand why this has be done asynchronously
+            int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio(),
+                    true /*asynchronous*/);
+            if (err != 0) {
+                ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
+                      prioEvent->prio(), prioEvent->pid(), prioEvent->tid(), err);
+            }
+        } break;
+        case CFG_EVENT_IO: {
+            IoConfigEvent *ioEvent = static_cast<IoConfigEvent *>(event);
+            mAudioFlinger->mLock.lock();
+            audioConfigChanged_l(ioEvent->event(), ioEvent->param());
+            mAudioFlinger->mLock.unlock();
+        } break;
+        default:
+            ALOGE("processConfigEvents() unknown event type %d", event->type());
+            break;
         }
         delete event;
         mLock.lock();
