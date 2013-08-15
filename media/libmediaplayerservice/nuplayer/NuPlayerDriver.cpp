@@ -178,6 +178,16 @@ status_t NuPlayerDriver::prepare_l() {
                 mCondition.wait(mLock);
             }
             return (mState == STATE_PREPARED) ? OK : UNKNOWN_ERROR;
+        case STATE_STOPPED:
+            // this is really just paused. handle as seek to start
+            mAtEOS = false;
+            mState = STATE_STOPPED_AND_PREPARING;
+            mIsAsyncPrepare = false;
+            mPlayer->seekToAsync(0);
+            while (mState == STATE_STOPPED_AND_PREPARING) {
+                mCondition.wait(mLock);
+            }
+            return (mState == STATE_STOPPED_AND_PREPARED) ? OK : UNKNOWN_ERROR;
         default:
             return INVALID_OPERATION;
     };
@@ -191,6 +201,13 @@ status_t NuPlayerDriver::prepareAsync() {
             mState = STATE_PREPARING;
             mIsAsyncPrepare = true;
             mPlayer->prepareAsync();
+            return OK;
+        case STATE_STOPPED:
+            // this is really just paused. handle as seek to start
+            mAtEOS = false;
+            mState = STATE_STOPPED_AND_PREPARING;
+            mIsAsyncPrepare = true;
+            mPlayer->seekToAsync(0);
             return OK;
         default:
             return INVALID_OPERATION;
@@ -235,6 +252,7 @@ status_t NuPlayerDriver::start() {
             break;
 
         case STATE_PAUSED:
+        case STATE_STOPPED_AND_PREPARED:
         {
             mPlayer->resume();
             break;
@@ -250,7 +268,29 @@ status_t NuPlayerDriver::start() {
 }
 
 status_t NuPlayerDriver::stop() {
-    return pause();
+    Mutex::Autolock autoLock(mLock);
+
+    switch (mState) {
+        case STATE_RUNNING:
+            mPlayer->pause();
+            // fall through
+
+        case STATE_PAUSED:
+            notifyListener(MEDIA_STOPPED);
+            // fall through
+
+        case STATE_PREPARED:
+        case STATE_STOPPED:
+        case STATE_STOPPED_AND_PREPARING:
+        case STATE_STOPPED_AND_PREPARED:
+            mState = STATE_STOPPED;
+            break;
+
+        default:
+            return INVALID_OPERATION;
+    }
+
+    return OK;
 }
 
 status_t NuPlayerDriver::pause() {
@@ -359,7 +399,9 @@ status_t NuPlayerDriver::reset() {
             break;
     }
 
-    notifyListener(MEDIA_STOPPED);
+    if (mState != STATE_STOPPED) {
+        notifyListener(MEDIA_STOPPED);
+    }
 
     mState = STATE_RESET_IN_PROGRESS;
     mPlayer->resetAsync();
@@ -503,7 +545,23 @@ void NuPlayerDriver::notifyPosition(int64_t positionUs) {
 }
 
 void NuPlayerDriver::notifySeekComplete() {
-    notifyListener(MEDIA_SEEK_COMPLETE);
+    bool wasSeeking = true;
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mState == STATE_STOPPED_AND_PREPARING) {
+            wasSeeking = false;
+            mState = STATE_STOPPED_AND_PREPARED;
+            mCondition.broadcast();
+            if (!mIsAsyncPrepare) {
+                // if we are preparing synchronously, no need to notify listener
+                return;
+            }
+        } else if (mState == STATE_STOPPED) {
+            // no need to notify listener
+            return;
+        }
+    }
+    notifyListener(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
 }
 
 void NuPlayerDriver::notifyFrameStats(
