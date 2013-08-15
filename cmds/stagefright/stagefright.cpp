@@ -51,6 +51,7 @@
 
 #include <fcntl.h>
 
+#include <gui/GLConsumer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 
