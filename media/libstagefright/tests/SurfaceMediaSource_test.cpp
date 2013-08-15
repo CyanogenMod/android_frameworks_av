@@ -23,6 +23,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <GLES2/gl2.h>
+
 #include <media/stagefright/SurfaceMediaSource.h>
 #include <media/mediarecorder.h>
 
