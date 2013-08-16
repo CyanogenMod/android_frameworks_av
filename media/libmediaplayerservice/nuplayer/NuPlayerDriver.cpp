@@ -255,6 +255,7 @@ status_t NuPlayerDriver::pause() {
             return OK;
 
         case STATE_RUNNING:
+            notifyListener(MEDIA_PAUSED);
             mPlayer->pause();
             break;
 
@@ -287,6 +288,8 @@ status_t NuPlayerDriver::seekTo(int msec) {
         case STATE_PAUSED:
         {
             mAtEOS = false;
+            // seeks can take a while, so we essentially paused
+            notifyListener(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs);
             break;
         }
@@ -344,6 +347,8 @@ status_t NuPlayerDriver::reset() {
         default:
             break;
     }
+
+    notifyListener(MEDIA_STOPPED);
 
     mState = STATE_RESET_IN_PROGRESS;
     mPlayer->resetAsync();

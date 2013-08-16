@@ -191,6 +191,8 @@ AwesomePlayer::AwesomePlayer()
       mTimeSource(NULL),
       mVideoRenderingStarted(false),
       mVideoRendererIsPreview(false),
+      mMediaRenderingStartGeneration(0),
+      mStartGeneration(0),
       mAudioPlayer(NULL),
       mDisplayWidth(0),
       mDisplayHeight(0),
@@ -490,6 +492,8 @@ void AwesomePlayer::reset_l() {
     mActiveAudioTrackIndex = -1;
     mDisplayWidth = 0;
     mDisplayHeight = 0;
+
+    notifyListener_l(MEDIA_STOPPED);
 
     if (mDecryptHandle != NULL) {
             mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
@@ -1025,6 +1029,13 @@ void AwesomePlayer::createAudioPlayer_l()
     seekAudioIfNecessary_l();
 }
 
+void AwesomePlayer::notifyIfMediaStarted_l() {
+    if (mMediaRenderingStartGeneration == mStartGeneration) {
+        mMediaRenderingStartGeneration = -1;
+        notifyListener_l(MEDIA_STARTED);
+    }
+}
+
 status_t AwesomePlayer::startAudioPlayer_l(bool sendErrorNotification) {
     CHECK(!(mFlags & AUDIO_RUNNING));
     status_t err = OK;
@@ -1061,6 +1072,8 @@ status_t AwesomePlayer::startAudioPlayer_l(bool sendErrorNotification) {
 
             // We will have finished the seek while starting the audio player.
             postAudioSeekComplete();
+        } else {
+            notifyIfMediaStarted_l();
         }
     } else {
         err = mAudioPlayer->resume();
@@ -1200,6 +1213,9 @@ status_t AwesomePlayer::pause_l(bool at_eos) {
     if (!(mFlags & PLAYING)) {
         return OK;
     }
+
+    notifyListener_l(MEDIA_PAUSED);
+    mMediaRenderingStartGeneration = ++mStartGeneration;
 
     cancelPlayerEvents(true /* keepNotifications */);
 
@@ -1388,6 +1404,9 @@ status_t AwesomePlayer::seekTo_l(int64_t timeUs) {
     mSeekNotificationSent = false;
     mSeekTimeUs = timeUs;
     modifyFlags((AT_EOS | AUDIO_AT_EOS | VIDEO_AT_EOS), CLEAR);
+
+    notifyListener_l(MEDIA_PAUSED);
+    mMediaRenderingStartGeneration = ++mStartGeneration;
 
     seekAudioIfNecessary_l();
 
@@ -1903,6 +1922,7 @@ void AwesomePlayer::onVideoEvent() {
             notifyListener_l(MEDIA_INFO, MEDIA_INFO_RENDERING_START);
         }
 
+        notifyIfMediaStarted_l();
     }
 
     mVideoBuffer->release();
@@ -1998,6 +2018,8 @@ void AwesomePlayer::onCheckAudioStatus() {
         }
 
         mSeeking = NO_SEEK;
+
+        notifyIfMediaStarted_l();
     }
 
     status_t finalStatus;
