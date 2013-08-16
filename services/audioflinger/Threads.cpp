@@ -4211,24 +4211,20 @@ bool AudioFlinger::RecordThread::threadLoop()
     bool readOnce = false;
 
     // start recording
-    // FIXME Race here: exitPending could become true immediately after testing.
-    //       It is only set to true while mLock held, but we don't hold mLock yet.
-    //       Probably a benign race, but it would be safer to check exitPending with mLock held.
-    while (!exitPending()) {
+    for (;;) {
         Vector< sp<EffectChain> > effectChains;
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
+            if (exitPending()) {
+                break;
+            }
             processConfigEvents_l();
             // return value 'reconfig' is currently unused
             bool reconfig = checkForNewParameters_l();
             if (mActiveTrack == 0) {
                 standby();
-
-                if (exitPending()) {
-                    break;
-                }
-
+                // exitPending() can't become true here
                 releaseWakeLock_l();
                 ALOGV("RecordThread: loop stopping");
                 // go to sleep
