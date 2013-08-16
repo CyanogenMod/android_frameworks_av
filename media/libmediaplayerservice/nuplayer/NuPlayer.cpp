@@ -731,6 +731,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGV("renderer %s flush completed.", audio ? "audio" : "video");
             } else if (what == Renderer::kWhatVideoRenderingStart) {
                 notifyListener(MEDIA_INFO, MEDIA_INFO_RENDERING_START, 0);
+            } else if (what == Renderer::kWhatMediaRenderingStart) {
+                ALOGV("media rendering started");
+                notifyListener(MEDIA_STARTED, 0, 0);
             }
             break;
         }

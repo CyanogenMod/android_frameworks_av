@@ -220,6 +220,9 @@ status_t MidiFile::start()
     }
 
     mRender = true;
+    if (mState == EAS_STATE_PLAY) {
+        sendEvent(MEDIA_STARTED);
+    }
 
     // wake up render thread
     ALOGV("  wakeup render thread");
@@ -242,6 +245,7 @@ status_t MidiFile::stop()
         }
     }
     mPaused = false;
+    sendEvent(MEDIA_STOPPED);
     return NO_ERROR;
 }
 
@@ -279,6 +283,7 @@ status_t MidiFile::pause()
         return ERROR_EAS_FAILURE;
     }
     mPaused = true;
+    sendEvent(MEDIA_PAUSED);
     return NO_ERROR;
 }
 
@@ -382,6 +387,7 @@ status_t MidiFile::reset()
 status_t MidiFile::reset_nosync()
 {
     ALOGV("MidiFile::reset_nosync");
+    sendEvent(MEDIA_STOPPED);
     // close file
     if (mEasHandle) {
         EAS_CloseFile(mEasData, mEasHandle);

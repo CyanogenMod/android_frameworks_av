@@ -169,6 +169,8 @@ private:
     sp<AwesomeRenderer> mVideoRenderer;
     bool mVideoRenderingStarted;
     bool mVideoRendererIsPreview;
+    int32_t mMediaRenderingStartGeneration;
+    int32_t mStartGeneration;
 
     ssize_t mActiveAudioTrackIndex;
     sp<MediaSource> mAudioTrack;
@@ -294,6 +296,7 @@ private:
     void finishSeekIfNecessary(int64_t videoTimeUs);
     void ensureCacheIsFetching_l();
 
+    void notifyIfMediaStarted_l();
     void createAudioPlayer_l();
     status_t startAudioPlayer_l(bool sendErrorNotification = true);
 

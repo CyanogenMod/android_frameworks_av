@@ -53,6 +53,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatFlushComplete       = 'fluC',
         kWhatPosition            = 'posi',
         kWhatVideoRenderingStart = 'vdrd',
+        kWhatMediaRenderingStart = 'mdrd',
     };
 
 protected:
@@ -106,6 +107,8 @@ private:
 
     bool mPaused;
     bool mVideoRenderingStarted;
+    int32_t mVideoRenderingStartGeneration;
+    int32_t mAudioRenderingStartGeneration;
 
     int64_t mLastPositionUpdateUs;
     int64_t mVideoLateByUs;
@@ -115,6 +118,9 @@ private:
 
     void onDrainVideoQueue();
     void postDrainVideoQueue();
+
+    void prepareForMediaRenderingStart();
+    void notifyIfMediaRenderingStarted();
 
     void onQueueBuffer(const sp<AMessage> &msg);
     void onQueueEOS(const sp<AMessage> &msg);
