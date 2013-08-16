@@ -88,7 +88,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mChannelCount(popcount(channelMask)),
 #ifdef QCOM_HARDWARE
         mFrameSize((audio_is_linear_pcm(format)||audio_is_supported_compressed(format)) ?
-                ((int16_t)flags == VOICE_COMMUNICATION_FLAG? sizeof(int16_t): mChannelCount * audio_bytes_per_sample(format)): sizeof(int8_t)),
+                ((int16_t)flags == VOICE_COMMUNICATION_FLAG? mChannelCount * sizeof(int16_t): mChannelCount * audio_bytes_per_sample(format)): sizeof(int8_t)),
 #else
         mFrameSize(audio_is_linear_pcm(format) ?
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
@@ -115,7 +115,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     uint8_t channelCount = popcount(channelMask);
     size_t bufferSize = 0;
     if ((int16_t)flags == VOICE_COMMUNICATION_FLAG) {
-        bufferSize = frameCount * mFrameSize;
+        bufferSize = channelCount * frameCount * mFrameSize;
     } else {
        if ( (format == AUDIO_FORMAT_PCM_16_BIT) ||
             (format == AUDIO_FORMAT_PCM_8_BIT))
