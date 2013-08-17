@@ -71,21 +71,27 @@ public:
      * clientUid == USE_CALLING_UID, then the calling UID is used instead. Only
      * trusted callers can set a clientUid other than USE_CALLING_UID.
      */
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient,
+    virtual status_t connect(const sp<ICameraClient>& cameraClient,
             int cameraId,
             const String16& clientPackageName,
-            int clientUid) = 0;
+            int clientUid,
+            /*out*/
+            sp<ICamera>& device) = 0;
 
-    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
+    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb,
             int cameraId,
             const String16& clientPackageName,
-            int clientUid) = 0;
+            int clientUid,
+            /*out*/
+            sp<IProCameraUser>& device) = 0;
 
-    virtual sp<ICameraDeviceUser> connect(
+    virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
             const String16& clientPackageName,
-            int clientUid) = 0;
+            int clientUid,
+            /*out*/
+            sp<ICameraDeviceUser>& device) = 0;
 };
 
 // ----------------------------------------------------------------------------
