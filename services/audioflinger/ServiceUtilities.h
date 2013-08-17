@@ -21,6 +21,7 @@ namespace android {
 extern pid_t getpid_cached;
 
 bool recordingAllowed();
+bool captureAudioOutputAllowed();
 bool settingsAllowed();
 bool dumpAllowed();
 

@@ -1206,6 +1206,10 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who)
 
 // ----------------------------------------------------------------------------
 
+static bool deviceRequiresCaptureAudioOutputPermission(audio_devices_t inDevice) {
+    return audio_is_remote_submix_device(inDevice);
+}
+
 sp<IAudioRecord> AudioFlinger::openRecord(
         audio_io_handle_t input,
         uint32_t sampleRate,
@@ -1243,6 +1247,12 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         thread = checkRecordThread_l(input);
         if (thread == NULL) {
             lStatus = BAD_VALUE;
+            goto Exit;
+        }
+
+        if (deviceRequiresCaptureAudioOutputPermission(thread->inDevice())
+                && !captureAudioOutputAllowed()) {
+            lStatus = PERMISSION_DENIED;
             goto Exit;
         }
 
