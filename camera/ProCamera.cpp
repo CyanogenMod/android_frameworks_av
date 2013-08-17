@@ -26,7 +26,6 @@
 #include <binder/IMemory.h>
 
 #include <camera/ProCamera.h>
-#include <camera/ICameraService.h>
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
 
@@ -46,6 +45,9 @@ ProCamera::ProCamera(int cameraId)
     : CameraBase(cameraId)
 {
 }
+
+CameraTraits<ProCamera>::TCamConnectService CameraTraits<ProCamera>::fnConnectService =
+        &ICameraService::connectPro;
 
 ProCamera::~ProCamera()
 {

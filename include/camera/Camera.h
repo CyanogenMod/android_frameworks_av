@@ -51,7 +51,13 @@ struct CameraTraits<Camera>
     typedef CameraListener        TCamListener;
     typedef ICamera               TCamUser;
     typedef ICameraClient         TCamCallbacks;
+    typedef status_t (ICameraService::*TCamConnectService)(const sp<ICameraClient>&,
+                                                           int, const String16&, int,
+                                                           /*out*/
+                                                           sp<ICamera>&);
+    static TCamConnectService     fnConnectService;
 };
+
 
 class Camera :
     public CameraBase<Camera>,

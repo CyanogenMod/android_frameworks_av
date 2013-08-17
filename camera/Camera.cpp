@@ -39,6 +39,9 @@ Camera::Camera(int cameraId)
 {
 }
 
+CameraTraits<Camera>::TCamConnectService CameraTraits<Camera>::fnConnectService =
+        &ICameraService::connect;
+
 // construct a camera client from an existing camera remote
 sp<Camera> Camera::create(const sp<ICamera>& camera)
 {
