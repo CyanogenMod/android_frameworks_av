@@ -72,15 +72,23 @@ public:
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
 
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
-            const String16& clientPackageName, int clientUid);
-    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId, const String16& clientPackageName, int clientUid);
-    virtual sp<ICameraDeviceUser> connect(
+    virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
+            const String16& clientPackageName, int clientUid,
+            /*out*/
+            sp<ICamera>& device);
+
+    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb,
+            int cameraId, const String16& clientPackageName, int clientUid,
+            /*out*/
+            sp<IProCameraUser>& device);
+
+    virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
             const String16& clientPackageName,
-            int clientUid);
+            int clientUid,
+            /*out*/
+            sp<ICameraDeviceUser>& device);
 
     virtual status_t    addListener(const sp<ICameraServiceListener>& listener);
     virtual status_t    removeListener(
@@ -308,7 +316,7 @@ private:
     virtual void onFirstRef();
 
     // Step 1. Check if we can connect, before we acquire the service lock.
-    bool                validateConnect(int cameraId,
+    status_t            validateConnect(int cameraId,
                                         /*inout*/
                                         int& clientUid) const;
 
@@ -320,7 +328,7 @@ private:
                                          sp<BasicClient> &client);
 
     // When connection is successful, initialize client and track its death
-    bool                connectFinishUnsafe(const sp<BasicClient>& client,
+    status_t            connectFinishUnsafe(const sp<BasicClient>& client,
                                             const sp<IBinder>& remoteCallback);
 
     virtual sp<BasicClient>  getClientByRemote(const wp<IBinder>& cameraClient);
