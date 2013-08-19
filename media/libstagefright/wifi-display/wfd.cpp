@@ -138,28 +138,6 @@ void RemoteDisplayClient::waitUntilDone() {
     }
 }
 
-static status_t enableAudioSubmix(bool enable) {
-    status_t err = AudioSystem::setDeviceConnectionState(
-            AUDIO_DEVICE_IN_REMOTE_SUBMIX,
-            enable
-                ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE
-                : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-            NULL /* device_address */);
-
-    if (err != OK) {
-        return err;
-    }
-
-    err = AudioSystem::setDeviceConnectionState(
-            AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
-            enable
-                ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE
-                : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-            NULL /* device_address */);
-
-    return err;
-}
-
 static void createSource(const AString &addr, int32_t port) {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.player"));
@@ -167,8 +145,6 @@ static void createSource(const AString &addr, int32_t port) {
         interface_cast<IMediaPlayerService>(binder);
 
     CHECK(service.get() != NULL);
-
-    enableAudioSubmix(true /* enable */);
 
     String8 iface;
     iface.append(addr.c_str());
@@ -182,8 +158,6 @@ static void createSource(const AString &addr, int32_t port) {
 
     display->dispose();
     display.clear();
-
-    enableAudioSubmix(false /* enable */);
 }
 
 static void createFileSource(
