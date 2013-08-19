@@ -4378,7 +4378,9 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
-    // mRsmpInIndex set by readInputParameters()
+    // mRsmpInFrames, mRsmpInFramesP2, mRsmpInUnrel, mRsmpInFront, and mRsmpInRear
+    //      are set by readInputParameters()
+    // mRsmpInIndex LEGACY
     mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
@@ -4583,17 +4585,60 @@ bool AudioFlinger::RecordThread::threadLoop()
             } else {
                 // resampling
 
+                // avoid busy-waiting if client doesn't keep up
+                bool madeProgress = false;
+
+                // keep mRsmpInBuffer full so resampler always has sufficient input
+                for (;;) {
+                    int32_t rear = mRsmpInRear;
+                    ssize_t filled = rear - mRsmpInFront;
+                    ALOG_ASSERT(0 <= filled && (size_t) filled <= mRsmpInFramesP2);
+                    // exit once there is enough data in buffer for resampler
+                    if ((size_t) filled >= mRsmpInFrames) {
+                        break;
+                    }
+                    size_t avail = mRsmpInFramesP2 - filled;
+                    // Only try to read full HAL buffers.
+                    // But if the HAL read returns a partial buffer, use it.
+                    if (avail < mFrameCount) {
+                        ALOGE("insufficient space to read: avail %d < mFrameCount %d",
+                                avail, mFrameCount);
+                        break;
+                    }
+                    // If 'avail' is non-contiguous, first read past the nominal end of buffer, then
+                    // copy to the right place.  Permitted because mRsmpInBuffer was over-allocated.
+                    rear &= mRsmpInFramesP2 - 1;
+                    mBytesRead = mInput->stream->read(mInput->stream,
+                            &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
+                    if (mBytesRead <= 0) {
+                        ALOGE("read failed: mBytesRead=%d < %u", mBytesRead, mBufferSize);
+                        break;
+                    }
+                    ALOG_ASSERT((size_t) mBytesRead <= mBufferSize);
+                    size_t framesRead = mBytesRead / mFrameSize;
+                    ALOG_ASSERT(framesRead > 0);
+                    madeProgress = true;
+                    // If 'avail' was non-contiguous, we now correct for reading past end of buffer.
+                    size_t part1 = mRsmpInFramesP2 - rear;
+                    if (framesRead > part1) {
+                        memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
+                                (framesRead - part1) * mFrameSize);
+                    }
+                    mRsmpInRear += framesRead;
+                }
+
+                if (!madeProgress) {
+                    ALOGV("Did not make progress");
+                    usleep(((mFrameCount * 1000) / mSampleRate) * 1000);
+                }
+
                 // resampler accumulates, but we only have one source track
                 memset(mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
-                // alter output frame count as if we were expecting stereo samples
-                if (mChannelCount == 1 && mReqChannelCount == 1) {
-                    framesOut >>= 1;
-                }
                 mResampler->resample(mRsmpOutBuffer, framesOut,
                         this /* AudioBufferProvider* */);
                 // ditherAndClamp() works as long as all buffers returned by
                 // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
-                if (mChannelCount == 2 && mReqChannelCount == 1) {
+                if (mReqChannelCount == 1) {
                     // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
                     ditherAndClamp(mRsmpOutBuffer, mRsmpOutBuffer, framesOut);
                     // the resampler always outputs stereo samples:
@@ -4836,7 +4881,11 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
             clearSyncStartEvent();
             return status;
         }
+        // FIXME LEGACY
         mRsmpInIndex = mFrameCount;
+        mRsmpInFront = 0;
+        mRsmpInRear = 0;
+        mRsmpInUnrel = 0;
         mBytesRead = 0;
         if (mResampler != NULL) {
             mResampler->reset();
@@ -5034,47 +5083,47 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
 // AudioBufferProvider interface
 status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts)
 {
-    size_t framesReq = buffer->frameCount;
-    size_t framesReady = mFrameCount - mRsmpInIndex;
-    int channelCount;
-
-    if (framesReady == 0) {
-        mBytesRead = mInput->stream->read(mInput->stream, mRsmpInBuffer, mBufferSize);
-        if (mBytesRead <= 0) {
-            if ((mBytesRead < 0) && (mActiveTrack->mState == TrackBase::ACTIVE)) {
-                ALOGE("RecordThread::getNextBuffer() Error reading audio input");
-                // Force input into standby so that it tries to
-                // recover at next read attempt
-                inputStandBy();
-                // FIXME an awkward place to sleep, consider using doSleep when this is pulled up
-                usleep(kRecordThreadSleepUs);
-            }
-            buffer->raw = NULL;
-            buffer->frameCount = 0;
-            return NOT_ENOUGH_DATA;
-        }
-        mRsmpInIndex = 0;
-        framesReady = mFrameCount;
+    int32_t rear = mRsmpInRear;
+    int32_t front = mRsmpInFront;
+    ssize_t filled = rear - front;
+    ALOG_ASSERT(0 <= filled && (size_t) filled <= mRsmpInFramesP2);
+    // 'filled' may be non-contiguous, so return only the first contiguous chunk
+    front &= mRsmpInFramesP2 - 1;
+    size_t part1 = mRsmpInFramesP2 - front;
+    if (part1 > (size_t) filled) {
+        part1 = filled;
+    }
+    size_t ask = buffer->frameCount;
+    ALOG_ASSERT(ask > 0);
+    if (part1 > ask) {
+        part1 = ask;
+    }
+    if (part1 == 0) {
+        // Higher-level should keep mRsmpInBuffer full, and not call resampler if empty
+        ALOGE("RecordThread::getNextBuffer() starved");
+        buffer->raw = NULL;
+        buffer->frameCount = 0;
+        mRsmpInUnrel = 0;
+        return NOT_ENOUGH_DATA;
     }
 
-    if (framesReq > framesReady) {
-        framesReq = framesReady;
-    }
-
-    if (mChannelCount == 1 && mReqChannelCount == 2) {
-        channelCount = 1;
-    } else {
-        channelCount = 2;
-    }
-    buffer->raw = mRsmpInBuffer + mRsmpInIndex * channelCount;
-    buffer->frameCount = framesReq;
+    buffer->raw = mRsmpInBuffer + front * mChannelCount;
+    buffer->frameCount = part1;
+    mRsmpInUnrel = part1;
     return NO_ERROR;
 }
 
 // AudioBufferProvider interface
 void AudioFlinger::RecordThread::releaseBuffer(AudioBufferProvider::Buffer* buffer)
 {
-    mRsmpInIndex += buffer->frameCount;
+    size_t stepCount = buffer->frameCount;
+    if (stepCount == 0) {
+        return;
+    }
+    ALOG_ASSERT(stepCount <= mRsmpInUnrel);
+    mRsmpInUnrel -= stepCount;
+    mRsmpInFront += stepCount;
+    buffer->raw = NULL;
     buffer->frameCount = 0;
 }
 
@@ -5252,28 +5301,22 @@ void AudioFlinger::RecordThread::readInputParameters()
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
-    mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
+    // With 3 HAL buffers, we can guarantee ability to down-sample the input by ratio of 2:1 to
+    // 1 full output buffer, regardless of the alignment of the available input.
+    mRsmpInFrames = mFrameCount * 3;
+    mRsmpInFramesP2 = roundup(mRsmpInFrames);
+    // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
+    mRsmpInBuffer = new int16_t[(mRsmpInFramesP2 + mFrameCount - 1) * mChannelCount];
+    mRsmpInFront = 0;
+    mRsmpInRear = 0;
+    mRsmpInUnrel = 0;
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2) {
-        uint32_t channelCount;
-        // optimization: if mono to mono, use the resampler in stereo to stereo mode to avoid
-        // stereo to mono post process as the resampler always outputs stereo.
-        if (mChannelCount == 1 && mReqChannelCount == 2) {
-            channelCount = 1;
-        } else {
-            channelCount = 2;
-        }
         mResampler = AudioResampler::create(16, (int) channelCount, mReqSampleRate);
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
+        // resampler always outputs stereo
         mRsmpOutBuffer = new int32_t[mFrameCount * FCC_2];
-
-        // optmization: if mono to mono, alter input frame count as if we were inputing
-        // stereo samples
-        if (mChannelCount == 1 && mReqChannelCount == 1) {
-            mFrameCount >>= 1;
-        }
-
     }
     mRsmpInIndex = mFrameCount;
 }
