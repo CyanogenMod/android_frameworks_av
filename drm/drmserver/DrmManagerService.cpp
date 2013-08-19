@@ -87,11 +87,6 @@ status_t DrmManagerService::setDrmServiceListener(
     return DRM_NO_ERROR;
 }
 
-status_t DrmManagerService::installDrmEngine(int uniqueId, const String8& drmEngineFile) {
-    ALOGV("Entering installDrmEngine");
-    return mDrmManager->installDrmEngine(uniqueId, drmEngineFile);
-}
-
 DrmConstraints* DrmManagerService::getConstraints(
             int uniqueId, const String8* path, const int action) {
     ALOGV("Entering getConstraints from content");
