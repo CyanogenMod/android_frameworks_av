@@ -1001,7 +1001,8 @@ AudioFlinger::PlaybackThread::TimedTrack::create(
             size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
-            int uid) {
+            int uid)
+{
     if (!client->reserveTimedTrack())
         return 0;
 

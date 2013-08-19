@@ -307,12 +307,12 @@ protected:
                 Vector<ConfigEvent *>     mConfigEvents;
 
                 // These fields are written and read by thread itself without lock or barrier,
-                // and read by other threads without lock or barrier via standby() , outDevice()
+                // and read by other threads without lock or barrier via standby(), outDevice()
                 // and inDevice().
                 // Because of the absence of a lock or barrier, any other thread that reads
                 // these fields must use the information in isolation, or be prepared to deal
                 // with possibility that it might be inconsistent with other information.
-                bool                    mStandby;   // Whether thread is currently in standby.
+                bool                    mStandby;     // Whether thread is currently in standby.
                 audio_devices_t         mOutDevice;   // output device
                 audio_devices_t         mInDevice;    // input device
                 audio_source_t          mAudioSource; // (see audio.h, audio_source_t)

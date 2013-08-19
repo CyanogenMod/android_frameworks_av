@@ -737,7 +737,8 @@ void SoundChannel::process(int event, void *info, unsigned long toggle)
                     count = b->size;
                 }
                 memcpy(q, p, count);
-//              ALOGV("fill: q=%p, p=%p, mPos=%u, b->size=%u, count=%d", q, p, mPos, b->size, count);
+//              ALOGV("fill: q=%p, p=%p, mPos=%u, b->size=%u, count=%d", q, p, mPos, b->size,
+//                      count);
             } else if (mPos < mAudioBufferSize) {
                 count = mAudioBufferSize - mPos;
                 if (count > b->size) {
