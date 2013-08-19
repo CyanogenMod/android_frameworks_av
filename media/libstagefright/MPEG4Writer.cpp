@@ -2328,8 +2328,8 @@ status_t MPEG4Writer::Track::threadEntry() {
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
-                    timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
-            if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
+                    timestampUs - decodingTimeUs;
+            if (WARN_UNLESS(kMaxCttsOffsetTimeUs >= decodingTimeUs - timestampUs, "for %s track", trackName)) {
                 copy->release();
                 return ERROR_MALFORMED;
             }
