@@ -93,8 +93,6 @@ public:
     virtual status_t setDrmServiceListener(
             int uniqueId, const sp<IDrmServiceListener>& infoListener) = 0;
 
-    virtual status_t installDrmEngine(int uniqueId, const String8& drmEngineFile) = 0;
-
     virtual DrmConstraints* getConstraints(
             int uniqueId, const String8* path, const int action) = 0;
 
@@ -184,8 +182,6 @@ public:
 
     virtual status_t setDrmServiceListener(
             int uniqueId, const sp<IDrmServiceListener>& infoListener);
-
-    virtual status_t installDrmEngine(int uniqueId, const String8& drmEngineFile);
 
     virtual DrmConstraints* getConstraints(int uniqueId, const String8* path, const int action);
 
