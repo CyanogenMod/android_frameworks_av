@@ -492,7 +492,7 @@ status_t CameraService::connectPro(
           case CAMERA_DEVICE_API_VERSION_1_0:
             ALOGE("Camera id %d uses HALv1, doesn't support ProCamera",
                   cameraId);
-            return -ENOTSUP;
+            return -EOPNOTSUPP;
             break;
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
@@ -570,7 +570,7 @@ status_t CameraService::connectDevice(
         switch(deviceVersion) {
           case CAMERA_DEVICE_API_VERSION_1_0:
             ALOGW("Camera using old HAL version: %d", deviceVersion);
-            return -ENOTSUP;
+            return -EOPNOTSUPP;
            // TODO: don't allow 2.0  Only allow 2.1 and higher
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
