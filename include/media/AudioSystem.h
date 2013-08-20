@@ -253,6 +253,9 @@ public:
     // bit rate, duration, video and streaming or offload property is enabled
     static bool isOffloadSupported(const audio_offload_info_t& info);
 
+    // check presence of audio flinger service.
+    // returns NO_ERROR if binding to service succeeds, DEAD_OBJECT otherwise
+    static status_t checkAudioFlinger();
     // ----------------------------------------------------------------------------
 
 private:
