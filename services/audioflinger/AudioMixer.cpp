@@ -566,7 +566,7 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
                 resampler = AudioResampler::create(
                         format,
                         // the resampler sees the number of channels after the downmixer, if any
-                        downmixerBufferProvider != NULL ? MAX_NUM_CHANNELS : channelCount,
+                        (int) (downmixerBufferProvider != NULL ? MAX_NUM_CHANNELS : channelCount),
                         devSampleRate, quality);
                 resampler->setLocalTimeFreq(sLocalTimeFreq);
             }

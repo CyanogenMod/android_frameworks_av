@@ -5249,7 +5249,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2) {
-        int channelCount;
+        uint32_t channelCount;
         // optimization: if mono to mono, use the resampler in stereo to stereo mode to avoid
         // stereo to mono post process as the resampler always outputs stereo.
         if (mChannelCount == 1 && mReqChannelCount == 2) {
@@ -5257,7 +5257,7 @@ void AudioFlinger::RecordThread::readInputParameters()
         } else {
             channelCount = 2;
         }
-        mResampler = AudioResampler::create(16, channelCount, mReqSampleRate);
+        mResampler = AudioResampler::create(16, (int) channelCount, mReqSampleRate);
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
         mRsmpOutBuffer = new int32_t[mFrameCount * FCC_2];
