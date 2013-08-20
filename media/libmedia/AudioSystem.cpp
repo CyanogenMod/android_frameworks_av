@@ -76,6 +76,14 @@ const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
     return gAudioFlinger;
 }
 
+/* static */ status_t AudioSystem::checkAudioFlinger()
+{
+    if (defaultServiceManager()->checkService(String16("media.audio_flinger")) != 0) {
+        return NO_ERROR;
+    }
+    return DEAD_OBJECT;
+}
+
 status_t AudioSystem::muteMicrophone(bool state) {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
