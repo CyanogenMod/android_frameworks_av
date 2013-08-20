@@ -3219,10 +3219,21 @@ void AwesomePlayer::checkTunnelExceptions()
     /* below exceptions are only for av content */
     if (mVideoTrack == NULL) return;
 
+    sp<MetaData> metaData = mVideoTrack->getFormat();
+    const char * mime;
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+    if(metaData->findCString(kKeyMIMEType, &mime) &&
+            !strncmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
+            strlen(MEDIA_MIMETYPE_VIDEO_HEVC))) {
+        ALOGV("No Tunnel mode audio for HEVC video");
+        mIsTunnelAudio = false;
+        return;
+    }
+#endif
     /* exception 3: No avi having video + mp3 */
     if (mExtractor == NULL) return;
 
-    sp<MetaData> metaData = mExtractor->getMetaData();
+    metaData = mExtractor->getMetaData();
     const char * container;
 
     /*only proceed for avi content.*/
@@ -3231,7 +3242,6 @@ void AwesomePlayer::checkTunnelExceptions()
         return;
     }
 
-    const char * mime;
     metaData = mAudioTrack->getFormat();
     /*disable for av content having mp3*/
     if (metaData->findCString(kKeyMIMEType, &mime) &&
