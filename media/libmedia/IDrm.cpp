@@ -68,10 +68,11 @@ struct BpDrm : public BpInterface<IDrm> {
         return reply.readInt32();
     }
 
-    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]) {
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16], const String8 &mimeType) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
         data.write(uuid, 16);
+        data.writeString8(mimeType);
         remote()->transact(IS_CRYPTO_SUPPORTED, data, &reply);
 
         return reply.readInt32() != 0;
@@ -438,7 +439,9 @@ status_t BnDrm::onTransact(
             CHECK_INTERFACE(IDrm, data, reply);
             uint8_t uuid[16];
             data.read(uuid, sizeof(uuid));
-            reply->writeInt32(isCryptoSchemeSupported(uuid));
+            String8 mimeType = data.readString8();
+            reply->writeInt32(isCryptoSchemeSupported(uuid, mimeType));
+
             return OK;
         }
 
