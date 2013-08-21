@@ -50,7 +50,7 @@ public:
     virtual status_t        unlock() = 0;
 
     // pass the buffered IGraphicBufferProducer to the camera service
-    virtual status_t        setPreviewTexture(
+    virtual status_t        setPreviewTarget(
             const sp<IGraphicBufferProducer>& bufferProducer) = 0;
 
     // set the preview callback flag to affect how the received frames from
@@ -64,7 +64,7 @@ public:
     virtual status_t        setPreviewCallbackTarget(
             const sp<IGraphicBufferProducer>& callbackProducer) = 0;
 
-    // start preview mode, must call setPreviewDisplay first
+    // start preview mode, must call setPreviewTarget first
     virtual status_t        startPreview() = 0;
 
     // stop preview mode

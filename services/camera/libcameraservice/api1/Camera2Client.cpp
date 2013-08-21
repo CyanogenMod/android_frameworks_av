@@ -491,25 +491,7 @@ status_t Camera2Client::unlock() {
     return EBUSY;
 }
 
-status_t Camera2Client::setPreviewDisplay(
-        const sp<Surface>& surface) {
-    ATRACE_CALL();
-    ALOGV("%s: E", __FUNCTION__);
-    Mutex::Autolock icl(mBinderSerializationLock);
-    status_t res;
-    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
-
-    sp<IBinder> binder;
-    sp<ANativeWindow> window;
-    if (surface != 0) {
-        binder = surface->getIGraphicBufferProducer()->asBinder();
-        window = surface;
-    }
-
-    return setPreviewWindowL(binder,window);
-}
-
-status_t Camera2Client::setPreviewTexture(
+status_t Camera2Client::setPreviewTarget(
         const sp<IGraphicBufferProducer>& bufferProducer) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
@@ -521,7 +503,10 @@ status_t Camera2Client::setPreviewTexture(
     sp<ANativeWindow> window;
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        window = new Surface(bufferProducer);
+        // Using controlledByApp flag to ensure that the buffer queue remains in
+        // async mode for the old camera API, where many applications depend
+        // on that behavior.
+        window = new Surface(bufferProducer, /*controlledByApp*/ true);
     }
     return setPreviewWindowL(binder, window);
 }
