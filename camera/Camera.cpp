@@ -106,7 +106,7 @@ status_t Camera::setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProdu
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
     ALOGD_IF(bufferProducer == 0, "app passed NULL surface");
-    return c->setPreviewTexture(bufferProducer);
+    return c->setPreviewTarget(bufferProducer);
 }
 
 // start preview mode
@@ -127,7 +127,7 @@ status_t Camera::storeMetaDataInBuffers(bool enabled)
     return c->storeMetaDataInBuffers(enabled);
 }
 
-// start recording mode, must call setPreviewDisplay first
+// start recording mode, must call setPreviewTexture first
 status_t Camera::startRecording()
 {
     ALOGV("startRecording");
