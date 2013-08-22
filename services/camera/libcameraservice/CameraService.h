@@ -212,8 +212,7 @@ public:
         virtual status_t      connect(const sp<ICameraClient>& client) = 0;
         virtual status_t      lock() = 0;
         virtual status_t      unlock() = 0;
-        virtual status_t      setPreviewDisplay(const sp<Surface>& surface) = 0;
-        virtual status_t      setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)=0;
+        virtual status_t      setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer)=0;
         virtual void          setPreviewCallbackFlag(int flag) = 0;
         virtual status_t      setPreviewCallbackTarget(
                 const sp<IGraphicBufferProducer>& callbackProducer) = 0;

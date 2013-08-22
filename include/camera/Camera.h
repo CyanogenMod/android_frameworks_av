@@ -83,7 +83,7 @@ public:
             // pass the buffered IGraphicBufferProducer to the camera service
             status_t    setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer);
 
-            // start preview mode, must call setPreviewDisplay first
+            // start preview mode, must call setPreviewTexture first
             status_t    startPreview();
 
             // stop preview mode
@@ -92,7 +92,7 @@ public:
             // get preview state
             bool        previewEnabled();
 
-            // start recording mode, must call setPreviewDisplay first
+            // start recording mode, must call setPreviewTexture first
             status_t    startRecording();
 
             // stop recording mode

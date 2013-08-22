@@ -308,26 +308,20 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
     return result;
 }
 
-// set the Surface that the preview will use
-status_t CameraClient::setPreviewDisplay(const sp<Surface>& surface) {
-    LOG1("setPreviewDisplay(%p) (pid %d)", surface.get(), getCallingPid());
-
-    sp<IBinder> binder(surface != 0 ? surface->getIGraphicBufferProducer()->asBinder() : 0);
-    sp<ANativeWindow> window(surface);
-    return setPreviewWindow(binder, window);
-}
-
-// set the SurfaceTextureClient that the preview will use
-status_t CameraClient::setPreviewTexture(
+// set the buffer consumer that the preview will use
+status_t CameraClient::setPreviewTarget(
         const sp<IGraphicBufferProducer>& bufferProducer) {
-    LOG1("setPreviewTexture(%p) (pid %d)", bufferProducer.get(),
+    LOG1("setPreviewTarget(%p) (pid %d)", bufferProducer.get(),
             getCallingPid());
 
     sp<IBinder> binder;
     sp<ANativeWindow> window;
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        window = new Surface(bufferProducer);
+        // Using controlledByApp flag to ensure that the buffer queue remains in
+        // async mode for the old camera API, where many applications depend
+        // on that behavior.
+        window = new Surface(bufferProducer, /*controlledByApp*/ true);
     }
     return setPreviewWindow(binder, window);
 }
