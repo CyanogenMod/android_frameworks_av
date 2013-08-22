@@ -32,6 +32,7 @@ namespace android {
         virtual ~MockDrmFactory() {}
 
         bool isCryptoSchemeSupported(const uint8_t uuid[16]);
+        bool isContentTypeSupported(const String8 &mimeType);
         status_t createDrmPlugin(const uint8_t uuid[16], DrmPlugin **plugin);
     };
 
