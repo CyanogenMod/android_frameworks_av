@@ -100,9 +100,9 @@ status_t Camera::unlock()
 }
 
 // pass the buffered IGraphicBufferProducer to the camera service
-status_t Camera::setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)
+status_t Camera::setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer)
 {
-    ALOGV("setPreviewTexture(%p)", bufferProducer.get());
+    ALOGV("setPreviewTarget(%p)", bufferProducer.get());
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
     ALOGD_IF(bufferProducer == 0, "app passed NULL surface");
@@ -127,7 +127,7 @@ status_t Camera::storeMetaDataInBuffers(bool enabled)
     return c->storeMetaDataInBuffers(enabled);
 }
 
-// start recording mode, must call setPreviewTexture first
+// start recording mode, must call setPreviewTarget first
 status_t Camera::startRecording()
 {
     ALOGV("startRecording");
