@@ -416,7 +416,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                 0, // height,
                                 mUsingHDCP
                                     ? IRemoteDisplayClient::kDisplayFlagSecure
-                                    : 0);
+                                    : 0,
+                                0);
                     } else {
                         size_t width, height;
 
@@ -435,7 +436,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                 height,
                                 mUsingHDCP
                                     ? IRemoteDisplayClient::kDisplayFlagSecure
-                                    : 0);
+                                    : 0,
+                                playbackSessionID);
                     }
                 }
 
