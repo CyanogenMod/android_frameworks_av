@@ -31,6 +31,7 @@ struct HTTPBase;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
+struct Parcel;
 
 struct LiveSession : public AHandler {
     enum Flags {
@@ -60,6 +61,8 @@ struct LiveSession : public AHandler {
     status_t seekTo(int64_t timeUs);
 
     status_t getDuration(int64_t *durationUs) const;
+    status_t getTrackInfo(Parcel *reply) const;
+    status_t selectTrack(size_t index, bool select);
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
@@ -85,6 +88,7 @@ private:
         kWhatSeek                       = 'seek',
         kWhatFetcherNotify              = 'notf',
         kWhatCheckBandwidth             = 'bndw',
+        kWhatChangeConfiguration        = 'chC0',
         kWhatChangeConfiguration2       = 'chC2',
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
@@ -130,6 +134,7 @@ private:
     sp<AMessage> mContinuation;
 
     int64_t mLastDequeuedTimeUs;
+    int64_t mRealTimeBaseUs;
 
     bool mReconfigurationInProgress;
     uint32_t mDisconnectReplyID;
@@ -151,7 +156,9 @@ private:
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
 
-    void changeConfiguration(int64_t timeUs, size_t bandwidthIndex);
+    void changeConfiguration(
+            int64_t timeUs, size_t bandwidthIndex, bool pickTrack = false);
+    void onChangeConfiguration(const sp<AMessage> &msg);
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
 

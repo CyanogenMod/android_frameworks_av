@@ -69,7 +69,7 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     void notifyPosition(int64_t positionUs);
     void notifySeekComplete();
     void notifyFrameStats(int64_t numFramesTotal, int64_t numFramesDropped);
-    void notifyListener(int msg, int ext1 = 0, int ext2 = 0);
+    void notifyListener(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
     void notifyFlagsChanged(uint32_t flags);
 
 protected:

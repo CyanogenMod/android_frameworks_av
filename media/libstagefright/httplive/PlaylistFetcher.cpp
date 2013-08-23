@@ -462,7 +462,11 @@ void PlaylistFetcher::onMonitorQueue() {
         sp<AnotherPacketSource> packetSource =
             mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
 
-        downloadMore = packetSource->hasBufferAvailable(&finalResult);
+        int64_t bufferedDurationUs =
+                packetSource->getBufferedDurationUs(&finalResult);
+
+        downloadMore = (bufferedDurationUs < kMinBufferedDurationUs);
+        finalResult = OK;
     } else {
         bool first = true;
         int64_t minBufferedDurationUs = 0ll;
@@ -659,7 +663,7 @@ void PlaylistFetcher::onDownloadNext() {
         }
     }
 
-    err = extractAndQueueAccessUnits(buffer);
+    err = extractAndQueueAccessUnits(buffer, itemMeta);
 
     if (err != OK) {
         notifyError(err);
@@ -706,7 +710,7 @@ int32_t PlaylistFetcher::getSeqNumberForTime(int64_t timeUs) const {
 }
 
 status_t PlaylistFetcher::extractAndQueueAccessUnits(
-        const sp<ABuffer> &buffer) {
+        const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta) {
     if (buffer->size() > 0 && buffer->data()[0] == 0x47) {
         // Let's assume this is an MPEG2 transport stream.
 
@@ -802,7 +806,10 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
         const sp<AnotherPacketSource> packetSource =
             mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
 
-        buffer->meta()->setInt64("timeUs", 0ll);
+        int64_t durationUs;
+        CHECK(itemMeta->findInt64("durationUs", &durationUs));
+        buffer->meta()->setInt64("timeUs", getSegmentStartTimeUs(mSeqNumber));
+        buffer->meta()->setInt64("durationUs", durationUs);
 
         packetSource->queueAccessUnit(buffer);
         return OK;
