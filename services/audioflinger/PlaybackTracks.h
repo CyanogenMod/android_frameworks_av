@@ -81,7 +81,9 @@ protected:
                                    int64_t pts = kInvalidPTS);
     // releaseBuffer() not overridden
 
+    // ExtendedAudioBufferProvider interface
     virtual size_t framesReady() const;
+    virtual size_t framesReleased() const;
 
     bool isPausing() const { return mState == PAUSING; }
     bool isPaused() const { return mState == PAUSED; }

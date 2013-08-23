@@ -25,7 +25,7 @@ namespace android {
 SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& source) :
     mSource(source),
     // mFrameBitShiftFormat below
-    mAllocated(NULL), mSize(0), mOffset(0), mRemaining(0), mGetCount(0)
+    mAllocated(NULL), mSize(0), mOffset(0), mRemaining(0), mGetCount(0), mFramesReleased(0)
 {
     ALOG_ASSERT(source != 0);
 
@@ -90,6 +90,7 @@ void SourceAudioBufferProvider::releaseBuffer(Buffer *buffer)
             (mOffset + mRemaining <= mSize));
     mOffset += buffer->frameCount;
     mRemaining -= buffer->frameCount;
+    mFramesReleased += buffer->frameCount;
     buffer->raw = NULL;
     buffer->frameCount = 0;
     mGetCount = 0;
@@ -99,6 +100,16 @@ size_t SourceAudioBufferProvider::framesReady() const
 {
     ssize_t avail = mSource->availableToRead();
     return avail < 0 ? 0 : (size_t) avail;
+}
+
+size_t SourceAudioBufferProvider::framesReleased() const
+{
+    return mFramesReleased;
+}
+
+void SourceAudioBufferProvider::onTimestamp(const AudioTimestamp& timestamp)
+{
+    mSource->onTimestamp(timestamp);
 }
 
 }   // namespace android
