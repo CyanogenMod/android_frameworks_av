@@ -43,6 +43,19 @@ enum {
     WAIT_UNTIL_IDLE,
 };
 
+namespace {
+    // Read empty strings without printing a false error message.
+    String16 readMaybeEmptyString16(const Parcel& parcel) {
+        size_t len;
+        const char16_t* str = parcel.readString16Inplace(&len);
+        if (str != NULL) {
+            return String16(str, len);
+        } else {
+            return String16();
+        }
+    }
+};
+
 class BpCameraDeviceUser : public BpInterface<ICameraDeviceUser>
 {
 public:
@@ -250,7 +263,7 @@ status_t BnCameraDeviceUser::onTransact(
 
             sp<IGraphicBufferProducer> bp;
             if (data.readInt32() != 0) {
-                String16 name = data.readString16();
+                String16 name = readMaybeEmptyString16(data);
                 bp = interface_cast<IGraphicBufferProducer>(
                         data.readStrongBinder());
 
