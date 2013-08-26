@@ -135,7 +135,8 @@ private:
     void onMonitorQueue();
     void onDownloadNext();
 
-    status_t extractAndQueueAccessUnits(const sp<ABuffer> &buffer);
+    status_t extractAndQueueAccessUnits(
+            const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta);
 
     void notifyError(status_t err);
 

@@ -340,6 +340,46 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatGetTrackInfo:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            status_t err = INVALID_OPERATION;
+            if (mSource != NULL) {
+                Parcel* reply;
+                CHECK(msg->findPointer("reply", (void**)&reply));
+                err = mSource->getTrackInfo(reply);
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatSelectTrack:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            status_t err = INVALID_OPERATION;
+            if (mSource != NULL) {
+                size_t trackIndex;
+                int32_t select;
+                CHECK(msg->findSize("trackIndex", &trackIndex));
+                CHECK(msg->findInt32("select", &select));
+                err = mSource->selectTrack(trackIndex, select);
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+
+            response->postReply(replyID);
+            break;
+        }
+
         case kWhatPollDuration:
         {
             int32_t generation;
@@ -1045,7 +1085,7 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     mRenderer->queueBuffer(audio, buffer, reply);
 }
 
-void NuPlayer::notifyListener(int msg, int ext1, int ext2) {
+void NuPlayer::notifyListener(int msg, int ext1, int ext2, const Parcel *in) {
     if (mDriver == NULL) {
         return;
     }
@@ -1056,7 +1096,7 @@ void NuPlayer::notifyListener(int msg, int ext1, int ext2) {
         return;
     }
 
-    driver->notifyListener(msg, ext1, ext2);
+    driver->notifyListener(msg, ext1, ext2, in);
 }
 
 void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
@@ -1130,6 +1170,26 @@ status_t NuPlayer::setVideoScalingMode(int32_t mode) {
         }
     }
     return OK;
+}
+
+status_t NuPlayer::getTrackInfo(Parcel* reply) const {
+    sp<AMessage> msg = new AMessage(kWhatGetTrackInfo, id());
+    msg->setPointer("reply", reply);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    return err;
+}
+
+status_t NuPlayer::selectTrack(size_t trackIndex, bool select) {
+    sp<AMessage> msg = new AMessage(kWhatSelectTrack, id());
+    msg->setSize("trackIndex", trackIndex);
+    msg->setInt32("select", select);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+
+    return err;
 }
 
 void NuPlayer::schedulePollDuration() {
@@ -1368,6 +1428,29 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         case Source::kWhatBufferingEnd:
         {
             notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+            break;
+        }
+
+        case Source::kWhatSubtitleData:
+        {
+            sp<ABuffer> buffer;
+            CHECK(msg->findBuffer("buffer", &buffer));
+
+            int32_t trackIndex;
+            int64_t timeUs, durationUs;
+            CHECK(buffer->meta()->findInt32("trackIndex", &trackIndex));
+            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+            CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
+
+            Parcel in;
+            in.writeInt32(trackIndex);
+            in.writeInt64(timeUs);
+            in.writeInt64(durationUs);
+            in.writeInt32(buffer->size());
+            in.writeInt32(buffer->size());
+            in.write(buffer->data(), buffer->size());
+
+            notifyListener(MEDIA_SUBTITLE_DATA, 0, 0, &in);
             break;
         }
 

@@ -392,6 +392,23 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
             return mPlayer->setVideoScalingMode(mode);
         }
 
+        case INVOKE_ID_GET_TRACK_INFO:
+        {
+            return mPlayer->getTrackInfo(reply);
+        }
+
+        case INVOKE_ID_SELECT_TRACK:
+        {
+            int trackIndex = request.readInt32();
+            return mPlayer->selectTrack(trackIndex, true /* select */);
+        }
+
+        case INVOKE_ID_UNSELECT_TRACK:
+        {
+            int trackIndex = request.readInt32();
+            return mPlayer->selectTrack(trackIndex, false /* select */);
+        }
+
         default:
         {
             return INVALID_OPERATION;
@@ -495,12 +512,13 @@ status_t NuPlayerDriver::dump(int fd, const Vector<String16> &args) const {
     return OK;
 }
 
-void NuPlayerDriver::notifyListener(int msg, int ext1, int ext2) {
+void NuPlayerDriver::notifyListener(
+        int msg, int ext1, int ext2, const Parcel *in) {
     if (msg == MEDIA_PLAYBACK_COMPLETE || msg == MEDIA_ERROR) {
         mAtEOS = true;
     }
 
-    sendEvent(msg, ext1, ext2);
+    sendEvent(msg, ext1, ext2, in);
 }
 
 void NuPlayerDriver::notifySetDataSourceCompleted(status_t err) {

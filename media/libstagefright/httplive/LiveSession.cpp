@@ -59,6 +59,7 @@ LiveSession::LiveSession(
       mStreamMask(0),
       mCheckBandwidthGeneration(0),
       mLastDequeuedTimeUs(0ll),
+      mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
       mDisconnectReplyID(0) {
     if (mUIDValid) {
@@ -122,11 +123,18 @@ status_t LiveSession::dequeueAccessUnit(
               type,
               extra == NULL ? "NULL" : extra->debugString().c_str());
     } else if (err == OK) {
-        int64_t timeUs;
-        CHECK((*accessUnit)->meta()->findInt64("timeUs",  &timeUs));
-        ALOGV("[%s] read buffer at time %lld us", streamStr, timeUs);
+        if (stream == STREAMTYPE_AUDIO || stream == STREAMTYPE_VIDEO) {
+            int64_t timeUs;
+            CHECK((*accessUnit)->meta()->findInt64("timeUs",  &timeUs));
+            ALOGV("[%s] read buffer at time %lld us", streamStr, timeUs);
 
-        mLastDequeuedTimeUs = timeUs;
+            mLastDequeuedTimeUs = timeUs;
+            mRealTimeBaseUs = ALooper::GetNowUs() - timeUs;
+        } else if (stream == STREAMTYPE_SUBTITLES) {
+            (*accessUnit)->meta()->setInt32(
+                    "trackIndex", mPlaylist->getSelectedIndex());
+            (*accessUnit)->meta()->setInt64("baseUs", mRealTimeBaseUs);
+        }
     } else {
         ALOGI("[%s] encountered error %d", streamStr, err);
     }
@@ -325,6 +333,12 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatChangeConfiguration:
+        {
+            onChangeConfiguration(msg);
+            break;
+        }
+
         case kWhatChangeConfiguration2:
         {
             onChangeConfiguration2(msg);
@@ -438,7 +452,8 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         mBandwidthItems.push(item);
     }
 
-    changeConfiguration(0ll /* timeUs */, initialBandwidthIndex);
+    changeConfiguration(
+            0ll /* timeUs */, initialBandwidthIndex, true /* pickTrack */);
 }
 
 void LiveSession::finishDisconnect() {
@@ -783,16 +798,31 @@ bool LiveSession::hasDynamicDuration() const {
     return false;
 }
 
-void LiveSession::changeConfiguration(int64_t timeUs, size_t bandwidthIndex) {
+status_t LiveSession::getTrackInfo(Parcel *reply) const {
+    return mPlaylist->getTrackInfo(reply);
+}
+
+status_t LiveSession::selectTrack(size_t index, bool select) {
+    status_t err = mPlaylist->selectTrack(index, select);
+    if (err == OK) {
+        (new AMessage(kWhatChangeConfiguration, id()))->post();
+    }
+    return err;
+}
+
+void LiveSession::changeConfiguration(
+        int64_t timeUs, size_t bandwidthIndex, bool pickTrack) {
     CHECK(!mReconfigurationInProgress);
     mReconfigurationInProgress = true;
 
     mPrevBandwidthIndex = bandwidthIndex;
 
-    ALOGV("changeConfiguration => timeUs:%lld us, bwIndex:%d",
-          timeUs, bandwidthIndex);
+    ALOGV("changeConfiguration => timeUs:%lld us, bwIndex:%d, pickTrack:%d",
+          timeUs, bandwidthIndex, pickTrack);
 
-    mPlaylist->pickRandomMediaItems();
+    if (pickTrack) {
+        mPlaylist->pickRandomMediaItems();
+    }
 
     CHECK_LT(bandwidthIndex, mBandwidthItems.size());
     const BandwidthItem &item = mBandwidthItems.itemAt(bandwidthIndex);
@@ -859,6 +889,14 @@ void LiveSession::changeConfiguration(int64_t timeUs, size_t bandwidthIndex) {
 
     if (mContinuationCounter == 0) {
         msg->post();
+    }
+}
+
+void LiveSession::onChangeConfiguration(const sp<AMessage> &msg) {
+    if (!mReconfigurationInProgress) {
+        changeConfiguration(-1ll /* timeUs */, getBandwidthIndex());
+    } else {
+        msg->post(1000000ll); // retry in 1 sec
     }
 }
 
@@ -948,6 +986,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     if (timeUs < 0ll) {
         timeUs = mLastDequeuedTimeUs;
     }
+    mRealTimeBaseUs = ALooper::GetNowUs() - timeUs;
 
     mStreamMask = streamMask;
     mAudioURI = audioURI;

@@ -14,6 +14,7 @@ LOCAL_C_INCLUDES:= \
 	$(TOP)/external/openssl/include
 
 LOCAL_SHARED_LIBRARIES := \
+        libbinder \
         libcrypto \
         libcutils \
         libmedia \
