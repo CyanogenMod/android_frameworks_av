@@ -19,11 +19,12 @@
 #include <utils/Log.h>
 
 #include "M3UParser.h"
-
+#include <binder/Parcel.h>
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/mediaplayer.h>
 
 namespace android {
 
@@ -55,6 +56,9 @@ struct M3UParser::MediaGroup : public RefBase {
     bool getActiveURI(AString *uri) const;
 
     void pickRandomMediaItems();
+    status_t selectTrack(size_t index, bool select);
+    void getTrackInfo(Parcel* reply) const;
+    size_t countTracks() const;
 
 protected:
     virtual ~MediaGroup();
@@ -150,6 +154,59 @@ void M3UParser::MediaGroup::pickRandomMediaItems() {
 #endif
 }
 
+status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
+    if (mType != TYPE_SUBS) {
+        ALOGE("only select subtitile tracks for now!");
+        return INVALID_OPERATION;
+    }
+
+    if (select) {
+        if (index >= mMediaItems.size()) {
+            ALOGE("track %d does not exist", index);
+            return INVALID_OPERATION;
+        }
+        if (mSelectedIndex == index) {
+            ALOGE("track %d already selected", index);
+            return BAD_VALUE;
+        }
+        ALOGV("selected track %d", index);
+        mSelectedIndex = index;
+    } else {
+        if (mSelectedIndex != index) {
+            ALOGE("track %d is not selected", index);
+            return BAD_VALUE;
+        }
+        ALOGV("unselected track %d", index);
+        mSelectedIndex = -1;
+    }
+
+    return OK;
+}
+
+void M3UParser::MediaGroup::getTrackInfo(Parcel* reply) const {
+    for (size_t i = 0; i < mMediaItems.size(); ++i) {
+        reply->writeInt32(2); // 2 fields
+
+        if (mType == TYPE_AUDIO) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_AUDIO);
+        } else if (mType == TYPE_VIDEO) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_VIDEO);
+        } else if (mType == TYPE_SUBS) {
+            reply->writeInt32(MEDIA_TRACK_TYPE_SUBTITLE);
+        } else {
+            reply->writeInt32(MEDIA_TRACK_TYPE_UNKNOWN);
+        }
+
+        const Media &item = mMediaItems.itemAt(i);
+        const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
+        reply->writeString16(String16(lang));
+    }
+}
+
+size_t M3UParser::MediaGroup::countTracks() const {
+    return mMediaItems.size();
+}
+
 bool M3UParser::MediaGroup::getActiveURI(AString *uri) const {
     for (size_t i = 0; i < mMediaItems.size(); ++i) {
         if (mSelectedIndex >= 0 && i == (size_t)mSelectedIndex) {
@@ -172,7 +229,8 @@ M3UParser::M3UParser(
       mIsExtM3U(false),
       mIsVariantPlaylist(false),
       mIsComplete(false),
-      mIsEvent(false) {
+      mIsEvent(false),
+      mSelectedIndex(-1) {
     mInitCheck = parse(data, size);
 }
 
@@ -235,6 +293,39 @@ void M3UParser::pickRandomMediaItems() {
     for (size_t i = 0; i < mMediaGroups.size(); ++i) {
         mMediaGroups.valueAt(i)->pickRandomMediaItems();
     }
+}
+
+status_t M3UParser::selectTrack(size_t index, bool select) {
+    for (size_t i = 0, ii = index; i < mMediaGroups.size(); ++i) {
+        sp<MediaGroup> group = mMediaGroups.valueAt(i);
+        size_t tracks = group->countTracks();
+        if (ii < tracks) {
+            status_t err = group->selectTrack(ii, select);
+            if (err == OK) {
+                mSelectedIndex = select ? index : -1;
+            }
+            return err;
+        }
+        ii -= tracks;
+    }
+    return INVALID_OPERATION;
+}
+
+status_t M3UParser::getTrackInfo(Parcel* reply) const {
+    size_t trackCount = 0;
+    for (size_t i = 0; i < mMediaGroups.size(); ++i) {
+        trackCount += mMediaGroups.valueAt(i)->countTracks();
+    }
+    reply->writeInt32(trackCount);
+
+    for (size_t i = 0; i < mMediaGroups.size(); ++i) {
+        mMediaGroups.valueAt(i)->getTrackInfo(reply);
+    }
+    return OK;
+}
+
+ssize_t M3UParser::getSelectedIndex() const {
+    return mSelectedIndex;
 }
 
 bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {

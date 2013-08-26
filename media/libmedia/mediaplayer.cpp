@@ -756,6 +756,9 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     case MEDIA_TIMED_TEXT:
         ALOGV("Received timed text message");
         break;
+    case MEDIA_SUBTITLE_DATA:
+        ALOGV("Received subtitle data message");
+        break;
     default:
         ALOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);
         break;
