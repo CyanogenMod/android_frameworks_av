@@ -59,6 +59,7 @@ public:
             void        setMainBuffer(int16_t *buffer) { mMainBuffer = buffer; }
             int16_t     *mainBuffer() const { return mMainBuffer; }
             int         auxEffectId() const { return mAuxEffectId; }
+    virtual status_t    getTimestamp(AudioTimestamp& timestamp);
 
 // implement FastMixerState::VolumeProvider interface
     virtual uint32_t    getVolumeLR();

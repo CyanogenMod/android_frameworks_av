@@ -285,7 +285,7 @@ status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) 
 
 status_t AudioFlinger::TrackHandle::getTimestamp(AudioTimestamp& timestamp)
 {
-    return INVALID_OPERATION;
+    return mTrack->getTimestamp(timestamp);
 }
 
 status_t AudioFlinger::TrackHandle::onTransact(
@@ -714,6 +714,17 @@ status_t AudioFlinger::PlaybackThread::Track::setParameters(const String8& keyVa
     } else {
         return PERMISSION_DENIED;
     }
+}
+
+status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& timestamp)
+{
+    sp<ThreadBase> thread = mThread.promote();
+    if (thread == 0) {
+        return false;
+    }
+    Mutex::Autolock _l(thread->mLock);
+    PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+    return INVALID_OPERATION;
 }
 
 status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
