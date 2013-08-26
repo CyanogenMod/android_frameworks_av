@@ -55,7 +55,8 @@ struct RemoteDisplayClient : public BnRemoteDisplayClient {
             const sp<IGraphicBufferProducer> &bufferProducer,
             uint32_t width,
             uint32_t height,
-            uint32_t flags);
+            uint32_t flags,
+            uint32_t session);
 
     virtual void onDisplayDisconnected();
     virtual void onDisplayError(int32_t error);
@@ -91,9 +92,10 @@ void RemoteDisplayClient::onDisplayConnected(
         const sp<IGraphicBufferProducer> &bufferProducer,
         uint32_t width,
         uint32_t height,
-        uint32_t flags) {
-    ALOGI("onDisplayConnected width=%u, height=%u, flags = 0x%08x",
-          width, height, flags);
+        uint32_t flags,
+        uint32_t session) {
+    ALOGI("onDisplayConnected width=%u, height=%u, flags = 0x%08x, session = %d",
+          width, height, flags, session);
 
     if (bufferProducer != NULL) {
         mSurfaceTexture = bufferProducer;
