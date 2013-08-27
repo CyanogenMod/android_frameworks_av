@@ -89,6 +89,10 @@ public:
 
     // Wait until all the submitted requests have finished processing
     virtual status_t      waitUntilIdle();
+
+    // Flush all active and pending requests as fast as possible
+    virtual status_t      flush();
+
     /**
      * Interface used by CameraService
      */

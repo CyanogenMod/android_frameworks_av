@@ -436,6 +436,20 @@ status_t CameraDeviceClient::waitUntilIdle()
     return res;
 }
 
+status_t CameraDeviceClient::flush() {
+    ATRACE_CALL();
+    ALOGV("%s", __FUNCTION__);
+
+    status_t res = OK;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
+
+    return mDevice->flush();
+}
+
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("CameraDeviceClient[%d] (%p) PID: %d, dump:\n",
