@@ -63,6 +63,9 @@ public:
 
     // Wait until all the submitted requests have finished processing
     virtual status_t        waitUntilIdle() =  0;
+
+    // Flush all pending and in-progress work as quickly as possible.
+    virtual status_t        flush() = 0;
 };
 
 // ----------------------------------------------------------------------------

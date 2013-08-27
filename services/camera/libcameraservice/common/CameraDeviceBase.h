@@ -209,6 +209,13 @@ class CameraDeviceBase : public virtual RefBase {
      */
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener) = 0;
+
+    /**
+     * Flush all pending and in-flight requests. Blocks until flush is
+     * complete.
+     */
+    virtual status_t flush() = 0;
+
 };
 
 }; // namespace android
