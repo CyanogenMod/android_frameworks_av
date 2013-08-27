@@ -567,6 +567,13 @@ status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
     return res;
 }
 
+status_t Camera2Device::flush() {
+    ATRACE_CALL();
+
+    mRequestQueue.clear();
+    return waitUntilDrained();
+}
+
 /**
  * Camera2Device::MetadataQueue
  */
@@ -591,9 +598,7 @@ Camera2Device::MetadataQueue::MetadataQueue():
 
 Camera2Device::MetadataQueue::~MetadataQueue() {
     ATRACE_CALL();
-    Mutex::Autolock l(mMutex);
-    freeBuffers(mEntries.begin(), mEntries.end());
-    freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
+    clear();
 }
 
 // Connect to camera2 HAL as consumer (input requests/reprocessing)
@@ -782,6 +787,23 @@ status_t Camera2Device::MetadataQueue::setStreamSlot(
         mStreamSlotCount++;
     }
     return signalConsumerLocked();
+}
+
+status_t Camera2Device::MetadataQueue::clear()
+{
+    ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
+
+    Mutex::Autolock l(mMutex);
+
+    // Clear streaming slot
+    freeBuffers(mStreamSlot.begin(), mStreamSlot.end());
+    mStreamSlotCount = 0;
+
+    // Clear request queue
+    freeBuffers(mEntries.begin(), mEntries.end());
+    mCount = 0;
+    return OK;
 }
 
 status_t Camera2Device::MetadataQueue::dump(int fd,

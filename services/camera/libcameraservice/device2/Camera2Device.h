@@ -67,6 +67,8 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t triggerPrecaptureMetering(uint32_t id);
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
+    // Flush implemented as just a wait
+    virtual status_t flush();
   private:
     const int mId;
     camera2_device_t *mHal2Device;
@@ -112,6 +114,9 @@ class Camera2Device: public CameraDeviceBase {
         // copied.
         status_t setStreamSlot(camera_metadata_t *buf);
         status_t setStreamSlot(const List<camera_metadata_t*> &bufs);
+
+        // Clear the request queue and the streaming slot
+        status_t clear();
 
         status_t dump(int fd, const Vector<String16>& args);
 
