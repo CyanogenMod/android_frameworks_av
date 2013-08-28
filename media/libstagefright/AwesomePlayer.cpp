@@ -2805,7 +2805,6 @@ void AwesomePlayer::onAudioTearDownEvent() {
 
     // Reset and recreate
     reset_l();
-    mFlags |= PREPARING;
 
     status_t err;
 
@@ -2816,6 +2815,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
         err = setDataSource_l(uri, &uriHeaders);
     }
 
+    mFlags |= PREPARING;
     if ( err != OK ) {
         // This will force beingPrepareAsync_l() to notify
         // a MEDIA_ERROR to the client and abort the prepare
