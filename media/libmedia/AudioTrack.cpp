@@ -387,6 +387,9 @@ status_t AudioTrack::start()
     if (previousState == STATE_STOPPED || previousState == STATE_FLUSHED) {
         // reset current position as seen by client to 0
         mProxy->setEpoch(mProxy->getEpoch() - mProxy->getPosition());
+        // force refresh of remaining frames by processAudioBuffer() as last
+        // write before stop could be partial.
+        mRefreshRemaining = true;
     }
     mNewPosition = mProxy->getPosition() + mUpdatePeriod;
     int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
