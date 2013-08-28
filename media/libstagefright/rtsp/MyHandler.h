@@ -686,23 +686,27 @@ struct MyHandler : public AHandler {
                         i = response->mHeaders.indexOfKey("transport");
                         CHECK_GE(i, 0);
 
-                        if (!track->mUsingInterleavedTCP) {
-                            AString transport = response->mHeaders.valueAt(i);
+                        if (track->mRTPSocket != -1 && track->mRTCPSocket != -1) {
+                            if (!track->mUsingInterleavedTCP) {
+                                AString transport = response->mHeaders.valueAt(i);
 
-                            // We are going to continue even if we were
-                            // unable to poke a hole into the firewall...
-                            pokeAHole(
-                                    track->mRTPSocket,
-                                    track->mRTCPSocket,
-                                    transport);
+                                // We are going to continue even if we were
+                                // unable to poke a hole into the firewall...
+                                pokeAHole(
+                                        track->mRTPSocket,
+                                        track->mRTCPSocket,
+                                        transport);
+                            }
+
+                            mRTPConn->addStream(
+                                    track->mRTPSocket, track->mRTCPSocket,
+                                    mSessionDesc, index,
+                                    notify, track->mUsingInterleavedTCP);
+
+                            mSetupTracksSuccessful = true;
+                        } else {
+                            result = BAD_VALUE;
                         }
-
-                        mRTPConn->addStream(
-                                track->mRTPSocket, track->mRTCPSocket,
-                                mSessionDesc, index,
-                                notify, track->mUsingInterleavedTCP);
-
-                        mSetupTracksSuccessful = true;
                     }
                 }
 
@@ -726,7 +730,7 @@ struct MyHandler : public AHandler {
                 }
 
                 ++index;
-                if (index < mSessionDesc->countTracks()) {
+                if (result == OK && index < mSessionDesc->countTracks()) {
                     setupTrack(index);
                 } else if (mSetupTracksSuccessful) {
                     ++mKeepAliveGeneration;
@@ -1559,6 +1563,8 @@ private:
         info->mUsingInterleavedTCP = false;
         info->mFirstSeqNumInSegment = 0;
         info->mNewSegment = true;
+        info->mRTPSocket = -1;
+        info->mRTCPSocket = -1;
         info->mRTPAnchor = 0;
         info->mNTPAnchorUs = -1;
         info->mNormalPlayTimeRTP = 0;

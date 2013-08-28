@@ -489,7 +489,6 @@ void ARTSPConnection::onReceiveResponse() {
     FD_SET(mSocket, &rs);
 
     int res = select(mSocket + 1, &rs, NULL, NULL, &tv);
-    CHECK_GE(res, 0);
 
     if (res == 1) {
         MakeSocketBlocking(mSocket, true);
