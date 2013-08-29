@@ -1424,6 +1424,8 @@ status_t Camera3Device::RequestThread::queueRequest(
     Mutex::Autolock l(mRequestLock);
     mRequestQueue.push_back(request);
 
+    unpauseForNewRequests();
+
     return OK;
 }
 
@@ -1489,6 +1491,9 @@ status_t Camera3Device::RequestThread::setRepeatingRequests(
     mRepeatingRequests.clear();
     mRepeatingRequests.insert(mRepeatingRequests.begin(),
             requests.begin(), requests.end());
+
+    unpauseForNewRequests();
+
     return OK;
 }
 
@@ -1791,7 +1796,9 @@ sp<Camera3Device::CaptureRequest>
         mRequestQueue.erase(firstRequest);
     }
 
-    // Not paused
+    // In case we've been unpaused by setPaused clearing mDoPause, need to
+    // update internal pause state (capture/setRepeatingRequest unpause
+    // directly).
     Mutex::Autolock pl(mPauseLock);
     mPaused = false;
 
@@ -1822,6 +1829,16 @@ bool Camera3Device::RequestThread::waitIfPaused() {
     // We don't set mPaused to false here, because waitForNextRequest needs
     // to further manage the paused state in case of starvation.
     return false;
+}
+
+void Camera3Device::RequestThread::unpauseForNewRequests() {
+    // With work to do, mark thread as unpaused.
+    // If paused by request (setPaused), don't resume, to avoid
+    // extra signaling/waiting overhead to waitUntilPaused
+    Mutex::Autolock p(mPauseLock);
+    if (!mDoPause) {
+        mPaused = false;
+    }
 }
 
 void Camera3Device::RequestThread::setErrorState(const char *fmt, ...) {
