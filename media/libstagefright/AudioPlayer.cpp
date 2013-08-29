@@ -680,6 +680,14 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
 int64_t AudioPlayer::getRealTimeUs() {
     Mutex::Autolock autoLock(mLock);
+    if (useOffload()) {
+        if (mSeeking) {
+            return mSeekTimeUs;
+        }
+        mPositionTimeRealUs = getOutputPlayPositionUs_l();
+        return mPositionTimeRealUs;
+    }
+
     return getRealTimeUsLocked();
 }
 
@@ -741,11 +749,6 @@ int64_t AudioPlayer::getMediaTimeUs() {
         return 0;
     }
 
-    if (useOffload()) {
-        mPositionTimeRealUs = getOutputPlayPositionUs_l();
-        return mPositionTimeRealUs;
-    }
-
     int64_t realTimeOffset = getRealTimeUsLocked() - mPositionTimeRealUs;
     if (realTimeOffset < 0) {
         realTimeOffset = 0;
@@ -758,8 +761,14 @@ bool AudioPlayer::getMediaTimeMapping(
         int64_t *realtime_us, int64_t *mediatime_us) {
     Mutex::Autolock autoLock(mLock);
 
-    *realtime_us = mPositionTimeRealUs;
-    *mediatime_us = mPositionTimeMediaUs;
+    if (useOffload()) {
+        mPositionTimeRealUs = getOutputPlayPositionUs_l();
+        *realtime_us = mPositionTimeRealUs;
+        *mediatime_us = mPositionTimeRealUs;
+    } else {
+        *realtime_us = mPositionTimeRealUs;
+        *mediatime_us = mPositionTimeMediaUs;
+    }
 
     return mPositionTimeRealUs != -1 && mPositionTimeMediaUs != -1;
 }
