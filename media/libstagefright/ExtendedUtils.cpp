@@ -248,6 +248,15 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
     return false;
 }
 
+bool ExtendedUtils::ShellProp::isCustomAVSyncEnabled() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("mm.enable.customavsync", prop, "0");
+    if (!strncmp(prop, "true", 4) || atoi(prop)) {
+        return true;
+    }
+    return false;
+}
+
 void ExtendedUtils::setBFrames(
         OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, int32_t &numBFrames,
         const char* componentName) {
@@ -700,6 +709,10 @@ int64_t ExtendedUtils::ShellProp::getMaxAVSyncLateMargin() {
 }
 
 bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
+    return false;
+}
+
+bool ExtendedUtils::ShellProp::isCustomAVSyncEnabled() {
     return false;
 }
 
