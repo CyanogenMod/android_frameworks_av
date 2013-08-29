@@ -1715,6 +1715,11 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
     }
 }
 
+status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
+{
+    return INVALID_OPERATION;
+}
+
 String8 AudioTrack::getParameters(const String8& keys)
 {
     if (mOutput) {
