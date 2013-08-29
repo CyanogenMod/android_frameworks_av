@@ -61,6 +61,8 @@ private:
 
     bool mIsFirst;
     bool mSignalledError;
+    bool mSawInputEos;
+    bool mSignalledOutputEos;
 
     enum {
         NONE,
