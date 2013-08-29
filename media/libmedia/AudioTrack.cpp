@@ -1550,7 +1550,7 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer) {
+        if (mRetryOnPartialBuffer && !isOffloaded()) {
             mRetryOnPartialBuffer = false;
             if (avail < mRemainingFrames) {
                 int64_t myns = ((mRemainingFrames - avail) * 1100000000LL) / sampleRate;
