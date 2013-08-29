@@ -40,6 +40,7 @@ protected:
 
     virtual OMX_ERRORTYPE internalSetParameter(
             OMX_INDEXTYPE index, const OMX_PTR params);
+    virtual void onPortFlush(OMX_U32 portIndex, bool sendFlushComplete);
 
     virtual void onQueueFilled(OMX_U32 portIndex);
 

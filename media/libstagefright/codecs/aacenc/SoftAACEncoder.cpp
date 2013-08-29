@@ -306,6 +306,12 @@ OMX_ERRORTYPE SoftAACEncoder::internalSetParameter(
     }
 }
 
+void SoftAACEncoder::onPortFlush(OMX_U32 portIndex, bool sendFlushComplete){
+    ALOGV("in SoftAACEncoder::onPortFlush()");
+    mInputSize = 0;
+    SimpleSoftOMXComponent::onPortFlush2(portIndex,sendFlushComplete);
+}
+
 status_t SoftAACEncoder::setAudioParams() {
     // We call this whenever sample rate, number of channels or bitrate change
     // in reponse to setParameter calls.

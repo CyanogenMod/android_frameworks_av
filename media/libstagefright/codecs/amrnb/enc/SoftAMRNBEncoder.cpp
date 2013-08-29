@@ -395,6 +395,11 @@ void SoftAMRNBEncoder::onQueueFilled(OMX_U32 portIndex) {
     }
 }
 
+void SoftAMRNBEncoder::onPortFlush(OMX_U32 portIndex, bool sendFlushComplete){
+    ALOGV("in SoftAMRNBEncoder::onPortFlush()");
+    mInputSize = 0;
+    SimpleSoftOMXComponent::onPortFlush2(portIndex,sendFlushComplete);
+}
 }  // namespace android
 
 android::SoftOMXComponent *createSoftOMXComponent(

@@ -114,6 +114,7 @@ status_t SoftAACEncoder2::initEncoder() {
 
 OMX_ERRORTYPE SoftAACEncoder2::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
+    ALOGV("internalGetParameter ");
     switch (index) {
         case OMX_IndexParamAudioPortFormat:
         {
@@ -189,6 +190,7 @@ OMX_ERRORTYPE SoftAACEncoder2::internalGetParameter(
 
 OMX_ERRORTYPE SoftAACEncoder2::internalSetParameter(
         OMX_INDEXTYPE index, const OMX_PTR params) {
+        ALOGV("internalSetParameter() index = 0x%x ",index);
     switch (index) {
         case OMX_IndexParamStandardComponentRole:
         {
@@ -273,6 +275,12 @@ OMX_ERRORTYPE SoftAACEncoder2::internalSetParameter(
     }
 }
 
+void SoftAACEncoder2::onPortFlush(OMX_U32 portIndex, bool sendFlushComplete){
+    ALOGV("in SoftAACEncoder2::onPortFlush()");
+    mInputSize = 0;
+    SimpleSoftOMXComponent::onPortFlush2(portIndex,sendFlushComplete);
+}
+
 static CHANNEL_MODE getChannelMode(OMX_U32 nChannels) {
     CHANNEL_MODE chMode = MODE_INVALID;
     switch (nChannels) {
@@ -350,7 +358,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
         if (outQueue.empty()) {
             return;
         }
-
+        ALOGV("aacenc: get codecspecificdata");
         if (AACENC_OK != aacEncEncode(mAACEncoder, NULL, NULL, NULL, NULL)) {
             ALOGE("Unable to initialize encoder for profile / sample-rate / bit-rate / channels");
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
@@ -396,7 +404,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
 
     for (;;) {
         // We do the following until we run out of buffers.
-
+        ALOGV("aacenc: mInputSize = %u,numBytesPerInputFrame %u",mInputSize,numBytesPerInputFrame);
         while (mInputSize < numBytesPerInputFrame) {
             // As long as there's still input data to be read we
             // will drain "kNumSamplesPerFrame * mNumChannels" samples
@@ -546,6 +554,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 portIndex) {
         }
 
         outHeader->nTimeStamp = mInputTimeUs;
+        ALOGV("aanenc: FillBufferDone notify: mInputTimeUs = %lld",mInputTimeUs);
 
 #if 0
         ALOGI("sending %d bytes of data (time = %lld us, flags = 0x%08lx)",

@@ -212,11 +212,13 @@ status_t AudioSource::start(MetaData *params) {
     mTrackMaxAmplitude = false;
     mMaxAmplitude = 0;
     mInitialReadTimeUs = 0;
+    mPrevSampleTimeUs = 0; //clear the timestamp to start over
     mStartTimeUs = 0;
     int64_t startTimeUs;
     if (params && params->findInt64(kKeyTime, &startTimeUs)) {
         mStartTimeUs = startTimeUs;
     }
+    ALOGV("AudioSource start from system time %lld",mStartTimeUs);
     status_t err = mRecord->start();
     if (err == OK) {
         mStarted = true;
@@ -237,6 +239,7 @@ void AudioSource::releaseQueuedFrames_l() {
         (*it)->release();
         mBuffersReceived.erase(it);
     }
+    mNumFramesReceived = 0;//clear the frame count
 }
 
 void AudioSource::waitOutstandingEncodingFrames_l() {
@@ -490,6 +493,8 @@ void AudioSource::queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs) {
 
     buffer->meta_data()->setInt64(kKeyTime, mPrevSampleTimeUs);
 #ifdef QCOM_HARDWARE
+
+    ALOGV("AudioSource queue one buffer, ts %lld, dur:%lld,  frames:%u ", mPrevSampleTimeUs,recordDurationUs,buffer->range_length()/sizeof(int16_t));
     if (mFormat == AUDIO_FORMAT_PCM_16_BIT) {
         buffer->meta_data()->setInt64(kKeyDriftTime, timeUs - mInitialReadTimeUs);
     } else {

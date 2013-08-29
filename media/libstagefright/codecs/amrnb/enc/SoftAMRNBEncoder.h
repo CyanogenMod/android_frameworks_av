@@ -40,6 +40,7 @@ protected:
 
     virtual void onQueueFilled(OMX_U32 portIndex);
 
+    virtual void onPortFlush(OMX_U32 portIndex, bool sendFlushComplete);
 private:
     enum {
         kNumBuffers             = 4,

@@ -66,6 +66,7 @@ private:
 
     void initPorts();
     status_t initEncoder();
+    virtual void onPortFlush(OMX_U32 portIndex, bool sendFlushComplete);
 
     status_t setAudioParams();
 
