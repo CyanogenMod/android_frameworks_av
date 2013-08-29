@@ -19,6 +19,7 @@
 
 #include <cutils/sched_policy.h>
 #include <media/AudioSystem.h>
+#include <media/AudioTimestamp.h>
 #include <media/IAudioTrack.h>
 #include <utils/threads.h>
 
@@ -62,6 +63,9 @@ public:
                                     // voluntary invalidation by mediaserver, or mediaserver crash.
         EVENT_STREAM_END = 7,       // Sent after all the buffers queued in AF and HW are played
                                     // back (after stop is called)
+        EVENT_NEW_TIMESTAMP = 8,    // Delivered periodically and when there's a significant change
+                                    // in the mapping from frame position to presentation time.
+                                    // See AudioTimestamp for the information included with event.
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -107,6 +111,8 @@ public:
      *          - EVENT_NEW_POS: pointer to const uint32_t containing the new position in frames.
      *          - EVENT_BUFFER_END: unused.
      *          - EVENT_NEW_IAUDIOTRACK: unused.
+     *          - EVENT_STREAM_END: unused.
+     *          - EVENT_NEW_TIMESTAMP: pointer to const AudioTimestamp.
      */
 
     typedef void (*callback_t)(int event, void* user, void *info);
@@ -563,6 +569,16 @@ public:
 
     /* Get parameters */
             String8     getParameters(const String8& keys);
+
+    /* Poll for a timestamp on demand.
+     * Use if EVENT_NEW_TIMESTAMP is not delivered often enough for your needs,
+     * or if you need to get the most recent timestamp outside of the event callback handler.
+     * Caution: calling this method too often may be inefficient;
+     * if you need a high resolution mapping between frame position and presentation time,
+     * consider implementing that at application level, based on the low resolution timestamps.
+     * Returns NO_ERROR if timestamp is valid.
+     */
+            status_t    getTimestamp(AudioTimestamp& timestamp);
 
 protected:
     /* copying audio tracks is not allowed */
