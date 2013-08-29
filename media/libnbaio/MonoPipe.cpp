@@ -315,6 +315,9 @@ bool MonoPipe::isShutdown()
 
 status_t MonoPipe::getTimestamp(AudioTimestamp& timestamp)
 {
+    if (mTimestampObserver.poll(timestamp)) {
+        return OK;
+    }
     return INVALID_OPERATION;
 }
 
