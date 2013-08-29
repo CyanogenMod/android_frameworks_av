@@ -35,6 +35,8 @@
 #include <media/stagefright/MediaMuxer.h>
 #include <media/ICrypto.h>
 
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -138,7 +140,7 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     format->setFloat("frame-rate", displayFps);
     format->setInt32("i-frame-interval", 10);
 
-    /// MediaCodec
+    // MediaCodec
     sp<ALooper> looper = new ALooper;
     looper->setName("screenrecord_looper");
     looper->start();
@@ -370,10 +372,15 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
             if (err != NO_ERROR) {
                 fprintf(stderr,
                         "Unable to get new output buffers (err=%d)\n", err);
+                return err;
             }
             break;
+        case INVALID_OPERATION:
+            fprintf(stderr, "Request for encoder buffer failed\n");
+            return err;
         default:
-            ALOGW("Got weird result %d from dequeueOutputBuffer", err);
+            fprintf(stderr,
+                    "Got weird result %d from dequeueOutputBuffer\n", err);
             return err;
         }
     }
@@ -474,6 +481,29 @@ static status_t recordScreen(const char* fileName) {
     encoder->release();
 
     return 0;
+}
+
+/*
+ * Sends a broadcast to the media scanner to tell it about the new video.
+ */
+static status_t notifyMediaScanner(const char* fileName) {
+    String8 command("am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://");
+    command.append(fileName);
+    if (gVerbose) {
+        printf("Shell: %s\n", command.string());
+    }
+
+    // TODO: for non-verbose mode we should suppress stdout
+    int status = system(command.string());
+    if (status < 0) {
+        fprintf(stderr, "Unable to fork shell for media scanner broadcast\n");
+        return UNKNOWN_ERROR;
+    } else if (status != 0) {
+        fprintf(stderr, "am command failed (status=%d): '%s'\n",
+                status, command.string());
+        return UNKNOWN_ERROR;
+    }
+    return NO_ERROR;
 }
 
 /*
@@ -609,6 +639,10 @@ int main(int argc, char* const argv[]) {
     close(fd);
 
     status_t err = recordScreen(fileName);
+    if (err == NO_ERROR) {
+        // Try to notify the media scanner.  Not fatal if this fails.
+        notifyMediaScanner(fileName);
+    }
     ALOGD(err == NO_ERROR ? "success" : "failed");
     return (int) err;
 }
