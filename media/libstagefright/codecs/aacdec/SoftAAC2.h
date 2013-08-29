@@ -55,6 +55,8 @@ private:
     bool mDecoderHasData;
     size_t mInputBufferCount;
     bool mSignalledError;
+    bool mSawInputEos;
+    bool mSignalledOutputEos;
     int64_t mAnchorTimeUs;
     int64_t mNumSamplesOutput;
 

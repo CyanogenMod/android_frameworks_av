@@ -58,6 +58,8 @@ SoftAAC2::SoftAAC2(
       mIsADTS(false),
       mInputBufferCount(0),
       mSignalledError(false),
+      mSawInputEos(false),
+      mSignalledOutputEos(false),
       mAnchorTimeUs(0),
       mNumSamplesOutput(0),
       mOutputPortSettingsChange(NONE) {
@@ -350,122 +352,83 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         return;
     }
 
-    while (!inQueue.empty() && !outQueue.empty()) {
-        BufferInfo *inInfo = *inQueue.begin();
-        OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+    while ((!inQueue.empty() || (mSawInputEos && !mSignalledOutputEos)) && !outQueue.empty()) {
+        BufferInfo *inInfo = NULL;
+        OMX_BUFFERHEADERTYPE *inHeader = NULL;
+        if (!inQueue.empty()) {
+            inInfo = *inQueue.begin();
+            inHeader = inInfo->mHeader;
+        }
 
         BufferInfo *outInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
+        outHeader->nFlags = 0;
 
-        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
-            inQueue.erase(inQueue.begin());
-            inInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inHeader);
+        if (inHeader) {
+            if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+                mSawInputEos = true;
+            }
 
-            if (mDecoderHasData || mInputBufferCount) {
-                // flush out the decoder's delayed data by calling DecodeFrame
-                // one more time, with the AACDEC_FLUSH flag set
+            if (inHeader->nOffset == 0 && inHeader->nFilledLen) {
+                mAnchorTimeUs = inHeader->nTimeStamp;
+                mNumSamplesOutput = 0;
+            }
 
-                // for the use case where the first frame in the buffer is EOS,
-                // decode the header to update the sample rate and channel mode
-                // and flush out the buffer.
-                INT_PCM *outBuffer =
-                        reinterpret_cast<INT_PCM *>(
-                                outHeader->pBuffer + outHeader->nOffset);
+            if (mIsADTS) {
+                size_t adtsHeaderSize = 0;
+                // skip 30 bits, aac_frame_length follows.
+                // ssssssss ssssiiip ppffffPc ccohCCll llllllll lll?????
 
-                AAC_DECODER_ERROR decoderErr =
-                    aacDecoder_DecodeFrame(mAACDecoder,
-                                           outBuffer,
-                                           outHeader->nAllocLen,
-                                           AACDEC_FLUSH);
-                mDecoderHasData = false;
+                const uint8_t *adtsHeader = inHeader->pBuffer + inHeader->nOffset;
 
-                if (decoderErr != AAC_DEC_OK) {
+                bool signalError = false;
+                if (inHeader->nFilledLen < 7) {
+                    ALOGE("Audio data too short to contain even the ADTS header. "
+                          "Got %d bytes.", inHeader->nFilledLen);
+                    hexdump(adtsHeader, inHeader->nFilledLen);
+                    signalError = true;
+                } else {
+                    bool protectionAbsent = (adtsHeader[1] & 1);
+
+                    unsigned aac_frame_length =
+                        ((adtsHeader[3] & 3) << 11)
+                        | (adtsHeader[4] << 3)
+                        | (adtsHeader[5] >> 5);
+
+                    if (inHeader->nFilledLen < aac_frame_length) {
+                        ALOGE("Not enough audio data for the complete frame. "
+                              "Got %d bytes, frame size according to the ADTS "
+                              "header is %u bytes.",
+                              inHeader->nFilledLen, aac_frame_length);
+                        hexdump(adtsHeader, inHeader->nFilledLen);
+                        signalError = true;
+                    } else {
+                        adtsHeaderSize = (protectionAbsent ? 7 : 9);
+
+                        inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
+                        inBufferLength[0] = aac_frame_length - adtsHeaderSize;
+
+                        inHeader->nOffset += adtsHeaderSize;
+                        inHeader->nFilledLen -= adtsHeaderSize;
+                    }
+                }
+
+                if (signalError) {
                     mSignalledError = true;
 
-                    notify(OMX_EventError, OMX_ErrorUndefined, decoderErr,
+                    notify(OMX_EventError,
+                           OMX_ErrorStreamCorrupt,
+                           ERROR_MALFORMED,
                            NULL);
 
                     return;
                 }
-
-                outHeader->nFilledLen =
-                        mStreamInfo->frameSize
-                            * sizeof(int16_t)
-                            * mStreamInfo->numChannels;
             } else {
-                // we never submitted any data to the decoder, so there's nothing to flush out
-                outHeader->nFilledLen = 0;
-            }
-
-            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
-            outHeader->nTimeStamp =
-                mAnchorTimeUs
-                    + (mNumSamplesOutput * 1000000ll) / mStreamInfo->sampleRate;
-
-            outQueue.erase(outQueue.begin());
-            outInfo->mOwnedByUs = false;
-            notifyFillBufferDone(outHeader);
-            return;
-        }
-
-        if (inHeader->nOffset == 0) {
-            mAnchorTimeUs = inHeader->nTimeStamp;
-            mNumSamplesOutput = 0;
-        }
-
-        size_t adtsHeaderSize = 0;
-        if (mIsADTS) {
-            // skip 30 bits, aac_frame_length follows.
-            // ssssssss ssssiiip ppffffPc ccohCCll llllllll lll?????
-
-            const uint8_t *adtsHeader = inHeader->pBuffer + inHeader->nOffset;
-
-            bool signalError = false;
-            if (inHeader->nFilledLen < 7) {
-                ALOGE("Audio data too short to contain even the ADTS header. "
-                      "Got %ld bytes.", inHeader->nFilledLen);
-                hexdump(adtsHeader, inHeader->nFilledLen);
-                signalError = true;
-            } else {
-                bool protectionAbsent = (adtsHeader[1] & 1);
-
-                unsigned aac_frame_length =
-                    ((adtsHeader[3] & 3) << 11)
-                    | (adtsHeader[4] << 3)
-                    | (adtsHeader[5] >> 5);
-
-                if (inHeader->nFilledLen < aac_frame_length) {
-                    ALOGE("Not enough audio data for the complete frame. "
-                          "Got %ld bytes, frame size according to the ADTS "
-                          "header is %u bytes.",
-                          inHeader->nFilledLen, aac_frame_length);
-                    hexdump(adtsHeader, inHeader->nFilledLen);
-                    signalError = true;
-                } else {
-                    adtsHeaderSize = (protectionAbsent ? 7 : 9);
-
-                    inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
-                    inBufferLength[0] = aac_frame_length - adtsHeaderSize;
-
-                    inHeader->nOffset += adtsHeaderSize;
-                    inHeader->nFilledLen -= adtsHeaderSize;
-                }
-            }
-
-            if (signalError) {
-                mSignalledError = true;
-
-                notify(OMX_EventError,
-                       OMX_ErrorStreamCorrupt,
-                       ERROR_MALFORMED,
-                       NULL);
-
-                return;
+                inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
+                inBufferLength[0] = inHeader->nFilledLen;
             }
         } else {
-            inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
-            inBufferLength[0] = inHeader->nFilledLen;
+            inBufferLength[0] = 0;
         }
 
         // Fill and decode
@@ -478,50 +441,66 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
         int prevNumChannels = mStreamInfo->numChannels;
 
         AAC_DECODER_ERROR decoderErr = AAC_DEC_NOT_ENOUGH_BITS;
-        while (bytesValid[0] > 0 && decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
+        while ((bytesValid[0] > 0 || mSawInputEos) && decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
+            mDecoderHasData |= (bytesValid[0] > 0);
             aacDecoder_Fill(mAACDecoder,
                             inBuffer,
                             inBufferLength,
                             bytesValid);
-            mDecoderHasData = true;
 
             decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
                                                 outBuffer,
                                                 outHeader->nAllocLen,
                                                 0 /* flags */);
-
             if (decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
-                ALOGW("Not enough bits, bytesValid %d", bytesValid[0]);
+                if (mSawInputEos && bytesValid[0] <= 0) {
+                    if (mDecoderHasData) {
+                        // flush out the decoder's delayed data by calling DecodeFrame
+                        // one more time, with the AACDEC_FLUSH flag set
+                        decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
+                                                            outBuffer,
+                                                            outHeader->nAllocLen,
+                                                            AACDEC_FLUSH);
+                        mDecoderHasData = false;
+                    }
+                    outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+                    mSignalledOutputEos = true;
+                    break;
+                } else {
+                    ALOGW("Not enough bits, bytesValid %d", bytesValid[0]);
+                }
             }
         }
 
         size_t numOutBytes =
             mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
 
-        if (decoderErr == AAC_DEC_OK) {
-            UINT inBufferUsedLength = inBufferLength[0] - bytesValid[0];
-            inHeader->nFilledLen -= inBufferUsedLength;
-            inHeader->nOffset += inBufferUsedLength;
-        } else {
-            ALOGW("AAC decoder returned error %d, substituting silence",
-                  decoderErr);
+        if (inHeader) {
+            if (decoderErr == AAC_DEC_OK) {
+                UINT inBufferUsedLength = inBufferLength[0] - bytesValid[0];
+                inHeader->nFilledLen -= inBufferUsedLength;
+                inHeader->nOffset += inBufferUsedLength;
+            } else {
+                ALOGW("AAC decoder returned error %d, substituting silence",
+                      decoderErr);
 
-            memset(outHeader->pBuffer + outHeader->nOffset, 0, numOutBytes);
+                memset(outHeader->pBuffer + outHeader->nOffset, 0, numOutBytes);
 
-            // Discard input buffer.
-            inHeader->nFilledLen = 0;
+                // Discard input buffer.
+                inHeader->nFilledLen = 0;
 
-            aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
+                aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
 
-            // fall through
-        }
+                // fall through
+            }
 
-        if (inHeader->nFilledLen == 0) {
-            inInfo->mOwnedByUs = false;
-            inQueue.erase(inQueue.begin());
-            inInfo = NULL;
-            notifyEmptyBufferDone(inHeader);
-            inHeader = NULL;
+            if (inHeader->nFilledLen == 0) {
+                inInfo->mOwnedByUs = false;
+                inQueue.erase(inQueue.begin());
+                inInfo = NULL;
+                notifyEmptyBufferDone(inHeader);
+                inHeader = NULL;
+            }
         }
 
         /*
@@ -562,7 +541,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             // we've previously decoded valid data, in the latter case
             // (decode failed) we'll output a silent frame.
             outHeader->nFilledLen = numOutBytes;
-            outHeader->nFlags = 0;
 
             outHeader->nTimeStamp =
                 mAnchorTimeUs
@@ -619,6 +597,8 @@ void SoftAAC2::onReset() {
     mStreamInfo->sampleRate = 0;
 
     mSignalledError = false;
+    mSawInputEos = false;
+    mSignalledOutputEos = false;
     mOutputPortSettingsChange = NONE;
 }
 
