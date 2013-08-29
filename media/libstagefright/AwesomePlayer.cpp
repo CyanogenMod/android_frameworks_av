@@ -235,7 +235,8 @@ AwesomePlayer::AwesomePlayer()
       mOffloadAudio(false),
       mAudioTearDown(false),
       mReadRetry(false),
-      mIsFirstFrameAfterResume(false) {
+      mIsFirstFrameAfterResume(false),
+      mCustomAVSync(false) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
     DataSource::RegisterDefaultSniffers();
@@ -270,6 +271,7 @@ AwesomePlayer::AwesomePlayer()
 
 #ifdef QCOM_HARDWARE
     mLateAVSyncMargin = ExtendedUtils::ShellProp::getMaxAVSyncLateMargin();
+    mCustomAVSync = ExtendedUtils::ShellProp::isCustomAVSyncEnabled();
 #else
     mLateAVSyncMargin = 40000;
 #endif
@@ -2271,6 +2273,22 @@ void AwesomePlayer::onVideoEvent() {
                 continue;
             }
 
+#ifdef QCOM_HARDWARE
+            if (mCustomAVSync) {
+                int width = 0;
+                int height = 0;
+                sp<MetaData> meta = mVideoSource->getFormat();
+                CHECK(meta->findInt32(kKeyWidth, &width));
+                CHECK(meta->findInt32(kKeyHeight, &height));
+
+                if (((height * width) >= (720 * 1280)) && (mStats.mConsecutiveFramesDropped >= 5) && !(mFlags & NO_AVSYNC))
+                {
+                    ALOGE("DISABLED AVSync as there are 5 consecutive frame drops");
+                    modifyFlags(NO_AVSYNC,SET);
+                }
+            }
+#endif
+
             break;
         }
 
@@ -2410,13 +2428,24 @@ void AwesomePlayer::onVideoEvent() {
             }
         }
 
+#ifdef QCOM_HARDWARE
+        if ((latenessUs < mLateAVSyncMargin) && (mFlags & NO_AVSYNC))
+        {
+            ALOGE("ENABLED AVSync as the video frames are intime with audio");
+            modifyFlags(NO_AVSYNC,CLEAR);
+        }
+#endif
+
         if (latenessUs > mLateAVSyncMargin) {
             // We're more than 40ms late.
             ALOGV("we're late by %lld us (%.2f secs)",
                  latenessUs, latenessUs / 1E6);
 
             if ((!(mFlags & SLOW_DECODER_HACK)
-                    || mSinceLastDropped > FRAME_DROP_FREQ)
+                    || (mSinceLastDropped > FRAME_DROP_FREQ))
+#ifdef QCOM_HARDWARE
+                    && !(mFlags & NO_AVSYNC)
+#endif
                     && !mDropFramesDisable)
             {
                 ALOGV("we're late by %lld us (%.2f secs) dropping "
