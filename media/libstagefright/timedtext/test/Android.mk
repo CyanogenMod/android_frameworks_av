@@ -2,7 +2,6 @@ LOCAL_PATH:= $(call my-dir)
 
 # ================================================================
 # Unit tests for libstagefright_timedtext
-# See also /development/testrunner/test_defs.xml
 # ================================================================
 
 # ================================================================
@@ -18,10 +17,13 @@ LOCAL_SRC_FILES := TimedTextSRTSource_test.cpp
 
 LOCAL_C_INCLUDES := \
     $(TOP)/external/expat/lib \
-    $(TOP)/frameworks/base/media/libstagefright/timedtext
+    $(TOP)/frameworks/av/media/libstagefright/timedtext
 
 LOCAL_SHARED_LIBRARIES := \
+    libbinder \
     libexpat \
-    libstagefright
+    libstagefright \
+    libstagefright_foundation \
+    libutils
 
 include $(BUILD_NATIVE_TEST)
