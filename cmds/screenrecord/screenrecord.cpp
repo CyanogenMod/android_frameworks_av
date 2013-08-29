@@ -21,6 +21,7 @@
 #include <binder/IPCThreadState.h>
 #include <utils/Errors.h>
 #include <utils/Thread.h>
+#include <utils/Timers.h>
 
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -44,6 +45,12 @@
 
 using namespace android;
 
+static const uint32_t kMinBitRate = 100000;         // 0.1Mbps
+static const uint32_t kMaxBitRate = 100 * 1000000;  // 100Mbps
+static const uint32_t kMaxTimeLimitSec = 180;       // 3 minutes
+static const uint32_t kFallbackWidth = 1280;        // 720p
+static const uint32_t kFallbackHeight = 720;
+
 // Command-line parameters.
 static bool gVerbose = false;               // chatty on stdout
 static bool gRotate = false;                // rotate 90 degrees
@@ -51,6 +58,7 @@ static bool gSizeSpecified = false;         // was size explicitly requested?
 static uint32_t gVideoWidth = 0;            // default width+height
 static uint32_t gVideoHeight = 0;
 static uint32_t gBitRate = 4000000;         // 4Mbps
+static uint32_t gTimeLimitSec = kMaxTimeLimitSec;
 
 // Set by signal handler to stop recording.
 static bool gStopRequested;
@@ -59,8 +67,6 @@ static bool gStopRequested;
 static struct sigaction gOrigSigactionINT;
 static struct sigaction gOrigSigactionHUP;
 
-static const uint32_t kMinBitRate = 100000;         // 0.1Mbps
-static const uint32_t kMaxBitRate = 100 * 1000000;  // 100Mbps
 
 /*
  * Catch keyboard interrupt signals.  On receipt, the "stop requested"
@@ -72,9 +78,8 @@ static void signalCatcher(int signum)
     gStopRequested = true;
     switch (signum) {
     case SIGINT:
-        sigaction(SIGINT, &gOrigSigactionINT, NULL);
-        break;
     case SIGHUP:
+        sigaction(SIGINT, &gOrigSigactionINT, NULL);
         sigaction(SIGHUP, &gOrigSigactionHUP, NULL);
         break;
     default:
@@ -140,7 +145,6 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     format->setFloat("frame-rate", displayFps);
     format->setInt32("i-frame-interval", 10);
 
-    // MediaCodec
     sp<ALooper> looper = new ALooper;
     looper->setName("screenrecord_looper");
     looper->start();
@@ -281,7 +285,8 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
     status_t err;
     ssize_t trackIdx = -1;
     uint32_t debugNumFrames = 0;
-    time_t debugStartWhen = time(NULL);
+    int64_t startWhenNsec = systemTime(CLOCK_MONOTONIC);
+    int64_t endWhenNsec = startWhenNsec + seconds_to_nanoseconds(gTimeLimitSec);
 
     Vector<sp<ABuffer> > buffers;
     err = encoder->getOutputBuffers(&buffers);
@@ -298,6 +303,14 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
         size_t bufIndex, offset, size;
         int64_t ptsUsec;
         uint32_t flags;
+
+        if (systemTime(CLOCK_MONOTONIC) > endWhenNsec) {
+            if (gVerbose) {
+                printf("Time limit reached\n");
+            }
+            break;
+        }
+
         ALOGV("Calling dequeueOutputBuffer");
         err = encoder->dequeueOutputBuffer(&bufIndex, &offset, &size, &ptsUsec,
                 &flags, kTimeout);
@@ -347,7 +360,6 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
             }
             break;
         case -EAGAIN:                       // INFO_TRY_AGAIN_LATER
-            // not expected with infinite timeout
             ALOGV("Got -EAGAIN, looping");
             break;
         case INFO_FORMAT_CHANGED:           // INFO_OUTPUT_FORMAT_CHANGED
@@ -387,8 +399,9 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
 
     ALOGV("Encoder stopping (req=%d)", gStopRequested);
     if (gVerbose) {
-        printf("Encoder stopping; recorded %u frames in %ld seconds\n",
-                debugNumFrames, time(NULL) - debugStartWhen);
+        printf("Encoder stopping; recorded %u frames in %lld seconds\n",
+                debugNumFrames,
+                nanoseconds_to_seconds(systemTime(CLOCK_MONOTONIC) - startWhenNsec));
     }
     return NO_ERROR;
 }
@@ -439,12 +452,12 @@ static status_t recordScreen(const char* fileName) {
     sp<IGraphicBufferProducer> bufferProducer;
     err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
     if (err != NO_ERROR && !gSizeSpecified) {
-        ALOGV("Retrying with 720p");
-        if (gVideoWidth != 1280 && gVideoHeight != 720) {
+        if (gVideoWidth != kFallbackWidth && gVideoHeight != kFallbackHeight) {
+            ALOGV("Retrying with 720p");
             fprintf(stderr, "WARNING: failed at %dx%d, retrying at 720p\n",
                     gVideoWidth, gVideoHeight);
-            gVideoWidth = 1280;
-            gVideoHeight = 720;
+            gVideoWidth = kFallbackWidth;
+            gVideoHeight = kFallbackHeight;
             err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
         }
     }
@@ -544,10 +557,13 @@ static void usage() {
         "\n"
         "Options:\n"
         "--size WIDTHxHEIGHT\n"
-        "    Set the video size, e.g. \"1280x720\".  For best results, use\n"
-        "    a size supported by the AVC encoder.\n"
+        "    Set the video size, e.g. \"1280x720\".  Default is the device's main\n"
+        "    display resolution (if supported), 1280x720 if not.  For best results,\n"
+        "    use a size supported by the AVC encoder.\n"
         "--bit-rate RATE\n"
-        "    Set the video bit rate, in megabits per second.  Default 4Mbps.\n"
+        "    Set the video bit rate, in megabits per second.  Default %dMbps.\n"
+        "--time-limit TIME\n"
+        "    Set the maximum recording time, in seconds.  Default / maximum is %d.\n"
         "--rotate\n"
         "    Rotate the output 90 degrees.\n"
         "--verbose\n"
@@ -555,8 +571,9 @@ static void usage() {
         "--help\n"
         "    Show this message.\n"
         "\n"
-        "Recording continues until Ctrl-C is hit.\n"
-        "\n"
+        "Recording continues until Ctrl-C is hit or the time limit is reached.\n"
+        "\n",
+        gBitRate / 1000000, gTimeLimitSec
         );
 }
 
@@ -569,6 +586,7 @@ int main(int argc, char* const argv[]) {
         { "verbose",    no_argument,        NULL, 'v' },
         { "size",       required_argument,  NULL, 's' },
         { "bit-rate",   required_argument,  NULL, 'b' },
+        { "time-limit", required_argument,  NULL, 't' },
         { "rotate",     no_argument,        NULL, 'r' },
         { NULL,         0,                  NULL, 0 }
     };
@@ -607,6 +625,15 @@ int main(int argc, char* const argv[]) {
                 fprintf(stderr,
                         "Bit rate %dbps outside acceptable range [%d,%d]\n",
                         gBitRate, kMinBitRate, kMaxBitRate);
+                return 2;
+            }
+            break;
+        case 't':
+            gTimeLimitSec = atoi(optarg);
+            if (gTimeLimitSec == 0 || gTimeLimitSec > kMaxTimeLimitSec) {
+                fprintf(stderr,
+                        "Time limit %ds outside acceptable range [1,%d]\n",
+                        gTimeLimitSec, kMaxTimeLimitSec);
                 return 2;
             }
             break;
