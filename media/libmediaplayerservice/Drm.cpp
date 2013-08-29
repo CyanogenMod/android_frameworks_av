@@ -222,7 +222,11 @@ bool Drm::isCryptoSchemeSupported(const uint8_t uuid[16], const String8 &mimeTyp
         }
     }
 
-    return mFactory->isContentTypeSupported(mimeType);
+    if (mimeType != "") {
+        return mFactory->isContentTypeSupported(mimeType);
+    }
+
+    return true;
 }
 
 status_t Drm::createPlugin(const uint8_t uuid[16]) {
