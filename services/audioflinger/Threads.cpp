@@ -3810,10 +3810,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     size_t count = mActiveTracks.size();
 
     mixer_state mixerStatus = MIXER_IDLE;
-    if (mFlushPending) {
-        flushHw_l();
-        mFlushPending = false;
-    }
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
         sp<Track> t = mActiveTracks[i].promote();
@@ -3938,6 +3934,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         // compute volume for this track
         processVolume_l(track, last);
     }
+
+    if (mFlushPending) {
+        flushHw_l();
+        mFlushPending = false;
+    }
+
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
 
