@@ -733,7 +733,19 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
     }
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-    return INVALID_OPERATION;
+    if (!playbackThread->mLatchQValid) {
+        return INVALID_OPERATION;
+    }
+    uint32_t unpresentedFrames =
+            ((int64_t) playbackThread->mLatchQ.mUnpresentedFrames * mSampleRate) /
+            playbackThread->mSampleRate;
+    uint32_t framesWritten = mAudioTrackServerProxy->framesReleased();
+    if (framesWritten < unpresentedFrames) {
+        return INVALID_OPERATION;
+    }
+    timestamp.mPosition = framesWritten - unpresentedFrames;
+    timestamp.mTime = playbackThread->mLatchQ.mTimestamp.mTime;
+    return NO_ERROR;
 }
 
 status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)

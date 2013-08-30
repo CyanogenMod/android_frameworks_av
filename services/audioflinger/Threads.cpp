@@ -958,7 +958,9 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mDraining(false),
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
-        mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1)
+        mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
+        // mLatchD, mLatchQ,
+        mLatchDValid(false), mLatchQValid(false)
 {
     snprintf(mName, kNameLength, "AudioOut_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
@@ -1826,6 +1828,14 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         } else {
             bytesWritten = framesWritten;
         }
+        status_t status = INVALID_OPERATION;    // mLatchD.mTimestamp is invalid
+        if (status == NO_ERROR) {
+            size_t totalFramesWritten = mNormalSink->framesWritten();
+            if (totalFramesWritten >= mLatchD.mTimestamp.mPosition) {
+                mLatchD.mUnpresentedFrames = totalFramesWritten - mLatchD.mTimestamp.mPosition;
+                mLatchDValid = true;
+            }
+        }
     // otherwise use the HAL / AudioStreamOut directly
     } else {
         // Direct output and offload threads
@@ -2102,6 +2112,12 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 mNBLogWriter->logTimestamp();
                 mNBLogWriter->log(logString);
                 logString = NULL;
+            }
+
+            if (mLatchDValid) {
+                mLatchQ = mLatchD;
+                mLatchDValid = false;
+                mLatchQValid = true;
             }
 
             if (checkForNewParameters_l()) {

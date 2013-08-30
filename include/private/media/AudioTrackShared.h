@@ -422,6 +422,9 @@ public:
     // Return the total number of frames which AudioFlinger desired but were unavailable,
     // and thus which resulted in an underrun.
     virtual uint32_t    getUnderrunFrames() const { return mCblk->u.mStreaming.mUnderrunFrames; }
+
+    // Return the total number of frames that AudioFlinger has obtained and released
+    virtual size_t      framesReleased() const { return mCblk->mServer; }
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {

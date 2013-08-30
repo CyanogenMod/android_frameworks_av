@@ -608,6 +608,17 @@ protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
     virtual     void        flushOutput_l();
+
+private:
+    // timestamp latch:
+    //  D input is written by threadLoop_write while mutex is unlocked, and read while locked
+    //  Q output is written while locked, and read while locked
+    struct {
+        AudioTimestamp  mTimestamp;
+        uint32_t        mUnpresentedFrames;
+    } mLatchD, mLatchQ;
+    bool mLatchDValid;  // true means mLatchD is valid, and clock it into latch at next opportunity
+    bool mLatchQValid;  // true means mLatchQ is valid
 };
 
 class MixerThread : public PlaybackThread {
