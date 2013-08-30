@@ -314,6 +314,7 @@ class Camera3Device :
 
         // Pause handling
         bool               waitIfPaused();
+        void               unpauseForNewRequests();
 
         // Relay error to parent device object setErrorState
         void               setErrorState(const char *fmt, ...);
