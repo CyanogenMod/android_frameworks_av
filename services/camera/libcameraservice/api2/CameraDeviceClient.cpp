@@ -500,14 +500,12 @@ void CameraDeviceClient::onFrameAvailable(int32_t frameId,
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
-    Mutex::Autolock icl(mBinderSerializationLock);
-    SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
-
-    if (mRemoteCallback != NULL) {
+    // Thread-safe. No lock necessary.
+    sp<ICameraDeviceCallbacks> remoteCb = mRemoteCallback;
+    if (remoteCb != NULL) {
         ALOGV("%s: frame = %p ", __FUNCTION__, &frame);
-        mRemoteCallback->onResultReceived(frameId, frame);
+        remoteCb->onResultReceived(frameId, frame);
     }
-
 }
 
 // TODO: move to Camera2ClientBase
