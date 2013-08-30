@@ -17,8 +17,6 @@
 #ifndef __DRM_INFO_EVENT_H__
 #define __DRM_INFO_EVENT_H__
 
-#include "drm_framework_common.h"
-
 namespace android {
 
 class String8;
@@ -73,70 +71,18 @@ public:
 
 public:
     /**
-     * Constructor for DrmInfoEvent.
-     * Data in drmBuffer are copied to newly allocated buffer.
+     * Constructor for DrmInfoEvent
      *
      * @param[in] uniqueId Unique session identifier
      * @param[in] infoType Type of information
      * @param[in] message Message description
-     * @param[in] drmBuffer Binary information
      */
     DrmInfoEvent(int uniqueId, int infoType, const String8 message);
-    DrmInfoEvent(int uniqueId, int infoType, const String8 message, const DrmBuffer& drmBuffer);
 
     /**
      * Destructor for DrmInfoEvent
      */
-    ~DrmInfoEvent();
-
-public:
-    /**
-     * Iterator for key
-     */
-    class KeyIterator {
-        friend class DrmInfoEvent;
-
-    private:
-        KeyIterator(const DrmInfoEvent* drmInfoEvent)
-                : mDrmInfoEvent(const_cast <DrmInfoEvent*> (drmInfoEvent)), mIndex(0) {}
-
-    public:
-        KeyIterator(const KeyIterator& keyIterator);
-        KeyIterator& operator=(const KeyIterator& keyIterator);
-        virtual ~KeyIterator() {}
-
-    public:
-        bool hasNext();
-        const String8& next();
-
-    private:
-        DrmInfoEvent* mDrmInfoEvent;
-        unsigned int mIndex;
-    };
-
-    /**
-     * Iterator
-     */
-    class Iterator {
-        friend class DrmInfoEvent;
-
-    private:
-        Iterator(const DrmInfoEvent* drmInfoEvent)
-                : mDrmInfoEvent(const_cast <DrmInfoEvent*> (drmInfoEvent)), mIndex(0) {}
-
-    public:
-        Iterator(const Iterator& iterator);
-        Iterator& operator=(const Iterator& iterator);
-        virtual ~Iterator() {}
-
-    public:
-        bool hasNext();
-        const String8& next();
-
-    private:
-        DrmInfoEvent* mDrmInfoEvent;
-        unsigned int mIndex;
-    };
+    virtual ~DrmInfoEvent() {}
 
 public:
     /**
@@ -160,69 +106,10 @@ public:
      */
     const String8 getMessage() const;
 
-    /**
-     * Returns the number of attributes contained in this instance
-     *
-     * @return Number of attributes
-     */
-    int getCount() const;
-
-    /**
-     * Adds optional information as <key, value> pair to this instance
-     *
-     * @param[in] key Key to add
-     * @param[in] value Value to add
-     * @return Returns the error code
-     */
-    status_t put(const String8& key, String8& value);
-
-    /**
-     * Retrieves the value of given key
-     *
-     * @param key Key whose value to be retrieved
-     * @return The value
-     */
-    const String8 get(const String8& key) const;
-
-    /**
-     * Returns KeyIterator object to walk through the keys associated with this instance
-     *
-     * @return KeyIterator object
-     */
-    KeyIterator keyIterator() const;
-
-    /**
-     * Returns Iterator object to walk through the values associated with this instance
-     *
-     * @return Iterator object
-     */
-    Iterator iterator() const;
-
-    /**
-     * Returns the Binary information associated with this instance
-     *
-     * @return Binary information
-     */
-    const DrmBuffer& getData() const;
-
-    /**
-     * Sets the Binary information associated with this instance.
-     * Data in drmBuffer are copied to newly allocated buffer.
-     *
-     * @param[in] drmBuffer Binary information associated with this instance
-     */
-    void setData(const DrmBuffer& drmBuffer);
-
-private:
-    DrmInfoEvent(const DrmInfoEvent& ref);
-    const DrmInfoEvent& operator=(const DrmInfoEvent& ref);
-
 private:
     int mUniqueId;
     int mInfoType;
     const String8 mMessage;
-    KeyedVector<String8, String8> mAttributes;
-    DrmBuffer mDrmBuffer;
 };
 
 };
