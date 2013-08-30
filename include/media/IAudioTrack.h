@@ -26,6 +26,7 @@
 #include <binder/IMemory.h>
 #include <utils/LinearTransform.h>
 #include <utils/String8.h>
+#include <media/AudioTimestamp.h>
 
 namespace android {
 
@@ -86,6 +87,9 @@ public:
 
     /* Send parameters to the audio hardware */
     virtual status_t    setParameters(const String8& keyValuePairs) = 0;
+
+    /* Return NO_ERROR if timestamp is valid */
+    virtual status_t    getTimestamp(AudioTimestamp& timestamp) = 0;
 };
 
 // ----------------------------------------------------------------------------
