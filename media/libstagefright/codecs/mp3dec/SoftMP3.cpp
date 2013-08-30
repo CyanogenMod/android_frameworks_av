@@ -49,6 +49,8 @@ SoftMP3::SoftMP3(
       mNumChannels(2),
       mSamplingRate(44100),
       mSignalledError(false),
+      mSawInputEos(false),
+      mSignalledOutputEos(false),
       mOutputPortSettingsChange(NONE) {
     initPorts();
     initDecoder();
@@ -194,48 +196,36 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
     List<BufferInfo *> &inQueue = getPortQueue(0);
     List<BufferInfo *> &outQueue = getPortQueue(1);
 
-    while (!inQueue.empty() && !outQueue.empty()) {
-        BufferInfo *inInfo = *inQueue.begin();
-        OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+    while ((!inQueue.empty() || (mSawInputEos && !mSignalledOutputEos)) && !outQueue.empty()) {
+        BufferInfo *inInfo = NULL;
+        OMX_BUFFERHEADERTYPE *inHeader = NULL;
+        if (!inQueue.empty()) {
+            inInfo = *inQueue.begin();
+            inHeader = inInfo->mHeader;
+        }
 
         BufferInfo *outInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
+        outHeader->nFlags = 0;
 
-        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
-            inQueue.erase(inQueue.begin());
-            inInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inHeader);
-
-            if (!mIsFirst) {
-                // pad the end of the stream with 529 samples, since that many samples
-                // were trimmed off the beginning when decoding started
-                outHeader->nFilledLen =
-                    kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
-
-                memset(outHeader->pBuffer, 0, outHeader->nFilledLen);
-            } else {
-                // Since we never discarded frames from the start, we won't have
-                // to add any padding at the end either.
-                outHeader->nFilledLen = 0;
+        if (inHeader) {
+            if (inHeader->nOffset == 0 && inHeader->nFilledLen) {
+                mAnchorTimeUs = inHeader->nTimeStamp;
+                mNumFramesOutput = 0;
             }
 
-            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+            if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+                mSawInputEos = true;
+            }
 
-            outQueue.erase(outQueue.begin());
-            outInfo->mOwnedByUs = false;
-            notifyFillBufferDone(outHeader);
-            return;
+            mConfig->pInputBuffer =
+                inHeader->pBuffer + inHeader->nOffset;
+
+            mConfig->inputBufferCurrentLength = inHeader->nFilledLen;
+        } else {
+            mConfig->pInputBuffer = NULL;
+            mConfig->inputBufferCurrentLength = 0;
         }
-
-        if (inHeader->nOffset == 0) {
-            mAnchorTimeUs = inHeader->nTimeStamp;
-            mNumFramesOutput = 0;
-        }
-
-        mConfig->pInputBuffer =
-            inHeader->pBuffer + inHeader->nOffset;
-
-        mConfig->inputBufferCurrentLength = inHeader->nFilledLen;
         mConfig->inputBufferMaxLength = 0;
         mConfig->inputBufferUsedLength = 0;
 
@@ -262,13 +252,28 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
                 mConfig->outputFrameSize = kOutputBufferSize / sizeof(int16_t);
             }
 
-            // This is recoverable, just ignore the current frame and
-            // play silence instead.
-            memset(outHeader->pBuffer,
-                   0,
-                   mConfig->outputFrameSize * sizeof(int16_t));
+            if (decoderErr == NO_ENOUGH_MAIN_DATA_ERROR && mSawInputEos) {
+                if (!mIsFirst) {
+                    // pad the end of the stream with 529 samples, since that many samples
+                    // were trimmed off the beginning when decoding started
+                    outHeader->nOffset = 0;
+                    outHeader->nFilledLen = kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
 
-            mConfig->inputBufferUsedLength = inHeader->nFilledLen;
+                    memset(outHeader->pBuffer, 0, outHeader->nFilledLen);
+                }
+                outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+                mSignalledOutputEos = true;
+            } else {
+                // This is recoverable, just ignore the current frame and
+                // play silence instead.
+                memset(outHeader->pBuffer,
+                       0,
+                       mConfig->outputFrameSize * sizeof(int16_t));
+
+                if (inHeader) {
+                    mConfig->inputBufferUsedLength = inHeader->nFilledLen;
+                }
+            }
         } else if (mConfig->samplingRate != mSamplingRate
                 || mConfig->num_channels != mNumChannels) {
             mSamplingRate = mConfig->samplingRate;
@@ -289,7 +294,7 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
 
             outHeader->nFilledLen =
                 mConfig->outputFrameSize * sizeof(int16_t) - outHeader->nOffset;
-        } else {
+        } else if (!mSignalledOutputEos) {
             outHeader->nOffset = 0;
             outHeader->nFilledLen = mConfig->outputFrameSize * sizeof(int16_t);
         }
@@ -298,22 +303,23 @@ void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
             mAnchorTimeUs
                 + (mNumFramesOutput * 1000000ll) / mConfig->samplingRate;
 
-        outHeader->nFlags = 0;
+        if (inHeader) {
+            CHECK_GE(inHeader->nFilledLen, mConfig->inputBufferUsedLength);
 
-        CHECK_GE(inHeader->nFilledLen, mConfig->inputBufferUsedLength);
+            inHeader->nOffset += mConfig->inputBufferUsedLength;
+            inHeader->nFilledLen -= mConfig->inputBufferUsedLength;
 
-        inHeader->nOffset += mConfig->inputBufferUsedLength;
-        inHeader->nFilledLen -= mConfig->inputBufferUsedLength;
+
+            if (inHeader->nFilledLen == 0) {
+                inInfo->mOwnedByUs = false;
+                inQueue.erase(inQueue.begin());
+                inInfo = NULL;
+                notifyEmptyBufferDone(inHeader);
+                inHeader = NULL;
+            }
+        }
 
         mNumFramesOutput += mConfig->outputFrameSize / mNumChannels;
-
-        if (inHeader->nFilledLen == 0) {
-            inInfo->mOwnedByUs = false;
-            inQueue.erase(inQueue.begin());
-            inInfo = NULL;
-            notifyEmptyBufferDone(inHeader);
-            inHeader = NULL;
-        }
 
         outInfo->mOwnedByUs = false;
         outQueue.erase(outQueue.begin());
@@ -362,6 +368,8 @@ void SoftMP3::onReset() {
     pvmp3_InitDecoder(mConfig, mDecoderBuf);
     mIsFirst = true;
     mSignalledError = false;
+    mSawInputEos = false;
+    mSignalledOutputEos = false;
     mOutputPortSettingsChange = NONE;
 }
 
