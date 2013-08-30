@@ -227,6 +227,7 @@ public:
      *  - INVALID_OPERATION: AudioTrack is already initialized
      *  - BAD_VALUE: invalid parameter (channelMask, format, sampleRate...)
      *  - NO_INIT: audio server or audio hardware not initialized
+     * If status is not equal to NO_ERROR, don't call any other APIs on this AudioTrack.
      * If sharedBuffer is non-0, the frameCount parameter is ignored and
      * replaced by the shared buffer's total allocated size in frame units.
      *
@@ -249,7 +250,7 @@ public:
                             transfer_type transferType = TRANSFER_DEFAULT,
                             const audio_offload_info_t *offloadInfo = NULL);
 
-    /* Result of constructing the AudioTrack. This must be checked
+    /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
      * an uninitialized AudioTrack produces undefined results.
      * See set() method above for possible return codes.
@@ -646,7 +647,7 @@ protected:
             bool     isOffloaded() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
 
-    // may be changed if IAudioTrack is re-created
+    // Next 3 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()

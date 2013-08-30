@@ -148,10 +148,8 @@ AudioTrack::~AudioTrack()
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
-        if (mAudioTrack != 0) {
-            mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
-            mAudioTrack.clear();
-        }
+        mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
+        mAudioTrack.clear();
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
     }
@@ -222,6 +220,7 @@ status_t AudioTrack::set(
 
     AutoMutex lock(mLock);
 
+    // invariant that mAudioTrack != 0 is true only after set() returns successfully
     if (mAudioTrack != 0) {
         ALOGE("Track already in use");
         return INVALID_OPERATION;
@@ -968,6 +967,7 @@ status_t AudioTrack::createTrack_l(
         ALOGE("Could not get control block");
         return NO_INIT;
     }
+    // invariant that mAudioTrack != 0 is true only after set() returns successfully
     if (mAudioTrack != 0) {
         mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
@@ -1708,16 +1708,13 @@ status_t AudioTrack::restoreTrack_l(const char *from)
 status_t AudioTrack::setParameters(const String8& keyValuePairs)
 {
     AutoMutex lock(mLock);
-    if (mAudioTrack != 0) {
-        return mAudioTrack->setParameters(keyValuePairs);
-    } else {
-        return NO_INIT;
-    }
+    return mAudioTrack->setParameters(keyValuePairs);
 }
 
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 {
-    return INVALID_OPERATION;
+    AutoMutex lock(mLock);
+    return mAudioTrack->getTimestamp(timestamp);
 }
 
 String8 AudioTrack::getParameters(const String8& keys)
