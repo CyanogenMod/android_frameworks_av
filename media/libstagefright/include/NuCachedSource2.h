@@ -64,6 +64,10 @@ struct NuCachedSource2 : public DataSource {
             String8 *cacheConfig,
             bool *disconnectAtHighwatermark);
 
+    virtual ssize_t readAtInternal(off64_t offset, void *data, size_t size, int32_t isNonBlocking);
+
+    virtual void enableNonBlockingRead(bool flag);
+
 protected:
     virtual ~NuCachedSource2();
 
@@ -116,6 +120,8 @@ private:
     bool mDisconnectAtHighwatermark;
 
     bool mIsDownloadComplete;
+
+    bool mIsNonBlockingMode;
 
     void onMessageReceived(const sp<AMessage> &msg);
     void onFetch();

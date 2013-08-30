@@ -30,6 +30,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ExtendedCodec"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ABitReader.h>
@@ -178,6 +179,8 @@ status_t ExtendedCodec::setVideoInputFormat(
         *compressionFormat = OMX_VIDEO_CodingWMV;
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)){
         *compressionFormat = OMX_VIDEO_CodingMPEG2;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)){
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingHevc;
     } else {
         retVal = BAD_VALUE;
     }
@@ -196,6 +199,8 @@ status_t ExtendedCodec::setVideoOutputFormat(
         *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)){
         *compressionFormat = OMX_VIDEO_CodingWMV;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)){
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingHevc;
     } else {
         retVal = BAD_VALUE;
     }
@@ -827,6 +832,18 @@ void ExtendedCodec::setAC3Format(
     CHECK_EQ(err, (status_t)OK);
 }
 
+bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int aaccodectype = 0;
+    aaccodectype = property_get("media.aaccodectype", value, NULL);
+    if (aaccodectype && !strncmp("0", value, 1) &&
+        !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC,sizeof(MEDIA_MIMETYPE_AUDIO_AAC))) {
+        ALOGI("Using Hardware AAC Decoder");
+        return true;
+    }
+    return false;
+}
+
 } //namespace android
 
 #else //ENABLE_QC_AV_ENHANCEMENTS
@@ -909,6 +926,10 @@ namespace android {
     void ExtendedCodec::configureVideoCodec(
         const sp<MetaData> &meta, sp<IOMX> OMXhandle,
         const uint32_t flags, IOMX::node_id nodeID, char* componentName ) {
+    }
+
+    bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+        return false;
     }
 
     void ExtendedCodec::enableSmoothStreaming(

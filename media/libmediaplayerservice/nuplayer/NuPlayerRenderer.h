@@ -23,6 +23,7 @@
 namespace android {
 
 struct ABuffer;
+struct NuPlayerStats;
 
 struct NuPlayer::Renderer : public AHandler {
     enum Flags {
@@ -47,6 +48,8 @@ struct NuPlayer::Renderer : public AHandler {
 
     void pause();
     void resume();
+
+    void registerStats(sp<NuPlayerStats> stats);
 
     enum {
         kWhatEOS                 = 'eos ',
@@ -109,6 +112,8 @@ private:
 
     int64_t mLastPositionUpdateUs;
     int64_t mVideoLateByUs;
+
+    sp<NuPlayerStats> mStats;
 
     bool onDrainAudioQueue();
     void postDrainAudioQueue(int64_t delayUs = 0);

@@ -1336,6 +1336,11 @@ struct MyHandler : public AHandler {
         }
     }
 
+    //return in ms
+    int32_t getServerTimeout() {
+        return mKeepAliveTimeoutUs / 1000;
+    }
+
     void postKeepAlive() {
         sp<AMessage> msg = new AMessage('aliv', id());
         msg->setInt32("generation", mKeepAliveGeneration);
@@ -1414,7 +1419,7 @@ struct MyHandler : public AHandler {
 
             size_t trackIndex = 0;
             while (trackIndex < mTracks.size()
-                    && !(val == mTracks.editItemAt(trackIndex).mURL)) {
+                    && !(mTracks.editItemAt(trackIndex).mURL.endsWith(val.c_str()))) {
                 ++trackIndex;
             }
             CHECK_LT(trackIndex, mTracks.size());

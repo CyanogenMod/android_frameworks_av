@@ -25,6 +25,7 @@
 #include "NuPlayerDriver.h"
 #include "NuPlayerRenderer.h"
 #include "NuPlayerSource.h"
+#include "NuPlayerStats.h"
 #include "RTSPSource.h"
 #include "StreamingSource.h"
 #include "GenericSource.h"
@@ -128,7 +129,8 @@ NuPlayer::NuPlayer()
       mNumFramesTotal(0ll),
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
-      mStarted(false) {
+      mStarted(false),
+      mStats(NULL) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -388,13 +390,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 flags |= Renderer::FLAG_REAL_TIME;
             }
 
+            mStats = new NuPlayerStats();
+
             mRenderer = new Renderer(
                     mAudioSink,
                     new AMessage(kWhatRendererNotify, id()),
                     flags);
 
+            mRenderer->registerStats(mStats);
             looper()->registerHandler(mRenderer);
 
+            mStats->logFpsSummary();
             postScanSources();
             break;
         }
@@ -661,6 +667,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 } else {
                     mVideoEOS = true;
                 }
+                mStats->logEOS(mAudioEOS, mVideoEOS);
 
                 if (finalResult == ERROR_END_OF_STREAM) {
                     ALOGV("reached %s EOS", audio ? "audio" : "video");
@@ -718,12 +725,16 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     new SimpleAction(&NuPlayer::performReset));
 
             processDeferredActions();
+
+            mStats->logFpsSummary(false);
             break;
         }
 
         case kWhatSeek:
         {
             int64_t seekTimeUs;
+            mStats->notifySeek();
+
             CHECK(msg->findInt64("seekTimeUs", &seekTimeUs));
 
             ALOGV("kWhatSeek seekTimeUs=%lld us", seekTimeUs);
@@ -732,8 +743,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     new SimpleAction(&NuPlayer::performDecoderFlush));
 
             mDeferredActions.push_back(new SeekAction(seekTimeUs));
-
             processDeferredActions();
+
+            mStats->logSeek(seekTimeUs);
+            mStats->logFpsSummary();
+
             break;
         }
 
@@ -805,6 +819,11 @@ void NuPlayer::postScanSources() {
     msg->post();
 
     mScanSourcesPending = true;
+}
+
+// return in ms
+int32_t NuPlayer::getServerTimeout() {
+    return mSource->getServerTimeout();
 }
 
 status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
@@ -934,6 +953,8 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
         if (!audio) {
             ++mNumFramesTotal;
+            mStats->incrementTotalFrames();
+
         }
 
         dropAccessUnit = false;
@@ -943,6 +964,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                 && !IsAVCReferenceFrame(accessUnit)) {
             dropAccessUnit = true;
             ++mNumFramesDropped;
+            mStats->incrementDroppedFrames();
         }
     } while (dropAccessUnit);
 
@@ -1076,6 +1098,10 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
         return msg;
     }
     return NULL;
+}
+
+int32_t NuPlayer::Source::getServerTimeout() {
+    return -1;
 }
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {

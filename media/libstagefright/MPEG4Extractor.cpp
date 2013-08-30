@@ -15,6 +15,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2012 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 //#define LOG_NDEBUG 0
@@ -42,6 +61,7 @@
 #include <utils/String8.h>
 #ifdef ENABLE_QC_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
+#include "include/QCUtils.h"
 #endif
 
 namespace android {
@@ -192,6 +212,11 @@ MPEG4DataSource::MPEG4DataSource(const sp<DataSource> &source)
       mCachedOffset(0),
       mCachedSize(0),
       mCache(NULL) {
+      #ifdef DOLBY_UDC
+      #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+      ALOGE("@DDP MPEG4DataSource::MPEG4DataSource");
+      #endif
+      #endif //DOLBY_UDC
 }
 
 MPEG4DataSource::~MPEG4DataSource() {
@@ -299,6 +324,11 @@ static void hexdump(const void *_data, size_t size) {
 }
 
 static const char *FourCC2MIME(uint32_t fourcc) {
+    #ifdef DOLBY_UDC
+    #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+    ALOGE("@DDP FourCC2MIME");
+    #endif
+    #endif //DOLBY_UDC
     switch (fourcc) {
         case FOURCC('m', 'p', '4', 'a'):
             return MEDIA_MIMETYPE_AUDIO_AAC;
@@ -347,6 +377,11 @@ static const char *FourCC2MIME(uint32_t fourcc) {
 
         default:
             CHECK(!"should not be here.");
+            #ifdef DOLBY_UDC
+            #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+            ALOGE("@DDP FourCC2Mime default (not found)");
+            #endif
+            #endif //DOLBY_UDC
             return NULL;
     }
 }
@@ -377,6 +412,11 @@ MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
       mFileMetaData(new MetaData),
       mFirstSINF(NULL),
       mIsDrm(false) {
+      #ifdef DOLBY_UDC
+      #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+      ALOGE("@DDP MPEG4Extractor::MPEG4Extractor");
+      #endif
+      #endif //DOLBY_UDC
 }
 
 MPEG4Extractor::~MPEG4Extractor() {
@@ -1314,6 +1354,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 mLastTrack->meta->setCString(kKeyMIMEType, FourCC2MIME(chunk_type));
                 AdjustChannelsAndRate(chunk_type, &num_channels, &sample_rate);
             }
+            #ifdef DOLBY_UDC
+            #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+            ALOGE("@DDP FourCC:'%s'", FourCC2MIME(chunk_type));
+            #endif
+            #endif //DOLBY_UDC
             ALOGV("*** coding='%s' %d channels, size %d, rate %d\n",
                    chunk, num_channels, sample_size, sample_rate);
             mLastTrack->meta->setInt32(kKeyChannelCount, num_channels);
@@ -2467,6 +2512,11 @@ MPEG4Source::MPEG4Source(
       mBuffer(NULL),
       mWantsNALFragments(false),
       mSrcBuffer(NULL) {
+      #ifdef DOLBY_UDC
+      #if defined (DEBUG_LOG_DDP_DECODER_EXTRA)
+      ALOGE("@DDP MPEG4Source::MPEG4Source");
+      #endif
+      #endif //DOLBY_UDC
 
     mFormat->findInt32(kKeyCryptoMode, &mCryptoMode);
     mDefaultIVSize = 0;
@@ -3245,7 +3295,10 @@ status_t MPEG4Source::read(
 
                 return ERROR_IO;
             }
-
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+            //for AC3/EAC3 detection
+            QCUtils::helper_mpeg4extractor_checkAC3EAC3(mBuffer, mFormat, size);
+#endif
             CHECK(mBuffer != NULL);
             mBuffer->set_range(0, size);
             mBuffer->meta_data()->clear();

@@ -78,6 +78,8 @@ struct NuPlayer::Source : public AHandler {
         return false;
     }
 
+    virtual int32_t getServerTimeout();
+
 protected:
     virtual ~Source() {}
 

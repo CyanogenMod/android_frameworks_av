@@ -31,6 +31,9 @@
 #include <utils/StrongPointer.h>
 #include <media/Metadata.h>
 #include <media/stagefright/MediaSource.h>
+#include <media/stagefright/foundation/AString.h>
+#include <media/stagefright/MediaCodecList.h>
+
 #include <media/MediaRecorderBase.h>
 #include <media/stagefright/MediaExtractor.h>
 #include <camera/CameraParameters.h>
@@ -115,6 +118,16 @@ struct QCUtils {
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(sp<MediaExtractor> defaultExt,
               const sp<DataSource> &source, const char *mime);
 
+    //helper function to add media codecs with specific quirks
+    static void helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCodecInfos,
+                                     KeyedVector<AString, size_t> &mTypes,
+                                     bool encoder, const char *name,
+                                     const char *type, uint32_t quirks);
+
+    //helper function to calculate the value of quirks from strings
+    static uint32_t helper_getCodecSpecificQuirks(KeyedVector<AString, size_t> &mCodecQuirks,
+                                                  Vector<AString> quirks);
+
     static bool isAVCProfileSupported(int32_t profile);
 
     //notify stride change to ANW
@@ -122,6 +135,15 @@ struct QCUtils {
             OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
+
+        //helper function for MPEG4 Extractor to check for AC3/EAC3 contents
+    static void helper_mpeg4extractor_checkAC3EAC3(MediaBuffer *buffer, sp<MetaData> &format,
+                                                   size_t size);
+
+    static void setArbitraryModeIfInterlaced(
+            const uint8_t *ptr, const sp<MetaData> &meta);
+
+    static int32_t checkIsInterlace(sp<MetaData> &meta);
 };
 
 }

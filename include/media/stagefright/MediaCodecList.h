@@ -99,6 +99,8 @@ private:
     status_t addTypeFromAttributes(const char **attrs);
     void addType(const char *name);
 
+    friend class QCUtils;
+
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
 };
 

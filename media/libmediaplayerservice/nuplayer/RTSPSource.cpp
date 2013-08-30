@@ -30,6 +30,7 @@
 namespace android {
 
 const int64_t kNearEOSTimeoutUs = 2000000ll; // 2 secs
+const int64_t kDefaultKeepAliveTimeoutUs = 60000000ll; // 60 secs
 
 NuPlayer::RTSPSource::RTSPSource(
         const sp<AMessage> &notify,
@@ -317,6 +318,15 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
 
     mState = SEEKING;
     mHandler->seek(seekTimeUs);
+}
+
+// return in ms
+int32_t NuPlayer::RTSPSource::getServerTimeout() {
+    if (mHandler != NULL) {
+        return mHandler->getServerTimeout();
+    } else {
+        return kDefaultKeepAliveTimeoutUs/1000;
+    }
 }
 
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {

@@ -149,6 +149,9 @@ private:
         EXECUTING_TO_IDLE,
         IDLE_TO_LOADED,
         RECONFIGURING,
+        PAUSING,
+        FLUSHING,
+        PAUSED,
         ERROR
     };
 
@@ -395,6 +398,14 @@ private:
 #ifdef QCOM_HARDWARE
     size_t countOutputBuffers(BufferStatus);
 #endif
+
+    bool mSignalledReadTryAgain;
+    bool mReturnedRetry;
+    int64_t mLastSeekTimeUs;
+    ReadOptions::SeekMode mLastSeekMode;
+
+
+    bool hasDisabledPorts();
 };
 
 struct CodecCapabilities {
