@@ -411,6 +411,7 @@ private:
         virtual status_t    setMediaTimeTransform(const LinearTransform& xform,
                                                   int target);
         virtual status_t    setParameters(const String8& keyValuePairs);
+        virtual status_t    getTimestamp(AudioTimestamp& timestamp);
 
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);

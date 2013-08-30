@@ -283,6 +283,11 @@ status_t AudioFlinger::TrackHandle::setParameters(const String8& keyValuePairs) 
     return mTrack->setParameters(keyValuePairs);
 }
 
+status_t AudioFlinger::TrackHandle::getTimestamp(AudioTimestamp& timestamp)
+{
+    return INVALID_OPERATION;
+}
+
 status_t AudioFlinger::TrackHandle::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
