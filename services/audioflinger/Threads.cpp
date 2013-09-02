@@ -2278,7 +2278,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         // to be called while waiting for async write callback
         if (mType == OFFLOAD) {
             for (size_t i = 0; i < effectChains.size(); i ++) {
-                effectChains[i]->process_l();
+#ifdef QCOM_HARDWARE
+                if (effectChains[i] != mAudioFlinger->mLPAEffectChain) {
+#endif
+                    effectChains[i]->process_l();
+#ifdef QCOM_HARDWARE
+                }
+#endif
             }
         }
 
