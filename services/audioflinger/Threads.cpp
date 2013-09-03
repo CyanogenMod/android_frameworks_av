@@ -1820,7 +1820,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         } else {
             bytesWritten = framesWritten;
         }
-        status_t status = INVALID_OPERATION;    // mLatchD.mTimestamp is invalid
+        status_t status = mNormalSink->getTimestamp(mLatchD.mTimestamp);
         if (status == NO_ERROR) {
             size_t totalFramesWritten = mNormalSink->framesWritten();
             if (totalFramesWritten >= mLatchD.mTimestamp.mPosition) {
@@ -1837,6 +1837,8 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
             ALOG_ASSERT(mCallbackThread != 0);
             mCallbackThread->setWriteBlocked(true);
         }
+        // FIXME We should have an implementation of timestamps for direct output threads.
+        // They are used e.g for multichannel PCM playback over HDMI.
         bytesWritten = mOutput->stream->write(mOutput->stream,
                                                    mMixBuffer + offset, mBytesRemaining);
         if (mUseAsyncWrite &&

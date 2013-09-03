@@ -52,6 +52,8 @@ public:
     // implementation of GNWT (if any)
     virtual status_t getNextWriteTimestamp(int64_t *timestamp);
 
+    virtual status_t getTimestamp(AudioTimestamp& timestamp);
+
     // NBAIO_Sink end
 
 #if 0   // until necessary

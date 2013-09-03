@@ -88,6 +88,9 @@ public:
             // Return true if the write side of a pipe is currently shutdown.
             bool    isShutdown();
 
+            // Return NO_ERROR if there is a timestamp available
+            status_t getTimestamp(AudioTimestamp& timestamp);
+
 private:
     // A pair of methods and a helper variable which allows the reader and the
     // writer to update and observe the values of mFront and mNextRdPTS in an
