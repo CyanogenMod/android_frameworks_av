@@ -1185,6 +1185,10 @@ void NuPlayer::closeAudioSink() {
     mRenderer->closeAudioSink();
 }
 
+int64_t NuPlayer::getServerTimeoutUs() {
+    return mSource->getServerTimeoutUs();
+}
+
 status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
     if (*decoder != NULL) {
         return OK;
@@ -1679,6 +1683,10 @@ void NuPlayer::queueDecoderShutdown(
     mDeferredActions.push_back(new PostMessageAction(reply));
 
     processDeferredActions();
+}
+
+int64_t NuPlayer::Source::getServerTimeoutUs() {
+    return 0;
 }
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {

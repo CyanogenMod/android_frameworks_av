@@ -529,6 +529,10 @@ status_t NuPlayerDriver::getMetadata(
 
     Metadata meta(records);
 
+    meta.appendInt32(
+            Metadata::kServerTimeout,
+            (int32_t)(mPlayer->getServerTimeoutUs() / 1000));
+
     meta.appendBool(
             Metadata::kPauseAvailable,
             mPlayerFlags & NuPlayer::Source::FLAG_CAN_PAUSE);
