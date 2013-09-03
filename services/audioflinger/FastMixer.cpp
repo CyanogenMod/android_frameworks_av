@@ -96,6 +96,12 @@ bool FastMixer::threadLoop()
     uint32_t warmupCycles = 0;  // counter of number of loop cycles required to warmup
     NBAIO_Sink* teeSink = NULL; // if non-NULL, then duplicate write() to this non-blocking sink
     NBLog::Writer dummyLogWriter, *logWriter = &dummyLogWriter;
+    uint32_t totalNativeFramesWritten = 0;  // copied to dumpState->mFramesWritten
+
+    // next 2 fields are valid only when timestampStatus == NO_ERROR
+    AudioTimestamp timestamp;
+    uint32_t nativeFramesWrittenButNotPresented = 0;    // the = 0 is to silence the compiler
+    status_t timestampStatus = INVALID_OPERATION;
 
     for (;;) {
 
@@ -192,6 +198,7 @@ bool FastMixer::threadLoop()
                 full = false;
 #endif
                 oldTsValid = !clock_gettime(CLOCK_MONOTONIC, &oldTs);
+                timestampStatus = INVALID_OPERATION;
             } else {
                 sleepNs = FAST_HOT_IDLE_NS;
             }
@@ -382,6 +389,31 @@ bool FastMixer::threadLoop()
                 i = __builtin_ctz(currentTrackMask);
                 currentTrackMask &= ~(1 << i);
                 const FastTrack* fastTrack = &current->mFastTracks[i];
+
+                // Refresh the per-track timestamp
+                if (timestampStatus == NO_ERROR) {
+                    uint32_t trackFramesWrittenButNotPresented;
+                    uint32_t trackSampleRate = fastTrack->mSampleRate;
+                    // There is currently no sample rate conversion for fast tracks currently
+                    if (trackSampleRate != 0 && trackSampleRate != sampleRate) {
+                        trackFramesWrittenButNotPresented =
+                                ((int64_t) nativeFramesWrittenButNotPresented * trackSampleRate) /
+                                sampleRate;
+                    } else {
+                        trackFramesWrittenButNotPresented = nativeFramesWrittenButNotPresented;
+                    }
+                    uint32_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
+                    // Can't provide an AudioTimestamp before first frame presented,
+                    // or during the brief 32-bit wraparound window
+                    if (trackFramesWritten >= trackFramesWrittenButNotPresented) {
+                        AudioTimestamp perTrackTimestamp;
+                        perTrackTimestamp.mPosition =
+                                trackFramesWritten - trackFramesWrittenButNotPresented;
+                        perTrackTimestamp.mTime = timestamp.mTime;
+                        fastTrack->mBufferProvider->onTimestamp(perTrackTimestamp);
+                    }
+                }
+
                 int name = fastTrackNames[i];
                 ALOG_ASSERT(name >= 0);
                 if (fastTrack->mVolumeProvider != NULL) {
@@ -455,7 +487,8 @@ bool FastMixer::threadLoop()
             dumpState->mWriteSequence++;
             if (framesWritten >= 0) {
                 ALOG_ASSERT((size_t) framesWritten <= frameCount);
-                dumpState->mFramesWritten += framesWritten;
+                totalNativeFramesWritten += framesWritten;
+                dumpState->mFramesWritten = totalNativeFramesWritten;
                 //if ((size_t) framesWritten == frameCount) {
                 //    didFullWrite = true;
                 //}
@@ -464,6 +497,18 @@ bool FastMixer::threadLoop()
             }
             attemptedWrite = true;
             // FIXME count # of writes blocked excessively, CPU usage, etc. for dump
+
+            timestampStatus = outputSink->getTimestamp(timestamp);
+            if (timestampStatus == NO_ERROR) {
+                uint32_t totalNativeFramesPresented = timestamp.mPosition;
+                if (totalNativeFramesPresented <= totalNativeFramesWritten) {
+                    nativeFramesWrittenButNotPresented =
+                        totalNativeFramesWritten - totalNativeFramesPresented;
+                } else {
+                    // HAL reported that more frames were presented than were written
+                    timestampStatus = INVALID_OPERATION;
+                }
+            }
         }
 
         // To be exactly periodic, compute the next sleep time based on current time.
