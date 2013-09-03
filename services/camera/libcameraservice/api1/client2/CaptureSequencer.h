@@ -100,7 +100,7 @@ class CaptureSequencer:
      * Internal to CaptureSequencer
      */
     static const nsecs_t kWaitDuration = 100000000; // 100 ms
-    static const int kMaxTimeoutsForPrecaptureStart = 2; // 200 ms
+    static const int kMaxTimeoutsForPrecaptureStart = 10; // 1 sec
     static const int kMaxTimeoutsForPrecaptureEnd = 20;  // 2 sec
     static const int kMaxTimeoutsForCaptureEnd    = 40;  // 4 sec
 
