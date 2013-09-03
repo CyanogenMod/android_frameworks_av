@@ -22,6 +22,7 @@
 #include "WebmWriter.h"
 #include "StagefrightRecorder.h"
 
+#include <binder/AppOpsManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 
@@ -889,6 +890,15 @@ status_t StagefrightRecorder::start() {
     if (mVideoSource != VIDEO_SOURCE_SURFACE) {
         status = prepareInternal();
         if (status != OK) {
+            return status;
+        }
+    }
+
+    if (mAudioSource != AUDIO_SOURCE_CNT) {
+        //check permissions
+        if (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, mClientUid,
+                mClientName) != AppOpsManager::MODE_ALLOWED) {
+            ALOGE("User permission denied to record audio.");
             return status;
         }
     }
