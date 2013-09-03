@@ -86,4 +86,9 @@ ssize_t MonoPipeReader::read(void *buffer, size_t count, int64_t readPTS)
     return red;
 }
 
+void MonoPipeReader::onTimestamp(const AudioTimestamp& timestamp)
+{
+    mPipe->mTimestampMutator.push(timestamp);
+}
+
 }   // namespace android
