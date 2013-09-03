@@ -16,11 +16,13 @@
 
 #include <media/SingleStateQueue.h>
 #include <private/media/StaticAudioTrackState.h>
+#include <media/AudioTimestamp.h>
 
 // FIXME hack for gcc
 
 namespace android {
 
 template class SingleStateQueue<StaticAudioTrackState>; // typedef StaticAudioTrackSingleStateQueue
+template class SingleStateQueue<AudioTimestamp>;        // typedef AudioTimestampSingleStateQueue
 
 }
