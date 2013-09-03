@@ -63,6 +63,8 @@ struct NuPlayer : public AHandler {
     status_t getTrackInfo(Parcel* reply) const;
     status_t selectTrack(size_t trackIndex, bool select);
 
+    int32_t getServerTimeoutMs();
+
 protected:
     virtual ~NuPlayer();
 

@@ -329,6 +329,14 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
     }
 }
 
+int32_t NuPlayer::RTSPSource::getServerTimeoutMs() {
+    if (mHandler != NULL) {
+        return mHandler->getServerTimeoutMs();
+    } else {
+        return 0;
+    }
+}
+
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
     if (msg->what() == kWhatDisconnect) {
         uint32_t replyID;

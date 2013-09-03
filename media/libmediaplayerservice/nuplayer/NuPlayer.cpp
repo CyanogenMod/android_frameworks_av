@@ -896,6 +896,10 @@ void NuPlayer::postScanSources() {
     mScanSourcesPending = true;
 }
 
+int32_t NuPlayer::getServerTimeoutMs() {
+    return mSource->getServerTimeoutMs();
+}
+
 status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
     if (*decoder != NULL) {
         return OK;
@@ -1181,6 +1185,10 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
         return msg;
     }
     return NULL;
+}
+
+int32_t NuPlayer::Source::getServerTimeoutMs() {
+    return 0;
 }
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {
