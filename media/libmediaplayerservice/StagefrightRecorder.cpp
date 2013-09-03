@@ -23,6 +23,7 @@
 #endif
 #include "StagefrightRecorder.h"
 
+#include <binder/AppOpsManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 
@@ -882,7 +883,15 @@ status_t StagefrightRecorder::start() {
 sp<MediaSource> StagefrightRecorder::createAudioSource() {
 #ifdef QCOM_DIRECTTRACK
     bool tunneledSource = false;
+    int32_t res;
     const char *tunnelMime;
+
+    //check permissions
+    res = mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, mClientUid, mClientName);
+    if (res != AppOpsManager::MODE_ALLOWED) {
+        return NULL;
+    }
+
     {
         AudioParameter param;
         String8 key("tunneled-input-formats");

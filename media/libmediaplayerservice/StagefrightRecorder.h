@@ -23,6 +23,7 @@
 #include <utils/String8.h>
 
 #include <system/audio.h>
+#include <binder/AppOpsManager.h>
 
 namespace android {
 
@@ -69,6 +70,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
 private:
+    AppOpsManager mAppOpsManager;
     sp<ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
     sp<IGraphicBufferProducer> mPreviewSurface;
