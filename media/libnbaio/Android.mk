@@ -31,6 +31,9 @@ LOCAL_SHARED_LIBRARIES := \
     libcommon_time_client \
     libcutils \
     libutils \
-    liblog
+    liblog \
+    libmedia
+# This dependency on libmedia is for SingleStateQueueInstantiations.
+# Consider a separate a library for SingleStateQueueInstantiations.
 
 include $(BUILD_SHARED_LIBRARY)

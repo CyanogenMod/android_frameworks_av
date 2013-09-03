@@ -42,7 +42,10 @@ MonoPipe::MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock) :
         // mWriteTs
         mSetpoint((reqFrames * 11) / 16),
         mWriteCanBlock(writeCanBlock),
-        mIsShutdown(false)
+        mIsShutdown(false),
+        // mTimestampShared
+        mTimestampMutator(&mTimestampShared),
+        mTimestampObserver(&mTimestampShared)
 {
     CCHelper tmpHelper;
     status_t res;
