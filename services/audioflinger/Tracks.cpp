@@ -507,6 +507,10 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
     return status;
 }
 
+// releaseBuffer() is not overridden
+
+// ExtendedAudioBufferProvider interface
+
 // Note that framesReady() takes a mutex on the control block using tryLock().
 // This could result in priority inversion if framesReady() is called by the normal mixer,
 // as the normal mixer thread runs at lower
@@ -517,6 +521,11 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
 // FIXME Replace AudioTrackShared control block implementation by a non-blocking FIFO queue.
 size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
     return mAudioTrackServerProxy->framesReady();
+}
+
+size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
+{
+    return mAudioTrackServerProxy->framesReleased();
 }
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
