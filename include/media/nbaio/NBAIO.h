@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
+#include <media/AudioTimestamp.h>
 
 namespace android {
 
@@ -212,6 +213,11 @@ public:
     //          will always return kInvalidPTS.
     //  <other> Something unexpected happened internally.  Check the logs and start debugging.
     virtual status_t getNextWriteTimestamp(int64_t *ts) { return INVALID_OPERATION; }
+
+    // Returns NO_ERROR if a timestamp is available.  The timestamp includes the total number
+    // of frames presented to an external observer, together with the value of CLOCK_MONOTONIC
+    // as of this presentation count.
+    virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
 
 protected:
     NBAIO_Sink(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }

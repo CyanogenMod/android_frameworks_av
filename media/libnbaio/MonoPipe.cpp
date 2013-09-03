@@ -310,4 +310,9 @@ bool MonoPipe::isShutdown()
     return mIsShutdown;
 }
 
+status_t MonoPipe::getTimestamp(AudioTimestamp& timestamp)
+{
+    return INVALID_OPERATION;
+}
+
 }   // namespace android
