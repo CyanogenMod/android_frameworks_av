@@ -72,6 +72,8 @@ struct NuPlayer : public AHandler {
 
     sp<MetaData> getFileMeta();
 
+    int64_t getServerTimeoutUs();
+
     static const size_t kAggregateBufferSizeBytes;
 
 protected:
