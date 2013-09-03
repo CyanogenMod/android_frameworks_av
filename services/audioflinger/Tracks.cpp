@@ -736,9 +736,13 @@ status_t AudioFlinger::PlaybackThread::Track::setParameters(const String8& keyVa
 
 status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& timestamp)
 {
+    // Client should implement this using SSQ; the unpresented frame count in latch is irrelevant
+    if (isFastTrack()) {
+        return INVALID_OPERATION;
+    }
     sp<ThreadBase> thread = mThread.promote();
     if (thread == 0) {
-        return false;
+        return INVALID_OPERATION;
     }
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();

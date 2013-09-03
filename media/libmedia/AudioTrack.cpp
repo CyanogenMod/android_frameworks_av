@@ -1714,7 +1714,18 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 {
     AutoMutex lock(mLock);
-    return mAudioTrack->getTimestamp(timestamp);
+    // FIXME not implemented for fast tracks; should use proxy and SSQ
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
+        return INVALID_OPERATION;
+    }
+    if (mState != STATE_ACTIVE && mState != STATE_PAUSED) {
+        return INVALID_OPERATION;
+    }
+    status_t status = mAudioTrack->getTimestamp(timestamp);
+    if (status == NO_ERROR) {
+        timestamp.mPosition += mProxy->getEpoch();
+    }
+    return status;
 }
 
 String8 AudioTrack::getParameters(const String8& keys)
