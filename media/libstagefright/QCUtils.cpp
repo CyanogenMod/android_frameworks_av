@@ -44,6 +44,9 @@
 
 #include "include/QCUtils.h"
 
+static const int64_t kDefaultAVSyncLateMargin =  40000;
+static const int64_t kMaxAVSyncLateMargin     = 250000;
+
 #ifdef ENABLE_QC_AV_ENHANCEMENTS
 
 #include <QCMetaData.h>
@@ -201,6 +204,34 @@ void QCUtils::ShellProp::setEncoderprofile(
             ALOGW("No custom profile support for other codecs");
             break;
     }
+}
+
+int64_t QCUtils::ShellProp::getMaxAVSyncLateMargin() {
+    int64_t maxAVSyncRange = kDefaultAVSyncLateMargin;
+
+    char av_sync_late_margin[PROPERTY_VALUE_MAX];
+    //get value in ms and convert to uc
+    property_get("media.sf.set.late.margin", av_sync_late_margin, "0");
+    int64_t newLateMargin = atoi(av_sync_late_margin)* 1000;
+
+    if(newLateMargin > maxAVSyncRange) {
+        if( newLateMargin > kMaxAVSyncLateMargin ) {
+            //limit max late to kMaxAVSyncLateMargin
+            maxAVSyncRange = kMaxAVSyncLateMargin;
+            ALOGW("Range provide (%dms) is out of valid range, resetting to 250ms",
+                   newLateMargin/1000);
+        } else {
+            //set range is > kDefaultAVSyncLateMargin  and <= kMaxAVSyncLateMargin ms
+            maxAVSyncRange = newLateMargin;
+            ALOGW("setting new AV sync Range (%dms)",newLateMargin/1000);
+        }
+    } else {
+       if(newLateMargin > 0) {
+           ALOGW("Range set (%dms) is less than default, reseting value to default 40ms",
+                  newLateMargin/1000);
+       }
+    }
+    return maxAVSyncRange;
 }
 
 bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
@@ -574,6 +605,10 @@ bool QCUtils::ShellProp::isAudioDisabled() {
 
 void QCUtils::ShellProp::setEncoderprofile(
         video_encoder &videoEncoder, int32_t &videoEncoderProfile) {
+}
+
+int64_t QCUtils::ShellProp::getMaxAVSyncLateMargin() {
+     return kDefaultAVSyncLateMargin;
 }
 
 bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
