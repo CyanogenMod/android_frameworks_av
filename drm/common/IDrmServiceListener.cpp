@@ -32,19 +32,6 @@ status_t BpDrmServiceListener::notify(const DrmInfoEvent& event) {
     data.writeInt32(event.getType());
     data.writeString8(event.getMessage());
 
-    data.writeInt32(event.getCount());
-    DrmInfoEvent::KeyIterator keyIt = event.keyIterator();
-    while (keyIt.hasNext()) {
-        String8 key = keyIt.next();
-        data.writeString8(key);
-        data.writeString8(event.get(key));
-    }
-    const DrmBuffer& value = event.getData();
-    data.writeInt32(value.length);
-    if (value.length > 0) {
-        data.write(value.data, value.length);
-    }
-
     remote()->transact(NOTIFY, data, &reply);
     return reply.readInt32();
 }
@@ -62,24 +49,7 @@ status_t BnDrmServiceListener::onTransact(
         int type = data.readInt32();
         const String8& message = data.readString8();
 
-        DrmInfoEvent event(uniqueId, type, message);
-        int size = data.readInt32();
-        for (int index = 0; index < size; index++) {
-            String8 key(data.readString8());
-            String8 value(data.readString8());
-            event.put(key, value);
-        }
-        int valueSize = data.readInt32();
-        if (valueSize > 0) {
-            char* valueData = new char[valueSize];
-            data.read(valueData, valueSize);
-            DrmBuffer drmBuffer(valueData, valueSize);
-            event.setData(drmBuffer);
-            delete[] valueData;
-        }
-
-        status_t status = notify(event);
-
+        status_t status = notify(DrmInfoEvent(uniqueId, type, message));
         reply->writeInt32(status);
 
         return DRM_NO_ERROR;
