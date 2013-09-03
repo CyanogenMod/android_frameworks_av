@@ -36,6 +36,8 @@ public:
 
     // ExtendedAudioBufferProvider interface
     virtual size_t   framesReady() const;
+    virtual size_t   framesReleased() const;
+    virtual void     onTimestamp(const AudioTimestamp& timestamp);
 
 private:
     const sp<NBAIO_Source> mSource;     // the wrapped source
@@ -45,6 +47,7 @@ private:
     size_t              mOffset;    // frame offset within mAllocated of valid data
     size_t              mRemaining; // frame count within mAllocated of valid data
     size_t              mGetCount;  // buffer.frameCount of the most recent getNextBuffer
+    uint32_t            mFramesReleased;    // counter of the total number of frames released
 };
 
 }   // namespace android
