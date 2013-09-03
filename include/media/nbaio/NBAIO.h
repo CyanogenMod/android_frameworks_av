@@ -306,6 +306,10 @@ public:
     virtual ssize_t readVia(readVia_t via, size_t total, void *user,
                             int64_t readPTS, size_t block = 0);
 
+    // Invoked asynchronously by corresponding sink when a new timestamp is available.
+    // Default implementation ignores the timestamp.
+    virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
+
 protected:
     NBAIO_Source(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }
     virtual ~NBAIO_Source() { }

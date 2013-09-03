@@ -49,6 +49,8 @@ public:
 
     virtual ssize_t read(void *buffer, size_t count, int64_t readPTS);
 
+    virtual void    onTimestamp(const AudioTimestamp& timestamp);
+
     // NBAIO_Source end
 
 #if 0   // until necessary
