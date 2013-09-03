@@ -104,6 +104,8 @@ struct QCUtils {
                 int32_t &videoEncoderProfile);
 
         static bool isSmoothStreamingEnabled();
+
+        static int64_t getMaxAVSyncLateMargin();
     };
 
     //set B frames for MPEG4
