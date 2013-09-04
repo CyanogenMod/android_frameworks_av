@@ -30,6 +30,7 @@ enum {
     HDCP_SET_OBSERVER,
     HDCP_INIT_ASYNC,
     HDCP_SHUTDOWN_ASYNC,
+    HDCP_GET_CAPS,
     HDCP_ENCRYPT,
     HDCP_ENCRYPT_NATIVE,
     HDCP_DECRYPT,
@@ -82,6 +83,13 @@ struct BpHDCP : public BpInterface<IHDCP> {
         Parcel data, reply;
         data.writeInterfaceToken(IHDCP::getInterfaceDescriptor());
         remote()->transact(HDCP_SHUTDOWN_ASYNC, data, &reply);
+        return reply.readInt32();
+    }
+
+    virtual uint32_t getCaps() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHDCP::getInterfaceDescriptor());
+        remote()->transact(HDCP_GET_CAPS, data, &reply);
         return reply.readInt32();
     }
 
@@ -219,6 +227,14 @@ status_t BnHDCP::onTransact(
             CHECK_INTERFACE(IHDCP, data, reply);
 
             reply->writeInt32(shutdownAsync());
+            return OK;
+        }
+
+        case HDCP_GET_CAPS:
+        {
+            CHECK_INTERFACE(IHDCP, data, reply);
+
+            reply->writeInt32(getCaps());
             return OK;
         }
 
