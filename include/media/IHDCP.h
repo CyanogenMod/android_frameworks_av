@@ -46,6 +46,17 @@ struct IHDCP : public IInterface {
     // Request to shutdown the active HDCP session.
     virtual status_t shutdownAsync() = 0;
 
+    // Returns the capability bitmask of this HDCP session.
+    // Possible return values (please refer to HDCAPAPI.h):
+    //   HDCP_CAPS_ENCRYPT: mandatory, meaning the HDCP module can encrypt
+    //   from an input byte-array buffer to an output byte-array buffer
+    //   HDCP_CAPS_ENCRYPT_NATIVE: the HDCP module supports encryption from
+    //   a native buffer to an output byte-array buffer. The format of the
+    //   input native buffer is specific to vendor's encoder implementation.
+    //   It is the same format as that used by the encoder when
+    //   "storeMetaDataInBuffers" extension is enabled on its output port.
+    virtual uint32_t getCaps() = 0;
+
     // ENCRYPTION only:
     // Encrypt data according to the HDCP spec. "size" bytes of data are
     // available at "inData" (virtual address), "size" may not be a multiple
