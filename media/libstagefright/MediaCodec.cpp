@@ -106,6 +106,8 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
         needDedicatedLooper = true;
     } else if (!nameIsType && !strncmp(name, "OMX.TI.DUCATI1.VIDEO.", 21)) {
         needDedicatedLooper = true;
+    } else if (!nameIsType && !strncmp(name, "OMX.qcom.video.decoder.avc.secure", 33)) {
+        needDedicatedLooper = true;
     }
 
     if (needDedicatedLooper) {
