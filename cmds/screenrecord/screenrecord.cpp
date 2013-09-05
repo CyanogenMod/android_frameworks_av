@@ -37,11 +37,13 @@
 #include <media/ICrypto.h>
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <getopt.h>
+#include <sys/wait.h>
 
 using namespace android;
 
@@ -498,23 +500,61 @@ static status_t recordScreen(const char* fileName) {
 
 /*
  * Sends a broadcast to the media scanner to tell it about the new video.
+ *
+ * This is optional, but nice to have.
  */
 static status_t notifyMediaScanner(const char* fileName) {
-    String8 command("am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://");
-    command.append(fileName);
-    if (gVerbose) {
-        printf("Shell: %s\n", command.string());
-    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        int err = errno;
+        ALOGW("fork() failed: %s", strerror(err));
+        return -err;
+    } else if (pid > 0) {
+        // parent; wait for the child, mostly to make the verbose-mode output
+        // look right, but also to check for and log failures
+        int status;
+        pid_t actualPid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
+        if (actualPid != pid) {
+            ALOGW("waitpid() returned %d (errno=%d)", actualPid, errno);
+        } else if (status != 0) {
+            ALOGW("'am broadcast' exited with status=%d", status);
+        } else {
+            ALOGV("'am broadcast' exited successfully");
+        }
+    } else {
+        const char* kCommand = "/system/bin/am";
 
-    // TODO: for non-verbose mode we should suppress stdout
-    int status = system(command.string());
-    if (status < 0) {
-        fprintf(stderr, "Unable to fork shell for media scanner broadcast\n");
-        return UNKNOWN_ERROR;
-    } else if (status != 0) {
-        fprintf(stderr, "am command failed (status=%d): '%s'\n",
-                status, command.string());
-        return UNKNOWN_ERROR;
+        // child; we're single-threaded, so okay to alloc
+        String8 fileUrl("file://");
+        fileUrl.append(fileName);
+        const char* const argv[] = {
+                kCommand,
+                "broadcast",
+                "-a",
+                "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+                "-d",
+                fileUrl.string(),
+                NULL
+        };
+        if (gVerbose) {
+            printf("Executing:");
+            for (int i = 0; argv[i] != NULL; i++) {
+                printf(" %s", argv[i]);
+            }
+            putchar('\n');
+        } else {
+            // non-verbose, suppress 'am' output
+            ALOGV("closing stdout/stderr in child");
+            int fd = open("/dev/null", O_WRONLY);
+            if (fd >= 0) {
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+                close(fd);
+            }
+        }
+        execv(kCommand, const_cast<char* const*>(argv));
+        ALOGE("execv(%s) failed: %s\n", kCommand, strerror(errno));
+        exit(1);
     }
     return NO_ERROR;
 }
