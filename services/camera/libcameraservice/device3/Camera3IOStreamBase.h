@@ -43,7 +43,6 @@ class Camera3IOStreamBase :
      * Camera3Stream interface
      */
 
-    virtual status_t waitUntilIdle(nsecs_t timeout);
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
   protected:

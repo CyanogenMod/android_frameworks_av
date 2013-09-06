@@ -28,6 +28,10 @@ namespace android {
 
 /**
  * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_2_0
+ *
+ * TODO for camera2 API implementation:
+ * Does not produce notifyShutter / notifyIdle callbacks to NotificationListener
+ * Use waitUntilDrained for idle.
  */
 class Camera2Device: public CameraDeviceBase {
   public:
