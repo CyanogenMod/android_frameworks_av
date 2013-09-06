@@ -200,6 +200,13 @@ void M3UParser::MediaGroup::getTrackInfo(Parcel* reply) const {
         const Media &item = mMediaItems.itemAt(i);
         const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
         reply->writeString16(String16(lang));
+
+        if (mType == TYPE_SUBS) {
+            // TO-DO: pass in a MediaFormat instead
+            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_AUTOSELECT));
+            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_DEFAULT));
+            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_FORCED));
+        }
     }
 }
 
