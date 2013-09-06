@@ -854,6 +854,7 @@ void Camera2Client::stopPreviewL() {
             // no break
         case Parameters::RECORD:
         case Parameters::PREVIEW:
+            syncWithDevice();
             res = stopStream();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
