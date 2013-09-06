@@ -380,9 +380,9 @@ protected:
                 void        removeTracks_l(const Vector< sp<Track> >& tracksToRemove);
 
                 void        writeCallback();
-                void        setWriteBlocked(bool value);
+                void        resetWriteBlocked(uint32_t sequence);
                 void        drainCallback();
-                void        setDraining(bool value);
+                void        resetDraining(uint32_t sequence);
 
     static      int         asyncCallback(stream_callback_event_t event, void *param, void *cookie);
 
@@ -579,8 +579,19 @@ private:
     size_t                          mBytesRemaining;
     size_t                          mCurrentWriteLength;
     bool                            mUseAsyncWrite;
-    bool                            mWriteBlocked;
-    bool                            mDraining;
+    // mWriteAckSequence contains current write sequence on bits 31-1. The write sequence is
+    // incremented each time a write(), a flush() or a standby() occurs.
+    // Bit 0 is set when a write blocks and indicates a callback is expected.
+    // Bit 0 is reset by the async callback thread calling resetWriteBlocked(). Out of sequence
+    // callbacks are ignored.
+    uint32_t                        mWriteAckSequence;
+    // mDrainSequence contains current drain sequence on bits 31-1. The drain sequence is
+    // incremented each time a drain is requested or a flush() or standby() occurs.
+    // Bit 0 is set when the drain() command is called at the HAL and indicates a callback is
+    // expected.
+    // Bit 0 is reset by the async callback thread calling resetDraining(). Out of sequence
+    // callbacks are ignored.
+    uint32_t                        mDrainSequence;
     bool                            mSignalPending;
     sp<AsyncCallbackThread>         mCallbackThread;
 
@@ -757,13 +768,21 @@ public:
     virtual void        onFirstRef();
 
             void        exit();
-            void        setWriteBlocked(bool value);
-            void        setDraining(bool value);
+            void        setWriteBlocked(uint32_t sequence);
+            void        resetWriteBlocked();
+            void        setDraining(uint32_t sequence);
+            void        resetDraining();
 
 private:
     wp<OffloadThread>   mOffloadThread;
-    bool                mWriteBlocked;
-    bool                mDraining;
+    // mWriteAckSequence corresponds to the last write sequence passed by the offload thread via
+    // setWriteBlocked(). The sequence is shifted one bit to the left and the lsb is used
+    // to indicate that the callback has been received via resetWriteBlocked()
+    uint32_t            mWriteAckSequence;
+    // mDrainSequence corresponds to the last drain sequence passed by the offload thread via
+    // setDraining(). The sequence is shifted one bit to the left and the lsb is used
+    // to indicate that the callback has been received via resetDraining()
+    uint32_t            mDrainSequence;
     Condition           mWaitWorkCV;
     Mutex               mLock;
 };

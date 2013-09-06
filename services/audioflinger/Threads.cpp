@@ -954,8 +954,8 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mBytesRemaining(0),
         mCurrentWriteLength(0),
         mUseAsyncWrite(false),
-        mWriteBlocked(false),
-        mDraining(false),
+        mWriteAckSequence(0),
+        mDrainSequence(0),
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
@@ -1498,29 +1498,31 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
 void AudioFlinger::PlaybackThread::writeCallback()
 {
     ALOG_ASSERT(mCallbackThread != 0);
-    mCallbackThread->setWriteBlocked(false);
+    mCallbackThread->resetWriteBlocked();
 }
 
 void AudioFlinger::PlaybackThread::drainCallback()
 {
     ALOG_ASSERT(mCallbackThread != 0);
-    mCallbackThread->setDraining(false);
+    mCallbackThread->resetDraining();
 }
 
-void AudioFlinger::PlaybackThread::setWriteBlocked(bool value)
+void AudioFlinger::PlaybackThread::resetWriteBlocked(uint32_t sequence)
 {
     Mutex::Autolock _l(mLock);
-    mWriteBlocked = value;
-    if (!value) {
+    // reject out of sequence requests
+    if ((mWriteAckSequence & 1) && (sequence == mWriteAckSequence)) {
+        mWriteAckSequence &= ~1;
         mWaitWorkCV.signal();
     }
 }
 
-void AudioFlinger::PlaybackThread::setDraining(bool value)
+void AudioFlinger::PlaybackThread::resetDraining(uint32_t sequence)
 {
     Mutex::Autolock _l(mLock);
-    mDraining = value;
-    if (!value) {
+    // reject out of sequence requests
+    if ((mDrainSequence & 1) && (sequence == mDrainSequence)) {
+        mDrainSequence &= ~1;
         mWaitWorkCV.signal();
     }
 }
@@ -1841,9 +1843,11 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         // Direct output and offload threads
         size_t offset = (mCurrentWriteLength - mBytesRemaining) / sizeof(int16_t);
         if (mUseAsyncWrite) {
-            mWriteBlocked = true;
+            ALOGW_IF(mWriteAckSequence & 1, "threadLoop_write(): out of sequence write request");
+            mWriteAckSequence += 2;
+            mWriteAckSequence |= 1;
             ALOG_ASSERT(mCallbackThread != 0);
-            mCallbackThread->setWriteBlocked(true);
+            mCallbackThread->setWriteBlocked(mWriteAckSequence);
         }
         // FIXME We should have an implementation of timestamps for direct output threads.
         // They are used e.g for multichannel PCM playback over HDMI.
@@ -1852,9 +1856,9 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         if (mUseAsyncWrite &&
                 ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {
             // do not wait for async callback in case of error of full write
-            mWriteBlocked = false;
+            mWriteAckSequence &= ~1;
             ALOG_ASSERT(mCallbackThread != 0);
-            mCallbackThread->setWriteBlocked(false);
+            mCallbackThread->setWriteBlocked(mWriteAckSequence);
         }
     }
 
@@ -1869,9 +1873,10 @@ void AudioFlinger::PlaybackThread::threadLoop_drain()
     if (mOutput->stream->drain) {
         ALOGV("draining %s", (mMixerStatus == MIXER_DRAIN_TRACK) ? "early" : "full");
         if (mUseAsyncWrite) {
-            mDraining = true;
+            ALOGW_IF(mDrainSequence & 1, "threadLoop_drain(): out of sequence drain request");
+            mDrainSequence |= 1;
             ALOG_ASSERT(mCallbackThread != 0);
-            mCallbackThread->setDraining(true);
+            mCallbackThread->setDraining(mDrainSequence);
         }
         mOutput->stream->drain(mOutput->stream,
             (mMixerStatus == MIXER_DRAIN_TRACK) ? AUDIO_DRAIN_EARLY_NOTIFY
@@ -2621,11 +2626,12 @@ void AudioFlinger::PlaybackThread::threadLoop_standby()
     ALOGV("Audio hardware entering standby, mixer %p, suspend count %d", this, mSuspended);
     mOutput->stream->common.standby(&mOutput->stream->common);
     if (mUseAsyncWrite != 0) {
-        mWriteBlocked = false;
-        mDraining = false;
+        // discard any pending drain or write ack by incrementing sequence
+        mWriteAckSequence = (mWriteAckSequence + 2) & ~1;
+        mDrainSequence = (mDrainSequence + 2) & ~1;
         ALOG_ASSERT(mCallbackThread != 0);
-        mCallbackThread->setWriteBlocked(false);
-        mCallbackThread->setDraining(false);
+        mCallbackThread->setWriteBlocked(mWriteAckSequence);
+        mCallbackThread->setDraining(mDrainSequence);
     }
 }
 
@@ -3714,8 +3720,8 @@ AudioFlinger::AsyncCallbackThread::AsyncCallbackThread(
         const sp<AudioFlinger::OffloadThread>& offloadThread)
     :   Thread(false /*canCallJava*/),
         mOffloadThread(offloadThread),
-        mWriteBlocked(false),
-        mDraining(false)
+        mWriteAckSequence(0),
+        mDrainSequence(0)
 {
 }
 
@@ -3731,8 +3737,8 @@ void AudioFlinger::AsyncCallbackThread::onFirstRef()
 bool AudioFlinger::AsyncCallbackThread::threadLoop()
 {
     while (!exitPending()) {
-        bool writeBlocked;
-        bool draining;
+        uint32_t writeAckSequence;
+        uint32_t drainSequence;
 
         {
             Mutex::Autolock _l(mLock);
@@ -3740,18 +3746,21 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
             if (exitPending()) {
                 break;
             }
-            writeBlocked = mWriteBlocked;
-            draining = mDraining;
-            ALOGV("AsyncCallbackThread mWriteBlocked %d mDraining %d", mWriteBlocked, mDraining);
+            ALOGV("AsyncCallbackThread mWriteAckSequence %d mDrainSequence %d",
+                  mWriteAckSequence, mDrainSequence);
+            writeAckSequence = mWriteAckSequence;
+            mWriteAckSequence &= ~1;
+            drainSequence = mDrainSequence;
+            mDrainSequence &= ~1;
         }
         {
             sp<AudioFlinger::OffloadThread> offloadThread = mOffloadThread.promote();
             if (offloadThread != 0) {
-                if (writeBlocked == false) {
-                    offloadThread->setWriteBlocked(false);
+                if (writeAckSequence & 1) {
+                    offloadThread->resetWriteBlocked(writeAckSequence >> 1);
                 }
-                if (draining == false) {
-                    offloadThread->setDraining(false);
+                if (drainSequence & 1) {
+                    offloadThread->resetDraining(drainSequence >> 1);
                 }
             }
         }
@@ -3767,20 +3776,36 @@ void AudioFlinger::AsyncCallbackThread::exit()
     mWaitWorkCV.broadcast();
 }
 
-void AudioFlinger::AsyncCallbackThread::setWriteBlocked(bool value)
+void AudioFlinger::AsyncCallbackThread::setWriteBlocked(uint32_t sequence)
 {
     Mutex::Autolock _l(mLock);
-    mWriteBlocked = value;
-    if (!value) {
+    // bit 0 is cleared
+    mWriteAckSequence = sequence << 1;
+}
+
+void AudioFlinger::AsyncCallbackThread::resetWriteBlocked()
+{
+    Mutex::Autolock _l(mLock);
+    // ignore unexpected callbacks
+    if (mWriteAckSequence & 2) {
+        mWriteAckSequence |= 1;
         mWaitWorkCV.signal();
     }
 }
 
-void AudioFlinger::AsyncCallbackThread::setDraining(bool value)
+void AudioFlinger::AsyncCallbackThread::setDraining(uint32_t sequence)
 {
     Mutex::Autolock _l(mLock);
-    mDraining = value;
-    if (!value) {
+    // bit 0 is cleared
+    mDrainSequence = sequence << 1;
+}
+
+void AudioFlinger::AsyncCallbackThread::resetDraining()
+{
+    Mutex::Autolock _l(mLock);
+    // ignore unexpected callbacks
+    if (mDrainSequence & 2) {
+        mDrainSequence |= 1;
         mWaitWorkCV.signal();
     }
 }
@@ -3868,7 +3893,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             }
             tracksToRemove->add(track);
         } else if (track->framesReady() && track->isReady() &&
-                !track->isPaused() && !track->isTerminated()) {
+                !track->isPaused() && !track->isTerminated() && !track->isStopping_2()) {
             ALOGVV("OffloadThread: track %d s=%08x [OK]", track->name(), cblk->mServer);
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
@@ -3911,6 +3936,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     standbyTime = systemTime() + standbyDelay;
                     if (last) {
                         mixerStatus = MIXER_DRAIN_TRACK;
+                        mDrainSequence += 2;
                         if (mHwPaused) {
                             // It is possible to move from PAUSED to STOPPING_1 without
                             // a resume so we must ensure hardware is running
@@ -3921,7 +3947,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 }
             } else if (track->isStopping_2()) {
                 // Drain has completed, signal presentation complete
-                if (!mDraining || !last) {
+                if (!(mDrainSequence & 1) || !last) {
                     track->mState = TrackBase::STOPPED;
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
@@ -3966,8 +3992,9 @@ void AudioFlinger::OffloadThread::flushOutput_l()
 // must be called with thread mutex locked
 bool AudioFlinger::OffloadThread::waitingAsyncCallback_l()
 {
-    ALOGV("waitingAsyncCallback_l mWriteBlocked %d mDraining %d", mWriteBlocked, mDraining);
-    if (mUseAsyncWrite && (mWriteBlocked || mDraining)) {
+    ALOGVV("waitingAsyncCallback_l mWriteAckSequence %d mDrainSequence %d",
+          mWriteAckSequence, mDrainSequence);
+    if (mUseAsyncWrite && ((mWriteAckSequence & 1) || (mDrainSequence & 1))) {
         return true;
     }
     return false;
@@ -4003,11 +4030,12 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mPausedWriteLength = 0;
     mPausedBytesRemaining = 0;
     if (mUseAsyncWrite) {
-        mWriteBlocked = false;
-        mDraining = false;
+        // discard any pending drain or write ack by incrementing sequence
+        mWriteAckSequence = (mWriteAckSequence + 2) & ~1;
+        mDrainSequence = (mDrainSequence + 2) & ~1;
         ALOG_ASSERT(mCallbackThread != 0);
-        mCallbackThread->setWriteBlocked(false);
-        mCallbackThread->setDraining(false);
+        mCallbackThread->setWriteBlocked(mWriteAckSequence);
+        mCallbackThread->setDraining(mDrainSequence);
     }
 }
 
