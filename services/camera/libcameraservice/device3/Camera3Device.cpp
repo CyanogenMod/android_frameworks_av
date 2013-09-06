@@ -281,6 +281,14 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     }
     write(fd, lines.string(), lines.size());
 
+    {
+        lines = String8("    Last request sent:\n");
+        write(fd, lines.string(), lines.size());
+
+        CameraMetadata lastRequest = getLatestRequest();
+        lastRequest.dump(fd, /*verbosity*/2, /*indentation*/6);
+    }
+
     if (mHal3Device != NULL) {
         lines = String8("    HAL device dump:\n");
         write(fd, lines.string(), lines.size());
@@ -1397,6 +1405,43 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
     }
 }
 
+CameraMetadata Camera3Device::getLatestRequest() {
+    ALOGV("%s", __FUNCTION__);
+
+    bool locked = false;
+
+    /**
+     * Why trylock instead of autolock?
+     *
+     * We want to be able to call this function from
+     * dumpsys, which often happens during deadlocks.
+     */
+    for (size_t i = 0; i < kDumpLockAttempts; ++i) {
+        if (mLock.tryLock() == NO_ERROR) {
+            locked = true;
+            break;
+        } else {
+            usleep(kDumpSleepDuration);
+        }
+    }
+
+    if (!locked) {
+        ALOGW("%s: Possible deadlock detected", __FUNCTION__);
+    }
+
+    CameraMetadata retVal;
+
+    if (mRequestThread != NULL) {
+        retVal = mRequestThread->getLatestRequest();
+    }
+
+    if (locked) {
+        mLock.unlock();
+    }
+
+    return retVal;
+}
+
 /**
  * RequestThread inner class methods
  */
@@ -1677,6 +1722,14 @@ bool Camera3Device::RequestThread::threadLoop() {
         return false;
     }
 
+    // Update the latest request sent to HAL
+    if (request.settings != NULL) { // Don't update them if they were unchanged
+        Mutex::Autolock al(mLatestRequestMutex);
+
+        camera_metadata_t* cloned = clone_camera_metadata(request.settings);
+        mLatestRequest.acquire(cloned);
+    }
+
     if (request.settings != NULL) {
         nextRequest->mSettings.unlock(request.settings);
     }
@@ -1727,6 +1780,14 @@ bool Camera3Device::RequestThread::threadLoop() {
 
 
     return true;
+}
+
+CameraMetadata Camera3Device::RequestThread::getLatestRequest() const {
+    Mutex::Autolock al(mLatestRequestMutex);
+
+    ALOGV("RequestThread::%s", __FUNCTION__);
+
+    return mLatestRequest;
 }
 
 void Camera3Device::RequestThread::cleanUpFailedRequest(
