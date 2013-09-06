@@ -438,6 +438,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
     ATRACE_CALL();
     SharedParameters::Lock l(client->getParameters());
     Vector<uint8_t> outputStreams;
+    uint8_t captureIntent = static_cast<uint8_t>(ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE);
 
     /**
      * Set up output streams in the request
@@ -456,6 +457,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
 
     if (l.mParameters.state == Parameters::VIDEO_SNAPSHOT) {
         outputStreams.push(client->getRecordingStreamId());
+        captureIntent = static_cast<uint8_t>(ANDROID_CONTROL_CAPTURE_INTENT_VIDEO_SNAPSHOT);
     }
 
     res = mCaptureRequest.update(ANDROID_REQUEST_OUTPUT_STREAMS,
@@ -463,6 +465,10 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
     if (res == OK) {
         res = mCaptureRequest.update(ANDROID_REQUEST_ID,
                 &mCaptureId, 1);
+    }
+    if (res == OK) {
+        res = mCaptureRequest.update(ANDROID_CONTROL_CAPTURE_INTENT,
+                &captureIntent, 1);
     }
     if (res == OK) {
         res = mCaptureRequest.sort();
