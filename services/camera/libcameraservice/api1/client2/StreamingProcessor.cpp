@@ -412,7 +412,7 @@ int StreamingProcessor::getRecordingStreamId() const {
 }
 
 status_t StreamingProcessor::startStream(StreamType type,
-        const Vector<uint8_t> &outputStreams) {
+        const Vector<int32_t> &outputStreams) {
     ATRACE_CALL();
     status_t res;
 
@@ -830,8 +830,8 @@ void StreamingProcessor::releaseAllRecordingFramesLocked() {
     mRecordingHeapFree = mRecordingHeapCount;
 }
 
-bool StreamingProcessor::isStreamActive(const Vector<uint8_t> &streams,
-        uint8_t recordingStreamId) {
+bool StreamingProcessor::isStreamActive(const Vector<int32_t> &streams,
+        int32_t recordingStreamId) {
     for (size_t i = 0; i < streams.size(); i++) {
         if (streams[i] == recordingStreamId) {
             return true;

@@ -437,7 +437,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
     status_t res;
     ATRACE_CALL();
     SharedParameters::Lock l(client->getParameters());
-    Vector<uint8_t> outputStreams;
+    Vector<int32_t> outputStreams;
     uint8_t captureIntent = static_cast<uint8_t>(ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE);
 
     /**
