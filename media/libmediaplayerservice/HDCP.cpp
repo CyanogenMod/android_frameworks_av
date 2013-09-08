@@ -107,11 +107,7 @@ uint32_t HDCP::getCaps() {
         return NO_INIT;
     }
 
-    // TO-DO:
-    // Only support HDCP_CAPS_ENCRYPT (byte-array to byte-array) for now.
-    // use mHDCPModule->getCaps() when the HDCP libraries get updated.
-    //return mHDCPModule->getCaps();
-    return HDCPModule::HDCP_CAPS_ENCRYPT;
+    return mHDCPModule->getCaps();
 }
 
 status_t HDCP::encrypt(
