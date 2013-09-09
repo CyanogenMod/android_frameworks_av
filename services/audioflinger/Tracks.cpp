@@ -543,7 +543,17 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
 
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
-        Mutex::Autolock _l(thread->mLock);
+        //TODO: remove when effect offload is implemented
+        if (isOffloaded()) {
+            Mutex::Autolock _laf(thread->mAudioFlinger->mLock);
+            Mutex::Autolock _lth(thread->mLock);
+            sp<EffectChain> ec = thread->getEffectChain_l(mSessionId);
+            if (thread->mAudioFlinger->isGlobalEffectEnabled_l() || (ec != 0 && ec->isEnabled())) {
+                invalidate();
+                return PERMISSION_DENIED;
+            }
+        }
+        Mutex::Autolock _lth(thread->mLock);
         track_state state = mState;
         // here the track could be either new, or restarted
         // in both cases "unstop" the track

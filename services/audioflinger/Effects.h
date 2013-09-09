@@ -303,6 +303,10 @@ public:
 
     void clearInputBuffer();
 
+    // At least one effect in the chain is enabled
+    bool isEnabled();
+
+
     void dump(int fd, const Vector<String16>& args);
 
 protected:
