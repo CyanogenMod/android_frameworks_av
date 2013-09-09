@@ -247,13 +247,13 @@ status_t ZslProcessor3::pushToReprocess(int32_t requestId) {
         uint8_t requestType = ANDROID_REQUEST_TYPE_REPROCESS;
         res = request.update(ANDROID_REQUEST_TYPE,
                 &requestType, 1);
-        uint8_t inputStreams[1] =
-                { static_cast<uint8_t>(mZslStreamId) };
+        int32_t inputStreams[1] =
+                { mZslStreamId };
         if (res == OK) request.update(ANDROID_REQUEST_INPUT_STREAMS,
                 inputStreams, 1);
         // TODO: Shouldn't we also update the latest preview frame?
-        uint8_t outputStreams[1] =
-                { static_cast<uint8_t>(client->getCaptureStreamId()) };
+        int32_t outputStreams[1] =
+                { client->getCaptureStreamId() };
         if (res == OK) request.update(ANDROID_REQUEST_OUTPUT_STREAMS,
                 outputStreams, 1);
         res = request.update(ANDROID_REQUEST_ID,

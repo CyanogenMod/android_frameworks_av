@@ -743,7 +743,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         return res;
     }
 
-    Vector<uint8_t> outputStreams;
+    Vector<int32_t> outputStreams;
     bool callbacksEnabled = (params.previewCallbackFlags &
             CAMERA_FRAME_CALLBACK_FLAG_ENABLE_MASK) ||
             params.previewCallbackSurface;
@@ -999,7 +999,7 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         return res;
     }
 
-    Vector<uint8_t> outputStreams;
+    Vector<int32_t> outputStreams;
     outputStreams.push(getPreviewStreamId());
     outputStreams.push(getRecordingStreamId());
 
