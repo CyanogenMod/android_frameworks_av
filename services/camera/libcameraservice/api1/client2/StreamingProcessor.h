@@ -64,7 +64,7 @@ class StreamingProcessor:
         RECORD
     };
     status_t startStream(StreamType type,
-            const Vector<uint8_t> &outputStreams);
+            const Vector<int32_t> &outputStreams);
 
     // Toggle between paused and unpaused. Stream must be started first.
     status_t togglePauseStream(bool pause);
@@ -97,7 +97,7 @@ class StreamingProcessor:
     StreamType mActiveRequest;
     bool mPaused;
 
-    Vector<uint8_t> mActiveStreamIds;
+    Vector<int32_t> mActiveStreamIds;
 
     // Preview-related members
     int32_t mPreviewRequestId;
@@ -132,8 +132,8 @@ class StreamingProcessor:
     void releaseAllRecordingFramesLocked();
 
     // Determine if the specified stream is currently in use
-    static bool isStreamActive(const Vector<uint8_t> &streams,
-            uint8_t recordingStreamId);
+    static bool isStreamActive(const Vector<int32_t> &streams,
+            int32_t recordingStreamId);
 };
 
 

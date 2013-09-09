@@ -137,7 +137,7 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
      * Write in the output stream IDs which we calculate from
      * the capture request's list of surface targets
      */
-    Vector<uint8_t> outputStreamIds;
+    Vector<int32_t> outputStreamIds;
     outputStreamIds.setCapacity(request->mSurfaceList.size());
     for (size_t i = 0; i < request->mSurfaceList.size(); ++i) {
         sp<Surface> surface = request->mSurfaceList[i];

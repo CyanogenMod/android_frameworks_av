@@ -978,7 +978,7 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
             newRequest->mSettings.find(ANDROID_REQUEST_INPUT_STREAMS);
     if (inputStreams.count > 0) {
         if (mInputStream == NULL ||
-                mInputStream->getId() != inputStreams.data.u8[0]) {
+                mInputStream->getId() != inputStreams.data.i32[0]) {
             CLOGE("Request references unknown input stream %d",
                     inputStreams.data.u8[0]);
             return NULL;
@@ -1007,7 +1007,7 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
     }
 
     for (size_t i = 0; i < streams.count; i++) {
-        int idx = mOutputStreams.indexOfKey(streams.data.u8[i]);
+        int idx = mOutputStreams.indexOfKey(streams.data.i32[i]);
         if (idx == NAME_NOT_FOUND) {
             CLOGE("Request references unknown stream %d",
                     streams.data.u8[i]);
