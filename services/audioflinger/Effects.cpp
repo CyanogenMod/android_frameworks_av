@@ -594,17 +594,6 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
                 h->setEnabled(enabled);
             }
         }
-//EL_FIXME not sure why this is needed?
-//        sp<ThreadBase> thread = mThread.promote();
-//        if (thread == 0) {
-//            return NO_ERROR;
-//        }
-//
-//        if ((thread->type() == ThreadBase::OFFLOAD) && (enabled)) {
-//            PlaybackThread *p = (PlaybackThread *)thread.get();
-//            ALOGV("setEnabled: Offload, invalidate tracks");
-//            p->invalidateTracks(AUDIO_STREAM_MUSIC);
-//        }
     }
     return NO_ERROR;
 }
@@ -943,6 +932,17 @@ status_t AudioFlinger::EffectHandle::enable()
             thread->checkSuspendOnEffectEnabled(mEffect, false, mEffect->sessionId());
         }
         mEnabled = false;
+    } else {
+        //TODO: remove when effect offload is implemented
+        if (thread != 0) {
+            if ((thread->type() == ThreadBase::OFFLOAD)) {
+                PlaybackThread *t = (PlaybackThread *)thread.get();
+                t->invalidateTracks(AUDIO_STREAM_MUSIC);
+            }
+            if (mEffect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
+                thread->mAudioFlinger->onGlobalEffectEnable();
+            }
+        }
     }
     return status;
 }
@@ -1727,6 +1727,18 @@ void AudioFlinger::EffectChain::checkSuspendOnEffectEnabled(const sp<EffectModul
         desc->mEffect.clear();
         effect->setSuspended(false);
     }
+}
+
+bool AudioFlinger::EffectChain::isEnabled()
+{
+    Mutex::Autolock _l(mLock);
+    size_t size = mEffects.size();
+    for (size_t i = 0; i < size; i++) {
+        if (mEffects[i]->isEnabled()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }; // namespace android

@@ -98,6 +98,11 @@ size_t AudioFlinger::mTeeSinkOutputFrames = kTeeSinkOutputFramesDefault;
 size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
 #endif
 
+//TODO: remove when effect offload is implemented
+// In order to avoid invalidating offloaded tracks each time a Visualizer is turned on and off
+// we define a minimum time during which a global effect is considered enabled.
+static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
+
 // ----------------------------------------------------------------------------
 
 static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
@@ -141,7 +146,8 @@ AudioFlinger::AudioFlinger()
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false),
       mIsLowRamDevice(true),
-      mIsDeviceTypeKnown(false)
+      mIsDeviceTypeKnown(false),
+      mGlobalEffectEnableTime(0)
 {
     getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
@@ -2312,6 +2318,38 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
     }
 
     return NO_ERROR;
+}
+
+bool AudioFlinger::isGlobalEffectEnabled_l()
+{
+    if (mGlobalEffectEnableTime != 0 &&
+            ((systemTime() - mGlobalEffectEnableTime) < kMinGlobalEffectEnabletimeNs)) {
+        return true;
+    }
+
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        sp<EffectChain> ec =
+                mPlaybackThreads.valueAt(i)->getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
+        if (ec != 0 && ec->isEnabled()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AudioFlinger::onGlobalEffectEnable()
+{
+    Mutex::Autolock _l(mLock);
+
+    mGlobalEffectEnableTime = systemTime();
+
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
+        if (t->mType == ThreadBase::OFFLOAD) {
+            t->invalidateTracks(AUDIO_STREAM_MUSIC);
+        }
+    }
+
 }
 
 struct Entry {

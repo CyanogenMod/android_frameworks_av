@@ -466,6 +466,10 @@ private:
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
 
+                //TODO: remove when effect offload is implemented
+                bool isGlobalEffectEnabled_l();
+                void onGlobalEffectEnable();
+
     class AudioHwDevice {
     public:
         enum Flags {
@@ -641,6 +645,8 @@ public:
 private:
     bool    mIsLowRamDevice;
     bool    mIsDeviceTypeKnown;
+    //TODO: remove when effect offload is implemented
+    nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
