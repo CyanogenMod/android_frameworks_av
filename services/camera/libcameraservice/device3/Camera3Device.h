@@ -127,6 +127,8 @@ class Camera3Device :
     virtual status_t flush();
 
   private:
+    static const size_t        kDumpLockAttempts  = 10;
+    static const size_t        kDumpSleepDuration = 100000; // 0.10 sec
     static const size_t        kInFlightWarnLimit = 20;
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
     struct                     RequestTrigger;
@@ -173,6 +175,13 @@ class Camera3Device :
                                             mOutputStreams;
     };
     typedef List<sp<CaptureRequest> > RequestList;
+
+    /**
+     * Get the last request submitted to the hal by the request thread.
+     *
+     * Takes mLock.
+     */
+    virtual CameraMetadata getLatestRequest();
 
     /**
      * Lock-held version of waitUntilDrained. Will transition to IDLE on
@@ -285,6 +294,12 @@ class Camera3Device :
          */
         status_t waitUntilRequestProcessed(int32_t requestId, nsecs_t timeout);
 
+        /**
+         * Get the latest request that was sent to the HAL
+         * with process_capture_request.
+         */
+        CameraMetadata getLatestRequest() const;
+
       protected:
 
         virtual bool threadLoop();
@@ -343,10 +358,11 @@ class Camera3Device :
 
         uint32_t           mFrameNumber;
 
-        Mutex              mLatestRequestMutex;
+        mutable Mutex      mLatestRequestMutex;
         Condition          mLatestRequestSignal;
         // android.request.id for latest process_capture_request
         int32_t            mLatestRequestId;
+        CameraMetadata     mLatestRequest;
 
         typedef KeyedVector<uint32_t/*tag*/, RequestTrigger> TriggerMap;
         Mutex              mTriggerMutex;
