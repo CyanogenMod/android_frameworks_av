@@ -79,6 +79,16 @@ public:
     status_t setOrientationHint(int degrees);
 
     /**
+     * Set the location.
+     * @param latitude The latitude in degree x 1000. Its value must be in the range
+     * [-900000, 900000].
+     * @param longitude The longitude in degree x 1000. Its value must be in the range
+     * [-1800000, 1800000].
+     * @return OK if no error.
+     */
+    status_t setLocation(int latitude, int longitude);
+
+    /**
      * Stop muxing.
      * This method is a blocking call. Depending on how
      * much data is bufferred internally, the time needed for stopping
