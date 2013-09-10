@@ -159,6 +159,9 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     err = codec->configure(format, NULL, NULL,
             MediaCodec::CONFIGURE_FLAG_ENCODE);
     if (err != NO_ERROR) {
+        codec->release();
+        codec.clear();
+
         fprintf(stderr, "ERROR: unable to configure codec (err=%d)\n", err);
         return err;
     }
@@ -167,6 +170,9 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     sp<IGraphicBufferProducer> bufferProducer;
     err = codec->createInputSurface(&bufferProducer);
     if (err != NO_ERROR) {
+        codec->release();
+        codec.clear();
+
         fprintf(stderr,
             "ERROR: unable to create encoder input surface (err=%d)\n", err);
         return err;
@@ -175,6 +181,9 @@ static status_t prepareEncoder(float displayFps, sp<MediaCodec>* pCodec,
     ALOGV("Starting codec");
     err = codec->start();
     if (err != NO_ERROR) {
+        codec->release();
+        codec.clear();
+
         fprintf(stderr, "ERROR: unable to start codec (err=%d)\n", err);
         return err;
     }
@@ -453,6 +462,7 @@ static status_t recordScreen(const char* fileName) {
     sp<MediaCodec> encoder;
     sp<IGraphicBufferProducer> bufferProducer;
     err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
+
     if (err != NO_ERROR && !gSizeSpecified) {
         if (gVideoWidth != kFallbackWidth && gVideoHeight != kFallbackHeight) {
             ALOGV("Retrying with 720p");
@@ -470,7 +480,12 @@ static status_t recordScreen(const char* fileName) {
     // Configure virtual display.
     sp<IBinder> dpy;
     err = prepareVirtualDisplay(mainDpyInfo, bufferProducer, &dpy);
-    if (err != NO_ERROR) return err;
+    if (err != NO_ERROR) {
+        encoder->release();
+        encoder.clear();
+
+        return err;
+    }
 
     // Configure, but do not start, muxer.
     sp<MediaMuxer> muxer = new MediaMuxer(fileName,
@@ -481,7 +496,12 @@ static status_t recordScreen(const char* fileName) {
 
     // Main encoder loop.
     err = runEncoder(encoder, muxer);
-    if (err != NO_ERROR) return err;
+    if (err != NO_ERROR) {
+        encoder->release();
+        encoder.clear();
+
+        return err;
+    }
 
     if (gVerbose) {
         printf("Stopping encoder and muxer\n");
