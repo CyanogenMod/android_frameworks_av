@@ -74,9 +74,9 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWMAVersion           , "wma-version"            , INT32},  // int32_t
    {kKeyWMAAdvEncOpt1        , "wma-adv-enc-opt1"       , INT32},  // int16_t
    {kKeyWMAAdvEncOpt2        , "wma-adv-enc-opt2"       , INT32},  // int32_t
-   {kKeyWMAFormatTag         , "wma-format-tag"         , INT64},  // int64_t
-   {kKeyWMABitspersample     , "wma-bits-per-sample"    , INT64},  // int64_t
-   {kKeyWMAVirPktSize        , "wma-vir-pkt-size"       , INT64},  // int64_t
+   {kKeyWMAFormatTag         , "wma-format-tag"         , INT32},  // int32_t
+   {kKeyWMABitspersample     , "wma-bits-per-sample"    , INT32},  // int32_t
+   {kKeyWMAVirPktSize        , "wma-vir-pkt-size"       , INT32},  // int32_t
    {kKeyWMAChannelMask       , "wma-channel-mask"       , INT32},  // int32_t
 
    {kKeyFileFormat           , "file-format"            , STRING},  // cstring
