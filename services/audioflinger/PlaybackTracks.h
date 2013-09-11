@@ -117,7 +117,10 @@ protected:
     enum {FS_INVALID, FS_FILLING, FS_FILLED, FS_ACTIVE};
     mutable uint8_t     mFillingUpStatus;
     int8_t              mRetryCount;
-    const sp<IMemory>   mSharedBuffer;
+
+    // see comment at AudioFlinger::PlaybackThread::Track::~Track for why this can't be const
+    sp<IMemory>         mSharedBuffer;
+
     bool                mResetDone;
     const audio_stream_type_t mStreamType;
     int                 mName;      // track name on the normal mixer,

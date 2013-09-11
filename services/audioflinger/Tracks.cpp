@@ -364,6 +364,16 @@ AudioFlinger::PlaybackThread::Track::Track(
 AudioFlinger::PlaybackThread::Track::~Track()
 {
     ALOGV("PlaybackThread::Track destructor");
+
+    // The destructor would clear mSharedBuffer,
+    // but it will not push the decremented reference count,
+    // leaving the client's IMemory dangling indefinitely.
+    // This prevents that leak.
+    if (mSharedBuffer != 0) {
+        mSharedBuffer.clear();
+        // flush the binder command buffer
+        IPCThreadState::self()->flushCommands();
+    }
 }
 
 void AudioFlinger::PlaybackThread::Track::destroy()
