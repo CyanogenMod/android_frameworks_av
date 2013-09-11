@@ -1396,6 +1396,11 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             uint32_t flags;
             CHECK(msg->findInt32("flags", (int32_t *)&flags));
 
+            sp<NuPlayerDriver> driver = mDriver.promote();
+            if (driver != NULL) {
+                driver->notifyFlagsChanged(flags);
+            }
+
             if ((mSourceFlags & Source::FLAG_DYNAMIC_DURATION)
                     && (!(flags & Source::FLAG_DYNAMIC_DURATION))) {
                 cancelPollDuration();

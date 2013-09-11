@@ -358,11 +358,10 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t flags = 0;
 
             if (mHandler->isSeekable()) {
-                flags = FLAG_CAN_PAUSE | FLAG_CAN_SEEK;
-
-                // Seeking 10secs forward or backward is a very expensive
-                // operation for rtsp, so let's not enable that.
-                // The user can always use the seek bar.
+                flags = FLAG_CAN_PAUSE
+                        | FLAG_CAN_SEEK
+                        | FLAG_CAN_SEEK_BACKWARD
+                        | FLAG_CAN_SEEK_FORWARD;
             }
 
             notifyFlagsChanged(flags);
