@@ -177,19 +177,19 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
     else if (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_MPEG)) {
         mFormat = AUDIO_FORMAT_MP3;
         ALOGD("TunnelPlayer::start AUDIO_FORMAT_MP3");
-    } else {
-        ALOGE("TunnelPlayer::UNSUPPORTED");
     }
 #ifdef ENABLE_QC_AV_ENHANCEMENTS
-    if (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AC3)) {
+    else if (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AC3)) {
         mFormat = AUDIO_FORMAT_AC3;
         ALOGV("TunnelPlayer::start AUDIO_FORMAT_AC3");
-    }
-    if (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_EAC3)) {
+    } else if (!strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_EAC3)) {
         mFormat = AUDIO_FORMAT_EAC3;
         ALOGV("TunnelPlayer::start AUDIO_FORMAT_EAC3");
     }
 #endif
+    else {
+        ALOGE("TunnelPlayer::UNSUPPORTED");
+    }
 
 
     CHECK(success);
