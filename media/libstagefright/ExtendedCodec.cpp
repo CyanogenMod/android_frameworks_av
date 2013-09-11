@@ -168,13 +168,14 @@ const char* ExtendedCodec::overrideComponentName(
     if(quirks & kRequiresWMAProComponent)
     {
        int32_t version = 0;
-       CHECK(meta->findInt32(kKeyWMAVersion, &version));
-       if(version==kTypeWMA) {
-          componentName = "OMX.qcom.audio.decoder.wma";
-       } else if(version==kTypeWMAPro) {
-          componentName = "OMX.qcom.audio.decoder.wma10Pro";
-       } else if(version==kTypeWMALossLess) {
-          componentName = "OMX.qcom.audio.decoder.wmaLossLess";
+       if(!(meta->findInt32(kKeyWMAVersion, &version))) {
+          if(version==kTypeWMA) {
+             componentName = "OMX.qcom.audio.decoder.wma";
+          } else if(version==kTypeWMAPro) {
+             componentName = "OMX.qcom.audio.decoder.wma10Pro";
+          } else if(version==kTypeWMALossLess) {
+             componentName = "OMX.qcom.audio.decoder.wmaLossLess";
+          }
        }
     }
     return componentName;
@@ -185,13 +186,14 @@ void ExtendedCodec::overrideComponentName(
     if(quirks & kRequiresWMAProComponent)
     {
        int32_t version = 0;
-       CHECK(msg->findInt32(getMsgKey(kKeyWMAVersion), &version));
-       if(version==kTypeWMA) {
-          componentName->setTo("OMX.qcom.audio.decoder.wma");
-       } else if(version==kTypeWMAPro) {
-          componentName->setTo("OMX.qcom.audio.decoder.wma10Pro");
-       } else if(version==kTypeWMALossLess) {
-          componentName->setTo("OMX.qcom.audio.decoder.wmaLossLess");
+       if(!(msg->findInt32(getMsgKey(kKeyWMAVersion), &version))) {
+          if(version==kTypeWMA) {
+             componentName->setTo("OMX.qcom.audio.decoder.wma");
+          } else if(version==kTypeWMAPro) {
+             componentName->setTo("OMX.qcom.audio.decoder.wma10Pro");
+          } else if(version==kTypeWMALossLess) {
+             componentName->setTo("OMX.qcom.audio.decoder.wmaLossLess");
+          }
        }
     }
 }
