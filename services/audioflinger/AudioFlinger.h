@@ -15,6 +15,25 @@
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
+**
+** This file was modified by Dolby Laboratories, Inc. The portions of the
+** code that are surrounded by "DOLBY..." are copyrighted and
+** licensed separately, as follows:
+**
+**  (C) 2012-2013 Dolby Laboratories, Inc.
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**    http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+**
 */
 
 #ifndef ANDROID_AUDIO_FLINGER_H
@@ -86,8 +105,12 @@ static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
 #define MAX_GAIN 4096.0f
 #define MAX_GAIN_INT 0x1000
-
 #define INCLUDING_FROM_AUDIOFLINGER_H
+
+#ifdef DOLBY_DAP_QDSP
+#define DS_PARAM_PREGAIN 0x10
+void setPregain(const void *volume);
+#endif //DOLBY_DAP_QDSP
 
 static uint32_t getInputChannelCount(uint32_t channels) {
     // only mono, stereo, and 5.1 are supported for input sources
@@ -339,7 +362,10 @@ private:
     // incremented by 2 when screen state changes, bit 0 == 1 means "off"
     // AudioFlinger::setParameters() updates, other threads read w/o lock
     static uint32_t         mScreenState;
-
+#ifdef DOLBY_DAP_QDSP
+    static bool gMixerTracksActive;
+    static bool gDirectOutputTrackActive;
+#endif //DOLBY_DAP_QDSP
     // Internal dump utilities.
     static const int kDumpLockRetries = 50;
     static const int kDumpLockSleepUs = 20000;
