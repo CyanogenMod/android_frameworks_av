@@ -590,7 +590,7 @@ status_t AudioRecord::openRecord_l(
 
     // update proxy
     delete mProxy;
-    mProxy = new AudioRecordClientProxy(cblk, mBuffers, frameCount, mFrameSize);
+    mProxy = new AudioRecordClientProxy(cblk, mBuffers, mCblk->frameCount_, mFrameSize);
 
     return NO_ERROR;
 }
