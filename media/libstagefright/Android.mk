@@ -114,6 +114,9 @@ ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
             LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
             LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
         endif
+        ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+        endif
     endif
 LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO
 LOCAL_SRC_FILES += TunnelPlayer.cpp
