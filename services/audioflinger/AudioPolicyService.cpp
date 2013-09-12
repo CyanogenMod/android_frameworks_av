@@ -302,9 +302,14 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return 0;
     }
     // already checked by client, but double-check in case the client wrapper is bypassed
-    if (uint32_t(inputSource) >= AUDIO_SOURCE_CNT) {
+    if (inputSource >= AUDIO_SOURCE_CNT && inputSource != AUDIO_SOURCE_HOTWORD) {
         return 0;
     }
+
+    if ((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) {
+        return 0;
+    }
+
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
@@ -314,7 +319,10 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return input;
     }
     // create audio pre processors according to input source
-    ssize_t index = mInputSources.indexOfKey(inputSource);
+    audio_source_t aliasSource = (inputSource == AUDIO_SOURCE_HOTWORD) ?
+                                    AUDIO_SOURCE_VOICE_RECOGNITION : inputSource;
+
+    ssize_t index = mInputSources.indexOfKey(aliasSource);
     if (index < 0) {
         return input;
     }
