@@ -43,6 +43,13 @@ bool captureAudioOutputAllowed() {
     return ok;
 }
 
+bool captureHotwordAllowed() {
+    static const String16 sCaptureHotwordAllowed("android.permission.CAPTURE_AUDIO_HOTWORD");
+    bool ok = checkCallingPermission(sCaptureHotwordAllowed);
+    if (!ok) ALOGE("android.permission.CAPTURE_AUDIO_HOTWORD");
+    return ok;
+}
+
 bool settingsAllowed() {
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
     static const String16 sAudioSettings("android.permission.MODIFY_AUDIO_SETTINGS");

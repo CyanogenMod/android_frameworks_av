@@ -1770,6 +1770,16 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
     }
 }
 
+void AudioFlinger::RecordThread::RecordTrack::invalidate()
+{
+    // FIXME should use proxy, and needs work
+    audio_track_cblk_t* cblk = mCblk;
+    android_atomic_or(CBLK_INVALID, &cblk->mFlags);
+    android_atomic_release_store(0x40000000, &cblk->mFutex);
+    // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
+    (void) __futex_syscall3(&cblk->mFutex, FUTEX_WAKE, INT_MAX);
+}
+
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
