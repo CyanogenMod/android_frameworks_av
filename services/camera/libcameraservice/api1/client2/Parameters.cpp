@@ -58,13 +58,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     res = buildQuirks();
     if (res != OK) return res;
 
-    camera_metadata_ro_entry_t availableProcessedSizes =
-        staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, 2);
-    if (!availableProcessedSizes.count) return NO_INIT;
+    const Size MAX_PREVIEW_SIZE = { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT };
+    res = getFilteredPreviewSizes(MAX_PREVIEW_SIZE, &availablePreviewSizes);
+    if (res != OK) return res;
 
     // TODO: Pick more intelligently
-    previewWidth = availableProcessedSizes.data.i32[0];
-    previewHeight = availableProcessedSizes.data.i32[1];
+    previewWidth = availablePreviewSizes[0].width;
+    previewHeight = availablePreviewSizes[0].height;
     videoWidth = previewWidth;
     videoHeight = previewHeight;
 
@@ -75,12 +75,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                     previewWidth, previewHeight));
     {
         String8 supportedPreviewSizes;
-        for (size_t i=0; i < availableProcessedSizes.count; i += 2) {
+        for (size_t i = 0; i < availablePreviewSizes.size(); i++) {
             if (i != 0) supportedPreviewSizes += ",";
             supportedPreviewSizes += String8::format("%dx%d",
-                    availableProcessedSizes.data.i32[i],
-                    availableProcessedSizes.data.i32[i+1]);
+                    availablePreviewSizes[i].width,
+                    availablePreviewSizes[i].height);
         }
+        ALOGV("Supported preview sizes are: %s", supportedPreviewSizes.string());
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
                 supportedPreviewSizes);
         params.set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES,
@@ -1072,15 +1073,13 @@ status_t Parameters::set(const String8& paramString) {
                     validatedParams.previewWidth, validatedParams.previewHeight);
             return BAD_VALUE;
         }
-        camera_metadata_ro_entry_t availablePreviewSizes =
-            staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES);
-        for (i = 0; i < availablePreviewSizes.count; i += 2 ) {
-            if ((availablePreviewSizes.data.i32[i] ==
+        for (i = 0; i < availablePreviewSizes.size(); i++) {
+            if ((availablePreviewSizes[i].width ==
                     validatedParams.previewWidth) &&
-                (availablePreviewSizes.data.i32[i+1] ==
+                (availablePreviewSizes[i].height ==
                     validatedParams.previewHeight)) break;
         }
-        if (i == availablePreviewSizes.count) {
+        if (i == availablePreviewSizes.size()) {
             ALOGE("%s: Requested preview size %d x %d is not supported",
                     __FUNCTION__, validatedParams.previewWidth,
                     validatedParams.previewHeight);
@@ -1618,15 +1617,13 @@ status_t Parameters::set(const String8& paramString) {
                     __FUNCTION__);
             return BAD_VALUE;
         }
-        camera_metadata_ro_entry_t availableVideoSizes =
-            staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES);
-        for (i = 0; i < availableVideoSizes.count; i += 2 ) {
-            if ((availableVideoSizes.data.i32[i] ==
+        for (i = 0; i < availablePreviewSizes.size(); i++) {
+            if ((availablePreviewSizes[i].width ==
                     validatedParams.videoWidth) &&
-                (availableVideoSizes.data.i32[i+1] ==
+                (availablePreviewSizes[i].height ==
                     validatedParams.videoHeight)) break;
         }
-        if (i == availableVideoSizes.count) {
+        if (i == availablePreviewSizes.size()) {
             ALOGE("%s: Requested video size %d x %d is not supported",
                     __FUNCTION__, validatedParams.videoWidth,
                     validatedParams.videoHeight);
@@ -2445,6 +2442,38 @@ int Parameters::normalizedYToArray(int y) const {
     }
 
     return cropYToArray(normalizedYToCrop(y));
+}
+
+status_t Parameters::getFilteredPreviewSizes(Size limit, Vector<Size> *sizes) {
+    if (info == NULL) {
+        ALOGE("%s: Static metadata is not initialized", __FUNCTION__);
+        return NO_INIT;
+    }
+    if (sizes == NULL) {
+        ALOGE("%s: Input size is null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    const size_t SIZE_COUNT = sizeof(Size) / sizeof(int);
+    camera_metadata_ro_entry_t availableProcessedSizes =
+        staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, SIZE_COUNT);
+    if (availableProcessedSizes.count < SIZE_COUNT) return BAD_VALUE;
+
+    Size previewSize;
+    for (size_t i = 0; i < availableProcessedSizes.count; i += SIZE_COUNT) {
+        previewSize.width = availableProcessedSizes.data.i32[i];
+        previewSize.height = availableProcessedSizes.data.i32[i+1];
+            // Need skip the preview sizes that are too large.
+            if (previewSize.width <= limit.width &&
+                    previewSize.height <= limit.height) {
+                sizes->push(previewSize);
+            }
+    }
+    if (sizes->isEmpty()) {
+        ALOGE("generated preview size list is empty!!");
+        return BAD_VALUE;
+    }
+    return OK;
 }
 
 Parameters::CropRegion Parameters::calculateCropRegion(

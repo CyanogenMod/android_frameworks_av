@@ -105,6 +105,11 @@ struct Parameters {
     };
     Vector<Area> focusingAreas;
 
+    struct Size {
+        int32_t width;
+        int32_t height;
+    };
+
     int32_t exposureCompensation;
     bool autoExposureLock;
     bool autoWhiteBalanceLock;
@@ -159,6 +164,9 @@ struct Parameters {
 
     // Number of zoom steps to simulate
     static const unsigned int NUM_ZOOM_STEPS = 100;
+    // Max preview size allowed
+    static const unsigned int MAX_PREVIEW_WIDTH = 1920;
+    static const unsigned int MAX_PREVIEW_HEIGHT = 1080;
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.
@@ -317,6 +325,10 @@ private:
     int cropYToNormalized(int y) const;
     int normalizedXToCrop(int x) const;
     int normalizedYToCrop(int y) const;
+
+    Vector<Size> availablePreviewSizes;
+    // Get size list (that are no larger than limit) from static metadata.
+    status_t getFilteredPreviewSizes(Size limit, Vector<Size> *sizes);
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed
