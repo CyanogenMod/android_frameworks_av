@@ -61,7 +61,7 @@ struct VisualizerContext {
     uint32_t mCaptureSize;
     uint32_t mScalingMode;
     uint8_t mState;
-    uint8_t mLastCaptureIdx;
+    uint32_t mLastCaptureIdx;
     uint32_t mLatency;
     struct timespec mBufferUpdateTime;
     uint8_t mCaptureBuf[CAPTURE_BUF_SIZE];
@@ -499,7 +499,7 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
                 memcpy(pReplyData,
                        pContext->mCaptureBuf + CAPTURE_BUF_SIZE + capturePoint,
                        size);
-                pReplyData += size;
+                pReplyData = (char *)pReplyData + size;
                 captureSize -= size;
                 capturePoint = 0;
             }

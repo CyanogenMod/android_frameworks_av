@@ -111,6 +111,10 @@ public:
     bool             purgeHandles();
     void             lock() { mLock.lock(); }
     void             unlock() { mLock.unlock(); }
+    bool             isOffloadable() const
+                        { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
+    status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
+    bool             isOffloaded() const;
 
     void             dump(int fd, const Vector<String16>& args);
 
@@ -144,6 +148,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
                                     // sending disable command.
     uint32_t mDisableWaitCnt;       // current process() calls count during disable period.
     bool     mSuspended;            // effect is suspended: temporarily disabled by framework
+    bool     mOffloaded;            // effect is currently offloaded to the audio DSP
 };
 
 // The EffectHandle class implements the IEffect interface. It provides resources
@@ -303,8 +308,8 @@ public:
 
     void clearInputBuffer();
 
-    // At least one effect in the chain is enabled
-    bool isEnabled();
+    // At least one non offloadable effect in the chain is enabled
+    bool isNonOffloadableEnabled();
 
 
     void dump(int fd, const Vector<String16>& args);

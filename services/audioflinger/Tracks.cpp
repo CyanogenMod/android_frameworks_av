@@ -553,12 +553,12 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
 
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
-        //TODO: remove when effect offload is implemented
         if (isOffloaded()) {
             Mutex::Autolock _laf(thread->mAudioFlinger->mLock);
             Mutex::Autolock _lth(thread->mLock);
             sp<EffectChain> ec = thread->getEffectChain_l(mSessionId);
-            if (thread->mAudioFlinger->isGlobalEffectEnabled_l() || (ec != 0 && ec->isEnabled())) {
+            if (thread->mAudioFlinger->isNonOffloadableGlobalEffectEnabled_l() ||
+                    (ec != 0 && ec->isNonOffloadableEnabled())) {
                 invalidate();
                 return PERMISSION_DENIED;
             }
@@ -797,7 +797,11 @@ status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
                 return INVALID_OPERATION;
             }
             srcThread->removeEffect_l(effect);
-            playbackThread->addEffect_l(effect);
+            status = playbackThread->addEffect_l(effect);
+            if (status != NO_ERROR) {
+                srcThread->addEffect_l(effect);
+                return INVALID_OPERATION;
+            }
             // removeEffect_l() has stopped the effect if it was active so it must be restarted
             if (effect->state() == EffectModule::ACTIVE ||
                     effect->state() == EffectModule::STOPPING) {
