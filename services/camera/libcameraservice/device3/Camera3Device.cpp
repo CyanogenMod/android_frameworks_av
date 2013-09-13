@@ -1630,6 +1630,19 @@ bool Camera3Device::RequestThread::threadLoop() {
     // If the request is the same as last, or we had triggers last time
     if (mPrevRequest != nextRequest || triggersMixedIn) {
         /**
+         * HAL workaround:
+         * Insert a dummy trigger ID if a trigger is set but no trigger ID is
+         */
+        res = addDummyTriggerIds(nextRequest);
+        if (res != OK) {
+            SET_ERR("RequestThread: Unable to insert dummy trigger IDs "
+                    "(capture request %d, HAL device: %s (%d)",
+                    (mFrameNumber+1), strerror(-res), res);
+            cleanUpFailedRequest(request, nextRequest, outputBuffers);
+            return false;
+        }
+
+        /**
          * The request should be presorted so accesses in HAL
          *   are O(logn). Sidenote, sorting a sorted metadata is nop.
          */
@@ -2047,6 +2060,40 @@ status_t Camera3Device::RequestThread::removeTriggers(
     return OK;
 }
 
+status_t Camera3Device::RequestThread::addDummyTriggerIds(
+        const sp<CaptureRequest> &request) {
+    // Trigger ID 0 has special meaning in the HAL2 spec, so avoid it here
+    static const int32_t dummyTriggerId = 1;
+    status_t res;
+
+    CameraMetadata &metadata = request->mSettings;
+
+    // If AF trigger is active, insert a dummy AF trigger ID if none already
+    // exists
+    camera_metadata_entry afTrigger = metadata.find(ANDROID_CONTROL_AF_TRIGGER);
+    camera_metadata_entry afId = metadata.find(ANDROID_CONTROL_AF_TRIGGER_ID);
+    if (afTrigger.count > 0 &&
+            afTrigger.data.u8[0] != ANDROID_CONTROL_AF_TRIGGER_IDLE &&
+            afId.count == 0) {
+        res = metadata.update(ANDROID_CONTROL_AF_TRIGGER_ID, &dummyTriggerId, 1);
+        if (res != OK) return res;
+    }
+
+    // If AE precapture trigger is active, insert a dummy precapture trigger ID
+    // if none already exists
+    camera_metadata_entry pcTrigger =
+            metadata.find(ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER);
+    camera_metadata_entry pcId = metadata.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
+    if (pcTrigger.count > 0 &&
+            pcTrigger.data.u8[0] != ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER_IDLE &&
+            pcId.count == 0) {
+        res = metadata.update(ANDROID_CONTROL_AE_PRECAPTURE_ID,
+                &dummyTriggerId, 1);
+        if (res != OK) return res;
+    }
+
+    return OK;
+}
 
 
 /**
