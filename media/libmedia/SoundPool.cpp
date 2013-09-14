@@ -18,7 +18,7 @@
 #define LOG_TAG "SoundPool"
 #include <utils/Log.h>
 
-//#define USE_SHARED_MEM_BUFFER
+#define USE_SHARED_MEM_BUFFER
 
 #include <media/AudioTrack.h>
 #include <media/mediaplayer.h>
@@ -602,7 +602,7 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
         // do not create a new audio track if current track is compatible with sample parameters
 #ifdef USE_SHARED_MEM_BUFFER
         newTrack = new AudioTrack(streamType, sampleRate, sample->format(),
-                channels, sample->getIMemory(), AUDIO_OUTPUT_FLAG_NONE, callback, userData);
+                channels, sample->getIMemory(), AUDIO_OUTPUT_FLAG_FAST, callback, userData);
 #else
         newTrack = new AudioTrack(streamType, sampleRate, sample->format(),
                 channels, frameCount, AUDIO_OUTPUT_FLAG_FAST, callback, userData,
