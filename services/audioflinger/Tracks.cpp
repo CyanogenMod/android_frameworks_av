@@ -402,7 +402,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type Fmt Chn mask Session fCount S F SRate  "
+    result.append("   Name Client Type      Fmt Chn mask Session fCount S F SRate  "
                   "L dB  R dB    Server Main buf  Aux Buf Flags UndFrmCnt\n");
 }
 
@@ -467,7 +467,7 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[7], size-7, " %6u %4u %3u %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
+    snprintf(&buffer[7], size-7, " %6u %4u %08X %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
                                  "%08X %08X %08X 0x%03X %9u%c\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
