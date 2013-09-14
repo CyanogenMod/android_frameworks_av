@@ -109,6 +109,9 @@ static const uint32_t kMinNormalMixBufferSizeMs = 20;
 // maximum normal mix buffer size
 static const uint32_t kMaxNormalMixBufferSizeMs = 24;
 
+// Offloaded output thread standby delay: allows track transition without going to standby
+static const nsecs_t kOffloadStandbyDelayNs = seconds(1);
+
 // Whether to use fast mixer
 static const enum {
     FastMixer_Never,    // never initialize or use: for debugging only
@@ -2145,13 +2148,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 mWaitWorkCV.wait(mLock);
                 ALOGV("async completion/wake");
                 acquireWakeLock_l();
+                standbyTime = systemTime() + standbyDelay;
+                sleepTime = 0;
                 if (exitPending()) {
                     break;
                 }
-                if (!mActiveTracks.size() && (systemTime() > standbyTime)) {
-                    continue;
-                }
-                sleepTime = 0;
             } else if ((!mActiveTracks.size() && systemTime() > standbyTime) ||
                                    isSuspended()) {
                 // put audio hardware into standby after short delay
@@ -3711,7 +3712,11 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
     // use shorter standby delay as on normal output to release
     // hardware resources as soon as possible
-    standbyDelay = microseconds(activeSleepTime*2);
+    if (audio_is_linear_pcm(mFormat)) {
+        standbyDelay = microseconds(activeSleepTime*2);
+    } else {
+        standbyDelay = kOffloadStandbyDelayNs;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -3847,6 +3852,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     size_t count = mActiveTracks.size();
 
     mixer_state mixerStatus = MIXER_IDLE;
+    bool doHwPause = false;
+    bool doHwResume = false;
+
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
         sp<Track> t = mActiveTracks[i].promote();
@@ -3878,7 +3886,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             track->setPaused();
             if (last) {
                 if (!mHwPaused) {
-                    mOutput->stream->pause(mOutput->stream);
+                    doHwPause = true;
                     mHwPaused = true;
                 }
                 // If we were part way through writing the mixbuffer to
@@ -3911,7 +3919,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
 
             if (last) {
                 if (mHwPaused) {
-                    mOutput->stream->resume(mOutput->stream);
+                    doHwResume = true;
                     mHwPaused = false;
                     // threadLoop_mix() will handle the case that we need to
                     // resume an interrupted write
@@ -3973,9 +3981,16 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         processVolume_l(track, last);
     }
 
+    // make sure the pause/flush/resume sequence is executed in the right order
+    if (doHwPause) {
+        mOutput->stream->pause(mOutput->stream);
+    }
     if (mFlushPending) {
         flushHw_l();
         mFlushPending = false;
+    }
+    if (doHwResume) {
+        mOutput->stream->resume(mOutput->stream);
     }
 
     // remove all the tracks that need to be...
