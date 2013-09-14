@@ -3509,7 +3509,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
-                mLeftVolFloat = mRightVolFloat = 0;
+                // make sure processVolume_l() will apply new volume even if 0
+                mLeftVolFloat = mRightVolFloat = -1.0;
                 if (track->mState == TrackBase::RESUMING) {
                     track->mState = TrackBase::ACTIVE;
                 }
@@ -3887,7 +3888,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             ALOGVV("OffloadThread: track %d s=%08x [OK]", track->name(), cblk->mServer);
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
-                mLeftVolFloat = mRightVolFloat = 0;
+                // make sure processVolume_l() will apply new volume even if 0
+                mLeftVolFloat = mRightVolFloat = -1.0;
                 if (track->mState == TrackBase::RESUMING) {
                     if (mPausedBytesRemaining) {
                         // Need to continue write that was interrupted
