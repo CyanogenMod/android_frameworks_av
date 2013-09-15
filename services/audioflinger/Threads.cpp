@@ -349,8 +349,10 @@ status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
 
 #ifdef QCOM_HARDWARE
 void AudioFlinger::ThreadBase::effectConfigChanged() {
+    mAudioFlinger->mLock.lock();
     ALOGV("New effect is being added to LPA chain, Notifying LPA Direct Track");
     mAudioFlinger->audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
+    mAudioFlinger->mLock.unlock();
 }
 #endif
 
@@ -901,11 +903,19 @@ void AudioFlinger::ThreadBase::lockEffectChains_l(
         Vector< sp<AudioFlinger::EffectChain> >& effectChains)
 {
     effectChains = mEffectChains;
+#ifdef QCOM_HARDWARE
+    mAudioFlinger->mAllChainsLocked = true;
+#endif
     for (size_t i = 0; i < mEffectChains.size(); i++) {
 #ifdef QCOM_HARDWARE
-        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain) {
 #endif
             mEffectChains[i]->lock();
+#ifdef QCOM_HARDWARE
+        } else {
+            mAudioFlinger-> mAllChainsLocked = false;
+        }
+#endif
     }
 }
 
@@ -914,7 +924,7 @@ void AudioFlinger::ThreadBase::unlockEffectChains(
 {
     for (size_t i = 0; i < effectChains.size(); i++) {
 #ifdef QCOM_HARDWARE
-        if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain)
+        if (mAudioFlinger->mAllChainsLocked || effectChains[i] != mAudioFlinger->mLPAEffectChain)
 #endif
             effectChains[i]->unlock();
     }
@@ -4691,8 +4701,8 @@ ssize_t AudioFlinger::DirectAudioTrack::write(const void *buffer, size_t size) {
         return 0;
     }
 
-    if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
-        mEffectLock.lock();
+    mEffectLock.lock();
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA && !mEffectsPool.empty()) {
         List<BufferInfo>::iterator it = mEffectsPool.begin();
         BufferInfo buf = *it;
         mEffectsPool.erase(it);
@@ -4701,16 +4711,18 @@ ssize_t AudioFlinger::DirectAudioTrack::write(const void *buffer, size_t size) {
         mEffectsPool.push_back(buf);
         mAudioFlinger->applyEffectsOn(static_cast<void *>(this),
             (int16_t*)buf.localBuf, (int16_t*)buffer, (int)size, true);
-        mEffectLock.unlock();
     }
+    mEffectLock.unlock();
     ALOGV("out of Writing to AudioSessionOut");
     return mOutputDesc->stream->write(mOutputDesc->stream, buffer, size);
 }
 
 void AudioFlinger::DirectAudioTrack::flush() {
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+        mEffectLock.lock();
         mEffectsPool.clear();
         mEffectsPool = mBufPool;
+        mEffectLock.unlock();
     }
     mOutputDesc->stream->flush(mOutputDesc->stream);
 }
@@ -4791,6 +4803,7 @@ void AudioFlinger::DirectAudioTrack::deallocateBufPool() {
 
     //1. Deallocate the local memory
     //2. Remove all the buffers from bufpool
+    mEffectLock.lock();
     while (!mBufPool.empty())  {
         List<BufferInfo>::iterator it = mBufPool.begin();
         BufferInfo &memBuffer = *it;
@@ -4802,6 +4815,8 @@ void AudioFlinger::DirectAudioTrack::deallocateBufPool() {
         ALOGV("Removing from bufpool");
         mBufPool.erase(it);
     }
+    mEffectsPool.clear();
+    mEffectLock.unlock();
 
     free(mEffectsThreadScratchBuffer);
     mEffectsThreadScratchBuffer = NULL;

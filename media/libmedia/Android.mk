@@ -79,6 +79,16 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 LOCAL_SRC_FILES += \
     IDirectTrack.cpp \
     IDirectTrackClient.cpp
+
+ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    LOCAL_CFLAGS += -DQCOM_VOIP_ENABLED
+else
+ifeq ($(BOARD_QCOM_VOIP_ENABLED),true)
+    LOCAL_CFLAGS += -DQCOM_VOIP_ENABLED
+endif
+endif
+endif
 endif
 
 # for <cutils/atomic-inline.h>

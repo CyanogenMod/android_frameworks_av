@@ -1,7 +1,8 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
  * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
- * Not a Contribution.
+ * Not a Contribution, Apache license notifications and license are retained
+ * for attribution purposes only.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +22,18 @@
 #define LPA_PLAYER_H_
 
 #include "AudioPlayer.h"
+#include <media/IAudioFlinger.h>
 #include <utils/threads.h>
 #include <utils/List.h>
 #include <utils/Vector.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <binder/IServiceManager.h>
+#include <linux/unistd.h>
 #include <include/TimedEventQueue.h>
+#include <binder/BinderService.h>
+#include <binder/MemoryDealer.h>
+#include <powermanager/IPowerManager.h>
 
 // Pause timeout = 3sec
 #define LPA_PAUSE_TIMEOUT_USEC 3000000
@@ -75,6 +82,7 @@ public:
     virtual bool reachedEOS(status_t *finalStatus);
 
     static int mObjectsAlive;
+    static bool mLpaInProgress;
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
@@ -82,7 +90,9 @@ private:
     bool mIsAudioRouted;
     bool mStarted;
     bool mPaused;
+    bool mA2DPEnabled;
     int32_t mChannelMask;
+    int32_t numChannels;
     int32_t mNumOutputChannels;
     int32_t mNumInputChannels;
     int32_t mSampleRate;
@@ -92,36 +102,122 @@ private:
     int64_t mTimePlayed;
     int64_t mNumFramesPlayed;
     int64_t mNumFramesPlayedSysTimeUs;
+    int64_t mNumA2DPBytesPlayed;
 
-    pthread_t mDecoderThread;
+    void clearPowerManager();
+
+    class PMDeathRecipient : public IBinder::DeathRecipient {
+        public:
+                        PMDeathRecipient(void *obj){parentClass = (LPAPlayer *)obj;}
+            virtual     ~PMDeathRecipient() {}
+
+            // IBinder::DeathRecipient
+            virtual     void        binderDied(const wp<IBinder>& who);
+
+        private:
+                        LPAPlayer *parentClass;
+                        PMDeathRecipient(const PMDeathRecipient&);
+                        PMDeathRecipient& operator = (const PMDeathRecipient&);
+
+        friend class LPAPlayer;
+    };
+
+    friend class PMDeathRecipient;
+
+    void        acquireWakeLock();
+    void        releaseWakeLock();
+
+    sp<IPowerManager>       mPowerManager;
+    sp<IBinder>             mWakeLockToken;
+    sp<PMDeathRecipient>    mDeathRecipient;
+
+    pthread_t decoderThread;
+
+    pthread_t A2DPNotificationThread;
 
     //Kill Thread boolean
-    bool mKillDecoderThread;
+    bool killDecoderThread;
+
+
+
+    bool killA2DPNotificationThread;
 
     //Thread alive boolean
-    bool mDecoderThreadAlive;
+    bool decoderThreadAlive;
+
+
+    bool a2dpNotificationThreadAlive;
 
     //Declare the condition Variables and Mutex
 
-    Mutex mDecoderMutex;
+    pthread_mutex_t decoder_mutex;
 
-    Condition mDecoderCv;
+    pthread_mutex_t audio_sink_setup_mutex;
+
+    pthread_mutex_t a2dp_notification_mutex;
+
+
+
+    pthread_cond_t decoder_cv;
+
+
+    pthread_cond_t a2dp_notification_cv;
+
 
     // make sure Decoder thread has exited
-    void requestAndWaitForDecoderThreadExit_l();
+    void requestAndWaitForDecoderThreadExit();
+
+
+    // make sure the Effects thread also exited
+    void requestAndWaitForA2DPNotificationThreadExit();
 
     static void *decoderThreadWrapper(void *me);
     void decoderThreadEntry();
+    static void *A2DPNotificationThreadWrapper(void *me);
+    void A2DPNotificationThreadEntry();
 
     void createThreads();
 
+    volatile bool mIsA2DPEnabled;
+
+    //Structure to recieve the BT notification from the flinger.
+    class AudioFlingerLPAdecodeClient: public IBinder::DeathRecipient, public BnAudioFlingerClient {
+    public:
+        AudioFlingerLPAdecodeClient(void *obj);
+
+        LPAPlayer *pBaseClass;
+        // DeathRecipient
+        virtual void binderDied(const wp<IBinder>& who);
+
+        // IAudioFlingerClient
+
+        // indicate a change in the configuration of an output or input: keeps the cached
+        // values for output/input parameters upto date in client process
+        virtual void ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
+
+        friend class LPAPlayer;
+    };
+
+    sp<IAudioFlinger> mAudioFlinger;
+
+    // helper function to obtain AudioFlinger service handle
+    void getAudioFlinger();
+
+    void handleA2DPSwitch();
     void onPauseTimeOut();
 
+    int64_t getMediaTimeUs_l();
+    bool seekTooClose(int64_t);
+
+    sp<AudioFlingerLPAdecodeClient> AudioFlingerClient;
+    friend class AudioFlingerLPAdecodeClient;
+    Mutex AudioFlingerLock;
     sp<MediaSource> mSource;
 
     MediaBuffer *mInputBuffer;
 
     Mutex mLock;
+    Mutex mResumeLock;
 
     bool mSeeking;
     bool mReachedEOS;
@@ -147,7 +243,14 @@ private:
         MediaPlayerBase::AudioSink *audioSink,
         void *data, size_t size, void *me);
 
-    int64_t getTimeStamp();
+    enum A2DPState {
+        A2DP_ENABLED,
+        A2DP_DISABLED,
+        A2DP_CONNECT,
+        A2DP_DISCONNECT
+    };
+
+    int64_t getTimeStamp(A2DPState state);
 
     size_t fillBuffer(void *data, size_t size);
 
@@ -160,8 +263,6 @@ private:
         MediaPlayerBase::AudioSink *audioSink,
         void *buffer, size_t size, void *cookie);
     size_t AudioCallback(void *cookie, void *data, size_t size);
-    int64_t getMediaTimeUs_l();
-    bool seekTooClose(int64_t);
 
     void convertMonoToStereo(int16_t *data, size_t size);
 

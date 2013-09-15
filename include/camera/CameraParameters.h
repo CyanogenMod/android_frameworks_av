@@ -182,6 +182,20 @@ public:
     static const char KEY_SUPPORTED_PREVIEW_FRAME_RATE_MODES[];
     static const char KEY_PREVIEW_FRAME_RATE_AUTO_MODE[];
     static const char KEY_PREVIEW_FRAME_RATE_FIXED_MODE[];
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    static const char KEY_CAPTURE_MODE[];
+    static const char KEY_SUPPORTED_CAPTURE_MODES[];
+    static const char KEY_PICTURE_COUNT[];
+    static const char KEY_MAX_BURST_PICTURE_COUNT[];
+    static const char KEY_SUPPORTED_CONTINUOUS_AF[];
+    static const char KEY_SUPPORTED_CAF[];
+    static const char CAPTURE_MODE_NORMAL[];
+    static const char CAPTURE_MODE_BURST[];
+    static const char CAPTURE_MODE_CONTI_BURST[];
+    static const char CAPTURE_MODE_HDR[];
+    static const char CAPTURE_MODE_HJR[];
+    static const char CAPTURE_MODE_PANORAMA[];
+#endif
 #endif
     // The dimensions for captured pictures in pixels (width x height).
     // Example value: "1024x768". Read/write.
@@ -685,6 +699,29 @@ public:
     static const char KEY_FORCE_USE_AUDIO_ENABLED[];
 #endif
 
+#ifdef LG_CAMERA_HARDWARE
+    static const char AUDIO_ZOOM_OFF[];
+    static const char AUDIO_ZOOM_ON[];
+    static const char BEAUTY_SHOT_OFF[];
+    static const char BEAUTY_SHOT_ON[];
+    static const char BURST_SHOT_OFF[];
+    static const char BURST_SHOT_ON[];
+    static const char KEY_AUDIO_ZOOM[];
+    static const char KEY_AUDIO_ZOOM_SUPPORTED[];
+    static const char KEY_BEAUTY_SHOT[];
+    static const char KEY_BEAUTY_SHOT_SUPPORTED[];
+    static const char KEY_BURST_SHOT[];
+    static const char KEY_BURST_SHOT_SUPPORTED[];
+    static const char KEY_FOCUS_MODE_OBJECT_TRACKING[];
+    static const char KEY_FOCUS_MODE_OBJECT_TRACKING_SUPPORTED[];
+    static const char KEY_VIDEO_WDR[];
+    static const char KEY_VIDEO_WDR_SUPPORTED[];
+    static const char VIDEO_WDR_OFF[];
+    static const char VIDEO_WDR_ON[];
+    static const char OBJECT_TRACKING_ON[];
+    static const char OBJECT_TRACKING_OFF[];
+#endif
+
     static const char KEY_AE_BRACKET_HDR[];
 
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
@@ -889,6 +926,22 @@ public:
     static const char LIGHTFX_HDR[];
 
 #ifdef QCOM_HARDWARE
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    static const char FOCUS_MODE_CONTINUOUS_CAMERA[];
+
+    // Values for Continuous AF
+    static const char CAF_OFF[] ;
+    static const char CAF_ON[] ;
+    // Proprietaries from CodeAurora use these...
+    static const char CONTINUOUS_AF_OFF[] ;
+    static const char CONTINUOUS_AF_ON[] ;
+    static const char KEY_CONTINUOUS_AF[] ;
+    static const char KEY_CAF[] ;
+    static const char KEY_TAKING_PICTURE_ZOOM[];
+    static const char KEY_PANORAMA_MODE[];
+    static const char PANORAMA_MODE_NOT_INPROGRESS[];
+    static const char PANORAMA_MODE_INPROGRESS[];
+#endif
     // Normal focus mode. Applications should call
     // CameraHardwareInterface.autoFocus to start the focus in this mode.
     static const char FOCUS_MODE_NORMAL[];
@@ -912,10 +965,19 @@ public:
 
     static const char KEY_SHARPNESS[];
     static const char KEY_MAX_SHARPNESS[];
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    static const char KEY_MIN_SHARPNESS[];
+#endif
     static const char KEY_CONTRAST[];
     static const char KEY_MAX_CONTRAST[];
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    static const char KEY_MIN_CONTRAST[];
+#endif
     static const char KEY_SATURATION[];
     static const char KEY_MAX_SATURATION[];
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    static const char KEY_MIN_SATURATION[];
+#endif
 
     static const char KEY_HISTOGRAM[] ;
     static const char KEY_SUPPORTED_HISTOGRAM_MODES[] ;
@@ -1008,6 +1070,9 @@ public:
     int getOrientation() const;
     void setOrientation(int orientation);
     void setPreviewFpsRange(int minFPS,int maxFPS);
+#ifdef QCOM_LEGACY_CAM_PARAMS
+    void setPostviewSize(int x, int y);
+#endif
     void getSupportedHfrSizes(Vector<Size> &sizes) const;
 #endif
 

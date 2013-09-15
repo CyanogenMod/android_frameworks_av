@@ -325,6 +325,7 @@ status_t AudioTrack::set(
     mChannelCount = channelCount;
 
 #ifdef QCOM_HARDWARE
+#ifdef QCOM_VOIP_ENABLED
     if ((streamType == AUDIO_STREAM_VOICE_CALL)
          && (channelCount == 1)
          && ((sampleRate == 8000 || sampleRate == 16000)))
@@ -332,6 +333,7 @@ status_t AudioTrack::set(
         ALOGD("Turn on Direct Output for VOIP RX");
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_VOIP_RX|AUDIO_OUTPUT_FLAG_DIRECT);
     }
+#endif
 
     if ((audio_stream_type_t)streamType == AUDIO_STREAM_VOICE_CALL) {
         if (audio_is_linear_pcm(format)) {
@@ -734,7 +736,9 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 // must be called with mLock held
 status_t AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    if (mSharedBuffer == 0 || mIsTimed) {
+    // SoundPool streaming implementation uses AudioTrack EVENT_MORE_DATA callback mode,
+    // and relies on being able to loop the data provided by the most recent callback.
+    if (/*mSharedBuffer == 0 ||*/ mIsTimed) {
         return INVALID_OPERATION;
     }
 

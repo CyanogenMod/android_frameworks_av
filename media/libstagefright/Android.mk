@@ -86,14 +86,17 @@ endif
 ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
     ifeq ($(BOARD_USES_ALSA_AUDIO),true)
         LOCAL_SRC_FILES += LPAPlayerALSA.cpp
-    endif
-    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
-        LOCAL_SRC_FILES += TunnelPlayer.cpp
-        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-        LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
-    endif
-    ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
-        LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+        ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+            LOCAL_SRC_FILES += TunnelPlayer.cpp
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+            LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
+        endif
+        ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+            LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+        endif
+    else
+        LOCAL_SRC_FILES += LPAPlayer.cpp
+        LOCAL_CFLAGS += -DLEGACY_LPA
     endif
     LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO
 endif
@@ -102,8 +105,13 @@ ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media-caf/mm-core/inc
 else
-LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media/mm-core/inc
+    ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media-legacy/mm-core/inc
+    else
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media/mm-core/inc
+endif
 endif
 
 LOCAL_SHARED_LIBRARIES := \
@@ -184,8 +192,13 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
         LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media-caf/mm-core/inc
     else
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media/mm-core/inc
+        ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
+            LOCAL_C_INCLUDES += \
+                $(TOP)/hardware/qcom/media-legacy/mm-core/inc
+        else
+            LOCAL_C_INCLUDES += \
+                $(TOP)/hardware/qcom/media/mm-core/inc
+        endif
     endif
 endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
 

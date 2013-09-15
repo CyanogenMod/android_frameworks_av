@@ -257,7 +257,9 @@ void CameraClient::disconnect() {
     // Release the held ANativeWindow resources.
     if (mPreviewWindow != 0) {
 #ifdef QCOM_HARDWARE
+#ifndef NO_UPDATE_PREVIEW
         mHardware->setPreviewWindow(0);
+#endif
 #endif
         disconnectWindow(mPreviewWindow);
         mPreviewWindow = 0;
@@ -303,8 +305,13 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
             result = mHardware->setPreviewWindow(window);
         }
 #ifdef QCOM_HARDWARE
+#ifndef NO_UPDATE_PREVIEW
     } else {
+        if (window != 0) {
+            native_window_set_buffers_transform(window.get(), mOrientation);
+        }
         result = mHardware->setPreviewWindow(window);
+#endif
 #endif
     }
 
@@ -476,6 +483,17 @@ void CameraClient::stopPreview() {
 #endif
 
     disableMsgType(CAMERA_MSG_PREVIEW_FRAME);
+#ifdef QCOM_HARDWARE
+    //Disable picture related message types
+    ALOGI("stopPreview: Disable picture related messages");
+    int picMsgType = 0;
+    picMsgType = (CAMERA_MSG_SHUTTER |
+                  CAMERA_MSG_POSTVIEW_FRAME |
+                  CAMERA_MSG_RAW_IMAGE |
+                  CAMERA_MSG_RAW_IMAGE_NOTIFY |
+                  CAMERA_MSG_COMPRESSED_IMAGE);
+    disableMsgType(picMsgType);
+#endif
     mHardware->stopPreview();
 
     mPreviewBuffer.clear();
@@ -488,6 +506,17 @@ void CameraClient::stopRecording() {
     if (checkPidAndHardware() != NO_ERROR) return;
 
     disableMsgType(CAMERA_MSG_VIDEO_FRAME);
+#ifdef QCOM_HARDWARE
+    //Disable picture related message types
+    ALOGI("stopRecording: Disable picture related messages");
+    int picMsgType = 0;
+    picMsgType = (CAMERA_MSG_SHUTTER |
+                  CAMERA_MSG_POSTVIEW_FRAME |
+                  CAMERA_MSG_RAW_IMAGE |
+                  CAMERA_MSG_RAW_IMAGE_NOTIFY |
+                  CAMERA_MSG_COMPRESSED_IMAGE);
+    disableMsgType(picMsgType);
+#endif
     mHardware->stopRecording();
     mCameraService->playSound(CameraService::SOUND_RECORDING);
 
@@ -708,6 +737,14 @@ void CameraClient::disableMsgType(int32_t msgType) {
 bool CameraClient::lockIfMessageWanted(int32_t msgType) {
     int sleepCount = 0;
     while (mMsgEnabled & msgType) {
+#ifdef QCOM_HARDWARE
+        if ((msgType == CAMERA_MSG_PREVIEW_FRAME) &&
+              (mMsgEnabled & CAMERA_MSG_COMPRESSED_IMAGE)) {
+           LOG1("lockIfMessageWanted(%d): Don't try to acquire mlock if "
+                "both Preview and Compressed are enabled", msgType);
+           return false;
+        }
+#endif
         if (mLock.tryLock() == NO_ERROR) {
             if (sleepCount > 0) {
                 LOG1("lockIfMessageWanted(%d): waited for %d ms",
