@@ -744,7 +744,7 @@ status_t MediaPlayerService::Client::setVideoSurfaceTexture(
 
     sp<ANativeWindow> anw;
     if (bufferProducer != NULL) {
-        anw = new Surface(bufferProducer);
+        anw = new Surface(bufferProducer, true /* controlledByApp */);
         status_t err = native_window_api_connect(anw.get(),
                 NATIVE_WINDOW_API_MEDIA);
 
