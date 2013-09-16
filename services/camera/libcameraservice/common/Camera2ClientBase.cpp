@@ -95,7 +95,7 @@ status_t Camera2ClientBase<TClientBase>::initialize(camera_module_t *module) {
     if (res != OK) {
         ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
                 __FUNCTION__, TClientBase::mCameraId, strerror(-res), res);
-        return NO_INIT;
+        return res;
     }
 
     res = mDevice->setNotifyCallback(this);
