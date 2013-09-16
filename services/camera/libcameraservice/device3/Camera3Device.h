@@ -314,6 +314,10 @@ class Camera3Device :
         //  restoring the old field values for those tags.
         status_t           removeTriggers(const sp<CaptureRequest> &request);
 
+        // HAL workaround: Make sure a trigger ID always exists if
+        // a trigger does
+        status_t          addDummyTriggerIds(const sp<CaptureRequest> &request);
+
         static const nsecs_t kRequestTimeout = 50e6; // 50 ms
 
         // Waits for a request, or returns NULL if times out.
