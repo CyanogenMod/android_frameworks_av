@@ -604,7 +604,7 @@ void Camera2Client::setPreviewCallbackFlagL(Parameters &params, int flag) {
     }
     if (params.previewCallbackFlags != (uint32_t)flag) {
 
-        if (flag != CAMERA_FRAME_CALLBACK_FLAG_NOOP) {
+        if (params.previewCallbackSurface && flag != CAMERA_FRAME_CALLBACK_FLAG_NOOP) {
             // Disable any existing preview callback window when enabling
             // preview callback flags
             res = mCallbackProcessor->setCallbackWindow(NULL);
