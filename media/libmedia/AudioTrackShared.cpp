@@ -481,7 +481,7 @@ size_t StaticAudioTrackClientProxy::getBufferPosition()
 ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer),
-      mAvailToClient(0), mFlush(0), mDeferWake(false)
+      mAvailToClient(0), mFlush(0)
 {
 }
 
@@ -559,9 +559,6 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
             &((char *) mBuffers)[(mIsOut ? front : rear) * mFrameSize] : NULL;
     buffer->mNonContig = availToServer - part1;
     mUnreleased = part1;
-    // optimization to avoid waking up the client too early
-    // FIXME need to test for recording
-    mDeferWake = part1 < ask && availToServer >= ask;
     return part1 > 0 ? NO_ERROR : WOULD_BLOCK;
     }
 no_init:
@@ -607,7 +604,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         minimum = half;
     }
     // FIXME AudioRecord wakeup needs to be optimized; it currently wakes up client every time
-    if (!mIsOut || (!mDeferWake && mAvailToClient + stepCount >= minimum)) {
+    if (!mIsOut || (mAvailToClient + stepCount >= minimum)) {
         ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
