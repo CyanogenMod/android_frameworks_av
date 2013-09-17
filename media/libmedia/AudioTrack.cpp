@@ -815,9 +815,26 @@ status_t AudioTrack::createTrack_l(
         return NO_INIT;
     }
 
+    // Not all of these values are needed under all conditions, but it is easier to get them all
+
     uint32_t afLatency;
-    if ((status = AudioSystem::getLatency(output, streamType, &afLatency)) != NO_ERROR) {
+    status = AudioSystem::getLatency(output, streamType, &afLatency);
+    if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
+        return NO_INIT;
+    }
+
+    size_t afFrameCount;
+    status = AudioSystem::getFrameCount(output, streamType, &afFrameCount);
+    if (status != NO_ERROR) {
+        ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, streamType, status);
+        return NO_INIT;
+    }
+
+    uint32_t afSampleRate;
+    status = AudioSystem::getSamplingRate(output, streamType, &afSampleRate);
+    if (status != NO_ERROR) {
+        ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, streamType, status);
         return NO_INIT;
     }
 
@@ -836,6 +853,14 @@ status_t AudioTrack::createTrack_l(
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
+    // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
+    //  n = 1   fast track; nBuffering is ignored
+    //  n = 2   normal track, no sample rate conversion
+    //  n = 3   normal track, with sample rate conversion
+    //          (pessimistic; some non-1:1 conversion ratios don't actually need triple-buffering)
+    //  n > 3   very high latency or very small notification interval; nBuffering is ignored
+    const uint32_t nBuffering = (sampleRate == afSampleRate) ? 2 : 3;
+
     mNotificationFramesAct = mNotificationFramesReq;
 
     if (!audio_is_linear_pcm(format)) {
@@ -844,13 +869,6 @@ status_t AudioTrack::createTrack_l(
             // Same comment as below about ignoring frameCount parameter for set()
             frameCount = sharedBuffer->size();
         } else if (frameCount == 0) {
-            size_t afFrameCount;
-            status = AudioSystem::getFrameCount(output, streamType, &afFrameCount);
-            if (status != NO_ERROR) {
-                ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, streamType,
-                        status);
-                return NO_INIT;
-            }
             frameCount = afFrameCount;
         }
         if (mNotificationFramesAct != frameCount) {
@@ -880,26 +898,13 @@ status_t AudioTrack::createTrack_l(
     } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
 
         // FIXME move these calculations and associated checks to server
-        uint32_t afSampleRate;
-        status = AudioSystem::getSamplingRate(output, streamType, &afSampleRate);
-        if (status != NO_ERROR) {
-            ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, streamType,
-                    status);
-            return NO_INIT;
-        }
-        size_t afFrameCount;
-        status = AudioSystem::getFrameCount(output, streamType, &afFrameCount);
-        if (status != NO_ERROR) {
-            ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, streamType, status);
-            return NO_INIT;
-        }
 
         // Ensure that buffer depth covers at least audio hardware latency
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
         ALOGV("afFrameCount=%d, minBufCount=%d, afSampleRate=%u, afLatency=%d",
                 afFrameCount, minBufCount, afSampleRate, afLatency);
-        if (minBufCount <= 2) {
-            minBufCount = sampleRate == afSampleRate ? 2 : 3;
+        if (minBufCount <= nBuffering) {
+            minBufCount = nBuffering;
         }
 
         size_t minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
@@ -909,17 +914,15 @@ status_t AudioTrack::createTrack_l(
 
         if (frameCount == 0) {
             frameCount = minFrameCount;
-        }
-        // Make sure that application is notified with sufficient margin
-        // before underrun
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
-            mNotificationFramesAct = frameCount/2;
-        }
-        if (frameCount < minFrameCount) {
+        } else if (frameCount < minFrameCount) {
             // not ALOGW because it happens all the time when playing key clicks over A2DP
             ALOGV("Minimum buffer size corrected from %d to %d",
                      frameCount, minFrameCount);
             frameCount = minFrameCount;
+        }
+        // Make sure that application is notified with sufficient margin before underrun
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
+            mNotificationFramesAct = frameCount/nBuffering;
         }
 
     } else {
@@ -1001,8 +1004,8 @@ status_t AudioTrack::createTrack_l(
             flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
             mFlags = flags;
             if (sharedBuffer == 0) {
-                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
-                    mNotificationFramesAct = frameCount/2;
+                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
+                    mNotificationFramesAct = frameCount/nBuffering;
                 }
             }
         }

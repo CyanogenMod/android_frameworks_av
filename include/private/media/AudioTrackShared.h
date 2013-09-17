@@ -383,8 +383,6 @@ public:
 protected:
     size_t      mAvailToClient; // estimated frames available to client prior to releaseBuffer()
     int32_t     mFlush;         // our copy of cblk->u.mStreaming.mFlush, for streaming output only
-private:
-    bool        mDeferWake;     // whether another releaseBuffer() is expected soon
 };
 
 // Proxy used by AudioFlinger for servicing AudioTrack
