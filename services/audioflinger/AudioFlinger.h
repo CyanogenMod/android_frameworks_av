@@ -466,9 +466,8 @@ private:
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
 
-                //TODO: remove when effect offload is implemented
-                bool isGlobalEffectEnabled_l();
-                void onGlobalEffectEnable();
+                bool isNonOffloadableGlobalEffectEnabled_l();
+                void onNonOffloadableGlobalEffectEnable();
 
     class AudioHwDevice {
     public:
@@ -645,7 +644,6 @@ public:
 private:
     bool    mIsLowRamDevice;
     bool    mIsDeviceTypeKnown;
-    //TODO: remove when effect offload is implemented
     nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
 };
 

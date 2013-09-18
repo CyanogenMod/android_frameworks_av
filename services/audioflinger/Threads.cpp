@@ -719,14 +719,22 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         goto Exit;
     }
 
-    // Do not allow effects with session ID 0 on direct output or duplicating threads
-    // TODO: add rule for hw accelerated effects on direct outputs with non PCM format
-    if (sessionId == AUDIO_SESSION_OUTPUT_MIX && mType != MIXER) {
-        ALOGW("createEffect_l() Cannot add auxiliary effect %s to session %d",
-                desc->name, sessionId);
-        lStatus = BAD_VALUE;
-        goto Exit;
+    // Allow global effects only on offloaded and mixer threads
+    if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+        switch (mType) {
+        case MIXER:
+        case OFFLOAD:
+            break;
+        case DIRECT:
+        case DUPLICATING:
+        case RECORD:
+        default:
+            ALOGW("createEffect_l() Cannot add global effect %s on thread %s", desc->name, mName);
+            lStatus = BAD_VALUE;
+            goto Exit;
+        }
     }
+
     // Only Pre processor effects are allowed on input threads and only on input threads
     if ((mType == RECORD) != ((desc->flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC)) {
         ALOGW("createEffect_l() effect %s (flags %08x) created on wrong thread type %d",
@@ -769,6 +777,8 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             if (lStatus != NO_ERROR) {
                 goto Exit;
             }
+            effect->setOffloaded(mType == OFFLOAD, mId);
+
             lStatus = chain->addEffect_l(effect);
             if (lStatus != NO_ERROR) {
                 goto Exit;
@@ -828,6 +838,10 @@ status_t AudioFlinger::ThreadBase::addEffect_l(const sp<EffectModule>& effect)
     sp<EffectChain> chain = getEffectChain_l(sessionId);
     bool chainCreated = false;
 
+    ALOGD_IF((mType == OFFLOAD) && !effect->isOffloadable(),
+             "addEffect_l() on offloaded thread %p: effect %s does not support offload flags %x",
+                    this, effect->desc().name, effect->desc().flags);
+
     if (chain == 0) {
         // create a new chain for this session
         ALOGV("addEffect_l() new effect chain for session %d", sessionId);
@@ -843,6 +857,8 @@ status_t AudioFlinger::ThreadBase::addEffect_l(const sp<EffectModule>& effect)
                 this, effect->desc().name, chain.get());
         return BAD_VALUE;
     }
+
+    effect->setOffloaded(mType == OFFLOAD, mId);
 
     status_t status = chain->addEffect_l(effect);
     if (status != NO_ERROR) {

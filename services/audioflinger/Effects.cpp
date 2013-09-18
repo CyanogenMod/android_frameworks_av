@@ -765,6 +765,46 @@ bool AudioFlinger::EffectModule::purgeHandles()
     return enabled;
 }
 
+status_t AudioFlinger::EffectModule::setOffloaded(bool offloaded, audio_io_handle_t io)
+{
+    Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
+    status_t status = NO_ERROR;
+    if ((mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0) {
+        status_t cmdStatus;
+        uint32_t size = sizeof(status_t);
+        effect_offload_param_t cmd;
+
+        cmd.isOffload = offloaded;
+        cmd.ioHandle = io;
+        status = (*mEffectInterface)->command(mEffectInterface,
+                                              EFFECT_CMD_OFFLOAD,
+                                              sizeof(effect_offload_param_t),
+                                              &cmd,
+                                              &size,
+                                              &cmdStatus);
+        if (status == NO_ERROR) {
+            status = cmdStatus;
+        }
+        mOffloaded = (status == NO_ERROR) ? offloaded : false;
+    } else {
+        if (offloaded) {
+            status = INVALID_OPERATION;
+        }
+        mOffloaded = false;
+    }
+    ALOGV("setOffloaded() offloaded %d io %d status %d", offloaded, io, status);
+    return status;
+}
+
+bool AudioFlinger::EffectModule::isOffloaded() const
+{
+    Mutex::Autolock _l(mLock);
+    return mOffloaded;
+}
+
 void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
@@ -933,14 +973,13 @@ status_t AudioFlinger::EffectHandle::enable()
         }
         mEnabled = false;
     } else {
-        //TODO: remove when effect offload is implemented
-        if (thread != 0) {
+        if (thread != 0 && !mEffect->isOffloadable()) {
             if ((thread->type() == ThreadBase::OFFLOAD)) {
                 PlaybackThread *t = (PlaybackThread *)thread.get();
                 t->invalidateTracks(AUDIO_STREAM_MUSIC);
             }
             if (mEffect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
-                thread->mAudioFlinger->onGlobalEffectEnable();
+                thread->mAudioFlinger->onNonOffloadableGlobalEffectEnable();
             }
         }
     }
@@ -1729,12 +1768,12 @@ void AudioFlinger::EffectChain::checkSuspendOnEffectEnabled(const sp<EffectModul
     }
 }
 
-bool AudioFlinger::EffectChain::isEnabled()
+bool AudioFlinger::EffectChain::isNonOffloadableEnabled()
 {
     Mutex::Autolock _l(mLock);
     size_t size = mEffects.size();
     for (size_t i = 0; i < size; i++) {
-        if (mEffects[i]->isEnabled()) {
+        if (mEffects[i]->isEnabled() && !mEffects[i]->isOffloadable()) {
             return true;
         }
     }
