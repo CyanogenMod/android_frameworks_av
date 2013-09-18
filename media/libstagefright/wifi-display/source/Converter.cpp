@@ -833,7 +833,7 @@ int32_t Converter::getVideoBitrate() const {
 void Converter::setVideoBitrate(int32_t bitRate) {
     if (mIsVideo && mEncoder != NULL && bitRate != mPrevVideoBitrate) {
         sp<AMessage> params = new AMessage;
-        params->setInt32("videoBitrate", bitRate);
+        params->setInt32("video-bitrate", bitRate);
 
         mEncoder->setParameters(params);
 
