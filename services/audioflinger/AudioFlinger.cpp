@@ -98,7 +98,6 @@ size_t AudioFlinger::mTeeSinkOutputFrames = kTeeSinkOutputFramesDefault;
 size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
 #endif
 
-//TODO: remove when effect offload is implemented
 // In order to avoid invalidating offloaded tracks each time a Visualizer is turned on and off
 // we define a minimum time during which a global effect is considered enabled.
 static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
@@ -2084,20 +2083,6 @@ sp<IEffect> AudioFlinger::createEffect(
         goto Exit;
     }
 
-    if (io == 0) {
-        if (sessionId == AUDIO_SESSION_OUTPUT_STAGE) {
-            // output must be specified by AudioPolicyManager when using session
-            // AUDIO_SESSION_OUTPUT_STAGE
-            lStatus = BAD_VALUE;
-            goto Exit;
-        } else if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
-            // if the output returned by getOutputForEffect() is removed before we lock the
-            // mutex below, the call to checkPlaybackThread_l(io) below will detect it
-            // and we will exit safely
-            io = AudioSystem::getOutputForEffect(&desc);
-        }
-    }
-
     {
         Mutex::Autolock _l(mLock);
 
@@ -2181,18 +2166,33 @@ sp<IEffect> AudioFlinger::createEffect(
         // because of code checking output when entering the function.
         // Note: io is never 0 when creating an effect on an input
         if (io == 0) {
-            // look for the thread where the specified audio session is present
-            for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-                if (mPlaybackThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
-                    io = mPlaybackThreads.keyAt(i);
-                    break;
-                }
+            if (sessionId == AUDIO_SESSION_OUTPUT_STAGE) {
+                // output must be specified by AudioPolicyManager when using session
+                // AUDIO_SESSION_OUTPUT_STAGE
+                lStatus = BAD_VALUE;
+                goto Exit;
+            }
+            if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+                // if the output returned by getOutputForEffect() is removed before we lock the
+                // mutex below, the call to checkPlaybackThread_l(io) below will detect it
+                // and we will exit safely
+                io = AudioSystem::getOutputForEffect(&desc);
+                ALOGV("createEffect got output %d", io);
             }
             if (io == 0) {
-                for (size_t i = 0; i < mRecordThreads.size(); i++) {
-                    if (mRecordThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
-                        io = mRecordThreads.keyAt(i);
+                // look for the thread where the specified audio session is present
+                for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+                    if (mPlaybackThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
+                        io = mPlaybackThreads.keyAt(i);
                         break;
+                    }
+                }
+                if (io == 0) {
+                    for (size_t i = 0; i < mRecordThreads.size(); i++) {
+                        if (mRecordThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
+                            io = mRecordThreads.keyAt(i);
+                            break;
+                        }
                     }
                 }
             }
@@ -2254,9 +2254,7 @@ status_t AudioFlinger::moveEffects(int sessionId, audio_io_handle_t srcOutput,
 
     Mutex::Autolock _dl(dstThread->mLock);
     Mutex::Autolock _sl(srcThread->mLock);
-    moveEffectChain_l(sessionId, srcThread, dstThread, false);
-
-    return NO_ERROR;
+    return moveEffectChain_l(sessionId, srcThread, dstThread, false);
 }
 
 // moveEffectChain_l must be called with both srcThread and dstThread mLocks held
@@ -2283,13 +2281,18 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
 
     // transfer all effects one by one so that new effect chain is created on new thread with
     // correct buffer sizes and audio parameters and effect engines reconfigured accordingly
-    audio_io_handle_t dstOutput = dstThread->id();
     sp<EffectChain> dstChain;
     uint32_t strategy = 0; // prevent compiler warning
     sp<EffectModule> effect = chain->getEffectFromId_l(0);
+    Vector< sp<EffectModule> > removed;
+    status_t status = NO_ERROR;
     while (effect != 0) {
         srcThread->removeEffect_l(effect);
-        dstThread->addEffect_l(effect);
+        removed.add(effect);
+        status = dstThread->addEffect_l(effect);
+        if (status != NO_ERROR) {
+            break;
+        }
         // removeEffect_l() has stopped the effect if it was active so it must be restarted
         if (effect->state() == EffectModule::ACTIVE ||
                 effect->state() == EffectModule::STOPPING) {
@@ -2301,15 +2304,15 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
             dstChain = effect->chain().promote();
             if (dstChain == 0) {
                 ALOGW("moveEffectChain_l() cannot get chain from effect %p", effect.get());
-                srcThread->addEffect_l(effect);
-                return NO_INIT;
+                status = NO_INIT;
+                break;
             }
             strategy = dstChain->strategy();
         }
         if (reRegister) {
             AudioSystem::unregisterEffect(effect->id());
             AudioSystem::registerEffect(&effect->desc(),
-                                        dstOutput,
+                                        dstThread->id(),
                                         strategy,
                                         sessionId,
                                         effect->id());
@@ -2317,10 +2320,24 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
         effect = chain->getEffectFromId_l(0);
     }
 
-    return NO_ERROR;
+    if (status != NO_ERROR) {
+        for (size_t i = 0; i < removed.size(); i++) {
+            srcThread->addEffect_l(removed[i]);
+            if (dstChain != 0 && reRegister) {
+                AudioSystem::unregisterEffect(removed[i]->id());
+                AudioSystem::registerEffect(&removed[i]->desc(),
+                                            srcThread->id(),
+                                            strategy,
+                                            sessionId,
+                                            removed[i]->id());
+            }
+        }
+    }
+
+    return status;
 }
 
-bool AudioFlinger::isGlobalEffectEnabled_l()
+bool AudioFlinger::isNonOffloadableGlobalEffectEnabled_l()
 {
     if (mGlobalEffectEnableTime != 0 &&
             ((systemTime() - mGlobalEffectEnableTime) < kMinGlobalEffectEnabletimeNs)) {
@@ -2330,14 +2347,14 @@ bool AudioFlinger::isGlobalEffectEnabled_l()
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         sp<EffectChain> ec =
                 mPlaybackThreads.valueAt(i)->getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
-        if (ec != 0 && ec->isEnabled()) {
+        if (ec != 0 && ec->isNonOffloadableEnabled()) {
             return true;
         }
     }
     return false;
 }
 
-void AudioFlinger::onGlobalEffectEnable()
+void AudioFlinger::onNonOffloadableGlobalEffectEnable()
 {
     Mutex::Autolock _l(mLock);
 
