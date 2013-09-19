@@ -464,12 +464,16 @@ static status_t recordScreen(const char* fileName) {
     err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
 
     if (err != NO_ERROR && !gSizeSpecified) {
-        if (gVideoWidth != kFallbackWidth && gVideoHeight != kFallbackHeight) {
+        // fallback is defined for landscape; swap if we're in portrait
+        bool needSwap = gVideoWidth < gVideoHeight;
+        uint32_t newWidth = needSwap ? kFallbackHeight : kFallbackWidth;
+        uint32_t newHeight = needSwap ? kFallbackWidth : kFallbackHeight;
+        if (gVideoWidth != newWidth && gVideoHeight != newHeight) {
             ALOGV("Retrying with 720p");
-            fprintf(stderr, "WARNING: failed at %dx%d, retrying at 720p\n",
-                    gVideoWidth, gVideoHeight);
-            gVideoWidth = kFallbackWidth;
-            gVideoHeight = kFallbackHeight;
+            fprintf(stderr, "WARNING: failed at %dx%d, retrying at %dx%d\n",
+                    gVideoWidth, gVideoHeight, newWidth, newHeight);
+            gVideoWidth = newWidth;
+            gVideoHeight = newHeight;
             err = prepareEncoder(mainDpyInfo.fps, &encoder, &bufferProducer);
         }
     }
