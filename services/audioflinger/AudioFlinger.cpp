@@ -264,6 +264,12 @@ void AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
         }
     }
 
+    result.append("Notification Clients:\n");
+    for (size_t i = 0; i < mNotificationClients.size(); ++i) {
+        snprintf(buffer, SIZE, "  pid: %d\n", mNotificationClients.keyAt(i));
+        result.append(buffer);
+    }
+
     result.append("Global session refs:\n");
     result.append(" session pid count\n");
     for (size_t i = 0; i < mAudioSessionRefs.size(); i++) {
@@ -1850,6 +1856,16 @@ void AudioFlinger::acquireAudioSessionId(int audioSession)
     Mutex::Autolock _l(mLock);
     pid_t caller = IPCThreadState::self()->getCallingPid();
     ALOGV("acquiring %d from %d", audioSession, caller);
+
+    // Ignore requests received from processes not known as notification client. The request
+    // is likely proxied by mediaserver (e.g CameraService) and releaseAudioSessionId() can be
+    // called from a different pid leaving a stale session reference.  Also we don't know how
+    // to clear this reference if the client process dies.
+    if (mNotificationClients.indexOfKey(caller) < 0) {
+        ALOGV("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
+        return;
+    }
+
     size_t num = mAudioSessionRefs.size();
     for (size_t i = 0; i< num; i++) {
         AudioSessionRef *ref = mAudioSessionRefs.editItemAt(i);
@@ -1882,7 +1898,9 @@ void AudioFlinger::releaseAudioSessionId(int audioSession)
             return;
         }
     }
-    ALOGW("session id %d not found for pid %d", audioSession, caller);
+    // If the caller is mediaserver it is likely that the session being released was acquired
+    // on behalf of a process not in notification clients and we ignore the warning.
+    ALOGW_IF(caller != getpid_cached, "session id %d not found for pid %d", audioSession, caller);
 }
 
 void AudioFlinger::purgeStaleEffects_l() {
