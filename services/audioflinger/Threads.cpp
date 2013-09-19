@@ -960,6 +960,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mUseAsyncWrite(false),
         mWriteAckSequence(0),
         mDrainSequence(0),
+        mSignalPending(false),
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
@@ -1348,14 +1349,14 @@ void AudioFlinger::PlaybackThread::setStreamVolume(audio_stream_type_t stream, f
 {
     Mutex::Autolock _l(mLock);
     mStreamTypes[stream].volume = value;
-    signal_l();
+    broadcast_l();
 }
 
 void AudioFlinger::PlaybackThread::setStreamMute(audio_stream_type_t stream, bool muted)
 {
     Mutex::Autolock _l(mLock);
     mStreamTypes[stream].mute = muted;
-    signal_l();
+    broadcast_l();
 }
 
 float AudioFlinger::PlaybackThread::streamVolume(audio_stream_type_t stream) const
@@ -1413,8 +1414,8 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         status = NO_ERROR;
     }
 
-    ALOGV("mWaitWorkCV.broadcast");
-    mWaitWorkCV.broadcast();
+    ALOGV("signal playback thread");
+    broadcast_l();
 
     return status;
 }
@@ -1455,14 +1456,14 @@ void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
     }
 }
 
-void AudioFlinger::PlaybackThread::signal_l()
+void AudioFlinger::PlaybackThread::broadcast_l()
 {
     // Thread could be blocked waiting for async
     // so signal it to handle state changes immediately
     // If threadLoop is currently unlocked a signal of mWaitWorkCV will
     // be lost so we also flag to prevent it blocking on mWaitWorkCV
     mSignalPending = true;
-    mWaitWorkCV.signal();
+    mWaitWorkCV.broadcast();
 }
 
 String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
@@ -2143,7 +2144,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             }
 
             saveOutputTracks();
-
             if (mSignalPending) {
                 // A signal was raised while we were unlocked
                 mSignalPending = false;
@@ -2158,10 +2158,10 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 acquireWakeLock_l();
                 standbyTime = systemTime() + standbyDelay;
                 sleepTime = 0;
-                if (exitPending()) {
-                    break;
-                }
-            } else if ((!mActiveTracks.size() && systemTime() > standbyTime) ||
+
+                continue;
+            }
+            if ((!mActiveTracks.size() && systemTime() > standbyTime) ||
                                    isSuspended()) {
                 // put audio hardware into standby after short delay
                 if (shouldStandby_l()) {
@@ -2203,7 +2203,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     continue;
                 }
             }
-
             // mMixerStatusIgnoringFastTracks is also updated internally
             mMixerStatus = prepareTracks_l(&tracksToRemove);
 
@@ -3855,12 +3854,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     Vector< sp<Track> > *tracksToRemove
 )
 {
-    ALOGV("OffloadThread::prepareTracks_l");
     size_t count = mActiveTracks.size();
 
     mixer_state mixerStatus = MIXER_IDLE;
     bool doHwPause = false;
     bool doHwResume = false;
+
+    ALOGV("OffloadThread::prepareTracks_l active tracks %d", count);
 
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
@@ -3915,23 +3915,27 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 // make sure processVolume_l() will apply new volume even if 0
                 mLeftVolFloat = mRightVolFloat = -1.0;
                 if (track->mState == TrackBase::RESUMING) {
-                    if (mPausedBytesRemaining) {
-                        // Need to continue write that was interrupted
-                        mCurrentWriteLength = mPausedWriteLength;
-                        mBytesRemaining = mPausedBytesRemaining;
-                        mPausedBytesRemaining = 0;
-                    }
                     track->mState = TrackBase::ACTIVE;
+                    if (last) {
+                        if (mPausedBytesRemaining) {
+                            // Need to continue write that was interrupted
+                            mCurrentWriteLength = mPausedWriteLength;
+                            mBytesRemaining = mPausedBytesRemaining;
+                            mPausedBytesRemaining = 0;
+                        }
+                        if (mHwPaused) {
+                            doHwResume = true;
+                            mHwPaused = false;
+                            // threadLoop_mix() will handle the case that we need to
+                            // resume an interrupted write
+                        }
+                        // enable write to audio HAL
+                        sleepTime = 0;
+                    }
                 }
             }
 
             if (last) {
-                if (mHwPaused) {
-                    doHwResume = true;
-                    mHwPaused = false;
-                    // threadLoop_mix() will handle the case that we need to
-                    // resume an interrupted write
-                }
                 // reset retry count
                 track->mRetryCount = kMaxTrackRetriesOffload;
                 mActiveTrack = t;
@@ -3948,9 +3952,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     // has been written
                     ALOGV("OffloadThread: underrun and STOPPING_1 -> draining, STOPPING_2");
                     track->mState = TrackBase::STOPPING_2; // so presentation completes after drain
-                    sleepTime = 0;
-                    standbyTime = systemTime() + standbyDelay;
                     if (last) {
+                        sleepTime = 0;
+                        standbyTime = systemTime() + standbyDelay;
                         mixerStatus = MIXER_DRAIN_TRACK;
                         mDrainSequence += 2;
                         if (mHwPaused) {
@@ -4337,6 +4341,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                     mStandby = false;
                 }
             }
+
             lockEffectChains_l(effectChains);
         }
 
