@@ -120,6 +120,9 @@ protected:
                                            const CameraMetadata& frame);
     virtual void          detachDevice();
 
+    // Calculate the ANativeWindow transform from android.sensor.orientation
+    status_t              getRotationTransformLocked(/*out*/int32_t* transform);
+
 private:
     /** ICameraDeviceUser interface-related private members */
 
