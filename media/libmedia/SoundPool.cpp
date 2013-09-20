@@ -537,18 +537,6 @@ void SoundChannel::init(SoundPool* soundPool)
     mSoundPool = soundPool;
 }
 
-// This class is used to destroy a RefBase asynchronously
-class AsyncDestructThread : public Thread
-{
-public:
-    AsyncDestructThread(sp<RefBase> refBase) : mRefBase(refBase) { }
-protected:
-    virtual ~AsyncDestructThread() { }
-private:
-    virtual bool        threadLoop()    { return false; }
-    const   sp<RefBase> mRefBase;
-};
-
 // call with sound pool lock held
 void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftVolume,
         float rightVolume, int priority, int loop, float rate)
@@ -652,17 +640,6 @@ exit:
     ALOGV("delete oldTrack %p", oldTrack.get());
     if (status != NO_ERROR) {
         mAudioTrack.clear();
-    }
-    // FIXME AudioTrack destruction should not be slow
-    if (oldTrack != 0) {
-        // must be a raw reference to avoid a race after run()
-        AsyncDestructThread *adt = new AsyncDestructThread(oldTrack);
-        // guaranteed to not run destructor
-        oldTrack.clear();
-        // after the run(), adt thread will hold a strong reference to oldTrack,
-        // and the only strong reference to itself
-        adt->run("AsyncDestruct");
-        // do not delete adt here: adt thread destroys itself, and oldTrack if needed
     }
 }
 
