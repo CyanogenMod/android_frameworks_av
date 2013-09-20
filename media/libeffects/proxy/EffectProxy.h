@@ -57,6 +57,9 @@ const struct effect_interface_s gEffectInterface = {
   NULL,
 };
 
+#define PROXY_REPLY_SIZE_MAX     (64 * 1024) // must be power of two
+#define PROXY_REPLY_SIZE_DEFAULT 32          // must be power of two
+
 struct EffectContext {
   const struct effect_interface_s  *common_itfe; // Holds the itfe of the Proxy
   effect_descriptor_t*  desc;                    // Points to the sub effect descriptors
@@ -67,6 +70,8 @@ struct EffectContext {
   int32_t               ioId;        // The ioId in which the effect is created.
                                      // Stored in context to pass on to sub effect creation
   effect_uuid_t         uuid;        // UUID of the Proxy
+  char*                 replyData;   // temporary buffer for non active sub effect command reply
+  uint32_t              replySize;   // current size of temporary reply buffer
 };
 
 #if __cplusplus
