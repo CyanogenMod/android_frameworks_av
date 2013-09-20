@@ -105,6 +105,7 @@ AudioRecord::~AudioRecord()
         // Otherwise the callback thread will never exit.
         stop();
         if (mAudioRecordThread != 0) {
+            mProxy->interrupt();
             mAudioRecordThread->requestExit();  // see comment in AudioRecord.h
             mAudioRecordThread->requestExitAndWait();
             mAudioRecordThread.clear();
@@ -960,7 +961,7 @@ void AudioRecord::DeathNotifier::binderDied(const wp<IBinder>& who)
 // =========================================================================
 
 AudioRecord::AudioRecordThread::AudioRecordThread(AudioRecord& receiver, bool bCanCallJava)
-    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mResumeLatch(false)
+    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mPausedInt(false), mPausedNs(0LL)
 {
 }
 
@@ -977,25 +978,32 @@ bool AudioRecord::AudioRecordThread::threadLoop()
             // caller will check for exitPending()
             return true;
         }
+        if (mPausedInt) {
+            mPausedInt = false;
+            if (mPausedNs > 0) {
+                (void) mMyCond.waitRelative(mMyLock, mPausedNs);
+            } else {
+                mMyCond.wait(mMyLock);
+            }
+            return true;
+        }
     }
     nsecs_t ns =  mReceiver.processAudioBuffer(this);
     switch (ns) {
     case 0:
         return true;
-    case NS_WHENEVER:
-        sleep(1);
-        return true;
     case NS_INACTIVE:
-        pauseConditional();
+        pauseInternal();
         return true;
     case NS_NEVER:
         return false;
+    case NS_WHENEVER:
+        // FIXME increase poll interval, or make event-driven
+        ns = 1000000000LL;
+        // fall through
     default:
         LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %lld", ns);
-        struct timespec req;
-        req.tv_sec = ns / 1000000000LL;
-        req.tv_nsec = ns % 1000000000LL;
-        nanosleep(&req, NULL /*rem*/);
+        pauseInternal(ns);
         return true;
     }
 }
@@ -1004,24 +1012,18 @@ void AudioRecord::AudioRecordThread::requestExit()
 {
     // must be in this order to avoid a race condition
     Thread::requestExit();
-    resume();
+    AutoMutex _l(mMyLock);
+    if (mPaused || mPausedInt) {
+        mPaused = false;
+        mPausedInt = false;
+        mMyCond.signal();
+    }
 }
 
 void AudioRecord::AudioRecordThread::pause()
 {
     AutoMutex _l(mMyLock);
     mPaused = true;
-    mResumeLatch = false;
-}
-
-void AudioRecord::AudioRecordThread::pauseConditional()
-{
-    AutoMutex _l(mMyLock);
-    if (mResumeLatch) {
-        mResumeLatch = false;
-    } else {
-        mPaused = true;
-    }
 }
 
 void AudioRecord::AudioRecordThread::resume()
@@ -1029,11 +1031,15 @@ void AudioRecord::AudioRecordThread::resume()
     AutoMutex _l(mMyLock);
     if (mPaused) {
         mPaused = false;
-        mResumeLatch = false;
         mMyCond.signal();
-    } else {
-        mResumeLatch = true;
     }
+}
+
+void AudioRecord::AudioRecordThread::pauseInternal(nsecs_t ns)
+{
+    AutoMutex _l(mMyLock);
+    mPausedInt = true;
+    mPausedNs = ns;
 }
 
 // -------------------------------------------------------------------------
