@@ -398,18 +398,20 @@ private:
 
                 void        pause();    // suspend thread from execution at next loop boundary
                 void        resume();   // allow thread to execute, if not requested to exit
-                void        pauseConditional();
-                                        // like pause(), but only if prior resume() wasn't latched
 
     private:
+                void        pauseInternal(nsecs_t ns = 0LL);
+                                        // like pause(), but only used internally within thread
+
         friend class AudioRecord;
         virtual bool        threadLoop();
         AudioRecord&        mReceiver;
         virtual ~AudioRecordThread();
         Mutex               mMyLock;    // Thread::mLock is private
         Condition           mMyCond;    // Thread::mThreadExitedCondition is private
-        bool                mPaused;    // whether thread is currently paused
-        bool                mResumeLatch;   // whether next pauseConditional() will be a nop
+        bool                mPaused;    // whether thread is requested to pause at next loop entry
+        bool                mPausedInt; // whether thread internally requests pause
+        nsecs_t             mPausedNs;  // if mPausedInt then associated timeout, otherwise ignored
     };
 
             // body of AudioRecordThread::threadLoop()
