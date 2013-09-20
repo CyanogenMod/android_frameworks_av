@@ -660,7 +660,7 @@ void AudioFlinger::PlaybackThread::Track::pause()
         case RESUMING:
             mState = PAUSING;
             ALOGV("ACTIVE/RESUMING => PAUSING (%d) on thread %p", mName, thread.get());
-            playbackThread->signal_l();
+            playbackThread->broadcast_l();
             break;
 
         default:
@@ -720,7 +720,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
         // before mixer thread can run. This is important when offloading
         // because the hardware buffer could hold a large amount of audio
         playbackThread->flushOutput_l();
-        playbackThread->signal_l();
+        playbackThread->broadcast_l();
     }
 }
 
