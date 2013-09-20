@@ -526,7 +526,7 @@ private:
     status_t    addTrack_l(const sp<Track>& track);
     bool        destroyTrack_l(const sp<Track>& track);
     void        removeTrack_l(const sp<Track>& track);
-    void        signal_l();
+    void        broadcast_l();
 
     void        readOutputParameters();
 
@@ -590,6 +590,8 @@ private:
     // Bit 0 is reset by the async callback thread calling resetDraining(). Out of sequence
     // callbacks are ignored.
     uint32_t                        mDrainSequence;
+    // A condition that must be evaluated by prepareTrack_l() has changed and we must not wait
+    // for async write callback in the thread loop before evaluating it
     bool                            mSignalPending;
     sp<AsyncCallbackThread>         mCallbackThread;
 
