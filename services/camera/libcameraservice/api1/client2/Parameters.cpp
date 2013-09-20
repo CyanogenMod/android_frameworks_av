@@ -852,6 +852,33 @@ status_t Parameters::buildFastInfo() {
         arrayHeight = activeArraySize.data.i32[3];
     } else return NO_INIT;
 
+    // We'll set the target FPS range for still captures to be as wide
+    // as possible to give the HAL maximum latitude for exposure selection
+    camera_metadata_ro_entry_t availableFpsRanges =
+        staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
+    if (availableFpsRanges.count < 2 || availableFpsRanges.count % 2 != 0) {
+        return NO_INIT;
+    }
+
+    int32_t bestStillCaptureFpsRange[2] = {
+        availableFpsRanges.data.i32[0], availableFpsRanges.data.i32[1]
+    };
+    int32_t curRange =
+            bestStillCaptureFpsRange[1] - bestStillCaptureFpsRange[0];
+    for (size_t i = 2; i < availableFpsRanges.count; i += 2) {
+        int32_t nextRange =
+                availableFpsRanges.data.i32[i + 1] -
+                availableFpsRanges.data.i32[i];
+        if ( (nextRange > curRange) ||       // Maximize size of FPS range first
+                (nextRange == curRange &&    // Then minimize low-end FPS
+                 bestStillCaptureFpsRange[0] > availableFpsRanges.data.i32[i])) {
+
+            bestStillCaptureFpsRange[0] = availableFpsRanges.data.i32[i];
+            bestStillCaptureFpsRange[1] = availableFpsRanges.data.i32[i + 1];
+            curRange = nextRange;
+        }
+    }
+
     camera_metadata_ro_entry_t availableFaceDetectModes =
         staticInfo(ANDROID_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES, 0, 0,
                 false);
@@ -971,6 +998,8 @@ status_t Parameters::buildFastInfo() {
 
     fastInfo.arrayWidth = arrayWidth;
     fastInfo.arrayHeight = arrayHeight;
+    fastInfo.bestStillCaptureFpsRange[0] = bestStillCaptureFpsRange[0];
+    fastInfo.bestStillCaptureFpsRange[1] = bestStillCaptureFpsRange[1];
     fastInfo.bestFaceDetectMode = bestFaceDetectMode;
     fastInfo.maxFaces = maxFaces;
 
@@ -1709,8 +1738,15 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
             &metadataMode, 1);
     if (res != OK) return res;
 
-    res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
-            previewFpsRange, 2);
+    camera_metadata_entry_t intent =
+            request->find(ANDROID_CONTROL_CAPTURE_INTENT);
+    if (intent.data.u8[0] == ANDROID_CONTROL_CAPTURE_INTENT_STILL_CAPTURE) {
+        res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
+                fastInfo.bestStillCaptureFpsRange, 2);
+    } else {
+        res = request->update(ANDROID_CONTROL_AE_TARGET_FPS_RANGE,
+                previewFpsRange, 2);
+    }
     if (res != OK) return res;
 
     uint8_t reqWbLock = autoWhiteBalanceLock ?
