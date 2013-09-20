@@ -2340,6 +2340,22 @@ void AudioFlinger::PlaybackThread::removeTracks_l(const Vector< sp<Track> >& tra
 
 }
 
+status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
+{
+    if (mNormalSink != 0) {
+        return mNormalSink->getTimestamp(timestamp);
+    }
+    if (mType == OFFLOAD && mOutput->stream->get_presentation_position) {
+        uint64_t position64;
+        int ret = mOutput->stream->get_presentation_position(
+                                                mOutput->stream, &position64, &timestamp.mTime);
+        if (ret == 0) {
+            timestamp.mPosition = (uint32_t)position64;
+            return NO_ERROR;
+        }
+    }
+    return INVALID_OPERATION;
+}
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
