@@ -94,7 +94,7 @@ status_t QCUtils::HFR::reCalculateFileDuration(
     CHECK(meta->findInt32(kKeyWidth, &width));
     CHECK(meta->findInt32(kKeyHeight, &height));
 
-    char mDeviceName[100];
+    char mDeviceName[PROPERTY_VALUE_MAX];
     property_get("ro.board.platform",mDeviceName,"0");
     if (!strncmp(mDeviceName, "msm7627a", 8)) {
         if (hfr && (width * height > 432*240)) {
@@ -575,6 +575,17 @@ int32_t QCUtils::checkIsInterlace(sp<MetaData> &meta) {
     return isInterlaceFormat;
 }
 
+int32_t QCUtils::getEncoderTypeFlags() {
+    int32_t flags = 0;
+
+    char mDeviceName[PROPERTY_VALUE_MAX];
+    property_get("ro.board.platform",mDeviceName,"0");
+    if (!strncmp(mDeviceName, "msm8610", 7)) {
+        flags |= OMXCodec::kHardwareCodecsOnly;
+    }
+    return flags;
+}
+
 }
 #else //ENABLE_QC_AV_ENHANCEMENTS
 
@@ -675,6 +686,10 @@ void QCUtils::setArbitraryModeIfInterlaced(
 
 int32_t QCUtils::checkIsInterlace(sp<MetaData> &meta) {
     return false;
+}
+
+int32_t QCUtils::getEncoderTypeFlags() {
+    return 0;
 }
 
 }
