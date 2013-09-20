@@ -184,6 +184,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     // NOTE: Not scaled like FPS range values are.
     previewFps = fpsFromRange(previewFpsRange[0], previewFpsRange[1]);
+    lastSetPreviewFps = previewFps;
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
             previewFps);
 
@@ -1152,6 +1153,12 @@ status_t Parameters::set(const String8& paramString) {
         validatedParams.previewFps =
             fpsFromRange(validatedParams.previewFpsRange[0],
                          validatedParams.previewFpsRange[1]);
+
+        // Update our last-seen single preview FPS, needed for disambiguating
+        // when the application is intending to use the deprecated single-FPS
+        // setting vs. the range FPS setting
+        validatedParams.lastSetPreviewFps = newParams.getPreviewFrameRate();
+
         newParams.setPreviewFrameRate(validatedParams.previewFps);
     }
 
@@ -1187,12 +1194,15 @@ status_t Parameters::set(const String8& paramString) {
         }
     }
 
-    // PREVIEW_FRAME_RATE
-    // Deprecated, only use if the preview fps range is unchanged this time.
-    // The single-value FPS is the same as the minimum of the range.
+    // PREVIEW_FRAME_RATE Deprecated, only use if the preview fps range is
+    // unchanged this time.  The single-value FPS is the same as the minimum of
+    // the range.  To detect whether the application has changed the value of
+    // previewFps, compare against their last-set preview FPS instead of the
+    // single FPS we may have synthesized from a range FPS set.
     if (!fpsRangeChanged) {
         validatedParams.previewFps = newParams.getPreviewFrameRate();
-        if (validatedParams.previewFps != previewFps || recordingHintChanged) {
+        if (validatedParams.previewFps != lastSetPreviewFps ||
+                recordingHintChanged) {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
             /**
@@ -1263,7 +1273,10 @@ status_t Parameters::set(const String8& paramString) {
                 String8::format("%d,%d",
                         validatedParams.previewFpsRange[0] * kFpsToApiScale,
                         validatedParams.previewFpsRange[1] * kFpsToApiScale));
-
+        // Update our last-seen single preview FPS, needed for disambiguating
+        // when the application is intending to use the deprecated single-FPS
+        // setting vs. the range FPS setting
+        validatedParams.lastSetPreviewFps = validatedParams.previewFps;
     }
 
     // PICTURE_SIZE
