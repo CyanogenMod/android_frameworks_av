@@ -326,6 +326,10 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     result.appendFormat("    Video stabilization is %s\n",
             p.videoStabilization ? "enabled" : "disabled");
 
+    result.appendFormat("    Selected still capture FPS range: %d - %d\n",
+            p.fastInfo.bestStillCaptureFpsRange[0],
+            p.fastInfo.bestStillCaptureFpsRange[1]);
+
     result.append("  Current streams:\n");
     result.appendFormat("    Preview stream ID: %d\n",
             getPreviewStreamId());

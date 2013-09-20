@@ -179,6 +179,7 @@ struct Parameters {
     struct DeviceInfo {
         int32_t arrayWidth;
         int32_t arrayHeight;
+        int32_t bestStillCaptureFpsRange[2];
         uint8_t bestFaceDetectMode;
         int32_t maxFaces;
         struct OverrideModes {
