@@ -469,6 +469,8 @@ public:
                 // Return's the HAL's frame count i.e. fast mixer buffer size.
                 size_t      frameCountHAL() const { return mFrameCount; }
 
+                status_t         getTimestamp_l(AudioTimestamp& timestamp);
+
 protected:
     // updated by readOutputParameters()
     size_t                          mNormalFrameCount;  // normal mixer and effects
