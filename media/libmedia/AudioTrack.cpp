@@ -1782,7 +1782,7 @@ void AudioTrack::DeathNotifier::binderDied(const wp<IBinder>& who)
 // =========================================================================
 
 AudioTrack::AudioTrackThread::AudioTrackThread(AudioTrack& receiver, bool bCanCallJava)
-    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mResumeLatch(false)
+    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mPausedInt(false), mPausedNs(0LL)
 {
 }
 
@@ -1799,25 +1799,32 @@ bool AudioTrack::AudioTrackThread::threadLoop()
             // caller will check for exitPending()
             return true;
         }
+        if (mPausedInt) {
+            mPausedInt = false;
+            if (mPausedNs > 0) {
+                (void) mMyCond.waitRelative(mMyLock, mPausedNs);
+            } else {
+                mMyCond.wait(mMyLock);
+            }
+            return true;
+        }
     }
     nsecs_t ns = mReceiver.processAudioBuffer(this);
     switch (ns) {
     case 0:
         return true;
-    case NS_WHENEVER:
-        sleep(1);
-        return true;
     case NS_INACTIVE:
-        pauseConditional();
+        pauseInternal();
         return true;
     case NS_NEVER:
         return false;
+    case NS_WHENEVER:
+        // FIXME increase poll interval, or make event-driven
+        ns = 1000000000LL;
+        // fall through
     default:
         LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %lld", ns);
-        struct timespec req;
-        req.tv_sec = ns / 1000000000LL;
-        req.tv_nsec = ns % 1000000000LL;
-        nanosleep(&req, NULL /*rem*/);
+        pauseInternal(ns);
         return true;
     }
 }
@@ -1826,24 +1833,18 @@ void AudioTrack::AudioTrackThread::requestExit()
 {
     // must be in this order to avoid a race condition
     Thread::requestExit();
-    resume();
+    AutoMutex _l(mMyLock);
+    if (mPaused || mPausedInt) {
+        mPaused = false;
+        mPausedInt = false;
+        mMyCond.signal();
+    }
 }
 
 void AudioTrack::AudioTrackThread::pause()
 {
     AutoMutex _l(mMyLock);
     mPaused = true;
-    mResumeLatch = false;
-}
-
-void AudioTrack::AudioTrackThread::pauseConditional()
-{
-    AutoMutex _l(mMyLock);
-    if (mResumeLatch) {
-        mResumeLatch = false;
-    } else {
-        mPaused = true;
-    }
 }
 
 void AudioTrack::AudioTrackThread::resume()
@@ -1851,11 +1852,15 @@ void AudioTrack::AudioTrackThread::resume()
     AutoMutex _l(mMyLock);
     if (mPaused) {
         mPaused = false;
-        mResumeLatch = false;
         mMyCond.signal();
-    } else {
-        mResumeLatch = true;
     }
+}
+
+void AudioTrack::AudioTrackThread::pauseInternal(nsecs_t ns)
+{
+    AutoMutex _l(mMyLock);
+    mPausedInt = true;
+    mPausedNs = ns;
 }
 
 }; // namespace android
