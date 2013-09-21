@@ -244,7 +244,10 @@ bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
 }
 
 void QCUtils::setBFrames(
-        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames) {
+        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames, char* componentName) {
+    if (strncmp(componentName, "OMX.qcom.", 9) != 0) {
+        return;
+    }
     if (mpeg4type.eProfile > OMX_VIDEO_MPEG4ProfileSimple) {
         mpeg4type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
         mpeg4type.nBFrames = 1;
@@ -256,7 +259,10 @@ void QCUtils::setBFrames(
 
 void QCUtils::setBFrames(
         OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
-        int32_t iFramesInterval, int32_t frameRate) {
+        int32_t iFramesInterval, int32_t frameRate, char* componentName) {
+    if (strncmp(componentName, "OMX.qcom.", 9) != 0) {
+        return;
+    }
     OMX_U32 val = 0;
     if (iFramesInterval < 0) {
         val =  0xFFFFFFFF;
@@ -616,12 +622,12 @@ bool QCUtils::ShellProp::isSmoothStreamingEnabled() {
 }
 
 void QCUtils::setBFrames(
-        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames) {
+        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames, char* componentName) {
 }
 
 void QCUtils::setBFrames(
         OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
-        int32_t iFramesInterval, int32_t frameRate) {
+        int32_t iFramesInterval, int32_t frameRate, char* componentName) {
 }
 
 bool QCUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,
