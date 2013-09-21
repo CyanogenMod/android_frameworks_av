@@ -283,6 +283,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_INACTIVE)
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_PASSIVE_SCAN)
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED)
+        CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_PASSIVE_UNFOCUSED)
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_ACTIVE_SCAN)
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED)
         CASE_APPEND_ENUM(ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED)
@@ -1483,6 +1484,7 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
                     case ANDROID_CONTROL_AF_STATE_INACTIVE:
                     case ANDROID_CONTROL_AF_STATE_PASSIVE_SCAN:
                     case ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED:
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_UNFOCUSED:
                     default:
                         // Unexpected in AUTO/MACRO mode
                         ALOGE("%s: Unexpected AF state transition in AUTO/MACRO mode: %d",
@@ -1525,6 +1527,7 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
                         afInMotion = true;
                         // no break
                     case ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED:
+                    case ANDROID_CONTROL_AF_STATE_PASSIVE_UNFOCUSED:
                         // Stop passive scan, inform upstream
                         if (l.mParameters.enableFocusMoveMessages) {
                             sendMovingMessage = true;
