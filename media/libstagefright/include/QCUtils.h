@@ -109,11 +109,11 @@ struct QCUtils {
     };
 
     //set B frames for MPEG4
-    static void setBFrames(OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames);
+    static void setBFrames(OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, bool &numBFrames, char* componentName);
 
     //set B frames for H264
     static void setBFrames(OMX_VIDEO_PARAM_AVCTYPE &h264type, bool &numBFrames,
-            int32_t iFramesInterval, int32_t frameRate);
+            int32_t iFramesInterval, int32_t frameRate, char* componentName);
 
     static bool UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t BitRate, int32_t SampleRate);
 
