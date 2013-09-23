@@ -1800,12 +1800,12 @@ bool AudioTrack::AudioTrackThread::threadLoop()
             return true;
         }
         if (mPausedInt) {
-            mPausedInt = false;
             if (mPausedNs > 0) {
                 (void) mMyCond.waitRelative(mMyLock, mPausedNs);
             } else {
                 mMyCond.wait(mMyLock);
             }
+            mPausedInt = false;
             return true;
         }
     }
@@ -1850,8 +1850,9 @@ void AudioTrack::AudioTrackThread::pause()
 void AudioTrack::AudioTrackThread::resume()
 {
     AutoMutex _l(mMyLock);
-    if (mPaused) {
+    if (mPaused || mPausedInt) {
         mPaused = false;
+        mPausedInt = false;
         mMyCond.signal();
     }
 }
