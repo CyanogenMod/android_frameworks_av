@@ -168,7 +168,7 @@ const char* ExtendedCodec::overrideComponentName(
     if(quirks & kRequiresWMAProComponent)
     {
        int32_t version = 0;
-       if(!(meta->findInt32(kKeyWMAVersion, &version))) {
+       if(meta->findInt32(kKeyWMAVersion, &version)) {
           if(version==kTypeWMA) {
              componentName = "OMX.qcom.audio.decoder.wma";
           } else if(version==kTypeWMAPro) {
@@ -186,7 +186,7 @@ void ExtendedCodec::overrideComponentName(
     if(quirks & kRequiresWMAProComponent)
     {
        int32_t version = 0;
-       if(!(msg->findInt32(getMsgKey(kKeyWMAVersion), &version))) {
+       if(msg->findInt32(getMsgKey(kKeyWMAVersion), &version)) {
           if(version==kTypeWMA) {
              componentName->setTo("OMX.qcom.audio.decoder.wma");
           } else if(version==kTypeWMAPro) {
