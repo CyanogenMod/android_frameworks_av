@@ -979,12 +979,12 @@ bool AudioRecord::AudioRecordThread::threadLoop()
             return true;
         }
         if (mPausedInt) {
-            mPausedInt = false;
             if (mPausedNs > 0) {
                 (void) mMyCond.waitRelative(mMyLock, mPausedNs);
             } else {
                 mMyCond.wait(mMyLock);
             }
+            mPausedInt = false;
             return true;
         }
     }
@@ -1029,8 +1029,9 @@ void AudioRecord::AudioRecordThread::pause()
 void AudioRecord::AudioRecordThread::resume()
 {
     AutoMutex _l(mMyLock);
-    if (mPaused) {
+    if (mPaused || mPausedInt) {
         mPaused = false;
+        mPausedInt = false;
         mMyCond.signal();
     }
 }
