@@ -319,8 +319,8 @@ status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& ar
 
     result.append(" AudioCache\n");
     if (mHeap != 0) {
-        snprintf(buffer, 255, "  heap base(%p), size(%d), flags(%d), device(%s)\n",
-                mHeap->getBase(), mHeap->getSize(), mHeap->getFlags(), mHeap->getDevice());
+        snprintf(buffer, 255, "  heap base(%p), size(%d), flags(%d)\n",
+                mHeap->getBase(), mHeap->getSize(), mHeap->getFlags());
         result.append(buffer);
     }
     snprintf(buffer, 255, "  msec per frame(%f), channel count(%d), format(%d), frame count(%zd)\n",
@@ -1176,13 +1176,13 @@ int Antagonizer::callbackThread(void* user)
 }
 #endif
 
-static size_t kDefaultHeapSize = 1024 * 1024; // 1MB
-
-sp<IMemory> MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat)
+status_t MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
+                                       audio_format_t* pFormat,
+                                       const sp<IMemoryHeap>& heap, size_t *pSize)
 {
     ALOGV("decode(%s)", url);
-    sp<MemoryBase> mem;
     sp<MediaPlayerBase> player;
+    status_t status = BAD_VALUE;
 
     // Protect our precious, precious DRMd ringtones by only allowing
     // decoding of http, but not filesystem paths or content Uris.
@@ -1190,7 +1190,7 @@ sp<IMemory> MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, i
     // filedescriptor for them and use that.
     if (url != NULL && strncmp(url, "http://", 7) != 0) {
         ALOGD("Can't decode %s by path, use filedescriptor instead", url);
-        return mem;
+        return BAD_VALUE;
     }
 
     player_type playerType =
@@ -1198,7 +1198,7 @@ sp<IMemory> MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, i
     ALOGV("player type = %d", playerType);
 
     // create the right type of player
-    sp<AudioCache> cache = new AudioCache(url);
+    sp<AudioCache> cache = new AudioCache(heap);
     player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
     if (player == NULL) goto Exit;
     if (player->hardwareOutput()) goto Exit;
@@ -1224,22 +1224,27 @@ sp<IMemory> MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, i
         goto Exit;
     }
 
-    mem = new MemoryBase(cache->getHeap(), 0, cache->size());
+    *pSize = cache->size();
     *pSampleRate = cache->sampleRate();
     *pNumChannels = cache->channelCount();
     *pFormat = cache->format();
-    ALOGV("return memory @ %p, sampleRate=%u, channelCount = %d, format = %d", mem->pointer(), *pSampleRate, *pNumChannels, *pFormat);
+    ALOGV("return size %d sampleRate=%u, channelCount = %d, format = %d",
+          *pSize, *pSampleRate, *pNumChannels, *pFormat);
+    status = NO_ERROR;
 
 Exit:
     if (player != 0) player->reset();
-    return mem;
+    return status;
 }
 
-sp<IMemory> MediaPlayerService::decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat)
+status_t MediaPlayerService::decode(int fd, int64_t offset, int64_t length,
+                                       uint32_t *pSampleRate, int* pNumChannels,
+                                       audio_format_t* pFormat,
+                                       const sp<IMemoryHeap>& heap, size_t *pSize)
 {
     ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
-    sp<MemoryBase> mem;
     sp<MediaPlayerBase> player;
+    status_t status = BAD_VALUE;
 
     player_type playerType = MediaPlayerFactory::getPlayerType(NULL /* client */,
                                                                fd,
@@ -1248,7 +1253,7 @@ sp<IMemory> MediaPlayerService::decode(int fd, int64_t offset, int64_t length, u
     ALOGV("player type = %d", playerType);
 
     // create the right type of player
-    sp<AudioCache> cache = new AudioCache("decode_fd");
+    sp<AudioCache> cache = new AudioCache(heap);
     player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
     if (player == NULL) goto Exit;
     if (player->hardwareOutput()) goto Exit;
@@ -1274,16 +1279,18 @@ sp<IMemory> MediaPlayerService::decode(int fd, int64_t offset, int64_t length, u
         goto Exit;
     }
 
-    mem = new MemoryBase(cache->getHeap(), 0, cache->size());
+    *pSize = cache->size();
     *pSampleRate = cache->sampleRate();
     *pNumChannels = cache->channelCount();
     *pFormat = cache->format();
-    ALOGV("return memory @ %p, sampleRate=%u, channelCount = %d, format = %d", mem->pointer(), *pSampleRate, *pNumChannels, *pFormat);
+    ALOGV("return size %d, sampleRate=%u, channelCount = %d, format = %d",
+          *pSize, *pSampleRate, *pNumChannels, *pFormat);
+    status = NO_ERROR;
 
 Exit:
     if (player != 0) player->reset();
     ::close(fd);
-    return mem;
+    return status;
 }
 
 
@@ -1803,12 +1810,10 @@ int MediaPlayerService::AudioOutput::getSessionId() const
 
 #undef LOG_TAG
 #define LOG_TAG "AudioCache"
-MediaPlayerService::AudioCache::AudioCache(const char* name) :
-    mChannelCount(0), mFrameCount(1024), mSampleRate(0), mSize(0),
-    mError(NO_ERROR), mCommandComplete(false)
+MediaPlayerService::AudioCache::AudioCache(const sp<IMemoryHeap>& heap) :
+    mHeap(heap), mChannelCount(0), mFrameCount(1024), mSampleRate(0), mSize(0),
+    mError(NO_ERROR),  mCommandComplete(false)
 {
-    // create ashmem heap
-    mHeap = new MemoryHeapBase(kDefaultHeapSize, 0, name);
 }
 
 uint32_t MediaPlayerService::AudioCache::latency () const
