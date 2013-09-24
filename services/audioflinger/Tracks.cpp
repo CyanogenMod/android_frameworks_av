@@ -116,12 +116,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
     if (client != 0) {
         mCblkMemory = client->heap()->allocate(size);
-        if (mCblkMemory != 0) {
-            mCblk = static_cast<audio_track_cblk_t *>(mCblkMemory->pointer());
-            // can't assume mCblk != NULL
-        } else {
+        if (mCblkMemory == 0 ||
+                (mCblk = static_cast<audio_track_cblk_t *>(mCblkMemory->pointer())) == NULL) {
             ALOGE("not enough memory for AudioTrack size=%u", size);
             client->heap()->dump("AudioTrack");
+            mCblkMemory.clear();
             return;
         }
     } else {
@@ -274,6 +273,11 @@ status_t AudioFlinger::TrackHandle::queueTimedBuffer(const sp<IMemory>& buffer,
                                                      int64_t pts) {
     if (!mTrack->isTimedTrack())
         return INVALID_OPERATION;
+
+    if (buffer == 0 || buffer->pointer() == NULL) {
+        ALOGE("queueTimedBuffer() buffer is 0 or has NULL pointer()");
+        return BAD_VALUE;
+    }
 
     PlaybackThread::TimedTrack* tt =
             reinterpret_cast<PlaybackThread::TimedTrack*>(mTrack.get());
@@ -1060,7 +1064,7 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::allocateTimedBuffer(
     }
 
     sp<IMemory> newBuffer = mTimedMemoryDealer->allocate(size);
-    if (newBuffer == 0) {
+    if (newBuffer == 0 || newBuffer->pointer() == NULL) {
         return NO_MEMORY;
     }
 
