@@ -48,20 +48,6 @@ static const effect_descriptor_t *const gDescriptors[] =
     &gProxyDescriptor,
 };
 
-static inline bool isGetterCmd(uint32_t cmdCode)
-{
-    switch (cmdCode) {
-    case EFFECT_CMD_GET_PARAM:
-    case EFFECT_CMD_GET_CONFIG:
-    case EFFECT_CMD_GET_CONFIG_REVERSE:
-    case EFFECT_CMD_GET_FEATURE_SUPPORTED_CONFIGS:
-    case EFFECT_CMD_GET_FEATURE_CONFIG:
-        return true;
-    default:
-        return false;
-    }
-}
-
 
 int EffectProxyCreate(const effect_uuid_t *uuid,
                             int32_t             sessionId,
@@ -80,6 +66,7 @@ int EffectProxyCreate(const effect_uuid_t *uuid,
     pContext->ioId = ioId;
     pContext->uuid = *uuid;
     pContext->common_itfe = &gEffectInterface;
+
     // The sub effects will be created in effect_command when the first command
     // for the effect is received
     pContext->eHandle[SUB_FX_HOST] = pContext->eHandle[SUB_FX_OFFLOAD] = NULL;
@@ -124,6 +111,10 @@ int EffectProxyCreate(const effect_uuid_t *uuid,
         uuid_print.node[1], uuid_print.node[2], uuid_print.node[3],
         uuid_print.node[4], uuid_print.node[5]);
 #endif
+
+    pContext->replySize = PROXY_REPLY_SIZE_DEFAULT;
+    pContext->replyData = (char *)malloc(PROXY_REPLY_SIZE_DEFAULT);
+
     *pHandle = (effect_handle_t)pContext;
     ALOGV("EffectCreate end");
     return 0;
@@ -137,6 +128,8 @@ int EffectProxyRelease(effect_handle_t handle) {
     }
     ALOGV("EffectRelease");
     delete pContext->desc;
+    free(pContext->replyData);
+
     if (pContext->eHandle[SUB_FX_HOST])
        EffectRelease(pContext->eHandle[SUB_FX_HOST]);
     if (pContext->eHandle[SUB_FX_OFFLOAD])
@@ -253,43 +246,53 @@ int Effect_command(effect_handle_t  self,
     }
 
     // Getter commands are only sent to the active sub effect.
-    uint32_t hostReplySize = replySize != NULL ? *replySize : 0;
-    bool hostReplied = false;
-    int hostStatus = 0;
-    uint32_t offloadReplySize = replySize != NULL ? *replySize : 0;
-    bool offloadReplied = false;
-    int offloadStatus = 0;
+    int *subStatus[SUB_FX_COUNT];
+    uint32_t *subReplySize[SUB_FX_COUNT];
+    void *subReplyData[SUB_FX_COUNT];
+    uint32_t tmpSize;
+    int tmpStatus;
 
-    if (pContext->eHandle[SUB_FX_HOST] && (!isGetterCmd(cmdCode) || index == SUB_FX_HOST)) {
-        hostStatus = (*pContext->eHandle[SUB_FX_HOST])->command(
-                             pContext->eHandle[SUB_FX_HOST], cmdCode, cmdSize,
-                             pCmdData, replySize != NULL ? &hostReplySize : NULL, pReplyData);
-        hostReplied = true;
-    }
-    if (pContext->eHandle[SUB_FX_OFFLOAD] && (!isGetterCmd(cmdCode) || index == SUB_FX_OFFLOAD)) {
-        // In case of SET CMD, when the offload stream is unavailable,
-        // we will store the effect param values in the DSP effect wrapper.
-        // When the offload effects get enabled, we send these values to the
-        // DSP during Effect_config.
-        // So,we send the params to DSP wrapper also
-        offloadStatus = (*pContext->eHandle[SUB_FX_OFFLOAD])->command(
-                         pContext->eHandle[SUB_FX_OFFLOAD], cmdCode, cmdSize,
-                         pCmdData, replySize != NULL ? &offloadReplySize : NULL, pReplyData);
-        offloadReplied = true;
-    }
-    // By convention the offloaded implementation reply is returned if command is processed by both
-    // host and offloaded sub effects
-    if (offloadReplied){
-        status = offloadStatus;
-        if (replySize) {
-            *replySize = offloadReplySize;
+    // grow temp reply buffer if needed
+    if (replySize != NULL) {
+        tmpSize = pContext->replySize;
+        while (tmpSize < *replySize && tmpSize < PROXY_REPLY_SIZE_MAX) {
+            tmpSize *= 2;
         }
-    } else if (hostReplied) {
-        status = hostStatus;
-        if (replySize) {
-            *replySize = hostReplySize;
+        if (tmpSize > pContext->replySize) {
+            ALOGV("Effect_command grow reply buf to %d", tmpSize);
+            pContext->replyData = (char *)realloc(pContext->replyData, tmpSize);
+            pContext->replySize = tmpSize;
         }
+        if (tmpSize > *replySize) {
+            tmpSize = *replySize;
+        }
+    } else {
+        tmpSize = 0;
     }
+    // tmpSize is now the actual reply size for the non active sub effect
+
+    // Send command to sub effects. The command is sent to all sub effects so that their internal
+    // state is kept in sync.
+    // Only the reply from the active sub effect is returned to the caller. The reply from the
+    // other sub effect is lost in pContext->replyData
+    for (int i = 0; i < SUB_FX_COUNT; i++) {
+        if (pContext->eHandle[i] == NULL) {
+            continue;
+        }
+        if (i == index) {
+            subStatus[i] = &status;
+            subReplySize[i] = replySize;
+            subReplyData[i] = pReplyData;
+        } else {
+            subStatus[i] = &tmpStatus;
+            subReplySize[i] = replySize == NULL ? NULL : &tmpSize;
+            subReplyData[i] = pReplyData == NULL ? NULL : pContext->replyData;
+        }
+        *subStatus[i] = (*pContext->eHandle[i])->command(
+                             pContext->eHandle[i], cmdCode, cmdSize,
+                             pCmdData, subReplySize[i], subReplyData[i]);
+    }
+
     return status;
 }    /* end Effect_command */
 
