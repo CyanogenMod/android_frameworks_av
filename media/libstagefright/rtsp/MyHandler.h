@@ -1681,6 +1681,26 @@ private:
         return true;
     }
 
+    void handleFirstAccessUnit() {
+        if (mFirstAccessUnit) {
+            sp<AMessage> msg = mNotify->dup();
+            msg->setInt32("what", kWhatConnected);
+            msg->post();
+
+            if (mSeekable) {
+                for (size_t i = 0; i < mTracks.size(); ++i) {
+                    TrackInfo *info = &mTracks.editItemAt(i);
+
+                    postNormalPlayTimeMapping(
+                            i,
+                            info->mNormalPlayTimeRTP, info->mNormalPlayTimeUs);
+                }
+            }
+
+            mFirstAccessUnit = false;
+        }
+    }
+
     void onTimeUpdate(int32_t trackIndex, uint32_t rtpTime, uint64_t ntpTime) {
         ALOGV("onTimeUpdate track %d, rtpTime = 0x%08x, ntpTime = 0x%016llx",
              trackIndex, rtpTime, ntpTime);
@@ -1712,6 +1732,8 @@ private:
             }
         }
         if (mAllTracksHaveTime && dataReceivedOnAllChannels()) {
+            handleFirstAccessUnit();
+
             // Time is now established, lets start timestamping immediately
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 TrackInfo *trackInfo = &mTracks.editItemAt(i);
@@ -1745,23 +1767,7 @@ private:
             return;
         }
 
-        if (mFirstAccessUnit) {
-            sp<AMessage> msg = mNotify->dup();
-            msg->setInt32("what", kWhatConnected);
-            msg->post();
-
-            if (mSeekable) {
-                for (size_t i = 0; i < mTracks.size(); ++i) {
-                    TrackInfo *info = &mTracks.editItemAt(i);
-
-                    postNormalPlayTimeMapping(
-                            i,
-                            info->mNormalPlayTimeRTP, info->mNormalPlayTimeUs);
-                }
-            }
-
-            mFirstAccessUnit = false;
-        }
+        handleFirstAccessUnit();
 
         TrackInfo *track = &mTracks.editItemAt(trackIndex);
 
