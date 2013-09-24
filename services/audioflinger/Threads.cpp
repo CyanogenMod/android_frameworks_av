@@ -1384,7 +1384,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
     lStatus = initCheck();
     if (lStatus != NO_ERROR) {
-        ALOGE("Audio driver not initialized.");
+        ALOGE("createTrack_l() audio driver not initialized");
         goto Exit;
     }
 
@@ -5077,12 +5077,6 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
     sp<RecordTrack> track;
     status_t lStatus;
 
-    lStatus = initCheck();
-    if (lStatus != NO_ERROR) {
-        ALOGE("createRecordTrack_l() audio driver not initialized");
-        goto Exit;
-    }
-
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
@@ -5135,7 +5129,11 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
     }
     *pFrameCount = frameCount;
 
-    // FIXME use flags and tid similar to createTrack_l()
+    lStatus = initCheck();
+    if (lStatus != NO_ERROR) {
+        ALOGE("createRecordTrack_l() audio driver not initialized");
+        goto Exit;
+    }
 
     { // scope for mLock
         Mutex::Autolock _l(mLock);
