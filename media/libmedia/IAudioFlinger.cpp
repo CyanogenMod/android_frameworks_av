@@ -184,6 +184,17 @@ public:
             }
             lStatus = reply.readInt32();
             record = interface_cast<IAudioRecord>(reply.readStrongBinder());
+            if (lStatus == NO_ERROR) {
+                if (record == 0) {
+                    ALOGE("openRecord should have returned an IAudioRecord");
+                    lStatus = UNKNOWN_ERROR;
+                }
+            } else {
+                if (record != 0) {
+                    ALOGE("openRecord returned an IAudioRecord but with status %d", lStatus);
+                    record.clear();
+                }
+            }
         }
         if (status) {
             *status = lStatus;
@@ -784,6 +795,7 @@ status_t BnAudioFlinger::onTransact(
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, frameCount, &flags, tid, &sessionId, &status);
+            LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
