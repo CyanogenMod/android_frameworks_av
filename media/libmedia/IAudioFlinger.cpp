@@ -108,7 +108,12 @@ public:
         data.writeInt32(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
-        data.writeStrongBinder(sharedBuffer->asBinder());
+        if (sharedBuffer != 0) {
+            data.writeInt32(true);
+            data.writeStrongBinder(sharedBuffer->asBinder());
+        } else {
+            data.writeInt32(false);
+        }
         data.writeInt32((int32_t) output);
         data.writeInt32((int32_t) tid);
         int lSessionId = 0;
@@ -756,15 +761,27 @@ status_t BnAudioFlinger::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             size_t frameCount = data.readInt32();
             track_flags_t flags = (track_flags_t) data.readInt32();
-            sp<IMemory> buffer = interface_cast<IMemory>(data.readStrongBinder());
+            bool haveSharedBuffer = data.readInt32() != 0;
+            sp<IMemory> buffer;
+            if (haveSharedBuffer) {
+                buffer = interface_cast<IMemory>(data.readStrongBinder());
+            }
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             String8 name;
             status_t status;
-            sp<IAudioTrack> track = createTrack(
-                    (audio_stream_type_t) streamType, sampleRate, format,
-                    channelMask, frameCount, &flags, buffer, output, tid, &sessionId, name, &status);
+            sp<IAudioTrack> track;
+            if ((haveSharedBuffer && (buffer == 0)) ||
+                    ((buffer != 0) && (buffer->pointer() == NULL))) {
+                ALOGW("CREATE_TRACK: cannot retrieve shared memory");
+                status = DEAD_OBJECT;
+            } else {
+                track = createTrack(
+                        (audio_stream_type_t) streamType, sampleRate, format,
+                        channelMask, frameCount, &flags, buffer, output, tid,
+                        &sessionId, name, &status);
+            }
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeString8(name);

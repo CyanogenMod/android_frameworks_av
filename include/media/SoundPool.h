@@ -22,6 +22,8 @@
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <media/AudioTrack.h>
+#include <binder/MemoryHeapBase.h>
+#include <binder/MemoryBase.h>
 
 namespace android {
 
@@ -85,6 +87,7 @@ private:
     int64_t             mLength;
     char*               mUrl;
     sp<IMemory>         mData;
+    sp<MemoryHeapBase>  mHeap;
 };
 
 // stores pending events for stolen channels
