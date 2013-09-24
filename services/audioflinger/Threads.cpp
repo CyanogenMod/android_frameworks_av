@@ -2123,6 +2123,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     // and then that string will be logged at the next convenient opportunity.
     const char *logString = NULL;
 
+    checkSilentMode_l();
+
     while (!exitPending())
     {
         cpuStats.sample(myName);
