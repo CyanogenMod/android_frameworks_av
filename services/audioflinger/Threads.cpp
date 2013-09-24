@@ -4548,7 +4548,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
 
     lStatus = initCheck();
     if (lStatus != NO_ERROR) {
-        ALOGE("Audio driver not initialized.");
+        ALOGE("createRecordTrack_l() audio driver not initialized");
         goto Exit;
     }
 
@@ -4612,7 +4612,9 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
                       format, channelMask, frameCount, sessionId);
 
         if (track->getCblk() == 0) {
+            ALOGE("createRecordTrack_l() no control block");
             lStatus = NO_MEMORY;
+            track.clear();
             goto Exit;
         }
         mTracks.add(track);
