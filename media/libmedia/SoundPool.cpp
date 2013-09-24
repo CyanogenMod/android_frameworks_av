@@ -32,6 +32,8 @@ int kDefaultBufferCount = 4;
 uint32_t kMaxSampleRate = 48000;
 uint32_t kDefaultSampleRate = 44100;
 uint32_t kDefaultFrameCount = 1200;
+size_t kDefaultHeapSize = 1024 * 1024; // 1MB
+
 
 SoundPool::SoundPool(int maxChannels, audio_stream_type_t streamType, int srcQuality)
 {
@@ -464,7 +466,6 @@ Sample::Sample(int sampleID, int fd, int64_t offset, int64_t length)
 
 void Sample::init()
 {
-    mData = 0;
     mSize = 0;
     mRefCount = 0;
     mSampleID = 0;
@@ -482,7 +483,6 @@ Sample::~Sample()
         ALOGV("close(%d)", mFd);
         ::close(mFd);
     }
-    mData.clear();
     free(mUrl);
 }
 
@@ -491,44 +491,48 @@ status_t Sample::doLoad()
     uint32_t sampleRate;
     int numChannels;
     audio_format_t format;
-    sp<IMemory> p;
+    status_t status;
+    mHeap = new MemoryHeapBase(kDefaultHeapSize);
+
     ALOGV("Start decode");
     if (mUrl) {
-        p = MediaPlayer::decode(mUrl, &sampleRate, &numChannels, &format);
+        status = MediaPlayer::decode(mUrl, &sampleRate, &numChannels, &format, mHeap, &mSize);
     } else {
-        p = MediaPlayer::decode(mFd, mOffset, mLength, &sampleRate, &numChannels, &format);
+        status = MediaPlayer::decode(mFd, mOffset, mLength, &sampleRate, &numChannels, &format,
+                                     mHeap, &mSize);
         ALOGV("close(%d)", mFd);
         ::close(mFd);
         mFd = -1;
     }
-    if (p == 0) {
+    if (status != NO_ERROR) {
         ALOGE("Unable to load sample: %s", mUrl);
-        return -1;
+        goto error;
     }
     ALOGV("pointer = %p, size = %u, sampleRate = %u, numChannels = %d",
-            p->pointer(), p->size(), sampleRate, numChannels);
+          mHeap->getBase(), mSize, sampleRate, numChannels);
 
     if (sampleRate > kMaxSampleRate) {
        ALOGE("Sample rate (%u) out of range", sampleRate);
-       return - 1;
+       status = BAD_VALUE;
+       goto error;
     }
 
     if ((numChannels < 1) || (numChannels > 2)) {
         ALOGE("Sample channel count (%d) out of range", numChannels);
-        return - 1;
+        status = BAD_VALUE;
+        goto error;
     }
 
-    //_dumpBuffer(p->pointer(), p->size());
-    uint8_t* q = static_cast<uint8_t*>(p->pointer()) + p->size() - 10;
-    //_dumpBuffer(q, 10, 10, false);
-
-    mData = p;
-    mSize = p->size();
+    mData = new MemoryBase(mHeap, 0, mSize);
     mSampleRate = sampleRate;
     mNumChannels = numChannels;
     mFormat = format;
     mState = READY;
-    return 0;
+    return NO_ERROR;
+
+error:
+    mHeap.clear();
+    return status;
 }
 
 
@@ -744,7 +748,7 @@ void SoundChannel::process(int event, void *info, unsigned long toggle)
         ALOGV("process %p channel %d EVENT_UNDERRUN or EVENT_BUFFER_END", this, mChannelID);
         mSoundPool->addToStopList(this);
     } else if (event == AudioTrack::EVENT_LOOP_END) {
-        ALOGV("End loop %p channel %d count %d", this, mChannelID, *(int *)info);
+        ALOGV("End loop %p channel %d", this, mChannelID);
     }
 }
 

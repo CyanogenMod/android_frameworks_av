@@ -177,7 +177,7 @@ class MediaPlayerService : public BnMediaPlayerService
     class AudioCache : public MediaPlayerBase::AudioSink
     {
     public:
-                                AudioCache(const char* name);
+                                AudioCache(const sp<IMemoryHeap>& heap);
         virtual                 ~AudioCache() {}
 
         virtual bool            ready() const { return (mChannelCount > 0) && (mHeap->getHeapID() > 0); }
@@ -224,7 +224,7 @@ class MediaPlayerService : public BnMediaPlayerService
 
         Mutex               mLock;
         Condition           mSignal;
-        sp<MemoryHeapBase>  mHeap;
+        sp<IMemoryHeap>     mHeap;
         float               mMsecsPerFrame;
         uint16_t            mChannelCount;
         audio_format_t      mFormat;
@@ -247,8 +247,13 @@ public:
 
     virtual sp<IMediaPlayer>    create(const sp<IMediaPlayerClient>& client, int audioSessionId);
 
-    virtual sp<IMemory>         decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
-    virtual sp<IMemory>         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
+    virtual status_t            decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
+                                       audio_format_t* pFormat,
+                                       const sp<IMemoryHeap>& heap, size_t *pSize);
+    virtual status_t            decode(int fd, int64_t offset, int64_t length,
+                                       uint32_t *pSampleRate, int* pNumChannels,
+                                       audio_format_t* pFormat,
+                                       const sp<IMemoryHeap>& heap, size_t *pSize);
     virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
     virtual sp<IDrm>            makeDrm();
