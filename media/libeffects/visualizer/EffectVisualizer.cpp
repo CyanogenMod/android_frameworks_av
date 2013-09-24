@@ -58,7 +58,7 @@ enum visualizer_state_e {
 #define DISCARD_MEASUREMENTS_TIME_MS 2000 // discard measurements older than this number of ms
 
 // maximum number of buffers for which we keep track of the measurements
-#define MEASUREMENT_WINDOW_MAX_SIZE_IN_BUFFERS 25
+#define MEASUREMENT_WINDOW_MAX_SIZE_IN_BUFFERS 25 // note: buffer index is stored in uint8_t
 
 
 struct BufferStats {
@@ -210,7 +210,7 @@ int Visualizer_init(VisualizerContext *pContext)
     pContext->mMeasurementMode = MEASUREMENT_MODE_NONE;
     pContext->mMeasurementWindowSizeInBuffers = MEASUREMENT_WINDOW_MAX_SIZE_IN_BUFFERS;
     pContext->mMeasurementBufferIdx = 0;
-    for (uint8_t i=0 ; i<pContext->mMeasurementWindowSizeInBuffers ; i++) {
+    for (uint32_t i=0 ; i<pContext->mMeasurementWindowSizeInBuffers ; i++) {
         pContext->mPastMeasurements[i].mIsValid = false;
         pContext->mPastMeasurements[i].mPeakU16 = 0;
         pContext->mPastMeasurements[i].mRmsSquared = 0;
@@ -603,8 +603,8 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         // measurements aren't relevant anymore and shouldn't bias the new one)
         const int32_t delayMs = Visualizer_getDeltaTimeMsFromUpdatedTime(pContext);
         if (delayMs > DISCARD_MEASUREMENTS_TIME_MS) {
-            ALOGE("Discarding measurements, last measurement is %dms old", delayMs);
-            for (uint8_t i=0 ; i<pContext->mMeasurementWindowSizeInBuffers ; i++) {
+            ALOGV("Discarding measurements, last measurement is %dms old", delayMs);
+            for (uint32_t i=0 ; i<pContext->mMeasurementWindowSizeInBuffers ; i++) {
                 pContext->mPastMeasurements[i].mIsValid = false;
                 pContext->mPastMeasurements[i].mPeakU16 = 0;
                 pContext->mPastMeasurements[i].mRmsSquared = 0;
@@ -614,14 +614,12 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
             // only use actual measurements, otherwise the first RMS measure happening before
             // MEASUREMENT_WINDOW_MAX_SIZE_IN_BUFFERS have been played will always be artificially
             // low
-            for (uint8_t i=0 ; i < pContext->mMeasurementWindowSizeInBuffers ; i++) {
+            for (uint32_t i=0 ; i < pContext->mMeasurementWindowSizeInBuffers ; i++) {
                 if (pContext->mPastMeasurements[i].mIsValid) {
                     if (pContext->mPastMeasurements[i].mPeakU16 > peakU16) {
                         peakU16 = pContext->mPastMeasurements[i].mPeakU16;
                     }
-                    if (pContext->mMeasurementWindowSizeInBuffers != 0) {
-                        sumRmsSquared += pContext->mPastMeasurements[i].mRmsSquared;
-                    }
+                    sumRmsSquared += pContext->mPastMeasurements[i].mRmsSquared;
                     nbValidMeasurements++;
                 }
             }
@@ -639,7 +637,7 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         } else {
             pIntReplyData[MEASUREMENT_IDX_PEAK] = (int32_t) (2000 * log10(peakU16 / 32767.0f));
         }
-        ALOGV("LEVEL_MONITOR_CMD_MEASURE peak=%d (%dmB), rms=%.1f (%dmB)",
+        ALOGV("VISUALIZER_CMD_MEASURE peak=%d (%dmB), rms=%.1f (%dmB)",
                 peakU16, pIntReplyData[MEASUREMENT_IDX_PEAK],
                 rms, pIntReplyData[MEASUREMENT_IDX_RMS]);
         }
