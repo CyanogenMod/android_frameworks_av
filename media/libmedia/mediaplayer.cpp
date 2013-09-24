@@ -776,17 +776,20 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     }
 }
 
-/*static*/ sp<IMemory> MediaPlayer::decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat)
+/*static*/ status_t MediaPlayer::decode(const char* url, uint32_t *pSampleRate,
+                                           int* pNumChannels, audio_format_t* pFormat,
+                                           const sp<IMemoryHeap>& heap, size_t *pSize)
 {
     ALOGV("decode(%s)", url);
-    sp<IMemory> p;
+    status_t status;
     const sp<IMediaPlayerService>& service = getMediaPlayerService();
     if (service != 0) {
-        p = service->decode(url, pSampleRate, pNumChannels, pFormat);
+        status = service->decode(url, pSampleRate, pNumChannels, pFormat, heap, pSize);
     } else {
         ALOGE("Unable to locate media service");
+        status = DEAD_OBJECT;
     }
-    return p;
+    return status;
 
 }
 
@@ -796,17 +799,22 @@ void MediaPlayer::died()
     notify(MEDIA_ERROR, MEDIA_ERROR_SERVER_DIED, 0);
 }
 
-/*static*/ sp<IMemory> MediaPlayer::decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat)
+/*static*/ status_t MediaPlayer::decode(int fd, int64_t offset, int64_t length,
+                                        uint32_t *pSampleRate, int* pNumChannels,
+                                        audio_format_t* pFormat,
+                                        const sp<IMemoryHeap>& heap, size_t *pSize)
 {
     ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
-    sp<IMemory> p;
+    status_t status;
     const sp<IMediaPlayerService>& service = getMediaPlayerService();
     if (service != 0) {
-        p = service->decode(fd, offset, length, pSampleRate, pNumChannels, pFormat);
+        status = service->decode(fd, offset, length, pSampleRate,
+                                 pNumChannels, pFormat, heap, pSize);
     } else {
         ALOGE("Unable to locate media service");
+        status = DEAD_OBJECT;
     }
-    return p;
+    return status;
 
 }
 
