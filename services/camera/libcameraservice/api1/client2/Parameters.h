@@ -46,6 +46,7 @@ struct Parameters {
 
     int previewWidth, previewHeight;
     int32_t previewFpsRange[2];
+    int lastSetPreviewFps; // the last single FPS value seen in a set call
     int previewFps; // deprecated, here only for tracking changes
     int previewFormat;
 
