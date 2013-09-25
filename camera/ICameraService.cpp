@@ -33,6 +33,7 @@
 #include <camera/ICameraClient.h>
 #include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/ICameraDeviceCallbacks.h>
+#include <camera/CameraMetadata.h>
 
 namespace android {
 
@@ -116,6 +117,29 @@ public:
             cameraInfo->facing = reply.readInt32();
             cameraInfo->orientation = reply.readInt32();
         }
+        return result;
+    }
+
+    // get camera characteristics (static metadata)
+    virtual status_t getCameraCharacteristics(int cameraId,
+                                              CameraMetadata* cameraInfo) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeInt32(cameraId);
+        remote()->transact(BnCameraService::GET_CAMERA_CHARACTERISTICS, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t result = reply.readInt32();
+
+        CameraMetadata out;
+        if (reply.readInt32() != 0) {
+            out.readFromParcel(&reply);
+        }
+
+        if (cameraInfo != NULL) {
+            cameraInfo->swap(out);
+        }
+
         return result;
     }
 
@@ -237,6 +261,18 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(1); // means the parcelable is included
             reply->writeInt32(cameraInfo.facing);
             reply->writeInt32(cameraInfo.orientation);
+            return NO_ERROR;
+        } break;
+        case GET_CAMERA_CHARACTERISTICS: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            CameraMetadata info;
+            status_t result = getCameraCharacteristics(data.readInt32(), &info);
+            reply->writeNoException();
+            reply->writeInt32(result);
+
+            // out-variables are after exception and return value
+            reply->writeInt32(1); // means the parcelable is included
+            info.writeToParcel(reply);
             return NO_ERROR;
         } break;
         case CONNECT: {
