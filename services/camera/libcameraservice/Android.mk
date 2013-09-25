@@ -66,6 +66,10 @@ ifeq ($(BOARD_HTC_3D_SUPPORT),true)
     LOCAL_CFLAGS += -DHTC_3D_SUPPORT
 endif
 
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+    LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
