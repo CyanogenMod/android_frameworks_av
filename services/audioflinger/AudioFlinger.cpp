@@ -2104,9 +2104,6 @@ sp<IEffect> AudioFlinger::createEffect(
     }
 
     {
-        Mutex::Autolock _l(mLock);
-
-
         if (!EffectIsNullUuid(&pDesc->uuid)) {
             // if uuid is specified, request effect descriptor
             lStatus = EffectGetDescriptor(&pDesc->uuid, &desc);
@@ -2179,6 +2176,15 @@ sp<IEffect> AudioFlinger::createEffect(
 
         // return effect descriptor
         *pDesc = desc;
+        if (io == 0 && sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+            // if the output returned by getOutputForEffect() is removed before we lock the
+            // mutex below, the call to checkPlaybackThread_l(io) below will detect it
+            // and we will exit safely
+            io = AudioSystem::getOutputForEffect(&desc);
+            ALOGV("createEffect got output %d", io);
+        }
+
+        Mutex::Autolock _l(mLock);
 
         // If output is not specified try to find a matching audio session ID in one of the
         // output threads.
@@ -2192,27 +2198,18 @@ sp<IEffect> AudioFlinger::createEffect(
                 lStatus = BAD_VALUE;
                 goto Exit;
             }
-            if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
-                // if the output returned by getOutputForEffect() is removed before we lock the
-                // mutex below, the call to checkPlaybackThread_l(io) below will detect it
-                // and we will exit safely
-                io = AudioSystem::getOutputForEffect(&desc);
-                ALOGV("createEffect got output %d", io);
+            // look for the thread where the specified audio session is present
+            for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+                if (mPlaybackThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
+                    io = mPlaybackThreads.keyAt(i);
+                    break;
+                }
             }
             if (io == 0) {
-                // look for the thread where the specified audio session is present
-                for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-                    if (mPlaybackThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
-                        io = mPlaybackThreads.keyAt(i);
+                for (size_t i = 0; i < mRecordThreads.size(); i++) {
+                    if (mRecordThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
+                        io = mRecordThreads.keyAt(i);
                         break;
-                    }
-                }
-                if (io == 0) {
-                    for (size_t i = 0; i < mRecordThreads.size(); i++) {
-                        if (mRecordThreads.valueAt(i)->hasAudioSession(sessionId) != 0) {
-                            io = mRecordThreads.keyAt(i);
-                            break;
-                        }
                     }
                 }
             }

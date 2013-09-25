@@ -25,6 +25,10 @@
 // state changes or resource modifications. Always respect the following order
 // if multiple mutexes must be acquired to avoid cross deadlock:
 // AudioFlinger -> ThreadBase -> EffectChain -> EffectModule
+// In addition, methods that lock the AudioPolicyService mutex (getOutputForEffect(),
+// startOutput()...) should never be called with AudioFlinger or Threadbase mutex locked
+// to avoid cross deadlock with other clients calling AudioPolicyService methods that in turn
+// call AudioFlinger thus locking the same mutexes in the reverse order.
 
 // The EffectModule class is a wrapper object controlling the effect engine implementation
 // in the effect library. It prevents concurrent calls to process() and command() functions
