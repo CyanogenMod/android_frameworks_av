@@ -62,6 +62,10 @@ ifeq ($(BOARD_HAVE_HTC_FFC),true)
     LOCAL_CFLAGS += -DBOARD_HAVE_HTC_FFC
 endif
 
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+    LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
