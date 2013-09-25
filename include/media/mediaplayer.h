@@ -45,6 +45,7 @@ enum media_event_type {
     MEDIA_STARTED           = 6,
     MEDIA_PAUSED            = 7,
     MEDIA_STOPPED           = 8,
+    MEDIA_SKIPPED           = 9,
     MEDIA_TIMED_TEXT        = 99,
     MEDIA_ERROR             = 100,
     MEDIA_INFO              = 200,
