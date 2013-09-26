@@ -35,7 +35,7 @@ inline void AdaptiveDynamicRangeCompression::set_knee_threshold_via_target_gain(
     float target_gain) {
   const float decibel = target_gain_to_knee_threshold_.Interpolate(
         target_gain);
-  ALOGE("set_knee_threshold_via_target_gain: decibel =%.3f", decibel);
+  ALOGV("set_knee_threshold_via_target_gain: decibel =%.3fdB", decibel);
   set_knee_threshold(decibel);
 }
 
