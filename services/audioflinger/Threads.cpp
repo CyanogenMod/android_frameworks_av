@@ -1594,6 +1594,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
         if (mOutput->stream->set_callback(mOutput->stream,
                                       AudioFlinger::PlaybackThread::asyncCallback, this) == 0) {
             mUseAsyncWrite = true;
+            mCallbackThread = new AudioFlinger::AsyncCallbackThread(this);
         }
     }
 
@@ -3746,9 +3747,9 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 // ----------------------------------------------------------------------------
 
 AudioFlinger::AsyncCallbackThread::AsyncCallbackThread(
-        const sp<AudioFlinger::OffloadThread>& offloadThread)
+        const wp<AudioFlinger::PlaybackThread>& playbackThread)
     :   Thread(false /*canCallJava*/),
-        mOffloadThread(offloadThread),
+        mPlaybackThread(playbackThread),
         mWriteAckSequence(0),
         mDrainSequence(0)
 {
@@ -3783,13 +3784,13 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
             mDrainSequence &= ~1;
         }
         {
-            sp<AudioFlinger::OffloadThread> offloadThread = mOffloadThread.promote();
-            if (offloadThread != 0) {
+            sp<AudioFlinger::PlaybackThread> playbackThread = mPlaybackThread.promote();
+            if (playbackThread != 0) {
                 if (writeAckSequence & 1) {
-                    offloadThread->resetWriteBlocked(writeAckSequence >> 1);
+                    playbackThread->resetWriteBlocked(writeAckSequence >> 1);
                 }
                 if (drainSequence & 1) {
-                    offloadThread->resetDraining(drainSequence >> 1);
+                    playbackThread->resetDraining(drainSequence >> 1);
                 }
             }
         }
@@ -3847,7 +3848,6 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         mHwPaused(false),
         mPausedBytesRemaining(0)
 {
-    mCallbackThread = new AudioFlinger::AsyncCallbackThread(this);
 }
 
 AudioFlinger::OffloadThread::~OffloadThread()
