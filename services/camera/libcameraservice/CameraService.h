@@ -71,6 +71,8 @@ public:
     virtual int32_t     getNumberOfCameras();
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
+    virtual status_t    getCameraCharacteristics(int cameraId,
+                                                 CameraMetadata* cameraInfo);
 
     virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
             const String16& clientPackageName, int clientUid,

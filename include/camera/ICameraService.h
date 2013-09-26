@@ -30,6 +30,7 @@ class IProCameraCallbacks;
 class ICameraServiceListener;
 class ICameraDeviceUser;
 class ICameraDeviceCallbacks;
+class CameraMetadata;
 
 class ICameraService : public IInterface
 {
@@ -45,6 +46,7 @@ public:
         CONNECT_DEVICE,
         ADD_LISTENER,
         REMOVE_LISTENER,
+        GET_CAMERA_CHARACTERISTICS,
     };
 
     enum {
@@ -57,6 +59,9 @@ public:
     virtual int32_t  getNumberOfCameras() = 0;
     virtual status_t getCameraInfo(int cameraId,
                                           struct CameraInfo* cameraInfo) = 0;
+
+    virtual status_t getCameraCharacteristics(int cameraId,
+                                              CameraMetadata* cameraInfo) = 0;
 
     // Returns 'OK' if operation succeeded
     // - Errors: ALREADY_EXISTS if the listener was already added
