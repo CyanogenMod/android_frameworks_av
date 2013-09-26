@@ -759,7 +759,7 @@ private:
 class AsyncCallbackThread : public Thread {
 public:
 
-    AsyncCallbackThread(const sp<OffloadThread>& offloadThread);
+    AsyncCallbackThread(const wp<PlaybackThread>& playbackThread);
 
     virtual             ~AsyncCallbackThread();
 
@@ -776,17 +776,17 @@ public:
             void        resetDraining();
 
 private:
-    wp<OffloadThread>   mOffloadThread;
+    const wp<PlaybackThread>   mPlaybackThread;
     // mWriteAckSequence corresponds to the last write sequence passed by the offload thread via
     // setWriteBlocked(). The sequence is shifted one bit to the left and the lsb is used
     // to indicate that the callback has been received via resetWriteBlocked()
-    uint32_t            mWriteAckSequence;
+    uint32_t                   mWriteAckSequence;
     // mDrainSequence corresponds to the last drain sequence passed by the offload thread via
     // setDraining(). The sequence is shifted one bit to the left and the lsb is used
     // to indicate that the callback has been received via resetDraining()
-    uint32_t            mDrainSequence;
-    Condition           mWaitWorkCV;
-    Mutex               mLock;
+    uint32_t                   mDrainSequence;
+    Condition                  mWaitWorkCV;
+    Mutex                      mLock;
 };
 
 class DuplicatingThread : public MixerThread {
