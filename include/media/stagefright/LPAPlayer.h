@@ -103,12 +103,12 @@ private:
 
     //Declare the condition Variables and Mutex
 
-    pthread_mutex_t mDecoderMutex;
+    Mutex mDecoderMutex;
 
-    pthread_cond_t mDecoderCv;
+    Condition mDecoderCv;
 
     // make sure Decoder thread has exited
-    void requestAndWaitForDecoderThreadExit();
+    void requestAndWaitForDecoderThreadExit_l();
 
     static void *decoderThreadWrapper(void *me);
     void decoderThreadEntry();
@@ -162,6 +162,7 @@ private:
         void *buffer, size_t size, void *cookie);
     size_t AudioCallback(void *cookie, void *data, size_t size);
     int64_t getMediaTimeUs_l();
+    bool seekTooClose(int64_t);
 
     void convertMonoToStereo(int16_t *data, size_t size);
 
