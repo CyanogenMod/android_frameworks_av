@@ -777,7 +777,9 @@ void TunnelPlayer::onPauseTimeOut() {
 bool TunnelPlayer::seekTooClose(int64_t time_us) {
     int64_t t1 = -1;
     /* The time as per DSP just before flush is issued */
-    getOffsetRealTime_l(&mPositionTimeRealUs);
+    if (mPositionTimeRealUs == -1) {
+        getOffsetRealTime_l(&mPositionTimeRealUs);
+    }
 
     t1 = mPositionTimeRealUs;
     /*
