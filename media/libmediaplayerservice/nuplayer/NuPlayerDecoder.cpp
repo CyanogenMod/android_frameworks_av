@@ -25,6 +25,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/ExtendedCodec.h>
 
 namespace android {
 
@@ -55,6 +56,18 @@ void NuPlayer::Decoder::configure(const sp<AMessage> &format) {
         }
 
         mCSD.push(csd);
+    }
+
+    sp<ABuffer> extendedCSD = ExtendedCodec::getRawCodecSpecificData(format);
+    if (extendedCSD != NULL) {
+        ALOGV("pushing extended CSD of size %d", extendedCSD->size());
+        mCSD.push(extendedCSD);
+    }
+
+    sp<ABuffer> aacCSD = ExtendedCodec::getAacCodecSpecificData(format);
+    if (aacCSD != NULL) {
+        ALOGV("pushing AAC CSD of size %d", aacCSD->size());
+        mCSD.push(aacCSD);
     }
 
     if (mNativeWindow != NULL) {

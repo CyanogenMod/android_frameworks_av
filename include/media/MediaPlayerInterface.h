@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  * Copyright (C) 2007 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,8 +81,10 @@ public:
             CB_EVENT_FILL_BUFFER,   // Request to write more data to buffer.
             CB_EVENT_STREAM_END,    // Sent after all the buffers queued in AF and HW are played
                                     // back (after stop is called)
-            CB_EVENT_TEAR_DOWN      // The AudioTrack was invalidated due to use case change:
+            CB_EVENT_TEAR_DOWN,      // The AudioTrack was invalidated due to use case change:
                                     // Need to re-evaluate offloading options
+            CB_EVENT_UNDERRUN,
+            CB_EVENT_HW_FAIL
         };
 
         // Callback returns the number of bytes actually written to the buffer.
@@ -96,6 +100,7 @@ public:
         virtual ssize_t     channelCount() const = 0;
         virtual ssize_t     frameSize() const = 0;
         virtual uint32_t    latency() const = 0;
+        virtual audio_stream_type_t    streamType() const {return AUDIO_STREAM_DEFAULT;}
         virtual float       msecsPerFrame() const = 0;
         virtual status_t    getPosition(uint32_t *position) const = 0;
         virtual status_t    getFramesWritten(uint32_t *frameswritten) const = 0;
@@ -121,9 +126,11 @@ public:
 
         virtual status_t    setPlaybackRatePermille(int32_t rate) { return INVALID_OPERATION; }
         virtual bool        needsTrailingPadding() { return true; }
-
         virtual status_t    setParameters(const String8& keyValuePairs) { return NO_ERROR; };
         virtual String8     getParameters(const String8& keys) { return String8::empty(); };
+
+        virtual ssize_t     sampleRate() const {return 0;};
+        virtual status_t    getTimeStamp(uint64_t *tstamp) {return 0;};
     };
 
                         MediaPlayerBase() : mCookie(0), mNotify(0) {}
