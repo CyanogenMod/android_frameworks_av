@@ -803,6 +803,8 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
             if (encoded_packet->kind == VPX_CODEC_CX_FRAME_PKT) {
                 outputBufferHeader->nTimeStamp = encoded_packet->data.frame.pts;
                 outputBufferHeader->nFlags = 0;
+                if (encoded_packet->data.frame.flags & VPX_FRAME_IS_KEY)
+                  outputBufferHeader->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
                 outputBufferHeader->nOffset = 0;
                 outputBufferHeader->nFilledLen = encoded_packet->data.frame.sz;
                 memcpy(outputBufferHeader->pBuffer,
