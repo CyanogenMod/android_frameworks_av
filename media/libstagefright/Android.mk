@@ -101,17 +101,12 @@ ifeq ($(TARGET_QCOM_AUDIO_VARIANT),caf)
     LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO
 endif
 
-ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
 LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media-caf/mm-core/inc
+        $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
 else
-    ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media-legacy/mm-core/inc
-    else
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media/mm-core/inc
-endif
+LOCAL_C_INCLUDES += \
+        $(TOP)/hardware/qcom/media/mm-core/inc
 endif
 
 LOCAL_SHARED_LIBRARIES := \
@@ -188,17 +183,12 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_CFLAGS += -DENABLE_QC_AV_ENHANCEMENTS
     LOCAL_SRC_FILES  += ExtendedWriter.cpp
     LOCAL_SRC_FILES  += QCMediaDefs.cpp
-    ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+    ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
         LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media-caf/mm-core/inc
+            $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
     else
-        ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),legacy)
-            LOCAL_C_INCLUDES += \
-                $(TOP)/hardware/qcom/media-legacy/mm-core/inc
-        else
-            LOCAL_C_INCLUDES += \
-                $(TOP)/hardware/qcom/media/mm-core/inc
-        endif
+        LOCAL_C_INCLUDES += \
+            $(TOP)/hardware/qcom/media/mm-core/inc
     endif
 endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
 
