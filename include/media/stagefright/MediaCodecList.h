@@ -100,6 +100,8 @@ private:
     status_t addTypeFromAttributes(const char **attrs);
     void addType(const char *name);
 
+    friend class ExtendedUtils;
+
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
 };
 

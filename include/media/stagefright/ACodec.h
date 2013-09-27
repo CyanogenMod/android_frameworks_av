@@ -196,6 +196,7 @@ private:
 
     bool mChannelMaskPresent;
     int32_t mChannelMask;
+    bool mInSmoothStreamingMode;
     unsigned mDequeueCounter;
     bool mStoreMetaDataInOutputBuffers;
     int32_t mMetaDataBuffersToSubmit;

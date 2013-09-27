@@ -43,6 +43,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
+                                uint32_t flags,
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 bool isOut);
@@ -130,7 +131,7 @@ protected:
                                     // 8-bit PCM samples are stored as 16-bit
     const size_t        mFrameCount;// size of track buffer given at createTrack() or
                                     // openRecord(), and then adjusted as needed
-
+    uint32_t            mFlags;
     const int           mSessionId;
     Vector < sp<SyncEvent> >mSyncEvents;
     const bool          mIsOut;

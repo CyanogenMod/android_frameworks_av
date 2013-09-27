@@ -1,6 +1,15 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+   ifeq ($(USE_TUNNEL_MODE),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+   endif
+   ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+        LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+   endif
+endif
+
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 ifeq ($(BOARD_HTC_3D_SUPPORT),true)
@@ -25,6 +34,7 @@ LOCAL_SRC_FILES:=                         \
         FLACExtractor.cpp                 \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \
+        LPAPlayerALSA.cpp                 \
         MP3Extractor.cpp                  \
         MPEG2TSWriter.cpp                 \
         MPEG4Extractor.cpp                \
@@ -43,6 +53,7 @@ LOCAL_SRC_FILES:=                         \
         NuMediaExtractor.cpp              \
         OMXClient.cpp                     \
         OMXCodec.cpp                      \
+        ExtendedCodec.cpp                 \
         OggExtractor.cpp                  \
         SampleIterator.cpp                \
         SampleTable.cpp                   \
@@ -53,14 +64,18 @@ LOCAL_SRC_FILES:=                         \
         ThrottledSource.cpp               \
         TimeSource.cpp                    \
         TimedEventQueue.cpp               \
+        TunnelPlayer.cpp                  \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
+        WAVEWriter.cpp                    \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
         mp4/FragmentedMP4Parser.cpp       \
         mp4/TrackFragment.cpp             \
+        ExtendedExtractor.cpp             \
+        ExtendedUtils.cpp                 \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
@@ -111,6 +126,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
+        libstagefright_mp3dec \
         libstagefright_aacenc \
         libstagefright_matroska \
         libstagefright_timedtext \
@@ -120,6 +136,13 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_id3 \
         libFLAC \
         libmedia_helper
+
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+       LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
+       LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+       LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp
+       LOCAL_SRC_FILES  += ExtendedWriter.cpp
+endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \
         chromium_http_stub.cpp
@@ -150,6 +173,12 @@ ifeq ($(BOARD_USE_TI_DUCATI_H264_PROFILE), true)
 LOCAL_CFLAGS += -DUSE_TI_DUCATI_H264_PROFILE
 endif
 
+ifdef DOLBY_UDC
+  LOCAL_CFLAGS += -DDOLBY_UDC
+endif #DOLBY_UDC
+ifdef DOLBY_UDC_MULTICHANNEL
+  LOCAL_CFLAGS += -DDOLBY_UDC_MULTICHANNEL
+endif #DOLBY_UDC_MULTICHANNEL
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
