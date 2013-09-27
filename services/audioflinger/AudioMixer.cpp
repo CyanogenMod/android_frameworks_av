@@ -561,7 +561,7 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
                       (value == 48000 && devSampleRate == 44100))) {
                     quality = AudioResampler::LOW_QUALITY;
                 } else {
-                    quality = AudioResampler::DEFAULT_QUALITY;
+                    quality = AudioResampler::VERY_HIGH_QUALITY;
                 }
                 resampler = AudioResampler::create(
                         format,

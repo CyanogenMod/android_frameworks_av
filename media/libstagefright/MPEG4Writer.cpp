@@ -40,6 +40,8 @@
 
 #include "include/ESDS.h"
 
+#include "include/ExtendedUtils.h"
+
 namespace android {
 
 static const int64_t kMinStreamableFileSizeInBytes = 5 * 1024 * 1024;
@@ -510,10 +512,10 @@ int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
 
     // If the estimation is wrong, we will pay the price of wasting
     // some reserved space. This should not happen so often statistically.
+    int32_t factor = mUse32BitOffset? 1: 2;
     static const int64_t MIN_MOOV_BOX_SIZE = 3 * 1024;  // 3 KB
     static const int64_t MAX_MOOV_BOX_SIZE = (180 * 3000000 * 6LL / 8000);
     int64_t size = MIN_MOOV_BOX_SIZE;
-    int32_t factor = mUse32BitOffset? 1: 2;
 
     // Max file size limit is set
     if (mMaxFileSizeLimitBytes != 0 && mIsFileSizeLimitExplicitlyRequested) {
@@ -2264,6 +2266,10 @@ status_t MPEG4Writer::Track::threadEntry() {
         meta_data->findInt32(kKeyIsSyncFrame, &isSync);
         CHECK(meta_data->findInt64(kKeyTime, &timestampUs));
 
+        if (!mIsAudio) {
+            ExtendedUtils::HFR::reCalculateTimeStamp(mMeta, timestampUs);
+        }
+
 ////////////////////////////////////////////////////////////////////////////////
         if (mStszTableEntries->count() == 0) {
             mFirstSampleTimeRealUs = systemTime() / 1000;
@@ -2293,10 +2299,12 @@ status_t MPEG4Writer::Track::threadEntry() {
              */
             int64_t decodingTimeUs;
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
+            ExtendedUtils::HFR::reCalculateTimeStamp(mMeta, decodingTimeUs);
+
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
-                    timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
-            CHECK_GE(cttsOffsetTimeUs, 0ll);
+                    timestampUs - decodingTimeUs;
+            CHECK_GE(kMaxCttsOffsetTimeUs, decodingTimeUs - timestampUs);
             timestampUs = decodingTimeUs;
             ALOGV("decoding time: %lld and ctts offset time: %lld",
                 timestampUs, cttsOffsetTimeUs);
