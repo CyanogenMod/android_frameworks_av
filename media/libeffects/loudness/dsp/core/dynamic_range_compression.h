@@ -55,6 +55,9 @@ class AdaptiveDynamicRangeCompression {
   // log(.) and exp(.).
   float Compress(float x);
 
+  // Stereo channel version of the compressor
+  void Compress(float *x1, float *x2);
+
   // This version is slower than Compress(.) but faster than CompressSlow(.)
   float CompressNormalSpeed(float x);
 

@@ -102,5 +102,40 @@ float AdaptiveDynamicRangeCompression::Compress(float x) {
   return x;
 }
 
+void AdaptiveDynamicRangeCompression::Compress(float *x1, float *x2) {
+  // Taking the maximum amplitude of both channels
+  const float max_abs_x = std::max(std::fabs(*x1),
+    std::max(std::fabs(*x2), kMinLogAbsValue));
+  const float max_abs_x_dB = math::fast_log(max_abs_x);
+  // Subtract Threshold from log-encoded input to get the amount of overshoot
+  const float overshoot = max_abs_x_dB - knee_threshold_;
+  // Hard half-wave rectifier
+  const float rect = std::max(overshoot, 0.0f);
+  // Multiply rectified overshoot with slope
+  const float cv = rect * slope_;
+  const float prev_state = state_;
+  if (cv <= state_) {
+    state_ = alpha_attack_ * state_ + (1.0f - alpha_attack_) * cv;
+  } else {
+    state_ = alpha_release_ * state_ + (1.0f - alpha_release_) * cv;
+  }
+  compressor_gain_ *=
+      math::ExpApproximationViaTaylorExpansionOrder5(state_ - prev_state);
+  *x1 *= compressor_gain_;
+  if (*x1 > kFixedPointLimit) {
+    *x1 = kFixedPointLimit;
+  }
+  if (*x1 < -kFixedPointLimit) {
+    *x1 = -kFixedPointLimit;
+  }
+  *x2 *= compressor_gain_;
+  if (*x2 > kFixedPointLimit) {
+    *x2 = kFixedPointLimit;
+  }
+  if (*x2 < -kFixedPointLimit) {
+    *x2 = -kFixedPointLimit;
+  }
+}
+
 }  // namespace le_fx
 

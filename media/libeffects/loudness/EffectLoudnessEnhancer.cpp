@@ -56,8 +56,7 @@ struct LoudnessEnhancerContext {
     int32_t mTargetGainmB;// target gain in mB
     // in this implementation, there is no coupling between the compression on the left and right
     // channels
-    le_fx::AdaptiveDynamicRangeCompression* mCompressorL;
-    le_fx::AdaptiveDynamicRangeCompression* mCompressorR;
+    le_fx::AdaptiveDynamicRangeCompression* mCompressor;
 };
 
 //
@@ -68,11 +67,10 @@ void LE_reset(LoudnessEnhancerContext *pContext)
 {
     ALOGV("  > LE_reset(%p)", pContext);
 
-    if ((pContext->mCompressorL != NULL) && (pContext->mCompressorR != NULL)) {
+    if (pContext->mCompressor != NULL) {
         float targetAmp = pow(10, pContext->mTargetGainmB/2000.0f); // mB to linear amplification
         ALOGV("LE_reset(): Target gain=%dmB <=> factor=%.2fX", pContext->mTargetGainmB, targetAmp);
-        pContext->mCompressorL->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
-        pContext->mCompressorR->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
+        pContext->mCompressor->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
     } else {
         ALOGE("LE_reset(%p): null compressors, can't apply target gain", pContext);
     }
@@ -176,13 +174,9 @@ int LE_init(LoudnessEnhancerContext *pContext)
     float targetAmp = pow(10, pContext->mTargetGainmB/2000.0f); // mB to linear amplification
     ALOGV("LE_init(): Target gain=%dmB <=> factor=%.2fX", pContext->mTargetGainmB, targetAmp);
 
-    if (pContext->mCompressorL == NULL) {
-        pContext->mCompressorL = new le_fx::AdaptiveDynamicRangeCompression();
-        pContext->mCompressorL->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
-    }
-    if (pContext->mCompressorR == NULL) {
-        pContext->mCompressorR = new le_fx::AdaptiveDynamicRangeCompression();
-        pContext->mCompressorR->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
+    if (pContext->mCompressor == NULL) {
+        pContext->mCompressor = new le_fx::AdaptiveDynamicRangeCompression();
+        pContext->mCompressor->Initialize(targetAmp, pContext->mConfig.inputCfg.samplingRate);
     }
 
     LE_setConfig(pContext, &pContext->mConfig);
@@ -215,8 +209,7 @@ int LELib_Create(const effect_uuid_t *uuid,
     pContext->mItfe = &gLEInterface;
     pContext->mState = LOUDNESS_ENHANCER_STATE_UNINITIALIZED;
 
-    pContext->mCompressorL = NULL;
-    pContext->mCompressorR = NULL;
+    pContext->mCompressor = NULL;
     ret = LE_init(pContext);
     if (ret < 0) {
         ALOGW("LELib_Create() init failed");
@@ -242,13 +235,9 @@ int LELib_Release(effect_handle_t handle) {
         return -EINVAL;
     }
     pContext->mState = LOUDNESS_ENHANCER_STATE_UNINITIALIZED;
-    if (pContext->mCompressorL != NULL) {
-        delete pContext->mCompressorL;
-        pContext->mCompressorL = NULL;
-    }
-    if (pContext->mCompressorR != NULL) {
-        delete pContext->mCompressorR;
-        pContext->mCompressorR = NULL;
+    if (pContext->mCompressor != NULL) {
+        delete pContext->mCompressor;
+        pContext->mCompressor = NULL;
     }
     delete pContext;
 
@@ -293,11 +282,14 @@ int LE_process(
     //ALOGV("LE about to process %d samples", inBuffer->frameCount);
     uint16_t inIdx;
     float inputAmp = pow(10, pContext->mTargetGainmB/2000.0f);
+    float leftSample, rightSample;
     for (inIdx = 0 ; inIdx < inBuffer->frameCount ; inIdx++) {
-        inBuffer->s16[2*inIdx] = pContext->mCompressorL->Compress(
-                inputAmp * (float)inBuffer->s16[2*inIdx]);
-        inBuffer->s16[2*inIdx +1] = pContext->mCompressorR->Compress(
-                inputAmp * (float)inBuffer->s16[2*inIdx +1]);
+        // makeup gain is applied on the input of the compressor
+        leftSample  = inputAmp * (float)inBuffer->s16[2*inIdx];
+        rightSample = inputAmp * (float)inBuffer->s16[2*inIdx +1];
+        pContext->mCompressor->Compress(&leftSample, &rightSample);
+        inBuffer->s16[2*inIdx]    = (int16_t) leftSample;
+        inBuffer->s16[2*inIdx +1] = (int16_t) rightSample;
     }
 
     if (inBuffer->raw != outBuffer->raw) {
