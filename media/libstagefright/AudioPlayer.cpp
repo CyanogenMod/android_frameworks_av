@@ -363,6 +363,7 @@ void AudioPlayer::reset() {
     mPositionTimeMediaUs = -1;
     mPositionTimeRealUs = -1;
     mSeeking = false;
+    mSeekTimeUs = 0;
     mReachedEOS = false;
     mFinalStatus = OK;
     mStarted = false;
@@ -602,15 +603,24 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
             // need to adjust the mStartPosUs for offload decoding since parser
             // might not be able to get the exact seek time requested.
-            if (refreshSeekTime && useOffload()) {
-                if (postSeekComplete) {
-                    ALOGV("fillBuffer is going to post SEEK_COMPLETE");
-                    mObserver->postAudioSeekComplete();
-                    postSeekComplete = false;
-                }
+            if (refreshSeekTime) {
+                if (useOffload()) {
+                    if (postSeekComplete) {
+                        ALOGV("fillBuffer is going to post SEEK_COMPLETE");
+                        mObserver->postAudioSeekComplete();
+                        postSeekComplete = false;
+                    }
 
-                mStartPosUs = mPositionTimeMediaUs;
-                ALOGV("adjust seek time to: %.2f", mStartPosUs/ 1E6);
+                    mStartPosUs = mPositionTimeMediaUs;
+                    ALOGV("adjust seek time to: %.2f", mStartPosUs/ 1E6);
+                }
+                // clear seek time with mLock locked and once we have valid mPositionTimeMediaUs
+                // and mPositionTimeRealUs
+                // before clearing mSeekTimeUs check if a new seek request has been received while
+                // we were reading from the source with mLock released.
+                if (!mSeeking) {
+                    mSeekTimeUs = 0;
+                }
             }
 
             if (!useOffload()) {
@@ -741,12 +751,10 @@ int64_t AudioPlayer::getMediaTimeUs() {
         return mPositionTimeRealUs;
     }
 
-    if (mPositionTimeMediaUs < 0 || mPositionTimeRealUs < 0) {
-        if (mSeeking) {
-            return mSeekTimeUs;
-        }
 
-        return 0;
+    if (mPositionTimeMediaUs < 0 || mPositionTimeRealUs < 0) {
+        // mSeekTimeUs is either seek time while seeking or 0 if playback did not start.
+        return mSeekTimeUs;
     }
 
     int64_t realTimeOffset = getRealTimeUsLocked() - mPositionTimeRealUs;
