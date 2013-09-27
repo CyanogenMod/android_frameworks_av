@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +38,7 @@ namespace android {
 
 AudioPlayer::AudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
-        uint32_t flags,
-        AwesomePlayer *observer)
+        uint32_t flags, AwesomePlayer *observer)
     : mInputBuffer(NULL),
       mSampleRate(0),
       mLatencyUs(0),
@@ -51,6 +52,7 @@ AudioPlayer::AudioPlayer(
       mFinalStatus(OK),
       mSeekTimeUs(0),
       mStarted(false),
+      mSourcePaused(false),
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
@@ -79,6 +81,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     status_t err;
     if (!sourceAlreadyStarted) {
+        mSourcePaused = false;
         err = mSource->start();
 
         if (err != OK) {
@@ -253,7 +256,6 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
 void AudioPlayer::pause(bool playPendingSamples) {
     CHECK(mStarted);
-
     if (playPendingSamples) {
         if (mAudioSink.get() != NULL) {
             mAudioSink->stop();
@@ -274,10 +276,19 @@ void AudioPlayer::pause(bool playPendingSamples) {
     }
 
     mPlaying = false;
+    CHECK(mSource != NULL);
+    if (mSource->pause() == OK) {
+        mSourcePaused = true;
+    }
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
+    CHECK(mSource != NULL);
+    if (mSourcePaused == true) {
+        mSourcePaused = false;
+        mSource->start();
+    }
     status_t err;
 
     if (mAudioSink.get() != NULL) {
@@ -339,7 +350,7 @@ void AudioPlayer::reset() {
         mInputBuffer->release();
         mInputBuffer = NULL;
     }
-
+    mSourcePaused = false;
     mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
@@ -415,6 +426,11 @@ size_t AudioPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink::cb_event_t event) {
     AudioPlayer *me = (AudioPlayer *)cookie;
 
+    if (buffer == NULL) {
+        //Not applicable for AudioPlayer
+        ALOGE("This indicates the event underrun case for LPA/Tunnel");
+        return 0;
+    }
     switch(event) {
     case MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER:
         return me->fillBuffer(buffer, size);

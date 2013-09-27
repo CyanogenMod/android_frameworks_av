@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2008-2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,6 +51,16 @@ public:
     static const char * const keyFrameCount;
     static const char * const keyInputSource;
     static const char * const keyScreenState;
+#ifdef QCOM_FM_ENABLED
+    static const char * const keyHandleFm;
+    static const char * const keyVoipCheck;
+    static const char * const keyFluenceType;
+    static const char * const keySSR;
+    static const char * const keyHandleA2dpDevice;
+    static const char * const keyADSPStatus;
+    static const char * const keyCanOpenProxy;
+    static const char * const keyFmVolume;
+#endif
 
     String8 toString();
 
