@@ -1221,6 +1221,12 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             int device;
             if (param.getInt(key, device) == NO_ERROR) {
                 mDirectDevice = device;
+#ifdef SRS_PROCESSING
+                ALOGV("setParameters:: routing change to device %d", device);
+                POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
+                if(desc->flag & AUDIO_OUTPUT_FLAG_TUNNEL)
+                    audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
+#endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
                     audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
