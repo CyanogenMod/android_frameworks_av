@@ -1,5 +1,6 @@
 /*
-**
+** Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 ** Copyright 2007, The Android Open Source Project
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +29,8 @@
 
 #include <media/IAudioFlinger.h>
 #include <media/IAudioFlingerClient.h>
+#include <media/IDirectTrack.h>
+#include <media/IDirectTrackClient.h>
 #include <media/IAudioTrack.h>
 #include <media/IAudioRecord.h>
 #include <media/AudioSystem.h>
@@ -54,7 +57,7 @@
 #include "AudioWatchdog.h"
 
 #include <powermanager/IPowerManager.h>
-
+#include <utils/List.h>
 #include <media/nbaio/NBLog.h>
 #include <private/media/AudioTrackShared.h>
 
@@ -86,6 +89,10 @@ static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
 #define INCLUDING_FROM_AUDIOFLINGER_H
 
+static uint32_t getInputChannelCount(uint32_t channels) {
+    // only mono, stereo, and 5.1 are supported for input sources
+    return popcount((channels)&(AUDIO_CHANNEL_IN_STEREO|AUDIO_CHANNEL_IN_MONO|AUDIO_CHANNEL_IN_5POINT1));
+}
 class AudioFlinger :
     public BinderService<AudioFlinger>,
     public BnAudioFlinger
@@ -110,7 +117,16 @@ public:
                                 int *sessionId,
                                 String8& name,
                                 status_t *status);
-
+    virtual sp<IDirectTrack> createDirectTrack(
+                                pid_t pid,
+                                uint32_t sampleRate,
+                                audio_channel_mask_t channelMask,
+                                audio_io_handle_t output,
+                                int *sessionId,
+                                IDirectTrackClient* client,
+                                audio_stream_type_t streamType,
+                                status_t *status);
+    virtual void deleteEffectSession();
     virtual sp<IAudioRecord> openRecord(
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
@@ -151,7 +167,7 @@ public:
     virtual     String8     getParameters(audio_io_handle_t ioHandle, const String8& keys) const;
 
     virtual     void        registerClient(const sp<IAudioFlingerClient>& client);
-
+    virtual    status_t     deregisterClient(const sp<IAudioFlingerClient>& client);
     virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format,
                                                audio_channel_mask_t channelMask) const;
 
@@ -228,6 +244,12 @@ public:
                                 const Parcel& data,
                                 Parcel* reply,
                                 uint32_t flags);
+
+    bool applyEffectsOn(void *token,
+                        int16_t *buffer1,
+                        int16_t *buffer2,
+                        int size,
+                        bool force);
 
     // end of IAudioFlinger interface
 
@@ -374,6 +396,7 @@ private:
     class EffectModule;
     class EffectHandle;
     class EffectChain;
+    struct AudioSessionDescriptor;
     struct AudioStreamOut;
     struct AudioStreamIn;
 
@@ -463,7 +486,116 @@ private:
 
               sp<PlaybackThread> getEffectThread_l(int sessionId, int EffectId);
 
+    // server side of the client's IAudioTrack
+    class DirectAudioTrack : public android::BnDirectTrack,
+                             public AudioEventObserver
+    {
+    public:
+                            DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
+                                             int output, AudioSessionDescriptor *outputDesc,
+                                             IDirectTrackClient* client, audio_output_flags_t outflag);
+        virtual             ~DirectAudioTrack();
+        virtual status_t    start();
+        virtual void        stop();
+        virtual void        flush();
+        virtual void        mute(bool);
+        virtual void        pause();
+        virtual ssize_t     write(const void *buffer, size_t bytes);
+        virtual void        setVolume(float left, float right);
+        virtual int64_t     getTimeStamp();
+        virtual void        postEOS(int64_t delayUs);
+        void                signalEffect();
 
+        virtual status_t    onTransact(
+            uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
+    private:
+
+        IDirectTrackClient* mClient;
+        AudioSessionDescriptor *mOutputDesc;
+        int  mOutput;
+        bool mIsPaused;
+        audio_output_flags_t mFlag;
+
+        class BufferInfo {
+        public:
+            BufferInfo(void *buf1, void *buf2, int32_t nSize) :
+            localBuf(buf1), dspBuf(buf2), memBufsize(nSize)
+            {}
+
+            void *localBuf;
+            void *dspBuf;
+            uint32_t memBufsize;
+            uint32_t bytesToWrite;
+        };
+        List<BufferInfo> mBufPool;
+        List<BufferInfo> mEffectsPool;
+        void *mEffectsThreadScratchBuffer;
+
+        void allocateBufPool();
+        void deallocateBufPool();
+
+        //******Effects*************
+        static void *EffectsThreadWrapper(void *me);
+        void EffectsThreadEntry();
+        // make sure the Effects thread also exited
+        void requestAndWaitForEffectsThreadExit();
+        void createEffectThread();
+        Condition mEffectCv;
+        Mutex mEffectLock;
+        pthread_t mEffectsThread;
+        bool mKillEffectsThread;
+        bool mEffectsThreadAlive;
+        bool mEffectConfigChanged;
+
+        //Structure to recieve the Effect notification from the flinger.
+        class AudioFlingerDirectTrackClient: public IBinder::DeathRecipient, public BnAudioFlingerClient {
+        public:
+            AudioFlingerDirectTrackClient(void *obj);
+
+            DirectAudioTrack *pBaseClass;
+            // DeathRecipient
+            virtual void binderDied(const wp<IBinder>& who);
+
+            // IAudioFlingerClient
+
+            // indicate a change in the configuration of an output or input: keeps the cached
+            // values for output/input parameters upto date in client process
+            virtual void ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
+
+            friend class DirectAudioTrack;
+        };
+        // helper function to obtain AudioFlinger service handle
+        sp<AudioFlinger> mAudioFlinger;
+        sp<AudioFlingerDirectTrackClient> mAudioFlingerClient;
+
+        void clearPowerManager();
+
+        class PMDeathRecipient : public IBinder::DeathRecipient {
+            public:
+                            PMDeathRecipient(void *obj){parentClass = (DirectAudioTrack *)obj;}
+                virtual     ~PMDeathRecipient() {}
+
+                // IBinder::DeathRecipient
+                virtual     void        binderDied(const wp<IBinder>& who);
+
+            private:
+                            DirectAudioTrack *parentClass;
+                            PMDeathRecipient(const PMDeathRecipient&);
+                            PMDeathRecipient& operator = (const PMDeathRecipient&);
+
+            friend class DirectAudioTrack;
+        };
+
+        friend class PMDeathRecipient;
+
+        Mutex pmLock;
+        void        acquireWakeLock();
+        void        releaseWakeLock();
+
+        sp<IPowerManager>       mPowerManager;
+        sp<IBinder>             mWakeLockToken;
+        sp<PMDeathRecipient>    mDeathRecipient;
+    };
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
 
@@ -524,6 +656,20 @@ private:
 
         AudioStreamIn(AudioHwDevice *dev, audio_stream_in_t *in) :
             audioHwDev(dev), stream(in) {}
+    };
+    struct AudioSessionDescriptor {
+        bool    mActive;
+        int     mStreamType;
+        float   mVolumeLeft;
+        float   mVolumeRight;
+        float   mVolumeScale;
+        audio_hw_device_t   *hwDev;
+        audio_stream_out_t  *stream;
+        audio_output_flags_t flag;
+        void *trackRefPtr;
+        audio_devices_t device;
+        AudioSessionDescriptor(audio_hw_device_t *dev, audio_stream_out_t *out, audio_output_flags_t outflag) :
+            hwDev(dev), stream(out), flag(outflag)  {}
     };
 
     // for mAudioSessionRefs only
@@ -589,10 +735,16 @@ private:
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
-
+                DefaultKeyedVector<audio_io_handle_t, AudioSessionDescriptor *> mDirectAudioTracks;
                 // protected by mLock
+                volatile bool                       mIsEffectConfigChanged;
                 Vector<AudioSessionRef*> mAudioSessionRefs;
-
+                sp<EffectChain> mLPAEffectChain;
+                int         mLPASessionId;
+                audio_devices_t mDirectDevice;//device for directTrack,used for effects
+                int                                 mLPASampleRate;
+                int                                 mLPANumChannels;
+                volatile bool                       mAllChainsLocked;
                 float       masterVolume_l() const;
                 bool        masterMute_l() const;
                 audio_module_handle_t loadHwModule_l(const char *name);

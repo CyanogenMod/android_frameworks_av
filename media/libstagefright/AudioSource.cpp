@@ -27,10 +27,14 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <cutils/properties.h>
 #include <stdlib.h>
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
+#endif
+#include <system/audio.h>
+#define DEFAULT_TUNNEL_BUFFER_COUNT 4
 
 namespace android {
-// Treat time out as an error if we have not received any output
-// buffers after 1 seconds
+
 const static int64_t WaitLockEventTimeOutNs = 1000000000LL;
 static void AudioRecordCallbackFunction(int event, void *user, void *info) {
     AudioSource *source = (AudioSource *) user;
@@ -51,23 +55,31 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
 
 AudioSource::AudioSource(
         audio_source_t inputSource, uint32_t sampleRate, uint32_t channelCount)
-    : mStarted(false),
+    : mRecord(NULL),
+      mStarted(false),
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
       mNumFramesReceived(0),
-      mNumClientOwnedBuffers(0) {
+      mNumClientOwnedBuffers(0),
+      mFormat(AUDIO_FORMAT_PCM_16_BIT),
+      mMime(MEDIA_MIMETYPE_AUDIO_RAW) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
-    CHECK(channelCount == 1 || channelCount == 2);
+    CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
 
     size_t minFrameCount;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
                                            sampleRate,
                                            AUDIO_FORMAT_PCM_16_BIT,
                                            audio_channel_in_mask_from_count(channelCount));
+    if ( NO_ERROR != AudioSystem::getInputBufferSize(
+        sampleRate, mFormat, channelCount, (size_t*)&mMaxBufferSize) ) {
+        mMaxBufferSize = kMaxBufferSize;
+        ALOGV("mMaxBufferSize = %d", mMaxBufferSize);
+    }
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size
-        int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
+        int frameCount = mMaxBufferSize / sizeof(int16_t) / channelCount;
 
         // make sure that the AudioRecord total buffer size is large enough
         int bufCount = 2;
@@ -78,13 +90,11 @@ AudioSource::AudioSource(
         mRecord = new AudioRecord(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
-                    bufCount * frameCount,
+                    DEFAULT_TUNNEL_BUFFER_COUNT * mMaxBufferSize / sizeof(int16_t), /* Enable ping-pong buffers */
                     AudioRecordCallbackFunction,
                     this,
                     frameCount);
         mInitCheck = mRecord->initCheck();
-
-        //configure the auto ramp start duration
         mAutoRampStartUs = kAutoRampStartUs;
         uint32_t playbackLatencyMs = 0;
         if (AudioSystem::getOutputLatency(&playbackLatencyMs,
@@ -99,6 +109,59 @@ AudioSource::AudioSource(
     }
 }
 
+AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
+    : mStarted(false),
+      mPrevSampleTimeUs(0),
+      mNumFramesReceived(0),
+      mNumClientOwnedBuffers(0),
+      mFormat(AUDIO_FORMAT_PCM_16_BIT),
+      mMime(MEDIA_MIMETYPE_AUDIO_RAW) {
+    const char * mime;
+    ALOGE("SK: in AudioSource : inputSource: %d", inputSource);
+    CHECK( meta->findCString( kKeyMIMEType, &mime ) );
+    mMime = mime;
+    int32_t sampleRate = 0; //these are the only supported values
+    int32_t channels = 0;      //for the below tunnel formats
+    CHECK( meta->findInt32( kKeyChannelCount, &channels ) );
+    CHECK( meta->findInt32( kKeySampleRate, &sampleRate ) );
+    int32_t frameSize = -1;
+    mSampleRate = sampleRate;
+    if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_AMR_NB ) ) {
+        mFormat = AUDIO_FORMAT_AMR_NB;
+        frameSize = AMR_FRAMESIZE;
+        mMaxBufferSize = AMR_FRAMESIZE*10;
+    }
+#ifdef ENABLE_QC_AV_ENHANCEMENTS
+    else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_QCELP ) ) {
+        mFormat = AUDIO_FORMAT_QCELP;
+        frameSize = QCELP_FRAMESIZE;
+        mMaxBufferSize = QCELP_FRAMESIZE*10;
+    }
+    else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_EVRC ) ) {
+        mFormat = AUDIO_FORMAT_EVRC;
+        frameSize = EVRC_FRAMESIZE;
+        mMaxBufferSize = EVRC_FRAMESIZE*10;
+    }
+#endif
+    else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_AMR_WB ) ) {
+        mFormat = AUDIO_FORMAT_AMR_WB;
+        frameSize = AMR_WB_FRAMESIZE;
+        mMaxBufferSize = AMR_WB_FRAMESIZE*10;
+    }
+    else {
+        CHECK(0);
+    }
+    mAutoRampStartUs = 0;
+    CHECK(channels == 1 || channels == 2);
+    mRecord = new AudioRecord(
+                inputSource, sampleRate, mFormat,
+                channels > 1? AUDIO_CHANNEL_IN_STEREO:
+                AUDIO_CHANNEL_IN_MONO,
+                4*mMaxBufferSize/channels/frameSize,
+                AudioRecordCallbackFunction,
+                this);
+    mInitCheck = mRecord->initCheck();
+}
 AudioSource::~AudioSource() {
     if (mStarted) {
         reset();
@@ -180,10 +243,10 @@ sp<MetaData> AudioSource::getFormat() {
     }
 
     sp<MetaData> meta = new MetaData;
-    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
-    meta->setInt32(kKeySampleRate, mSampleRate);
+    meta->setCString(kKeyMIMEType, mMime);
+    meta->setInt32(kKeySampleRate, mRecord->getSampleRate());
     meta->setInt32(kKeyChannelCount, mRecord->channelCount());
-    meta->setInt32(kKeyMaxInputSize, kMaxBufferSize);
+    meta->setInt32(kKeyMaxInputSize, mMaxBufferSize);
 
     return meta;
 }
@@ -247,22 +310,24 @@ status_t AudioSource::read(
     int64_t timeUs;
     CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
     int64_t elapsedTimeUs = timeUs - mStartTimeUs;
-    if (elapsedTimeUs < mAutoRampStartUs) {
+    if ( mFormat == AUDIO_FORMAT_PCM_16_BIT ) {
+        if (elapsedTimeUs < mAutoRampStartUs) {
         memset((uint8_t *) buffer->data(), 0, buffer->range_length());
-    } else if (elapsedTimeUs < mAutoRampStartUs + kAutoRampDurationUs) {
+        } else if (elapsedTimeUs < mAutoRampStartUs + kAutoRampDurationUs) {
         int32_t autoRampDurationFrames =
                     (kAutoRampDurationUs * mSampleRate + 500000LL) / 1000000LL;
 
         int32_t autoRampStartFrames =
-                    (mAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL;
+                        (mAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL;
 
         int32_t nFrames = mNumFramesReceived - autoRampStartFrames;
         rampVolume(nFrames, autoRampDurationFrames,
                 (uint8_t *) buffer->data(), buffer->range_length());
+        }
     }
 
     // Track the max recording signal amplitude.
-    if (mTrackMaxAmplitude) {
+    if (mTrackMaxAmplitude && ( mFormat == AUDIO_FORMAT_PCM_16_BIT)) {
         trackMaxAmplitude(
             (int16_t *) buffer->data(), buffer->range_length() >> 1);
     }
@@ -319,6 +384,7 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
     }
 
     CHECK_EQ(numLostBytes & 1, 0u);
+    if ( mFormat == AUDIO_FORMAT_PCM_16_BIT )
     CHECK_EQ(audioBuffer.size & 1, 0u);
     if (numLostBytes > 0) {
         // Loss of audio frames should happen rarely; thus the LOGW should
@@ -357,19 +423,30 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 void AudioSource::queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs) {
     const size_t bufferSize = buffer->range_length();
     const size_t frameSize = mRecord->frameSize();
-    const int64_t timestampUs =
-                mPrevSampleTimeUs +
-                    ((1000000LL * (bufferSize / frameSize)) +
+    int64_t timestampUs = mPrevSampleTimeUs;
+    int64_t recordDurationUs = 0;
+    if ( mFormat == AUDIO_FORMAT_PCM_16_BIT && mSampleRate){
+        recordDurationUs = ((1000000LL * (bufferSize / (2 * mRecord->channelCount()))) +
                         (mSampleRate >> 1)) / mSampleRate;
+    } else {
+       recordDurationUs = bufferDurationUs(bufferSize);
+    }
+    timestampUs += recordDurationUs;
 
     if (mNumFramesReceived == 0) {
         buffer->meta_data()->setInt64(kKeyAnchorTime, mStartTimeUs);
     }
 
     buffer->meta_data()->setInt64(kKeyTime, mPrevSampleTimeUs);
+    if (mFormat == AUDIO_FORMAT_PCM_16_BIT) {
     buffer->meta_data()->setInt64(kKeyDriftTime, timeUs - mInitialReadTimeUs);
+    } else {
+        int64_t wallClockTimeUs = timeUs - mInitialReadTimeUs;
+        int64_t mediaTimeUs = mStartTimeUs + mPrevSampleTimeUs;
+        buffer->meta_data()->setInt64(kKeyDriftTime, mediaTimeUs - wallClockTimeUs);
+    }
     mPrevSampleTimeUs = timestampUs;
-    mNumFramesReceived += bufferSize / frameSize;
+    mNumFramesReceived += buffer->range_length() / sizeof(int16_t);
     mBuffersReceived.push_back(buffer);
     mFrameAvailableCondition.signal();
 }
@@ -397,4 +474,22 @@ int16_t AudioSource::getMaxAmplitude() {
     return value;
 }
 
+int64_t AudioSource::bufferDurationUs( ssize_t n ) {
+    int64_t dataDurationMs = 0;
+    if (mFormat == AUDIO_FORMAT_AMR_NB) {
+        dataDurationMs = (n/AMR_FRAMESIZE) * 20; //ms
+    }
+    else if (mFormat == AUDIO_FORMAT_EVRC) {
+       dataDurationMs = (n/EVRC_FRAMESIZE) * 20; //ms
+    }
+    else if (mFormat == AUDIO_FORMAT_QCELP) {
+        dataDurationMs = (n/QCELP_FRAMESIZE) * 20; //ms
+    }
+    else if (mFormat == AUDIO_FORMAT_AMR_WB) {
+        dataDurationMs = (n/AMR_WB_FRAMESIZE) * 20; //ms
+    }
+    else
+        CHECK(0);
+    return dataDurationMs*1000LL;
+}
 }  // namespace android
