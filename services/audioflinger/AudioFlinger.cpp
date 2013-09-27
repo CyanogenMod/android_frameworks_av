@@ -1156,6 +1156,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
 #ifdef SRS_PROCESSING
                 ALOGV("setParameters:: routing change to device %d", device);
                 POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
+                if(desc->flag & AUDIO_OUTPUT_FLAG_TUNNEL)
+                    audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
 #endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
