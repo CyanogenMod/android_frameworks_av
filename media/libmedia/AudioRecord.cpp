@@ -60,9 +60,10 @@ status_t AudioRecord::getMinFrameCount(
     // We double the size of input buffer for ping pong use of record buffer.
     size <<= 1;
 
-    // Assumes audio_is_linear_pcm(format)
+    if (audio_is_linear_pcm(format) || format == AUDIO_FORMAT_AMR_WB) {
     uint32_t channelCount = popcount(channelMask);
     size /= channelCount * audio_bytes_per_sample(format);
+    }
 
     *frameCount = size;
     return NO_ERROR;
@@ -194,11 +195,6 @@ status_t AudioRecord::set(
         ALOGE("Invalid format %d", format);
         return BAD_VALUE;
     }
-    // Temporary restriction: AudioFlinger currently supports 16-bit PCM only
-    if (format != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("Format %d is not supported", format);
-        return BAD_VALUE;
-    }
     mFormat = format;
 
     if (!audio_is_input_channel(channelMask)) {
@@ -206,20 +202,27 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
     mChannelMask = channelMask;
-    uint32_t channelCount = popcount(channelMask);
+    uint32_t channelCount = popcount(channelMask
+        &(AUDIO_CHANNEL_IN_STEREO|AUDIO_CHANNEL_IN_MONO|AUDIO_CHANNEL_IN_5POINT1));
     mChannelCount = channelCount;
 
-    // Assumes audio_is_linear_pcm(format), else sizeof(uint8_t)
-    mFrameSize = channelCount * audio_bytes_per_sample(format);
+    mFrameSize = frameSize();
 
-    // validate framecount
-    size_t minFrameCount = 0;
-    status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
-            sampleRate, format, channelMask);
+    size_t inputBuffSizeInBytes = -1;
+    status_t status = AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &inputBuffSizeInBytes);
     if (status != NO_ERROR) {
-        ALOGE("getMinFrameCount() failed; status %d", status);
-        return status;
+        ALOGE("AudioSystem could not query the input buffer size; status %d", status);
+        return NO_INIT;
     }
+
+    if (inputBuffSizeInBytes == 0) {
+        ALOGE("Unsupported configuration: sampleRate %u, format %d, channelMask %#x",
+            sampleRate, format, channelMask);
+        return BAD_VALUE;
+    }
+
+    int minFrameCount = (inputBuffSizeInBytes * 2)/mFrameSize;
+
     ALOGV("AudioRecord::set() minFrameCount = %d", minFrameCount);
 
     if (frameCount == 0) {
@@ -274,6 +277,11 @@ status_t AudioRecord::set(
     mInOverrun = false;
 
     return NO_ERROR;
+}
+
+audio_source_t AudioRecord::inputSource() const
+{
+    return mInputSource;
 }
 
 // -------------------------------------------------------------------------
@@ -463,6 +471,10 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
     int originalSessionId = mSessionId;
+    if (inputSource() == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+        ALOGV("Notify use of Voice Communication");
+        trackFlags |= IAudioFlinger::TRACK_VOICE_COMMUNICATION;
+    }
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        mSampleRate, mFormat,
                                                        mChannelMask,
@@ -950,6 +962,36 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     }
 
     return result;
+}
+
+size_t AudioRecord::frameSize() const
+{
+    if (inputSource() == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+        if (audio_is_linear_pcm(mFormat)) {
+            return channelCount()*audio_bytes_per_sample(mFormat);
+        } else {
+            return channelCount()*sizeof(int16_t);
+        }
+    } else {
+        if (format() ==AUDIO_FORMAT_AMR_NB) {
+            return channelCount() * AMR_FRAMESIZE; // Full rate framesize
+        } else if (format() == AUDIO_FORMAT_EVRC) {
+            return channelCount() * EVRC_FRAMESIZE; // Full rate framesize
+        } else if (format() == AUDIO_FORMAT_QCELP) {
+           return channelCount() * QCELP_FRAMESIZE; // Full rate framesize
+        } else if (format() == AUDIO_FORMAT_AAC) {
+            // Not actual framsize but for variable frame rate AAC encoding,
+            // buffer size is treated as a frame size
+            return AAC_FRAMESIZE;
+        } else if(format() == AUDIO_FORMAT_AMR_WB) {
+            return channelCount() * AMR_WB_FRAMESIZE;
+        }
+        if (audio_is_linear_pcm(mFormat)) {
+            return channelCount()*audio_bytes_per_sample(mFormat);
+        } else {
+            return sizeof(uint8_t);
+        }
+   }
 }
 
 // =========================================================================
