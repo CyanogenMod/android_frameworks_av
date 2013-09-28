@@ -91,6 +91,10 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
             LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
             LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
         endif
+        ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+            LOCAL_SRC_FILES += TunnelPlayer.cpp
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+        endif
         ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
             LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
         endif
