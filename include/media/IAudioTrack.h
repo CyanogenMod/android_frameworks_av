@@ -90,6 +90,9 @@ public:
 
     /* Return NO_ERROR if timestamp is valid */
     virtual status_t    getTimestamp(AudioTimestamp& timestamp) = 0;
+
+    /* Signal the playback thread for a change in control block */
+    virtual void        signal() = 0;
 };
 
 // ----------------------------------------------------------------------------
