@@ -250,9 +250,17 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         staticInfo(ANDROID_JPEG_AVAILABLE_THUMBNAIL_SIZES, 4);
     if (!availableJpegThumbnailSizes.count) return NO_INIT;
 
-    // TODO: Pick default thumbnail size sensibly
-    jpegThumbSize[0] = availableJpegThumbnailSizes.data.i32[0];
-    jpegThumbSize[1] = availableJpegThumbnailSizes.data.i32[1];
+    // Pick the largest thumbnail size that matches still image aspect ratio.
+    ALOG_ASSERT(pictureWidth > 0 && pictureHeight > 0,
+            "Invalid picture size, %d x %d", pictureWidth, pictureHeight);
+    float picAspectRatio = static_cast<float>(pictureWidth) / pictureHeight;
+    Size thumbnailSize =
+            getMaxSizeForRatio(
+                    picAspectRatio,
+                    &availableJpegThumbnailSizes.data.i32[0],
+                    availableJpegThumbnailSizes.count);
+    jpegThumbSize[0] = thumbnailSize.width;
+    jpegThumbSize[1] = thumbnailSize.height;
 
     params.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH,
             jpegThumbSize[0]);
@@ -2523,6 +2531,32 @@ status_t Parameters::getFilteredPreviewSizes(Size limit, Vector<Size> *sizes) {
         return BAD_VALUE;
     }
     return OK;
+}
+
+Parameters::Size Parameters::getMaxSizeForRatio(
+        float ratio, const int32_t* sizeArray, size_t count) {
+    ALOG_ASSERT(sizeArray != NULL, "size array shouldn't be NULL");
+    ALOG_ASSERT(count >= 2 && count % 2 == 0, "count must be a positive even number");
+
+    Size maxSize = {0, 0};
+    for (size_t i = 0; i < count; i += 2) {
+        if (sizeArray[i] > 0 && sizeArray[i+1] > 0) {
+            float curRatio = static_cast<float>(sizeArray[i]) / sizeArray[i+1];
+            if (fabs(curRatio - ratio) < ASPECT_RATIO_TOLERANCE && maxSize.width < sizeArray[i]) {
+                maxSize.width = sizeArray[i];
+                maxSize.height = sizeArray[i+1];
+            }
+        }
+    }
+
+    if (maxSize.width == 0 || maxSize.height == 0) {
+        maxSize.width = sizeArray[0];
+        maxSize.height = sizeArray[1];
+        ALOGW("Unable to find the size to match the given aspect ratio %f."
+                "Fall back to %d x %d", ratio, maxSize.width, maxSize.height);
+    }
+
+    return maxSize;
 }
 
 Parameters::CropRegion Parameters::calculateCropRegion(
