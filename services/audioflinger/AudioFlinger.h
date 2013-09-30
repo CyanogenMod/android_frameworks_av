@@ -412,6 +412,7 @@ private:
                                                   int target);
         virtual status_t    setParameters(const String8& keyValuePairs);
         virtual status_t    getTimestamp(AudioTimestamp& timestamp);
+        virtual void        signal(); // signal playback thread for a change in control block
 
         virtual status_t onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);

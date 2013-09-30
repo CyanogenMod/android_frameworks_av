@@ -41,6 +41,7 @@ enum {
     SET_MEDIA_TIME_TRANSFORM,
     SET_PARAMETERS,
     GET_TIMESTAMP,
+    SIGNAL,
 };
 
 class BpAudioTrack : public BpInterface<IAudioTrack>
@@ -182,6 +183,12 @@ public:
         }
         return status;
     }
+
+    virtual void signal() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
+        remote()->transact(SIGNAL, data, &reply);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioTrack, "android.media.IAudioTrack");
@@ -267,6 +274,11 @@ status_t BnAudioTrack::onTransact(
                 reply->writeInt32(timestamp.mTime.tv_sec);
                 reply->writeInt32(timestamp.mTime.tv_nsec);
             }
+            return NO_ERROR;
+        } break;
+        case SIGNAL: {
+            CHECK_INTERFACE(IAudioTrack, data, reply);
+            signal();
             return NO_ERROR;
         } break;
         default:
