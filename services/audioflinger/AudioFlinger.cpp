@@ -213,6 +213,18 @@ AudioFlinger::~AudioFlinger()
         audio_hw_device_close(mAudioHwDevs.valueAt(i)->hwDevice());
         delete mAudioHwDevs.valueAt(i);
     }
+
+    // Tell media.log service about any old writers that still need to be unregistered
+    sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
+    if (binder != 0) {
+        sp<IMediaLogService> mediaLogService(interface_cast<IMediaLogService>(binder));
+        for (size_t count = mUnregisteredWriters.size(); count > 0; count--) {
+            sp<IMemory> iMemory(mUnregisteredWriters.top()->getIMemory());
+            mUnregisteredWriters.pop();
+            mediaLogService->unregisterWriter(iMemory);
+        }
+    }
+
 }
 
 static const char * const audio_interfaces[] = {
@@ -406,16 +418,44 @@ sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
 
 sp<NBLog::Writer> AudioFlinger::newWriter_l(size_t size, const char *name)
 {
+    // If there is no memory allocated for logs, return a dummy writer that does nothing
     if (mLogMemoryDealer == 0) {
         return new NBLog::Writer();
     }
-    sp<IMemory> shared = mLogMemoryDealer->allocate(NBLog::Timeline::sharedSize(size));
-    sp<NBLog::Writer> writer = new NBLog::Writer(size, shared);
     sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
-    if (binder != 0) {
-        interface_cast<IMediaLogService>(binder)->registerWriter(shared, size, name);
+    // Similarly if we can't contact the media.log service, also return a dummy writer
+    if (binder == 0) {
+        return new NBLog::Writer();
     }
-    return writer;
+    sp<IMediaLogService> mediaLogService(interface_cast<IMediaLogService>(binder));
+    sp<IMemory> shared = mLogMemoryDealer->allocate(NBLog::Timeline::sharedSize(size));
+    // If allocation fails, consult the vector of previously unregistered writers
+    // and garbage-collect one or more them until an allocation succeeds
+    if (shared == 0) {
+        Mutex::Autolock _l(mUnregisteredWritersLock);
+        for (size_t count = mUnregisteredWriters.size(); count > 0; count--) {
+            {
+                // Pick the oldest stale writer to garbage-collect
+                sp<IMemory> iMemory(mUnregisteredWriters[0]->getIMemory());
+                mUnregisteredWriters.removeAt(0);
+                mediaLogService->unregisterWriter(iMemory);
+                // Now the media.log remote reference to IMemory is gone.  When our last local
+                // reference to IMemory also drops to zero at end of this block,
+                // the IMemory destructor will deallocate the region from mLogMemoryDealer.
+            }
+            // Re-attempt the allocation
+            shared = mLogMemoryDealer->allocate(NBLog::Timeline::sharedSize(size));
+            if (shared != 0) {
+                goto success;
+            }
+        }
+        // Even after garbage-collecting all old writers, there is still not enough memory,
+        // so return a dummy writer
+        return new NBLog::Writer();
+    }
+success:
+    mediaLogService->registerWriter(shared, size, name);
+    return new NBLog::Writer(size, shared);
 }
 
 void AudioFlinger::unregisterWriter(const sp<NBLog::Writer>& writer)
@@ -427,13 +467,10 @@ void AudioFlinger::unregisterWriter(const sp<NBLog::Writer>& writer)
     if (iMemory == 0) {
         return;
     }
-    sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
-    if (binder != 0) {
-        interface_cast<IMediaLogService>(binder)->unregisterWriter(iMemory);
-        // Now the media.log remote reference to IMemory is gone.
-        // When our last local reference to IMemory also drops to zero,
-        // the IMemory destructor will deallocate the region from mMemoryDealer.
-    }
+    // Rather than removing the writer immediately, append it to a queue of old writers to
+    // be garbage-collected later.  This allows us to continue to view old logs for a while.
+    Mutex::Autolock _l(mUnregisteredWritersLock);
+    mUnregisteredWriters.push(writer);
 }
 
 // IAudioFlinger interface
