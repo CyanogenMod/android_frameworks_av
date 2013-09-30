@@ -86,6 +86,13 @@ static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
 #define INCLUDING_FROM_AUDIOFLINGER_H
 
+#ifdef QCOM_HARDWARE
+static uint32_t getInputChannelCount(uint32_t channels) {
+    // only mono, stereo, and 5.1 are supported for input sources
+    return popcount((channels)&(AUDIO_CHANNEL_IN_STEREO|AUDIO_CHANNEL_IN_MONO|AUDIO_CHANNEL_IN_5POINT1));
+}
+#endif
+
 class AudioFlinger :
     public BinderService<AudioFlinger>,
     public BnAudioFlinger

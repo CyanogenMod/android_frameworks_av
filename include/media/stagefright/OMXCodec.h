@@ -103,6 +103,10 @@ struct OMXCodec : public MediaSource,
 #if defined(OMAP_ENHANCEMENT)
         kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
+#ifdef QCOM_HARDWARE
+        kRequiresGlobalFlush                  = 0x20000000, // 2^29
+        kRequiresWMAProComponent              = 0x40000000, //2^30
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -146,6 +150,9 @@ private:
     };
 
     enum {
+#ifdef QCOM_HARDWARE
+        kPortIndexBoth   = -1,
+#endif
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };

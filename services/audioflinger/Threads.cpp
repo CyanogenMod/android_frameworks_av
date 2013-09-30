@@ -4306,7 +4306,11 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInIndex and mBufferSize set by readInputParameters()
+#ifdef QCOM_HARDWARE
+    mReqChannelCount(getInputChannelCount(channelMask)),
+#else
     mReqChannelCount(popcount(channelMask)),
+#endif
     mReqSampleRate(sampleRate)
     // mBytesRead is only meaningful while active, and so is cleared in start()
     // (but might be better to also clear here for dump?)
@@ -4994,7 +4998,11 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             }
         }
         if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
+#ifdef QCOM_HARDWARE
+            reqChannelCount = getInputChannelCount(value);
+#else
             reqChannelCount = popcount(value);
+#endif
             reconfig = true;
         }
         if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
@@ -5058,7 +5066,11 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                     reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
                     (mInput->stream->common.get_sample_rate(&mInput->stream->common)
                             <= (2 * reqSamplingRate)) &&
+#ifdef QCOM_HARDWARE
+                    getInputChannelCount(mInput->stream->common.get_channels(&mInput->stream->common))
+#else
                     popcount(mInput->stream->common.get_channels(&mInput->stream->common))
+#endif
                             <= FCC_2 &&
                     (reqChannelCount <= FCC_2)) {
                     status = NO_ERROR;
@@ -5127,7 +5139,11 @@ void AudioFlinger::RecordThread::readInputParameters()
 
     mSampleRate = mInput->stream->common.get_sample_rate(&mInput->stream->common);
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
+#ifdef QCOM_HARDWARE
+    mChannelCount = (uint16_t)getInputChannelCount(mChannelMask);
+#else
     mChannelCount = popcount(mChannelMask);
+#endif
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("HAL format %d not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);

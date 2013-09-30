@@ -1748,7 +1748,11 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     if (status == BAD_VALUE &&
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
         (config.sample_rate <= 2 * reqSamplingRate) &&
+#ifdef QCOM_HARDWARE
+        (getInputChannelCount(config.channel_mask) <= FCC_2) && (getInputChannelCount(reqChannels) <= FCC_2)) {
+#else
         (popcount(config.channel_mask) <= FCC_2) && (popcount(reqChannels) <= FCC_2)) {
+#endif
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
 #ifndef ICS_AUDIO_BLOB
