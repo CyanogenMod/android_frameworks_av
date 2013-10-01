@@ -48,6 +48,21 @@ static const effect_descriptor_t *const gDescriptors[] =
     &gProxyDescriptor,
 };
 
+static inline bool isGetterCmd(uint32_t cmdCode)
+{
+    switch (cmdCode) {
+    case EFFECT_CMD_GET_PARAM:
+    case EFFECT_CMD_GET_CONFIG:
+    case EFFECT_CMD_GET_CONFIG_REVERSE:
+    case EFFECT_CMD_GET_FEATURE_SUPPORTED_CONFIGS:
+    case EFFECT_CMD_GET_FEATURE_CONFIG:
+        return true;
+    default:
+        return false;
+    }
+}
+
+
 int EffectProxyCreate(const effect_uuid_t *uuid,
                             int32_t             sessionId,
                             int32_t             ioId,
@@ -155,7 +170,6 @@ int Effect_process(effect_handle_t     self,
         int index = pContext->index;
         // if the index refers to HW , do not do anything. Just return.
         if (index == SUB_FX_HOST) {
-            ALOGV("Calling CoreProcess");
             ret = (*pContext->eHandle[index])->process(pContext->eHandle[index],
                                                        inBuffer, outBuffer);
         }
@@ -172,7 +186,7 @@ int Effect_command(effect_handle_t  self,
                               void                *pReplyData) {
 
     EffectContext *pContext = (EffectContext *) self;
-    int status;
+    int status = 0;
     if (pContext == NULL) {
         ALOGV("Effect_command() Proxy context is NULL");
         return -EINVAL;
@@ -237,23 +251,46 @@ int Effect_command(effect_handle_t  self,
         ALOGV("Effect_command: effect index is neither offload nor host");
         return -EINVAL;
     }
-    ALOGV("Effect_command: pContext->eHandle[%d]: %p",
-            index, pContext->eHandle[index]);
-    if (pContext->eHandle[SUB_FX_HOST])
-         (*pContext->eHandle[SUB_FX_HOST])->command(
+
+    // Getter commands are only sent to the active sub effect.
+    uint32_t hostReplySize = replySize != NULL ? *replySize : 0;
+    bool hostReplied = false;
+    int hostStatus = 0;
+    uint32_t offloadReplySize = replySize != NULL ? *replySize : 0;
+    bool offloadReplied = false;
+    int offloadStatus = 0;
+
+    if (pContext->eHandle[SUB_FX_HOST] && (!isGetterCmd(cmdCode) || index == SUB_FX_HOST)) {
+        hostStatus = (*pContext->eHandle[SUB_FX_HOST])->command(
                              pContext->eHandle[SUB_FX_HOST], cmdCode, cmdSize,
-                             pCmdData, replySize, pReplyData);
-    if (pContext->eHandle[SUB_FX_OFFLOAD]) {
+                             pCmdData, replySize != NULL ? &hostReplySize : NULL, pReplyData);
+        hostReplied = true;
+    }
+    if (pContext->eHandle[SUB_FX_OFFLOAD] && (!isGetterCmd(cmdCode) || index == SUB_FX_OFFLOAD)) {
         // In case of SET CMD, when the offload stream is unavailable,
         // we will store the effect param values in the DSP effect wrapper.
         // When the offload effects get enabled, we send these values to the
         // DSP during Effect_config.
         // So,we send the params to DSP wrapper also
-        (*pContext->eHandle[SUB_FX_OFFLOAD])->command(
+        offloadStatus = (*pContext->eHandle[SUB_FX_OFFLOAD])->command(
                          pContext->eHandle[SUB_FX_OFFLOAD], cmdCode, cmdSize,
-                         pCmdData, replySize, pReplyData);
+                         pCmdData, replySize != NULL ? &offloadReplySize : NULL, pReplyData);
+        offloadReplied = true;
     }
-    return 0;
+    // By convention the offloaded implementation reply is returned if command is processed by both
+    // host and offloaded sub effects
+    if (offloadReplied){
+        status = offloadStatus;
+        if (replySize) {
+            *replySize = offloadReplySize;
+        }
+    } else if (hostReplied) {
+        status = hostStatus;
+        if (replySize) {
+            *replySize = hostReplySize;
+        }
+    }
+    return status;
 }    /* end Effect_command */
 
 
