@@ -255,6 +255,12 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
         return BAD_VALUE;
     }
 
+    if (getDeviceVersion(cameraId, &facing) <= CAMERA_DEVICE_API_VERSION_2_1) {
+        // Disable HAL2.x support for camera2 API for now.
+        ALOGW("%s: HAL2.x doesn't support getCameraCharacteristics for now", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
     struct camera_info info;
     status_t ret = mModule->get_camera_info(cameraId, &info);
     *cameraInfo = info.static_camera_characteristics;
