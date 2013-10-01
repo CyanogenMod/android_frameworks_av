@@ -168,6 +168,8 @@ struct Parameters {
     // Max preview size allowed
     static const unsigned int MAX_PREVIEW_WIDTH = 1920;
     static const unsigned int MAX_PREVIEW_HEIGHT = 1080;
+    // Aspect ratio tolerance
+    static const float ASPECT_RATIO_TOLERANCE = 0.001;
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.
@@ -331,6 +333,8 @@ private:
     Vector<Size> availablePreviewSizes;
     // Get size list (that are no larger than limit) from static metadata.
     status_t getFilteredPreviewSizes(Size limit, Vector<Size> *sizes);
+    // Get max size (from the size array) that matches the given aspect ratio.
+    Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed
