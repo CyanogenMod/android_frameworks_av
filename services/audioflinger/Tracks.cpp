@@ -288,6 +288,12 @@ status_t AudioFlinger::TrackHandle::getTimestamp(AudioTimestamp& timestamp)
     return mTrack->getTimestamp(timestamp);
 }
 
+
+void AudioFlinger::TrackHandle::signal()
+{
+    return mTrack->signal();
+}
+
 status_t AudioFlinger::TrackHandle::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
@@ -924,6 +930,16 @@ void AudioFlinger::PlaybackThread::Track::invalidate()
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) __futex_syscall3(&cblk->mFutex, FUTEX_WAKE, INT_MAX);
     mIsInvalid = true;
+}
+
+void AudioFlinger::PlaybackThread::Track::signal()
+{
+    sp<ThreadBase> thread = mThread.promote();
+    if (thread != 0) {
+        PlaybackThread *t = (PlaybackThread *)thread.get();
+        Mutex::Autolock _l(t->mLock);
+        t->broadcast_l();
+    }
 }
 
 // ----------------------------------------------------------------------------

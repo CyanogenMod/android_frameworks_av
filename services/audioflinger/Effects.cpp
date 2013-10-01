@@ -972,13 +972,20 @@ status_t AudioFlinger::EffectHandle::enable()
         }
         mEnabled = false;
     } else {
-        if (thread != 0 && !mEffect->isOffloadable()) {
-            if ((thread->type() == ThreadBase::OFFLOAD)) {
+        if (thread != 0) {
+            if (thread->type() == ThreadBase::OFFLOAD) {
                 PlaybackThread *t = (PlaybackThread *)thread.get();
-                t->invalidateTracks(AUDIO_STREAM_MUSIC);
+                Mutex::Autolock _l(t->mLock);
+                t->broadcast_l();
             }
-            if (mEffect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
-                thread->mAudioFlinger->onNonOffloadableGlobalEffectEnable();
+            if (!mEffect->isOffloadable()) {
+                if (thread->type() == ThreadBase::OFFLOAD) {
+                    PlaybackThread *t = (PlaybackThread *)thread.get();
+                    t->invalidateTracks(AUDIO_STREAM_MUSIC);
+                }
+                if (mEffect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
+                    thread->mAudioFlinger->onNonOffloadableGlobalEffectEnable();
+                }
             }
         }
     }
@@ -1009,6 +1016,11 @@ status_t AudioFlinger::EffectHandle::disable()
     sp<ThreadBase> thread = mEffect->thread().promote();
     if (thread != 0) {
         thread->checkSuspendOnEffectEnabled(mEffect, false, mEffect->sessionId());
+        if (thread->type() == ThreadBase::OFFLOAD) {
+            PlaybackThread *t = (PlaybackThread *)thread.get();
+            Mutex::Autolock _l(t->mLock);
+            t->broadcast_l();
+        }
     }
 
     return status;

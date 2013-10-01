@@ -2238,10 +2238,19 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             }
 
             // only process effects if we're going to write
-            if (sleepTime == 0) {
+            if (sleepTime == 0 && mType != OFFLOAD) {
                 for (size_t i = 0; i < effectChains.size(); i ++) {
                     effectChains[i]->process_l();
                 }
+            }
+        }
+        // Process effect chains for offloaded thread even if no audio
+        // was read from audio track: process only updates effect state
+        // and thus does have to be synchronized with audio writes but may have
+        // to be called while waiting for async write callback
+        if (mType == OFFLOAD) {
+            for (size_t i = 0; i < effectChains.size(); i ++) {
+                effectChains[i]->process_l();
             }
         }
 
