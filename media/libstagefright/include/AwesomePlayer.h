@@ -342,6 +342,8 @@ private:
 
     bool    mOffloadAudio;
     bool    mAudioTearDown;
+    bool    mAudioTearDownWasPlaying;
+    int64_t mAudioTearDownPosition;
 
     status_t setVideoScalingMode(int32_t mode);
     status_t setVideoScalingMode_l(int32_t mode);
