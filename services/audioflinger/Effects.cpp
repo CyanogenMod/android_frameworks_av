@@ -1279,9 +1279,10 @@ void AudioFlinger::EffectChain::process_l()
     }
     bool isGlobalSession = (mSessionId == AUDIO_SESSION_OUTPUT_MIX) ||
             (mSessionId == AUDIO_SESSION_OUTPUT_STAGE);
-    // always process effects unless no more tracks are on the session and the effect tail
-    // has been rendered
-    bool doProcess = true;
+    // never process effects when:
+    // - on an OFFLOAD thread
+    // - no more tracks are on the session and the effect tail has been rendered
+    bool doProcess = (thread->type() != ThreadBase::OFFLOAD);
     if (!isGlobalSession) {
         bool tracksOnSession = (trackCnt() != 0);
 
