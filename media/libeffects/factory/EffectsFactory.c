@@ -28,6 +28,9 @@
 
 static list_elem_t *gEffectList; // list of effect_entry_t: all currently created effects
 static list_elem_t *gLibraryList; // list of lib_entry_t: all currently loaded libraries
+// list of effect_descriptor and list of sub effects : all currently loaded
+// It does not contain effects without sub effects.
+static list_sub_elem_t *gSubEffectList;
 static pthread_mutex_t gLibLock = PTHREAD_MUTEX_INITIALIZER; // controls access to gLibraryList
 static uint32_t gNumEffects;         // total number number of effects
 static list_elem_t *gCurLib;    // current library in enumeration process
@@ -50,11 +53,17 @@ static int loadLibraries(cnode *root);
 static int loadLibrary(cnode *root, const char *name);
 static int loadEffects(cnode *root);
 static int loadEffect(cnode *node);
+// To get and add the effect pointed by the passed node to the gSubEffectList
+static int addSubEffect(cnode *root);
 static lib_entry_t *getLibrary(const char *path);
 static void resetEffectEnumeration();
 static uint32_t updateNumEffects();
 static int findEffect(const effect_uuid_t *type,
                const effect_uuid_t *uuid,
+               lib_entry_t **lib,
+               effect_descriptor_t **desc);
+// To search a subeffect in the gSubEffectList
+int findSubEffect(const effect_uuid_t *uuid,
                lib_entry_t **lib,
                effect_descriptor_t **desc);
 static void dumpEffectDescriptor(effect_descriptor_t *desc, char *str, size_t len);
@@ -287,7 +296,12 @@ int EffectCreate(const effect_uuid_t *uuid, int32_t sessionId, int32_t ioId, eff
 
     ret = findEffect(NULL, uuid, &l, &d);
     if (ret < 0){
-        goto exit;
+        // Sub effects are not associated with the library->effects,
+        // so, findEffect will fail. Search for the effect in gSubEffectList.
+        ret = findSubEffect(uuid, &l, &d);
+        if (ret < 0 ) {
+            goto exit;
+        }
     }
 
     // create effect in library
@@ -354,21 +368,27 @@ int EffectRelease(effect_handle_t handle)
     }
     if (e1 == NULL) {
         ret = -ENOENT;
+        pthread_mutex_unlock(&gLibLock);
         goto exit;
     }
 
     // release effect in library
     if (fx->lib == NULL) {
         ALOGW("EffectRelease() fx %p library already unloaded", handle);
+        pthread_mutex_unlock(&gLibLock);
     } else {
         pthread_mutex_lock(&fx->lib->lock);
+        // Releasing the gLibLock here as the list access is over as the
+        // effect is removed from the list.
+        // If the gLibLock is not released, we will have a deadlock situation
+        // since we call the sub effect release inside the EffectRelease of Proxy
+        pthread_mutex_unlock(&gLibLock);
         fx->lib->desc->release_effect(fx->subItfe);
         pthread_mutex_unlock(&fx->lib->lock);
     }
     free(fx);
 
 exit:
-    pthread_mutex_unlock(&gLibLock);
     return ret;
 }
 
@@ -380,6 +400,49 @@ int EffectIsNullUuid(const effect_uuid_t *uuid)
     return 1;
 }
 
+// Function to get the sub effect descriptors of the effect whose uuid
+// is pointed by the first argument. It searches the gSubEffectList for the
+// matching uuid and then copies the corresponding sub effect descriptors
+// to the inout param
+int EffectGetSubEffects(const effect_uuid_t *uuid,
+                        effect_descriptor_t *pDescriptors, size_t size)
+{
+   ALOGV("EffectGetSubEffects() UUID: %08X-%04X-%04X-%04X-%02X%02X%02X%02X%02X"
+          "%02X\n",uuid->timeLow, uuid->timeMid, uuid->timeHiAndVersion,
+          uuid->clockSeq, uuid->node[0], uuid->node[1],uuid->node[2],
+          uuid->node[3],uuid->node[4],uuid->node[5]);
+
+   // Check if the size of the desc buffer is large enough for 2 subeffects
+   if ((uuid == NULL) || (pDescriptors == NULL) ||
+       (size < 2*sizeof(effect_descriptor_t))) {
+       ALOGW("NULL pointer or insufficient memory. Cannot query subeffects");
+       return -EINVAL;
+   }
+   int ret = init();
+   if (ret < 0)
+      return ret;
+   list_sub_elem_t *e = gSubEffectList;
+   sub_effect_entry_t *subeffect;
+   effect_descriptor_t *d;
+   int count = 0;
+   while (e != NULL) {
+       d = (effect_descriptor_t*)e->object;
+       if (memcmp(uuid, &d->uuid, sizeof(effect_uuid_t)) == 0) {
+           ALOGV("EffectGetSubEffects: effect found in the list");
+           list_elem_t *subefx = e->sub_elem;
+           while (subefx != NULL) {
+               subeffect = (sub_effect_entry_t*)subefx->object;
+               d = (effect_descriptor_t*)(subeffect->object);
+               pDescriptors[count++] = *d;
+               subefx = subefx->next;
+           }
+           ALOGV("EffectGetSubEffects end - copied the sub effect descriptors");
+           return count;
+       }
+       e = e->next;
+   }
+   return -ENOENT;
+}
 /////////////////////////////////////////////////
 //      Local functions
 /////////////////////////////////////////////////
@@ -503,6 +566,65 @@ error:
     return -EINVAL;
 }
 
+// This will find the library and UUID tags of the sub effect pointed by the
+// node, gets the effect descriptor and lib_entry_t and adds the subeffect -
+// sub_entry_t to the gSubEffectList
+int addSubEffect(cnode *root)
+{
+    ALOGV("addSubEffect");
+    cnode *node;
+    effect_uuid_t uuid;
+    effect_descriptor_t *d;
+    lib_entry_t *l;
+    list_elem_t *e;
+    node = config_find(root, LIBRARY_TAG);
+    if (node == NULL) {
+        return -EINVAL;
+    }
+    l = getLibrary(node->value);
+    if (l == NULL) {
+        ALOGW("addSubEffect() could not get library %s", node->value);
+        return -EINVAL;
+    }
+    node = config_find(root, UUID_TAG);
+    if (node == NULL) {
+        return -EINVAL;
+    }
+    if (stringToUuid(node->value, &uuid) != 0) {
+        ALOGW("addSubEffect() invalid uuid %s", node->value);
+        return -EINVAL;
+    }
+    d = malloc(sizeof(effect_descriptor_t));
+    if (l->desc->get_descriptor(&uuid, d) != 0) {
+        char s[40];
+        uuidToString(&uuid, s, 40);
+        ALOGW("Error querying effect %s on lib %s", s, l->name);
+        free(d);
+        return -EINVAL;
+    }
+#if (LOG_NDEBUG==0)
+    char s[256];
+    dumpEffectDescriptor(d, s, 256);
+    ALOGV("addSubEffect() read descriptor %p:%s",d, s);
+#endif
+    if (EFFECT_API_VERSION_MAJOR(d->apiVersion) !=
+            EFFECT_API_VERSION_MAJOR(EFFECT_CONTROL_API_VERSION)) {
+        ALOGW("Bad API version %08x on lib %s", d->apiVersion, l->name);
+        free(d);
+        return -EINVAL;
+    }
+    sub_effect_entry_t *sub_effect = malloc(sizeof(sub_effect_entry_t));
+    sub_effect->object = d;
+    // lib_entry_t is stored since the sub effects are not linked to the library
+    sub_effect->lib = l;
+    e = malloc(sizeof(list_elem_t));
+    e->object = sub_effect;
+    e->next = gSubEffectList->sub_elem;
+    gSubEffectList->sub_elem = e;
+    ALOGV("addSubEffect end");
+    return 0;
+}
+
 int loadEffects(cnode *root)
 {
     cnode *node;
@@ -571,7 +693,99 @@ int loadEffect(cnode *root)
     e->next = l->effects;
     l->effects = e;
 
+    // After the UUID node in the config_tree, if node->next is valid,
+    // that would be sub effect node.
+    // Find the sub effects and add them to the gSubEffectList
+    node = node->next;
+    int count = 2;
+    bool hwSubefx = false, swSubefx = false;
+    list_sub_elem_t *sube = NULL;
+    if (node != NULL) {
+        ALOGV("Adding the effect to gEffectSubList as there are sub effects");
+        sube = malloc(sizeof(list_sub_elem_t));
+        sube->object = d;
+        sube->sub_elem = NULL;
+        sube->next = gSubEffectList;
+        gSubEffectList = sube;
+    }
+    while (node != NULL && count) {
+       if (addSubEffect(node)) {
+           ALOGW("loadEffect() could not add subEffect %s", node->value);
+           // Change the gSubEffectList to point to older list;
+           gSubEffectList = sube->next;
+           free(sube->sub_elem);// Free an already added sub effect
+           sube->sub_elem = NULL;
+           free(sube);
+           return -ENOENT;
+       }
+       sub_effect_entry_t *subEntry = (sub_effect_entry_t*)gSubEffectList->sub_elem->object;
+       effect_descriptor_t *subEffectDesc = (effect_descriptor_t*)(subEntry->object);
+       // Since we return a dummy descriptor for the proxy during
+       // get_descriptor call,we replace it with the correspoding
+       // sw effect descriptor, but with Proxy UUID
+       // check for Sw desc
+        if (!((subEffectDesc->flags & EFFECT_FLAG_HW_ACC_MASK) ==
+                                           EFFECT_FLAG_HW_ACC_TUNNEL)) {
+             swSubefx = true;
+             *d = *subEffectDesc;
+             d->uuid = uuid;
+             ALOGV("loadEffect() Changed the Proxy desc");
+       } else
+           hwSubefx = true;
+       count--;
+       node = node->next;
+    }
+    // 1 HW and 1 SW sub effect found. Set the offload flag in the Proxy desc
+    if (hwSubefx && swSubefx) {
+        d->flags |= EFFECT_FLAG_OFFLOAD_SUPPORTED;
+    }
     return 0;
+}
+
+// Searches the sub effect matching to the specified uuid
+// in the gSubEffectList. It gets the lib_entry_t for
+// the matched sub_effect . Used in EffectCreate of sub effects
+int findSubEffect(const effect_uuid_t *uuid,
+               lib_entry_t **lib,
+               effect_descriptor_t **desc)
+{
+    list_sub_elem_t *e = gSubEffectList;
+    list_elem_t *subefx;
+    sub_effect_entry_t *effect;
+    lib_entry_t *l = NULL;
+    effect_descriptor_t *d = NULL;
+    int found = 0;
+    int ret = 0;
+
+    if (uuid == NULL)
+        return -EINVAL;
+
+    while (e != NULL && !found) {
+        subefx = (list_elem_t*)(e->sub_elem);
+        while (subefx != NULL) {
+            effect = (sub_effect_entry_t*)subefx->object;
+            l = (lib_entry_t *)effect->lib;
+            d = (effect_descriptor_t *)effect->object;
+            if (memcmp(&d->uuid, uuid, sizeof(effect_uuid_t)) == 0) {
+                ALOGV("uuid matched");
+                found = 1;
+                break;
+            }
+            subefx = subefx->next;
+        }
+        e = e->next;
+    }
+    if (!found) {
+        ALOGV("findSubEffect() effect not found");
+        ret = -ENOENT;
+    } else {
+        ALOGV("findSubEffect() found effect: %s in lib %s", d->name, l->name);
+        *lib = l;
+        if (desc != NULL) {
+            *desc = d;
+        }
+    }
+    return ret;
 }
 
 lib_entry_t *getLibrary(const char *name)
