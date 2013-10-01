@@ -1413,8 +1413,10 @@ status_t AwesomePlayer::seekTo_l(int64_t timeUs) {
     mSeekTimeUs = timeUs;
     modifyFlags((AT_EOS | AUDIO_AT_EOS | VIDEO_AT_EOS), CLEAR);
 
-    notifyListener_l(MEDIA_PAUSED);
-    mMediaRenderingStartGeneration = ++mStartGeneration;
+    if (mFlags & PLAYING) {
+        notifyListener_l(MEDIA_PAUSED);
+        mMediaRenderingStartGeneration = ++mStartGeneration;
+    }
 
     seekAudioIfNecessary_l();
 
@@ -1657,6 +1659,16 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
 
     if (mSeeking == NO_SEEK || (mFlags & SEEK_PREVIEW)) {
         return;
+    }
+
+    // If we paused, then seeked, then resumed, it is possible that we have
+    // signaled SEEK_COMPLETE at a copmletely different media time than where
+    // we are now resuming.  Signal new position to media time provider.
+    // Cannot signal another SEEK_COMPLETE, as existing clients may not expect
+    // multiple SEEK_COMPLETE responses to a single seek() request.
+    if (mSeekNotificationSent && abs(mSeekTimeUs - videoTimeUs) > 10000) {
+        // notify if we are resuming more than 10ms away from desired seek time
+        notifyListener_l(MEDIA_SKIPPED);
     }
 
     if (mAudioPlayer != NULL) {
@@ -1930,7 +1942,9 @@ void AwesomePlayer::onVideoEvent() {
             notifyListener_l(MEDIA_INFO, MEDIA_INFO_RENDERING_START);
         }
 
-        notifyIfMediaStarted_l();
+        if (mFlags & PLAYING) {
+            notifyIfMediaStarted_l();
+        }
     }
 
     mVideoBuffer->release();
