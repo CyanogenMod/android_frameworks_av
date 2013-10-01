@@ -298,11 +298,28 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         }
     }
 
+    // HACK b/10949105
+    // Query consumer usage bits to set async operation mode for
+    // GLConsumer using controlledByApp parameter.
+    bool useAsync = false;
+    int32_t consumerUsage;
+    if ((res = bufferProducer->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS,
+            &consumerUsage)) != OK) {
+        ALOGE("%s: Camera %d: Failed to query consumer usage", __FUNCTION__,
+              mCameraId);
+        return res;
+    }
+    if (consumerUsage & GraphicBuffer::USAGE_HW_TEXTURE) {
+        ALOGW("%s: Camera %d: Forcing asynchronous mode for stream",
+                __FUNCTION__, mCameraId);
+        useAsync = true;
+    }
+
     sp<IBinder> binder;
     sp<ANativeWindow> anw;
     if (bufferProducer != 0) {
         binder = bufferProducer->asBinder();
-        anw = new Surface(bufferProducer);
+        anw = new Surface(bufferProducer, useAsync);
     }
 
     // TODO: remove w,h,f since we are ignoring them
