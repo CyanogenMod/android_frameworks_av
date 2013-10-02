@@ -1232,7 +1232,12 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
         InFlightRequest &request = mInFlightMap.editValueAt(idx);
         timestamp = request.captureTimestamp;
-        if (timestamp == 0) {
+        /**
+         * One of the following must happen before it's legal to call process_capture_result:
+         * - CAMERA3_MSG_SHUTTER (expected during normal operation)
+         * - CAMERA3_MSG_ERROR (expected during flush)
+         */
+        if (request.requestStatus == OK && timestamp == 0) {
             SET_ERR("Called before shutter notify for frame %d",
                     frameNumber);
             return;
@@ -1356,6 +1361,16 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
             ALOGV("Camera %d: %s: HAL error, frame %d, stream %d: %d",
                     mId, __FUNCTION__, msg->message.error.frame_number,
                     streamId, msg->message.error.error_code);
+
+            // Set request error status for the request in the in-flight tracking
+            {
+                Mutex::Autolock l(mInFlightLock);
+                ssize_t idx = mInFlightMap.indexOfKey(msg->message.error.frame_number);
+                if (idx >= 0) {
+                    mInFlightMap.editValueAt(idx).requestStatus = msg->message.error.error_code;
+                }
+            }
+
             if (listener != NULL) {
                 listener->notifyError(msg->message.error.error_code,
                         msg->message.error.frame_number, streamId);
