@@ -534,6 +534,9 @@ status_t AudioTrack::setVolume(float left, float right)
 
     mProxy->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
 
+    if (isOffloaded()) {
+        mAudioTrack->signal();
+    }
     return NO_ERROR;
 }
 
