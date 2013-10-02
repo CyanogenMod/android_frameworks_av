@@ -259,6 +259,7 @@ void AwesomePlayer::cancelPlayerEvents(bool keepNotifications) {
 
         mQueue.cancelEvent(mBufferingEvent->eventID());
         mBufferingEventPending = false;
+        mAudioTearDown = false;
     }
 }
 
@@ -2308,6 +2309,7 @@ void AwesomePlayer::abortPrepare(status_t err) {
     modifyFlags((PREPARING|PREPARE_CANCELLED|PREPARING_CONNECTED), CLEAR);
     mAsyncPrepareEvent = NULL;
     mPreparedCondition.broadcast();
+    mAudioTearDown = false;
 }
 
 // static
@@ -2381,6 +2383,20 @@ void AwesomePlayer::finishAsyncPrepare_l() {
     modifyFlags(PREPARED, SET);
     mAsyncPrepareEvent = NULL;
     mPreparedCondition.broadcast();
+
+    if (mAudioTearDown) {
+        if (mPrepareResult == OK) {
+            if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
+                seekTo_l(mAudioTearDownPosition);
+            }
+
+            if (mAudioTearDownWasPlaying) {
+                modifyFlags(CACHE_UNDERRUN, CLEAR);
+                play_l();
+            }
+        }
+        mAudioTearDown = false;
+    }
 }
 
 uint32_t AwesomePlayer::flags() const {
@@ -2798,7 +2814,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
     ALOGV("onAudioTearDownEvent");
 
     // stream info is cleared by reset_l() so copy what we need
-    const bool wasPlaying = (mFlags & PLAYING);
+    mAudioTearDownWasPlaying = (mFlags & PLAYING);
     KeyedVector<String8, String8> uriHeaders(mUriHeaders);
     sp<DataSource> fileSource(mFileSource);
 
@@ -2807,8 +2823,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
     mStatsLock.unlock();
 
     // get current position so we can start recreated stream from here
-    int64_t position = 0;
-    getPosition(&position);
+    getPosition(&mAudioTearDownPosition);
 
     // Reset and recreate
     reset_l();
@@ -2832,21 +2847,8 @@ void AwesomePlayer::onAudioTearDownEvent() {
     mAudioTearDown = true;
     mIsAsyncPrepare = true;
 
-    // Call parepare for the host decoding
+    // Call prepare for the host decoding
     beginPrepareAsync_l();
-
-    if (mPrepareResult == OK) {
-        if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
-            seekTo_l(position);
-        }
-
-        if (wasPlaying) {
-            modifyFlags(CACHE_UNDERRUN, CLEAR);
-            play_l();
-        }
-    }
-
-    mAudioTearDown = false;
 }
 
 }  // namespace android
