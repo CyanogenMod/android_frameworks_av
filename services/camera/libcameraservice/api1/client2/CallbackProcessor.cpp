@@ -312,6 +312,16 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
             return OK;
         }
 
+        if (imgBuffer.width != static_cast<uint32_t>(l.mParameters.previewWidth) ||
+                imgBuffer.height != static_cast<uint32_t>(l.mParameters.previewHeight)) {
+            ALOGW("%s: The preview size has changed to %d x %d from %d x %d, this buffer is"
+                    " no longer valid, dropping",__FUNCTION__,
+                    l.mParameters.previewWidth, l.mParameters.previewHeight,
+                    imgBuffer.width, imgBuffer.height);
+            mCallbackConsumer->unlockBuffer(imgBuffer);
+            return OK;
+        }
+
         previewFormat = l.mParameters.previewFormat;
         useFlexibleYuv = l.mParameters.fastInfo.useFlexibleYuv &&
                 (previewFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP ||
