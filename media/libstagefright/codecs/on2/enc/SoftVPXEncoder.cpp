@@ -141,6 +141,7 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mWidth(176),
       mHeight(144),
       mBitrate(192000),  // in bps
+      mBitrateUpdated(false),
       mBitrateControlMode(VPX_VBR),  // variable bitrate
       mFrameDurationUs(33333),  // Defaults to 30 fps
       mDCTPartitions(0),
@@ -536,6 +537,22 @@ OMX_ERRORTYPE SoftVPXEncoder::setConfig(
             return OMX_ErrorNone;
         }
 
+        case OMX_IndexConfigVideoBitrate:
+        {
+            OMX_VIDEO_CONFIG_BITRATETYPE *params =
+                (OMX_VIDEO_CONFIG_BITRATETYPE *)_params;
+
+            if (params->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            if (mBitrate != params->nEncodeBitrate) {
+                mBitrate = params->nEncodeBitrate;
+                mBitrateUpdated = true;
+            }
+            return OMX_ErrorNone;
+        }
+
         default:
             return SimpleSoftOMXComponent::setConfig(index, _params);
     }
@@ -777,6 +794,21 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
         if (mKeyFrameRequested) {
             flags |= VPX_EFLAG_FORCE_KF;
             mKeyFrameRequested = false;
+        }
+
+        if (mBitrateUpdated) {
+            mCodecConfiguration->rc_target_bitrate = mBitrate/1000;
+            vpx_codec_err_t res = vpx_codec_enc_config_set(mCodecContext,
+                                                           mCodecConfiguration);
+            if (res != VPX_CODEC_OK) {
+                ALOGE("vp8 encoder failed to update bitrate: %s",
+                      vpx_codec_err_to_string(res));
+                notify(OMX_EventError,
+                       OMX_ErrorUndefined,
+                       0, // Extra notification data
+                       NULL); // Notification data pointer
+            }
+            mBitrateUpdated = false;
         }
 
         codec_return = vpx_codec_encode(

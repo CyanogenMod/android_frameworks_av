@@ -128,7 +128,10 @@ private:
     int32_t mHeight;
 
     // Target bitrate set for the encoder, in bits per second.
-    int32_t mBitrate;
+    uint32_t mBitrate;
+
+    // If a request for a change it bitrate has been received.
+    bool mBitrateUpdated;
 
     // Bitrate control mode, either constant or variable
     vpx_rc_mode mBitrateControlMode;
