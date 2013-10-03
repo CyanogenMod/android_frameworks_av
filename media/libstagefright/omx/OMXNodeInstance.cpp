@@ -417,6 +417,40 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
     return err;
 }
 
+status_t OMXNodeInstance::prepareForAdaptivePlayback(
+        OMX_U32 portIndex, OMX_BOOL enable, OMX_U32 maxFrameWidth,
+        OMX_U32 maxFrameHeight) {
+    Mutex::Autolock autolock(mLock);
+
+    OMX_INDEXTYPE index;
+    OMX_STRING name = const_cast<OMX_STRING>(
+            "OMX.google.android.index.prepareForAdaptivePlayback");
+
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
+    if (err != OMX_ErrorNone) {
+        ALOGW_IF(enable, "OMX_GetExtensionIndex %s failed", name);
+        return StatusFromOMXError(err);
+    }
+
+    PrepareForAdaptivePlaybackParams params;
+    params.nSize = sizeof(params);
+    params.nVersion.s.nVersionMajor = 1;
+    params.nVersion.s.nVersionMinor = 0;
+    params.nVersion.s.nRevision = 0;
+    params.nVersion.s.nStep = 0;
+
+    params.nPortIndex = portIndex;
+    params.bEnable = enable;
+    params.nMaxFrameWidth = maxFrameWidth;
+    params.nMaxFrameHeight = maxFrameHeight;
+    if ((err = OMX_SetParameter(mHandle, index, &params)) != OMX_ErrorNone) {
+        ALOGW("OMX_SetParameter failed for PrepareForAdaptivePlayback "
+              "with error %d (0x%08x)", err, err);
+        return UNKNOWN_ERROR;
+    }
+    return err;
+}
+
 status_t OMXNodeInstance::useBuffer(
         OMX_U32 portIndex, const sp<IMemory> &params,
         OMX::buffer_id *buffer) {
