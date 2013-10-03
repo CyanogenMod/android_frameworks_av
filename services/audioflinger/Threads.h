@@ -237,8 +237,8 @@ protected:
                     effect_uuid_t mType;    // effect type UUID
                 };
 
-                void        acquireWakeLock();
-                void        acquireWakeLock_l();
+                void        acquireWakeLock(int uid = -1);
+                void        acquireWakeLock_l(int uid = -1);
                 void        releaseWakeLock();
                 void        releaseWakeLock_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
@@ -951,4 +951,5 @@ private:
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
+            int                                 mClientUid;
 };
