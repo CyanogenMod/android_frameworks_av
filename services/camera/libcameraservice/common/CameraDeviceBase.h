@@ -138,9 +138,18 @@ class CameraDeviceBase : public virtual RefBase {
      */
     class NotificationListener {
       public:
-        // Refer to the Camera2 HAL definition for notification definitions
+        // The set of notifications is a merge of the notifications required for
+        // API1 and API2.
+
+        // Required for API 1 and 2
         virtual void notifyError(int errorCode, int arg1, int arg2) = 0;
-        virtual void notifyShutter(int frameNumber, nsecs_t timestamp) = 0;
+
+        // Required only for API2
+        virtual void notifyIdle() = 0;
+        virtual void notifyShutter(int requestId,
+                nsecs_t timestamp) = 0;
+
+        // Required only for API1
         virtual void notifyAutoFocus(uint8_t newState, int triggerId) = 0;
         virtual void notifyAutoExposure(uint8_t newState, int triggerId) = 0;
         virtual void notifyAutoWhitebalance(uint8_t newState,
@@ -165,12 +174,14 @@ class CameraDeviceBase : public virtual RefBase {
     /**
      * Wait for a new frame to be produced, with timeout in nanoseconds.
      * Returns TIMED_OUT when no frame produced within the specified duration
+     * May be called concurrently to most methods, except for getNextFrame
      */
     virtual status_t waitForNextFrame(nsecs_t timeout) = 0;
 
     /**
      * Get next metadata frame from the frame queue. Returns NULL if the queue
      * is empty; caller takes ownership of the metadata buffer.
+     * May be called concurrently to most methods, except for waitForNextFrame
      */
     virtual status_t getNextFrame(CameraMetadata *frame) = 0;
 

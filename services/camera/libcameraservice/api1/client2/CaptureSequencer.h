@@ -62,7 +62,7 @@ class CaptureSequencer:
     void notifyAutoExposure(uint8_t newState, int triggerId);
 
     // Notifications from the frame processor
-    virtual void onFrameAvailable(int32_t frameId, const CameraMetadata &frame);
+    virtual void onFrameAvailable(int32_t requestId, const CameraMetadata &frame);
 
     // Notifications from the JPEG processor
     void onCaptureAvailable(nsecs_t timestamp, sp<MemoryBase> captureBuffer);

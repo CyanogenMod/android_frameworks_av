@@ -26,6 +26,7 @@
 #include <hardware/camera3.h>
 
 #include "common/CameraDeviceBase.h"
+#include "device3/StatusTracker.h"
 
 /**
  * Function pointer types with C calling convention to
@@ -126,29 +127,47 @@ class Camera3Device :
 
     virtual status_t flush();
 
+    // Methods called by subclasses
+    void             notifyStatus(bool idle); // updates from StatusTracker
+
   private:
     static const size_t        kDumpLockAttempts  = 10;
     static const size_t        kDumpSleepDuration = 100000; // 0.10 sec
     static const size_t        kInFlightWarnLimit = 20;
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
+    static const nsecs_t       kActiveTimeout     = 500000000;  // 500 ms
     struct                     RequestTrigger;
 
+    // A lock to enforce serialization on the input/configure side
+    // of the public interface.
+    // Only locked by public methods inherited from CameraDeviceBase.
+    // Not locked by methods guarded by mOutputLock, since they may act
+    // concurrently to the input/configure side of the interface.
+    // Must be locked before mLock if both will be locked by a method
+    Mutex                      mInterfaceLock;
+
+    // The main lock on internal state
     Mutex                      mLock;
+
+    // Camera device ID
+    const int                  mId;
 
     /**** Scope for mLock ****/
 
-    const int                  mId;
     camera3_device_t          *mHal3Device;
 
     CameraMetadata             mDeviceInfo;
     vendor_tag_query_ops_t     mVendorTagOps;
 
-    enum {
+    enum Status {
         STATUS_ERROR,
         STATUS_UNINITIALIZED,
-        STATUS_IDLE,
+        STATUS_UNCONFIGURED,
+        STATUS_CONFIGURED,
         STATUS_ACTIVE
     }                          mStatus;
+    Vector<Status>             mRecentStatusUpdates;
+    Condition                  mStatusChanged;
 
     // Tracking cause of fatal errors when in STATUS_ERROR
     String8                    mErrorCause;
@@ -161,6 +180,10 @@ class Camera3Device :
     sp<camera3::Camera3Stream> mInputStream;
     int                        mNextStreamId;
     bool                       mNeedConfig;
+
+    // Whether to send state updates upstream
+    // Pause when doing transparent reconfiguration
+    bool                       mPauseStateNotify;
 
     // Need to hold on to stream references until configure completes.
     Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
@@ -181,13 +204,34 @@ class Camera3Device :
      *
      * Takes mLock.
      */
-    virtual CameraMetadata getLatestRequest();
+    virtual CameraMetadata getLatestRequestLocked();
 
     /**
-     * Lock-held version of waitUntilDrained. Will transition to IDLE on
-     * success.
+     * Pause processing and flush everything, but don't tell the clients.
+     * This is for reconfiguring outputs transparently when according to the
+     * CameraDeviceBase interface we shouldn't need to.
+     * Must be called with mLock and mInterfaceLock both held.
      */
-    status_t           waitUntilDrainedLocked();
+    status_t internalPauseAndWaitLocked();
+
+    /**
+     * Resume work after internalPauseAndWaitLocked()
+     * Must be called with mLock and mInterfaceLock both held.
+     */
+    status_t internalResumeLocked();
+
+    /**
+     * Wait until status tracker tells us we've transitioned to the target state
+     * set, which is either ACTIVE when active==true or IDLE (which is any
+     * non-ACTIVE state) when active==false.
+     *
+     * Needs to be called with mLock and mInterfaceLock held.  This means there
+     * can ever only be one waiter at most.
+     *
+     * During the wait mLock is released.
+     *
+     */
+    status_t waitUntilStateThenRelock(bool active, nsecs_t timeout);
 
     /**
      * Do common work for setting up a streaming or single capture request.
@@ -217,6 +261,12 @@ class Camera3Device :
     void               setErrorStateLocked(const char *fmt, ...);
     void               setErrorStateLockedV(const char *fmt, va_list args);
 
+    /**
+     * Debugging trylock/spin method
+     * Try to acquire a lock a few times with sleeps between before giving up.
+     */
+    bool               tryLockSpinRightRound(Mutex& lock);
+
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
         uint32_t metadataTag;
@@ -242,6 +292,7 @@ class Camera3Device :
       public:
 
         RequestThread(wp<Camera3Device> parent,
+                sp<camera3::StatusTracker> statusTracker,
                 camera3_device_t *hal3Device);
 
         /**
@@ -279,13 +330,6 @@ class Camera3Device :
         void     setPaused(bool paused);
 
         /**
-         * Wait until thread is paused, either due to setPaused(true)
-         * or due to lack of input requests. Returns TIMED_OUT in case
-         * the thread does not pause within the timeout.
-         */
-        status_t waitUntilPaused(nsecs_t timeout);
-
-        /**
          * Wait until thread processes the capture request with settings'
          * android.request.id == requestId.
          *
@@ -293,6 +337,12 @@ class Camera3Device :
          * within the timeout.
          */
         status_t waitUntilRequestProcessed(int32_t requestId, nsecs_t timeout);
+
+        /**
+         * Shut down the thread. Shutdown is asynchronous, so thread may
+         * still be running once this method returns.
+         */
+        virtual void requestExit();
 
         /**
          * Get the latest request that was sent to the HAL
@@ -339,9 +389,12 @@ class Camera3Device :
         void               setErrorState(const char *fmt, ...);
 
         wp<Camera3Device>  mParent;
+        wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
 
-        const int          mId;
+        const int          mId;       // The camera ID
+        int                mStatusId; // The RequestThread's component ID for
+                                      // status tracking
 
         Mutex              mRequestLock;
         Condition          mRequestSignal;
@@ -381,6 +434,8 @@ class Camera3Device :
      */
 
     struct InFlightRequest {
+        // android.request.id for the request
+        int     requestId;
         // Set by notify() SHUTTER call.
         nsecs_t captureTimestamp;
         // Set by process_capture_result call with valid metadata
@@ -389,13 +444,16 @@ class Camera3Device :
         // buffers
         int     numBuffersLeft;
 
+        // Default constructor needed by KeyedVector
         InFlightRequest() :
+                requestId(0),
                 captureTimestamp(0),
                 haveResultMetadata(false),
                 numBuffersLeft(0) {
         }
 
-        explicit InFlightRequest(int numBuffers) :
+        InFlightRequest(int id, int numBuffers) :
+                requestId(id),
                 captureTimestamp(0),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers) {
@@ -407,7 +465,13 @@ class Camera3Device :
     Mutex                  mInFlightLock; // Protects mInFlightMap
     InFlightMap            mInFlightMap;
 
-    status_t registerInFlight(int32_t frameNumber, int32_t numBuffers);
+    status_t registerInFlight(int32_t frameNumber, int32_t requestId,
+            int32_t numBuffers);
+
+    /**
+     * Tracking for idle detection
+     */
+    sp<camera3::StatusTracker> mStatusTracker;
 
     /**
      * Output result queue and current HAL device 3A state

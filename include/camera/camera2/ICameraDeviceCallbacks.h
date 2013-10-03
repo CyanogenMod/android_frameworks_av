@@ -35,13 +35,27 @@ class ICameraDeviceCallbacks : public IInterface
 public:
     DECLARE_META_INTERFACE(CameraDeviceCallbacks);
 
-    // One way
-    virtual void            notifyCallback(int32_t msgType,
-                                           int32_t ext1,
-                                           int32_t ext2) = 0;
+    /**
+     * Error codes for CAMERA_MSG_ERROR
+     */
+    enum CameraErrorCode {
+        ERROR_CAMERA_DISCONNECTED = 0,
+        ERROR_CAMERA_DEVICE = 1,
+        ERROR_CAMERA_SERVICE = 2
+    };
 
     // One way
-    virtual void            onResultReceived(int32_t frameId,
+    virtual void            onDeviceError(CameraErrorCode errorCode) = 0;
+
+    // One way
+    virtual void            onDeviceIdle() = 0;
+
+    // One way
+    virtual void            onCaptureStarted(int32_t requestId,
+                                             int64_t timestamp) = 0;
+
+    // One way
+    virtual void            onResultReceived(int32_t requestId,
                                              const CameraMetadata& result) = 0;
 };
 

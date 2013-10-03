@@ -252,7 +252,7 @@ protected:
     virtual void        onLockStatusChanged(
                                 IProCameraCallbacks::LockStatus newLockStatus);
 
-    virtual void        onResultReceived(int32_t frameId,
+    virtual void        onResultReceived(int32_t requestId,
                                          camera_metadata* result);
 private:
     ProCamera(int cameraId);

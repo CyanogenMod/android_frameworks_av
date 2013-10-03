@@ -226,13 +226,18 @@ void Camera2ClientBase<TClientBase>::notifyError(int errorCode, int arg1,
 }
 
 template <typename TClientBase>
-void Camera2ClientBase<TClientBase>::notifyShutter(int frameNumber,
+void Camera2ClientBase<TClientBase>::notifyIdle() {
+    ALOGV("Camera device is now idle");
+}
+
+template <typename TClientBase>
+void Camera2ClientBase<TClientBase>::notifyShutter(int requestId,
                                                    nsecs_t timestamp) {
-    (void)frameNumber;
+    (void)requestId;
     (void)timestamp;
 
-    ALOGV("%s: Shutter notification for frame %d at time %lld", __FUNCTION__,
-          frameNumber, timestamp);
+    ALOGV("%s: Shutter notification for request id %d at time %lld",
+            __FUNCTION__, requestId, timestamp);
 }
 
 template <typename TClientBase>
@@ -244,13 +249,6 @@ void Camera2ClientBase<TClientBase>::notifyAutoFocus(uint8_t newState,
     ALOGV("%s: Autofocus state now %d, last trigger %d",
           __FUNCTION__, newState, triggerId);
 
-    typename SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
-    if (l.mRemoteCallback != 0) {
-        l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS_MOVE, 1, 0);
-    }
-    if (l.mRemoteCallback != 0) {
-        l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS, 1, 0);
-    }
 }
 
 template <typename TClientBase>

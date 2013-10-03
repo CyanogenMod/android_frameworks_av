@@ -33,6 +33,7 @@ LOCAL_SRC_FILES:=               \
     device3/Camera3InputStream.cpp \
     device3/Camera3OutputStream.cpp \
     device3/Camera3ZslStream.cpp \
+    device3/StatusTracker.cpp \
     gui/RingBufferConsumer.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \

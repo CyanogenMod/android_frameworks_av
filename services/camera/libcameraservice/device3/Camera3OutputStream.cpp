@@ -198,12 +198,11 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
     mLock.lock();
     if (res != OK) {
         close(anwReleaseFence);
-        return res;
     }
 
     *releaseFenceOut = releaseFence;
 
-    return OK;
+    return res;
 }
 
 void Camera3OutputStream::dump(int fd, const Vector<String16> &args) const {

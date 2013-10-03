@@ -97,7 +97,7 @@ public:
 
 protected:
     /** FilteredListener implementation **/
-    virtual void          onFrameAvailable(int32_t frameId,
+    virtual void          onFrameAvailable(int32_t requestId,
                                            const CameraMetadata& frame);
     virtual void          detachDevice();
 

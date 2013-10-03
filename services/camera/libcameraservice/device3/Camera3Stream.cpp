@@ -20,13 +20,18 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
-#include "Camera3Stream.h"
+#include "device3/Camera3Stream.h"
+#include "device3/StatusTracker.h"
 
 namespace android {
 
 namespace camera3 {
 
 Camera3Stream::~Camera3Stream() {
+    sp<StatusTracker> statusTracker = mStatusTracker.promote();
+    if (statusTracker != 0 && mStatusId != StatusTracker::NO_STATUS_ID) {
+        statusTracker->removeComponent(mStatusId);
+    }
 }
 
 Camera3Stream* Camera3Stream::cast(camera3_stream *stream) {
@@ -44,7 +49,8 @@ Camera3Stream::Camera3Stream(int id,
     mId(id),
     mName(String8::format("Camera3Stream[%d]", id)),
     mMaxSize(maxSize),
-    mState(STATE_CONSTRUCTED) {
+    mState(STATE_CONSTRUCTED),
+    mStatusId(StatusTracker::NO_STATUS_ID) {
 
     camera3_stream::stream_type = type;
     camera3_stream::width = width;
@@ -119,6 +125,15 @@ camera3_stream* Camera3Stream::startConfiguration() {
         return NULL;
     }
 
+    // Stop tracking if currently doing so
+    if (mStatusId != StatusTracker::NO_STATUS_ID) {
+        sp<StatusTracker> statusTracker = mStatusTracker.promote();
+        if (statusTracker != 0) {
+            statusTracker->removeComponent(mStatusId);
+        }
+        mStatusId = StatusTracker::NO_STATUS_ID;
+    }
+
     if (mState == STATE_CONSTRUCTED) {
         mState = STATE_IN_CONFIG;
     } else { // mState == STATE_CONFIGURED
@@ -152,6 +167,12 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
         default:
             ALOGE("%s: Unknown state", __FUNCTION__);
             return INVALID_OPERATION;
+    }
+
+    // Register for idle tracking
+    sp<StatusTracker> statusTracker = mStatusTracker.promote();
+    if (statusTracker != 0) {
+        mStatusId = statusTracker->addComponent();
     }
 
     // Check if the stream configuration is unchanged, and skip reallocation if
@@ -263,6 +284,18 @@ bool Camera3Stream::hasOutstandingBuffers() const {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
     return hasOutstandingBuffersLocked();
+}
+
+status_t Camera3Stream::setStatusTracker(sp<StatusTracker> statusTracker) {
+    Mutex::Autolock l(mLock);
+    sp<StatusTracker> oldTracker = mStatusTracker.promote();
+    if (oldTracker != 0 && mStatusId != StatusTracker::NO_STATUS_ID) {
+        oldTracker->removeComponent(mStatusId);
+    }
+    mStatusId = StatusTracker::NO_STATUS_ID;
+    mStatusTracker = statusTracker;
+
+    return OK;
 }
 
 status_t Camera3Stream::disconnect() {
