@@ -4620,10 +4620,14 @@ status_t QueryCodec(
         caps->mColorFormats.push(portFormat.eColorFormat);
     }
 
-    if (!isEncoder && !strncmp(mime, "video/", 6) &&
-            omx->storeMetaDataInBuffers(
-                    node, 1 /* port index */, OMX_TRUE) == OK) {
-        caps->mFlags |= CodecCapabilities::kFlagSupportsAdaptivePlayback;
+    if (!isEncoder && !strncmp(mime, "video/", 6)) {
+        if (omx->storeMetaDataInBuffers(
+                    node, 1 /* port index */, OMX_TRUE) == OK ||
+            omx->prepareForAdaptivePlayback(
+                    node, 1 /* port index */, OMX_TRUE,
+                    1280 /* width */, 720 /* height */) == OK) {
+            caps->mFlags |= CodecCapabilities::kFlagSupportsAdaptivePlayback;
+        }
     }
 
     CHECK_EQ(omx->freeNode(node), (status_t)OK);
