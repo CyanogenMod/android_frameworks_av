@@ -1910,6 +1910,14 @@ bool Camera3Device::RequestThread::threadLoop() {
         return false;
     }
 
+    // Inform waitUntilRequestProcessed thread of a new request ID
+    {
+        Mutex::Autolock al(mLatestRequestMutex);
+
+        mLatestRequestId = requestId;
+        mLatestRequestSignal.signal();
+    }
+
     // Submit request and block until ready for next one
     ATRACE_ASYNC_BEGIN("frame capture", request.frame_number);
     ATRACE_BEGIN("camera3->process_capture_request");
@@ -1944,15 +1952,6 @@ bool Camera3Device::RequestThread::threadLoop() {
         return false;
     }
     mPrevTriggers = triggerCount;
-
-    // Read android.request.id from the request settings metadata
-    // - inform waitUntilRequestProcessed thread of a new request ID
-    {
-        Mutex::Autolock al(mLatestRequestMutex);
-
-        mLatestRequestId = requestId;
-        mLatestRequestSignal.signal();
-    }
 
     // Return input buffer back to framework
     if (request.input_buffer != NULL) {
