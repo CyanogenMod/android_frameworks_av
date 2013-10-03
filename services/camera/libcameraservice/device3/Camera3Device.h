@@ -438,6 +438,7 @@ class Camera3Device :
         int     requestId;
         // Set by notify() SHUTTER call.
         nsecs_t captureTimestamp;
+        int     requestStatus;
         // Set by process_capture_result call with valid metadata
         bool    haveResultMetadata;
         // Decremented by calls to process_capture_result with valid output
@@ -448,6 +449,7 @@ class Camera3Device :
         InFlightRequest() :
                 requestId(0),
                 captureTimestamp(0),
+                requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(0) {
         }
