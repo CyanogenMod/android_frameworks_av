@@ -115,7 +115,6 @@ status_t Camera3InputStream::returnBufferCheckedLocked(
                 bufferFound = true;
                 bufferItem = tmp;
                 mBuffersInFlight.erase(it);
-                mDequeuedBufferCount--;
             }
         }
     }
@@ -148,12 +147,11 @@ status_t Camera3InputStream::returnBufferCheckedLocked(
     if (res != OK) {
         ALOGE("%s: Stream %d: Error releasing buffer back to buffer queue:"
                 " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
-        return res;
     }
 
     *releaseFenceOut = releaseFence;
 
-    return OK;
+    return res;
 }
 
 status_t Camera3InputStream::returnInputBufferLocked(

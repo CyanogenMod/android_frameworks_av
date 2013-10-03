@@ -62,7 +62,8 @@ public:
      */
 
     virtual void          notifyError(int errorCode, int arg1, int arg2);
-    virtual void          notifyShutter(int frameNumber, nsecs_t timestamp);
+    virtual void          notifyIdle();
+    virtual void          notifyShutter(int requestId, nsecs_t timestamp);
     virtual void          notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void          notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void          notifyAutoWhitebalance(uint8_t newState,

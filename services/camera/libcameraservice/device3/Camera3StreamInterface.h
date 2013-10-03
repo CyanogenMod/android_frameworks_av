@@ -26,6 +26,8 @@ namespace android {
 
 namespace camera3 {
 
+class StatusTracker;
+
 /**
  * An interface for managing a single stream of input and/or output data from
  * the camera device.
@@ -128,13 +130,11 @@ class Camera3StreamInterface : public virtual RefBase {
     enum {
         TIMEOUT_NEVER = -1
     };
+
     /**
-     * Wait until the HAL is done with all of this stream's buffers, including
-     * signalling all release fences. Returns TIMED_OUT if the timeout is
-     * exceeded, OK on success. Pass in TIMEOUT_NEVER for timeout to indicate
-     * an indefinite wait.
+     * Set the state tracker to use for signaling idle transitions.
      */
-    virtual status_t waitUntilIdle(nsecs_t timeout) = 0;
+    virtual status_t setStatusTracker(sp<StatusTracker> statusTracker) = 0;
 
     /**
      * Disconnect stream from its non-HAL endpoint. After this,

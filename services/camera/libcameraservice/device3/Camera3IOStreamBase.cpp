@@ -23,7 +23,8 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
-#include "Camera3IOStreamBase.h"
+#include "device3/Camera3IOStreamBase.h"
+#include "device3/StatusTracker.h"
 
 namespace android {
 
@@ -60,53 +61,6 @@ bool Camera3IOStreamBase::hasOutstandingBuffersLocked() const {
         return true;
     }
     return false;
-}
-
-status_t Camera3IOStreamBase::waitUntilIdle(nsecs_t timeout) {
-    status_t res;
-    {
-        Mutex::Autolock l(mLock);
-        while (mDequeuedBufferCount > 0) {
-            if (timeout != TIMEOUT_NEVER) {
-                nsecs_t startTime = systemTime();
-                res = mBufferReturnedSignal.waitRelative(mLock, timeout);
-                if (res == TIMED_OUT) {
-                    return res;
-                } else if (res != OK) {
-                    ALOGE("%s: Error waiting for outstanding buffers: %s (%d)",
-                            __FUNCTION__, strerror(-res), res);
-                    return res;
-                }
-                nsecs_t deltaTime = systemTime() - startTime;
-                if (timeout <= deltaTime) {
-                    timeout = 0;
-                } else {
-                    timeout -= deltaTime;
-                }
-            } else {
-                res = mBufferReturnedSignal.wait(mLock);
-                if (res != OK) {
-                    ALOGE("%s: Error waiting for outstanding buffers: %s (%d)",
-                            __FUNCTION__, strerror(-res), res);
-                    return res;
-                }
-            }
-        }
-    }
-
-    // No lock
-
-    unsigned int timeoutMs;
-    if (timeout == TIMEOUT_NEVER) {
-        timeoutMs = Fence::TIMEOUT_NEVER;
-    } else if (timeout == 0) {
-        timeoutMs = 0;
-    } else {
-        // Round up to wait at least 1 ms
-        timeoutMs = (timeout + 999999) / 1000000;
-    }
-
-    return mCombinedFence->wait(timeoutMs);
 }
 
 void Camera3IOStreamBase::dump(int fd, const Vector<String16> &args) const {
@@ -190,6 +144,14 @@ void Camera3IOStreamBase::handoutBufferLocked(camera3_stream_buffer &buffer,
     buffer.release_fence = releaseFence;
     buffer.status = status;
 
+    // Inform tracker about becoming busy
+    if (mDequeuedBufferCount == 0 && mState != STATE_IN_CONFIG &&
+            mState != STATE_IN_RECONFIG) {
+        sp<StatusTracker> statusTracker = mStatusTracker.promote();
+        if (statusTracker != 0) {
+            statusTracker->markComponentActive(mStatusId);
+        }
+    }
     mDequeuedBufferCount++;
 }
 
@@ -253,12 +215,24 @@ status_t Camera3IOStreamBase::returnAnyBufferLocked(
     res = returnBufferCheckedLocked(buffer, timestamp, output,
                                     &releaseFence);
     if (res != OK) {
-        return res;
+        // NO_INIT means the buffer queue is abandoned, so to be resilient,
+        // still want to decrement in-flight counts.
+        if (res != NO_INIT) {
+            return res;
+        }
     }
 
     mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
 
     mDequeuedBufferCount--;
+    if (mDequeuedBufferCount == 0 && mState != STATE_IN_CONFIG &&
+            mState != STATE_IN_RECONFIG) {
+        sp<StatusTracker> statusTracker = mStatusTracker.promote();
+        if (statusTracker != 0) {
+            statusTracker->markComponentIdle(mStatusId, mCombinedFence);
+        }
+    }
+
     mBufferReturnedSignal.signal();
 
     if (output) {

@@ -71,7 +71,7 @@ void ZslProcessor::onFrameAvailable() {
     }
 }
 
-void ZslProcessor::onFrameAvailable(int32_t /*frameId*/,
+void ZslProcessor::onFrameAvailable(int32_t /*requestId*/,
         const CameraMetadata &frame) {
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;

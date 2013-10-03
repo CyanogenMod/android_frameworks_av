@@ -45,14 +45,6 @@ CameraDeviceClientBase::CameraDeviceClientBase(
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
     mRemoteCallback(remoteCallback) {
 }
-void CameraDeviceClientBase::notifyError() {
-    // Thread safe. Don't bother locking.
-    sp<ICameraDeviceCallbacks> remoteCb = mRemoteCallback;
-
-    if (remoteCb != 0) {
-        remoteCb->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
-    }
-}
 
 // Interface used by CameraService
 
@@ -164,7 +156,6 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
     metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS, &outputStreamIds[0],
                     outputStreamIds.size());
 
-    // TODO: @hide ANDROID_REQUEST_ID, or use another request token
     int32_t requestId = mRequestIdCounter++;
     metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
     ALOGV("%s: Camera %d: Submitting request with ID %d",
@@ -501,6 +492,34 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     return dumpDevice(fd, args);
 }
 
+
+void CameraDeviceClient::notifyError() {
+    // Thread safe. Don't bother locking.
+    sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
+
+    if (remoteCb != 0) {
+        remoteCb->onDeviceError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE);
+    }
+}
+
+void CameraDeviceClient::notifyIdle() {
+    // Thread safe. Don't bother locking.
+    sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
+
+    if (remoteCb != 0) {
+        remoteCb->onDeviceIdle();
+    }
+}
+
+void CameraDeviceClient::notifyShutter(int requestId,
+        nsecs_t timestamp) {
+    // Thread safe. Don't bother locking.
+    sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
+    if (remoteCb != 0) {
+        remoteCb->onCaptureStarted(requestId, timestamp);
+    }
+}
+
 // TODO: refactor the code below this with IProCameraUser.
 // it's 100% copy-pasted, so lets not change it right now to make it easier.
 
@@ -532,8 +551,8 @@ void CameraDeviceClient::detachDevice() {
 }
 
 /** Device-related methods */
-void CameraDeviceClient::onFrameAvailable(int32_t frameId,
-                                        const CameraMetadata& frame) {
+void CameraDeviceClient::onFrameAvailable(int32_t requestId,
+        const CameraMetadata& frame) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
@@ -541,7 +560,7 @@ void CameraDeviceClient::onFrameAvailable(int32_t frameId,
     sp<ICameraDeviceCallbacks> remoteCb = mRemoteCallback;
     if (remoteCb != NULL) {
         ALOGV("%s: frame = %p ", __FUNCTION__, &frame);
-        remoteCb->onResultReceived(frameId, frame);
+        remoteCb->onResultReceived(requestId, frame);
     }
 }
 

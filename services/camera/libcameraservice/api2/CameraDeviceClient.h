@@ -45,8 +45,6 @@ protected:
             uid_t clientUid,
             int servicePid);
 
-    virtual void notifyError();
-
     sp<ICameraDeviceCallbacks> mRemoteCallback;
 };
 
@@ -112,11 +110,19 @@ public:
     virtual status_t      dump(int fd, const Vector<String16>& args);
 
     /**
+     * Device listener interface
+     */
+
+    virtual void notifyIdle();
+    virtual void notifyError();
+    virtual void notifyShutter(int requestId, nsecs_t timestamp);
+
+    /**
      * Interface used by independent components of CameraDeviceClient.
      */
 protected:
     /** FilteredListener implementation **/
-    virtual void          onFrameAvailable(int32_t frameId,
+    virtual void          onFrameAvailable(int32_t requestId,
                                            const CameraMetadata& frame);
     virtual void          detachDevice();
 

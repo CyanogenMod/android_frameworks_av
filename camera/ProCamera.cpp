@@ -90,8 +90,8 @@ void ProCamera::onLockStatusChanged(
     }
 }
 
-void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
-    ALOGV("%s: frameId = %d, result = %p", __FUNCTION__, frameId, result);
+void ProCamera::onResultReceived(int32_t requestId, camera_metadata* result) {
+    ALOGV("%s: requestId = %d, result = %p", __FUNCTION__, requestId, result);
 
     sp<ProCameraListener> listener;
     {
@@ -112,7 +112,7 @@ void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
     result = tmp.release();
 
     if (listener != NULL) {
-        listener->onResultReceived(frameId, result);
+        listener->onResultReceived(requestId, result);
     } else {
         free_camera_metadata(result);
     }

@@ -464,8 +464,10 @@ void Camera2Device::notificationCallback(int32_t msg_type,
                 listener->notifyError(ext1, ext2, ext3);
                 break;
             case CAMERA2_MSG_SHUTTER: {
-                nsecs_t timestamp = (nsecs_t)ext2 | ((nsecs_t)(ext3) << 32 );
-                listener->notifyShutter(ext1, timestamp);
+                // TODO: Only needed for camera2 API, which is unsupported
+                // by HAL2 directly.
+                // nsecs_t timestamp = (nsecs_t)ext2 | ((nsecs_t)(ext3) << 32 );
+                // listener->notifyShutter(requestId, timestamp);
                 break;
             }
             case CAMERA2_MSG_AUTOFOCUS:

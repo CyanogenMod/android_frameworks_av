@@ -284,9 +284,9 @@ protected:
         }
     }
 
-    virtual void onResultReceived(int32_t frameId,
+    virtual void onResultReceived(int32_t requestId,
                                   camera_metadata* request) {
-        dout << "Result received frameId = " << frameId
+        dout << "Result received requestId = " << requestId
              << ", requestPtr = " << (void*)request << std::endl;
         QueueEvent(RESULT_RECEIVED);
         free_camera_metadata(request);
@@ -1276,4 +1276,3 @@ TEST_F(ProCameraTest, ServiceListenersFunctional) {
 }
 }
 }
-
