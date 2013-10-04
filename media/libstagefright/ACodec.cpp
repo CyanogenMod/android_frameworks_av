@@ -1106,9 +1106,49 @@ status_t ACodec::configureCodec(
     if (!encoder && video && haveNativeWindow) {
         err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
         if (err != OK) {
-            // allow failure
             ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
                   mComponentName.c_str(), err);
+
+            // if adaptive playback has been requested, try JB fallback
+            // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
+            // LARGE MEMORY REQUIREMENT
+
+            // we will not do adaptive playback on software accessed
+            // surfaces as they never had to respond to changes in the
+            // crop window, and we don't trust that they will be able to.
+            int usageBits = 0;
+            bool canDoAdaptivePlayback;
+
+            sp<NativeWindowWrapper> windowWrapper(
+                    static_cast<NativeWindowWrapper *>(obj.get()));
+            sp<ANativeWindow> nativeWindow = windowWrapper->getNativeWindow();
+
+            if (nativeWindow->query(
+                    nativeWindow.get(),
+                    NATIVE_WINDOW_CONSUMER_USAGE_BITS,
+                    &usageBits) != OK) {
+                canDoAdaptivePlayback = false;
+            } else {
+                canDoAdaptivePlayback =
+                    (usageBits &
+                            (GRALLOC_USAGE_SW_READ_MASK |
+                             GRALLOC_USAGE_SW_WRITE_MASK)) == 0;
+            }
+
+            int32_t maxWidth = 0, maxHeight = 0;
+            if (canDoAdaptivePlayback &&
+                msg->findInt32("max-width", &maxWidth) &&
+                msg->findInt32("max-height", &maxHeight)) {
+                ALOGV("[%s] prepareForAdaptivePlayback(%ldx%ld)",
+                      mComponentName.c_str(), maxWidth, maxHeight);
+
+                err = mOMX->prepareForAdaptivePlayback(
+                        mNode, kPortIndexOutput, OMX_TRUE, maxWidth, maxHeight);
+                ALOGW_IF(err != OK,
+                        "[%s] prepareForAdaptivePlayback failed w/ err %d",
+                        mComponentName.c_str(), err);
+            }
+            // allow failure
             err = OK;
         } else {
             ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
