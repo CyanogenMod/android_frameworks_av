@@ -53,7 +53,7 @@
 
 #include "ExtendedUtils.h"
 #include <system/audio.h>
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #endif
 
@@ -835,7 +835,7 @@ status_t StagefrightRecorder::start() {
             status = startMPEG2TSRecording();
             break;
 
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
         case OUTPUT_FORMAT_QCP:
             status = startExtendedRecording( );
             break;
@@ -884,7 +884,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             tunneledSource = true;
             tunnelMime = MEDIA_MIMETYPE_AUDIO_AMR_NB;
         }
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
         else if ( mAudioEncoder == AUDIO_ENCODER_QCELP &&
             result.getInt(String8("QCELP"),value) == NO_ERROR ) {
             tunneledSource = true;
@@ -957,7 +957,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             mime = MEDIA_MIMETYPE_AUDIO_AAC;
             encMeta->setInt32(kKeyAACProfile, OMX_AUDIO_AACObjectELD);
             break;
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
         case AUDIO_ENCODER_EVRC:
             mime = MEDIA_MIMETYPE_AUDIO_EVRC;
             break;
@@ -986,7 +986,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
 
     OMXClient client;
     CHECK_EQ(client.connect(), (status_t)OK);
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
     sp<MediaSource> audioEncoder;
     if (ExtendedUtils::UseQCHWAACEncoder(mAudioEncoder,mAudioChannels,mAudioBitRate,mSampleRate)) {
         ALOGV("use QCOM HW AAC encoder");
@@ -1986,7 +1986,7 @@ status_t StagefrightRecorder::dump(
     ::write(fd, result.string(), result.size());
     return OK;
 }
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
 status_t StagefrightRecorder::startExtendedRecording() {
     CHECK(mOutputFormat == OUTPUT_FORMAT_QCP);
     if (mSampleRate != 8000) {
