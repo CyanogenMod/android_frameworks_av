@@ -494,13 +494,13 @@ void AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String16>& 
     }
 }
 
-void AudioFlinger::ThreadBase::acquireWakeLock()
+void AudioFlinger::ThreadBase::acquireWakeLock(int uid)
 {
     Mutex::Autolock _l(mLock);
-    acquireWakeLock_l();
+    acquireWakeLock_l(uid);
 }
 
-void AudioFlinger::ThreadBase::acquireWakeLock_l()
+void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
 {
     if (mPowerManager == 0) {
         // use checkService() to avoid blocking if power service is not up yet
@@ -515,10 +515,19 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l()
     }
     if (mPowerManager != 0) {
         sp<IBinder> binder = new BBinder();
-        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
-                                                         binder,
-                                                         String16(mName),
-                                                         String16("media"));
+        status_t status;
+        if (uid >= 0) {
+            mPowerManager->acquireWakeLockWithUid(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                    binder,
+                    String16(mName),
+                    String16("media"),
+                    uid);
+        } else {
+            mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                    binder,
+                    String16(mName),
+                    String16("media"));
+        }
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
         }
@@ -4293,7 +4302,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     snprintf(mName, kNameLength, "AudioIn_%X", id);
 
     readInputParameters();
-
+    mClientUid = IPCThreadState::self()->getCallingUid();
 }
 
 
@@ -4316,7 +4325,7 @@ bool AudioFlinger::RecordThread::threadLoop()
     nsecs_t lastWarning = 0;
 
     inputStandBy();
-    acquireWakeLock();
+    acquireWakeLock(mClientUid);
 
     // used to verify we've read at least once before evaluating how many bytes were read
     bool readOnce = false;
@@ -4354,7 +4363,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                 // go to sleep
                 mWaitWorkCV.wait(mLock);
                 ALOGV("RecordThread: loop starting");
-                acquireWakeLock_l();
+                acquireWakeLock_l(mClientUid);
                 continue;
             }
 
@@ -4594,7 +4603,6 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         ALOGE("Audio driver not initialized.");
         goto Exit;
     }
-
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
