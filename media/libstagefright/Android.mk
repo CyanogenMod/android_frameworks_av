@@ -89,6 +89,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libvorbisidec \
         libz \
+        libpowermanager
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
