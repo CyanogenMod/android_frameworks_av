@@ -51,7 +51,7 @@ class ZslProcessor3 :
     ~ZslProcessor3();
 
     // From FrameProcessor
-    virtual void onFrameAvailable(int32_t frameId, const CameraMetadata &frame);
+    virtual void onFrameAvailable(int32_t requestId, const CameraMetadata &frame);
 
     /**
      ****************************************

@@ -374,7 +374,7 @@ void ProCamera2Client::detachDevice() {
 }
 
 /** Device-related methods */
-void ProCamera2Client::onFrameAvailable(int32_t frameId,
+void ProCamera2Client::onFrameAvailable(int32_t requestId,
                                         const CameraMetadata& frame) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
@@ -386,7 +386,7 @@ void ProCamera2Client::onFrameAvailable(int32_t frameId,
         CameraMetadata tmp(frame);
         camera_metadata_t* meta = tmp.release();
         ALOGV("%s: meta = %p ", __FUNCTION__, meta);
-        mRemoteCallback->onResultReceived(frameId, meta);
+        mRemoteCallback->onResultReceived(requestId, meta);
         tmp.acquire(meta);
     }
 

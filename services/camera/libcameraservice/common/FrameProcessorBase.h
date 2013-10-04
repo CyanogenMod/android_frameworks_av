@@ -39,7 +39,7 @@ class FrameProcessorBase: public Thread {
     virtual ~FrameProcessorBase();
 
     struct FilteredListener: virtual public RefBase {
-        virtual void onFrameAvailable(int32_t frameId,
+        virtual void onFrameAvailable(int32_t requestId,
                                       const CameraMetadata &frame) = 0;
     };
 

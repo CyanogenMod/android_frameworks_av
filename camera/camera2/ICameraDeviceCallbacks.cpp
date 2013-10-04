@@ -32,7 +32,9 @@
 namespace android {
 
 enum {
-    NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
+    CAMERA_ERROR = IBinder::FIRST_CALL_TRANSACTION,
+    CAMERA_IDLE,
+    CAPTURE_STARTED,
     RESULT_RECEIVED,
 };
 
@@ -44,18 +46,36 @@ public:
     {
     }
 
-    // generic callback from camera service to app
-    void notifyCallback(int32_t msgType, int32_t ext1, int32_t ext2)
+    void onDeviceError(CameraErrorCode errorCode)
     {
-        ALOGV("notifyCallback");
+        ALOGV("onDeviceError");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
-        data.writeInt32(msgType);
-        data.writeInt32(ext1);
-        data.writeInt32(ext2);
-        remote()->transact(NOTIFY_CALLBACK, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeInt32(static_cast<int32_t>(errorCode));
+        remote()->transact(CAMERA_ERROR, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
     }
+
+    void onDeviceIdle()
+    {
+        ALOGV("onDeviceIdle");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
+        remote()->transact(CAMERA_IDLE, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeNoException();
+    }
+
+    void onCaptureStarted(int32_t requestId, int64_t timestamp)
+    {
+        ALOGV("onCaptureStarted");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
+        data.writeInt32(requestId);
+        data.writeInt64(timestamp);
+        remote()->transact(CAPTURE_STARTED, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeNoException();
+    }
+
 
     void onResultReceived(int32_t requestId, const CameraMetadata& result) {
         ALOGV("onResultReceived");
@@ -79,18 +99,33 @@ status_t BnCameraDeviceCallbacks::onTransact(
 {
     ALOGV("onTransact - code = %d", code);
     switch(code) {
-        case NOTIFY_CALLBACK: {
-            ALOGV("NOTIFY_CALLBACK");
+        case CAMERA_ERROR: {
+            ALOGV("onDeviceError");
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
-            int32_t msgType = data.readInt32();
-            int32_t ext1 = data.readInt32();
-            int32_t ext2 = data.readInt32();
-            notifyCallback(msgType, ext1, ext2);
+            CameraErrorCode errorCode =
+                    static_cast<CameraErrorCode>(data.readInt32());
+            onDeviceError(errorCode);
+            data.readExceptionCode();
+            return NO_ERROR;
+        } break;
+        case CAMERA_IDLE: {
+            ALOGV("onDeviceIdle");
+            CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
+            onDeviceIdle();
+            data.readExceptionCode();
+            return NO_ERROR;
+        } break;
+        case CAPTURE_STARTED: {
+            ALOGV("onCaptureStarted");
+            CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
+            int32_t requestId = data.readInt32();
+            int64_t timestamp = data.readInt64();
+            onCaptureStarted(requestId, timestamp);
             data.readExceptionCode();
             return NO_ERROR;
         } break;
         case RESULT_RECEIVED: {
-            ALOGV("RESULT_RECEIVED");
+            ALOGV("onResultReceived");
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
             int32_t requestId = data.readInt32();
             CameraMetadata result;
@@ -102,8 +137,7 @@ status_t BnCameraDeviceCallbacks::onTransact(
             onResultReceived(requestId, result);
             data.readExceptionCode();
             return NO_ERROR;
-            break;
-        }
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

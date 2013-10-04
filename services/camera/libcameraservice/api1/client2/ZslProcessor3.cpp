@@ -61,7 +61,7 @@ ZslProcessor3::~ZslProcessor3() {
     deleteStream();
 }
 
-void ZslProcessor3::onFrameAvailable(int32_t /*frameId*/,
+void ZslProcessor3::onFrameAvailable(int32_t /*requestId*/,
                                      const CameraMetadata &frame) {
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;

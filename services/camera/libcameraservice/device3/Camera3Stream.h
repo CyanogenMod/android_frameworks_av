@@ -190,12 +190,11 @@ class Camera3Stream :
     enum {
         TIMEOUT_NEVER = -1
     };
+
     /**
-     * Wait until the HAL is done with all of this stream's buffers, including
-     * signalling all release fences. Returns TIMED_OUT if the timeout is exceeded,
-     * OK on success. Pass in TIMEOUT_NEVER for timeout to indicate an indefinite wait.
+     * Set the status tracker to notify about idle transitions
      */
-    virtual status_t waitUntilIdle(nsecs_t timeout) = 0;
+    virtual status_t setStatusTracker(sp<StatusTracker> statusTracker);
 
     /**
      * Disconnect stream from its non-HAL endpoint. After this,
@@ -266,6 +265,11 @@ class Camera3Stream :
     // Get the usage flags for the other endpoint, or return
     // INVALID_OPERATION if they cannot be obtained.
     virtual status_t getEndpointUsage(uint32_t *usage) = 0;
+
+    // Tracking for idle state
+    wp<StatusTracker> mStatusTracker;
+    // Status tracker component ID
+    int mStatusId;
 
   private:
     uint32_t oldUsage;
