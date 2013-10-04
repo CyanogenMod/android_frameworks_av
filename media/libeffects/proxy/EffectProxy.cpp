@@ -30,9 +30,10 @@ namespace android {
 // This is a dummy proxy descriptor just to return to Factory during the initial
 // GetDescriptor call. Later in the factory, it is replaced with the
 // SW sub effect descriptor
+// proxy UUID af8da7e0-2ca1-11e3-b71d-0002a5d5c51b
 const effect_descriptor_t gProxyDescriptor = {
         EFFECT_UUID_INITIALIZER, // type
-        EFFECT_UUID_INITIALIZER, // uuid
+        {0xaf8da7e0, 0x2ca1, 0x11e3, 0xb71d, { 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b }}, // uuid
         EFFECT_CONTROL_API_VERSION, //version of effect control API
         (EFFECT_FLAG_TYPE_INSERT | EFFECT_FLAG_INSERT_LAST |
          EFFECT_FLAG_VOLUME_CTRL), // effect capability flags
