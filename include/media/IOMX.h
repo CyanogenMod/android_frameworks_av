@@ -83,6 +83,10 @@ public:
     virtual status_t storeMetaDataInBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable) = 0;
 
+    virtual status_t prepareForAdaptivePlayback(
+            node_id node, OMX_U32 portIndex, OMX_BOOL enable,
+            OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) = 0;
+
     virtual status_t enableGraphicBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable) = 0;
 

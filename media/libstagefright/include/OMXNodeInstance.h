@@ -58,6 +58,10 @@ struct OMXNodeInstance {
 
     status_t storeMetaDataInBuffers(OMX_U32 portIndex, OMX_BOOL enable);
 
+    status_t prepareForAdaptivePlayback(
+            OMX_U32 portIndex, OMX_BOOL enable,
+            OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight);
+
     status_t useBuffer(
             OMX_U32 portIndex, const sp<IMemory> &params,
             OMX::buffer_id *buffer);
