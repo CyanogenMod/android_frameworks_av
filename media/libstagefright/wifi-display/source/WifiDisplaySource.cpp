@@ -22,7 +22,6 @@
 #include "PlaybackSession.h"
 #include "Parameters.h"
 #include "rtp/RTPSender.h"
-#include "TimeSyncer.h"
 
 #include <binder/IServiceManager.h>
 #include <gui/IGraphicBufferProducer.h>
@@ -173,15 +172,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
-            if (err == OK) {
-                sp<AMessage> notify = new AMessage(kWhatTimeSyncerNotify, id());
-                mTimeSyncer = new TimeSyncer(mNetSession, notify);
-                looper()->registerHandler(mTimeSyncer);
-
-                mTimeSyncer->startServer(8123);
-
-                mState = AWAITING_CLIENT_CONNECTION;
-            }
+            mState = AWAITING_CLIENT_CONNECTION;
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
@@ -553,11 +544,6 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatFinishStop2:
         {
             finishStop2();
-            break;
-        }
-
-        case kWhatTimeSyncerNotify:
-        {
             break;
         }
 
