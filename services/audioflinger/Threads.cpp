@@ -517,13 +517,13 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         sp<IBinder> binder = new BBinder();
         status_t status;
         if (uid >= 0) {
-            mPowerManager->acquireWakeLockWithUid(POWERMANAGER_PARTIAL_WAKE_LOCK,
+            status = mPowerManager->acquireWakeLockWithUid(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
                     String16(mName),
                     String16("media"),
                     uid);
         } else {
-            mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+            status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
                     String16(mName),
                     String16("media"));
