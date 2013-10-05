@@ -216,6 +216,9 @@ public:
     // that looks on primary device for a stream with fast flag, primary flag, or first one.
     virtual uint32_t getPrimaryOutputSamplingRate() = 0;
     virtual size_t getPrimaryOutputFrameCount() = 0;
+#ifdef QCOM_FM_ENABLED
+    virtual status_t setFmVolume(float volume) = 0;
+#endif
 
 };
 

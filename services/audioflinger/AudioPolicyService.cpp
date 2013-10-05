@@ -746,6 +746,18 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }
                     delete data;
                     }break;
+#ifdef QCOM_FM_ENABLED
+                case SET_FM_VOLUME: {
+                    FmVolumeData *data = (FmVolumeData *)command->mParam;
+                    ALOGV("AudioCommandThread() processing set fm volume volume %f", data->mVolume);
+                    command->mStatus = AudioSystem::setFmVolume(data->mVolume);
+                    if (command->mWaitStatus) {
+                        command->mCond.signal();
+                        mWaitWorkCV.wait(mLock);
+                    }
+                    delete data;
+                    }break;
+#endif
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -901,6 +913,34 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
     return status;
 }
 
+#ifdef QCOM_FM_ENABLED
+status_t AudioPolicyService::AudioCommandThread::fmVolumeCommand(float volume, int delayMs)
+{
+    status_t status = NO_ERROR;
+
+    AudioCommand *command = new AudioCommand();
+    command->mCommand = SET_FM_VOLUME;
+    FmVolumeData *data = new FmVolumeData();
+    data->mVolume = volume;
+    command->mParam = data;
+    if (delayMs == 0) {
+        command->mWaitStatus = true;
+    } else {
+        command->mWaitStatus = false;
+    }
+    Mutex::Autolock _l(mLock);
+    insertCommand_l(command, delayMs);
+    ALOGV("AudioCommandThread() adding set fm volume volume %f", volume);
+    mWaitWorkCV.signal();
+    if (command->mWaitStatus) {
+        command->mCond.wait(mLock);
+        status =  command->mStatus;
+        mWaitWorkCV.signal();
+    }
+    return status;
+}
+#endif
+
 // insertCommand_l() must be called with mLock held
 void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *command, int delayMs)
 {
@@ -966,6 +1006,12 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
             removedCommands.add(command2);
             time = command2->mTime;
         } break;
+#ifdef QCOM_FM_ENABLED
+        case SET_FM_VOLUME: {
+            removedCommands.add(command2);
+            time = command2->mTime;
+        } break;
+#endif
         case START_TONE:
         case STOP_TONE:
         default:
@@ -1041,6 +1087,13 @@ int AudioPolicyService::setStreamVolume(audio_stream_type_t stream,
     return (int)mAudioCommandThread->volumeCommand(stream, volume,
                                                    output, delayMs);
 }
+
+#ifdef QCOM_FM_ENABLED
+status_t AudioPolicyService::setFmVolume(float volume, int delayMs)
+{
+    return mAudioCommandThread->fmVolumeCommand(volume, delayMs);
+}
+#endif
 
 int AudioPolicyService::startTone(audio_policy_tone_t tone,
                                   audio_stream_type_t stream)
@@ -1562,6 +1615,15 @@ static int aps_set_voice_volume(void *service, float volume, int delay_ms)
     return audioPolicyService->setVoiceVolume(volume, delay_ms);
 }
 
+#ifdef QCOM_FM_ENABLED
+static int aps_set_fm_volume(void *service, float volume, int delay_ms)
+{
+    AudioPolicyService *audioPolicyService = (AudioPolicyService *)service;
+
+    return audioPolicyService->setFmVolume(volume, delay_ms);
+}
+#endif
+
 }; // extern "C"
 
 namespace {
@@ -1581,6 +1643,9 @@ namespace {
         stop_tone             : aps_stop_tone,
         set_voice_volume      : aps_set_voice_volume,
         move_effects          : aps_move_effects,
+#ifdef QCOM_FM_ENABLED
+        set_fm_volume         : aps_set_fm_volume,
+#endif
         load_hw_module        : aps_load_hw_module,
         open_output_on_module : aps_open_output_on_module,
         open_input_on_module  : aps_open_input_on_module,
