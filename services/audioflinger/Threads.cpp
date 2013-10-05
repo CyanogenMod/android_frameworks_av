@@ -3864,6 +3864,7 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device)
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD),
         mHwPaused(false),
+        mFlushPending(false),
         mPausedBytesRemaining(0)
 {
 }
@@ -4029,9 +4030,15 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         processVolume_l(track, last);
     }
 
-    // make sure the pause/flush/resume sequence is executed in the right order
-    if (doHwPause) {
+    // make sure the pause/flush/resume sequence is executed in the right order.
+    // If a flush is pending and a track is active but the HW is not paused, force a HW pause
+    // before flush and then resume HW. This can happen in case of pause/flush/resume
+    // if resume is received before pause is executed.
+    if (doHwPause || (mFlushPending && !mHwPaused && (count != 0))) {
         mOutput->stream->pause(mOutput->stream);
+        if (!doHwPause) {
+            doHwResume = true;
+        }
     }
     if (mFlushPending) {
         flushHw_l();
