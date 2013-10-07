@@ -4607,7 +4607,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
 
     lStatus = initCheck();
     if (lStatus != NO_ERROR) {
-        ALOGE("Audio driver not initialized.");
+        ALOGE("createRecordTrack_l() audio driver not initialized");
         goto Exit;
     }
     // client expresses a preference for FAST, but we get the final say
@@ -4671,6 +4671,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
 
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {
+            ALOGE("createRecordTrack_l() initCheck failed %d; no control block?", lStatus);
             track.clear();
             goto Exit;
         }
