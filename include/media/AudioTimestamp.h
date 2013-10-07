@@ -19,6 +19,8 @@
 
 #include <time.h>
 
+namespace android {
+
 class AudioTimestamp {
 public:
     AudioTimestamp() : mPosition(0) {
@@ -29,5 +31,7 @@ public:
     uint32_t        mPosition; // a frame position in AudioTrack::getPosition() units
     struct timespec mTime;     // corresponding CLOCK_MONOTONIC when frame is expected to present
 };
+
+}   // namespace
 
 #endif  // ANDROID_AUDIO_TIMESTAMP_H
