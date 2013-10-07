@@ -474,7 +474,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     ALOGE_IF(originalSessionId != 0 && mSessionId != originalSessionId,
             "session ID changed from %d to %d", originalSessionId, mSessionId);
 
-    if (record == 0) {
+    if (record == 0 || status != NO_ERROR) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
         AudioSystem::releaseInput(input);
         return status;
@@ -484,6 +484,11 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         ALOGE("Could not get control block");
         return NO_INIT;
     }
+    void *iMemPointer = iMem->pointer();
+    if (iMemPointer == NULL) {
+        ALOGE("Could not get control block pointer");
+        return NO_INIT;
+    }
     if (mAudioRecord != 0) {
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
@@ -491,7 +496,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mInput = input;
     mAudioRecord = record;
     mCblkMemory = iMem;
-    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
+    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;

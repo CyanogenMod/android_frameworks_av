@@ -53,6 +53,9 @@ public:
     };
     typedef uint32_t track_flags_t;
 
+    // invariant on exit for all APIs that return an sp<>:
+    //   (return value != 0) == (*status == NO_ERROR)
+
     /* create an audio track and registers it with AudioFlinger.
      * return null if the track cannot be created.
      */

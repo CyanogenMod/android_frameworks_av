@@ -1242,6 +1242,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     // check calling permissions
     if (!recordingAllowed()) {
+        ALOGE("openRecord() permission denied: recording not allowed");
         lStatus = PERMISSION_DENIED;
         goto Exit;
     }
@@ -1257,12 +1258,14 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         Mutex::Autolock _l(mLock);
         thread = checkRecordThread_l(input);
         if (thread == NULL) {
+            ALOGE("openRecord() checkRecordThread_l failed");
             lStatus = BAD_VALUE;
             goto Exit;
         }
 
         if (deviceRequiresCaptureAudioOutputPermission(thread->inDevice())
                 && !captureAudioOutputAllowed()) {
+            ALOGE("openRecord() permission denied: capture not allowed");
             lStatus = PERMISSION_DENIED;
             goto Exit;
         }
@@ -1283,6 +1286,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         // The record track uses one track in mHardwareMixerThread by convention.
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
                                                   frameCount, lSessionId, flags, tid, &lStatus);
+        LOG_ALWAYS_FATAL_IF((recordTrack != 0) != (lStatus == NO_ERROR));
     }
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the
