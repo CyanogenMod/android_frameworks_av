@@ -436,8 +436,7 @@ status_t AudioTrack::start()
 void AudioTrack::stop()
 {
     AutoMutex lock(mLock);
-    // FIXME pause then stop should not be a nop
-    if (mState != STATE_ACTIVE) {
+    if (mState != STATE_ACTIVE && mState != STATE_PAUSED) {
         return;
     }
 
