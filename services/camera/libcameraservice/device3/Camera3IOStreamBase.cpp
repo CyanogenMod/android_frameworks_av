@@ -214,19 +214,19 @@ status_t Camera3IOStreamBase::returnAnyBufferLocked(
     sp<Fence> releaseFence;
     res = returnBufferCheckedLocked(buffer, timestamp, output,
                                     &releaseFence);
-    if (res != OK) {
-        // NO_INIT means the buffer queue is abandoned, so to be resilient,
-        // still want to decrement in-flight counts.
-        if (res != NO_INIT) {
-            return res;
-        }
-    }
+    // Res may be an error, but we still want to decrement our owned count
+    // to enable clean shutdown. So we'll just return the error but otherwise
+    // carry on
 
-    mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
+    if (releaseFence != 0) {
+        mCombinedFence = Fence::merge(mName, mCombinedFence, releaseFence);
+    }
 
     mDequeuedBufferCount--;
     if (mDequeuedBufferCount == 0 && mState != STATE_IN_CONFIG &&
             mState != STATE_IN_RECONFIG) {
+        ALOGV("%s: Stream %d: All buffers returned; now idle", __FUNCTION__,
+                mId);
         sp<StatusTracker> statusTracker = mStatusTracker.promote();
         if (statusTracker != 0) {
             statusTracker->markComponentIdle(mStatusId, mCombinedFence);
@@ -239,7 +239,7 @@ status_t Camera3IOStreamBase::returnAnyBufferLocked(
         mLastTimestamp = timestamp;
     }
 
-    return OK;
+    return res;
 }
 
 
