@@ -1506,7 +1506,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         // Note: stream may be deallocated at this point, if this buffer was the
         // last reference to it.
         if (res != OK) {
-            SET_ERR("Can't return buffer %d for frame %d to its stream: "
+            ALOGE("Can't return buffer %d for frame %d to its stream: "
                     " %s (%d)", i, frameNumber, strerror(-res), res);
         }
     }
@@ -1867,7 +1867,7 @@ bool Camera3Device::RequestThread::threadLoop() {
         request.input_buffer = &inputBuffer;
         res = nextRequest->mInputStream->getInputBuffer(&inputBuffer);
         if (res != OK) {
-            SET_ERR("RequestThread: Can't get input buffer, skipping request:"
+            ALOGE("RequestThread: Can't get input buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
@@ -1883,8 +1883,8 @@ bool Camera3Device::RequestThread::threadLoop() {
         res = nextRequest->mOutputStreams.editItemAt(i)->
                 getBuffer(&outputBuffers.editItemAt(i));
         if (res != OK) {
-            SET_ERR("RequestThread: Can't get output buffer, skipping request:"
-                    "%s (%d)", strerror(-res), res);
+            ALOGE("RequestThread: Can't get output buffer, skipping request:"
+                    " %s (%d)", strerror(-res), res);
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
         }
