@@ -58,6 +58,7 @@ class FrameProcessorBase: public Thread {
     virtual bool threadLoop();
 
     Mutex mInputMutex;
+    Mutex mLastFrameMutex;
 
     struct RangeListener {
         int32_t minId;
