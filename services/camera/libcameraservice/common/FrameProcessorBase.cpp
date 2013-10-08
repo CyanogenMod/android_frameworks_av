@@ -66,7 +66,14 @@ status_t FrameProcessorBase::removeListener(int32_t minId,
 void FrameProcessorBase::dump(int fd, const Vector<String16>& /*args*/) {
     String8 result("    Latest received frame:\n");
     write(fd, result.string(), result.size());
-    mLastFrame.dump(fd, 2, 6);
+
+    CameraMetadata lastFrame;
+    {
+        // Don't race while dumping metadata
+        Mutex::Autolock al(mLastFrameMutex);
+        lastFrame = CameraMetadata(mLastFrame);
+    }
+    lastFrame.dump(fd, 2, 6);
 }
 
 bool FrameProcessorBase::threadLoop() {
@@ -113,6 +120,7 @@ void FrameProcessorBase::processNewFrames(const sp<CameraDeviceBase> &device) {
         }
 
         if (!frame.isEmpty()) {
+            Mutex::Autolock al(mLastFrameMutex);
             mLastFrame.acquire(frame);
         }
     }
