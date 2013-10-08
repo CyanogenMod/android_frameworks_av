@@ -33,6 +33,8 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <binder/IServiceManager.h>
 #include <powermanager/PowerManager.h>
+#include <binder/IPCThreadState.h>
+#include <utils/CallStack.h>
 
 namespace android {
 
@@ -327,10 +329,12 @@ void TimedEventQueue::acquireWakeLock_l()
     }
     if (mPowerManager != 0) {
         sp<IBinder> binder = new BBinder();
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
         status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                                                          binder,
                                                          String16("TimedEventQueue"),
                                                          String16("media"));
+        IPCThreadState::self()->restoreCallingIdentity(token);
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
         }
@@ -343,7 +347,9 @@ void TimedEventQueue::releaseWakeLock_l()
         return;
     }
     if (mPowerManager != 0) {
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
         mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+        IPCThreadState::self()->restoreCallingIdentity(token);
     }
     mWakeLockToken.clear();
 }
