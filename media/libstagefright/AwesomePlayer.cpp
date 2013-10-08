@@ -798,7 +798,9 @@ void AwesomePlayer::onBufferingUpdate() {
         }
     }
 
-    postBufferingEvent_l();
+    if (mFlags & (PLAYING | PREPARING)) {
+        postBufferingEvent_l();
+    }
 }
 
 void AwesomePlayer::sendCacheStats() {
@@ -1000,6 +1002,10 @@ status_t AwesomePlayer::play_l() {
         params |= IMediaPlayerService::kBatteryDataTrackVideo;
     }
     addBatteryData(params);
+
+    if (isStreamingHTTP()) {
+        postBufferingEvent_l();
+    }
 
     return OK;
 }
