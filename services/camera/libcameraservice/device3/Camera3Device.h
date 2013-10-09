@@ -457,6 +457,7 @@ class Camera3Device :
         InFlightRequest(int id, int numBuffers) :
                 requestId(id),
                 captureTimestamp(0),
+                requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers) {
         }
