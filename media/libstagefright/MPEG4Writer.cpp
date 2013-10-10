@@ -2364,7 +2364,9 @@ status_t MPEG4Writer::Track::threadEntry() {
         if (currDurationTicks < 0ll) {
             ALOGE("timestampUs %lld < lastTimestampUs %lld for %s track",
                 timestampUs, lastTimestampUs, mIsAudio? "Audio": "Video");
-            return UNKNOWN_ERROR;
+            err = UNKNOWN_ERROR;
+            mSource->notifyError(err);
+            return err;
         }
 
         mStszTableEntries->add(htonl(sampleSize));
