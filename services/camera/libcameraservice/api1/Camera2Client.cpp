@@ -1149,6 +1149,8 @@ status_t Camera2Client::autoFocus() {
         l.mParameters.currentAfTriggerId = ++l.mParameters.afTriggerCounter;
         triggerId = l.mParameters.currentAfTriggerId;
     }
+    ATRACE_ASYNC_BEGIN(kAutofocusLabel, triggerId);
+
     syncWithDevice();
 
     mDevice->triggerAutofocus(triggerId);
@@ -1171,6 +1173,12 @@ status_t Camera2Client::cancelAutoFocus() {
                 l.mParameters.focusMode == Parameters::FOCUS_MODE_INFINITY) {
             return OK;
         }
+
+        // An active AF trigger is canceled
+        if (l.mParameters.afTriggerCounter == l.mParameters.currentAfTriggerId) {
+            ATRACE_ASYNC_END(kAutofocusLabel, l.mParameters.currentAfTriggerId);
+        }
+
         triggerId = ++l.mParameters.afTriggerCounter;
 
         // When using triggerAfWithAuto quirk, may need to reset focus mode to
@@ -1199,6 +1207,7 @@ status_t Camera2Client::takePicture(int msgType) {
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
+    int takePictureCounter;
     {
         SharedParameters::Lock l(mParameters);
         switch (l.mParameters.state) {
@@ -1237,7 +1246,10 @@ status_t Camera2Client::takePicture(int msgType) {
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
         }
+        takePictureCounter = ++l.mParameters.takePictureCounter;
     }
+
+    ATRACE_ASYNC_BEGIN(kTakepictureLabel, takePictureCounter);
 
     // Need HAL to have correct settings before (possibly) triggering precapture
     syncWithDevice();
@@ -1466,7 +1478,24 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
     bool afInMotion = false;
     {
         SharedParameters::Lock l(mParameters);
+        // Trace end of AF state
+        char tmp[32];
+        if (l.mParameters.afStateCounter > 0) {
+            camera_metadata_enum_snprint(
+                ANDROID_CONTROL_AF_STATE, l.mParameters.focusState, tmp, sizeof(tmp));
+            ATRACE_ASYNC_END(tmp, l.mParameters.afStateCounter);
+        }
+
+        // Update state
         l.mParameters.focusState = newState;
+        l.mParameters.afStateCounter++;
+
+        // Trace start of AF state
+
+        camera_metadata_enum_snprint(
+            ANDROID_CONTROL_AF_STATE, l.mParameters.focusState, tmp, sizeof(tmp));
+        ATRACE_ASYNC_BEGIN(tmp, l.mParameters.afStateCounter);
+
         switch (l.mParameters.focusMode) {
             case Parameters::FOCUS_MODE_AUTO:
             case Parameters::FOCUS_MODE_MACRO:
@@ -1560,6 +1589,7 @@ void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
         }
     }
     if (sendCompletedMessage) {
+        ATRACE_ASYNC_END(kAutofocusLabel, triggerId);
         SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
         if (l.mRemoteCallback != 0) {
             l.mRemoteCallback->notifyCallback(CAMERA_MSG_FOCUS,
@@ -1768,5 +1798,8 @@ status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
 
     return res;
 }
+
+const char* Camera2Client::kAutofocusLabel = "autofocus";
+const char* Camera2Client::kTakepictureLabel = "take_picture";
 
 } // namespace android

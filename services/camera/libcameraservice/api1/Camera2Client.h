@@ -136,6 +136,10 @@ public:
     static const int32_t kCaptureRequestIdStart = 30000000;
     static const int32_t kCaptureRequestIdEnd   = 40000000;
 
+    // Constant strings for ATRACE logging
+    static const char* kAutofocusLabel;
+    static const char* kTakepictureLabel;
+
 private:
     /** ICamera interface-related private members */
     typedef camera2::Parameters Parameters;
