@@ -145,6 +145,9 @@ struct ExtendedCodec {
 
     static bool useHWAACDecoder(const char *mime);
 
+    static void overrideErrorCorrectionParameters(
+            OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE &errorCorrectionType);
+
 private:
     static const char* getMsgKey(int key );
 
@@ -173,6 +176,7 @@ private:
     static status_t setDIVXFormat(
             const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle,IOMX::node_id nodeID, int port_index);
+
 
 };
 
