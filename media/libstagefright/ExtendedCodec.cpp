@@ -1071,6 +1071,16 @@ bool ExtendedCodec::useHWAACDecoder(const char *mime) {
     return false;
 }
 
+void ExtendedCodec::overrideErrorCorrectionParameters(
+         OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE &errorCorrectionType) {
+    char mDeviceName[100];
+    property_get("ro.board.platform", mDeviceName, "0");
+    if (!strncmp(mDeviceName, "msm8610", 7)) {
+        errorCorrectionType.bEnableResync = OMX_FALSE;
+        errorCorrectionType.nResynchMarkerSpacing = 0;
+    }
+}
+
 } //namespace android
 
 #else //ENABLE_QC_AV_ENHANCEMENTS
@@ -1228,6 +1238,11 @@ namespace android {
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
             const char* componentName) {
         *isEnabled = false;
+        return;
+    }
+
+    void ExtendedCodec::overrideErrorCorrectionParameters(
+             OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE &errorCorrectionType) {
         return;
     }
 
