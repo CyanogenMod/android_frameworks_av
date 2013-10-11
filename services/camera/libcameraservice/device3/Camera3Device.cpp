@@ -999,7 +999,6 @@ bool Camera3Device::willNotify3A() {
 }
 
 status_t Camera3Device::waitForNextFrame(nsecs_t timeout) {
-    ATRACE_CALL();
     status_t res;
     Mutex::Autolock l(mOutputLock);
 

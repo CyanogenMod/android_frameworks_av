@@ -141,10 +141,13 @@ struct Parameters {
 
     bool enableFocusMoveMessages;
     int afTriggerCounter;
+    int afStateCounter;
     int currentAfTriggerId;
     bool afInMotion;
 
     int precaptureTriggerCounter;
+
+    int takePictureCounter;
 
     uint32_t previewCallbackFlags;
     bool previewCallbackOneShot;

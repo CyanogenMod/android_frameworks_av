@@ -805,10 +805,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     enableFocusMoveMessages = false;
     afTriggerCounter = 1;
+    afStateCounter = 0;
     currentAfTriggerId = -1;
     afInMotion = false;
 
     precaptureTriggerCounter = 1;
+
+    takePictureCounter = 0;
 
     previewCallbackFlags = 0;
     previewCallbackOneShot = false;
