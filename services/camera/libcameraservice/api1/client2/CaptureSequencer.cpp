@@ -43,6 +43,7 @@ CaptureSequencer::CaptureSequencer(wp<Camera2Client> client):
         mShutterNotified(false),
         mClient(client),
         mCaptureState(IDLE),
+        mStateTransitionCount(0),
         mTriggerId(0),
         mTimeoutCount(0),
         mCaptureId(Camera2Client::kCaptureRequestIdStart),
@@ -198,8 +199,14 @@ bool CaptureSequencer::threadLoop() {
 
     Mutex::Autolock l(mStateMutex);
     if (currentState != mCaptureState) {
+        if (mCaptureState != IDLE) {
+            ATRACE_ASYNC_END(kStateNames[mCaptureState], mStateTransitionCount);
+        }
         mCaptureState = currentState;
-        ATRACE_INT("cam2_capt_state", mCaptureState);
+        mStateTransitionCount++;
+        if (mCaptureState != IDLE) {
+            ATRACE_ASYNC_BEGIN(kStateNames[mCaptureState], mStateTransitionCount);
+        }
         ALOGV("Camera %d: New capture state %s",
                 client->getCameraId(), kStateNames[mCaptureState]);
         mStateChanged.signal();
@@ -243,6 +250,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
         mBusy = false;
     }
 
+    int takePictureCounter = 0;
     {
         SharedParameters::Lock l(client->getParameters());
         switch (l.mParameters.state) {
@@ -270,6 +278,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
                         Parameters::getStateName(l.mParameters.state));
                 res = INVALID_OPERATION;
         }
+        takePictureCounter = l.mParameters.takePictureCounter;
     }
     sp<ZslProcessorInterface> processor = mZslProcessor.promote();
     if (processor != 0) {
@@ -282,6 +291,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageDone(sp<Camera2Client> &c
      * Fire the jpegCallback in Camera#takePicture(..., jpegCallback)
      */
     if (mCaptureBuffer != 0 && res == OK) {
+        ATRACE_ASYNC_END(Camera2Client::kTakepictureLabel, takePictureCounter);
+
         Camera2Client::SharedCameraCallbacks::Lock
             l(client->mSharedCameraCallbacks);
         ALOGV("%s: Sending still image to client", __FUNCTION__);
