@@ -390,11 +390,23 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
         sp<Camera2Client> &client) {
     ATRACE_CALL();
 
+    bool isAeConverged = false;
     // Get the onFrameAvailable callback when the requestID == mCaptureId
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
             this);
+
+    {
+        Mutex::Autolock l(mInputMutex);
+        isAeConverged = (mAEState == ANDROID_CONTROL_AE_STATE_CONVERGED);
+    }
+
     {
         SharedParameters::Lock l(client->getParameters());
+        // Skip AE precapture when it is already converged and not in force flash mode.
+        if (l.mParameters.flashMode != Parameters::FLASH_MODE_ON && isAeConverged) {
+            return STANDARD_CAPTURE;
+        }
+
         mTriggerId = l.mParameters.precaptureTriggerCounter++;
     }
     client->getCameraDevice()->triggerPrecaptureMetering(mTriggerId);
