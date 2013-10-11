@@ -92,7 +92,22 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
     ANativeWindowBuffer* anb;
     int fenceFd;
 
-    res = mConsumer->dequeueBuffer(mConsumer.get(), &anb, &fenceFd);
+    /**
+     * Release the lock briefly to avoid deadlock for below scenario:
+     * Thread 1: StreamingProcessor::startStream -> Camera3Stream::isConfiguring().
+     * This thread acquired StreamingProcessor lock and try to lock Camera3Stream lock.
+     * Thread 2: Camera3Stream::returnBuffer->StreamingProcessor::onFrameAvailable().
+     * This thread acquired Camera3Stream lock and bufferQueue lock, and try to lock
+     * StreamingProcessor lock.
+     * Thread 3: Camera3Stream::getBuffer(). This thread acquired Camera3Stream lock
+     * and try to lock bufferQueue lock.
+     * Then there is circular locking dependency.
+     */
+    sp<ANativeWindow> currentConsumer = mConsumer;
+    mLock.unlock();
+
+    res = currentConsumer->dequeueBuffer(currentConsumer.get(), &anb, &fenceFd);
+    mLock.lock();
     if (res != OK) {
         ALOGE("%s: Stream %d: Can't dequeue next output buffer: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
