@@ -2335,6 +2335,7 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
                                         strategy,
                                         sessionId,
                                         effect->id());
+            AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
         }
         effect = chain->getEffectFromId_l(0);
     }
@@ -2349,6 +2350,7 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
                                             strategy,
                                             sessionId,
                                             removed[i]->id());
+                AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
             }
         }
     }
