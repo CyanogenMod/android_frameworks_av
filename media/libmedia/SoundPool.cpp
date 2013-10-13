@@ -744,11 +744,16 @@ void SoundChannel::process(int event, void *info, unsigned long toggle)
             b->size = count;
             //ALOGV("buffer=%p, [0]=%d", b->i16, b->i16[0]);
         }
-    } else if (event == AudioTrack::EVENT_UNDERRUN || event == AudioTrack::EVENT_BUFFER_END) {
-        ALOGV("process %p channel %d EVENT_UNDERRUN or EVENT_BUFFER_END", this, mChannelID);
+    } else if (event == AudioTrack::EVENT_UNDERRUN || event == AudioTrack::EVENT_BUFFER_END ||
+            event == AudioTrack::EVENT_NEW_IAUDIOTRACK) {
+        ALOGV("process %p channel %d event %s",
+              this, mChannelID, (event == AudioTrack::EVENT_UNDERRUN) ? "UNDERRUN" :
+                      (event == AudioTrack::EVENT_BUFFER_END) ? "BUFFER_END" : "NEW_IAUDIOTRACK");
         mSoundPool->addToStopList(this);
     } else if (event == AudioTrack::EVENT_LOOP_END) {
         ALOGV("End loop %p channel %d", this, mChannelID);
+    } else {
+        ALOGW("SoundChannel::process unexpected event %d", event);
     }
 }
 
