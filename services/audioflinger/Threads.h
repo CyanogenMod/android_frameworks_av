@@ -251,6 +251,8 @@ protected:
                 // check if some effects must be suspended when an effect chain is added
                 void checkSuspendOnAddEffectChain_l(const sp<EffectChain>& chain);
 
+                String16 getWakeLockTag();
+
     virtual     void        preExit() { }
 
     friend class AudioFlinger;      // for mEffectChains
