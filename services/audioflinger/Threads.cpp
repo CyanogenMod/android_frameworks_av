@@ -482,6 +482,25 @@ void AudioFlinger::ThreadBase::acquireWakeLock(int uid)
     acquireWakeLock_l(uid);
 }
 
+String16 AudioFlinger::ThreadBase::getWakeLockTag()
+{
+    switch (mType) {
+        case MIXER:
+            return String16("AudioMix");
+        case DIRECT:
+            return String16("AudioDirectOut");
+        case DUPLICATING:
+            return String16("AudioDup");
+        case RECORD:
+            return String16("AudioIn");
+        case OFFLOAD:
+            return String16("AudioOffload");
+        default:
+            ALOG_ASSERT(false);
+            return String16("AudioUnknown");
+    }
+}
+
 void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
 {
     if (mPowerManager == 0) {
@@ -501,13 +520,13 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         if (uid >= 0) {
             status = mPowerManager->acquireWakeLockWithUid(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
-                    String16(mName),
+                    getWakeLockTag(),
                     String16("media"),
                     uid);
         } else {
             status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
-                    String16(mName),
+                    getWakeLockTag(),
                     String16("media"));
         }
         if (status == NO_ERROR) {
