@@ -256,6 +256,8 @@ public:
         return mEpoch;
     }
 
+    size_t      getFramesFilled();
+
 private:
     size_t      mEpoch;
 };
