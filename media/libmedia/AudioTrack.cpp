@@ -1662,7 +1662,9 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // if the new IAudioTrack is created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioTrack and IMemory
-    size_t position = mProxy->getPosition();
+
+    // take the frames that will be lost by track recreation into account in saved position
+    size_t position = mProxy->getPosition() + mProxy->getFramesFilled();
     mNewPosition = position + mUpdatePeriod;
     size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
     result = createTrack_l(mStreamType,
