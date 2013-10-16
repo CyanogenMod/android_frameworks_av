@@ -817,21 +817,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     previewCallbackOneShot = false;
     previewCallbackSurface = false;
 
-    camera_metadata_ro_entry_t supportedHardwareLevel =
-        staticInfo(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL, 0, 0, false);
-    if (!supportedHardwareLevel.count || (supportedHardwareLevel.data.u8[0] ==
-            ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED)) {
-        ALOGI("Camera %d: ZSL mode disabled for limited mode HALs", cameraId);
+    char value[PROPERTY_VALUE_MAX];
+    property_get("camera.disable_zsl_mode", value, "0");
+    if (!strcmp(value,"1")) {
+        ALOGI("Camera %d: Disabling ZSL mode", cameraId);
         zslMode = false;
     } else {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("camera.disable_zsl_mode", value, "0");
-        if (!strcmp(value,"1")) {
-            ALOGI("Camera %d: Disabling ZSL mode", cameraId);
-            zslMode = false;
-        } else {
-            zslMode = true;
-        }
+        zslMode = true;
     }
 
     lightFx = LIGHTFX_NONE;
