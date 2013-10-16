@@ -1225,6 +1225,12 @@ status_t AwesomePlayer::pause() {
 
 status_t AwesomePlayer::pause_l(bool at_eos) {
     if (!(mFlags & PLAYING)) {
+        if (mAudioTearDown && mAudioTearDownWasPlaying) {
+            ALOGV("pause_l() during teardown and finishSetDataSource_l() mFlags %x" , mFlags);
+            mAudioTearDownWasPlaying = false;
+            notifyListener_l(MEDIA_PAUSED);
+            mMediaRenderingStartGeneration = ++mStartGeneration;
+        }
         return OK;
     }
 
