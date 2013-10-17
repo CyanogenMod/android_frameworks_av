@@ -798,7 +798,7 @@ void AwesomePlayer::onBufferingUpdate() {
         }
     }
 
-    if (mFlags & (PLAYING | PREPARING)) {
+    if (mFlags & (PLAYING | PREPARING | CACHE_UNDERRUN)) {
         postBufferingEvent_l();
     }
 }
