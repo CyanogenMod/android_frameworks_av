@@ -1786,7 +1786,8 @@ void AudioTrack::DeathNotifier::binderDied(const wp<IBinder>& who)
 // =========================================================================
 
 AudioTrack::AudioTrackThread::AudioTrackThread(AudioTrack& receiver, bool bCanCallJava)
-    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mPausedInt(false), mPausedNs(0LL)
+    : Thread(bCanCallJava), mReceiver(receiver), mPaused(true), mPausedInt(false), mPausedNs(0LL),
+      mIgnoreNextPausedInt(false)
 {
 }
 
@@ -1802,6 +1803,10 @@ bool AudioTrack::AudioTrackThread::threadLoop()
             mMyCond.wait(mMyLock);
             // caller will check for exitPending()
             return true;
+        }
+        if (mIgnoreNextPausedInt) {
+            mIgnoreNextPausedInt = false;
+            mPausedInt = false;
         }
         if (mPausedInt) {
             if (mPausedNs > 0) {
@@ -1837,12 +1842,7 @@ void AudioTrack::AudioTrackThread::requestExit()
 {
     // must be in this order to avoid a race condition
     Thread::requestExit();
-    AutoMutex _l(mMyLock);
-    if (mPaused || mPausedInt) {
-        mPaused = false;
-        mPausedInt = false;
-        mMyCond.signal();
-    }
+    resume();
 }
 
 void AudioTrack::AudioTrackThread::pause()
@@ -1854,6 +1854,7 @@ void AudioTrack::AudioTrackThread::pause()
 void AudioTrack::AudioTrackThread::resume()
 {
     AutoMutex _l(mMyLock);
+    mIgnoreNextPausedInt = true;
     if (mPaused || mPausedInt) {
         mPaused = false;
         mPausedInt = false;
