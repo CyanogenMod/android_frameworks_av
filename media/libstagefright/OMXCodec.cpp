@@ -797,6 +797,9 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
         } else {
+            ExtendedCodec::configureVideoDecoder(
+                    meta, mMIME, mOMX, mFlags, mNode, mComponentName);
+
             status_t err = setVideoOutputFormat(
                     mMIME, meta);
 
@@ -804,8 +807,6 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
 
-            ExtendedCodec::configureVideoDecoder(
-                    meta, mMIME, mOMX, mFlags, mNode, mComponentName);
             ExtendedCodec::configureFramePackingFormat(
                     meta, mOMX, mNode);
             ExtendedCodec::enableSmoothStreaming(
