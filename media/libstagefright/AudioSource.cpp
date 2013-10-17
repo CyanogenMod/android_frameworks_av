@@ -368,10 +368,11 @@ status_t AudioSource::read(
             memset((uint8_t *) buffer->data(), 0, buffer->range_length());
         } else if (elapsedTimeUs < kAutoRampStartUs + kAutoRampDurationUs) {
             int32_t autoRampDurationFrames =
-                    (kAutoRampDurationUs * mSampleRate + 500000LL) / 1000000LL;
+                    ((int64_t)kAutoRampDurationUs * mSampleRate + 500000LL) / 1000000LL; //Need type casting
 
             int32_t autoRampStartFrames =
                     (kAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL;
+                    ((int64_t)kAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL; //Need type casting
 
             int32_t nFrames = mNumFramesReceived - autoRampStartFrames;
             rampVolume(nFrames, autoRampDurationFrames,
