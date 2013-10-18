@@ -360,6 +360,7 @@ public:
     //      which must be > 0.
     //  buffer->mNonContig is unused.
     //  buffer->mRaw is unused.
+    //  ackFlush is true iff being called from Track::start to acknowledge a pending flush.
     // On exit:
     //  buffer->mFrameCount has the actual number of contiguous available frames,
     //      which is always 0 when the return status != NO_ERROR.
@@ -370,7 +371,7 @@ public:
     //  NO_ERROR    Success, buffer->mFrameCount > 0.
     //  WOULD_BLOCK No frames are available.
     //  NO_INIT     Shared memory is corrupt.
-    virtual status_t    obtainBuffer(Buffer* buffer);
+    virtual status_t    obtainBuffer(Buffer* buffer, bool ackFlush = false);
 
     // Release (some of) the frames last obtained.
     // On entry, buffer->mFrameCount should have the number of frames to release,
@@ -437,7 +438,7 @@ protected:
 public:
     virtual size_t      framesReady();
     virtual void        framesReadyIsCalledByMultipleThreads();
-    virtual status_t    obtainBuffer(Buffer* buffer);
+    virtual status_t    obtainBuffer(Buffer* buffer, bool ackFlush);
     virtual void        releaseBuffer(Buffer* buffer);
     virtual void        tallyUnderrunFrames(uint32_t frameCount);
     virtual uint32_t    getUnderrunFrames() const { return 0; }
