@@ -3894,13 +3894,9 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD),
         mHwPaused(false),
         mFlushPending(false),
-        mPausedBytesRemaining(0)
+        mPausedBytesRemaining(0),
+        mPreviousTrack(NULL)
 {
-}
-
-AudioFlinger::OffloadThread::~OffloadThread()
-{
-    mPreviousTrack.clear();
 }
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
@@ -3938,7 +3934,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
         if (mPreviousTrack != NULL) {
-            if (t != mPreviousTrack) {
+            if (t.get() != mPreviousTrack) {
                 // Flush any data still being written from last track
                 mBytesRemaining = 0;
                 if (mPausedBytesRemaining) {
@@ -3953,7 +3949,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 }
             }
         }
-        mPreviousTrack = t;
+        mPreviousTrack = t.get();
         bool last = (i == (count - 1));
         if (track->isPausing()) {
             track->setPaused();
@@ -4018,7 +4014,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     // has been written
                     ALOGV("OffloadThread: underrun and STOPPING_1 -> draining, STOPPING_2");
                     track->mState = TrackBase::STOPPING_2; // so presentation completes after drain
-                    if (last) {
+                    // do not drain if no data was ever sent to HAL (mStandby == true)
+                    if (last && !mStandby) {
                         sleepTime = 0;
                         standbyTime = systemTime() + standbyDelay;
                         mixerStatus = MIXER_DRAIN_TRACK;
@@ -4032,8 +4029,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     }
                 }
             } else if (track->isStopping_2()) {
-                // Drain has completed, signal presentation complete
-                if (!(mDrainSequence & 1) || !last) {
+                // Drain has completed or we are in standby, signal presentation complete
+                if (!(mDrainSequence & 1) || !last || mStandby) {
                     track->mState = TrackBase::STOPPED;
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;

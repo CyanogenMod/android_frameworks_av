@@ -737,7 +737,7 @@ public:
 
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                         audio_io_handle_t id, uint32_t device);
-    virtual                 ~OffloadThread();
+    virtual                 ~OffloadThread() {};
 
 protected:
     // threadLoop snippets
@@ -757,7 +757,7 @@ private:
     bool        mFlushPending;
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
-    sp<Track>   mPreviousTrack;         // used to detect track switch
+    Track       *mPreviousTrack;         // used to detect track switch
 };
 
 class AsyncCallbackThread : public Thread {
