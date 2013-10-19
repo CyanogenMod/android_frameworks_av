@@ -21,7 +21,7 @@
  ************************************************************************
 */
 
-#ifndef M4OSA_CLOCH_H
+#ifndef M4OSA_CLOCK_H
 #define M4OSA_CLOCK_H
 
 #include "M4OSA_Types.h"
