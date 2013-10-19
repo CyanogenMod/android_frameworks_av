@@ -444,6 +444,9 @@ status_t CameraClient::startRecordingMode() {
 // stop preview mode
 void CameraClient::stopPreview() {
     LOG1("stopPreview (pid %d)", getCallingPid());
+#ifdef QCOM_HARDWARE
+    disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
+#endif
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
 
