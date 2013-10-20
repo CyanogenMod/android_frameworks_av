@@ -1892,13 +1892,13 @@ int PreProcessingLib_GetDescriptor(const effect_uuid_t *uuid,
 // This is the only symbol that needs to be exported
 __attribute__ ((visibility ("default")))
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
-    tag : AUDIO_EFFECT_LIBRARY_TAG,
-    version : EFFECT_LIBRARY_API_VERSION,
-    name : "Audio Preprocessing Library",
-    implementor : "The Android Open Source Project",
-    create_effect : PreProcessingLib_Create,
-    release_effect : PreProcessingLib_Release,
-    get_descriptor : PreProcessingLib_GetDescriptor
+    .tag = AUDIO_EFFECT_LIBRARY_TAG,
+    .version = EFFECT_LIBRARY_API_VERSION,
+    .name = "Audio Preprocessing Library",
+    .implementor = "The Android Open Source Project",
+    .create_effect = PreProcessingLib_Create,
+    .release_effect = PreProcessingLib_Release,
+    .get_descriptor = PreProcessingLib_GetDescriptor
 };
 
 }; // extern "C"
