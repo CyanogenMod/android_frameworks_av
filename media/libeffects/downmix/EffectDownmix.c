@@ -61,13 +61,13 @@ const struct effect_interface_s gDownmixInterface = {
 // This is the only symbol that needs to be exported
 __attribute__ ((visibility ("default")))
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
-    tag : AUDIO_EFFECT_LIBRARY_TAG,
-    version : EFFECT_LIBRARY_API_VERSION,
-    name : "Downmix Library",
-    implementor : "The Android Open Source Project",
-    create_effect : DownmixLib_Create,
-    release_effect : DownmixLib_Release,
-    get_descriptor : DownmixLib_GetDescriptor,
+    .tag = AUDIO_EFFECT_LIBRARY_TAG,
+    .version = EFFECT_LIBRARY_API_VERSION,
+    .name = "Downmix Library",
+    .implementor = "The Android Open Source Project",
+    .create_effect = DownmixLib_Create,
+    .release_effect = DownmixLib_Release,
+    .get_descriptor = DownmixLib_GetDescriptor,
 };
 
 
