@@ -676,6 +676,12 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         enableMsgType(CAMERA_MSG_STATS_DATA);
     } else if (cmd == CAMERA_CMD_HISTOGRAM_OFF) {
         disableMsgType(CAMERA_MSG_STATS_DATA);
+    } else if ( cmd == CAMERA_CMD_LONGSHOT_ON ) {
+        mLongshotEnabled = true;
+    } else if ( cmd == CAMERA_CMD_LONGSHOT_OFF ) {
+        mLongshotEnabled = false;
+        disableMsgType(CAMERA_MSG_SHUTTER);
+        disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
     }
 
     return mHardware->sendCommand(cmd, arg1, arg2);
@@ -840,7 +846,9 @@ void CameraClient::handleShutter(void) {
         c->notifyCallback(CAMERA_MSG_SHUTTER, 0, 0);
         if (!lockIfMessageWanted(CAMERA_MSG_SHUTTER)) return;
     }
-    disableMsgType(CAMERA_MSG_SHUTTER);
+    if ( !mLongshotEnabled ) {
+        disableMsgType(CAMERA_MSG_SHUTTER);
+    }
 
     mLock.unlock();
 }
@@ -922,7 +930,7 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
     if (mBurstCnt)
         mBurstCnt--;
 
-    if (!mBurstCnt) {
+    if (!mBurstCnt && !mLongshotEnabled) {
         LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
         disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
     }
