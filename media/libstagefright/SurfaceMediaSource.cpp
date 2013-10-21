@@ -47,7 +47,8 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     mNumFramesEncoded(0),
     mFirstFrameTimestamp(0),
     mMaxAcquiredBufferCount(4),  // XXX double-check the default
-    mUseAbsoluteTimestamps(false) {
+    mUseAbsoluteTimestamps(false),
+    mBuffersReleased(false) {
     ALOGV("SurfaceMediaSource");
 
     if (bufferWidth == 0 || bufferHeight == 0) {
@@ -141,6 +142,7 @@ status_t SurfaceMediaSource::start(MetaData *params)
     Mutex::Autolock lock(mMutex);
 
     CHECK(!mStarted);
+    mBuffersReleased = false;
 
     mStartTimeNs = 0;
     int64_t startTimeUs;
@@ -291,7 +293,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
     BufferQueue::BufferItem item;
     // If the recording has started and the queue is empty, then just
     // wait here till the frames come in from the client side
-    while (mStarted) {
+    while (mStarted && !mBuffersReleased) {
 
         status_t err = mBufferQueue->acquireBuffer(&item);
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
@@ -336,7 +338,7 @@ status_t SurfaceMediaSource::read( MediaBuffer **buffer,
 
     // If the loop was exited as a result of stopping the recording,
     // it is OK
-    if (!mStarted) {
+    if (!mStarted || mBuffersReleased) {
         ALOGV("Read: SurfaceMediaSource is stopped. Returning ERROR_END_OF_STREAM.");
         return ERROR_END_OF_STREAM;
     }
@@ -466,6 +468,7 @@ void SurfaceMediaSource::onBuffersReleased() {
 
     Mutex::Autolock lock(mMutex);
 
+    mBuffersReleased = true;
     mFrameAvailableCondition.signal();
 
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
