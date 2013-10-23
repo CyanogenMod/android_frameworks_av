@@ -279,9 +279,6 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
 
-    //Force fast flag for ringtone/enforce audible/alarm/notification/system sound
-    TrackUtils::setFastFlag(streamType, flags);
-
     // force direct flag if format is not linear PCM
     if (!audio_is_linear_pcm(format)) {
         flags = (audio_output_flags_t)
@@ -340,10 +337,14 @@ status_t AudioTrack::set(
     }
 #endif
 
+    //Check whether to force fast flag
+    audio_output_flags_t output_flags = flags;
+    TrackUtils::setFastFlag(streamType, output_flags);
+
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
                                     sampleRate, format, channelMask,
-                                    flags);
+                                    output_flags);
 
     if (output == 0) {
         ALOGE("Could not get audio output for stream type %d", streamType);
