@@ -41,6 +41,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 
+#include "utils/CameraTraces.h"
 #include "device3/Camera3Device.h"
 #include "device3/Camera3OutputStream.h"
 #include "device3/Camera3InputStream.h"
@@ -1362,6 +1363,10 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
 
     // But only do error state transition steps for the first error
     if (mStatus == STATUS_ERROR || mStatus == STATUS_UNINITIALIZED) return;
+
+    // Save stack trace. View by dumping it later.
+    CameraTraces::saveTrace();
+    // TODO: consider adding errorCause and client pid/procname
 
     mErrorCause = errorCause;
 
