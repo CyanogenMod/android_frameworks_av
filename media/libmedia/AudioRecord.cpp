@@ -159,7 +159,7 @@ status_t AudioRecord::set(
         inputSource = AUDIO_SOURCE_MIC;
     }
 
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
     //update mInputSource before openRecord_l
     mInputSource = inputSource;
 #endif
@@ -311,7 +311,7 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-#ifndef QCOM_HARDWARE
+#if !defined(QCOM_HARDWARE) || defined(LEGACY_QCOM_VOICE)
     mInputSource = inputSource;
 #endif
     mInput = input;
@@ -558,7 +558,7 @@ status_t AudioRecord::openRecord_l(
                                                        sampleRate, format,
                                                        mChannelMask,
                                                        frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                                                        (int16_t)inputSource(),
 #else
                                                        IAudioFlinger::TRACK_DEFAULT,
@@ -590,7 +590,11 @@ status_t AudioRecord::openRecord_l(
 
     // update proxy
     delete mProxy;
+#ifndef LEGACY_QCOM_VOICE
     mProxy = new AudioRecordClientProxy(cblk, mBuffers, mCblk->frameCount_, mFrameSize);
+#else
+    mProxy = new AudioRecordClientProxy(cblk, mBuffers, frameCount, mFrameSize);
+#endif
 
     return NO_ERROR;
 }
