@@ -384,6 +384,23 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
     if (mLatestSubmittedBufferId < 0 || mSuspended) {
         return false;
     }
+    if (mBufferSlot[mLatestSubmittedBufferId] == NULL) {
+        // This can happen if the remote side disconnects, causing
+        // onBuffersReleased() to NULL out our copy of the slots.  The
+        // buffer is gone, so we have nothing to show.
+        //
+        // To be on the safe side we try to release the buffer.
+        ALOGD("repeatLatestSubmittedBuffer_l: slot was NULL");
+        mBufferQueue->releaseBuffer(
+                mLatestSubmittedBufferId,
+                mLatestSubmittedBufferFrameNum,
+                EGL_NO_DISPLAY,
+                EGL_NO_SYNC_KHR,
+                Fence::NO_FENCE);
+        mLatestSubmittedBufferId = -1;
+        mLatestSubmittedBufferFrameNum = 0;
+        return false;
+    }
 
     int cbi = findAvailableCodecBuffer_l();
     if (cbi < 0) {
