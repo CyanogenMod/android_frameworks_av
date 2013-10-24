@@ -1231,7 +1231,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
     if (mType == DIRECT) {
         if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_NB)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_WB)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRC)
@@ -3834,7 +3834,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                         if (framesOut && mFrameCount == mRsmpInIndex) {
                             void *readInto;
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                             int InputBytes;
                             if (( framesOut != mFrameCount) &&
                                 ((mFormat != AUDIO_FORMAT_PCM_16_BIT)&&
@@ -4011,7 +4011,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
 
         track = new RecordTrack(this, client, sampleRate,
                       format, channelMask, frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                       flags,
 #endif
                       sessionId);

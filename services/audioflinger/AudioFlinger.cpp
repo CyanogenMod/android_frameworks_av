@@ -1560,7 +1560,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
                 *sessionId = lSessionId;
             }
         }
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
         // frameCount must be a multiple of input buffer size
         // Change for Codec type
         uint8_t channelCount = popcount(channelMask);
@@ -1592,6 +1592,33 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             {
               inFrameCount = inputBufferSize/channelCount/AMR_WB_FRAMESIZE;
             }
+        }
+        frameCount = ((frameCount - 1)/inFrameCount + 1) * inFrameCount;
+#elif defined(QCOM_HARDWARE) && defined(LEGACY_QCOM_VOICE)
+        if ((format == AUDIO_FORMAT_PCM_16_BIT) ||
+            (format == AUDIO_FORMAT_PCM_8_BIT))
+        {
+          inFrameCount = inputBufferSize/channelCount/sizeof(short);
+        }
+        else if (format == AUDIO_FORMAT_AMR_NB)
+        {
+          inFrameCount = inputBufferSize/channelCount/32;
+        }
+        else if (format == AUDIO_FORMAT_EVRC)
+        {
+          inFrameCount = inputBufferSize/channelCount/23;
+        }
+        else if (format == AUDIO_FORMAT_QCELP)
+        {
+          inFrameCount = inputBufferSize/channelCount/35;
+        }
+        else if (format == AUDIO_FORMAT_AAC)
+        {
+          inFrameCount = inputBufferSize/2048;
+        }
+        else if (format == AUDIO_FORMAT_AMR_WB)
+        {
+          inFrameCount = inputBufferSize/channelCount/61;
         }
         frameCount = ((frameCount - 1)/inFrameCount + 1) * inFrameCount;
 #endif
