@@ -776,16 +776,16 @@ M4OSA_ERR VideoEditor3gpReader_setOption(M4OSA_Context context,
         case M4READER_kOptionID_SetOsaFileReaderFctsPtr:
         break;
 
-        case M4READER_3GP_kOptionID_AudioOnly:
+        case static_cast<M4OSA_OptionID>(M4READER_3GP_kOptionID_AudioOnly):
         break;
 
-        case M4READER_3GP_kOptionID_VideoOnly:
+        case static_cast<M4OSA_OptionID>(M4READER_3GP_kOptionID_VideoOnly):
         break;
 
-        case M4READER_3GP_kOptionID_FastOpenMode:
+        case static_cast<M4OSA_OptionID>(M4READER_3GP_kOptionID_FastOpenMode):
         break;
 
-        case M4READER_kOptionID_MaxMetadataSize:
+        case static_cast<M4OSA_OptionID>(M4READER_kOptionID_MaxMetadataSize):
         break;
 
         default:
