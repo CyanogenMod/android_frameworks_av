@@ -125,7 +125,7 @@ static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
     if (rc) {
         goto out;
     }
-#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB) && !defined(JB41_AUDIO_BLOB)
     if ((*dev)->common.version != AUDIO_DEVICE_API_VERSION_CURRENT) {
         ALOGE("%s wrong audio hw device version %04x", __func__, (*dev)->common.version);
         rc = BAD_VALUE;
@@ -870,7 +870,7 @@ status_t AudioFlinger::setMasterMute(bool muted)
     Mutex::Autolock _l(mLock);
     mMasterMute = muted;
 
-#ifndef ICS_AUDIO_BLOB
+#if !defined(ICS_AUDIO_BLOB) && !defined(JB41_AUDIO_BLOB)
     // Set master mute in the HALs which support it.
     for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
         AutoMutex lock(mHardwareLock);
@@ -1676,7 +1676,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     mMasterVolume = mv;
                 }
             }
-
+#ifndef JB41_AUDIO_BLOB
             mHardwareStatus = AUDIO_HW_GET_MASTER_MUTE;
             if (NULL != dev->get_master_mute) {
                 bool mm;
@@ -1684,6 +1684,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     mMasterMute = mm;
                 }
             }
+#endif
         }
 #endif
 
@@ -1694,7 +1695,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     AudioHwDevice::AHWD_CAN_SET_MASTER_VOLUME);
         }
 
-#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB) && !defined(JB41_AUDIO_BLOB)
         mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
         if ((NULL != dev->set_master_mute) &&
             (OK == dev->set_master_mute(dev, mMasterMute))) {
