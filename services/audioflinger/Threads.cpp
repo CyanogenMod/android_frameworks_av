@@ -272,6 +272,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, and mFormat are
         // set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
         mParamStatus(NO_ERROR),
+        //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
@@ -1461,6 +1462,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         mActiveTracks.add(track);
         mWakeLockUids.add(track->uid());
         mActiveTracksGeneration++;
+        mLatestActiveTrack = track;
         sp<EffectChain> chain = getEffectChain_l(track->sessionId());
         if (chain != 0) {
             ALOGV("addTrack_l() starting track on chain %p for session %d", chain.get(),
@@ -1934,7 +1936,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
 
     mNumWrites++;
     mInWrite = false;
-
+    mStandby = false;
     return bytesWritten;
 }
 
@@ -2357,7 +2359,6 @@ if (mType == MIXER) {
                 }
 }
 
-                mStandby = false;
             } else {
                 usleep(sleepTime);
             }
@@ -3605,6 +3606,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
+        // Only consider last track started for volume and mixer state control.
+        // In theory an older track could underrun and restart after the new one starts
+        // but as we only care about the transition phase between two tracks on a
+        // direct output, it is not a problem to ignore the underrun case.
+        sp<Track> l = mLatestActiveTrack.promote();
+        bool last = l.get() == track;
 
         // The first time a track is added we wait
         // for all its buffers to be filled before processing it
@@ -3614,11 +3621,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         } else {
             minFrames = 1;
         }
-        // Only consider last track started for volume and mixer state control.
-        // This is the last entry in mActiveTracks unless a track underruns.
-        // As we only care about the transition phase between two tracks on a
-        // direct output, it is not a problem to ignore the underrun case.
-        bool last = (i == (count - 1));
 
         if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
@@ -3645,7 +3647,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         } else {
             // clear effect chain input buffer if the last active track started underruns
             // to avoid sending previous audio buffer again to effects
-            if (!mEffectChains.isEmpty() && (i == (count -1))) {
+            if (!mEffectChains.isEmpty() && last) {
                 mEffectChains[0]->clearInputBuffer();
             }
 
@@ -3657,7 +3659,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // TODO: implement behavior for compressed audio
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten = mBytesWritten / mFrameSize;
-                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
+                if (mStandby || !last ||
+                        track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
                     }
@@ -3933,6 +3936,8 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         mPausedBytesRemaining(0),
         mPreviousTrack(NULL)
 {
+    //FIXME: mStandby should be set to true by ThreadBase constructor
+    mStandby = true;
 }
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
@@ -3969,8 +3974,15 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         }
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
+        // Only consider last track started for volume and mixer state control.
+        // In theory an older track could underrun and restart after the new one starts
+        // but as we only care about the transition phase between two tracks on a
+        // direct output, it is not a problem to ignore the underrun case.
+        sp<Track> l = mLatestActiveTrack.promote();
+        bool last = l.get() == track;
+
         if (mPreviousTrack != NULL) {
-            if (t.get() != mPreviousTrack) {
+            if (track != mPreviousTrack) {
                 // Flush any data still being written from last track
                 mBytesRemaining = 0;
                 if (mPausedBytesRemaining) {
@@ -3985,8 +3997,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 }
             }
         }
-        mPreviousTrack = t.get();
-        bool last = (i == (count - 1));
+        mPreviousTrack = track;
         if (track->isPausing()) {
             track->setPaused();
             if (last) {
@@ -4096,7 +4107,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     // If a flush is pending and a track is active but the HW is not paused, force a HW pause
     // before flush and then resume HW. This can happen in case of pause/flush/resume
     // if resume is received before pause is executed.
-    if (doHwPause || (mFlushPending && !mHwPaused && (count != 0))) {
+    if (!mStandby && (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         mOutput->stream->pause(mOutput->stream);
         if (!doHwPause) {
             doHwResume = true;
@@ -4106,7 +4117,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         flushHw_l();
         mFlushPending = false;
     }
-    if (doHwResume) {
+    if (!mStandby && doHwResume) {
         mOutput->stream->resume(mOutput->stream);
     }
 
