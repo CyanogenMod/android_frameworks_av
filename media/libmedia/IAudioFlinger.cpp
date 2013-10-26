@@ -96,6 +96,7 @@ public:
                                 pid_t tid,
                                 int *sessionId,
                                 String8& name,
+                                int clientUid,
                                 status_t *status)
     {
         Parcel data, reply;
@@ -121,6 +122,7 @@ public:
             lSessionId = *sessionId;
         }
         data.writeInt32(lSessionId);
+        data.writeInt32(clientUid);
         status_t lStatus = remote()->transact(CREATE_TRACK, data, &reply);
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack error: %s", strerror(-lStatus));
@@ -762,6 +764,7 @@ status_t BnAudioFlinger::onTransact(
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
+            int clientUid = data.readInt32();
             String8 name;
             status_t status;
             sp<IAudioTrack> track;
@@ -773,7 +776,7 @@ status_t BnAudioFlinger::onTransact(
                 track = createTrack(
                         (audio_stream_type_t) streamType, sampleRate, format,
                         channelMask, frameCount, &flags, buffer, output, tid,
-                        &sessionId, name, &status);
+                        &sessionId, name, clientUid, &status);
             }
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);

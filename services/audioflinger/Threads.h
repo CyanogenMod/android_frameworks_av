@@ -241,6 +241,9 @@ protected:
                 void        acquireWakeLock_l(int uid = -1);
                 void        releaseWakeLock();
                 void        releaseWakeLock_l();
+                void        updateWakeLockUids(const SortedVector<int> &uids);
+                void        updateWakeLockUids_l(const SortedVector<int> &uids);
+                void        getPowerManager_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
                                           bool suspend,
                                           int sessionId);
@@ -421,6 +424,7 @@ public:
                                 int sessionId,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
+                                int uid,
                                 status_t *status);
 
                 AudioStreamOut* getOutput() const;
@@ -495,6 +499,8 @@ private:
                 void        setMasterMute_l(bool muted) { mMasterMute = muted; }
 protected:
     SortedVector< wp<Track> >       mActiveTracks;  // FIXME check if this could be sp<>
+    SortedVector<int>               mWakeLockUids;
+    int                             mActiveTracksGeneration;
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
@@ -873,6 +879,7 @@ public:
                     audio_channel_mask_t channelMask,
                     size_t frameCount,
                     int sessionId,
+                    int uid,
                     IAudioFlinger::track_flags_t *flags,
                     pid_t tid,
                     status_t *status);
@@ -953,5 +960,4 @@ private:
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
-            int                                 mClientUid;
 };

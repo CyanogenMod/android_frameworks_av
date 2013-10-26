@@ -187,7 +187,8 @@ public:
                                     int notificationFrames = 0,
                                     int sessionId        = 0,
                                     transfer_type transferType = TRANSFER_DEFAULT,
-                                    const audio_offload_info_t *offloadInfo = NULL);
+                                    const audio_offload_info_t *offloadInfo = NULL,
+                                    int uid = -1);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -211,7 +212,8 @@ public:
                                     int notificationFrames = 0,
                                     int sessionId       = 0,
                                     transfer_type transferType = TRANSFER_DEFAULT,
-                                    const audio_offload_info_t *offloadInfo = NULL);
+                                    const audio_offload_info_t *offloadInfo = NULL,
+                                    int uid = -1);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -248,7 +250,8 @@ public:
                             bool threadCanCallJava = false,
                             int sessionId       = 0,
                             transfer_type transferType = TRANSFER_DEFAULT,
-                            const audio_offload_info_t *offloadInfo = NULL);
+                            const audio_offload_info_t *offloadInfo = NULL,
+                            int uid = -1);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
@@ -751,6 +754,7 @@ private:
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
     audio_io_handle_t       mOutput;                // cached output io handle
+    int                     mClientUid;
 };
 
 class TimedAudioTrack : public AudioTrack
