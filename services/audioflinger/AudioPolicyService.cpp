@@ -492,7 +492,7 @@ bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inP
 
 bool AudioPolicyService::isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
 {
-#ifndef ICS_AUDIO_BLOB
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR1_AUDIO_BLOB)
     if (mpAudioPolicy == NULL) {
         return 0;
     }
