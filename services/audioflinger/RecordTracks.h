@@ -28,7 +28,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                                 uint32_t flags,
 #endif
                                 int sessionId);

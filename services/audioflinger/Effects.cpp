@@ -648,8 +648,12 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
        Send notification event to LPA Player when an effect for
        LPA output is enabled or disabled.
     */
+#ifdef LEGACY_QCOM_VOICE
+    if (effectStateChanged && mIsForLPA) {
+#else
     sp<EffectChain> chain = mChain.promote();
     if (effectStateChanged && chain->isForLPATrack()) {
+#endif
         sp<ThreadBase> thread = mThread.promote();
         unlock();//Acquire locks in certain sequence to avoid deadlock
         thread->effectConfigChanged();

@@ -1231,7 +1231,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
     if (mType == DIRECT) {
         if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_NB)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_WB)
               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRC)
@@ -2061,11 +2061,11 @@ if (mType == MIXER) {
         // only process effects if we're going to write
         if (sleepTime == 0) {
             for (size_t i = 0; i < effectChains.size(); i ++) {
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                 if (effectChains[i] != mAudioFlinger->mLPAEffectChain) {
 #endif
                     effectChains[i]->process_l();
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                 }
 #endif
             }
@@ -3834,7 +3834,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                         if (framesOut && mFrameCount == mRsmpInIndex) {
                             void *readInto;
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                             int InputBytes;
                             if (( framesOut != mFrameCount) &&
                                 ((mFormat != AUDIO_FORMAT_PCM_16_BIT)&&
@@ -3851,7 +3851,6 @@ bool AudioFlinger::RecordThread::threadLoop()
                             } else {
                                 readInto = mRsmpInBuffer;
                                 mRsmpInIndex = 0;
-                                InputBytes = mInputBytes;
                             }
                             mBytesRead = mInput->stream->read(mInput->stream, readInto,
                                     InputBytes);
@@ -4011,7 +4010,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
 
         track = new RecordTrack(this, client, sampleRate,
                       format, channelMask, frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
                       flags,
 #endif
                       sessionId);

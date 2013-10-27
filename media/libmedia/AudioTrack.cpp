@@ -292,7 +292,7 @@ status_t AudioTrack::set(
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
 
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
 #ifdef QCOM_VOIP_ENABLED
     if ((streamType == AUDIO_STREAM_VOICE_CALL)
          && (channelCount == 1)
@@ -320,7 +320,7 @@ status_t AudioTrack::set(
             mFrameSize = sizeof(uint8_t);
             mFrameSizeAF = sizeof(uint8_t);
         }
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
     }
 #endif
 

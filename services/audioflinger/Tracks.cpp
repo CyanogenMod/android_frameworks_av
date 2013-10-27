@@ -68,7 +68,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
             uint32_t flags,
 #endif
             const sp<IMemory>& sharedBuffer,
@@ -86,16 +86,19 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mFormat(format),
         mChannelMask(channelMask),
         mChannelCount(popcount(channelMask)),
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
         mFrameSize((audio_is_linear_pcm(format)||audio_is_supported_compressed(format)) ?
                 ((int16_t)flags == VOICE_COMMUNICATION_FLAG? mChannelCount * sizeof(int16_t): mChannelCount * audio_bytes_per_sample(format)): sizeof(int8_t)),
+#elif defined(QCOM_HARDWARE) && defined(LEGACY_QCOM_VOICE)
+        mFrameSize((audio_is_linear_pcm(format)||audio_is_supported_compressed(format)) ?
+                mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
 #else
         mFrameSize(audio_is_linear_pcm(format) ?
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
 #endif
         mFrameCount(frameCount),
         mStepServerFailed(false),
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
         mFlags(0),
 #endif
         mSessionId(sessionId),
@@ -111,7 +114,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
     uint8_t channelCount = popcount(channelMask);
     size_t bufferSize = 0;
     if ((int16_t)flags == VOICE_COMMUNICATION_FLAG) {
@@ -178,7 +181,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 //      mCblk->serverBase = 0xffff0000;
         if (sharedBuffer == 0) {
             mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
             if ((int16_t)flags == VOICE_COMMUNICATION_FLAG) {
                 bufferSize = frameCount * mFrameSize;
             } else {
@@ -422,7 +425,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             int sessionId,
             IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
      ((audio_stream_type_t)streamType == AUDIO_STREAM_VOICE_CALL)? VOICE_COMMUNICATION_FLAG:0x0,
 #endif
      sharedBuffer, sessionId, true /*isOut*/),
@@ -1759,12 +1762,12 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
             uint32_t flags,
 #endif
             int sessionId)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount,
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(LEGACY_QCOM_VOICE)
     ((audio_source_t)((int16_t)flags) == AUDIO_SOURCE_VOICE_COMMUNICATION) ?
         ((flags & 0xffff0000)| VOICE_COMMUNICATION_FLAG) : ((flags & 0xffff0000)),
 #endif
