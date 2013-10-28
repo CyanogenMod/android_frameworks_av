@@ -606,6 +606,9 @@ void AwesomePlayer::reset_l() {
 
     mWatchForAudioSeekComplete = false;
     mWatchForAudioEOS = false;
+
+    mMediaRenderingStartGeneration = 0;
+    mStartGeneration = 0;
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
@@ -894,6 +897,8 @@ status_t AwesomePlayer::play_l() {
     if (mFlags & PLAYING) {
         return OK;
     }
+
+    mMediaRenderingStartGeneration = ++mStartGeneration;
 
     if (!(mFlags & PREPARED)) {
         status_t err = prepare_l();
