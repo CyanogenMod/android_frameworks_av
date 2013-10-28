@@ -1500,7 +1500,8 @@ void MediaCodec::returnBuffersToCodecOnPort(int32_t portIndex) {
             info->mOwnedByClient = false;
 
             if (portIndex == kPortIndexInput) {
-                msg->setInt32("err", ERROR_END_OF_STREAM);
+                /* no error, just returning buffers */
+                msg->setInt32("err", OK);
             }
             msg->post();
         }
