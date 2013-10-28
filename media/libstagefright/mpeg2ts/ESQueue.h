@@ -32,6 +32,7 @@ struct ElementaryStreamQueue {
     enum Mode {
         H264,
         AAC,
+        AC3,
         MPEG_AUDIO,
         MPEG_VIDEO,
         MPEG4_VIDEO,
@@ -67,6 +68,7 @@ private:
 
     sp<ABuffer> dequeueAccessUnitH264();
     sp<ABuffer> dequeueAccessUnitAAC();
+    sp<ABuffer> dequeueAccessUnitAC3();
     sp<ABuffer> dequeueAccessUnitMPEGAudio();
     sp<ABuffer> dequeueAccessUnitMPEGVideo();
     sp<ABuffer> dequeueAccessUnitMPEG4Video();
