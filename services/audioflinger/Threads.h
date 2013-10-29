@@ -503,6 +503,7 @@ protected:
     SortedVector< wp<Track> >       mActiveTracks;  // FIXME check if this could be sp<>
     SortedVector<int>               mWakeLockUids;
     int                             mActiveTracksGeneration;
+    wp<Track>                       mLatestActiveTrack; // latest track added to mActiveTracks
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
