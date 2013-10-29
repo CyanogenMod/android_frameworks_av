@@ -1998,6 +1998,10 @@ void *AudioFlinger::DirectAudioTrack::EffectsThreadWrapper(void *me) {
 }
 
 void AudioFlinger::DirectAudioTrack::EffectsThreadEntry() {
+    uint32_t event_interval = 20000;   // FIXME: 20ms is an estimated value
+    // Worst delay case is (event_interval*MAX_WAIT_ITERS)
+    const size_t MAX_WAIT_ITERS = 10;
+
     while(1) {
         mEffectLock.lock();
         if (!mEffectConfigChanged && !mKillEffectsThread) {
@@ -2010,6 +2014,15 @@ void AudioFlinger::DirectAudioTrack::EffectsThreadEntry() {
         if (mEffectConfigChanged) {
             mEffectConfigChanged = false;
             if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+                for (size_t idx=0; idx<MAX_WAIT_ITERS; ++idx) {
+                    usleep(event_interval);
+                    if (mEffectConfigChanged) {
+                        mEffectConfigChanged = false;
+                        continue;
+                    }
+                    break;
+                }
+
                 for ( List<BufferInfo>::iterator it = mEffectsPool.begin();
                       it != mEffectsPool.end(); it++) {
                     ALOGV("ete: calling applyEffectsOn buff %x",it->localBuf);
