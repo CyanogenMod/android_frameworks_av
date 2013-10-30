@@ -21,6 +21,7 @@
 
 #include <math.h>
 #include <cutils/compiler.h>
+#include <cutils/properties.h>
 #include <utils/Log.h>
 
 #include <private/media/AudioTrackShared.h>
@@ -1731,6 +1732,13 @@ sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
 status_t AudioFlinger::RecordHandle::start(int /*AudioSystem::sync_event_t*/ event,
         int triggerSession) {
     ALOGV("RecordHandle::start()");
+#if defined(HTC_TEGRA_AUDIO) && defined(MR1_AUDIO_BLOB)
+    // Simulate HTC Tegra audioflinger behaviour
+    char *value = (char*) malloc(10);
+    sprintf(value, "%d", getpid());
+    ALOGW("%s: Pid is %s", __func__, value);
+    property_set("htc.audio.txpid", value);
+#endif
     return mRecordTrack->start((AudioSystem::sync_event_t)event, triggerSession);
 }
 

@@ -1626,6 +1626,22 @@ static int aps_set_fm_volume(void *service, float volume, int delay_ms)
 }
 #endif
 
+#if defined(HTC_TEGRA_AUDIO) && defined(MR1_AUDIO_BLOB)
+static void aps_unknown_function(void *service)
+{
+    // Function seems to be never called
+    ALOGW("UKNOWN FUNCTION CALLED");
+}
+
+static int aps_get_client_pid(void *service)
+{
+    ALOGW("GET CLIENT PID CALLED");
+    // FIXME: I'm not yet sure what should happen here. I'm guessing it should
+    // return the PID of the process/APP that initiated the recording.
+    return getpid();
+}
+#endif
+
 }; // extern "C"
 
 namespace {
@@ -1651,6 +1667,10 @@ namespace {
         load_hw_module        : aps_load_hw_module,
         open_output_on_module : aps_open_output_on_module,
         open_input_on_module  : aps_open_input_on_module,
+#if defined(HTC_TEGRA_AUDIO) && defined(MR1_AUDIO_BLOB)
+        unknown_function      : aps_unknown_function,
+        getclientPID          : aps_get_client_pid
+#endif
     };
 }; // namespace <unnamed>
 
