@@ -41,13 +41,15 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
         Size videoSize,
         int32_t videoFrameRate,
         const sp<IGraphicBufferProducer>& surface,
-        int64_t timeBetweenFrameCaptureUs) {
+        int64_t timeBetweenFrameCaptureUs,
+        bool storeMetaDataInVideoBuffers) {
 
     CameraSourceTimeLapse *source = new
             CameraSourceTimeLapse(camera, proxy, cameraId,
                 clientName, clientUid,
                 videoSize, videoFrameRate, surface,
-                timeBetweenFrameCaptureUs);
+                timeBetweenFrameCaptureUs,
+                storeMetaDataInVideoBuffers);
 
     if (source != NULL) {
         if (source->initCheck() != OK) {
@@ -67,9 +69,11 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
         Size videoSize,
         int32_t videoFrameRate,
         const sp<IGraphicBufferProducer>& surface,
-        int64_t timeBetweenFrameCaptureUs)
+        int64_t timeBetweenFrameCaptureUs,
+        bool storeMetaDataInVideoBuffers)
       : CameraSource(camera, proxy, cameraId, clientName, clientUid,
-                videoSize, videoFrameRate, surface, true),
+                videoSize, videoFrameRate, surface,
+                storeMetaDataInVideoBuffers),
       mTimeBetweenTimeLapseVideoFramesUs(1E6/videoFrameRate),
       mLastTimeLapseFrameRealTimestampUs(0),
       mSkipCurrentFrame(false) {
