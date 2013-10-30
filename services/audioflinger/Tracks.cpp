@@ -861,6 +861,7 @@ status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
                                         dstChain->strategy(),
                                         AUDIO_SESSION_OUTPUT_MIX,
                                         effect->id());
+            AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
         }
         status = playbackThread->attachAuxEffect(this, EffectId);
     }
