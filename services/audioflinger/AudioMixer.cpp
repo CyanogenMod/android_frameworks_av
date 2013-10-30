@@ -644,27 +644,29 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
         countActiveTracks++;
         track_t& t = state->tracks[i];
         uint32_t n = 0;
+        // FIXME can overflow (mask is only 3 bits)
         n |= NEEDS_CHANNEL_1 + t.channelCount - 1;
-        n |= NEEDS_FORMAT_16;
-        n |= t.doesResample() ? NEEDS_RESAMPLE_ENABLED : NEEDS_RESAMPLE_DISABLED;
+        if (t.doesResample()) {
+            n |= NEEDS_RESAMPLE;
+        }
         if (t.auxLevel != 0 && t.auxBuffer != NULL) {
-            n |= NEEDS_AUX_ENABLED;
+            n |= NEEDS_AUX;
         }
 
         if (t.volumeInc[0]|t.volumeInc[1]) {
             volumeRamp = true;
         } else if (!t.doesResample() && t.volumeRL == 0) {
-            n |= NEEDS_MUTE_ENABLED;
+            n |= NEEDS_MUTE;
         }
         t.needs = n;
 
-        if ((n & NEEDS_MUTE__MASK) == NEEDS_MUTE_ENABLED) {
+        if (n & NEEDS_MUTE) {
             t.hook = track__nop;
         } else {
-            if ((n & NEEDS_AUX__MASK) == NEEDS_AUX_ENABLED) {
+            if (n & NEEDS_AUX) {
                 all16BitsStereoNoResample = false;
             }
-            if ((n & NEEDS_RESAMPLE__MASK) == NEEDS_RESAMPLE_ENABLED) {
+            if (n & NEEDS_RESAMPLE) {
                 all16BitsStereoNoResample = false;
                 resampling = true;
                 t.hook = track__genericResample;
@@ -730,7 +732,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
             en &= ~(1<<i);
             track_t& t = state->tracks[i];
             if (!t.doesResample() && t.volumeRL == 0) {
-                t.needs |= NEEDS_MUTE_ENABLED;
+                t.needs |= NEEDS_MUTE;
                 t.hook = track__nop;
             } else {
                 allMuted = false;
@@ -1134,7 +1136,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                 track_t& t = state->tracks[i];
                 size_t outFrames = BLOCKSIZE;
                 int32_t *aux = NULL;
-                if (CC_UNLIKELY((t.needs & NEEDS_AUX__MASK) == NEEDS_AUX_ENABLED)) {
+                if (CC_UNLIKELY(t.needs & NEEDS_AUX)) {
                     aux = t.auxBuffer + numFrames;
                 }
                 while (outFrames) {
@@ -1215,14 +1217,14 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
             e1 &= ~(1<<i);
             track_t& t = state->tracks[i];
             int32_t *aux = NULL;
-            if (CC_UNLIKELY((t.needs & NEEDS_AUX__MASK) == NEEDS_AUX_ENABLED)) {
+            if (CC_UNLIKELY(t.needs & NEEDS_AUX)) {
                 aux = t.auxBuffer;
             }
 
             // this is a little goofy, on the resampling case we don't
             // acquire/release the buffers because it's done by
             // the resampler.
-            if ((t.needs & NEEDS_RESAMPLE__MASK) == NEEDS_RESAMPLE_ENABLED) {
+            if (t.needs & NEEDS_RESAMPLE) {
                 t.resampler->setPTS(pts);
                 t.hook(&t, outTemp, numFrames, state->resampleTemp, aux);
             } else {

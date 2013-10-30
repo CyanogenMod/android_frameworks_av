@@ -120,27 +120,19 @@ public:
 private:
 
     enum {
+        // FIXME this representation permits up to 8 channels
         NEEDS_CHANNEL_COUNT__MASK   = 0x00000007,
-        NEEDS_FORMAT__MASK          = 0x000000F0,
-        NEEDS_MUTE__MASK            = 0x00000100,
-        NEEDS_RESAMPLE__MASK        = 0x00001000,
-        NEEDS_AUX__MASK             = 0x00010000,
     };
 
     enum {
-        NEEDS_CHANNEL_1             = 0x00000000,
-        NEEDS_CHANNEL_2             = 0x00000001,
+        NEEDS_CHANNEL_1             = 0x00000000,   // mono
+        NEEDS_CHANNEL_2             = 0x00000001,   // stereo
 
-        NEEDS_FORMAT_16             = 0x00000010,
+        // sample format is not explicitly specified, and is assumed to be AUDIO_FORMAT_PCM_16_BIT
 
-        NEEDS_MUTE_DISABLED         = 0x00000000,
-        NEEDS_MUTE_ENABLED          = 0x00000100,
-
-        NEEDS_RESAMPLE_DISABLED     = 0x00000000,
-        NEEDS_RESAMPLE_ENABLED      = 0x00001000,
-
-        NEEDS_AUX_DISABLED     = 0x00000000,
-        NEEDS_AUX_ENABLED      = 0x00010000,
+        NEEDS_MUTE                  = 0x00000100,
+        NEEDS_RESAMPLE              = 0x00001000,
+        NEEDS_AUX                   = 0x00010000,
     };
 
     struct state_t;
