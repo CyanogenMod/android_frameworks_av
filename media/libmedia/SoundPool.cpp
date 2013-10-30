@@ -600,16 +600,15 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
         // wrong audio audio buffer size  (mAudioBufferSize)
         unsigned long toggle = mToggle ^ 1;
         void *userData = (void *)((unsigned long)this | toggle);
-        uint32_t channels = (numChannels == 2) ?
-                AUDIO_CHANNEL_OUT_STEREO : AUDIO_CHANNEL_OUT_MONO;
+        audio_channel_mask_t channelMask = audio_channel_out_mask_from_count(numChannels);
 
         // do not create a new audio track if current track is compatible with sample parameters
 #ifdef USE_SHARED_MEM_BUFFER
         newTrack = new AudioTrack(streamType, sampleRate, sample->format(),
-                channels, sample->getIMemory(), AUDIO_OUTPUT_FLAG_FAST, callback, userData);
+                channelMask, sample->getIMemory(), AUDIO_OUTPUT_FLAG_FAST, callback, userData);
 #else
         newTrack = new AudioTrack(streamType, sampleRate, sample->format(),
-                channels, frameCount, AUDIO_OUTPUT_FLAG_FAST, callback, userData,
+                channelMask, frameCount, AUDIO_OUTPUT_FLAG_FAST, callback, userData,
                 bufferFrames);
 #endif
         oldTrack = mAudioTrack;
