@@ -58,7 +58,7 @@ AudioMixer::DownmixerBufferProvider::~DownmixerBufferProvider()
 status_t AudioMixer::DownmixerBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
         int64_t pts) {
     //ALOGV("DownmixerBufferProvider::getNextBuffer()");
-    if (this->mTrackBufferProvider != NULL) {
+    if (mTrackBufferProvider != NULL) {
         status_t res = mTrackBufferProvider->getNextBuffer(pBuffer, pts);
         if (res == OK) {
             mDownmixConfig.inputCfg.buffer.frameCount = pBuffer->frameCount;
@@ -81,7 +81,7 @@ status_t AudioMixer::DownmixerBufferProvider::getNextBuffer(AudioBufferProvider:
 
 void AudioMixer::DownmixerBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
     //ALOGV("DownmixerBufferProvider::releaseBuffer()");
-    if (this->mTrackBufferProvider != NULL) {
+    if (mTrackBufferProvider != NULL) {
         mTrackBufferProvider->releaseBuffer(pBuffer);
     } else {
         ALOGE("DownmixerBufferProvider::releaseBuffer() error: NULL track buffer provider");
