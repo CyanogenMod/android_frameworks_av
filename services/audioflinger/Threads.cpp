@@ -3718,7 +3718,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // TODO: implement behavior for compressed audio
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten = mBytesWritten / mFrameSize;
-                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
+                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames) ||
+                        track->isTerminated()) {
                     if (track->isStopped()) {
                         track->reset();
                     }
