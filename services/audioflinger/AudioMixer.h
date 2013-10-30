@@ -256,9 +256,9 @@ private:
     state_t         mState __attribute__((aligned(32)));
 
     // effect descriptor for the downmixer used by the mixer
-    static effect_descriptor_t dwnmFxDesc;
+    static effect_descriptor_t sDwnmFxDesc;
     // indicates whether a downmix effect has been found and is usable by this mixer
-    static bool                isMultichannelCapable;
+    static bool                sIsMultichannelCapable;
 
     // Call after changing either the enabled status of a track, or parameters of an enabled track.
     // OK to call more often than that, but unnecessary.
