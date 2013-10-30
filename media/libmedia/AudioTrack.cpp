@@ -250,13 +250,15 @@ status_t AudioTrack::set(
     if (format == AUDIO_FORMAT_DEFAULT) {
         format = AUDIO_FORMAT_PCM_16_BIT;
     }
-    if (channelMask == 0) {
-        channelMask = AUDIO_CHANNEL_OUT_STEREO;
-    }
 
     // validate parameters
     if (!audio_is_valid_format(format)) {
         ALOGE("Invalid format %d", format);
+        return BAD_VALUE;
+    }
+
+    if (!audio_is_output_channel(channelMask)) {
+        ALOGE("Invalid channel mask %#x", channelMask);
         return BAD_VALUE;
     }
 
@@ -282,10 +284,6 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
-    if (!audio_is_output_channel(channelMask)) {
-        ALOGE("Invalid channel mask %#x", channelMask);
-        return BAD_VALUE;
-    }
     mChannelMask = channelMask;
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
