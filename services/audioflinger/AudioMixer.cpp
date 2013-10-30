@@ -113,8 +113,6 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     // AudioMixer is not yet capable of multi-channel output beyond stereo
     ALOG_ASSERT(2 == MAX_NUM_CHANNELS, "bad MAX_NUM_CHANNELS %d", MAX_NUM_CHANNELS);
 
-    LocalClock lc;
-
     pthread_once(&sOnceControl, &sInitRoutine);
 
     mState.enabledTracks= 0;
