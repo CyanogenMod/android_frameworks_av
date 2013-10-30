@@ -191,6 +191,9 @@ void AudioFlinger::onFirstRef()
     Mutex::Autolock _l(mLock);
 
     /* TODO: move all this work into an Init() function */
+    mLPASessionId = -2; // -2 is invalid session ID
+    mIsEffectConfigChanged = false;
+    mLPAEffectChain = NULL;
     char val_str[PROPERTY_VALUE_MAX] = { 0 };
     if (property_get("ro.audio.flinger_standbytime_ms", val_str, NULL) >= 0) {
         uint32_t int_val;
@@ -1127,6 +1130,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
 #ifdef SRS_PROCESSING
                 ALOGV("setParameters:: routing change to device %d", device);
                 POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
+                if(desc->flag & AUDIO_OUTPUT_FLAG_TUNNEL)
+                    audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
 #endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
