@@ -4239,6 +4239,7 @@ ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
     for (size_t i = 0; i < outputTracks.size(); i++) {
         outputTracks[i]->write(mMixBuffer, writeFrames);
     }
+    mStandby = false;
     return (ssize_t)mixBufferSize;
 }
 
