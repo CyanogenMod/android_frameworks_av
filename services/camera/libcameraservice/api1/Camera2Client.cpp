@@ -790,6 +790,8 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             return res;
         }
         outputStreams.push(getZslStreamId());
+    } else {
+        mZslProcessor->deleteStream();
     }
 
     outputStreams.push(getPreviewStreamId());
