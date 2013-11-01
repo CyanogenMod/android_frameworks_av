@@ -708,13 +708,13 @@ const ToneGenerator::ToneDescriptor ToneGenerator::sToneDescriptors[] = {
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
           repeatSegment: 0 },                              // TONE_LOCAL_CW
-        { segments: { { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
-                      { duration: 3000, waveFreq: { 0 }, 0, 0 },
+        { segments: { { duration: 3000, waveFreq: { 0 }, 0, 0 },
+                      { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
           repeatSegment: 0 },                              // TONE_SUPERVISORY_CW
-        { segments: { { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
-                      { duration: 15000, waveFreq: { 0 }, 0, 0 },
+        { segments: { { duration: 15000, waveFreq: { 0 }, 0, 0 },
+                      { duration: 500, waveFreq: { 450, 0 }, 0, 0 },
                       { duration: 0 , waveFreq: { 0 }, 0, 0}},
           repeatCnt: ToneGenerator::TONEGEN_INF,
           repeatSegment: 0 },                              // TONE_HOLD_RECALL
