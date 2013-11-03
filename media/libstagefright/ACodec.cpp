@@ -55,6 +55,10 @@
 #include <OMX_IndexExt.h>
 #include <OMX_AsString.h>
 
+#ifdef USE_SAMSUNG_COLORFORMAT
+#include <sec_format.h>
+#endif
+
 #include "include/avc_utils.h"
 
 #include <stagefright/AVExtensions.h>
@@ -913,12 +917,21 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
     usage |= kVideoGrallocUsage;
     *finalUsage = usage;
 
+#ifdef USE_SAMSUNG_COLORFORMAT
+    OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
+    setNativeWindowColorFormat(eNativeColorFormat);
+#endif
+
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
     return setNativeWindowSizeFormatAndUsage(
             nativeWindow,
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef USE_SAMSUNG_COLORFORMAT
+            eNativeColorFormat,
+#else
             def.format.video.eColorFormat,
+#endif
             mRotationDegrees,
             usage);
 }
@@ -1257,6 +1270,24 @@ void ACodec::dumpBuffers(OMX_U32 portIndex) {
                 _asString(info.mStatus), info.mStatus, info.mDequeuedAt);
     }
 }
+
+#ifdef USE_SAMSUNG_COLORFORMAT
+void ACodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat)
+{
+    // In case of Samsung decoders, we set proper native color format for the Native Window
+    if (!strcasecmp(mComponentName.c_str(), "OMX.Exynos.AVC.Decoder")) {
+        switch (eNativeColorFormat) {
+            case OMX_COLOR_FormatYUV420SemiPlanar:
+                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP;
+                break;
+            case OMX_COLOR_FormatYUV420Planar:
+            default:
+                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_P;
+                break;
+        }
+    }
+}
+#endif
 
 status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
