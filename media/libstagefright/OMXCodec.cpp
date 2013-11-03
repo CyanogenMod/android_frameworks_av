@@ -806,6 +806,10 @@ status_t OMXCodec::setVideoPortFormatType(
     return err;
 }
 
+#ifdef USE_SAMSUNG_COLORFORMAT
+#define ALIGN(x, a) (((x) + (a) - 1) & ~((a) - 1))
+#endif
+
 static size_t getFrameSize(
         OMX_COLOR_FORMATTYPE colorFormat, int32_t width, int32_t height) {
     switch (colorFormat) {
@@ -826,7 +830,6 @@ static size_t getFrameSize(
         */
         case OMX_COLOR_FormatAndroidOpaque:
             return (width * height * 3) / 2;
-
         default:
             CHECK(!"Should not be here. Unsupported color format.");
             break;
@@ -1379,7 +1382,11 @@ status_t OMXCodec::setVideoOutputFormat(
 
 #if 1
     // XXX Need a (much) better heuristic to compute input buffer sizes.
+#ifdef USE_SAMSUNG_COLORFORMAT
+    const size_t X = 64 * 8 * 1024;
+#else
     const size_t X = 64 * 1024;
+#endif
     if (def.nBufferSize < X) {
         def.nBufferSize = X;
     }
@@ -1967,6 +1974,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
     return err;
 }
+
 
 status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)OWNED_BY_US);
