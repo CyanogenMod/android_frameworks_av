@@ -1824,9 +1824,6 @@ bool AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer,
     mIsEffectConfigChanged = false;
 
     volatile size_t numEffects = 0;
-#ifdef SRS_PROCESSING
-    POSTPRO_PATCH_ICS_OUTPROC_DIRECT_SAMPLES(token, AUDIO_FORMAT_PCM_16_BIT, outBuffer, size, mLPASampleRate, mLPANumChannels);
-#endif
 
     if(mLPAEffectChain != NULL) {
         numEffects = mLPAEffectChain->getNumEffects();
@@ -1909,6 +1906,10 @@ bool AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer,
             memcpy(outBuffer, inBuffer, size);
         }
     }
+#ifdef SRS_PROCESSING
+   POSTPRO_PATCH_ICS_OUTPROC_DIRECT_SAMPLES(token, AUDIO_FORMAT_PCM_16_BIT, outBuffer, size, mLPASampleRate, mLPANumChannels);
+#endif
+
     return true;
 }
 
