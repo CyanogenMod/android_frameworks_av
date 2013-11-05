@@ -3072,11 +3072,16 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
         /* these are unfilled buffers returned by client */
         CHECK(msg->findInt32("err", &err));
 
-        ALOGV("[%s] saw error %d instead of an input buffer",
-             mCodec->mComponentName.c_str(), err);
+        if (err == OK) {
+            /* buffers with no errors are returned on MediaCodec.flush */
+            mode = KEEP_BUFFERS;
+        } else {
+            ALOGV("[%s] saw error %d instead of an input buffer",
+                 mCodec->mComponentName.c_str(), err);
+            eos = true;
+        }
 
         buffer.clear();
-        mode = KEEP_BUFFERS;
     }
 
     int32_t tmp;
