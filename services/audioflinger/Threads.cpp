@@ -4450,7 +4450,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             // make a stable copy of mActiveTrack
             activeTrack = mActiveTrack;
             if (activeTrack == 0) {
-                standby();
+                standbyIfNotAlreadyInStandby();
                 // exitPending() can't become true here
                 releaseWakeLock_l();
                 ALOGV("RecordThread: loop stopping");
@@ -4470,7 +4470,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             activeTrackState = activeTrack->mState;
             switch (activeTrackState) {
             case TrackBase::PAUSING:
-                standby();
+                standbyIfNotAlreadyInStandby();
                 mActiveTrack.clear();
                 mStartStopCond.broadcast();
                 doSleep = true;
@@ -4648,7 +4648,7 @@ bool AudioFlinger::RecordThread::threadLoop()
         // effectChains doesn't need to be cleared, since it is cleared by destructor at scope end
     }
 
-    standby();
+    standbyIfNotAlreadyInStandby();
 
     {
         Mutex::Autolock _l(mLock);
@@ -4666,7 +4666,7 @@ bool AudioFlinger::RecordThread::threadLoop()
     return false;
 }
 
-void AudioFlinger::RecordThread::standby()
+void AudioFlinger::RecordThread::standbyIfNotAlreadyInStandby()
 {
     if (!mStandby) {
         inputStandBy();
