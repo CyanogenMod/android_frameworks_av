@@ -90,9 +90,9 @@ void AudioMixer::DownmixerBufferProvider::releaseBuffer(AudioBufferProvider::Buf
 
 
 // ----------------------------------------------------------------------------
-bool AudioMixer::isMultichannelCapable = false;
+bool AudioMixer::sIsMultichannelCapable = false;
 
-effect_descriptor_t AudioMixer::dwnmFxDesc;
+effect_descriptor_t AudioMixer::sDwnmFxDesc;
 
 // Ensure mConfiguredNames bitmask is initialized properly on all architectures.
 // The value of 1 << x is undefined in C when x >= 32.
@@ -136,27 +136,6 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         t++;
     }
 
-    // find multichannel downmix effect if we have to play multichannel content
-    uint32_t numEffects = 0;
-    int ret = EffectQueryNumberEffects(&numEffects);
-    if (ret != 0) {
-        ALOGE("AudioMixer() error %d querying number of effects", ret);
-        return;
-    }
-    ALOGV("EffectQueryNumberEffects() numEffects=%d", numEffects);
-
-    for (uint32_t i = 0 ; i < numEffects ; i++) {
-        if (EffectQueryEffect(i, &dwnmFxDesc) == 0) {
-            ALOGV("effect %d is called %s", i, dwnmFxDesc.name);
-            if (memcmp(&dwnmFxDesc.type, EFFECT_UIID_DOWNMIX, sizeof(effect_uuid_t)) == 0) {
-                ALOGI("found effect \"%s\" from %s",
-                        dwnmFxDesc.name, dwnmFxDesc.implementor);
-                isMultichannelCapable = true;
-                break;
-            }
-        }
-    }
-    ALOGE_IF(!isMultichannelCapable, "unable to find downmix effect");
 }
 
 AudioMixer::~AudioMixer()
@@ -276,13 +255,13 @@ status_t AudioMixer::prepareTrackForDownmix(track_t* pTrack, int trackName)
     DownmixerBufferProvider* pDbp = new DownmixerBufferProvider();
     int32_t status;
 
-    if (!isMultichannelCapable) {
+    if (!sIsMultichannelCapable) {
         ALOGE("prepareTrackForDownmix(%d) fails: mixer doesn't support multichannel content",
                 trackName);
         goto noDownmixForActiveTrack;
     }
 
-    if (EffectCreate(&dwnmFxDesc.uuid,
+    if (EffectCreate(&sDwnmFxDesc.uuid,
             pTrack->sessionId /*sessionId*/, -2 /*ioId not relevant here, using random value*/,
             &pDbp->mDownmixHandle/*pHandle*/) != 0) {
         ALOGE("prepareTrackForDownmix(%d) fails: error creating downmixer effect", trackName);
@@ -1459,6 +1438,28 @@ int64_t AudioMixer::calculateOutputPTS(const track_t& t, int64_t basePTS,
 {
     LocalClock lc;
     sLocalTimeFreq = lc.getLocalFreq();
+
+    // find multichannel downmix effect if we have to play multichannel content
+    uint32_t numEffects = 0;
+    int ret = EffectQueryNumberEffects(&numEffects);
+    if (ret != 0) {
+        ALOGE("AudioMixer() error %d querying number of effects", ret);
+        return;
+    }
+    ALOGV("EffectQueryNumberEffects() numEffects=%d", numEffects);
+
+    for (uint32_t i = 0 ; i < numEffects ; i++) {
+        if (EffectQueryEffect(i, &sDwnmFxDesc) == 0) {
+            ALOGV("effect %d is called %s", i, sDwnmFxDesc.name);
+            if (memcmp(&sDwnmFxDesc.type, EFFECT_UIID_DOWNMIX, sizeof(effect_uuid_t)) == 0) {
+                ALOGI("found effect \"%s\" from %s",
+                        sDwnmFxDesc.name, sDwnmFxDesc.implementor);
+                sIsMultichannelCapable = true;
+                break;
+            }
+        }
+    }
+    ALOGW_IF(!sIsMultichannelCapable, "unable to find downmix effect");
 }
 
 // ----------------------------------------------------------------------------
