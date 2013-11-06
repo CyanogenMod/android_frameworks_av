@@ -499,7 +499,7 @@ private:
     private:
         const char * const mModuleName;
         audio_hw_device_t * const mHwDevice;
-        Flags mFlags;
+        const Flags mFlags;
     };
 
     // AudioStreamOut and AudioStreamIn are immutable, so their fields are const.
@@ -509,7 +509,7 @@ private:
     struct AudioStreamOut {
         AudioHwDevice* const audioHwDev;
         audio_stream_out_t* const stream;
-        audio_output_flags_t flags;
+        const audio_output_flags_t flags;
 
         audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
 

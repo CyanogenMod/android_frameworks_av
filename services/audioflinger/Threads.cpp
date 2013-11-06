@@ -5208,7 +5208,7 @@ String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
 
 void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param) {
     AudioSystem::OutputDescriptor desc;
-    void *param2 = NULL;
+    const void *param2 = NULL;
 
     switch (event) {
     case AudioSystem::INPUT_OPENED:
