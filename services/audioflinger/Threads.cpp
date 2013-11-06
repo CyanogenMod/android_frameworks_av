@@ -4407,8 +4407,6 @@ void AudioFlinger::RecordThread::onFirstRef()
 
 bool AudioFlinger::RecordThread::threadLoop()
 {
-    AudioBufferProvider::Buffer buffer;
-
     nsecs_t lastWarning = 0;
 
     inputStandBy();
@@ -4518,6 +4516,7 @@ bool AudioFlinger::RecordThread::threadLoop()
             effectChains[i]->process_l();
         }
 
+        AudioBufferProvider::Buffer buffer;
         buffer.frameCount = mFrameCount;
         status_t status = activeTrack->getNextBuffer(&buffer);
         if (status == NO_ERROR) {
