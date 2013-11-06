@@ -4156,15 +4156,15 @@ bool AudioFlinger::OffloadThread::waitingAsyncCallback_l()
 // must be called with thread mutex locked
 bool AudioFlinger::OffloadThread::shouldStandby_l()
 {
-    bool TrackPaused = false;
+    bool trackPaused = false;
 
     // do not put the HAL in standby when paused. AwesomePlayer clear the offloaded AudioTrack
     // after a timeout and we will enter standby then.
     if (mTracks.size() > 0) {
-        TrackPaused = mTracks[mTracks.size() - 1]->isPaused();
+        trackPaused = mTracks[mTracks.size() - 1]->isPaused();
     }
 
-    return !mStandby && !TrackPaused;
+    return !mStandby && !trackPaused;
 }
 
 
