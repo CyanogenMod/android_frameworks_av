@@ -5406,13 +5406,13 @@ status_t OMXCodec::resumeLocked(bool drainInputBuf) {
         while (mState != EXECUTING && mState != ERROR) {
             mAsyncCompletion.wait(mLock);
         }
-        if(drainInputBuf)
-            drainInputBuffers();
         return mState == ERROR ? UNKNOWN_ERROR : OK;
     } else {   // SW Codec
         mPaused = false;
         return OK;
     }
+    if(drainInputBuf)
+        drainInputBuffers();
 }
 #endif
 
