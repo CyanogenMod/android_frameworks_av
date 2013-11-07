@@ -491,7 +491,8 @@ class Camera3Device :
      * and if so, queue up 3A-only result to the client. Returns true if 3A
      * is sent.
      */
-    bool processPartial3AQuirk(int32_t frameNumber, const CameraMetadata& partial);
+    bool processPartial3AQuirk(int32_t frameNumber, int32_t requestId,
+            const CameraMetadata& partial);
 
     // Helpers for reading and writing 3A metadata into to/from partial results
     template<typename T>
