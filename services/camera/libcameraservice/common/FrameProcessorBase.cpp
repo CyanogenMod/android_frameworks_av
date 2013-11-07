@@ -145,6 +145,15 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
 
+    // Quirks: Don't deliver partial results to listeners
+    entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+    if (entry.count != 0 &&
+            entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+        ALOGV("%s: Camera %d: Not forwarding partial result to listeners",
+                __FUNCTION__, device->getId());
+        return OK;
+    }
+
     entry = frame.find(ANDROID_REQUEST_ID);
     if (entry.count == 0) {
         ALOGE("%s: Camera %d: Error reading frame id",
