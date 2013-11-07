@@ -726,6 +726,7 @@ int64_t AudioPlayer::getRealTimeUs() {
         playPosition = getOutputPlayPositionUs_l();
         if(!mReachedEOS)
             mPositionTimeRealUs = playPosition;
+        mPositionTimeMediaUs = mPositionTimeRealUs;
         return mPositionTimeRealUs;
     }
 
@@ -790,6 +791,7 @@ int64_t AudioPlayer::getMediaTimeUs() {
             mPositionTimeRealUs = playPosition;
         ALOGV("getMediaTimeUs getOutputPlayPositionUs_l() playPosition = %lld,\
               mPositionTimeRealUs %lld", playPosition, mPositionTimeRealUs);
+        mPositionTimeMediaUs = mPositionTimeRealUs;
         return mPositionTimeRealUs;
     }
 
@@ -816,6 +818,7 @@ bool AudioPlayer::getMediaTimeMapping(
         playPosition = getOutputPlayPositionUs_l();
         if(!mReachedEOS)
             mPositionTimeRealUs = playPosition;
+        mPositionTimeMediaUs = mPositionTimeRealUs;
         *realtime_us = mPositionTimeRealUs;
         *mediatime_us = mPositionTimeRealUs;
     } else {
