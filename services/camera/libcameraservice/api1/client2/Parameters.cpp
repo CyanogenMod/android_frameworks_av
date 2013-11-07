@@ -1047,6 +1047,11 @@ status_t Parameters::buildQuirks() {
     ALOGV_IF(quirks.meteringCropRegion, "Camera %d: Quirk meteringCropRegion"
                 " enabled", cameraId);
 
+    entry = info->find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
+    quirks.partialResults = (entry.count != 0 && entry.data.u8[0] == 1);
+    ALOGV_IF(quirks.partialResults, "Camera %d: Quirk usePartialResult"
+                " enabled", cameraId);
+
     return OK;
 }
 

@@ -209,6 +209,7 @@ struct Parameters {
         bool triggerAfWithAuto;
         bool useZslFormat;
         bool meteringCropRegion;
+        bool partialResults;
     } quirks;
 
     /**
