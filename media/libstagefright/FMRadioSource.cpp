@@ -127,15 +127,13 @@ status_t FMRadioSource::openRecord(int frameCount, audio_io_handle_t input)
         return NO_INIT;
     }
 
-    pid_t tid = gettid(); // or -1;
-
-    sp<IAudioRecord> record = audioFlinger->openRecord(input,
+    sp<IAudioRecord> record = audioFlinger->openRecord(getpid(), input,
                                                        kSampleRate,
                                                        kAudioFormat,
                                                        kChannelMask,
                                                        frameCount,
                                                        IAudioFlinger::TRACK_DEFAULT,
-                                                       tid,
+                                                       gettid(),
                                                        &mSessionId,
                                                        &status);
 
