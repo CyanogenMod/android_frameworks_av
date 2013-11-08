@@ -210,6 +210,11 @@ void AudioFlinger::onFirstRef()
     Mutex::Autolock _l(mLock);
 
     /* TODO: move all this work into an Init() function */
+#ifdef QCOM_HARDWARE
+    mLPASessionId = -2; // -2 is invalid session ID
+    mIsEffectConfigChanged = false;
+    mLPAEffectChain = NULL;
+#endif
     char val_str[PROPERTY_VALUE_MAX] = { 0 };
     if (property_get("ro.audio.flinger_standbytime_ms", val_str, NULL) >= 0) {
         uint32_t int_val;
