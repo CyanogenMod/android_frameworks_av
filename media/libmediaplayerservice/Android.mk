@@ -54,9 +54,9 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/external/tremolo/Tremolo                                 \
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-    ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+    ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
     LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media-caf/mm-core/inc
+            $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
     else
     LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media/mm-core/inc
