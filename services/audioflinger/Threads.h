@@ -947,10 +947,22 @@ private:
             AudioResampler                      *mResampler;
             // interleaved stereo pairs of fixed-point signed Q19.12
             int32_t                             *mRsmpOutBuffer;
-            int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
-            size_t                              mRsmpInIndex;
+
+            // resampler converts input at HAL Hz to output at AudioRecord client Hz
+            int16_t                             *mRsmpInBuffer; // see new[] for details on the size
+            size_t                              mRsmpInFrames;  // size of resampler input in frames
+            size_t                              mRsmpInFramesP2;// size rounded up to a power-of-2
+            size_t                              mRsmpInUnrel;   // unreleased frames remaining from
+                                                                // most recent getNextBuffer
+            // these are rolling counters that are never cleared
+            int32_t                             mRsmpInFront;   // next available frame
+            int32_t                             mRsmpInRear;    // last filled frame + 1
+            size_t                              mRsmpInIndex;   // FIXME legacy
+
+            // client's requested configuration, which may differ from the HAL configuration
             const uint32_t                      mReqChannelCount;
             const uint32_t                      mReqSampleRate;
+
             ssize_t                             mBytesRead;
             // sync event triggering actual audio capture. Frames read before this event will
             // be dropped and therefore not read by the application.

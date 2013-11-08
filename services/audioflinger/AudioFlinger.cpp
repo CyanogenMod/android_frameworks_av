@@ -1717,9 +1717,11 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
         (config.sample_rate <= 2 * reqSamplingRate) &&
         (popcount(config.channel_mask) <= FCC_2) && (popcount(reqChannelMask) <= FCC_2)) {
+        // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
         status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config, &inStream);
+        // FIXME log this new status; HAL should not propose any further changes
     }
 
     if (status == NO_ERROR && inStream != NULL) {
