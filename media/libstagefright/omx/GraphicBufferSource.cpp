@@ -148,6 +148,18 @@ void GraphicBufferSource::omxExecuting() {
     }
 }
 
+void GraphicBufferSource::omxIdle() {
+    ALOGV("omxIdle");
+
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting) {
+        // We are only interested in the transition from executing->idle,
+        // not loaded->idle.
+        mEndOfStream = mEndOfStreamSent = true;
+    }
+}
+
 void GraphicBufferSource::omxLoaded(){
     Mutex::Autolock autoLock(mMutex);
     if (!mExecuting) {
