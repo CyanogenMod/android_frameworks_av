@@ -69,6 +69,11 @@ public:
     // sitting in the BufferQueue, this will send them to the codec.
     void omxExecuting();
 
+    // This is called when OMX transitions to OMX_StateIdle, indicating that
+    // the codec is meant to return all buffers back to the client for them
+    // to be freed. Do NOT submit any more buffers to the component.
+    void omxIdle();
+
     // This is called when OMX transitions to OMX_StateLoaded, indicating that
     // we are shutting down.
     void omxLoaded();
