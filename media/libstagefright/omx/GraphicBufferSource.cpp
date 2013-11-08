@@ -213,7 +213,12 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // see if the GraphicBuffer reference was null, which should only ever
     // happen for EOS.
     if (codecBuffer.mGraphicBuffer == NULL) {
-        CHECK(mEndOfStream && mEndOfStreamSent);
+        if (!(mEndOfStream && mEndOfStreamSent)) {
+            // This can happen when broken code sends us the same buffer
+            // twice in a row.
+            ALOGE("ERROR: codecBufferEmptied on non-EOS null buffer "
+                    "(buffer emptied twice?)");
+        }
         // No GraphicBuffer to deal with, no additional input or output is
         // expected, so just return.
         return;
