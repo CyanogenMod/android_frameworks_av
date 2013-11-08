@@ -498,7 +498,7 @@ void ExtendedUtils::setArbitraryModeIfInterlaced(
 
     sp<ABuffer> seqParamSet = new ABuffer(spsSize);
     memcpy(seqParamSet->data(), spsStart, spsSize);
-    FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL, &isInterlaced);
+    FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL);
 
     ALOGV("height is %d, width is %d, isInterlaced is %d\n", height, width, isInterlaced);
     if (isInterlaced) {
