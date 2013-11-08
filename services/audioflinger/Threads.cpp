@@ -5312,7 +5312,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mRsmpInUnrel = 0;
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2) {
-        mResampler = AudioResampler::create(16, (int) channelCount, mReqSampleRate);
+        mResampler = AudioResampler::create(16, (int) mChannelCount, mReqSampleRate);
         mResampler->setSampleRate(mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
         // resampler always outputs stereo
