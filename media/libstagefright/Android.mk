@@ -1,6 +1,15 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
+    ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
+endif
+
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 ifeq ($(BOARD_HTC_3D_SUPPORT),true)
@@ -25,6 +34,7 @@ LOCAL_SRC_FILES:=                         \
         FLACExtractor.cpp                 \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \
+        LPAPlayerALSA.cpp                 \
         MP3Extractor.cpp                  \
         MPEG2TSWriter.cpp                 \
         MPEG4Extractor.cpp                \
@@ -53,6 +63,7 @@ LOCAL_SRC_FILES:=                         \
         ThrottledSource.cpp               \
         TimeSource.cpp                    \
         TimedEventQueue.cpp               \
+        TunnelPlayer.cpp                  \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
@@ -71,9 +82,9 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
 
-ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf)
+ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
 LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media-caf/mm-core/inc
+        $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
 else
 LOCAL_C_INCLUDES += \
         $(TOP)/hardware/qcom/media/mm-core/inc
