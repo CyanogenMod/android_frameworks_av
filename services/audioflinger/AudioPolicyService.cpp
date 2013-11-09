@@ -1148,6 +1148,12 @@ int AudioPolicyService::setVoiceVolume(float volume, int delayMs)
     return (int)mAudioCommandThread->voiceVolumeCommand(volume, delayMs);
 }
 
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
+{
+    return false;
+}
+#else
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 {
     if (mpAudioPolicy == NULL) {
@@ -1162,6 +1168,7 @@ bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 
     return mpAudioPolicy->is_offload_supported(mpAudioPolicy, &info);
 }
+#endif
 
 // ----------------------------------------------------------------------------
 // Audio pre-processing configuration
