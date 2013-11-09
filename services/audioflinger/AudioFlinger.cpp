@@ -1738,6 +1738,20 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
 
 // ----------------------------------------------------------------------------
 
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
+                                           audio_devices_t *pDevices,
+                                           uint32_t *pSamplingRate,
+                                           audio_format_t *pFormat,
+                                           audio_channel_mask_t *pChannelMask,
+                                           uint32_t *pLatencyMs,
+                                           audio_output_flags_t flags)
+{
+    return openOutput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+            pLatencyMs, flags, NULL);
+}
+#endif
+
 audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_devices_t *pDevices,
                                            uint32_t *pSamplingRate,
@@ -1752,9 +1766,11 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
     config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
     config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     if (offloadInfo) {
         config.offload_info = *offloadInfo;
     }
+#endif
 
     audio_stream_out_t *outStream = NULL;
     AudioHwDevice *outHwDev;
@@ -1766,8 +1782,10 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
               config.format,
               config.channel_mask,
               flags);
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     ALOGV("openOutput(), offloadInfo %p version 0x%04x",
           offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version );
+#endif
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;
