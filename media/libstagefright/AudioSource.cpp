@@ -27,7 +27,7 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <cutils/properties.h>
 #include <stdlib.h>
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #endif
 #include <system/audio.h>
@@ -131,7 +131,7 @@ AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
         frameSize = AMR_FRAMESIZE;
         mMaxBufferSize = AMR_FRAMESIZE*10;
     }
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
     else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_QCELP ) ) {
         mFormat = AUDIO_FORMAT_QCELP;
         frameSize = QCELP_FRAMESIZE;

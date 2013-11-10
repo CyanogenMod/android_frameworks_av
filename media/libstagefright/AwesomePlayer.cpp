@@ -3282,7 +3282,7 @@ bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
         MEDIA_MIMETYPE_AUDIO_AAC,
 #ifdef TUNNEL_MODE_SUPPORTS_AMRWB
         MEDIA_MIMETYPE_AUDIO_AMR_WB,
-    #ifdef ENABLE_QC_AV_ENHANCEMENTS
+    #ifdef ENABLE_AV_ENHANCEMENTS
         MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS
     #endif
 #endif
