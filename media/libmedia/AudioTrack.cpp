@@ -463,7 +463,7 @@ uint32_t AudioTrack::latency() const
         } else {
             newLatency = afLatency;
         }
-        ALOGD("latency() mLatency = %d, newLatency = %d", mLatency, newLatency);
+        ALOGV("latency() mLatency = %d, newLatency = %d", mLatency, newLatency);
         return newLatency;
     }
 #endif
