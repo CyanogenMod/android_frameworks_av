@@ -37,7 +37,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #include "include/ExtendedUtils.h"
 #endif
@@ -330,7 +330,7 @@ static const char *FourCC2MIME(uint32_t fourcc) {
         case FOURCC('a', 'v', 'c', '1'):
             return MEDIA_MIMETYPE_VIDEO_AVC;
 
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
         case FOURCC('s', 'q', 'c', 'p'):
             return MEDIA_MIMETYPE_AUDIO_QCELP;
         case FOURCC('s', 'e', 'v', 'c'):
@@ -2302,7 +2302,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         return ERROR_MALFORMED;
     }
 
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
+#ifdef ENABLE_AV_ENHANCEMENTS
     if (objectTypeIndication == 0xA0) {
        mLastTrack->meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_EVRC);
        return OK;
@@ -3230,8 +3230,8 @@ status_t MPEG4Source::read(
 
                 return ERROR_IO;
             }
-#ifdef ENABLE_QC_AV_ENHANCEMENTS
-            ExtendedUtils::helper_mpeg4extractor_checkAC3EAC3(mBuffer, mFormat, size);
+#ifdef ENABLE_AV_ENHANCEMENTS
+//            ExtendedUtils::helper_mpeg4extractor_checkAC3EAC3(mBuffer, mFormat, size);
 #endif
             CHECK(mBuffer != NULL);
             mBuffer->set_range(0, size);
