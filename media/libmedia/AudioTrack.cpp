@@ -451,6 +451,7 @@ status_t AudioTrack::set(
 
 uint32_t AudioTrack::latency() const
 {
+#ifdef QCOM_HARDWARE
     if(mAudioDirectOutput != -1) {
         return mAudioFlinger->latency(mAudioDirectOutput);
     } else if (mOutput != 0) {
@@ -465,6 +466,7 @@ uint32_t AudioTrack::latency() const
         ALOGD("latency() mLatency = %d, newLatency = %d", mLatency, newLatency);
         return newLatency;
     }
+#endif
     return mLatency;
 }
 
@@ -1687,6 +1689,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     result.append(buffer);
     snprintf(buffer, 255, "  sample rate(%u), status(%d)\n", mSampleRate, mStatus);
     result.append(buffer);
+#ifdef QCOM_HARDWARE
     uint32_t afLatency = 0;
     AudioSystem::getLatency(mOutput, mStreamType, &afLatency);
     if((0 != mSampleRate) && (NULL != mCblk)) {
@@ -1695,6 +1698,9 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args) const
     } else {
         snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, afLatency);
     }
+#else
+    snprintf(buffer, 255, "  active(%d), latency (%d)\n", mActive, mLatency);
+#endif
     result.append(buffer);
     ::write(fd, result.string(), result.size());
     return NO_ERROR;

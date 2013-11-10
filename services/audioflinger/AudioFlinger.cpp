@@ -760,12 +760,14 @@ size_t AudioFlinger::frameCount(audio_io_handle_t output) const
 uint32_t AudioFlinger::latency(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
+#ifdef QCOM_HARDWARE
     if (!mDirectAudioTracks.isEmpty()) {
         AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
         if(desc != NULL) {
             return desc->stream->get_latency(desc->stream);
         }
     }
+#endif
 
     PlaybackThread *thread = checkPlaybackThread_l(output);
     if (thread == NULL) {
