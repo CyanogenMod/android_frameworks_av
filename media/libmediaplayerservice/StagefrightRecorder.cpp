@@ -70,8 +70,9 @@ StagefrightRecorder::StagefrightRecorder()
       mOutputFd(-1),
       mAudioSource(AUDIO_SOURCE_CNT),
       mVideoSource(VIDEO_SOURCE_LIST_END),
-      mStarted(false), mSurfaceMediaSource(NULL),
-      mCaptureTimeLapse(false) {
+      mCaptureTimeLapse(false),
+      mStarted(false),
+      mSurfaceMediaSource(NULL) {
 
     ALOGV("Constructor");
     reset();
@@ -1089,7 +1090,22 @@ void StagefrightRecorder::clipVideoFrameWidth() {
     }
 }
 
-status_t StagefrightRecorder::checkVideoEncoderCapabilities() {
+status_t StagefrightRecorder::checkVideoEncoderCapabilities(
+        bool *supportsCameraSourceMetaDataMode) {
+    /* hardware codecs must support camera source meta data mode */
+    Vector<CodecCapabilities> codecs;
+    OMXClient client;
+    CHECK_EQ(client.connect(), (status_t)OK);
+    QueryCodecs(
+            client.interface(),
+            (mVideoEncoder == VIDEO_ENCODER_H263 ? MEDIA_MIMETYPE_VIDEO_H263 :
+             mVideoEncoder == VIDEO_ENCODER_MPEG_4_SP ? MEDIA_MIMETYPE_VIDEO_MPEG4 :
+             mVideoEncoder == VIDEO_ENCODER_H264 ? MEDIA_MIMETYPE_VIDEO_AVC : ""),
+            false /* decoder */, true /* hwCodec */, &codecs);
+    *supportsCameraSourceMetaDataMode = codecs.size() > 0;
+    ALOGV("encoder %s camera source meta-data mode",
+            *supportsCameraSourceMetaDataMode ? "supports" : "DOES NOT SUPPORT");
+
     if (!mCaptureTimeLapse) {
         // Dont clip for time lapse capture as encoder will have enough
         // time to encode because of slow capture rate of time lapse.
@@ -1307,7 +1323,9 @@ status_t StagefrightRecorder::setupSurfaceMediaSource() {
 status_t StagefrightRecorder::setupCameraSource(
         sp<CameraSource> *cameraSource) {
     status_t err = OK;
-    if ((err = checkVideoEncoderCapabilities()) != OK) {
+    bool encoderSupportsCameraSourceMetaDataMode;
+    if ((err = checkVideoEncoderCapabilities(
+                &encoderSupportsCameraSourceMetaDataMode)) != OK) {
         return err;
     }
     Size videoSize;
@@ -1323,13 +1341,14 @@ status_t StagefrightRecorder::setupCameraSource(
         mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate, mPreviewSurface,
-                mTimeBetweenTimeLapseFrameCaptureUs);
+                mTimeBetweenTimeLapseFrameCaptureUs,
+                encoderSupportsCameraSourceMetaDataMode);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate,
-                mPreviewSurface, true /*storeMetaDataInVideoBuffers*/);
+                mPreviewSurface, encoderSupportsCameraSourceMetaDataMode);
     }
     mCamera.clear();
     mCameraProxy.clear();
