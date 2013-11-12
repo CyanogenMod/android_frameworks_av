@@ -1962,6 +1962,11 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
             err = setupAVCEncoderParameters(msg);
             break;
 
+        case OMX_VIDEO_CodingVP8:
+        case OMX_VIDEO_CodingVP9:
+            err = setupVPXEncoderParameters(msg);
+            break;
+
         default:
             break;
     }
@@ -2289,6 +2294,17 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
     if (err != OK) {
         return err;
     }
+
+    return configureBitrate(bitrate, bitrateMode);
+}
+
+status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
+    int32_t bitrate;
+    if (!msg->findInt32("bitrate", &bitrate)) {
+        return INVALID_OPERATION;
+    }
+
+    OMX_VIDEO_CONTROLRATETYPE bitrateMode = getBitrateMode(msg);
 
     return configureBitrate(bitrate, bitrateMode);
 }
