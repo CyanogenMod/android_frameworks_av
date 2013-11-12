@@ -1405,7 +1405,8 @@ status_t Camera3Device::registerInFlight(int32_t frameNumber,
  * Check if all 3A fields are ready, and send off a partial 3A-only result
  * to the output frame queue
  */
-bool Camera3Device::processPartial3AQuirk(int32_t frameNumber,
+bool Camera3Device::processPartial3AQuirk(
+        int32_t frameNumber, int32_t requestId,
         const CameraMetadata& partial) {
 
     // Check if all 3A states are present
@@ -1452,10 +1453,10 @@ bool Camera3Device::processPartial3AQuirk(int32_t frameNumber,
 
     if (!gotAllStates) return false;
 
-    ALOGVV("%s: Camera %d: Frame %d: AF mode %d, AWB mode %d, "
+    ALOGVV("%s: Camera %d: Frame %d, Request ID %d: AF mode %d, AWB mode %d, "
         "AF state %d, AE state %d, AWB state %d, "
         "AF trigger %d, AE precapture trigger %d",
-        __FUNCTION__, mId, frameNumber,
+        __FUNCTION__, mId, frameNumber, requestId,
         afMode, awbMode,
         afState, aeState, awbState,
         afTriggerId, aeTriggerId);
@@ -1463,9 +1464,10 @@ bool Camera3Device::processPartial3AQuirk(int32_t frameNumber,
     // Got all states, so construct a minimal result to send
     // In addition to the above fields, this means adding in
     //   android.request.frameCount
+    //   android.request.requestId
     //   android.quirks.partialResult
 
-    const size_t kMinimal3AResultEntries = 7;
+    const size_t kMinimal3AResultEntries = 10;
 
     Mutex::Autolock l(mOutputLock);
 
@@ -1476,6 +1478,11 @@ bool Camera3Device::processPartial3AQuirk(int32_t frameNumber,
 
     if (!insert3AResult(min3AResult, ANDROID_REQUEST_FRAME_COUNT,
             &frameNumber, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_REQUEST_ID,
+            &requestId, frameNumber)) {
         return false;
     }
 
@@ -1615,7 +1622,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 if (!request.partialResultQuirk.haveSent3A) {
                     request.partialResultQuirk.haveSent3A =
                             processPartial3AQuirk(frameNumber,
-                                request.partialResultQuirk.collectedResult);
+                                    request.requestId,
+                                    request.partialResultQuirk.collectedResult);
                 }
             }
         }
