@@ -68,7 +68,7 @@ MediaCodecList::MediaCodecList()
                 false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
 
 #ifdef QCOM_HARDWARE
-        char value[PROPERTY_MAX_VALUE] = {0};
+        char value[PROPERTY_VALUE_MAX] = {0};
         int aaccodectype = property_get("media.aaccodectype", value, NULL);
         if (aaccodectype && !strncmp("0", value, 1)) {
             Vector<AString> QcomAACQuirks;
