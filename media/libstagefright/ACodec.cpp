@@ -677,7 +677,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         usage = 0;
     }
 
-    if (mFlags & kFlagIsSecure) {
+    if (mFlags & (kFlagIsSecure | kFlagIsContentDrmProtected)) {
         usage |= GRALLOC_USAGE_PROTECTED;
     }
 
@@ -1316,13 +1316,21 @@ status_t ACodec::configureCodec(
             ALOGV("Configuring CPU controlled video playback.");
             mTunneled = false;
 
-            // Always try to enable dynamic output buffers on native surface
-            err = mOMX->storeMetaDataInBuffers(
-                    mNode, kPortIndexOutput, OMX_TRUE);
-            if (err != OK) {
-                ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
-                        mComponentName.c_str(), err);
-
+            bool bAdaptivePlaybackMode = false;
+            int32_t preferAdaptive = 0;
+            if (msg->findInt32("prefer-adaptive-playback", &preferAdaptive)
+                    && preferAdaptive == 1) {
+                ALOGI("[%s] Adaptive playback preferred", mComponentName.c_str());
+            } else {
+                // Always try to enable dynamic output buffers on native surface
+                err = mOMX->storeMetaDataInBuffers(
+                        mNode, kPortIndexOutput, OMX_TRUE);
+                if (err != OK) {
+                    ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                            mComponentName.c_str(), err);
+                }
+            }
+            if (err != OK || preferAdaptive) {
                 // if adaptive playback has been requested, try JB fallback
                 // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
                 // LARGE MEMORY REQUIREMENT
@@ -1349,7 +1357,7 @@ status_t ACodec::configureCodec(
                 if (canDoAdaptivePlayback &&
                         msg->findInt32("max-width", &maxWidth) &&
                         msg->findInt32("max-height", &maxHeight)) {
-                    ALOGV("[%s] prepareForAdaptivePlayback(%dx%d)",
+                    ALOGI("[%s] prepareForAdaptivePlayback(%dx%d)",
                             mComponentName.c_str(), maxWidth, maxHeight);
 
                     err = mOMX->prepareForAdaptivePlayback(
@@ -1364,6 +1372,19 @@ status_t ACodec::configureCodec(
                         inputFormat->setInt32("max-height", maxHeight);
                         inputFormat->setInt32("adaptive-playback", true);
                     }
+                    bAdaptivePlaybackMode = (err == OK);
+                }
+                // if Adaptive mode was tried first and codec failed it, try dynamic mode
+                if (err != OK && preferAdaptive) {
+                    err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+                    if (err != OK) {
+                        ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                              mComponentName.c_str(), err);
+                    } else {
+                        ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
+                        mStoreMetaDataInOutputBuffers = true;
+                        inputFormat->setInt32("adaptive-playback", true);
+                    }
                 }
                 // allow failure
                 err = OK;
@@ -1374,6 +1395,8 @@ status_t ACodec::configureCodec(
                 inputFormat->setInt32("adaptive-playback", true);
             }
 
+            ALOGI("DRC Mode: %s", (mStoreMetaDataInOutputBuffers ? "Dynamic Buffer Mode" :
+                    (bAdaptivePlaybackMode ? "Adaptive Mode" : "Port Reconfig Mode")));
             int32_t push;
             if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
                     && push != 0) {
@@ -1386,6 +1409,12 @@ status_t ACodec::configureCodec(
             mRotationDegrees = rotationDegrees;
         } else {
             mRotationDegrees = 0;
+        }
+        // enforce screen-capture protection if requested by app
+        int32_t preventScreenCapture = 0;
+        if (msg->findInt32("prevent-screen-capture", &preventScreenCapture)
+                && preventScreenCapture == 1) {
+            mFlags |= kFlagIsContentDrmProtected;
         }
     }
 

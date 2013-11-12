@@ -131,6 +131,8 @@ private:
     enum {
         kFlagIsSecure                                 = 1,
         kFlagPushBlankBuffersToNativeWindowOnShutdown = 2,
+        // protection against screen capture of non-secure drm content
+        kFlagIsContentDrmProtected                    = 3,
     };
 
     struct BufferInfo {
