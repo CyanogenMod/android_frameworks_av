@@ -31,6 +31,10 @@
 #include <utils/String8.h>
 #include <cutils/properties.h>
 
+#ifdef USE_TI_CUSTOM_DOMX
+#include <OMX_TI_IVCommon.h>
+#endif
+
 namespace android {
 
 static const int64_t CAMERA_SOURCE_TIMEOUT_NS = 3000000000LL;
