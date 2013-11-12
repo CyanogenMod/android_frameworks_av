@@ -156,7 +156,7 @@ void GraphicBufferSource::omxIdle() {
     if (mExecuting) {
         // We are only interested in the transition from executing->idle,
         // not loaded->idle.
-        mEndOfStream = mEndOfStreamSent = true;
+        mExecuting = false;
     }
 }
 
@@ -206,7 +206,9 @@ void GraphicBufferSource::addCodecBuffer(OMX_BUFFERHEADERTYPE* header) {
 void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     Mutex::Autolock autoLock(mMutex);
 
-    CHECK(mExecuting);  // could this happen if app stop()s early?
+    if (!mExecuting) {
+        return;
+    }
 
     int cbi = findMatchingCodecBuffer_l(header);
     if (cbi < 0) {
