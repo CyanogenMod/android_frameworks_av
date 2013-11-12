@@ -464,13 +464,17 @@ sp<MediaSource> OMXCodec::Create(
 
     Vector<CodecNameAndQuirks> matchingCodecs;
 
+#ifdef QCOM_HARDWARE
     if (ExtendedCodec::useHWAACDecoder(mime)) {
         findMatchingCodecs(mime, createEncoder,
             "OMX.qcom.audio.decoder.multiaac", flags, &matchingCodecs);
     } else {
+#endif
         findMatchingCodecs(
             mime, createEncoder, matchComponentName, flags, &matchingCodecs);
+#ifdef QCOM_HARDWARE
     }
+#endif
 
     if (matchingCodecs.isEmpty()) {
         ALOGV("No matching codecs! (mime: %s, createEncoder: %s, "
