@@ -1172,11 +1172,21 @@ status_t ACodec::configureCodec(
     int32_t haveNativeWindow = msg->findObject("native-window", &obj) &&
             obj != NULL;
     mStoreMetaDataInOutputBuffers = false;
+    bool bAdaptivePlaybackMode = false;
     if (!encoder && video && haveNativeWindow) {
-        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
-        if (err != OK) {
-            ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
-                  mComponentName.c_str(), err);
+        int32_t preferAdaptive = 0;
+        if (msg->findInt32("prefer-adaptive-playback", &preferAdaptive)
+                && preferAdaptive == 1) {
+            ALOGI("[%s] Adaptive playback preferred", mComponentName.c_str());
+        } else {
+            preferAdaptive = 0;
+            err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+        }
+        if (err != OK || preferAdaptive) {
+            if (!preferAdaptive) {
+                ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                      mComponentName.c_str(), err);
+            }
 
             // if adaptive playback has been requested, try JB fallback
             // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
@@ -1208,7 +1218,7 @@ status_t ACodec::configureCodec(
             if (canDoAdaptivePlayback &&
                 msg->findInt32("max-width", &maxWidth) &&
                 msg->findInt32("max-height", &maxHeight)) {
-                ALOGV("[%s] prepareForAdaptivePlayback(%ldx%ld)",
+                ALOGI("[%s] prepareForAdaptivePlayback(%ldx%ld)",
                       mComponentName.c_str(), maxWidth, maxHeight);
 
                 err = mOMX->prepareForAdaptivePlayback(
@@ -1216,6 +1226,15 @@ status_t ACodec::configureCodec(
                 ALOGW_IF(err != OK,
                         "[%s] prepareForAdaptivePlayback failed w/ err %d",
                         mComponentName.c_str(), err);
+                bAdaptivePlaybackMode = (err == OK);
+            }
+            // if Adaptive mode was tried first and codec failed it, try dynamic mode
+            if (err != OK && preferAdaptive) {
+                err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+                if (err != OK) {
+                    ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                          mComponentName.c_str(), err);
+                }
             }
             // allow failure
             err = OK;
@@ -1223,6 +1242,9 @@ status_t ACodec::configureCodec(
             ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
             mStoreMetaDataInOutputBuffers = true;
         }
+
+        ALOGI("DRC Mode: %s",(mStoreMetaDataInOutputBuffers ? "Dynamic Buffer Mode" :
+                (bAdaptivePlaybackMode ? "Adaptive Mode" : "Port Reconfig Mode")));
 
         int32_t push;
         if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
