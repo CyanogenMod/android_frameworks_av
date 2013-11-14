@@ -196,7 +196,9 @@ private:
 
     bool mChannelMaskPresent;
     int32_t mChannelMask;
+#ifdef QCOM_HARDWARE
     bool mInSmoothStreamingMode;
+#endif
     unsigned mDequeueCounter;
     bool mStoreMetaDataInOutputBuffers;
     int32_t mMetaDataBuffersToSubmit;

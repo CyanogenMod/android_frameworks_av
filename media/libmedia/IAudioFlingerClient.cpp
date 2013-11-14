@@ -52,8 +52,11 @@ public:
             uint32_t stream = *(const uint32_t *)param2;
             ALOGV("ioConfigChanged stream %d", stream);
             data.writeInt32(stream);
-        } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED &&
-                   event != AudioSystem::EFFECT_CONFIG_CHANGED) {
+        } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED
+#ifdef QCOM_HARDWARE
+                && event != AudioSystem::EFFECT_CONFIG_CHANGED
+#endif
+        ) {
             const AudioSystem::OutputDescriptor *desc = (const AudioSystem::OutputDescriptor *)param2;
             data.writeInt32(desc->samplingRate);
             data.writeInt32(desc->format);
