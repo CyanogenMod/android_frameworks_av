@@ -4076,14 +4076,18 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     track->mState = TrackBase::STOPPING_2; // so presentation completes after drain
                     // do not drain if no data was ever sent to HAL (mStandby == true)
                     if (last && !mStandby) {
-                        sleepTime = 0;
-                        standbyTime = systemTime() + standbyDelay;
-                        mixerStatus = MIXER_DRAIN_TRACK;
-                        mDrainSequence += 2;
+                        // do not modify drain sequence if we are already draining. This happens
+                        // when resuming from pause after drain.
+                        if ((mDrainSequence & 1) == 0) {
+                            sleepTime = 0;
+                            standbyTime = systemTime() + standbyDelay;
+                            mixerStatus = MIXER_DRAIN_TRACK;
+                            mDrainSequence += 2;
+                        }
                         if (mHwPaused) {
                             // It is possible to move from PAUSED to STOPPING_1 without
                             // a resume so we must ensure hardware is running
-                            mOutput->stream->resume(mOutput->stream);
+                            doHwResume = true;
                             mHwPaused = false;
                         }
                     }
