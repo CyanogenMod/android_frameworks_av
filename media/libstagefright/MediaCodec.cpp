@@ -35,7 +35,9 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
+#endif
 #include <media/stagefright/NativeWindowWrapper.h>
 
 #include "include/avc_utils.h"
@@ -1416,6 +1418,7 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
         ++i;
     }
 
+#ifdef QCOM_HARDWARE
     sp<ABuffer> extendedCSD = ExtendedCodec::getRawCodecSpecificData(format);
     if (extendedCSD != NULL) {
         ALOGV("pushing extended CSD of size %d", extendedCSD->size());
@@ -1427,7 +1430,7 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
         ALOGV("pushing AAC CSD of size %d", aacCSD->size());
         mCSD.push_back(aacCSD);
     }
-
+#endif
 
     ALOGV("Found %u pieces of codec specific data.", mCSD.size());
 }

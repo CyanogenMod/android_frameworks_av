@@ -85,7 +85,9 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         channelCount() const;
         virtual ssize_t         frameSize() const;
         virtual uint32_t        latency() const;
+#ifdef QCOM_HARDWARE
         virtual audio_stream_type_t streamType() const;
+#endif
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
@@ -120,8 +122,10 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual status_t        setParameters(const String8& keyValuePairs);
         virtual String8         getParameters(const String8& keys);
 
+#ifdef QCOM_HARDWARE
         virtual ssize_t         sampleRate() const;
         virtual status_t        getTimeStamp(uint64_t *tstamp);
+#endif
 
     private:
         static void             setMinBufferCount();
@@ -216,6 +220,11 @@ class MediaPlayerService : public BnMediaPlayerService
                 void            setAudioStreamType(audio_stream_type_t streamType) {}
                 void            setVolume(float left, float right) {}
         virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
+#ifdef QCOM_HARDWARE
+        virtual ssize_t         sampleRate() const;
+#else
+                uint32_t        sampleRate() const { return mSampleRate; }
+#endif
                 audio_format_t  format() const { return mFormat; }
                 size_t          size() const { return mSize; }
                 status_t        wait();
@@ -225,7 +234,6 @@ class MediaPlayerService : public BnMediaPlayerService
         static  void            notify(void* cookie, int msg,
                                        int ext1, int ext2, const Parcel *obj);
         virtual status_t        dump(int fd, const Vector<String16>& args) const;
-        virtual ssize_t         sampleRate() const;
 
     private:
                                 AudioCache();

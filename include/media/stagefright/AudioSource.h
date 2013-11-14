@@ -104,6 +104,7 @@ private:
 
     AudioSource(const AudioSource &);
     AudioSource &operator=(const AudioSource &);
+#ifdef QCOM_HARDWARE
 public:
     AudioSource(
         audio_source_t inputSource, const sp<MetaData>& meta );
@@ -112,6 +113,7 @@ private:
     String8 mMime;
     int32_t mMaxBufferSize;
     int64_t bufferDurationUs( ssize_t n );
+#endif
 };
 
 }  // namespace android
