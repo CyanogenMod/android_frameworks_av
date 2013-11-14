@@ -104,7 +104,9 @@ struct AwesomePlayer {
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
     void postAudioTearDown();
+#ifdef QCOM_HARDWARE
     void printFileName(int fd);
+#endif
     status_t dump(int fd, const Vector<String16> &args) const;
 
 private:
@@ -207,7 +209,9 @@ private:
 
     bool mWatchForAudioSeekComplete;
     bool mWatchForAudioEOS;
+#ifdef QCOM_HARDWARE
     static int mTunnelAliveAP;
+#endif
 
     sp<TimedEventQueue::Event> mVideoEvent;
     bool mVideoEventPending;
@@ -317,7 +321,9 @@ private:
         ASSIGN
     };
     void modifyFlags(unsigned value, FlagMode mode);
+#ifdef QCOM_HARDWARE
     void checkTunnelExceptions();
+#endif
 
     struct TrackStat {
         String8 mMIME;
@@ -362,9 +368,11 @@ private:
 
     size_t countTracks() const;
 
+#ifdef QCOM_HARDWARE
     bool inSupportedTunnelFormats(const char * mime);
     //Flag to check if tunnel mode audio is enabled
     bool mIsTunnelAudio;
+#endif
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
 };

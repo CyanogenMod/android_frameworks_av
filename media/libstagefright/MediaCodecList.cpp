@@ -62,7 +62,9 @@ MediaCodecList::MediaCodecList()
 
         addMediaCodec(true /* encoder */, "AACEncoder", "audio/mp4a-latm");
 
+#ifdef QCOM_HARDWARE
         addMediaCodec(true /* encoder */, "OMX.qcom.audio.encoder.aac", "audio/mp4a-latm");
+#endif
 
         addMediaCodec(
                      false /* encoder */, "OMX.google.raw.decoder", "audio/raw");

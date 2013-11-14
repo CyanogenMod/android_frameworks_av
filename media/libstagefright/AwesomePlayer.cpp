@@ -42,9 +42,11 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
+#ifdef QCOM_HARDWARE
 #include <media/stagefright/LPAPlayer.h>
 #ifdef USE_TUNNEL_MODE
 #include <media/stagefright/TunnelPlayer.h>
+#endif
 #endif
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
@@ -65,8 +67,10 @@
 
 #define USE_SURFACE_ALLOC 1
 #define FRAME_DROP_FREQ 0
+#ifdef QCOM_HARDWARE
 #define LPA_MIN_DURATION_USEC_ALLOWED 30000000
 #define LPA_MIN_DURATION_USEC_DEFAULT 60000000
+#endif
 
 namespace android {
 
@@ -74,7 +78,9 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
+#ifdef QCOM_HARDWARE
 int AwesomePlayer::mTunnelAliveAP = 0;
+#endif
 
 // maximum time in paused state when offloading audio decompression. When elapsed, the AudioPlayer
 // is destroyed to allow the audio DSP to power down.
@@ -238,7 +244,9 @@ AwesomePlayer::AwesomePlayer()
     mAudioTearDownEventPending = false;
 
     reset();
+#ifdef QCOM_HARDWARE
     mIsTunnelAudio = false;
+#endif
 }
 
 AwesomePlayer::~AwesomePlayer() {
@@ -248,6 +256,7 @@ AwesomePlayer::~AwesomePlayer() {
 
     reset();
 
+#ifdef QCOM_HARDWARE
     // Disable Tunnel Mode Audio
     if (mIsTunnelAudio) {
         if (mTunnelAliveAP > 0) {
@@ -256,6 +265,7 @@ AwesomePlayer::~AwesomePlayer() {
         }
     }
     mIsTunnelAudio = false;
+#endif
     mClient.disconnect();
 }
 
@@ -335,6 +345,7 @@ status_t AwesomePlayer::setDataSource_l(
     return OK;
 }
 
+#ifdef QCOM_HARDWARE
 void AwesomePlayer::printFileName(int fd) {
 
     char symName[40] = {0};
@@ -346,6 +357,7 @@ void AwesomePlayer::printFileName(int fd) {
         ALOGD("printFileName fd(%d) -> %s", fd, fileName);
     }
 }
+#endif
 
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
@@ -354,8 +366,10 @@ status_t AwesomePlayer::setDataSource(
     ALOGD("Before reset_l");
     reset_l();
 
+#ifdef QCOM_HARDWARE
     if(fd)
         printFileName(fd);
+#endif
 
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
@@ -960,10 +974,12 @@ status_t AwesomePlayer::play_l() {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
             bool sendErrorNotification = false;
+#ifdef QCOM_HARDWARE
             if(mIsTunnelAudio) {
                 // For tunnel Audio error has to be posted to the client
                 sendErrorNotification = true;
             }
+#endif
             status_t err = startAudioPlayer_l(sendErrorNotification);
 
             if ((err != OK) && mOffloadAudio) {
@@ -1053,11 +1069,13 @@ void AwesomePlayer::createAudioPlayer_l()
     uint32_t flags = 0;
     int64_t cachedDurationUs;
     bool eos;
+#ifdef QCOM_HARDWARE
     sp<MetaData> format = mAudioTrack->getFormat();
     const char *mime;
     bool success = format->findCString(kKeyMIMEType, &mime);
     int tunnelObjectsAlive = 0;
     CHECK(success);
+#endif
     if (mOffloadAudio) {
         flags |= AudioPlayer::USE_OFFLOAD;
     } else if (mVideoSource == NULL
@@ -1072,6 +1090,7 @@ void AwesomePlayer::createAudioPlayer_l()
     if (mVideoSource != NULL) {
         flags |= AudioPlayer::HAS_VIDEO;
     }
+#ifdef QCOM_HARDWARE
 #ifdef USE_TUNNEL_MODE
     // Create tunnel player if tunnel mode is enabled
     ALOGW("Trying to create tunnel player mIsTunnelAudio %d, \
@@ -1151,6 +1170,9 @@ void AwesomePlayer::createAudioPlayer_l()
         ALOGV("AudioPlayer created, Non-LPA mode mime %s duration %lld\n", mime, mDurationUs);
         mAudioPlayer = new AudioPlayer(mAudioSink, flags, this);
     }
+#else
+    mAudioPlayer = new AudioPlayer(mAudioSink, flags, this);
+#endif
     mAudioPlayer->setSource(mAudioSource);
 
     mTimeSource = mAudioPlayer;
@@ -1618,6 +1640,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     // stream to hardware that doesn't have the necessary codec
     mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL), isStreamingHTTP());
 
+#ifdef QCOM_HARDWARE
     int32_t nchannels = 0;
     int32_t isADTS = 0;
     meta->findInt32( kKeyChannelCount, &nchannels );
@@ -1729,10 +1752,26 @@ status_t AwesomePlayer::initAudioDecoder() {
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
                 mAudioTrack, matchComponentName, flags,NULL);
+#else
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+        ALOGV("createAudioPlayer: bypass OMX (raw)");
+        mAudioSource = mAudioTrack;
+    } else {
+        // If offloading we still create a OMX decoder as a fall-back
+        // but we don't start it
+        mOmxSource = OMXCodec::Create(
+                mClient.interface(), mAudioTrack->getFormat(),
+                false, // createEncoder
+                mAudioTrack);
+#endif
 
         if (mOffloadAudio) {
             ALOGV("createAudioPlayer: bypass OMX (offload)");
             mAudioSource = mAudioTrack;
+#ifndef QCOM_HARDWARE
+        } else {
+            mAudioSource = mOmxSource;
+#endif
         }
     }
 
@@ -3109,6 +3148,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
     beginPrepareAsync_l();
 }
 
+#ifdef QCOM_HARDWARE
 bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
     const char * tunnelFormats [ ] = {
         MEDIA_MIMETYPE_AUDIO_MPEG,
@@ -3197,5 +3237,6 @@ void AwesomePlayer::checkTunnelExceptions()
 
     return;
 }
+#endif
 
 }  // namespace android

@@ -1,15 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-ifeq ($(BOARD_USES_ALSA_AUDIO),true)
-    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
-        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-    endif
-    ifeq ($(call is-chipset-in-board-platform,msm8974),true)
-        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-    endif
-endif
-
 include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 ifeq ($(BOARD_HTC_3D_SUPPORT),true)
@@ -34,7 +25,6 @@ LOCAL_SRC_FILES:=                         \
         FLACExtractor.cpp                 \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \
-        LPAPlayerALSA.cpp                 \
         MP3Extractor.cpp                  \
         MPEG2TSWriter.cpp                 \
         MPEG4Extractor.cpp                \
@@ -64,7 +54,6 @@ LOCAL_SRC_FILES:=                         \
         ThrottledSource.cpp               \
         TimeSource.cpp                    \
         TimedEventQueue.cpp               \
-        TunnelPlayer.cpp                  \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
@@ -90,6 +79,17 @@ LOCAL_C_INCLUDES += $(TI_CUSTOM_DOMX_PATH)/omx_core/inc
 LOCAL_CPPFLAGS += -DUSE_TI_CUSTOM_DOMX
 else
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
+endif
+
+ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+    LOCAL_SRC_FILES += LPAPlayerALSA.cpp \
+                       TunnelPlayer.cpp
+    ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
+    ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+    endif
 endif
 
 ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
