@@ -683,7 +683,11 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     }
 
     // Allows calls from JNI in idle state to notify errors
+#ifdef QCOM_HARDWARE
     if (!((msg == MEDIA_ERROR || msg == MEDIA_QOE) && mCurrentState == MEDIA_PLAYER_IDLE) && mPlayer == 0) {
+#else
+    if (!(msg == MEDIA_ERROR && mCurrentState == MEDIA_PLAYER_IDLE) && mPlayer == 0) {
+#endif
         ALOGV("notify(%d, %d, %d) callback on disconnected mediaplayer", msg, ext1, ext2);
         if (locked) mLock.unlock();   // release the lock when done.
         return;
@@ -758,8 +762,10 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
         break;
     case MEDIA_SUBTITLE_DATA:
         ALOGV("Received subtitle data message");
+#ifdef QCOM_HARDWARE
     case MEDIA_QOE:
         ALOGV("Received QOE Message for event : %d",ext2);
+#endif
         break;
     default:
         ALOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);

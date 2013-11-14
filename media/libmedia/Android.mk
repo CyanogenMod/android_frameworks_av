@@ -9,6 +9,7 @@ LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= AudioParameter.cpp
@@ -17,6 +18,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES := libutils libcutils
 
 include $(BUILD_SHARED_LIBRARY)
+endif
 
 include $(CLEAR_VARS)
 
