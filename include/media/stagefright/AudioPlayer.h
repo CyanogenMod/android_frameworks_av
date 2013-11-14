@@ -103,7 +103,9 @@ private:
     int64_t mSeekTimeUs;
 
     bool mStarted;
+#ifdef QCOM_HARDWARE
     bool mSourcePaused;
+#endif
 
     bool mIsFirstBuffer;
     status_t mFirstBufferResult;
