@@ -32,6 +32,7 @@ enum camcorder_quality {
     CAMCORDER_QUALITY_480P = 4,
     CAMCORDER_QUALITY_720P = 5,
     CAMCORDER_QUALITY_1080P = 6,
+#ifdef QCOM_HARDWARE
     CAMCORDER_QUALITY_QVGA = 7,
     CAMCORDER_QUALITY_FWVGA = 8,
     CAMCORDER_QUALITY_WVGA = 9,
@@ -40,6 +41,14 @@ enum camcorder_quality {
     CAMCORDER_QUALITY_4kUHD = 12,
     CAMCORDER_QUALITY_4kDCI = 13,
     CAMCORDER_QUALITY_LIST_END = 13,
+#else
+    CAMCORDER_QUALITY_QVGA = 11,
+    CAMCORDER_QUALITY_FWVGA = 7,
+    CAMCORDER_QUALITY_WVGA = 8,
+    CAMCORDER_QUALITY_VGA = 9,
+    CAMCORDER_QUALITY_WQVGA = 10,
+    CAMCORDER_QUALITY_LIST_END = 11,
+#endif
 
     CAMCORDER_QUALITY_TIME_LAPSE_LIST_START = 1000,
     CAMCORDER_QUALITY_TIME_LAPSE_LOW  = 1000,
@@ -50,11 +59,15 @@ enum camcorder_quality {
     CAMCORDER_QUALITY_TIME_LAPSE_720P = 1005,
     CAMCORDER_QUALITY_TIME_LAPSE_1080P = 1006,
     CAMCORDER_QUALITY_TIME_LAPSE_QVGA = 1007,
+#ifdef QCOM_HARDWARE
     CAMCORDER_QUALITY_TIME_LAPSE_FWVGA = 1008,
     CAMCORDER_QUALITY_TIME_LAPSE_WVGA = 1009,
     CAMCORDER_QUALITY_TIME_LAPSE_VGA = 1010,
     CAMCORDER_QUALITY_TIME_LAPSE_WQVGA = 1011,
     CAMCORDER_QUALITY_TIME_LAPSE_LIST_END = 1011,
+#else
+    CAMCORDER_QUALITY_TIME_LAPSE_LIST_END = 1007,
+#endif
 };
 
 /**
@@ -466,8 +479,10 @@ private:
     static VideoEncoderCap* createDefaultH263VideoEncoderCap();
     static VideoEncoderCap* createDefaultM4vVideoEncoderCap();
     static AudioEncoderCap* createDefaultAmrNBEncoderCap();
+#ifdef QCOM_HARDWARE
     static AudioEncoderCap* createDefaultAacEncoderCap();
     static AudioEncoderCap* createDefaultLpcmEncoderCap();
+#endif
 
     static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
 
