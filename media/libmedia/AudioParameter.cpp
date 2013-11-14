@@ -46,6 +46,8 @@ const char * const AudioParameter::keyCanOpenProxy = AUDIO_CAN_OPEN_PROXY;
 const char * const AudioParameter::keyFmVolume = AUDIO_PARAMETER_KEY_FM_VOLUME;
 #endif
 
+const char * const AudioParameter::keySoundCardStatus = AUDIO_PARAMETER_KEY_SND_CARD_STATUS;
+
 AudioParameter::AudioParameter(const String8& keyValuePairs)
 {
     char *str = new char[keyValuePairs.length()+1];
