@@ -3994,23 +3994,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         sp<Track> l = mLatestActiveTrack.promote();
         bool last = l.get() == track;
 
-        if (mPreviousTrack != NULL) {
-            if (track != mPreviousTrack) {
-                // Flush any data still being written from last track
-                mBytesRemaining = 0;
-                if (mPausedBytesRemaining) {
-                    // Last track was paused so we also need to flush saved
-                    // mixbuffer state and invalidate track so that it will
-                    // re-submit that unwritten data when it is next resumed
-                    mPausedBytesRemaining = 0;
-                    // Invalidate is a bit drastic - would be more efficient
-                    // to have a flag to tell client that some of the
-                    // previously written data was lost
-                    mPreviousTrack->invalidate();
-                }
-            }
-        }
-        mPreviousTrack = track;
         if (track->isPausing()) {
             track->setPaused();
             if (last) {
@@ -4058,6 +4041,30 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             }
 
             if (last) {
+                if (mPreviousTrack != NULL) {
+                    if (track != mPreviousTrack) {
+                        // Flush any data still being written from last track
+                        mBytesRemaining = 0;
+                        if (mPausedBytesRemaining) {
+                            // Last track was paused so we also need to flush saved
+                            // mixbuffer state and invalidate track so that it will
+                            // re-submit that unwritten data when it is next resumed
+                            mPausedBytesRemaining = 0;
+                            // Invalidate is a bit drastic - would be more efficient
+                            // to have a flag to tell client that some of the
+                            // previously written data was lost
+                            mPreviousTrack->invalidate();
+                        }
+                        // flush data already sent to the DSP if changing audio session as audio
+                        // comes from a different source. Also invalidate previous track to force a
+                        // seek when resuming.
+                        if (mPreviousTrack->sessionId() != track->sessionId()) {
+                            mPreviousTrack->invalidate();
+                            mFlushPending = true;
+                        }
+                    }
+                }
+                mPreviousTrack = track;
                 // reset retry count
                 track->mRetryCount = kMaxTrackRetriesOffload;
                 mActiveTrack = t;
