@@ -593,6 +593,17 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
                 mVideoHeight = def->format.video.nFrameHeight;
                 mVideoFrameRate = def->format.video.xFramerate >> 16;
                 mVideoColorFormat = def->format.video.eColorFormat;
+
+                OMX_PARAM_PORTDEFINITIONTYPE *portDef =
+                    &editPortInfo(0)->mDef;
+                portDef->format.video.nFrameWidth = mVideoWidth;
+                portDef->format.video.nFrameHeight = mVideoHeight;
+                portDef->format.video.xFramerate = def->format.video.xFramerate;
+                portDef->format.video.eColorFormat =
+                    (OMX_COLOR_FORMATTYPE) mVideoColorFormat;
+                portDef = &editPortInfo(1)->mDef;
+                portDef->format.video.nFrameWidth = mVideoWidth;
+                portDef->format.video.nFrameHeight = mVideoHeight;
             } else {
                 mVideoBitRate = def->format.video.nBitrate;
             }
