@@ -1370,9 +1370,6 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 return err;
             }
 
-            const char *mime;
-            CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
-
             if (max_size != 0) {
                 // Assume that a given buffer only contains at most 10 chunks,
                 // each chunk originally prefixed with a 2 byte length will
@@ -1389,6 +1386,8 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     height = 1080;
                 }
 
+                const char *mime;
+                CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
                 if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
                     // AVC requires compression ratio of at least 2, and uses
                     // macroblocks
@@ -1402,6 +1401,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
             *offset += chunk_size;
 
+            // NOTE: setting another piece of metadata invalidates any pointers (such as the
+            // mimetype) previously obtained, so don't cache them.
+            const char *mime;
+            CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
             // Calculate average frame rate.
             if (!strncasecmp("video/", mime, 6)) {
                 size_t nSamples = mLastTrack->sampleTable->countSamples();
