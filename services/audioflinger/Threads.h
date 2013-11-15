@@ -762,7 +762,7 @@ private:
     bool        mFlushPending;
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
-    Track       *mPreviousTrack;         // used to detect track switch
+    wp<Track>   mPreviousTrack;         // used to detect track switch
 };
 
 class AsyncCallbackThread : public Thread {
