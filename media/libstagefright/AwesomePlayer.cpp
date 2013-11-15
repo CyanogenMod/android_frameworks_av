@@ -1499,7 +1499,13 @@ status_t AwesomePlayer::initAudioDecoder() {
     // This doesn't guarantee that the hardware has a free stream
     // but it avoids us attempting to open (and re-open) an offload
     // stream to hardware that doesn't have the necessary codec
-    mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL), isStreamingHTTP());
+    audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
+    if (mAudioSink != NULL) {
+        streamType = mAudioSink->getAudioStreamType();
+    }
+
+    mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL),
+                                     isStreamingHTTP(), streamType);
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         ALOGV("createAudioPlayer: bypass OMX (raw)");
