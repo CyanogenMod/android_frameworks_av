@@ -31,6 +31,9 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/ExtendedCodec.h>
+#endif
 
 #include "include/AwesomePlayer.h"
 
@@ -54,6 +57,7 @@ AudioPlayer::AudioPlayer(
       mStarted(false),
 #ifdef QCOM_HARDWARE
       mSourcePaused(false),
+      mPauseRequired(false),
 #endif
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
@@ -254,7 +258,13 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mPlaying = true;
     mPinnedTimeUs = -1ll;
-
+#ifdef QCOM_HARDWARE
+    const char *componentName;
+    if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
+          componentName = "none";
+    }
+    mPauseRequired = ExtendedCodec::isSourcePauseRequired(componentName);
+#endif
     return OK;
 }
 
@@ -282,8 +292,10 @@ void AudioPlayer::pause(bool playPendingSamples) {
     mPlaying = false;
 #ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
-    if (mSource->pause() == OK) {
-        mSourcePaused = true;
+    if (mPauseRequired) {
+        if (mSource->pause() == OK) {
+            mSourcePaused = true;
+        }
     }
 #endif
 }
@@ -390,6 +402,9 @@ void AudioPlayer::reset() {
     mStarted = false;
     mPlaying = false;
     mStartPosUs = 0;
+#ifdef QCOM_HARDWARE
+    mPauseRequired = false;
+#endif
 }
 
 // static
