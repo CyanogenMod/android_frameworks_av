@@ -124,12 +124,7 @@ private:
     // frame buffers will be queued and dequeued
     sp<SurfaceMediaSource> mSurfaceMediaSource;
 
-    status_t setupMPEG4Recording(
-        int outputFd,
-        int32_t videoWidth, int32_t videoHeight,
-        int32_t videoBitRate,
-        int32_t *totalBitRate,
-        sp<MediaWriter> *mediaWriter);
+    status_t setupMPEG4Recording(int32_t *totalBitRate);
     void setupMPEG4MetaData(int64_t startTimeUs, int32_t totalBitRate,
         sp<MetaData> *meta);
     status_t startMPEG4Recording();
@@ -151,10 +146,7 @@ private:
     status_t setupSurfaceMediaSource();
 
     status_t setupAudioEncoder(const sp<MediaWriter>& writer);
-    status_t setupVideoEncoder(
-            sp<MediaSource> cameraSource,
-            int32_t videoBitRate,
-            sp<MediaSource> *source);
+    status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaSource> *source);
 
     // Encoding parameter handling utilities
     status_t setParameter(const String8 &key, const String8 &value);

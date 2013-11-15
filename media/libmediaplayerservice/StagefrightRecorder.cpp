@@ -973,7 +973,7 @@ status_t StagefrightRecorder::startRTPRecording() {
             return err;
         }
 
-        err = setupVideoEncoder(mediaSource, mVideoBitRate, &source);
+        err = setupVideoEncoder(mediaSource, &source);
         if (err != OK) {
             return err;
         }
@@ -1017,7 +1017,7 @@ status_t StagefrightRecorder::startMPEG2TSRecording() {
         }
 
         sp<MediaSource> encoder;
-        err = setupVideoEncoder(mediaSource, mVideoBitRate, &encoder);
+        err = setupVideoEncoder(mediaSource, &encoder);
 
         if (err != OK) {
             return err;
@@ -1383,12 +1383,11 @@ status_t StagefrightRecorder::setupCameraSource(
 
 status_t StagefrightRecorder::setupVideoEncoder(
         sp<MediaSource> cameraSource,
-        int32_t videoBitRate,
         sp<MediaSource> *source) {
     source->clear();
 
     sp<MetaData> enc_meta = new MetaData;
-    enc_meta->setInt32(kKeyBitRate, videoBitRate);
+    enc_meta->setInt32(kKeyBitRate, mVideoBitRate);
     enc_meta->setInt32(kKeyFrameRate, mFrameRate);
 
     switch (mVideoEncoder) {
@@ -1495,16 +1494,11 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
     return OK;
 }
 
-status_t StagefrightRecorder::setupMPEG4Recording(
-        int outputFd,
-        int32_t videoWidth, int32_t videoHeight,
-        int32_t videoBitRate,
-        int32_t *totalBitRate,
-        sp<MediaWriter> *mediaWriter) {
-    mediaWriter->clear();
+status_t StagefrightRecorder::setupMPEG4Recording(int32_t *totalBitRate) {
+    mWriter.clear();
     *totalBitRate = 0;
     status_t err = OK;
-    sp<MediaWriter> writer = new MPEG4Writer(outputFd);
+    sp<MediaWriter> writer = new MPEG4Writer(mOutputFd);
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
 
@@ -1515,13 +1509,13 @@ status_t StagefrightRecorder::setupMPEG4Recording(
         }
 
         sp<MediaSource> encoder;
-        err = setupVideoEncoder(mediaSource, videoBitRate, &encoder);
+        err = setupVideoEncoder(mediaSource, &encoder);
         if (err != OK) {
             return err;
         }
 
         writer->addSource(encoder);
-        *totalBitRate += videoBitRate;
+        *totalBitRate += mVideoBitRate;
     }
 
     // Audio source is added at the end if it exists.
@@ -1555,7 +1549,7 @@ status_t StagefrightRecorder::setupMPEG4Recording(
     }
 
     writer->setListener(mListener);
-    *mediaWriter = writer;
+    mWriter = writer;
     return OK;
 }
 
@@ -1578,9 +1572,7 @@ void StagefrightRecorder::setupMPEG4MetaData(int64_t startTimeUs, int32_t totalB
 
 status_t StagefrightRecorder::startMPEG4Recording() {
     int32_t totalBitRate;
-    status_t err = setupMPEG4Recording(
-            mOutputFd, mVideoWidth, mVideoHeight,
-            mVideoBitRate, &totalBitRate, &mWriter);
+    status_t err = setupMPEG4Recording(&totalBitRate);
     if (err != OK) {
         return err;
     }
