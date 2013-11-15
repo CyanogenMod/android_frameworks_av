@@ -31,6 +31,9 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/ExtendedCodec.h>
+#endif
 
 #ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
@@ -58,6 +61,7 @@ AudioPlayer::AudioPlayer(
       mStarted(false),
 #ifdef QCOM_HARDWARE
       mSourcePaused(false),
+      mPauseRequired(false),
 #endif
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
