@@ -4096,8 +4096,7 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD),
         mHwPaused(false),
         mFlushPending(false),
-        mPausedBytesRemaining(0),
-        mPreviousTrack(NULL)
+        mPausedBytesRemaining(0)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
     mStandby = true;
