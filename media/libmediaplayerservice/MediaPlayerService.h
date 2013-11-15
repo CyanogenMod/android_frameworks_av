@@ -100,7 +100,10 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            flush();
         virtual void            pause();
         virtual void            close();
-                void            setAudioStreamType(audio_stream_type_t streamType) { mStreamType = streamType; }
+                void            setAudioStreamType(audio_stream_type_t streamType) {
+                                                                        mStreamType = streamType; }
+        virtual audio_stream_type_t getAudioStreamType() const { return mStreamType; }
+
                 void            setVolume(float left, float right);
         virtual status_t        setPlaybackRatePermille(int32_t ratePermille);
                 status_t        setAuxEffectSendLevel(float level);
@@ -207,6 +210,9 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            pause() {}
         virtual void            close() {}
                 void            setAudioStreamType(audio_stream_type_t streamType) {}
+                // stream type is not used for AudioCache
+        virtual audio_stream_type_t getAudioStreamType() const { return AUDIO_STREAM_DEFAULT; }
+
                 void            setVolume(float left, float right) {}
         virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
                 uint32_t        sampleRate() const { return mSampleRate; }
