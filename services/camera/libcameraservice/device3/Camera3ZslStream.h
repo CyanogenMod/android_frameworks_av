@@ -37,10 +37,10 @@ class Camera3ZslStream :
         public Camera3OutputStream {
   public:
     /**
-     * Set up a ZSL stream of a given resolution. Depth is the number of buffers
+     * Set up a ZSL stream of a given resolution. bufferCount is the number of buffers
      * cached within the stream that can be retrieved for input.
      */
-    Camera3ZslStream(int id, uint32_t width, uint32_t height, int depth);
+    Camera3ZslStream(int id, uint32_t width, uint32_t height, int bufferCount);
     ~Camera3ZslStream();
 
     virtual void     dump(int fd, const Vector<String16> &args) const;

@@ -64,7 +64,7 @@ class RingBufferConsumer : public ConsumerBase,
     // bufferCount parameter specifies how many buffers can be pinned for user
     // access at the same time.
     RingBufferConsumer(const sp<IGraphicBufferConsumer>& consumer, uint32_t consumerUsage,
-            int bufferCount = BufferQueue::MIN_UNDEQUEUED_BUFFERS);
+            int bufferCount);
 
     virtual ~RingBufferConsumer();
 
