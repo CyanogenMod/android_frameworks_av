@@ -304,7 +304,6 @@ status_t ExtendedCodec::setAudioFormat(
         //setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
-        setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));

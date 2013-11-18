@@ -3252,9 +3252,6 @@ status_t MPEG4Source::read(
 
                 return ERROR_IO;
             }
-#ifdef ENABLE_AV_ENHANCEMENTS
-//            ExtendedUtils::helper_mpeg4extractor_checkAC3EAC3(mBuffer, mFormat, size);
-#endif
             CHECK(mBuffer != NULL);
             mBuffer->set_range(0, size);
             mBuffer->meta_data()->clear();
