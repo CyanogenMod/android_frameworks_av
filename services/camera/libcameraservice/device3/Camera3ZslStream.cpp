@@ -109,14 +109,14 @@ struct TimestampFinder : public RingBufferConsumer::RingBufferComparator {
 } // namespace anonymous
 
 Camera3ZslStream::Camera3ZslStream(int id, uint32_t width, uint32_t height,
-        int depth) :
+        int bufferCount) :
         Camera3OutputStream(id, CAMERA3_STREAM_BIDIRECTIONAL,
                             width, height,
                             HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
-        mDepth(depth) {
+        mDepth(bufferCount) {
 
     sp<BufferQueue> bq = new BufferQueue();
-    mProducer = new RingBufferConsumer(bq, GRALLOC_USAGE_HW_CAMERA_ZSL, depth);
+    mProducer = new RingBufferConsumer(bq, GRALLOC_USAGE_HW_CAMERA_ZSL, bufferCount);
     mConsumer = new Surface(bq);
 }
 
