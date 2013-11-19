@@ -128,13 +128,19 @@ LOCAL_SHARED_LIBRARIES := \
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
 ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
-   ifeq ($(USE_TUNNEL_MODE),true)
+    ifeq ($(BOARD_USES_ALSA_AUDIO),true)
+        LOCAL_SRC_FILES += LPAPlayerALSA.cpp
+    else
+        LOCAL_SRC_FILES += LPAPlayer.cpp
+        LOCAL_CFLAGS += -DLEGACY_LPA
+    endif
+    ifeq ($(USE_TUNNEL_MODE),true)
+        LOCAL_SRC_FILES += TunnelPlayer.cpp
         LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-   endif
-   ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+    endif
+    ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
         LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
-   endif
-   LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+    endif
 endif
 endif
 endif
