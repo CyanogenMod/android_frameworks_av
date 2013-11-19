@@ -3413,7 +3413,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             sp<AMessage> reply =
                 new AMessage(kWhatOutputBufferDrained, mCodec->id());
 
-            if (!mCodec->mSentFormat) {
+            if (!mCodec->mSentFormat && rangeLength > 0) {
                 mCodec->sendFormatChange(reply);
             }
 
