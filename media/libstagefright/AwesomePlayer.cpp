@@ -43,7 +43,11 @@
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
 #ifdef QCOM_HARDWARE
+#ifdef LEGACY_LPA
+#include <media/stagefright/LPAPlayerLegacy.h>
+#else
 #include <media/stagefright/LPAPlayer.h>
+#endif
 #ifdef USE_TUNNEL_MODE
 #include <media/stagefright/TunnelPlayer.h>
 #endif
