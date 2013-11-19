@@ -34,6 +34,7 @@ LOCAL_C_INCLUDES := \
 	external/jpeg
 
 LOCAL_CFLAGS += -Wno-multichar
+#LOCAL_CFLAGS += -UNDEBUG
 
 LOCAL_MODULE_TAGS := optional
 
