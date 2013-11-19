@@ -156,11 +156,13 @@ void ExtendedUtils::HFR::copyHFRParams(
     outputFormat->setInt32(kKeyFrameRate, frameRate);
 }
 
-bool ExtendedUtils::ShellProp::isAudioDisabled() {
+bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     bool retVal = false;
     char disableAudio[PROPERTY_VALUE_MAX];
     property_get("persist.debug.sf.noaudio", disableAudio, "0");
-    if (atoi(disableAudio) == 1) {
+    if (isEncoder && (atoi(disableAudio) & 0x02)) {
+        retVal = true;
+    } else if (atoi(disableAudio) & 0x01) {
         retVal = true;
     }
     return retVal;
@@ -576,7 +578,7 @@ void ExtendedUtils::HFR::copyHFRParams(
         sp<MetaData> &outputFormat) {
 }
 
-bool ExtendedUtils::ShellProp::isAudioDisabled() {
+bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     return false;
 }
 

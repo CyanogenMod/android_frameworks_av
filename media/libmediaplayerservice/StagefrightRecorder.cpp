@@ -119,7 +119,7 @@ status_t StagefrightRecorder::setAudioSource(audio_source_t as) {
         return BAD_VALUE;
     }
 #ifdef QCOM_HARDWARE
-    if (ExtendedUtils::ShellProp::isAudioDisabled()) {
+    if (ExtendedUtils::ShellProp::isAudioDisabled(true)) {
         return OK;
     }
 #endif
@@ -176,10 +176,11 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
     }
 
 #ifdef QCOM_HARDWARE
-    if (ExtendedUtils::ShellProp::isAudioDisabled()) {
+    if (ExtendedUtils::ShellProp::isAudioDisabled(true)) {
         return OK;
     }
 #endif
+
     if (ae == AUDIO_ENCODER_DEFAULT) {
         mAudioEncoder = AUDIO_ENCODER_AMR_NB;
     } else {

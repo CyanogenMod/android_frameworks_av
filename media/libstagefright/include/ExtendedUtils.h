@@ -97,7 +97,7 @@ struct ExtendedUtils {
      */
     struct ShellProp {
         // check if shell property to disable audio is set
-        static bool isAudioDisabled();
+        static bool isAudioDisabled(bool isEncoder);
 
         //helper function to set encoding profiles
         static void setEncoderProfile(video_encoder &videoEncoder,
