@@ -28,6 +28,7 @@
 #include <GLES2/gl2ext.h>
 
 #include <stdlib.h>
+#include <assert.h>
 
 #include "screenrecord.h"
 #include "Overlay.h"
@@ -66,10 +67,11 @@ status_t Overlay::start(const sp<IGraphicBufferProducer>& outputSurface,
     mStartMonotonicNsecs = systemTime(CLOCK_MONOTONIC);
     mStartRealtimeNsecs = systemTime(CLOCK_REALTIME);
 
+    Mutex::Autolock _l(mMutex);
+
     // Start the thread.  Traffic begins immediately.
     run("overlay");
 
-    Mutex::Autolock _l(mMutex);
     mState = INIT;
     while (mState == INIT) {
         mStartCond.wait(mMutex);
@@ -79,7 +81,7 @@ status_t Overlay::start(const sp<IGraphicBufferProducer>& outputSurface,
         ALOGE("Failed to start overlay thread: err=%d", mThreadResult);
         return mThreadResult;
     }
-    assert(mState == READY);
+    assert(mState == RUNNING);
 
     ALOGV("Overlay::start successful");
     *pBufferProducer = mBufferQueue;
