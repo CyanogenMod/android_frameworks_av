@@ -86,6 +86,9 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 
     ifeq ($(BOARD_USES_ALSA_AUDIO),true)
         LOCAL_SRC_FILES += LPAPlayerALSA.cpp
+    else
+        LOCAL_SRC_FILES += LPAPlayerAAPlayer.cpp
+        LOCAL_SRC_CFLAGS += -DLEGACY_LPA
     endif
     ifeq ($(USE_TUNNEL_MODE),true)
         LOCAL_SRC_FILES += TunnelPlayer.cpp
