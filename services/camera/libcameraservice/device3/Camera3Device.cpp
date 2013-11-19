@@ -100,8 +100,10 @@ status_t Camera3Device::initialize(camera_module_t *module)
 
     camera3_device_t *device;
 
+    ATRACE_BEGIN("camera3->open");
     res = module->common.methods->open(&module->common, deviceName.string(),
             reinterpret_cast<hw_device_t**>(&device));
+    ATRACE_END();
 
     if (res != OK) {
         SET_ERR_L("Could not open camera: %s (%d)", strerror(-res), res);
@@ -269,7 +271,9 @@ status_t Camera3Device::disconnect() {
         mStatusTracker.clear();
 
         if (mHal3Device != NULL) {
+            ATRACE_BEGIN("camera3->close");
             mHal3Device->common.close(&mHal3Device->common);
+            ATRACE_END();
             mHal3Device = NULL;
         }
 
