@@ -252,6 +252,9 @@ AwesomePlayer::AwesomePlayer()
                               &AwesomePlayer::onAudioTearDownEvent);
     mAudioTearDownEventPending = false;
 
+    mDurationUs = -1;
+    mAudioTearDownPosition = 0;
+
     reset();
 #ifdef QCOM_ENHANCED_AUDIO
     mIsTunnelAudio = false;
@@ -668,7 +671,6 @@ void AwesomePlayer::reset_l() {
         shutdownVideoDecoder_l();
     }
 
-    mDurationUs = -1;
     modifyFlags(0, ASSIGN);
     mExtractorFlags = 0;
     mTimeSourceDeltaUs = 0;
@@ -1614,7 +1616,7 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
     } else if (mAudioPlayer != NULL) {
         *positionUs = mAudioPlayer->getMediaTimeUs();
     } else {
-        *positionUs = 0;
+        *positionUs = mAudioTearDownPosition;
     }
     return OK;
 }
