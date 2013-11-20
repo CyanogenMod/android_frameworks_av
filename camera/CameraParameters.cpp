@@ -362,8 +362,18 @@ const char CameraParameters::PIXEL_FORMAT_YUV420SP[] = "yuv420sp";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::PIXEL_FORMAT_YUV420SP_ADRENO[] = "yuv420sp-adreno";
 #endif
+#ifdef STE_HARDWARE
+const char CameraParameters::PIXEL_FORMAT_YUV420SPNV12[] = "yuv420spnv12";
+#endif
 const char CameraParameters::PIXEL_FORMAT_YUV422I[] = "yuv422i-yuyv";
 const char CameraParameters::PIXEL_FORMAT_YUV420P[]  = "yuv420p";
+#ifdef STE_HARDWARE
+const char CameraParameters::PIXEL_FORMAT_YUV420MB[] = "yuv420mb";
+const char CameraParameters::PIXEL_FORMAT_YVU422SP[] = "yvu422sp";
+const char CameraParameters::PIXEL_FORMAT_YVU422P[] = "yvu422p";
+const char CameraParameters::PIXEL_FORMAT_YVU420SP[] = "yvu420sp";
+const char CameraParameters::PIXEL_FORMAT_YVU420P[]  = "yvu420p";
+#endif
 const char CameraParameters::PIXEL_FORMAT_RGB565[] = "rgb565";
 const char CameraParameters::PIXEL_FORMAT_RGBA8888[] = "rgba8888";
 const char CameraParameters::PIXEL_FORMAT_JPEG[] = "jpeg";
