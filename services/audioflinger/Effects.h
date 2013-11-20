@@ -169,6 +169,7 @@ public:
             const sp<IEffectClient>& effectClient,
             int32_t priority);
     virtual ~EffectHandle();
+    virtual status_t initCheck();
 
     // IEffect
     virtual status_t enable();
