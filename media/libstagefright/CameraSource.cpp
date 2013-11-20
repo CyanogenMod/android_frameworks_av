@@ -130,6 +130,12 @@ static int32_t getColorFormat(const char* colorFormat) {
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE)) {
         return OMX_COLOR_FormatAndroidOpaque;
     }
+    
+#ifdef STE_HARDWARE
+    if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420MB)) {
+       return OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB;
+    }
+#endif
 
     ALOGE("Uknown color format (%s), please add it to "
          "CameraSource::getColorFormat", colorFormat);
