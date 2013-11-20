@@ -107,6 +107,9 @@ struct OMXCodec : public MediaSource,
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
         kRequiresWMAProComponent              = 0x40000000, //2^30
 #endif
+#ifdef STE_HARDWARE
+        kRequiresStoreMetaDataBeforeIdle      = 16384,
+#endif
     };
 
     struct CodecNameAndQuirks {
