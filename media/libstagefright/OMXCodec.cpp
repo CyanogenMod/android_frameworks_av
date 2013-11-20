@@ -991,6 +991,9 @@ static size_t getFrameSize(
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_COLOR_FormatYUV420SemiPlanar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+#ifdef STE_HARDWARE
+        case OMX_STE_COLOR_FormatYUV420PackedSemiPlanarMB:
+#endif
         /*
         * FIXME: For the Opaque color format, the frame size does not
         * need to be (w*h*3)/2. It just needs to
@@ -2171,7 +2174,11 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef STE_HARDWARE
+      OmxToHALFormat(def.format.video.eColorFormat));
+#else
             def.format.video.eColorFormat);
+#endif
 #else
     OMX_COLOR_FORMATTYPE eColorFormat;
 
