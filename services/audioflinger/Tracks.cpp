@@ -128,17 +128,17 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     } else {
        if ( (format == AUDIO_FORMAT_PCM_16_BIT) ||
             (format == AUDIO_FORMAT_PCM_8_BIT)) {
-          bufferSize = frameCount * channelCount * sizeof(int16_t);
+          bufferSize = roundup(frameCount) * channelCount * sizeof(int16_t);
        } else if (format == AUDIO_FORMAT_AMR_NB) {
-          bufferSize = frameCount * channelCount * AMR_FRAMESIZE;    // full rate frame size
+          bufferSize = roundup(frameCount) * channelCount * AMR_FRAMESIZE;    // full rate frame size
        } else if (format == AUDIO_FORMAT_EVRC) {
-          bufferSize = frameCount * channelCount * EVRC_FRAMESIZE;   // full rate frame size
+          bufferSize = roundup(frameCount) * channelCount * EVRC_FRAMESIZE;   // full rate frame size
        } else if (format == AUDIO_FORMAT_QCELP) {
-          bufferSize = frameCount * channelCount * QCELP_FRAMESIZE;  // full rate frame size
+          bufferSize = roundup(frameCount) * channelCount * QCELP_FRAMESIZE;  // full rate frame size
        } else if (format == AUDIO_FORMAT_AAC) {
-          bufferSize = frameCount * AAC_FRAMESIZE;                   // full rate frame size
+          bufferSize = roundup(frameCount) * AAC_FRAMESIZE;                   // full rate frame size
        } else if (format == AUDIO_FORMAT_AMR_WB) {
-          bufferSize = frameCount * channelCount * AMR_WB_FRAMESIZE; // full rate frame size
+          bufferSize = roundup(frameCount) * channelCount * AMR_WB_FRAMESIZE; // full rate frame size
        }
     }
 #else
@@ -181,19 +181,19 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                     memset(mBuffer, 0, bufferSize);
                 } else if (format == AUDIO_FORMAT_AMR_NB) {
                     // full rate frame size
-                    memset(mBuffer, 0, frameCount * channelCount * AMR_FRAMESIZE);
+                    memset(mBuffer, 0, bufferSize);
                 } else if (format == AUDIO_FORMAT_EVRC) {
                     // full rate frame size
-                    memset(mBuffer, 0, frameCount * channelCount * EVRC_FRAMESIZE);
+                    memset(mBuffer, 0, bufferSize);
                 } else if (format == AUDIO_FORMAT_QCELP) {
                     // full rate frame size
-                    memset(mBuffer, 0, frameCount * channelCount * QCELP_FRAMESIZE);
+                    memset(mBuffer, 0, bufferSize);
                 } else if (format == AUDIO_FORMAT_AAC) {
                     // full rate frame size
-                    memset(mBuffer, 0, frameCount * AAC_FRAMESIZE);
+                    memset(mBuffer, 0, bufferSize);
                 } else if (format == AUDIO_FORMAT_AMR_WB) {
                     // full rate frame size
-                    memset(mBuffer, 0, frameCount * channelCount * AMR_WB_FRAMESIZE);
+                    memset(mBuffer, 0, bufferSize);
                 }
             }
 #else
