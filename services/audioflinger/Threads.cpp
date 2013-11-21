@@ -4388,7 +4388,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 #endif
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
-    mInput(input), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
+    mInput(input), mActiveTracksGen(0), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
     // mRsmpInFrames, mRsmpInFramesP2, mRsmpInUnrel, mRsmpInFront, and mRsmpInRear
     //      are set by readInputParameters()
     // mRsmpInIndex LEGACY
@@ -4432,10 +4432,25 @@ bool AudioFlinger::RecordThread::threadLoop()
 
 reacquire_wakelock:
     sp<RecordTrack> activeTrack;
+    int activeTracksGen;
     {
         Mutex::Autolock _l(mLock);
-        activeTrack = mActiveTrack;
-        acquireWakeLock_l(activeTrack != 0 ? activeTrack->uid() : -1);
+        size_t size = mActiveTracks.size();
+        activeTracksGen = mActiveTracksGen;
+        if (size > 0) {
+            // FIXME an arbitrary choice
+            activeTrack = mActiveTracks[0];
+            acquireWakeLock_l(activeTrack->uid());
+            if (size > 1) {
+                SortedVector<int> tmp;
+                for (size_t i = 0; i < size; i++) {
+                    tmp.add(mActiveTracks[i]->uid());
+                }
+                updateWakeLockUids_l(tmp);
+            }
+        } else {
+            acquireWakeLock_l(-1);
+        }
     }
 
     // start recording
@@ -4458,8 +4473,9 @@ reacquire_wakelock:
             // return value 'reconfig' is currently unused
             bool reconfig = checkForNewParameters_l();
 
-            // if no active track, then standby and release wakelock
-            if (mActiveTrack == 0) {
+            // if no active track(s), then standby and release wakelock
+            size_t size = mActiveTracks.size();
+            if (size == 0) {
                 standbyIfNotAlreadyInStandby();
                 // exitPending() can't become true here
                 releaseWakeLock_l();
@@ -4470,16 +4486,21 @@ reacquire_wakelock:
                 goto reacquire_wakelock;
             }
 
-            if (activeTrack != mActiveTrack) {
+            if (mActiveTracksGen != activeTracksGen) {
+                activeTracksGen = mActiveTracksGen;
                 SortedVector<int> tmp;
-                tmp.add(mActiveTrack->uid());
+                for (size_t i = 0; i < size; i++) {
+                    tmp.add(mActiveTracks[i]->uid());
+                }
                 updateWakeLockUids_l(tmp);
-                activeTrack = mActiveTrack;
+                // FIXME an arbitrary choice
+                activeTrack = mActiveTracks[0];
             }
 
             if (activeTrack->isTerminated()) {
                 removeTrack_l(activeTrack);
-                mActiveTrack.clear();
+                mActiveTracks.remove(activeTrack);
+                mActiveTracksGen++;
                 continue;
             }
 
@@ -4487,7 +4508,8 @@ reacquire_wakelock:
             switch (activeTrackState) {
             case TrackBase::PAUSING:
                 standbyIfNotAlreadyInStandby();
-                mActiveTrack.clear();
+                mActiveTracks.remove(activeTrack);
+                mActiveTracksGen++;
                 mStartStopCond.broadcast();
                 doSleep = true;
                 continue;
@@ -4495,7 +4517,8 @@ reacquire_wakelock:
             case TrackBase::RESUMING:
                 mStandby = false;
                 if (mReqChannelCount != activeTrack->channelCount()) {
-                    mActiveTrack.clear();
+                    mActiveTracks.remove(activeTrack);
+                    mActiveTracksGen++;
                     mStartStopCond.broadcast();
                     continue;
                 }
@@ -4503,7 +4526,8 @@ reacquire_wakelock:
                     mStartStopCond.broadcast();
                     // record start succeeds only if first read from audio input succeeds
                     if (mBytesRead < 0) {
-                        mActiveTrack.clear();
+                        mActiveTracks.remove(activeTrack);
+                        mActiveTracksGen++;
                         continue;
                     }
                     activeTrack->mState = TrackBase::ACTIVE;
@@ -4524,7 +4548,7 @@ reacquire_wakelock:
             lockEffectChains_l(effectChains);
         }
 
-        // thread mutex is now unlocked, mActiveTrack unknown, activeTrack != 0, kept, immutable
+        // thread mutex is now unlocked, mActiveTracks unknown, activeTrack != 0, kept, immutable
         // activeTrack->mState unknown, activeTrackState immutable and is ACTIVE or RESUMING
 
         for (size_t i = 0; i < effectChains.size(); i ++) {
@@ -4715,7 +4739,8 @@ reacquire_wakelock:
             sp<RecordTrack> track = mTracks[i];
             track->invalidate();
         }
-        mActiveTrack.clear();
+        mActiveTracks.clear();
+        mActiveTracksGen++;
         mStartStopCond.broadcast();
     }
 
@@ -4874,8 +4899,9 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     {
         // This section is a rendezvous between binder thread executing start() and RecordThread
         AutoMutex lock(mLock);
-        if (mActiveTrack != 0) {
-            if (recordTrack != mActiveTrack.get()) {
+        if (mActiveTracks.size() > 0) {
+            // FIXME does not work for multiple active tracks
+            if (mActiveTracks.indexOf(recordTrack) != 0) {
                 status = -EBUSY;
             } else if (recordTrack->mState == TrackBase::PAUSING) {
                 recordTrack->mState = TrackBase::ACTIVE;
@@ -4885,13 +4911,15 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
 
         // FIXME why? already set in constructor, 'STARTING_1' would be more accurate
         recordTrack->mState = TrackBase::IDLE;
-        mActiveTrack = recordTrack;
+        mActiveTracks.add(recordTrack);
+        mActiveTracksGen++;
         mLock.unlock();
         status_t status = AudioSystem::startInput(mId);
         mLock.lock();
         // FIXME should verify that mActiveTrack is still == recordTrack
         if (status != NO_ERROR) {
-            mActiveTrack.clear();
+            mActiveTracks.remove(recordTrack);
+            mActiveTracksGen++;
             clearSyncStartEvent();
             return status;
         }
@@ -4912,13 +4940,14 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         mWaitWorkCV.broadcast();
         // do not wait for mStartStopCond if exiting
         if (exitPending()) {
-            mActiveTrack.clear();
+            mActiveTracks.remove(recordTrack);
+            mActiveTracksGen++;
             status = INVALID_OPERATION;
             goto startError;
         }
         // FIXME incorrect usage of wait: no explicit predicate or loop
         mStartStopCond.wait(mLock);
-        if (mActiveTrack == 0) {
+        if (mActiveTracks.indexOf(recordTrack) < 0) {
             ALOGV("Record failed to start");
             status = BAD_VALUE;
             goto startError;
@@ -4964,7 +4993,7 @@ void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event
 bool AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
     ALOGV("RecordThread::stop");
     AutoMutex _l(mLock);
-    if (recordTrack != mActiveTrack.get() || recordTrack->mState == TrackBase::PAUSING) {
+    if (mActiveTracks.indexOf(recordTrack) != 0 || recordTrack->mState == TrackBase::PAUSING) {
         return false;
     }
     // note that threadLoop may still be processing the track at this point [without lock]
@@ -4975,8 +5004,8 @@ bool AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
     }
     // FIXME incorrect usage of wait: no explicit predicate or loop
     mStartStopCond.wait(mLock);
-    // if we have been restarted, recordTrack == mActiveTrack.get() here
-    if (exitPending() || recordTrack != mActiveTrack.get()) {
+    // if we have been restarted, recordTrack is in mActiveTracks here
+    if (exitPending() || mActiveTracks.indexOf(recordTrack) != 0) {
         ALOGV("Record stopped OK");
         return true;
     }
@@ -5019,7 +5048,7 @@ void AudioFlinger::RecordThread::destroyTrack_l(const sp<RecordTrack>& track)
     track->terminate();
     track->mState = TrackBase::STOPPED;
     // active tracks are removed by threadLoop()
-    if (mActiveTrack != track) {
+    if (mActiveTracks.indexOf(track) < 0) {
         removeTrack_l(track);
     }
 }
@@ -5046,7 +5075,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     snprintf(buffer, SIZE, "\nInput thread %p internals\n", this);
     result.append(buffer);
 
-    if (mActiveTrack != 0) {
+    if (mActiveTracks.size() > 0) {
         snprintf(buffer, SIZE, "In index: %d\n", mRsmpInIndex);
         result.append(buffer);
         snprintf(buffer, SIZE, "Buffer size: %u bytes\n", mBufferSize);
@@ -5083,12 +5112,16 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
         }
     }
 
-    if (mActiveTrack != 0) {
+    size_t size = mActiveTracks.size();
+    if (size > 0) {
         snprintf(buffer, SIZE, "\nInput thread %p active tracks\n", this);
         result.append(buffer);
         RecordTrack::appendDumpHeader(result);
-        mActiveTrack->dump(buffer, SIZE);
-        result.append(buffer);
+        for (size_t i = 0; i < size; ++i) {
+            sp<RecordTrack> track = mActiveTracks[i];
+            track->dump(buffer, SIZE);
+            result.append(buffer);
+        }
 
     }
     write(fd, result.string(), result.size());
@@ -5179,7 +5212,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             // do not accept frame count changes if tracks are open as the track buffer
             // size depends on frame count and correct behavior would not be guaranteed
             // if frame count is changed after track creation
-            if (mActiveTrack != 0) {
+            if (mActiveTracks.size() > 0) {
                 status = INVALID_OPERATION;
             } else {
                 reconfig = true;
