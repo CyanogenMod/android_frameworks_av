@@ -79,6 +79,10 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS += -Wall -Wextra
 
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+    LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
