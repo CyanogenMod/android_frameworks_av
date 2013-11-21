@@ -1060,11 +1060,8 @@ status_t AudioFlinger::PlaybackThread::TimedTrack::allocateTimedBuffer(
     }
 
     sp<IMemory> newBuffer = mTimedMemoryDealer->allocate(size);
-    if (newBuffer == NULL) {
-        newBuffer = mTimedMemoryDealer->allocate(size);
-        if (newBuffer == NULL) {
-            return NO_MEMORY;
-        }
+    if (newBuffer == 0) {
+        return NO_MEMORY;
     }
 
     *buffer = newBuffer;
