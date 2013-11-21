@@ -1660,8 +1660,10 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
 
-        // Check if everything has arrived for this result (buffers and metadata)
-        if (request.haveResultMetadata && request.numBuffersLeft == 0) {
+        // Check if everything has arrived for this result (buffers and metadata), remove it from
+        // InFlightMap if both arrived or HAL reports error for this request (i.e. during flush).
+        if ((request.requestStatus != OK) ||
+                (request.haveResultMetadata && request.numBuffersLeft == 0)) {
             ATRACE_ASYNC_END("frame capture", frameNumber);
             mInFlightMap.removeItemsAt(idx, 1);
         }
