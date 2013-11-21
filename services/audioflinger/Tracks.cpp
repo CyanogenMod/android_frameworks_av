@@ -84,7 +84,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mChannelMask(channelMask),
         mChannelCount(popcount(channelMask)),
 #ifdef QCOM_HARDWARE
-        mFrameSize((audio_is_linear_pcm(format) || audio_is_supported_compressed(format)) ?
+        mFrameSize((audio_is_linear_pcm(format) || audio_is_compress_voip_format(format)) ?
         ((flags & IAudioFlinger::TRACK_VOICE_COMMUNICATION)? mChannelCount * sizeof(int16_t) : mChannelCount * audio_bytes_per_sample(format)) : sizeof(int8_t)),
 #else
         mFrameSize(audio_is_linear_pcm(format) ?
