@@ -561,6 +561,8 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
 void AudioPolicyManager::setPhoneState(audio_mode_t state)
 {
     ALOGV("setPhoneState() state %d", state);
+    audio_devices_t newDevice = AUDIO_DEVICE_NONE;
+
     if (state < 0 || state >= AUDIO_MODE_CNT) {
         ALOGW("setPhoneState() invalid state %d", state);
         return;
