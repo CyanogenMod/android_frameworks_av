@@ -663,6 +663,14 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
+#ifdef QCOM_HARDWARE
+    //add an extra buffer to display queue to get around dequeue+wait
+    //blocking too long (more than 1 Vsync) in case BufferQeuue is in
+    //sync-mode and advertizes only 1 buffer
+    (*minUndequeuedBuffers)++;
+    ALOGI("NOTE: Overriding minUndequeuedBuffers to %lu",*minUndequeuedBuffers);
+#endif
+
     // XXX: Is this the right logic to use?  It's not clear to me what the OMX
     // buffer counts refer to - how do they account for the renderer holding on
     // to buffers?

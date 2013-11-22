@@ -2426,12 +2426,23 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
+#ifdef QCOM_HARDWARE
+    // Add extra buffer to display queue to get around dequeue+wait
+    // blocking too long in case BufferQueue is in sync-mode and advertises
+    // only 1 buffer. Also, restrict to 2 extra buffers for > 1080p
+    minUndequeuedBufs +=
+        (def.format.video.nFrameWidth * def.format.video.nFrameHeight > 1088 * 1920)
+        ? 2 : 3;
+    ALOGI("NOTE: Overriding minUndequeuedBufs to %d",minUndequeuedBufs);
+#endif
+
     // XXX: Is this the right logic to use?  It's not clear to me what the OMX
     // buffer counts refer to - how do they account for the renderer holding on
     // to buffers?
     if (def.nBufferCountActual < def.nBufferCountMin + minUndequeuedBufs) {
         OMX_U32 newBufferCount = def.nBufferCountMin + minUndequeuedBufs;
         def.nBufferCountActual = newBufferCount;
+        ALOGI("NOTE: Allocating %lu buffers on output port",def.nBufferCountActual);
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
         if (err != OK) {
