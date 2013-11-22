@@ -846,7 +846,10 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         }
         // create effect handle and connect it to effect module
         handle = new EffectHandle(effect, client, effectClient, priority);
-        lStatus = effect->addHandle(handle.get());
+        lStatus = handle->initCheck();
+        if (lStatus == OK) {
+            lStatus = effect->addHandle(handle.get());
+        }
         if (enabled != NULL) {
             *enabled = (int)effect->isEnabled();
         }
