@@ -343,6 +343,7 @@ MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
       mDataSource(source),
       mInitCheck(NO_INIT),
       mHasVideo(false),
+      mHeaderTimescale(0),
       mFirstTrack(NULL),
       mLastTrack(NULL),
       mFileMetaData(new MetaData),
@@ -819,6 +820,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('i', 'l', 's', 't'):
         case FOURCC('s', 'i', 'n', 'f'):
         case FOURCC('s', 'c', 'h', 'i'):
+        case FOURCC('e', 'd', 't', 's'):
         {
             if (chunk_type == FOURCC('s', 't', 'b', 'l')) {
                 ALOGV("sampleTable chunk is %d bytes long.", (size_t)chunk_size);
@@ -903,6 +905,68 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return OK;
                 }
             }
+            break;
+        }
+
+        case FOURCC('e', 'l', 's', 't'):
+        {
+            // See 14496-12 8.6.6
+            uint8_t version;
+            if (mDataSource->readAt(data_offset, &version, 1) < 1) {
+                return ERROR_IO;
+            }
+
+            uint32_t entry_count;
+            if (!mDataSource->getUInt32(data_offset + 4, &entry_count)) {
+                return ERROR_IO;
+            }
+
+            if (entry_count != 1) {
+                // we only support a single entry at the moment, for gapless playback
+                ALOGW("ignoring edit list with %d entries", entry_count);
+            } else if (mHeaderTimescale == 0) {
+                ALOGW("ignoring edit list because timescale is 0");
+            } else {
+                off64_t entriesoffset = data_offset + 8;
+                uint64_t segment_duration;
+                int64_t media_time;
+
+                if (version == 1) {
+                    if (!mDataSource->getUInt64(entriesoffset, &segment_duration) ||
+                            !mDataSource->getUInt64(entriesoffset + 8, (uint64_t*)&media_time)) {
+                        return ERROR_IO;
+                    }
+                } else if (version == 0) {
+                    uint32_t sd;
+                    int32_t mt;
+                    if (!mDataSource->getUInt32(entriesoffset, &sd) ||
+                            !mDataSource->getUInt32(entriesoffset + 4, (uint32_t*)&mt)) {
+                        return ERROR_IO;
+                    }
+                    segment_duration = sd;
+                    media_time = mt;
+                } else {
+                    return ERROR_IO;
+                }
+
+                uint64_t halfscale = mHeaderTimescale / 2;
+                segment_duration = (segment_duration * 1000000 + halfscale)/ mHeaderTimescale;
+                media_time = (media_time * 1000000 + halfscale) / mHeaderTimescale;
+
+                int64_t duration;
+                int32_t samplerate;
+                if (mLastTrack->meta->findInt64(kKeyDuration, &duration) &&
+                        mLastTrack->meta->findInt32(kKeySampleRate, &samplerate)) {
+
+                    int64_t delay = (media_time  * samplerate + 500000) / 1000000;
+                    mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
+
+                    int64_t paddingus = duration - (segment_duration + media_time);
+                    int64_t paddingsamples = (paddingus * samplerate + 500000) / 1000000;
+                    mLastTrack->meta->setInt32(kKeyEncoderPadding, paddingsamples);
+                }
+            }
+            *offset += chunk_size;
             break;
         }
 
@@ -1566,24 +1630,26 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('m', 'v', 'h', 'd'):
         {
-            if (chunk_data_size < 12) {
+            if (chunk_data_size < 24) {
                 return ERROR_MALFORMED;
             }
 
-            uint8_t header[12];
+            uint8_t header[24];
             if (mDataSource->readAt(
                         data_offset, header, sizeof(header))
                     < (ssize_t)sizeof(header)) {
                 return ERROR_IO;
             }
 
-            int64_t creationTime;
+            uint64_t creationTime;
             if (header[0] == 1) {
                 creationTime = U64_AT(&header[4]);
+                mHeaderTimescale = U32_AT(&header[20]);
             } else if (header[0] != 0) {
                 return ERROR_MALFORMED;
             } else {
                 creationTime = U32_AT(&header[4]);
+                mHeaderTimescale = U32_AT(&header[12]);
             }
 
             String8 s;
@@ -1877,13 +1943,13 @@ status_t MPEG4Extractor::parseTrackHeader(
         mtime = U64_AT(&buffer[12]);
         id = U32_AT(&buffer[20]);
         duration = U64_AT(&buffer[28]);
-    } else {
-        CHECK_EQ((unsigned)version, 0u);
-
+    } else if (version == 0) {
         ctime = U32_AT(&buffer[4]);
         mtime = U32_AT(&buffer[8]);
         id = U32_AT(&buffer[12]);
         duration = U32_AT(&buffer[20]);
+    } else {
+        return ERROR_UNSUPPORTED;
     }
 
     mLastTrack->meta->setInt32(kKeyTrackID, id);

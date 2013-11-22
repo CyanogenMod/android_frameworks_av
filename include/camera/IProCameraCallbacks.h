@@ -30,6 +30,9 @@ namespace android {
 
 class IProCameraCallbacks : public IInterface
 {
+    /**
+     * Keep up-to-date with IProCameraCallbacks.aidl in frameworks/base
+     */
 public:
     DECLARE_META_INTERFACE(ProCameraCallbacks);
 
@@ -48,7 +51,7 @@ public:
     /** Missing by design: implementation is client-side in ProCamera.cpp **/
     // virtual void onBufferReceived(int streamId,
     //                               const CpuConsumer::LockedBufer& buf);
-    virtual void            onResultReceived(int32_t frameId,
+    virtual void            onResultReceived(int32_t requestId,
                                              camera_metadata* result) = 0;
 };
 

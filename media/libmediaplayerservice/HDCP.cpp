@@ -100,6 +100,20 @@ status_t HDCP::shutdownAsync() {
     return mHDCPModule->shutdownAsync();
 }
 
+uint32_t HDCP::getCaps() {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mHDCPModule == NULL) {
+        return NO_INIT;
+    }
+
+    // TO-DO:
+    // Only support HDCP_CAPS_ENCRYPT (byte-array to byte-array) for now.
+    // use mHDCPModule->getCaps() when the HDCP libraries get updated.
+    //return mHDCPModule->getCaps();
+    return HDCPModule::HDCP_CAPS_ENCRYPT;
+}
+
 status_t HDCP::encrypt(
         const void *inData, size_t size, uint32_t streamCTR,
         uint64_t *outInputCTR, void *outData) {
@@ -114,6 +128,24 @@ status_t HDCP::encrypt(
     }
 
     return mHDCPModule->encrypt(inData, size, streamCTR, outInputCTR, outData);
+}
+
+status_t HDCP::encryptNative(
+        const sp<GraphicBuffer> &graphicBuffer,
+        size_t offset, size_t size, uint32_t streamCTR,
+        uint64_t *outInputCTR, void *outData) {
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK(mIsEncryptionModule);
+
+    if (mHDCPModule == NULL) {
+        *outInputCTR = 0;
+
+        return NO_INIT;
+    }
+
+    return mHDCPModule->encryptNative(graphicBuffer->handle,
+                    offset, size, streamCTR, outInputCTR, outData);
 }
 
 status_t HDCP::decrypt(

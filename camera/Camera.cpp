@@ -39,6 +39,9 @@ Camera::Camera(int cameraId)
 {
 }
 
+CameraTraits<Camera>::TCamConnectService CameraTraits<Camera>::fnConnectService =
+        &ICameraService::connect;
+
 // construct a camera client from an existing camera remote
 sp<Camera> Camera::create(const sp<ICamera>& camera)
 {
@@ -97,13 +100,13 @@ status_t Camera::unlock()
 }
 
 // pass the buffered IGraphicBufferProducer to the camera service
-status_t Camera::setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)
+status_t Camera::setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer)
 {
-    ALOGV("setPreviewTexture(%p)", bufferProducer.get());
+    ALOGV("setPreviewTarget(%p)", bufferProducer.get());
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
     ALOGD_IF(bufferProducer == 0, "app passed NULL surface");
-    return c->setPreviewTexture(bufferProducer);
+    return c->setPreviewTarget(bufferProducer);
 }
 
 // start preview mode
@@ -124,7 +127,7 @@ status_t Camera::storeMetaDataInBuffers(bool enabled)
     return c->storeMetaDataInBuffers(enabled);
 }
 
-// start recording mode, must call setPreviewDisplay first
+// start recording mode, must call setPreviewTarget first
 status_t Camera::startRecording()
 {
     ALOGV("startRecording");
@@ -253,6 +256,14 @@ void Camera::setPreviewCallbackFlags(int flag)
     sp <ICamera> c = mCamera;
     if (c == 0) return;
     mCamera->setPreviewCallbackFlag(flag);
+}
+
+status_t Camera::setPreviewCallbackTarget(
+        const sp<IGraphicBufferProducer>& callbackProducer)
+{
+    sp <ICamera> c = mCamera;
+    if (c == 0) return NO_INIT;
+    return c->setPreviewCallbackTarget(callbackProducer);
 }
 
 // callback from camera service

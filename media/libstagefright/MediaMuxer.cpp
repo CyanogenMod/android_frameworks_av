@@ -103,6 +103,16 @@ status_t MediaMuxer::setOrientationHint(int degrees) {
     return OK;
 }
 
+status_t MediaMuxer::setLocation(int latitude, int longitude) {
+    Mutex::Autolock autoLock(mMuxerLock);
+    if (mState != INITIALIZED) {
+        ALOGE("setLocation() must be called before start().");
+        return INVALID_OPERATION;
+    }
+    ALOGV("Setting location: latitude = %d, longitude = %d", latitude, longitude);
+    return mWriter->setGeoData(latitude, longitude);
+}
+
 status_t MediaMuxer::start() {
     Mutex::Autolock autoLock(mMuxerLock);
     if (mState == INITIALIZED) {

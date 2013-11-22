@@ -54,9 +54,10 @@ template <typename TCam, typename TCamTraits = CameraTraits<TCam> >
 class CameraBase : public IBinder::DeathRecipient
 {
 public:
-    typedef typename TCamTraits::TCamListener    TCamListener;
-    typedef typename TCamTraits::TCamUser        TCamUser;
-    typedef typename TCamTraits::TCamCallbacks   TCamCallbacks;
+    typedef typename TCamTraits::TCamListener       TCamListener;
+    typedef typename TCamTraits::TCamUser           TCamUser;
+    typedef typename TCamTraits::TCamCallbacks      TCamCallbacks;
+    typedef typename TCamTraits::TCamConnectService TCamConnectService;
 
     static sp<TCam>      connect(int cameraId,
                                  const String16& clientPackageName,

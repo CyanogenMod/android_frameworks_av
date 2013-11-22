@@ -58,7 +58,7 @@ public:
 
     status_t start(bool sourceAlreadyStarted = false);
     void pause(bool playPendingSamples = false);
-    void resume();
+    status_t resume();
     status_t seekTo(int64_t time_us);
     bool isSeeking();
     bool reachedEOS(status_t *finalStatus);
@@ -91,7 +91,7 @@ private:
     int64_t mBGAudioStoryBoardCurrentMediaVolumeVal;
 
     sp<MediaSource> mSource;
-    AudioTrack *mAudioTrack;
+    sp<AudioTrack> mAudioTrack;
 
     MediaBuffer *mInputBuffer;
 
@@ -124,7 +124,8 @@ private:
     size_t fillBuffer(void *data, size_t size);
     static size_t AudioSinkCallback(
             MediaPlayerBase::AudioSink *audioSink,
-            void *data, size_t size, void *me);
+            void *data, size_t size, void *me,
+            MediaPlayerBase::AudioSink::cb_event_t event);
 
     void reset();
     void clear();

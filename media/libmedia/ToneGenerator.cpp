@@ -16,13 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ToneGenerator"
-#include <utils/threads.h>
 
-#include <stdio.h>
 #include <math.h>
 #include <utils/Log.h>
-#include <utils/RefBase.h>
-#include <utils/Timers.h>
 #include <cutils/properties.h>
 #include "media/ToneGenerator.h"
 
@@ -803,7 +799,6 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
     ALOGV("ToneGenerator constructor: streamType=%d, volume=%f", streamType, volume);
 
     mState = TONE_IDLE;
-    mpAudioTrack = NULL;
 
     if (AudioSystem::getOutputSamplingRate(&mSamplingRate, streamType) != NO_ERROR) {
         ALOGE("Unable to marshal AudioFlinger");
@@ -855,10 +850,10 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
 ToneGenerator::~ToneGenerator() {
     ALOGV("ToneGenerator destructor");
 
-    if (mpAudioTrack != NULL) {
+    if (mpAudioTrack != 0) {
         stopTone();
-        ALOGV("Delete Track: %p", mpAudioTrack);
-        delete mpAudioTrack;
+        ALOGV("Delete Track: %p", mpAudioTrack.get());
+        mpAudioTrack.clear();
     }
 }
 
@@ -1047,14 +1042,9 @@ void ToneGenerator::stopTone() {
 ////////////////////////////////////////////////////////////////////////////////
 bool ToneGenerator::initAudioTrack() {
 
-    if (mpAudioTrack) {
-        delete mpAudioTrack;
-        mpAudioTrack = NULL;
-    }
-
     // Open audio track in mono, PCM 16bit, default sampling rate, default buffer size
     mpAudioTrack = new AudioTrack();
-    ALOGV("Create Track: %p", mpAudioTrack);
+    ALOGV("Create Track: %p", mpAudioTrack.get());
 
     mpAudioTrack->set(mStreamType,
                       0,    // sampleRate
@@ -1066,7 +1056,9 @@ bool ToneGenerator::initAudioTrack() {
                       this, // user
                       0,    // notificationFrames
                       0,    // sharedBuffer
-                      mThreadCanCallJava);
+                      mThreadCanCallJava,
+                      0,    // sessionId
+                      AudioTrack::TRANSFER_CALLBACK);
 
     if (mpAudioTrack->initCheck() != NO_ERROR) {
         ALOGE("AudioTrack->initCheck failed");
@@ -1081,12 +1073,10 @@ bool ToneGenerator::initAudioTrack() {
 
 initAudioTrack_exit:
 
+    ALOGV("Init failed: %p", mpAudioTrack.get());
+
     // Cleanup
-    if (mpAudioTrack != NULL) {
-        ALOGV("Delete Track I: %p", mpAudioTrack);
-        delete mpAudioTrack;
-        mpAudioTrack = NULL;
-    }
+    mpAudioTrack.clear();
 
     return false;
 }

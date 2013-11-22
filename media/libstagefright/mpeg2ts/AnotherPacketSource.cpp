@@ -32,9 +32,22 @@ const int64_t kNearEOSMarkUs = 2000000ll; // 2 secs
 
 AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
     : mIsAudio(false),
-      mFormat(meta),
+      mFormat(NULL),
       mLastQueuedTimeUs(0),
       mEOSResult(OK) {
+    setFormat(meta);
+}
+
+void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
+    CHECK(mFormat == NULL);
+
+    mIsAudio = false;
+
+    if (meta == NULL) {
+        return;
+    }
+
+    mFormat = meta;
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 
@@ -43,11 +56,6 @@ AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
     } else {
         CHECK(!strncasecmp("video/", mime, 6));
     }
-}
-
-void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
-    CHECK(mFormat == NULL);
-    mFormat = meta;
 }
 
 AnotherPacketSource::~AnotherPacketSource() {
@@ -150,6 +158,15 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     Mutex::Autolock autoLock(mLock);
     mBuffers.push_back(buffer);
     mCondition.signal();
+}
+
+void AnotherPacketSource::clear() {
+    Mutex::Autolock autoLock(mLock);
+
+    mBuffers.clear();
+    mEOSResult = OK;
+
+    mFormat = NULL;
 }
 
 void AnotherPacketSource::queueDiscontinuity(

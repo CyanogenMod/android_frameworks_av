@@ -20,6 +20,8 @@
 
 #include <utils/Log.h>
 
+#include <media/hardware/HardwareAPI.h>
+#include <media/hardware/MetadataBufferType.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
 
@@ -81,6 +83,52 @@ inline static void ConvertSemiPlanarToPlanar(uint8_t *inyuv,
     }
 }
 
+static void ConvertRGB32ToPlanar(
+        const uint8_t *src, uint8_t *dstY, int32_t width, int32_t height) {
+    CHECK((width & 1) == 0);
+    CHECK((height & 1) == 0);
+
+    uint8_t *dstU = dstY + width * height;
+    uint8_t *dstV = dstU + (width / 2) * (height / 2);
+
+    for (int32_t y = 0; y < height; ++y) {
+        for (int32_t x = 0; x < width; ++x) {
+#ifdef SURFACE_IS_BGR32
+            unsigned blue = src[4 * x];
+            unsigned green = src[4 * x + 1];
+            unsigned red= src[4 * x + 2];
+#else
+            unsigned red= src[4 * x];
+            unsigned green = src[4 * x + 1];
+            unsigned blue = src[4 * x + 2];
+#endif
+
+            unsigned luma =
+                ((red * 66 + green * 129 + blue * 25) >> 8) + 16;
+
+            dstY[x] = luma;
+
+            if ((x & 1) == 0 && (y & 1) == 0) {
+                unsigned U =
+                    ((-red * 38 - green * 74 + blue * 112) >> 8) + 128;
+
+                unsigned V =
+                    ((red * 112 - green * 94 - blue * 18) >> 8) + 128;
+
+                dstU[x / 2] = U;
+                dstV[x / 2] = V;
+            }
+        }
+
+        if ((y & 1) == 0) {
+            dstU += width / 2;
+            dstV += width / 2;
+        }
+
+        src += 4 * width;
+        dstY += width;
+    }
+}
 
 SoftVPXEncoder::SoftVPXEncoder(const char *name,
                                const OMX_CALLBACKTYPE *callbacks,
@@ -93,14 +141,17 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mWidth(176),
       mHeight(144),
       mBitrate(192000),  // in bps
+      mBitrateUpdated(false),
       mBitrateControlMode(VPX_VBR),  // variable bitrate
       mFrameDurationUs(33333),  // Defaults to 30 fps
       mDCTPartitions(0),
       mErrorResilience(OMX_FALSE),
       mColorFormat(OMX_COLOR_FormatYUV420Planar),
       mLevel(OMX_VIDEO_VP8Level_Version0),
-      mConversionBuffer(NULL) {
-
+      mConversionBuffer(NULL),
+      mInputDataIsMeta(false),
+      mGrallocModule(NULL),
+      mKeyFrameRequested(false) {
     initPorts();
 }
 
@@ -165,8 +216,8 @@ void SoftVPXEncoder::initPorts() {
     outputPort.eDir = OMX_DirOutput;
     outputPort.nBufferAlignment = kOutputBufferAlignment;
     outputPort.format.video.cMIMEType =
-        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_VPX);
-    outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVPX;
+        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_VP8);
+    outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVP8;
     outputPort.format.video.eColorFormat = OMX_COLOR_FormatUnused;
     outputPort.format.video.pNativeWindow = NULL;
     outputPort.nBufferSize = 256 * 1024;  // arbitrary
@@ -247,7 +298,7 @@ status_t SoftVPXEncoder::initEncoder() {
         return UNKNOWN_ERROR;
     }
 
-    if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
+    if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar || mInputDataIsMeta) {
         if (mConversionBuffer == NULL) {
             mConversionBuffer = (uint8_t *)malloc(mWidth * mHeight * 3 / 2);
             if (mConversionBuffer == NULL) {
@@ -315,7 +366,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
                 formatParams->xFramerate = (1000000/mFrameDurationUs) << 16;
                 return OMX_ErrorNone;
             } else if (formatParams->nPortIndex == kOutputPortIndex) {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingVPX;
+                formatParams->eCompressionFormat = OMX_VIDEO_CodingVP8;
                 formatParams->eColorFormat = OMX_COLOR_FormatUnused;
                 formatParams->xFramerate = 0;
                 return OMX_ErrorNone;
@@ -427,8 +478,16 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetParameter(OMX_INDEXTYPE index,
                 (const OMX_VIDEO_PARAM_BITRATETYPE *)param);
 
         case OMX_IndexParamPortDefinition:
-            return internalSetPortParams(
+        {
+            OMX_ERRORTYPE err = internalSetPortParams(
                 (const OMX_PARAM_PORTDEFINITIONTYPE *)param);
+
+            if (err != OMX_ErrorNone) {
+                return err;
+            }
+
+            return SimpleSoftOMXComponent::internalSetParameter(index, param);
+        }
 
         case OMX_IndexParamVideoPortFormat:
             return internalSetFormatParams(
@@ -442,8 +501,60 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetParameter(OMX_INDEXTYPE index,
             return internalSetProfileLevel(
                 (const OMX_VIDEO_PARAM_PROFILELEVELTYPE *)param);
 
+        case OMX_IndexVendorStartUnused:
+        {
+            // storeMetaDataInBuffers
+            const StoreMetaDataInBuffersParams *storeParam =
+                (const StoreMetaDataInBuffersParams *)param;
+
+            if (storeParam->nPortIndex != kInputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            mInputDataIsMeta = (storeParam->bStoreMetaData == OMX_TRUE);
+
+            return OMX_ErrorNone;
+        }
+
         default:
             return SimpleSoftOMXComponent::internalSetParameter(index, param);
+    }
+}
+
+OMX_ERRORTYPE SoftVPXEncoder::setConfig(
+        OMX_INDEXTYPE index, const OMX_PTR _params) {
+    switch (index) {
+        case OMX_IndexConfigVideoIntraVOPRefresh:
+        {
+            OMX_CONFIG_INTRAREFRESHVOPTYPE *params =
+                (OMX_CONFIG_INTRAREFRESHVOPTYPE *)_params;
+
+            if (params->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            mKeyFrameRequested = params->IntraRefreshVOP;
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexConfigVideoBitrate:
+        {
+            OMX_VIDEO_CONFIG_BITRATETYPE *params =
+                (OMX_VIDEO_CONFIG_BITRATETYPE *)_params;
+
+            if (params->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            if (mBitrate != params->nEncodeBitrate) {
+                mBitrate = params->nEncodeBitrate;
+                mBitrateUpdated = true;
+            }
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return SimpleSoftOMXComponent::setConfig(index, _params);
     }
 }
 
@@ -507,13 +618,17 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetFormatParams(
             format->eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
             format->eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
             mColorFormat = format->eColorFormat;
+
+            OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
+            def->format.video.eColorFormat = mColorFormat;
+
             return OMX_ErrorNone;
         } else {
             ALOGE("Unsupported color format %i", format->eColorFormat);
             return OMX_ErrorUnsupportedSetting;
         }
     } else if (format->nPortIndex == kOutputPortIndex) {
-        if (format->eCompressionFormat == OMX_VIDEO_CodingVPX) {
+        if (format->eCompressionFormat == OMX_VIDEO_CodingVP8) {
             return OMX_ErrorNone;
         } else {
             return OMX_ErrorUnsupportedSetting;
@@ -529,7 +644,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetRoleParams(
     const char* roleText = (const char*)role->cRole;
     const size_t roleTextMaxSize = OMX_MAX_STRINGNAME_SIZE - 1;
 
-    if (strncmp(roleText, "video_encoder.vpx", roleTextMaxSize)) {
+    if (strncmp(roleText, "video_encoder.vp8", roleTextMaxSize)) {
         ALOGE("Unsupported component role");
         return OMX_ErrorBadParameter;
     }
@@ -552,10 +667,16 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
         if (port->format.video.eColorFormat == OMX_COLOR_FormatYUV420Planar ||
             port->format.video.eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
             port->format.video.eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
-                mColorFormat = port->format.video.eColorFormat;
+            mColorFormat = port->format.video.eColorFormat;
         } else {
             return OMX_ErrorUnsupportedSetting;
         }
+
+        OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
+        def->format.video.nFrameWidth = mWidth;
+        def->format.video.nFrameHeight = mHeight;
+        def->format.video.xFramerate = port->format.video.xFramerate;
+        def->format.video.eColorFormat = mColorFormat;
 
         return OMX_ErrorNone;
     } else if (port->nPortIndex == kOutputPortIndex) {
@@ -625,24 +746,78 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
             return;
         }
 
-        uint8_t* source = inputBufferHeader->pBuffer + inputBufferHeader->nOffset;
+        uint8_t *source =
+            inputBufferHeader->pBuffer + inputBufferHeader->nOffset;
 
-        // NOTE: As much as nothing is known about color format
-        // when it is denoted as AndroidOpaque, it is at least
-        // assumed to be planar.
-        if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
-            ConvertSemiPlanarToPlanar(source, mConversionBuffer, mWidth, mHeight);
+        if (mInputDataIsMeta) {
+            CHECK_GE(inputBufferHeader->nFilledLen,
+                     4 + sizeof(buffer_handle_t));
+
+            uint32_t bufferType = *(uint32_t *)source;
+            CHECK_EQ(bufferType, kMetadataBufferTypeGrallocSource);
+
+            if (mGrallocModule == NULL) {
+                CHECK_EQ(0, hw_get_module(
+                            GRALLOC_HARDWARE_MODULE_ID, &mGrallocModule));
+            }
+
+            const gralloc_module_t *grmodule =
+                (const gralloc_module_t *)mGrallocModule;
+
+            buffer_handle_t handle = *(buffer_handle_t *)(source + 4);
+
+            void *bits;
+            CHECK_EQ(0,
+                     grmodule->lock(
+                         grmodule, handle,
+                         GRALLOC_USAGE_SW_READ_OFTEN
+                            | GRALLOC_USAGE_SW_WRITE_NEVER,
+                         0, 0, mWidth, mHeight, &bits));
+
+            ConvertRGB32ToPlanar(
+                    (const uint8_t *)bits, mConversionBuffer, mWidth, mHeight);
+
+            source = mConversionBuffer;
+
+            CHECK_EQ(0, grmodule->unlock(grmodule, handle));
+        } else if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
+            ConvertSemiPlanarToPlanar(
+                    source, mConversionBuffer, mWidth, mHeight);
+
             source = mConversionBuffer;
         }
         vpx_image_t raw_frame;
         vpx_img_wrap(&raw_frame, VPX_IMG_FMT_I420, mWidth, mHeight,
                      kInputBufferAlignment, source);
-        codec_return = vpx_codec_encode(mCodecContext,
-                                        &raw_frame,
-                                        inputBufferHeader->nTimeStamp,  // in timebase units
-                                        mFrameDurationUs,  // frame duration in timebase units
-                                        0,  // frame flags
-                                        VPX_DL_REALTIME);  // encoding deadline
+
+        vpx_enc_frame_flags_t flags = 0;
+        if (mKeyFrameRequested) {
+            flags |= VPX_EFLAG_FORCE_KF;
+            mKeyFrameRequested = false;
+        }
+
+        if (mBitrateUpdated) {
+            mCodecConfiguration->rc_target_bitrate = mBitrate/1000;
+            vpx_codec_err_t res = vpx_codec_enc_config_set(mCodecContext,
+                                                           mCodecConfiguration);
+            if (res != VPX_CODEC_OK) {
+                ALOGE("vp8 encoder failed to update bitrate: %s",
+                      vpx_codec_err_to_string(res));
+                notify(OMX_EventError,
+                       OMX_ErrorUndefined,
+                       0, // Extra notification data
+                       NULL); // Notification data pointer
+            }
+            mBitrateUpdated = false;
+        }
+
+        codec_return = vpx_codec_encode(
+                mCodecContext,
+                &raw_frame,
+                inputBufferHeader->nTimeStamp,  // in timebase units
+                mFrameDurationUs,  // frame duration in timebase units
+                flags,  // frame flags
+                VPX_DL_REALTIME);  // encoding deadline
         if (codec_return != VPX_CODEC_OK) {
             ALOGE("vpx encoder failed to encode frame");
             notify(OMX_EventError,
@@ -660,6 +835,8 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
             if (encoded_packet->kind == VPX_CODEC_CX_FRAME_PKT) {
                 outputBufferHeader->nTimeStamp = encoded_packet->data.frame.pts;
                 outputBufferHeader->nFlags = 0;
+                if (encoded_packet->data.frame.flags & VPX_FRAME_IS_KEY)
+                  outputBufferHeader->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
                 outputBufferHeader->nOffset = 0;
                 outputBufferHeader->nFilledLen = encoded_packet->data.frame.sz;
                 memcpy(outputBufferHeader->pBuffer,
@@ -676,6 +853,17 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
         notifyEmptyBufferDone(inputBufferHeader);
     }
 }
+
+OMX_ERRORTYPE SoftVPXEncoder::getExtensionIndex(
+        const char *name, OMX_INDEXTYPE *index) {
+    if (!strcmp(name, "OMX.google.android.index.storeMetaDataInBuffers")) {
+        *index = OMX_IndexVendorStartUnused;
+        return OMX_ErrorNone;
+    }
+
+    return SimpleSoftOMXComponent::getExtensionIndex(name, index);
+}
+
 }  // namespace android
 
 

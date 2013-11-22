@@ -37,7 +37,7 @@ struct Drm : public BnDrm,
 
     virtual status_t initCheck() const;
 
-    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]);
+    virtual bool isCryptoSchemeSupported(const uint8_t uuid[16], const String8 &mimeType);
 
     virtual status_t createPlugin(const uint8_t uuid[16]);
 

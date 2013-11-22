@@ -31,17 +31,26 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
+#include <binder/IServiceManager.h>
+#include <powermanager/PowerManager.h>
+#include <binder/IPCThreadState.h>
+#include <utils/CallStack.h>
 
 namespace android {
 
 TimedEventQueue::TimedEventQueue()
     : mNextEventID(1),
       mRunning(false),
-      mStopped(false) {
+      mStopped(false),
+      mDeathRecipient(new PMDeathRecipient(this)) {
 }
 
 TimedEventQueue::~TimedEventQueue() {
     stop();
+    if (mPowerManager != 0) {
+        sp<IBinder> binder = mPowerManager->asBinder();
+        binder->unlinkToDeath(mDeathRecipient);
+    }
 }
 
 void TimedEventQueue::start() {
@@ -76,6 +85,11 @@ void TimedEventQueue::stop(bool flush) {
     void *dummy;
     pthread_join(mThread, &dummy);
 
+    // some events may be left in the queue if we did not flush and the wake lock
+    // must be released.
+    if (!mQueue.empty()) {
+        releaseWakeLock_l();
+    }
     mQueue.clear();
 
     mRunning = false;
@@ -117,6 +131,9 @@ TimedEventQueue::event_id TimedEventQueue::postTimedEvent(
         mQueueHeadChangedCondition.signal();
     }
 
+    if (mQueue.empty()) {
+        acquireWakeLock_l();
+    }
     mQueue.insert(it, item);
 
     mQueueNotEmptyCondition.signal();
@@ -172,7 +189,9 @@ void TimedEventQueue::cancelEvents(
 
         (*it).event->setEventID(0);
         it = mQueue.erase(it);
-
+        if (mQueue.empty()) {
+            releaseWakeLock_l();
+        }
         if (stopAfterFirstMatch) {
             return;
         }
@@ -280,7 +299,9 @@ sp<TimedEventQueue::Event> TimedEventQueue::removeEventFromQueue_l(
             event->setEventID(0);
 
             mQueue.erase(it);
-
+            if (mQueue.empty()) {
+                releaseWakeLock_l();
+            }
             return event;
         }
     }
@@ -288,6 +309,61 @@ sp<TimedEventQueue::Event> TimedEventQueue::removeEventFromQueue_l(
     ALOGW("Event %d was not found in the queue, already cancelled?", id);
 
     return NULL;
+}
+
+void TimedEventQueue::acquireWakeLock_l()
+{
+    if (mWakeLockToken != 0) {
+        return;
+    }
+    if (mPowerManager == 0) {
+        // use checkService() to avoid blocking if power service is not up yet
+        sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("power"));
+        if (binder == 0) {
+            ALOGW("cannot connect to the power manager service");
+        } else {
+            mPowerManager = interface_cast<IPowerManager>(binder);
+            binder->linkToDeath(mDeathRecipient);
+        }
+    }
+    if (mPowerManager != 0) {
+        sp<IBinder> binder = new BBinder();
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
+        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                                                         binder,
+                                                         String16("TimedEventQueue"),
+                                                         String16("media"));
+        IPCThreadState::self()->restoreCallingIdentity(token);
+        if (status == NO_ERROR) {
+            mWakeLockToken = binder;
+        }
+    }
+}
+
+void TimedEventQueue::releaseWakeLock_l()
+{
+    if (mWakeLockToken == 0) {
+        return;
+    }
+    if (mPowerManager != 0) {
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
+        mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+        IPCThreadState::self()->restoreCallingIdentity(token);
+    }
+    mWakeLockToken.clear();
+}
+
+void TimedEventQueue::clearPowerManager()
+{
+    Mutex::Autolock _l(mLock);
+    releaseWakeLock_l();
+    mPowerManager.clear();
+}
+
+void TimedEventQueue::PMDeathRecipient::binderDied(const wp<IBinder>& who)
+{
+    mQueue->clearPowerManager();
 }
 
 }  // namespace android

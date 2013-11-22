@@ -42,7 +42,10 @@ MonoPipe::MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock) :
         // mWriteTs
         mSetpoint((reqFrames * 11) / 16),
         mWriteCanBlock(writeCanBlock),
-        mIsShutdown(false)
+        mIsShutdown(false),
+        // mTimestampShared
+        mTimestampMutator(&mTimestampShared),
+        mTimestampObserver(&mTimestampShared)
 {
     CCHelper tmpHelper;
     status_t res;
@@ -308,6 +311,14 @@ void MonoPipe::shutdown(bool newState)
 bool MonoPipe::isShutdown()
 {
     return mIsShutdown;
+}
+
+status_t MonoPipe::getTimestamp(AudioTimestamp& timestamp)
+{
+    if (mTimestampObserver.poll(timestamp)) {
+        return OK;
+    }
+    return INVALID_OPERATION;
 }
 
 }   // namespace android

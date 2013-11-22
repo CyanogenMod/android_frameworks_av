@@ -211,15 +211,22 @@ bool Drm::loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]) {
     return true;
 }
 
-bool Drm::isCryptoSchemeSupported(const uint8_t uuid[16]) {
+bool Drm::isCryptoSchemeSupported(const uint8_t uuid[16], const String8 &mimeType) {
+
     Mutex::Autolock autoLock(mLock);
 
-    if (mFactory && mFactory->isCryptoSchemeSupported(uuid)) {
-        return true;
+    if (!mFactory || !mFactory->isCryptoSchemeSupported(uuid)) {
+        findFactoryForScheme(uuid);
+        if (mInitCheck != OK) {
+            return false;
+        }
     }
 
-    findFactoryForScheme(uuid);
-    return (mInitCheck == OK);
+    if (mimeType != "") {
+        return mFactory->isContentTypeSupported(mimeType);
+    }
+
+    return true;
 }
 
 status_t Drm::createPlugin(const uint8_t uuid[16]) {

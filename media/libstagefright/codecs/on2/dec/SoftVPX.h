@@ -18,12 +18,14 @@
 
 #define SOFT_VPX_H_
 
-#include "SimpleSoftOMXComponent.h"
+#include "SoftVideoDecoderOMXComponent.h"
 
 namespace android {
 
-struct SoftVPX : public SimpleSoftOMXComponent {
+struct SoftVPX : public SoftVideoDecoderOMXComponent {
     SoftVPX(const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component);
@@ -31,36 +33,21 @@ struct SoftVPX : public SimpleSoftOMXComponent {
 protected:
     virtual ~SoftVPX();
 
-    virtual OMX_ERRORTYPE internalGetParameter(
-            OMX_INDEXTYPE index, OMX_PTR params);
-
-    virtual OMX_ERRORTYPE internalSetParameter(
-            OMX_INDEXTYPE index, const OMX_PTR params);
-
     virtual void onQueueFilled(OMX_U32 portIndex);
-    virtual void onPortFlushCompleted(OMX_U32 portIndex);
-    virtual void onPortEnableCompleted(OMX_U32 portIndex, bool enabled);
 
 private:
     enum {
         kNumBuffers = 4
     };
 
+    enum {
+        MODE_VP8,
+        MODE_VP9
+    } mMode;
+
     void *mCtx;
 
-    int32_t mWidth;
-    int32_t mHeight;
-
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
-    void initPorts();
     status_t initDecoder();
-
-    void updatePortDefinitions();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVPX);
 };

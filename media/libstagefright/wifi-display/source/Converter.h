@@ -18,13 +18,12 @@
 
 #define CONVERTER_H_
 
-#include "WifiDisplaySource.h"
-
 #include <media/stagefright/foundation/AHandler.h>
 
 namespace android {
 
 struct ABuffer;
+struct IGraphicBufferProducer;
 struct MediaCodec;
 
 #define ENABLE_SILENCE_DETECTION        0
@@ -33,13 +32,25 @@ struct MediaCodec;
 // media access unit of a different format.
 // Right now this'll convert raw video into H.264 and raw audio into AAC.
 struct Converter : public AHandler {
-    Converter(
-            const sp<AMessage> &notify,
-            const sp<ALooper> &codecLooper,
-            const sp<AMessage> &format,
-            bool usePCMAudio);
+    enum {
+        kWhatAccessUnit,
+        kWhatEOS,
+        kWhatError,
+        kWhatShutdownCompleted,
+    };
 
-    status_t initCheck() const;
+    enum FlagBits {
+        FLAG_USE_SURFACE_INPUT          = 1,
+        FLAG_PREPEND_CSD_IF_NECESSARY   = 2,
+    };
+    Converter(const sp<AMessage> &notify,
+              const sp<ALooper> &codecLooper,
+              const sp<AMessage> &outputFormat,
+              uint32_t flags = 0);
+
+    status_t init();
+
+    sp<IGraphicBufferProducer> getGraphicBufferProducer();
 
     size_t getInputBufferCount() const;
 
@@ -52,21 +63,7 @@ struct Converter : public AHandler {
     void requestIDRFrame();
 
     void dropAFrame();
-
-    enum {
-        kWhatAccessUnit,
-        kWhatEOS,
-        kWhatError,
-    };
-
-    enum {
-        kWhatDoMoreWork,
-        kWhatRequestIDRFrame,
-        kWhatShutdown,
-        kWhatMediaPullerNotify,
-        kWhatEncoderActivity,
-        kWhatDropAFrame,
-    };
+    void suspendEncoding(bool suspend);
 
     void shutdownAsync();
 
@@ -75,22 +72,39 @@ struct Converter : public AHandler {
 
     static int32_t GetInt32Property(const char *propName, int32_t defaultValue);
 
+    enum {
+        // MUST not conflict with private enums below.
+        kWhatMediaPullerNotify = 'pulN',
+    };
+
 protected:
     virtual ~Converter();
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 private:
-    status_t mInitCheck;
+    enum {
+        kWhatDoMoreWork,
+        kWhatRequestIDRFrame,
+        kWhatSuspendEncoding,
+        kWhatShutdown,
+        kWhatEncoderActivity,
+        kWhatDropAFrame,
+        kWhatReleaseOutputBuffer,
+    };
+
     sp<AMessage> mNotify;
     sp<ALooper> mCodecLooper;
-    sp<AMessage> mInputFormat;
-    bool mIsVideo;
-    bool mIsPCMAudio;
     sp<AMessage> mOutputFormat;
+    uint32_t mFlags;
+    bool mIsVideo;
+    bool mIsH264;
+    bool mIsPCMAudio;
     bool mNeedToManuallyPrependSPSPPS;
 
     sp<MediaCodec> mEncoder;
     sp<AMessage> mEncoderActivityNotify;
+
+    sp<IGraphicBufferProducer> mGraphicBufferProducer;
 
     Vector<sp<ABuffer> > mEncoderInputBuffers;
     Vector<sp<ABuffer> > mEncoderOutputBuffers;
@@ -98,6 +112,8 @@ private:
     List<size_t> mAvailEncoderInputIndices;
 
     List<sp<ABuffer> > mInputBufferQueue;
+
+    sp<ABuffer> mCSD0;
 
     bool mDoMoreWorkPending;
 
@@ -111,6 +127,7 @@ private:
     int32_t mPrevVideoBitrate;
 
     int32_t mNumFramesToDrop;
+    bool mEncodingSuspended;
 
     status_t initEncoder();
     void releaseEncoder();
@@ -128,6 +145,8 @@ private:
     status_t feedRawAudioInputBuffers();
 
     static bool IsSilence(const sp<ABuffer> &accessUnit);
+
+    sp<ABuffer> prependCSD(const sp<ABuffer> &accessUnit) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(Converter);
 };

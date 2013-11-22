@@ -24,7 +24,8 @@
 
 namespace android {
 
-VideoFormats::config_t VideoFormats::mConfigs[][32] = {
+// static
+const VideoFormats::config_t VideoFormats::mResolutionTable[][32] = {
     {
         // CEA Resolutions
         { 640, 480, 60, false, 0, 0},
@@ -133,6 +134,8 @@ VideoFormats::config_t VideoFormats::mConfigs[][32] = {
 };
 
 VideoFormats::VideoFormats() {
+    memcpy(mConfigs, mResolutionTable, sizeof(mConfigs));
+
     for (size_t i = 0; i < kNumResolutionTypes; ++i) {
         mResolutionEnabled[i] = 0;
     }
@@ -175,6 +178,29 @@ void VideoFormats::enableAll() {
     }
 }
 
+void VideoFormats::enableResolutionUpto(
+        ResolutionType type, size_t index,
+        ProfileType profile, LevelType level) {
+    size_t width, height, fps, score;
+    bool interlaced;
+    if (!GetConfiguration(type, index, &width, &height,
+            &fps, &interlaced)) {
+        ALOGE("Maximum resolution not found!");
+        return;
+    }
+    score = width * height * fps * (!interlaced + 1);
+    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
+        for (size_t j = 0; j < 32; j++) {
+            if (GetConfiguration((ResolutionType)i, j,
+                    &width, &height, &fps, &interlaced)
+                    && score >= width * height * fps * (!interlaced + 1)) {
+                setResolutionEnabled((ResolutionType)i, j);
+                setProfileLevel((ResolutionType)i, j, profile, level);
+            }
+        }
+    }
+}
+
 void VideoFormats::setResolutionEnabled(
         ResolutionType type, size_t index, bool enabled) {
     CHECK_LT(type, kNumResolutionTypes);
@@ -182,9 +208,54 @@ void VideoFormats::setResolutionEnabled(
 
     if (enabled) {
         mResolutionEnabled[type] |= (1ul << index);
+        mConfigs[type][index].profile = (1ul << PROFILE_CBP);
+        mConfigs[type][index].level = (1ul << LEVEL_31);
     } else {
         mResolutionEnabled[type] &= ~(1ul << index);
+        mConfigs[type][index].profile = 0;
+        mConfigs[type][index].level = 0;
     }
+}
+
+void VideoFormats::setProfileLevel(
+        ResolutionType type, size_t index,
+        ProfileType profile, LevelType level) {
+    CHECK_LT(type, kNumResolutionTypes);
+    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
+
+    mConfigs[type][index].profile = (1ul << profile);
+    mConfigs[type][index].level = (1ul << level);
+}
+
+void VideoFormats::getProfileLevel(
+        ResolutionType type, size_t index,
+        ProfileType *profile, LevelType *level) const{
+    CHECK_LT(type, kNumResolutionTypes);
+    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
+
+    int i, bestProfile = -1, bestLevel = -1;
+
+    for (i = 0; i < kNumProfileTypes; ++i) {
+        if (mConfigs[type][index].profile & (1ul << i)) {
+            bestProfile = i;
+        }
+    }
+
+    for (i = 0; i < kNumLevelTypes; ++i) {
+        if (mConfigs[type][index].level & (1ul << i)) {
+            bestLevel = i;
+        }
+    }
+
+    if (bestProfile == -1 || bestLevel == -1) {
+        ALOGE("Profile or level not set for resolution type %d, index %d",
+              type, index);
+        bestProfile = PROFILE_CBP;
+        bestLevel = LEVEL_31;
+    }
+
+    *profile = (ProfileType) bestProfile;
+    *level = (LevelType) bestLevel;
 }
 
 bool VideoFormats::isResolutionEnabled(
@@ -207,7 +278,7 @@ bool VideoFormats::GetConfiguration(
         return false;
     }
 
-    const config_t *config = &mConfigs[type][index];
+    const config_t *config = &mResolutionTable[type][index];
 
     if (config->width == 0) {
         return false;
@@ -251,9 +322,12 @@ bool VideoFormats::parseH264Codec(const char *spec) {
             if (res[i] & (1ul << j)){
                 mResolutionEnabled[i] |= (1ul << j);
                 if (profile > mConfigs[i][j].profile) {
+                    // prefer higher profile (even if level is lower)
                     mConfigs[i][j].profile = profile;
-                    if (level > mConfigs[i][j].level)
-                        mConfigs[i][j].level = level;
+                    mConfigs[i][j].level = level;
+                } else if (profile == mConfigs[i][j].profile &&
+                           level > mConfigs[i][j].level) {
+                    mConfigs[i][j].level = level;
                 }
             }
         }
@@ -262,8 +336,50 @@ bool VideoFormats::parseH264Codec(const char *spec) {
     return true;
 }
 
+// static
+bool VideoFormats::GetProfileLevel(
+        ProfileType profile, LevelType level, unsigned *profileIdc,
+        unsigned *levelIdc, unsigned *constraintSet) {
+    CHECK_LT(profile, kNumProfileTypes);
+    CHECK_LT(level, kNumLevelTypes);
+
+    static const unsigned kProfileIDC[kNumProfileTypes] = {
+        66,     // PROFILE_CBP
+        100,    // PROFILE_CHP
+    };
+
+    static const unsigned kLevelIDC[kNumLevelTypes] = {
+        31,     // LEVEL_31
+        32,     // LEVEL_32
+        40,     // LEVEL_40
+        41,     // LEVEL_41
+        42,     // LEVEL_42
+    };
+
+    static const unsigned kConstraintSet[kNumProfileTypes] = {
+        0xc0,   // PROFILE_CBP
+        0x0c,   // PROFILE_CHP
+    };
+
+    if (profileIdc) {
+        *profileIdc = kProfileIDC[profile];
+    }
+
+    if (levelIdc) {
+        *levelIdc = kLevelIDC[level];
+    }
+
+    if (constraintSet) {
+        *constraintSet = kConstraintSet[profile];
+    }
+
+    return true;
+}
+
 bool VideoFormats::parseFormatSpec(const char *spec) {
     CHECK_EQ(kNumResolutionTypes, 3);
+
+    disableAll();
 
     unsigned native, dummy;
     unsigned res[3];
@@ -320,8 +436,10 @@ AString VideoFormats::getFormatSpec(bool forM4Message) const {
     //   max-vres (none or 2 byte)
 
     return StringPrintf(
-            "%02x 00 02 02 %08x %08x %08x 00 0000 0000 00 none none",
+            "%02x 00 %02x %02x %08x %08x %08x 00 0000 0000 00 none none",
             forM4Message ? 0x00 : ((mNativeIndex << 3) | mNativeType),
+            mConfigs[mNativeType][mNativeIndex].profile,
+            mConfigs[mNativeType][mNativeIndex].level,
             mResolutionEnabled[0],
             mResolutionEnabled[1],
             mResolutionEnabled[2]);
@@ -332,7 +450,9 @@ bool VideoFormats::PickBestFormat(
         const VideoFormats &sinkSupported,
         const VideoFormats &sourceSupported,
         ResolutionType *chosenType,
-        size_t *chosenIndex) {
+        size_t *chosenIndex,
+        ProfileType *chosenProfile,
+        LevelType *chosenLevel) {
 #if 0
     // Support for the native format is a great idea, the spec includes
     // these features, but nobody supports it and the tests don't validate it.
@@ -411,6 +531,18 @@ bool VideoFormats::PickBestFormat(
 
     *chosenType = (ResolutionType)bestType;
     *chosenIndex = bestIndex;
+
+    // Pick the best profile/level supported by both sink and source.
+    ProfileType srcProfile, sinkProfile;
+    LevelType srcLevel, sinkLevel;
+    sourceSupported.getProfileLevel(
+                        (ResolutionType)bestType, bestIndex,
+                        &srcProfile, &srcLevel);
+    sinkSupported.getProfileLevel(
+                        (ResolutionType)bestType, bestIndex,
+                        &sinkProfile, &sinkLevel);
+    *chosenProfile = srcProfile < sinkProfile ? srcProfile : sinkProfile;
+    *chosenLevel = srcLevel < sinkLevel ? srcLevel : sinkLevel;
 
     return true;
 }

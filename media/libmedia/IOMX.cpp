@@ -43,6 +43,7 @@ enum {
     CREATE_INPUT_SURFACE,
     SIGNAL_END_OF_INPUT_STREAM,
     STORE_META_DATA_IN_BUFFERS,
+    PREPARE_FOR_ADAPTIVE_PLAYBACK,
     ALLOC_BUFFER,
     ALLOC_BUFFER_WITH_BACKUP,
     FREE_BUFFER,
@@ -51,6 +52,8 @@ enum {
     GET_EXTENSION_INDEX,
     OBSERVER_ON_MSG,
     GET_GRAPHIC_BUFFER_USAGE,
+    SET_INTERNAL_OPTION,
+    UPDATE_GRAPHIC_BUFFER_IN_META,
 };
 
 class BpOMX : public BpInterface<IOMX> {
@@ -282,6 +285,21 @@ public:
         return err;
     }
 
+    virtual status_t updateGraphicBufferInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        data.writeInt32(port_index);
+        data.write(*graphicBuffer);
+        data.writeIntPtr((intptr_t)buffer);
+        remote()->transact(UPDATE_GRAPHIC_BUFFER_IN_META, data, &reply);
+
+        status_t err = reply.readInt32();
+        return err;
+    }
+
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer) {
@@ -329,6 +347,22 @@ public:
         data.writeInt32(port_index);
         data.writeInt32((uint32_t)enable);
         remote()->transact(STORE_META_DATA_IN_BUFFERS, data, &reply);
+
+        status_t err = reply.readInt32();
+        return err;
+    }
+
+    virtual status_t prepareForAdaptivePlayback(
+            node_id node, OMX_U32 port_index, OMX_BOOL enable,
+            OMX_U32 max_width, OMX_U32 max_height) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        data.writeInt32(port_index);
+        data.writeInt32((int32_t)enable);
+        data.writeInt32(max_width);
+        data.writeInt32(max_height);
+        remote()->transact(PREPARE_FOR_ADAPTIVE_PLAYBACK, data, &reply);
 
         status_t err = reply.readInt32();
         return err;
@@ -439,6 +473,24 @@ public:
 
         return err;
     }
+
+    virtual status_t setInternalOption(
+            node_id node,
+            OMX_U32 port_index,
+            InternalOptionType type,
+            const void *optionData,
+            size_t size) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeIntPtr((intptr_t)node);
+        data.writeInt32(port_index);
+        data.writeInt32(size);
+        data.write(optionData, size);
+        data.writeInt32(type);
+        remote()->transact(SET_INTERNAL_OPTION, data, &reply);
+
+        return reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(OMX, "android.hardware.IOMX");
@@ -537,6 +589,7 @@ status_t BnOMX::onTransact(
         case SET_PARAMETER:
         case GET_CONFIG:
         case SET_CONFIG:
+        case SET_INTERNAL_OPTION:
         {
             CHECK_OMX_INTERFACE(IOMX, data, reply);
 
@@ -562,6 +615,15 @@ status_t BnOMX::onTransact(
                 case SET_CONFIG:
                     err = setConfig(node, index, params, size);
                     break;
+                case SET_INTERNAL_OPTION:
+                {
+                    InternalOptionType type =
+                        (InternalOptionType)data.readInt32();
+
+                    err = setInternalOption(node, index, type, params, size);
+                    break;
+                }
+
                 default:
                     TRESPASS();
             }
@@ -662,6 +724,23 @@ status_t BnOMX::onTransact(
             return NO_ERROR;
         }
 
+        case UPDATE_GRAPHIC_BUFFER_IN_META:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (void*)data.readIntPtr();
+            OMX_U32 port_index = data.readInt32();
+            sp<GraphicBuffer> graphicBuffer = new GraphicBuffer();
+            data.read(*graphicBuffer);
+            buffer_id buffer = (void*)data.readIntPtr();
+
+            status_t err = updateGraphicBufferInMeta(
+                    node, port_index, graphicBuffer, buffer);
+            reply->writeInt32(err);
+
+            return NO_ERROR;
+        }
+
         case CREATE_INPUT_SURFACE:
         {
             CHECK_OMX_INTERFACE(IOMX, data, reply);
@@ -703,6 +782,23 @@ status_t BnOMX::onTransact(
             OMX_BOOL enable = (OMX_BOOL)data.readInt32();
 
             status_t err = storeMetaDataInBuffers(node, port_index, enable);
+            reply->writeInt32(err);
+
+            return NO_ERROR;
+        }
+
+        case PREPARE_FOR_ADAPTIVE_PLAYBACK:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (void*)data.readIntPtr();
+            OMX_U32 port_index = data.readInt32();
+            OMX_BOOL enable = (OMX_BOOL)data.readInt32();
+            OMX_U32 max_width = data.readInt32();
+            OMX_U32 max_height = data.readInt32();
+
+            status_t err = prepareForAdaptivePlayback(
+                    node, port_index, enable, max_width, max_height);
             reply->writeInt32(err);
 
             return NO_ERROR;

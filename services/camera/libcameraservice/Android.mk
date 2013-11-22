@@ -8,29 +8,32 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
     CameraService.cpp \
-    CameraClient.cpp \
-    Camera2Client.cpp \
-    ProCamera2Client.cpp \
-    Camera2ClientBase.cpp \
-    CameraDeviceBase.cpp \
-    Camera2Device.cpp \
-    Camera3Device.cpp \
-    camera2/Parameters.cpp \
-    camera2/FrameProcessor.cpp \
-    camera2/StreamingProcessor.cpp \
-    camera2/JpegProcessor.cpp \
-    camera2/CallbackProcessor.cpp \
-    camera2/ZslProcessor.cpp \
-    camera2/BurstCapture.cpp \
-    camera2/JpegCompressor.cpp \
-    camera2/CaptureSequencer.cpp \
-    camera2/ProFrameProcessor.cpp \
-    camera2/ZslProcessor3.cpp \
-    camera3/Camera3Stream.cpp \
-    camera3/Camera3IOStreamBase.cpp \
-    camera3/Camera3InputStream.cpp \
-    camera3/Camera3OutputStream.cpp \
-    camera3/Camera3ZslStream.cpp \
+    CameraDeviceFactory.cpp \
+    common/Camera2ClientBase.cpp \
+    common/CameraDeviceBase.cpp \
+    common/FrameProcessorBase.cpp \
+    api1/CameraClient.cpp \
+    api1/Camera2Client.cpp \
+    api1/client2/Parameters.cpp \
+    api1/client2/FrameProcessor.cpp \
+    api1/client2/StreamingProcessor.cpp \
+    api1/client2/JpegProcessor.cpp \
+    api1/client2/CallbackProcessor.cpp \
+    api1/client2/ZslProcessor.cpp \
+    api1/client2/BurstCapture.cpp \
+    api1/client2/JpegCompressor.cpp \
+    api1/client2/CaptureSequencer.cpp \
+    api1/client2/ZslProcessor3.cpp \
+    api2/CameraDeviceClient.cpp \
+    api_pro/ProCamera2Client.cpp \
+    device2/Camera2Device.cpp \
+    device3/Camera3Device.cpp \
+    device3/Camera3Stream.cpp \
+    device3/Camera3IOStreamBase.cpp \
+    device3/Camera3InputStream.cpp \
+    device3/Camera3OutputStream.cpp \
+    device3/Camera3ZslStream.cpp \
+    device3/StatusTracker.cpp \
     gui/RingBufferConsumer.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \

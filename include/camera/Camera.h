@@ -51,7 +51,13 @@ struct CameraTraits<Camera>
     typedef CameraListener        TCamListener;
     typedef ICamera               TCamUser;
     typedef ICameraClient         TCamCallbacks;
+    typedef status_t (ICameraService::*TCamConnectService)(const sp<ICameraClient>&,
+                                                           int, const String16&, int,
+                                                           /*out*/
+                                                           sp<ICamera>&);
+    static TCamConnectService     fnConnectService;
 };
+
 
 class Camera :
     public CameraBase<Camera>,
@@ -75,9 +81,9 @@ public:
             status_t    unlock();
 
             // pass the buffered IGraphicBufferProducer to the camera service
-            status_t    setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer);
+            status_t    setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer);
 
-            // start preview mode, must call setPreviewDisplay first
+            // start preview mode, must call setPreviewTarget first
             status_t    startPreview();
 
             // stop preview mode
@@ -86,7 +92,7 @@ public:
             // get preview state
             bool        previewEnabled();
 
-            // start recording mode, must call setPreviewDisplay first
+            // start recording mode, must call setPreviewTarget first
             status_t    startRecording();
 
             // stop recording mode
@@ -121,7 +127,15 @@ public:
 
             void        setListener(const sp<CameraListener>& listener);
             void        setRecordingProxyListener(const sp<ICameraRecordingProxyListener>& listener);
+
+            // Configure preview callbacks to app. Only one of the older
+            // callbacks or the callback surface can be active at the same time;
+            // enabling one will disable the other if active. Flags can be
+            // disabled by calling it with CAMERA_FRAME_CALLBACK_FLAG_NOOP, and
+            // Target by calling it with a NULL interface.
             void        setPreviewCallbackFlags(int preview_callback_flag);
+            status_t    setPreviewCallbackTarget(
+                    const sp<IGraphicBufferProducer>& callbackProducer);
 
             sp<ICameraRecordingProxy> getRecordingProxy();
 

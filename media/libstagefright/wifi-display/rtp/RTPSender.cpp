@@ -20,11 +20,10 @@
 
 #include "RTPSender.h"
 
-#include "ANetworkSession.h"
-
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
@@ -767,6 +766,17 @@ status_t RTPSender::parseTSFB(const uint8_t *data, size_t size) {
 }
 
 status_t RTPSender::parseAPP(const uint8_t *data, size_t size) {
+    if (!memcmp("late", &data[8], 4)) {
+        int64_t avgLatencyUs = (int64_t)U64_AT(&data[12]);
+        int64_t maxLatencyUs = (int64_t)U64_AT(&data[20]);
+
+        sp<AMessage> notify = mNotify->dup();
+        notify->setInt32("what", kWhatInformSender);
+        notify->setInt64("avgLatencyUs", avgLatencyUs);
+        notify->setInt64("maxLatencyUs", maxLatencyUs);
+        notify->post();
+    }
+
     return OK;
 }
 

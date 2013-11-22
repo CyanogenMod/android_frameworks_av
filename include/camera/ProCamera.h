@@ -25,6 +25,7 @@
 #include <camera/IProCameraUser.h>
 #include <camera/Camera.h>
 #include <camera/CameraMetadata.h>
+#include <camera/ICameraService.h>
 #include <gui/CpuConsumer.h>
 
 #include <gui/Surface.h>
@@ -87,7 +88,13 @@ struct CameraTraits<ProCamera>
     typedef ProCameraListener     TCamListener;
     typedef IProCameraUser        TCamUser;
     typedef IProCameraCallbacks   TCamCallbacks;
+    typedef status_t (ICameraService::*TCamConnectService)(const sp<IProCameraCallbacks>&,
+                                                           int, const String16&, int,
+                                                           /*out*/
+                                                           sp<IProCameraUser>&);
+    static TCamConnectService     fnConnectService;
 };
+
 
 class ProCamera :
     public CameraBase<ProCamera>,
@@ -245,7 +252,7 @@ protected:
     virtual void        onLockStatusChanged(
                                 IProCameraCallbacks::LockStatus newLockStatus);
 
-    virtual void        onResultReceived(int32_t frameId,
+    virtual void        onResultReceived(int32_t requestId,
                                          camera_metadata* result);
 private:
     ProCamera(int cameraId);

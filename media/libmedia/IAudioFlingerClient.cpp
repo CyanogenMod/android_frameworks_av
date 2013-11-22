@@ -54,7 +54,7 @@ public:
                     (const AudioSystem::OutputDescriptor *)param2;
             data.writeInt32(desc->samplingRate);
             data.writeInt32(desc->format);
-            data.writeInt32(desc->channels);
+            data.writeInt32(desc->channelMask);
             data.writeInt32(desc->frameCount);
             data.writeInt32(desc->latency);
         }
@@ -83,8 +83,8 @@ status_t BnAudioFlingerClient::onTransact(
                 ALOGV("STREAM_CONFIG_CHANGED stream %d", stream);
             } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED) {
                 desc.samplingRate = data.readInt32();
-                desc.format = data.readInt32();
-                desc.channels = data.readInt32();
+                desc.format = (audio_format_t) data.readInt32();
+                desc.channelMask = (audio_channel_mask_t) data.readInt32();
                 desc.frameCount = data.readInt32();
                 desc.latency = data.readInt32();
                 param2 = &desc;

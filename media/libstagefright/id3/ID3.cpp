@@ -30,12 +30,55 @@ namespace android {
 
 static const size_t kMaxMetadataSize = 3 * 1024 * 1024;
 
+struct MemorySource : public DataSource {
+    MemorySource(const uint8_t *data, size_t size)
+        : mData(data),
+          mSize(size) {
+    }
+
+    virtual status_t initCheck() const {
+        return OK;
+    }
+
+    virtual ssize_t readAt(off64_t offset, void *data, size_t size) {
+        off64_t available = (offset >= mSize) ? 0ll : mSize - offset;
+
+        size_t copy = (available > size) ? size : available;
+        memcpy(data, mData + offset, copy);
+
+        return copy;
+    }
+
+private:
+    const uint8_t *mData;
+    size_t mSize;
+
+    DISALLOW_EVIL_CONSTRUCTORS(MemorySource);
+};
+
 ID3::ID3(const sp<DataSource> &source, bool ignoreV1)
     : mIsValid(false),
       mData(NULL),
       mSize(0),
       mFirstFrameOffset(0),
-      mVersion(ID3_UNKNOWN) {
+      mVersion(ID3_UNKNOWN),
+      mRawSize(0) {
+    mIsValid = parseV2(source);
+
+    if (!mIsValid && !ignoreV1) {
+        mIsValid = parseV1(source);
+    }
+}
+
+ID3::ID3(const uint8_t *data, size_t size, bool ignoreV1)
+    : mIsValid(false),
+      mData(NULL),
+      mSize(0),
+      mFirstFrameOffset(0),
+      mVersion(ID3_UNKNOWN),
+      mRawSize(0) {
+    sp<MemorySource> source = new MemorySource(data, size);
+
     mIsValid = parseV2(source);
 
     if (!mIsValid && !ignoreV1) {
@@ -140,6 +183,7 @@ struct id3_header {
     }
 
     mSize = size;
+    mRawSize = mSize + sizeof(header);
 
     if (source->readAt(sizeof(header), mData, mSize) != (ssize_t)mSize) {
         free(mData);
@@ -313,17 +357,22 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
         }
 
         if (flags & 2) {
-            // Unsynchronization added.
+            // This file has "unsynchronization", so we have to replace occurrences
+            // of 0xff 0x00 with just 0xff in order to get the real data.
 
+            size_t readOffset = offset + 11;
+            size_t writeOffset = offset + 11;
             for (size_t i = 0; i + 1 < dataSize; ++i) {
-                if (mData[offset + 10 + i] == 0xff
-                        && mData[offset + 11 + i] == 0x00) {
-                    memmove(&mData[offset + 11 + i], &mData[offset + 12 + i],
-                            mSize - offset - 12 - i);
+                if (mData[readOffset - 1] == 0xff
+                        && mData[readOffset] == 0x00) {
+                    ++readOffset;
                     --mSize;
                     --dataSize;
                 }
+                mData[writeOffset++] = mData[readOffset++];
             }
+            // move the remaining data following this frame
+            memmove(&mData[writeOffset], &mData[readOffset], oldSize - readOffset);
 
             flags &= ~2;
         }
@@ -505,7 +554,7 @@ void ID3::Iterator::getstring(String8 *id, bool otherdata) const {
         int32_t i = n - 4;
         while(--i >= 0 && *++frameData != 0) ;
         int skipped = (frameData - mFrameData);
-        if (skipped >= n) {
+        if (skipped >= (int)n) {
             return;
         }
         n -= skipped;

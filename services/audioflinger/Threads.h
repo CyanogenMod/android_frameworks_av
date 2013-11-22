@@ -28,7 +28,8 @@ public:
         MIXER,              // Thread class is MixerThread
         DIRECT,             // Thread class is DirectOutputThread
         DUPLICATING,        // Thread class is DuplicatingThread
-        RECORD              // Thread class is RecordThread
+        RECORD,             // Thread class is RecordThread
+        OFFLOAD             // Thread class is OffloadThread
     };
 
     ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
@@ -125,10 +126,9 @@ public:
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
                 audio_format_t format() const { return mFormat; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
-                // and returns the normal mix buffer's frame count.
-                size_t      frameCount() const { return mNormalFrameCount; }
-                // Return's the HAL's frame count i.e. fast mixer buffer size.
-                size_t      frameCountHAL() const { return mFrameCount; }
+                // and returns the [normal mix] buffer's frame count.
+    virtual     size_t      frameCount() const = 0;
+                size_t      frameSize() const { return mFrameSize; }
 
     // Should be "virtual status_t requestExitAndWait()" and override same
     // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
@@ -184,6 +184,8 @@ public:
                 void lockEffectChains_l(Vector< sp<EffectChain> >& effectChains);
                 // unlock effect chains after process
                 void unlockEffectChains(const Vector< sp<EffectChain> >& effectChains);
+                // get a copy of mEffectChains vector
+                Vector< sp<EffectChain> > getEffectChains_l() const { return mEffectChains; };
                 // set audio mode to all effect chains
                 void setMode(audio_mode_t mode);
                 // get effect module with corresponding ID on specified audio session
@@ -235,8 +237,8 @@ protected:
                     effect_uuid_t mType;    // effect type UUID
                 };
 
-                void        acquireWakeLock();
-                void        acquireWakeLock_l();
+                void        acquireWakeLock(int uid = -1);
+                void        acquireWakeLock_l(int uid = -1);
                 void        releaseWakeLock();
                 void        releaseWakeLock_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
@@ -249,6 +251,8 @@ protected:
                 // check if some effects must be suspended when an effect chain is added
                 void checkSuspendOnAddEffectChain_l(const sp<EffectChain>& chain);
 
+                String16 getWakeLockTag();
+
     virtual     void        preExit() { }
 
     friend class AudioFlinger;      // for mEffectChains
@@ -259,11 +263,13 @@ protected:
                 Condition               mWaitWorkCV;
 
                 const sp<AudioFlinger>  mAudioFlinger;
+
+                // updated by PlaybackThread::readOutputParameters() or
+                // RecordThread::readInputParameters()
                 uint32_t                mSampleRate;
                 size_t                  mFrameCount;       // output HAL, direct output, record
-                size_t                  mNormalFrameCount; // normal mixer and effects
                 audio_channel_mask_t    mChannelMask;
-                uint16_t                mChannelCount;
+                uint32_t                mChannelCount;
                 size_t                  mFrameSize;
                 audio_format_t          mFormat;
 
@@ -290,6 +296,7 @@ protected:
                 Vector<String8>         mNewParameters;
                 status_t                mParamStatus;
 
+                // vector owns each ConfigEvent *, so must delete after removing
                 Vector<ConfigEvent *>     mConfigEvents;
 
                 // These fields are written and read by thread itself without lock or barrier,
@@ -328,10 +335,18 @@ public:
     enum mixer_state {
         MIXER_IDLE,             // no active tracks
         MIXER_TRACKS_ENABLED,   // at least one active track, but no track has any data ready
-        MIXER_TRACKS_READY      // at least one active track, and at least one track has data
+        MIXER_TRACKS_READY,      // at least one active track, and at least one track has data
+        MIXER_DRAIN_TRACK,      // drain currently playing track
+        MIXER_DRAIN_ALL,        // fully drain the hardware
         // standby mode does not have an enum value
         // suspend by audio policy manager is orthogonal to mixer state
     };
+
+    // retry count before removing active track in case of underrun on offloaded thread:
+    // we need to make sure that AudioTrack client has enough time to send large buffers
+//FIXME may be more appropriate if expressed in time units. Need to revise how underrun is handled
+    // for offloaded tracks
+    static const int8_t kMaxTrackRetriesOffload = 20;
 
     PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                    audio_io_handle_t id, audio_devices_t device, type_t type);
@@ -350,8 +365,10 @@ protected:
     // Code snippets that were lifted up out of threadLoop()
     virtual     void        threadLoop_mix() = 0;
     virtual     void        threadLoop_sleepTime() = 0;
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
+    virtual     void        threadLoop_drain();
     virtual     void        threadLoop_standby();
+    virtual     void        threadLoop_exit();
     virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
 
                 // prepareTracks_l reads and writes mActiveTracks, and returns
@@ -359,6 +376,19 @@ protected:
                 // is responsible for clearing or destroying this Vector later on, when it
                 // is safe to do so. That will drop the final ref count and destroy the tracks.
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove) = 0;
+                void        removeTracks_l(const Vector< sp<Track> >& tracksToRemove);
+
+                void        writeCallback();
+                void        resetWriteBlocked(uint32_t sequence);
+                void        drainCallback();
+                void        resetDraining(uint32_t sequence);
+
+    static      int         asyncCallback(stream_callback_event_t event, void *param, void *cookie);
+
+    virtual     bool        waitingAsyncCallback();
+    virtual     bool        waitingAsyncCallback_l();
+    virtual     bool        shouldStandby_l();
+
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -429,11 +459,23 @@ public:
 
                 virtual status_t setSyncEvent(const sp<SyncEvent>& event);
                 virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
+
+                // called with AudioFlinger lock held
                         void     invalidateTracks(audio_stream_type_t streamType);
 
+    virtual     size_t      frameCount() const { return mNormalFrameCount; }
+
+                // Return's the HAL's frame count i.e. fast mixer buffer size.
+                size_t      frameCountHAL() const { return mFrameCount; }
+
+                status_t         getTimestamp_l(AudioTimestamp& timestamp);
 
 protected:
-    int16_t*                        mMixBuffer;
+    // updated by readOutputParameters()
+    size_t                          mNormalFrameCount;  // normal mixer and effects
+
+    int16_t*                        mMixBuffer;         // frame size aligned mix buffer
+    int8_t*                         mAllocMixBuffer;    // mixer buffer allocation address
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
@@ -486,8 +528,9 @@ private:
     PlaybackThread& operator = (const PlaybackThread&);
 
     status_t    addTrack_l(const sp<Track>& track);
-    void        destroyTrack_l(const sp<Track>& track);
+    bool        destroyTrack_l(const sp<Track>& track);
     void        removeTrack_l(const sp<Track>& track);
+    void        broadcast_l();
 
     void        readOutputParameters();
 
@@ -535,6 +578,27 @@ private:
     // DUPLICATING only
     uint32_t                        writeFrames;
 
+    size_t                          mBytesRemaining;
+    size_t                          mCurrentWriteLength;
+    bool                            mUseAsyncWrite;
+    // mWriteAckSequence contains current write sequence on bits 31-1. The write sequence is
+    // incremented each time a write(), a flush() or a standby() occurs.
+    // Bit 0 is set when a write blocks and indicates a callback is expected.
+    // Bit 0 is reset by the async callback thread calling resetWriteBlocked(). Out of sequence
+    // callbacks are ignored.
+    uint32_t                        mWriteAckSequence;
+    // mDrainSequence contains current drain sequence on bits 31-1. The drain sequence is
+    // incremented each time a drain is requested or a flush() or standby() occurs.
+    // Bit 0 is set when the drain() command is called at the HAL and indicates a callback is
+    // expected.
+    // Bit 0 is reset by the async callback thread calling resetDraining(). Out of sequence
+    // callbacks are ignored.
+    uint32_t                        mDrainSequence;
+    // A condition that must be evaluated by prepareTrack_l() has changed and we must not wait
+    // for async write callback in the thread loop before evaluating it
+    bool                            mSignalPending;
+    sp<AsyncCallbackThread>         mCallbackThread;
+
 private:
     // The HAL output sink is treated as non-blocking, but current implementation is blocking
     sp<NBAIO_Sink>          mOutputSink;
@@ -558,7 +622,18 @@ public:
 protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
+    virtual     void        flushOutput_l();
 
+private:
+    // timestamp latch:
+    //  D input is written by threadLoop_write while mutex is unlocked, and read while locked
+    //  Q output is written while locked, and read while locked
+    struct {
+        AudioTimestamp  mTimestamp;
+        uint32_t        mUnpresentedFrames;
+    } mLatchD, mLatchQ;
+    bool mLatchDValid;  // true means mLatchD is valid, and clock it into latch at next opportunity
+    bool mLatchQValid;  // true means mLatchQ is valid
 };
 
 class MixerThread : public PlaybackThread {
@@ -584,7 +659,7 @@ protected:
     virtual     void        cacheParameters_l();
 
     // threadLoop snippets
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
     virtual     void        threadLoop_standby();
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
@@ -641,15 +716,79 @@ protected:
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
 
-private:
     // volumes last sent to audio HAL with stream->set_volume()
     float mLeftVolFloat;
     float mRightVolFloat;
+
+    DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                        audio_io_handle_t id, uint32_t device, ThreadBase::type_t type);
+    void processVolume_l(Track *track, bool lastTrack);
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
     sp<Track>               mActiveTrack;
 public:
     virtual     bool        hasFastMixer() const { return false; }
+};
+
+class OffloadThread : public DirectOutputThread {
+public:
+
+    OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
+                        audio_io_handle_t id, uint32_t device);
+    virtual                 ~OffloadThread();
+
+protected:
+    // threadLoop snippets
+    virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
+    virtual     void        threadLoop_exit();
+    virtual     void        flushOutput_l();
+
+    virtual     bool        waitingAsyncCallback();
+    virtual     bool        waitingAsyncCallback_l();
+    virtual     bool        shouldStandby_l();
+
+private:
+                void        flushHw_l();
+
+private:
+    bool        mHwPaused;
+    bool        mFlushPending;
+    size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
+    size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
+    sp<Track>   mPreviousTrack;         // used to detect track switch
+};
+
+class AsyncCallbackThread : public Thread {
+public:
+
+    AsyncCallbackThread(const wp<PlaybackThread>& playbackThread);
+
+    virtual             ~AsyncCallbackThread();
+
+    // Thread virtuals
+    virtual bool        threadLoop();
+
+    // RefBase
+    virtual void        onFirstRef();
+
+            void        exit();
+            void        setWriteBlocked(uint32_t sequence);
+            void        resetWriteBlocked();
+            void        setDraining(uint32_t sequence);
+            void        resetDraining();
+
+private:
+    const wp<PlaybackThread>   mPlaybackThread;
+    // mWriteAckSequence corresponds to the last write sequence passed by the offload thread via
+    // setWriteBlocked(). The sequence is shifted one bit to the left and the lsb is used
+    // to indicate that the callback has been received via resetWriteBlocked()
+    uint32_t                   mWriteAckSequence;
+    // mDrainSequence corresponds to the last drain sequence passed by the offload thread via
+    // setDraining(). The sequence is shifted one bit to the left and the lsb is used
+    // to indicate that the callback has been received via resetDraining()
+    uint32_t                   mDrainSequence;
+    Condition                  mWaitWorkCV;
+    Mutex                      mLock;
 };
 
 class DuplicatingThread : public MixerThread {
@@ -671,7 +810,7 @@ protected:
     // threadLoop snippets
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
-    virtual     void        threadLoop_write();
+    virtual     ssize_t     threadLoop_write();
     virtual     void        threadLoop_standby();
     virtual     void        cacheParameters_l();
 
@@ -734,7 +873,7 @@ public:
                     audio_channel_mask_t channelMask,
                     size_t frameCount,
                     int sessionId,
-                    IAudioFlinger::track_flags_t flags,
+                    IAudioFlinger::track_flags_t *flags,
                     pid_t tid,
                     status_t *status);
 
@@ -744,7 +883,7 @@ public:
 
             // ask the thread to stop the specified track, and
             // return true if the caller should then do it's part of the stopping process
-            bool        stop_l(RecordTrack* recordTrack);
+            bool        stop(RecordTrack* recordTrack);
 
             void        dump(int fd, const Vector<String16>& args);
             AudioStreamIn* clearInput();
@@ -775,6 +914,9 @@ public:
     static void syncStartEventCallback(const wp<SyncEvent>& event);
            void handleSyncStartEvent(const sp<SyncEvent>& event);
 
+    virtual size_t      frameCount() const { return mFrameCount; }
+            bool        hasFastRecorder() const { return false; }
+
 private:
             void clearSyncStartEvent();
 
@@ -790,11 +932,14 @@ private:
             // is used together with mStartStopCond to indicate start()/stop() progress
             sp<RecordTrack>                     mActiveTrack;
             Condition                           mStartStopCond;
+
+            // updated by RecordThread::readInputParameters()
             AudioResampler                      *mResampler;
+            // interleaved stereo pairs of fixed-point signed Q19.12
             int32_t                             *mRsmpOutBuffer;
-            int16_t                             *mRsmpInBuffer;
+            int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
             size_t                              mRsmpInIndex;
-            size_t                              mInputBytes;
+            size_t                              mBufferSize;    // stream buffer size for read()
             const uint32_t                      mReqChannelCount;
             const uint32_t                      mReqSampleRate;
             ssize_t                             mBytesRead;
@@ -808,4 +953,5 @@ private:
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
+            int                                 mClientUid;
 };

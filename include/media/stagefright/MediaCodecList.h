@@ -50,7 +50,8 @@ struct MediaCodecList {
     status_t getCodecCapabilities(
             size_t index, const char *type,
             Vector<ProfileLevel> *profileLevels,
-            Vector<uint32_t> *colorFormats) const;
+            Vector<uint32_t> *colorFormats,
+            uint32_t *flags) const;
 
 private:
     enum Section {

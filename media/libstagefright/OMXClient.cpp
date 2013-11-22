@@ -69,6 +69,10 @@ struct MuxOMX : public IOMX {
     virtual status_t storeMetaDataInBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable);
 
+    virtual status_t prepareForAdaptivePlayback(
+            node_id node, OMX_U32 port_index, OMX_BOOL enable,
+            OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight);
+
     virtual status_t enableGraphicBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable);
 
@@ -82,6 +86,10 @@ struct MuxOMX : public IOMX {
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer);
+
+    virtual status_t updateGraphicBufferInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer);
 
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
@@ -112,6 +120,13 @@ struct MuxOMX : public IOMX {
             node_id node,
             const char *parameter_name,
             OMX_INDEXTYPE *index);
+
+    virtual status_t setInternalOption(
+            node_id node,
+            OMX_U32 port_index,
+            InternalOptionType type,
+            const void *data,
+            size_t size);
 
 private:
     mutable Mutex mLock;
@@ -257,6 +272,13 @@ status_t MuxOMX::storeMetaDataInBuffers(
     return getOMX(node)->storeMetaDataInBuffers(node, port_index, enable);
 }
 
+status_t MuxOMX::prepareForAdaptivePlayback(
+        node_id node, OMX_U32 port_index, OMX_BOOL enable,
+        OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
+    return getOMX(node)->prepareForAdaptivePlayback(
+            node, port_index, enable, maxFrameWidth, maxFrameHeight);
+}
+
 status_t MuxOMX::enableGraphicBuffers(
         node_id node, OMX_U32 port_index, OMX_BOOL enable) {
     return getOMX(node)->enableGraphicBuffers(node, port_index, enable);
@@ -277,6 +299,13 @@ status_t MuxOMX::useGraphicBuffer(
         node_id node, OMX_U32 port_index,
         const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer) {
     return getOMX(node)->useGraphicBuffer(
+            node, port_index, graphicBuffer, buffer);
+}
+
+status_t MuxOMX::updateGraphicBufferInMeta(
+        node_id node, OMX_U32 port_index,
+        const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
+    return getOMX(node)->updateGraphicBufferInMeta(
             node, port_index, graphicBuffer, buffer);
 }
 
@@ -329,6 +358,15 @@ status_t MuxOMX::getExtensionIndex(
         const char *parameter_name,
         OMX_INDEXTYPE *index) {
     return getOMX(node)->getExtensionIndex(node, parameter_name, index);
+}
+
+status_t MuxOMX::setInternalOption(
+        node_id node,
+        OMX_U32 port_index,
+        InternalOptionType type,
+        const void *data,
+        size_t size) {
+    return getOMX(node)->setInternalOption(node, port_index, type, data, size);
 }
 
 OMXClient::OMXClient() {

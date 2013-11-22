@@ -79,4 +79,19 @@ status_t AudioStreamOutSink::getNextWriteTimestamp(int64_t *timestamp) {
     return mStream->get_next_write_timestamp(mStream, timestamp);
 }
 
+status_t AudioStreamOutSink::getTimestamp(AudioTimestamp& timestamp)
+{
+    if (mStream->get_presentation_position == NULL) {
+        return INVALID_OPERATION;
+    }
+    // FIXME position64 won't be needed after AudioTimestamp.mPosition is changed to uint64_t
+    uint64_t position64;
+    int ok = mStream->get_presentation_position(mStream, &position64, &timestamp.mTime);
+    if (ok != 0) {
+        return INVALID_OPERATION;
+    }
+    timestamp.mPosition = position64;
+    return OK;
+}
+
 }   // namespace android

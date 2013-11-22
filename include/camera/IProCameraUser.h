@@ -34,6 +34,9 @@ class Surface;
 
 class IProCameraUser: public IInterface
 {
+    /**
+     * Keep up-to-date with IProCameraUser.aidl in frameworks/base
+     */
 public:
     DECLARE_META_INTERFACE(ProCameraUser);
 

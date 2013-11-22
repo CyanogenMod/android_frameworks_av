@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
+#include <media/AudioTimestamp.h>
 
 namespace android {
 
@@ -213,6 +214,11 @@ public:
     //  <other> Something unexpected happened internally.  Check the logs and start debugging.
     virtual status_t getNextWriteTimestamp(int64_t *ts) { return INVALID_OPERATION; }
 
+    // Returns NO_ERROR if a timestamp is available.  The timestamp includes the total number
+    // of frames presented to an external observer, together with the value of CLOCK_MONOTONIC
+    // as of this presentation count.
+    virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
+
 protected:
     NBAIO_Sink(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }
     virtual ~NBAIO_Sink() { }
@@ -299,6 +305,10 @@ public:
     //  < 0     status_t error occurred prior to the first frame transfer during this callback.
     virtual ssize_t readVia(readVia_t via, size_t total, void *user,
                             int64_t readPTS, size_t block = 0);
+
+    // Invoked asynchronously by corresponding sink when a new timestamp is available.
+    // Default implementation ignores the timestamp.
+    virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
 
 protected:
     NBAIO_Source(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }

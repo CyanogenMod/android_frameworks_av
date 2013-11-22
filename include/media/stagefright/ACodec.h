@@ -124,7 +124,8 @@ private:
     };
 
     enum {
-        kFlagIsSecure   = 1,
+        kFlagIsSecure                                 = 1,
+        kFlagPushBlankBuffersToNativeWindowOnShutdown = 2,
     };
 
     struct BufferInfo {
@@ -138,6 +139,7 @@ private:
 
         IOMX::buffer_id mBufferID;
         Status mStatus;
+        unsigned mDequeuedAt;
 
         sp<ABuffer> mData;
         sp<GraphicBuffer> mGraphicBuffer;
@@ -182,7 +184,7 @@ private:
 
     bool mSentFormat;
     bool mIsEncoder;
-
+    bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;
 
     // If "mKeepComponentAllocated" we only transition back to Loaded state
@@ -194,12 +196,22 @@ private:
 
     bool mChannelMaskPresent;
     int32_t mChannelMask;
+    unsigned mDequeueCounter;
+    bool mStoreMetaDataInOutputBuffers;
+    int32_t mMetaDataBuffersToSubmit;
+
+    int64_t mRepeatFrameDelayUs;
 
     status_t setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode);
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffer(OMX_U32 portIndex, size_t i);
 
+    status_t configureOutputBuffersFromNativeWindow(
+            OMX_U32 *nBufferCount, OMX_U32 *nBufferSize,
+            OMX_U32 *nMinUndequeuedBuffers);
+    status_t allocateOutputMetaDataBuffers();
+    status_t submitOutputMetaDataBuffer();
     status_t allocateOutputBuffersFromNativeWindow();
     status_t cancelBufferToNativeWindow(BufferInfo *info);
     status_t freeOutputBuffersNotOwnedByComponent();

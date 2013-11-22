@@ -16,19 +16,23 @@
 
 #include "RemoteDisplay.h"
 
-#include "ANetworkSession.h"
 #include "source/WifiDisplaySource.h"
 
 #include <media/IRemoteDisplayClient.h>
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ANetworkSession.h>
 
 namespace android {
 
 RemoteDisplay::RemoteDisplay(
-        const sp<IRemoteDisplayClient> &client, const char *iface)
+        const sp<IRemoteDisplayClient> &client,
+        const char *iface)
     : mLooper(new ALooper),
-      mNetSession(new ANetworkSession),
-      mSource(new WifiDisplaySource(mNetSession, client)) {
+      mNetSession(new ANetworkSession) {
     mLooper->setName("wfd_looper");
+
+    mSource = new WifiDisplaySource(mNetSession, client);
     mLooper->registerHandler(mSource);
 
     mNetSession->start();
@@ -50,6 +54,7 @@ status_t RemoteDisplay::resume() {
 
 status_t RemoteDisplay::dispose() {
     mSource->stop();
+    mSource.clear();
 
     mLooper->stop();
     mNetSession->stop();

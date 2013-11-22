@@ -18,14 +18,18 @@
 
 #define SOFT_MPEG4_H_
 
-#include "SimpleSoftOMXComponent.h"
+#include "SoftVideoDecoderOMXComponent.h"
 
 struct tagvideoDecControls;
 
 namespace android {
 
-struct SoftMPEG4 : public SimpleSoftOMXComponent {
+struct SoftMPEG4 : public SoftVideoDecoderOMXComponent {
     SoftMPEG4(const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
+            const CodecProfileLevel *profileLevels,
+            size_t numProfileLevels,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component);
@@ -33,17 +37,9 @@ struct SoftMPEG4 : public SimpleSoftOMXComponent {
 protected:
     virtual ~SoftMPEG4();
 
-    virtual OMX_ERRORTYPE internalGetParameter(
-            OMX_INDEXTYPE index, OMX_PTR params);
-
-    virtual OMX_ERRORTYPE internalSetParameter(
-            OMX_INDEXTYPE index, const OMX_PTR params);
-
-    virtual OMX_ERRORTYPE getConfig(OMX_INDEXTYPE index, OMX_PTR params);
-
     virtual void onQueueFilled(OMX_U32 portIndex);
     virtual void onPortFlushCompleted(OMX_U32 portIndex);
-    virtual void onPortEnableCompleted(OMX_U32 portIndex, bool enabled);
+    virtual void onReset();
 
 private:
     enum {
@@ -54,32 +50,23 @@ private:
     enum {
         MODE_MPEG4,
         MODE_H263,
-
     } mMode;
 
     tagvideoDecControls *mHandle;
 
     size_t mInputBufferCount;
 
-    int32_t mWidth, mHeight;
-    int32_t mCropLeft, mCropTop, mCropRight, mCropBottom;
-
     bool mSignalledError;
     bool mInitialized;
     bool mFramesConfigured;
 
     int32_t mNumSamplesOutput;
+    int32_t mPvTime;
+    KeyedVector<int32_t, OMX_TICKS> mPvToOmxTimeMap;
 
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
-    void initPorts();
     status_t initDecoder();
 
-    void updatePortDefinitions();
+    virtual void updatePortDefinitions();
     bool portSettingsChanged();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftMPEG4);

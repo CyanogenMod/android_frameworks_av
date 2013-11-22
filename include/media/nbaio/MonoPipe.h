@@ -20,8 +20,11 @@
 #include <time.h>
 #include <utils/LinearTransform.h>
 #include "NBAIO.h"
+#include <media/SingleStateQueue.h>
 
 namespace android {
+
+typedef SingleStateQueue<AudioTimestamp> AudioTimestampSingleStateQueue;
 
 // MonoPipe is similar to Pipe except:
 //  - supports only a single reader, called MonoPipeReader
@@ -88,6 +91,9 @@ public:
             // Return true if the write side of a pipe is currently shutdown.
             bool    isShutdown();
 
+            // Return NO_ERROR if there is a timestamp available
+            status_t getTimestamp(AudioTimestamp& timestamp);
+
 private:
     // A pair of methods and a helper variable which allows the reader and the
     // writer to update and observe the values of mFront and mNextRdPTS in an
@@ -127,6 +133,10 @@ private:
     LinearTransform mSamplesToLocalTime;
 
     bool            mIsShutdown;    // whether shutdown(true) was called, no barriers are needed
+
+    AudioTimestampSingleStateQueue::Shared      mTimestampShared;
+    AudioTimestampSingleStateQueue::Mutator     mTimestampMutator;
+    AudioTimestampSingleStateQueue::Observer    mTimestampObserver;
 };
 
 }   // namespace android

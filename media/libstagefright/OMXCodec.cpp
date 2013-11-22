@@ -1195,8 +1195,10 @@ status_t OMXCodec::setVideoOutputFormat(
         compressionFormat = OMX_VIDEO_CodingMPEG4;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
         compressionFormat = OMX_VIDEO_CodingH263;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VPX, mime)) {
-        compressionFormat = OMX_VIDEO_CodingVPX;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VP8, mime)) {
+        compressionFormat = OMX_VIDEO_CodingVP8;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VP9, mime)) {
+        compressionFormat = OMX_VIDEO_CodingVP9;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
         compressionFormat = OMX_VIDEO_CodingMPEG2;
     } else {
@@ -1388,8 +1390,10 @@ void OMXCodec::setComponentRole(
             "video_decoder.mpeg4", "video_encoder.mpeg4" },
         { MEDIA_MIMETYPE_VIDEO_H263,
             "video_decoder.h263", "video_encoder.h263" },
-        { MEDIA_MIMETYPE_VIDEO_VPX,
-            "video_decoder.vpx", "video_encoder.vpx" },
+        { MEDIA_MIMETYPE_VIDEO_VP8,
+            "video_decoder.vp8", "video_encoder.vp8" },
+        { MEDIA_MIMETYPE_VIDEO_VP9,
+            "video_decoder.vp9", "video_encoder.vp9" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
         { MEDIA_MIMETYPE_AUDIO_FLAC,
@@ -4563,7 +4567,7 @@ status_t QueryCodec(
         CodecCapabilities *caps) {
     if (strncmp(componentName, "OMX.", 4)) {
         // Not an OpenMax component but a software codec.
-
+        caps->mFlags = 0;
         caps->mComponentName = componentName;
         return OK;
     }
@@ -4578,6 +4582,7 @@ status_t QueryCodec(
 
     OMXCodec::setComponentRole(omx, node, isEncoder, mime);
 
+    caps->mFlags = 0;
     caps->mComponentName = componentName;
 
     OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
@@ -4613,6 +4618,16 @@ status_t QueryCodec(
             break;
         }
         caps->mColorFormats.push(portFormat.eColorFormat);
+    }
+
+    if (!isEncoder && !strncmp(mime, "video/", 6)) {
+        if (omx->storeMetaDataInBuffers(
+                    node, 1 /* port index */, OMX_TRUE) == OK ||
+            omx->prepareForAdaptivePlayback(
+                    node, 1 /* port index */, OMX_TRUE,
+                    1280 /* width */, 720 /* height */) == OK) {
+            caps->mFlags |= CodecCapabilities::kFlagSupportsAdaptivePlayback;
+        }
     }
 
     CHECK_EQ(omx->freeNode(node), (status_t)OK);

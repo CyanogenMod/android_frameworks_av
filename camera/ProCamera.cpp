@@ -26,7 +26,6 @@
 #include <binder/IMemory.h>
 
 #include <camera/ProCamera.h>
-#include <camera/ICameraService.h>
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
 
@@ -46,6 +45,9 @@ ProCamera::ProCamera(int cameraId)
     : CameraBase(cameraId)
 {
 }
+
+CameraTraits<ProCamera>::TCamConnectService CameraTraits<ProCamera>::fnConnectService =
+        &ICameraService::connectPro;
 
 ProCamera::~ProCamera()
 {
@@ -88,8 +90,8 @@ void ProCamera::onLockStatusChanged(
     }
 }
 
-void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
-    ALOGV("%s: frameId = %d, result = %p", __FUNCTION__, frameId, result);
+void ProCamera::onResultReceived(int32_t requestId, camera_metadata* result) {
+    ALOGV("%s: requestId = %d, result = %p", __FUNCTION__, requestId, result);
 
     sp<ProCameraListener> listener;
     {
@@ -110,7 +112,7 @@ void ProCamera::onResultReceived(int32_t frameId, camera_metadata* result) {
     result = tmp.release();
 
     if (listener != NULL) {
-        listener->onResultReceived(frameId, result);
+        listener->onResultReceived(requestId, result);
     } else {
         free_camera_metadata(result);
     }
@@ -247,11 +249,11 @@ status_t ProCamera::createStreamCpu(int width, int height, int format,
     sp <IProCameraUser> c = mCamera;
     if (c == 0) return NO_INIT;
 
-    sp<CpuConsumer> cc = new CpuConsumer(heapCount, synchronousMode);
+    sp<BufferQueue> bq = new BufferQueue();
+    sp<CpuConsumer> cc = new CpuConsumer(bq, heapCount/*, synchronousMode*/);
     cc->setName(String8("ProCamera::mCpuConsumer"));
 
-    sp<Surface> stc = new Surface(
-        cc->getProducerInterface());
+    sp<Surface> stc = new Surface(bq);
 
     status_t s = createStream(width, height, format,
                               stc->getIGraphicBufferProducer(),

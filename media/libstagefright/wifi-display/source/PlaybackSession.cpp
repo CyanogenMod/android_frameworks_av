@@ -378,7 +378,9 @@ status_t WifiDisplaySource::PlaybackSession::init(
         bool usePCMAudio,
         bool enableVideo,
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     sp<AMessage> notify = new AMessage(kWhatMediaSenderNotify, id());
     mMediaSender = new MediaSender(mNetSession, notify);
     looper()->registerHandler(mMediaSender);
@@ -390,7 +392,9 @@ status_t WifiDisplaySource::PlaybackSession::init(
             usePCMAudio,
             enableVideo,
             videoResolutionType,
-            videoResolutionIndex);
+            videoResolutionIndex,
+            videoProfileType,
+            videoLevelType);
 
     if (err == OK) {
         err = mMediaSender->initAsync(
@@ -517,7 +521,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                 if (mTracks.isEmpty()) {
                     ALOGI("Reached EOS");
                 }
-            } else {
+            } else if (what != Converter::kWhatShutdownCompleted) {
                 CHECK_EQ(what, Converter::kWhatError);
 
                 status_t err;
@@ -559,6 +563,8 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
                         converter->dropAFrame();
                     }
                 }
+            } else if (what == MediaSender::kWhatInformSender) {
+                onSinkFeedback(msg);
             } else {
                 TRESPASS();
             }
@@ -651,6 +657,89 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
 
         default:
             TRESPASS();
+    }
+}
+
+void WifiDisplaySource::PlaybackSession::onSinkFeedback(const sp<AMessage> &msg) {
+    int64_t avgLatencyUs;
+    CHECK(msg->findInt64("avgLatencyUs", &avgLatencyUs));
+
+    int64_t maxLatencyUs;
+    CHECK(msg->findInt64("maxLatencyUs", &maxLatencyUs));
+
+    ALOGI("sink reports avg. latency of %lld ms (max %lld ms)",
+          avgLatencyUs / 1000ll,
+          maxLatencyUs / 1000ll);
+
+    if (mVideoTrackIndex >= 0) {
+        const sp<Track> &videoTrack = mTracks.valueFor(mVideoTrackIndex);
+        sp<Converter> converter = videoTrack->converter();
+
+        if (converter != NULL) {
+            int32_t videoBitrate =
+                Converter::GetInt32Property("media.wfd.video-bitrate", -1);
+
+            char val[PROPERTY_VALUE_MAX];
+            if (videoBitrate < 0
+                    && property_get("media.wfd.video-bitrate", val, NULL)
+                    && !strcasecmp("adaptive", val)) {
+                videoBitrate = converter->getVideoBitrate();
+
+                if (avgLatencyUs > 300000ll) {
+                    videoBitrate *= 0.6;
+                } else if (avgLatencyUs < 100000ll) {
+                    videoBitrate *= 1.1;
+                }
+            }
+
+            if (videoBitrate > 0) {
+                if (videoBitrate < 500000) {
+                    videoBitrate = 500000;
+                } else if (videoBitrate > 10000000) {
+                    videoBitrate = 10000000;
+                }
+
+                if (videoBitrate != converter->getVideoBitrate()) {
+                    ALOGI("setting video bitrate to %d bps", videoBitrate);
+
+                    converter->setVideoBitrate(videoBitrate);
+                }
+            }
+        }
+
+        sp<RepeaterSource> repeaterSource = videoTrack->repeaterSource();
+        if (repeaterSource != NULL) {
+            double rateHz =
+                Converter::GetInt32Property(
+                        "media.wfd.video-framerate", -1);
+
+            char val[PROPERTY_VALUE_MAX];
+            if (rateHz < 0.0
+                    && property_get("media.wfd.video-framerate", val, NULL)
+                    && !strcasecmp("adaptive", val)) {
+                 rateHz = repeaterSource->getFrameRate();
+
+                if (avgLatencyUs > 300000ll) {
+                    rateHz *= 0.9;
+                } else if (avgLatencyUs < 200000ll) {
+                    rateHz *= 1.1;
+                }
+            }
+
+            if (rateHz > 0) {
+                if (rateHz < 5.0) {
+                    rateHz = 5.0;
+                } else if (rateHz > 30.0) {
+                    rateHz = 30.0;
+                }
+
+                if (rateHz != repeaterSource->getFrameRate()) {
+                    ALOGI("setting frame rate to %.2f Hz", rateHz);
+
+                    repeaterSource->setFrameRate(rateHz);
+                }
+            }
+        }
     }
 }
 
@@ -785,7 +874,9 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
         bool usePCMAudio,
         bool enableVideo,
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     CHECK(enableAudio || enableVideo);
 
     if (!mMediaPath.empty()) {
@@ -794,7 +885,8 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
 
     if (enableVideo) {
         status_t err = addVideoSource(
-                videoResolutionType, videoResolutionIndex);
+                videoResolutionType, videoResolutionIndex, videoProfileType,
+                videoLevelType);
 
         if (err != OK) {
             return err;
@@ -810,9 +902,13 @@ status_t WifiDisplaySource::PlaybackSession::setupPacketizer(
 
 status_t WifiDisplaySource::PlaybackSession::addSource(
         bool isVideo, const sp<MediaSource> &source, bool isRepeaterSource,
-        bool usePCMAudio, size_t *numInputBuffers) {
+        bool usePCMAudio, unsigned profileIdc, unsigned levelIdc,
+        unsigned constraintSet, size_t *numInputBuffers) {
     CHECK(!usePCMAudio || !isVideo);
     CHECK(!isRepeaterSource || isVideo);
+    CHECK(!profileIdc || isVideo);
+    CHECK(!levelIdc || isVideo);
+    CHECK(!constraintSet || isVideo);
 
     sp<ALooper> pullLooper = new ALooper;
     pullLooper->setName("pull_looper");
@@ -841,25 +937,36 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
     CHECK_EQ(err, (status_t)OK);
 
     if (isVideo) {
+        format->setString("mime", MEDIA_MIMETYPE_VIDEO_AVC);
         format->setInt32("store-metadata-in-buffers", true);
-
+        format->setInt32("store-metadata-in-buffers-output", (mHDCP != NULL)
+                && (mHDCP->getCaps() & HDCPModule::HDCP_CAPS_ENCRYPT_NATIVE));
         format->setInt32(
                 "color-format", OMX_COLOR_FormatAndroidOpaque);
+        format->setInt32("profile-idc", profileIdc);
+        format->setInt32("level-idc", levelIdc);
+        format->setInt32("constraint-set", constraintSet);
+    } else {
+        format->setString(
+                "mime",
+                usePCMAudio
+                    ? MEDIA_MIMETYPE_AUDIO_RAW : MEDIA_MIMETYPE_AUDIO_AAC);
     }
 
     notify = new AMessage(kWhatConverterNotify, id());
     notify->setSize("trackIndex", trackIndex);
 
-    sp<Converter> converter =
-        new Converter(notify, codecLooper, format, usePCMAudio);
-
-    err = converter->initCheck();
-    if (err != OK) {
-        ALOGE("%s converter returned err %d", isVideo ? "video" : "audio", err);
-        return err;
-    }
+    sp<Converter> converter = new Converter(notify, codecLooper, format);
 
     looper()->registerHandler(converter);
+
+    err = converter->init();
+    if (err != OK) {
+        ALOGE("%s converter returned err %d", isVideo ? "video" : "audio", err);
+
+        looper()->unregisterHandler(converter->id());
+        return err;
+    }
 
     notify = new AMessage(Converter::kWhatMediaPullerNotify, converter->id());
     notify->setSize("trackIndex", trackIndex);
@@ -905,7 +1012,9 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
 
 status_t WifiDisplaySource::PlaybackSession::addVideoSource(
         VideoFormats::ResolutionType videoResolutionType,
-        size_t videoResolutionIndex) {
+        size_t videoResolutionIndex,
+        VideoFormats::ProfileType videoProfileType,
+        VideoFormats::LevelType videoLevelType) {
     size_t width, height, framesPerSecond;
     bool interlaced;
     CHECK(VideoFormats::GetConfiguration(
@@ -915,6 +1024,14 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
                 &height,
                 &framesPerSecond,
                 &interlaced));
+
+    unsigned profileIdc, levelIdc, constraintSet;
+    CHECK(VideoFormats::GetProfileLevel(
+                videoProfileType,
+                videoLevelType,
+                &profileIdc,
+                &levelIdc,
+                &constraintSet));
 
     sp<SurfaceMediaSource> source = new SurfaceMediaSource(width, height);
 
@@ -926,7 +1043,8 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
     size_t numInputBuffers;
     status_t err = addSource(
             true /* isVideo */, videoSource, true /* isRepeaterSource */,
-            false /* usePCMAudio */, &numInputBuffers);
+            false /* usePCMAudio */, profileIdc, levelIdc, constraintSet,
+            &numInputBuffers);
 
     if (err != OK) {
         return err;
@@ -949,7 +1067,8 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
     if (audioSource->initCheck() == OK) {
         return addSource(
                 false /* isVideo */, audioSource, false /* isRepeaterSource */,
-                usePCMAudio, NULL /* numInputBuffers */);
+                usePCMAudio, 0 /* profileIdc */, 0 /* levelIdc */,
+                0 /* constraintSet */, NULL /* numInputBuffers */);
     }
 
     ALOGW("Unable to instantiate audio source");

@@ -37,6 +37,7 @@ struct RTPSender : public RTPBase, public AHandler {
         kWhatInitDone,
         kWhatError,
         kWhatNetworkStall,
+        kWhatInformSender,
     };
     RTPSender(
             const sp<ANetworkSession> &netSession,

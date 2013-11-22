@@ -29,6 +29,8 @@
 #include <camera/ICameraClient.h>
 #include <camera/IProCameraUser.h>
 #include <camera/IProCameraCallbacks.h>
+#include <camera/camera2/ICameraDeviceUser.h>
+#include <camera/camera2/ICameraDeviceCallbacks.h>
 
 #include <camera/ICameraServiceListener.h>
 
@@ -69,11 +71,26 @@ public:
     virtual int32_t     getNumberOfCameras();
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
+    virtual status_t    getCameraCharacteristics(int cameraId,
+                                                 CameraMetadata* cameraInfo);
 
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
-            const String16& clientPackageName, int clientUid);
-    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId, const String16& clientPackageName, int clientUid);
+    virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
+            const String16& clientPackageName, int clientUid,
+            /*out*/
+            sp<ICamera>& device);
+
+    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb,
+            int cameraId, const String16& clientPackageName, int clientUid,
+            /*out*/
+            sp<IProCameraUser>& device);
+
+    virtual status_t connectDevice(
+            const sp<ICameraDeviceCallbacks>& cameraCb,
+            int cameraId,
+            const String16& clientPackageName,
+            int clientUid,
+            /*out*/
+            sp<ICameraDeviceUser>& device);
 
     virtual status_t    addListener(const sp<ICameraServiceListener>& listener);
     virtual status_t    removeListener(
@@ -99,13 +116,17 @@ public:
     void                playSound(sound_kind kind);
     void                releaseSound();
 
+    /////////////////////////////////////////////////////////////////////
+    // CameraDeviceFactory functionality
+    int                 getDeviceVersion(int cameraId, int* facing = NULL);
+
 
     /////////////////////////////////////////////////////////////////////
     // CameraClient functionality
 
     // returns plain pointer of client. Note that mClientLock should be acquired to
     // prevent the client from destruction. The result can be NULL.
-    virtual Client*     getClientByIdUnsafe(int cameraId);
+    virtual BasicClient* getClientByIdUnsafe(int cameraId);
     virtual Mutex*      getClientLockById(int cameraId);
 
     class BasicClient : public virtual RefBase {
@@ -114,10 +135,16 @@ public:
 
         virtual void          disconnect() = 0;
 
+        // because we can't virtually inherit IInterface, which breaks
+        // virtual inheritance
+        virtual sp<IBinder> asBinderWrapper() = 0;
+
         // Return the remote callback binder object (e.g. IProCameraCallbacks)
-        wp<IBinder>     getRemote() {
+        sp<IBinder>     getRemote() {
             return mRemoteBinder;
         }
+
+        virtual status_t      dump(int fd, const Vector<String16>& args) = 0;
 
     protected:
         BasicClient(const sp<CameraService>& cameraService,
@@ -147,7 +174,7 @@ public:
         pid_t                           mServicePid;     // immutable after constructor
 
         // - The app-side Binder interface to receive callbacks from us
-        wp<IBinder>                     mRemoteBinder;   // immutable after constructor
+        sp<IBinder>                     mRemoteBinder;   // immutable after constructor
 
         // permissions management
         status_t                        startCameraOps();
@@ -187,9 +214,10 @@ public:
         virtual status_t      connect(const sp<ICameraClient>& client) = 0;
         virtual status_t      lock() = 0;
         virtual status_t      unlock() = 0;
-        virtual status_t      setPreviewDisplay(const sp<Surface>& surface) = 0;
-        virtual status_t      setPreviewTexture(const sp<IGraphicBufferProducer>& bufferProducer)=0;
+        virtual status_t      setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer)=0;
         virtual void          setPreviewCallbackFlag(int flag) = 0;
+        virtual status_t      setPreviewCallbackTarget(
+                const sp<IGraphicBufferProducer>& callbackProducer) = 0;
         virtual status_t      startPreview() = 0;
         virtual void          stopPreview() = 0;
         virtual bool          previewEnabled() = 0;
@@ -219,6 +247,10 @@ public:
         // return our camera client
         const sp<ICameraClient>&    getRemoteCallback() {
             return mRemoteCallback;
+        }
+
+        virtual sp<IBinder> asBinderWrapper() {
+            return asBinder();
         }
 
     protected:
@@ -285,7 +317,7 @@ private:
     virtual void onFirstRef();
 
     // Step 1. Check if we can connect, before we acquire the service lock.
-    bool                validateConnect(int cameraId,
+    status_t            validateConnect(int cameraId,
                                         /*inout*/
                                         int& clientUid) const;
 
@@ -294,16 +326,17 @@ private:
                                          const String16& clientPackageName,
                                          const sp<IBinder>& remoteCallback,
                                          /*out*/
-                                         sp<Client> &client);
+                                         sp<BasicClient> &client);
 
     // When connection is successful, initialize client and track its death
-    bool                connectFinishUnsafe(const sp<BasicClient>& client,
-                                            const sp<IBinder>& clientBinder);
+    status_t            connectFinishUnsafe(const sp<BasicClient>& client,
+                                            const sp<IBinder>& remoteCallback);
 
     virtual sp<BasicClient>  getClientByRemote(const wp<IBinder>& cameraClient);
 
     Mutex               mServiceLock;
-    wp<Client>          mClient[MAX_CAMERAS];  // protected by mServiceLock
+    // either a Client or CameraDeviceClient
+    wp<BasicClient>     mClient[MAX_CAMERAS];  // protected by mServiceLock
     Mutex               mClientLock[MAX_CAMERAS]; // prevent Client destruction inside callbacks
     int                 mNumberOfCameras;
 
@@ -311,7 +344,7 @@ private:
     Vector<weak_pro_client_ptr> mProClientList[MAX_CAMERAS];
 
     // needs to be called with mServiceLock held
-    sp<Client>          findClientUnsafe(const wp<IBinder>& cameraClient, int& outIndex);
+    sp<BasicClient>     findClientUnsafe(const wp<IBinder>& cameraClient, int& outIndex);
     sp<ProClient>       findProClientUnsafe(
                                      const wp<IBinder>& cameraCallbacksRemote);
 
@@ -352,7 +385,6 @@ private:
     virtual void        binderDied(const wp<IBinder> &who);
 
     // Helpers
-    int                 getDeviceVersion(int cameraId, int* facing);
 
     bool                isValidCameraId(int cameraId);
 };

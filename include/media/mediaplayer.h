@@ -42,9 +42,14 @@ enum media_event_type {
     MEDIA_BUFFERING_UPDATE  = 3,
     MEDIA_SEEK_COMPLETE     = 4,
     MEDIA_SET_VIDEO_SIZE    = 5,
+    MEDIA_STARTED           = 6,
+    MEDIA_PAUSED            = 7,
+    MEDIA_STOPPED           = 8,
+    MEDIA_SKIPPED           = 9,
     MEDIA_TIMED_TEXT        = 99,
     MEDIA_ERROR             = 100,
     MEDIA_INFO              = 200,
+    MEDIA_SUBTITLE_DATA     = 201,
 };
 
 // Generic error codes for the media player framework.  Errors are fatal, the
@@ -173,6 +178,7 @@ enum media_track_type {
     MEDIA_TRACK_TYPE_VIDEO = 1,
     MEDIA_TRACK_TYPE_AUDIO = 2,
     MEDIA_TRACK_TYPE_TIMEDTEXT = 3,
+    MEDIA_TRACK_TYPE_SUBTITLE = 4,
 };
 
 // ----------------------------------------------------------------------------
@@ -218,8 +224,12 @@ public:
             bool            isLooping();
             status_t        setVolume(float leftVolume, float rightVolume);
             void            notify(int msg, int ext1, int ext2, const Parcel *obj = NULL);
-    static  sp<IMemory>     decode(const char* url, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
-    static  sp<IMemory>     decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate, int* pNumChannels, audio_format_t* pFormat);
+    static  status_t        decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
+                                   audio_format_t* pFormat,
+                                   const sp<IMemoryHeap>& heap, size_t *pSize);
+    static  status_t        decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate,
+                                   int* pNumChannels, audio_format_t* pFormat,
+                                   const sp<IMemoryHeap>& heap, size_t *pSize);
             status_t        invoke(const Parcel& request, Parcel *reply);
             status_t        setMetadataFilter(const Parcel& filter);
             status_t        getMetadata(bool update_only, bool apply_filter, Parcel *metadata);

@@ -69,16 +69,32 @@ struct VideoFormats {
 
     void disableAll();
     void enableAll();
+    void enableResolutionUpto(
+            ResolutionType type, size_t index,
+            ProfileType profile, LevelType level);
 
     void setResolutionEnabled(
             ResolutionType type, size_t index, bool enabled = true);
 
     bool isResolutionEnabled(ResolutionType type, size_t index) const;
 
+    void setProfileLevel(
+            ResolutionType type, size_t index,
+            ProfileType profile, LevelType level);
+
+    void getProfileLevel(
+            ResolutionType type, size_t index,
+            ProfileType *profile, LevelType *level) const;
+
     static bool GetConfiguration(
             ResolutionType type, size_t index,
             size_t *width, size_t *height, size_t *framesPerSecond,
             bool *interlaced);
+
+    static bool GetProfileLevel(
+            ProfileType profile, LevelType level,
+            unsigned *profileIdc, unsigned *levelIdc,
+            unsigned *constraintSet);
 
     bool parseFormatSpec(const char *spec);
     AString getFormatSpec(bool forM4Message = false) const;
@@ -87,7 +103,9 @@ struct VideoFormats {
             const VideoFormats &sinkSupported,
             const VideoFormats &sourceSupported,
             ResolutionType *chosenType,
-            size_t *chosenIndex);
+            size_t *chosenIndex,
+            ProfileType *chosenProfile,
+            LevelType *chosenLevel);
 
 private:
     bool parseH264Codec(const char *spec);
@@ -95,7 +113,8 @@ private:
     size_t mNativeIndex;
 
     uint32_t mResolutionEnabled[kNumResolutionTypes];
-    static config_t mConfigs[kNumResolutionTypes][32];
+    static const config_t mResolutionTable[kNumResolutionTypes][32];
+    config_t mConfigs[kNumResolutionTypes][32];
 
     DISALLOW_EVIL_CONSTRUCTORS(VideoFormats);
 };

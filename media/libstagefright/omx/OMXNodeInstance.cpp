@@ -70,6 +70,10 @@ struct BufferMeta {
                header->nFilledLen);
     }
 
+    void setGraphicBuffer(const sp<GraphicBuffer> &graphicBuffer) {
+        mGraphicBuffer = graphicBuffer;
+    }
+
 private:
     sp<GraphicBuffer> mGraphicBuffer;
     sp<IMemory> mMem;
@@ -238,6 +242,18 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+    if (bufferSource != NULL
+            && cmd == OMX_CommandStateSet
+            && param == OMX_StateLoaded) {
+        // Initiating transition from Executing -> Loaded
+        // Buffers are about to be freed.
+        bufferSource->omxLoaded();
+        setGraphicBufferSource(NULL);
+
+        // fall through
+    }
+
     Mutex::Autolock autoLock(mLock);
 
     OMX_ERRORTYPE err = OMX_SendCommand(mHandle, cmd, param, NULL);
@@ -401,6 +417,40 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
     return err;
 }
 
+status_t OMXNodeInstance::prepareForAdaptivePlayback(
+        OMX_U32 portIndex, OMX_BOOL enable, OMX_U32 maxFrameWidth,
+        OMX_U32 maxFrameHeight) {
+    Mutex::Autolock autolock(mLock);
+
+    OMX_INDEXTYPE index;
+    OMX_STRING name = const_cast<OMX_STRING>(
+            "OMX.google.android.index.prepareForAdaptivePlayback");
+
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
+    if (err != OMX_ErrorNone) {
+        ALOGW_IF(enable, "OMX_GetExtensionIndex %s failed", name);
+        return StatusFromOMXError(err);
+    }
+
+    PrepareForAdaptivePlaybackParams params;
+    params.nSize = sizeof(params);
+    params.nVersion.s.nVersionMajor = 1;
+    params.nVersion.s.nVersionMinor = 0;
+    params.nVersion.s.nRevision = 0;
+    params.nVersion.s.nStep = 0;
+
+    params.nPortIndex = portIndex;
+    params.bEnable = enable;
+    params.nMaxFrameWidth = maxFrameWidth;
+    params.nMaxFrameHeight = maxFrameHeight;
+    if ((err = OMX_SetParameter(mHandle, index, &params)) != OMX_ErrorNone) {
+        ALOGW("OMX_SetParameter failed for PrepareForAdaptivePlayback "
+              "with error %d (0x%08x)", err, err);
+        return UNKNOWN_ERROR;
+    }
+    return err;
+}
+
 status_t OMXNodeInstance::useBuffer(
         OMX_U32 portIndex, const sp<IMemory> &params,
         OMX::buffer_id *buffer) {
@@ -554,6 +604,22 @@ status_t OMXNodeInstance::useGraphicBuffer(
     return OK;
 }
 
+status_t OMXNodeInstance::updateGraphicBufferInMeta(
+        OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
+        OMX::buffer_id buffer) {
+    Mutex::Autolock autoLock(mLock);
+
+    OMX_BUFFERHEADERTYPE *header = (OMX_BUFFERHEADERTYPE *)(buffer);
+    VideoDecoderOutputMetaData *metadata =
+        (VideoDecoderOutputMetaData *)(header->pBuffer);
+    BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
+    bufferMeta->setGraphicBuffer(graphicBuffer);
+    metadata->eType = kMetadataBufferTypeGrallocSource;
+    metadata->pHandle = graphicBuffer->handle;
+
+    return OK;
+}
+
 status_t OMXNodeInstance::createInputSurface(
         OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer) {
     Mutex::Autolock autolock(mLock);
@@ -584,7 +650,8 @@ status_t OMXNodeInstance::createInputSurface(
     CHECK(oerr == OMX_ErrorNone);
 
     if (def.format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque) {
-        ALOGE("createInputSurface requires AndroidOpaque color format");
+        ALOGE("createInputSurface requires COLOR_FormatSurface "
+              "(AndroidOpaque) color format");
         return INVALID_OPERATION;
     }
 
@@ -769,6 +836,47 @@ status_t OMXNodeInstance::getExtensionIndex(
     return StatusFromOMXError(err);
 }
 
+status_t OMXNodeInstance::setInternalOption(
+        OMX_U32 portIndex,
+        IOMX::InternalOptionType type,
+        const void *data,
+        size_t size) {
+    switch (type) {
+        case IOMX::INTERNAL_OPTION_SUSPEND:
+        case IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY:
+        {
+            const sp<GraphicBufferSource> &bufferSource =
+                getGraphicBufferSource();
+
+            if (bufferSource == NULL || portIndex != kPortIndexInput) {
+                return ERROR_UNSUPPORTED;
+            }
+
+            if (type == IOMX::INTERNAL_OPTION_SUSPEND) {
+                if (size != sizeof(bool)) {
+                    return INVALID_OPERATION;
+                }
+
+                bool suspend = *(bool *)data;
+                bufferSource->suspend(suspend);
+            } else {
+                if (size != sizeof(int64_t)) {
+                    return INVALID_OPERATION;
+                }
+
+                int64_t delayUs = *(int64_t *)data;
+
+                return bufferSource->setRepeatPreviousFrameDelayUs(delayUs);
+            }
+
+            return OK;
+        }
+
+        default:
+            return ERROR_UNSUPPORTED;
+    }
+}
+
 void OMXNodeInstance::onMessage(const omx_message &msg) {
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
@@ -818,16 +926,11 @@ void OMXNodeInstance::onEvent(
         OMX_EVENTTYPE event, OMX_U32 arg1, OMX_U32 arg2) {
     const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
 
-    if (bufferSource != NULL && event == OMX_EventCmdComplete &&
-            arg1 == OMX_CommandStateSet) {
-        if (arg2 == OMX_StateExecuting) {
-            bufferSource->omxExecuting();
-        } else if (arg2 == OMX_StateLoaded) {
-            // Must be shutting down -- won't have a GraphicBufferSource
-            // on the way up.
-            bufferSource->omxLoaded();
-            setGraphicBufferSource(NULL);
-        }
+    if (bufferSource != NULL
+            && event == OMX_EventCmdComplete
+            && arg1 == OMX_CommandStateSet
+            && arg2 == OMX_StateExecuting) {
+        bufferSource->omxExecuting();
     }
 }
 

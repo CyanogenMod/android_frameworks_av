@@ -28,6 +28,7 @@
 
 #include <media/Visualizer.h>
 #include <audio_utils/fixedfft.h>
+#include <utils/Thread.h>
 
 namespace android {
 
@@ -42,6 +43,7 @@ Visualizer::Visualizer (int32_t priority,
         mCaptureSize(CAPTURE_SIZE_DEF),
         mSampleRate(44100000),
         mScalingMode(VISUALIZER_SCALING_MODE_NORMALIZED),
+        mMeasurementMode(MEASUREMENT_MODE_NONE),
         mCaptureCallBack(NULL),
         mCaptureCbkUser(NULL)
 {
@@ -182,6 +184,73 @@ status_t Visualizer::setScalingMode(uint32_t mode) {
         }
     }
 
+    return status;
+}
+
+status_t Visualizer::setMeasurementMode(uint32_t mode) {
+    if ((mode != MEASUREMENT_MODE_NONE)
+            //Note: needs to be handled as a mask when more measurement modes are added
+            && ((mode & MEASUREMENT_MODE_PEAK_RMS) != mode)) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mCaptureLock);
+
+    uint32_t buf32[sizeof(effect_param_t) / sizeof(uint32_t) + 2];
+    effect_param_t *p = (effect_param_t *)buf32;
+
+    p->psize = sizeof(uint32_t);
+    p->vsize = sizeof(uint32_t);
+    *(int32_t *)p->data = VISUALIZER_PARAM_MEASUREMENT_MODE;
+    *((int32_t *)p->data + 1)= mode;
+    status_t status = setParameter(p);
+
+    ALOGV("setMeasurementMode mode %d  status %d p->status %d", mode, status, p->status);
+
+    if (status == NO_ERROR) {
+        status = p->status;
+        if (status == NO_ERROR) {
+            mMeasurementMode = mode;
+        }
+    }
+    return status;
+}
+
+status_t Visualizer::getIntMeasurements(uint32_t type, uint32_t number, int32_t *measurements) {
+    if (mMeasurementMode == MEASUREMENT_MODE_NONE) {
+        ALOGE("Cannot retrieve int measurements, no measurement mode set");
+        return INVALID_OPERATION;
+    }
+    if (!(mMeasurementMode & type)) {
+        // measurement type has not been set on this Visualizer
+        ALOGE("Cannot retrieve int measurements, requested measurement mode 0x%x not set(0x%x)",
+                type, mMeasurementMode);
+        return INVALID_OPERATION;
+    }
+    // only peak+RMS measurement supported
+    if ((type != MEASUREMENT_MODE_PEAK_RMS)
+            // for peak+RMS measurement, the results are 2 int32_t values
+            || (number != 2)) {
+        ALOGE("Cannot retrieve int measurements, MEASUREMENT_MODE_PEAK_RMS returns 2 ints, not %d",
+                        number);
+        return BAD_VALUE;
+    }
+
+    status_t status = NO_ERROR;
+    if (mEnabled) {
+        uint32_t replySize = number * sizeof(int32_t);
+        status = command(VISUALIZER_CMD_MEASURE,
+                sizeof(uint32_t)  /*cmdSize*/,
+                &type /*cmdData*/,
+                &replySize, measurements);
+        ALOGV("getMeasurements() command returned %d", status);
+        if ((status == NO_ERROR) && (replySize == 0)) {
+            status = NOT_ENOUGH_DATA;
+        }
+    } else {
+        ALOGV("getMeasurements() disabled");
+        return INVALID_OPERATION;
+    }
     return status;
 }
 

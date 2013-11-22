@@ -20,7 +20,6 @@
 
 #include "HTTPLiveSource.h"
 
-#include "ATSParser.h"
 #include "AnotherPacketSource.h"
 #include "LiveDataSource.h"
 #include "LiveSession.h"
@@ -44,7 +43,8 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
       mUID(uid),
       mFlags(0),
       mFinalResult(OK),
-      mOffset(0) {
+      mOffset(0),
+      mFetchSubtitleDataGeneration(0) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -62,7 +62,10 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
 NuPlayer::HTTPLiveSource::~HTTPLiveSource() {
     if (mLiveSession != NULL) {
         mLiveSession->disconnect();
+        mLiveSession.clear();
+
         mLiveLooper->stop();
+        mLiveLooper.clear();
     }
 }
 
@@ -76,128 +79,72 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
     mLiveSession = new LiveSession(
             notify,
             (mFlags & kFlagIncognito) ? LiveSession::kFlagIncognito : 0,
-            mUIDValid, mUID);
+            mUIDValid,
+            mUID);
 
     mLiveLooper->registerHandler(mLiveSession);
 
-    mLiveSession->connect(
+    mLiveSession->connectAsync(
             mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
-
-    mTSParser = new ATSParser;
 }
 
 void NuPlayer::HTTPLiveSource::start() {
 }
 
-sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
-    ATSParser::SourceType type =
-        audio ? ATSParser::AUDIO : ATSParser::VIDEO;
+sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
+    sp<AMessage> format;
+    status_t err = mLiveSession->getStreamFormat(
+            audio ? LiveSession::STREAMTYPE_AUDIO
+                  : LiveSession::STREAMTYPE_VIDEO,
+            &format);
 
-    sp<AnotherPacketSource> source =
-        static_cast<AnotherPacketSource *>(mTSParser->getSource(type).get());
-
-    if (source == NULL) {
+    if (err != OK) {
         return NULL;
     }
 
-    return source->getFormat();
+    return format;
 }
 
 status_t NuPlayer::HTTPLiveSource::feedMoreTSData() {
-    if (mFinalResult != OK) {
-        return mFinalResult;
-    }
-
-    sp<LiveDataSource> source =
-        static_cast<LiveDataSource *>(mLiveSession->getDataSource().get());
-
-    for (int32_t i = 0; i < 50; ++i) {
-        char buffer[188];
-        ssize_t n = source->readAtNonBlocking(mOffset, buffer, sizeof(buffer));
-
-        if (n == -EWOULDBLOCK) {
-            break;
-        } else if (n < 0) {
-            if (n != ERROR_END_OF_STREAM) {
-                ALOGI("input data EOS reached, error %ld", n);
-            } else {
-                ALOGI("input data EOS reached.");
-            }
-            mTSParser->signalEOS(n);
-            mFinalResult = n;
-            break;
-        } else {
-            if (buffer[0] == 0x00) {
-                // XXX legacy
-
-                uint8_t type = buffer[1];
-
-                sp<AMessage> extra = new AMessage;
-
-                if (type & 2) {
-                    int64_t mediaTimeUs;
-                    memcpy(&mediaTimeUs, &buffer[2], sizeof(mediaTimeUs));
-
-                    extra->setInt64(IStreamListener::kKeyMediaTimeUs, mediaTimeUs);
-                }
-
-                mTSParser->signalDiscontinuity(
-                        ((type & 1) == 0)
-                            ? ATSParser::DISCONTINUITY_SEEK
-                            : ATSParser::DISCONTINUITY_FORMATCHANGE,
-                        extra);
-            } else {
-                status_t err = mTSParser->feedTSPacket(buffer, sizeof(buffer));
-
-                if (err != OK) {
-                    ALOGE("TS Parser returned error %d", err);
-                    mTSParser->signalEOS(err);
-                    mFinalResult = err;
-                    break;
-                }
-            }
-
-            mOffset += n;
-        }
-    }
-
     return OK;
 }
 
 status_t NuPlayer::HTTPLiveSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
-    ATSParser::SourceType type =
-        audio ? ATSParser::AUDIO : ATSParser::VIDEO;
-
-    sp<AnotherPacketSource> source =
-        static_cast<AnotherPacketSource *>(mTSParser->getSource(type).get());
-
-    if (source == NULL) {
-        return -EWOULDBLOCK;
-    }
-
-    status_t finalResult;
-    if (!source->hasBufferAvailable(&finalResult)) {
-        return finalResult == OK ? -EWOULDBLOCK : finalResult;
-    }
-
-    return source->dequeueAccessUnit(accessUnit);
+    return mLiveSession->dequeueAccessUnit(
+            audio ? LiveSession::STREAMTYPE_AUDIO
+                  : LiveSession::STREAMTYPE_VIDEO,
+            accessUnit);
 }
 
 status_t NuPlayer::HTTPLiveSource::getDuration(int64_t *durationUs) {
     return mLiveSession->getDuration(durationUs);
 }
 
-status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
-    // We need to make sure we're not seeking until we have seen the very first
-    // PTS timestamp in the whole stream (from the beginning of the stream).
-    while (!mTSParser->PTSTimeDeltaEstablished() && feedMoreTSData() == OK) {
-        usleep(100000);
+status_t NuPlayer::HTTPLiveSource::getTrackInfo(Parcel *reply) const {
+    return mLiveSession->getTrackInfo(reply);
+}
+
+status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
+    status_t err = mLiveSession->selectTrack(trackIndex, select);
+
+    if (err == OK) {
+        mFetchSubtitleDataGeneration++;
+        if (select) {
+            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, id());
+            msg->setInt32("generation", mFetchSubtitleDataGeneration);
+            msg->post();
+        }
     }
 
-    mLiveSession->seekTo(seekTimeUs);
+    // LiveSession::selectTrack returns BAD_VALUE when selecting the currently
+    // selected track, or unselecting a non-selected track. In this case it's an
+    // no-op so we return OK.
+    return (err == OK || err == BAD_VALUE) ? OK : err;
+}
 
-    return OK;
+status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
+    return mLiveSession->seekTo(seekTimeUs);
 }
 
 void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
@@ -205,6 +152,39 @@ void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatSessionNotify:
         {
             onSessionNotify(msg);
+            break;
+        }
+
+        case kWhatFetchSubtitleData:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+
+            if (generation != mFetchSubtitleDataGeneration) {
+                // stale
+                break;
+            }
+
+            sp<ABuffer> buffer;
+            if (mLiveSession->dequeueAccessUnit(
+                    LiveSession::STREAMTYPE_SUBTITLES, &buffer) == OK) {
+                sp<AMessage> notify = dupNotify();
+                notify->setInt32("what", kWhatSubtitleData);
+                notify->setBuffer("buffer", buffer);
+                notify->post();
+
+                int64_t timeUs, baseUs, durationUs, delayUs;
+                CHECK(buffer->meta()->findInt64("baseUs", &baseUs));
+                CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+                CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
+                delayUs = baseUs + timeUs - ALooper::GetNowUs();
+
+                msg->post(delayUs > 0ll ? delayUs : 0ll);
+            } else {
+                // try again in 1 second
+                msg->post(1000000ll);
+            }
+
             break;
         }
 
@@ -246,6 +226,32 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             CHECK(msg->findInt32("err", &err));
 
             notifyPrepared(err);
+            break;
+        }
+
+        case LiveSession::kWhatStreamsChanged:
+        {
+            uint32_t changedMask;
+            CHECK(msg->findInt32(
+                        "changedMask", (int32_t *)&changedMask));
+
+            bool audio = changedMask & LiveSession::STREAMTYPE_AUDIO;
+            bool video = changedMask & LiveSession::STREAMTYPE_VIDEO;
+
+            sp<AMessage> reply;
+            CHECK(msg->findMessage("reply", &reply));
+
+            sp<AMessage> notify = dupNotify();
+            notify->setInt32("what", kWhatQueueDecoderShutdown);
+            notify->setInt32("audio", audio);
+            notify->setInt32("video", video);
+            notify->setMessage("reply", reply);
+            notify->post();
+            break;
+        }
+
+        case LiveSession::kWhatError:
+        {
             break;
         }
 

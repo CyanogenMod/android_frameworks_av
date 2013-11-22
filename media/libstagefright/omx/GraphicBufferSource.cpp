@@ -18,12 +18,13 @@
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
-#include <GraphicBufferSource.h>
+#include "GraphicBufferSource.h"
 
 #include <OMX_Core.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
 
-#include <MetadataBufferType.h>
+#include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
 
 namespace android {
@@ -36,9 +37,16 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
     mExecuting(false),
+    mSuspended(false),
     mNumFramesAvailable(0),
     mEndOfStream(false),
-    mEndOfStreamSent(false) {
+    mEndOfStreamSent(false),
+    mRepeatAfterUs(-1ll),
+    mRepeatLastFrameGeneration(0),
+    mLatestSubmittedBufferId(-1),
+    mLatestSubmittedBufferFrameNum(0),
+    mLatestSubmittedBufferUseCount(0),
+    mRepeatBufferDeferred(false) {
 
     ALOGV("GraphicBufferSource w=%u h=%u c=%u",
             bufferWidth, bufferHeight, bufferCount);
@@ -51,10 +59,9 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
 
     String8 name("GraphicBufferSource");
 
-    mBufferQueue = new BufferQueue(true);
+    mBufferQueue = new BufferQueue();
     mBufferQueue->setConsumerName(name);
     mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mBufferQueue->setSynchronousMode(true);
     mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
             GRALLOC_USAGE_HW_TEXTURE);
 
@@ -69,13 +76,10 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     // reference once the ctor ends, as that would cause the refcount of 'this'
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
     // that's what we create.
-    wp<BufferQueue::ConsumerListener> listener;
-    listener = static_cast<BufferQueue::ConsumerListener*>(this);
+    wp<BufferQueue::ConsumerListener> listener = static_cast<BufferQueue::ConsumerListener*>(this);
+    sp<BufferQueue::ProxyConsumerListener> proxy = new BufferQueue::ProxyConsumerListener(listener);
 
-    sp<BufferQueue::ConsumerListener> proxy;
-    proxy = new BufferQueue::ProxyConsumerListener(listener);
-
-    mInitCheck = mBufferQueue->consumerConnect(proxy);
+    mInitCheck = mBufferQueue->consumerConnect(proxy, false);
     if (mInitCheck != NO_ERROR) {
         ALOGE("Error connecting to BufferQueue: %s (%d)",
                 strerror(-mInitCheck), mInitCheck);
@@ -126,14 +130,40 @@ void GraphicBufferSource::omxExecuting() {
     if (mEndOfStream && mNumFramesAvailable == 0) {
         submitEndOfInputStream_l();
     }
+
+    if (mRepeatAfterUs > 0ll && mLooper == NULL) {
+        mReflector = new AHandlerReflector<GraphicBufferSource>(this);
+
+        mLooper = new ALooper;
+        mLooper->registerHandler(mReflector);
+        mLooper->start();
+
+        if (mLatestSubmittedBufferId >= 0) {
+            sp<AMessage> msg =
+                new AMessage(kWhatRepeatLastFrame, mReflector->id());
+
+            msg->setInt32("generation", ++mRepeatLastFrameGeneration);
+            msg->post(mRepeatAfterUs);
+        }
+    }
 }
 
 void GraphicBufferSource::omxLoaded(){
     Mutex::Autolock autoLock(mMutex);
-    ALOGV("--> loaded");
-    CHECK(mExecuting);
+    if (!mExecuting) {
+        // This can happen if something failed very early.
+        ALOGW("Dropped back down to Loaded without Executing");
+    }
 
-    ALOGV("Dropped down to loaded, avail=%d eos=%d eosSent=%d",
+    if (mLooper != NULL) {
+        mLooper->unregisterHandler(mReflector->id());
+        mReflector.clear();
+
+        mLooper->stop();
+        mLooper.clear();
+    }
+
+    ALOGV("--> loaded; avail=%d eos=%d eosSent=%d",
             mNumFramesAvailable, mEndOfStream, mEndOfStreamSent);
 
     // Codec is no longer executing.  Discard all codec-related state.
@@ -206,24 +236,19 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // Find matching entry in our cached copy of the BufferQueue slots.
     // If we find a match, release that slot.  If we don't, the BufferQueue
     // has dropped that GraphicBuffer, and there's nothing for us to release.
-    //
-    // (We could store "id" in CodecBuffer and avoid the slot search.)
-    int id;
-    for (id = 0; id < BufferQueue::NUM_BUFFER_SLOTS; id++) {
-        if (mBufferSlot[id] == NULL) {
-            continue;
-        }
+    int id = codecBuffer.mBuf;
+    if (mBufferSlot[id] != NULL &&
+        mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
+        ALOGV("cbi %d matches bq slot %d, handle=%p",
+                cbi, id, mBufferSlot[id]->handle);
 
-        if (mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
-            ALOGV("cbi %d matches bq slot %d, handle=%p",
-                    cbi, id, mBufferSlot[id]->handle);
-
-            mBufferQueue->releaseBuffer(id, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
-                    Fence::NO_FENCE);
-            break;
+        if (id == mLatestSubmittedBufferId) {
+            CHECK_GT(mLatestSubmittedBufferUseCount--, 0);
+        } else {
+            mBufferQueue->releaseBuffer(id, codecBuffer.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
         }
-    }
-    if (id == BufferQueue::NUM_BUFFER_SLOTS) {
+    } else {
         ALOGV("codecBufferEmptied: no match for emptied buffer in cbi %d",
                 cbi);
     }
@@ -242,12 +267,65 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         // send that.
         ALOGV("buffer freed, EOS pending");
         submitEndOfInputStream_l();
+    } else if (mRepeatBufferDeferred) {
+        bool success = repeatLatestSubmittedBuffer_l();
+        if (success) {
+            ALOGV("deferred repeatLatestSubmittedBuffer_l SUCCESS");
+        } else {
+            ALOGV("deferred repeatLatestSubmittedBuffer_l FAILURE");
+        }
+        mRepeatBufferDeferred = false;
     }
+
     return;
+}
+
+void GraphicBufferSource::suspend(bool suspend) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (suspend) {
+        mSuspended = true;
+
+        while (mNumFramesAvailable > 0) {
+            BufferQueue::BufferItem item;
+            status_t err = mBufferQueue->acquireBuffer(&item, 0);
+
+            if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
+                // shouldn't happen.
+                ALOGW("suspend: frame was not available");
+                break;
+            } else if (err != OK) {
+                ALOGW("suspend: acquireBuffer returned err=%d", err);
+                break;
+            }
+
+            --mNumFramesAvailable;
+
+            mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+        }
+        return;
+    }
+
+    mSuspended = false;
+
+    if (mExecuting && mNumFramesAvailable == 0 && mRepeatBufferDeferred) {
+        if (repeatLatestSubmittedBuffer_l()) {
+            ALOGV("suspend/deferred repeatLatestSubmittedBuffer_l SUCCESS");
+
+            mRepeatBufferDeferred = false;
+        } else {
+            ALOGV("suspend/deferred repeatLatestSubmittedBuffer_l FAILURE");
+        }
+    }
 }
 
 bool GraphicBufferSource::fillCodecBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable > 0);
+
+    if (mSuspended) {
+        return false;
+    }
 
     int cbi = findAvailableCodecBuffer_l();
     if (cbi < 0) {
@@ -260,7 +338,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
     ALOGV("fillCodecBuffer_l: acquiring buffer, avail=%d",
             mNumFramesAvailable);
     BufferQueue::BufferItem item;
-    status_t err = mBufferQueue->acquireBuffer(&item);
+    status_t err = mBufferQueue->acquireBuffer(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
         // shouldn't happen
         ALOGW("fillCodecBuffer_l: frame was not available");
@@ -287,16 +365,73 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         mBufferSlot[item.mBuf] = item.mGraphicBuffer;
     }
 
-    err = submitBuffer_l(mBufferSlot[item.mBuf], item.mTimestamp / 1000, cbi);
+    err = submitBuffer_l(item, cbi);
     if (err != OK) {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-        mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
-                EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+        mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
+        setLatestSubmittedBuffer_l(item);
     }
 
     return true;
+}
+
+bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
+    CHECK(mExecuting && mNumFramesAvailable == 0);
+
+    if (mLatestSubmittedBufferId < 0 || mSuspended) {
+        return false;
+    }
+
+    int cbi = findAvailableCodecBuffer_l();
+    if (cbi < 0) {
+        // No buffers available, bail.
+        ALOGV("repeatLatestSubmittedBuffer_l: no codec buffers.");
+        return false;
+    }
+
+    BufferQueue::BufferItem item;
+    item.mBuf = mLatestSubmittedBufferId;
+    item.mFrameNumber = mLatestSubmittedBufferFrameNum;
+
+    status_t err = submitBuffer_l(item, cbi);
+
+    if (err != OK) {
+        return false;
+    }
+
+    ++mLatestSubmittedBufferUseCount;
+
+    return true;
+}
+
+void GraphicBufferSource::setLatestSubmittedBuffer_l(
+        const BufferQueue::BufferItem &item) {
+    ALOGV("setLatestSubmittedBuffer_l");
+
+    if (mLatestSubmittedBufferId >= 0) {
+        if (mLatestSubmittedBufferUseCount == 0) {
+            mBufferQueue->releaseBuffer(
+                    mLatestSubmittedBufferId,
+                    mLatestSubmittedBufferFrameNum,
+                    EGL_NO_DISPLAY,
+                    EGL_NO_SYNC_KHR,
+                    Fence::NO_FENCE);
+        }
+    }
+
+    mLatestSubmittedBufferId = item.mBuf;
+    mLatestSubmittedBufferFrameNum = item.mFrameNumber;
+    mLatestSubmittedBufferUseCount = 1;
+    mRepeatBufferDeferred = false;
+
+    if (mReflector != NULL) {
+        sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector->id());
+        msg->setInt32("generation", ++mRepeatLastFrameGeneration);
+        msg->post(mRepeatAfterUs);
+    }
 }
 
 status_t GraphicBufferSource::signalEndOfInputStream() {
@@ -326,11 +461,13 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
     return OK;
 }
 
-status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
-        int64_t timestampUsec, int cbi) {
+status_t GraphicBufferSource::submitBuffer_l(
+        const BufferQueue::BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
-    codecBuffer.mGraphicBuffer = graphicBuffer;
+    codecBuffer.mGraphicBuffer = mBufferSlot[item.mBuf];
+    codecBuffer.mBuf = item.mBuf;
+    codecBuffer.mFrameNumber = item.mFrameNumber;
 
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
     CHECK(header->nAllocLen >= 4 + sizeof(buffer_handle_t));
@@ -342,7 +479,7 @@ status_t GraphicBufferSource::submitBuffer_l(sp<GraphicBuffer>& graphicBuffer,
 
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
-            timestampUsec);
+            item.mTimestamp / 1000);
     if (err != OK) {
         ALOGW("WARNING: emptyDirectBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
@@ -423,21 +560,29 @@ void GraphicBufferSource::onFrameAvailable() {
     ALOGV("onFrameAvailable exec=%d avail=%d",
             mExecuting, mNumFramesAvailable);
 
-    if (mEndOfStream) {
-        // This should only be possible if a new buffer was queued after
-        // EOS was signaled, i.e. the app is misbehaving.
-        ALOGW("onFrameAvailable: EOS is set, ignoring frame");
+    if (mEndOfStream || mSuspended) {
+        if (mEndOfStream) {
+            // This should only be possible if a new buffer was queued after
+            // EOS was signaled, i.e. the app is misbehaving.
+
+            ALOGW("onFrameAvailable: EOS is set, ignoring frame");
+        } else {
+            ALOGV("onFrameAvailable: suspended, ignoring frame");
+        }
 
         BufferQueue::BufferItem item;
-        status_t err = mBufferQueue->acquireBuffer(&item);
+        status_t err = mBufferQueue->acquireBuffer(&item, 0);
         if (err == OK) {
-            mBufferQueue->releaseBuffer(item.mBuf, EGL_NO_DISPLAY,
-                EGL_NO_SYNC_KHR, item.mFence);
+            mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
         }
         return;
     }
 
     mNumFramesAvailable++;
+
+    mRepeatBufferDeferred = false;
+    ++mRepeatLastFrameGeneration;
 
     if (mExecuting) {
         fillCodecBuffer_l();
@@ -461,6 +606,53 @@ void GraphicBufferSource::onBuffersReleased() {
             mBufferSlot[i] = NULL;
         }
         slotMask >>= 1;
+    }
+}
+
+status_t GraphicBufferSource::setRepeatPreviousFrameDelayUs(
+        int64_t repeatAfterUs) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting || repeatAfterUs <= 0ll) {
+        return INVALID_OPERATION;
+    }
+
+    mRepeatAfterUs = repeatAfterUs;
+
+    return OK;
+}
+
+void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {
+    switch (msg->what()) {
+        case kWhatRepeatLastFrame:
+        {
+            Mutex::Autolock autoLock(mMutex);
+
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+
+            if (generation != mRepeatLastFrameGeneration) {
+                // stale
+                break;
+            }
+
+            if (!mExecuting || mNumFramesAvailable > 0) {
+                break;
+            }
+
+            bool success = repeatLatestSubmittedBuffer_l();
+
+            if (success) {
+                ALOGV("repeatLatestSubmittedBuffer_l SUCCESS");
+            } else {
+                ALOGV("repeatLatestSubmittedBuffer_l FAILURE");
+                mRepeatBufferDeferred = true;
+            }
+            break;
+        }
+
+        default:
+            TRESPASS();
     }
 }
 

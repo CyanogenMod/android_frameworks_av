@@ -73,7 +73,7 @@ private:
     Condition mFrameAvailableCondition;
     Condition mFrameEncodingCompletionCondition;
 
-    AudioRecord *mRecord;
+    sp<AudioRecord> mRecord;
     status_t mInitCheck;
     bool mStarted;
     int32_t mSampleRate;

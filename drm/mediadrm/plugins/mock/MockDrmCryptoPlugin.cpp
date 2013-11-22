@@ -48,6 +48,14 @@ namespace android {
         return (!memcmp(uuid, mock_uuid, sizeof(uuid)));
     }
 
+    bool MockDrmFactory::isContentTypeSupported(const String8 &mimeType)
+    {
+        if (mimeType != "video/mp4") {
+            return false;
+        }
+        return true;
+    }
+
     status_t MockDrmFactory::createDrmPlugin(const uint8_t uuid[16], DrmPlugin **plugin)
     {
         *plugin = new MockDrmPlugin();

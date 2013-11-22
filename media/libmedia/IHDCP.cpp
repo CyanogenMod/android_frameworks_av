@@ -30,7 +30,9 @@ enum {
     HDCP_SET_OBSERVER,
     HDCP_INIT_ASYNC,
     HDCP_SHUTDOWN_ASYNC,
+    HDCP_GET_CAPS,
     HDCP_ENCRYPT,
+    HDCP_ENCRYPT_NATIVE,
     HDCP_DECRYPT,
 };
 
@@ -84,6 +86,13 @@ struct BpHDCP : public BpInterface<IHDCP> {
         return reply.readInt32();
     }
 
+    virtual uint32_t getCaps() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHDCP::getInterfaceDescriptor());
+        remote()->transact(HDCP_GET_CAPS, data, &reply);
+        return reply.readInt32();
+    }
+
     virtual status_t encrypt(
             const void *inData, size_t size, uint32_t streamCTR,
             uint64_t *outInputCTR, void *outData) {
@@ -99,6 +108,31 @@ struct BpHDCP : public BpInterface<IHDCP> {
         if (err != OK) {
             *outInputCTR = 0;
 
+            return err;
+        }
+
+        *outInputCTR = reply.readInt64();
+        reply.read(outData, size);
+
+        return err;
+    }
+
+    virtual status_t encryptNative(
+            const sp<GraphicBuffer> &graphicBuffer,
+            size_t offset, size_t size, uint32_t streamCTR,
+            uint64_t *outInputCTR, void *outData) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IHDCP::getInterfaceDescriptor());
+        data.write(*graphicBuffer);
+        data.writeInt32(offset);
+        data.writeInt32(size);
+        data.writeInt32(streamCTR);
+        remote()->transact(HDCP_ENCRYPT_NATIVE, data, &reply);
+
+        status_t err = reply.readInt32();
+
+        if (err != OK) {
+            *outInputCTR = 0;
             return err;
         }
 
@@ -196,6 +230,14 @@ status_t BnHDCP::onTransact(
             return OK;
         }
 
+        case HDCP_GET_CAPS:
+        {
+            CHECK_INTERFACE(IHDCP, data, reply);
+
+            reply->writeInt32(getCaps());
+            return OK;
+        }
+
         case HDCP_ENCRYPT:
         {
             size_t size = data.readInt32();
@@ -218,6 +260,34 @@ status_t BnHDCP::onTransact(
 
             free(inData);
             inData = outData = NULL;
+
+            return OK;
+        }
+
+        case HDCP_ENCRYPT_NATIVE:
+        {
+            CHECK_INTERFACE(IHDCP, data, reply);
+
+            sp<GraphicBuffer> graphicBuffer = new GraphicBuffer();
+            data.read(*graphicBuffer);
+            size_t offset = data.readInt32();
+            size_t size = data.readInt32();
+            uint32_t streamCTR = data.readInt32();
+            void *outData = malloc(size);
+            uint64_t inputCTR;
+
+            status_t err = encryptNative(graphicBuffer, offset, size,
+                                         streamCTR, &inputCTR, outData);
+
+            reply->writeInt32(err);
+
+            if (err == OK) {
+                reply->writeInt64(inputCTR);
+                reply->write(outData, size);
+            }
+
+            free(outData);
+            outData = NULL;
 
             return OK;
         }

@@ -15,6 +15,9 @@
 ** limitations under the License.
 */
 
+#define LOG_TAG "BpCameraService"
+#include <utils/Log.h>
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -28,8 +31,58 @@
 #include <camera/IProCameraCallbacks.h>
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
+#include <camera/camera2/ICameraDeviceUser.h>
+#include <camera/camera2/ICameraDeviceCallbacks.h>
+#include <camera/CameraMetadata.h>
 
 namespace android {
+
+namespace {
+
+enum {
+    EX_SECURITY = -1,
+    EX_BAD_PARCELABLE = -2,
+    EX_ILLEGAL_ARGUMENT = -3,
+    EX_NULL_POINTER = -4,
+    EX_ILLEGAL_STATE = -5,
+    EX_HAS_REPLY_HEADER = -128,  // special; see below
+};
+
+static bool readExceptionCode(Parcel& reply) {
+    int32_t exceptionCode = reply.readExceptionCode();
+
+    if (exceptionCode != 0) {
+        const char* errorMsg;
+        switch(exceptionCode) {
+            case EX_SECURITY:
+                errorMsg = "Security";
+                break;
+            case EX_BAD_PARCELABLE:
+                errorMsg = "BadParcelable";
+                break;
+            case EX_NULL_POINTER:
+                errorMsg = "NullPointer";
+                break;
+            case EX_ILLEGAL_STATE:
+                errorMsg = "IllegalState";
+                break;
+            // Binder should be handling this code inside Parcel::readException
+            // but lets have a to-string here anyway just in case.
+            case EX_HAS_REPLY_HEADER:
+                errorMsg = "HasReplyHeader";
+                break;
+            default:
+                errorMsg = "Unknown";
+        }
+
+        ALOGE("Binder transmission error %s (%d)", errorMsg, exceptionCode);
+        return true;
+    }
+
+    return false;
+}
+
+};
 
 class BpCameraService: public BpInterface<ICameraService>
 {
@@ -45,6 +98,8 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         remote()->transact(BnCameraService::GET_NUMBER_OF_CAMERAS, data, &reply);
+
+        if (readExceptionCode(reply)) return 0;
         return reply.readInt32();
     }
 
@@ -55,14 +110,44 @@ public:
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeInt32(cameraId);
         remote()->transact(BnCameraService::GET_CAMERA_INFO, data, &reply);
-        cameraInfo->facing = reply.readInt32();
-        cameraInfo->orientation = reply.readInt32();
-        return reply.readInt32();
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t result = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            cameraInfo->facing = reply.readInt32();
+            cameraInfo->orientation = reply.readInt32();
+        }
+        return result;
     }
 
-    // connect to camera service
-    virtual sp<ICamera> connect(const sp<ICameraClient>& cameraClient, int cameraId,
-                                const String16 &clientPackageName, int clientUid)
+    // get camera characteristics (static metadata)
+    virtual status_t getCameraCharacteristics(int cameraId,
+                                              CameraMetadata* cameraInfo) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeInt32(cameraId);
+        remote()->transact(BnCameraService::GET_CAMERA_CHARACTERISTICS, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t result = reply.readInt32();
+
+        CameraMetadata out;
+        if (reply.readInt32() != 0) {
+            out.readFromParcel(&reply);
+        }
+
+        if (cameraInfo != NULL) {
+            cameraInfo->swap(out);
+        }
+
+        return result;
+    }
+
+    // connect to camera service (android.hardware.Camera)
+    virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
+                             const String16 &clientPackageName, int clientUid,
+                             /*out*/
+                             sp<ICamera>& device)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
@@ -71,12 +156,20 @@ public:
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT, data, &reply);
-        return interface_cast<ICamera>(reply.readStrongBinder());
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t status = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            device = interface_cast<ICamera>(reply.readStrongBinder());
+        }
+        return status;
     }
 
     // connect to camera service (pro client)
-    virtual sp<IProCameraUser> connect(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
-                                       const String16 &clientPackageName, int clientUid)
+    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
+                                const String16 &clientPackageName, int clientUid,
+                                /*out*/
+                                sp<IProCameraUser>& device)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
@@ -85,7 +178,38 @@ public:
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT_PRO, data, &reply);
-        return interface_cast<IProCameraUser>(reply.readStrongBinder());
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t status = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            device = interface_cast<IProCameraUser>(reply.readStrongBinder());
+        }
+        return status;
+    }
+
+    // connect to camera service (android.hardware.camera2.CameraDevice)
+    virtual status_t connectDevice(
+            const sp<ICameraDeviceCallbacks>& cameraCb,
+            int cameraId,
+            const String16& clientPackageName,
+            int clientUid,
+            /*out*/
+            sp<ICameraDeviceUser>& device)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(cameraCb->asBinder());
+        data.writeInt32(cameraId);
+        data.writeString16(clientPackageName);
+        data.writeInt32(clientUid);
+        remote()->transact(BnCameraService::CONNECT_DEVICE, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t status = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            device = interface_cast<ICameraDeviceUser>(reply.readStrongBinder());
+        }
+        return status;
     }
 
     virtual status_t addListener(const sp<ICameraServiceListener>& listener)
@@ -94,6 +218,8 @@ public:
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(listener->asBinder());
         remote()->transact(BnCameraService::ADD_LISTENER, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
         return reply.readInt32();
     }
 
@@ -103,6 +229,8 @@ public:
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(listener->asBinder());
         remote()->transact(BnCameraService::REMOVE_LISTENER, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
         return reply.readInt32();
     }
 };
@@ -117,17 +245,34 @@ status_t BnCameraService::onTransact(
     switch(code) {
         case GET_NUMBER_OF_CAMERAS: {
             CHECK_INTERFACE(ICameraService, data, reply);
+            reply->writeNoException();
             reply->writeInt32(getNumberOfCameras());
             return NO_ERROR;
         } break;
         case GET_CAMERA_INFO: {
             CHECK_INTERFACE(ICameraService, data, reply);
-            CameraInfo cameraInfo;
+            CameraInfo cameraInfo = CameraInfo();
             memset(&cameraInfo, 0, sizeof(cameraInfo));
             status_t result = getCameraInfo(data.readInt32(), &cameraInfo);
+            reply->writeNoException();
+            reply->writeInt32(result);
+
+            // Fake a parcelable object here
+            reply->writeInt32(1); // means the parcelable is included
             reply->writeInt32(cameraInfo.facing);
             reply->writeInt32(cameraInfo.orientation);
+            return NO_ERROR;
+        } break;
+        case GET_CAMERA_CHARACTERISTICS: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            CameraMetadata info;
+            status_t result = getCameraCharacteristics(data.readInt32(), &info);
+            reply->writeNoException();
             reply->writeInt32(result);
+
+            // out-variables are after exception and return value
+            reply->writeInt32(1); // means the parcelable is included
+            info.writeToParcel(reply);
             return NO_ERROR;
         } break;
         case CONNECT: {
@@ -137,26 +282,64 @@ status_t BnCameraService::onTransact(
             int32_t cameraId = data.readInt32();
             const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
-            sp<ICamera> camera = connect(cameraClient, cameraId,
-                    clientName, clientUid);
-            reply->writeStrongBinder(camera->asBinder());
+            sp<ICamera> camera;
+            status_t status = connect(cameraClient, cameraId,
+                    clientName, clientUid, /*out*/ camera);
+            reply->writeNoException();
+            reply->writeInt32(status);
+            if (camera != NULL) {
+                reply->writeInt32(1);
+                reply->writeStrongBinder(camera->asBinder());
+            } else {
+                reply->writeInt32(0);
+            }
             return NO_ERROR;
         } break;
         case CONNECT_PRO: {
             CHECK_INTERFACE(ICameraService, data, reply);
-            sp<IProCameraCallbacks> cameraClient = interface_cast<IProCameraCallbacks>(data.readStrongBinder());
+            sp<IProCameraCallbacks> cameraClient =
+                interface_cast<IProCameraCallbacks>(data.readStrongBinder());
             int32_t cameraId = data.readInt32();
             const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
-            sp<IProCameraUser> camera = connect(cameraClient, cameraId,
-                                                clientName, clientUid);
-            reply->writeStrongBinder(camera->asBinder());
+            sp<IProCameraUser> camera;
+            status_t status = connectPro(cameraClient, cameraId,
+                    clientName, clientUid, /*out*/ camera);
+            reply->writeNoException();
+            reply->writeInt32(status);
+            if (camera != NULL) {
+                reply->writeInt32(1);
+                reply->writeStrongBinder(camera->asBinder());
+            } else {
+                reply->writeInt32(0);
+            }
+            return NO_ERROR;
+        } break;
+        case CONNECT_DEVICE: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<ICameraDeviceCallbacks> cameraClient =
+                interface_cast<ICameraDeviceCallbacks>(data.readStrongBinder());
+            int32_t cameraId = data.readInt32();
+            const String16 clientName = data.readString16();
+            int32_t clientUid = data.readInt32();
+            sp<ICameraDeviceUser> camera;
+            status_t status = connectDevice(cameraClient, cameraId,
+                    clientName, clientUid, /*out*/ camera);
+            reply->writeNoException();
+            reply->writeInt32(status);
+            if (camera != NULL) {
+                reply->writeInt32(1);
+                reply->writeStrongBinder(camera->asBinder());
+            } else {
+                reply->writeInt32(0);
+            }
             return NO_ERROR;
         } break;
         case ADD_LISTENER: {
             CHECK_INTERFACE(ICameraService, data, reply);
             sp<ICameraServiceListener> listener =
                 interface_cast<ICameraServiceListener>(data.readStrongBinder());
+            reply->writeNoException();
             reply->writeInt32(addListener(listener));
             return NO_ERROR;
         } break;
@@ -164,6 +347,7 @@ status_t BnCameraService::onTransact(
             CHECK_INTERFACE(ICameraService, data, reply);
             sp<ICameraServiceListener> listener =
                 interface_cast<ICameraServiceListener>(data.readStrongBinder());
+            reply->writeNoException();
             reply->writeInt32(removeListener(listener));
             return NO_ERROR;
         } break;

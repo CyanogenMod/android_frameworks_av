@@ -16,7 +16,7 @@
 
 #include <media/mediascanner.h>
 
-#include <utils/StringArray.h>
+#include "StringArray.h"
 
 #include "autodetect.h"
 #include "unicode/ucnv.h"

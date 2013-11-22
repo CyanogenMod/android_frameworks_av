@@ -310,7 +310,6 @@ bool VideoEditorPlayer::VeAudioOutput::mIsOnEmulator = false;
 VideoEditorPlayer::VeAudioOutput::VeAudioOutput()
     : mCallback(NULL),
       mCallbackCookie(NULL) {
-    mTrack = 0;
     mStreamType = AUDIO_STREAM_MUSIC;
     mLeftVolume = 1.0;
     mRightVolume = 1.0;
@@ -392,7 +391,8 @@ status_t VideoEditorPlayer::VeAudioOutput::getFramesWritten(uint32_t *written) c
 status_t VideoEditorPlayer::VeAudioOutput::open(
         uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
         audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie, audio_output_flags_t flags) {
+        AudioCallback cb, void *cookie, audio_output_flags_t flags,
+        const audio_offload_info_t *offloadInfo) {
 
     mCallback = cb;
     mCallbackCookie = cookie;
@@ -405,7 +405,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
     }
     ALOGV("open(%u, %d, %d, %d)", sampleRate, channelCount, format, bufferCount);
-    if (mTrack) close();
+    if (mTrack != 0) close();
     uint32_t afSampleRate;
     size_t afFrameCount;
     int frameCount;
@@ -434,7 +434,7 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
         }
     }
 
-    AudioTrack *t;
+    sp<AudioTrack> t;
     if (mCallback != NULL) {
         t = new AudioTrack(
                 mStreamType,
@@ -457,7 +457,6 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
 
     if ((t == 0) || (t->initCheck() != NO_ERROR)) {
         ALOGE("Unable to create audio track");
-        delete t;
         return NO_INIT;
     }
 
@@ -469,14 +468,18 @@ status_t VideoEditorPlayer::VeAudioOutput::open(
     return NO_ERROR;
 }
 
-void VideoEditorPlayer::VeAudioOutput::start() {
+status_t VideoEditorPlayer::VeAudioOutput::start() {
 
     ALOGV("start");
-    if (mTrack) {
+    if (mTrack != 0) {
         mTrack->setVolume(mLeftVolume, mRightVolume);
-        mTrack->start();
-        mTrack->getPosition(&mNumFramesWritten);
+        status_t status = mTrack->start();
+        if (status == NO_ERROR) {
+            mTrack->getPosition(&mNumFramesWritten);
+        }
+        return status;
     }
+    return NO_INIT;
 }
 
 void VideoEditorPlayer::VeAudioOutput::snoopWrite(
@@ -492,7 +495,7 @@ ssize_t VideoEditorPlayer::VeAudioOutput::write(
     LOG_FATAL_IF(mCallback != NULL, "Don't call write if supplying a callback.");
 
     //ALOGV("write(%p, %u)", buffer, size);
-    if (mTrack) {
+    if (mTrack != 0) {
         snoopWrite(buffer, size);
         ssize_t ret = mTrack->write(buffer, size);
         mNumFramesWritten += ret / 4; // assume 16 bit stereo
@@ -504,26 +507,25 @@ ssize_t VideoEditorPlayer::VeAudioOutput::write(
 void VideoEditorPlayer::VeAudioOutput::stop() {
 
     ALOGV("stop");
-    if (mTrack) mTrack->stop();
+    if (mTrack != 0) mTrack->stop();
 }
 
 void VideoEditorPlayer::VeAudioOutput::flush() {
 
     ALOGV("flush");
-    if (mTrack) mTrack->flush();
+    if (mTrack != 0) mTrack->flush();
 }
 
 void VideoEditorPlayer::VeAudioOutput::pause() {
 
     ALOGV("VeAudioOutput::pause");
-    if (mTrack) mTrack->pause();
+    if (mTrack != 0) mTrack->pause();
 }
 
 void VideoEditorPlayer::VeAudioOutput::close() {
 
     ALOGV("close");
-    delete mTrack;
-    mTrack = 0;
+    mTrack.clear();
 }
 
 void VideoEditorPlayer::VeAudioOutput::setVolume(float left, float right) {
@@ -531,7 +533,7 @@ void VideoEditorPlayer::VeAudioOutput::setVolume(float left, float right) {
     ALOGV("setVolume(%f, %f)", left, right);
     mLeftVolume = left;
     mRightVolume = right;
-    if (mTrack) {
+    if (mTrack != 0) {
         mTrack->setVolume(left, right);
     }
 }
@@ -548,7 +550,8 @@ void VideoEditorPlayer::VeAudioOutput::CallbackWrapper(
     AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
 
     size_t actualSize = (*me->mCallback)(
-            me, buffer->raw, buffer->size, me->mCallbackCookie);
+            me, buffer->raw, buffer->size, me->mCallbackCookie,
+            MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER);
 
     buffer->size = actualSize;
 

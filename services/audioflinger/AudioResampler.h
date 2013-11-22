@@ -19,13 +19,14 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <cutils/compiler.h>
 
 #include <media/AudioBufferProvider.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
 
-class AudioResampler {
+class ANDROID_API AudioResampler {
 public:
     // Determines quality of SRC.
     //  LOW_QUALITY: linear interpolator (1st order)
@@ -55,6 +56,14 @@ public:
     // set the PTS of the next buffer output by the resampler
     virtual void setPTS(int64_t pts);
 
+    // Resample int16_t samples from provider and accumulate into 'out'.
+    // A mono provider delivers a sequence of samples.
+    // A stereo provider delivers a sequence of interleaved pairs of samples.
+    // Multi-channel providers are not supported.
+    // In either case, 'out' holds interleaved pairs of fixed-point signed Q19.12.
+    // That is, for a mono provider, there is an implicit up-channeling.
+    // Since this method accumulates, the caller is responsible for clearing 'out' initially.
+    // FIXME assumes provider is always successful; it should return the actual frame count.
     virtual void resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider) = 0;
 

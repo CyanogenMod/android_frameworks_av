@@ -30,9 +30,15 @@ struct HDCP : public BnHDCP {
     virtual status_t setObserver(const sp<IHDCPObserver> &observer);
     virtual status_t initAsync(const char *host, unsigned port);
     virtual status_t shutdownAsync();
+    virtual uint32_t getCaps();
 
     virtual status_t encrypt(
             const void *inData, size_t size, uint32_t streamCTR,
+            uint64_t *outInputCTR, void *outData);
+
+    virtual status_t encryptNative(
+            const sp<GraphicBuffer> &graphicBuffer,
+            size_t offset, size_t size, uint32_t streamCTR,
             uint64_t *outInputCTR, void *outData);
 
     virtual status_t decrypt(

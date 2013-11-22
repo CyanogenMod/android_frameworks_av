@@ -62,6 +62,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
+        $(TOP)/frameworks/native/services/connectivitymanager \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
@@ -69,7 +70,7 @@ LOCAL_C_INCLUDES:= \
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
         libcamera_client \
-        libcrypto \
+        libconnectivitymanager \
         libcutils \
         libdl \
         libdrmframework \
@@ -88,6 +89,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libvorbisidec \
         libz \
+        libpowermanager
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
@@ -97,9 +99,9 @@ LOCAL_STATIC_LIBRARIES := \
         libvpx \
         libwebm \
         libstagefright_mpeg2ts \
-        libstagefright_httplive \
         libstagefright_id3 \
         libFLAC \
+        libmedia_helper
 
 LOCAL_SRC_FILES += \
         chromium_http_stub.cpp

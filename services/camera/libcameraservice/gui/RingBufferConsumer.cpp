@@ -34,14 +34,14 @@ typedef android::RingBufferConsumer::PinnedBufferItem PinnedBufferItem;
 
 namespace android {
 
-RingBufferConsumer::RingBufferConsumer(uint32_t consumerUsage,
+RingBufferConsumer::RingBufferConsumer(const sp<IGraphicBufferConsumer>& consumer,
+        uint32_t consumerUsage,
         int bufferCount) :
-    ConsumerBase(new BufferQueue(true)),
+    ConsumerBase(consumer),
     mBufferCount(bufferCount)
 {
-    mBufferQueue->setConsumerUsageBits(consumerUsage);
-    mBufferQueue->setSynchronousMode(true);
-    mBufferQueue->setMaxAcquiredBufferCount(bufferCount);
+    mConsumer->setConsumerUsageBits(consumerUsage);
+    mConsumer->setMaxAcquiredBufferCount(bufferCount);
 
     assert(bufferCount > 0);
 }
@@ -52,7 +52,7 @@ RingBufferConsumer::~RingBufferConsumer() {
 void RingBufferConsumer::setName(const String8& name) {
     Mutex::Autolock _l(mMutex);
     mName = name;
-    mBufferQueue->setConsumerName(name);
+    mConsumer->setConsumerName(name);
 }
 
 sp<PinnedBufferItem> RingBufferConsumer::pinSelectedBuffer(
@@ -214,7 +214,11 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
         // In case the object was never pinned, pass the acquire fence
         // back to the release fence. If the fence was already waited on,
         // it'll just be a no-op to wait on it again.
-        err = addReleaseFenceLocked(item.mBuf, item.mFence);
+
+        // item.mGraphicBuffer was populated with the proper graphic-buffer
+        // at acquire even if it was previously acquired
+        err = addReleaseFenceLocked(item.mBuf,
+                item.mGraphicBuffer, item.mFence);
 
         if (err != OK) {
             BI_LOGE("Failed to add release fence to buffer "
@@ -226,7 +230,9 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
         BI_LOGV("Attempting to release buffer timestamp %lld, frame %lld",
                 item.mTimestamp, item.mFrameNumber);
 
-        err = releaseBufferLocked(item.mBuf,
+        // item.mGraphicBuffer was populated with the proper graphic-buffer
+        // at acquire even if it was previously acquired
+        err = releaseBufferLocked(item.mBuf, item.mGraphicBuffer,
                                   EGL_NO_DISPLAY,
                                   EGL_NO_SYNC_KHR);
         if (err != OK) {
@@ -278,7 +284,7 @@ void RingBufferConsumer::onFrameAvailable() {
         /**
          * Acquire new frame
          */
-        err = acquireBufferLocked(&item);
+        err = acquireBufferLocked(&item, 0);
         if (err != OK) {
             if (err != NO_BUFFER_AVAILABLE) {
                 BI_LOGE("Error acquiring buffer: %s (%d)", strerror(err), err);
@@ -310,7 +316,8 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
 
         RingBufferItem& find = *it;
         if (item.mGraphicBuffer == find.mGraphicBuffer) {
-            status_t res = addReleaseFenceLocked(item.mBuf, item.mFence);
+            status_t res = addReleaseFenceLocked(item.mBuf,
+                    item.mGraphicBuffer, item.mFence);
 
             if (res != OK) {
                 BI_LOGE("Failed to add release fence to buffer "
@@ -336,17 +343,17 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
 
 status_t RingBufferConsumer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setDefaultBufferSize(w, h);
+    return mConsumer->setDefaultBufferSize(w, h);
 }
 
 status_t RingBufferConsumer::setDefaultBufferFormat(uint32_t defaultFormat) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setDefaultBufferFormat(defaultFormat);
+    return mConsumer->setDefaultBufferFormat(defaultFormat);
 }
 
 status_t RingBufferConsumer::setConsumerUsage(uint32_t usage) {
     Mutex::Autolock _l(mMutex);
-    return mBufferQueue->setConsumerUsageBits(usage);
+    return mConsumer->setConsumerUsageBits(usage);
 }
 
 } // namespace android

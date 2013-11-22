@@ -271,7 +271,6 @@ protected:
             CpuConsumer::LockedBuffer buf;
             status_t ret;
 
-            EXPECT_OK(ret);
             if (OK == (ret = consumer->lockNextBuffer(&buf))) {
 
                 dout << "Frame received on streamId = " << streamId <<
@@ -285,9 +284,9 @@ protected:
         }
     }
 
-    virtual void onResultReceived(int32_t frameId,
+    virtual void onResultReceived(int32_t requestId,
                                   camera_metadata* request) {
-        dout << "Result received frameId = " << frameId
+        dout << "Result received requestId = " << requestId
              << ", requestPtr = " << (void*)request << std::endl;
         QueueEvent(RESULT_RECEIVED);
         free_camera_metadata(request);
@@ -482,7 +481,7 @@ protected:
      * Creating a streaming request for these output streams from a template,
      *  and submit it
      */
-    void createSubmitRequestForStreams(uint8_t* streamIds, size_t count, int requestCount=-1) {
+    void createSubmitRequestForStreams(int32_t* streamIds, size_t count, int requestCount=-1) {
 
         ASSERT_NE((void*)NULL, streamIds);
         ASSERT_LT(0u, count);
@@ -629,7 +628,7 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageSingle) {
 
             EXPECT_OK(mCamera->exclusiveTryLock());
 
-            uint8_t streams[] = { depthStreamId };
+            int32_t streams[] = { depthStreamId };
             ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(
                                                  streams,
                                                  /*count*/1));
@@ -706,7 +705,7 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageDual) {
     // set the output streams to just this stream ID
 
     // wow what a verbose API.
-    uint8_t allStreams[] = { streamId, depthStreamId };
+    int32_t allStreams[] = { streamId, depthStreamId };
     // IMPORTANT. bad things will happen if its not a uint8.
     size_t streamCount = sizeof(allStreams) / sizeof(allStreams[0]);
     camera_metadata_entry_t entry;
@@ -735,7 +734,7 @@ TEST_F(ProCameraTest, DISABLED_StreamingImageDual) {
 
     free_camera_metadata(request);
 
-    for (int i = 0; i < streamCount; ++i) {
+    for (size_t i = 0; i < streamCount; ++i) {
         EXPECT_OK(mCamera->deleteStream(allStreams[i]));
     }
     EXPECT_OK(mCamera->exclusiveUnlock());
@@ -777,7 +776,7 @@ TEST_F(ProCameraTest, CpuConsumerSingle) {
 
     // set the output streams to just this stream ID
 
-    uint8_t allStreams[] = { streamId };
+    int32_t allStreams[] = { streamId };
     camera_metadata_entry_t entry;
     uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
     int find = find_camera_metadata_entry(request, tag, &entry);
@@ -848,7 +847,7 @@ TEST_F(ProCameraTest, CpuConsumerDual) {
     // set the output streams to just this stream ID
 
     // wow what a verbose API.
-    uint8_t allStreams[] = { streamId, depthStreamId };
+    int32_t allStreams[] = { streamId, depthStreamId };
     size_t streamCount = 2;
     camera_metadata_entry_t entry;
     uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
@@ -923,7 +922,7 @@ TEST_F(ProCameraTest, ResultReceiver) {
 
     // set the output streams to just this stream ID
 
-    uint8_t allStreams[] = { streamId };
+    int32_t allStreams[] = { streamId };
     size_t streamCount = 1;
     camera_metadata_entry_t entry;
     uint32_t tag = static_cast<uint32_t>(ANDROID_REQUEST_OUTPUT_STREAMS);
@@ -974,7 +973,7 @@ TEST_F(ProCameraTest, DISABLED_WaitForResult) {
 
     EXPECT_OK(mCamera->exclusiveTryLock());
 
-    uint8_t streams[] = { streamId };
+    int32_t streams[] = { streamId };
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1));
 
     // Consume a couple of results
@@ -1002,7 +1001,7 @@ TEST_F(ProCameraTest, WaitForSingleStreamBuffer) {
 
     EXPECT_OK(mCamera->exclusiveTryLock());
 
-    uint8_t streams[] = { streamId };
+    int32_t streams[] = { streamId };
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
                                             /*requests*/TEST_CPU_FRAME_COUNT));
 
@@ -1049,7 +1048,7 @@ TEST_F(ProCameraTest, DISABLED_WaitForDualStreamBuffer) {
 
     EXPECT_OK(mCamera->exclusiveTryLock());
 
-    uint8_t streams[] = { streamId, depthStreamId };
+    int32_t streams[] = { streamId, depthStreamId };
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/2,
                                                     /*requests*/REQUEST_COUNT));
 
@@ -1128,7 +1127,7 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesSync) {
 
     EXPECT_OK(mCamera->exclusiveTryLock());
 
-    uint8_t streams[] = { streamId };
+    int32_t streams[] = { streamId };
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
                                                      /*requests*/NUM_REQUESTS));
 
@@ -1172,7 +1171,6 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
     }
 
     const int NUM_REQUESTS = 20 * TEST_CPU_FRAME_COUNT;
-    const int CONSECUTIVE_FAILS_ASSUME_TIME_OUT = 5;
 
     int streamId = -1;
     sp<CpuConsumer> consumer;
@@ -1183,7 +1181,7 @@ TEST_F(ProCameraTest, WaitForSingleStreamBufferAndDropFramesAsync) {
 
     EXPECT_OK(mCamera->exclusiveTryLock());
 
-    uint8_t streams[] = { streamId };
+    int32_t streams[] = { streamId };
     ASSERT_NO_FATAL_FAILURE(createSubmitRequestForStreams(streams, /*count*/1,
                                                      /*requests*/NUM_REQUESTS));
 
@@ -1278,4 +1276,3 @@ TEST_F(ProCameraTest, ServiceListenersFunctional) {
 }
 }
 }
-

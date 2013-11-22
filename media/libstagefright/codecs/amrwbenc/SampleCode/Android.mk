@@ -5,7 +5,7 @@ LOCAL_SRC_FILES := \
     AMRWB_E_SAMPLE.c \
     ../../common/cmnMemory.c
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := AMRWBEncTest
 
 LOCAL_ARM_MODE := arm

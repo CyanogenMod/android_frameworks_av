@@ -46,15 +46,21 @@ public:
             void        destroy();
             int         name() const { return mName; }
 
+    virtual uint32_t    sampleRate() const;
+
             audio_stream_type_t streamType() const {
                 return mStreamType;
             }
+            bool        isOffloaded() const { return (mFlags & IAudioFlinger::TRACK_OFFLOAD) != 0; }
+            status_t    setParameters(const String8& keyValuePairs);
             status_t    attachAuxEffect(int EffectId);
             void        setAuxBuffer(int EffectId, int32_t *buffer);
             int32_t     *auxBuffer() const { return mAuxBuffer; }
             void        setMainBuffer(int16_t *buffer) { mMainBuffer = buffer; }
             int16_t     *mainBuffer() const { return mMainBuffer; }
             int         auxEffectId() const { return mAuxEffectId; }
+    virtual status_t    getTimestamp(AudioTimestamp& timestamp);
+            void        signal();
 
 // implement FastMixerState::VolumeProvider interface
     virtual uint32_t    getVolumeLR();
@@ -66,6 +72,7 @@ protected:
     friend class PlaybackThread;
     friend class MixerThread;
     friend class DirectOutputThread;
+    friend class OffloadThread;
 
                         Track(const Track&);
                         Track& operator = (const Track&);
@@ -75,7 +82,9 @@ protected:
                                    int64_t pts = kInvalidPTS);
     // releaseBuffer() not overridden
 
+    // ExtendedAudioBufferProvider interface
     virtual size_t framesReady() const;
+    virtual size_t framesReleased() const;
 
     bool isPausing() const { return mState == PAUSING; }
     bool isPaused() const { return mState == PAUSED; }
@@ -101,6 +110,7 @@ public:
     bool isInvalid() const { return mIsInvalid; }
     virtual bool isTimedTrack() const { return false; }
     bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+    int fastIndex() const { return mFastIndex; }
 
 protected:
 
@@ -108,7 +118,10 @@ protected:
     enum {FS_INVALID, FS_FILLING, FS_FILLED, FS_ACTIVE};
     mutable uint8_t     mFillingUpStatus;
     int8_t              mRetryCount;
-    const sp<IMemory>   mSharedBuffer;
+
+    // see comment at AudioFlinger::PlaybackThread::Track::~Track for why this can't be const
+    sp<IMemory>         mSharedBuffer;
+
     bool                mResetDone;
     const audio_stream_type_t mStreamType;
     int                 mName;      // track name on the normal mixer,
@@ -134,11 +147,12 @@ private:
                                     // but the slot is only used if track is active
     FastTrackUnderruns  mObservedUnderruns; // Most recently observed value of
                                     // mFastMixerDumpState.mTracks[mFastIndex].mUnderruns
-    uint32_t            mUnderrunCount; // Counter of total number of underruns, never reset
     volatile float      mCachedVolume;  // combined master volume and stream type volume;
                                         // 'volatile' means accessed without lock or
                                         // barrier, but is read/written atomically
     bool                mIsInvalid; // non-resettable latch, set by invalidate()
+    AudioTrackServerProxy*  mAudioTrackServerProxy;
+    bool                mResumeToStopping; // track was paused in stopping state.
 };  // end of Track
 
 class TimedTrack : public Track {
@@ -254,10 +268,6 @@ public:
     const wp<ThreadBase>& thread() const { return mThread; }
 
 private:
-
-    enum {
-        NO_MORE_BUFFERS = 0x80000001,   // same in AudioTrack.h, ok to be different value
-    };
 
     status_t            obtainBuffer(AudioBufferProvider::Buffer* buffer,
                                      uint32_t waitTimeMs);

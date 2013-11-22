@@ -9,6 +9,7 @@ LOCAL_SRC_FILES:=                     \
         SimpleSoftOMXComponent.cpp    \
         SoftOMXComponent.cpp          \
         SoftOMXPlugin.cpp             \
+        SoftVideoDecoderOMXComponent.cpp \
 
 LOCAL_C_INCLUDES += \
         $(TOP)/frameworks/av/media/libstagefright \

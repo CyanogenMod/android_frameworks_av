@@ -52,9 +52,10 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
                 audio_format_t format, int bufferCount,
-                AudioCallback cb, void *cookie, audio_output_flags_t flags);
+                AudioCallback cb, void *cookie, audio_output_flags_t flags,
+                const audio_offload_info_t *offloadInfo);
 
-        virtual void            start();
+        virtual status_t        start();
         virtual ssize_t         write(const void* buffer, size_t size);
         virtual void            stop();
         virtual void            flush();
@@ -71,7 +72,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         static void             CallbackWrapper(
                 int event, void *me, void *info);
 
-        AudioTrack*             mTrack;
+        sp<AudioTrack>          mTrack;
         AudioCallback           mCallback;
         void *                  mCallbackCookie;
         audio_stream_type_t     mStreamType;

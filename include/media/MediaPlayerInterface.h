@@ -74,9 +74,18 @@ public:
     // AudioSink: abstraction layer for audio output
     class AudioSink : public RefBase {
     public:
+        enum cb_event_t {
+            CB_EVENT_FILL_BUFFER,   // Request to write more data to buffer.
+            CB_EVENT_STREAM_END,    // Sent after all the buffers queued in AF and HW are played
+                                    // back (after stop is called)
+            CB_EVENT_TEAR_DOWN      // The AudioTrack was invalidated due to use case change:
+                                    // Need to re-evaluate offloading options
+        };
+
         // Callback returns the number of bytes actually written to the buffer.
         typedef size_t (*AudioCallback)(
-                AudioSink *audioSink, void *buffer, size_t size, void *cookie);
+                AudioSink *audioSink, void *buffer, size_t size, void *cookie,
+                        cb_event_t event);
 
         virtual             ~AudioSink() {}
         virtual bool        ready() const = 0; // audio output is open and ready
@@ -99,9 +108,10 @@ public:
                 int bufferCount=DEFAULT_AUDIOSINK_BUFFERCOUNT,
                 AudioCallback cb = NULL,
                 void *cookie = NULL,
-                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE) = 0;
+                audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                const audio_offload_info_t *offloadInfo = NULL) = 0;
 
-        virtual void        start() = 0;
+        virtual status_t    start() = 0;
         virtual ssize_t     write(const void* buffer, size_t size) = 0;
         virtual void        stop() = 0;
         virtual void        flush() = 0;
@@ -110,6 +120,9 @@ public:
 
         virtual status_t    setPlaybackRatePermille(int32_t rate) { return INVALID_OPERATION; }
         virtual bool        needsTrailingPadding() { return true; }
+
+        virtual status_t    setParameters(const String8& keyValuePairs) { return NO_ERROR; };
+        virtual String8     getParameters(const String8& keys) { return String8::empty(); };
     };
 
                         MediaPlayerBase() : mCookie(0), mNotify(0) {}

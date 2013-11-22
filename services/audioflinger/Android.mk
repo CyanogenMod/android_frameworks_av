@@ -27,9 +27,6 @@ LOCAL_SRC_FILES:=               \
 
 LOCAL_SRC_FILES += StateQueue.cpp
 
-# uncomment for debugging timing problems related to StateQueue::push()
-LOCAL_CFLAGS += -DSTATE_QUEUE_DUMP
-
 LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
@@ -56,23 +53,9 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_MODULE:= libaudioflinger
 
-LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp
-
-LOCAL_CFLAGS += -DFAST_MIXER_STATISTICS
-
-# uncomment to display CPU load adjusted for CPU frequency
-# LOCAL_CFLAGS += -DCPU_FREQUENCY_STATISTICS
+LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
-
-LOCAL_CFLAGS += -UFAST_TRACKS_AT_NON_NATIVE_SAMPLE_RATE
-
-# uncomment to allow tee sink debugging to be enabled by property
-# LOCAL_CFLAGS += -DTEE_SINK
-
-# uncomment to enable the audio watchdog
-# LOCAL_SRC_FILES += AudioWatchdog.cpp
-# LOCAL_CFLAGS += -DAUDIO_WATCHDOG
 
 # Define ANDROID_SMP appropriately. Used to get inline tracing fast-path.
 ifeq ($(TARGET_CPU_SMP),true)
@@ -80,6 +63,8 @@ ifeq ($(TARGET_CPU_SMP),true)
 else
     LOCAL_CFLAGS += -DANDROID_SMP=0
 endif
+
+LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
 

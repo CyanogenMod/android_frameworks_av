@@ -38,9 +38,11 @@
 #include <utils/String16.h>
 
 #include "CameraService.h"
-#include "CameraClient.h"
-#include "Camera2Client.h"
-#include "ProCamera2Client.h"
+#include "api1/CameraClient.h"
+#include "api1/Camera2Client.h"
+#include "api_pro/ProCamera2Client.h"
+#include "api2/CameraDeviceClient.h"
+#include "CameraDeviceFactory.h"
 
 namespace android {
 
@@ -126,6 +128,8 @@ void CameraService::onFirstRef()
                 CAMERA_MODULE_API_VERSION_2_1) {
             mModule->set_callbacks(this);
         }
+
+        CameraDeviceFactory::registerService(this);
     }
 }
 
@@ -164,7 +168,7 @@ void CameraService::onDeviceStatusChanged(int cameraId,
            Mutex::Autolock al(mServiceLock);
 
            /* Find all clients that we need to disconnect */
-           sp<Client> client = mClient[cameraId].promote();
+           sp<BasicClient> client = mClient[cameraId].promote();
            if (client.get() != NULL) {
                clientsToDisconnect.push_back(client);
            }
@@ -207,7 +211,7 @@ int32_t CameraService::getNumberOfCameras() {
 status_t CameraService::getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo) {
     if (!mModule) {
-        return NO_INIT;
+        return -ENODEV;
     }
 
     if (cameraId < 0 || cameraId >= mNumberOfCameras) {
@@ -219,6 +223,49 @@ status_t CameraService::getCameraInfo(int cameraId,
     cameraInfo->facing = info.facing;
     cameraInfo->orientation = info.orientation;
     return rc;
+}
+
+status_t CameraService::getCameraCharacteristics(int cameraId,
+                                                CameraMetadata* cameraInfo) {
+    if (!cameraInfo) {
+        ALOGE("%s: cameraInfo is NULL", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (!mModule) {
+        ALOGE("%s: camera hardware module doesn't exist", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_0) {
+        // TODO: Remove this check once HAL1 shim is in place.
+        ALOGE("%s: Only HAL module version V2 or higher supports static metadata", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (cameraId < 0 || cameraId >= mNumberOfCameras) {
+        ALOGE("%s: Invalid camera id: %d", __FUNCTION__, cameraId);
+        return BAD_VALUE;
+    }
+
+    int facing;
+    if (getDeviceVersion(cameraId, &facing) == CAMERA_DEVICE_API_VERSION_1_0) {
+        // TODO: Remove this check once HAL1 shim is in place.
+        ALOGE("%s: HAL1 doesn't support static metadata yet", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (getDeviceVersion(cameraId, &facing) <= CAMERA_DEVICE_API_VERSION_2_1) {
+        // Disable HAL2.x support for camera2 API for now.
+        ALOGW("%s: HAL2.x doesn't support getCameraCharacteristics for now", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    struct camera_info info;
+    status_t ret = mModule->get_camera_info(cameraId, &info);
+    *cameraInfo = info.static_camera_characteristics;
+
+    return ret;
 }
 
 int CameraService::getDeviceVersion(int cameraId, int* facing) {
@@ -258,7 +305,7 @@ bool CameraService::isValidCameraId(int cameraId) {
     return false;
 }
 
-bool CameraService::validateConnect(int cameraId,
+status_t CameraService::validateConnect(int cameraId,
                                     /*inout*/
                                     int& clientUid) const {
 
@@ -271,19 +318,19 @@ bool CameraService::validateConnect(int cameraId,
         if (callingPid != getpid()) {
             ALOGE("CameraService::connect X (pid %d) rejected (don't trust clientUid)",
                     callingPid);
-            return false;
+            return PERMISSION_DENIED;
         }
     }
 
     if (!mModule) {
         ALOGE("Camera HAL module not loaded");
-        return false;
+        return -ENODEV;
     }
 
     if (cameraId < 0 || cameraId >= mNumberOfCameras) {
         ALOGE("CameraService::connect X (pid %d) rejected (invalid cameraId %d).",
             callingPid, cameraId);
-        return false;
+        return -ENODEV;
     }
 
     char value[PROPERTY_VALUE_MAX];
@@ -291,36 +338,36 @@ bool CameraService::validateConnect(int cameraId,
     if (strcmp(value, "1") == 0) {
         // Camera is disabled by DevicePolicyManager.
         ALOGI("Camera is disabled. connect X (pid %d) rejected", callingPid);
-        return false;
+        return -EACCES;
     }
 
     ICameraServiceListener::Status currentStatus = getStatus(cameraId);
     if (currentStatus == ICameraServiceListener::STATUS_NOT_PRESENT) {
         ALOGI("Camera is not plugged in,"
                " connect X (pid %d) rejected", callingPid);
-        return false;
+        return -ENODEV;
     } else if (currentStatus == ICameraServiceListener::STATUS_ENUMERATING) {
         ALOGI("Camera is enumerating,"
                " connect X (pid %d) rejected", callingPid);
-        return false;
+        return -EBUSY;
     }
     // Else don't check for STATUS_NOT_AVAILABLE.
     //  -- It's done implicitly in canConnectUnsafe /w the mBusy array
 
-    return true;
+    return OK;
 }
 
 bool CameraService::canConnectUnsafe(int cameraId,
                                      const String16& clientPackageName,
                                      const sp<IBinder>& remoteCallback,
-                                     sp<Client> &client) {
+                                     sp<BasicClient> &client) {
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
 
     if (mClient[cameraId] != 0) {
         client = mClient[cameraId].promote();
         if (client != 0) {
-            if (remoteCallback == client->getRemoteCallback()->asBinder()) {
+            if (remoteCallback == client->getRemote()) {
                 LOG1("CameraService::connect X (pid %d) (the same client)",
                      callingPid);
                 return true;
@@ -354,11 +401,13 @@ bool CameraService::canConnectUnsafe(int cameraId,
     return true;
 }
 
-sp<ICamera> CameraService::connect(
+status_t CameraService::connect(
         const sp<ICameraClient>& cameraClient,
         int cameraId,
         const String16& clientPackageName,
-        int clientUid) {
+        int clientUid,
+        /*out*/
+        sp<ICamera>& device) {
 
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
@@ -366,20 +415,23 @@ sp<ICamera> CameraService::connect(
     LOG1("CameraService::connect E (pid %d \"%s\", id %d)", callingPid,
             clientName8.string(), cameraId);
 
-    if (!validateConnect(cameraId, /*inout*/clientUid)) {
-        return NULL;
+    status_t status = validateConnect(cameraId, /*inout*/clientUid);
+    if (status != OK) {
+        return status;
     }
 
-    sp<Client> client;
 
+    sp<Client> client;
     {
         Mutex::Autolock lock(mServiceLock);
+        sp<BasicClient> clientTmp;
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
-                              /*out*/client)) {
-            return NULL;
+                              /*out*/clientTmp)) {
+            return -EBUSY;
         } else if (client.get() != NULL) {
-            return client;
+            device = static_cast<Client*>(clientTmp.get());
+            return OK;
         }
 
         int facing = -1;
@@ -409,18 +461,18 @@ sp<ICamera> CameraService::connect(
             break;
           case -1:
             ALOGE("Invalid camera id %d", cameraId);
-            return NULL;
+            return BAD_VALUE;
           default:
             ALOGE("Unknown camera device HAL version: %d", deviceVersion);
-            return NULL;
+            return INVALID_OPERATION;
         }
 
-        if (!connectFinishUnsafe(client, client->asBinder())) {
+        status_t status = connectFinishUnsafe(client, client->getRemote());
+        if (status != OK) {
             // this is probably not recoverable.. maybe the client can try again
             // OK: we can only get here if we were originally in PRESENT state
             updateStatus(ICameraServiceListener::STATUS_PRESENT, cameraId);
-
-            return NULL;
+            return status;
         }
 
         mClient[cameraId] = client;
@@ -430,45 +482,49 @@ sp<ICamera> CameraService::connect(
     // important: release the mutex here so the client can call back
     //    into the service from its destructor (can be at the end of the call)
 
-    return client;
+    device = client;
+    return OK;
 }
 
-bool CameraService::connectFinishUnsafe(const sp<BasicClient>& client,
-                                        const sp<IBinder>& clientBinder) {
-    if (client->initialize(mModule) != OK) {
-        return false;
+status_t CameraService::connectFinishUnsafe(const sp<BasicClient>& client,
+                                            const sp<IBinder>& remoteCallback) {
+    status_t status = client->initialize(mModule);
+    if (status != OK) {
+        return status;
     }
 
-    clientBinder->linkToDeath(this);
+    remoteCallback->linkToDeath(this);
 
-    return true;
+    return OK;
 }
 
-sp<IProCameraUser> CameraService::connect(
+status_t CameraService::connectPro(
                                         const sp<IProCameraCallbacks>& cameraCb,
                                         int cameraId,
                                         const String16& clientPackageName,
-                                        int clientUid)
+                                        int clientUid,
+                                        /*out*/
+                                        sp<IProCameraUser>& device)
 {
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
 
     LOG1("CameraService::connectPro E (pid %d \"%s\", id %d)", callingPid,
             clientName8.string(), cameraId);
-
-    if (!validateConnect(cameraId, /*inout*/clientUid)) {
-        return NULL;
+    status_t status = validateConnect(cameraId, /*inout*/clientUid);
+    if (status != OK) {
+        return status;
     }
 
     sp<ProClient> client;
     {
         Mutex::Autolock lock(mServiceLock);
         {
-            sp<Client> client;
+            sp<BasicClient> client;
             if (!canConnectUnsafe(cameraId, clientPackageName,
                                   cameraCb->asBinder(),
                                   /*out*/client)) {
-                return NULL;
+                return -EBUSY;
             }
         }
 
@@ -479,23 +535,25 @@ sp<IProCameraUser> CameraService::connect(
           case CAMERA_DEVICE_API_VERSION_1_0:
             ALOGE("Camera id %d uses HALv1, doesn't support ProCamera",
                   cameraId);
-            return NULL;
+            return -EOPNOTSUPP;
             break;
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
+          case CAMERA_DEVICE_API_VERSION_3_0:
             client = new ProCamera2Client(this, cameraCb, String16(),
                     cameraId, facing, callingPid, USE_CALLING_UID, getpid());
             break;
           case -1:
             ALOGE("Invalid camera id %d", cameraId);
-            return NULL;
+            return BAD_VALUE;
           default:
             ALOGE("Unknown camera device HAL version: %d", deviceVersion);
-            return NULL;
+            return INVALID_OPERATION;
         }
 
-        if (!connectFinishUnsafe(client, client->asBinder())) {
-            return NULL;
+        status_t status = connectFinishUnsafe(client, client->getRemote());
+        if (status != OK) {
+            return status;
         }
 
         mProClientList[cameraId].push(client);
@@ -505,9 +563,92 @@ sp<IProCameraUser> CameraService::connect(
     }
     // important: release the mutex here so the client can call back
     //    into the service from its destructor (can be at the end of the call)
-
-    return client;
+    device = client;
+    return OK;
 }
+
+status_t CameraService::connectDevice(
+        const sp<ICameraDeviceCallbacks>& cameraCb,
+        int cameraId,
+        const String16& clientPackageName,
+        int clientUid,
+        /*out*/
+        sp<ICameraDeviceUser>& device)
+{
+
+    String8 clientName8(clientPackageName);
+    int callingPid = getCallingPid();
+
+    LOG1("CameraService::connectDevice E (pid %d \"%s\", id %d)", callingPid,
+            clientName8.string(), cameraId);
+
+    status_t status = validateConnect(cameraId, /*inout*/clientUid);
+    if (status != OK) {
+        return status;
+    }
+
+    sp<CameraDeviceClient> client;
+    {
+        Mutex::Autolock lock(mServiceLock);
+        {
+            sp<BasicClient> client;
+            if (!canConnectUnsafe(cameraId, clientPackageName,
+                                  cameraCb->asBinder(),
+                                  /*out*/client)) {
+                return -EBUSY;
+            }
+        }
+
+        int facing = -1;
+        int deviceVersion = getDeviceVersion(cameraId, &facing);
+
+        // If there are other non-exclusive users of the camera,
+        //  this will tear them down before we can reuse the camera
+        if (isValidCameraId(cameraId)) {
+            // transition from PRESENT -> NOT_AVAILABLE
+            updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE,
+                         cameraId);
+        }
+
+        switch(deviceVersion) {
+          case CAMERA_DEVICE_API_VERSION_1_0:
+            ALOGW("Camera using old HAL version: %d", deviceVersion);
+            return -EOPNOTSUPP;
+           // TODO: don't allow 2.0  Only allow 2.1 and higher
+          case CAMERA_DEVICE_API_VERSION_2_0:
+          case CAMERA_DEVICE_API_VERSION_2_1:
+          case CAMERA_DEVICE_API_VERSION_3_0:
+            client = new CameraDeviceClient(this, cameraCb, String16(),
+                    cameraId, facing, callingPid, USE_CALLING_UID, getpid());
+            break;
+          case -1:
+            ALOGE("Invalid camera id %d", cameraId);
+            return BAD_VALUE;
+          default:
+            ALOGE("Unknown camera device HAL version: %d", deviceVersion);
+            return INVALID_OPERATION;
+        }
+
+        status_t status = connectFinishUnsafe(client, client->getRemote());
+        if (status != OK) {
+            // this is probably not recoverable.. maybe the client can try again
+            // OK: we can only get here if we were originally in PRESENT state
+            updateStatus(ICameraServiceListener::STATUS_PRESENT, cameraId);
+            return status;
+        }
+
+        LOG1("CameraService::connectDevice X (id %d, this pid is %d)", cameraId,
+                getpid());
+
+        mClient[cameraId] = client;
+    }
+    // important: release the mutex here so the client can call back
+    //    into the service from its destructor (can be at the end of the call)
+
+    device = client;
+    return OK;
+}
+
 
 status_t CameraService::addListener(
                                 const sp<ICameraServiceListener>& listener) {
@@ -566,14 +707,14 @@ void CameraService::removeClientByRemote(const wp<IBinder>& remoteBinder) {
     Mutex::Autolock lock(mServiceLock);
 
     int outIndex;
-    sp<Client> client = findClientUnsafe(remoteBinder, outIndex);
+    sp<BasicClient> client = findClientUnsafe(remoteBinder, outIndex);
 
     if (client != 0) {
         // Found our camera, clear and leave.
         LOG1("removeClient: clear camera %d", outIndex);
         mClient[outIndex].clear();
 
-        client->unlinkToDeath(this);
+        client->getRemote()->unlinkToDeath(this);
     } else {
 
         sp<ProClient> clientPro = findProClientUnsafe(remoteBinder);
@@ -620,9 +761,9 @@ sp<CameraService::ProClient> CameraService::findProClientUnsafe(
     return clientPro;
 }
 
-sp<CameraService::Client> CameraService::findClientUnsafe(
+sp<CameraService::BasicClient> CameraService::findClientUnsafe(
                         const wp<IBinder>& cameraClient, int& outIndex) {
-    sp<Client> client;
+    sp<BasicClient> client;
 
     for (int i = 0; i < mNumberOfCameras; i++) {
 
@@ -640,7 +781,7 @@ sp<CameraService::Client> CameraService::findClientUnsafe(
             continue;
         }
 
-        if (cameraClient == client->getRemoteCallback()->asBinder()) {
+        if (cameraClient == client->getRemote()) {
             // Found our camera
             outIndex = i;
             return client;
@@ -651,7 +792,7 @@ sp<CameraService::Client> CameraService::findClientUnsafe(
     return NULL;
 }
 
-CameraService::Client* CameraService::getClientByIdUnsafe(int cameraId) {
+CameraService::BasicClient* CameraService::getClientByIdUnsafe(int cameraId) {
     if (cameraId < 0 || cameraId >= mNumberOfCameras) return NULL;
     return mClient[cameraId].unsafe_get();
 }
@@ -906,7 +1047,9 @@ Mutex* CameraService::Client::getClientLockFromCookie(void* user) {
 // Provide client pointer for callbacks. Client lock returned from getClientLockFromCookie should
 // be acquired for this to be safe
 CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
-    Client* client = gCameraService->getClientByIdUnsafe((int) user);
+    BasicClient *basicClient = gCameraService->getClientByIdUnsafe((int) user);
+    // OK: only CameraClient calls this, and they already cast anyway.
+    Client* client = static_cast<Client*>(basicClient);
 
     // This could happen if the Client is in the process of shutting down (the
     // last strong reference is gone, but the destructor hasn't finished
@@ -1058,7 +1201,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                 }
             }
 
-            sp<Client> client = mClient[i].promote();
+            sp<BasicClient> client = mClient[i].promote();
             if (client == 0) {
                 result = String8::format("  Device is closed, no client instance\n");
                 write(fd, result.string(), result.size());

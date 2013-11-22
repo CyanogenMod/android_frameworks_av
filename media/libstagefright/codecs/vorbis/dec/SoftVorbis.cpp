@@ -424,6 +424,8 @@ void SoftVorbis::onReset() {
         delete mVi;
         mVi = NULL;
     }
+
+    mOutputPortSettingsChange = NONE;
 }
 
 void SoftVorbis::onPortEnableCompleted(OMX_U32 portIndex, bool enabled) {

@@ -73,6 +73,7 @@ enum {
     LOAD_HW_MODULE,
     GET_PRIMARY_OUTPUT_SAMPLING_RATE,
     GET_PRIMARY_OUTPUT_FRAME_COUNT,
+    SET_LOW_RAM_DEVICE,
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -94,6 +95,7 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
+                                String8& name,
                                 status_t *status)
     {
         Parcel data, reply;
@@ -106,7 +108,12 @@ public:
         data.writeInt32(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
-        data.writeStrongBinder(sharedBuffer->asBinder());
+        if (sharedBuffer != 0) {
+            data.writeInt32(true);
+            data.writeStrongBinder(sharedBuffer->asBinder());
+        } else {
+            data.writeInt32(false);
+        }
         data.writeInt32((int32_t) output);
         data.writeInt32((int32_t) tid);
         int lSessionId = 0;
@@ -126,6 +133,7 @@ public:
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
+            name = reply.readString8();
             lStatus = reply.readInt32();
             track = interface_cast<IAudioTrack>(reply.readStrongBinder());
         }
@@ -141,7 +149,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-                                track_flags_t flags,
+                                track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
                                 status_t *status)
@@ -154,7 +162,8 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         data.writeInt32(frameCount);
-        data.writeInt32(flags);
+        track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
+        data.writeInt32(lFlags);
         data.writeInt32((int32_t) tid);
         int lSessionId = 0;
         if (sessionId != NULL) {
@@ -165,12 +174,27 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("openRecord error: %s", strerror(-lStatus));
         } else {
+            lFlags = reply.readInt32();
+            if (flags != NULL) {
+                *flags = lFlags;
+            }
             lSessionId = reply.readInt32();
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
             lStatus = reply.readInt32();
             record = interface_cast<IAudioRecord>(reply.readStrongBinder());
+            if (lStatus == NO_ERROR) {
+                if (record == 0) {
+                    ALOGE("openRecord should have returned an IAudioRecord");
+                    lStatus = UNKNOWN_ERROR;
+                }
+            } else {
+                if (record != 0) {
+                    ALOGE("openRecord returned an IAudioRecord but with status %d", lStatus);
+                    record.clear();
+                }
+            }
         }
         if (status) {
             *status = lStatus;
@@ -361,15 +385,16 @@ public:
                                          audio_format_t *pFormat,
                                          audio_channel_mask_t *pChannelMask,
                                          uint32_t *pLatencyMs,
-                                         audio_output_flags_t flags)
+                                         audio_output_flags_t flags,
+                                         const audio_offload_info_t *offloadInfo)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
-        uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
-        audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
-        uint32_t latency = pLatencyMs ? *pLatencyMs : 0;
-
+        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
+        audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
+        audio_channel_mask_t channelMask = pChannelMask != NULL ?
+                *pChannelMask : (audio_channel_mask_t)0;
+        uint32_t latency = pLatencyMs != NULL ? *pLatencyMs : 0;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(module);
         data.writeInt32(devices);
@@ -378,19 +403,25 @@ public:
         data.writeInt32(channelMask);
         data.writeInt32(latency);
         data.writeInt32((int32_t) flags);
+        if (offloadInfo == NULL) {
+            data.writeInt32(0);
+        } else {
+            data.writeInt32(1);
+            data.write(offloadInfo, sizeof(audio_offload_info_t));
+        }
         remote()->transact(OPEN_OUTPUT, data, &reply);
         audio_io_handle_t output = (audio_io_handle_t) reply.readInt32();
         ALOGV("openOutput() returned output, %d", output);
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices) *pDevices = devices;
+        if (pDevices != NULL) *pDevices = devices;
         samplingRate = reply.readInt32();
-        if (pSamplingRate) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
-        if (pFormat) *pFormat = format;
+        if (pFormat != NULL) *pFormat = format;
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) *pChannelMask = channelMask;
         latency = reply.readInt32();
-        if (pLatencyMs) *pLatencyMs = latency;
+        if (pLatencyMs != NULL) *pLatencyMs = latency;
         return output;
     }
 
@@ -439,10 +470,11 @@ public:
                                         audio_channel_mask_t *pChannelMask)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices ? *pDevices : (audio_devices_t)0;
-        uint32_t samplingRate = pSamplingRate ? *pSamplingRate : 0;
-        audio_format_t format = pFormat ? *pFormat : AUDIO_FORMAT_DEFAULT;
-        audio_channel_mask_t channelMask = pChannelMask ? *pChannelMask : (audio_channel_mask_t)0;
+        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
+        audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
+        audio_channel_mask_t channelMask = pChannelMask != NULL ?
+                *pChannelMask : (audio_channel_mask_t)0;
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(module);
@@ -453,13 +485,13 @@ public:
         remote()->transact(OPEN_INPUT, data, &reply);
         audio_io_handle_t input = (audio_io_handle_t) reply.readInt32();
         devices = (audio_devices_t)reply.readInt32();
-        if (pDevices) *pDevices = devices;
+        if (pDevices != NULL) *pDevices = devices;
         samplingRate = reply.readInt32();
-        if (pSamplingRate) *pSamplingRate = samplingRate;
+        if (pSamplingRate != NULL) *pSamplingRate = samplingRate;
         format = (audio_format_t) reply.readInt32();
-        if (pFormat) *pFormat = format;
+        if (pFormat != NULL) *pFormat = format;
         channelMask = (audio_channel_mask_t)reply.readInt32();
-        if (pChannelMask) *pChannelMask = channelMask;
+        if (pChannelMask != NULL) *pChannelMask = channelMask;
         return input;
     }
 
@@ -695,6 +727,15 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t setLowRamDevice(bool isLowRamDevice)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int) isLowRamDevice);
+        remote()->transact(SET_LOW_RAM_DEVICE, data, &reply);
+        return reply.readInt32();
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -713,16 +754,30 @@ status_t BnAudioFlinger::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             size_t frameCount = data.readInt32();
             track_flags_t flags = (track_flags_t) data.readInt32();
-            sp<IMemory> buffer = interface_cast<IMemory>(data.readStrongBinder());
+            bool haveSharedBuffer = data.readInt32() != 0;
+            sp<IMemory> buffer;
+            if (haveSharedBuffer) {
+                buffer = interface_cast<IMemory>(data.readStrongBinder());
+            }
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
+            String8 name;
             status_t status;
-            sp<IAudioTrack> track = createTrack(
-                    (audio_stream_type_t) streamType, sampleRate, format,
-                    channelMask, frameCount, &flags, buffer, output, tid, &sessionId, &status);
+            sp<IAudioTrack> track;
+            if ((haveSharedBuffer && (buffer == 0)) ||
+                    ((buffer != 0) && (buffer->pointer() == NULL))) {
+                ALOGW("CREATE_TRACK: cannot retrieve shared memory");
+                status = DEAD_OBJECT;
+            } else {
+                track = createTrack(
+                        (audio_stream_type_t) streamType, sampleRate, format,
+                        channelMask, frameCount, &flags, buffer, output, tid,
+                        &sessionId, name, &status);
+            }
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
+            reply->writeString8(name);
             reply->writeInt32(status);
             reply->writeStrongBinder(track->asBinder());
             return NO_ERROR;
@@ -739,7 +794,9 @@ status_t BnAudioFlinger::onTransact(
             int sessionId = data.readInt32();
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, frameCount, flags, tid, &sessionId, &status);
+                    sampleRate, format, channelMask, frameCount, &flags, tid, &sessionId, &status);
+            LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
+            reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(record->asBinder());
@@ -868,13 +925,19 @@ status_t BnAudioFlinger::onTransact(
             audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
             uint32_t latency = data.readInt32();
             audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
+            bool hasOffloadInfo = data.readInt32() != 0;
+            audio_offload_info_t offloadInfo;
+            if (hasOffloadInfo) {
+                data.read(&offloadInfo, sizeof(audio_offload_info_t));
+            }
             audio_io_handle_t output = openOutput(module,
                                                  &devices,
                                                  &samplingRate,
                                                  &format,
                                                  &channelMask,
                                                  &latency,
-                                                 flags);
+                                                 flags,
+                                                 hasOffloadInfo ? &offloadInfo : NULL);
             ALOGV("OPEN_OUTPUT output, %p", output);
             reply->writeInt32((int32_t) output);
             reply->writeInt32(devices);
@@ -1054,6 +1117,12 @@ status_t BnAudioFlinger::onTransact(
         case GET_PRIMARY_OUTPUT_FRAME_COUNT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32(getPrimaryOutputFrameCount());
+            return NO_ERROR;
+        } break;
+        case SET_LOW_RAM_DEVICE: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            bool isLowRamDevice = data.readInt32() != 0;
+            reply->writeInt32(setLowRamDevice(isLowRamDevice));
             return NO_ERROR;
         } break;
         default:

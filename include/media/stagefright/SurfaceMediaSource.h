@@ -56,7 +56,7 @@ class GraphicBuffer;
 
 class SurfaceMediaSource : public MediaSource,
                                 public MediaBufferObserver,
-                                protected BufferQueue::ConsumerListener {
+                                protected ConsumerListener {
 public:
     enum { MIN_UNDEQUEUED_BUFFERS = 4};
 
@@ -146,9 +146,13 @@ private:
     // this consumer
     sp<BufferQueue> mBufferQueue;
 
-    // mBufferSlot caches GraphicBuffers from the buffer queue
-    sp<GraphicBuffer> mBufferSlot[BufferQueue::NUM_BUFFER_SLOTS];
+    struct SlotData {
+        sp<GraphicBuffer> mGraphicBuffer;
+        uint64_t mFrameNumber;
+    };
 
+    // mSlots caches GraphicBuffers and frameNumbers from the buffer queue
+    SlotData mSlots[BufferQueue::NUM_BUFFER_SLOTS];
 
     // The permenent width and height of SMS buffers
     int mWidth;

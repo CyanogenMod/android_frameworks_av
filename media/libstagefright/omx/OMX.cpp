@@ -331,6 +331,13 @@ status_t OMX::storeMetaDataInBuffers(
     return findInstance(node)->storeMetaDataInBuffers(port_index, enable);
 }
 
+status_t OMX::prepareForAdaptivePlayback(
+        node_id node, OMX_U32 portIndex, OMX_BOOL enable,
+        OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
+    return findInstance(node)->prepareForAdaptivePlayback(
+            portIndex, enable, maxFrameWidth, maxFrameHeight);
+}
+
 status_t OMX::useBuffer(
         node_id node, OMX_U32 port_index, const sp<IMemory> &params,
         buffer_id *buffer) {
@@ -342,6 +349,13 @@ status_t OMX::useGraphicBuffer(
         node_id node, OMX_U32 port_index,
         const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer) {
     return findInstance(node)->useGraphicBuffer(
+            port_index, graphicBuffer, buffer);
+}
+
+status_t OMX::updateGraphicBufferInMeta(
+        node_id node, OMX_U32 port_index,
+        const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
+    return findInstance(node)->updateGraphicBufferInMeta(
             port_index, graphicBuffer, buffer);
 }
 
@@ -394,6 +408,15 @@ status_t OMX::getExtensionIndex(
         OMX_INDEXTYPE *index) {
     return findInstance(node)->getExtensionIndex(
             parameter_name, index);
+}
+
+status_t OMX::setInternalOption(
+        node_id node,
+        OMX_U32 port_index,
+        InternalOptionType type,
+        const void *data,
+        size_t size) {
+    return findInstance(node)->setInternalOption(port_index, type, data, size);
 }
 
 OMX_ERRORTYPE OMX::OnEvent(

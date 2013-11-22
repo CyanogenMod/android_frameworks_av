@@ -35,8 +35,7 @@ namespace android {
 VideoEditorAudioPlayer::VideoEditorAudioPlayer(
         const sp<MediaPlayerBase::AudioSink> &audioSink,
         PreviewPlayer *observer)
-    : mAudioTrack(NULL),
-      mInputBuffer(NULL),
+    : mInputBuffer(NULL),
       mSampleRate(0),
       mLatencyUs(0),
       mFrameSize(0),
@@ -111,8 +110,7 @@ void VideoEditorAudioPlayer::clear() {
     } else {
         mAudioTrack->stop();
 
-        delete mAudioTrack;
-        mAudioTrack = NULL;
+        mAudioTrack.clear();
     }
 
     // Make sure to release any buffer we hold onto so that the
@@ -151,7 +149,7 @@ void VideoEditorAudioPlayer::clear() {
     mStarted = false;
 }
 
-void VideoEditorAudioPlayer::resume() {
+status_t VideoEditorAudioPlayer::resume() {
     ALOGV("resume");
 
     AudioMixSettings audioMixSettings;
@@ -182,6 +180,7 @@ void VideoEditorAudioPlayer::resume() {
     } else {
         mAudioTrack->start();
     }
+    return OK;
 }
 
 status_t VideoEditorAudioPlayer::seekTo(int64_t time_us) {
@@ -538,8 +537,7 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
                 0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
-            delete mAudioTrack;
-            mAudioTrack = NULL;
+            mAudioTrack.clear();
 
             if (mFirstBuffer != NULL) {
                 mFirstBuffer->release();
@@ -578,10 +576,15 @@ void VideoEditorAudioPlayer::reset() {
 
 size_t VideoEditorAudioPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie) {
+        void *buffer, size_t size, void *cookie,
+        MediaPlayerBase::AudioSink::cb_event_t event) {
     VideoEditorAudioPlayer *me = (VideoEditorAudioPlayer *)cookie;
 
-    return me->fillBuffer(buffer, size);
+    if (event == MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER ) {
+        return me->fillBuffer(buffer, size);
+    } else {
+        return 0;
+    }
 }
 
 

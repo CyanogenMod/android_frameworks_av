@@ -19,7 +19,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= stagefright
 
@@ -42,7 +42,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= record
 
@@ -65,7 +65,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= recordvideo
 
@@ -89,7 +89,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= audioloop
 
@@ -112,7 +112,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= stream
 
@@ -135,7 +135,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= sf2
 
@@ -159,7 +159,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= codec
 
@@ -182,7 +182,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= muxer
 

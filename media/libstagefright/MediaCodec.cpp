@@ -31,6 +31,7 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/BufferProducerWrapper.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -104,8 +105,24 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     bool needDedicatedLooper = false;
     if (nameIsType && !strncasecmp(name, "video/", 6)) {
         needDedicatedLooper = true;
-    } else if (!nameIsType && !strncmp(name, "OMX.TI.DUCATI1.VIDEO.", 21)) {
-        needDedicatedLooper = true;
+    } else {
+        AString tmp = name;
+        if (tmp.endsWith(".secure")) {
+            tmp.erase(tmp.size() - 7, 7);
+        }
+        const MediaCodecList *mcl = MediaCodecList::getInstance();
+        ssize_t codecIdx = mcl->findCodecByName(tmp.c_str());
+        if (codecIdx >= 0) {
+            Vector<AString> types;
+            if (mcl->getSupportedTypes(codecIdx, &types) == OK) {
+                for (int i = 0; i < types.size(); i++) {
+                    if (types[i].startsWith("video/")) {
+                        needDedicatedLooper = true;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     if (needDedicatedLooper) {

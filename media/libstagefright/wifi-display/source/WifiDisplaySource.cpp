@@ -21,7 +21,6 @@
 #include "WifiDisplaySource.h"
 #include "PlaybackSession.h"
 #include "Parameters.h"
-#include "ParsedMessage.h"
 #include "rtp/RTPSender.h"
 
 #include <binder/IServiceManager.h>
@@ -32,6 +31,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ParsedMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 
@@ -73,6 +73,12 @@ WifiDisplaySource::WifiDisplaySource(
 
     mSupportedSourceVideoFormats.setNativeResolution(
             VideoFormats::RESOLUTION_CEA, 5);  // 1280x720 p30
+
+    // Enable all resolutions up to 1280x720p30
+    mSupportedSourceVideoFormats.enableResolutionUpto(
+            VideoFormats::RESOLUTION_CEA, 5,
+            VideoFormats::PROFILE_CHP,  // Constrained High Profile
+            VideoFormats::LEVEL_32);    // Level 3.2
 }
 
 WifiDisplaySource::~WifiDisplaySource() {
@@ -164,9 +170,9 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 } else {
                     err = -EINVAL;
                 }
-
-                mState = AWAITING_CLIENT_CONNECTION;
             }
+
+            mState = AWAITING_CLIENT_CONNECTION;
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
@@ -401,7 +407,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                 0, // height,
                                 mUsingHDCP
                                     ? IRemoteDisplayClient::kDisplayFlagSecure
-                                    : 0);
+                                    : 0,
+                                0);
                     } else {
                         size_t width, height;
 
@@ -420,7 +427,8 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                                 height,
                                 mUsingHDCP
                                     ? IRemoteDisplayClient::kDisplayFlagSecure
-                                    : 0);
+                                    : 0,
+                                playbackSessionID);
                     }
                 }
 
@@ -617,6 +625,9 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
         chosenVideoFormat.disableAll();
         chosenVideoFormat.setNativeResolution(
                 mChosenVideoResolutionType, mChosenVideoResolutionIndex);
+        chosenVideoFormat.setProfileLevel(
+                mChosenVideoResolutionType, mChosenVideoResolutionIndex,
+                mChosenVideoProfile, mChosenVideoLevel);
 
         body.append(chosenVideoFormat.getFormatSpec(true /* forM4Message */));
         body.append("\r\n");
@@ -728,6 +739,8 @@ status_t WifiDisplaySource::sendM16(int32_t sessionID) {
             sessionID, mNextCSeq, &WifiDisplaySource::onReceiveM16Response);
 
     ++mNextCSeq;
+
+    scheduleKeepAlive(sessionID);
 
     return OK;
 }
@@ -845,7 +858,9 @@ status_t WifiDisplaySource::onReceiveM3Response(
                     mSupportedSinkVideoFormats,
                     mSupportedSourceVideoFormats,
                     &mChosenVideoResolutionType,
-                    &mChosenVideoResolutionIndex)) {
+                    &mChosenVideoResolutionIndex,
+                    &mChosenVideoProfile,
+                    &mChosenVideoLevel)) {
             ALOGE("Sink and source share no commonly supported video "
                   "formats.");
 
@@ -864,6 +879,9 @@ status_t WifiDisplaySource::onReceiveM3Response(
 
         ALOGI("Picked video resolution %u x %u %c%u",
               width, height, interlaced ? 'i' : 'p', framesPerSecond);
+
+        ALOGI("Picked AVC profile %d, level %d",
+              mChosenVideoProfile, mChosenVideoLevel);
     } else {
         ALOGI("Sink doesn't support video at all.");
     }
@@ -994,8 +1012,6 @@ status_t WifiDisplaySource::onReceiveM16Response(
 
     if (mClientInfo.mPlaybackSession != NULL) {
         mClientInfo.mPlaybackSession->updateLiveness();
-
-        scheduleKeepAlive(sessionID);
     }
 
     return OK;
@@ -1257,7 +1273,9 @@ status_t WifiDisplaySource::onSetupRequest(
             mUsingPCMAudio,
             mSinkSupportsVideo,
             mChosenVideoResolutionType,
-            mChosenVideoResolutionIndex);
+            mChosenVideoResolutionIndex,
+            mChosenVideoProfile,
+            mChosenVideoLevel);
 
     if (err != OK) {
         looper()->unregisterHandler(playbackSession->id());
@@ -1340,7 +1358,9 @@ status_t WifiDisplaySource::onPlayRequest(
         return ERROR_MALFORMED;
     }
 
-    if (mState != AWAITING_CLIENT_PLAY) {
+    if (mState != AWAITING_CLIENT_PLAY
+     && mState != PAUSED_TO_PLAYING
+     && mState != PAUSED) {
         ALOGW("Received PLAY request but we're in state %d", mState);
 
         sendErrorResponse(
@@ -1367,7 +1387,7 @@ status_t WifiDisplaySource::onPlayRequest(
         return err;
     }
 
-    if (mState == PAUSED_TO_PLAYING) {
+    if (mState == PAUSED_TO_PLAYING || mPlaybackSessionEstablished) {
         mState = PLAYING;
         return OK;
     }
@@ -1401,7 +1421,7 @@ status_t WifiDisplaySource::onPauseRequest(
 
     ALOGI("Received PAUSE request.");
 
-    if (mState != PLAYING_TO_PAUSED) {
+    if (mState != PLAYING_TO_PAUSED && mState != PLAYING) {
         return INVALID_OPERATION;
     }
 
