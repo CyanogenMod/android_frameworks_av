@@ -476,6 +476,12 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         goto Exit;
     }
 
+    if (sharedBuffer != 0 && sharedBuffer->pointer() == NULL) {
+        ALOGE("createTrack() sharedBuffer is non-0 but has NULL pointer()");
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     {
         Mutex::Autolock _l(mLock);
         PlaybackThread *thread = checkPlaybackThread_l(output);
