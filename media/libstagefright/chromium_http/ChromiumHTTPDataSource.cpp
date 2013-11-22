@@ -108,6 +108,11 @@ status_t ChromiumHTTPDataSource::connect_l(
     return mState == CONNECTED ? OK : mIOResult;
 }
 
+void ChromiumHTTPDataSource::onRedirect(const char *url) {
+    Mutex::Autolock autoLock(mLock);
+    mURI = url;
+}
+
 void ChromiumHTTPDataSource::onConnectionEstablished(
         int64_t contentSize, const char *contentType) {
     Mutex::Autolock autoLock(mLock);
