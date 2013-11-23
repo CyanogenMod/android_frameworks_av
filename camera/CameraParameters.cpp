@@ -552,11 +552,6 @@ void CameraParameters::setOrientation(int orientation)
 const char CameraParameters::LIGHTFX_LOWLIGHT[] = "low-light";
 const char CameraParameters::LIGHTFX_HDR[] = "high-dynamic-range";
 
-#ifdef STE_HARDWARE
-// keys for record stride and sliceheight
-const char CameraParameters::KEY_RECORD_STRIDE[] = "record-stride";
-const char CameraParameters::KEY_RECORD_SLICE_HEIGHT[] = "record-slice-height";
-#endif
 
 CameraParameters::CameraParameters()
                 : mMap()
@@ -619,6 +614,11 @@ void CameraParameters::unflatten(const String8 &params)
     }
 }
 
+#ifdef STE_HARDWARE
+// keys for record stride and sliceheight
+const char CameraParameters::KEY_RECORD_STRIDE[] = "record-stride";
+const char CameraParameters::KEY_RECORD_SLICE_HEIGHT[] = "record-slice-height";
+#endif
 
 void CameraParameters::set(const char *key, const char *value)
 {
