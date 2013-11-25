@@ -682,8 +682,9 @@ status_t MPEG4Extractor::parseDrmSINF(off64_t *offset, off64_t data_offset) {
             }
             sinf->len = dataLen - 3;
             sinf->IPMPData = new char[sinf->len];
+            data_offset += 2;
 
-            if (mDataSource->readAt(data_offset + 2, sinf->IPMPData, sinf->len) < sinf->len) {
+            if (mDataSource->readAt(data_offset, sinf->IPMPData, sinf->len) < sinf->len) {
                 return ERROR_IO;
             }
             data_offset += sinf->len;
