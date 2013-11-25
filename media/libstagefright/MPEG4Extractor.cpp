@@ -960,6 +960,12 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
 
                     int64_t paddingus = duration - (segment_duration + media_time);
+                    if (paddingus < 0) {
+                        // track duration from media header (which is what kKeyDuration is) might
+                        // be slightly shorter than the segment duration, which would make the
+                        // padding negative. Clamp to zero.
+                        paddingus = 0;
+                    }
                     int64_t paddingsamples = (paddingus * samplerate + 500000) / 1000000;
                     mLastTrack->meta->setInt32(kKeyEncoderPadding, paddingsamples);
                 }
