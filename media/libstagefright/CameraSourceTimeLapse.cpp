@@ -85,7 +85,8 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
     mVideoWidth = videoSize.width;
     mVideoHeight = videoSize.height;
 
-    if (!trySettingVideoSize(videoSize.width, videoSize.height)) {
+    if (OK == mInitCheck && !trySettingVideoSize(videoSize.width, videoSize.height)) {
+        releaseCamera();
         mInitCheck = NO_INIT;
     }
 
