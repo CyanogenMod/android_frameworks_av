@@ -128,6 +128,8 @@ MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap)
     ALOGV("frame width: min = %d and max = %d", cap.mMinFrameWidth, cap.mMaxFrameWidth);
     ALOGV("frame height: min = %d and max = %d", cap.mMinFrameHeight, cap.mMaxFrameHeight);
     ALOGV("frame rate: min = %d and max = %d", cap.mMinFrameRate, cap.mMaxFrameRate);
+    ALOGV("max HFR width: = %d max HFR height: = %d", cap.mMaxHFRFrameWidth, cap.mMaxHFRFrameHeight);
+    ALOGV("max HFR mode: = %d", cap.mMaxHFRMode);
 }
 
 /*static*/ void
@@ -257,16 +259,19 @@ MediaProfiles::createVideoDecoderCap(const char **atts)
 /*static*/ MediaProfiles::VideoEncoderCap*
 MediaProfiles::createVideoEncoderCap(const char **atts)
 {
-    CHECK(!strcmp("name",           atts[0])  &&
-          !strcmp("enabled",        atts[2])  &&
-          !strcmp("minBitRate",     atts[4])  &&
-          !strcmp("maxBitRate",     atts[6])  &&
-          !strcmp("minFrameWidth",  atts[8])  &&
-          !strcmp("maxFrameWidth",  atts[10]) &&
-          !strcmp("minFrameHeight", atts[12]) &&
-          !strcmp("maxFrameHeight", atts[14]) &&
-          !strcmp("minFrameRate",   atts[16]) &&
-          !strcmp("maxFrameRate",   atts[18]));
+    CHECK(!strcmp("name",               atts[0])  &&
+          !strcmp("enabled",            atts[2])  &&
+          !strcmp("minBitRate",         atts[4])  &&
+          !strcmp("maxBitRate",         atts[6])  &&
+          !strcmp("minFrameWidth",      atts[8])  &&
+          !strcmp("maxFrameWidth",      atts[10]) &&
+          !strcmp("minFrameHeight",     atts[12]) &&
+          !strcmp("maxFrameHeight",     atts[14]) &&
+          !strcmp("minFrameRate",       atts[16]) &&
+          !strcmp("maxFrameRate",       atts[18]) &&
+          !strcmp("maxHFRFrameWidth",   atts[20]) &&
+          !strcmp("maxHFRFrameHeight",  atts[22]) &&
+          !strcmp("maxHFRMode",         atts[24]));
 
     const size_t nMappings = sizeof(sVideoEncoderNameMap)/sizeof(sVideoEncoderNameMap[0]);
     const int codec = findTagForName(sVideoEncoderNameMap, nMappings, atts[1]);
@@ -275,7 +280,8 @@ MediaProfiles::createVideoEncoderCap(const char **atts)
     MediaProfiles::VideoEncoderCap *cap =
         new MediaProfiles::VideoEncoderCap(static_cast<video_encoder>(codec),
             atoi(atts[5]), atoi(atts[7]), atoi(atts[9]), atoi(atts[11]), atoi(atts[13]),
-            atoi(atts[15]), atoi(atts[17]), atoi(atts[19]));
+            atoi(atts[15]), atoi(atts[17]), atoi(atts[19]), atoi(atts[21]),
+            atoi(atts[23]), atoi(atts[25]));
     logVideoEncoderCap(*cap);
     return cap;
 }
@@ -660,14 +666,14 @@ MediaProfiles::getInstance()
 MediaProfiles::createDefaultH263VideoEncoderCap()
 {
     return new MediaProfiles::VideoEncoderCap(
-        VIDEO_ENCODER_H263, 192000, 420000, 176, 352, 144, 288, 1, 20);
+        VIDEO_ENCODER_H263, 192000, 420000, 176, 352, 144, 288, 1, 20, 0, 0, 0);
 }
 
 /*static*/ MediaProfiles::VideoEncoderCap*
 MediaProfiles::createDefaultM4vVideoEncoderCap()
 {
     return new MediaProfiles::VideoEncoderCap(
-        VIDEO_ENCODER_MPEG_4_SP, 192000, 420000, 176, 352, 144, 288, 1, 20);
+        VIDEO_ENCODER_MPEG_4_SP, 192000, 420000, 176, 352, 144, 288, 1, 20, 0, 0, 0);
 }
 
 
@@ -1012,6 +1018,9 @@ int MediaProfiles::getVideoEncoderParamByName(const char *name, video_encoder co
     if (!strcmp("enc.vid.bps.max", name)) return mVideoEncoders[index]->mMaxBitRate;
     if (!strcmp("enc.vid.fps.min", name)) return mVideoEncoders[index]->mMinFrameRate;
     if (!strcmp("enc.vid.fps.max", name)) return mVideoEncoders[index]->mMaxFrameRate;
+    if (!strcmp("enc.vid.hfr.width.max", name)) return mVideoEncoders[index]->mMaxHFRFrameWidth;
+    if (!strcmp("enc.vid.hfr.height.max", name)) return mVideoEncoders[index]->mMaxHFRFrameHeight;
+    if (!strcmp("enc.vid.hfr.mode.max", name)) return mVideoEncoders[index]->mMaxHFRMode;
 
     ALOGE("The given video encoder param name %s is not found", name);
     return -1;

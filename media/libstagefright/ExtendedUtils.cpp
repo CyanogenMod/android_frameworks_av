@@ -74,80 +74,84 @@ void ExtendedUtils::HFR::setHFRIfEnabled(
         hfr = 0;
     }
 
-    meta->setInt32(kKeyHFR, hfr);
+#ifndef LEGACY_MEDIA
+    const char *hsr_str = params.get("video-hsr");
+
+    if(hsr_str && !strncmp(hsr_str,"on",2)) {
+         ALOGI("HSR [%d] ON",hfr);
+         meta->setInt32(kKeyHSR, hfr);
+    } else
+#endif
+         meta->setInt32(kKeyHFR, hfr);
 }
 
-status_t ExtendedUtils::HFR::reCalculateFileDuration(
+status_t ExtendedUtils::HFR::initializeHFR(
         sp<MetaData> &meta, sp<MetaData> &enc_meta,
-        int64_t &maxFileDurationUs, int32_t frameRate,
-        video_encoder videoEncoder) {
+        int64_t &maxFileDurationUs, video_encoder videoEncoder) {
     status_t retVal = OK;
+
+#ifndef LEGACY_MEDIA
+    //Check HSR first, if HSR is enable set HSR to kKeyFrameRate
+    int32_t hsr =0;
+    if (meta->findInt32(kKeyHSR, &hsr)) {
+        ALOGI("HSR found %d, set this to encoder frame rate",hsr);
+        enc_meta->setInt32(kKeyFrameRate, hsr);
+        return retVal;
+    }
+#endif
+
     int32_t hfr = 0;
 
     if (!meta->findInt32(kKeyHFR, &hfr)) {
         ALOGW("hfr not found, default to 0");
     }
 
-    if (hfr && frameRate) {
-        maxFileDurationUs = maxFileDurationUs * (hfr/frameRate);
+    enc_meta->setInt32(kKeyHFR, hfr);
+
+    if (hfr == 0) {
+        return retVal;
     }
 
-    enc_meta->setInt32(kKeyHFR, hfr);
     int32_t width = 0, height = 0;
 
     CHECK(meta->findInt32(kKeyWidth, &width));
     CHECK(meta->findInt32(kKeyHeight, &height));
 
-    char mDeviceName[100];
+    char mDeviceName[PROPERTY_VALUE_MAX];
     property_get("ro.board.platform",mDeviceName,"0");
-    if (!strncmp(mDeviceName, "msm7627a", 8)) {
-        if (hfr && (width * height > 432*240)) {
-            ALOGE("HFR mode is supported only upto WQVGA resolution");
-            return INVALID_OPERATION;
-        }
-    } else if (!strncmp(mDeviceName, "msm8974", 7) ||
-               !strncmp(mDeviceName, "msm8610", 7)) {
-        if (hfr && (width * height > 1920*1088)) {
+    if (!strncmp(mDeviceName, "msm8974", 7) ||
+        !strncmp(mDeviceName, "apq8064", 7) ||
+        !strncmp(mDeviceName, "apq8084", 7)) {
+        if ((width * height * hfr > 1920*1088*120)) {
             ALOGE("HFR mode is supported only upto 1080p resolution");
             return INVALID_OPERATION;
         }
-    } else {
-        if (hfr && ((videoEncoder != VIDEO_ENCODER_H264) || (width * height > 800*480))) {
+    } else if (!strncmp(mDeviceName, "msm8610", 7)) {
+        if ((width * height * hfr > 320*240*120)) {
+            ALOGE("HFR mode is supported only upto QVGA resolution");
+            return INVALID_OPERATION;
+        }
+    } else { // includes msm8226
+        if (((videoEncoder != VIDEO_ENCODER_H264)
+                || (width * height * hfr > 800*480*120))) {
             ALOGE("HFR mode is supported only upto WVGA and H264 codec.");
             return INVALID_OPERATION;
         }
     }
-    return retVal;
-}
 
-void ExtendedUtils::HFR::reCalculateTimeStamp(
-        sp<MetaData> &meta, int64_t &timestampUs) {
-    int32_t frameRate = 0, hfr = 0;
-    if (!(meta->findInt32(kKeyFrameRate, &frameRate))) {
-        return;
-    }
+    int32_t frameRate = 0, bitRate = 0;
+    CHECK(meta->findInt32(kKeyFrameRate, &frameRate));
+    CHECK(enc_meta->findInt32(kKeyBitRate, &bitRate));
 
-    if (!(meta->findInt32(kKeyHFR, &hfr))) {
-        return;
-    }
-
-    if (hfr && frameRate) {
-        timestampUs = (hfr * timestampUs) / frameRate;
-    }
-}
-
-void ExtendedUtils::HFR::reCalculateHFRParams(
-        const sp<MetaData> &meta, int32_t &frameRate,
-        int32_t &bitRate) {
-    int32_t hfr = 0;
-    if (!(meta->findInt32(kKeyHFR, &hfr))) {
-        return;
-    }
-
-    if (hfr && frameRate) {
+    if (frameRate) {
         bitRate = (hfr * bitRate) / frameRate;
-        frameRate = hfr;
+        int32_t hfrRatio = hfr/frameRate;
+        enc_meta->setInt32(kKeyBitRate, bitRate);
+        enc_meta->setInt32(kKeyFrameRate, hfr);
+        enc_meta->setInt32(kKeyHFR, hfrRatio);
     }
+
+    return retVal;
 }
 
 void ExtendedUtils::HFR::copyHFRParams(
@@ -158,6 +162,13 @@ void ExtendedUtils::HFR::copyHFRParams(
     inputFormat->findInt32(kKeyFrameRate, &frameRate);
     outputFormat->setInt32(kKeyHFR, hfr);
     outputFormat->setInt32(kKeyFrameRate, frameRate);
+}
+
+int32_t ExtendedUtils::HFR::getHFRRatio(
+        const sp<MetaData> &meta) {
+    int32_t hfr = 0;
+    meta->findInt32(kKeyHFR, &hfr);
+    return hfr ? hfr : 1;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
@@ -553,6 +564,19 @@ void ExtendedUtils::helper_Mpeg4ExtractorCheckAC3EAC3(MediaBuffer *buffer,
     }
 }
 
+int32_t ExtendedUtils::getEncoderTypeFlags() {
+    int32_t flags = 0;
+
+    char mDeviceName[PROPERTY_VALUE_MAX];
+    property_get("ro.board.platform",mDeviceName,"0");
+    if (!strncmp(mDeviceName, "msm8610", 7) ||
+        !strncmp(mDeviceName, "msm8226", 7)) {
+        flags |= OMXCodec::kHardwareCodecsOnly;
+    }
+    return flags;
+
+}
+
 void ExtendedUtils::prefetchSecurePool(const char *uri)
 {
     if (!strncasecmp("widevine://", uri, 11)) {
@@ -637,6 +661,8 @@ void ExtendedUtils::drainSecurePool()
     }
 #endif
 }
+
+}
 #else //ENABLE_AV_ENHANCEMENTS
 
 namespace android {
@@ -645,25 +671,20 @@ void ExtendedUtils::HFR::setHFRIfEnabled(
         const CameraParameters& params, sp<MetaData> &meta) {
 }
 
-status_t ExtendedUtils::HFR::reCalculateFileDuration(
+status_t ExtendedUtils::HFR::initializeHFR(
         sp<MetaData> &meta, sp<MetaData> &enc_meta,
-        int64_t &maxFileDurationUs, int32_t frameRate,
-        video_encoder videoEncoder) {
+        int64_t &maxFileDurationUs, video_encoder videoEncoder) {
     return OK;
-}
-
-void ExtendedUtils::HFR::reCalculateTimeStamp(
-        sp<MetaData> &meta, int64_t &timestampUs) {
-}
-
-void ExtendedUtils::HFR::reCalculateHFRParams(
-        const sp<MetaData> &meta, int32_t &frameRate,
-        int32_t &bitrate) {
 }
 
 void ExtendedUtils::HFR::copyHFRParams(
         const sp<MetaData> &inputFormat,
         sp<MetaData> &outputFormat) {
+}
+
+int32_t ExtendedUtils::HFR::getHFRRatio(
+        const sp<MetaData> &meta) {
+        return 0;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
@@ -730,6 +751,10 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
 void ExtendedUtils::helper_Mpeg4ExtractorCheckAC3EAC3(MediaBuffer *buffer,
                                                         sp<MetaData> &format,
                                                         size_t size) {
+}
+
+int32_t ExtendedUtils::getEncoderTypeFlags() {
+    return 0;
 }
 
 void ExtendedUtils::prefetchSecurePool(int fd) {}
