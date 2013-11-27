@@ -1889,7 +1889,6 @@ status_t AudioTrack::restoreTrack_l(const char *from)
 
     // take the frames that will be lost by track recreation into account in saved position
     size_t position = mProxy->getPosition() + mProxy->getFramesFilled();
-    mNewPosition = position + mUpdatePeriod;
     size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
     result = createTrack_l(mStreamType,
                            mSampleRate,
