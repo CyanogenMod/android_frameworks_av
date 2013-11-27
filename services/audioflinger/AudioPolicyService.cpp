@@ -1033,9 +1033,13 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
             } else {
                 data2->mKeyValuePairs = param2.toString();
             }
+#ifdef QCOM_HARDWARE
             if (!strcmp(data2->mKeyValuePairs.string(), data->mKeyValuePairs.string())){
                 command->mTime = command2->mTime;
             }
+#else
+            command->mTime = command2->mTime;
+#endif
             // force delayMs to non 0 so that code below does not request to wait for
             // command status as the command is now delayed
             delayMs = 1;

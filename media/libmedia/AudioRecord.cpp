@@ -567,7 +567,11 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     // update proxy
+#ifdef QCOM_HARDWARE
     mProxy = new AudioRecordClientProxy(cblk, buffers, mCblk->frameCount_, mFrameSize);
+#else
+    mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
+#endif
     mProxy->setEpoch(epoch);
     mProxy->setMinimum(mNotificationFramesAct);
 

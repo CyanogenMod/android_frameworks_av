@@ -2301,7 +2301,9 @@ status_t MPEG4Writer::Track::threadEntry() {
              * Decoding time: decodingTimeUs
              * Composition time offset = composition time - decoding time
              */
+#ifdef QCOM_HARDWARE
             int64_t tmpCttsOffsetTimeUs;
+#endif
             int64_t decodingTimeUs;
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
 #ifdef QCOM_HARDWARE
@@ -2311,9 +2313,13 @@ status_t MPEG4Writer::Track::threadEntry() {
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
                     timestampUs - decodingTimeUs;
+#ifdef QCOM_HARDWARE
             tmpCttsOffsetTimeUs = kMaxCttsOffsetTimeUs;
             ExtendedUtils::HFR::reCalculateTimeStamp(mMeta, tmpCttsOffsetTimeUs);
             CHECK_GE(tmpCttsOffsetTimeUs, decodingTimeUs - timestampUs);
+#else
+            CHECK_GE(kMaxCttsOffsetTimeUs, decodingTimeUs - timestampUs);
+#endif
             timestampUs = decodingTimeUs;
             ALOGV("decoding time: %lld and ctts offset time: %lld",
                 timestampUs, cttsOffsetTimeUs);
