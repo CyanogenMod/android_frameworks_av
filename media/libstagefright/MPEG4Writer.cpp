@@ -40,9 +40,7 @@
 
 #include "include/ESDS.h"
 
-#ifdef QCOM_HARDWARE
 #include "include/ExtendedUtils.h"
-#endif
 
 namespace android {
 
@@ -2268,11 +2266,9 @@ status_t MPEG4Writer::Track::threadEntry() {
         meta_data->findInt32(kKeyIsSyncFrame, &isSync);
         CHECK(meta_data->findInt64(kKeyTime, &timestampUs));
 
-#ifdef QCOM_HARDWARE
         if (!mIsAudio) {
             ExtendedUtils::HFR::reCalculateTimeStamp(mMeta, timestampUs);
         }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
         if (mStszTableEntries->count() == 0) {
@@ -2304,9 +2300,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             int64_t tmpCttsOffsetTimeUs;
             int64_t decodingTimeUs;
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
-#ifdef QCOM_HARDWARE
             ExtendedUtils::HFR::reCalculateTimeStamp(mMeta, decodingTimeUs);
-#endif
 
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
