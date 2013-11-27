@@ -214,6 +214,8 @@ status_t AudioTrack::set(
         const audio_offload_info_t *offloadInfo,
         int uid)
 {
+    ALOGV("sampleRate %u, channelMask %#x, format %d", sampleRate, channelMask, format);
+    ALOGV("streamType %d", streamType);
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (sharedBuffer != 0) {
@@ -315,6 +317,10 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)
                 // FIXME why can't we allow direct AND fast?
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
+    }
+    // do not allow FAST flag for Voice Call stream type
+    if (streamType == AUDIO_STREAM_VOICE_CALL) {
+        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_FAST);
     }
     // only allow deep buffering for music stream type
     if (streamType != AUDIO_STREAM_MUSIC) {
