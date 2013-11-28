@@ -116,6 +116,7 @@ private:
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
+    bool mNeedsSwRenderer;
     sp<Decoder> mAudioDecoder;
     sp<Renderer> mRenderer;
 
