@@ -146,14 +146,11 @@ LOCAL_STATIC_LIBRARIES := \
         libmedia_helper
 
 
-LOCAL_SRC_FILES += ExtendedUtils.cpp
+LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
-       LOCAL_SRC_FILES  += ExtendedCodec.cpp \
-                           ExtendedExtractor.cpp \
-						   ExtendedMediaDefs.cpp \
-                           ExtendedWriter.cpp
+       LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedWriter.cpp
 
        ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
            LOCAL_C_INCLUDES += \
