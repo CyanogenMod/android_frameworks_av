@@ -100,9 +100,7 @@ private:
     status_t addTypeFromAttributes(const char **attrs);
     void addType(const char *name);
 
-#ifdef QCOM_HARDWARE
     friend class ExtendedUtils;
-#endif
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
 };

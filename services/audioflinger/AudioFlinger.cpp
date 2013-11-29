@@ -191,6 +191,11 @@ void AudioFlinger::onFirstRef()
     Mutex::Autolock _l(mLock);
 
     /* TODO: move all this work into an Init() function */
+#ifdef QCOM_HARDWARE
+    mLPASessionId = -2; // -2 is invalid session ID
+    mIsEffectConfigChanged = false;
+    mLPAEffectChain = NULL;
+#endif
     char val_str[PROPERTY_VALUE_MAX] = { 0 };
     if (property_get("ro.audio.flinger_standbytime_ms", val_str, NULL) >= 0) {
         uint32_t int_val;
@@ -1127,6 +1132,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
 #ifdef SRS_PROCESSING
                 ALOGV("setParameters:: routing change to device %d", device);
                 POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
+                if(desc->flag & AUDIO_OUTPUT_FLAG_TUNNEL)
+                    audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
 #endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
@@ -1738,6 +1745,20 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
 
 // ----------------------------------------------------------------------------
 
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
+                                           audio_devices_t *pDevices,
+                                           uint32_t *pSamplingRate,
+                                           audio_format_t *pFormat,
+                                           audio_channel_mask_t *pChannelMask,
+                                           uint32_t *pLatencyMs,
+                                           audio_output_flags_t flags)
+{
+    return openOutput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+            pLatencyMs, flags, NULL);
+}
+#endif
+
 audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_devices_t *pDevices,
                                            uint32_t *pSamplingRate,
@@ -1752,9 +1773,11 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
     config.channel_mask = (pChannelMask != NULL) ? *pChannelMask : 0;
     config.format = (pFormat != NULL) ? *pFormat : AUDIO_FORMAT_DEFAULT;
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     if (offloadInfo) {
         config.offload_info = *offloadInfo;
     }
+#endif
 
     audio_stream_out_t *outStream = NULL;
     AudioHwDevice *outHwDev;
@@ -1766,8 +1789,10 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
               config.format,
               config.channel_mask,
               flags);
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     ALOGV("openOutput(), offloadInfo %p version 0x%04x",
           offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version );
+#endif
 
     if (pDevices == NULL || *pDevices == 0) {
         return 0;

@@ -567,7 +567,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     // update proxy
-    mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
+    mProxy = new AudioRecordClientProxy(cblk, buffers, mCblk->frameCount_, mFrameSize);
     mProxy->setEpoch(epoch);
     mProxy->setMinimum(mNotificationFramesAct);
 

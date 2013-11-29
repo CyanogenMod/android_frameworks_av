@@ -56,6 +56,7 @@ LOCAL_SRC_FILES:=                         \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
         WAVExtractor.cpp                  \
+        WAVEWriter.cpp                    \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
@@ -77,29 +78,26 @@ else
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
 endif
 
-ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-    LOCAL_SRC_FILES += \
-        ExtendedCodec.cpp \
-        ExtendedExtractor.cpp \
-        ExtendedUtils.cpp \
-        WAVEWriter.cpp
-
+ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
     ifeq ($(BOARD_USES_ALSA_AUDIO),true)
         LOCAL_SRC_FILES += LPAPlayerALSA.cpp
+        ifeq ($(call is-chipset-in-board-platform,msm8960),true)
+            LOCAL_SRC_FILES += TunnelPlayer.cpp
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+            LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
+        endif
+        ifeq ($(call is-chipset-in-board-platform,msm8974),true)
+            LOCAL_SRC_FILES += TunnelPlayer.cpp
+            LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+        endif
+        ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+            LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+        endif
     else
         LOCAL_SRC_FILES += LPAPlayer.cpp
         LOCAL_CFLAGS += -DLEGACY_LPA
     endif
-    ifeq ($(USE_TUNNEL_MODE),true)
-        LOCAL_SRC_FILES += TunnelPlayer.cpp
-        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
-    endif
-    ifeq ($(TUNNEL_MODE_SUPPORTS_AMRWB),true)
-        LOCAL_CFLAGS += -DTUNNEL_MODE_SUPPORTS_AMRWB
-    endif
-    ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
-        LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
-    endif
+    LOCAL_CFLAGS += -DQCOM_ENHANCED_AUDIO -DUSE_LPA_MODE
 endif
 
 ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
@@ -147,10 +145,13 @@ LOCAL_STATIC_LIBRARIES := \
         libFLAC \
         libmedia_helper
 
+
+LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
+
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
-       LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp
-       LOCAL_SRC_FILES  += ExtendedWriter.cpp
+       LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedWriter.cpp
+
        ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
            LOCAL_C_INCLUDES += \
                $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
