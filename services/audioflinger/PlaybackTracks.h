@@ -51,7 +51,11 @@ public:
             audio_stream_type_t streamType() const {
                 return mStreamType;
             }
+#ifdef STE_HARDWARE
+            bool        isOffloaded() const { return 0; }
+#else
             bool        isOffloaded() const { return (mFlags & IAudioFlinger::TRACK_OFFLOAD) != 0; }
+#endif
             status_t    setParameters(const String8& keyValuePairs);
             status_t    attachAuxEffect(int EffectId);
             void        setAuxBuffer(int EffectId, int32_t *buffer);
