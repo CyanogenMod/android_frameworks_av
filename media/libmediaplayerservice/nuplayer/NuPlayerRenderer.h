@@ -23,6 +23,7 @@
 namespace android {
 
 struct ABuffer;
+class SoftwareRenderer;
 
 struct NuPlayer::Renderer : public AHandler {
     enum Flags {
@@ -56,6 +57,8 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatMediaRenderingStart = 'mdrd',
     };
 
+    void setSoftRenderer(SoftwareRenderer *softRenderer);
+
 protected:
     virtual ~Renderer();
 
@@ -83,6 +86,7 @@ private:
     static const int64_t kMinPositionUpdateDelayUs;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
+    SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mNotify;
     uint32_t mFlags;
     List<QueueEntry> mAudioQueue;
