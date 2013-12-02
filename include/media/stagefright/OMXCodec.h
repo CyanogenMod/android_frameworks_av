@@ -184,6 +184,7 @@ private:
         size_t mSize;
         void *mData;
         MediaBuffer *mMediaBuffer;
+        bool mOutputCropChanged;
     };
 
     struct CodecSpecificData {
@@ -382,8 +383,9 @@ private:
 
 #ifdef QCOM_HARDWARE
     int32_t mNumBFrames;
-    bool mInSmoothStreamingMode;
 #endif
+    bool mInSmoothStreamingMode;
+    bool mOutputCropChanged;
 };
 
 struct CodecCapabilities {
