@@ -4426,18 +4426,20 @@ bool AudioFlinger::RecordThread::threadLoop()
     nsecs_t lastWarning = 0;
 
     inputStandBy();
-    sp<RecordTrack> activeTrack;
-    {
-        Mutex::Autolock _l(mLock);
-        activeTrack = mActiveTrack;
-        acquireWakeLock_l(activeTrack != 0 ? activeTrack->uid() : -1);
-    }
 
     // used to verify we've read at least once before evaluating how many bytes were read
     bool readOnce = false;
 
     // used to request a deferred sleep, to be executed later while mutex is unlocked
     bool doSleep = false;
+
+reacquire_wakelock:
+    sp<RecordTrack> activeTrack;
+    {
+        Mutex::Autolock _l(mLock);
+        activeTrack = mActiveTrack;
+        acquireWakeLock_l(activeTrack != 0 ? activeTrack->uid() : -1);
+    }
 
     // start recording
     for (;;) {
@@ -4458,14 +4460,9 @@ bool AudioFlinger::RecordThread::threadLoop()
             processConfigEvents_l();
             // return value 'reconfig' is currently unused
             bool reconfig = checkForNewParameters_l();
-            if (mActiveTrack != 0 && activeTrack != mActiveTrack) {
-                SortedVector<int> tmp;
-                tmp.add(mActiveTrack->uid());
-                updateWakeLockUids_l(tmp);
-            }
-            // make a stable copy of mActiveTrack
-            activeTrack = mActiveTrack;
-            if (activeTrack == 0) {
+
+            // if no active track, then standby and release wakelock
+            if (mActiveTrack == 0) {
                 standbyIfNotAlreadyInStandby();
                 // exitPending() can't become true here
                 releaseWakeLock_l();
@@ -4473,8 +4470,14 @@ bool AudioFlinger::RecordThread::threadLoop()
                 // go to sleep
                 mWaitWorkCV.wait(mLock);
                 ALOGV("RecordThread: loop starting");
-                acquireWakeLock_l(mActiveTrack != 0 ? mActiveTrack->uid() : -1);
-                continue;
+                goto reacquire_wakelock;
+            }
+
+            if (activeTrack != mActiveTrack) {
+                SortedVector<int> tmp;
+                tmp.add(mActiveTrack->uid());
+                updateWakeLockUids_l(tmp);
+                activeTrack = mActiveTrack;
             }
 
             if (activeTrack->isTerminated()) {
@@ -4877,8 +4880,8 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         if (mActiveTrack != 0) {
             if (recordTrack != mActiveTrack.get()) {
                 status = -EBUSY;
-            } else if (mActiveTrack->mState == TrackBase::PAUSING) {
-                mActiveTrack->mState = TrackBase::ACTIVE;
+            } else if (recordTrack->mState == TrackBase::PAUSING) {
+                recordTrack->mState = TrackBase::ACTIVE;
             }
             return status;
         }
@@ -4906,7 +4909,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         }
         // FIXME hijacking a playback track state name which was intended for start after pause;
         //       here 'STARTING_2' would be more accurate
-        mActiveTrack->mState = TrackBase::RESUMING;
+        recordTrack->mState = TrackBase::RESUMING;
         // signal thread to start
         ALOGV("Signal record thread");
         mWaitWorkCV.broadcast();
