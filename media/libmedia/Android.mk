@@ -95,7 +95,7 @@ LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiat
 LOCAL_SHARED_LIBRARIES := \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils
+        libgui libdl libaudioutils libaudioparameter
 
 LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
 
