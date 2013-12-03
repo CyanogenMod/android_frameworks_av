@@ -135,12 +135,12 @@ static const int kPriorityFastMixer = 3;
 
 // IAudioFlinger::createTrack() reports back to client the total size of shared memory area
 // for the track.  The client then sub-divides this into smaller buffers for its use.
-// Currently the client uses double-buffering by default, but doesn't tell us about that.
-// So for now we just assume that client is double-buffered.
-// FIXME It would be better for client to tell AudioFlinger whether it wants double-buffering or
-// N-buffering, so AudioFlinger could allocate the right amount of memory.
+// Currently the client uses N-buffering by default, but doesn't tell us about the value of N.
+// So for now we just assume that client is double-buffered for fast tracks.
+// FIXME It would be better for client to tell AudioFlinger the value of N,
+// so AudioFlinger could allocate the right amount of memory.
 // See the client's minBufCount and mNotificationFramesAct calculations for details.
-static const int kFastTrackMultiplier = 1;
+static const int kFastTrackMultiplier = 2;
 
 // ----------------------------------------------------------------------------
 
@@ -1210,7 +1210,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               (
                 (tid != -1) &&
                 ((frameCount == 0) ||
-                (frameCount >= (mFrameCount * kFastTrackMultiplier)))
+                (frameCount >= mFrameCount))
               )
             ) &&
             // PCM data
@@ -4687,7 +4687,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
             (
                 (tid != -1) &&
                 ((frameCount == 0) ||
-                (frameCount >= (mFrameCount * kFastTrackMultiplier)))
+                (frameCount >= mFrameCount))
             ) &&
             // FIXME when record supports non-PCM data, also check for audio_is_linear_pcm(format)
             // mono or stereo
