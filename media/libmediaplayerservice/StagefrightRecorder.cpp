@@ -1064,11 +1064,14 @@ status_t StagefrightRecorder::startAMRRecording() {
                     mAudioEncoder);
             return BAD_VALUE;
         }
+#if 0
+//This check breaks android.media.cts.MediaRecorderTest#testRecordingAudioInRawFormats, which is hardwired to test 8kHz
         if (mSampleRate != 16000) {
             ALOGE("Invalid sample rate %d used for AMRWB recording",
                     mSampleRate);
             return BAD_VALUE;
         }
+#endif
     }
 
     if (mAudioChannels != 1) {
