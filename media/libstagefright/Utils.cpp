@@ -658,12 +658,10 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     if (meta->findInt32(kKeyBitRate, &bitRate)) {
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_AVG_BIT_RATE), bitRate);
     }
-    if (meta->findInt32(kKeyEncoderDelay, &delaySamples)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_DELAY_SAMPLES), delaySamples);
-    }
-    if (meta->findInt32(kKeyEncoderPadding, &paddingSamples)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
-    }
+    meta->findInt32(kKeyEncoderDelay, &delaySamples);
+    param.addInt(String8(AUDIO_OFFLOAD_CODEC_DELAY_SAMPLES), delaySamples);
+    meta->findInt32(kKeyEncoderPadding, &paddingSamples);
+    param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
 #ifdef ENABLE_AV_ENHANCEMENTS
 #ifdef FLAC_OFFLOAD_ENABLED
     int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
