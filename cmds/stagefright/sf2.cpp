@@ -18,6 +18,8 @@
 #define LOG_TAG "sf2"
 #include <utils/Log.h>
 
+#include <signal.h>
+
 #include <binder/ProcessState.h>
 
 #include <media/stagefright/foundation/hexdump.h>
@@ -42,6 +44,18 @@
 
 using namespace android;
 
+volatile static bool ctrlc = false;
+
+static sighandler_t oldhandler = NULL;
+
+static void mysighandler(int signum) {
+    if (signum == SIGINT) {
+        ctrlc = true;
+        return;
+    }
+    oldhandler(signum);
+}
+
 struct Controller : public AHandler {
     Controller(const char *uri, bool decodeAudio,
                const sp<Surface> &surface, bool renderToSurface)
@@ -62,7 +76,29 @@ protected:
     virtual ~Controller() {
     }
 
+    virtual void printStatistics() {
+        int64_t delayUs = ALooper::GetNowUs() - mStartTimeUs;
+        if (mDecodeAudio) {
+            printf("%lld bytes received. %.2f KB/sec\n",
+                   mTotalBytesReceived,
+                   mTotalBytesReceived * 1E6 / 1024 / delayUs);
+        } else {
+            printf("%d frames decoded, %.2f fps. %lld bytes "
+                   "received. %.2f KB/sec\n",
+                   mNumOutputBuffersReceived,
+                   mNumOutputBuffersReceived * 1E6 / delayUs,
+                   mTotalBytesReceived,
+                   mTotalBytesReceived * 1E6 / 1024 / delayUs);
+        }
+    }
+
     virtual void onMessageReceived(const sp<AMessage> &msg) {
+        if (ctrlc) {
+            printf("\n");
+            printStatistics();
+            (new AMessage(kWhatStop, id()))->post();
+            ctrlc = false;
+        }
         switch (msg->what()) {
             case kWhatStart:
             {
@@ -98,7 +134,10 @@ protected:
                         break;
                     }
                 }
-                CHECK(mSource != NULL);
+                if (mSource == NULL) {
+                    printf("no %s track found\n", mDecodeAudio ? "audio" : "video");
+                    exit (1);
+                }
 
                 CHECK_EQ(mSource->start(), (status_t)OK);
 
@@ -180,21 +219,7 @@ protected:
                         || what == ACodec::kWhatError) {
                     printf((what == ACodec::kWhatEOS) ? "$\n" : "E\n");
 
-                    int64_t delayUs = ALooper::GetNowUs() - mStartTimeUs;
-
-                    if (mDecodeAudio) {
-                        printf("%lld bytes received. %.2f KB/sec\n",
-                               mTotalBytesReceived,
-                               mTotalBytesReceived * 1E6 / 1024 / delayUs);
-                    } else {
-                        printf("%d frames decoded, %.2f fps. %lld bytes "
-                               "received. %.2f KB/sec\n",
-                               mNumOutputBuffersReceived,
-                               mNumOutputBuffersReceived * 1E6 / delayUs,
-                               mTotalBytesReceived,
-                               mTotalBytesReceived * 1E6 / 1024 / delayUs);
-                    }
-
+                    printStatistics();
                     (new AMessage(kWhatStop, id()))->post();
                 } else if (what == ACodec::kWhatFlushCompleted) {
                     mSeekState = SEEK_FLUSH_COMPLETED;
@@ -637,6 +662,8 @@ int main(int argc, char **argv) {
         new Controller(argv[0], decodeAudio, surface, renderToSurface);
 
     looper->registerHandler(controller);
+
+    signal(SIGINT, mysighandler);
 
     controller->startAsync();
 
