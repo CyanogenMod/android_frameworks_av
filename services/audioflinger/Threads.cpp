@@ -4404,6 +4404,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 #endif
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
+    mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
 
     readInputParameters();
 }
@@ -4411,6 +4412,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 
 AudioFlinger::RecordThread::~RecordThread()
 {
+    mAudioFlinger->unregisterWriter(mNBLogWriter);
     delete[] mRsmpInBuffer;
     delete mResampler;
     delete[] mRsmpOutBuffer;

@@ -441,7 +441,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
 
 bool NBLog::Reader::isIMemory(const sp<IMemory>& iMemory) const
 {
-    return iMemory.get() == mIMemory.get();
+    return iMemory != 0 && mIMemory != 0 && iMemory->pointer() == mIMemory->pointer();
 }
 
 }   // namespace android

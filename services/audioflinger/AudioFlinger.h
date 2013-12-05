@@ -235,8 +235,12 @@ public:
     sp<NBLog::Writer>   newWriter_l(size_t size, const char *name);
     void                unregisterWriter(const sp<NBLog::Writer>& writer);
 private:
-    static const size_t kLogMemorySize = 10 * 1024;
+    static const size_t kLogMemorySize = 40 * 1024;
     sp<MemoryDealer>    mLogMemoryDealer;   // == 0 when NBLog is disabled
+    // When a log writer is unregistered, it is done lazily so that media.log can continue to see it
+    // for as long as possible.  The memory is only freed when it is needed for another log writer.
+    Vector< sp<NBLog::Writer> > mUnregisteredWriters;
+    Mutex               mUnregisteredWritersLock;
 public:
 
     class SyncEvent;
