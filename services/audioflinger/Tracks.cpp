@@ -68,6 +68,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
+            int clientUid,
             bool isOut)
     :   RefBase(),
         mThread(thread),
@@ -88,6 +89,18 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mId(android_atomic_inc(&nextTrackId)),
         mTerminated(false)
 {
+    // if the caller is us, trust the specified uid
+    if (IPCThreadState::self()->getCallingPid() != getpid_cached || clientUid == -1) {
+        int newclientUid = IPCThreadState::self()->getCallingUid();
+        if (clientUid != -1 && clientUid != newclientUid) {
+            ALOGW("uid %d tried to pass itself off as %d", newclientUid, clientUid);
+        }
+        clientUid = newclientUid;
+    }
+    // clientUid contains the uid of the app that is responsible for this track, so we can blame
+    // battery usage on it.
+    mUid = clientUid;
+
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
 
@@ -313,9 +326,10 @@ AudioFlinger::PlaybackThread::Track::Track(
             size_t frameCount,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
+            int uid,
             IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount, sharedBuffer,
-            sessionId, true /*isOut*/),
+            sessionId, uid, true /*isOut*/),
     mFillingUpStatus(FS_INVALID),
     // mRetryCount initialized later when needed
     mSharedBuffer(sharedBuffer),
@@ -600,6 +614,15 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         // track was already in the active list, not a problem
         if (status == ALREADY_EXISTS) {
             status = NO_ERROR;
+        } else {
+            // Acknowledge any pending flush(), so that subsequent new data isn't discarded.
+            // It is usually unsafe to access the server proxy from a binder thread.
+            // But in this case we know the mixer thread (whether normal mixer or fast mixer)
+            // isn't looking at this track yet:  we still hold the normal mixer thread lock,
+            // and for fast tracks the track is not yet in the fast mixer thread's active set.
+            ServerProxy::Buffer buffer;
+            buffer.mFrameCount = 1;
+            (void) mAudioTrackServerProxy->obtainBuffer(&buffer, true /*ackFlush*/);
         }
     } else {
         status = BAD_VALUE;
@@ -829,6 +852,7 @@ status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
                                         dstChain->strategy(),
                                         AUDIO_SESSION_OUTPUT_MIX,
                                         effect->id());
+            AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
         }
         status = playbackThread->attachAuxEffect(this, EffectId);
     }
@@ -954,13 +978,14 @@ AudioFlinger::PlaybackThread::TimedTrack::create(
             audio_channel_mask_t channelMask,
             size_t frameCount,
             const sp<IMemory>& sharedBuffer,
-            int sessionId) {
+            int sessionId,
+            int uid) {
     if (!client->reserveTimedTrack())
         return 0;
 
     return new TimedTrack(
         thread, client, streamType, sampleRate, format, channelMask, frameCount,
-        sharedBuffer, sessionId);
+        sharedBuffer, sessionId, uid);
 }
 
 AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
@@ -972,9 +997,10 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             audio_channel_mask_t channelMask,
             size_t frameCount,
             const sp<IMemory>& sharedBuffer,
-            int sessionId)
+            int sessionId,
+            int uid)
     : Track(thread, client, streamType, sampleRate, format, channelMask,
-            frameCount, sharedBuffer, sessionId, IAudioFlinger::TRACK_TIMED),
+            frameCount, sharedBuffer, sessionId, uid, IAudioFlinger::TRACK_TIMED),
       mQueueHeadInFlight(false),
       mTrimQueueHeadOnRelease(false),
       mFramesPendingInQueue(0),
@@ -1467,9 +1493,10 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             uint32_t sampleRate,
             audio_format_t format,
             audio_channel_mask_t channelMask,
-            size_t frameCount)
+            size_t frameCount,
+            int uid)
     :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
-                NULL, 0, IAudioFlinger::TRACK_DEFAULT),
+                NULL, 0, uid, IAudioFlinger::TRACK_DEFAULT),
     mActive(false), mSourceThread(sourceThread), mClientProxy(NULL)
 {
 
@@ -1729,9 +1756,10 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
-            int sessionId)
+            int sessionId,
+            int uid)
     :   TrackBase(thread, client, sampleRate, format,
-                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, false /*isOut*/),
+                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid, false /*isOut*/),
         mOverflow(false)
 {
     ALOGV("RecordTrack constructor");

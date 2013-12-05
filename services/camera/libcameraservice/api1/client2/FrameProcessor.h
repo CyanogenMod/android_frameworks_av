@@ -39,7 +39,7 @@ namespace camera2 {
  */
 class FrameProcessor : public FrameProcessorBase {
   public:
-    FrameProcessor(wp<CameraDeviceBase> device, wp<Camera2Client> client);
+    FrameProcessor(wp<CameraDeviceBase> device, sp<Camera2Client> client);
     ~FrameProcessor();
 
   private:
@@ -61,17 +61,43 @@ class FrameProcessor : public FrameProcessorBase {
     status_t process3aState(const CameraMetadata &frame,
             const sp<Camera2Client> &client);
 
+    // Helper for process3aState
+    template<typename Src, typename T>
+    bool get3aResult(const CameraMetadata& result, int32_t tag, T* value,
+            int32_t frameNumber, int cameraId);
+
+
     struct AlgState {
+        // TODO: also track AE mode
+        camera_metadata_enum_android_control_af_mode   afMode;
+        camera_metadata_enum_android_control_awb_mode  awbMode;
+
         camera_metadata_enum_android_control_ae_state  aeState;
         camera_metadata_enum_android_control_af_state  afState;
         camera_metadata_enum_android_control_awb_state awbState;
 
+        int32_t                                        afTriggerId;
+        int32_t                                        aeTriggerId;
+
+        // These defaults need to match those in Parameters.cpp
         AlgState() :
+                afMode(ANDROID_CONTROL_AF_MODE_AUTO),
+                awbMode(ANDROID_CONTROL_AWB_MODE_AUTO),
                 aeState(ANDROID_CONTROL_AE_STATE_INACTIVE),
                 afState(ANDROID_CONTROL_AF_STATE_INACTIVE),
-                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE) {
+                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE),
+                afTriggerId(0),
+                aeTriggerId(0) {
         }
     } m3aState;
+
+    // Whether the partial result quirk is enabled for this device
+    bool mUsePartialQuirk;
+
+    // Track most recent frame number for which 3A notifications were sent for.
+    // Used to filter against sending 3A notifications for the same frame
+    // several times.
+    int32_t mLast3AFrameNumber;
 
     // Emit FaceDetection event to java if faces changed
     void callbackFaceDetection(sp<Camera2Client> client,

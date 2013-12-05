@@ -241,6 +241,9 @@ protected:
                 void        acquireWakeLock_l(int uid = -1);
                 void        releaseWakeLock();
                 void        releaseWakeLock_l();
+                void        updateWakeLockUids(const SortedVector<int> &uids);
+                void        updateWakeLockUids_l(const SortedVector<int> &uids);
+                void        getPowerManager_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
                                           bool suspend,
                                           int sessionId);
@@ -421,6 +424,7 @@ public:
                                 int sessionId,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
+                                int uid,
                                 status_t *status);
 
                 AudioStreamOut* getOutput() const;
@@ -495,6 +499,9 @@ private:
                 void        setMasterMute_l(bool muted) { mMasterMute = muted; }
 protected:
     SortedVector< wp<Track> >       mActiveTracks;  // FIXME check if this could be sp<>
+    SortedVector<int>               mWakeLockUids;
+    int                             mActiveTracksGeneration;
+    wp<Track>                       mLatestActiveTrack; // latest track added to mActiveTracks
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
@@ -735,7 +742,7 @@ public:
 
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                         audio_io_handle_t id, uint32_t device);
-    virtual                 ~OffloadThread();
+    virtual                 ~OffloadThread() {};
 
 protected:
     // threadLoop snippets
@@ -755,7 +762,7 @@ private:
     bool        mFlushPending;
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
-    sp<Track>   mPreviousTrack;         // used to detect track switch
+    wp<Track>   mPreviousTrack;         // used to detect track switch
 };
 
 class AsyncCallbackThread : public Thread {
@@ -873,6 +880,7 @@ public:
                     audio_channel_mask_t channelMask,
                     size_t frameCount,
                     int sessionId,
+                    int uid,
                     IAudioFlinger::track_flags_t *flags,
                     pid_t tid,
                     status_t *status);
@@ -953,5 +961,4 @@ private:
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
-            int                                 mClientUid;
 };

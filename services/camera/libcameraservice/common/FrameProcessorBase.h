@@ -44,9 +44,11 @@ class FrameProcessorBase: public Thread {
     };
 
     // Register a listener for a range of IDs [minId, maxId). Multiple listeners
-    // can be listening to the same range
+    // can be listening to the same range.
+    // QUIRK: sendPartials controls whether partial results will be sent.
     status_t registerListener(int32_t minId, int32_t maxId,
-                              wp<FilteredListener> listener);
+                              wp<FilteredListener> listener,
+                              bool quirkSendPartials = true);
     status_t removeListener(int32_t minId, int32_t maxId,
                             wp<FilteredListener> listener);
 
@@ -64,6 +66,7 @@ class FrameProcessorBase: public Thread {
         int32_t minId;
         int32_t maxId;
         wp<FilteredListener> listener;
+        bool quirkSendPartials;
     };
     List<RangeListener> mRangeListeners;
 

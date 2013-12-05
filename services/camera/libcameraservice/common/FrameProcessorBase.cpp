@@ -37,11 +37,11 @@ FrameProcessorBase::~FrameProcessorBase() {
 }
 
 status_t FrameProcessorBase::registerListener(int32_t minId,
-        int32_t maxId, wp<FilteredListener> listener) {
+        int32_t maxId, wp<FilteredListener> listener, bool quirkSendPartials) {
     Mutex::Autolock l(mInputMutex);
     ALOGV("%s: Registering listener for frame id range %d - %d",
             __FUNCTION__, minId, maxId);
-    RangeListener rListener = { minId, maxId, listener };
+    RangeListener rListener = { minId, maxId, listener, quirkSendPartials };
     mRangeListeners.push_back(rListener);
     return OK;
 }
@@ -145,6 +145,16 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
 
+    // Quirks: Don't deliver partial results to listeners that don't want them
+    bool quirkIsPartial = false;
+    entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+    if (entry.count != 0 &&
+            entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+        ALOGV("%s: Camera %d: Not forwarding partial result to listeners",
+                __FUNCTION__, device->getId());
+        quirkIsPartial = true;
+    }
+
     entry = frame.find(ANDROID_REQUEST_ID);
     if (entry.count == 0) {
         ALOGE("%s: Camera %d: Error reading frame id",
@@ -160,7 +170,8 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
         List<RangeListener>::iterator item = mRangeListeners.begin();
         while (item != mRangeListeners.end()) {
             if (requestId >= item->minId &&
-                    requestId < item->maxId) {
+                    requestId < item->maxId &&
+                    (!quirkIsPartial || item->quirkSendPartials) ) {
                 sp<FilteredListener> listener = item->listener.promote();
                 if (listener == 0) {
                     item = mRangeListeners.erase(item);

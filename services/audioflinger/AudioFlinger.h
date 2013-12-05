@@ -109,6 +109,7 @@ public:
                                 pid_t tid,
                                 int *sessionId,
                                 String8& name,
+                                int clientUid,
                                 status_t *status);
 
     virtual sp<IAudioRecord> openRecord(

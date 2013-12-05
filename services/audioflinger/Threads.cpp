@@ -272,6 +272,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, and mFormat are
         // set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
         mParamStatus(NO_ERROR),
+        //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
@@ -503,17 +504,7 @@ String16 AudioFlinger::ThreadBase::getWakeLockTag()
 
 void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
 {
-    if (mPowerManager == 0) {
-        // use checkService() to avoid blocking if power service is not up yet
-        sp<IBinder> binder =
-            defaultServiceManager()->checkService(String16("power"));
-        if (binder == 0) {
-            ALOGW("Thread %s cannot connect to the power manager service", mName);
-        } else {
-            mPowerManager = interface_cast<IPowerManager>(binder);
-            binder->linkToDeath(mDeathRecipient);
-        }
-    }
+    getPowerManager_l();
     if (mPowerManager != 0) {
         sp<IBinder> binder = new BBinder();
         status_t status;
@@ -550,6 +541,41 @@ void AudioFlinger::ThreadBase::releaseWakeLock_l()
             mPowerManager->releaseWakeLock(mWakeLockToken, 0);
         }
         mWakeLockToken.clear();
+    }
+}
+
+void AudioFlinger::ThreadBase::updateWakeLockUids(const SortedVector<int> &uids) {
+    Mutex::Autolock _l(mLock);
+    updateWakeLockUids_l(uids);
+}
+
+void AudioFlinger::ThreadBase::getPowerManager_l() {
+
+    if (mPowerManager == 0) {
+        // use checkService() to avoid blocking if power service is not up yet
+        sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("power"));
+        if (binder == 0) {
+            ALOGW("Thread %s cannot connect to the power manager service", mName);
+        } else {
+            mPowerManager = interface_cast<IPowerManager>(binder);
+            binder->linkToDeath(mDeathRecipient);
+        }
+    }
+}
+
+void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uids) {
+
+    getPowerManager_l();
+    if (mWakeLockToken == NULL) {
+        ALOGE("no wake lock to update!");
+        return;
+    }
+    if (mPowerManager != 0) {
+        sp<IBinder> binder = new BBinder();
+        status_t status;
+        status = mPowerManager->updateWakeLockUids(mWakeLockToken, uids.size(), uids.array());
+        ALOGV("acquireWakeLock_l() %s status %d", mName, status);
     }
 }
 
@@ -977,6 +1003,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
         mNormalFrameCount(0), mMixBuffer(NULL),
         mAllocMixBuffer(NULL), mSuspended(0), mBytesWritten(0),
+        mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
         mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
@@ -1160,6 +1187,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         int sessionId,
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
+        int uid,
         status_t *status)
 {
     sp<Track> track;
@@ -1293,10 +1321,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
         if (!isTimed) {
             track = new Track(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId, *flags);
+                    channelMask, frameCount, sharedBuffer, sessionId, uid, *flags);
         } else {
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId);
+                    channelMask, frameCount, sharedBuffer, sessionId, uid);
         }
         if (track == 0 || track->getCblk() == NULL || track->name() < 0) {
             lStatus = NO_MEMORY;
@@ -1432,6 +1460,9 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         track->mResetDone = false;
         track->mPresentationCompleteFrames = 0;
         mActiveTracks.add(track);
+        mWakeLockUids.add(track->uid());
+        mActiveTracksGeneration++;
+        mLatestActiveTrack = track;
         sp<EffectChain> chain = getEffectChain_l(track->sessionId());
         if (chain != 0) {
             ALOGV("addTrack_l() starting track on chain %p for session %d", chain.get(),
@@ -1905,7 +1936,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
 
     mNumWrites++;
     mInWrite = false;
-
+    mStandby = false;
     return bytesWritten;
 }
 
@@ -2127,6 +2158,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     // FIXME could this be made local to while loop?
     writeFrames = 0;
 
+    int lastGeneration = 0;
+
     cacheParameters_l();
     sleepTime = idleSleepTime;
 
@@ -2183,6 +2216,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     break;
                 }
                 releaseWakeLock_l();
+                mWakeLockUids.clear();
+                mActiveTracksGeneration++;
                 ALOGV("wait async completion");
                 mWaitWorkCV.wait(mLock);
                 ALOGV("async completion/wake");
@@ -2213,6 +2248,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     }
 
                     releaseWakeLock_l();
+                    mWakeLockUids.clear();
+                    mActiveTracksGeneration++;
                     // wait until we have something to do...
                     ALOGV("%s going to sleep", myName.string());
                     mWaitWorkCV.wait(mLock);
@@ -2237,11 +2274,18 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // mMixerStatusIgnoringFastTracks is also updated internally
             mMixerStatus = prepareTracks_l(&tracksToRemove);
 
+            // compare with previously applied list
+            if (lastGeneration != mActiveTracksGeneration) {
+                // update wakelock
+                updateWakeLockUids_l(mWakeLockUids);
+                lastGeneration = mActiveTracksGeneration;
+            }
+
             // prevent any changes in effect chain list and in each effect chain
             // during mixing and effect process as the audio buffers could be deleted
             // or modified if an effect is created or deleted
             lockEffectChains_l(effectChains);
-        }
+        } // mLock scope ends
 
         if (mBytesRemaining == 0) {
             mCurrentWriteLength = 0;
@@ -2315,7 +2359,6 @@ if (mType == MIXER) {
                 }
 }
 
-                mStandby = false;
             } else {
                 usleep(sleepTime);
             }
@@ -2351,6 +2394,8 @@ if (mType == MIXER) {
     }
 
     releaseWakeLock();
+    mWakeLockUids.clear();
+    mActiveTracksGeneration++;
 
     ALOGV("Thread %p type %d exiting", this, mType);
     return false;
@@ -2364,6 +2409,8 @@ void AudioFlinger::PlaybackThread::removeTracks_l(const Vector< sp<Track> >& tra
         for (size_t i=0 ; i<count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             mActiveTracks.remove(track);
+            mWakeLockUids.remove(track->uid());
+            mActiveTracksGeneration++;
             ALOGV("removeTracks_l removing track on session %d", track->sessionId());
             sp<EffectChain> chain = getEffectChain_l(track->sessionId());
             if (chain != 0) {
@@ -3559,6 +3606,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
+        // Only consider last track started for volume and mixer state control.
+        // In theory an older track could underrun and restart after the new one starts
+        // but as we only care about the transition phase between two tracks on a
+        // direct output, it is not a problem to ignore the underrun case.
+        sp<Track> l = mLatestActiveTrack.promote();
+        bool last = l.get() == track;
 
         // The first time a track is added we wait
         // for all its buffers to be filled before processing it
@@ -3568,11 +3621,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         } else {
             minFrames = 1;
         }
-        // Only consider last track started for volume and mixer state control.
-        // This is the last entry in mActiveTracks unless a track underruns.
-        // As we only care about the transition phase between two tracks on a
-        // direct output, it is not a problem to ignore the underrun case.
-        bool last = (i == (count - 1));
 
         if ((track->framesReady() >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
@@ -3599,7 +3647,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         } else {
             // clear effect chain input buffer if the last active track started underruns
             // to avoid sending previous audio buffer again to effects
-            if (!mEffectChains.isEmpty() && (i == (count -1))) {
+            if (!mEffectChains.isEmpty() && last) {
                 mEffectChains[0]->clearInputBuffer();
             }
 
@@ -3611,7 +3659,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // TODO: implement behavior for compressed audio
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten = mBytesWritten / mFrameSize;
-                if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
+                if (mStandby || !last ||
+                        track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
                     }
@@ -3624,6 +3673,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 if (--(track->mRetryCount) <= 0) {
                     ALOGV("BUFFER TIMEOUT: remove(%d) from active list", track->name());
                     tracksToRemove->add(track);
+                    // indicate to client process that the track was disabled because of underrun;
+                    // it will then automatically call start() when data is available
+                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 } else if (last) {
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
@@ -3886,11 +3938,8 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         mFlushPending(false),
         mPausedBytesRemaining(0)
 {
-}
-
-AudioFlinger::OffloadThread::~OffloadThread()
-{
-    mPreviousTrack.clear();
+    //FIXME: mStandby should be set to true by ThreadBase constructor
+    mStandby = true;
 }
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
@@ -3927,24 +3976,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         }
         Track* const track = t.get();
         audio_track_cblk_t* cblk = track->cblk();
-        if (mPreviousTrack != NULL) {
-            if (t != mPreviousTrack) {
-                // Flush any data still being written from last track
-                mBytesRemaining = 0;
-                if (mPausedBytesRemaining) {
-                    // Last track was paused so we also need to flush saved
-                    // mixbuffer state and invalidate track so that it will
-                    // re-submit that unwritten data when it is next resumed
-                    mPausedBytesRemaining = 0;
-                    // Invalidate is a bit drastic - would be more efficient
-                    // to have a flag to tell client that some of the
-                    // previously written data was lost
-                    mPreviousTrack->invalidate();
-                }
-            }
-        }
-        mPreviousTrack = t;
-        bool last = (i == (count - 1));
+        // Only consider last track started for volume and mixer state control.
+        // In theory an older track could underrun and restart after the new one starts
+        // but as we only care about the transition phase between two tracks on a
+        // direct output, it is not a problem to ignore the underrun case.
+        sp<Track> l = mLatestActiveTrack.promote();
+        bool last = l.get() == track;
+
         if (track->isPausing()) {
             track->setPaused();
             if (last) {
@@ -3992,6 +4030,31 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             }
 
             if (last) {
+                sp<Track> previousTrack = mPreviousTrack.promote();
+                if (previousTrack != 0) {
+                    if (track != previousTrack.get()) {
+                        // Flush any data still being written from last track
+                        mBytesRemaining = 0;
+                        if (mPausedBytesRemaining) {
+                            // Last track was paused so we also need to flush saved
+                            // mixbuffer state and invalidate track so that it will
+                            // re-submit that unwritten data when it is next resumed
+                            mPausedBytesRemaining = 0;
+                            // Invalidate is a bit drastic - would be more efficient
+                            // to have a flag to tell client that some of the
+                            // previously written data was lost
+                            previousTrack->invalidate();
+                        }
+                        // flush data already sent to the DSP if changing audio session as audio
+                        // comes from a different source. Also invalidate previous track to force a
+                        // seek when resuming.
+                        if (previousTrack->sessionId() != track->sessionId()) {
+                            previousTrack->invalidate();
+                            mFlushPending = true;
+                        }
+                    }
+                }
+                mPreviousTrack = track;
                 // reset retry count
                 track->mRetryCount = kMaxTrackRetriesOffload;
                 mActiveTrack = t;
@@ -4008,22 +4071,27 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     // has been written
                     ALOGV("OffloadThread: underrun and STOPPING_1 -> draining, STOPPING_2");
                     track->mState = TrackBase::STOPPING_2; // so presentation completes after drain
-                    if (last) {
-                        sleepTime = 0;
-                        standbyTime = systemTime() + standbyDelay;
-                        mixerStatus = MIXER_DRAIN_TRACK;
-                        mDrainSequence += 2;
+                    // do not drain if no data was ever sent to HAL (mStandby == true)
+                    if (last && !mStandby) {
+                        // do not modify drain sequence if we are already draining. This happens
+                        // when resuming from pause after drain.
+                        if ((mDrainSequence & 1) == 0) {
+                            sleepTime = 0;
+                            standbyTime = systemTime() + standbyDelay;
+                            mixerStatus = MIXER_DRAIN_TRACK;
+                            mDrainSequence += 2;
+                        }
                         if (mHwPaused) {
                             // It is possible to move from PAUSED to STOPPING_1 without
                             // a resume so we must ensure hardware is running
-                            mOutput->stream->resume(mOutput->stream);
+                            doHwResume = true;
                             mHwPaused = false;
                         }
                     }
                 }
             } else if (track->isStopping_2()) {
-                // Drain has completed, signal presentation complete
-                if (!(mDrainSequence & 1) || !last) {
+                // Drain has completed or we are in standby, signal presentation complete
+                if (!(mDrainSequence & 1) || !last || mStandby) {
                     track->mState = TrackBase::STOPPED;
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
@@ -4040,6 +4108,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     ALOGV("OffloadThread: BUFFER TIMEOUT: remove(%d) from active list",
                           track->name());
                     tracksToRemove->add(track);
+                    // indicate to client process that the track was disabled because of underrun;
+                    // it will then automatically call start() when data is available
+                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 } else if (last){
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
@@ -4053,7 +4124,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     // If a flush is pending and a track is active but the HW is not paused, force a HW pause
     // before flush and then resume HW. This can happen in case of pause/flush/resume
     // if resume is received before pause is executed.
-    if (doHwPause || (mFlushPending && !mHwPaused && (count != 0))) {
+    if (!mStandby && (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         mOutput->stream->pause(mOutput->stream);
         if (!doHwPause) {
             doHwResume = true;
@@ -4063,7 +4134,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         flushHw_l();
         mFlushPending = false;
     }
-    if (doHwResume) {
+    if (!mStandby && doHwResume) {
         mOutput->stream->resume(mOutput->stream);
     }
 
@@ -4185,6 +4256,7 @@ ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
     for (size_t i = 0; i < outputTracks.size(); i++) {
         outputTracks[i]->write(mMixBuffer, writeFrames);
     }
+    mStandby = false;
     return (ssize_t)mixBufferSize;
 }
 
@@ -4216,7 +4288,8 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
                                             mSampleRate,
                                             mFormat,
                                             mChannelMask,
-                                            frameCount);
+                                            frameCount,
+                                            IPCThreadState::self()->getCallingUid());
     if (outputTrack->cblk() != NULL) {
         thread->setStreamVolume(AUDIO_STREAM_CNT, 1.0f);
         mOutputTracks.add(outputTrack);
@@ -4318,7 +4391,6 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     snprintf(mName, kNameLength, "AudioIn_%X", id);
 
     readInputParameters();
-    mClientUid = IPCThreadState::self()->getCallingUid();
 }
 
 
@@ -4350,7 +4422,11 @@ bool AudioFlinger::RecordThread::threadLoop()
     nsecs_t lastWarning = 0;
 
     inputStandBy();
-    acquireWakeLock(mClientUid);
+    {
+        Mutex::Autolock _l(mLock);
+        activeTrack = mActiveTrack;
+        acquireWakeLock_l(activeTrack != 0 ? activeTrack->uid() : -1);
+    }
 
     // used to verify we've read at least once before evaluating how many bytes were read
     bool readOnce = false;
@@ -4363,6 +4439,12 @@ bool AudioFlinger::RecordThread::threadLoop()
         { // scope for mLock
             Mutex::Autolock _l(mLock);
             checkForNewParameters_l();
+            if (mActiveTrack != 0 && activeTrack != mActiveTrack) {
+                SortedVector<int> tmp;
+                tmp.add(mActiveTrack->uid());
+                updateWakeLockUids_l(tmp);
+            }
+            activeTrack = mActiveTrack;
             if (mActiveTrack == 0 && mConfigEvents.isEmpty()) {
                 standby();
 
@@ -4375,7 +4457,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                 // go to sleep
                 mWaitWorkCV.wait(mLock);
                 ALOGV("RecordThread: loop starting");
-                acquireWakeLock_l(mClientUid);
+                acquireWakeLock_l(mActiveTrack != 0 ? mActiveTrack->uid() : -1);
                 continue;
             }
             if (mActiveTrack != 0) {
@@ -4585,6 +4667,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         audio_channel_mask_t channelMask,
         size_t frameCount,
         int sessionId,
+        int uid,
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         status_t *status)
@@ -4654,7 +4737,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         Mutex::Autolock _l(mLock);
 
         track = new RecordTrack(this, client, sampleRate,
-                      format, channelMask, frameCount, sessionId);
+                      format, channelMask, frameCount, sessionId, uid);
 
         if (track->getCblk() == 0) {
             ALOGE("createRecordTrack_l() no control block");

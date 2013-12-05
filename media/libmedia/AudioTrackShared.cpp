@@ -506,7 +506,7 @@ ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
 {
 }
 
-status_t ServerProxy::obtainBuffer(Buffer* buffer)
+status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
 {
     LOG_ALWAYS_FATAL_IF(buffer == NULL || buffer->mFrameCount == 0);
     if (mIsShutdown) {
@@ -579,7 +579,11 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer)
     buffer->mRaw = part1 > 0 ?
             &((char *) mBuffers)[(mIsOut ? front : rear) * mFrameSize] : NULL;
     buffer->mNonContig = availToServer - part1;
-    mUnreleased = part1;
+    // After flush(), allow releaseBuffer() on a previously obtained buffer;
+    // see "Acknowledge any pending flush()" in audioflinger/Tracks.cpp.
+    if (!ackFlush) {
+        mUnreleased = part1;
+    }
     return part1 > 0 ? NO_ERROR : WOULD_BLOCK;
     }
 no_init:
@@ -761,7 +765,7 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
     return (ssize_t) position;
 }
 
-status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer)
+status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
 {
     if (mIsShutdown) {
         buffer->mFrameCount = 0;
