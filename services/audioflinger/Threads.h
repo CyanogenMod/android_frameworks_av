@@ -938,9 +938,11 @@ private:
 
             AudioStreamIn                       *mInput;
             SortedVector < sp<RecordTrack> >    mTracks;
-            // mActiveTrack has dual roles:  it indicates the current active track, and
+            // mActiveTracks has dual roles:  it indicates the current active track(s), and
             // is used together with mStartStopCond to indicate start()/stop() progress
-            sp<RecordTrack>                     mActiveTrack;
+            SortedVector< sp<RecordTrack> >     mActiveTracks;
+            // generation counter for mActiveTracks
+            int                                 mActiveTracksGen;
             Condition                           mStartStopCond;
 
             // updated by RecordThread::readInputParameters()
